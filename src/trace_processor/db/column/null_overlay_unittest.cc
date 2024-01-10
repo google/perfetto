@@ -34,7 +34,6 @@ namespace {
 
 using testing::ElementsAre;
 using testing::IsEmpty;
-using Range = RowMap::Range;
 
 TEST(NullOverlay, SearchInputInsideBoundary) {
   BitVector bv{0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0};
@@ -54,7 +53,7 @@ TEST(NullOverlay, SearchInputOutsideBoundary) {
 
 TEST(NullOverlay, SubsetResultOutsideBoundary) {
   BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  NullOverlay storage(FakeStorage::SearchSubset(5u, RowMap::Range(1, 3)), &bv);
+  NullOverlay storage(FakeStorage::SearchSubset(5u, Range(1, 3)), &bv);
 
   auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));

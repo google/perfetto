@@ -28,14 +28,11 @@ namespace {
 using testing::ElementsAre;
 using testing::IsEmpty;
 
-using Range = RowMap::Range;
-
 TEST(SelectorOverlay, SearchAll) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
   SelectorOverlay storage(FakeStorage::SearchAll(10), &selector);
 
-  auto res =
-      storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(1, 4));
+  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u, 2u, 3u));
 }
 
@@ -43,8 +40,7 @@ TEST(SelectorOverlay, SearchNone) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
   SelectorOverlay storage(FakeStorage::SearchNone(10), &selector);
 
-  auto res =
-      storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(1, 4));
+  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 }
 
@@ -53,8 +49,7 @@ TEST(SelectorOverlay, SearchLimited) {
   SelectorOverlay storage(FakeStorage::SearchSubset(10, Range(4, 5)),
                           &selector);
 
-  auto res =
-      storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(1, 5));
+  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 5));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2u));
 }
 

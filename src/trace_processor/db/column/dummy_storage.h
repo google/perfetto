@@ -34,7 +34,7 @@ class DummyStorage final : public Column {
  public:
   DummyStorage() = default;
 
-  RangeOrBitVector Search(FilterOp, SqlValue, RowMap::Range) const override;
+  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
 
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;

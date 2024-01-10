@@ -62,7 +62,7 @@ std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector& r_or_bv) {
   if (r_or_bv.IsBitVector()) {
     rm = RowMap(std::move(r_or_bv).TakeIfBitVector());
   } else {
-    RowMap::Range range = std::move(r_or_bv).TakeIfRange();
+    Range range = std::move(r_or_bv).TakeIfRange();
     rm = RowMap(range.start, range.end);
   }
   return rm.GetAllIndices();

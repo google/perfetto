@@ -44,7 +44,7 @@ class StringStorage final : public Column {
 
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
-                          RowMap::Range range) const override;
+                          Range range) const override;
 
   RangeOrBitVector IndexSearch(FilterOp op,
                                SqlValue value,
@@ -62,21 +62,18 @@ class StringStorage final : public Column {
   }
 
  private:
-  BitVector LinearSearch(FilterOp, SqlValue, RowMap::Range) const;
+  BitVector LinearSearch(FilterOp, SqlValue, Range) const;
 
   RangeOrBitVector IndexSearchInternal(FilterOp op,
                                        SqlValue sql_val,
                                        uint32_t* indices,
                                        uint32_t indices_size) const;
 
-  RowMap::Range BinarySearchExtrinsic(FilterOp,
-                                      SqlValue,
-                                      uint32_t*,
-                                      uint32_t) const;
+  Range BinarySearchExtrinsic(FilterOp, SqlValue, uint32_t*, uint32_t) const;
 
-  RowMap::Range BinarySearchIntrinsic(FilterOp op,
-                                      SqlValue val,
-                                      RowMap::Range search_range) const;
+  Range BinarySearchIntrinsic(FilterOp op,
+                              SqlValue val,
+                              Range search_range) const;
 
   // TODO(b/307482437): After the migration vectors should be owned by storage,
   // so change from pointer to value.

@@ -39,7 +39,7 @@ class NumericStorageBase : public Column {
 
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
-                          RowMap::Range range) const override;
+                          Range range) const override;
 
   RangeOrBitVector IndexSearch(FilterOp op,
                                SqlValue value,
@@ -66,23 +66,21 @@ class NumericStorageBase : public Column {
   // All viable numeric values for ColumnTypes.
   using NumericValue = std::variant<uint32_t, int32_t, int64_t, double>;
 
-  BitVector LinearSearchInternal(FilterOp op,
-                                 NumericValue val,
-                                 RowMap::Range) const;
+  BitVector LinearSearchInternal(FilterOp op, NumericValue val, Range) const;
 
   BitVector IndexSearchInternal(FilterOp op,
                                 NumericValue value,
                                 uint32_t* indices,
                                 uint32_t indices_count) const;
 
-  RowMap::Range BinarySearchIntrinsic(FilterOp op,
-                                      NumericValue val,
-                                      RowMap::Range search_range) const;
+  Range BinarySearchIntrinsic(FilterOp op,
+                              NumericValue val,
+                              Range search_range) const;
 
-  RowMap::Range BinarySearchExtrinsic(FilterOp op,
-                                      NumericValue val,
-                                      uint32_t* indices,
-                                      uint32_t indices_count) const;
+  Range BinarySearchExtrinsic(FilterOp op,
+                              NumericValue val,
+                              uint32_t* indices,
+                              uint32_t indices_count) const;
 
   const uint32_t size_ = 0;
   const void* data_ = nullptr;

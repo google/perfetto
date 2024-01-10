@@ -23,6 +23,8 @@
 namespace perfetto {
 namespace trace_processor {
 
+using Range = RowMap::Range;
+
 // Result of calling Storage::ValidateSearchResult function.
 enum class SearchValidationResult {
   kOk = 0,       // It makes sense to run search
@@ -35,7 +37,6 @@ enum class SearchValidationResult {
 // BitVector.
 class RangeOrBitVector {
  public:
-  using Range = RowMap::Range;
   explicit RangeOrBitVector(Range range) : val(range) {}
   explicit RangeOrBitVector(BitVector bv) : val(std::move(bv)) {}
 
@@ -52,7 +53,7 @@ class RangeOrBitVector {
   }
 
  private:
-  std::variant<RowMap::Range, BitVector> val = Range();
+  std::variant<Range, BitVector> val = Range();
 };
 
 // Represents the possible filter operations on a column.

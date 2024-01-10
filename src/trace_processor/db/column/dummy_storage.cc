@@ -26,7 +26,7 @@ SearchValidationResult DummyStorage::ValidateSearchConstraints(SqlValue,
   PERFETTO_FATAL("Shouldn't be called");
 }
 
-RangeOrBitVector DummyStorage::Search(FilterOp, SqlValue, RowMap::Range) const {
+RangeOrBitVector DummyStorage::Search(FilterOp, SqlValue, Range) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 
