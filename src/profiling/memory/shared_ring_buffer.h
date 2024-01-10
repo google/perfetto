@@ -186,8 +186,6 @@ class SharedRingBuffer {
 
   // Exposed for fuzzers.
   struct MetadataPage {
-    static_assert(std::is_trivially_constructible<Spinlock>::value,
-                  "Spinlock needs to be trivially constructible.");
     alignas(8) Spinlock spinlock;
     PERFETTO_CROSS_ABI_ALIGNED(std::atomic<uint64_t>) read_pos;
     PERFETTO_CROSS_ABI_ALIGNED(std::atomic<uint64_t>) write_pos;
