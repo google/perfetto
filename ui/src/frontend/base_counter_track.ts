@@ -87,7 +87,6 @@ export abstract class BaseCounterTrack extends TrackBase {
 
   private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
       'QUERY_DONE' = 'UNINITIALIZED';
-  private isDestroyed: boolean = false;
 
   // Cleanup hook for onInit.
   private initState?: Disposable;
@@ -176,23 +175,31 @@ export abstract class BaseCounterTrack extends TrackBase {
     ];
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  async onCreate(): Promise<void> {
+    this.initState = await this.onInit();
+  }
+
+  async onUpdate(): Promise<void> {
     const {
       visibleTimeScale: timeScale,
       visibleWindowTime: vizTime,
     } = globals.timeline;
 
-    {
-      const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
-      const rawStartNs = vizTime.start.toTime();
-      const rawEndNs = vizTime.end.toTime();
-      const rawCountersKey =
-          CacheKey.create(rawStartNs, rawEndNs, windowSizePx);
+    const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
+    const rawStartNs = vizTime.start.toTime();
+    const rawEndNs = vizTime.end.toTime();
+    const rawCountersKey = CacheKey.create(rawStartNs, rawEndNs, windowSizePx);
 
-      // If the visible time range is outside the cached area, requests
-      // asynchronously new data from the SQL engine.
-      this.maybeRequestData(rawCountersKey);
-    }
+    // If the visible time range is outside the cached area, requests
+    // asynchronously new data from the SQL engine.
+    await this.maybeRequestData(rawCountersKey);
+  }
+
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+    const {
+      visibleTimeScale: timeScale,
+      visibleWindowTime: vizTime,
+    } = globals.timeline;
 
     // In any case, draw whatever we have (which might be stale/incomplete).
 
@@ -441,9 +448,7 @@ export abstract class BaseCounterTrack extends TrackBase {
     };
   }
 
-  onDestroy() {
-    super.onDestroy();
-    this.isDestroyed = true;
+  onDestroy(): void {
     if (this.initState) {
       this.initState.dispose();
       this.initState = undefined;
@@ -509,14 +514,7 @@ export abstract class BaseCounterTrack extends TrackBase {
     if (this.sqlState === 'UNINITIALIZED') {
       this.sqlState = 'INITIALIZING';
 
-      if (this.isDestroyed) {
-        return;
-      }
       this.initState = await this.onInit();
-
-      if (this.isDestroyed) {
-        return;
-      }
 
       {
         const queryRes = (await this.engine.query(`
@@ -582,11 +580,6 @@ export abstract class BaseCounterTrack extends TrackBase {
         'tsq',
       ],
     });
-
-    if (this.isDestroyed) {
-      this.sqlState = 'QUERY_DONE';
-      return;
-    }
 
     const queryRes = await this.engine.query(`
       ${this.getSqlPreamble()}

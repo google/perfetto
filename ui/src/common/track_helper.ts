@@ -19,7 +19,7 @@ import {duration, Time, time, TimeSpan} from '../base/time';
 import {raf} from '../core/raf_scheduler';
 import {globals} from '../frontend/globals';
 import {PanelSize} from '../frontend/panel';
-import {SliceRect, Track, TrackContext} from '../public';
+import {SliceRect, Track} from '../public';
 
 export {Store} from '../frontend/store';
 export {EngineProxy} from '../trace_processor/engine';
@@ -39,8 +39,6 @@ type FetchTimeline<Data> = (start: time, end: time, resolution: duration) =>
 // data is needed as the visible window is panned and zoomed about, and
 // includes an FSM to ensure doFetch is not re-entered.
 class TimelineFetcher<Data> implements Disposable {
-  private requestingData = false;
-  private queuedRequest = false;
   private doFetch: FetchTimeline<Data>;
 
   private data_?: Data;
@@ -56,20 +54,20 @@ class TimelineFetcher<Data> implements Disposable {
     this.latestResolution = 0n;
   }
 
-  requestDataForCurrentTime(): void {
+  async requestDataForCurrentTime(): Promise<void> {
     const currentTimeSpan = globals.timeline.visibleTimeSpan;
     const currentResolution = globals.getCurResolution();
-    this.requestData(currentTimeSpan, currentResolution);
+    await this.requestData(currentTimeSpan, currentResolution);
   }
 
-  requestData(timespan: TimeSpan, resolution: duration): void {
+  async requestData(timespan: TimeSpan, resolution: duration): Promise<void> {
     if (this.shouldLoadNewData(timespan, resolution)) {
       // Over request data, one page worth to the left and right.
       const start = Time.sub(timespan.start, timespan.duration);
       const end = Time.add(timespan.end, timespan.duration);
       this.latestTimespan = new TimeSpan(start, end);
       this.latestResolution = resolution;
-      this.loadData();
+      await this.loadData();
     }
   }
 
@@ -78,7 +76,6 @@ class TimelineFetcher<Data> implements Disposable {
   }
 
   dispose() {
-    this.queuedRequest = false;
     this.data_ = undefined;
   }
 
@@ -102,24 +99,11 @@ class TimelineFetcher<Data> implements Disposable {
     return false;
   }
 
-  private loadData(): void {
-    if (this.requestingData) {
-      this.queuedRequest = true;
-      return;
-    }
+  private async loadData(): Promise<void> {
     const {start, end} = this.latestTimespan;
     const resolution = this.latestResolution;
-    this.doFetch(start, end, resolution).then((data) => {
-      this.requestingData = false;
-      this.data_ = data;
-      if (this.queuedRequest) {
-        this.queuedRequest = false;
-        this.loadData();
-      } else {
-        raf.scheduleRedraw();
-      }
-    });
-    this.requestingData = true;
+    this.data_ = await this.doFetch(start, end, resolution);
+    raf.scheduleRedraw();
   }
 }
 
@@ -146,7 +130,9 @@ export abstract class TrackHelperLEGACY<Data> implements Track {
         new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
   }
 
-  onCreate(_ctx: TrackContext): void {}
+  async onUpdate(): Promise<void> {
+    await this.timelineFetcher.requestDataForCurrentTime();
+  }
 
   onDestroy(): void {
     this.timelineFetcher.dispose();
@@ -187,7 +173,6 @@ export abstract class TrackHelperLEGACY<Data> implements Track {
   abstract renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void;
 
   render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
-    this.timelineFetcher.requestDataForCurrentTime();
     this.renderCanvas(ctx, size);
   }
 }
