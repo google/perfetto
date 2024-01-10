@@ -25,7 +25,7 @@ import {TrackData} from '../../common/track_data';
 import {
   NUM_NULL,
   STR_NULL,
-  TrackHelperLEGACY,
+  TimelineFetcher,
 } from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
@@ -42,6 +42,7 @@ import {
   PrimaryTrackSortKey,
   Store,
   STR,
+  Track,
   TrackContext,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
@@ -127,7 +128,7 @@ function isCounterState(x: unknown): x is CounterTrackState {
   }
 }
 
-export class CounterTrack extends TrackHelperLEGACY<Data> {
+export class CounterTrack implements Track {
   private maximumValueSeen = 0;
   private minimumValueSeen = 0;
   private maximumDeltaSeen = 0;
@@ -136,10 +137,10 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
   private store: Store<CounterTrackState>;
   private trackKey: string;
   private uuid = uuidv4();
+  private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   constructor(
       ctx: TrackContext, private config: Config, private engine: EngineProxy) {
-    super();
     this.trackKey = ctx.trackKey;
     this.store = ctx.mountStore<CounterTrackState>((init: unknown) => {
       if (isCounterState(init)) {
@@ -148,6 +149,16 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
         return {scale: this.config.defaultScale ?? 'ZERO_BASED'};
       }
     });
+  }
+
+  async onUpdate(): Promise<void> {
+    await this.fetcher.requestDataForCurrentTime();
+  }
+
+  onFullRedraw(): void {}
+
+  getSliceRect(): undefined {
+    return undefined;
   }
 
   // Returns a valid SQL table name with the given prefix that should be unique
@@ -343,12 +354,12 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
     );
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const {
       visibleTimeScale: timeScale,
     } = globals.timeline;
-    const data = this.data;
+    const data = this.fetcher.data;
 
     // Can't possibly draw anything.
     if (data === undefined || data.timestamps.length === 0) {
@@ -551,7 +562,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
   }
 
   onMouseMove(pos: {x: number, y: number}) {
-    const data = this.data;
+    const data = this.fetcher.data;
     if (data === undefined) return;
     this.mousePos = pos;
     const {visibleTimeScale} = globals.timeline;
@@ -579,7 +590,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
   }
 
   onMouseClick({x}: {x: number}): boolean {
-    const data = this.data;
+    const data = this.fetcher.data;
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);

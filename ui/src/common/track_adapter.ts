@@ -19,10 +19,10 @@ import {assertExists} from '../base/logging';
 import {duration, time} from '../base/time';
 import {PanelSize} from '../frontend/panel';
 import {NewTrackArgs} from '../frontend/track';
-import {SliceRect} from '../public';
+import {SliceRect, Track} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
 
-import {TrackHelperLEGACY} from './track_helper';
+import {TimelineFetcher} from './track_helper';
 
 export {Store} from '../frontend/store';
 export {EngineProxy} from '../trace_processor/engine';
@@ -37,23 +37,22 @@ export {
 
 // This is an adapter to convert old style controller based tracks to new style
 // tracks.
-export class TrackWithControllerAdapter<Config, Data> extends
-    TrackHelperLEGACY<Data> {
+export class TrackWithControllerAdapter<Config, Data> implements Track {
   private track: TrackAdapter<Config, Data>;
   private controller: TrackControllerAdapter<Config, Data>;
+  private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   constructor(
       engine: EngineProxy, trackKey: string, config: Config,
       Track: TrackAdapterClass<Config, Data>,
       Controller: TrackControllerAdapterClass<Config, Data>) {
-    super();
     const args: NewTrackArgs = {
       trackKey,
       engine,
     };
     this.track = new Track(args);
     this.track.setConfig(config);
-    this.track.setDataSource(() => this.data);
+    this.track.setDataSource(() => this.fetcher.data);
     this.controller = new Controller(config, engine);
   }
 
@@ -61,10 +60,14 @@ export class TrackWithControllerAdapter<Config, Data> extends
     await this.controller.onSetup();
   }
 
+  async onUpdate(): Promise<void> {
+    await this.fetcher.requestDataForCurrentTime();
+  }
+
   async onDestroy(): Promise<void> {
     this.track.onDestroy();
     await this.controller.onDestroy();
-    await super.onDestroy();
+    this.fetcher.dispose();
   }
 
   getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect|undefined {
@@ -100,7 +103,7 @@ export class TrackWithControllerAdapter<Config, Data> extends
     return await this.controller.onBoundsChange(start, end, resolution);
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     this.track.renderCanvas(ctx, size);
   }
 }

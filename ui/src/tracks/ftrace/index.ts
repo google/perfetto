@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {duration, Time, time} from '../../base/time';
 import {colorForFtrace} from '../../common/colorizer';
 import {LIMIT, TrackData} from '../../common/track_data';
-import {TrackHelperLEGACY} from '../../common/track_helper';
+import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
@@ -25,6 +27,7 @@ import {
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
+  Track,
 } from '../../public';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
@@ -43,10 +46,36 @@ const MARGIN = 2;
 const RECT_HEIGHT = 18;
 const TRACK_HEIGHT = (RECT_HEIGHT) + (2 * MARGIN);
 
-class FtraceRawTrack extends TrackHelperLEGACY<Data> {
-  constructor(private engine: EngineProxy, private cpu: number) {
-    super();
+class FtraceRawTrack implements Track {
+  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
+
+  constructor(private engine: EngineProxy, private cpu: number) {}
+
+  async onUpdate(): Promise<void> {
+    await this.fetcher.requestDataForCurrentTime();
   }
+
+  async onDestroy?(): Promise<void> {
+    this.fetcher.dispose();
+  }
+
+  onFullRedraw(): void {}
+
+  getSliceRect(): undefined {
+    return undefined;
+  }
+
+  getTrackShellButtons(): m.Children {
+    return null;
+  }
+
+  onMouseMove(): void {}
+
+  onMouseClick(): boolean {
+    return false;
+  }
+
+  onMouseOut(): void {}
 
   getHeight(): number {
     return TRACK_HEIGHT;
@@ -90,12 +119,12 @@ class FtraceRawTrack extends TrackHelperLEGACY<Data> {
     return result;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     const {
       visibleTimeScale,
     } = globals.timeline;
 
-    const data = this.data;
+    const data = this.fetcher.data;
 
     if (data === undefined) return;  // Can't possibly draw anything.
 
