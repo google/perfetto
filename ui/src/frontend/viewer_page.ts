@@ -18,9 +18,11 @@ import {getScrollbarWidth} from '../base/dom_utils';
 import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
+import {pluginManager} from '../common/plugins';
+import {TrackCache, TrackCacheEntry} from '../common/track_cache';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {Track, TrackTags} from '../public';
+import {TrackTags} from '../public';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {DetailsPanel} from './details_panel';
@@ -37,7 +39,6 @@ import {TimeSelectionPanel} from './time_selection_panel';
 import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
-import {TrackCache} from '../common/track_cache';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -232,7 +233,7 @@ class TraceViewer implements m.ClassComponent {
             trackKey: key,
             title: trackBundle.title,
             tags: trackBundle.tags,
-            track: trackBundle.track,
+            trackFSM: trackBundle.trackFSM,
           });
         });
 
@@ -242,7 +243,7 @@ class TraceViewer implements m.ClassComponent {
       const headerPanel = new TrackGroupPanel({
         trackGroupId: group.id,
         key: `trackgroup-${group.id}`,
-        track: trackBundle.track,
+        trackFSM: trackBundle.trackFSM,
         labels: trackBundle.labels,
         tags: trackBundle.tags,
         collapsed: group.collapsed,
@@ -261,7 +262,7 @@ class TraceViewer implements m.ClassComponent {
             trackKey: key,
             title: trackBundle.title,
             tags: trackBundle.tags,
-            track: trackBundle.track,
+            trackFSM: trackBundle.trackFSM,
           });
           childTracks.push(panel);
         }
@@ -310,7 +311,7 @@ class TraceViewer implements m.ClassComponent {
                       trackKey: key,
                       title: trackBundle.title,
                       tags: trackBundle.tags,
-                      track: trackBundle.track,
+                      trackFSM: trackBundle.trackFSM,
                     });
                   }),
                 ],
@@ -331,14 +332,16 @@ class TraceViewer implements m.ClassComponent {
   private resolveTrack(key: string): TrackBundle {
     const trackState = globals.state.tracks[key];
     const {uri, params, name, labels} = trackState;
-    const trackMeta = this.trackCache.resolveTrack(key, uri, params);
-    const track = trackMeta?.track;
-    const tags = trackMeta?.desc.tags;
-    const trackIds = trackMeta?.desc.trackIds;
+    const trackDesc = pluginManager.resolveTrackInfo(uri);
+    const trackCacheEntry =
+        trackDesc && this.trackCache.resolveTrack(key, trackDesc, params);
+    const trackFSM = trackCacheEntry;
+    const tags = trackCacheEntry?.desc.tags;
+    const trackIds = trackCacheEntry?.desc.trackIds;
     return {
       title: name,
       tags,
-      track,
+      trackFSM,
       labels,
       trackIds,
     };
@@ -347,7 +350,7 @@ class TraceViewer implements m.ClassComponent {
 
 interface TrackBundle {
   title: string;
-  track?: Track;
+  trackFSM?: TrackCacheEntry;
   tags?: TrackTags;
   labels?: string[];
   trackIds?: number[];
