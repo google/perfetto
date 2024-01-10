@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {fetchWithTimeout} from '../../../base/http_utils';
+import {exists} from '../../../base/utils';
 import {VERSION} from '../../../gen/perfetto_version';
 import {AdbConnectionImpl} from '../adb_connection_impl';
 import {
@@ -66,7 +67,7 @@ export abstract class AndroidTarget implements RecordingTargetV2 {
     this.adbConnection.onStatus = tracingSessionListener.onStatus;
     this.adbConnection.onDisconnect = tracingSessionListener.onDisconnect;
 
-    if (!this.androidApiLevel) {
+    if (!exists(this.androidApiLevel)) {
       // 1. Fetch the API version from the device.
       const version = await this.adbConnection.shellAndGetOutput(
           'getprop ro.build.version.sdk');

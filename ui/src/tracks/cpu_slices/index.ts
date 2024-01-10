@@ -294,6 +294,7 @@ class CpuSliceTrack implements Track {
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
       const threadInfo = globals.threads.get(utid);
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = threadInfo && threadInfo.pid ? threadInfo.pid : -1;
 
       const isHovering = globals.state.hoveredUtid !== -1;
@@ -329,7 +330,9 @@ class CpuSliceTrack implements Track {
       let title = `[utid:${utid}]`;
       let subTitle = '';
       if (threadInfo) {
+        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
         if (threadInfo.pid) {
+          /* eslint-enable */
           let procName = threadInfo.procName || '';
           if (procName.startsWith('/')) {  // Remove folder paths from name
             procName = procName.substring(procName.lastIndexOf('/') + 1);
@@ -424,6 +427,7 @@ class CpuSliceTrack implements Track {
     if (hoveredThread !== undefined && this.mousePos !== undefined) {
       const tidText = `T: ${hoveredThread.threadName}
       [${hoveredThread.tid}]`;
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (hoveredThread.pid) {
         const pidText = `P: ${hoveredThread.procName}
         [${hoveredThread.pid}]`;
@@ -458,6 +462,7 @@ class CpuSliceTrack implements Track {
     }
     this.utidHoveredInThisTrack = hoveredUtid;
     const threadInfo = globals.threads.get(hoveredUtid);
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     globals.dispatch(
         Actions.setHoveredUtidAndPid({utid: hoveredUtid, pid: hoveredPid}));
@@ -476,6 +481,7 @@ class CpuSliceTrack implements Track {
     const time = visibleTimeScale.pxToHpTime(x);
     const index = search(data.starts, time.toTime());
     const id = index === -1 ? undefined : data.ids[index];
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!id || this.utidHoveredInThisTrack === -1) return false;
     globals.makeSelection(Actions.selectSlice({id, trackKey: this.trackKey}));
     return true;

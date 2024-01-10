@@ -11,6 +11,7 @@ module.exports = {
   'parserOptions': {
     'ecmaVersion': 'latest',
     'sourceType': 'module',
+    'project': './tsconfig.json',
   },
   'plugins': [
     '@typescript-eslint',
@@ -70,5 +71,19 @@ module.exports = {
 
     // Don't allow new introduction of any it is most always a mistake.
     '@typescript-eslint/no-explicit-any': 'error',
+
+    // Prohibit numbers and strings from being used in boolean expressions.
+    '@typescript-eslint/strict-boolean-expressions': [
+      'error',
+      {
+        // Eventually we probably want to enable all of these, for now this
+        // tackles numbers and keeps the error count manageable.
+        allowAny: true,
+        allowNullableBoolean: true,
+        allowNullableString: true,
+        allowNumber: true,
+        allowString: true,
+      },
+    ],
   },
 };

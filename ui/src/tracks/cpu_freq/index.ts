@@ -246,7 +246,7 @@ class CpuFreqTrack implements Track {
       select max(freqValue) as maxFreq
       from ${this.tableName('freq')}
     `);
-    return result.firstRow({'maxFreq': NUM_NULL}).maxFreq || 0;
+    return result.firstRow({'maxFreq': NUM_NULL}).maxFreq ?? 0;
   }
 
   private async queryMaxSourceDur(): Promise<duration> {
@@ -301,7 +301,7 @@ class CpuFreqTrack implements Track {
   }
 
   private maximumValue() {
-    return Math.max(this.config.maximumValue || 0, this.maximumValueSeen);
+    return Math.max(this.config.maximumValue ?? 0, this.maximumValueSeen);
   }
 
   getHeight() {

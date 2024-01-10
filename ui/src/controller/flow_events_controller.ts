@@ -446,14 +446,13 @@ export class FlowEventsController extends Controller<'main'> {
 
     // TODO(b/155483804): This is a hack as annotation slices don't contain
     // flows. We should tidy this up when fixing this bug.
-    if (selection && selection.kind === 'CHROME_SLICE' &&
-        selection.table !== 'annotation') {
+    if (selection.kind === 'CHROME_SLICE' && selection.table !== 'annotation') {
       this.sliceSelected(selection.id);
     } else {
       publishConnectedFlows([]);
     }
 
-    if (selection && selection.kind === 'AREA') {
+    if (selection.kind === 'AREA') {
       this.areaSelected(selection.areaId);
     } else {
       publishSelectedFlows([]);

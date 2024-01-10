@@ -325,6 +325,7 @@ export class EventLatencySliceDetailsPanel extends
             m('.div', this.getDescriptionText())));
 
       const stageWidget = this.getRelevantLinks();
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (stageWidget) {
         rightSideWidgets.push(stageWidget);
       }

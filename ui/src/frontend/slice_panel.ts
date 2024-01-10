@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {duration, time} from '../base/time';
+import {exists} from '../base/utils';
 
 import {globals, SliceDetails} from './globals';
 import {DurationWidget} from './widgets/duration';
@@ -49,12 +50,14 @@ export abstract class SlicePanel implements m.ClassComponent {
     return new Map<string, string|undefined>([
       ['Thread', getDisplayName(sliceInfo.threadName, sliceInfo.tid)],
       ['Process', getDisplayName(sliceInfo.processName, sliceInfo.pid)],
-      ['User ID', sliceInfo.uid ? String(sliceInfo.uid) : undefined],
+      ['User ID', exists(sliceInfo.uid) ? String(sliceInfo.uid) : undefined],
       ['Package name', sliceInfo.packageName],
+      /* eslint-disable @typescript-eslint/strict-boolean-expressions */
       [
         'Version code',
         sliceInfo.versionCode ? String(sliceInfo.versionCode) : undefined,
       ],
+      /* eslint-enable */
     ]);
   }
 

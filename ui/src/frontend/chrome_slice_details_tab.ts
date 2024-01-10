@@ -292,6 +292,7 @@ export class ChromeSliceDetailsTab extends
         m(Section,
           {title: 'Arguments'},
           m(Tree, renderArguments(engine, slice)));
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (precFlows ?? followingFlows ?? args) {
       return m(
           GridLayoutColumn,

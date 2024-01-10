@@ -97,6 +97,7 @@ function parseValue(valueType: ArgValueType, value: {
     case 'string':
       return value.stringValue;
     case 'bool':
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       return !!value.intValue;
     case 'real':
       return value.realValue;

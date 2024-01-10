@@ -55,7 +55,9 @@ export class CpuProfileController extends Controller<'main'> {
 
     this.getSampleData(selectedSample.id)
         .then((sampleData) => {
+          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
           if (sampleData !== undefined && selectedSample &&
+              /* eslint-enable */
               this.lastSelectedSample &&
               this.lastSelectedSample.id === selectedSample.id) {
             const cpuProfileDetails: CpuProfileDetails = {

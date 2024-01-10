@@ -250,7 +250,7 @@ export class PanAndZoomHandler implements Disposable {
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
       this.onPanned(e.deltaX * HORIZONTAL_WHEEL_PAN_SPEED);
       raf.scheduleRedraw();
-    } else if (e.ctrlKey && this.mousePositionX) {
+    } else if (e.ctrlKey && this.mousePositionX !== null) {
       const sign = e.deltaY < 0 ? -1 : 1;
       const deltaY = sign * Math.log2(1 + Math.abs(e.deltaY));
       this.onZoomed(this.mousePositionX, deltaY * WHEEL_ZOOM_SPEED);
@@ -311,7 +311,7 @@ export class PanAndZoomHandler implements Disposable {
     this.shiftDown = down;
     if (this.shiftDown) {
       this.element.style.cursor = PAN_CURSOR;
-    } else if (this.mousePositionX) {
+    } else if (this.mousePositionX !== null) {
       this.element.style.cursor = DRAG_CURSOR;
     }
   }

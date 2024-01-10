@@ -314,12 +314,10 @@ export class App implements m.ClassComponent {
       callback:
           () => {
             const window = getTimeSpanOfSelectionOrVisibleWindow();
-            if (window) {
-              this.enterQueryMode();
-              this.queryText =
-                  `select  where ts >= ${window.start} and ts < ${window.end}`;
-              this.pendingCursorPlacement = 7;
-            }
+            this.enterQueryMode();
+            this.queryText =
+                `select  where ts >= ${window.start} and ts < ${window.end}`;
+            this.pendingCursorPlacement = 7;
           },
     },
     {
@@ -328,10 +326,8 @@ export class App implements m.ClassComponent {
       callback:
           () => {
             const window = getTimeSpanOfSelectionOrVisibleWindow();
-            if (window) {
-              const query = `ts >= ${window.start} and ts < ${window.end}`;
-              copyToClipboard(query);
-            }
+            const query = `ts >= ${window.start} and ts < ${window.end}`;
+            copyToClipboard(query);
           },
     },
     {

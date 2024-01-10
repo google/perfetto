@@ -156,6 +156,8 @@ export class WebsocketConnection {
       target.disconnect();
     }
     this.targets.clear();
+
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (this.onTargetChange) {
       this.onTargetChange();
     }

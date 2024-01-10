@@ -30,7 +30,9 @@ export class AreaSelectionHandler {
     // 2. The new area is undefined and the old area defined (viceversa from 1).
     // 3. Both areas are defined but their start or end times differ.
     // 4. Both areas are defined but their tracks differ.
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     let hasAreaChanged = (!!this.previousArea !== !!selectedArea);
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (selectedArea && this.previousArea) {
       // There seems to be an issue with clang-format http://shortn/_Pt98d5MCjG
       // where `a ||= b` is formatted to `a || = b`, by inserting a space which

@@ -199,10 +199,8 @@ export class ChromeTracingController extends RpcConsumerPort {
   }
 
   getTraceStats() {
-    let percentFull = 0;  // If the statistics are not available yet, it is 0.
-    if (this.lastBufferUsageEvent && this.lastBufferUsageEvent.percentFull) {
-      percentFull = this.lastBufferUsageEvent.percentFull;
-    }
+    // If the statistics are not available yet, it is 0.
+    const percentFull = this.lastBufferUsageEvent?.percentFull ?? 0;
     const stats: ITraceStats = {
       bufferStats:
           [{bufferSize: 1000, bytesWritten: Math.round(percentFull * 1000)}],
