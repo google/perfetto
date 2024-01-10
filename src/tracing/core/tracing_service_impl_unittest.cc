@@ -4978,19 +4978,31 @@ TEST_F(TracingServiceImplTest, CloneSessionAcrossUidForBugreport) {
   producer->RegisterDataSource("ds_1");
 
   // The consumer that clones it and reads back the data.
-  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
-  consumer2->Connect(svc.get(), 1234);
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get(), 1234);
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(32);
   trace_config.set_bugreport_score(1);
-  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
-  ds_cfg->set_name("ds_1");
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_1");
 
-  EXPECT_CALL(*producer, SetupDataSource(_, _));
-  EXPECT_CALL(*producer, StartDataSource(_, _));
+  // Add a trace filter and ensure it's ignored for bugreports (b/317065412).
+  protozero::FilterBytecodeGenerator filt;
+  filt.AddNestedField(1 /* root trace.packet*/, 1);
+  filt.EndMessage();
+  // Add a random field to keep the generator happy. This technically still
+  // filters out the for_testing packet that we are using below.
+  filt.AddSimpleField(protos::pbzero::TracePacket::kTraceUuidFieldNumber);
+  filt.EndMessage();
+  trace_config.mutable_trace_filter()->set_bytecode_v2(filt.Serialize());
+
   consumer->EnableTracing(trace_config);
   producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+  writer->NewTracePacket()->set_for_testing()->set_str("payload");
+  writer.reset();
 
   auto flush_request = consumer->Flush();
   FlushFlags flush_flags(FlushFlags::Initiator::kConsumerSdk,
@@ -4999,7 +5011,7 @@ TEST_F(TracingServiceImplTest, CloneSessionAcrossUidForBugreport) {
   ASSERT_TRUE(flush_request.WaitForReply());
 
   auto clone_done = task_runner.CreateCheckpoint("clone_done");
-  EXPECT_CALL(*consumer2, OnSessionCloned(_))
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
       .WillOnce(Invoke([clone_done](const Consumer::OnSessionClonedArgs& args) {
         clone_done();
         ASSERT_TRUE(args.success);
@@ -5010,8 +5022,13 @@ TEST_F(TracingServiceImplTest, CloneSessionAcrossUidForBugreport) {
                           FlushFlags::CloneTarget::kBugreport);
   producer->ExpectFlush({}, /*reply=*/true, flush_flags2);
 
-  consumer2->CloneSession(kBugreportSessionId);
+  clone_consumer->CloneSession(kBugreportSessionId);
   task_runner.RunUntilCheckpoint("clone_done");
+
+  auto packets = clone_consumer->ReadBuffers();
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  HasSubstr("payload")))));
 }
 
 TEST_F(TracingServiceImplTest, TransferOnClone) {

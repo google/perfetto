@@ -732,6 +732,7 @@ class TracingServiceImpl : public TracingService {
   TraceBuffer* GetBufferByID(BufferID);
   base::Status DoCloneSession(ConsumerEndpointImpl*,
                               TracingSessionID,
+                              bool for_bugreport,
                               bool final_flush_outcome,
                               base::Uuid*);
 
