@@ -44,7 +44,7 @@ SearchValidationResult DenseNullOverlay::ValidateSearchConstraints(
 
 RangeOrBitVector DenseNullOverlay::Search(FilterOp op,
                                           SqlValue sql_val,
-                                          RowMap::Range in) const {
+                                          Range in) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "DenseNullOverlay::Search");
 
   if (op == FilterOp::kIsNull) {
@@ -70,7 +70,7 @@ RangeOrBitVector DenseNullOverlay::Search(FilterOp op,
     // If the inner storage returns a range, mask out the appropriate values in
     // |non_null_| which matches the range. Then, resize to |in.end| as this
     // is mandated by the API contract of |Storage::Search|.
-    RowMap::Range inner_range = std::move(inner_res).TakeIfRange();
+    Range inner_range = std::move(inner_res).TakeIfRange();
     PERFETTO_DCHECK(inner_range.end <= in.end);
     PERFETTO_DCHECK(inner_range.start >= in.start);
     res = non_null_->IntersectRange(inner_range.start, inner_range.end);
@@ -116,7 +116,7 @@ RangeOrBitVector DenseNullOverlay::IndexSearch(FilterOp op,
         return RangeOrBitVector(std::move(null_indices).Build());
       }
       case SearchValidationResult::kAllData:
-        return RangeOrBitVector(RowMap::Range(0, indices_size));
+        return RangeOrBitVector(Range(0, indices_size));
       case SearchValidationResult::kOk:
         break;
     }
@@ -125,7 +125,7 @@ RangeOrBitVector DenseNullOverlay::IndexSearch(FilterOp op,
   RangeOrBitVector inner_res =
       inner_->IndexSearch(op, sql_val, indices, indices_size, sorted);
   if (inner_res.IsRange()) {
-    RowMap::Range inner_range = std::move(inner_res).TakeIfRange();
+    Range inner_range = std::move(inner_res).TakeIfRange();
     BitVector::Builder builder(indices_size, inner_range.start);
     for (uint32_t i = inner_range.start; i < inner_range.end; ++i) {
       builder.Append(non_null_->IsSet(indices[i]));

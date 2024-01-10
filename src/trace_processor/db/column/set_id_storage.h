@@ -41,7 +41,7 @@ class SetIdStorage final : public Column {
 
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
-                          RowMap::Range range) const override;
+                          Range range) const override;
 
   RangeOrBitVector IndexSearch(FilterOp op,
                                SqlValue value,
@@ -61,9 +61,7 @@ class SetIdStorage final : public Column {
 
  private:
   BitVector IndexSearch(FilterOp, SetId, uint32_t*, uint32_t) const;
-  RowMap::Range BinarySearchIntrinsic(FilterOp,
-                                      SetId,
-                                      RowMap::Range search_range) const;
+  Range BinarySearchIntrinsic(FilterOp, SetId, Range search_range) const;
 
   // TODO(b/307482437): After the migration vectors should be owned by storage,
   // so change from pointer to value.

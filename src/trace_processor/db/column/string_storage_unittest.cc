@@ -27,7 +27,6 @@ namespace {
 
 using testing::ElementsAre;
 using testing::IsEmpty;
-using Range = RowMap::Range;
 
 TEST(StringStorage, Search) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",

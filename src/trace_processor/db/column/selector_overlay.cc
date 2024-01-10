@@ -25,8 +25,6 @@ namespace perfetto {
 namespace trace_processor {
 namespace column {
 
-using Range = RowMap::Range;
-
 SelectorOverlay::SelectorOverlay(std::unique_ptr<Column> inner,
                                  const BitVector* selector)
     : inner_(std::move(inner)), selector_(selector) {}
@@ -39,7 +37,7 @@ SearchValidationResult SelectorOverlay::ValidateSearchConstraints(
 
 RangeOrBitVector SelectorOverlay::Search(FilterOp op,
                                          SqlValue sql_val,
-                                         RowMap::Range in) const {
+                                         Range in) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "SelectorOverlay::Search");
 
   // Figure out the bounds of the indices in the underlying storage and search

@@ -43,7 +43,7 @@ class IdStorage final : public Column {
 
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
-                          RowMap::Range range) const override;
+                          Range range) const override;
 
   RangeOrBitVector IndexSearch(FilterOp op,
                                SqlValue value,
@@ -63,9 +63,7 @@ class IdStorage final : public Column {
   using Id = uint32_t;
 
   BitVector IndexSearch(FilterOp, Id, uint32_t*, uint32_t) const;
-  RowMap::Range BinarySearchIntrinsic(FilterOp op,
-                                      Id,
-                                      RowMap::Range search_range) const;
+  Range BinarySearchIntrinsic(FilterOp op, Id, Range search_range) const;
 
   const uint32_t size_ = 0;
 };
