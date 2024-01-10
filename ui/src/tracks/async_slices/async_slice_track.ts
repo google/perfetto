@@ -43,7 +43,7 @@ export class AsyncSliceTrack extends SliceTrackLEGACY {
         dur)) as maxDur from experimental_slice_layout where filter_track_ids
         = '${this.trackIds.join(',')}'
       `);
-      this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
+      this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur ?? 0n;
     }
 
     const queryRes = await this.engine.query(`

@@ -65,7 +65,8 @@ export function clearOverviewData() {
 export function publishTrackData(args: {id: string, data: {}}) {
   globals.setTrackData(args.id, args.data);
   if ([LogExistsKey, LogBoundsKey, LogEntriesKey].includes(args.id)) {
-    const data = globals.trackDataStore.get(LogExistsKey) as LogExists;
+    const trackDataStore = globals.trackDataStore;
+    const data = trackDataStore.get(LogExistsKey) as LogExists | undefined;
     if (data && data.exists) raf.scheduleFullRedraw();
   } else {
     raf.scheduleRedraw();

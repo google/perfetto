@@ -63,7 +63,7 @@ export class ChromeSliceTrack extends SliceTrackLEGACY {
           SELECT max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
           AS maxDur FROM ${tableName} WHERE track_id = ${this.trackId}`;
       const queryRes = await this.engine.query(query);
-      this.maxDurNs = queryRes.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
+      this.maxDurNs = queryRes.firstRow({maxDur: LONG_NULL}).maxDur ?? 0n;
     }
 
     const query = `

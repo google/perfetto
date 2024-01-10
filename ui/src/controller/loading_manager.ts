@@ -22,6 +22,7 @@ export class LoadingManager implements LoadingTracker {
   private numLastUpdate = 0;
 
   static get getInstance(): LoadingManager {
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     return this._instance || (this._instance = new this());
   }
 

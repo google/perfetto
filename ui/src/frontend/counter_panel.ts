@@ -26,9 +26,9 @@ import {Timestamp} from './widgets/timestamp';
 export class CounterDetailsPanel implements m.ClassComponent {
   view() {
     const counterInfo = globals.counterDetails;
-    if (counterInfo && counterInfo.startTime &&
-        counterInfo.name !== undefined && counterInfo.value !== undefined &&
-        counterInfo.delta !== undefined && counterInfo.duration !== undefined) {
+    if (counterInfo.startTime && counterInfo.name !== undefined &&
+        counterInfo.value !== undefined && counterInfo.delta !== undefined &&
+        counterInfo.duration !== undefined) {
       return m(
           DetailsShell,
           {title: 'Counter', description: `${counterInfo.name}`},

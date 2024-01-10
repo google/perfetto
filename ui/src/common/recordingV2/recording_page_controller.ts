@@ -446,6 +446,7 @@ export class RecordingPageController {
   initFactories() {
     assertTrue(this.state <= RecordingState.TARGET_INFO_DISPLAYED);
     for (const targetFactory of targetFactoryRegistry.listTargetFactories()) {
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (targetFactory) {
         targetFactory.setOnTargetChange(this.onTargetChange.bind(this));
       }

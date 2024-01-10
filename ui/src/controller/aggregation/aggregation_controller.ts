@@ -74,6 +74,7 @@ export abstract class AggregationController extends Controller<'main'> {
     const aggregatePreferences =
         globals.state.aggregatePreferences[this.args.kind];
 
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const sortingChanged = aggregatePreferences &&
         this.previousSorting !== aggregatePreferences.sorting;
     const [hasAreaChanged, area] = this.areaSelectionHandler.getAreaChange();
@@ -115,6 +116,7 @@ export abstract class AggregationController extends Controller<'main'> {
     const pref = globals.state.aggregatePreferences[this.kind];
     let sorting = `${this.getDefaultSorting().column} ${
         this.getDefaultSorting().direction}`;
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (pref && pref.sorting) {
       sorting = `${pref.sorting.column} ${pref.sorting.direction}`;
     }

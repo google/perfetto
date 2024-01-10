@@ -197,8 +197,8 @@ class ProcessSummaryPlugin implements Plugin {
       const tid = it.tid;
       const upid = it.upid;
       const pid = it.pid;
-      const hasSched = !!it.hasSched;
-      const isDebuggable = !!it.isDebuggable;
+      const hasSched = Boolean(it.hasSched);
+      const isDebuggable = Boolean(it.isDebuggable);
 
       // Group by upid if present else by utid.
       let pUuid =
@@ -206,7 +206,7 @@ class ProcessSummaryPlugin implements Plugin {
       // These should only happen once for each track group.
       if (pUuid === undefined) {
         pUuid = this.getOrCreateUuid(utid, upid);
-        const pidForColor = pid || tid || upid || utid || 0;
+        const pidForColor = pid ?? tid ?? upid ?? utid ?? 0;
         const type = hasSched ? 'schedule' : 'summary';
         const uri = `perfetto.ProcessScheduling#${upid}.${utid}.${type}`;
 

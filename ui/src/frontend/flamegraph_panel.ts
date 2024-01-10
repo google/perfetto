@@ -70,7 +70,7 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
 
   view() {
     const flamegraphDetails = globals.flamegraphDetails;
-    if (flamegraphDetails && flamegraphDetails.type !== undefined &&
+    if (flamegraphDetails.type !== undefined &&
         flamegraphDetails.start !== undefined &&
         flamegraphDetails.dur !== undefined &&
         flamegraphDetails.pids !== undefined &&

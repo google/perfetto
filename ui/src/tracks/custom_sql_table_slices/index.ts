@@ -136,12 +136,7 @@ export abstract class CustomSqlTableSliceTrack<
 }
 
 class CustomSqlTrackPlugin implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    // noop to allow directory to compile.
-    if (ctx) {
-      return;
-    }
-  }
+  onActivate(_ctx: PluginContext): void {}
 }
 
 export const plugin: PluginDescriptor = {

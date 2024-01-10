@@ -335,7 +335,7 @@ export class PluginManager {
 
     const context = new PluginContextImpl(id, this.commandRegistry);
 
-    plugin.onActivate && plugin.onActivate(context);
+    plugin.onActivate(context);
 
     const pluginDetails: PluginDetails = {
       plugin,
@@ -399,7 +399,7 @@ export class PluginManager {
   metricVisualisations(): MetricVisualisation[] {
     return Array.from(this.plugins.values()).flatMap((ctx) => {
       const tracePlugin = ctx.plugin;
-      if (tracePlugin && tracePlugin.metricVisualisations) {
+      if (tracePlugin.metricVisualisations) {
         return tracePlugin.metricVisualisations(ctx.context);
       } else {
         return [];

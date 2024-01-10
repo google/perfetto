@@ -142,7 +142,7 @@ function checkMods(
   // pressed without the shift key on English keyboards.
   const shiftOk = key.match(/[\?\!]/) || shiftKey === wantShift;
 
-  return metaKey === wantMeta && shiftOk && altKey === wantAlt &&
+  return metaKey === wantMeta && Boolean(shiftOk) && altKey === wantAlt &&
       ctrlKey === wantCtrl;
 }
 

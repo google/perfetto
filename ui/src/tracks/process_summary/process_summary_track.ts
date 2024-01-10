@@ -47,6 +47,7 @@ export class ProcessSummaryTrackController extends
         `create virtual table ${this.tableName('window')} using window;`);
 
     let utids = [this.config.utid];
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (this.config.upid) {
       const threadQuery = await this.query(
           `select utid from thread where upid=${this.config.upid}`);

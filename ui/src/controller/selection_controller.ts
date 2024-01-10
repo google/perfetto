@@ -90,8 +90,7 @@ export class SelectionController extends Controller<'main'> {
     if (selection.kind === 'COUNTER') {
       this.counterDetails(selection.leftTs, selection.rightTs, selection.id)
           .then((results) => {
-            if (results !== undefined && selection &&
-                selection.kind === selectedKind &&
+            if (results !== undefined && selection.kind === selectedKind &&
                 selection.id === selectedId) {
               publishCounterDetails(results);
             }
@@ -189,7 +188,9 @@ export class SelectionController extends Controller<'main'> {
           threadTs = timeFromSql(v);
           break;
         case 'absTime':
+          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
           if (v) absTime = `${v}`;
+          /* eslint-enable */
           break;
         case 'name':
           name = `${v}`;
@@ -378,6 +379,7 @@ export class SelectionController extends Controller<'main'> {
       const endState = row.endState;
       const utid = row.utid;
       const cpu = row.cpu;
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const threadStateId = row.threadStateId || undefined;
       const selected: SliceDetails = {
         ts,
@@ -491,6 +493,7 @@ export class SelectionController extends Controller<'main'> {
       tid: threadInfo.tid,
       threadName: threadInfo.name || undefined,
     };
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (threadInfo.upid) {
       return Object.assign(
           {}, threadDetails, await this.computeProcessDetails(threadInfo.upid));

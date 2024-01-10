@@ -342,7 +342,7 @@ function openCurrentTraceWithOldUI(e: Event) {
   e.preventDefault();
   assertTrue(isTraceLoaded());
   globals.logging.logEvent('Trace Actions', 'Open current trace in legacy UI');
-  if (!isTraceLoaded) return;
+  if (!isTraceLoaded()) return;
   getCurrentTrace()
       .then((file) => {
         openInOldUIWithSizeCheck(file);
@@ -356,7 +356,7 @@ function convertTraceToSystrace(e: Event) {
   e.preventDefault();
   assertTrue(isTraceLoaded());
   globals.logging.logEvent('Trace Actions', 'Convert to .systrace');
-  if (!isTraceLoaded) return;
+  if (!isTraceLoaded()) return;
   getCurrentTrace()
       .then((file) => {
         convertTraceToSystraceAndDownload(file);
@@ -370,7 +370,7 @@ function convertTraceToJson(e: Event) {
   e.preventDefault();
   assertTrue(isTraceLoaded());
   globals.logging.logEvent('Trace Actions', 'Convert to .json');
-  if (!isTraceLoaded) return;
+  if (!isTraceLoaded()) return;
   getCurrentTrace()
       .then((file) => {
         convertTraceToJsonAndDownload(file);

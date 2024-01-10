@@ -20,6 +20,7 @@ import {
   Time,
   time,
 } from '../base/time';
+import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {
   cropText,
@@ -109,7 +110,7 @@ function filterVisibleSlices<S extends Slice>(
   // to the right).
   // Since the slices are sorted by startS we can check this easily:
   const maybeFirstSlice: S|undefined = slices[0];
-  if (maybeFirstSlice && maybeFirstSlice.startNsQ > end) {
+  if (exists(maybeFirstSlice) && maybeFirstSlice.startNsQ > end) {
     return [];
   }
 

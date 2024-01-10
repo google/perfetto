@@ -242,6 +242,7 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
       if (rectWidth < 0.3) continue;
 
       const threadInfo = globals.threads.get(utid);
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = (threadInfo ? threadInfo.pid : -1) || -1;
 
       const isHovering = globals.state.hoveredUtid !== -1;
@@ -267,6 +268,7 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
     const height = this.getHeight();
     if (hoveredThread !== undefined && this.mousePos !== undefined) {
       const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (hoveredThread.pid) {
         const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
         drawTrackHoverTooltip(ctx, this.mousePos, height, pidText, tidText);
@@ -301,6 +303,7 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
     const utid = data.utids[i];
     this.utidHoveredInThisTrack = utid;
     const threadInfo = globals.threads.get(utid);
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     globals.dispatch(Actions.setHoveredUtidAndPid({utid, pid}));
   }
