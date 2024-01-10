@@ -14,7 +14,6 @@
 
 import {v4 as uuidv4} from 'uuid';
 
-import {TrackWithControllerAdapter} from '../../common/track_adapter';
 import {
   Plugin,
   PluginContext,
@@ -30,17 +29,13 @@ import {
 
 import {
   Config as ProcessSchedulingTrackConfig,
-  Data as ProcessSchedulingTrackData,
   PROCESS_SCHEDULING_TRACK_KIND,
   ProcessSchedulingTrack,
-  ProcessSchedulingTrackController,
 } from './process_scheduling_track';
 import {
   Config as ProcessSummaryTrackConfig,
-  Data as ProcessSummaryTrackData,
   PROCESS_SUMMARY_TRACK,
   ProcessSummaryTrack,
-  ProcessSummaryTrackController,
 } from './process_summary_track';
 
 // This plugin now manages both process "scheduling" and "summary" tracks.
@@ -224,16 +219,7 @@ class ProcessSummaryPlugin implements Plugin {
             tags: {
               isDebuggable,
             },
-            track: ({trackKey}) => {
-              return new TrackWithControllerAdapter<
-                  ProcessSchedulingTrackConfig,
-                  ProcessSchedulingTrackData>(
-                  ctx.engine,
-                  trackKey,
-                  config,
-                  ProcessSchedulingTrack,
-                  ProcessSchedulingTrackController);
-            },
+            track: () => new ProcessSchedulingTrack(ctx.engine, config),
           });
         } else {
           const config: ProcessSummaryTrackConfig = {
@@ -249,16 +235,7 @@ class ProcessSummaryPlugin implements Plugin {
             tags: {
               isDebuggable,
             },
-            track: ({trackKey}) => {
-              return new TrackWithControllerAdapter<
-                  ProcessSummaryTrackConfig,
-                  ProcessSummaryTrackData>(
-                  ctx.engine,
-                  trackKey,
-                  config,
-                  ProcessSummaryTrack,
-                  ProcessSummaryTrackController);
-            },
+            track: () => new ProcessSummaryTrack(ctx.engine, config),
           });
         }
       }
@@ -314,16 +291,7 @@ class ProcessSummaryPlugin implements Plugin {
       uri: 'perfetto.ProcessSummary#kernel',
       displayName: `Kernel thread summary`,
       kind: PROCESS_SUMMARY_TRACK,
-      track: ({trackKey}) => {
-        return new TrackWithControllerAdapter<
-            ProcessSummaryTrackConfig,
-            ProcessSummaryTrackData>(
-            ctx.engine,
-            trackKey,
-            config,
-            ProcessSummaryTrack,
-            ProcessSummaryTrackController);
-      },
+      track: () => new ProcessSummaryTrack(ctx.engine, config),
     });
   }
 
