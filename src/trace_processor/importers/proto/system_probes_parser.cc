@@ -163,6 +163,22 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       context->storage->InternString("mem.smaps.pss.file");
   proc_stats_process_names_[ProcessStats::Process::kSmrPssShmemKbFieldNumber] =
       context->storage->InternString("mem.smaps.pss.shmem");
+
+  using PsiResource = protos::pbzero::SysStats::PsiSample::PsiResource;
+  sys_stats_psi_resource_names_[PsiResource::PSI_RESOURCE_UNSPECIFIED] =
+      context->storage->InternString("psi.resource.unspecified");
+  sys_stats_psi_resource_names_[PsiResource::PSI_RESOURCE_CPU_SOME] =
+      context->storage->InternString("psi.cpu.some");
+  sys_stats_psi_resource_names_[PsiResource::PSI_RESOURCE_CPU_FULL] =
+      context->storage->InternString("psi.cpu.full");
+  sys_stats_psi_resource_names_[PsiResource::PSI_RESOURCE_IO_SOME] =
+      context->storage->InternString("psi.io.some");
+  sys_stats_psi_resource_names_[PsiResource::PSI_RESOURCE_IO_FULL] =
+      context->storage->InternString("psi.io.full");
+  sys_stats_psi_resource_names_[PsiResource::PSI_RESOURCE_MEMORY_SOME] =
+      context->storage->InternString("psi.mem.some");
+  sys_stats_psi_resource_names_[PsiResource::PSI_RESOURCE_MEMORY_FULL] =
+      context->storage->InternString("psi.mem.full");
 }
 
 void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
@@ -401,6 +417,25 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
 
   for (auto it = sys_stats.disk_stat(); it; ++it) {
     ParseDiskStats(ts, *it);
+  }
+
+  for (auto it = sys_stats.psi(); it; ++it) {
+    protos::pbzero::SysStats::PsiSample::Decoder psi(*it);
+
+    auto resource = static_cast<size_t>(psi.resource());
+    if (PERFETTO_UNLIKELY(resource >= sys_stats_psi_resource_names_.size())) {
+      PERFETTO_ELOG("PsiResource type %zu is not recognized.", resource);
+      context_->storage->IncrementStats(stats::psi_unknown_resource);
+      continue;
+    }
+
+    // TODO(b/315152880): Consider moving psi entries for cpu/io/memory into
+    // groups specific to that resource (e.g., `Group::kMemory`).
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kDeviceState,
+        sys_stats_psi_resource_names_[resource]);
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(psi.total_ns()), track);
   }
 }
 
