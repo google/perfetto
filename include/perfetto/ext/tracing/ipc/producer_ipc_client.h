@@ -25,6 +25,7 @@
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/tracing/tracing_backend.h"
 
 namespace perfetto {
 
@@ -89,7 +90,8 @@ class PERFETTO_EXPORT_COMPONENT ProducerIPCClient {
       size_t shared_memory_size_hint_bytes = 0,
       size_t shared_memory_page_size_hint_bytes = 0,
       std::unique_ptr<SharedMemory> shm = nullptr,
-      std::unique_ptr<SharedMemoryArbiter> shm_arbiter = nullptr);
+      std::unique_ptr<SharedMemoryArbiter> shm_arbiter = nullptr,
+      CreateSocketAsync create_socket_async = nullptr);
 
  protected:
   ProducerIPCClient() = delete;

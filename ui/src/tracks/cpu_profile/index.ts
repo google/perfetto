@@ -24,6 +24,7 @@ import {
 } from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs} from '../../frontend/track';
 import {
@@ -90,10 +91,6 @@ class CpuProfileTrackController extends TrackControllerAdapter<Config, Data> {
 }
 
 class CpuProfileTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): CpuProfileTrack {
-    return new CpuProfileTrack(args);
-  }
-
   private centerY = this.getHeight() / 2 + BAR_HEIGHT;
   private markerWidth = (this.getHeight() - MARGIN_TOP - BAR_HEIGHT) / 2;
   private hoveredTs: time|undefined = undefined;
@@ -106,10 +103,10 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
     return MARGIN_TOP + RECT_HEIGHT - 1;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
     const {
       visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data();
 
     if (data === undefined) return;
@@ -184,7 +181,7 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
     if (data === undefined) return;
     const {
       visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const time = timeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
@@ -201,7 +198,7 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
     if (data === undefined) return false;
     const {
       visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
 
     const time = timeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());

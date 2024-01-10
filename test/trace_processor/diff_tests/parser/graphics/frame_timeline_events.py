@@ -33,6 +33,13 @@ class JankType:
   JANK_DROPPED = 1024
 
 
+class JankSeverityType:
+  UNKNOWN = 0
+  NONE = 1
+  PARTIAL = 2
+  FULL = 3
+
+
 class PresentType:
   PRESENT_UNSPECIFIED = 0
   PRESENT_ON_TIME = 1
@@ -135,6 +142,7 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=0,
     gpu_composition=0,
     jank_type=JankType.JANK_APP_DEADLINE_MISSED,
+    jank_severity_type=JankSeverityType.FULL,
     prediction_type=PredictionType.PREDICTION_VALID)
 trace.add_frame_end_event(ts=74, cookie=10)
 
@@ -276,6 +284,7 @@ trace.add_actual_surface_frame_start_event(
     on_time_finish=0,
     gpu_composition=0,
     jank_type=JankType.JANK_UNKNOWN,
+    jank_severity_type=JankSeverityType.PARTIAL,
     prediction_type=PredictionType.PREDICTION_EXPIRED)
 trace.add_frame_end_event(ts=190, cookie=25)
 

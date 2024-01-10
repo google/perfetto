@@ -27,14 +27,14 @@ import {globals} from './globals';
 // center |ts|, keeping the same zoom level.
 export function horizontalScrollToTs(ts: time) {
   const time = HighPrecisionTime.fromTime(ts);
-  const visibleWindow = globals.frontendLocalState.visibleWindowTime;
+  const visibleWindow = globals.timeline.visibleWindowTime;
   if (!visibleWindow.contains(time)) {
     // TODO(hjd): This is an ugly jump, we should do a smooth pan instead.
     const halfDuration = visibleWindow.duration.divide(2);
     const newStart = time.sub(halfDuration);
     const newWindow = new HighPrecisionTimeSpan(
         newStart, newStart.add(visibleWindow.duration));
-    globals.frontendLocalState.updateVisibleTime(newWindow);
+    globals.timeline.updateVisibleTime(newWindow);
   }
 }
 
@@ -52,7 +52,7 @@ export function horizontalScrollToTs(ts: time) {
 // - Otherwise, preserve the zoom range.
 export function focusHorizontalRange(
     start: time, end: time, viewPercentage?: number) {
-  const visible = globals.frontendLocalState.visibleWindowTime;
+  const visible = globals.timeline.visibleWindowTime;
   const trace = globals.stateTraceTime();
   const select = HighPrecisionTimeSpan.fromTime(start, end);
 
@@ -68,13 +68,13 @@ export function focusHorizontalRange(
     const paddingPercentage = 1.0 - viewPercentage;
     const paddingTime = select.duration.multiply(paddingPercentage);
     const halfPaddingTime = paddingTime.divide(2);
-    globals.frontendLocalState.updateVisibleTime(select.pad(halfPaddingTime));
+    globals.timeline.updateVisibleTime(select.pad(halfPaddingTime));
     return;
   }
   // If the range is too large to fit on the current zoom level, resize.
   if (select.duration.gt(visible.duration.multiply(0.5))) {
     const paddedRange = select.pad(select.duration.multiply(2));
-    globals.frontendLocalState.updateVisibleTime(paddedRange);
+    globals.timeline.updateVisibleTime(paddedRange);
     return;
   }
   // Calculate the new visible window preserving the zoom level.
@@ -99,9 +99,9 @@ export function focusHorizontalRange(
   // level.
   if (view.start.eq(visible.start) && view.end.eq(visible.end)) {
     const padded = select.pad(select.duration.multiply(2));
-    globals.frontendLocalState.updateVisibleTime(padded);
+    globals.timeline.updateVisibleTime(padded);
   } else {
-    globals.frontendLocalState.updateVisibleTime(view);
+    globals.timeline.updateVisibleTime(view);
   }
 }
 
@@ -135,7 +135,7 @@ export function verticalScrollToTrack(
   // group and scroll to the track or just scroll to the track group.
   if (openGroup) {
     // After the track exists in the dom, it will be scrolled to.
-    globals.frontendLocalState.scrollToTrackKey = trackKey;
+    globals.scrollToTrackKey = trackKey;
     globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
     return;
   } else {

@@ -24,6 +24,7 @@ import {
 import {TrackData} from '../../common/track_data';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs} from '../../frontend/track';
 import {
@@ -87,10 +88,6 @@ const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30.5;
 
 class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): PerfSamplesProfileTrack {
-    return new PerfSamplesProfileTrack(args);
-  }
-
   private centerY = this.getHeight() / 2;
   private markerWidth = (this.getHeight() - MARGIN_TOP) / 2;
   private hoveredTs: time|undefined = undefined;
@@ -103,10 +100,10 @@ class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
     return MARGIN_TOP + RECT_HEIGHT - 1;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
     const {
       visibleTimeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data();
 
     if (data === undefined) return;
@@ -150,7 +147,7 @@ class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
   onMouseMove({x, y}: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());
     const index =
@@ -166,7 +163,7 @@ class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
   onMouseClick({x, y}: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return false;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
 
     const time = visibleTimeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());

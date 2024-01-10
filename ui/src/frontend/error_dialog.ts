@@ -14,30 +14,27 @@
 
 import m from 'mithril';
 
-import {assertExists} from '../base/logging';
+import {ErrorDetails} from '../base/logging';
 import {EXTENSION_URL} from '../common/recordingV2/recording_utils';
-import {TraceUrlSource} from '../common/state';
-import {saveTrace} from '../common/upload_utils';
+import {TraceGcsUploader} from '../common/upload_utils';
 import {RECORDING_V2_FLAG} from '../core/feature_flags';
+import {raf} from '../core/raf_scheduler';
+import {VERSION} from '../gen/perfetto_version';
 
 import {globals} from './globals';
-import {showModal} from './modal';
-import {isShareable} from './trace_attrs';
+import {getCurrentModalKey, showModal} from './modal';
 
-// Never show more than one dialog per minute.
-const MIN_REPORT_PERIOD_MS = 60000;
+const MODAL_KEY = 'crash_modal';
+
+// Never show more than one dialog per 10s.
+const MIN_REPORT_PERIOD_MS = 10000;
 let timeLastReport = 0;
 
-// Keeps the last ERR_QUEUE_MAX_LEN errors while the dialog is throttled.
-const queuedErrors = new Array<string>();
-const ERR_QUEUE_MAX_LEN = 10;
-
-export function maybeShowErrorDialog(errLog: string) {
-  globals.logging.logError(errLog);
+export function maybeShowErrorDialog(err: ErrorDetails) {
   const now = performance.now();
 
   // Here we rely on the exception message from onCannotGrowMemory function
-  if (errLog.includes('Cannot enlarge memory')) {
+  if (err.message.includes('Cannot enlarge memory')) {
     showOutOfMemoryDialog();
     // Refresh timeLastReport to prevent a different error showing a dialog
     timeLastReport = now;
@@ -45,160 +42,204 @@ export function maybeShowErrorDialog(errLog: string) {
   }
 
   if (!RECORDING_V2_FLAG.get()) {
-    if (errLog.includes('Unable to claim interface')) {
+    if (err.message.includes('Unable to claim interface')) {
       showWebUSBError();
       timeLastReport = now;
       return;
     }
 
-    if (errLog.includes('A transfer error has occurred') ||
-        errLog.includes('The device was disconnected') ||
-        errLog.includes('The transfer was cancelled')) {
+    if (err.message.includes('A transfer error has occurred') ||
+        err.message.includes('The device was disconnected') ||
+        err.message.includes('The transfer was cancelled')) {
       showConnectionLostError();
       timeLastReport = now;
       return;
     }
   }
 
-  if (errLog.includes('(ERR:fmt)')) {
+  if (err.message.includes('(ERR:fmt)')) {
     showUnknownFileError();
     return;
   }
 
-  if (errLog.includes('(ERR:rpc_seq)')) {
+  if (err.message.includes('(ERR:rpc_seq)')) {
     showRpcSequencingError();
     return;
   }
 
   if (timeLastReport > 0 && now - timeLastReport <= MIN_REPORT_PERIOD_MS) {
-    queuedErrors.unshift(errLog);
-    if (queuedErrors.length > ERR_QUEUE_MAX_LEN) queuedErrors.pop();
     console.log('Suppressing crash dialog, last error notified too soon.');
     return;
   }
   timeLastReport = now;
 
-  // Append queued errors.
-  while (queuedErrors.length > 0) {
-    const queuedErr = queuedErrors.shift();
-    errLog += `\n\n---------------------------------------\n${queuedErr}`;
+  // If we are already showing a crash dialog, don't overwrite it with a newer
+  // crash. Usually the first crash matters, the rest avalanching effects.
+  if (getCurrentModalKey() === MODAL_KEY) {
+    return;
   }
 
-  const errTitle = errLog.split('\n', 1)[0].substr(0, 80);
-  const userDescription = '';
-  let checked = false;
-  const engine = globals.getCurrentEngine();
-
-  const shareTraceSection: m.Vnode[] = [];
-  if (isShareable() && !urlExists()) {
-    shareTraceSection.push(
-        m(`input[type=checkbox]`, {
-          checked,
-          oninput: (ev: InputEvent) => {
-            checked = (ev.target as HTMLInputElement).checked;
-            if (checked && engine && engine.source.type === 'FILE') {
-              saveTrace(engine.source.file).then((url) => {
-                const errMessage = createErrorMessage(errLog, checked, url);
-                renderModal(
-                    errTitle, errMessage, userDescription, shareTraceSection);
-                return;
-              });
-            }
-            const errMessage = createErrorMessage(errLog, checked);
-            renderModal(
-                errTitle, errMessage, userDescription, shareTraceSection);
-          },
-        }),
-        m('span', `Check this box to share the current trace for debugging
-     purposes.`),
-        m('div.modal-small',
-          `This will create a permalink to this trace, you may
-     leave it unchecked and attach the trace manually
-     to the bug if preferred.`));
-  }
-  renderModal(
-      errTitle,
-      createErrorMessage(errLog, checked),
-      userDescription,
-      shareTraceSection);
+  showModal({
+    key: MODAL_KEY,
+    title: 'Oops, something went wrong. Please file a bug.',
+    content: () => m(ErrorDialogComponent, err),
+  });
 }
 
-function renderModal(
-    errTitle: string,
-    errMessage: string,
-    userDescription: string,
-    shareTraceSection: m.Vnode[]) {
-  showModal({
-    title: 'Oops, something went wrong. Please file a bug.',
-    content:
-        m('div',
-          m('.modal-logs', errMessage),
+
+class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
+  private traceState: 'NOT_AVAILABLE'|'NOT_UPLOADED'|'UPLOADING'|'UPLOADED';
+  private traceType: string = 'No trace loaded';
+  private traceData?: ArrayBuffer|File;
+  private traceUrl?: string;
+  private attachTrace = false;
+  private uploadStatus = '';
+  private userDescription = '';
+  private errorMessage = '';
+  private uploader?: TraceGcsUploader;
+
+  constructor() {
+    this.traceState = 'NOT_AVAILABLE';
+    const engine = globals.getCurrentEngine();
+    if (engine === undefined) return;
+    this.traceType = engine.source.type;
+    // If the trace is either already uploaded, or comes from a postmessage+url
+    // we don't need any re-upload.
+    if (engine && 'url' in engine.source && engine.source.url !== undefined) {
+      this.traceUrl = engine.source.url;
+      this.traceState = 'UPLOADED';
+      // The trace is already uploaded, so assume the user is fine attaching to
+      // the bugreport (this make the checkbox ticked by default).
+      this.attachTrace = true;
+      return;
+    }
+
+    // If the user is not a googler, don't even offer the option to upload it.
+    if (!globals.isInternalUser) return;
+
+    if (engine.source.type === 'FILE') {
+      this.traceState = 'NOT_UPLOADED';
+      this.traceData = engine.source.file;
+      // this.traceSize = this.traceData.size;
+    } else if (engine.source.type === 'ARRAY_BUFFER') {
+      this.traceData = engine.source.buffer;
+      // this.traceSize = this.traceData.byteLength;
+    } else {
+      return;  // Can't upload HTTP+RPC.
+    }
+    this.traceState = 'NOT_UPLOADED';
+  }
+
+  view(vnode: m.Vnode<ErrorDetails>) {
+    const err = vnode.attrs;
+    let msg = `UI: ${location.protocol}//${location.host}/${VERSION}\n\n`;
+
+    // Append the trace stack.
+    msg += `${err.message}\n`;
+    for (const entry of err.stack) {
+      msg += ` - ${entry.name} (${entry.location})\n`;
+    }
+    msg += '\n';
+
+    // Append the trace URL.
+    if (this.attachTrace && this.traceUrl) {
+      msg += `Trace: ${this.traceUrl}\n`;
+    } else if (this.attachTrace && this.traceState === 'UPLOADING') {
+      msg += `Trace: uploading...\n`;
+    } else {
+      msg += `Trace: not available (${this.traceType}). Provide repro steps.\n`;
+    }
+    msg += `UA: ${navigator.userAgent}\n`;
+    msg += `Referrer: ${document.referrer}\n`;
+    this.errorMessage = msg;
+
+    let shareTraceSection: m.Vnode|null = null;
+    if (this.traceState !== 'NOT_AVAILABLE') {
+      shareTraceSection = m(
+          'div',
+          m(
+              'label',
+              m(`input[type=checkbox]`, {
+                checked: this.attachTrace,
+                oninput: (ev: InputEvent) => {
+                  const checked = (ev.target as HTMLInputElement).checked;
+                  this.onUploadCheckboxChange(checked);
+                },
+              }),
+              this.traceState === 'UPLOADING' ?
+                  `Uploading trace... ${this.uploadStatus}` :
+                  'Tick to share the current trace and help debugging',
+              ),  // m('label')
+          m('div.modal-small',
+            `This will upload the trace and attach a link to the bug.
+          You may leave it unchecked and attach the trace manually to the bug
+          if preferred.`),
+      );
+    }  // if (this.traceState !== 'NOT_AVAILABLE')
+
+    return [
+      m(
+          'div',
+          m('.modal-logs', msg),
           m('span', `Please provide any additional details describing
-           how the crash occurred:`),
+        how the crash occurred:`),
           m('textarea.modal-textarea', {
             rows: 3,
             maxlength: 1000,
             oninput: (ev: InputEvent) => {
-              userDescription = (ev.target as HTMLTextAreaElement).value;
+              this.userDescription = (ev.target as HTMLTextAreaElement).value;
             },
-            onkeydown: (e: Event) => {
-              e.stopPropagation();
-            },
-            onkeyup: (e: Event) => {
-              e.stopPropagation();
-            },
+            onkeydown: (e: Event) => e.stopPropagation(),
+            onkeyup: (e: Event) => e.stopPropagation(),
           }),
-          shareTraceSection),
-    buttons: [
-      {
-        text: 'File a bug (Googlers only)',
-        primary: true,
-        id: 'file_bug',
-        action: () => {
-          window.open(
-              createLink(errTitle, errMessage, userDescription), '_blank');
-        },
-      },
-    ],
-  });
-}
-
-// If there is a trace URL to share, we don't have to show the upload checkbox.
-function urlExists() {
-  const engine = globals.getCurrentEngine();
-  return engine !== undefined &&
-      (engine.source.type === 'ARRAY_BUFFER' || engine.source.type === 'URL') &&
-      engine.source.url !== undefined;
-}
-
-function createErrorMessage(errLog: string, checked: boolean, url?: string) {
-  let errMessage = '';
-  const engine = globals.getCurrentEngine();
-  if (checked && url !== undefined) {
-    errMessage += `Trace: ${url}`;
-  } else if (urlExists()) {
-    errMessage +=
-        `Trace: ${(assertExists(engine).source as TraceUrlSource).url}`;
-  } else {
-    errMessage += 'To assist with debugging please attach or link to the ' +
-        'trace you were viewing.';
+          shareTraceSection,
+          ),
+      m('footer',
+        m('button.modal-btn.modal-btn-primary',
+          {onclick: () => this.fileBug(err)},
+          'File a bug (Googlers only)')),
+    ];
   }
-  return errMessage + '\n\n' +
-      'Viewed on: ' + self.location.origin + '\n\n' + errLog;
-}
 
-function createLink(
-    errTitle: string, errMessage: string, userDescription: string): string {
-  let link = 'https://goto.google.com/perfetto-ui-bug';
-  link += '?title=' + encodeURIComponent(`UI Error: ${errTitle}`);
-  link += '&description=';
-  if (userDescription !== '') {
-    link +=
-        encodeURIComponent('User description:\n' + userDescription + '\n\n');
+  private onUploadCheckboxChange(checked: boolean) {
+    raf.scheduleFullRedraw();
+    this.attachTrace = checked;
+
+    if (checked && this.traceData !== undefined &&
+        this.traceState === 'NOT_UPLOADED') {
+      this.traceState = 'UPLOADING';
+      this.uploadStatus = '';
+      const uploader = new TraceGcsUploader(this.traceData, () => {
+        raf.scheduleFullRedraw();
+        this.uploadStatus = uploader.getEtaString();
+        if (uploader.state === 'UPLOADED') {
+          this.traceState = 'UPLOADED';
+          this.traceUrl = uploader.uploadedUrl;
+        } else if (uploader.state === 'ERROR') {
+          this.traceState = 'NOT_UPLOADED';
+          this.uploadStatus = uploader.error;
+        }
+      });
+      this.uploader = uploader;
+    } else if (!checked && this.uploader) {
+      this.uploader.abort();
+    }
   }
-  link += encodeURIComponent(errMessage);
-  // 8kb is common limit on request size so restrict links to that long:
-  return link.substr(0, 8000);
+
+  private fileBug(err: ErrorDetails) {
+    const errTitle = err.message.split('\n', 1)[0].substring(0, 80);
+    let url = 'https://goto.google.com/perfetto-ui-bug';
+    url += '?title=' + encodeURIComponent(`UI Error: ${errTitle}`);
+    url += '&description=';
+    if (this.userDescription !== '') {
+      url += encodeURIComponent(
+          'User description:\n' + this.userDescription + '\n\n');
+    }
+    url += encodeURIComponent(this.errorMessage);
+    // 8kb is common limit on request size so restrict links to that long:
+    url = url.substring(0, 8000);
+    window.open(url, '_blank');
+  }
 }
 
 function showOutOfMemoryDialog() {
@@ -227,7 +268,6 @@ function showOutOfMemoryDialog() {
         m('span', 'For details see '),
         m('a', {href: url, target: '_blank'}, url),
         ),
-    buttons: [],
   });
 }
 
@@ -249,7 +289,6 @@ function showUnknownFileError() {
             m('li', 'Ninja build log'),
             ),
         ),
-    buttons: [],
   });
 }
 
@@ -266,7 +305,6 @@ function showWebUSBError() {
         m('span', 'For details see '),
         m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
         ),
-    buttons: [],
   });
 }
 
@@ -298,7 +336,6 @@ export function showWebUSBErrorV2() {
         m('span', 'For details see '),
         m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
         ),
-    buttons: [],
   });
 }
 
@@ -309,7 +346,6 @@ export function showConnectionLostError(): void {
         'div',
         m('span', `Please connect the device again to restart the recording.`),
         m('br')),
-    buttons: [],
   });
 }
 
@@ -318,7 +354,6 @@ export function showAllowUSBDebugging(): void {
     title: 'Could not connect to the device',
     content: m(
         'div', m('span', 'Please allow USB debugging on the device.'), m('br')),
-    buttons: [],
   });
 }
 
@@ -330,7 +365,6 @@ export function showNoDeviceSelected(): void {
           m('span', `If you want to connect to an ADB device,
            please select it from the list.`),
           m('br')),
-    buttons: [],
   });
 }
 
@@ -344,7 +378,6 @@ export function showExtensionNotInstalled(): void {
             m('a', {href: EXTENSION_URL, target: '_blank'}, 'Chrome extension'),
             ' and then reload this page.'),
           m('br')),
-    buttons: [],
   });
 }
 
@@ -352,7 +385,6 @@ export function showWebsocketConnectionIssue(message: string): void {
   showModal({
     title: 'Unable to connect to the device via websocket',
     content: m('div', m('span', message), m('br')),
-    buttons: [],
   });
 }
 
@@ -361,7 +393,6 @@ export function showIssueParsingTheTracedResponse(message: string): void {
     title: 'A problem was encountered while connecting to' +
         ' the Perfetto tracing service',
     content: m('div', m('span', message), m('br')),
-    buttons: [],
   });
 }
 
@@ -379,7 +410,6 @@ export function showFailedToPushBinary(message: string): void {
           m('span', 'Error message:'),
           m('br'),
           m('span', message)),
-    buttons: [],
   });
 }
 
@@ -395,6 +425,5 @@ restarting the trace processor while still in use by UI.`),
         m('p', `Please refresh this tab and ensure that trace processor is used
 at most one tab at a time.`),
         ),
-    buttons: [],
   });
 }

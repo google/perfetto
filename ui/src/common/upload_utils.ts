@@ -18,21 +18,92 @@ import {RecordConfig} from '../controller/record_config_types';
 export const BUCKET_NAME = 'perfetto-ui-data';
 import {v4 as uuidv4} from 'uuid';
 import {State} from './state';
+import {defer} from '../base/deferred';
+import {Time} from '../base/time';
 
-export async function saveTrace(trace: File|ArrayBuffer): Promise<string> {
-  // TODO(hjd): This should probably also be a hash but that requires
-  // trace processor support.
-  const name = uuidv4();
-  const url = 'https://www.googleapis.com/upload/storage/v1/b/' +
-      `${BUCKET_NAME}/o?uploadType=media` +
-      `&name=${name}&predefinedAcl=publicRead`;
-  const response = await fetch(url, {
-    method: 'post',
-    headers: {'Content-Type': 'application/octet-stream;'},
-    body: trace,
-  });
-  await response.json();
-  return `https://storage.googleapis.com/${BUCKET_NAME}/${name}`;
+export class TraceGcsUploader {
+  state: 'UPLOADING'|'UPLOADED'|'ERROR' = 'UPLOADING';
+  error = '';
+  totalSize = 0;
+  uploadedSize = 0;
+  uploadedUrl = '';
+  onProgress: () => void;
+  private req: XMLHttpRequest;
+  private reqUrl: string;
+  private donePromise = defer<void>();
+  private startTime = performance.now();
+
+  constructor(trace: File|ArrayBuffer, onProgress?: () => void) {
+    // TODO(hjd): This should probably also be a hash but that requires
+    // trace processor support.
+    const name = uuidv4();
+    this.uploadedUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${name}`;
+    this.reqUrl = 'https://www.googleapis.com/upload/storage/v1/b/' +
+        `${BUCKET_NAME}/o?uploadType=media` +
+        `&name=${name}&predefinedAcl=publicRead`;
+    this.onProgress = onProgress || (() => {});
+    this.req = new XMLHttpRequest();
+    this.req.onabort = (e: ProgressEvent) => this.onRpcEvent(e);
+    this.req.onerror = (e: ProgressEvent) => this.onRpcEvent(e);
+    this.req.upload.onprogress = (e: ProgressEvent) => this.onRpcEvent(e);
+    this.req.onloadend = (e: ProgressEvent) => this.onRpcEvent(e);
+    this.req.open('POST', this.reqUrl);
+    this.req.setRequestHeader('Content-Type', 'application/octet-stream');
+    this.req.send(trace);
+  }
+
+  waitForCompletion(): Promise<void> {
+    return this.donePromise;
+  }
+
+  abort() {
+    if (this.state === 'UPLOADING') {
+      this.req.abort();
+    }
+  }
+
+  getEtaString() {
+    let str = `${Math.ceil(100 * this.uploadedSize / this.totalSize)}%`;
+    str += ` (${(this.uploadedSize / 1e6).toFixed(2)} MB)`;
+    const elapsed = (performance.now() - this.startTime) / 1000;
+    const rate = this.uploadedSize / elapsed;
+    const etaSecs = Math.round((this.totalSize - this.uploadedSize) / rate);
+    str += ' - ETA: ' + Time.toTimecode(Time.fromSeconds(etaSecs)).dhhmmss;
+    return str;
+  }
+
+  private onRpcEvent(e: ProgressEvent) {
+    let done = false;
+    switch (e.type) {
+      case 'progress':
+        this.uploadedSize = e.loaded;
+        this.totalSize = e.total;
+        break;
+      case 'abort':
+        this.state = 'ERROR';
+        this.error = 'Upload aborted';
+        break;
+      case 'error':
+        this.state = 'ERROR';
+        this.error = `${this.req.status} - ${this.req.statusText}`;
+        break;
+      case 'loadend':
+        done = true;
+        if (this.req.status === 200) {
+          this.state = 'UPLOADED';
+        } else if (this.state === 'UPLOADING') {
+          this.state = 'ERROR';
+          this.error = `${this.req.status} - ${this.req.statusText}`;
+        }
+        break;
+      default:
+        return;
+    }
+    this.onProgress();
+    if (done) {
+      this.donePromise.resolve();
+    }
+  }
 }
 
 // Bigint's are not serializable using JSON.stringify, so we use a special

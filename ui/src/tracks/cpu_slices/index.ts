@@ -34,6 +34,7 @@ import {
 import {TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   EngineProxy,
@@ -209,10 +210,6 @@ const RECT_HEIGHT = 24;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
 class CpuSliceTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): CpuSliceTrack {
-    return new CpuSliceTrack(args);
-  }
-
   private mousePos?: {x: number, y: number};
   private utidHoveredInThisTrack = -1;
 
@@ -224,9 +221,9 @@ class CpuSliceTrack extends TrackAdapter<Config, Data> {
     return TRACK_HEIGHT;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {visibleTimeScale, windowSpan} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const data = this.data();
 
     if (data === undefined) return;  // Can't possibly draw anything.
@@ -236,8 +233,8 @@ class CpuSliceTrack extends TrackAdapter<Config, Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        windowSpan.start,
-        windowSpan.end,
+        0,
+        size.width,
         visibleTimeScale.timeToPx(data.start),
         visibleTimeScale.timeToPx(data.end));
 
@@ -249,7 +246,7 @@ class CpuSliceTrack extends TrackAdapter<Config, Data> {
       visibleTimeScale,
       visibleTimeSpan,
       visibleWindowTime,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
@@ -428,7 +425,7 @@ class CpuSliceTrack extends TrackAdapter<Config, Data> {
     const data = this.data();
     this.mousePos = pos;
     if (data === undefined) return;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     if (pos.y < MARGIN_TOP || pos.y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
       globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
@@ -462,7 +459,7 @@ class CpuSliceTrack extends TrackAdapter<Config, Data> {
   onMouseClick({x}: {x: number}) {
     const data = this.data();
     if (data === undefined) return false;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);
     const index = search(data.starts, time.toTime());
     const id = index === -1 ? undefined : data.ids[index];

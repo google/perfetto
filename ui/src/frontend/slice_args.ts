@@ -30,8 +30,7 @@ import {
 } from '../tracks/visualised_args';
 import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
-import {Section} from '../widgets/section';
-import {Tree, TreeNode} from '../widgets/tree';
+import {TreeNode} from '../widgets/tree';
 
 import {addTab} from './bottom_tab';
 import {globals} from './globals';
@@ -40,18 +39,19 @@ import {SliceDetails} from './sql/slice';
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
 
-// Renders slice arguments (key/value pairs) into a Tree widget.
+// Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(
     engine: EngineProxy, slice: SliceDetails): m.Children {
   if (slice.args && slice.args.length > 0) {
     const tree = convertArgsToTree(slice.args);
-    return m(
-        Section,
-        {title: 'Arguments'},
-        m(Tree, renderArgTreeNodes(engine, tree)));
+    return renderArgTreeNodes(engine, tree);
   } else {
     return undefined;
   }
+}
+
+export function hasArgs(slice: SliceDetails): boolean {
+  return exists(slice.args) && slice.args.length > 0;
 }
 
 function renderArgTreeNodes(

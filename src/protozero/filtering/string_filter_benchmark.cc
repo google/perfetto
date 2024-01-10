@@ -62,10 +62,12 @@ void Benchmark(benchmark::State& state,
 
   std::vector<char> storage;
   auto strs = LoadTraceStrings(state, storage);
+  uint32_t match = 0;
   for (auto _ : state) {
-    uint32_t match = 0;
+    match = 0;
+    std::vector<char> local = storage;
     for (auto& str : strs) {
-      match += rewriter.MaybeFilter(storage.data() + str.first, str.second);
+      match += rewriter.MaybeFilter(local.data() + str.first, str.second);
     }
     benchmark::DoNotOptimize(match);
   }
@@ -73,6 +75,12 @@ void Benchmark(benchmark::State& state,
       benchmark::Counter(static_cast<double>(strs.size()),
                          benchmark::Counter::kIsIterationInvariantRate |
                              benchmark::Counter::kInvert);
+  state.counters["time/redaction"] =
+      benchmark::Counter(static_cast<double>(match),
+                         benchmark::Counter::kIsIterationInvariantRate |
+                             benchmark::Counter::kInvert);
+  state.counters["redactions"] = benchmark::Counter(
+      static_cast<double>(match), benchmark::Counter::kDefaults);
 }
 
 }  // namespace
@@ -111,6 +119,15 @@ BENCHMARK(BM_ProtozeroStringRewriterAtraceRedactRare)
     ->Unit(benchmark::kMillisecond)
     ->Arg(10);
 
+static void BM_ProtozeroStringRewriterAtraceSearchSingleRedactRare(
+    benchmark::State& state) {
+  Benchmark(state, Policy::kAtraceRepeatedSearchRedactGroups,
+            R"(VerifyClass (.*)\n)", "VerifyClass");
+}
+BENCHMARK(BM_ProtozeroStringRewriterAtraceSearchSingleRedactRare)
+    ->Unit(benchmark::kMillisecond)
+    ->Arg(10);
+
 static void BM_ProtozeroStringRewriterRedactCommon(benchmark::State& state) {
   Benchmark(state, Policy::kMatchRedactGroups,
             R"(B\|[^|]+\|Lock contention on a monitor lock (.*)\n)", "");
@@ -126,5 +143,23 @@ static void BM_ProtozeroStringRewriterAtraceRedactCommon(
             "Lock contention on a monitor lock");
 }
 BENCHMARK(BM_ProtozeroStringRewriterAtraceRedactCommon)
+    ->Unit(benchmark::kMillisecond)
+    ->Arg(10);
+
+static void BM_ProtozeroStringRewriterAtraceRedactSpammy(
+    benchmark::State& state) {
+  Benchmark(state, Policy::kAtraceMatchRedactGroups,
+            R"(C\|[^|]+\|Heap size \(KB\)\|(\d+)\n)", "Heap size (KB)");
+}
+BENCHMARK(BM_ProtozeroStringRewriterAtraceRedactSpammy)
+    ->Unit(benchmark::kMillisecond)
+    ->Arg(10);
+
+static void BM_ProtozeroStringRewriterAtraceSearchSingleRedactSpammy(
+    benchmark::State& state) {
+  Benchmark(state, Policy::kAtraceRepeatedSearchRedactGroups,
+            R"(Heap size \(KB\)\|(\d+))", "Heap size (KB)");
+}
+BENCHMARK(BM_ProtozeroStringRewriterAtraceSearchSingleRedactSpammy)
     ->Unit(benchmark::kMillisecond)
     ->Arg(10);

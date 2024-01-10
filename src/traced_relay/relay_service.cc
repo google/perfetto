@@ -15,22 +15,37 @@
  */
 
 #include "src/traced_relay/relay_service.h"
+
 #include <memory>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "protos/perfetto/ipc/wire_protocol.gen.h"
 #include "src/ipc/buffered_frame_deserializer.h"
 #include "src/traced_relay/socket_relay_handler.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <sys/utsname.h>
+#include <unistd.h>
+#endif
+
 using ::perfetto::protos::gen::IPCFrame;
 
 namespace perfetto {
 
 RelayService::RelayService(base::TaskRunner* task_runner)
-    : task_runner_(task_runner) {}
+    : task_runner_(task_runner), machine_id_hint_(GetMachineIdHint()) {}
 
 void RelayService::Start(const char* listening_socket_name,
                          const char* client_socket_name) {
@@ -77,6 +92,8 @@ void RelayService::OnNewIncomingConnection(
   set_peer_identity->set_uid(
       static_cast<int32_t>(server_conn->peer_uid_posix()));
 
+  set_peer_identity->set_machine_id_hint(machine_id_hint_);
+
   // Buffer the SetPeerIdentity request.
   auto req = ipc::BufferedFrameDeserializer::Serialize(ipc_frame);
   SocketWithBuffer server, client;
@@ -121,6 +138,63 @@ void RelayService::OnDisconnect(base::UnixSocket*) {
 
 void RelayService::OnDataAvailable(base::UnixSocket*) {
   PERFETTO_DFATAL("Should be unreachable.");
+}
+
+std::string RelayService::GetMachineIdHint(
+    bool use_pseudo_boot_id_for_testing) {
+  // Gets kernel boot ID if possible.
+  std::string boot_id;
+  if (!use_pseudo_boot_id_for_testing &&
+      base::ReadFile("/proc/sys/kernel/random/boot_id", &boot_id)) {
+    return base::StripSuffix(boot_id, "\n");
+  }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  auto get_pseudo_boot_id = []() -> std::string {
+    base::Hasher hasher;
+    const char* dev_path = "/dev";
+    // Generate a pseudo-unique identifier for the current machine.
+    // Source 1: system boot timestamp from the creation time of /dev inode.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+    // Mac or iOS, just use stat(2).
+    struct stat stat_buf {};
+    int rc = PERFETTO_EINTR(stat(dev_path, &stat_buf));
+    if (rc == -1)
+      return std::string();
+    hasher.Update(reinterpret_cast<const char*>(&stat_buf.st_birthtimespec),
+                  sizeof(stat_buf.st_birthtimespec));
+#else
+    // Android or Linux, use statx(2)
+    struct statx stat_buf {};
+    auto rc = PERFETTO_EINTR(syscall(__NR_statx, /*dirfd=*/-1, dev_path,
+                                     /*flags=*/0, STATX_BTIME, &stat_buf));
+    if (rc == -1)
+      return std::string();
+    hasher.Update(reinterpret_cast<const char*>(&stat_buf.stx_btime),
+                  sizeof(stat_buf.stx_btime));
+#endif
+
+    // Source 2: uname(2).
+    utsname kernel_info{};
+    if (uname(&kernel_info) == -1)
+      return std::string();
+
+    // Create a non-cryptographic digest of bootup timestamp and everything in
+    // utsname.
+    hasher.Update(reinterpret_cast<const char*>(&kernel_info),
+                  sizeof(kernel_info));
+    return base::Uint64ToHexStringNoPrefix(hasher.digest());
+  };
+
+  auto pseudo_boot_id = get_pseudo_boot_id();
+  if (!pseudo_boot_id.empty())
+    return pseudo_boot_id;
+#endif
+
+  // If all above failed, return nothing.
+  return std::string();
 }
 
 }  // namespace perfetto

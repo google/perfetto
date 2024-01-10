@@ -40,6 +40,13 @@ class RelayService : public base::UnixSocket::EventListener {
   // |server_socket_name| and |client_socket_name| ports.
   void Start(const char* server_socket_name, const char* client_socket_name);
 
+  static std::string GetMachineIdHint(
+      bool use_pseudo_boot_id_for_testing = false);
+
+  void SetMachineIdHintForTesting(std::string machine_id_hint) {
+    machine_id_hint_ = machine_id_hint;
+  }
+
  private:
   struct PendingConnection {
     // This keeps a connected UnixSocketRaw server socket in its first element.
@@ -59,6 +66,9 @@ class RelayService : public base::UnixSocket::EventListener {
   void OnDataAvailable(base::UnixSocket* self) override;
 
   base::TaskRunner* const task_runner_ = nullptr;
+
+  // A hint to the host traced for inferring the identifier of this machine.
+  std::string machine_id_hint_;
 
   std::unique_ptr<base::UnixSocket> listening_socket_;
   std::string client_socket_name_;

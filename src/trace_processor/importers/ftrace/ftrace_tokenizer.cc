@@ -27,6 +27,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/power.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -51,6 +52,47 @@ PERFETTO_ALWAYS_INLINE base::StatusOr<int64_t> ResolveTraceTime(
   if (PERFETTO_LIKELY(clock_id == BuiltinClock::BUILTIN_CLOCK_BOOTTIME))
     return ts;
   return context->clock_tracker->ToTraceTime(clock_id, ts);
+}
+
+// Fast path for parsing the event id of an ftrace event.
+// Speculate on the fact that, if the timestamp was found, the common pid
+// will appear immediately after and the event id immediately after that.
+uint64_t TryFastParseFtraceEventId(const uint8_t* start, const uint8_t* end) {
+  constexpr auto kPidFieldNumber = protos::pbzero::FtraceEvent::kPidFieldNumber;
+  constexpr auto kPidFieldTag = MakeTagVarInt(kPidFieldNumber);
+
+  // If the next byte is not the common pid's tag, just skip the field.
+  constexpr uint32_t kMaxPidLength = 5;
+  if (PERFETTO_UNLIKELY(static_cast<uint32_t>(end - start) <= kMaxPidLength ||
+                        start[0] != kPidFieldTag)) {
+    return 0;
+  }
+
+  // Skip the common pid.
+  uint64_t common_pid = 0;
+  const uint8_t* common_pid_end = ParseVarInt(start + 1, end, &common_pid);
+  if (PERFETTO_UNLIKELY(common_pid_end == start + 1)) {
+    return 0;
+  }
+
+  // Read the next varint: this should be the event id tag.
+  uint64_t event_tag = 0;
+  const uint8_t* event_id_end = ParseVarInt(common_pid_end, end, &event_tag);
+  if (event_id_end == common_pid_end) {
+    return 0;
+  }
+
+  constexpr uint8_t kFieldTypeNumBits = 3;
+  constexpr uint64_t kFieldTypeMask =
+      (1 << kFieldTypeNumBits) - 1;  // 0000 0111;
+
+  // The event wire type should be length delimited.
+  auto wire_type = static_cast<protozero::proto_utils::ProtoWireType>(
+      event_tag & kFieldTypeMask);
+  if (wire_type != protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+    return 0;
+  }
+  return event_tag >> kFieldTypeNumBits;
 }
 
 }  // namespace
@@ -125,40 +167,72 @@ void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
 
   const uint8_t* data = event.data();
   const size_t length = event.length();
-  ProtoDecoder decoder(data, length);
 
-  // Speculate on the fact that the timestamp is often the 1st field of the
-  // event.
+  // Speculate on the following sequence of varints
+  //  - timestamp tag
+  //  - timestamp (64 bit)
+  //  - common pid tag
+  //  - common pid (32 bit)
+  //  - event tag
   uint64_t raw_timestamp = 0;
   bool timestamp_found = false;
+  uint64_t event_id = 0;
   if (PERFETTO_LIKELY(length > 10 && data[0] == kTimestampFieldTag)) {
     // Fastpath.
-    const uint8_t* next = ParseVarInt(data + 1, data + 11, &raw_timestamp);
-    timestamp_found = next != data + 1;
-    decoder.Reset(next);
-  } else {
-    // Slowpath.
+    const uint8_t* ts_end = ParseVarInt(data + 1, data + 11, &raw_timestamp);
+    timestamp_found = ts_end != data + 1;
+    if (PERFETTO_LIKELY(timestamp_found)) {
+      event_id = TryFastParseFtraceEventId(ts_end, data + length);
+    }
+  }
+
+  // Slowpath for finding the timestamp.
+  if (PERFETTO_UNLIKELY(!timestamp_found)) {
+    ProtoDecoder decoder(data, length);
     if (auto ts_field = decoder.FindField(kTimestampFieldNumber)) {
       timestamp_found = true;
       raw_timestamp = ts_field.as_uint64();
     }
+    if (PERFETTO_UNLIKELY(!timestamp_found)) {
+      context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+      return;
+    }
   }
 
-  if (PERFETTO_UNLIKELY(!timestamp_found)) {
-    PERFETTO_ELOG("Timestamp field not found in FtraceEvent");
-    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+  // Slowpath for finding the event id.
+  if (PERFETTO_UNLIKELY(event_id == 0)) {
+    ProtoDecoder decoder(data, length);
+    for (auto f = decoder.ReadField(); f.valid(); f = decoder.ReadField()) {
+      // Find the first length-delimited tag as this corresponds to the ftrace
+      // event.
+      if (f.type() == protozero::proto_utils::ProtoWireType::kLengthDelimited) {
+        event_id = f.id();
+        break;
+      }
+    }
+    if (PERFETTO_UNLIKELY(event_id == 0)) {
+      context_->storage->IncrementStats(stats::ftrace_missing_event_id);
+      return;
+    }
+  }
+
+  if (PERFETTO_UNLIKELY(
+          event_id == protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber)) {
+    TokenizeFtraceGpuWorkPeriod(cpu, std::move(event), state);
     return;
   }
 
-  // ClockTracker will increment some error stats if it failed to convert the
-  // timestamp so just return.
   int64_t int64_timestamp = static_cast<int64_t>(raw_timestamp);
   base::StatusOr<int64_t> timestamp =
       ResolveTraceTime(context_, clock_id, int64_timestamp);
+
+  // ClockTracker will increment some error stats if it failed to convert the
+  // timestamp so just return.
   if (!timestamp.ok()) {
     DlogWithLimit(timestamp.status());
     return;
   }
+
   context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
                                     state->current_generation());
 }
@@ -301,6 +375,47 @@ void FtraceTokenizer::HandleFtraceClockSnapshot(int64_t ftrace_ts,
       {ClockTracker::ClockTimestamp(global_id, ftrace_ts),
        ClockTracker::ClockTimestamp(BuiltinClock::BUILTIN_CLOCK_BOOTTIME,
                                     boot_ts)});
+}
+
+void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
+                                                  TraceBlobView event,
+                                                  PacketSequenceState* state) {
+  // Special handling of valid gpu_work_period tracepoint events which contain
+  // timestamp values for the GPU time period nested inside the event data.
+  const uint8_t* data = event.data();
+  const size_t length = event.length();
+
+  ProtoDecoder decoder(data, length);
+  auto ts_field =
+      decoder.FindField(protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber);
+  if (!ts_field.valid()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return;
+  }
+
+  protos::pbzero::GpuWorkPeriodFtraceEvent::Decoder gpu_work_event(
+      ts_field.data(), ts_field.size());
+  if (!gpu_work_event.has_start_time_ns()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return;
+  }
+  uint64_t raw_timestamp = gpu_work_event.start_time_ns();
+
+  // Enforce clock type for the event data to be CLOCK_MONOTONIC_RAW
+  // as specified, to calculate the timestamp correctly.
+  int64_t int64_timestamp = static_cast<int64_t>(raw_timestamp);
+  base::StatusOr<int64_t> timestamp = ResolveTraceTime(
+      context_, BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW, int64_timestamp);
+
+  // ClockTracker will increment some error stats if it failed to convert the
+  // timestamp so just return.
+  if (!timestamp.ok()) {
+    DlogWithLimit(timestamp.status());
+    return;
+  }
+
+  context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
+                                    state->current_generation());
 }
 
 }  // namespace trace_processor

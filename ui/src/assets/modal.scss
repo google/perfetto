@@ -104,7 +104,6 @@
   main {
     font-size: 1rem;
     margin-top: 2rem;
-    margin-bottom: 2rem;
     line-height: 1.5;
     color: rgba(0, 0, 0, 0.8);
 
@@ -116,6 +115,7 @@
   footer {
     display: flex;
     justify-content: space-around;
+    margin-top: 2rem;
   } // footer
 
   .modal-btn {
@@ -132,7 +132,7 @@
     text-transform: none;
     overflow: visible;
     margin: 5px;
-    transform: translateZ(0);
+    width: fit-content;
     transition: border-color 0.25s var(--anim-easing),
       background-color 0.25s var(--anim-easing);
 

@@ -17,6 +17,7 @@
 #include "src/trace_processor/trace_processor_impl.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -77,6 +78,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/view.h"
 #include "src/trace_processor/perfetto_sql/prelude/tables_views.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
@@ -109,10 +111,6 @@
 namespace perfetto {
 namespace trace_processor {
 namespace {
-
-const char kAllTablesQuery[] =
-    "SELECT tbl_name, type FROM (SELECT * FROM sqlite_master UNION ALL SELECT "
-    "* FROM sqlite_temp_master)";
 
 template <typename SqlFunction, typename Ptr = typename SqlFunction::Context*>
 void RegisterFunction(PerfettoSqlEngine* engine,
@@ -378,8 +376,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                  skip_prefixes);
 
   RegisterAdditionalModules(&context_);
-
   InitPerfettoSqlEngine();
+
+  sqlite_objects_post_constructor_initialization_ =
+      engine_->SqliteRegisteredObjectCount();
 
   bool skip_all_sql = std::find(config_.skip_builtin_metric_paths.begin(),
                                 config_.skip_builtin_metric_paths.end(),
@@ -441,18 +441,6 @@ void TraceProcessorImpl::NotifyEndOfFile() {
   Flush();
 
   TraceProcessorStorageImpl::NotifyEndOfFile();
-
-  // Create a snapshot list of all tables and views created so far. This is so
-  // later we can drop all extra tables created by the UI and reset to the
-  // original state (see RestoreInitialTables).
-  initial_tables_.clear();
-  auto it = ExecuteQuery(kAllTablesQuery);
-  while (it.Next()) {
-    auto value = it.Get(0);
-    PERFETTO_CHECK(value.type == SqlValue::Type::kString);
-    initial_tables_.push_back(value.string_value);
-  }
-
   context_.storage->ShrinkToFitTables();
 
   // Rebuild the bounds table once everything has been completed: we do this
@@ -467,27 +455,19 @@ void TraceProcessorImpl::NotifyEndOfFile() {
 }
 
 size_t TraceProcessorImpl::RestoreInitialTables() {
-  // Get count of all registered tables/views/indices
-  uint64_t tables_views_in_sqlite_count_ = 0;
-  for (auto it = ExecuteQuery(kAllTablesQuery); it.Next();) {
-    std::string name(it.Get(0).string_value);
-    if (std::find(initial_tables_.begin(), initial_tables_.end(), name) ==
-        initial_tables_.end()) {
-      tables_views_in_sqlite_count_++;
-    }
-  }
-  PERFETTO_CHECK(tables_views_in_sqlite_count_ >=
-                 engine_->RuntimeTablesAndViewsCount());
-
-  // Tables and views in sqlite with all objects from Perfeto Sql Engine without
-  // tables and views.
-  uint64_t registered_count_before = tables_views_in_sqlite_count_ +
-                                     engine_->AllRegisteredObjectsCount() -
-                                     engine_->RuntimeTablesAndViewsCount();
+  // We should always have at least as many objects now as we did in the
+  // constructor.
+  uint64_t registered_count_before = engine_->SqliteRegisteredObjectCount();
+  PERFETTO_CHECK(registered_count_before >=
+                 sqlite_objects_post_constructor_initialization_);
 
   InitPerfettoSqlEngine();
-  return static_cast<size_t>(registered_count_before -
-                             engine_->AllRegisteredObjectsCount());
+
+  // The registered count should now be the same as it was in the constructor.
+  uint64_t registered_count_after = engine_->SqliteRegisteredObjectCount();
+  PERFETTO_CHECK(registered_count_after ==
+                 sqlite_objects_post_constructor_initialization_);
+  return static_cast<size_t>(registered_count_before - registered_count_after);
 }
 
 Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
@@ -809,6 +789,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->process_track_table());
   RegisterStaticTable(storage->cpu_track_table());
   RegisterStaticTable(storage->gpu_track_table());
+  RegisterStaticTable(storage->uid_track_table());
+  RegisterStaticTable(storage->gpu_work_period_track_table());
 
   RegisterStaticTable(storage->counter_table());
 
@@ -881,6 +863,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->RegisterStaticTableFunction(std::unique_ptr<ExperimentalSliceLayout>(
       new ExperimentalSliceLayout(context_.storage.get()->mutable_string_pool(),
                                   &storage->slice_table())));
+  engine_->RegisterStaticTableFunction(std::unique_ptr<TableInfo>(new TableInfo(
+      context_.storage.get()->mutable_string_pool(), engine_.get())));
   engine_->RegisterStaticTableFunction(std::unique_ptr<Ancestor>(
       new Ancestor(Ancestor::Type::kSlice, context_.storage.get())));
   engine_->RegisterStaticTableFunction(std::unique_ptr<Ancestor>(new Ancestor(

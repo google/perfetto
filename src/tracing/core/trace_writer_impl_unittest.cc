@@ -46,11 +46,14 @@ using ShmemMode = SharedMemoryABI::ShmemMode;
 using ::protozero::ScatteredStreamWriter;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
+using ::testing::IsEmpty;
 using ::testing::IsNull;
 using ::testing::MockFunction;
 using ::testing::Ne;
 using ::testing::NiceMock;
+using ::testing::Not;
 using ::testing::NotNull;
+using ::testing::Optional;
 using ::testing::SizeIs;
 using ::testing::ValuesIn;
 
@@ -176,7 +179,57 @@ class TraceWriterImplTest : public AlignedBufferTest {
             p.flags & ChunkHeader::kLastPacketContinuesOnNextChunk;
       }
     }
+    // Ignore empty packets (like tracing service does).
+    packets.erase(
+        std::remove_if(packets.begin(), packets.end(),
+                       [](const std::string& p) { return p.empty(); }),
+        packets.end());
     return packets;
+  }
+
+  struct ChunkInABI {
+    size_t page_idx;
+    uint32_t page_layout;
+    size_t chunk_idx;
+  };
+  std::optional<ChunkInABI> GetFirstChunkBeingWritten() {
+    SharedMemoryABI* abi = arbiter_->shmem_abi_for_testing();
+    for (size_t page_idx = 0; page_idx < abi->num_pages(); page_idx++) {
+      uint32_t page_layout = abi->GetPageLayout(page_idx);
+      size_t num_chunks = SharedMemoryABI::GetNumChunksForLayout(page_layout);
+      for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
+        SharedMemoryABI::ChunkState chunk_state =
+            abi->GetChunkState(page_idx, chunk_idx);
+        if (chunk_state != SharedMemoryABI::kChunkBeingWritten) {
+          continue;
+        }
+        return ChunkInABI{page_idx, page_layout, chunk_idx};
+      }
+    }
+    return std::nullopt;
+  }
+
+  static std::optional<std::vector<std::string>> GetChunkFragments(
+      size_t packets_count,
+      const void* chunk_payload,
+      size_t chunk_payload_size) {
+    std::vector<std::string> fragments;
+    const uint8_t* read_ptr = static_cast<const uint8_t*>(chunk_payload);
+    const uint8_t* const end_read_ptr = read_ptr + chunk_payload_size;
+
+    for (size_t num_fragments = packets_count;
+         num_fragments && read_ptr < end_read_ptr; num_fragments--) {
+      uint64_t len;
+      read_ptr =
+          protozero::proto_utils::ParseVarInt(read_ptr, end_read_ptr, &len);
+      if (read_ptr + len > end_read_ptr) {
+        return std::nullopt;
+      }
+      fragments.push_back(std::string(reinterpret_cast<const char*>(read_ptr),
+                                      static_cast<size_t>(len)));
+      read_ptr += len;
+    }
+    return std::make_optional(std::move(fragments));
   }
 
   SharedMemoryABI::PageLayout default_layout_;
@@ -486,6 +539,240 @@ TEST_P(TraceWriterImplTest, MixManualTakeAndMessage) {
                       encoded_size + std::string(chunk_size, 'x'),
                   std::string("PACKET_3_") + std::string("\xFF\xFF\xFF\xFF") +
                       std::string(chunk_size, 'x')));
+}
+
+TEST_P(TraceWriterImplTest, MessageHandleDestroyedPacketScrapable) {
+  const BufferID kBufId = 42;
+
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+
+  auto packet = writer->NewTracePacket();
+  packet->set_for_testing()->set_str("packet1");
+
+  std::optional<ChunkInABI> chunk_in_abi = GetFirstChunkBeingWritten();
+  ASSERT_TRUE(chunk_in_abi.has_value());
+
+  auto* abi = arbiter_->shmem_abi_for_testing();
+  SharedMemoryABI::Chunk chunk =
+      abi->GetChunkUnchecked(chunk_in_abi->page_idx, chunk_in_abi->page_layout,
+                             chunk_in_abi->chunk_idx);
+  ASSERT_TRUE(chunk.is_valid());
+
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+  packet = protozero::MessageHandle<protos::pbzero::TracePacket>();
+
+  // Without calling FinshTracePacket explicitly, the packet will not be visible
+  // to the scraper.
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+
+  writer.reset();
+
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkComplete);
+  EXPECT_THAT(GetChunkFragments(1, chunk.payload_begin(), chunk.payload_size()),
+              Optional(ElementsAre(Not(IsEmpty()))));
+}
+
+TEST_P(TraceWriterImplTest, FinishTracePacketScrapable) {
+  const BufferID kBufId = 42;
+
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+
+  {
+    protos::pbzero::TestEvent test_event;
+    protozero::MessageArena arena;
+    ScatteredStreamWriter* sw = writer->NewTracePacket().TakeStreamWriter();
+    uint8_t data[protozero::proto_utils::kMaxTagEncodedSize];
+    uint8_t* data_end = protozero::proto_utils::WriteVarInt(
+        protozero::proto_utils::MakeTagLengthDelimited(
+            protos::pbzero::TracePacket::kForTestingFieldNumber),
+        data);
+    sw->WriteBytes(data, static_cast<size_t>(data_end - data));
+    test_event.Reset(sw, &arena);
+    test_event.set_size_field(
+        sw->ReserveBytes(protozero::proto_utils::kMessageLengthFieldSize));
+    test_event.set_str("payload1");
+  }
+
+  std::optional<ChunkInABI> chunk_in_abi = GetFirstChunkBeingWritten();
+  ASSERT_TRUE(chunk_in_abi.has_value());
+
+  auto* abi = arbiter_->shmem_abi_for_testing();
+  SharedMemoryABI::Chunk chunk =
+      abi->GetChunkUnchecked(chunk_in_abi->page_idx, chunk_in_abi->page_layout,
+                             chunk_in_abi->chunk_idx);
+  ASSERT_TRUE(chunk.is_valid());
+
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+
+  writer->FinishTracePacket();
+
+  // After a call to FinishTracePacket, the chunk header should have an inflated
+  // packet count.
+  EXPECT_EQ(chunk.header()->packets.load().count, 2);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+  EXPECT_THAT(GetChunkFragments(1, chunk.payload_begin(), chunk.payload_size()),
+              Optional(ElementsAre(Not(IsEmpty()))));
+
+  // An extra call to FinishTracePacket should have no effect.
+  EXPECT_EQ(chunk.header()->packets.load().count, 2);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+  EXPECT_THAT(GetChunkFragments(1, chunk.payload_begin(), chunk.payload_size()),
+              Optional(ElementsAre(Not(IsEmpty()))));
+
+  writer.reset();
+
+  EXPECT_EQ(chunk.header()->packets.load().count, 2);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkComplete);
+  EXPECT_THAT(GetChunkFragments(2, chunk.payload_begin(), chunk.payload_size()),
+              Optional(ElementsAre(Not(IsEmpty()), IsEmpty())));
+}
+
+TEST_P(TraceWriterImplTest,
+       MessageHandleDestroyedAndFinishTracePacketScrapable) {
+  const BufferID kBufId = 42;
+
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+
+  auto packet = writer->NewTracePacket();
+  packet->set_for_testing()->set_str("packet1");
+
+  std::optional<ChunkInABI> chunk_in_abi = GetFirstChunkBeingWritten();
+  ASSERT_TRUE(chunk_in_abi.has_value());
+
+  auto* abi = arbiter_->shmem_abi_for_testing();
+  SharedMemoryABI::Chunk chunk =
+      abi->GetChunkUnchecked(chunk_in_abi->page_idx, chunk_in_abi->page_layout,
+                             chunk_in_abi->chunk_idx);
+  ASSERT_TRUE(chunk.is_valid());
+
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+  packet = protozero::MessageHandle<protos::pbzero::TracePacket>();
+
+  // Without calling FinshTracePacket explicitly, the packet will not be visible
+  // to the scraper.
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+
+  writer->FinishTracePacket();
+
+  // After a call to FinishTracePacket, the chunk header should have an inflated
+  // packet count.
+  EXPECT_EQ(chunk.header()->packets.load().count, 2);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+  EXPECT_THAT(GetChunkFragments(1, chunk.payload_begin(), chunk.payload_size()),
+              Optional(ElementsAre(Not(IsEmpty()))));
+
+  writer.reset();
+
+  EXPECT_EQ(chunk.header()->packets.load().count, 2);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkComplete);
+  EXPECT_THAT(GetChunkFragments(2, chunk.payload_begin(), chunk.payload_size()),
+              Optional(ElementsAre(Not(IsEmpty()), IsEmpty())));
+}
+
+TEST_P(TraceWriterImplTest, MessageHandleDestroyedPacketFullChunk) {
+  const BufferID kBufId = 42;
+
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+
+  auto packet = writer->NewTracePacket();
+  protos::pbzero::TestEvent* test_event = packet->set_for_testing();
+  std::string chunk_filler(test_event->stream_writer()->bytes_available(),
+                           '\0');
+  test_event->AppendRawProtoBytes(chunk_filler.data(), chunk_filler.size());
+
+  std::optional<ChunkInABI> chunk_in_abi = GetFirstChunkBeingWritten();
+  ASSERT_TRUE(chunk_in_abi.has_value());
+
+  auto* abi = arbiter_->shmem_abi_for_testing();
+  SharedMemoryABI::Chunk chunk =
+      abi->GetChunkUnchecked(chunk_in_abi->page_idx, chunk_in_abi->page_layout,
+                             chunk_in_abi->chunk_idx);
+  ASSERT_TRUE(chunk.is_valid());
+
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+  packet = protozero::MessageHandle<protos::pbzero::TracePacket>();
+
+  // Without calling FinshTracePacket explicitly, the packet will not be visible
+  // to the scraper.
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+
+  writer.reset();
+
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkComplete);
+}
+
+TEST_P(TraceWriterImplTest, FinishTracePacketFullChunk) {
+  const BufferID kBufId = 42;
+
+  std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
+
+  {
+    protos::pbzero::TestEvent test_event;
+    protozero::MessageArena arena;
+    ScatteredStreamWriter* sw = writer->NewTracePacket().TakeStreamWriter();
+    uint8_t data[protozero::proto_utils::kMaxTagEncodedSize];
+    uint8_t* data_end = protozero::proto_utils::WriteVarInt(
+        protozero::proto_utils::MakeTagLengthDelimited(
+            protos::pbzero::TracePacket::kForTestingFieldNumber),
+        data);
+    sw->WriteBytes(data, static_cast<size_t>(data_end - data));
+    test_event.Reset(sw, &arena);
+    test_event.set_size_field(
+        sw->ReserveBytes(protozero::proto_utils::kMessageLengthFieldSize));
+    std::string chunk_filler(sw->bytes_available(), '\0');
+    test_event.AppendRawProtoBytes(chunk_filler.data(), chunk_filler.size());
+  }
+
+  std::optional<ChunkInABI> chunk_in_abi = GetFirstChunkBeingWritten();
+  ASSERT_TRUE(chunk_in_abi.has_value());
+
+  auto* abi = arbiter_->shmem_abi_for_testing();
+  SharedMemoryABI::Chunk chunk =
+      abi->GetChunkUnchecked(chunk_in_abi->page_idx, chunk_in_abi->page_layout,
+                             chunk_in_abi->chunk_idx);
+  ASSERT_TRUE(chunk.is_valid());
+
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+
+  // Finish the TracePacket: since there's no space for an empty packet, the
+  // trace writer should immediately mark the chunk as completed, instead of
+  // inflating the count.
+  writer->FinishTracePacket();
+
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkComplete);
+
+  writer.reset();
+
+  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
+            SharedMemoryABI::ChunkState::kChunkComplete);
 }
 
 TEST_P(TraceWriterImplTest, FragmentingPacketWithProducerAndServicePatching) {

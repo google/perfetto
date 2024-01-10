@@ -20,10 +20,11 @@ import {
   NamedSliceTrack,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
+import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {
   SliceData,
-  SliceTrackBase,
-} from '../../frontend/slice_track_base';
+  SliceTrackLEGACY,
+} from '../../frontend/slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   EngineProxy,
@@ -44,7 +45,7 @@ import {
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 
-export class ChromeSliceTrack extends SliceTrackBase {
+export class ChromeSliceTrack extends SliceTrackLEGACY {
   private maxDurNs: duration = 0n;
 
   constructor(
@@ -165,8 +166,12 @@ export interface ChromeSliceTrackTypes extends NamedSliceTrackTypes {
 }
 
 export class ChromeSliceTrackV2 extends NamedSliceTrack<ChromeSliceTrackTypes> {
-  constructor(args: NewTrackArgs, private trackId: number) {
+  constructor(args: NewTrackArgs, private trackId: number, maxDepth: number) {
     super(args);
+    this.sliceLayout = {
+      ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
+      minDepth: maxDepth + 1,
+    };
   }
 
   // This is used by the base class to call iter().
@@ -283,7 +288,7 @@ class ChromeSlicesPlugin implements Plugin {
             engine: ctx.engine,
             trackKey,
           };
-          return new ChromeSliceTrackV2(newTrackArgs, trackId);
+          return new ChromeSliceTrackV2(newTrackArgs, trackId, maxDepth);
         },
       });
     }

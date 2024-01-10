@@ -21,7 +21,7 @@ INCLUDE PERFETTO MODULE android.startup.startups;
 
 -- Given a launch id and process name glob, returns the sched.dur if a process with
 -- that name was running on a CPU concurrent to that launch.
-CREATE PERFETTO FUNCTION dur_of_process_running_concurrent_to_launch(
+CREATE OR REPLACE PERFETTO FUNCTION dur_of_process_running_concurrent_to_launch(
   startup_id INT,
   process_glob STRING
 )
@@ -41,7 +41,7 @@ WHERE
 
 -- Given a launch id and slice name glob, returns the number of slices with that
 -- name which start concurrent to that launch.
-CREATE PERFETTO FUNCTION count_slices_concurrent_to_launch(startup_id INT, slice_glob STRING)
+CREATE OR REPLACE PERFETTO FUNCTION count_slices_concurrent_to_launch(startup_id INT, slice_glob STRING)
 RETURNS INT AS
 SELECT COUNT(1)
 FROM slice

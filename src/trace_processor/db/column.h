@@ -355,6 +355,9 @@ class Column {
   // Public for testing.
   bool IsDummy() const { return type_ == ColumnType::kDummy; }
 
+  // Returns true if this column is a hidden column.
+  bool IsHidden() const { return (flags_ & Flag::kHidden) != 0; }
+
   // Returns the index of the RowMap in the containing table.
   uint32_t overlay_index() const { return overlay_index_; }
 
@@ -434,9 +437,6 @@ class Column {
     PERFETTO_DCHECK(tc_internal::TypeHandler<T>::is_optional == IsNullable());
     return static_cast<ColumnStorage<stored_type<T>>*>(storage_);
   }
-
-  // Returns true if this column is a hidden column.
-  bool IsHidden() const { return (flags_ & Flag::kHidden) != 0; }
 
   const StringPool& string_pool() const { return *string_pool_; }
 

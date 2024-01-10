@@ -13,7 +13,12 @@
 // limitations under the License.
 
 import {defer} from '../base/deferred';
-import {assertExists, reportError, setErrorHandler} from '../base/logging';
+import {
+  addErrorHandler,
+  assertExists,
+  ErrorDetails,
+  reportError,
+} from '../base/logging';
 import {time} from '../base/time';
 import {
   ConversionJobName,
@@ -60,7 +65,7 @@ function openTraceInLegacy(buffer: Uint8Array) {
   });
 }
 
-function forwardError(error: string) {
+function forwardError(error: ErrorDetails) {
   selfWorker.postMessage({
     kind: 'error',
     error,
@@ -221,7 +226,7 @@ async function ConvertTraceToPprof(trace: Blob, pid: number, ts: time) {
 selfWorker.onmessage = (msg: MessageEvent) => {
   self.addEventListener('error', (e) => reportError(e));
   self.addEventListener('unhandledrejection', (e) => reportError(e));
-  setErrorHandler((err: string) => forwardError(err));
+  addErrorHandler((error: ErrorDetails) => forwardError(error));
   const args = msg.data as Args;
   if (isConvertTraceAndDownload(args)) {
     ConvertTraceAndDownload(args.trace, args.format, args.truncate);

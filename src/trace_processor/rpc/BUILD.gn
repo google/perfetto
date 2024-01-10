@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import("../../../gn/perfetto.gni")
+import("../../../gn/perfetto_cc_proto_descriptor.gni")
 import("../../../gn/test.gni")
 import("../../../gn/wasm.gni")
 
 # Prevent that this file is accidentally included in embedder builds.
 assert(enable_perfetto_trace_processor)
+assert(enable_perfetto_trace_processor_sqlite)
 
 # This source_set is used both by WASM (for the function-call-based query
 # interface) and by the :httpd module for the HTTP interface.
@@ -43,11 +45,25 @@ source_set("rpc") {
   ]
 }
 
-# Static library target for RPC code. Needed for BigTrace in Google3.
-if (is_perfetto_build_generator) {
+if (is_perfetto_build_generator || perfetto_build_standalone) {
+  # Static library target for RPC code. Needed for BigTrace in Google3.
+  # TODO(b/278208757): remove this when we migrate to using rpc_shell.
   static_library("trace_processor_rpc") {
     public_deps = [ ":rpc" ]
   }
+}
+
+source_set("stdiod") {
+  sources = [
+    "stdiod.cc",
+    "stdiod.h",
+  ]
+  deps = [
+    ":rpc",
+    "..:lib",
+    "../../../gn:default_deps",
+    "../../base",
+  ]
 }
 
 perfetto_unittest_source_set("unittests") {

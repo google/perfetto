@@ -63,7 +63,7 @@ CLEANUP_OLD_DIRS = [
     'buildtools/test_data',  # Moved to test/data by r.android.com/1539381 .
     'buildtools/d8',  # Removed by r.android.com/1424334 .
 
-    # Build toools moved to third_party/ by r.android.com/2327602 .
+    # Build tools moved to third_party/ by r.android.com/2327602 .
     'buildtools/mac/clang-format',
     'buildtools/mac/gn',
     'buildtools/mac/ninja',
@@ -94,6 +94,11 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
         'https://storage.googleapis.com/perfetto/gn-linux64-1968-0725d782',
         'f706aaa0676e3e22f5fc9ca482295d7caee8535d1869f99efa2358177b64f5cd',
         'linux', 'x64'),
+    Dependency(
+        'third_party/gn/gn',
+        'https://storage.googleapis.com/perfetto/gn-linux-arm64-1968-0725d782',
+        'c2a372cd4f911028d8bc351fbf24835c9b1194fcc92beadf6c5a2b3addae973c',
+        'linux', 'arm64'),
     Dependency(
         'third_party/gn/gn.exe',
         'https://storage.googleapis.com/perfetto/gn-win-1968-0725d782',
@@ -150,6 +155,11 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
         'https://storage.googleapis.com/perfetto/ninja-win-182',
         '09ced0fcd1a4dec7d1b798a2cf9ce5d20e5d2fbc2337343827f192ce47d0f491',
         'windows', 'x64'),
+    Dependency(
+        'third_party/ninja/ninja',
+        'https://storage.googleapis.com/perfetto/ninja-linux-arm64-1111',
+        '05031a734ec4310a51b2cfe9f0096b26fce25ab4ff19e5b51abe6371de066cc5',
+        'linux', 'arm64'),
 
     # Keep the revision in sync with Chrome's PACKAGE_VERSION in
     # tools/clang/scripts/update.py.
@@ -462,6 +472,8 @@ def DownloadURL(url, out_file):
 def GetArch():
   arch = machine()
   if arch == 'arm64':
+    return 'arm64'
+  elif arch == 'aarch64':
     return 'arm64'
   else:
     # Assume everything else is x64 matching previous behaviour.

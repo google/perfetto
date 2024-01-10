@@ -481,3 +481,5 @@ mali/mali_CSF_INTERRUPT_END
 samsung/tracing_mark_write
 binder/binder_command
 binder/binder_return
+perf_trace_counters/sched_switch_with_ctrs
+power/gpu_work_period

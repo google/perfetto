@@ -30,8 +30,6 @@ import {
   PluginDescriptor,
   PrimaryTrackSortKey,
   Store,
-  Track,
-  TrackContext,
   TrackDescriptor,
   TrackPredicate,
   TrackRef,
@@ -274,19 +272,7 @@ class TracePluginContextImpl implements PluginContextTrace, Disposable {
   }
 
   mountStore<T>(migrate: Migrate<T>): Store<T> {
-    const globalStore = globals.store;
-
-    // Migrate initial state
-    const initialState = globalStore.state.plugins[this.pluginId];
-    const migratedState = migrate(initialState);
-
-    // Update global store with migrated plugin state
-    globalStore.edit((draft) => {
-      draft.plugins[this.pluginId] = migratedState;
-    });
-
-    // Return proxy store for this plugin
-    return globalStore.createProxy<T>(['plugins', this.pluginId]);
+    return globals.store.createSubStore(['plugins', this.pluginId], migrate);
   }
 }
 
@@ -425,13 +411,6 @@ export class PluginManager {
   // Returns |undefined| if no track can be found.
   resolveTrackInfo(uri: string): TrackDescriptor|undefined {
     return this.trackRegistry.get(uri);
-  }
-
-  // Create a new plugin track object from its URI.
-  // Returns undefined if no such track is registered.
-  createTrack(uri: string, trackCtx: TrackContext): Track|undefined {
-    const trackInfo = pluginManager.trackRegistry.get(uri);
-    return trackInfo && trackInfo.track(trackCtx);
   }
 
   private doPluginTraceLoad(

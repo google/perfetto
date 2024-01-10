@@ -47,10 +47,11 @@ import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {Engine} from '../trace_processor/engine';
+import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 
 import {Analytics, initAnalytics} from './analytics';
 import {BottomTabList} from './bottom_tab';
-import {FrontendLocalState} from './frontend_local_state';
+import {Timeline} from './frontend_local_state';
 import {Router} from './router';
 import {horizontalScrollToTs} from './scroll_helper';
 import {ServiceWorkerController} from './service_worker_controller';
@@ -247,7 +248,7 @@ class Globals {
   private _testing = false;
   private _dispatch?: Dispatch = undefined;
   private _store?: Store<State>;
-  private _frontendLocalState?: FrontendLocalState = undefined;
+  private _timeline?: Timeline = undefined;
   private _serviceWorkerController?: ServiceWorkerController = undefined;
   private _logging?: Analytics = undefined;
   private _isInternalUser: boolean|undefined = undefined;
@@ -283,6 +284,11 @@ class Globals {
   private _utcOffset = Time.ZERO;
   private _openQueryHandler?: OpenQueryHandler;
 
+  scrollToTrackKey?: string|number;
+  httpRpcState: HttpRpcState = {connected: false};
+  newVersionAvailable = false;
+  showPanningHint = false;
+
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
 
@@ -309,7 +315,7 @@ class Globals {
     this._router = router;
     this._store = createStore(initialState);
     this._cmdManager = cmdManager;
-    this._frontendLocalState = new FrontendLocalState();
+    this._timeline = new Timeline();
 
     setPerfHooks(
         () => this.state.perfDebug,
@@ -373,8 +379,8 @@ class Globals {
     }
   }
 
-  get frontendLocalState() {
-    return assertExists(this._frontendLocalState);
+  get timeline() {
+    return assertExists(this._timeline);
   }
 
   get logging() {
@@ -593,7 +599,7 @@ class Globals {
     // levels. Logic: each zoom level represents a delta of 0.1 * (visible
     // window span). Therefore, zooming out by six levels is 1.1^6 ~= 2.
     // Similarily, zooming in six levels is 0.9^6 ~= 0.5.
-    const timeScale = this.frontendLocalState.visibleTimeScale;
+    const timeScale = this.timeline.visibleTimeScale;
     // TODO(b/186265930): Remove once fixed:
     if (timeScale.pxSpan.delta === 0) {
       console.error(`b/186265930: Bad pxToSec suppressed`);
@@ -650,7 +656,7 @@ class Globals {
   resetForTesting() {
     this._dispatch = undefined;
     this._store = undefined;
-    this._frontendLocalState = undefined;
+    this._timeline = undefined;
     this._serviceWorkerController = undefined;
 
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.

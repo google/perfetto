@@ -21,6 +21,7 @@ import {
 import {LIMIT, TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   Plugin,
@@ -107,8 +108,8 @@ class AndroidLogTrack extends TrackAdapter<Config, Data> {
     super(args);
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
-    const {visibleTimeScale, windowSpan} = globals.frontendLocalState;
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+    const {visibleTimeScale} = globals.timeline;
 
     const data = this.data();
 
@@ -116,16 +117,9 @@ class AndroidLogTrack extends TrackAdapter<Config, Data> {
 
     const dataStartPx = visibleTimeScale.timeToPx(data.start);
     const dataEndPx = visibleTimeScale.timeToPx(data.end);
-    const visibleStartPx = windowSpan.start;
-    const visibleEndPx = windowSpan.end;
 
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        visibleStartPx,
-        visibleEndPx,
-        dataStartPx,
-        dataEndPx);
+        ctx, this.getHeight(), 0, size.width, dataStartPx, dataEndPx);
 
     const quantWidth =
         Math.max(EVT_PX, visibleTimeScale.durationToPx(data.resolution));

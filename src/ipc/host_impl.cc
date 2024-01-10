@@ -21,6 +21,7 @@
 #include <utility>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
@@ -44,6 +45,47 @@ constexpr base::SockFamily kHostSockFamily =
     kUseTCPSocket ? base::SockFamily::kInet : base::SockFamily::kUnix;
 
 base::CrashKey g_crash_key_uid("ipc_uid");
+
+base::MachineID GenerateMachineID(base::UnixSocket* sock,
+                                  const std::string& machine_id_hint) {
+  // The special value of base::kDefaultMachineID is reserved for local
+  // producers.
+  if (!sock->is_connected() || sock->family() == base::SockFamily::kUnix)
+    return base::kDefaultMachineID;
+
+  base::Hasher hasher;
+  // Use the hint from the client, or fallback to hostname if the client
+  // doesn't provide a hint.
+  if (!machine_id_hint.empty()) {
+    hasher.Update(machine_id_hint);
+  } else {
+    // Use the socket address without the port number part as the hint.
+    auto host_id = sock->GetSockAddr();
+    auto pos = std::string::npos;
+    switch (sock->family()) {
+      case base::SockFamily::kInet:
+        PERFETTO_FALLTHROUGH;
+      case base::SockFamily::kInet6:
+        PERFETTO_FALLTHROUGH;
+      case base::SockFamily::kVsock:
+        pos = host_id.rfind(":");
+        if (pos != std::string::npos)
+          host_id.resize(pos);
+        break;
+      case base::SockFamily::kUnspec:
+        PERFETTO_FALLTHROUGH;
+      case base::SockFamily::kUnix:
+        PERFETTO_DFATAL("Should be unreachable.");
+        return base::kDefaultMachineID;
+    }
+    hasher.Update(host_id);
+  }
+
+  // Take the lower 32-bit from the hash.
+  uint32_t digest = static_cast<uint32_t>(hasher.digest());
+  // Avoid the extremely unlikely case that the hasher digest happens to be 0.
+  return digest == base::kDefaultMachineID ? 1 : digest;
+}
 }  // namespace
 
 uid_t HostImpl::ClientConnection::GetPosixPeerUid() const {
@@ -285,8 +327,8 @@ void HostImpl::OnInvokeMethod(ClientConnection* client,
 
   auto peer_uid = client->GetPosixPeerUid();
   auto scoped_key = g_crash_key_uid.SetScoped(static_cast<int64_t>(peer_uid));
-  service->client_info_ =
-      ClientInfo(client->id, peer_uid, client->GetLinuxPeerPid());
+  service->client_info_ = ClientInfo(
+      client->id, peer_uid, client->GetLinuxPeerPid(), client->GetMachineID());
   service->received_fd_ = &client->received_fd;
   method.invoker(service, *decoded_req_args, std::move(deferred_reply));
   service->received_fd_ = nullptr;
@@ -307,9 +349,12 @@ void HostImpl::OnSetPeerIdentity(ClientConnection* client,
     return;
   }
 
-  client->pid_override = req_frame.set_peer_identity().pid();
-  client->uid_override =
-      static_cast<uid_t>(req_frame.set_peer_identity().uid());
+  const auto& set_peer_identity = req_frame.set_peer_identity();
+  client->pid_override = set_peer_identity.pid();
+  client->uid_override = static_cast<uid_t>(set_peer_identity.uid());
+
+  client->machine_id = GenerateMachineID(client->sock.get(),
+                                         set_peer_identity.machine_id_hint());
 }
 
 void HostImpl::ReplyToMethodInvocation(ClientID client_id,
@@ -375,7 +420,8 @@ void HostImpl::OnDisconnect(base::UnixSocket* sock) {
   ClientID client_id = client->id;
 
   ClientInfo client_info(client_id, client->GetPosixPeerUid(),
-                         client->GetLinuxPeerPid());
+                         client->GetLinuxPeerPid(), client->GetMachineID());
+
   clients_by_socket_.erase(it);
   PERFETTO_DCHECK(clients_.count(client_id));
   clients_.erase(client_id);

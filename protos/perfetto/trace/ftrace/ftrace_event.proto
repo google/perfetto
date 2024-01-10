@@ -57,6 +57,7 @@ import "protos/perfetto/trace/ftrace/mm_event.proto";
 import "protos/perfetto/trace/ftrace/net.proto";
 import "protos/perfetto/trace/ftrace/oom.proto";
 import "protos/perfetto/trace/ftrace/panel.proto";
+import "protos/perfetto/trace/ftrace/perf_trace_counters.proto";
 import "protos/perfetto/trace/ftrace/power.proto";
 import "protos/perfetto/trace/ftrace/printk.proto";
 import "protos/perfetto/trace/ftrace/raw_syscalls.proto";
@@ -601,5 +602,7 @@ message FtraceEvent {
     SamsungTracingMarkWriteFtraceEvent samsung_tracing_mark_write = 484;
     BinderCommandFtraceEvent binder_command = 485;
     BinderReturnFtraceEvent binder_return = 486;
+    SchedSwitchWithCtrsFtraceEvent sched_switch_with_ctrs = 487;
+    GpuWorkPeriodFtraceEvent gpu_work_period = 488;
   }
 }

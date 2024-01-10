@@ -98,6 +98,10 @@
 .details-panel {
   @include bottom-panel-font;
 
+  // This is required to position locally-scoped (i.e. non-full-screen) modal
+  // dialogs within the panel, as they use position: absolute.
+  position: relative;
+
   .material-icons {
     @include transition(0.3s);
     font-size: 16px;

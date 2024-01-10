@@ -14,7 +14,7 @@
 
 import {globals} from '../../frontend/globals';
 import {NamedRow, NamedSliceTrackTypes} from '../../frontend/named_slice_track';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {NewTrackArgs} from '../../frontend/track';
 import {PrimaryTrackSortKey, Slice} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
@@ -30,6 +30,7 @@ import {
 } from './index';
 import {JANK_COLOR} from './jank_colors';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
+import {getColorForSlice} from '../../common/colorizer';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
@@ -37,10 +38,6 @@ const JANK_SLICE_NAME = ' Jank';
 export class ScrollJankV3Track extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.scroll_jank_v3_track';
-
-  static create(args: NewTrackArgs): TrackBase {
-    return new ScrollJankV3Track(args);
-  }
 
   constructor(args: NewTrackArgs) {
     super(args);
@@ -98,7 +95,7 @@ export class ScrollJankV3Track extends
     if (stage == UNKNOWN_SLICE_NAME) {
       return {...slice, colorScheme: JANK_COLOR};
     } else {
-      return slice;
+      return {...slice, colorScheme: getColorForSlice(stage)};
     }
   }
 

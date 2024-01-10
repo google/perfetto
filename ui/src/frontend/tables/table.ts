@@ -89,6 +89,11 @@ export function stringColumn<T>(
   return new ColumnDescriptor<T>(name, getter, {contextMenu, sortKey: getter});
 }
 
+export function widgetColumn<T>(
+    name: string, getter: (t: T) => m.Child): ColumnDescriptor<T> {
+  return new ColumnDescriptor<T>(name, getter);
+}
+
 interface SortingInfo<T> {
   columnId: string;
   direction: SortDirection;

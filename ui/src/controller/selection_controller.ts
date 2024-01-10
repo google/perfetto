@@ -309,14 +309,12 @@ export class SelectionController extends Controller<'main'> {
     // UI track id for slice tracks this would be unnecessary.
     let trackKey = '';
     for (const track of Object.values(globals.state.tracks)) {
-      if (track.uri) {
-        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.kind === SLICE_TRACK_KIND) {
-          const trackIds = trackInfo?.trackIds;
-          if (trackIds && trackIds.length > 0 && trackIds[0] === trackId) {
-            trackKey = track.key;
-            break;
-          }
+      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      if (trackInfo?.kind === SLICE_TRACK_KIND) {
+        const trackIds = trackInfo?.trackIds;
+        if (trackIds && trackIds.length > 0 && trackIds[0] === trackId) {
+          trackKey = track.key;
+          break;
         }
       }
     }

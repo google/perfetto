@@ -75,7 +75,11 @@ export function drawIncompleteSlice(
     x: number,
     y: number,
     width: number,
-    height: number) {
+    height: number,
+    showGradient: boolean = true) {
+  if (width <= 0 || height <= 0) {
+    return;
+  }
   ctx.beginPath();
   const triangleSize = height / 4;
   ctx.moveTo(x, y);
@@ -92,10 +96,12 @@ export function drawIncompleteSlice(
 
   const fillStyle = ctx.fillStyle;
   if (isString(fillStyle)) {
-    const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
-    gradient.addColorStop(0.66, fillStyle);
-    gradient.addColorStop(1, '#FFFFFF');
-    ctx.fillStyle = gradient;
+    if (showGradient) {
+      const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
+      gradient.addColorStop(0.66, fillStyle);
+      gradient.addColorStop(1, '#FFFFFF');
+      ctx.fillStyle = gradient;
+    }
   } else {
     throw new Error(
         `drawIncompleteSlice() expects fillStyle to be a simple color not ${
@@ -145,7 +151,7 @@ export function drawTrackHoverTooltip(
   y -= 10;
 
   // Ensure the box is on screen:
-  const endPx = globals.frontendLocalState.visibleTimeScale.pxSpan.end;
+  const endPx = globals.timeline.visibleTimeScale.pxSpan.end;
   if (x + width > endPx) {
     x -= x + width - endPx;
   }

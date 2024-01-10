@@ -16,7 +16,10 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_UTILS_H_
 #define SRC_TRACE_PROCESSOR_DB_STORAGE_UTILS_H_
 
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -82,6 +85,12 @@ void IndexSearchWithComparator(ValType val,
     builder.Append(comparator(*(data_ptr + *cur_idx), val));
   }
 }
+
+// Used for comparing the integer column ({u|}int{32|64}) with a double value.
+// If further search is required it would return kOk and change the SqlValue to
+// a `SqlLong` which would return real results.
+SearchValidationResult CompareIntColumnWithDouble(SqlValue* sql_val,
+                                                  FilterOp op);
 
 }  // namespace utils
 

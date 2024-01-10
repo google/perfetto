@@ -154,12 +154,14 @@ export function genTraceConfig(
     protoCfg.dataSources.push(ds);
   }
 
+  let ftrace = false;
+  let symbolizeKsyms = false;
   if (uiCfg.cpuSched) {
     procThreadAssociationPolling = true;
     procThreadAssociationFtrace = true;
-    uiCfg.ftrace = true;
+    ftrace = true;
     if (enableSchedBlockedReason(androidApiLevel)) {
-      uiCfg.symbolizeKsyms = true;
+      symbolizeKsyms = true;
     }
     ftraceEvents.add('sched/sched_switch');
     ftraceEvents.add('power/suspend_resume');
@@ -193,6 +195,10 @@ export function genTraceConfig(
       ds.config.name = 'android.gpu.memory';
       protoCfg.dataSources.push(ds);
     }
+  }
+
+  if (uiCfg.gpuWorkPeriod) {
+    ftraceEvents.add('power/gpu_work_period');
   }
 
   if (uiCfg.cpuSyscall) {
@@ -470,6 +476,42 @@ export function genTraceConfig(
     chromeCategories.add('browser');
   }
 
+  if (uiCfg.audio) {
+    function addCategoryAndDisabledByDefault(category: string) {
+      chromeCategories.add(category);
+      chromeCategories.add('disabled-by-default-' + category);
+    }
+
+    addCategoryAndDisabledByDefault('audio');
+    addCategoryAndDisabledByDefault('webaudio');
+    addCategoryAndDisabledByDefault('webaudio.audionode');
+    addCategoryAndDisabledByDefault('webrtc');
+    addCategoryAndDisabledByDefault('audio-worklet');
+    addCategoryAndDisabledByDefault('mediastream');
+    addCategoryAndDisabledByDefault('v8.gc');
+    addCategoryAndDisabledByDefault('toplevel');
+    addCategoryAndDisabledByDefault('toplevel.flow');
+    addCategoryAndDisabledByDefault('wakeup.flow');
+    addCategoryAndDisabledByDefault('cpu_profiler');
+    addCategoryAndDisabledByDefault('scheduler');
+    addCategoryAndDisabledByDefault('p2p');
+    addCategoryAndDisabledByDefault('net');
+  }
+
+  if (uiCfg.video) {
+    chromeCategories.add('base');
+    chromeCategories.add('gpu');
+    chromeCategories.add('gpu.capture');
+    chromeCategories.add('media');
+    chromeCategories.add('toplevel');
+    chromeCategories.add('toplevel.flow');
+    chromeCategories.add('scheduler');
+    chromeCategories.add('wakeup.flow');
+    chromeCategories.add('webrtc');
+    chromeCategories.add('disabled-by-default-video_and_image_capture');
+    chromeCategories.add('disabled-by-default-webrtc');
+  }
+
   // linux.perf stack sampling
   if (uiCfg.tracePerf) {
     const ds = new TraceConfig.DataSource();
@@ -612,7 +654,7 @@ export function genTraceConfig(
     protoCfg.dataSources.push(ds);
   }
 
-  if (uiCfg.ftrace || uiCfg.atrace || ftraceEvents.size > 0 ||
+  if (uiCfg.ftrace || ftrace || uiCfg.atrace || ftraceEvents.size > 0 ||
       atraceCats.size > 0 || atraceApps.size > 0) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
@@ -620,14 +662,14 @@ export function genTraceConfig(
     ds.config.ftraceConfig = new FtraceConfig();
     // Override the advanced ftrace parameters only if the user has ticked the
     // "Advanced ftrace config" tab.
-    if (uiCfg.ftrace) {
+    if (uiCfg.ftrace || ftrace) {
       if (uiCfg.ftraceBufferSizeKb) {
         ds.config.ftraceConfig.bufferSizeKb = uiCfg.ftraceBufferSizeKb;
       }
       if (uiCfg.ftraceDrainPeriodMs) {
         ds.config.ftraceConfig.drainPeriodMs = uiCfg.ftraceDrainPeriodMs;
       }
-      if (uiCfg.symbolizeKsyms) {
+      if (uiCfg.symbolizeKsyms || symbolizeKsyms) {
         ds.config.ftraceConfig.symbolizeKsyms = true;
         ftraceEvents.add('sched/sched_blocked_reason');
       }

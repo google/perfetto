@@ -15,6 +15,9 @@
  */
 
 #include <memory>
+#include <string>
+#include <vector>
+#include "perfetto/ext/base/unix_socket.h"
 #include "src/traced_relay/relay_service.h"
 
 #include "src/base/test/test_task_runner.h"
@@ -27,6 +30,17 @@
 
 namespace perfetto {
 namespace {
+
+struct TestParams {
+  std::string id;
+  std::string tcp_sock_name;
+  std::string unix_sock_name;
+  std::string producer_name;
+
+  std::unique_ptr<RelayService> relay_service;
+  std::unique_ptr<base::UnixSocket> server_socket;
+  std::unique_ptr<FakeProducerThread> producer_thread;
+};
 
 TEST(TracedRelayIntegrationTest, BasicCase) {
   base::TestTaskRunner task_runner;
@@ -102,6 +116,125 @@ TEST(TracedRelayIntegrationTest, BasicCase) {
     ASSERT_EQ(packet.trusted_pid(), pid);
     ASSERT_EQ(packet.trusted_uid(), uid);
     ASSERT_EQ(packet.for_testing().seq_value(), rnd_engine());
+    // The tracing service should emit non-default machine ID in trace packets.
+    ASSERT_NE(packet.machine_id(), 0u);
+  }
+}
+
+TEST(TracedRelayIntegrationTest, MachineID_MultiRelayService) {
+  base::TestTaskRunner task_runner;
+  std::vector<TestParams> test_params(2);
+
+  base::UnixSocket::EventListener event_listener;
+  for (size_t i = 0; i < test_params.size(); i++) {
+    auto& param = test_params[i];
+    param.id = std::to_string(i + 1);
+    param.server_socket = base::UnixSocket::Listen(
+        "127.0.0.1:0", &event_listener, &task_runner, base::SockFamily::kInet,
+        base::SockType::kStream);
+    ASSERT_TRUE(param.server_socket->is_listening());
+    param.tcp_sock_name = param.server_socket->GetSockAddr();
+    param.relay_service = std::make_unique<RelayService>(&task_runner);
+    param.relay_service->SetMachineIdHintForTesting("test-machine-id-" +
+                                                    param.id);
+    param.unix_sock_name = std::string("@traced_relay_") + param.id;
+    param.producer_name = std::string("perfetto.FakeProducer.") + param.id;
+  }
+  for (auto& param : test_params) {
+    // Shut down listening sockets to free the port. It's unlikely that the port
+    // will be taken by another process so quickly before we reach the code
+    // below.
+    param.server_socket = nullptr;
+  }
+  auto relay_sock_name =
+      test_params[0].tcp_sock_name + "," + test_params[1].tcp_sock_name;
+
+  for (auto& param : test_params) {
+    param.relay_service->Start(param.unix_sock_name.c_str(),
+                               param.tcp_sock_name.c_str());
+  }
+
+  TestHelper helper(&task_runner, TestHelper::Mode::kStartDaemons,
+                    relay_sock_name.c_str());
+  ASSERT_EQ(helper.num_producers(), 2u);
+  helper.StartServiceIfRequired();
+
+  for (auto& param : test_params) {
+    auto checkpoint_name = "perfetto.FakeProducer.connected." + param.id;
+    auto producer_connected = task_runner.CreateCheckpoint(checkpoint_name);
+    auto noop = []() {};
+    auto connected = std::bind(
+        [&](std::function<void()> checkpoint) {
+          task_runner.PostTask(checkpoint);
+        },
+        producer_connected);
+    // We won't use the built-in fake producer and will start our own.
+    param.producer_thread = std::make_unique<FakeProducerThread>(
+        param.unix_sock_name, connected, noop, noop, param.producer_name);
+    param.producer_thread->Connect();
+    task_runner.RunUntilCheckpoint(checkpoint_name);
+  }
+
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_duration_ms(200);
+
+  static constexpr uint32_t kMsgSize = 1024;
+  static constexpr uint32_t kRandomSeed = 42;
+
+  // Enable the 1st producer.
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("perfetto.FakeProducer.1");
+  ds_config->set_target_buffer(0);
+  ds_config->mutable_for_testing()->set_message_count(12);
+  ds_config->mutable_for_testing()->set_message_size(kMsgSize);
+  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
+  // Enable the 2nd producer.
+  ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("perfetto.FakeProducer.2");
+  ds_config->set_target_buffer(0);
+  ds_config->mutable_for_testing()->set_message_count(24);
+  ds_config->mutable_for_testing()->set_message_size(kMsgSize);
+  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
+
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled();
+
+  helper.ReadData();
+  helper.WaitForReadData();
+
+  const auto& packets = helper.trace();
+  ASSERT_EQ(packets.size(), 36u);
+
+  // The producer is connected from this process. The relay service will inject
+  // the SetPeerIdentity message using the pid and euid of the current process.
+  auto pid = static_cast<int32_t>(getpid());
+  auto uid = static_cast<int32_t>(geteuid());
+
+  std::minstd_rand0 rnd_engine(kRandomSeed);
+  std::map<uint32_t, size_t> packets_counts;  // machine ID => count.
+
+  for (const auto& packet : packets) {
+    ASSERT_TRUE(packet.has_for_testing());
+    ASSERT_EQ(packet.trusted_pid(), pid);
+    ASSERT_EQ(packet.trusted_uid(), uid);
+    packets_counts[packet.machine_id()]++;
+  }
+
+  // Fake producer (1, 2) either gets machine ID (1, 2), or (2, 1), depending on
+  // which on is seen by the tracing service first.
+  ASSERT_EQ(packets_counts.size(), 2u);
+  auto count_1 = packets_counts.begin()->second;
+  auto count_2 = packets_counts.rbegin()->second;
+  ASSERT_TRUE(count_1 == 12u || count_1 == 24u);
+  ASSERT_EQ(count_1 + count_2, 36u);
+
+  for (auto& param : test_params) {
+    param.producer_thread = nullptr;
+    param.relay_service = nullptr;
   }
 }
 

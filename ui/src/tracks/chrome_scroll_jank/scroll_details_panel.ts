@@ -31,6 +31,7 @@ import {
   numberColumn,
   Table,
   TableData,
+  widgetColumn,
 } from '../../frontend/tables/table';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
@@ -54,11 +55,6 @@ import {
   ScrollJankSlice,
 } from './scroll_jank_slice';
 import {ScrollJankV3Track} from './scroll_jank_v3_track';
-
-function widgetColumn<T>(
-    name: string, getter: (t: T) => m.Child): ColumnDescriptor<T> {
-  return new ColumnDescriptor<T>(name, getter);
-}
 
 interface Data {
   // Scroll ID.

@@ -38,6 +38,7 @@ import {
   EventLatencyTrack,
   JANKY_LATENCY_NAME,
 } from './event_latency_track';
+import {ScrollJankCauseMap} from './scroll_jank_cause_map';
 import {
   addScrollJankV3ScrollTrack,
   ScrollJankV3Track,
@@ -117,7 +118,7 @@ export class ScrollJankPluginState {
   }
 }
 
-export async function getScrollJankTracks(_engine: Engine):
+export async function getScrollJankTracks(engine: Engine):
     Promise<ScrollJankTrackGroup> {
   const result: ScrollJankTracks = {
     tracksToAdd: [],
@@ -149,6 +150,7 @@ export async function getScrollJankTracks(_engine: Engine):
     fixedOrdering: true,
   });
 
+  await ScrollJankCauseMap.initialize(engine);
   return {tracks: result, addTrackGroup};
 }
 

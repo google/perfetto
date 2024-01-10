@@ -16,13 +16,11 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_STORAGE_STORAGE_H_
 
-#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
-
 namespace protos::pbzero {
 class SerializedColumn_Storage;
 }
@@ -37,21 +35,60 @@ class Storage {
 
   virtual ~Storage();
 
+  // Verifies whether any further filtering is needed and if not, whether the
+  // search would return all values or none of them. This allows for skipping
+  // the |Search| and |IndexSearch| in special cases.
+  //
+  // Notes for callers:
+  // * The SqlValue and FilterOp have to be valid in Sqlite: it will crash if
+  //   either: value is NULL and operation is different than "IS NULL" and "IS
+  //   NOT NULL" or the operation is "IS NULL" and "IS NOT NULL" and value is
+  //   different than NULL.
+  virtual SearchValidationResult ValidateSearchConstraints(SqlValue,
+                                                           FilterOp) const = 0;
+
   // Searches for elements which match |op| and |value| between |range.start|
   // and |range.end|.
-  virtual RangeOrBitVector Search(FilterOp op,
-                                  SqlValue value,
-                                  RowMap::Range range) const = 0;
+  //
+  // Returns either a range or BitVector which indicate the positions in |range|
+  // which match the constraint. If a BitVector is returned, it will be
+  // *precisely* as large as |range.end|.
+  //
+  // Notes for callers:
+  //  * Should only be called if ValidateSearchContraints returned kOk.
+  //  * Callers should note that the return value of this function corresponds
+  //    to positions in the storage.
+  //
+  // Notes for implementors:
+  //  * Implementations should ensure that the return value *only* includes
+  //    positions in |range| as callers will expect this to be true and can
+  //    optimize based on this.
+  //  * Implementations should ensure that, if they return a BitVector, it is
+  //    precisely of size |range.end|.
+  virtual RangeOrBitVector Search(FilterOp, SqlValue, RowMap::Range) const = 0;
 
   // Searches for elements which match |op| and |value| at the positions given
-  // by |indices| array.
-  // If the order defined by |indices| makes storage sorted, |sorted| flag
-  // should be set to true.
-  virtual RangeOrBitVector IndexSearch(FilterOp op,
-                                       SqlValue value,
+  // by |indices| array. The |sorted| flag allows the caller to specify if the
+  // order defined by |indices| makes storage sorted; implementations can use
+  // this to optimize how they search the storage.
+  //
+  // Returns either a range of BitVector which indicate the positions in
+  // |indices| which match the constraint. If a BitVector is returned, it will
+  // be *precisely* as large as |indices_count|.
+  //
+  // Notes for callers:
+  //  * Should only be called if ValidateSearchContraints returned kOk.
+  //  * Callers should note that the return value of this function corresponds
+  //    to positions in |indices| *not* positions in the storage.
+  //
+  // Notes for implementors:
+  //  * Implementations should ensure that, if they return a BitVector, it is
+  //    precisely of size |indices_count|.
+  virtual RangeOrBitVector IndexSearch(FilterOp,
+                                       SqlValue,
                                        uint32_t* indices,
                                        uint32_t indices_count,
-                                       bool sorted = false) const = 0;
+                                       bool sorted) const = 0;
 
   // Sorts |rows| in ascending order with the comparator:
   // data[rows[a]] < data[rows[b]].

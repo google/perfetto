@@ -27,6 +27,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/base/platform_handle.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -36,23 +37,13 @@ struct msghdr;
 namespace perfetto {
 namespace base {
 
-// Define the SocketHandle and ScopedSocketHandle types.
-// On POSIX OSes, a SocketHandle is really just an int (a file descriptor).
-// On Windows, sockets are have their own type (SOCKET) which is neither a
-// HANDLE nor an int. However Windows SOCKET(s) can have a event HANDLE attached
-// to them (which in Perfetto is a PlatformHandle), and that can be used in
-// WaitForMultipleObjects, hence in base::TaskRunner.AddFileDescriptorWatch().
+// Define the ScopedSocketHandle type.
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-// uintptr_t really reads as SOCKET here (Windows headers typedef to that).
-// As usual we don't just use SOCKET here to avoid leaking Windows.h includes
-// in our headers.
-using SocketHandle = uintptr_t;  // SOCKET
 int CloseSocket(SocketHandle);   // A wrapper around ::closesocket().
 using ScopedSocketHandle =
     ScopedResource<SocketHandle, CloseSocket, static_cast<SocketHandle>(-1)>;
 #else
-using SocketHandle = int;
 using ScopedSocketHandle = ScopedFile;
 #endif
 

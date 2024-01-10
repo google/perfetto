@@ -24,7 +24,7 @@ package perfetto.protos;
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 20.
+  // Next id: 21.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -130,6 +130,9 @@ message TraceStats {
     // correlate the stats with the actual packet types.
     optional uint64 sequence_id = 1;
 
+    // The buffer index (0..N, as defined in the TraceConfig).
+    optional uint32 buffer = 4;
+
     // These two arrays have the same cardinality and match the cardinality of
     // chunk_payload_histogram_def + 1 (for the overflow bucket, see below).
     // `sum` contains the SUM(entries) and `counts` contains the COUNT(entries)
@@ -192,6 +195,14 @@ message TraceStats {
     optional uint64 output_bytes = 3;
     optional uint64 errors = 4;
     optional uint64 time_taken_ns = 5;
+
+    // The number of bytes discarded by the filter (i.e. output - input).
+    // The array has one entry for each buffer defined in the config (unless no
+    // packets for that buffer were seen and hence filtered).
+    // Note: the SUM(bytes_discarded_per_buffer) will be <= but not == the total
+    // (output_bytes - input_bytes) because the filter might also discard
+    // server-generated synthetic packets, that have no buffer index.
+    repeated uint64 bytes_discarded_per_buffer = 20;
   }
   optional FilterStats filter_stats = 11;
 

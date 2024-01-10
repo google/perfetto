@@ -43,7 +43,6 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/version.h"
 
 #include "perfetto/trace_processor/metatrace_config.h"
@@ -52,8 +51,8 @@
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
-#include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/read_trace_internal.h"
+#include "src/trace_processor/rpc/stdiod.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -679,6 +678,7 @@ struct CommandLineOptions {
   std::vector<std::string> raw_metric_extensions;
   bool launch_shell = false;
   bool enable_httpd = false;
+  bool enable_stdiod = false;
   bool wide = false;
   bool force_full_sort = false;
   std::string metatrace_path;
@@ -716,6 +716,7 @@ Options:
                                       the metrics output is suppressed.
  -D, --httpd                          Enables the HTTP RPC server.
  --http-port PORT                     Specify what port to run HTTP RPC server.
+ --stdiod                             Enables the stdio RPC server.
  -i, --interactive                    Starts interactive mode even after a query
                                       file is specified with -q or
                                       --run-metrics.
@@ -806,6 +807,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_ANALYZE_TRACE_PROTO_CONTENT,
     OPT_CROP_TRACK_EVENTS,
     OPT_DEV_FLAG,
+    OPT_STDIOD,
   };
 
   static const option long_options[] = {
@@ -817,6 +819,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"query-file", required_argument, nullptr, 'q'},
       {"httpd", no_argument, nullptr, 'D'},
       {"http-port", required_argument, nullptr, OPT_HTTP_PORT},
+      {"stdiod", no_argument, nullptr, OPT_STDIOD},
       {"interactive", no_argument, nullptr, 'i'},
       {"export", required_argument, nullptr, 'e'},
       {"metatrace", required_argument, nullptr, 'm'},
@@ -887,6 +890,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_HTTP_PORT) {
       command_line_options.port_number = optarg;
+      continue;
+    }
+
+    if (option == OPT_STDIOD) {
+      command_line_options.enable_stdiod = true;
       continue;
     }
 
@@ -1000,11 +1008,12 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   }
 
   // The only case where we allow omitting the trace file path is when running
-  // in --http mode. In all other cases, the last argument must be the trace
-  // file.
+  // in --httpd or --stdiod mode. In all other cases, the last argument must be
+  // the trace file.
   if (optind == argc - 1 && argv[optind]) {
     command_line_options.trace_file_path = argv[optind];
-  } else if (!command_line_options.enable_httpd) {
+  } else if (!command_line_options.enable_httpd &&
+             !command_line_options.enable_stdiod) {
     PrintUsage(argv);
     exit(1);
   }
@@ -1663,8 +1672,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     RETURN_IF_ERROR(ExportTraceToDatabase(options.sqlite_file_path));
   }
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-  if (options.enable_httpd) {
+  if (options.enable_httpd || options.enable_stdiod) {
 #if PERFETTO_HAS_SIGNAL_H()
     if (options.metatrace_path.empty()) {
       // Restore the default signal handler to allow the user to terminate
@@ -1680,10 +1688,19 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     }
 #endif
 
-    RunHttpRPCServer(std::move(tp), options.port_number);
-    PERFETTO_FATAL("Should never return");
-  }
+    if (options.enable_httpd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
+      RunHttpRPCServer(std::move(tp), options.port_number);
+      PERFETTO_FATAL("Should never return");
+#else
+      PERFETTO_FATAL("HTTP not available");
 #endif
+    }
+
+    if (options.enable_stdiod) {
+      return RunStdioRpcServer(std::move(tp));
+    }
+  }
 
   if (options.launch_shell) {
     RETURN_IF_ERROR(StartInteractiveShell(

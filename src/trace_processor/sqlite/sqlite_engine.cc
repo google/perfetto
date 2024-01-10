@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <optional>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -99,26 +100,6 @@ SqliteEngine::~SqliteEngine() {
   // Thankfully, because we are very aggressive with PERFETTO_CHECK, mistakes
   // will usually manifest as crashes, but this is not guaranteed.
 
-  // Drop any explicitly created virtual tables before destroying the database
-  // so that any prepared statements are correctly finalized. Note that we need
-  // to do this in two steps (first create all the SQLs before then executing
-  // them) because |OnSqliteTableDestroyed| will be called as each DROP is
-  // executed.
-  std::vector<std::string> drop_stmts;
-  for (auto it = sqlite_tables_.GetIterator(); it; ++it) {
-    if (it.value() != SqliteTable::TableType::kExplicitCreate) {
-      continue;
-    }
-    base::StackString<1024> drop("DROP TABLE %s", it.key().c_str());
-    drop_stmts.emplace_back(drop.ToStdString());
-  }
-  for (const auto& drop : drop_stmts) {
-    int ret = sqlite3_exec(db(), drop.c_str(), nullptr, nullptr, nullptr);
-    if (PERFETTO_UNLIKELY(ret != SQLITE_OK)) {
-      PERFETTO_FATAL("Failed to execute statement: '%s'", drop.c_str());
-    }
-  }
-
   // It is important to unregister any functions that have been registered with
   // the database before destroying it. This is because functions can hold onto
   // prepared statements, which must be finalized before database destruction.
@@ -131,6 +112,32 @@ SqliteEngine::~SqliteEngine() {
     }
   }
   fn_ctx_.Clear();
+
+  // Drop any explicitly created virtual tables before destroying the database
+  // so that any prepared statements are correctly finalized. Note that we need
+  // to do this in two steps (first create all the SQLs before then executing
+  // them) because |OnSqliteTableDestroyed| will be called as each DROP is
+  // executed.
+  std::vector<std::string> drop_stmts;
+  std::unordered_set<std::string> dropped_tables;
+  for (auto it = all_created_sqlite_tables_.rbegin();
+       it != all_created_sqlite_tables_.rend(); it++) {
+    if (auto* type = sqlite_tables_.Find(*it);
+        !type || *type != SqliteTable::TableType::kExplicitCreate) {
+      continue;
+    }
+    if (auto it_and_ins = dropped_tables.insert(*it); !it_and_ins.second) {
+      continue;
+    }
+    base::StackString<1024> drop("DROP TABLE %s", it->c_str());
+    drop_stmts.emplace_back(drop.ToStdString());
+  }
+  for (const auto& drop : drop_stmts) {
+    int ret = sqlite3_exec(db(), drop.c_str(), nullptr, nullptr, nullptr);
+    if (PERFETTO_UNLIKELY(ret != SQLITE_OK)) {
+      PERFETTO_FATAL("Failed to execute statement: '%s'", drop.c_str());
+    }
+  }
 
   // Reset the database itself.
   db_.reset();
@@ -248,6 +255,7 @@ void SqliteEngine::OnSqliteTableCreated(const std::string& name,
                                         SqliteTable::TableType type) {
   auto it_and_inserted = sqlite_tables_.Insert(name, type);
   PERFETTO_CHECK(it_and_inserted.second);
+  all_created_sqlite_tables_.push_back(name);
 }
 
 void SqliteEngine::OnSqliteTableDestroyed(const std::string& name) {

@@ -17,7 +17,6 @@ import {assertExists} from '../base/logging';
 import {clamp, floatEqual} from '../base/math_utils';
 import {
   duration,
-  Span,
   Time,
   time,
 } from '../base/time';
@@ -30,15 +29,16 @@ import {
 import {colorCompare} from '../common/color';
 import {UNEXPECTED_PINK} from '../common/colorizer';
 import {Selection, SelectionKind} from '../common/state';
+import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {Slice, SliceRect} from '../public';
 import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
+import {PanelSize} from './panel';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {constraintsToQuerySuffix} from './sql_utils';
-import {PxSpan, TimeScale} from './time_scale';
 import {NewTrackArgs, TrackBase} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
 
@@ -52,6 +52,14 @@ const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
 const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
 const CHEVRON_WIDTH_PX = 10;
 const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK;
+const INCOMPLETE_SLICE_WIDTH_PX = 20;
+
+export const CROP_INCOMPLETE_SLICE_FLAG = featureFlags.register({
+  id: 'cropIncompleteSlice',
+  name: 'Crop incomplete Slice',
+  description: 'Display incomplete slice in short form',
+  defaultValue: false,
+});
 
 // Exposed and standalone to allow for testing without making this
 // visible to subclasses.
@@ -104,33 +112,8 @@ function filterVisibleSlices<S extends Slice>(
   if (maybeFirstSlice && maybeFirstSlice.startNsQ > end) {
     return [];
   }
-  // It's not possible to easily check the analogous edge case where all slices
-  // are to the left:
-  // For all slice in slices: slice.endNsQ < startS
-  // as the slices are not ordered by 'endNsQ'.
 
-  // As described above you could do some clever binary search combined with
-  // iteration however that seems quite complicated and error prone so instead
-  // the idea of the code below is that we iterate forward though the
-  // array incrementing startIdx until we find the first visible slice
-  // then backwards through the array decrementing endIdx until we find the
-  // last visible slice. In the worst case we end up doing one full pass on
-  // the array. This code is robust to slices not being sorted.
-  let startIdx = 0;
-  let endIdx = slices.length;
-  for (; startIdx < endIdx; ++startIdx) {
-    const slice = slices[startIdx];
-    if (slice.endNsQ >= start && slice.startNsQ <= end) {
-      break;
-    }
-  }
-  for (; startIdx < endIdx; --endIdx) {
-    const slice = slices[endIdx - 1];
-    if (slice.endNsQ >= start && slice.startNsQ <= end) {
-      break;
-    }
-  }
-  return slices.slice(startIdx, endIdx);
+  return slices.filter(slice => {return slice.startNsQ <= end && slice.endNsQ >= start});
 }
 
 export const filterVisibleSlicesForTesting = filterVisibleSlices;
@@ -318,13 +301,13 @@ export abstract class BaseSliceTrack<
     return `${size}px Roboto Condensed`;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
     const {
       visibleTimeScale: timeScale,
       visibleWindowTime: vizTime,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
 
     {
       const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
@@ -391,8 +374,16 @@ export abstract class BaseSliceTrack<
         slice.x -= CHEVRON_WIDTH_PX / 2;
         slice.w = CHEVRON_WIDTH_PX;
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
-        slice.x = Math.max(slice.x, 0);
-        slice.w = pxEnd - slice.x;
+        let widthPx;
+        if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
+          widthPx = slice.x > 0 ? Math.min(pxEnd, INCOMPLETE_SLICE_WIDTH_PX) :
+              Math.max(0, INCOMPLETE_SLICE_WIDTH_PX + slice.x);
+          slice.x = Math.max(slice.x, 0);
+        } else {
+          slice.x = Math.max(slice.x, 0);
+          widthPx = pxEnd - slice.x;
+        }
+        slice.w = widthPx;
       } else {
         // If the slice is an actual slice, intersect the slice geometry with
         // the visible viewport (this affects only the first and last slice).
@@ -429,8 +420,10 @@ export abstract class BaseSliceTrack<
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         this.drawChevron(ctx, slice.x, y, sliceHeight);
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
-        const w = Math.max(slice.w - 2, 2);
-        drawIncompleteSlice(ctx, slice.x, y, w, sliceHeight);
+        const w = CROP_INCOMPLETE_SLICE_FLAG.get() ? slice.w :
+                                                     Math.max(slice.w - 2, 2);
+        drawIncompleteSlice(
+            ctx, slice.x, y, w, sliceHeight, !CROP_INCOMPLETE_SLICE_FLAG.get());
       } else {
         const w = Math.max(slice.w, SLICE_MIN_WIDTH_PX);
         ctx.fillRect(slice.x, y, w, sliceHeight);
@@ -528,8 +521,8 @@ export abstract class BaseSliceTrack<
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        timeScale.hpTimeToPx(vizTime.start),
-        timeScale.hpTimeToPx(vizTime.end),
+        0,
+        size.width,
         timeScale.timeToPx(this.slicesKey.start),
         timeScale.timeToPx(this.slicesKey.end));
 
@@ -798,7 +791,15 @@ export abstract class BaseSliceTrack<
     }
 
     for (const slice of this.incomplete) {
-      if (slice.depth === depth && slice.x <= x) {
+      const visibleTimeScale = globals.timeline.visibleTimeScale;
+      const startPx = CROP_INCOMPLETE_SLICE_FLAG.get() ?
+          visibleTimeScale.timeToPx(slice.startNsQ) :
+          slice.x;
+      const cropUnfinishedSlicesCondition = CROP_INCOMPLETE_SLICE_FLAG.get() ?
+        startPx + INCOMPLETE_SLICE_WIDTH_PX >= x : true;
+
+      if (slice.depth === depth && startPx <= x &&
+          cropUnfinishedSlicesCondition) {
         return slice;
       }
     }
@@ -940,17 +941,20 @@ export abstract class BaseSliceTrack<
     return this.computedTrackHeight;
   }
 
-  getSliceRect(
-      visibleTimeScale: TimeScale, visibleWindow: Span<time, duration>,
-      windowSpan: PxSpan, tStart: time, tEnd: time, depth: number): SliceRect
-      |undefined {
+  getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect|undefined {
     this.updateSliceAndTrackHeight();
+
+    const {
+      windowSpan,
+      visibleTimeScale,
+      visibleTimeSpan,
+    } = globals.timeline;
 
     const pxEnd = windowSpan.end;
     const left = Math.max(visibleTimeScale.timeToPx(tStart), 0);
     const right = Math.min(visibleTimeScale.timeToPx(tEnd), pxEnd);
 
-    const visible = visibleWindow.intersects(tStart, tEnd);
+    const visible = visibleTimeSpan.intersects(tStart, tEnd);
 
     const totalSliceHeight = this.computedRowSpacing + this.computedSliceHeight;
 

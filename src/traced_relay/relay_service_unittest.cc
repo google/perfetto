@@ -24,6 +24,11 @@
 #include "src/ipc/buffered_frame_deserializer.h"
 #include "test/gtest_and_gmock.h"
 
+// Disable tests on MacOS and Windows as neither abstract sockets nor pseudo
+// boot ID are supported.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
 namespace perfetto {
 namespace {
 
@@ -65,8 +70,7 @@ TEST(RelayServiceTest, SetPeerIdentity) {
       base::SockType::kStream);
   ASSERT_TRUE(tcp_server->is_listening());
   auto tcp_sock_name = tcp_server->GetSockAddr();
-  auto* unix_sock_name =
-      "@producer.sock";  // Use abstract unix socket for server socket.
+  auto* unix_sock_name = "@producer.sock";  // Use abstract socket for server.
 
   // Start the relay service.
   relay_service->Start(unix_sock_name, tcp_sock_name.c_str());
@@ -116,6 +120,7 @@ TEST(RelayServiceTest, SetPeerIdentity) {
         const auto& set_peer_identity = frame->set_peer_identity();
         EXPECT_EQ(set_peer_identity.pid(), getpid());
         EXPECT_EQ(set_peer_identity.uid(), static_cast<int32_t>(geteuid()));
+        EXPECT_TRUE(set_peer_identity.has_machine_id_hint());
 
         frame = deserializer.PopNextFrame();
         EXPECT_EQ(1u, frame->data_for_testing().size());
@@ -126,5 +131,36 @@ TEST(RelayServiceTest, SetPeerIdentity) {
   task_runner.RunUntilCheckpoint("peer_identity_recv");
 }
 
+TEST(RelayServiceTest, MachineIDHint) {
+  base::TestTaskRunner task_runner;
+  auto relay_service = std::make_unique<RelayService>(&task_runner);
+
+  auto hint1 = relay_service->GetMachineIdHint();
+  auto hint2 =
+      relay_service->GetMachineIdHint(/*use_pseudo_boot_id_for_testing=*/true);
+  EXPECT_NE(hint1, hint2);
+
+  // Add a short sleep to verify that pseudo boot ID isn't affected.
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+  relay_service = std::make_unique<RelayService>(&task_runner);
+  auto hint3 = relay_service->GetMachineIdHint();
+  auto hint4 =
+      relay_service->GetMachineIdHint(/*use_pseudo_boot_id_for_testing=*/true);
+  EXPECT_NE(hint3, hint4);
+
+  EXPECT_FALSE(hint1.empty());
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // This test can run on Android kernel 3.x, but pseudo boot ID uses statx(2)
+  // that requires kernel 4.11.
+  EXPECT_FALSE(hint2.empty());
+#endif
+
+  EXPECT_EQ(hint1, hint3);
+  EXPECT_EQ(hint2, hint4);
+}
+
 }  // namespace
 }  // namespace perfetto
+
+#endif

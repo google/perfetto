@@ -324,7 +324,7 @@ class TypedSqliteTable : public TypedSqliteTableBase {
         module.xDisconnect = &xDestroy;
         break;
       case TableType::kExplicitCreate:
-        // xConnect and xDestroy will be called when the table is CREATE-ed and
+        // xCreate and xDestroy will be called when the table is CREATE-ed and
         // DROP-ed respectively.
         module.xCreate = &xCreate;
         module.xDestroy = &xDestroy;

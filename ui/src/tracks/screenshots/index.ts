@@ -16,14 +16,15 @@ import {AddTrackArgs} from '../../common/actions';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {
+  NUM,
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   PrimaryTrackSortKey,
 } from '../../public';
+import {Engine} from '../../trace_processor/engine';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
@@ -36,9 +37,6 @@ import {
 
 class ScreenshotsTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'dev.perfetto.ScreenshotsTrack';
-  static create(args: NewTrackArgs): TrackBase {
-    return new ScreenshotsTrack(args);
-  }
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
@@ -63,16 +61,24 @@ export type DecideTracksResult = {
 };
 
 // TODO(stevegolton): Use suggestTrack().
-export async function decideTracks(): Promise<DecideTracksResult> {
+export async function decideTracks(engine: Engine):
+    Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  result.tracksToAdd.push({
-    uri: 'perfetto.Screenshots',
-    name: 'Screenshots',
-    trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-  });
+  const res =
+      await engine.query('select count() as count from android_screenshots');
+  const {count} = res.firstRow({count: NUM});
+
+  if (count > 0) {
+    result.tracksToAdd.push({
+      uri: 'perfetto.Screenshots',
+      name: 'Screenshots',
+      trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+    });
+  }
+
   return result;
 }
 
@@ -82,17 +88,25 @@ class ScreenshotsPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await ctx.engine.query(`INCLUDE PERFETTO MODULE android.screenshots`);
 
-    ctx.registerStaticTrack({
-      uri: 'perfetto.Screenshots',
-      displayName: 'Screenshots',
-      kind: ScreenshotsTrack.kind,
-      track: ({trackKey}) => {
-        return new ScreenshotsTrack({
-          engine: ctx.engine,
-          trackKey,
-        });
-      },
-    });
+    const res = await ctx.engine.query(
+        'select count() as count from android_screenshots');
+    const {count} = res.firstRow({count: NUM});
+
+    if (count > 0) {
+      const displayName = 'Screenshots';
+      const uri = 'perfetto.Screenshots';
+      ctx.registerStaticTrack({
+        uri,
+        displayName,
+        kind: ScreenshotsTrack.kind,
+        track: ({trackKey}) => {
+          return new ScreenshotsTrack({
+            engine: ctx.engine,
+            trackKey,
+          });
+        },
+      });
+    }
   }
 }
 

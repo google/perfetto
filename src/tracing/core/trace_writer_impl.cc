@@ -72,7 +72,17 @@ TraceWriterImpl::~TraceWriterImpl() {
   shmem_arbiter_->ReleaseWriterID(id_);
 }
 
+void TraceWriterImpl::FinalizeSparePacketIfAny() {
+  if (spare_packet_) {
+    uint32_t spare_packet_size = spare_packet_->Finalize();
+    spare_packet_ = protozero::MessageHandle<protos::pbzero::TracePacket>();
+    PERFETTO_DCHECK(spare_packet_size == 0);
+  }
+}
+
 void TraceWriterImpl::Flush(std::function<void()> callback) {
+  FinalizeSparePacketIfAny();
+
   // Flush() cannot be called in the middle of a TracePacket.
   PERFETTO_CHECK(cur_packet_->is_finalized());
 
@@ -98,14 +108,22 @@ void TraceWriterImpl::Flush(std::function<void()> callback) {
 }
 
 TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
-  // If we hit this, the caller is calling NewTracePacket() without having
-  // finalized the previous packet.
-  PERFETTO_CHECK(cur_packet_->is_finalized());
   // If we hit this, this trace writer was created in a different process. This
   // likely means that the process forked while tracing was active, and the
   // forked child process tried to emit a trace event. This is not supported, as
   // it would lead to two processes writing to the same tracing SMB.
   PERFETTO_DCHECK(process_id_ == base::GetProcessId());
+
+  // If the previous user called FinishTracePacket() (which is optional), that
+  // will end up creating a spare_packet_ (to keep the count inflated and allow
+  // server-side scraping). Just return that as we are ahead with our work.
+  if (spare_packet_) {
+    return std::move(spare_packet_);
+  }
+
+  // If we hit this, the caller is calling NewTracePacket() without having
+  // finalized the previous packet.
+  PERFETTO_CHECK(cur_packet_->is_finalized());
 
   fragmenting_packet_ = false;
 
@@ -175,6 +193,11 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
 // In this case |fragmenting_packet_| == false and we just want a new chunk
 // without creating any fragments.
 protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
+  // If there's a spare packet, finalize it. This should never re-enter
+  // GetNewBuffer() because message finalization doesn't write any new bytes in
+  // the stream writer.
+  FinalizeSparePacketIfAny();
+
   if (fragmenting_packet_ && drop_packets_) {
     // We can't write the remaining data of the fragmenting packet to a new
     // chunk, because we have already lost some of its data in the garbage
@@ -389,6 +412,13 @@ void TraceWriterImpl::FinishTracePacket() {
   if (!patch_list_.empty() && patch_list_.front().is_patched()) {
     shmem_arbiter_->SendPatches(id_, target_buffer_, &patch_list_);
   }
+
+  // The tracing service is not able to scrape the last packet in the chunk.
+  // Start a new packet so that the previous packet is visible to the tracing
+  // service.
+  if (!spare_packet_) {
+    spare_packet_ = TraceWriterImpl::NewTracePacket();
+  }
 }
 
 uint8_t* TraceWriterImpl::AnnotatePatch(uint8_t* to_patch) {
@@ -408,6 +438,13 @@ uint8_t* TraceWriterImpl::AnnotatePatch(uint8_t* to_patch) {
     cur_chunk_.SetFlag(ChunkHeader::kChunkNeedsPatching);
   }
   return &patch->size_field[0];
+}
+
+void TraceWriterImpl::ResetChunkForTesting() {
+  if (spare_packet_) {
+    spare_packet_->set_size_field(nullptr);
+  }
+  cur_chunk_ = SharedMemoryABI::Chunk();
 }
 
 WriterID TraceWriterImpl::writer_id() const {

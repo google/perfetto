@@ -13,10 +13,12 @@
 // limitations under the License.
 
 import {
+  createStore,
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
+  Store,
 } from '../../public';
 
 interface State {
@@ -26,6 +28,8 @@ interface State {
 // This example plugin shows using state that is persisted in the
 // permalink.
 class ExampleState implements Plugin {
+  private store: Store<State> = createStore({counter: 0});
+
   private migrate(initialState: unknown): State {
     if (initialState && typeof initialState === 'object' &&
         'counter' in initialState && typeof initialState.counter === 'number') {
@@ -40,18 +44,24 @@ class ExampleState implements Plugin {
   }
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    const store = ctx.mountStore((init: unknown) => this.migrate(init));
+    this.store = ctx.mountStore((init: unknown) => this.migrate(init));
 
     ctx.registerCommand({
       id: 'dev.perfetto.ExampleState#ShowCounter',
       name: 'Show ExampleState counter',
       callback: () => {
-        const counter = store.state.counter;
+        const counter = this.store.state.counter;
         ctx.tabs.openQuery(
             `SELECT ${counter} as counter;`, `Show counter ${counter}`);
-        store.edit((draft) => ++draft.counter);
+        this.store.edit((draft) => {
+          ++draft.counter;
+        });
       },
     });
+  }
+
+  async onTraceUnload(_: PluginContextTrace): Promise<void> {
+    this.store.dispose();
   }
 }
 

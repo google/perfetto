@@ -20,15 +20,16 @@ import {assertTrue} from '../../base/logging';
 import {isString} from '../../base/object_utils';
 import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {
-  BasicAsyncTrack,
-  NUM_NULL,
-  STR_NULL,
-} from '../../common/basic_async_track';
 import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {TrackData} from '../../common/track_data';
+import {
+  NUM_NULL,
+  STR_NULL,
+  TrackHelperLEGACY,
+} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {
   EngineProxy,
   LONG,
@@ -126,7 +127,7 @@ function isCounterState(x: unknown): x is CounterTrackState {
   }
 }
 
-export class CounterTrack extends BasicAsyncTrack<Data> {
+export class CounterTrack extends TrackHelperLEGACY<Data> {
   private maximumValueSeen = 0;
   private minimumValueSeen = 0;
   private maximumDeltaSeen = 0;
@@ -348,12 +349,11 @@ export class CounterTrack extends BasicAsyncTrack<Data> {
     );
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const {
       visibleTimeScale: timeScale,
-      windowSpan,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data;
 
     // Can't possibly draw anything.
@@ -389,7 +389,7 @@ export class CounterTrack extends BasicAsyncTrack<Data> {
       minimumValue = data.minimumRate;
     }
 
-    const endPx = windowSpan.end;
+    const endPx = size.width;
     const zeroY = MARGIN_TOP + RECT_HEIGHT / (minimumValue < 0 ? 2 : 1);
 
     // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
@@ -550,8 +550,8 @@ export class CounterTrack extends BasicAsyncTrack<Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        windowSpan.start,
-        windowSpan.end,
+        0,
+        size.width,
         timeScale.timeToPx(data.start),
         timeScale.timeToPx(data.end));
   }
@@ -560,7 +560,7 @@ export class CounterTrack extends BasicAsyncTrack<Data> {
     const data = this.data;
     if (data === undefined) return;
     this.mousePos = pos;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(pos.x);
 
     let values = data.lastValues;
@@ -587,7 +587,7 @@ export class CounterTrack extends BasicAsyncTrack<Data> {
   onMouseClick({x}: {x: number}): boolean {
     const data = this.data;
     if (data === undefined) return false;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.timestamps, time.toTime());
     if (left === -1) {
@@ -610,6 +610,7 @@ export class CounterTrack extends BasicAsyncTrack<Data> {
       await this.engine.query(
           `DROP VIEW IF EXISTS ${this.tableName('counter_view')}`);
     }
+    this.store.dispose();
   }
 }
 

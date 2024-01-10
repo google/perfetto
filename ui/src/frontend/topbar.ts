@@ -45,7 +45,7 @@ class NewVersionNotification implements m.ClassComponent {
         m('button.notification-btn.preferred',
           {
             onclick: () => {
-              globals.frontendLocalState.newVersionAvailable = false;
+              globals.newVersionAvailable = false;
               raf.scheduleFullRedraw();
             },
           },
@@ -61,7 +61,7 @@ class HelpPanningNotification implements m.ClassComponent {
     // does not persist for iFrames. The host is responsible for communicating
     // to users that they can press '?' for help.
     if (globals.embeddedMode || dismissed === 'true' ||
-        !globals.frontendLocalState.showPanningHint) {
+        !globals.showPanningHint) {
       return;
     }
     return m(
@@ -72,7 +72,7 @@ class HelpPanningNotification implements m.ClassComponent {
         m('button.hint-dismiss-button',
           {
             onclick: () => {
-              globals.frontendLocalState.showPanningHint = false;
+              globals.showPanningHint = false;
               localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
               raf.scheduleFullRedraw();
             },
@@ -113,9 +113,7 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
     return m(
         '.topbar',
         {class: globals.state.sidebarVisible ? '' : 'hide-sidebar'},
-        globals.frontendLocalState.newVersionAvailable ?
-            m(NewVersionNotification) :
-            omnibox,
+        globals.newVersionAvailable ? m(NewVersionNotification) : omnibox,
         m(Progress),
         m(HelpPanningNotification),
         m(TraceErrorIcon));

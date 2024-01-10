@@ -2252,7 +2252,6 @@ cc_test {
         ":perfetto_src_shared_lib_test_utils",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_db",
-        ":perfetto_src_trace_processor_db_overlays_overlays",
         ":perfetto_src_trace_processor_db_storage_storage",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
@@ -2996,6 +2995,7 @@ filegroup {
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
+        "protos/perfetto/config/etw/etw_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/test_config.proto",
@@ -3031,6 +3031,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.cc",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.gen.cc",
         "external/perfetto/protos/perfetto/config/data_source_config.gen.cc",
+        "external/perfetto/protos/perfetto/config/etw/etw_config.gen.cc",
         "external/perfetto/protos/perfetto/config/interceptor_config.gen.cc",
         "external/perfetto/protos/perfetto/config/stress_test_config.gen.cc",
         "external/perfetto/protos/perfetto/config/test_config.gen.cc",
@@ -3066,6 +3067,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.gen.h",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.gen.h",
         "external/perfetto/protos/perfetto/config/data_source_config.gen.h",
+        "external/perfetto/protos/perfetto/config/etw/etw_config.gen.h",
         "external/perfetto/protos/perfetto/config/interceptor_config.gen.h",
         "external/perfetto/protos/perfetto/config/stress_test_config.gen.h",
         "external/perfetto/protos/perfetto/config/test_config.gen.h",
@@ -3109,6 +3111,7 @@ genrule {
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
+        "protos/perfetto/config/etw/etw_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
         "protos/perfetto/config/gpu/vulkan_memory_config.proto",
@@ -3680,6 +3683,7 @@ filegroup {
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
+        "protos/perfetto/config/etw/etw_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/test_config.proto",
@@ -3714,6 +3718,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.cc",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pb.cc",
         "external/perfetto/protos/perfetto/config/data_source_config.pb.cc",
+        "external/perfetto/protos/perfetto/config/etw/etw_config.pb.cc",
         "external/perfetto/protos/perfetto/config/interceptor_config.pb.cc",
         "external/perfetto/protos/perfetto/config/stress_test_config.pb.cc",
         "external/perfetto/protos/perfetto/config/test_config.pb.cc",
@@ -3748,6 +3753,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pb.h",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pb.h",
         "external/perfetto/protos/perfetto/config/data_source_config.pb.h",
+        "external/perfetto/protos/perfetto/config/etw/etw_config.pb.h",
         "external/perfetto/protos/perfetto/config/interceptor_config.pb.h",
         "external/perfetto/protos/perfetto/config/stress_test_config.pb.h",
         "external/perfetto/protos/perfetto/config/test_config.pb.h",
@@ -4721,6 +4727,7 @@ filegroup {
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
+        "protos/perfetto/config/etw/etw_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/test_config.proto",
@@ -4756,6 +4763,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/data_source_config.pbzero.cc",
+        "external/perfetto/protos/perfetto/config/etw/etw_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/interceptor_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/stress_test_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/test_config.pbzero.cc",
@@ -4791,6 +4799,7 @@ genrule {
         "external/perfetto/protos/perfetto/config/chrome/chrome_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/chrome/scenario_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/data_source_config.pbzero.h",
+        "external/perfetto/protos/perfetto/config/etw/etw_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/interceptor_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/stress_test_config.pbzero.h",
         "external/perfetto/protos/perfetto/config/test_config.pbzero.h",
@@ -5676,6 +5685,7 @@ genrule {
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
+        "protos/perfetto/config/etw/etw_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
         "protos/perfetto/config/gpu/vulkan_memory_config.proto",
@@ -5759,6 +5769,7 @@ genrule {
         "protos/perfetto/trace/ftrace/net.proto",
         "protos/perfetto/trace/ftrace/oom.proto",
         "protos/perfetto/trace/ftrace/panel.proto",
+        "protos/perfetto/trace/ftrace/perf_trace_counters.proto",
         "protos/perfetto/trace/ftrace/power.proto",
         "protos/perfetto/trace/ftrace/printk.proto",
         "protos/perfetto/trace/ftrace/raw_syscalls.proto",
@@ -6177,6 +6188,7 @@ filegroup {
         "protos/perfetto/trace/ftrace/net.proto",
         "protos/perfetto/trace/ftrace/oom.proto",
         "protos/perfetto/trace/ftrace/panel.proto",
+        "protos/perfetto/trace/ftrace/perf_trace_counters.proto",
         "protos/perfetto/trace/ftrace/power.proto",
         "protos/perfetto/trace/ftrace/printk.proto",
         "protos/perfetto/trace/ftrace/raw_syscalls.proto",
@@ -6258,6 +6270,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/net.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/oom.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/panel.gen.cc",
+        "external/perfetto/protos/perfetto/trace/ftrace/perf_trace_counters.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/power.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/printk.gen.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/raw_syscalls.gen.cc",
@@ -6339,6 +6352,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/net.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/oom.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/panel.gen.h",
+        "external/perfetto/protos/perfetto/trace/ftrace/perf_trace_counters.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/power.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/printk.gen.h",
         "external/perfetto/protos/perfetto/trace/ftrace/raw_syscalls.gen.h",
@@ -6416,6 +6430,7 @@ filegroup {
         "protos/perfetto/trace/ftrace/net.proto",
         "protos/perfetto/trace/ftrace/oom.proto",
         "protos/perfetto/trace/ftrace/panel.proto",
+        "protos/perfetto/trace/ftrace/perf_trace_counters.proto",
         "protos/perfetto/trace/ftrace/power.proto",
         "protos/perfetto/trace/ftrace/printk.proto",
         "protos/perfetto/trace/ftrace/raw_syscalls.proto",
@@ -6496,6 +6511,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/net.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/oom.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/panel.pb.cc",
+        "external/perfetto/protos/perfetto/trace/ftrace/perf_trace_counters.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/power.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/printk.pb.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/raw_syscalls.pb.cc",
@@ -6576,6 +6592,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/net.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/oom.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/panel.pb.h",
+        "external/perfetto/protos/perfetto/trace/ftrace/perf_trace_counters.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/power.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/printk.pb.h",
         "external/perfetto/protos/perfetto/trace/ftrace/raw_syscalls.pb.h",
@@ -6653,6 +6670,7 @@ filegroup {
         "protos/perfetto/trace/ftrace/net.proto",
         "protos/perfetto/trace/ftrace/oom.proto",
         "protos/perfetto/trace/ftrace/panel.proto",
+        "protos/perfetto/trace/ftrace/perf_trace_counters.proto",
         "protos/perfetto/trace/ftrace/power.proto",
         "protos/perfetto/trace/ftrace/printk.proto",
         "protos/perfetto/trace/ftrace/raw_syscalls.proto",
@@ -6734,6 +6752,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/net.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/oom.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/panel.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/ftrace/perf_trace_counters.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/power.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/printk.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/ftrace/raw_syscalls.pbzero.cc",
@@ -6815,6 +6834,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/ftrace/net.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/oom.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/panel.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/ftrace/perf_trace_counters.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/power.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/printk.pbzero.h",
         "external/perfetto/protos/perfetto/trace/ftrace/raw_syscalls.pbzero.h",
@@ -10741,6 +10761,11 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/db:compare
+filegroup {
+    name: "perfetto_src_trace_processor_db_compare",
+}
+
 // GN: //src/trace_processor/db:db
 filegroup {
     name: "perfetto_src_trace_processor_db_db",
@@ -10754,24 +10779,11 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/db/overlays:overlays
+// GN: //src/trace_processor/db/storage:fake_storage
 filegroup {
-    name: "perfetto_src_trace_processor_db_overlays_overlays",
+    name: "perfetto_src_trace_processor_db_storage_fake_storage",
     srcs: [
-        "src/trace_processor/db/overlays/arrangement_overlay.cc",
-        "src/trace_processor/db/overlays/null_overlay.cc",
-        "src/trace_processor/db/overlays/selector_overlay.cc",
-        "src/trace_processor/db/overlays/storage_overlay.cc",
-    ],
-}
-
-// GN: //src/trace_processor/db/overlays:unittests
-filegroup {
-    name: "perfetto_src_trace_processor_db_overlays_unittests",
-    srcs: [
-        "src/trace_processor/db/overlays/arrangement_overlay_unittest.cc",
-        "src/trace_processor/db/overlays/null_overlay_unittest.cc",
-        "src/trace_processor/db/overlays/selector_overlay_unittest.cc",
+        "src/trace_processor/db/storage/fake_storage.cc",
     ],
 }
 
@@ -10779,12 +10791,17 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_db_storage_storage",
     srcs: [
+        "src/trace_processor/db/storage/arrangement_storage.cc",
+        "src/trace_processor/db/storage/dense_null_storage.cc",
         "src/trace_processor/db/storage/dummy_storage.cc",
         "src/trace_processor/db/storage/id_storage.cc",
+        "src/trace_processor/db/storage/null_storage.cc",
         "src/trace_processor/db/storage/numeric_storage.cc",
+        "src/trace_processor/db/storage/selector_storage.cc",
         "src/trace_processor/db/storage/set_id_storage.cc",
         "src/trace_processor/db/storage/storage.cc",
         "src/trace_processor/db/storage/string_storage.cc",
+        "src/trace_processor/db/storage/utils.cc",
     ],
 }
 
@@ -10792,8 +10809,12 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_db_storage_unittests",
     srcs: [
+        "src/trace_processor/db/storage/arrangement_storage_unittest.cc",
+        "src/trace_processor/db/storage/dense_null_storage_unittest.cc",
         "src/trace_processor/db/storage/id_storage_unittest.cc",
+        "src/trace_processor/db/storage/null_storage_unittest.cc",
         "src/trace_processor/db/storage/numeric_storage_unittest.cc",
+        "src/trace_processor/db/storage/selector_storage_unittest.cc",
         "src/trace_processor/db/storage/set_id_storage_unittest.cc",
         "src/trace_processor/db/storage/string_storage_unittest.cc",
     ],
@@ -10963,6 +10984,7 @@ filegroup {
         "src/trace_processor/importers/ftrace/ftrace_module_impl.cc",
         "src/trace_processor/importers/ftrace/ftrace_parser.cc",
         "src/trace_processor/importers/ftrace/ftrace_tokenizer.cc",
+        "src/trace_processor/importers/ftrace/gpu_work_period_tracker.cc",
         "src/trace_processor/importers/ftrace/iostat_tracker.cc",
         "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.cc",
         "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.cc",
@@ -11699,6 +11721,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/view.cc",
     ],
 }
@@ -11837,6 +11860,14 @@ filegroup {
     srcs: [
         "src/trace_processor/rpc/query_result_serializer.cc",
         "src/trace_processor/rpc/rpc.cc",
+    ],
+}
+
+// GN: //src/trace_processor/rpc:stdiod
+filegroup {
+    name: "perfetto_src_trace_processor_rpc_stdiod",
+    srcs: [
+        "src/trace_processor/rpc/stdiod.cc",
     ],
 }
 
@@ -13093,6 +13124,7 @@ java_library {
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
+        "protos/perfetto/config/etw/etw_config.proto",
         "protos/perfetto/config/ftrace/ftrace_config.proto",
         "protos/perfetto/config/gpu/gpu_counter_config.proto",
         "protos/perfetto/config/gpu/vulkan_memory_config.proto",
@@ -13176,6 +13208,7 @@ java_library {
         "protos/perfetto/trace/ftrace/net.proto",
         "protos/perfetto/trace/ftrace/oom.proto",
         "protos/perfetto/trace/ftrace/panel.proto",
+        "protos/perfetto/trace/ftrace/perf_trace_counters.proto",
         "protos/perfetto/trace/ftrace/power.proto",
         "protos/perfetto/trace/ftrace/printk.proto",
         "protos/perfetto/trace/ftrace/raw_syscalls.proto",
@@ -13602,9 +13635,9 @@ cc_test {
         ":perfetto_src_shared_lib_unittests",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_containers_unittests",
+        ":perfetto_src_trace_processor_db_compare",
         ":perfetto_src_trace_processor_db_db",
-        ":perfetto_src_trace_processor_db_overlays_overlays",
-        ":perfetto_src_trace_processor_db_overlays_unittests",
+        ":perfetto_src_trace_processor_db_storage_fake_storage",
         ":perfetto_src_trace_processor_db_storage_storage",
         ":perfetto_src_trace_processor_db_storage_unittests",
         ":perfetto_src_trace_processor_db_unittests",
@@ -14324,7 +14357,6 @@ cc_binary {
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_db",
-        ":perfetto_src_trace_processor_db_overlays_overlays",
         ":perfetto_src_trace_processor_db_storage_storage",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
@@ -14364,6 +14396,7 @@ cc_binary {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_rpc_httpd",
         ":perfetto_src_trace_processor_rpc_rpc",
+        ":perfetto_src_trace_processor_rpc_stdiod",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_query_constraints",
         ":perfetto_src_trace_processor_sqlite_sqlite",
@@ -14558,7 +14591,6 @@ cc_binary_host {
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_db",
-        ":perfetto_src_trace_processor_db_overlays_overlays",
         ":perfetto_src_trace_processor_db_storage_storage",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
@@ -15254,4 +15286,30 @@ license {
     license_text: [
         "LICENSE",
     ],
+}
+
+// TODO(b/315118713): use list of proto file sources instead of merged proto
+gensrcs {
+    name: "perfetto_trace_javastream_protos",
+    srcs: [
+        "protos/perfetto/trace/perfetto_trace.proto",
+    ],
+    tools: [
+        "aprotoc",
+        "protoc-gen-javastream",
+        "soong_zip",
+    ],
+    cmd: "mkdir -p $(genDir)/$(in) " +
+      "&& $(location aprotoc) " +
+        "--plugin=$(location protoc-gen-javastream) " +
+        "--javastream_out=$(genDir)/$(in) " +
+        "-Iexternal/protobuf/src " +
+        "-Iexternal/perfetto " +
+        "-I . $(in) " +
+      "&& $(location soong_zip) " +
+        "-jar -o $(out) -C $(genDir)/$(in) -D $(genDir)/$(in)",
+    data: [
+        ":libprotobuf-internal-protos",
+    ],
+    output_extension: "srcjar",
 }

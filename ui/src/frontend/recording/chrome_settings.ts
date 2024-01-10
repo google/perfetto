@@ -212,6 +212,16 @@ export class ChromeSettings implements m.ClassComponent<RecordingSectionAttrs> {
           setEnabled: (cfg, val) => cfg.chromeLogs = val,
           isEnabled: (cfg) => cfg.chromeLogs,
         }),
+        CompactProbe({
+          title: 'Audio',
+          setEnabled: (cfg, val) => cfg.audio = val,
+          isEnabled: (cfg) => cfg.audio,
+        }),
+        CompactProbe({
+          title: 'Video',
+          setEnabled: (cfg, val) => cfg.video = val,
+          isEnabled: (cfg) => cfg.video,
+        }),
         m(Toggle, {
           title: 'Remove untyped and sensitive data like URLs from the trace',
           descr: 'Not recommended unless you intend to share the trace' +

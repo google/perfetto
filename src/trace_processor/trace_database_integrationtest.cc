@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
@@ -399,13 +400,13 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz28766) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesInvariant) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   uint64_t first_restore = RestoreInitialTables();
   ASSERT_EQ(RestoreInitialTables(), first_restore);
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesPerfettoSql) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -425,7 +426,8 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesPerfettoSql) {
     }
     // 3. Runtime function
     {
-      auto it = Query("CREATE PERFETTO FUNCTION obj3() RETURNS INT AS 1;");
+      auto it =
+          Query("CREATE PERFETTO FUNCTION obj3() RETURNS INT AS SELECT 1;");
       it.Next();
       ASSERT_TRUE(it.Status().ok());
     }
@@ -453,7 +455,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesPerfettoSql) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesStandardSqlite) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -479,7 +481,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesStandardSqlite) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesModules) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -499,7 +501,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesModules) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesSpanJoin) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -538,7 +540,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesSpanJoin) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesWithClause) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -555,7 +557,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesWithClause) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesIndex) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -590,6 +592,68 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesTraceBounds) {
     ASSERT_TRUE(it.Status().ok());
     ASSERT_EQ(it.Get(0).AsLong(), 81473009948313l);
   }
+}
+
+TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesDependents) {
+  Processor()->NotifyEndOfFile();
+  {
+    auto it = Query("create perfetto table foo as select 1 as x");
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok());
+
+    it = Query("create perfetto function f() returns INT as select * from foo");
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok());
+
+    it = Query("SELECT f()");
+    ASSERT_TRUE(it.Next());
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok());
+  }
+
+  ASSERT_EQ(RestoreInitialTables(), 2u);
+}
+
+TEST_F(TraceProcessorIntegrationTest, RestoreDependentFunction) {
+  Processor()->NotifyEndOfFile();
+  {
+    auto it =
+        Query("create perfetto function foo0() returns INT as select 1 as x");
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok());
+  }
+  for (int i = 1; i < 100; ++i) {
+    base::StackString<1024> sql(
+        "create perfetto function foo%d() returns INT as select foo%d()", i,
+        i - 1);
+    auto it = Query(sql.c_str());
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok()) << it.Status().c_message();
+  }
+
+  ASSERT_EQ(RestoreInitialTables(), 100u);
+}
+
+TEST_F(TraceProcessorIntegrationTest, RestoreDependentTableFunction) {
+  Processor()->NotifyEndOfFile();
+  {
+    auto it = Query(
+        "create perfetto function foo0() returns TABLE(x INT) "
+        " as select 1 as x");
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok());
+  }
+  for (int i = 1; i < 100; ++i) {
+    base::StackString<1024> sql(
+        "create perfetto function foo%d() returns TABLE(x INT) "
+        " as select * from foo%d()",
+        i, i - 1);
+    auto it = Query(sql.c_str());
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok()) << it.Status().c_message();
+  }
+
+  ASSERT_EQ(RestoreInitialTables(), 100u);
 }
 
 // This test checks that a ninja trace is tokenized properly even if read in
@@ -712,6 +776,21 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
     select t from slice
            ^
 no such column: t)");
+}
+
+TEST_F(TraceProcessorIntegrationTest, FunctionRegistrationError) {
+  auto it =
+      Query("create perfetto function f() returns INT as select * from foo");
+  ASSERT_FALSE(it.Next());
+  ASSERT_FALSE(it.Status().ok());
+
+  it = Query("SELECT foo()");
+  ASSERT_FALSE(it.Next());
+  ASSERT_FALSE(it.Status().ok());
+
+  it = Query("create perfetto function f() returns INT as select 1");
+  ASSERT_FALSE(it.Next());
+  ASSERT_TRUE(it.Status().ok());
 }
 
 }  // namespace

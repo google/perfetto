@@ -325,7 +325,7 @@ ORDER BY descendant_cpu_percentage DESC;
 -- Function prototype: takes a - separated list of slice names (formed by
 -- the GROUP_CONCAT above) and returns the first slice if any or NULL
 -- otherwise.
-CREATE PERFETTO FUNCTION get_first_slice_name_or_null(name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION get_first_slice_name_or_null(name STRING)
 -- Returns the first slice name or NULL
 RETURNS STRING AS
 -- Performs the actual string modification, takes the either the whole string
@@ -340,7 +340,7 @@ SELECT SUBSTR($name, 0,
 -- Function prototype: takes a - separated list of slice names (formed by
 -- the GROUP_CONCAT above) and checks for certain important view names and
 -- falls back on get_first_slice_name_or_null if it can't find one.
-CREATE PERFETTO FUNCTION get_java_slice_summary_or_null(name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION get_java_slice_summary_or_null(name STRING)
 -- Returns the summary of the provided list of java slice names.
 RETURNS STRING AS
 -- Performs a bunch of GLOB matches in an order, now there could be multiple
@@ -393,7 +393,7 @@ SELECT
 -- determines if this event should be classified as unknown or not.
 --
 -- Returns either "-UnknownEvent" or "".
-CREATE PERFETTO FUNCTION unknown_event_or_empty_string(name STRING,
+CREATE OR REPLACE PERFETTO FUNCTION unknown_event_or_empty_string(name STRING,
                                                    cat STRING,
                                                    has_descendant STRING)
 RETURNS STRING AS
@@ -414,7 +414,7 @@ SELECT
 -- if we should use the slice name, or if its a RunTask event uses the
 -- function & file name, however if the RunTask posted from is one of the
 -- simple_watcher paths we collapse them for attributation.
-CREATE PERFETTO FUNCTION top_level_name(name STRING, function STRING, file STRING)
+CREATE OR REPLACE PERFETTO FUNCTION top_level_name(name STRING, function STRING, file STRING)
 RETURNS STRING AS
 -- The difference for the mojom functions are:
 --  1) PostDispatchNextMessageFromPipe:

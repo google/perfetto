@@ -39,6 +39,8 @@ source_set("full") {
     "ftrace_parser.h",
     "ftrace_tokenizer.cc",
     "ftrace_tokenizer.h",
+    "gpu_work_period_tracker.cc",
+    "gpu_work_period_tracker.h",
     "iostat_tracker.cc",
     "iostat_tracker.h",
     "mali_gpu_event_tracker.cc",

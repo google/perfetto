@@ -356,3 +356,26 @@ class Tables(TestSuite):
           0,"flow",0,1,57,0
           1,"flow",1,2,57,0
                 """))
+
+  def test_clock_snapshot_table_multiplier(self):
+    return DiffTestBlueprint(
+        trace=TextProto("""
+          packet {
+            clock_snapshot {
+              clocks {
+                clock_id: 1
+                timestamp: 42
+                unit_multiplier_ns: 10
+              }
+              clocks {
+                clock_id: 6
+                timestamp: 0
+              }
+            }
+          }
+        """),
+        query="SELECT TO_REALTIME(0);",
+        out=Csv("""
+          "TO_REALTIME(0)"
+          420
+        """))
