@@ -33,7 +33,6 @@ namespace {
 
 using testing::ElementsAre;
 using testing::IsEmpty;
-using Range = RowMap::Range;
 
 TEST(DenseNullOverlay, NoFilteringSearch) {
   std::vector<uint32_t> data{0, 1, 0, 1, 0};

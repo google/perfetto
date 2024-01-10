@@ -39,7 +39,6 @@ namespace trace_processor {
 namespace column {
 namespace {
 
-using Range = RowMap::Range;
 using NumericValue = std::variant<uint32_t, int32_t, int64_t, double_t>;
 
 // Using the fact that binary operators in std are operators() of classes, we
@@ -101,7 +100,7 @@ inline FilterOpVariant<T> GetFilterOpVariant(FilterOp op) {
 
 uint32_t LowerBoundIntrinsic(const void* data,
                              NumericValue val,
-                             RowMap::Range search_range) {
+                             Range search_range) {
   return std::visit(
       [data, search_range](auto val_data) {
         using T = decltype(val_data);
@@ -115,7 +114,7 @@ uint32_t LowerBoundIntrinsic(const void* data,
 
 uint32_t UpperBoundIntrinsic(const void* data,
                              NumericValue val,
-                             RowMap::Range search_range) {
+                             Range search_range) {
   return std::visit(
       [data, search_range](auto val_data) {
         using T = decltype(val_data);
@@ -382,7 +381,7 @@ SearchValidationResult NumericStorageBase::ValidateSearchConstraints(
 
 RangeOrBitVector NumericStorageBase::Search(FilterOp op,
                                             SqlValue sql_val,
-                                            RowMap::Range search_range) const {
+                                            Range search_range) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::Search",
                     [&search_range, op](metatrace::Record* r) {
                       r->AddArg("Start", std::to_string(search_range.start));
@@ -425,7 +424,7 @@ RangeOrBitVector NumericStorageBase::Search(FilterOp op,
     }
     // Not equal is a special operation on binary search, as it doesn't define a
     // range, and rather just `not` range returned with `equal` operation.
-    RowMap::Range r = BinarySearchIntrinsic(FilterOp::kEq, val, search_range);
+    Range r = BinarySearchIntrinsic(FilterOp::kEq, val, search_range);
     BitVector bv(r.start, true);
     bv.Resize(r.end, false);
     bv.Resize(search_range.end, true);
@@ -484,7 +483,7 @@ RangeOrBitVector NumericStorageBase::IndexSearch(FilterOp op,
 
 BitVector NumericStorageBase::LinearSearchInternal(FilterOp op,
                                                    NumericValue val,
-                                                   RowMap::Range range) const {
+                                                   Range range) const {
   BitVector::Builder builder(range.end, range.start);
   if (const auto* u32 = std::get_if<uint32_t>(&val)) {
     auto* start = static_cast<const uint32_t*>(data_) + range.start;
@@ -525,67 +524,62 @@ BitVector NumericStorageBase::IndexSearchInternal(
   return std::move(builder).Build();
 }
 
-RowMap::Range NumericStorageBase::BinarySearchIntrinsic(
-    FilterOp op,
-    NumericValue val,
-    RowMap::Range search_range) const {
+Range NumericStorageBase::BinarySearchIntrinsic(FilterOp op,
+                                                NumericValue val,
+                                                Range search_range) const {
   switch (op) {
     case FilterOp::kEq:
-      return RowMap::Range(LowerBoundIntrinsic(data_, val, search_range),
-                           UpperBoundIntrinsic(data_, val, search_range));
+      return Range(LowerBoundIntrinsic(data_, val, search_range),
+                   UpperBoundIntrinsic(data_, val, search_range));
     case FilterOp::kLe: {
-      return RowMap::Range(search_range.start,
-                           UpperBoundIntrinsic(data_, val, search_range));
+      return Range(search_range.start,
+                   UpperBoundIntrinsic(data_, val, search_range));
     }
     case FilterOp::kLt:
-      return RowMap::Range(search_range.start,
-                           LowerBoundIntrinsic(data_, val, search_range));
+      return Range(search_range.start,
+                   LowerBoundIntrinsic(data_, val, search_range));
     case FilterOp::kGe:
-      return RowMap::Range(LowerBoundIntrinsic(data_, val, search_range),
-                           search_range.end);
+      return Range(LowerBoundIntrinsic(data_, val, search_range),
+                   search_range.end);
     case FilterOp::kGt:
-      return RowMap::Range(UpperBoundIntrinsic(data_, val, search_range),
-                           search_range.end);
+      return Range(UpperBoundIntrinsic(data_, val, search_range),
+                   search_range.end);
     case FilterOp::kNe:
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
     case FilterOp::kGlob:
     case FilterOp::kRegex:
-      return RowMap::Range();
+      return Range();
   }
-  return RowMap::Range();
+  return Range();
 }
 
-RowMap::Range NumericStorageBase::BinarySearchExtrinsic(
-    FilterOp op,
-    NumericValue val,
-    uint32_t* indices,
-    uint32_t indices_count) const {
+Range NumericStorageBase::BinarySearchExtrinsic(FilterOp op,
+                                                NumericValue val,
+                                                uint32_t* indices,
+                                                uint32_t indices_count) const {
   switch (op) {
     case FilterOp::kEq:
-      return RowMap::Range(
-          LowerBoundExtrinsic(data_, val, indices, indices_count),
-          UpperBoundExtrinsic(data_, val, indices, indices_count));
+      return Range(LowerBoundExtrinsic(data_, val, indices, indices_count),
+                   UpperBoundExtrinsic(data_, val, indices, indices_count));
     case FilterOp::kLe:
-      return RowMap::Range(
-          0, UpperBoundExtrinsic(data_, val, indices, indices_count));
+      return Range(0, UpperBoundExtrinsic(data_, val, indices, indices_count));
     case FilterOp::kLt:
-      return RowMap::Range(
-          0, LowerBoundExtrinsic(data_, val, indices, indices_count));
+      return Range(0, LowerBoundExtrinsic(data_, val, indices, indices_count));
     case FilterOp::kGe:
-      return RowMap::Range(
-          LowerBoundExtrinsic(data_, val, indices, indices_count), size_);
+      return Range(LowerBoundExtrinsic(data_, val, indices, indices_count),
+                   size_);
     case FilterOp::kGt:
-      return RowMap::Range(
-          UpperBoundExtrinsic(data_, val, indices, indices_count), size_);
+      return Range(UpperBoundExtrinsic(data_, val, indices, indices_count),
+                   size_);
     case FilterOp::kNe:
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
     case FilterOp::kGlob:
     case FilterOp::kRegex:
-      return RowMap::Range();
+      return Range();
   }
-  return RowMap::Range();
+  return Range();
 }
 
 void NumericStorageBase::StableSort(uint32_t* rows, uint32_t rows_size) const {

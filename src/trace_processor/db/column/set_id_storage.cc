@@ -32,10 +32,9 @@ namespace column {
 
 namespace {
 
-using Range = RowMap::Range;
 using SetId = SetIdStorage::SetId;
 
-uint32_t UpperBoundIntrinsic(const SetId* data, SetId id, RowMap::Range range) {
+uint32_t UpperBoundIntrinsic(const SetId* data, SetId id, Range range) {
   if (id >= range.end) {
     return range.end;
   }
@@ -44,7 +43,7 @@ uint32_t UpperBoundIntrinsic(const SetId* data, SetId id, RowMap::Range range) {
   return static_cast<uint32_t>(std::distance(data, upper));
 }
 
-uint32_t LowerBoundIntrinsic(const SetId* data, SetId id, RowMap::Range range) {
+uint32_t LowerBoundIntrinsic(const SetId* data, SetId id, Range range) {
   if (data[range.start] == id) {
     return range.start;
   }
@@ -131,7 +130,7 @@ SearchValidationResult SetIdStorage::ValidateSearchConstraints(
 
 RangeOrBitVector SetIdStorage::Search(FilterOp op,
                                       SqlValue sql_val,
-                                      RowMap::Range search_range) const {
+                                      Range search_range) const {
   PERFETTO_DCHECK(search_range.end <= size());
 
   PERFETTO_TP_TRACE(metatrace::Category::DB, "SetIdStorage::Search",
@@ -160,8 +159,7 @@ RangeOrBitVector SetIdStorage::Search(FilterOp op,
   if (op == FilterOp::kNe) {
     // Not equal is a special operation on binary search, as it doesn't define a
     // range, and rather just `not` range returned with `equal` operation.
-    RowMap::Range eq_range =
-        BinarySearchIntrinsic(FilterOp::kEq, val, search_range);
+    Range eq_range = BinarySearchIntrinsic(FilterOp::kEq, val, search_range);
     BitVector bv(search_range.start, false);
     bv.Resize(eq_range.start, true);
     bv.Resize(eq_range.end, false);

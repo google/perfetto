@@ -29,14 +29,11 @@ namespace {
 using testing::ElementsAre;
 using testing::IsEmpty;
 
-using Range = RowMap::Range;
-
 TEST(ArrangementOverlay, SearchAll) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   ArrangementOverlay storage(FakeStorage::SearchAll(5), &arrangement);
 
-  auto res =
-      storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(2, 4));
+  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2u, 3u));
 }
 
@@ -44,8 +41,7 @@ TEST(ArrangementOverlay, SearchNone) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   ArrangementOverlay storage(FakeStorage::SearchNone(5), &arrangement);
 
-  auto res =
-      storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(2, 4));
+  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 }
 

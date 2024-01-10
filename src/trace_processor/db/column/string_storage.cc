@@ -39,7 +39,6 @@ namespace trace_processor {
 namespace column {
 
 namespace {
-using Range = RowMap::Range;
 
 struct Greater {
   bool operator()(StringPool::Id lhs, NullTermStringView rhs) const {
@@ -138,7 +137,7 @@ struct IsNotNull {
 uint32_t LowerBoundIntrinsic(StringPool* pool,
                              const StringPool::Id* data,
                              NullTermStringView val,
-                             RowMap::Range search_range) {
+                             Range search_range) {
   Less comp{pool};
   auto lower =
       std::lower_bound(data + search_range.start, data + search_range.end, val,
@@ -151,7 +150,7 @@ uint32_t LowerBoundIntrinsic(StringPool* pool,
 uint32_t UpperBoundIntrinsic(StringPool* pool,
                              const StringPool::Id* data,
                              NullTermStringView val,
-                             RowMap::Range search_range) {
+                             Range search_range) {
   Greater comp{pool};
   auto upper =
       std::upper_bound(data + search_range.start, data + search_range.end, val,
@@ -249,7 +248,7 @@ RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
 
 BitVector StringStorage::LinearSearch(FilterOp op,
                                       SqlValue sql_val,
-                                      RowMap::Range range) const {
+                                      Range range) const {
   if (sql_val.is_null() &&
       (op != FilterOp::kIsNotNull && op != FilterOp::kIsNull)) {
     return BitVector(range.end, false);
@@ -428,10 +427,9 @@ RangeOrBitVector StringStorage::IndexSearchInternal(
   return RangeOrBitVector(std::move(builder).Build());
 }
 
-RowMap::Range StringStorage::BinarySearchIntrinsic(
-    FilterOp op,
-    SqlValue sql_val,
-    RowMap::Range search_range) const {
+Range StringStorage::BinarySearchIntrinsic(FilterOp op,
+                                           SqlValue sql_val,
+                                           Range search_range) const {
   if (sql_val.type != SqlValue::kString &&
       (op == FilterOp::kGlob || op == FilterOp::kRegex)) {
     return Range();
@@ -445,26 +443,26 @@ RowMap::Range StringStorage::BinarySearchIntrinsic(
 
   switch (op) {
     case FilterOp::kEq:
-      return RowMap::Range(LowerBoundIntrinsic(string_pool_, values_->data(),
-                                               val_str, search_range),
-                           UpperBoundIntrinsic(string_pool_, values_->data(),
-                                               val_str, search_range));
+      return Range(LowerBoundIntrinsic(string_pool_, values_->data(), val_str,
+                                       search_range),
+                   UpperBoundIntrinsic(string_pool_, values_->data(), val_str,
+                                       search_range));
     case FilterOp::kLe:
-      return RowMap::Range(search_range.start,
-                           UpperBoundIntrinsic(string_pool_, values_->data(),
-                                               val_str, search_range));
+      return Range(search_range.start,
+                   UpperBoundIntrinsic(string_pool_, values_->data(), val_str,
+                                       search_range));
     case FilterOp::kLt:
-      return RowMap::Range(search_range.start,
-                           LowerBoundIntrinsic(string_pool_, values_->data(),
-                                               val_str, search_range));
+      return Range(search_range.start,
+                   LowerBoundIntrinsic(string_pool_, values_->data(), val_str,
+                                       search_range));
     case FilterOp::kGe:
-      return RowMap::Range(LowerBoundIntrinsic(string_pool_, values_->data(),
-                                               val_str, search_range),
-                           search_range.end);
+      return Range(LowerBoundIntrinsic(string_pool_, values_->data(), val_str,
+                                       search_range),
+                   search_range.end);
     case FilterOp::kGt:
-      return RowMap::Range(UpperBoundIntrinsic(string_pool_, values_->data(),
-                                               val_str, search_range),
-                           search_range.end);
+      return Range(UpperBoundIntrinsic(string_pool_, values_->data(), val_str,
+                                       search_range),
+                   search_range.end);
 
     case FilterOp::kNe:
     case FilterOp::kIsNull:
@@ -476,10 +474,10 @@ RowMap::Range StringStorage::BinarySearchIntrinsic(
   PERFETTO_FATAL("For gcc");
 }
 
-RowMap::Range StringStorage::BinarySearchExtrinsic(FilterOp,
-                                                   SqlValue,
-                                                   uint32_t*,
-                                                   uint32_t) const {
+Range StringStorage::BinarySearchExtrinsic(FilterOp,
+                                           SqlValue,
+                                           uint32_t*,
+                                           uint32_t) const {
   PERFETTO_FATAL("Not implemented");
 }
 void StringStorage::StableSort(uint32_t* indices, uint32_t indices_size) const {
