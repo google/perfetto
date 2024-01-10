@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time, time} from '../base/time';
+import {duration, Time, time} from '../base/time';
 import {Actions} from '../common/actions';
 import {cropText, drawIncompleteSlice} from '../common/canvas_utils';
 import {getColorForSlice} from '../common/colorizer';
 import {HighPrecisionTime} from '../common/high_precision_time';
 import {TrackData} from '../common/track_data';
-import {TrackHelperLEGACY} from '../common/track_helper';
-import {SliceRect} from '../public';
+import {TimelineFetcher} from '../common/track_helper';
+import {SliceRect, Track} from '../public';
 
 import {CROP_INCOMPLETE_SLICE_FLAG} from './base_slice_track';
 import {checkerboardExcept} from './checkerboard';
@@ -55,12 +55,23 @@ export interface SliceData extends TrackData {
 // notably onBoundsChange().
 // Note: This class is deprecated and should not be used for new tracks. Use
 // |BaseSliceTrack| instead.
-export abstract class SliceTrackLEGACY extends TrackHelperLEGACY<SliceData> {
+export abstract class SliceTrackLEGACY implements Track {
+  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
+
   constructor(
       private maxDepth: number, protected trackKey: string,
-      private tableName: string, private namespace?: string) {
-    super();
+      private tableName: string, private namespace?: string) {}
+
+  async onUpdate(): Promise<void> {
+    await this.fetcher.requestDataForCurrentTime();
   }
+
+  async onDestroy(): Promise<void> {
+    this.fetcher.dispose();
+  }
+
+  abstract onBoundsChange(start: time, end: time, resolution: duration):
+      Promise<SliceData>;
 
   protected namespaceTable(tableName: string = this.tableName): string {
     if (this.namespace) {
@@ -77,9 +88,9 @@ export abstract class SliceTrackLEGACY extends TrackHelperLEGACY<SliceData> {
     return '12px Roboto Condensed';
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const data = this.data;
+    const data = this.fetcher.data;
     if (data === undefined) return;  // Can't possibly draw anything.
 
     const {visibleTimeSpan, visibleTimeScale} = globals.timeline;
@@ -258,7 +269,7 @@ export abstract class SliceTrackLEGACY extends TrackHelperLEGACY<SliceData> {
   }
 
   getSliceIndex({x, y}: {x: number, y: number}): number|void {
-    const data = this.data;
+    const data = this.fetcher.data;
     if (data === undefined) return;
     const {
       visibleTimeScale: timeScale,
@@ -311,7 +322,7 @@ export abstract class SliceTrackLEGACY extends TrackHelperLEGACY<SliceData> {
     globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1}));
     const sliceIndex = this.getSliceIndex({x, y});
     if (sliceIndex === undefined) return;
-    const data = this.data;
+    const data = this.fetcher.data;
     if (data === undefined) return;
     this.hoveredTitleId = data.titles[sliceIndex];
     const sliceId = data.sliceIds[sliceIndex];
@@ -326,7 +337,7 @@ export abstract class SliceTrackLEGACY extends TrackHelperLEGACY<SliceData> {
   onMouseClick({x, y}: {x: number, y: number}): boolean {
     const sliceIndex = this.getSliceIndex({x, y});
     if (sliceIndex === undefined) return false;
-    const data = this.data;
+    const data = this.fetcher.data;
     if (data === undefined) return false;
     const sliceId = data.sliceIds[sliceIndex];
     if (sliceId !== undefined && sliceId !== -1) {

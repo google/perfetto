@@ -17,21 +17,18 @@ import {searchSegment} from '../../base/binary_search';
 import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {colorForSample} from '../../common/colorizer';
-import {
-  TrackAdapter,
-  TrackControllerAdapter,
-  TrackWithControllerAdapter,
-} from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
+import {TimelineFetcher} from '../../common/track_helper';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {TimeScale} from '../../frontend/time_scale';
-import {NewTrackArgs} from '../../frontend/track';
 import {
+  EngineProxy,
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
+  Track,
 } from '../../public';
 import {
   LONG,
@@ -46,17 +43,29 @@ const RECT_HEIGHT = 30.5;
 
 export const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
 
-export interface Data extends TrackData {
+interface Data extends TrackData {
   ids: Float64Array;
   tsStarts: BigInt64Array;
   callsiteId: Uint32Array;
 }
 
-export interface Config {
-  utid: number;
-}
+class CpuProfileTrack implements Track {
+  private centerY = this.getHeight() / 2 + BAR_HEIGHT;
+  private markerWidth = (this.getHeight() - MARGIN_TOP - BAR_HEIGHT) / 2;
+  private hoveredTs: time|undefined = undefined;
+  private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
+  private engine: EngineProxy;
+  private utid: number;
 
-class CpuProfileTrackController extends TrackControllerAdapter<Config, Data> {
+  constructor(engine: EngineProxy, utid: number) {
+    this.engine = engine;
+    this.utid = utid;
+  }
+
+  async onUpdate(): Promise<void> {
+    await this.fetcher.requestDataForCurrentTime();
+  }
+
   async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     const query = `select
@@ -64,10 +73,10 @@ class CpuProfileTrackController extends TrackControllerAdapter<Config, Data> {
         ts,
         callsite_id as callsiteId
       from cpu_profile_stack_sample
-      where utid = ${this.config.utid}
+      where utid = ${this.utid}
       order by ts`;
 
-    const result = await this.query(query);
+    const result = await this.engine.query(query);
     const numRows = result.numRows();
     const data: Data = {
       start,
@@ -88,26 +97,20 @@ class CpuProfileTrackController extends TrackControllerAdapter<Config, Data> {
 
     return data;
   }
-}
 
-class CpuProfileTrack extends TrackAdapter<Config, Data> {
-  private centerY = this.getHeight() / 2 + BAR_HEIGHT;
-  private markerWidth = (this.getHeight() - MARGIN_TOP - BAR_HEIGHT) / 2;
-  private hoveredTs: time|undefined = undefined;
-
-  constructor(args: NewTrackArgs) {
-    super(args);
+  async onDestroy(): Promise<void> {
+    this.fetcher.dispose();
   }
 
   getHeight() {
     return MARGIN_TOP + RECT_HEIGHT - 1;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
     const {
       visibleTimeScale: timeScale,
     } = globals.timeline;
-    const data = this.data();
+    const data = this.fetcher.data;
 
     if (data === undefined) return;
 
@@ -177,7 +180,7 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
   }
 
   onMouseMove({x, y}: {x: number, y: number}) {
-    const data = this.data();
+    const data = this.fetcher.data;
     if (data === undefined) return;
     const {
       visibleTimeScale: timeScale,
@@ -194,7 +197,7 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
   }
 
   onMouseClick({x, y}: {x: number, y: number}) {
-    const data = this.data();
+    const data = this.fetcher.data;
     if (data === undefined) return false;
     const {
       visibleTimeScale: timeScale,
@@ -210,7 +213,7 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
       const ts = Time.fromRaw(data.tsStarts[index]);
 
       globals.makeSelection(
-          Actions.selectCpuProfileSample({id, utid: this.config.utid, ts}));
+          Actions.selectCpuProfileSample({id, utid: this.utid, ts}));
       return true;
     }
     return false;
@@ -277,14 +280,7 @@ class CpuProfile implements Plugin {
         displayName: `${threadName} (CPU Stack Samples)`,
         kind: CPU_PROFILE_TRACK_KIND,
         utid,
-        track: ({trackKey}) => {
-          return new TrackWithControllerAdapter(
-              ctx.engine,
-              trackKey,
-              {utid},
-              CpuProfileTrack,
-              CpuProfileTrackController);
-        },
+        track: () => new CpuProfileTrack(ctx.engine, utid),
       });
     }
   }
