@@ -107,6 +107,11 @@ struct DataSourceState {
   // the following slots.
   uint32_t interceptor_id = 0;
 
+  // This is set to true when the datasource is in the process of async stop.
+  // The flag is checked by the tracing muxer to avoid calling OnStop for the
+  // second time.
+  bool async_stop_in_progress = false;
+
   // This lock is not held to implement Trace() and it's used only if the trace
   // code wants to access its own data source state.
   // This is to prevent that accessing the data source on an arbitrary embedder
