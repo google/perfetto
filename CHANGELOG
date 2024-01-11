@@ -6,6 +6,18 @@ Unreleased:
   UI:
     *
   SDK:
+
+
+v41.0 - 2023-01-02:
+  Tracing service and probes:
+    * Added support for ADB_SERVER_SOCKET in the websocket bridge.
+    * Added support for reading Pressure Stall Information (PSI) from the kernel.
+  Trace Processor:
+    * Added capability to control trace processor using stdin/stdout when using
+      shell binary. This acts as a simpler alternative to the existing HTTP
+      control API.
+    * Fixed multiple edge-case issues in RestoreInitialTables.
+  SDK:
     * Fixed a long standing bug that caused the last TrackEvent event for each
       thread to be lost during scraping. The fix works with old versions of the
       tracing service.
