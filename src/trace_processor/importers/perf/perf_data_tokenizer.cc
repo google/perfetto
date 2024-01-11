@@ -35,22 +35,6 @@ namespace perfetto {
 namespace trace_processor {
 namespace perf_importer {
 
-namespace {
-std::vector<uint64_t> ReadVectorFromBuffer(std::vector<uint8_t>& buffer,
-                                           uint64_t buffer_offset,
-                                           uint64_t size) {
-  uint64_t bytes_from_buffer = buffer.size() - buffer_offset;
-  PERFETTO_CHECK(sizeof(uint64_t) * size ==
-                 sizeof(uint8_t) * bytes_from_buffer);
-
-  std::vector<uint64_t> res(static_cast<size_t>(size));
-  memcpy(res.data(), buffer.data() + buffer_offset,
-         static_cast<size_t>(bytes_from_buffer));
-  return res;
-}
-
-}  // namespace
-
 PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
       tracker_(PerfDataTracker::GetOrCreate(context_)),
@@ -58,6 +42,17 @@ PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
 
 PerfDataTokenizer::~PerfDataTokenizer() = default;
 
+// A normal perf.data consts of:
+// [ header ]
+// [ event ids (one array per attr) ]
+// [ attr section ]
+// [ data section ]
+// [ optional feature sections ]
+//
+// Where each "attr" describes one event type recorded in the file.
+//
+// Most file format documentation is outdated or misleading, instead see
+// perf_session__do_write_header() in linux/tools/perf/util/header.c.
 base::Status PerfDataTokenizer::Parse(TraceBlobView blob) {
   reader_.Append(std::move(blob));
 
@@ -149,14 +144,16 @@ PerfDataTokenizer::ParseHeader() {
   }
   reader_.Read(header_);
   PERFETTO_CHECK(header_.size == sizeof(PerfHeader));
-  PERFETTO_CHECK(header_.attr_size ==
-                 sizeof(perf_event_attr) +
-                     sizeof(PerfDataTracker::PerfFileSection));
+  if (header_.attr_size !=
+      sizeof(perf_event_attr) + sizeof(PerfDataTracker::PerfFileSection)) {
+    return base::ErrStatus(
+        "Unsupported: perf.data collected with a different ABI version of "
+        "perf_event_attr.");
+  }
 
   if (header_.attrs.offset > header_.data.offset) {
     return base::ErrStatus(
-        "Can only import files where samples are located after the "
-        "metadata.");
+        "Can only import files where samples are located after the metadata.");
   }
 
   if (header_.size == header_.attrs.offset) {
@@ -173,8 +170,7 @@ PerfDataTokenizer::ParseAfterHeaderBuffer() {
     return ParsingResult::NoSpace;
   }
   after_header_buffer_.resize(
-      static_cast<size_t>(header_.attrs.offset - header_.size) /
-      sizeof(uint8_t));
+      static_cast<size_t>(header_.attrs.offset - header_.size));
   reader_.ReadVector(after_header_buffer_);
   parsing_state_ = ParsingState::Attrs;
   return ParsingResult::Success;
@@ -218,7 +214,6 @@ PerfDataTokenizer::ParseAttrIds() {
   }
   tracker_->ComputeCommonSampleType();
 
-  // After parsing the ids we will parse the data.
   reader_.Skip(header_.data.offset - reader_.current_file_offset());
   parsing_state_ = ParsingState::Records;
   return ParsingResult::Success;
@@ -226,16 +221,22 @@ PerfDataTokenizer::ParseAttrIds() {
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseAttrIdsFromBuffer() {
+  // Each attribute points at an array of event ids. In this case, the ids are
+  // in |after_header_buffer_|, i.e. the file contents between the header and
+  // the start of the attr section.
   for (const auto& attr_file : attrs_) {
-    uint64_t size = attr_file.ids.size / sizeof(uint64_t);
-    std::vector<uint64_t> ids = ReadVectorFromBuffer(
-        after_header_buffer_, attr_file.ids.offset - ids_start_, size);
+    size_t num_ids = static_cast<size_t>(attr_file.ids.size / sizeof(uint64_t));
+    std::vector<uint64_t> ids(num_ids);
+    size_t rd_offset = static_cast<size_t>(attr_file.ids.offset - ids_start_);
+    size_t rd_size = static_cast<size_t>(attr_file.ids.size);
+    PERFETTO_CHECK(rd_offset + rd_size <= after_header_buffer_.size());
+    memcpy(ids.data(), after_header_buffer_.data() + rd_offset, rd_size);
+
     tracker_->PushAttrAndIds({attr_file.attr, std::move(ids)});
   }
   after_header_buffer_.clear();
   tracker_->ComputeCommonSampleType();
 
-  // After parsing the ids we will parse the data.
   reader_.Skip(header_.data.offset - reader_.current_file_offset());
   parsing_state_ = ParsingState::Records;
   return ParsingResult::Success;
