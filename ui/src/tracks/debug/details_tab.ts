@@ -175,12 +175,12 @@ export class DebugSliceDetailsTab extends
           left: 'Process',
           right: getProcessName(this.slice.process),
         }),
-        hasArgs(this.slice) &&
+        hasArgs(this.slice.args) &&
             m(TreeNode,
               {
                 left: 'Args',
               },
-              renderArguments(this.engine, this.slice)));
+              renderArguments(this.engine, this.slice.args)));
   }
 
 
