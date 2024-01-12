@@ -1497,6 +1497,12 @@ void TracingMuxerImpl::StopDataSource_AsyncBeginImpl(
 
   {
     std::unique_lock<std::recursive_mutex> lock(ds.internal_state->lock);
+
+    // Don't call OnStop again if the datasource is already stopping.
+    if (ds.internal_state->async_stop_in_progress)
+      return;
+    ds.internal_state->async_stop_in_progress = true;
+
     if (ds.internal_state->interceptor)
       ds.internal_state->interceptor->OnStop({});
 
@@ -1548,6 +1554,7 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
     ds.internal_state->data_source.reset();
     ds.internal_state->interceptor.reset();
     ds.internal_state->config.reset();
+    ds.internal_state->async_stop_in_progress = false;
     startup_buffer_reservation =
         ds.internal_state->startup_target_buffer_reservation.load(
             std::memory_order_relaxed);
