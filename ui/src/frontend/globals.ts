@@ -287,6 +287,7 @@ class Globals {
   private _promptToLoadFromTraceProcessorShell = true;
   private _trackFilteringEnabled = false;
   private _engineReadyObservers: ((engine: EngineConfig) => void)[] = [];
+  private _timelineSubsetRange?: Span<TPTime, TPDuration> = undefined;
 
 
   // Init from session storage since correct value may be required very early on
@@ -736,6 +737,20 @@ class Globals {
 
   addEngineReadyObserver(observer: (engine: EngineConfig) => void): void {
       this._engineReadyObservers.push(observer);
+  }
+
+  /**
+   * Obtain a range of timestamps to which the entire timeline is restricted.
+   */
+  get timelineSubsetRange(): Span<TPTime, TPDuration> | undefined {
+    return this._timelineSubsetRange;
+  }
+
+  /**
+   * Set or clear the range of timestamps to which the entire timeline is restricted.
+   */
+  set timelineSubsetRange(timeSpan: Span<TPTime, TPDuration> | undefined) {
+    this._timelineSubsetRange = timeSpan;
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {

@@ -51,6 +51,7 @@ import {TraceInfoPage} from './trace_info_page';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {ViewerPage} from './viewer_page';
 import {WidgetsPage} from './widgets_page';
+import {TPTimeSpan, tpTimeFromSql} from '../common/time';
 
 export {ViewerPage} from './viewer_page';
 export {globals} from './globals';
@@ -145,9 +146,18 @@ function setExtensionAvailability(available: boolean) {
 }
 
 function initGlobalsFromQueryString() {
-  const queryString = window.location.search;
-  globals.embeddedMode = queryString.includes('mode=embedded');
-  globals.hideSidebar = queryString.includes('hideSidebar=true');
+  const queryString = new URLSearchParams(window.location.search);
+  globals.embeddedMode = queryString.get('mode') === 'embedded';
+  globals.hideSidebar = queryString.get('hideSidebar') === 'true';
+  const startTs = queryString.get('startTs');
+  const endTs = queryString.get('endTs');
+  if (startTs && endTs) {
+    try {
+      globals.timelineSubsetRange = new TPTimeSpan(tpTimeFromSql(startTs), tpTimeFromSql(endTs));
+    } catch (error) {
+      console.error('Invalid timeline subset range.', error);
+    }
+  }
 }
 
 function defaultContentSecurityPolicy(): string {

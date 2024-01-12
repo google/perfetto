@@ -31,7 +31,7 @@ import {
   QueryResult,
   WritableQueryResult,
 } from './query_result';
-import {TPTime, TPTimeSpan} from './time';
+import {TPDuration, TPTime, TPTimeSpan} from './time';
 
 import TraceProcessorRpc = perfetto.protos.TraceProcessorRpc;
 import TraceProcessorRpcStream = perfetto.protos.TraceProcessorRpcStream;
@@ -89,6 +89,7 @@ export abstract class Engine {
   private pendingComputeMetrics = new Array<Deferred<ComputeMetricResult>>();
   private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
   private _isMetatracingEnabled = false;
+  private _timelineConstraint?: Span<TPTime, TPDuration>;
 
   constructor(tracker?: LoadingTracker) {
     this.loadingTracker = tracker ? tracker : new NullLoadingTracker();
@@ -412,6 +413,31 @@ export abstract class Engine {
     return result.firstRow({cnt: NUM}).cnt;
   }
 
+  /**
+   * Obtain a range of timestamps to which the entire timeline is restricted.
+   */
+  get timelineConstraint(): Span<TPTime, TPDuration> | undefined {
+    return this._timelineConstraint;
+  }
+
+  /**
+   * Set or clear the range of timestamps to which the entire timeline is restricted.
+   */
+  set timelineConstraint(timeSpan: Span<TPTime, TPDuration> | undefined) {
+    this._timelineConstraint = timeSpan;
+  }
+
+  /** Clamp a |timeSpan| to my timeline filter, if any. */
+  protected clampSpan(timeSpan: Span<TPTime, TPDuration>): Span<TPTime, TPDuration> {
+    const constraint = this.timelineConstraint;
+    const result = constraint ? timeSpan.intersection(constraint) : timeSpan;
+    if (!!constraint && result.duration <= 0n) {
+      console.error(`Invalid timespan constraint resulting in empty timeline. Ignoring the constraint ${constraint}.`);
+      return timeSpan;
+    }
+    return result;
+  }
+
   async getTraceTimeBounds(): Promise<Span<TPTime>> {
     const result = await this.query(
         `select start_ts as startTs, end_ts as endTs from trace_bounds`);
@@ -419,7 +445,7 @@ export abstract class Engine {
       startTs: LONG,
       endTs: LONG,
     });
-    return new TPTimeSpan(bounds.startTs, bounds.endTs);
+    return this.clampSpan(new TPTimeSpan(bounds.startTs, bounds.endTs));
   }
 
   async getTracingMetadataTimeBounds(): Promise<Span<TPTime>> {
@@ -443,7 +469,7 @@ export abstract class Engine {
       }
     }
 
-    return new TPTimeSpan(startBound, endBound);
+    return this.clampSpan(new TPTimeSpan(startBound, endBound));
   }
 
   getProxy(tag: string): EngineProxy {

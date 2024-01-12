@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
+import {BigintMath} from '../base/bigint_math';
 import {ColumnType} from './query_result';
 
 // TODO(hjd): Combine with timeToCode.
@@ -133,6 +134,8 @@ export function tpTimeFromSql(value: ColumnType): TPTime {
     return value;
   } else if (typeof value === 'number') {
     return tpTimeFromNanos(value);
+  } else if (typeof value === 'string') {
+    return BigInt(value);
   } else if (value === null) {
     return 0n;
   } else {
@@ -162,7 +165,8 @@ export interface Span<Unit, Duration = Unit> {
   get duration(): Duration;
   get midpoint(): Unit;
   contains(span: Unit|Span<Unit, Duration>): boolean;
-  intersects(x: Span<Unit>): boolean;
+  intersects(x: Span<Unit, Duration>): boolean;
+  intersection(x: Span<Unit, Duration>): Span<Unit, Duration>;
   equals(span: Span<Unit, Duration>): boolean;
   add(offset: Duration): Span<Unit, Duration>;
   pad(padding: Duration): Span<Unit, Duration>;
@@ -178,6 +182,10 @@ export class TPTimeSpan implements Span<TPTime, TPDuration> {
         `Span start [${start}] cannot be greater than end [${end}]`);
     this.start = start;
     this.end = end;
+  }
+
+  static get ZERO(): TPTimeSpan {
+    return new TPTimeSpan(0n, 0n);
   }
 
   get duration(): TPDuration {
@@ -200,6 +208,23 @@ export class TPTimeSpan implements Span<TPTime, TPDuration> {
     return !(x.end <= this.start || x.start >= this.end);
   }
 
+  intersection(x: Span<TPTime, TPDuration>): Span<TPTime, TPDuration> {
+    if (x.start <= this.start && x.end >= this.end) {
+      // I am the intersection
+      return this;
+    }
+    if (x.start > this.start && x.end < this.end) {
+      // It is the intersection
+      return x;
+    }
+    if (x.end < this.start || this.end < x.start) {
+      // It's an empty intersection. [0, 0] is as good as any other span
+      return TPTimeSpan.ZERO;
+    }
+    return new TPTimeSpan(BigintMath.max(this.start, x.start),
+      BigintMath.min(x.end, this.end));
+  }
+
   equals(span: Span<TPTime, TPDuration>): boolean {
     return this.start === span.start && this.end === span.end;
   }
@@ -210,5 +235,9 @@ export class TPTimeSpan implements Span<TPTime, TPDuration> {
 
   pad(padding: TPDuration): Span<TPTime, TPDuration> {
     return new TPTimeSpan(this.start - padding, this.end + padding);
+  }
+
+  toString(): string {
+    return `TPTimeSpan(${this.start}, ${this.end})`;
   }
 }

@@ -265,6 +265,23 @@ export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
     return !(x.end.lte(this.start) || x.start.gte(this.end));
   }
 
+  intersection(x: Span<HighPrecisionTime, HighPrecisionTime>): Span<HighPrecisionTime, HighPrecisionTime> {
+    if (x.start.lte(this.start) && x.end.gte(this.end)) {
+      // I am the intersection
+      return this;
+    }
+    if (x.start.gte(this.start) && x.end.lte(this.end)) {
+      // It is the intersection
+      return x;
+    }
+    if (x.end.lt(this.start) || this.end.lt(x.start)) {
+      // It's an empty intersection. [0, 0] is as good as any other span
+      return HighPrecisionTimeSpan.ZERO;
+    }
+    return new HighPrecisionTimeSpan(HighPrecisionTime.max(this.start, x.start),
+      HighPrecisionTime.min(x.end, this.end));
+  }
+
   add(time: HighPrecisionTime): Span<HighPrecisionTime> {
     return new HighPrecisionTimeSpan(this.start.add(time), this.end.add(time));
   }

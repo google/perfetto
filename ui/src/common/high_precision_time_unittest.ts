@@ -323,4 +323,17 @@ describe('HighPrecisionTimeSpan', () => {
     expect(x.intersects(mkSpan('20', '30'))).toBeFalsy();
     expect(x.intersects(mkSpan('5', '25'))).toBeTruthy();
   });
+
+  it('creates intersection of spans', () => {
+    const x = mkSpan('10', '20');
+
+    expect(x.intersection(mkSpan('0', '10'))).toEqual(mkSpan('10', '10'));
+    expect(x.intersection(mkSpan('5', '15'))).toEqual(mkSpan('10', '15'));
+    expect(x.intersection(mkSpan('12', '18'))).toEqual(mkSpan('12', '18'));
+    expect(x.intersection(mkSpan('15', '25'))).toEqual(mkSpan('15', '20'));
+    expect(x.intersection(mkSpan('20', '30'))).toEqual(mkSpan('20', '20'));
+    expect(x.intersection(mkSpan('5', '25'))).toEqual(mkSpan('10', '20'));
+    expect(x.intersection(mkSpan('2', '8'))).toEqual(mkSpan('0', '0'));
+    expect(x.intersection(mkSpan('22', '28'))).toEqual(mkSpan('0', '0'));
+  });
 });

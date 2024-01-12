@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {timeToCode, TPTime, TPTimeSpan} from './time';
+import {timeToCode, tpTimeFromSql, TPTime, TPTimeSpan} from './time';
 
 test('seconds to code', () => {
   expect(timeToCode(3)).toEqual('3s');
@@ -27,6 +27,15 @@ test('seconds to code', () => {
   expect(timeToCode(1.000001)).toEqual('1s 1us');
   expect(timeToCode(200.00000003)).toEqual('3m 20s 30ns');
   expect(timeToCode(0)).toEqual('0s');
+});
+
+test('time from SQL', () => {
+  expect(tpTimeFromSql(3_000_000_000n)).toEqual(3_000_000_000n);
+  expect(tpTimeFromSql(3_000)).toEqual(3_000n);
+  expect(tpTimeFromSql('3000000000')).toEqual(3_000_000_000n);
+  expect(tpTimeFromSql(null)).toEqual(0n);
+  expect(() => tpTimeFromSql('3000000000ns')).toThrow();
+  expect(() => tpTimeFromSql(new Uint8Array([0b10110010, 0b11010000, 0b01011110, 0b00000000]))).toThrow();
 });
 
 function mkSpan(start: TPTime, end: TPTime) {
@@ -81,6 +90,19 @@ describe('TPTimeSpan', () => {
     expect(x.intersects(mkSpan(15n, 25n))).toBeTruthy();
     expect(x.intersects(mkSpan(20n, 30n))).toBeFalsy();
     expect(x.intersects(mkSpan(5n, 25n))).toBeTruthy();
+  });
+
+  it('creates intersection', () => {
+    const x = mkSpan(10n, 20n);
+
+    expect(x.intersection(mkSpan(0n, 10n))).toEqual(mkSpan(10n, 10n));
+    expect(x.intersection(mkSpan(5n, 15n))).toEqual(mkSpan(10n, 15n));
+    expect(x.intersection(mkSpan(12n, 18n))).toEqual(mkSpan(12n, 18n));
+    expect(x.intersection(mkSpan(15n, 25n))).toEqual(mkSpan(15n, 20n));
+    expect(x.intersection(mkSpan(20n, 30n))).toEqual(mkSpan(20n, 20n));
+    expect(x.intersection(mkSpan(5n, 25n))).toEqual(mkSpan(10n, 20n));
+    expect(x.intersection(mkSpan(2n, 8n))).toEqual(mkSpan(0n, 0n));
+    expect(x.intersection(mkSpan(22n, 28n))).toEqual(mkSpan(0n, 0n));
   });
 
   it('can add', () => {
