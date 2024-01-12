@@ -453,11 +453,15 @@ class DataSource : public DataSourceBase {
       return std::unique_ptr<DataSourceBase>(
           new DerivedDataSource(constructor_args...));
     };
+    constexpr bool no_flush =
+        std::is_same_v<decltype(&DerivedDataSource::OnFlush),
+                       decltype(&DataSourceBase::OnFlush)>;
     internal::DataSourceParams params{
         DerivedDataSource::kSupportsMultipleInstances,
         DerivedDataSource::kRequiresCallbacksUnderLock};
     return Helper::type().Register(
         descriptor, factory, params, DerivedDataSource::kBufferExhaustedPolicy,
+        no_flush,
         GetCreateTlsFn(
             static_cast<typename DataSourceTraits::TlsStateType*>(nullptr)),
         GetCreateIncrementalStateFn(
