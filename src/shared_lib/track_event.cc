@@ -378,7 +378,6 @@ class TrackEvent
     DataSourceDescriptor GenerateDescriptorFromCategories() const {
       DataSourceDescriptor dsd;
       dsd.set_name("track_event");
-      dsd.set_no_flush(true);
 
       protozero::HeapBuffered<perfetto::protos::pbzero::TrackEventDescriptor>
           ted;
