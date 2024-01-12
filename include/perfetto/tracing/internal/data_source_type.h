@@ -53,6 +53,7 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
                 TracingMuxer::DataSourceFactory factory,
                 internal::DataSourceParams params,
                 BufferExhaustedPolicy buffer_exhausted_policy,
+                bool no_flush,
                 CreateCustomTlsFn create_custom_tls_fn,
                 CreateIncrementalStateFn create_incremental_state_fn,
                 void* user_arg) {
@@ -62,7 +63,7 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
     user_arg_ = user_arg;
     auto* tracing_impl = TracingMuxer::Get();
     return tracing_impl->RegisterDataSource(descriptor, factory, params,
-                                            &state_);
+                                            no_flush, &state_);
   }
 
   // Updates the data source type descriptor.
