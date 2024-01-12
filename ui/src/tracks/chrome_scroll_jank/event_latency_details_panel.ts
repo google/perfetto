@@ -24,7 +24,7 @@ import {
 import {
   GenericSliceDetailsTabConfig,
 } from '../../frontend/generic_slice_details_tab';
-import {renderArguments} from '../../frontend/slice_args';
+import {hasArgs, renderArguments} from '../../frontend/slice_args';
 import {renderDetails} from '../../frontend/slice_details';
 import {getSlice, SliceDetails, sliceRef} from '../../frontend/sql/slice';
 import {asSliceSqlId, SliceSqlId} from '../../frontend/sql_types';
@@ -340,10 +340,15 @@ export class EventLatencySliceDetailsPanel extends
           m(GridLayout,
             m(GridLayoutColumn,
               renderDetails(slice),
+              hasArgs(slice.args) &&
+                  m(Section,
+                    {title: 'Arguments'},
+                    m(Tree, renderArguments(this.engine, slice.args)))),
+            m(GridLayoutColumn,
               m(Section,
-                {title: 'Arguments'},
-                m(Tree, renderArguments(this.engine, slice)))),
-            m(GridLayoutColumn, rightSideWidgets)),
+                {title: 'Description'},
+                m('.div', this.getDescriptionText())),
+              this.getLinksSection())),
       );
     } else {
       return m(DetailsShell, {title: 'Slice', description: 'Loading...'});
