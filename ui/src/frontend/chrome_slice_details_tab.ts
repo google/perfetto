@@ -288,10 +288,10 @@ export class ChromeSliceDetailsTab extends
   private renderRhs(engine: EngineProxy, slice: SliceDetails): m.Children {
     const precFlows = this.renderPrecedingFlows(slice);
     const followingFlows = this.renderFollowingFlows(slice);
-    const args = hasArgs(slice) &&
+    const args = hasArgs(slice.args) &&
         m(Section,
           {title: 'Arguments'},
-          m(Tree, renderArguments(engine, slice)));
+          m(Tree, renderArguments(engine, slice.args)));
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (precFlows ?? followingFlows ?? args) {
       return m(

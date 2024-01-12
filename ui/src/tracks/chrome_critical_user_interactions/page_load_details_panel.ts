@@ -14,9 +14,6 @@
 
 import m from 'mithril';
 
-import {duration, time, Time} from '../../base/time';
-import {exists} from '../../base/utils';
-import {raf} from '../../core/raf_scheduler';
 import {
   BottomTab,
   bottomTabRegistry,
@@ -25,42 +22,17 @@ import {
 import {
   GenericSliceDetailsTabConfig,
 } from '../../frontend/generic_slice_details_tab';
-import {asUpid, Upid} from '../../frontend/sql_types';
-import {DurationWidget} from '../../frontend/widgets/duration';
-import {Timestamp} from '../../frontend/widgets/timestamp';
-import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
-import {Anchor} from '../../widgets/anchor';
+import {Details, DetailsSchema} from '../../frontend/sql/details/details';
+import {wellKnownTypes} from '../../frontend/sql/details/well_known_types';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
-import {Section} from '../../widgets/section';
-import {SqlRef} from '../../widgets/sql_ref';
-import {dictToTreeNodes, Tree} from '../../widgets/tree';
 
-interface Data {
-  ts: time;
-  url: string;
-  // The row id in the chrome_page_loads table is the unique identifier of the
-  // combination of navigation id and browser upid; otherwise, navigation id
-  // is not guaranteed to be unique in a trace.
-  id: number;
-  navigationId: number;
-  upid: Upid;
-  fcpDuration: duration;
-  lcpDuration?: duration;
-  fcpTs: time;
-  lcpTs?: time;
-  domContentLoadedTs?: time;
-  loadTs?: time;
-  markFullyLoadedTs?: time;
-  markFullyVisibleTs?: time;
-  markInteractiveTs?: time;
-}
+import d = DetailsSchema;
 
 export class PageLoadDetailsPanel extends
     BottomTab<GenericSliceDetailsTabConfig> {
   static readonly kind = 'org.perfetto.PageLoadDetailsPanel';
-  private loaded = false;
-  private data: Data|undefined;
+  private data: Details;
 
   static create(args: NewBottomTabArgs): PageLoadDetailsPanel {
     return new PageLoadDetailsPanel(args);
@@ -68,137 +40,44 @@ export class PageLoadDetailsPanel extends
 
   constructor(args: NewBottomTabArgs) {
     super(args);
-    this.loadData();
-  }
-
-  private async loadData() {
-    const queryResult = await this.engine.query(`
-      SELECT
-        id,
-        navigation_id AS navigationId,
-        browser_upid AS upid,
-        navigation_start_ts AS ts,
-        url,
-        fcp AS fcpDuration,
-        lcp AS lcpDuration,
-        fcp_ts AS fcpTs,
-        lcp_ts AS lcpTs,
-        dom_content_loaded_event_ts AS domContentLoadedTs,
-        load_event_ts AS loadTs,
-        mark_fully_loaded_ts AS markFullyLoadedTs,
-        mark_fully_visible_ts AS markFullyVisibleTs,
-        mark_interactive_ts AS markInteractiveTs
-      FROM chrome_page_loads
-      WHERE id = ${this.config.id};`);
-
-    const iter = queryResult.firstRow({
-      id: NUM,
-      navigationId: NUM,
-      upid: NUM,
-      ts: LONG,
-      url: STR,
-      fcpDuration: LONG,
-      lcpDuration: LONG_NULL,
-      fcpTs: LONG,
-      lcpTs: LONG_NULL,
-      domContentLoadedTs: LONG_NULL,
-      loadTs: LONG_NULL,
-      markFullyLoadedTs: LONG_NULL,
-      markFullyVisibleTs: LONG_NULL,
-      markInteractiveTs: LONG_NULL,
-    });
-
-    this.data = {
-      id: iter.id,
-      ts: Time.fromRaw(iter.ts),
-      fcpTs: Time.fromRaw(iter.fcpTs),
-      fcpDuration: iter.fcpDuration,
-      navigationId: iter.navigationId,
-      upid: asUpid(iter.upid),
-      url: iter.url,
-      lcpTs: Time.fromRaw(iter.lcpTs ?? undefined),
-      lcpDuration: iter.lcpDuration ?? undefined,
-      domContentLoadedTs: Time.fromRaw(iter.domContentLoadedTs ?? undefined),
-      loadTs: Time.fromRaw(iter.loadTs ?? undefined),
-      markFullyLoadedTs: Time.fromRaw(iter.markFullyLoadedTs ?? undefined),
-      markFullyVisibleTs: Time.fromRaw(iter.markFullyVisibleTs ?? undefined),
-      markInteractiveTs: Time.fromRaw(iter.markInteractiveTs ?? undefined),
-    };
-
-    this.loaded = true;
-    raf.scheduleFullRedraw();
-  }
-
-  private getDetailsDictionary() {
-    const details: {[key: string]: m.Child} = {};
-    if (exists(this.data)) {
-      details['Timestamp'] = m(Timestamp, {ts: this.data.ts});
-      details['FCP Timestamp'] = m(Timestamp, {ts: this.data.fcpTs});
-      details['FCP Duration'] = m(DurationWidget, {dur: this.data.fcpDuration});
-
-      if (exists(this.data.lcpTs)) {
-        details['LCP Timestamp'] = m(Timestamp, {ts: this.data.lcpTs});
-      }
-      if (exists(this.data.lcpDuration)) {
-        details['LCP Duration'] =
-            m(DurationWidget, {dur: this.data.lcpDuration});
-      }
-
-      if (exists(this.data.domContentLoadedTs)) {
-        details['DOM Content Loaded Event Timestamp'] =
-            m(Timestamp, {ts: this.data.domContentLoadedTs});
-      }
-
-      if (exists(this.data.loadTs)) {
-        details['Load Timestamp'] = m(Timestamp, {ts: this.data.loadTs});
-      }
-
-      if (exists(this.data.markFullyLoadedTs)) {
-        details['Page Timing Mark Fully Loaded Timestamp'] =
-            m(Timestamp, {ts: this.data.markFullyLoadedTs});
-      }
-
-      if (exists(this.data.markFullyVisibleTs)) {
-        details['Page Timing Mark Fully Visible Timestamp'] =
-            m(Timestamp, {ts: this.data.markFullyVisibleTs});
-      }
-
-      if (exists(this.data.markInteractiveTs)) {
-        details['Page Timing Mark Interactive Timestamp'] =
-            m(Timestamp, {ts: this.data.markInteractiveTs});
-      }
-
-      details['Navigation ID'] = this.data.navigationId;
-      details['Browser Upid'] = this.data.upid;
-      details['URL'] =
-          m(Anchor,
-            {href: this.data.url, target: '_blank', icon: 'open_in_new'},
-            this.data.url);
-      details['SQL ID'] =
-          m(SqlRef, {table: 'chrome_page_loads', id: this.data.id});
-    }
-    return details;
+    this.data = new Details(
+        this.engine,
+        'chrome_page_loads',
+        this.config.id,
+        {
+          'Navigation start': d.Timestamp('navigation_start_ts'),
+          'FCP event': d.Timestamp('fcp_ts'),
+          'FCP': d.Interval('navigation_start_ts', 'fcp'),
+          'LCP event': d.Timestamp('lcp_ts', {skipIfNull: true}),
+          'LCP': d.Interval('navigation_start_ts', 'lcp', {skipIfNull: true}),
+          'DOMContentLoaded':
+              d.Timestamp('dom_content_loaded_event_ts', {skipIfNull: true}),
+          'onload timestamp': d.Timestamp('load_event_ts', {skipIfNull: true}),
+          'performance.mark timings': d.Dict({
+            data: {
+              'Fully loaded':
+                  d.Timestamp('mark_fully_loaded_ts', {skipIfNull: true}),
+              'Fully visible':
+                  d.Timestamp('mark_fully_visible_ts', {skipIfNull: true}),
+              'Interactive':
+                  d.Timestamp('mark_interactive_ts', {skipIfNull: true}),
+            },
+            skipIfEmpty: true,
+          }),
+          'Navigation ID': 'navigation_id',
+          'Browser process': d.SqlIdRef('process', 'browser_upid'),
+          'URL': d.URLValue('url'),
+        },
+        wellKnownTypes);
   }
 
   viewTab() {
-    if (this.isLoading()) {
-      return m('h2', 'Loading');
-    }
-
     return m(
         DetailsShell,
         {
           title: this.getTitle(),
         },
-        m(GridLayout,
-          m(
-              GridLayoutColumn,
-              m(
-                  Section,
-                  {title: 'Details'},
-                  m(Tree, dictToTreeNodes(this.getDetailsDictionary())),
-                  ),
-              )));
+        m(GridLayout, m(GridLayoutColumn, this.data.render())));
   }
 
   getTitle(): string {
@@ -206,7 +85,7 @@ export class PageLoadDetailsPanel extends
   }
 
   isLoading() {
-    return !this.loaded;
+    return this.data.isLoading();
   }
 }
 
