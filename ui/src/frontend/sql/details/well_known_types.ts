@@ -12,8 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+import {asUpid} from '../../sql_types';
+import {
+  getProcessInfo,
+  ProcessInfo,
+  renderProcessRef,
+} from '../../thread_and_process_info';
 
-export function renderError(children: m.Children): m.Child {
-  return m('.pf-error', children);
-}
+import {createSqlIdRefRenderer, SqlIdRefRenderer} from './details';
+
+export const wellKnownTypes: {[key: string]: SqlIdRefRenderer} = {
+  'process': createSqlIdRefRenderer<ProcessInfo>(
+      async (engine, id) => await getProcessInfo(engine, asUpid(Number(id))),
+      (data: ProcessInfo) => ({
+        value: renderProcessRef(data),
+      }),
+      ),
+};

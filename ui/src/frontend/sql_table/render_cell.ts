@@ -21,7 +21,7 @@ import {sqliteString} from '../../base/string_utils';
 import {Duration, Time} from '../../base/time';
 import {Row, SqlValue} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
-import {Err} from '../../widgets/error';
+import {renderError} from '../../widgets/error';
 import {MenuItem, PopupMenu2} from '../../widgets/menu';
 import {SliceRef} from '../sql/slice';
 import {asSliceSqlId} from '../sql_types';
@@ -167,11 +167,10 @@ function renderSliceIdColumn(
   const trackId = row[config.trackId];
 
   const columnNotFoundError = (type: string, name: string) =>
-      m(Err, `${type} column ${name} not found`);
+      renderError(`${type} column ${name} not found`);
   const wrongTypeError = (type: string, name: string, value: SqlValue) =>
-      m(Err,
-        `Wrong type for ${type} column ${name}: bigint expected, ${
-            typeof value} found`);
+      renderError(`Wrong type for ${type} column ${name}: bigint expected, ${
+          typeof value} found`);
 
   if (typeof id !== 'bigint') return sqlValueToString(id);
   if (ts === undefined) return columnNotFoundError('Timestamp', config.ts);
