@@ -92,6 +92,8 @@ const COUNTER_REGEX: [RegExp, CounterScaleOptions][] = [
   // interested in the slope of the graph rather than the absolute
   // value.
   [new RegExp('^power\..*$'), 'RATE'],
+  // Same for cumulative PSI stall time counters, e.g., psi.cpu.some.
+  [new RegExp('^psi\..*$'), 'RATE'],
   // Same for network counters.
   [NETWORK_TRACK_REGEX, 'RATE'],
   // Entity residency
