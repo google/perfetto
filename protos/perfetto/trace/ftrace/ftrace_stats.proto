@@ -96,4 +96,36 @@ message FtraceStats {
   // The data source was configured to preserve existing events in the ftrace
   // buffer before the start of the trace.
   optional bool preserve_ftrace_buffer = 8;
+
+  // Unique errors encountered during reading and parsing of the raw ftrace
+  // data. Ring buffer ABI related errors will also be recorded in the
+  // affected FtraceEventBundles with a timestamp.
+  // Any traces with entries in this field should be investigated, as they
+  // indicate a bug in perfetto or the kernel.
+  repeated FtraceParseStatus ftrace_parse_errors = 9;
+}
+
+enum FtraceParseStatus {
+  FTRACE_STATUS_UNSPECIFIED = 0;
+  // Not written, used for convenience of implementation:
+  FTRACE_STATUS_OK = 1;
+  // Issues with reading data out of the ftrace ring buffer:
+  FTRACE_STATUS_UNEXPECTED_READ_ERROR = 2;
+  FTRACE_STATUS_PARTIAL_PAGE_READ = 3;
+  // Ring buffer binary data not matching our understanding of the layout:
+  FTRACE_STATUS_ABI_INVALID_PAGE_HEADER = 4;
+  FTRACE_STATUS_ABI_SHORT_EVENT_HEADER = 5;
+  FTRACE_STATUS_ABI_NULL_PADDING = 6;
+  FTRACE_STATUS_ABI_SHORT_PADDING_LENGTH = 7;
+  FTRACE_STATUS_ABI_INVALID_PADDING_LENGTH = 8;
+  FTRACE_STATUS_ABI_SHORT_TIME_EXTEND = 9;
+  FTRACE_STATUS_ABI_SHORT_TIME_STAMP = 10;
+  FTRACE_STATUS_ABI_SHORT_DATA_LENGTH = 11;
+  FTRACE_STATUS_ABI_ZERO_DATA_LENGTH = 12;
+  FTRACE_STATUS_ABI_INVALID_DATA_LENGTH = 13;
+  FTRACE_STATUS_ABI_SHORT_EVENT_ID = 14;
+  FTRACE_STATUS_ABI_END_OVERFLOW = 15;
+  // Issues with parsing the event payload:
+  FTRACE_STATUS_SHORT_COMPACT_EVENT = 16;
+  FTRACE_STATUS_INVALID_EVENT = 17;
 }
