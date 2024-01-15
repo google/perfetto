@@ -21,7 +21,7 @@
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/traced/traced.h"
-#include "perfetto/ext/tracing/ipc/default_socket.h"
+#include "perfetto/tracing/default_socket.h"
 #include "src/traced_relay/relay_service.h"
 
 namespace perfetto {
