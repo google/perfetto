@@ -3438,8 +3438,7 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
   producer->ExpectFlush(nullptr, /*reply=*/true);
   ASSERT_TRUE(flush_request.WaitForReply());
 
-  // Chunk with the packets should have been scraped. The service can't know
-  // whether the last packet was completed, so shouldn't read it.
+  // Chunk with the packets should have been scraped.
   auto packets = consumer->ReadBuffers();
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
@@ -3447,10 +3446,9 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
                                                   Eq("payload2")))));
-  EXPECT_THAT(packets,
-              Not(Contains(Property(
-                  &protos::gen::TracePacket::for_testing,
-                  Property(&protos::gen::TestEvent::str, Eq("payload3"))))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload3")))));
 
   // Write some more packets.
   writer->NewTracePacket()->set_for_testing()->set_str("payload4");
@@ -3462,8 +3460,7 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
   ASSERT_FALSE(flush_request.WaitForReply());
 
   // Chunk with the packets should have been scraped again, overriding the
-  // original one. Again, the last packet should be ignored and the first two
-  // should not be read twice.
+  // original one. The first three should not be read twice.
   packets = consumer->ReadBuffers();
   EXPECT_THAT(packets,
               Not(Contains(Property(
@@ -3473,16 +3470,16 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
               Not(Contains(Property(
                   &protos::gen::TracePacket::for_testing,
                   Property(&protos::gen::TestEvent::str, Eq("payload2"))))));
-  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
-                                         Property(&protos::gen::TestEvent::str,
-                                                  Eq("payload3")))));
-  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
-                                         Property(&protos::gen::TestEvent::str,
-                                                  Eq("payload4")))));
   EXPECT_THAT(packets,
               Not(Contains(Property(
                   &protos::gen::TracePacket::for_testing,
-                  Property(&protos::gen::TestEvent::str, Eq("payload5"))))));
+                  Property(&protos::gen::TestEvent::str, Eq("payload3"))))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload4")))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload5")))));
 
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("data_source");
@@ -3587,8 +3584,7 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
   auto shmem_arbiter = StealShmemArbiterForProducer(producer_id);
   producer.reset();
 
-  // Chunk with the packets should have been scraped. The service can't know
-  // whether the last packet was completed, so shouldn't read it.
+  // Chunk with the packets should have been scraped.
   auto packets = consumer->ReadBuffers();
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
@@ -3596,10 +3592,9 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnProducerDisconnect) {
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
                                                   Eq("payload2")))));
-  EXPECT_THAT(packets,
-              Not(Contains(Property(
-                  &protos::gen::TracePacket::for_testing,
-                  Property(&protos::gen::TestEvent::str, Eq("payload3"))))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload3")))));
 
   // Cleanup writer without causing a crash because the producer already went
   // away.
@@ -3650,8 +3645,7 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnDisable) {
   producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
 
-  // Chunk with the packets should have been scraped. The service can't know
-  // whether the last packet was completed, so shouldn't read it.
+  // Chunk with the packets should have been scraped.
   auto packets = consumer->ReadBuffers();
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
@@ -3659,10 +3653,9 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnDisable) {
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
                                                   Eq("payload2")))));
-  EXPECT_THAT(packets,
-              Not(Contains(Property(
-                  &protos::gen::TracePacket::for_testing,
-                  Property(&protos::gen::TestEvent::str, Eq("payload3"))))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("payload3")))));
 }
 
 // Fixture for testing scraping from a single data source that writes directly
