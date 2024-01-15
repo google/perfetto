@@ -561,17 +561,18 @@ TEST_P(TraceWriterImplTest, MessageHandleDestroyedPacketScrapable) {
   EXPECT_EQ(chunk.header()->packets.load().count, 1);
   EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
             SharedMemoryABI::ChunkState::kChunkBeingWritten);
+
   packet = protozero::MessageHandle<protos::pbzero::TracePacket>();
 
-  // Without calling FinshTracePacket explicitly, the packet will not be visible
-  // to the scraper.
-  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  // After destroying the message handle, the chunk header should have an
+  // inflated packet count.
+  EXPECT_EQ(chunk.header()->packets.load().count, 2);
   EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
             SharedMemoryABI::ChunkState::kChunkBeingWritten);
 
   writer.reset();
 
-  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  EXPECT_EQ(chunk.header()->packets.load().count, 2);
   EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
             SharedMemoryABI::ChunkState::kChunkComplete);
   EXPECT_THAT(GetChunkFragments(1, chunk.payload_begin(), chunk.payload_size()),
@@ -661,16 +662,15 @@ TEST_P(TraceWriterImplTest,
             SharedMemoryABI::ChunkState::kChunkBeingWritten);
   packet = protozero::MessageHandle<protos::pbzero::TracePacket>();
 
-  // Without calling FinshTracePacket explicitly, the packet will not be visible
-  // to the scraper.
-  EXPECT_EQ(chunk.header()->packets.load().count, 1);
+  // After destroying the message handle, the chunk header should have an
+  // inflated packet count.
+  EXPECT_EQ(chunk.header()->packets.load().count, 2);
   EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
             SharedMemoryABI::ChunkState::kChunkBeingWritten);
 
   writer->FinishTracePacket();
 
-  // After a call to FinishTracePacket, the chunk header should have an inflated
-  // packet count.
+  // An extra call to FinishTracePacket should have no effect.
   EXPECT_EQ(chunk.header()->packets.load().count, 2);
   EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
             SharedMemoryABI::ChunkState::kChunkBeingWritten);
@@ -709,13 +709,13 @@ TEST_P(TraceWriterImplTest, MessageHandleDestroyedPacketFullChunk) {
   EXPECT_EQ(chunk.header()->packets.load().count, 1);
   EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
             SharedMemoryABI::ChunkState::kChunkBeingWritten);
+  // Finish the TracePacket: since there's no space for an empty packet, the
+  // trace writer should immediately mark the chunk as completed.
   packet = protozero::MessageHandle<protos::pbzero::TracePacket>();
 
-  // Without calling FinshTracePacket explicitly, the packet will not be visible
-  // to the scraper.
   EXPECT_EQ(chunk.header()->packets.load().count, 1);
   EXPECT_EQ(abi->GetChunkState(chunk_in_abi->page_idx, chunk_in_abi->chunk_idx),
-            SharedMemoryABI::ChunkState::kChunkBeingWritten);
+            SharedMemoryABI::ChunkState::kChunkComplete);
 
   writer.reset();
 

@@ -21,6 +21,9 @@ v41.0 - 2023-01-02:
     * Fixed a long standing bug that caused the last TrackEvent event for each
       thread to be lost during scraping. The fix works with old versions of the
       tracing service.
+    * Fixed a long standing bug that caused the last TracePacket for every
+      sequence to be lost during scraping, for data sources that do not support
+      flushing. The fix works with old versions of the tracing service.
 
 
 v40.0 - 2023-12-04:
