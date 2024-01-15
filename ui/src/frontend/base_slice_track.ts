@@ -51,6 +51,8 @@ export const SLICE_FLAGS_INSTANT = 2;
 // Slices smaller than this don't get any text:
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
 const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
+const SLICE_MIN_WIDTH_FADED_PX = 0.1;
+
 const CHEVRON_WIDTH_PX = 10;
 const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK;
 const INCOMPLETE_SLICE_WIDTH_PX = 20;
@@ -59,6 +61,13 @@ export const CROP_INCOMPLETE_SLICE_FLAG = featureFlags.register({
   id: 'cropIncompleteSlice',
   name: 'Crop incomplete slices',
   description: 'Display incomplete slices in short form',
+  defaultValue: false,
+});
+
+export const FADE_THIN_SLICES_FLAG = featureFlags.register({
+  id: 'fadeThinSlices',
+  name: 'Fade thin slices',
+  description: 'Display sub-pixel slices in a faded way',
   defaultValue: false,
 });
 
@@ -432,7 +441,10 @@ export abstract class BaseSliceTrack<
         drawIncompleteSlice(
             ctx, slice.x, y, w, sliceHeight, !CROP_INCOMPLETE_SLICE_FLAG.get());
       } else {
-        const w = Math.max(slice.w, SLICE_MIN_WIDTH_PX);
+        const w = Math.max(
+            slice.w,
+            FADE_THIN_SLICES_FLAG.get() ? SLICE_MIN_WIDTH_FADED_PX :
+                                          SLICE_MIN_WIDTH_PX);
         ctx.fillRect(slice.x, y, w, sliceHeight);
       }
     }
