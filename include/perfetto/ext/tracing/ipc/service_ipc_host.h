@@ -24,7 +24,7 @@
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
-#include "perfetto/ext/tracing/ipc/default_socket.h"
+#include "perfetto/tracing/default_socket.h"
 
 namespace perfetto {
 namespace base {

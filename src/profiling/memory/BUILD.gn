@@ -94,7 +94,7 @@ source_set("client_api_standalone") {
     ":client_api",
     ":daemon",
     "../../../gn:default_deps",
-    "../../../include/perfetto/ext/tracing/ipc",
+    "../../../include/perfetto/tracing",
     "../../base",
     "../common:proc_utils",
   ]

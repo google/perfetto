@@ -26,8 +26,8 @@
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/traced/traced.h"
-#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
+#include "perfetto/tracing/default_socket.h"
 #include "src/traced/service/builtin_producer.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
