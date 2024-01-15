@@ -17,7 +17,7 @@
 #include "src/profiling/perf/traced_perf.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/unix_task_runner.h"
-#include "perfetto/ext/tracing/ipc/default_socket.h"
+#include "perfetto/tracing/default_socket.h"
 #include "src/profiling/perf/perf_producer.h"
 #include "src/profiling/perf/proc_descriptors.h"
 

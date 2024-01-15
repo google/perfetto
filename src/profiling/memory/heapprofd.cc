@@ -29,7 +29,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/watchdog.h"
-#include "perfetto/ext/tracing/ipc/default_socket.h"
+#include "perfetto/tracing/default_socket.h"
 #include "src/profiling/memory/heapprofd_producer.h"
 #include "src/profiling/memory/java_hprof_producer.h"
 #include "src/profiling/memory/wire_protocol.h"
