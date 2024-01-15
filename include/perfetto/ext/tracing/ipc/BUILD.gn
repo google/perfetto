@@ -19,7 +19,6 @@ source_set("ipc") {
   ]
   sources = [
     "consumer_ipc_client.h",
-    "default_socket.h",
     "producer_ipc_client.h",
     "service_ipc_host.h",
   ]

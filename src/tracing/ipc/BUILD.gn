@@ -45,7 +45,7 @@ source_set("common") {
 
 source_set("default_socket") {
   sources = [ "default_socket.cc" ]
-  public_deps = [ "../../../include/perfetto/ext/tracing/ipc" ]
+  public_deps = [ "../../../include/perfetto/tracing" ]
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/ipc",

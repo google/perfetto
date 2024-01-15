@@ -23,6 +23,7 @@ source_set("consumer") {
   public_deps = [
     "../../../../include/perfetto/ext/tracing/core",
     "../../../../include/perfetto/ext/tracing/ipc",
+    "../../../../include/perfetto/tracing",
     "../../../../protos/perfetto/ipc",
   ]
   sources = [
