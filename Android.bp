@@ -11175,6 +11175,7 @@ filegroup {
         "src/trace_processor/importers/proto/heap_graph_tracker.cc",
         "src/trace_processor/importers/proto/metadata_module.cc",
         "src/trace_processor/importers/proto/statsd_module.cc",
+        "src/trace_processor/importers/proto/string_encoding_utils.cc",
         "src/trace_processor/importers/proto/system_probes_module.cc",
         "src/trace_processor/importers/proto/system_probes_parser.cc",
         "src/trace_processor/importers/proto/translation_table_module.cc",
@@ -11311,6 +11312,7 @@ filegroup {
         "src/trace_processor/importers/proto/network_trace_module_unittest.cc",
         "src/trace_processor/importers/proto/perf_sample_tracker_unittest.cc",
         "src/trace_processor/importers/proto/proto_trace_parser_unittest.cc",
+        "src/trace_processor/importers/proto/string_encoding_utils_unittests.cc",
     ],
 }
 

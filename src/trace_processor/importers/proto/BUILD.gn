@@ -133,6 +133,8 @@ source_set("full") {
     "metadata_module.h",
     "statsd_module.cc",
     "statsd_module.h",
+    "string_encoding_utils.cc",
+    "string_encoding_utils.h",
     "system_probes_module.cc",
     "system_probes_module.h",
     "system_probes_parser.cc",
@@ -240,6 +242,7 @@ source_set("unittests") {
     "network_trace_module_unittest.cc",
     "perf_sample_tracker_unittest.cc",
     "proto_trace_parser_unittest.cc",
+    "string_encoding_utils_unittests.cc",
   ]
   deps = [
     ":full",
