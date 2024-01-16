@@ -20,10 +20,9 @@
 #include <functional>
 #include <map>
 #include <memory>
-#include <set>
-#include <string>
 #include <utility>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -44,6 +43,7 @@ struct FtraceDataSourceConfig;
 namespace protos {
 namespace pbzero {
 class FtraceEventBundle;
+enum FtraceParseStatus : int32_t;
 }  // namespace pbzero
 }  // namespace protos
 
@@ -82,6 +82,9 @@ class FtraceDataSource : public ProbesDataSource {
 
   FtraceMetadata* mutable_metadata() { return &metadata_; }
   FtraceSetupErrors* mutable_setup_errors() { return &setup_errors_; }
+  base::FlatSet<protos::pbzero::FtraceParseStatus>* mutable_parse_errors() {
+    return &parse_errors_;
+  }
   TraceWriter* trace_writer() { return writer_.get(); }
 
  private:
@@ -96,8 +99,16 @@ class FtraceDataSource : public ProbesDataSource {
 
   const FtraceConfig config_;
   FtraceMetadata metadata_;
+  // Stats as saved during data source setup, will be emitted with phase
+  // START_OF_TRACE on every flush:
   FtraceStats stats_before_{};
+  // Temporary record of errors during data source setup (e.g. nonexistent
+  // events), copied into stats_before_ and emptied when the data source is
+  // started:
   FtraceSetupErrors setup_errors_{};
+  // Accumulates errors encountered while parsing the binary ftrace data (e.g.
+  // data disagreeing with our understanding of the ring buffer ABI):
+  base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors_;
   std::map<FlushRequestID, std::function<void()>> pending_flushes_;
 
   // -- Fields initialized by the Initialize() call:

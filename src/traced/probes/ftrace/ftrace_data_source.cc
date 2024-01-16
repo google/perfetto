@@ -174,6 +174,9 @@ void FtraceDataSource::WriteStats() {
     auto out = after_packet->set_ftrace_stats();
     out->set_phase(protos::pbzero::FtraceStats::Phase::END_OF_TRACE);
     stats_after.Write(out);
+    for (auto error : parse_errors_) {
+      out->add_ftrace_parse_errors(error);
+    }
   }
 }
 
