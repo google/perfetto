@@ -81,7 +81,9 @@ class FtraceDataSource : public ProbesDataSource {
   }
 
   FtraceMetadata* mutable_metadata() { return &metadata_; }
-  FtraceSetupErrors* mutable_setup_errors() { return &setup_errors_; }
+  FtraceSetupErrors* mutable_setup_errors() {
+    return &stats_before_.setup_errors;
+  }
   base::FlatSet<protos::pbzero::FtraceParseStatus>* mutable_parse_errors() {
     return &parse_errors_;
   }
@@ -95,17 +97,12 @@ class FtraceDataSource : public ProbesDataSource {
   FtraceDataSource& operator=(FtraceDataSource&&) = delete;
 
   void WriteStats();
-  void DumpFtraceStats(FtraceStats*);
 
   const FtraceConfig config_;
   FtraceMetadata metadata_;
   // Stats as saved during data source setup, will be emitted with phase
   // START_OF_TRACE on every flush:
   FtraceStats stats_before_{};
-  // Temporary record of errors during data source setup (e.g. nonexistent
-  // events), copied into stats_before_ and emptied when the data source is
-  // started:
-  FtraceSetupErrors setup_errors_{};
   // Accumulates errors encountered while parsing the binary ftrace data (e.g.
   // data disagreeing with our understanding of the ring buffer ABI):
   base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors_;

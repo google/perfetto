@@ -425,7 +425,7 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
     int64_t entries = static_cast<int64_t>(cpu_stats.entries());
     int64_t overrun = static_cast<int64_t>(cpu_stats.overrun());
     int64_t commit_overrun = static_cast<int64_t>(cpu_stats.commit_overrun());
-    int64_t bytes_read = static_cast<int64_t>(cpu_stats.bytes_read());
+    int64_t bytes = static_cast<int64_t>(cpu_stats.bytes_read());
     int64_t dropped_events = static_cast<int64_t>(cpu_stats.dropped_events());
     int64_t read_events = static_cast<int64_t>(cpu_stats.read_events());
     int64_t now_ts = static_cast<int64_t>(cpu_stats.now_ts() * 1e9);
@@ -436,8 +436,7 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
                              overrun);
     storage->SetIndexedStats(stats::ftrace_cpu_commit_overrun_begin + phase,
                              cpu, commit_overrun);
-    storage->SetIndexedStats(stats::ftrace_cpu_bytes_read_begin + phase, cpu,
-                             bytes_read);
+    storage->SetIndexedStats(stats::ftrace_cpu_bytes_begin + phase, cpu, bytes);
     storage->SetIndexedStats(stats::ftrace_cpu_dropped_events_begin + phase,
                              cpu, dropped_events);
     storage->SetIndexedStats(stats::ftrace_cpu_read_events_begin + phase, cpu,
@@ -471,12 +470,12 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
                                  delta_commit_overrun);
       }
 
-      auto opt_bytes_read_begin =
-          storage->GetIndexedStats(stats::ftrace_cpu_bytes_read_begin, cpu);
-      if (opt_bytes_read_begin) {
-        int64_t delta_bytes_read = bytes_read - opt_bytes_read_begin.value();
-        storage->SetIndexedStats(stats::ftrace_cpu_bytes_read_delta, cpu,
-                                 delta_bytes_read);
+      auto opt_bytes_begin =
+          storage->GetIndexedStats(stats::ftrace_cpu_bytes_begin, cpu);
+      if (opt_bytes_begin) {
+        int64_t delta_bytes = bytes - opt_bytes_begin.value();
+        storage->SetIndexedStats(stats::ftrace_cpu_bytes_delta, cpu,
+                                 delta_bytes);
       }
 
       auto opt_dropped_events_begin =

@@ -9856,32 +9856,36 @@ message FtraceEvent {
 
 // Begin of protos/perfetto/trace/ftrace/ftrace_stats.proto
 
-// Per-CPU stats for the ftrace data source gathered from the kernel from
-// /sys/kernel/debug/tracing/per_cpu/cpuX/stats.
+// Per-CPU kernel buffer stats for the ftrace data source gathered from
+// /sys/kernel/tracing/per_cpu/cpuX/stats.
 message FtraceCpuStats {
   // CPU index.
   optional uint64 cpu = 1;
 
-  // Number of entries still in the kernel buffer. Ideally this should be close
-  // to zero, as events are consumed regularly and moved into the userspace
-  // buffers (or file).
+  // Number of entries currently in the kernel buffer.
   optional uint64 entries = 2;
 
   // Number of events lost in kernel buffers due to overwriting of old events
-  // before userspace had a chance to drain them.
+  // before userspace had a chance to drain them. Valid if the buffer is in
+  // "overwrite" mode, otherwise see |dropped_events|.
   optional uint64 overrun = 3;
 
   // This should always be zero. If not the buffer size is way too small or
-  // something went wrong with the tracer.
+  // something went wrong with the tracer. Quoting the kernel: "number of
+  // commits failing due to the buffer wrapping around while there are
+  // uncommitted events, such as during an interrupt storm".
   optional uint64 commit_overrun = 4;
 
-  // Bytes actually read (not overwritten).
+  // Size of entries currently in the kernel buffer (see |entries|) in bytes.
+  // The field should be named "bytes", but is misnamed for historical reasons.
   optional uint64 bytes_read = 5;
 
   // The timestamp for the oldest event still in the ring buffer.
+  // Unit: seconds for typical trace clocks (i.e. not tsc/counter).
   optional double oldest_event_ts = 6;
 
   // The current timestamp.
+  // Unit: seconds for typical trace clocks (i.e. not tsc/counter).
   optional double now_ts = 7;
 
   // If the kernel buffer has overwrite mode disabled, this will show the number
@@ -9889,11 +9893,11 @@ message FtraceCpuStats {
   // to |overrun| but only for the overwrite=false case.
   optional uint64 dropped_events = 8;
 
-  // The number of events read.
+  // The number of events read (consumed) from the buffer by userspace.
   optional uint64 read_events = 9;
 }
 
-// Ftrace stats for all CPUs.
+// Errors and kernel buffer stats for the ftrace data source.
 message FtraceStats {
   enum Phase {
     UNSPECIFIED = 0;
@@ -9901,8 +9905,11 @@ message FtraceStats {
     END_OF_TRACE = 2;
   }
 
-  // Tells when stats were sampled. There should be one sample at the beginning
-  // of the trace and one sample at the end.
+  // A pair of FtraceStats is written on every trace flush:
+  // * START_OF_TRACE - stats recorded at the beginning of the trace.
+  // * END_OF_TRACE - stats recorded during the flush. In other words shortly
+  //                  before this packet was written. For simple traces this
+  //                  will be once at the end of the trace.
   optional Phase phase = 1;
 
   // Per-CPU stats (one entry for each CPU).

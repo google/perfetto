@@ -42,9 +42,9 @@ namespace stats {
   F(frame_timeline_event_parser_errors,   kSingle,  kInfo,     kAnalysis, ""), \
   F(frame_timeline_unpaired_end_event,    kSingle,  kInfo,     kAnalysis, ""), \
   F(ftrace_bundle_tokenizer_errors,       kSingle,  kError,    kAnalysis, ""), \
-  F(ftrace_cpu_bytes_read_begin,          kIndexed, kInfo,     kTrace,    ""), \
-  F(ftrace_cpu_bytes_read_end,            kIndexed, kInfo,     kTrace,    ""), \
-  F(ftrace_cpu_bytes_read_delta,          kIndexed, kInfo,     kTrace,    ""), \
+  F(ftrace_cpu_bytes_begin,               kIndexed, kInfo,     kTrace,    ""), \
+  F(ftrace_cpu_bytes_end,                 kIndexed, kInfo,     kTrace,    ""), \
+  F(ftrace_cpu_bytes_delta,               kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_commit_overrun_begin,      kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_commit_overrun_end,        kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_commit_overrun_delta,      kIndexed, kError,    kTrace,    ""), \
