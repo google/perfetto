@@ -58,7 +58,7 @@ bool DumpCpuStats(std::string text, FtraceCpuStats* stats) {
     } else if (base::StartsWith(splitter.cur_token(), "commit overrun")) {
       stats->commit_overrun = ExtractInt(splitter.cur_token());
     } else if (base::StartsWith(splitter.cur_token(), "bytes")) {
-      stats->bytes_read = ExtractInt(splitter.cur_token());
+      stats->bytes = ExtractInt(splitter.cur_token());
     } else if (base::StartsWith(splitter.cur_token(), "oldest event ts")) {
       stats->oldest_event_ts = ExtractDouble(splitter.cur_token());
     } else if (base::StartsWith(splitter.cur_token(), "now ts")) {

@@ -740,9 +740,14 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     }
     current_state_.funcgraph_on = true;
   }
-
-  auto compact_sched =
-      CreateCompactSchedConfig(request, table_->compact_sched_format());
+  const auto& compact_format = table_->compact_sched_format();
+  auto compact_sched = CreateCompactSchedConfig(
+      request, filter.IsEventEnabled(compact_format.sched_switch.event_id),
+      compact_format);
+  if (errors && !compact_format.format_valid) {
+    errors->failed_ftrace_events.push_back(
+        "perfetto/compact_sched (unexpected sched event format)");
+  }
 
   std::optional<FtracePrintFilterConfig> ftrace_print_filter;
   if (request.has_print_filter()) {

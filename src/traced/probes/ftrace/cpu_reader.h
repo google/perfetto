@@ -47,6 +47,7 @@ namespace protos {
 namespace pbzero {
 class FtraceEventBundle;
 enum FtraceClock : int32_t;
+enum FtraceParseStatus : int32_t;
 }  // namespace pbzero
 }  // namespace protos
 
@@ -292,12 +293,13 @@ class CpuReader {
   // which passes it to the CpuReader which passes it here.
   // The caller is responsible for validating that the page_header->size stays
   // within the current page.
-  static size_t ParsePagePayload(const uint8_t* start_of_payload,
-                                 const PageHeader* page_header,
-                                 const ProtoTranslationTable* table,
-                                 const FtraceDataSourceConfig* ds_config,
-                                 Bundler* bundler,
-                                 FtraceMetadata* metadata);
+  static protos::pbzero::FtraceParseStatus ParsePagePayload(
+      const uint8_t* start_of_payload,
+      const PageHeader* page_header,
+      const ProtoTranslationTable* table,
+      const FtraceDataSourceConfig* ds_config,
+      Bundler* bundler,
+      FtraceMetadata* metadata);
 
   // Parse a single raw ftrace event beginning at |start| and ending at |end|
   // and write it into the provided bundle as a proto.
@@ -355,16 +357,16 @@ class CpuReader {
   // Parses & encodes the given range of contiguous tracing pages. Called by
   // |ReadAndProcessBatch| for each active data source.
   //
-  // Returns the number of correctly processed pages. If the return value is
-  // equal to |pages_read|, there was no error. Otherwise, the return value
-  // points to the first page that contains an error.
+  // Returns true if all pages were parsed correctly. In case of parsing
+  // errors, they will be recorded in the FtraceEventBundle proto.
   //
   // public and static for testing
-  static size_t ProcessPagesForDataSource(
+  static bool ProcessPagesForDataSource(
       TraceWriter* trace_writer,
       FtraceMetadata* metadata,
       size_t cpu,
       const FtraceDataSourceConfig* ds_config,
+      base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
       const uint8_t* parsing_buf,
       const size_t pages_read,
       CompactSchedBuffer* compact_sched_buf,

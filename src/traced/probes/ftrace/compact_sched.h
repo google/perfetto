@@ -88,6 +88,7 @@ struct CompactSchedConfig {
 
 CompactSchedConfig CreateCompactSchedConfig(
     const FtraceConfig& request,
+    bool switch_requested,
     const CompactSchedEventFormat& compact_format);
 
 CompactSchedConfig EnabledCompactSchedConfigForTesting();
