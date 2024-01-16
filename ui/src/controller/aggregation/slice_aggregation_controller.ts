@@ -54,6 +54,8 @@ export class SliceAggregationController extends AggregationController {
         name,
         sum(dur) AS total_dur,
         sum(dur)/count(1) as avg_dur,
+        MIN(dur) as min_dur,
+        MAX(dur) as max_dur,
         count(1) as occurrences
         FROM slices
         WHERE track_id IN (${selectedTrackKeys}) AND
@@ -94,6 +96,18 @@ export class SliceAggregationController extends AggregationController {
         kind: 'TIMESTAMP_NS',
         columnConstructor: Float64Array,
         columnId: 'avg_dur',
+      },
+      {
+        title: 'Min Wall duration (ms)',
+        kind: 'TIMESTAMP_NS',
+        columnConstructor: Float64Array,
+        columnId: 'min_dur',
+      },
+      {
+        title: 'Max Wall duration (ms)',
+        kind: 'TIMESTAMP_NS',
+        columnConstructor: Float64Array,
+        columnId: 'max_dur',
       },
       {
         title: 'Occurrences',
