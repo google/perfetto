@@ -397,15 +397,15 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
            context->storage->InternString("mem.mm.kern_alloc.avg_lat"))}};
 }
 
-void FtraceParser::ParseFtraceStats(ConstBytes blob,
-                                    uint32_t packet_sequence_id) {
+base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
+                                            uint32_t packet_sequence_id) {
   protos::pbzero::FtraceStats::Decoder evt(blob.data, blob.size);
   bool is_start =
       evt.phase() == protos::pbzero::FtraceStats::Phase::START_OF_TRACE;
   bool is_end = evt.phase() == protos::pbzero::FtraceStats::Phase::END_OF_TRACE;
   if (!is_start && !is_end) {
-    PERFETTO_ELOG("Ignoring unknown ftrace stats phase %d", evt.phase());
-    return;
+    return base::ErrStatus("Ignoring unknown ftrace stats phase %d",
+                           evt.phase());
   }
   size_t phase = is_end ? 1 : 0;
 
@@ -549,9 +549,39 @@ void FtraceParser::ParseFtraceStats(ConstBytes blob,
       preserve_ftrace_buffer_ = true;
     }
   }
+
+  // Check for parsing errors such as our understanding of the ftrace ring
+  // buffer ABI not matching the data read out of the kernel (while the trace
+  // was being recorded). Reject such traces altogether as we need to make such
+  // errors hard to ignore (most likely it's a bug in perfetto or the kernel).
+  auto error_it = evt.ftrace_parse_errors();
+  if (error_it) {
+    auto dev_flag =
+        context_->config.dev_flags.find("ignore-ftrace-parse-errors");
+    bool dev_skip_errors = dev_flag != context_->config.dev_flags.end() &&
+                           dev_flag->second == "true";
+    if (!dev_skip_errors) {
+      std::string msg =
+          "Trace was recorded with critical ftrace parsing errors, indicating "
+          "a bug in Perfetto or the kernel. Please report "
+          "the trace to Perfetto. If you really need to load this trace, use a "
+          "native trace_processor_shell as an accelerator with these flags: "
+          "\"trace_processor_shell --httpd --dev --dev-flag "
+          "ignore-ftrace-parse-errors=true <trace_file.pb>\". Errors: ";
+      for (; error_it; ++error_it) {
+        msg += protos::pbzero::FtraceParseStatus_Name(
+            static_cast<protos::pbzero::FtraceParseStatus>(*error_it));
+        msg += ", ";
+      }
+      msg += "(ERR:ftrace_parse)";  // special marker for UI
+      return base::Status(msg);
+    }
+  }
+
+  return base::OkStatus();
 }
 
-util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
+base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
                                             int64_t ts,
                                             const TracePacketData& data) {
   MaybeOnFirstFtraceEvent();
@@ -1075,7 +1105,8 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
   PERFETTO_DCHECK(!decoder.bytes_left());
   return util::OkStatus();
 }
-util::Status FtraceParser::ParseInlineSchedSwitch(
+
+base::Status FtraceParser::ParseInlineSchedSwitch(
     uint32_t cpu,
     int64_t ts,
     const InlineSchedSwitch& data) {
@@ -1094,7 +1125,7 @@ util::Status FtraceParser::ParseInlineSchedSwitch(
   return util::OkStatus();
 }
 
-util::Status FtraceParser::ParseInlineSchedWaking(
+base::Status FtraceParser::ParseInlineSchedWaking(
     uint32_t cpu,
     int64_t ts,
     const InlineSchedWaking& data) {
