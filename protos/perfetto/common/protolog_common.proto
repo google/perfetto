@@ -18,16 +18,12 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-import "protos/perfetto/trace/android/protolog.proto";
-import "protos/perfetto/trace/android/shell_transition.proto";
-import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
-import "protos/perfetto/trace/android/surfaceflinger_transactions.proto";
-
-// This file is used to generated descriptors for all the winscope protos.
-// List all the winscope top-level trace messages here:
-message WinscopeTraceData {
-  optional LayersSnapshotProto layers_snapshot = 1;
-  optional TransactionTraceEntry transactions = 2;
-  optional ShellTransition shell_transition = 3;
-  optional ProtoLogMessage protolog_message = 4;
+enum ProtoLogLevel {
+  PROTOLOG_LEVEL_UNDEFINED = 0;
+  PROTOLOG_LEVEL_DEBUG = 1;
+  PROTOLOG_LEVEL_VERBOSE = 2;
+  PROTOLOG_LEVEL_INFO = 3;
+  PROTOLOG_LEVEL_WARN = 4;
+  PROTOLOG_LEVEL_ERROR = 5;
+  PROTOLOG_LEVEL_WTF = 6;
 }
