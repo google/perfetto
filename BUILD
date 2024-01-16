@@ -1630,6 +1630,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/metadata_module.h",
         "src/trace_processor/importers/proto/statsd_module.cc",
         "src/trace_processor/importers/proto/statsd_module.h",
+        "src/trace_processor/importers/proto/string_encoding_utils.cc",
+        "src/trace_processor/importers/proto/string_encoding_utils.h",
         "src/trace_processor/importers/proto/system_probes_module.cc",
         "src/trace_processor/importers/proto/system_probes_module.h",
         "src/trace_processor/importers/proto/system_probes_parser.cc",
