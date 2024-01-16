@@ -4,7 +4,9 @@ Unreleased:
   Trace Processor:
     *
   UI:
-    *
+    * Added "Realtime (Trace TZ)" timestamp formatting option to see timestamps
+      in the local time of the traced device. It requires recent versions of the
+      tracing service which set the system_info.timezone_off_mins field.
   SDK:
 
 

@@ -73,6 +73,7 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
             },
             menuItemForFormat(TimestampFormat.Timecode, 'Timecode'),
             menuItemForFormat(TimestampFormat.UTC, 'Realtime (UTC)'),
+            menuItemForFormat(TimestampFormat.TraceTz, 'Realtime (Trace TZ)'),
             menuItemForFormat(TimestampFormat.Seconds, 'Seconds'),
             menuItemForFormat(TimestampFormat.Raw, 'Raw'),
             menuItemForFormat(
@@ -101,6 +102,7 @@ function renderTimestamp(time: time): m.Children {
   const domainTime = globals.toDomainTime(time);
   switch (fmt) {
     case TimestampFormat.UTC:
+    case TimestampFormat.TraceTz:
     case TimestampFormat.Timecode:
       return renderTimecode(domainTime);
     case TimestampFormat.Raw:

@@ -108,9 +108,11 @@ export function publishFtraceCounters(counters: FtraceStat[]) {
   globals.publishRedraw();
 }
 
-export function publishRealtimeOffset(offset: time, utcOffset: time) {
+export function publishRealtimeOffset(
+    offset: time, utcOffset: time, traceTzOffset: time) {
   globals.realtimeOffset = offset;
   globals.utcOffset = utcOffset;
+  globals.traceTzOffset = traceTzOffset;
   globals.publishRedraw();
 }
 

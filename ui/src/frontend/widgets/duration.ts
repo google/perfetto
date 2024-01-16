@@ -57,6 +57,7 @@ export class DurationWidget implements m.ClassComponent<DurationWidgetAttrs> {
             },
             menuItemForFormat(TimestampFormat.Timecode, 'Timecode'),
             menuItemForFormat(TimestampFormat.UTC, 'Realtime (UTC)'),
+            menuItemForFormat(TimestampFormat.TraceTz, 'Realtime (Trace TZ)'),
             menuItemForFormat(TimestampFormat.Seconds, 'Seconds'),
             menuItemForFormat(TimestampFormat.Raw, 'Raw'),
             menuItemForFormat(
@@ -95,6 +96,7 @@ function durationPrecisionHasEffect(): boolean {
   switch (timestampFormat()) {
     case TimestampFormat.Timecode:
     case TimestampFormat.UTC:
+    case TimestampFormat.TraceTz:
       return true;
     default:
       return false;
@@ -106,6 +108,7 @@ export function renderDuration(dur: duration): string {
   const fmt = timestampFormat();
   switch (fmt) {
     case TimestampFormat.UTC:
+    case TimestampFormat.TraceTz:
     case TimestampFormat.Timecode:
       return renderFormattedDuration(dur);
     case TimestampFormat.Raw:
