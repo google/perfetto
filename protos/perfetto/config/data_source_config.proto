@@ -28,6 +28,7 @@ import "protos/perfetto/config/android/packages_list_config.proto";
 import "protos/perfetto/config/android/surfaceflinger_layers_config.proto";
 import "protos/perfetto/config/android/surfaceflinger_transactions_config.proto";
 import "protos/perfetto/config/chrome/chrome_config.proto";
+import "protos/perfetto/config/chrome/v8_config.proto";
 import "protos/perfetto/config/etw/etw_config.proto";
 import "protos/perfetto/config/ftrace/ftrace_config.proto";
 import "protos/perfetto/config/gpu/gpu_counter_config.proto";
@@ -153,6 +154,9 @@ message DataSourceConfig {
   // just add extra hops on top of the Mojo ser/des. Instead we auto-generate a
   // C++ class for it so it can pass around plain C++ objets.
   optional ChromeConfig chrome_config = 101;
+
+  // Data source name: code.v8.dev
+  optional V8Config v8_config = 127 [lazy = true];
 
   // If an interceptor is specified here, packets for this data source will be
   // rerouted to the interceptor instead of the main trace buffer. This can be
