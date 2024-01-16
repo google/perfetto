@@ -1,6 +1,8 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Linux/Android: kernel scheduling data (sched_switch and sched_waking
+      ftrace events) is now serialised in a more compact format by default
+      (previously required setting ftrace_config.compact_sched.enabled).
   Trace Processor:
     *
   UI:
