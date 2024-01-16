@@ -645,6 +645,23 @@ message ChromeConfig {
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
 
+// Begin of protos/perfetto/config/chrome/v8_config.proto
+
+message V8Config {
+  // Whether to log the actual content of scripts (e.g. content of the JS file
+  // that was compiled to generate code).
+  // ATTENTION: This could considerably increase the size of the resuling trace
+  //            file.
+  optional bool log_script_sources = 1;
+  // Whether to log the generated code for jitted functions (machine code or
+  // bytecode).
+  // ATTENTION: This could considerably increase the size of the resuling trace
+  //            file.
+  optional bool log_instructions = 2;
+}
+
+// End of protos/perfetto/config/chrome/v8_config.proto
+
 // Begin of protos/perfetto/config/etw/etw_config.proto
 
 // Proto definition based on the struct _EVENT_TRACE_PROPERTIES definition
@@ -3111,6 +3128,9 @@ message DataSourceConfig {
   // just add extra hops on top of the Mojo ser/des. Instead we auto-generate a
   // C++ class for it so it can pass around plain C++ objets.
   optional ChromeConfig chrome_config = 101;
+
+  // Data source name: code.v8.dev
+  optional V8Config v8_config = 127 [lazy = true];
 
   // If an interceptor is specified here, packets for this data source will be
   // rerouted to the interceptor instead of the main trace buffer. This can be
