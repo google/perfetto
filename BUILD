@@ -3531,6 +3531,7 @@ perfetto_proto_library(
         "protos/perfetto/common/interceptor_descriptor.proto",
         "protos/perfetto/common/observable_events.proto",
         "protos/perfetto/common/perf_events.proto",
+        "protos/perfetto/common/protolog_common.proto",
         "protos/perfetto/common/sys_stats_counters.proto",
         "protos/perfetto/common/trace_stats.proto",
         "protos/perfetto/common/tracing_service_capabilities.proto",
@@ -3570,6 +3571,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/android_system_property_config.proto",
         "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
+        "protos/perfetto/config/android/protolog_config.proto",
         "protos/perfetto/config/android/surfaceflinger_layers_config.proto",
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
     ],
@@ -4274,6 +4276,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/initial_display_state.proto",
         "protos/perfetto/trace/android/network_trace.proto",
         "protos/perfetto/trace/android/packages_list.proto",
+        "protos/perfetto/trace/android/protolog.proto",
         "protos/perfetto/trace/android/shell_transition.proto",
         "protos/perfetto/trace/android/surfaceflinger_common.proto",
         "protos/perfetto/trace/android/surfaceflinger_layers.proto",
@@ -4291,6 +4294,7 @@ perfetto_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_winscope_deps_protos",
     srcs = [
+        "protos/perfetto/trace/android/protolog.proto",
         "protos/perfetto/trace/android/shell_transition.proto",
         "protos/perfetto/trace/android/surfaceflinger_common.proto",
         "protos/perfetto/trace/android/surfaceflinger_layers.proto",
@@ -4298,6 +4302,9 @@ perfetto_proto_library(
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_common_protos",
     ],
 )
 

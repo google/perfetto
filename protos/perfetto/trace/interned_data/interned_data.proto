@@ -132,4 +132,7 @@ message InternedData {
   // Every V8 event is associated with an isolate, intern the isolate to remove
   // duplication.
   repeated InternedV8Isolate v8_isolate = 35;
+
+  // Interned protolog strings args.
+  repeated InternedString protolog_string_args = 36;
 }
