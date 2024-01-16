@@ -16,17 +16,20 @@
 
 #include <optional>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/root_message.h"
 #include "perfetto/protozero/scattered_stream_null_delegate.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_print_filter.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
 #include "src/tracing/core/null_trace_writer.h"
+
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 
 namespace perfetto {
 namespace {
@@ -964,10 +967,11 @@ void DoProcessPages(const ExamplePage& test_case,
 
   FtraceMetadata metadata{};
   auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
+  base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors;
   while (state.KeepRunning()) {
     CpuReader::ProcessPagesForDataSource(
-        &writer, &metadata, /*cpu=*/0, &ds_config, repeated_pages.get(),
-        page_repetition, compact_sched_buf.get(), table,
+        &writer, &metadata, /*cpu=*/0, &ds_config, &parse_errors,
+        repeated_pages.get(), page_repetition, compact_sched_buf.get(), table,
         /*symbolizer=*/nullptr, /*ftrace_clock_snapshot=*/nullptr,
         /*ftrace_clock=*/protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 

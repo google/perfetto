@@ -361,7 +361,7 @@ TEST_F(ExportJsonTest, StorageWithStats) {
                                     kBufferSize0);
   context_.storage->SetIndexedStats(stats::traced_buf_buffer_size, 1,
                                     kBufferSize1);
-  context_.storage->SetIndexedStats(stats::ftrace_cpu_bytes_read_begin, 0,
+  context_.storage->SetIndexedStats(stats::ftrace_cpu_bytes_begin, 0,
                                     kFtraceBegin);
 
   base::TempFile temp_file = base::TempFile::Create();
@@ -379,8 +379,8 @@ TEST_F(ExportJsonTest, StorageWithStats) {
   EXPECT_EQ(stats["traced_buf"].size(), 2u);
   EXPECT_EQ(stats["traced_buf"][0]["buffer_size"].asInt(), kBufferSize0);
   EXPECT_EQ(stats["traced_buf"][1]["buffer_size"].asInt(), kBufferSize1);
-  EXPECT_EQ(stats["ftrace_cpu_bytes_read_begin"].size(), 1u);
-  EXPECT_EQ(stats["ftrace_cpu_bytes_read_begin"][0].asInt(), kFtraceBegin);
+  EXPECT_EQ(stats["ftrace_cpu_bytes_begin"].size(), 1u);
+  EXPECT_EQ(stats["ftrace_cpu_bytes_begin"][0].asInt(), kFtraceBegin);
 }
 
 TEST_F(ExportJsonTest, StorageWithChromeMetadata) {

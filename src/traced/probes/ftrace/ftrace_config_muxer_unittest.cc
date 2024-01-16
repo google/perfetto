@@ -1149,20 +1149,14 @@ TEST_F(FtraceConfigMuxerTest, FallbackOnSetEvent) {
 TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
   // Set scheduling event format as validated. The pre-parsed format itself
   // doesn't need to be sensible, as the tests won't use it.
-  auto valid_compact_format =
-      CompactSchedEventFormat{/*format_valid=*/true, CompactSchedSwitchFormat{},
-                              CompactSchedWakingFormat{}};
+  auto format_with_id = CompactSchedSwitchFormat{};
+  format_with_id.event_id = kFakeSchedSwitchEventId;
+  auto valid_compact_format = CompactSchedEventFormat{
+      /*format_valid=*/true, format_with_id, CompactSchedWakingFormat{}};
 
   NiceMock<MockFtraceProcfs> ftrace;
   table_ = CreateFakeTable(valid_compact_format);
-  FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
-
-  // First data source - request compact encoding.
-  FtraceConfig config_enabled = CreateFtraceConfig({"sched/sched_switch"});
-  config_enabled.mutable_compact_sched()->set_enabled(true);
-
-  // Second data source - no compact encoding (default).
-  FtraceConfig config_disabled = CreateFtraceConfig({"sched/sched_switch"});
+  FtraceConfigMuxer muxer(&ftrace, table_.get(), GetSyscallTable(), {});
 
   ON_CALL(ftrace, ReadFileIntoString("/root/current_tracer"))
       .WillByDefault(Return("nop"));
@@ -1170,21 +1164,53 @@ TEST_F(FtraceConfigMuxerTest, CompactSchedConfig) {
       .WillByDefault(Return("0"));
 
   {
-    FtraceConfigId id = 73;
-    ASSERT_TRUE(model.SetupConfig(id, config_enabled));
-    const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
+    // Explicitly enabled.
+    FtraceConfig cfg = CreateFtraceConfig({"sched/sched_switch"});
+    cfg.mutable_compact_sched()->set_enabled(true);
+
+    FtraceConfigId id = 42;
+    ASSERT_TRUE(muxer.SetupConfig(id, cfg));
+    const FtraceDataSourceConfig* ds_config = muxer.GetDataSourceConfig(id);
     ASSERT_TRUE(ds_config);
     EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
                 Contains(kFakeSchedSwitchEventId));
     EXPECT_TRUE(ds_config->compact_sched.enabled);
   }
   {
-    FtraceConfigId id = 87;
-    ASSERT_TRUE(model.SetupConfig(id, config_disabled));
-    const FtraceDataSourceConfig* ds_config = model.GetDataSourceConfig(id);
+    // Implicitly enabled (default).
+    FtraceConfig cfg = CreateFtraceConfig({"sched/sched_switch"});
+
+    FtraceConfigId id = 43;
+    ASSERT_TRUE(muxer.SetupConfig(id, cfg));
+    const FtraceDataSourceConfig* ds_config = muxer.GetDataSourceConfig(id);
     ASSERT_TRUE(ds_config);
     EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
                 Contains(kFakeSchedSwitchEventId));
+    EXPECT_TRUE(ds_config->compact_sched.enabled);
+  }
+  {
+    // Explicitly disabled.
+    FtraceConfig cfg = CreateFtraceConfig({"sched/sched_switch"});
+    cfg.mutable_compact_sched()->set_enabled(false);
+
+    FtraceConfigId id = 44;
+    ASSERT_TRUE(muxer.SetupConfig(id, cfg));
+    const FtraceDataSourceConfig* ds_config = muxer.GetDataSourceConfig(id);
+    ASSERT_TRUE(ds_config);
+    EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
+                Contains(kFakeSchedSwitchEventId));
+    EXPECT_FALSE(ds_config->compact_sched.enabled);
+  }
+  {
+    // Disabled if not recording sched_switch.
+    FtraceConfig cfg = CreateFtraceConfig({});
+
+    FtraceConfigId id = 45;
+    ASSERT_TRUE(muxer.SetupConfig(id, cfg));
+    const FtraceDataSourceConfig* ds_config = muxer.GetDataSourceConfig(id);
+    ASSERT_TRUE(ds_config);
+    EXPECT_THAT(ds_config->event_filter.GetEnabledEvents(),
+                Not(Contains(kFakeSchedSwitchEventId)));
     EXPECT_FALSE(ds_config->compact_sched.enabled);
   }
 }
