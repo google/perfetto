@@ -201,18 +201,23 @@ CompactSchedEventFormat InvalidCompactSchedEventFormatForTesting() {
                                  CompactSchedWakingFormat{}};
 }
 
-// TODO(rsavitski): find the correct place in the trace for, and method of,
-// reporting rejection of compact_sched due to compile-time assumptions not
-// holding at runtime.
 CompactSchedConfig CreateCompactSchedConfig(
     const FtraceConfig& request,
+    bool switch_requested,
     const CompactSchedEventFormat& compact_format) {
-  if (!request.compact_sched().enabled())
+  // If compile-time assumptions don't hold, we'll fall back onto encoding
+  // events individually.
+  if (!compact_format.format_valid) {
     return CompactSchedConfig{/*enabled=*/false};
-
-  if (!compact_format.format_valid)
+  }
+  // Enabled unless we're not recording sched_switch, or explicitly opting out.
+  // Note: compact sched_waking depends on sched_switch (for derived
+  // common_pid), so use verbose encoding if the config requests only
+  // sched_waking.
+  const auto& compact = request.compact_sched();
+  if (!switch_requested || (compact.has_enabled() && !compact.enabled())) {
     return CompactSchedConfig{/*enabled=*/false};
-
+  }
   return CompactSchedConfig{/*enabled=*/true};
 }
 
@@ -223,10 +228,6 @@ CompactSchedConfig EnabledCompactSchedConfigForTesting() {
 CompactSchedConfig DisabledCompactSchedConfigForTesting() {
   return CompactSchedConfig{/*enabled=*/false};
 }
-
-// Check size of stack-allocated bundle state.
-static_assert(sizeof(CompactSchedBuffer) <= 1 << 18,
-              "CompactSchedBuffer's on-stack size excessively large.");
 
 void CompactSchedSwitchBuffer::Write(
     protos::pbzero::FtraceEventBundle::CompactSched* compact_out) const {

@@ -39,7 +39,7 @@ void FtraceCpuStats::Write(protos::pbzero::FtraceCpuStats* writer) const {
   writer->set_entries(entries);
   writer->set_overrun(overrun);
   writer->set_commit_overrun(commit_overrun);
-  writer->set_bytes_read(bytes_read);
+  writer->set_bytes_read(bytes);
   writer->set_oldest_event_ts(oldest_event_ts);
   writer->set_now_ts(now_ts);
   writer->set_dropped_events(dropped_events);
