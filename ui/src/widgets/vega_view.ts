@@ -78,7 +78,7 @@ class EngineLoader implements vega.Loader {
     if (this.engine === undefined) {
       return '';
     }
-    const result = this.engine.query(uri);
+    const result = this.engine.execute(uri);
     try {
       await result.waitAllRows();
     } catch (e) {
