@@ -106,16 +106,15 @@ export class Time {
   }
 
   // Find the closest previous midnight for a given time value.
-  static quantWholeDaysUTC(time: time, realtimeOffset: duration): time {
-    const date = Time.toDate(time, realtimeOffset);
-
-    const nearestWholeDay = new Date(Date.UTC(
+  static getLatestMidnight(time: time, offset: duration): time {
+    const date = Time.toDate(time, offset);
+    const floorDay = new Date(Date.UTC(
         date.getUTCFullYear(),
         date.getUTCMonth(),
         date.getUTCDate(),
         ));
 
-    return Time.fromDate(nearestWholeDay, realtimeOffset);
+    return Time.fromDate(floorDay, offset);
   }
 
   static add(t: time, d: duration): time {
