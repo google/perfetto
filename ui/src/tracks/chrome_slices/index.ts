@@ -170,7 +170,7 @@ export class ChromeSliceTrackV2 extends NamedSliceTrack<ChromeSliceTrackTypes> {
     super(args);
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
-      minDepth: maxDepth + 1,
+      depthGuess: maxDepth,
     };
   }
 
