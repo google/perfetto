@@ -273,9 +273,11 @@ export abstract class BaseSliceTrack<
   }
 
   setSliceLayout(sliceLayout: SliceLayout) {
-    if (sliceLayout.minDepth > sliceLayout.maxDepth) {
-      const {maxDepth, minDepth} = sliceLayout;
-      throw new Error(`minDepth ${minDepth} must be <= maxDepth ${maxDepth}`);
+    if (sliceLayout.isFlat && sliceLayout.depthGuess !== undefined &&
+        sliceLayout.depthGuess !== 0) {
+      const {isFlat, depthGuess} = sliceLayout;
+      throw new Error(`if isFlat (${isFlat}) then depthGuess (${
+          depthGuess}) must be 0 if defined`);
     }
     this.sliceLayout = sliceLayout;
   }
@@ -807,16 +809,11 @@ export abstract class BaseSliceTrack<
   }
 
   private isFlat(): boolean {
-    // maxDepth and minDepth are a half open range so in the normal flat
-    // case maxDepth = 1 and minDepth = 0. In the non flat case:
-    // maxDepth = 42 and minDepth = 0. maxDepth === minDepth should not
-    // occur but is could happen if there are zero slices I guess so
-    // treat this as flat also.
-    return (this.sliceLayout.maxDepth - this.sliceLayout.minDepth) <= 1;
+    return this.sliceLayout.isFlat ?? false;
   }
 
   private depthColumn(): string {
-    return this.isFlat() ? `${this.sliceLayout.minDepth} as depth` : 'depth';
+    return this.isFlat() ? '0 as depth' : 'depth';
   }
 
   onMouseMove(position: {x: number, y: number}): void {
@@ -873,9 +870,7 @@ export abstract class BaseSliceTrack<
 
   private updateSliceAndTrackHeight() {
     const lay = this.sliceLayout;
-
-    const rows =
-        Math.min(Math.max(this.maxDataDepth + 1, lay.minDepth), lay.maxDepth);
+    const rows = Math.max(this.maxDataDepth, lay.depthGuess ?? 0) + 1;
 
     // Compute the track height.
     let trackHeight;
