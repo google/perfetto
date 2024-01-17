@@ -113,7 +113,7 @@ class AsyncSlicePlugin implements Plugin {
       // }
 
       ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#${rawName}`,
+        uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}`,
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
@@ -128,7 +128,7 @@ class AsyncSlicePlugin implements Plugin {
       });
 
       ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#${rawName}.v2`,
+        uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}.v2`,
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
