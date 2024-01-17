@@ -403,7 +403,7 @@ FROM all_input_increments;
 -- that do not have corresponding input events.
 DROP VIEW IF EXISTS all_input_slices;
 CREATE PERFETTO VIEW all_input_slices AS
-SELECT ts,
+SELECT cast(ts as int) as ts,
   dur,
   input_active
 FROM (
