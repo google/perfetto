@@ -65,6 +65,12 @@ export class TimeAxisPanel implements Panel {
         const dateStr = toISODateOnly(offsetDate);
         ctx.fillText(`UTC ${dateStr}`, 6, 10);
         break;
+      case TimestampFormat.TraceTz:
+        const offsetTzDate =
+            Time.toDate(globals.traceTzOffset, globals.realtimeOffset);
+        const dateTzStr = toISODateOnly(offsetTzDate);
+        ctx.fillText(dateTzStr, 6, 10);
+        break;
     }
 
     ctx.save();
@@ -103,6 +109,7 @@ function renderTimestamp(
   const fmt = timestampFormat();
   switch (fmt) {
     case TimestampFormat.UTC:
+    case TimestampFormat.TraceTz:
     case TimestampFormat.Timecode:
       return renderTimecode(ctx, time, x, y, minWidth);
     case TimestampFormat.Raw:
