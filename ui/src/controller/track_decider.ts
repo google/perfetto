@@ -292,7 +292,7 @@ class TrackDecider {
 
       if (showV1()) {
         const track: AddTrackArgs = {
-          uri: `perfetto.AsyncSlices#${rawName}`,
+          uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}`,
           trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
           trackGroup,
           name,
@@ -302,7 +302,7 @@ class TrackDecider {
 
       if (showV2()) {
         const track: AddTrackArgs = {
-          uri: `perfetto.AsyncSlices#${rawName}.v2`,
+          uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}.v2`,
           trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
           trackGroup,
           name,
