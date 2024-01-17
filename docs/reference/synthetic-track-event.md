@@ -379,3 +379,91 @@ packet {
   trusted_packet_sequence_id: 3903809
 }
 ```
+
+## Interning
+NOTE: there is no equivalent to interning in the JSON tracing format.
+
+Interning is an advanced but powerful feature of the protobuf tracing format
+which allows allows for reducing the number of times long strings are emitted
+in the trace.
+
+Specifically, certain fields in the protobuf format allow associating an "iid"
+(interned id) to a string and using the iid to reference the string in all
+future packets. The most commonly used cases are slice names and category
+names
+
+Here is an example of a trace which makes use of interning to reduce the
+number of times a very long slice name is emitted:
+![TrackEvent interning](/docs/images/synthetic-track-event-interned.png)
+
+This corresponds to the following protos:
+```
+packet {
+  track_descriptor {
+    uuid: 48948                         # 64-bit random number.
+    name: "My special track"
+    process {
+      pid: 1234                         # PID for your process
+      process_name: "My process name"
+    }
+  }
+}
+packet {
+  timestamp: 200
+  track_event {
+    type: TYPE_SLICE_BEGIN
+    track_uuid: 48948                   # Same random number from above.
+    name_iid: 1                         # References the string in interned_data
+                                        # (see below)
+  }
+  trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
+
+  interned_data {
+    # Creates a mapping from the iid "1" to the string name: any |name_iid| field
+    # in this packet onwards will transparently be remapped to this string by trace
+    # processor.
+    event_names {
+      iid: 1
+      name: "A very very very long slice name which we don't want to repeat"
+    }
+  }
+
+  first_packet_on_sequence: true        # Indicates to trace processor that
+                                        # this is the first packet on the
+                                        # sequence.   
+  previous_packet_dropped: true         # Same as |first_packet_on_sequence|.
+
+  # Indicates to trace processor that this sequence resets the incremental state but
+  # also depends on incrtemental state state.
+  # 3 = SEQ_INCREMENTAL_STATE_CLEARED | SEQ_NEEDS_INCREMENTAL_STATE
+  sequence_flags: 3
+}
+packet {
+  timestamp: 201
+  track_event {
+    type: TYPE_SLICE_END
+    track_uuid: 48948
+  }
+  trusted_packet_sequence_id: 3903809
+}
+packet {
+  timestamp: 202
+  track_event {
+    type: TYPE_SLICE_BEGIN
+    track_uuid: 48948                   # Same random number from above.
+    name_iid: 1                         # References the string in interned_data
+                                        # above.
+  }
+  trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
+  # 2 = SEQ_NEEDS_INCREMENTAL_STATE
+  sequence_flags: 3
+}
+packet {
+  timestamp: 203
+  track_event {
+    type: TYPE_SLICE_END
+    track_uuid: 48948
+  }
+  trusted_packet_sequence_id: 3903809
+}
+```
