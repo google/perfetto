@@ -259,6 +259,7 @@ function renderTimestamp(
   const fmt = timestampFormat();
   switch (fmt) {
     case TimestampFormat.UTC:
+    case TimestampFormat.TraceTz:
     case TimestampFormat.Timecode:
       renderTimecode(ctx, time, x, y, minWidth);
       break;

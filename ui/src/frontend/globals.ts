@@ -282,6 +282,7 @@ class Globals {
   private _cmdManager?: CommandManager = undefined;
   private _realtimeOffset = Time.ZERO;
   private _utcOffset = Time.ZERO;
+  private _traceTzOffset = Time.ZERO;
   private _openQueryHandler?: OpenQueryHandler;
 
   scrollToTrackKey?: string|number;
@@ -767,6 +768,16 @@ class Globals {
     this._utcOffset = offset;
   }
 
+  // Trace TZ is like UTC but keeps into account also the timezone_off_mins
+  // recorded into the trace, to show timestamps in the device local time.
+  get traceTzOffset(): time {
+    return this._traceTzOffset;
+  }
+
+  set traceTzOffset(offset: time) {
+    this._traceTzOffset = offset;
+  }
+
   // Offset between t=0 and the configured time domain.
   timestampOffset(): time {
     const fmt = timestampFormat();
@@ -779,6 +790,8 @@ class Globals {
         return Time.ZERO;
       case TimestampFormat.UTC:
         return this.utcOffset;
+      case TimestampFormat.TraceTz:
+        return this.traceTzOffset;
       default:
         const x: never = fmt;
         throw new Error(`Unsupported format ${x}`);
