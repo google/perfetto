@@ -1091,36 +1091,56 @@ class TrackDecider {
       package_name: STR_NULL,
     });
 
+    let groupMap = new Map<string, [string, string]>(); //[name] -> [uuid, key]
+
     for (; it.valid(); it.next()) {
-      const kind = ASYNC_SLICE_TRACK_KIND;
-      const rawName = it.name === null ? undefined : it.name;
-      const userName = it.package_name === null ? undefined : it.package_name;
+      if (it.name == null || it.uid == null)
+        continue;
+      const rawName = it.name;
       const uid = it.uid === null ? undefined : it.uid;
-      const name = getTrackName({
-        name: rawName,
-        uid,
-        userName,
-        kind,
-        uidTrack: true,
-      });
+      let userName = it.package_name === null ? `UID: ${uid}` : it.package_name;
+
+      let groupUuid = `uid-track-group${rawName}`;
+      if (groupMap.get(rawName) === undefined) {
+        let summaryTrackKey = uuidv4();
+        this.tracksToAdd.push({
+          uri: NULL_TRACK_URI,
+          trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
+          name: `UID Tracks`,
+          trackGroup: undefined,
+          key: summaryTrackKey,
+        });
+
+        groupMap.set(rawName, [groupUuid, summaryTrackKey]);
+      }
 
       if (showV1()) {
         this.tracksToAdd.push({
           uri: `perfetto.AsyncSlices#${rawName}.${uid}`,
-          name,
+          name: userName,
           trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-          trackGroup: SCROLLING_TRACK_GROUP,
+          trackGroup: groupUuid,
         });
       }
 
       if (showV2()) {
         this.tracksToAdd.push({
           uri: `perfetto.AsyncSlices#${rawName}.${uid}.v2`,
-          name,
+          name: userName,
           trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-          trackGroup: SCROLLING_TRACK_GROUP,
+          trackGroup: groupUuid,
         });
       }
+    }
+
+    for (let [name, [groupUuid, summaryTrackKey]] of groupMap) {
+      const addGroup = Actions.addTrackGroup({
+        name: name,
+        id: groupUuid,
+        collapsed: true,
+        summaryTrackKey,
+      });
+      this.addTrackGroupActions.push(addGroup);
     }
   }
 
@@ -1770,6 +1790,12 @@ class TrackDecider {
     await this.groupTracksByRegex(CHROME_TRACK_REGEX, CHROME_TRACK_GROUP);
     await this.groupMiscNonAllowlistedTracks(MISC_GROUP);
 
+    // Add user slice tracks before listing the processes. These tracks will
+    // be listed with their user/package name only, and they will be grouped
+    // under on their original shared track names. E.g. "GPU Work Period"
+    await this.addUserAsyncSliceTracks(
+        this.engine.getProxy('TrackDecider::addUserAsyncSliceTracks'));
+
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
     // existing group uuid, and addThreadStateTracks will fill in the
@@ -1796,8 +1822,6 @@ class TrackDecider {
         this.engine.getProxy('TrackDecider::addProcessCounterTracks'));
     await this.addProcessAsyncSliceTracks(
         this.engine.getProxy('TrackDecider::addProcessAsyncSliceTracks'));
-    await this.addUserAsyncSliceTracks(
-        this.engine.getProxy('TrackDecider::addUserAsyncSliceTracks'));
     await this.addActualFramesTracks(
         this.engine.getProxy('TrackDecider::addActualFramesTracks'));
     await this.addExpectedFramesTracks(

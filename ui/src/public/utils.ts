@@ -79,8 +79,6 @@ export function getTrackName(args: Partial<{
     return `upid: ${upid}${kindSuffix}`;
   } else if (hasUtid) {
     return `utid: ${utid}${kindSuffix}`;
-  } else if (hasUtid) {
-    return `utid: ${utid}${kindSuffix}`;
   } else if (hasUid) {
     return `uid: ${uid}${kindSuffix}`;
   } else if (hasKind) {
