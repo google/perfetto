@@ -155,8 +155,10 @@ source_set("test_support") {
   deps = [
     ":base",
     "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
   ]
   sources = [
+    "test/status_matchers.h",
     "test/tmp_dir_tree.cc",
     "test/tmp_dir_tree.h",
     "test/utils.cc",

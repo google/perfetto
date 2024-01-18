@@ -1726,6 +1726,13 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_test_test_helper",
     ],
+    static_libs: [
+        "libgmock",
+        "libgtest",
+    ],
+    whole_static_libs: [
+        "perfetto_gtest_logcat_printer",
+    ],
     generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
         "perfetto_protos_perfetto_common_zero_gen_headers",

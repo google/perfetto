@@ -45,6 +45,7 @@ source_set("metrics") {
     "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/common:zero",
     "../../../protos/perfetto/trace_processor:metrics_impl_zero",
+    "../../../protos/perfetto/trace_processor:zero",
     "../../base",
     "../../protozero:protozero",
     "../perfetto_sql/engine",
@@ -71,5 +72,9 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:gtest_and_gmock",
     "../../../gn:sqlite",
     "../../../protos/perfetto/common:zero",
+    "../../../protos/perfetto/trace_processor:metrics_impl_zero",
+    "../../../protos/perfetto/trace_processor:zero",
+    "../../base:test_support",
+    "../../protozero",
   ]
 }
