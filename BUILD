@@ -1358,6 +1358,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_common_common",
     srcs = [
+        "src/trace_processor/importers/common/address_range.h",
         "src/trace_processor/importers/common/args_tracker.cc",
         "src/trace_processor/importers/common/args_tracker.h",
         "src/trace_processor/importers/common/args_translation_table.cc",
