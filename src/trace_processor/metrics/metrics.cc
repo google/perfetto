@@ -341,22 +341,29 @@ base::Status ProtoBuilder::AppendRepeated(const FieldDescriptor& field,
   }
 
   protos::pbzero::RepeatedBuilderResult::Decoder repeated(decoder.repeated());
-  for (auto it = repeated.value(); it; ++it) {
-    protos::pbzero::RepeatedBuilderResult::Value::Decoder value(*it);
-    if (value.has_int_value()) {
-      RETURN_IF_ERROR(AppendSingleLong(field, value.int_value()));
-    } else if (value.has_double_value()) {
-      RETURN_IF_ERROR(AppendSingleDouble(field, value.double_value()));
-    } else if (value.has_string_value()) {
-      RETURN_IF_ERROR(AppendSingleString(field, value.string_value()));
-    } else if (value.has_bytes_value()) {
-      const auto& bytes = value.bytes_value();
-      RETURN_IF_ERROR(AppendSingleBytes(field, bytes.data, bytes.size));
-    } else {
-      return base::ErrStatus("Unknown type in repeated field");
+  bool parse_error = false;
+  if (repeated.has_int_values()) {
+    for (auto it = repeated.int_values(&parse_error); it; ++it) {
+      RETURN_IF_ERROR(AppendSingleLong(field, *it));
     }
+  } else if (repeated.has_double_values()) {
+    for (auto it = repeated.double_values(&parse_error); it; ++it) {
+      RETURN_IF_ERROR(AppendSingleDouble(field, *it));
+    }
+  } else if (repeated.has_string_values()) {
+    for (auto it = repeated.string_values(); it; ++it) {
+      RETURN_IF_ERROR(AppendSingleString(field, *it));
+    }
+  } else if (repeated.has_byte_values()) {
+    for (auto it = repeated.byte_values(); it; ++it) {
+      RETURN_IF_ERROR(AppendSingleBytes(field, (*it).data, (*it).size));
+    }
+  } else {
+    return base::ErrStatus("Unknown type in repeated field");
   }
-  return base::OkStatus();
+  return parse_error
+             ? base::ErrStatus("Failed to parse repeated field internal proto")
+             : base::OkStatus();
 }
 
 std::vector<uint8_t> ProtoBuilder::SerializeToProtoBuilderResult() {
@@ -399,52 +406,70 @@ RepeatedFieldBuilder::RepeatedFieldBuilder() {
 base::Status RepeatedFieldBuilder::AddSqlValue(SqlValue value) {
   switch (value.type) {
     case SqlValue::kLong:
-      AddLong(value.long_value);
-      break;
+      return AddLong(value.long_value);
     case SqlValue::kDouble:
-      AddDouble(value.double_value);
-      break;
+      return AddDouble(value.double_value);
     case SqlValue::kString:
-      AddString(value.string_value);
-      break;
+      return AddString(value.string_value);
     case SqlValue::kBytes:
-      AddBytes(static_cast<const uint8_t*>(value.bytes_value),
-               value.bytes_count);
-      break;
+      return AddBytes(static_cast<const uint8_t*>(value.bytes_value),
+                      value.bytes_count);
     case SqlValue::kNull:
-      AddBytes(nullptr, 0);
-      break;
+      return AddBytes(nullptr, 0);
   }
-  return base::OkStatus();
-}
-
-void RepeatedFieldBuilder::AddLong(int64_t value) {
-  has_data_ = true;
-  repeated_->add_value()->set_int_value(value);
-}
-
-void RepeatedFieldBuilder::AddDouble(double value) {
-  has_data_ = true;
-  repeated_->add_value()->set_double_value(value);
-}
-
-void RepeatedFieldBuilder::AddString(base::StringView value) {
-  has_data_ = true;
-  repeated_->add_value()->set_string_value(value.data(), value.size());
-}
-
-void RepeatedFieldBuilder::AddBytes(const uint8_t* data, size_t size) {
-  has_data_ = true;
-  repeated_->add_value()->set_bytes_value(data, size);
+  PERFETTO_FATAL("Unknown SqlValue type");
 }
 
 std::vector<uint8_t> RepeatedFieldBuilder::SerializeToProtoBuilderResult() {
-  repeated_ = nullptr;
-  if (!has_data_) {
+  if (!repeated_field_type_) {
     return {};
+  }
+  {
+    if (repeated_field_type_ == SqlValue::Type::kDouble) {
+      repeated_->set_double_values(double_packed_repeated_);
+    } else if (repeated_field_type_ == SqlValue::Type::kLong) {
+      repeated_->set_int_values(int64_packed_repeated_);
+    }
+    repeated_->Finalize();
+    repeated_ = nullptr;
   }
   message_->set_is_repeated(true);
   return message_.SerializeAsArray();
+}
+
+base::Status RepeatedFieldBuilder::AddLong(int64_t value) {
+  RETURN_IF_ERROR(EnsureType(SqlValue::Type::kLong));
+  int64_packed_repeated_.Append(value);
+  return base::OkStatus();
+}
+
+base::Status RepeatedFieldBuilder::AddDouble(double value) {
+  RETURN_IF_ERROR(EnsureType(SqlValue::Type::kDouble));
+  double_packed_repeated_.Append(value);
+  return base::OkStatus();
+}
+
+base::Status RepeatedFieldBuilder::AddString(base::StringView value) {
+  RETURN_IF_ERROR(EnsureType(SqlValue::Type::kString));
+  repeated_->add_string_values(value.data(), value.size());
+  return base::OkStatus();
+}
+
+base::Status RepeatedFieldBuilder::AddBytes(const uint8_t* data, size_t size) {
+  RETURN_IF_ERROR(EnsureType(SqlValue::Type::kBytes));
+  repeated_->add_byte_values(data, size);
+  return base::OkStatus();
+}
+
+base::Status RepeatedFieldBuilder::EnsureType(SqlValue::Type type) {
+  if (repeated_field_type_ && repeated_field_type_ != type) {
+    return base::ErrStatus(
+        "Inconsistent type in RepeatedField: was %s but now seen value %s",
+        sqlite_utils::SqliteTypeToFriendlyString(*repeated_field_type_),
+        sqlite_utils::SqliteTypeToFriendlyString(type));
+  }
+  repeated_field_type_ = type;
+  return base::OkStatus();
 }
 
 int TemplateReplace(
