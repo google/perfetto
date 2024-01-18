@@ -27,7 +27,7 @@ export class ExpectedFramesTrack extends NamedSliceTrack {
     super({engine, trackKey});
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
-      minDepth: maxDepth + 1,
+      depthGuess: maxDepth,
     };
   }
 

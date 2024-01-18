@@ -15,11 +15,14 @@
 export interface SliceLayoutBase {
   readonly padding: number;  // vertical pixel padding between slices and track.
   readonly rowSpacing: number;  // Spacing between rows.
-  readonly minDepth: number;    // Minimum depth a slice can be (normally zero)
-  // Maximum depth a slice can be plus 1 (a half open range with minDepth).
-  // We have a optimization for when maxDepth - minDepth == 1 so it is useful
-  // to set this correctly:
-  readonly maxDepth: number;
+
+  // A *guess* at the depth
+  readonly depthGuess?: number;
+
+  // True iff the track is flat (all slices have the same depth
+  // we have an optimisation for this).
+  readonly isFlat?: boolean;
+
   readonly titleSizePx?: number;
   readonly subtitleSizePx?: number;
 }
@@ -27,10 +30,6 @@ export interface SliceLayoutBase {
 export const SLICE_LAYOUT_BASE_DEFAULTS: SliceLayoutBase = Object.freeze({
   padding: 3,
   rowSpacing: 0,
-  minDepth: 0,
-  // A realistic bound to avoid tracks with unlimited height. If somebody wants
-  // extremely deep tracks they need to change this explicitly.
-  maxDepth: 128,
 });
 
 export interface SliceLayoutFixed extends SliceLayoutBase {
@@ -59,14 +58,14 @@ export const SLICE_LAYOUT_FIT_CONTENT_DEFAULTS: SliceLayoutFitContent =
 export interface SliceLayoutFlat extends SliceLayoutBase {
   readonly heightMode: 'FIXED';
   readonly fixedHeight: number;  // Outer height of the track.
-  readonly minDepth: 0;
-  readonly maxDepth: 1;
+  readonly depthGuess: 0;
+  readonly isFlat: true;
 }
 
 export const SLICE_LAYOUT_FLAT_DEFAULTS: SliceLayoutFlat = Object.freeze({
   ...SLICE_LAYOUT_BASE_DEFAULTS,
-  minDepth: 0,
-  maxDepth: 1,
+  depthGuess: 0,
+  isFlat: true,
   heightMode: 'FIXED',
   fixedHeight: 18,
   titleSizePx: 10,
