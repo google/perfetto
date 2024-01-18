@@ -34,9 +34,11 @@
 #include "protos/perfetto/trace_processor/metrics_impl.pbzero.h"
 
 namespace perfetto::trace_processor::metrics {
-
 namespace {
 using base::gtest_matchers::IsError;
+
+using base::gtest_matchers::IsError;
+using testing::IsEmpty;
 
 std::string RunTemplateReplace(
     const std::string& str,
@@ -201,6 +203,33 @@ TEST_F(ProtoBuilderTest, AppendNested) {
   ASSERT_EQ(nest_int_field.as_int64(), 789);
 }
 
+TEST_F(ProtoBuilderTest, AppendRepeatedEmpty) {
+  using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+
+  // Create the descriptor version of the following message:
+  // message TestProto {
+  //   repeated int64 int_value = 1;
+  // }
+  DescriptorPool pool;
+  ProtoDescriptor descriptor("file.proto", ".perfetto.protos",
+                             ".perfetto.protos.TestProto",
+                             ProtoDescriptor::Type::kMessage, std::nullopt);
+  descriptor.AddField(FieldDescriptor("rep_int_value", 1,
+                                      FieldDescriptorProto::TYPE_INT64, "",
+                                      std::vector<uint8_t>(), true, false));
+
+  ASSERT_THAT(RepeatedFieldBuilder().SerializeToProtoBuilderResult(),
+              IsEmpty());
+
+  ProtoBuilder builder(&pool, &descriptor);
+  ASSERT_OK(builder.AppendSqlValue("rep_int_value", SqlValue()));
+
+  auto proto =
+      DecodeSingleFieldProto<true>(builder.SerializeToProtoBuilderResult());
+  auto it = proto.GetRepeated<int64_t>(1);
+  ASSERT_FALSE(it);
+}
+
 TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
   using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
 
@@ -217,8 +246,8 @@ TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
                                       std::vector<uint8_t>(), true, false));
 
   RepeatedFieldBuilder rep_builder;
-  rep_builder.AddLong(1234);
-  rep_builder.AddLong(5678);
+  rep_builder.AddSqlValue(SqlValue::Long(1234));
+  rep_builder.AddSqlValue(SqlValue::Long(5678));
 
   std::vector<uint8_t> rep_ser = rep_builder.SerializeToProtoBuilderResult();
 
@@ -226,8 +255,8 @@ TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
   ASSERT_OK(builder.AppendSqlValue(
       "rep_int_value", SqlValue::Bytes(rep_ser.data(), rep_ser.size())));
 
-  auto result_ser = builder.SerializeToProtoBuilderResult();
-  auto proto = DecodeSingleFieldProto<true>(result_ser);
+  auto proto =
+      DecodeSingleFieldProto<true>(builder.SerializeToProtoBuilderResult());
   auto it = proto.GetRepeated<int64_t>(1);
   ASSERT_EQ(*it, 1234);
   ASSERT_EQ(*++it, 5678);

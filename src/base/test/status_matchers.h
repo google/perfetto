@@ -17,9 +17,13 @@
 #ifndef SRC_BASE_TEST_STATUS_MATCHERS_H_
 #define SRC_BASE_TEST_STATUS_MATCHERS_H_
 
+#include <ostream>
+
+#include "perfetto/base/status.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto::base::gtest_matchers {
+namespace perfetto::base {
+namespace gtest_matchers {
 
 // Returns a gMock matcher that matches a Status or StatusOr<> which is OK.
 MATCHER(IsOk, negation ? "is not OK" : "is OK") {
@@ -39,6 +43,18 @@ MATCHER(IsError, negation ? "is not error" : "is error") {
 #define ASSERT_OK(expression) \
   ASSERT_THAT(expression, ::perfetto::base::gtest_matchers::IsOk())
 
-}  // namespace perfetto::base::gtest_matchers
+}  // namespace gtest_matchers
+
+// Add a |PrintTo| function to allow easily determining what the cause of the
+// failure is.
+inline void PrintTo(const Status& status, std::ostream* os) {
+  if (status.ok()) {
+    *os << "OK";
+  } else {
+    *os << "Error(message=" << status.message() << ")";
+  }
+}
+
+}  // namespace perfetto::base
 
 #endif  // SRC_BASE_TEST_STATUS_MATCHERS_H_
