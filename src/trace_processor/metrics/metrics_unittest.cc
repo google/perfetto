@@ -16,21 +16,31 @@
 
 #include "src/trace_processor/metrics/metrics.h"
 
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "perfetto/protozero/field.h"
+#include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/proto_utils.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
+#include "src/base/test/status_matchers.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace metrics {
+#include "protos/perfetto/trace_processor/metrics_impl.pbzero.h"
+
+namespace perfetto::trace_processor::metrics {
 
 namespace {
+using base::gtest_matchers::IsError;
 
 std::string RunTemplateReplace(
     const std::string& str,
-    std::unordered_map<std::string, std::string> subs) {
+    const std::unordered_map<std::string, std::string>& subs) {
   std::string out;
   EXPECT_EQ(TemplateReplace(str, subs, &out), 0);
   return out;
@@ -58,10 +68,7 @@ class ProtoBuilderTest : public ::testing::Test {
       const std::vector<uint8_t>& result_ser) {
     protos::pbzero::ProtoBuilderResult::Decoder result(result_ser.data(),
                                                        result_ser.size());
-    protozero::ConstBytes single_ser = result.single();
-    protos::pbzero::SingleBuilderResult::Decoder single(single_ser.data,
-                                                        single_ser.size);
-
+    protos::pbzero::SingleBuilderResult::Decoder single(result.single());
     protozero::ConstBytes proto_ser = single.protobuf();
     return protozero::TypedProtoDecoder<1, repeated>(proto_ser.data,
                                                      proto_ser.size);
@@ -84,7 +91,7 @@ TEST_F(ProtoBuilderTest, AppendLong) {
                                       std::vector<uint8_t>(), false, false));
 
   ProtoBuilder builder(&pool, &descriptor);
-  ASSERT_TRUE(builder.AppendLong("int_value", 12345).ok());
+  ASSERT_OK(builder.AppendSqlValue("int_value", SqlValue::Long(12345)));
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
   auto proto = DecodeSingleFieldProto<false>(result_ser);
@@ -108,7 +115,7 @@ TEST_F(ProtoBuilderTest, AppendDouble) {
                                       std::vector<uint8_t>(), false, false));
 
   ProtoBuilder builder(&pool, &descriptor);
-  ASSERT_TRUE(builder.AppendDouble("double_value", 1.2345).ok());
+  ASSERT_OK(builder.AppendSqlValue("double_value", SqlValue::Double(1.2345)));
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
   auto proto = DecodeSingleFieldProto<false>(result_ser);
@@ -132,7 +139,8 @@ TEST_F(ProtoBuilderTest, AppendString) {
                                       std::vector<uint8_t>(), false, false));
 
   ProtoBuilder builder(&pool, &descriptor);
-  ASSERT_TRUE(builder.AppendString("string_value", "hello world!").ok());
+  ASSERT_OK(
+      builder.AppendSqlValue("string_value", SqlValue::String("hello world!")));
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
   auto proto = DecodeSingleFieldProto<false>(result_ser);
@@ -169,14 +177,14 @@ TEST_F(ProtoBuilderTest, AppendNested) {
   descriptor.AddField(field);
 
   ProtoBuilder nest_builder(&pool, &nested);
-  ASSERT_TRUE(nest_builder.AppendLong("nested_int_value", 789).ok());
+  ASSERT_OK(
+      nest_builder.AppendSqlValue("nested_int_value", SqlValue::Long(789)));
 
   auto nest_ser = nest_builder.SerializeToProtoBuilderResult();
 
   ProtoBuilder builder(&pool, &descriptor);
-  ASSERT_TRUE(
-      builder.AppendBytes("nested_value", nest_ser.data(), nest_ser.size())
-          .ok());
+  ASSERT_OK(builder.AppendSqlValue(
+      "nested_value", SqlValue::Bytes(nest_ser.data(), nest_ser.size())));
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
   auto proto = DecodeSingleFieldProto<false>(result_ser);
@@ -215,9 +223,8 @@ TEST_F(ProtoBuilderTest, AppendRepeatedPrimitive) {
   std::vector<uint8_t> rep_ser = rep_builder.SerializeToProtoBuilderResult();
 
   ProtoBuilder builder(&pool, &descriptor);
-  ASSERT_TRUE(
-      builder.AppendBytes("rep_int_value", rep_ser.data(), rep_ser.size())
-          .ok());
+  ASSERT_OK(builder.AppendSqlValue(
+      "rep_int_value", SqlValue::Bytes(rep_ser.data(), rep_ser.size())));
 
   auto result_ser = builder.SerializeToProtoBuilderResult();
   auto proto = DecodeSingleFieldProto<true>(result_ser);
@@ -259,18 +266,25 @@ TEST_F(ProtoBuilderTest, AppendEnums) {
   pool.AddProtoDescriptorForTesting(descriptor);
 
   ProtoBuilder value_builder(&pool, &descriptor);
-  ASSERT_FALSE(value_builder.AppendLong("enum_value", 4).ok());
-  ASSERT_TRUE(value_builder.AppendLong("enum_value", 3).ok());
-  ASSERT_FALSE(value_builder.AppendLong("enum_value", 6).ok());
+  ASSERT_THAT(value_builder.AppendSqlValue("enum_value", SqlValue::Long(4)),
+              IsError());
+  ASSERT_OK(value_builder.AppendSqlValue("enum_value", SqlValue::Long(3)));
+  ASSERT_THAT(value_builder.AppendSqlValue("enum_value", SqlValue::Long(6)),
+              IsError());
 
   auto value_proto = DecodeSingleFieldProto<false>(
       value_builder.SerializeToProtoBuilderResult());
   ASSERT_EQ(value_proto.Get(1).as_int32(), 3);
 
   ProtoBuilder str_builder(&pool, &descriptor);
-  ASSERT_FALSE(str_builder.AppendString("enum_value", "FOURTH").ok());
-  ASSERT_TRUE(str_builder.AppendString("enum_value", "SECOND").ok());
-  ASSERT_FALSE(str_builder.AppendString("enum_value", "OTHER").ok());
+  ASSERT_THAT(
+      str_builder.AppendSqlValue("enum_value", SqlValue::String("FOURTH")),
+      IsError());
+  ASSERT_OK(
+      str_builder.AppendSqlValue("enum_value", SqlValue::String("SECOND")));
+  ASSERT_THAT(
+      str_builder.AppendSqlValue("enum_value", SqlValue::String("OTHER")),
+      IsError());
 
   auto str_proto = DecodeSingleFieldProto<false>(
       str_builder.SerializeToProtoBuilderResult());
@@ -278,7 +292,4 @@ TEST_F(ProtoBuilderTest, AppendEnums) {
 }
 
 }  // namespace
-
-}  // namespace metrics
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::metrics
