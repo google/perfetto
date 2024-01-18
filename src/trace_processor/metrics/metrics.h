@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/message.h"
+#include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -115,11 +116,6 @@ class RepeatedFieldBuilder {
 
   base::Status AddSqlValue(SqlValue value);
 
-  void AddLong(int64_t value);
-  void AddDouble(double value);
-  void AddString(base::StringView value);
-  void AddBytes(const uint8_t* data, size_t size);
-
   // Returns the serialized |protos::ProtoBuilderResult| with the set of
   // repeated fields as |repeated_values| in the proto.
   // Note: no other functions should be called on this class after this method
@@ -127,10 +123,18 @@ class RepeatedFieldBuilder {
   std::vector<uint8_t> SerializeToProtoBuilderResult();
 
  private:
-  bool has_data_ = false;
+  base::Status AddLong(int64_t value);
+  base::Status AddDouble(double value);
+  base::Status AddString(base::StringView value);
+  base::Status AddBytes(const uint8_t* data, size_t size);
+
+  base::Status EnsureType(SqlValue::Type);
 
   protozero::HeapBuffered<protos::pbzero::ProtoBuilderResult> message_;
+  std::optional<SqlValue::Type> repeated_field_type_;
   protos::pbzero::RepeatedBuilderResult* repeated_ = nullptr;
+  protozero::PackedFixedSizeInt<int64_t> int64_packed_repeated_;
+  protozero::PackedFixedSizeInt<double> double_packed_repeated_;
 };
 
 // Replaces templated variables inside |raw_text| using the substitution given
