@@ -16,6 +16,7 @@ import("../../../../gn/perfetto.gni")
 
 source_set("common") {
   sources = [
+    "address_range.h",
     "args_tracker.cc",
     "args_tracker.h",
     "args_translation_table.cc",
@@ -87,6 +88,7 @@ source_set("parser_types") {
 
 source_set("unittests") {
   sources = [
+    "address_range_unittest.cc",
     "args_translation_table_unittest.cc",
     "async_track_set_tracker_unittest.cc",
     "clock_converter_unittest.cc",
