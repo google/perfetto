@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_CORE_PACKET_STREAM_VALIDATOR_H_
-#define SRC_TRACING_CORE_PACKET_STREAM_VALIDATOR_H_
+#ifndef SRC_TRACING_SERVICE_PACKET_STREAM_VALIDATOR_H_
+#define SRC_TRACING_SERVICE_PACKET_STREAM_VALIDATOR_H_
 
 #include "perfetto/ext/tracing/core/slice.h"
 
@@ -39,4 +39,4 @@ class PacketStreamValidator {
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_CORE_PACKET_STREAM_VALIDATOR_H_
+#endif  // SRC_TRACING_SERVICE_PACKET_STREAM_VALIDATOR_H_

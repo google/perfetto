@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/histogram.h"
+#include "src/tracing/service/histogram.h"
 
 #include <random>
 #include "test/gtest_and_gmock.h"

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_CORE_ZLIB_COMPRESSOR_H_
-#define SRC_TRACING_CORE_ZLIB_COMPRESSOR_H_
+#ifndef SRC_TRACING_SERVICE_ZLIB_COMPRESSOR_H_
+#define SRC_TRACING_SERVICE_ZLIB_COMPRESSOR_H_
 
 #include <vector>
 
@@ -30,4 +30,4 @@ void ZlibCompressFn(std::vector<TracePacket>*);
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_CORE_ZLIB_COMPRESSOR_H_
+#endif  // SRC_TRACING_SERVICE_ZLIB_COMPRESSOR_H_

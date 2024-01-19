@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_CORE_HISTOGRAM_H_
-#define SRC_TRACING_CORE_HISTOGRAM_H_
+#ifndef SRC_TRACING_SERVICE_HISTOGRAM_H_
+#define SRC_TRACING_SERVICE_HISTOGRAM_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -90,4 +90,4 @@ class Histogram {
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_CORE_HISTOGRAM_H_
+#endif  // SRC_TRACING_SERVICE_HISTOGRAM_H_

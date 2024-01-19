@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_CORE_TRACE_BUFFER_H_
-#define SRC_TRACING_CORE_TRACE_BUFFER_H_
+#ifndef SRC_TRACING_SERVICE_TRACE_BUFFER_H_
+#define SRC_TRACING_SERVICE_TRACE_BUFFER_H_
 
 #include <stdint.h>
 #include <string.h>
@@ -34,7 +34,7 @@
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
-#include "src/tracing/core/histogram.h"
+#include "src/tracing/service/histogram.h"
 
 namespace perfetto {
 
@@ -742,4 +742,4 @@ class TraceBuffer {
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_CORE_TRACE_BUFFER_H_
+#endif  // SRC_TRACING_SERVICE_TRACE_BUFFER_H_

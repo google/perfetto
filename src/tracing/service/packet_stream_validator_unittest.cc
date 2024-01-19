@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/packet_stream_validator.h"
+#include "src/tracing/service/packet_stream_validator.h"
 
 #include <string>
 

@@ -604,13 +604,13 @@ cc_library_shared {
         ":perfetto_src_traced_service_service",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
-        ":perfetto_src_tracing_core_service",
-        ":perfetto_src_tracing_core_zlib_compressor",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
+        ":perfetto_src_tracing_service_service",
+        ":perfetto_src_tracing_service_zlib_compressor",
     ],
     host_supported: true,
     export_include_dirs: [
@@ -828,7 +828,6 @@ cc_library_shared {
         ":perfetto_src_tracing_client_api_without_backends",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
-        ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_in_process_backend",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
@@ -836,6 +835,7 @@ cc_library_shared {
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_platform_impl",
+        ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_system_backend",
     ],
     host_supported: true,
@@ -997,7 +997,6 @@ cc_library_static {
         ":perfetto_src_tracing_client_api_without_backends",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
-        ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_in_process_backend",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
@@ -1005,6 +1004,7 @@ cc_library_static {
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_platform_impl",
+        ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_system_backend",
     ],
     shared_libs: [
@@ -1287,12 +1287,12 @@ cc_library_static {
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
-        ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
+        ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
         "test/cts/device_feature_test_cts.cc",
         "test/cts/heapprofd_java_test_cts.cc",
@@ -1584,12 +1584,12 @@ cc_library_static {
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
-        ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
+        ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
     ],
     static_libs: [
@@ -2211,7 +2211,6 @@ cc_test {
         ":perfetto_src_tracing_client_api_without_backends",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
-        ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_core_test_support",
         ":perfetto_src_tracing_in_process_backend",
         ":perfetto_src_tracing_integrationtests",
@@ -2221,6 +2220,7 @@ cc_test {
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_platform_impl",
+        ":perfetto_src_tracing_service_service",
         ":perfetto_src_tracing_system_backend",
         ":perfetto_src_tracing_test_api_test_support",
         ":perfetto_src_tracing_test_client_api_integrationtests",
@@ -12786,17 +12786,6 @@ filegroup {
     ],
 }
 
-// GN: //src/tracing/core:service
-filegroup {
-    name: "perfetto_src_tracing_core_service",
-    srcs: [
-        "src/tracing/core/metatrace_writer.cc",
-        "src/tracing/core/packet_stream_validator.cc",
-        "src/tracing/core/trace_buffer.cc",
-        "src/tracing/core/tracing_service_impl.cc",
-    ],
-}
-
 // GN: //src/tracing/core:test_support
 filegroup {
     name: "perfetto_src_tracing_core_test_support",
@@ -12809,26 +12798,13 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_core_unittests",
     srcs: [
-        "src/tracing/core/histogram_unittest.cc",
         "src/tracing/core/id_allocator_unittest.cc",
         "src/tracing/core/null_trace_writer_unittest.cc",
-        "src/tracing/core/packet_stream_validator_unittest.cc",
         "src/tracing/core/patch_list_unittest.cc",
         "src/tracing/core/shared_memory_abi_unittest.cc",
         "src/tracing/core/shared_memory_arbiter_impl_unittest.cc",
-        "src/tracing/core/trace_buffer_unittest.cc",
         "src/tracing/core/trace_packet_unittest.cc",
         "src/tracing/core/trace_writer_impl_unittest.cc",
-        "src/tracing/core/tracing_service_impl_unittest.cc",
-        "src/tracing/core/zlib_compressor_unittest.cc",
-    ],
-}
-
-// GN: //src/tracing/core:zlib_compressor
-filegroup {
-    name: "perfetto_src_tracing_core_zlib_compressor",
-    srcs: [
-        "src/tracing/core/zlib_compressor.cc",
     ],
 }
 
@@ -12906,6 +12882,37 @@ filegroup {
     srcs: [
         "src/tracing/platform_posix.cc",
         "src/tracing/platform_windows.cc",
+    ],
+}
+
+// GN: //src/tracing/service:service
+filegroup {
+    name: "perfetto_src_tracing_service_service",
+    srcs: [
+        "src/tracing/service/metatrace_writer.cc",
+        "src/tracing/service/packet_stream_validator.cc",
+        "src/tracing/service/trace_buffer.cc",
+        "src/tracing/service/tracing_service_impl.cc",
+    ],
+}
+
+// GN: //src/tracing/service:unittests
+filegroup {
+    name: "perfetto_src_tracing_service_unittests",
+    srcs: [
+        "src/tracing/service/histogram_unittest.cc",
+        "src/tracing/service/packet_stream_validator_unittest.cc",
+        "src/tracing/service/trace_buffer_unittest.cc",
+        "src/tracing/service/tracing_service_impl_unittest.cc",
+        "src/tracing/service/zlib_compressor_unittest.cc",
+    ],
+}
+
+// GN: //src/tracing/service:zlib_compressor
+filegroup {
+    name: "perfetto_src_tracing_service_zlib_compressor",
+    srcs: [
+        "src/tracing/service/zlib_compressor.cc",
     ],
 }
 
@@ -13673,10 +13680,8 @@ cc_test {
         ":perfetto_src_tracing_client_api_without_backends",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
-        ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_core_test_support",
         ":perfetto_src_tracing_core_unittests",
-        ":perfetto_src_tracing_core_zlib_compressor",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
@@ -13684,6 +13689,9 @@ cc_test {
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_ipc_unittests",
         ":perfetto_src_tracing_platform_impl",
+        ":perfetto_src_tracing_service_service",
+        ":perfetto_src_tracing_service_unittests",
+        ":perfetto_src_tracing_service_zlib_compressor",
         ":perfetto_src_tracing_test_test_support",
         ":perfetto_src_tracing_unittests",
         ":perfetto_test_sanitizers_unittests",
@@ -13999,12 +14007,12 @@ cc_library_static {
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
-        ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
         ":perfetto_src_tracing_ipc_service_service",
+        ":perfetto_src_tracing_service_service",
         ":perfetto_test_test_helper",
     ],
     static_libs: [
@@ -14752,10 +14760,10 @@ cc_binary {
         ":perfetto_src_traced_probes_packages_list_packages_list_parser",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
-        ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
+        ":perfetto_src_tracing_service_service",
         "src/profiling/perf/main.cc",
     ],
     shared_libs: [
