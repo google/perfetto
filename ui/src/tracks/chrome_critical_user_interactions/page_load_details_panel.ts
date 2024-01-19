@@ -34,11 +34,12 @@ export class PageLoadDetailsPanel extends
   static readonly kind = 'org.perfetto.PageLoadDetailsPanel';
   private data: Details;
 
-  static create(args: NewBottomTabArgs): PageLoadDetailsPanel {
+  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
+      PageLoadDetailsPanel {
     return new PageLoadDetailsPanel(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
     this.data = new Details(
         this.engine,

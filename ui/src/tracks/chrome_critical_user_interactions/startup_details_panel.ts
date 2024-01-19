@@ -48,11 +48,12 @@ export class StartupDetailsPanel extends
   private loaded = false;
   private data: Data|undefined;
 
-  static create(args: NewBottomTabArgs): StartupDetailsPanel {
+  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
+      StartupDetailsPanel {
     return new StartupDetailsPanel(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
     this.loadData();
   }

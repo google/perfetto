@@ -98,11 +98,12 @@ export class ScrollJankV3DetailsPanel extends
   // slice. Does not apply to all causes.
   private subcauseSliceDetails?: EventLatencySlice;
 
-  static create(args: NewBottomTabArgs): ScrollJankV3DetailsPanel {
+  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
+      ScrollJankV3DetailsPanel {
     return new ScrollJankV3DetailsPanel(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
     this.loadData();
   }

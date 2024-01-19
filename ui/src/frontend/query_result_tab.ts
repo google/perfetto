@@ -64,17 +64,17 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
   queryResponse?: QueryResponse;
   sqlViewName?: string;
 
-  static create(args: NewBottomTabArgs): QueryResultTab {
+  static create(args: NewBottomTabArgs<QueryResultTabConfig>): QueryResultTab {
     return new QueryResultTab(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<QueryResultTabConfig>) {
     super(args);
 
     this.initTrack(args);
   }
 
-  async initTrack(args: NewBottomTabArgs) {
+  async initTrack(args: NewBottomTabArgs<QueryResultTabConfig>) {
     let uuid = '';
     if (this.config.prefetchedResponse !== undefined) {
       this.queryResponse = this.config.prefetchedResponse;
