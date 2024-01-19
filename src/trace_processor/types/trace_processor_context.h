@@ -122,8 +122,10 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> thread_state_tracker;    // ThreadStateTracker
   std::unique_ptr<Destructible> i2c_tracker;             // I2CTracker
   std::unique_ptr<Destructible> perf_data_tracker;       // PerfDataTracker
-  std::unique_ptr<Destructible> content_analyzer;
-  std::unique_ptr<Destructible> shell_transitions_tracker;
+  std::unique_ptr<Destructible> content_analyzer;        // ProtoContentAnalyzer
+  std::unique_ptr<Destructible>
+      shell_transitions_tracker;             // ShellTransitionsTracker
+  std::unique_ptr<Destructible> v8_tracker;  // V8Tracker
 
   // These fields are trace readers which will be called by |forwarding_parser|
   // once the format of the trace is discovered. They are placed here as they
