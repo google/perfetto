@@ -832,6 +832,11 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->expected_frame_timeline_slice_table());
   RegisterStaticTable(storage->actual_frame_timeline_slice_table());
 
+  RegisterStaticTable(storage->v8_isolate_table());
+  RegisterStaticTable(storage->v8_js_script_table());
+  RegisterStaticTable(storage->v8_wasm_script_table());
+  RegisterStaticTable(storage->v8_js_function_table());
+
   RegisterStaticTable(storage->surfaceflinger_layers_snapshot_table());
   RegisterStaticTable(storage->surfaceflinger_layer_table());
   RegisterStaticTable(storage->surfaceflinger_transactions_table());
