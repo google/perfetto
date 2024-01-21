@@ -255,6 +255,9 @@ namespace stats {
       "missing. Defaulted to inaccurate packet timestamp."),                   \
   F(atom_unknown,                         kSingle,  kInfo,     kAnalysis,      \
       "Unknown statsd atom. Atom descriptor may need to be updated"),          \
+  F(v8_intern_errors,                                                          \
+                                          kSingle,  kDataLoss, kAnalysis,      \
+      "Failed to resolve V8 interned data."),                                  \
   F(winscope_sf_layers_parse_errors,      kSingle,  kInfo,     kAnalysis,      \
       "SurfaceFlinger layers snapshot has unknown fields, which results in "   \
       "some arguments missing. You may need a newer version of trace "         \

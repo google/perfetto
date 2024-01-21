@@ -34,6 +34,17 @@ namespace trace_processor {
 
 class PacketSequenceState {
  public:
+  // Helper to keep per sequence state. These are not reset when the generation
+  // changes.
+  // Trackers or parsers can add their custom per sequence state here instead of
+  // keeping a map from seq_id to some internal state.
+  // TODO(carlscab): We should come up with a nicer API that allows extensions
+  // to be notified of generation changes.
+  // TODO(carlscab): There is some existing code that could use this. Migrate.
+  struct ExtensibleSequenceState {
+    std::unique_ptr<Destructible> v8_sequence_state;
+  };
+
   explicit PacketSequenceState(TraceProcessorContext* context)
       : context_(context), sequence_stack_profile_tracker_(context) {
     current_generation_.reset(
@@ -112,6 +123,10 @@ class PacketSequenceState {
     return sequence_stack_profile_tracker_;
   }
 
+  ExtensibleSequenceState& extensible_sequence_state() {
+    return extensible_sequence_state_;
+  }
+
   // Returns a ref-counted ptr to the current generation.
   RefPtr<PacketSequenceStateGeneration> current_generation() const {
     return current_generation_;
@@ -160,6 +175,7 @@ class PacketSequenceState {
 
   RefPtr<PacketSequenceStateGeneration> current_generation_;
   SequenceStackProfileTracker sequence_stack_profile_tracker_;
+  ExtensibleSequenceState extensible_sequence_state_;
 };
 
 template <uint32_t FieldId, typename MessageType>
