@@ -380,6 +380,7 @@ cc_library_shared {
     ],
     shared_libs: [
         "liblog",
+        "libz",
     ],
     static_libs: [
         "libasync_safe",

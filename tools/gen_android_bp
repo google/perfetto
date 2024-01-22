@@ -326,6 +326,7 @@ def enable_libunwindstack(module):
     module.static_libs.add('liblzma')
     module.static_libs.add('libdexfile_support')
     module.runtime_libs.add('libdexfile')  # libdexfile_support dependency
+    module.shared_libs.add('libz') # libunwindstack dependency
 
 
 def enable_libunwind(module):
