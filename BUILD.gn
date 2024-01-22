@@ -247,6 +247,7 @@ if (enable_perfetto_platform_services) {
       "gn:default_deps",
       "src/traced/service",
       "src/perfetto_cmd",
+      "src/perfetto_cmd:trigger_perfetto_cmd",
     ]
     if (enable_perfetto_traced_probes) {
       deps += [ "src/traced/probes" ]
