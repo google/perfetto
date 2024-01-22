@@ -41,8 +41,6 @@ source_set("table_functions") {
     "flamegraph_construction_algorithms.h",
     "table_info.cc",
     "table_info.h",
-    "view.cc",
-    "view.h",
   ]
   deps = [
     ":tables",

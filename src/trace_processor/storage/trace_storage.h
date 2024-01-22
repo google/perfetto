@@ -49,7 +49,6 @@
 #include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/views/slice_views.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -820,10 +819,6 @@ class TraceStorage {
     return &experimental_missing_chrome_processes_table_;
   }
 
-  const views::ThreadSliceView& thread_slice_view() const {
-    return thread_slice_view_;
-  }
-
   const StringPool& string_pool() const { return string_pool_; }
   StringPool* mutable_string_pool() { return &string_pool_; }
 
@@ -1072,9 +1067,6 @@ class TraceStorage {
 
   tables::ExpMissingChromeProcTable
       experimental_missing_chrome_processes_table_{&string_pool_};
-
-  views::ThreadSliceView thread_slice_view_{&slice_table_, &thread_track_table_,
-                                            &thread_table_};
 
   // The below array allow us to map between enums and their string
   // representations.
