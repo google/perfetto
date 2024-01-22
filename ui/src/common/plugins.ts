@@ -371,11 +371,13 @@ export class PluginManager {
     return Array.from(this.defaultTracks);
   }
 
-  onTraceLoad(engine: Engine): void {
+  async onTraceLoad(engine: Engine): Promise<void> {
     this.engine = engine;
-    for (const [id, pluginDetails] of this.plugins) {
-      this.doPluginTraceLoad(pluginDetails, engine, id);
-    }
+    const plugins = Array.from(this.plugins.entries());
+    const promises = plugins.map(([id, pluginDetails]) => {
+      return this.doPluginTraceLoad(pluginDetails, engine, id);
+    });
+    await Promise.all(promises);
   }
 
   onTraceClose() {
@@ -406,8 +408,9 @@ export class PluginManager {
     return this.trackRegistry.get(uri);
   }
 
-  private doPluginTraceLoad(
-      pluginDetails: PluginDetails, engine: Engine, pluginId: string): void {
+  private async doPluginTraceLoad(
+      pluginDetails: PluginDetails, engine: Engine,
+      pluginId: string): Promise<void> {
     const {plugin, context} = pluginDetails;
 
     const engineProxy = engine.getProxy(pluginId);
@@ -420,8 +423,8 @@ export class PluginManager {
         this.commandRegistry);
     pluginDetails.traceContext = traceCtx;
 
-    // TODO(stevegolton): Await onTraceLoad.
-    plugin.onTraceLoad && plugin.onTraceLoad(traceCtx);
+    const result = plugin.onTraceLoad?.(traceCtx);
+    return Promise.resolve(result);
   }
 }
 
