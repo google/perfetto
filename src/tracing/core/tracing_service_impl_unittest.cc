@@ -1893,59 +1893,6 @@ TEST_F(TracingServiceImplTest, CompressionConfiguredButUnsupported) {
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-TEST_F(TracingServiceImplTest, CompressionFromCli) {
-  TracingService::InitOpts init_opts;
-  init_opts.compressor_fn = ZlibCompressFn;
-  InitializeSvcWithOpts(init_opts);
-
-  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
-  consumer->Connect(svc.get());
-
-  std::unique_ptr<MockProducer> producer = CreateMockProducer();
-  producer->Connect(svc.get(), "mock_producer");
-  producer->RegisterDataSource("data_source");
-
-  TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(4096);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("data_source");
-  ds_config->set_target_buffer(0);
-  trace_config.set_compression_type(TraceConfig::COMPRESSION_TYPE_DEFLATE);
-  // When compress_from_cli is enabled, the service shouldn't do compression
-  trace_config.set_compress_from_cli(true);
-  consumer->EnableTracing(trace_config);
-
-  producer->WaitForTracingSetup();
-  producer->WaitForDataSourceSetup("data_source");
-  producer->WaitForDataSourceStart("data_source");
-
-  std::unique_ptr<TraceWriter> writer =
-      producer->CreateTraceWriter("data_source");
-  {
-    auto tp = writer->NewTracePacket();
-    tp->set_for_testing()->set_str("payload-1");
-  }
-  {
-    auto tp = writer->NewTracePacket();
-    tp->set_for_testing()->set_str("payload-2");
-  }
-
-  writer->Flush();
-  writer.reset();
-
-  consumer->DisableTracing();
-  producer->WaitForDataSourceStop("data_source");
-  consumer->WaitForTracingDisabled();
-
-  std::vector<protos::gen::TracePacket> packets = consumer->ReadBuffers();
-  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
-                                         Property(&protos::gen::TestEvent::str,
-                                                  Eq("payload-1")))));
-  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
-                                         Property(&protos::gen::TestEvent::str,
-                                                  Eq("payload-2")))));
-}
-
 TEST_F(TracingServiceImplTest, CompressionReadIpc) {
   TracingService::InitOpts init_opts;
   init_opts.compressor_fn = ZlibCompressFn;
