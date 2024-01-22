@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
-import {Actions} from '../../common/actions';
+import {Actions, DeferredAction} from '../../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {BaseCounterTrack} from '../../frontend/base_counter_track';
 import {globals} from '../../frontend/globals';
@@ -34,6 +34,12 @@ export interface CounterColumns {
 export interface CounterDebugTrackConfig {
   sqlTableName: string;
   columns: CounterColumns;
+  closeable: boolean;
+}
+
+export interface CounterDebugTrackCreateConfig {
+  pinned?: boolean;     // default true
+  closeable?: boolean;  // default true
 }
 
 export class DebugCounterTrack extends BaseCounterTrack {
@@ -54,7 +60,7 @@ export class DebugCounterTrack extends BaseCounterTrack {
   getTrackShellButtons(): m.Children {
     return [
       this.getCounterContextMenu(),
-      m(TrackButton, {
+      this.config.closeable && m(TrackButton, {
         action: () => {
           globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
         },
@@ -84,7 +90,8 @@ export async function addDebugCounterTrack(
     engine: EngineProxy,
     data: SqlDataSource,
     trackName: string,
-    columns: CounterColumns) {
+    columns: CounterColumns,
+    config?: CounterDebugTrackCreateConfig) {
   // To prepare displaying the provided data as a track, materialize it and
   // compute depths.
   const debugTrackId = ++debugTrackCount;
@@ -102,8 +109,9 @@ export async function addDebugCounterTrack(
       from data
       order by ts;`);
 
+  const closeable = config?.closeable ?? true;
   const trackKey = uuidv4();
-  globals.dispatchMultiple([
+  const actions: DeferredAction<{}>[] = [
     Actions.addTrack({
       key: trackKey,
       uri: DEBUG_COUNTER_TRACK_URI,
@@ -113,8 +121,12 @@ export async function addDebugCounterTrack(
       params: {
         sqlTableName,
         columns,
+        closeable,
       },
     }),
-    Actions.toggleTrackPinned({trackKey}),
-  ]);
+  ];
+  if (config?.pinned ?? true) {
+    actions.push(Actions.toggleTrackPinned({trackKey}));
+  }
+  globals.dispatchMultiple(actions);
 }
