@@ -144,7 +144,8 @@ bool ParseTraceConfigPbtxt(const std::string& file_name,
 }
 
 bool IsUserBuild() {
-#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) && \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   std::string build_type = base::GetAndroidProp("ro.build.type");
   if (build_type.empty()) {
     PERFETTO_ELOG("Unable to read ro.build.type: assuming user build");
@@ -153,7 +154,8 @@ bool IsUserBuild() {
   return build_type == "user";
 #else
   return false;
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD) &&
+        // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 }
 
 std::optional<PerfettoStatsdAtom> ConvertRateLimiterResponseToAtom(
