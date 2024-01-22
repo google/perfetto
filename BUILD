@@ -5275,7 +5275,7 @@ perfetto_cc_binary(
         ":src_base_version",
         ":src_perfetto_cmd_gen_cc_config_descriptor",
         ":src_perfetto_cmd_protos_cpp",
-    ] + PERFETTO_CONFIG.deps.zlib,
+    ],
 )
 
 # GN target: //src/trace_processor:trace_processor

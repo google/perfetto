@@ -446,10 +446,8 @@ message TraceConfig {
   }
   optional CompressionType compression_type = 24;
 
-  // Use the legacy codepath that compresses from perfetto_cmd.cc instead of
-  // using the new codepath that compresses from tracing_service_impl.cc. This
-  // will be removed in the future.
-  optional bool compress_from_cli = 37;
+  // DEPRECATED, was compress_from_cli.
+  reserved 37;
 
   // Android-only. Not for general use. If set, saves the trace into an
   // incident. This field is read by perfetto_cmd, rather than the tracing

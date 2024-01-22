@@ -1218,7 +1218,6 @@ cc_binary {
     ],
     shared_libs: [
         "liblog",
-        "libz",
     ],
     generated_headers: [
         "perfetto_protos_perfetto_common_cpp_gen_headers",
@@ -1277,9 +1276,6 @@ cc_binary {
     ],
     defaults: [
         "perfetto_defaults",
-    ],
-    cflags: [
-        "-DZLIB_IMPLEMENTATION",
     ],
 }
 

@@ -64,9 +64,6 @@ source_set("perfetto_cmd") {
     "../protozero",
     "../tracing/ipc/consumer",
   ]
-  if (enable_perfetto_zlib) {
-    deps += [ "../../gn:zlib" ]
-  }
   sources = [
     "config.cc",
     "config.h",
@@ -162,9 +159,6 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/trace:cpp",
     "../tracing/core",
   ]
-  if (enable_perfetto_zlib) {
-    deps += [ "../../gn:zlib" ]
-  }
   sources = [
     "config_unittest.cc",
     "packet_writer_unittest.cc",
