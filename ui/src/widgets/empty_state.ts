@@ -20,6 +20,8 @@ export interface EmptyStateAttrs {
   icon?: string;
   // Some text to show under the icon. No text shown if omitted.
   header?: string;
+  detail?: string;
+  className?: string;
 }
 
 // Something to show when there's nothing else to show!
@@ -31,11 +33,18 @@ export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
     const {
       icon = 'search',  // Icon defaults to the search symbol
       header,
+      detail,
+      className,
     } = attrs;
     return m(
         '.pf-empty-state',
+        {className},
         m('i.material-icons', icon),
-        header && m('span.pf-empty-state-header', header),
+        m(
+            '.pf-empty-state-header',
+            header && m('.pf-empty-state-title', header),
+            detail && m('.pf-empty-state-detail', detail),
+            ),
         m('div.pf-empty-state-content', children),
     );
   }
