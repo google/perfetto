@@ -77,11 +77,12 @@ export class EventLatencySliceDetailsPanel extends
   private relevantThreadStage: EventLatencyStage|undefined;
   private relevantThreadTracks: EventLatencyCauseThreadTracks[] = [];
 
-  static create(args: NewBottomTabArgs): EventLatencySliceDetailsPanel {
+  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
+      EventLatencySliceDetailsPanel {
     return new EventLatencySliceDetailsPanel(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
 
     this.loadData();

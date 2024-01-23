@@ -231,11 +231,12 @@ export class ChromeSliceDetailsTab extends
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
 
-  static create(args: NewBottomTabArgs): ChromeSliceDetailsTab {
+  static create(args: NewBottomTabArgs<ChromeSliceDetailsTabConfig>):
+      ChromeSliceDetailsTab {
     return new ChromeSliceDetailsTab(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<ChromeSliceDetailsTabConfig>) {
     super(args);
     this.load();
   }

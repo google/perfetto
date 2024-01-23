@@ -38,14 +38,14 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
 
   private state: SqlTableState;
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<SqlTableTabConfig>) {
     super(args);
 
     this.state =
         new SqlTableState(this.engine, this.config.table, this.config.filters);
   }
 
-  static create(args: NewBottomTabArgs): SqlTableTab {
+  static create(args: NewBottomTabArgs<SqlTableTabConfig>): SqlTableTab {
     return new SqlTableTab(args);
   }
 

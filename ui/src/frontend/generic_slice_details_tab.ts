@@ -53,11 +53,12 @@ export class GenericSliceDetailsTab extends
 
   data: {[key: string]: ColumnType}|undefined;
 
-  static create(args: NewBottomTabArgs): GenericSliceDetailsTab {
+  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
+      GenericSliceDetailsTab {
     return new GenericSliceDetailsTab(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
 
     this.engine
