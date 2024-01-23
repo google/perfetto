@@ -103,7 +103,8 @@ export class DebugSliceDetailsTab extends
   threadState?: ThreadState;
   slice?: SliceDetails;
 
-  static create(args: NewBottomTabArgs): DebugSliceDetailsTab {
+  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
+      DebugSliceDetailsTab {
     return new DebugSliceDetailsTab(args);
   }
 
@@ -224,7 +225,7 @@ export class DebugSliceDetailsTab extends
     raf.scheduleRedraw();
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
     this.loadData();
   }

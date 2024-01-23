@@ -38,11 +38,12 @@ export class ScreenshotTab extends BottomTab<GenericSliceDetailsTabConfig> {
 
   private sliceDetails?: SliceDetails;
 
-  static create(args: NewBottomTabArgs): ScreenshotTab {
+  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
+      ScreenshotTab {
     return new ScreenshotTab(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
     getSliceDetails(this.engine, this.config.id)
         .then((sliceDetails) => this.sliceDetails = sliceDetails);

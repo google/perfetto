@@ -93,11 +93,12 @@ export class ScrollDetailsPanel extends
   orderedJankSlices: JankSliceDetails[] = [];
   scrollDeltas: m.Child;
 
-  static create(args: NewBottomTabArgs): ScrollDetailsPanel {
+  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
+      ScrollDetailsPanel {
     return new ScrollDetailsPanel(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
     this.loadData();
   }

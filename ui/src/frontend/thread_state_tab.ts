@@ -63,11 +63,11 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
   relatedStates?: RelatedThreadStates;
   loaded: boolean = false;
 
-  static create(args: NewBottomTabArgs): ThreadStateTab {
+  static create(args: NewBottomTabArgs<ThreadStateTabConfig>): ThreadStateTab {
     return new ThreadStateTab(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<ThreadStateTabConfig>) {
     super(args);
 
     this.load().then(() => {

@@ -61,11 +61,12 @@ export class WebContentInteractionPanel extends
   private loaded = false;
   private data: Data|undefined;
 
-  static create(args: NewBottomTabArgs): WebContentInteractionPanel {
+  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
+      WebContentInteractionPanel {
     return new WebContentInteractionPanel(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
     this.loadData();
   }
