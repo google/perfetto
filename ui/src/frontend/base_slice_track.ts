@@ -234,7 +234,7 @@ export abstract class BaseSliceTrack<
   }
 
   // This should be an SQL expression returning all the columns listed
-  // metioned by getRowSpec() exluding tsq and tsqEnd.
+  // mentioned by getRowSpec() excluding tsq and tsqEnd.
   // For example you might return an SQL expression of the form:
   // `select id, ts, dur, 0 as depth from foo where bar = 'baz'`
   abstract getSqlSource(): string;
@@ -858,6 +858,19 @@ export abstract class BaseSliceTrack<
 
   private getVisibleSlicesInternal(start: time, end: time):
       Array<CastInternal<T['slice']>> {
+    // Slice visibility is computed using tsq / endTsq. The means an
+    // event at ts=100n can end up with tsq=90n depending on the bucket
+    // calculation. start and end here are the direct unquantised
+    // boundaries so when start=100n we should see the event at tsq=90n
+    // Ideally we would quantize start and end via the same calculation
+    // we used for slices but since that calculation happens in SQL
+    // this is hard. Instead we increase the range by +1 bucket in each
+    // direction. It's fine to overestimate since false positives
+    // (incorrectly marking a slice as visible) are not a problem it's
+    // only false negatives we have to avoid.
+    start = Time.sub(start, this.slicesKey.bucketSize);
+    end = Time.add(end, this.slicesKey.bucketSize);
+
     let slices =
         filterVisibleSlices<CastInternal<T['slice']>>(this.slices, start, end);
     slices = slices.concat(this.incomplete);
