@@ -645,6 +645,16 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
         "duration_ms was set, this must not be set for traces with triggers.");
   }
 
+  for (char c : cfg.bugreport_filename()) {
+    if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+          (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.')) {
+      MaybeLogUploadEvent(
+          cfg, uuid, PerfettoStatsdAtom::kTracedEnableTracingInvalidBrFilename);
+      return PERFETTO_SVC_ERR(
+          "bugreport_filename contains invalid chars. Use [a-zA-Z0-9-_.]+");
+    }
+  }
+
   if ((GetTriggerMode(cfg) == TraceConfig::TriggerConfig::STOP_TRACING ||
        GetTriggerMode(cfg) == TraceConfig::TriggerConfig::CLONE_SNAPSHOT) &&
       cfg.write_into_file()) {
@@ -3627,7 +3637,7 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
                                               TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto clone_target = FlushFlags::CloneTarget::kUnknown;
-  bool for_bugreport = false;
+  bool skip_filter = false;
 
   if (tsid == kBugreportSessionId) {
     PERFETTO_LOG("Looking for sessions for bugreport");
@@ -3639,7 +3649,7 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
     }
     tsid = session->id;
     clone_target = FlushFlags::CloneTarget::kBugreport;
-    for_bugreport = true;
+    skip_filter = true;
   }
 
   TracingSession* session = GetTracingSession(tsid);
@@ -3688,15 +3698,14 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
   auto weak_consumer = consumer->GetWeakPtr();
   Flush(
       tsid, 0,
-      [weak_this, tsid, for_bugreport,
-       weak_consumer](bool final_flush_outcome) {
+      [weak_this, tsid, skip_filter, weak_consumer](bool final_flush_outcome) {
         PERFETTO_LOG("FlushAndCloneSession(%" PRIu64 ") started, success=%d",
                      tsid, final_flush_outcome);
         if (!weak_this || !weak_consumer)
           return;
         base::Uuid uuid;
         base::Status result = weak_this->DoCloneSession(
-            &*weak_consumer, tsid, for_bugreport, final_flush_outcome, &uuid);
+            &*weak_consumer, tsid, skip_filter, final_flush_outcome, &uuid);
         weak_consumer->consumer_->OnSessionCloned(
             {result.ok(), result.message(), uuid});
       },
@@ -3706,7 +3715,7 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
 
 base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
                                                 TracingSessionID src_tsid,
-                                                bool for_bugreport,
+                                                bool skip_filter,
                                                 bool final_flush_outcome,
                                                 base::Uuid* new_uuid) {
   PERFETTO_DLOG("CloneSession(%" PRIu64 ") started, consumer uid: %d", src_tsid,
@@ -3824,7 +3833,7 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
   cloned_session->compress_deflate = src->compress_deflate;
-  if (src->trace_filter && !for_bugreport) {
+  if (src->trace_filter && !skip_filter) {
     // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(
         new protozero::MessageFilter(src->trace_filter->config()));
@@ -4121,6 +4130,10 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
     session->set_num_data_sources(
         static_cast<uint32_t>(s.data_source_instances.size()));
     session->set_unique_session_name(s.config.unique_session_name());
+    if (s.config.has_bugreport_score())
+      session->set_bugreport_score(s.config.bugreport_score());
+    if (s.config.has_bugreport_filename())
+      session->set_bugreport_filename(s.config.bugreport_filename());
     for (const auto& snap_kv : s.initial_clock_snapshot) {
       if (snap_kv.first == protos::pbzero::BUILTIN_CLOCK_REALTIME)
         session->set_start_realtime_ns(static_cast<int64_t>(snap_kv.second));
@@ -4136,6 +4149,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
         session->set_state("CONFIGURED");
         break;
       case TracingSession::State::STARTED:
+        session->set_is_started(true);
         session->set_state("STARTED");
         break;
       case TracingSession::State::DISABLING_WAITING_STOP_ACKS:
