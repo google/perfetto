@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/tracing_service_impl.h"
+#include "src/tracing/service/tracing_service_impl.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -78,9 +78,9 @@
 #include "src/android_stats/statsd_logging_helper.h"
 #include "src/protozero/filtering/message_filter.h"
 #include "src/protozero/filtering/string_filter.h"
-#include "src/tracing/core/packet_stream_validator.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
-#include "src/tracing/core/trace_buffer.h"
+#include "src/tracing/service/packet_stream_validator.h"
+#include "src/tracing/service/trace_buffer.h"
 
 #include "protos/perfetto/common/builtin_clock.gen.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"

@@ -44,11 +44,11 @@ source_set("service") {
     "../../base",
     "../../base:version",
     "../../tracing/core",
-    "../../tracing/core:service",
     "../../tracing/ipc/service",
+    "../../tracing/service:service",
   ]
   if (enable_perfetto_zlib) {
-    deps += [ "../../tracing/core:zlib_compressor" ]
+    deps += [ "../../tracing/service:zlib_compressor" ]
   }
 
   sources = [

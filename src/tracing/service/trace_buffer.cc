@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/trace_buffer.h"
+#include "src/tracing/service/trace_buffer.h"
 
 #include <limits>
 

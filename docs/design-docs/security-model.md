@@ -11,7 +11,7 @@ consumers.
 
 Producers are never trusted. We assume they will try their best to DoS / crash /
 exploit the tracing service. We do so at the
-[core/tracing_service_impl.cc](/src/tracing/core/tracing_service_impl.cc) so
+[service/tracing_service_impl.cc](/src/tracing/service/tracing_service_impl.cc) so
 that the same level of security and testing is applied regardless of the
 embedder and the IPC transport.
 
@@ -48,8 +48,8 @@ untrusted-and-unprivileged and trusted-and-more-privileged entities).
 The tracing service guarantees that the `TracePacket` fields written by the
 Service cannot be spoofed by the Producer(s).  
 Packets that try to define those fields are rejected, modulo clock snapshots.  
-See [PacketStreamValidator](/src/tracing/core/packet_stream_validator.cc) and
-[its unit test](/src/tracing/core/packet_stream_validator_unittest.cc) for more
+See [PacketStreamValidator](/src/tracing/service/packet_stream_validator.cc) and
+[its unit test](/src/tracing/service/packet_stream_validator_unittest.cc) for more
 details.  
 At the moment nothing prevents that a producer writes `TracePacket(s)` that do
 not belong to its data sources. Realistically the service will never prevent
