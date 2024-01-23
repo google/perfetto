@@ -174,7 +174,7 @@ class MyTrack extends NamedSliceTrack {
       depth,
       name
     from slice
-    where name like 'a%';
+    where name like 'a%'
     `;
   }
 }
