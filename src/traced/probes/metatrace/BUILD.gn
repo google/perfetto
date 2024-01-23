@@ -15,7 +15,7 @@
 source_set("metatrace") {
   public_deps = [
     "../../../tracing/core",
-    "../../../tracing/core:service",
+    "../../../tracing/service",
   ]
   deps = [
     "..:data_source",

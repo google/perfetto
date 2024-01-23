@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/zlib_compressor.h"
+#include "src/tracing/service/zlib_compressor.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 #error "Zlib must be enabled to compile this file."

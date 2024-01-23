@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_CORE_TRACING_SERVICE_IMPL_H_
-#define SRC_TRACING_CORE_TRACING_SERVICE_IMPL_H_
+#ifndef SRC_TRACING_SERVICE_TRACING_SERVICE_IMPL_H_
+#define SRC_TRACING_SERVICE_TRACING_SERVICE_IMPL_H_
 
 #include <algorithm>
 #include <functional>
@@ -828,4 +828,4 @@ class TracingServiceImpl : public TracingService {
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_CORE_TRACING_SERVICE_IMPL_H_
+#endif  // SRC_TRACING_SERVICE_TRACING_SERVICE_IMPL_H_

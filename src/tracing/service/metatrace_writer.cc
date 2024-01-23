@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/metatrace_writer.h"
+#include "src/tracing/service/metatrace_writer.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"

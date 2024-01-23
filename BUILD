@@ -465,13 +465,13 @@ perfetto_cc_library(
         ":src_traced_service_service",
         ":src_tracing_common",
         ":src_tracing_core_core",
-        ":src_tracing_core_service",
-        ":src_tracing_core_zlib_compressor",
         ":src_tracing_ipc_common",
         ":src_tracing_ipc_consumer_consumer",
         ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
+        ":src_tracing_service_service",
+        ":src_tracing_service_zlib_compressor",
     ],
     hdrs = [
         ":include_perfetto_base_base",
@@ -3021,7 +3021,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_tracing_core_core",
     srcs = [
-        "src/tracing/core/histogram.h",
         "src/tracing/core/id_allocator.cc",
         "src/tracing/core/id_allocator.h",
         "src/tracing/core/in_process_shared_memory.cc",
@@ -3036,30 +3035,6 @@ perfetto_filegroup(
         "src/tracing/core/trace_writer_impl.cc",
         "src/tracing/core/trace_writer_impl.h",
         "src/tracing/core/virtual_destructors.cc",
-    ],
-)
-
-# GN target: //src/tracing/core:service
-perfetto_filegroup(
-    name = "src_tracing_core_service",
-    srcs = [
-        "src/tracing/core/metatrace_writer.cc",
-        "src/tracing/core/metatrace_writer.h",
-        "src/tracing/core/packet_stream_validator.cc",
-        "src/tracing/core/packet_stream_validator.h",
-        "src/tracing/core/trace_buffer.cc",
-        "src/tracing/core/trace_buffer.h",
-        "src/tracing/core/tracing_service_impl.cc",
-        "src/tracing/core/tracing_service_impl.h",
-    ],
-)
-
-# GN target: //src/tracing/core:zlib_compressor
-perfetto_filegroup(
-    name = "src_tracing_core_zlib_compressor",
-    srcs = [
-        "src/tracing/core/zlib_compressor.cc",
-        "src/tracing/core/zlib_compressor.h",
     ],
 )
 
@@ -3112,6 +3087,31 @@ perfetto_filegroup(
     name = "src_tracing_ipc_default_socket",
     srcs = [
         "src/tracing/ipc/default_socket.cc",
+    ],
+)
+
+# GN target: //src/tracing/service:service
+perfetto_filegroup(
+    name = "src_tracing_service_service",
+    srcs = [
+        "src/tracing/service/histogram.h",
+        "src/tracing/service/metatrace_writer.cc",
+        "src/tracing/service/metatrace_writer.h",
+        "src/tracing/service/packet_stream_validator.cc",
+        "src/tracing/service/packet_stream_validator.h",
+        "src/tracing/service/trace_buffer.cc",
+        "src/tracing/service/trace_buffer.h",
+        "src/tracing/service/tracing_service_impl.cc",
+        "src/tracing/service/tracing_service_impl.h",
+    ],
+)
+
+# GN target: //src/tracing/service:zlib_compressor
+perfetto_filegroup(
+    name = "src_tracing_service_zlib_compressor",
+    srcs = [
+        "src/tracing/service/zlib_compressor.cc",
+        "src/tracing/service/zlib_compressor.h",
     ],
 )
 
@@ -5099,7 +5099,6 @@ perfetto_cc_library(
         ":src_tracing_client_api_without_backends",
         ":src_tracing_common",
         ":src_tracing_core_core",
-        ":src_tracing_core_service",
         ":src_tracing_in_process_backend",
         ":src_tracing_ipc_common",
         ":src_tracing_ipc_consumer_consumer",
@@ -5107,6 +5106,7 @@ perfetto_cc_library(
         ":src_tracing_ipc_producer_producer",
         ":src_tracing_ipc_service_service",
         ":src_tracing_platform_impl",
+        ":src_tracing_service_service",
         ":src_tracing_system_backend",
     ],
     hdrs = [

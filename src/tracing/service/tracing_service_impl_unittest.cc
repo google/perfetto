@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/tracing_service_impl.h"
+#include "src/tracing/service/tracing_service_impl.h"
 
 #include <string.h>
 
@@ -52,7 +52,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
 #include <zlib.h>
-#include "src/tracing/core/zlib_compressor.h"
+#include "src/tracing/service/zlib_compressor.h"
 #endif
 
 using ::testing::_;

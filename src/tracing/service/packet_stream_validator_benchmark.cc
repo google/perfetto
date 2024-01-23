@@ -14,7 +14,7 @@
 
 #include <benchmark/benchmark.h>
 
-#include "src/tracing/core/packet_stream_validator.h"
+#include "src/tracing/service/packet_stream_validator.h"
 
 #include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
