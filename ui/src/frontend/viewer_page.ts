@@ -33,6 +33,7 @@ import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {Panel, PanelContainer, PanelOrGroup} from './panel_container';
 import {publishShowPanningHint} from './publish';
+import {TabPanel} from './tab_panel';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
@@ -45,6 +46,13 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
   name: 'Overview Panel',
   description: 'Show the panel providing an overview of the trace',
   defaultValue: true,
+});
+
+const TABS_V2 = featureFlags.register({
+  id: 'tabsv2',
+  name: 'Tabs V2',
+  description: 'Use Tabs V2',
+  defaultValue: false,
 });
 
 // Checks if the mousePos is within 3px of the start or end of the
@@ -322,7 +330,7 @@ class TraceViewer implements m.ClassComponent {
                 panels: scrollingPanels,
                 kind: 'TRACKS',
               })))),
-        m(DetailsPanel));
+        this.renderTabPanel());
 
     this.trackCache.flushOldTracks();
     return result;
@@ -345,6 +353,14 @@ class TraceViewer implements m.ClassComponent {
       labels,
       trackIds,
     };
+  }
+
+  private renderTabPanel() {
+    if (TABS_V2.get()) {
+      return m(TabPanel);
+    } else {
+      return m(DetailsPanel);
+    }
   }
 }
 

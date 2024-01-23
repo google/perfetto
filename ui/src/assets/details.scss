@@ -20,22 +20,20 @@
   // Disable user selection since this handle is draggable to resize the
   // bottom panels.
   user-select: none;
-  height: 28px;
-  min-height: 28px;
-  display: grid;
-  grid-auto-columns: 1fr 60px;
-  grid-template-areas: "tabs buttons";
+  display: flex;
 
   .tabs {
     display: flex;
-    grid-area: tabs;
     overflow: hidden;
+    flex: 1;
 
     .tab {
       font-family: "Roboto Condensed", sans-serif;
       color: #3c4b5d;
-      padding: 3px 10px 0 10px;
+      padding: 4px;
       margin-top: 3px;
+      align-items: center;
+      cursor: pointer;
       font-size: 13px;
       border-radius: 3px 3px 0 0;
       background-color: #0000000f;
@@ -45,44 +43,37 @@
       text-overflow: ellipsis;
       z-index: 5;
       box-shadow: #0000003b 0px 0px 3px 1px;
+      display: flex;
+      align-items: baseline;
+      gap: 2px;
+
+      &:hover {
+        background-color: hsla(0, 0%, 85%, 1);
+      }
 
       &[active] {
         background-color: white;
-        &:hover {
-          cursor: default;
-          background-color: white;
-        }
+        cursor: default;
       }
 
-      &:hover {
-        cursor: pointer;
-        background-color: hsla(0, 0%, 85%, 1);
-      }
+
 
       &:nth-child(1) {
         margin-left: 3px;
       }
-    }
-  }
 
-  i.material-icons {
-    font-size: 24px;
-    margin-right: 5px;
-    margin-top: 1px;
-    &:hover {
-      cursor: pointer;
-    }
-    &[disabled] {
-      color: rgb(219, 219, 219);
-      &:hover {
-        cursor: default;
+      .pf-tab-title {
+        margin: 0px 4px;
       }
     }
   }
 
   .buttons {
+    font-size: 24px;
     grid-area: buttons;
-    text-align: right;
+    display: flex;
+    align-items: baseline;
+    margin: 1px;
   }
 
   .handle-title {
@@ -710,4 +701,9 @@
   img {
     max-height: 100%;
   }
+}
+
+
+.pf-noselection {
+  height: 100%;
 }
