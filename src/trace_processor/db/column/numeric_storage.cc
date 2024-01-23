@@ -39,7 +39,7 @@ namespace trace_processor {
 namespace column {
 namespace {
 
-using NumericValue = std::variant<uint32_t, int32_t, int64_t, double_t>;
+using NumericValue = std::variant<uint32_t, int32_t, int64_t, double>;
 
 // Using the fact that binary operators in std are operators() of classes, we
 // can wrap those classes in variants and use them for std::visit in
