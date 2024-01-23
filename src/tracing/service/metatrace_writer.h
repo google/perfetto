@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACING_CORE_METATRACE_WRITER_H_
-#define SRC_TRACING_CORE_METATRACE_WRITER_H_
+#ifndef SRC_TRACING_SERVICE_METATRACE_WRITER_H_
+#define SRC_TRACING_SERVICE_METATRACE_WRITER_H_
 
 #include <functional>
 #include <memory>
@@ -68,4 +68,4 @@ class MetatraceWriter {
 
 }  // namespace perfetto
 
-#endif  // SRC_TRACING_CORE_METATRACE_WRITER_H_
+#endif  // SRC_TRACING_SERVICE_METATRACE_WRITER_H_

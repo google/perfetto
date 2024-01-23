@@ -22,6 +22,7 @@ perfetto_unittests_targets = [
   "src/protozero:unittests",
   "src/shared_lib:unittests",
   "src/tracing/core:unittests",
+  "src/tracing/service:unittests",
   "src/tracing:unittests",
   "src/profiling:unittests",
   "src/profiling/symbolizer:unittests",

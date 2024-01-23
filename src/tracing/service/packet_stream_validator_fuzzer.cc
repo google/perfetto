@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 #include "perfetto/ext/tracing/core/slice.h"
-#include "src/tracing/core/packet_stream_validator.h"
+#include "src/tracing/service/packet_stream_validator.h"
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
 

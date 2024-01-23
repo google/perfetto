@@ -37,7 +37,7 @@ source_set("service") {
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/ipc",
     "../../../base",
-    "../../core:service",
+    "../../service",
   ]
   if (perfetto_component_type == "static_library") {
     deps += [ "../../../ipc:perfetto_ipc" ]

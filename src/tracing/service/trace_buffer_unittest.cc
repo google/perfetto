@@ -28,7 +28,7 @@
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/base/test/vm_test_utils.h"
-#include "src/tracing/core/trace_buffer.h"
+#include "src/tracing/service/trace_buffer.h"
 #include "src/tracing/test/fake_packet.h"
 #include "test/gtest_and_gmock.h"
 

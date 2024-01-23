@@ -35,7 +35,7 @@
 #endif
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-#include "src/tracing/core/zlib_compressor.h"
+#include "src/tracing/service/zlib_compressor.h"
 #endif
 
 namespace perfetto {

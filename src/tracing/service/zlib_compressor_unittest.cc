@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/tracing/core/zlib_compressor.h"
+#include "src/tracing/service/zlib_compressor.h"
 
 #include <random>
 
@@ -23,7 +23,7 @@
 #include "protos/perfetto/trace/test_event.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
-#include "src/tracing/core/tracing_service_impl.h"
+#include "src/tracing/service/tracing_service_impl.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
