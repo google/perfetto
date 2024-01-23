@@ -29,6 +29,7 @@ import {
 } from '../base/time';
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
+import {runQuery} from '../common/queries';
 import {
   DurationPrecision,
   setDurationPrecision,
@@ -37,6 +38,9 @@ import {
 } from '../common/timestamp_format';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
+import {EngineProxy} from '../trace_processor/engine';
+import {addDebugSliceTrack} from '../tracks/debug/slice_track';
+import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
@@ -47,11 +51,14 @@ import {CookieConsent} from './cookie_consent';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {Omnibox, OmniboxOption} from './omnibox';
+import {runQueryInNewTab} from './query_result_tab';
 import {verticalScrollToTrack} from './scroll_helper';
 import {executeSearch} from './search_handler';
 import {Sidebar} from './sidebar';
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
+import {Utid} from './sql_types';
+import {getThreadInfo} from './thread_and_process_info';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_attrs';
 
@@ -96,6 +103,36 @@ enum OmniboxMode {
   Prompt,
 }
 
+const criticalPathSliceColumns = {
+  ts: 'ts',
+  dur: 'dur',
+  name: 'name'
+};
+const criticalPathsliceColumnNames = [
+  'id',
+  'utid',
+  'ts',
+  'dur',
+  'name',
+  'table_name',
+];
+
+const criticalPathsliceLiteColumns = {
+  ts: 'ts',
+  dur: 'dur',
+  name: 'thread_name'
+};
+const criticalPathsliceLiteColumnNames = [
+  'id',
+  'utid',
+  'ts',
+  'dur',
+  'thread_name',
+  'process_name',
+  'table_name',
+];
+
+
 export class App implements m.ClassComponent {
   private trash = new Trash();
 
@@ -113,6 +150,15 @@ export class App implements m.ClassComponent {
   constructor() {
     const unreg = globals.commandManager.registerCommandSource(this);
     this.trash.add(unreg);
+  }
+
+  private getEngine(): EngineProxy|undefined {
+    const engineId = globals.getCurrentEngine()?.id;
+    if (engineId === undefined) {
+      return undefined;
+    }
+    const engine = globals.engines.get(engineId)?.getProxy('QueryPage');
+    return engine;
   }
 
   private enterCommandMode(): void {
@@ -189,6 +235,27 @@ export class App implements m.ClassComponent {
     this.enterSearchMode(false);
   }
 
+  private getFirstUtidOfSelectionOrVisibleWindow(): number {
+    const selection = globals.state.currentSelection;
+    if (selection && selection.kind === 'AREA') {
+      const selectedArea = globals.state.areas[selection.areaId];
+      const firstThreadStateTrack = selectedArea.tracks.find((trackId) => {
+        return globals.state.tracks[trackId];
+      });
+
+      if (firstThreadStateTrack) {
+        const trackInfo = globals.state.tracks[firstThreadStateTrack];
+        const trackDesc = pluginManager.resolveTrackInfo(trackInfo.uri);
+        if (trackDesc?.kind === THREAD_STATE_TRACK_KIND &&
+            trackDesc?.utid !== undefined) {
+          return trackDesc?.utid;
+        }
+      }
+    }
+
+    return 0;
+  }
+
   private cmds: Command[] = [
     {
       id: 'perfetto.SetTimestampFormat',
@@ -240,6 +307,106 @@ export class App implements m.ClassComponent {
               raf.scheduleFullRedraw();
             } catch {
               // Prompt was probably cancelled - do nothing.
+            }
+          },
+    },
+    {
+      id: 'perfetto.CriticalPathLite',
+      name: `Critical path lite`,
+      callback:
+          async () => {
+            const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
+            const window = getTimeSpanOfSelectionOrVisibleWindow();
+            const engine = this.getEngine();
+
+            if (engine !== undefined && window && trackUtid != 0) {
+              await runQuery(
+                  `SELECT IMPORT('experimental.thread_executing_span');`,
+                  engine);
+              await addDebugSliceTrack(
+                  engine,
+                  {
+                    sqlSource: `
+                   SELECT
+                      cr.id,
+                      cr.utid,
+                      cr.ts,
+                      cr.dur,
+                      thread.name AS thread_name,
+                      process.name AS process_name,
+                      'thread_state' AS table_name
+                    FROM
+                      experimental_thread_executing_span_critical_path(
+                          ${trackUtid},
+                          ${window.start},
+                          ${window.end} - ${window.start}) cr
+                    JOIN thread USING(utid)
+                    JOIN process USING(upid)
+                  `,
+                    columns: criticalPathsliceLiteColumnNames,
+                  },
+                  (await getThreadInfo(engine, trackUtid as Utid)).name ??
+                      '<thread name>',
+                  criticalPathsliceLiteColumns,
+                  criticalPathsliceLiteColumnNames);
+            }
+          },
+    },
+    {
+      id: 'perfetto.CriticalPath',
+      name: `Critical path`,
+      callback:
+          async () => {
+            const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
+            const window = getTimeSpanOfSelectionOrVisibleWindow();
+            const engine = this.getEngine();
+
+            if (engine !== undefined && window && trackUtid != 0) {
+              await runQuery(
+                  `SELECT IMPORT('experimental.thread_executing_span');`,
+                  engine);
+              await addDebugSliceTrack(
+                  engine,
+                  {
+                    sqlSource: `
+                        SELECT cr.id, cr.utid, cr.ts, cr.dur, cr.name, cr.table_name
+                        FROM
+                        internal_critical_path_stack(
+                          ${trackUtid},
+                          ${window.start},
+                          ${window.end} - ${
+                        window.start}, 1, 1, 1, 1) cr WHERE name IS NOT NULL
+                  `,
+                    columns: criticalPathsliceColumnNames,
+                  },
+                  (await getThreadInfo(engine, trackUtid as Utid)).name ??
+                      '<thread name>',
+                  criticalPathSliceColumns,
+                  criticalPathsliceColumnNames);
+            }
+          },
+    },
+    {
+      id: 'perfetto.CriticalPathPprof',
+      name: `Critical path pprof`,
+      callback:
+          () => {
+            const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
+            const window = getTimeSpanOfSelectionOrVisibleWindow();
+            const engine = this.getEngine();
+
+            if (engine !== undefined && window && trackUtid != 0) {
+              runQueryInNewTab(
+                  `SELECT IMPORT('experimental.thread_executing_span');
+                   SELECT *
+                      FROM
+                        experimental_thread_executing_span_critical_path_graph(
+                        "criical_path",
+                         ${trackUtid},
+                         ${window.start},
+                         ${window.end} - ${window.start}) cr`,
+                  'Critical path',
+                  'omnibox_query');
             }
           },
     },
