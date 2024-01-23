@@ -25,11 +25,11 @@ import {EngineProxy} from '../trace_processor/engine';
 
 import {globals} from './globals';
 
-export interface NewBottomTabArgs {
+export interface NewBottomTabArgs<Config> {
   engine: EngineProxy;
   tag?: string;
   uuid: string;
-  config: {};
+  config: Config;
 }
 
 // Interface for allowing registration and creation of bottom tabs.
@@ -37,7 +37,7 @@ export interface NewBottomTabArgs {
 export interface BottomTabCreator {
   readonly kind: string;
 
-  create(args: NewBottomTabArgs): BottomTab;
+  create(args: NewBottomTabArgs<unknown>): BottomTab;
 }
 
 export const bottomTabRegistry = Registry.kindRegistry<BottomTabCreator>();
@@ -78,8 +78,8 @@ export abstract class BottomTabBase<Config = {}> {
   // panel.
   readonly uuid: string;
 
-  constructor(args: NewBottomTabArgs) {
-    this.config = args.config as Config;
+  constructor(args: NewBottomTabArgs<Config>) {
+    this.config = args.config;
     this.engine = args.engine;
     this.tag = args.tag;
     this.uuid = args.uuid;
@@ -110,7 +110,7 @@ export abstract class BottomTabBase<Config = {}> {
 // lifecycle events. Most cases, however, don't need them and BottomTab
 // provides a simplified API for the common case.
 export abstract class BottomTab<Config = {}> extends BottomTabBase<Config> {
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<Config>) {
     super(args);
   }
 

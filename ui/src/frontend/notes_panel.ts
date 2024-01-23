@@ -313,11 +313,11 @@ interface NotesEditorTabConfig {
 export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
   static readonly kind = 'org.perfetto.NotesEditorTab';
 
-  static create(args: NewBottomTabArgs): NotesEditorTab {
+  static create(args: NewBottomTabArgs<NotesEditorTabConfig>): NotesEditorTab {
     return new NotesEditorTab(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<NotesEditorTabConfig>) {
     super(args);
   }
 
