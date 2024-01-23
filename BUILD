@@ -280,7 +280,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
-        ":src_trace_processor_views_views",
     ],
     hdrs = [
         ":include_perfetto_base_base",
@@ -1354,8 +1353,6 @@ perfetto_filegroup(
         "src/trace_processor/db/table.h",
         "src/trace_processor/db/typed_column.h",
         "src/trace_processor/db/typed_column_internal.h",
-        "src/trace_processor/db/view.cc",
-        "src/trace_processor/db/view.h",
     ],
 )
 
@@ -2206,8 +2203,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h",
-        "src/trace_processor/perfetto_sql/intrinsics/table_functions/view.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/table_functions/view.h",
     ],
 )
 
@@ -2660,17 +2655,6 @@ perfetto_filegroup(
         "src/trace_processor/util/streaming_line_reader.h",
         "src/trace_processor/util/zip_reader.cc",
         "src/trace_processor/util/zip_reader.h",
-    ],
-)
-
-# GN target: //src/trace_processor/views:views
-perfetto_filegroup(
-    name = "src_trace_processor_views_views",
-    srcs = [
-        "src/trace_processor/views/macros.h",
-        "src/trace_processor/views/macros_internal.h",
-        "src/trace_processor/views/slice_views.h",
-        "src/trace_processor/views/view_destructors.cc",
     ],
 )
 
@@ -5284,7 +5268,6 @@ perfetto_cc_library(
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
-        ":src_trace_processor_views_views",
     ],
     hdrs = [
         ":include_perfetto_base_base",
@@ -5452,7 +5435,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
-        ":src_trace_processor_views_views",
         "src/trace_processor/trace_processor_shell.cc",
     ],
     visibility = [
@@ -5672,7 +5654,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_stdlib",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
-        ":src_trace_processor_views_views",
         ":src_traceconv_lib",
         ":src_traceconv_main",
         ":src_traceconv_pprofbuilder",
