@@ -106,7 +106,7 @@ enum OmniboxMode {
 const criticalPathSliceColumns = {
   ts: 'ts',
   dur: 'dur',
-  name: 'name'
+  name: 'name',
 };
 const criticalPathsliceColumnNames = [
   'id',
@@ -120,7 +120,7 @@ const criticalPathsliceColumnNames = [
 const criticalPathsliceLiteColumns = {
   ts: 'ts',
   dur: 'dur',
-  name: 'thread_name'
+  name: 'thread_name',
 };
 const criticalPathsliceLiteColumnNames = [
   'id',
@@ -319,7 +319,7 @@ export class App implements m.ClassComponent {
             const window = getTimeSpanOfSelectionOrVisibleWindow();
             const engine = this.getEngine();
 
-            if (engine !== undefined && window && trackUtid != 0) {
+            if (engine !== undefined && trackUtid != 0) {
               await runQuery(
                   `SELECT IMPORT('experimental.thread_executing_span');`,
                   engine);
@@ -361,7 +361,7 @@ export class App implements m.ClassComponent {
             const window = getTimeSpanOfSelectionOrVisibleWindow();
             const engine = this.getEngine();
 
-            if (engine !== undefined && window && trackUtid != 0) {
+            if (engine !== undefined && trackUtid != 0) {
               await runQuery(
                   `SELECT IMPORT('experimental.thread_executing_span');`,
                   engine);
@@ -395,7 +395,7 @@ export class App implements m.ClassComponent {
             const window = getTimeSpanOfSelectionOrVisibleWindow();
             const engine = this.getEngine();
 
-            if (engine !== undefined && window && trackUtid != 0) {
+            if (engine !== undefined && trackUtid != 0) {
               runQueryInNewTab(
                   `SELECT IMPORT('experimental.thread_executing_span');
                    SELECT *
