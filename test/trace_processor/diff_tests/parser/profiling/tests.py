@@ -146,11 +146,15 @@ class Profiling(TestSuite):
           SUM(obj.self_size + obj.native_size) AS total_objects_size,
           (
             SELECT SUM(cumulative_size)
-            FROM experimental_flamegraph
-            WHERE experimental_flamegraph.upid = obj.upid
-              AND experimental_flamegraph.ts = obj.graph_sample_ts
-              AND profile_type = 'graph'
-              AND depth = 0 -- only the roots
+            FROM experimental_flamegraph(
+              'graph',
+              obj.graph_sample_ts,
+              NULL,
+              obj.upid,
+              NULL,
+              NULL
+            )
+            WHERE depth = 0 -- only the roots
           ) AS total_flamegraph_size
         FROM
           heap_graph_object AS obj
@@ -179,10 +183,14 @@ class Profiling(TestSuite):
           size,
           cumulative_size,
           parent_id
-        FROM experimental_flamegraph
-        WHERE upid = (SELECT max(upid) FROM heap_graph_object)
-          AND profile_type = 'graph'
-          AND ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
+        FROM experimental_flamegraph(
+          'graph',
+          (SELECT max(graph_sample_ts) FROM heap_graph_object),
+          NULL,
+          (SELECT max(upid) FROM heap_graph_object),
+          NULL,
+          NULL
+        )
         LIMIT 10;
         """,
         out=Path('heap_graph_flamegraph.out'))

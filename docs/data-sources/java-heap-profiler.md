@@ -76,11 +76,23 @@ We can then use them to get the flamegraph data.
 
 ```sql
 select name, cumulative_size
-       from experimental_flamegraph
-       where ts = 56785646801
-            and upid = 1
-            and profile_type = 'graph'
-       order by 2 desc;
+from experimental_flamegraph(
+  -- The type of the profile from which the flamegraph is being generated.
+  -- Always 'graph' for Java heap graphs.
+  'graph',
+  -- The timestamp of the heap graph sample.
+  56785646801,
+  -- Timestamp constraints: not relevant and always null for Java heap graphs.
+  NULL,
+  -- The upid of the heap graph sample.
+  1,
+  -- The upid group: not relevant and always null for Java heap graphs.
+  NULL,
+  -- A regex for focusing on a particular node in the heapgraph: for advanced
+  -- use only.
+  NULL
+)
+order by 2 desc;
 ```
 
 | name | cumulative_size |
