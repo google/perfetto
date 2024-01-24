@@ -64,6 +64,7 @@ from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.graphics.tests import GraphicsParser
 from diff_tests.parser.graphics.tests_drm_related_ftrace_events import GraphicsDrmRelatedFtraceEvents
 from diff_tests.parser.graphics.tests_gpu_trace import GraphicsGpuTrace
+from diff_tests.parser.json.tests import JsonTests
 from diff_tests.parser.memory.tests import MemoryParser
 from diff_tests.parser.network.tests import NetworkParser
 from diff_tests.parser.parsing.tests import Parsing
@@ -145,6 +146,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *GraphicsGpuTrace(index_path, 'parser/graphics',
                         'GraphicsGpuTrace').fetch(),
       *GraphicsParser(index_path, 'parser/graphics', 'GraphicsParser').fetch(),
+      *JsonTests(index_path, 'parser/json', 'JsonParser').fetch(),
       *MemoryParser(index_path, 'parser/memory', 'MemoryParser').fetch(),
       *NetworkParser(index_path, 'parser/network', 'NetworkParser').fetch(),
       *PowerEnergyBreakdown(index_path, 'parser/power',
