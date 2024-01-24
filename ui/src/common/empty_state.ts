@@ -153,6 +153,11 @@ export function createEmptyState(): State {
     focusedFlowIdRight: -1,
     searchIndex: -1,
 
+    tabs: {
+      currentTab: 'current_selection',
+      openTabs: [],
+    },
+
     recordingInProgress: false,
     recordingCancelled: false,
     extensionInstalled: false,
