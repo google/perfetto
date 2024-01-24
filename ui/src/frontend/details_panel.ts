@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {Trash} from '../base/disposable';
 import {Gate} from '../base/mithril_utils';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
@@ -22,14 +21,13 @@ import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
 import {addSelectionChangeObserver} from '../common/selection_observer';
 import {Selection} from '../common/state';
-import {raf} from '../core/raf_scheduler';
 
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsTab} from './chrome_slice_details_tab';
 import {CounterDetailsPanel} from './counter_panel';
 import {CpuProfileDetailsPanel} from './cpu_profile_panel';
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from './css_constants';
-import {DragGestureHandler} from './drag_gesture_handler';
+import {DragHandle} from './drag_handle';
 import {FlamegraphDetailsPanel} from './flamegraph_panel';
 import {
   FlowEventsAreaSelectedPanel,
@@ -43,8 +41,6 @@ import {PivotTable} from './pivot_table';
 import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStateTab} from './thread_state_tab';
 
-const UP_ICON = 'keyboard_arrow_up';
-const DOWN_ICON = 'keyboard_arrow_down';
 const DRAG_HANDLE_HEIGHT_PX = 28;
 
 export const CURRENT_SELECTION_TAG = 'current_selection';
@@ -55,137 +51,12 @@ function getDetailsHeight() {
   return DEFAULT_DETAILS_CONTENT_HEIGHT + DRAG_HANDLE_HEIGHT_PX;
 }
 
-function getFullScreenHeight() {
-  const panelContainer =
-      document.querySelector('.pan-and-zoom-content') as HTMLElement;
-  if (panelContainer !== null) {
-    return panelContainer.clientHeight;
-  } else {
-    return getDetailsHeight();
-  }
-}
-
 function hasLogs(): boolean {
   const data =
       globals.trackDataStore.get(LogExistsKey) as LogExists | undefined;
   return Boolean(data?.exists);
 }
 
-interface Tab {
-  key: string;
-  name: string;
-}
-
-interface DragHandleAttrs {
-  height: number;
-  resize: (height: number) => void;
-  tabs: Tab[];
-  currentTabKey?: string;
-}
-
-class DragHandle implements m.ClassComponent<DragHandleAttrs> {
-  private dragStartHeight = 0;
-  private height = 0;
-  private previousHeight = this.height;
-  private resize: (height: number) => void = () => {};
-  private isClosed = this.height <= 0;
-  private isFullscreen = false;
-  // We can't get real fullscreen height until the pan_and_zoom_handler exists.
-  private fullscreenHeight = getDetailsHeight();
-  private trash: Trash = new Trash();
-
-  oncreate({dom, attrs}: m.CVnodeDOM<DragHandleAttrs>) {
-    this.resize = attrs.resize;
-    this.height = attrs.height;
-    this.isClosed = this.height <= 0;
-    this.fullscreenHeight = getFullScreenHeight();
-    const elem = dom as HTMLElement;
-    this.trash.add(new DragGestureHandler(
-        elem,
-        this.onDrag.bind(this),
-        this.onDragStart.bind(this),
-        this.onDragEnd.bind(this)));
-  }
-
-  onupdate({attrs}: m.CVnodeDOM<DragHandleAttrs>) {
-    this.resize = attrs.resize;
-    this.height = attrs.height;
-    this.isClosed = this.height <= 0;
-  }
-
-  onremove(_: m.CVnodeDOM<DragHandleAttrs>) {
-    this.trash.dispose();
-  }
-
-  onDrag(_x: number, y: number) {
-    const newHeight =
-        Math.floor(this.dragStartHeight + (DRAG_HANDLE_HEIGHT_PX / 2) - y);
-    this.isClosed = newHeight <= 0;
-    this.isFullscreen = newHeight >= this.fullscreenHeight;
-    this.resize(newHeight);
-    raf.scheduleFullRedraw();
-  }
-
-  onDragStart(_x: number, _y: number) {
-    this.dragStartHeight = this.height;
-  }
-
-  onDragEnd() {}
-
-  view({attrs}: m.CVnode<DragHandleAttrs>) {
-    const icon = this.isClosed ? UP_ICON : DOWN_ICON;
-    const title = this.isClosed ? 'Show panel' : 'Hide panel';
-    const renderTab = (tab: Tab) => {
-      if (attrs.currentTabKey === tab.key) {
-        return m('.tab[active]', tab.name);
-      }
-      return m(
-          '.tab',
-          {
-            onclick: () => {
-              globals.dispatch(Actions.setCurrentTab({tab: tab.key}));
-            },
-          },
-          tab.name);
-    };
-    return m(
-        '.handle',
-        m('.tabs', attrs.tabs.map(renderTab)),
-        m('.buttons',
-          m('i.material-icons',
-            {
-              onclick: () => {
-                this.isClosed = false;
-                this.isFullscreen = true;
-                this.resize(this.fullscreenHeight);
-                raf.scheduleFullRedraw();
-              },
-              title: 'Open fullscreen',
-              disabled: this.isFullscreen,
-            },
-            'vertical_align_top'),
-          m('i.material-icons',
-            {
-              onclick: () => {
-                if (this.height === 0) {
-                  this.isClosed = false;
-                  if (this.previousHeight === 0) {
-                    this.previousHeight = getDetailsHeight();
-                  }
-                  this.resize(this.previousHeight);
-                } else {
-                  this.isFullscreen = false;
-                  this.isClosed = true;
-                  this.previousHeight = this.height;
-                  this.resize(0);
-                }
-                raf.scheduleFullRedraw();
-              },
-              title,
-            },
-            icon)));
-  }
-}
 
 function handleSelectionChange(
     newSelection: Selection|undefined, openCurrentSelectionTab: boolean): void {
@@ -410,9 +281,12 @@ export class DetailsPanel implements m.ClassComponent {
         },
         height: this.detailsHeight,
         tabs: detailsPanels.map((tab) => {
-          return {key: tab.key, name: tab.name};
+          return {key: tab.key, title: tab.name};
         }),
         currentTabKey: currentTabDetails?.key,
+        onTabClick: (key) => {
+          globals.dispatch(Actions.setCurrentTab({tab: key}));
+        },
       }),
       m(
           '.details-panel-container',
