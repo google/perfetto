@@ -105,7 +105,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     this.traceType = engine.source.type;
     // If the trace is either already uploaded, or comes from a postmessage+url
     // we don't need any re-upload.
-    if (engine && 'url' in engine.source && engine.source.url !== undefined) {
+    if ('url' in engine.source && engine.source.url !== undefined) {
       this.traceUrl = engine.source.url;
       this.traceState = 'UPLOADED';
       // The trace is already uploaded, so assume the user is fine attaching to

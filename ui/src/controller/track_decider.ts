@@ -1091,18 +1091,21 @@ class TrackDecider {
       package_name: STR_NULL,
     });
 
-    let groupMap = new Map<string, [string, string]>(); //[name] -> [uuid, key]
+    // Map From [name] -> [uuid, key]
+    const groupMap = new Map<string, [string, string]>();
 
     for (; it.valid(); it.next()) {
-      if (it.name == null || it.uid == null)
+      if (it.name == null || it.uid == null) {
         continue;
+      }
       const rawName = it.name;
       const uid = it.uid === null ? undefined : it.uid;
-      let userName = it.package_name === null ? `UID: ${uid}` : it.package_name;
+      const userName =
+          it.package_name === null ? `UID: ${uid}` : it.package_name;
 
-      let groupUuid = `uid-track-group${rawName}`;
+      const groupUuid = `uid-track-group${rawName}`;
       if (groupMap.get(rawName) === undefined) {
-        let summaryTrackKey = uuidv4();
+        const summaryTrackKey = uuidv4();
         this.tracksToAdd.push({
           uri: NULL_TRACK_URI,
           trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
@@ -1133,7 +1136,7 @@ class TrackDecider {
       }
     }
 
-    for (let [name, [groupUuid, summaryTrackKey]] of groupMap) {
+    for (const [name, [groupUuid, summaryTrackKey]] of groupMap) {
       const addGroup = Actions.addTrackGroup({
         name: name,
         id: groupUuid,
