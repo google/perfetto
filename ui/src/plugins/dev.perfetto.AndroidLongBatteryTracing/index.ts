@@ -482,6 +482,287 @@ const WAKEUPS = `
     case when type = 'normal' then ifnull(str_split(item, ' ', 1), item) else item end as item
   from step8`;
 
+const WAKEUPS_COLUMNS = [
+  'item',
+  'type',
+  'raw_wakeup',
+  'attribution',
+  'suspend_quality',
+  'backoff_state',
+  'backoff_reason',
+  'backoff_count',
+  'backoff_millis',
+];
+
+function bleScanQuery(condition: string) {
+  return `
+  with step1 as (
+      select
+          ts,
+          extract_arg(arg_set_id, 'ble_scan_state_changed.attribution_node[0].tag') as name,
+          extract_arg(arg_set_id, 'ble_scan_state_changed.is_opportunistic') as opportunistic,
+          extract_arg(arg_set_id, 'ble_scan_state_changed.is_filtered') as filtered,
+          extract_arg(arg_set_id, 'ble_scan_state_changed.state') as state
+      from track t join slice s on t.id = s.track_id
+      where t.name = 'Statsd Atoms'
+      and s.name = 'ble_scan_state_changed'
+  ),
+  step2 as (
+      select
+          ts,
+          name,
+          state,
+          opportunistic,
+          filtered,
+          lead(ts) over (partition by name order by ts) - ts as dur
+      from step1
+  )
+  select ts, dur, name from step2 where state = 'ON' and ${
+      condition} and dur is not null`;
+}
+
+const BLE_RESULTS = `
+  with step1 as (
+      select
+          ts,
+          extract_arg(arg_set_id, 'ble_scan_result_received.attribution_node[0].tag') as name,
+          extract_arg(arg_set_id, 'ble_scan_result_received.num_results') as num_results
+      from track t join slice s on t.id = s.track_id
+      where t.name = 'Statsd Atoms'
+      and s.name = 'ble_scan_result_received'
+  )
+  select
+      ts,
+      0 as dur,
+      name || ' (' || num_results || ' results)' as name
+  from step1`;
+
+const BT_A2DP_AUDIO = `
+  with step1 as (
+    select
+        ts,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_a2dp_playback_state_changed.playback_state') as playback_state,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_a2dp_playback_state_changed.audio_coding_mode') as audio_coding_mode,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_a2dp_playback_state_changed.metric_id') as metric_id
+    from track t join slice s on t.id = s.track_id
+    where t.name = 'Statsd Atoms'
+    and s.name = 'bluetooth_a2dp_playback_state_changed'
+  ),
+  step2 as (
+    select
+        ts,
+        lead(ts) over (partition by metric_id order by ts) - ts as dur,
+        playback_state,
+        audio_coding_mode,
+        metric_id
+    from step1
+  )
+  select
+    ts,
+    dur,
+    audio_coding_mode as name
+  from step2
+  where playback_state = 'PLAYBACK_STATE_PLAYING'`;
+
+const BT_CONNS_ACL = `
+    with acl1 as (
+        select
+            ts,
+            EXTRACT_ARG(arg_set_id, 'bluetooth_acl_connection_state_changed.state') as state,
+            EXTRACT_ARG(arg_set_id, 'bluetooth_acl_connection_state_changed.transport') as transport,
+            EXTRACT_ARG(arg_set_id, 'bluetooth_acl_connection_state_changed.metric_id') as metric_id
+        from track t join slice s on t.id = s.track_id
+        where t.name = 'Statsd Atoms'
+        and s.name = 'bluetooth_acl_connection_state_changed'
+    ),
+    acl2 as (
+        select
+            ts,
+            lead(ts) over (partition by metric_id, transport order by ts) - ts as dur,
+            state,
+            transport,
+            metric_id
+        from acl1
+    )
+    select
+        ts,
+        dur,
+        'Device ' || metric_id ||
+          ' (' || case transport when 'TRANSPORT_TYPE_BREDR' then 'Classic' when 'TRANSPORT_TYPE_LE' then 'BLE' end || ')' as name
+    from acl2
+    where state != 'CONNECTION_STATE_DISCONNECTED' and dur is not null`;
+
+const BT_CONNS_SCO = `
+  with sco1 as (
+    select
+        ts,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_sco_connection_state_changed.state') as state,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_sco_connection_state_changed.codec') as codec,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_sco_connection_state_changed.metric_id') as metric_id
+    from track t join slice s on t.id = s.track_id
+    where t.name = 'Statsd Atoms'
+    and s.name = 'bluetooth_sco_connection_state_changed'
+  ),
+  sco2 as (
+    select
+        ts,
+        lead(ts) over (partition by metric_id, codec order by ts) - ts as dur,
+        state,
+        codec,
+        metric_id
+    from sco1
+  )
+  select
+    ts,
+    dur,
+    case state when 'CONNECTION_STATE_CONNECTED' then '' when 'CONNECTION_STATE_CONNECTING' then 'Connecting ' when 'CONNECTION_STATE_DISCONNECTING' then 'Disconnecting ' else 'unknown ' end ||
+      'Device ' || metric_id || ' (' ||
+      case codec when 'SCO_CODEC_CVSD' then 'CVSD' when 'SCO_CODEC_MSBC' then 'MSBC' end || ')' as name
+  from sco2
+  where state != 'CONNECTION_STATE_DISCONNECTED' and dur is not null`;
+
+const BT_LINK_LEVEL_EVENTS = `
+  with base as (
+    select
+        ts,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_link_layer_connection_event.direction') as direction,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_link_layer_connection_event.type') as type,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_link_layer_connection_event.hci_cmd') as hci_cmd,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_link_layer_connection_event.hci_event') as hci_event,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_link_layer_connection_event.hci_ble_event') as hci_ble_event,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_link_layer_connection_event.cmd_status') as cmd_status,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_link_layer_connection_event.reason_code') as reason_code,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_link_layer_connection_event.metric_id') as metric_id
+    from track t join slice s on t.id = s.track_id
+    where t.name = 'Statsd Atoms'
+    and s.name = 'bluetooth_link_layer_connection_event'
+  )
+  select
+    *,
+    0 as dur,
+    'Device '|| metric_id as name
+  from base`;
+
+const BT_LINK_LEVEL_EVENTS_COLUMNS = [
+  'direction',
+  'type',
+  'hci_cmd',
+  'hci_event',
+  'hci_ble_event',
+  'cmd_status',
+  'reason_code',
+  'metric_id',
+];
+
+const BT_QUALITY_REPORTS = `
+  with base as (
+      select
+          ts,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.quality_report_id') as quality_report_id,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.packet_types') as packet_types,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.connection_handle') as connection_handle,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.connection_role') as connection_role,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.tx_power_level') as tx_power_level,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.rssi') as rssi,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.snr') as snr,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.unused_afh_channel_count') as unused_afh_channel_count,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.afh_select_unideal_channel_count') as afh_select_unideal_channel_count,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.lsto') as lsto,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.connection_piconet_clock') as connection_piconet_clock,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.retransmission_count') as retransmission_count,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.no_rx_count') as no_rx_count,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.nak_count') as nak_count,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.flow_off_count') as flow_off_count,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.buffer_overflow_bytes') as buffer_overflow_bytes,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_quality_report_reported.buffer_underflow_bytes') as buffer_underflow_bytes
+      from track t join slice s on t.id = s.track_id
+      where t.name = 'Statsd Atoms'
+      and s.name = 'bluetooth_quality_report_reported'
+  )
+  select
+      *,
+      0 as dur,
+      'Connection '|| connection_handle as name
+  from base`;
+
+const BT_QUALITY_REPORTS_COLUMNS = [
+  'quality_report_id',
+  'packet_types',
+  'connection_handle',
+  'connection_role',
+  'tx_power_level',
+  'rssi',
+  'snr',
+  'unused_afh_channel_count',
+  'afh_select_unideal_channel_count',
+  'lsto',
+  'connection_piconet_clock',
+  'retransmission_count',
+  'no_rx_count',
+  'nak_count',
+  'flow_off_count',
+  'buffer_overflow_bytes',
+  'buffer_underflow_bytes',
+];
+
+const BT_RSSI_REPORTS = `
+  with base as (
+    select
+        ts,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_device_rssi_reported.connection_handle') as connection_handle,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_device_rssi_reported.hci_status') as hci_status,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_device_rssi_reported.rssi') as rssi,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_device_rssi_reported.metric_id') as metric_id
+    from track t join slice s on t.id = s.track_id
+    where t.name = 'Statsd Atoms'
+    and s.name = 'bluetooth_device_rssi_reported'
+  )
+  select
+    *,
+    0 as dur,
+    'Connection '|| connection_handle as name
+  from base`;
+
+const BT_RSSI_REPORTS_COLUMNS =
+    ['connection_handle', 'hci_status', 'rssi', 'metric_id'];
+
+const BT_CODE_PATH_COUNTER = `
+  with base as (
+    select
+        ts,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_code_path_counter.key') as key,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_code_path_counter.number') as number
+    from track t join slice s on t.id = s.track_id
+    where t.name = 'Statsd Atoms'
+    and s.name = 'bluetooth_code_path_counter'
+  )
+  select
+    *,
+    0 as dur,
+    key as name
+  from base`;
+
+const BT_CODE_PATH_COUNTER_COLUMNS = ['key', 'number'];
+
+const BT_HAL_CRASHES = `
+  with base as (
+      select
+          ts,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_hal_crash_reason_reported.metric_id') as metric_id,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_hal_crash_reason_reported.error_code') as error_code,
+          EXTRACT_ARG(arg_set_id, 'bluetooth_hal_crash_reason_reported.vendor_error_code') as vendor_error_code
+      from track t join slice s on t.id = s.track_id
+      where t.name = 'Statsd Atoms'
+      and s.name = 'bluetooth_hal_crash_reason_reported'
+  )
+  select
+      *,
+      0 as dur,
+      'Device ' || metric_id as name
+  from base`;
+
+const BT_HAL_CRASHES_COLUMNS = ['metric_id', 'error_code', 'vendor_error_code'];
+
 function flatten<T>(arr: T[][]): T[] {
   return arr.reduce((a, b) => a.concat(b), []);
 }
@@ -644,17 +925,6 @@ class AndroidLongBatteryTracing implements Plugin {
                 backoff_count,
                 backoff_millis
             from wakeups`;
-    const columns = [
-      'item',
-      'type',
-      'raw_wakeup',
-      'attribution',
-      'suspend_quality',
-      'backoff_state',
-      'backoff_reason',
-      'backoff_count',
-      'backoff_millis',
-    ];
     const items = [];
     const actions: Promise<DeferredAction<{}>>[] = [];
     for (; it.valid(); it.next()) {
@@ -663,7 +933,7 @@ class AndroidLongBatteryTracing implements Plugin {
           `Wakeup ${it.item}`,
           `${sqlPrefix} where item="${it.item}"`,
           groupId,
-          columns));
+          WAKEUPS_COLUMNS));
       items.push(it.item);
     }
     actions.push(this.addSliceTrack(
@@ -671,7 +941,7 @@ class AndroidLongBatteryTracing implements Plugin {
         'Other wakeups',
         `${sqlPrefix} where item not in ('${items.join('\',\'')}')`,
         groupId,
-        columns));
+        WAKEUPS_COLUMNS));
     return await Promise.all(actions);
   }
 
@@ -691,6 +961,47 @@ class AndroidLongBatteryTracing implements Plugin {
           groupId));
     }
     return await Promise.all(actions);
+  }
+
+  async addBluetooth(e: EngineProxy, groupId: string):
+      Promise<DeferredAction<{}>[]> {
+    return await Promise.all([
+      this.addSliceTrack(
+          e,
+          'BLE Scans (opportunistic)',
+          bleScanQuery('opportunistic'),
+          groupId),
+      this.addSliceTrack(
+          e, 'BLE Scans (filtered)', bleScanQuery('filtered'), groupId),
+      this.addSliceTrack(
+          e, 'BLE Scans (unfiltered)', bleScanQuery('not filtered'), groupId),
+      this.addSliceTrack(e, 'BLE Scan Results', BLE_RESULTS, groupId),
+      this.addSliceTrack(e, 'Connections (ACL)', BT_CONNS_ACL, groupId),
+      this.addSliceTrack(e, 'Connections (SCO)', BT_CONNS_SCO, groupId),
+      this.addSliceTrack(
+          e,
+          'Link-level Events',
+          BT_LINK_LEVEL_EVENTS,
+          groupId,
+          BT_LINK_LEVEL_EVENTS_COLUMNS),
+      this.addSliceTrack(e, 'A2DP Audio', BT_A2DP_AUDIO, groupId),
+      this.addSliceTrack(
+          e,
+          'Quality reports',
+          BT_QUALITY_REPORTS,
+          groupId,
+          BT_QUALITY_REPORTS_COLUMNS),
+      this.addSliceTrack(
+          e, 'RSSI Reports', BT_RSSI_REPORTS, groupId, BT_RSSI_REPORTS_COLUMNS),
+      this.addSliceTrack(
+          e, 'HAL Crashes', BT_HAL_CRASHES, groupId, BT_HAL_CRASHES_COLUMNS),
+      this.addSliceTrack(
+          e,
+          'Code Path Counter',
+          BT_CODE_PATH_COUNTER,
+          groupId,
+          BT_CODE_PATH_COUNTER_COLUMNS),
+    ]);
   }
 
   findGroupId(name: string) {
@@ -742,6 +1053,7 @@ class AndroidLongBatteryTracing implements Plugin {
         const wakelocksId = addGroup('Kernel Wakelocks');
         const wakeupsId = addGroup('Wakeups');
         const cpuId = addGroup('CPU');
+        const btId = addGroup('Bluetooth');
         actions.push(await this.addSliceTrack(
             ctx.engine, 'Thermal throttling', THERMAL_THROTTLING, miscGroupId));
 
@@ -751,6 +1063,7 @@ class AndroidLongBatteryTracing implements Plugin {
           this.addKernelWakelocks(ctx.engine, wakelocksId),
           this.addWakeups(ctx.engine, wakeupsId),
           this.addHighCpu(ctx.engine, cpuId),
+          this.addBluetooth(ctx.engine, btId),
         ];
         const flattenedActions: DeferredAction<{}>[] =
             flatten(await Promise.all(promises));
