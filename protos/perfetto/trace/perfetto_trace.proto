@@ -4835,7 +4835,7 @@ message PackagesList {
 /* represents a single log entry */
 message ProtoLogMessage {
   /* log statement identifier, created from message string and log level. */
-  optional fixed32 message_id = 1;
+  optional fixed64 message_id = 1;
   /* string parameters passed to the log call that have been interned. */
   repeated uint32 interned_str_params = 2;
   /* integer parameters passed to the log call. */
@@ -4850,7 +4850,7 @@ message ProtoLogMessage {
 message ProtoLogViewerConfig {
   message MessageData {
     // the id of the message that is logged in a ProtoLogMessage
-    optional fixed32 message_id = 1;
+    optional fixed64 message_id = 1;
     // the string representation of the message
     optional string message = 2;
     // the level of the message
