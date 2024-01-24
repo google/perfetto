@@ -76,14 +76,31 @@ using ::testing::Field;
 using ::testing::HasSubstr;
 using ::testing::Values;
 
-constexpr const char* kOnlyFlamegraph =
-    "SELECT id, name, map_name, count, cumulative_count, size, "
-    "cumulative_size, "
-    "alloc_count, cumulative_alloc_count, alloc_size, cumulative_alloc_size, "
-    "parent_id "
-    "FROM experimental_flamegraph WHERE "
-    "(ts, upid) IN (SELECT distinct ts, upid from heap_profile_allocation) AND "
-    "profile_type = 'native' order by abs(cumulative_size) desc;";
+constexpr const char* kOnlyFlamegraph = R"(
+  SELECT
+    id,
+    name,
+    map_name,
+    count,
+    cumulative_count,
+    size,
+    cumulative_size,
+    alloc_count,
+    cumulative_alloc_count,
+    alloc_size,
+    cumulative_alloc_size,
+    parent_id
+  FROM (SELECT distinct ts, upid from heap_profile_allocation) hpa
+  JOIN experimental_flamegraph(
+    'native',
+    hpa.ts,
+    NULL,
+    hpa.upid,
+    NULL,
+    NULL
+  )
+  order by abs(cumulative_size) desc;
+)";
 
 struct FlamegraphNode {
   int64_t id;

@@ -28,12 +28,12 @@ struct TimeConstraints {
   int64_t value;
 };
 
-std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
-BuildHeapProfileFlamegraph(TraceStorage* storage,
-                           UniquePid upid,
-                           int64_t timestamp);
+std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildHeapProfileFlamegraph(
+    TraceStorage* storage,
+    UniquePid upid,
+    int64_t timestamp);
 
-std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
+std::unique_ptr<tables::ExperimentalFlamegraphTable>
 BuildNativeCallStackSamplingFlamegraph(
     TraceStorage* storage,
     std::optional<UniquePid> upid,

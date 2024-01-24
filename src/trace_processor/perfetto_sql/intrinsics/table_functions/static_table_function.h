@@ -17,12 +17,16 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_STATIC_TABLE_FUNCTION_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_STATIC_TABLE_FUNCTION_H_
 
-#include "perfetto/base/status.h"
-#include "src/trace_processor/db/table.h"
-#include "src/trace_processor/sqlite/query_constraints.h"
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
 
-namespace perfetto {
-namespace trace_processor {
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/db/table.h"
+
+namespace perfetto::trace_processor {
 
 // Interface which can be subclassed to allow generation of tables dynamically
 // at filter time.
@@ -42,24 +46,11 @@ class StaticTableFunction {
   // Returns the estimated number of rows the table would generate.
   virtual uint32_t EstimateRowCount() = 0;
 
-  // Checks that the constraint set is valid.
-  //
-  // Returning base::OkStatus means that the required constraints are present
-  // in |qc| for dynamically computing the table (e.g. any required
-  // constraints on hidden columns for table-valued functions are present).
-  virtual base::Status ValidateConstraints(const QueryConstraints& qc) = 0;
-
-  // Dynamically computes the table given the constraints and order by
-  // vectors.
-  // The table is returned via |table_return|. There are no guarantees on
-  // its value if the method returns a non-ok status.
-  virtual base::Status ComputeTable(const std::vector<Constraint>& cs,
-                                    const std::vector<Order>& ob,
-                                    const BitVector& cols_used,
-                                    std::unique_ptr<Table>& table_return) = 0;
+  // Dynamically computes the table given the provided arguments.
+  virtual base::StatusOr<std::unique_ptr<Table>> ComputeTable(
+      const std::vector<SqlValue>& arguments) = 0;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_STATIC_TABLE_FUNCTION_H_

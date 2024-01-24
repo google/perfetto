@@ -16,20 +16,25 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 
+#include <cstdint>
 #include <memory>
-#include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/runtime_table.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace tables {
 
 PerfettoTableInfoTable::~PerfettoTableInfoTable() = default;
@@ -88,36 +93,14 @@ std::vector<TableInfoTable::Row> GetColInfoRows(
 TableInfo::TableInfo(StringPool* string_pool, const PerfettoSqlEngine* engine)
     : string_pool_(string_pool), engine_(engine) {}
 
-base::Status TableInfo::ValidateConstraints(const QueryConstraints& qc) {
-  const auto& cs = qc.constraints();
-
-  int column = static_cast<int>(TableInfoTable::ColumnIndex::table_name);
-  auto id_fn = [column](const QueryConstraints::Constraint& c) {
-    return c.column == column && sqlite_utils::IsOpEq(c.op);
-  };
-  bool has_id_cs = std::find_if(cs.begin(), cs.end(), id_fn) != cs.end();
-  return has_id_cs ? base::OkStatus()
-                   : base::ErrStatus("Failed to find required constraints");
-}
-
-base::Status TableInfo::ComputeTable(const std::vector<Constraint>& cs,
-                                     const std::vector<Order>&,
-                                     const BitVector&,
-                                     std::unique_ptr<Table>& table_return) {
-  uint32_t column = TableInfoTable::ColumnIndex::table_name;
-  auto constraint_it =
-      std::find_if(cs.begin(), cs.end(), [column](const Constraint& c) {
-        return c.col_idx == column && c.op == FilterOp::kEq;
-      });
-  if (constraint_it == cs.end()) {
-    return base::ErrStatus("Failed to find required constraints");
-  }
-
-  if (constraint_it->value.type != SqlValue::kString) {
+base::StatusOr<std::unique_ptr<Table>> TableInfo::ComputeTable(
+    const std::vector<SqlValue>& arguments) {
+  PERFETTO_CHECK(arguments.size() == 1);
+  if (arguments[0].type != SqlValue::kString) {
     return base::ErrStatus("perfetto_table_info takes table name as a string.");
   }
 
-  std::string table_name = constraint_it->value.AsString();
+  std::string table_name = arguments[0].AsString();
   auto table = std::make_unique<TableInfoTable>(string_pool_);
   auto table_name_id = string_pool_->InternString(table_name.c_str());
 
@@ -128,8 +111,7 @@ base::Status TableInfo::ComputeTable(const std::vector<Constraint>& cs,
       row.table_name = table_name_id;
       table->Insert(row);
     }
-    table_return = std::move(table);
-    return base::OkStatus();
+    return std::unique_ptr<Table>(std::move(table));
   }
 
   // Find runtime table
@@ -140,8 +122,7 @@ base::Status TableInfo::ComputeTable(const std::vector<Constraint>& cs,
       row.table_name = table_name_id;
       table->Insert(row);
     }
-    table_return = std::move(table);
-    return base::OkStatus();
+    return std::unique_ptr<Table>(std::move(table));
   }
 
   return base::ErrStatus("Perfetto table '%s' not found.", table_name.c_str());
@@ -159,5 +140,4 @@ uint32_t TableInfo::EstimateRowCount() {
   return 1;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
