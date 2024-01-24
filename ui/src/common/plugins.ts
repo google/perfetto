@@ -20,6 +20,7 @@ import {time} from '../base/time';
 import {globals} from '../frontend/globals';
 import {
   Command,
+  CurrentSelectionSection,
   EngineProxy,
   MetricVisualisation,
   Migrate,
@@ -30,6 +31,7 @@ import {
   PluginDescriptor,
   PrimaryTrackSortKey,
   Store,
+  TabDescriptor,
   TrackDescriptor,
   TrackPredicate,
   TrackRef,
@@ -155,6 +157,22 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     return this.ctx.runCommand(id, ...args);
   }
 
+  registerTab(desc: TabDescriptor): void {
+    if (!this.alive) return;
+
+    globals.tabManager.registerTab(desc);
+    this.trash.addCallback(() => globals.tabManager.unregisterTab(desc.uri));
+  }
+
+  registerCurrentSelectionSection(section: CurrentSelectionSection): void {
+    if (!this.alive) return;
+
+    const tabMan = globals.tabManager;
+    tabMan.registerCurrentSelectionSection(section);
+    this.trash.addCallback(
+        () => tabMan.unregisterCurrentSelectionSection(section));
+  }
+
   get sidebar() {
     return this.ctx.sidebar;
   }
@@ -163,6 +181,16 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     openQuery: (query: string, title: string) => {
       globals.openQuery(query, title);
     },
+
+    showTab(uri: string):
+        void {
+          globals.dispatch(Actions.showTab({uri}));
+        },
+
+    hideTab(uri: string):
+        void {
+          globals.dispatch(Actions.hideTab({uri}));
+        },
   };
 
   get pluginId(): string {

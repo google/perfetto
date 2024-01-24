@@ -131,7 +131,8 @@ export const MAX_TIME = 180;
 // 41. Ported all remaining tracks.
 // 42. Rename trackId -> trackKey.
 // 43. Remove visibleTracks.
-export const STATE_VERSION = 43;
+// 44. Add TabsV2 state
+export const STATE_VERSION = 44;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -521,6 +522,11 @@ export interface PendingDeeplinkState {
   visEnd?: string;
 }
 
+export interface TabsV2State {
+  openTabs: string[];
+  currentTab: string;
+}
+
 export interface State {
   version: number;
   nextId: string;
@@ -585,7 +591,10 @@ export interface State {
   pendingScrollId?: number;
 
   searchIndex: number;
+
   currentTab?: string;
+
+  tabs: TabsV2State;
 
   /**
    * Trace recording

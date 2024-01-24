@@ -43,6 +43,7 @@ import {
   RESOLUTION_DEFAULT,
   State,
 } from '../common/state';
+import {TabManager} from '../common/tab_registry';
 import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
@@ -284,6 +285,7 @@ class Globals {
   private _utcOffset = Time.ZERO;
   private _traceTzOffset = Time.ZERO;
   private _openQueryHandler?: OpenQueryHandler;
+  private _tabManager = new TabManager();
 
   scrollToTrackKey?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
@@ -776,6 +778,10 @@ class Globals {
 
   set traceTzOffset(offset: time) {
     this._traceTzOffset = offset;
+  }
+
+  get tabManager() {
+    return this._tabManager;
   }
 
   // Offset between t=0 and the configured time domain.

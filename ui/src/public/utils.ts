@@ -12,6 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
+import {Selection} from '../common/state';
+import {BottomTab} from '../frontend/bottom_tab';
+
+import {CurrentSelectionSection} from '.';
+
 export function getTrackName(args: Partial<{
   name: string | null,
   utid: number,
@@ -85,4 +92,57 @@ export function getTrackName(args: Partial<{
     return `Unnamed ${kind}`;
   }
   return 'Unknown';
+}
+
+export interface BottomTabAdapterAttrs {
+  tabFactory: (sel: Selection) => BottomTab | undefined;
+}
+
+
+/**
+ * This adapter wraps a BottomTab, converting it into a the new "current
+ * selection" API.
+ * This adapter is required because most bottom tab implementations expect to
+ * be created when the selection changes, however current selection sections
+ * stick around in memory forever and produce a section only when they detect a
+ * relevant selection.
+ * This adapter, given a bottom tab factory function, will simply call the
+ * factory function whenever the selection changes. It's up to the implementer
+ * to work out whether the selection is relevant and to construct a bottom tab.
+ *
+ * @example
+ * new BottomTabAdapter({
+      tabFactory: (sel) => {
+        if (sel.kind !== 'CHROME_SLICE') {
+          return undefined;
+        }
+        return new ChromeSliceDetailsTab({
+          config: {
+            table: sel.table ?? 'slice',
+            id: sel.id,
+          },
+          engine: ctx.engine,
+          uuid: uuidv4(),
+        });
+      },
+    })
+ */
+export class BottomTabAdapter implements CurrentSelectionSection {
+  private oldSelection?: Selection;
+  private bottomTab?: BottomTab;
+  private attrs: BottomTabAdapterAttrs;
+
+  constructor(attrs: BottomTabAdapterAttrs) {
+    this.attrs = attrs;
+  }
+
+  render(selection: Selection): m.Children {
+    // Detect selection changes, assuming selection is immutable
+    if (selection !== this.oldSelection) {
+      this.oldSelection = selection;
+      this.bottomTab = this.attrs.tabFactory(selection);
+    }
+
+    return this.bottomTab?.renderPanel();
+  }
 }
