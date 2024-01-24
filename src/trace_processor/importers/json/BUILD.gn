@@ -41,6 +41,7 @@ source_set("full") {
     "../../../../gn:default_deps",
     "../../sorter",
     "../../storage",
+    "../../tables",
     "../../types",
     "../common",
     "../systrace:full",
