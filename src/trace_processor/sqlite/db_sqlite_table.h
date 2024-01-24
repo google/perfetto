@@ -17,13 +17,23 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 
+#include <cstdint>
+#include <functional>
 #include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include <sqlite3.h>
+
 #include "perfetto/base/status.h"
-#include "src/trace_processor/containers/bit_vector.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/query_cache.h"
+#include "src/trace_processor/sqlite/query_constraints.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto {
@@ -61,7 +71,7 @@ struct DbSqliteTableContext {
   std::function<void(std::string)> erase_runtime_table;
 
   // Only valid when computation == TableComputation::kTableFunction.
-  std::unique_ptr<StaticTableFunction> generator;
+  std::unique_ptr<StaticTableFunction> static_table_function;
 };
 
 // Implements the SQLite table interface for db tables.
@@ -104,6 +114,11 @@ class DbSqliteTable final
       return sorted_cache_table_ ? &*sorted_cache_table_ : upstream_table_;
     }
 
+    static base::Status ExtractTableFunctionArguments(
+        const Table::Schema&,
+        std::vector<Constraint>& constraints,
+        std::vector<SqlValue>& function_arguments);
+
     Cursor(const Cursor&) = delete;
     Cursor& operator=(const Cursor&) = delete;
 
@@ -138,6 +153,7 @@ class DbSqliteTable final
 
     std::vector<Constraint> constraints_;
     std::vector<Order> orders_;
+    std::vector<SqlValue> table_function_arguments_;
   };
   struct QueryCost {
     double cost;
@@ -169,6 +185,9 @@ class DbSqliteTable final
                                 const QueryConstraints& qc);
 
  private:
+  static base::Status ValidateTableFunctionArguments(const Table::Schema&,
+                                                     const QueryConstraints&);
+
   Context* context_ = nullptr;
 
   // Only valid after Init has completed.

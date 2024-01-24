@@ -28,6 +28,7 @@
 
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -133,7 +134,7 @@ class HeapGraphTracker : public Destructible {
     return field_to_rows_.Find(field_name);
   }
 
-  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> BuildFlamegraph(
+  std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildFlamegraph(
       const int64_t current_ts,
       const UniquePid current_upid);
 

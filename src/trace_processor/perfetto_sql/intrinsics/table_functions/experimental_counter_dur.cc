@@ -16,10 +16,22 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.h"
 
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
-namespace perfetto {
-namespace trace_processor {
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/db/column_storage.h"
+#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
+
+namespace perfetto::trace_processor {
 namespace tables {
 
 ExperimentalCounterDurTable::~ExperimentalCounterDurTable() = default;
@@ -43,23 +55,15 @@ uint32_t ExperimentalCounterDur::EstimateRowCount() {
   return counter_table_->row_count();
 }
 
-base::Status ExperimentalCounterDur::ValidateConstraints(
-    const QueryConstraints&) {
-  return base::OkStatus();
-}
-
-base::Status ExperimentalCounterDur::ComputeTable(
-    const std::vector<Constraint>&,
-    const std::vector<Order>&,
-    const BitVector&,
-    std::unique_ptr<Table>& table_return) {
+base::StatusOr<std::unique_ptr<Table>> ExperimentalCounterDur::ComputeTable(
+    const std::vector<SqlValue>& arguments) {
+  PERFETTO_CHECK(arguments.empty());
   if (!counter_dur_table_) {
     counter_dur_table_ = tables::ExperimentalCounterDurTable::ExtendParent(
         *counter_table_, ComputeDurColumn(*counter_table_),
         ComputeDeltaColumn(*counter_table_));
   }
-  table_return.reset(new Table(counter_dur_table_->Copy()));
-  return base::OkStatus();
+  return std::make_unique<Table>(counter_dur_table_->Copy());
 }
 
 // static
@@ -120,5 +124,4 @@ ColumnStorage<double> ExperimentalCounterDur::ComputeDeltaColumn(
   return delta;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

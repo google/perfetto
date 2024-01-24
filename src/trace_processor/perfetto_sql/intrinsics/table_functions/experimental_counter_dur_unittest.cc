@@ -16,10 +16,14 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.h"
 
+#include <cstdint>
+
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 tables::CounterTable::Row CounterRow(int64_t ts, uint32_t track_id) {
@@ -52,5 +56,4 @@ TEST(ExperimentalCounterDur, SmokeDur) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

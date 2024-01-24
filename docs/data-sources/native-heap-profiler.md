@@ -654,12 +654,28 @@ There is an **experimental** table that surfaces this information. The **API is
 subject to change**.
 
 ```sql
-select name, map_name, cumulative_size
-       from experimental_flamegraph
-       where ts = 8300973884377
-            and upid = 1
-            and profile_type = 'native'
-       order by abs(cumulative_size) desc;
+select
+  name,
+  map_name,
+  cumulative_size
+from experimental_flamegraph(
+  -- The type of the profile from which the flamegraph is being generated.
+  -- Always 'native' for native heap profiles.
+  'native',
+  -- The timestamp of the heap profile.
+  8300973884377,
+  -- Timestamp constraints: not relevant and always null for native heap
+  -- profiles.
+  NULL,
+  -- The upid of the heap profile.
+  1,
+  -- The upid group: not relevant and always null for native heap profiles.
+  NULL,
+  -- A regex for focusing on a particular node in the heapgraph: for advanced
+  -- use only.
+  NULL
+)
+order by abs(cumulative_size) desc;
 ```
 
 | name | map_name | cumulative_size |

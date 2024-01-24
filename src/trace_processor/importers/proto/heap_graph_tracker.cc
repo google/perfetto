@@ -946,22 +946,21 @@ void HeapGraphTracker::FindPathFromRoot(ObjectTable::RowReference row_ref,
   }
 }
 
-std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
+std::unique_ptr<tables::ExperimentalFlamegraphTable>
 HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
                                   const UniquePid current_upid) {
   auto profile_type = storage_->InternString("graph");
   auto java_mapping = storage_->InternString("JAVA");
 
-  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl(
-      new tables::ExperimentalFlamegraphNodesTable(
-          storage_->mutable_string_pool()));
+  std::unique_ptr<tables::ExperimentalFlamegraphTable> tbl(
+      new tables::ExperimentalFlamegraphTable(storage_->mutable_string_pool()));
 
   auto it = roots_.find(std::make_pair(current_upid, current_ts));
   if (it == roots_.end()) {
     // TODO(fmayer): This should not be within the flame graph but some marker
     // in the UI.
     if (IsTruncated(current_upid, current_ts)) {
-      tables::ExperimentalFlamegraphNodesTable::Row alloc_row{};
+      tables::ExperimentalFlamegraphTable::Row alloc_row{};
       alloc_row.ts = current_ts;
       alloc_row.upid = current_upid;
       alloc_row.profile_type = profile_type;
@@ -1015,7 +1014,7 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
       parent_id = node_to_id[node.parent_id];
     const uint32_t depth = node.depth;
 
-    tables::ExperimentalFlamegraphNodesTable::Row alloc_row{};
+    tables::ExperimentalFlamegraphTable::Row alloc_row{};
     alloc_row.ts = current_ts;
     alloc_row.upid = current_upid;
     alloc_row.profile_type = profile_type;

@@ -89,7 +89,7 @@ using MetadataId = tables::MetadataTable::Id;
 
 using RawId = tables::RawTable::Id;
 
-using FlamegraphId = tables::ExperimentalFlamegraphNodesTable::Id;
+using FlamegraphId = tables::ExperimentalFlamegraphTable::Id;
 
 using VulkanAllocId = tables::VulkanMemoryAllocationsTable::Id;
 
