@@ -86,7 +86,11 @@ export interface SqlDataSource {
   columns: string[];
 }
 
-export async function addDebugCounterTrack(
+// Creates actions to add a debug track. The actions must be dispatched to
+// have an effect. Use this variant if you want to create many tracks at
+// once or want to tweak the actions once produced. Otherwise, use
+// addDebugCounterTrack().
+export async function createDebugCounterTrackActions(
     engine: EngineProxy,
     data: SqlDataSource,
     trackName: string,
@@ -128,5 +132,18 @@ export async function addDebugCounterTrack(
   if (config?.pinned ?? true) {
     actions.push(Actions.toggleTrackPinned({trackKey}));
   }
+  return actions;
+}
+
+// Adds a debug track immediately. Use createDebugCounterTrackActions() if you
+// want to create many tracks at once.
+export async function addDebugCounterTrack(
+    engine: EngineProxy,
+    data: SqlDataSource,
+    trackName: string,
+    columns: CounterColumns,
+    config?: CounterDebugTrackCreateConfig) {
+  const actions = await createDebugCounterTrackActions(
+      engine, data, trackName, columns, config);
   globals.dispatchMultiple(actions);
 }
