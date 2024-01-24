@@ -46,12 +46,15 @@ source_set("table_functions") {
     ":tables",
     "../../../../../gn:default_deps",
     "../../../../../gn:sqlite",
+    "../../../../../include/perfetto/trace_processor:basic_types",
     "../../../../base",
     "../../../containers",
     "../../../db",
+    "../../../db/column",
     "../../../importers/proto:full",
     "../../../importers/proto:minimal",
     "../../../sqlite",
+    "../../../sqlite:query_constraints",
     "../../../storage",
     "../../../tables",
     "../../../types",
@@ -68,6 +71,7 @@ source_set("interface") {
   ]
   deps = [
     "../../../../../gn:default_deps",
+    "../../../../../include/perfetto/trace_processor:basic_types",
     "../../../../base",
     "../../../db",
     "../../../sqlite:query_constraints",
@@ -94,8 +98,13 @@ source_set("unittests") {
     ":tables",
     "../../../../../gn:default_deps",
     "../../../../../gn:gtest_and_gmock",
+    "../../../../base:test_support",
     "../../../containers",
+    "../../../db",
+    "../../../db/column",
     "../../../importers/common",
+    "../../../storage",
+    "../../../tables",
     "../../../types",
   ]
 }

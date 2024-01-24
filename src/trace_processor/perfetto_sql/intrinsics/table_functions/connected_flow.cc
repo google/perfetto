@@ -16,17 +16,32 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h"
 
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <queue>
 #include <set>
+#include <string>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/db/column_storage.h"
+#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/db/typed_column.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace tables {
 
 ConnectedFlowTable::~ConnectedFlowTable() = default;
@@ -37,22 +52,6 @@ ConnectedFlow::ConnectedFlow(Mode mode, const TraceStorage* storage)
     : mode_(mode), storage_(storage) {}
 
 ConnectedFlow::~ConnectedFlow() = default;
-
-base::Status ConnectedFlow::ValidateConstraints(const QueryConstraints& qc) {
-  const auto& cs = qc.constraints();
-
-  auto flow_id_fn = [](const QueryConstraints::Constraint& c) {
-    return c.column == static_cast<int>(
-                           tables::ConnectedFlowTable::ColumnIndex::start_id) &&
-           sqlite_utils::IsOpEq(c.op);
-  };
-  bool has_flow_id_cs =
-      std::find_if(cs.begin(), cs.end(), flow_id_fn) != cs.end();
-
-  return has_flow_id_cs
-             ? base::OkStatus()
-             : base::ErrStatus("Failed to find required constraints");
-}
 
 namespace {
 
@@ -199,39 +198,28 @@ class BFS {
 
 }  // namespace
 
-base::Status ConnectedFlow::ComputeTable(const std::vector<Constraint>& cs,
-                                         const std::vector<Order>&,
-                                         const BitVector&,
-                                         std::unique_ptr<Table>& table_return) {
+base::StatusOr<std::unique_ptr<Table>> ConnectedFlow::ComputeTable(
+    const std::vector<SqlValue>& arguments) {
+  PERFETTO_CHECK(arguments.size() == 1);
+
   const auto& flow = storage_->flow_table();
   const auto& slice = storage_->slice_table();
 
-  auto it = std::find_if(cs.begin(), cs.end(), [](const Constraint& c) {
-    return c.col_idx == tables::ConnectedFlowTable::ColumnIndex::start_id &&
-           c.op == FilterOp::kEq;
-  });
-  if (it == cs.end()) {
-    return base::ErrStatus("no start id specified.");
-  }
-  if (it->value.type == SqlValue::Type::kNull) {
+  if (arguments[0].type == SqlValue::Type::kNull) {
     // Nothing matches a null id so return an empty table.
-    table_return =
-        tables::ConnectedFlowTable::SelectAndExtendParent(flow, {}, {});
-    return base::OkStatus();
+    return tables::ConnectedFlowTable::SelectAndExtendParent(flow, {}, {});
   }
-  if (it->value.type != SqlValue::Type::kLong) {
+  if (arguments[0].type != SqlValue::Type::kLong) {
     return base::ErrStatus("start id should be an integer.");
   }
 
-  SliceId start_id{static_cast<uint32_t>(it->value.AsLong())};
-
+  SliceId start_id{static_cast<uint32_t>(arguments[0].AsLong())};
   if (!slice.id().IndexOf(start_id)) {
     return base::ErrStatus("invalid slice id %" PRIu32 "",
                            static_cast<uint32_t>(start_id.value));
   }
 
   BFS bfs(storage_);
-
   switch (mode_) {
     case Mode::kDirectlyConnectedFlow:
       bfs.Start(start_id).VisitAll(VISIT_INCOMING_AND_OUTGOING,
@@ -253,9 +241,8 @@ base::Status ConnectedFlow::ComputeTable(const std::vector<Constraint>& cs,
   for (size_t i = 0; i < result_rows.size(); i++) {
     start_ids.Append(start_id.value);
   }
-  table_return = tables::ConnectedFlowTable::SelectAndExtendParent(
+  return tables::ConnectedFlowTable::SelectAndExtendParent(
       flow, result_rows, std::move(start_ids));
-  return base::OkStatus();
 }
 
 Table::Schema ConnectedFlow::CreateSchema() {
@@ -277,5 +264,4 @@ std::string ConnectedFlow::TableName() {
 uint32_t ConnectedFlow::EstimateRowCount() {
   return 1;
 }
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -421,41 +421,42 @@ export class FlamegraphController extends Controller<'main'> {
   private async prepareViewsAndTables(
       start: time, end: time, upids: number[], type: ProfileType,
       focusRegex: string): Promise<string> {
-    // Creating unique names for views so we can reuse and not delete them
-    // for each marker.
-    let focusRegexConditional = '';
-    if (focusRegex !== '') {
-      focusRegexConditional = `and focus_str = '${focusRegex}'`;
-    }
     const flamegraphType = getFlamegraphType(type);
-
-    /*
-     * TODO(octaviant) this branching should be eliminated for simplicity.
-     */
     if (type === ProfileType.PERF_SAMPLE) {
-      let upidConditional = `upid = ${upids[0]}`;
+      let upid: string;
+      let upidGroup: string;
       if (upids.length > 1) {
-        upidConditional =
-            `upid_group = '${FlamegraphController.serializeUpidGroup(upids)}'`;
+        upid = `NULL`;
+        upidGroup = `'${FlamegraphController.serializeUpidGroup(upids)}'`;
+      } else {
+        upid = `${upids[0]}`;
+        upidGroup = `NULL`;
       }
       return this.cache.getTableName(
           `select id, name, map_name, parent_id, depth, cumulative_size,
           cumulative_alloc_size, cumulative_count, cumulative_alloc_count,
           size, alloc_size, count, alloc_count, source_file, line_number
-          from experimental_flamegraph
-          where profile_type = '${flamegraphType}' and ${start} <= ts and
-              ts <= ${end} and ${upidConditional}
-          ${focusRegexConditional}`);
+          from experimental_flamegraph(
+            '${flamegraphType}',
+            NULL,
+            '>=${start},<=${end}',
+            ${upid},
+            ${upidGroup},
+            '${focusRegex}'
+          )`);
     }
     return this.cache.getTableName(
         `select id, name, map_name, parent_id, depth, cumulative_size,
           cumulative_alloc_size, cumulative_count, cumulative_alloc_count,
           size, alloc_size, count, alloc_count, source_file, line_number
-          from experimental_flamegraph
-          where profile_type = '${flamegraphType}'
-            and ts = ${end}
-            and upid = ${upids[0]}
-            ${focusRegexConditional}`);
+          from experimental_flamegraph(
+            '${flamegraphType}',
+            ${end},
+            NULL,
+            ${upids[0]},
+            NULL,
+            '${focusRegex}'
+          )`);
   }
 
   getMinSizeDisplayed(flamegraphData: CallsiteInfo[], rootSize?: number):

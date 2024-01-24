@@ -15,10 +15,19 @@
  */
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <limits>
+#include <utility>
+#include <vector>
+
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 class TableInseter {
@@ -29,7 +38,7 @@ class TableInseter {
     row.dur = dur;
     row.depth = depth;
     row.track_id = track_id;
-    rows_.emplace_back(std::move(row));
+    rows_.emplace_back(row);
   }
 
   void Populate(tables::SliceTable& table) {
@@ -48,7 +57,7 @@ class TableInseter {
 
 class TableAsserter {
  public:
-  TableAsserter(Table table) : table_(std::move(table)) {}
+  explicit TableAsserter(Table table) : table_(std::move(table)) {}
 
   void NextSlice(int64_t ts, int64_t dur) {
     ++idx_;
@@ -197,5 +206,4 @@ TEST(ExperimentalFlatSlice, Bounds) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

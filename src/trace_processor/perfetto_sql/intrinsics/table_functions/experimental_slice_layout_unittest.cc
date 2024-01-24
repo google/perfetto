@@ -16,18 +16,26 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
 
-#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
 
-#include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
+#include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/base/test/status_matchers.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
-
-constexpr uint32_t kColumn =
-    tables::ExperimentalSliceLayoutTable::ColumnIndex::filter_track_ids;
 
 std::string ToVis(const Table& table) {
   const ColumnLegacy* layout_depth_column =
@@ -59,7 +67,7 @@ std::string ToVis(const Table& table) {
     }
   }
 
-  std::string output = "";
+  std::string output;
   output += "\n";
   for (const std::string& line : lines) {
     output += line;
@@ -105,12 +113,10 @@ TEST(ExperimentalSliceLayoutTest, SingleRow) {
 
   ExperimentalSliceLayout gen(&pool, &slice_table);
 
-  std::unique_ptr<Table> table;
-  auto status = gen.ComputeTable(
-      {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1")}}, {},
-      BitVector(), table);
-  EXPECT_TRUE(status.ok());
-  ExpectOutput(*table, R"(
+  base::StatusOr<std::unique_ptr<Table>> table =
+      gen.ComputeTable({SqlValue::String("1")});
+  EXPECT_OK(table);
+  ExpectOutput(**table, R"(
  #####
 )");
 }
@@ -126,12 +132,10 @@ TEST(ExperimentalSliceLayoutTest, DoubleRow) {
 
   ExperimentalSliceLayout gen(&pool, &slice_table);
 
-  std::unique_ptr<Table> table;
-  auto status = gen.ComputeTable(
-      {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1")}}, {},
-      BitVector(), table);
-  EXPECT_TRUE(status.ok());
-  ExpectOutput(*table, R"(
+  base::StatusOr<std::unique_ptr<Table>> table =
+      gen.ComputeTable({SqlValue::String("1")});
+  EXPECT_OK(table);
+  ExpectOutput(**table, R"(
  #####
  #####
 )");
@@ -152,12 +156,10 @@ TEST(ExperimentalSliceLayoutTest, MultipleRows) {
 
   ExperimentalSliceLayout gen(&pool, &slice_table);
 
-  std::unique_ptr<Table> table;
-  auto status = gen.ComputeTable(
-      {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1")}}, {},
-      BitVector(), table);
-  EXPECT_TRUE(status.ok());
-  ExpectOutput(*table, R"(
+  base::StatusOr<std::unique_ptr<Table>> table =
+      gen.ComputeTable({SqlValue::String("1")});
+  EXPECT_OK(table);
+  ExpectOutput(**table, R"(
  #####
  ####
  ###
@@ -185,12 +187,10 @@ TEST(ExperimentalSliceLayoutTest, MultipleTracks) {
 
   ExperimentalSliceLayout gen(&pool, &slice_table);
 
-  std::unique_ptr<Table> table;
-  auto status = gen.ComputeTable(
-      {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1,2")}}, {},
-      BitVector(), table);
-  EXPECT_TRUE(status.ok());
-  ExpectOutput(*table, R"(
+  base::StatusOr<std::unique_ptr<Table>> table =
+      gen.ComputeTable({SqlValue::String("1,2")});
+  EXPECT_OK(table);
+  ExpectOutput(**table, R"(
  ####
  ##
     ####
@@ -223,12 +223,10 @@ TEST(ExperimentalSliceLayoutTest, MultipleTracksWithGap) {
 
   ExperimentalSliceLayout gen(&pool, &slice_table);
 
-  std::unique_ptr<Table> table;
-  auto status = gen.ComputeTable(
-      {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1,2")}}, {},
-      BitVector(), table);
-  EXPECT_TRUE(status.ok());
-  ExpectOutput(*table, R"(
+  base::StatusOr<std::unique_ptr<Table>> table =
+      gen.ComputeTable({SqlValue::String("1,2")});
+  EXPECT_OK(table);
+  ExpectOutput(**table, R"(
 #### ####
 ##   ##
    ####
@@ -268,12 +266,10 @@ TEST(ExperimentalSliceLayoutTest, PreviousGroupFullyNested) {
 
   ExperimentalSliceLayout gen(&pool, &slice_table);
 
-  std::unique_ptr<Table> table;
-  auto status = gen.ComputeTable(
-      {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1,2,3")}}, {},
-      BitVector(), table);
-  EXPECT_TRUE(status.ok());
-  ExpectOutput(*table, R"(
+  base::StatusOr<std::unique_ptr<Table>> table =
+      gen.ComputeTable({SqlValue::String("1,2,3")});
+  EXPECT_OK(table);
+  ExpectOutput(**table, R"(
 #
 ##########
 #########
@@ -306,12 +302,11 @@ TEST(ExperimentalSliceLayoutTest, FilterOutTracks) {
   base::ignore_result(q);
 
   ExperimentalSliceLayout gen(&pool, &slice_table);
-  std::unique_ptr<Table> table;
-  auto status = gen.ComputeTable(
-      {Constraint{kColumn, FilterOp::kEq, SqlValue::String("1,2")}}, {},
-      BitVector(), table);
-  EXPECT_TRUE(status.ok());
-  ExpectOutput(*table, R"(
+
+  base::StatusOr<std::unique_ptr<Table>> table =
+      gen.ComputeTable({SqlValue::String("1,2")});
+  EXPECT_OK(table);
+  ExpectOutput(**table, R"(
 ####
 ##
    ####
@@ -320,5 +315,4 @@ TEST(ExperimentalSliceLayoutTest, FilterOutTracks) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

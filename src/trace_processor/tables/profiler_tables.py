@@ -376,15 +376,20 @@ that were freed.''',
                 ''''''
         }))
 
-EXPERIMENTAL_FLAMEGRAPH_NODES_TABLE = Table(
+EXPERIMENTAL_FLAMEGRAPH_TABLE = Table(
     python_module=__file__,
-    class_name='ExperimentalFlamegraphNodesTable',
-    sql_name='experimental_flamegraph_nodes',
+    class_name='ExperimentalFlamegraphTable',
+    sql_name='experimental_flamegraph',
     columns=[
-        C('ts', CppInt64(), flags=ColumnFlag.SORTED | ColumnFlag.HIDDEN),
-        C('upid', CppUint32(), flags=ColumnFlag.HIDDEN),
         C('profile_type', CppString(), flags=ColumnFlag.HIDDEN),
-        C('focus_str', CppString(), flags=ColumnFlag.HIDDEN),
+        C('ts_in',
+          CppOptional(CppInt64()),
+          flags=ColumnFlag.SORTED | ColumnFlag.HIDDEN),
+        C('ts_constraint', CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C('upid', CppOptional(CppUint32()), flags=ColumnFlag.HIDDEN),
+        C('upid_group', CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C('focus_str', CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('depth', CppUint32()),
         C('name', CppString()),
         C('map_name', CppString()),
@@ -399,7 +404,6 @@ EXPERIMENTAL_FLAMEGRAPH_NODES_TABLE = Table(
         C('parent_id', CppOptional(CppSelfTableId())),
         C('source_file', CppOptional(CppString())),
         C('line_number', CppOptional(CppUint32())),
-        C('upid_group', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -609,7 +613,7 @@ GPU_COUNTER_GROUP_TABLE = Table(
 # Keep this list sorted.
 ALL_TABLES = [
     CPU_PROFILE_STACK_SAMPLE_TABLE,
-    EXPERIMENTAL_FLAMEGRAPH_NODES_TABLE,
+    EXPERIMENTAL_FLAMEGRAPH_TABLE,
     GPU_COUNTER_GROUP_TABLE,
     HEAP_GRAPH_CLASS_TABLE,
     HEAP_GRAPH_OBJECT_TABLE,
