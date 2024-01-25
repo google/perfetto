@@ -110,8 +110,6 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
   constructor(
       private ctx: PluginContext, readonly engine: EngineProxy,
-      readonly trackRegistry: Map<string, TrackDescriptor>,
-      private defaultTracks: Set<TrackRef>,
       private commandRegistry: Map<string, Command>) {
     this.trash.add(engine);
   }
@@ -134,13 +132,15 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   registerTrack(trackDesc: TrackDescriptor): void {
     // Silently ignore if context is dead.
     if (!this.alive) return;
-    this.trackRegistry.set(trackDesc.uri, trackDesc);
-    this.trash.addCallback(() => this.trackRegistry.delete(trackDesc.uri));
+    globals.trackManager.registerTrack(trackDesc);
+    this.trash.addCallback(
+      () => globals.trackManager.unregisterTrack(trackDesc.uri));
   }
 
   addDefaultTrack(track: TrackRef): void {
-    this.defaultTracks.add(track);
-    this.trash.addCallback(() => this.defaultTracks.delete(track));
+    globals.trackManager.addDefaultTrack(track);
+    this.trash.addCallback(
+      () => globals.trackManager.removeDefaultTrack(track));
   }
 
   registerStaticTrack(track: TrackDescriptor&TrackRef): void {
@@ -337,9 +337,7 @@ export class PluginManager {
   private registry: PluginRegistry;
   private plugins: Map<string, PluginDetails>;
   private engine?: Engine;
-  readonly trackRegistry = new Map<string, TrackDescriptor>();
   readonly commandRegistry = new Map<string, Command>();
-  readonly defaultTracks = new Set<TrackRef>();
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
@@ -395,10 +393,6 @@ export class PluginManager {
     return this.plugins.get(pluginId);
   }
 
-  findPotentialTracks(): TrackRef[] {
-    return Array.from(this.defaultTracks);
-  }
-
   async onTraceLoad(engine: Engine): Promise<void> {
     this.engine = engine;
     const plugins = Array.from(this.plugins.entries());
@@ -430,12 +424,6 @@ export class PluginManager {
     });
   }
 
-  // Look up track into for a given track's URI.
-  // Returns |undefined| if no track can be found.
-  resolveTrackInfo(uri: string): TrackDescriptor|undefined {
-    return this.trackRegistry.get(uri);
-  }
-
   private async doPluginTraceLoad(
     pluginDetails: PluginDetails, engine: Engine,
     pluginId: string): Promise<void> {
@@ -443,12 +431,8 @@ export class PluginManager {
 
     const engineProxy = engine.getProxy(pluginId);
 
-    const traceCtx = new PluginContextTraceImpl(
-      context,
-      engineProxy,
-      this.trackRegistry,
-      this.defaultTracks,
-      this.commandRegistry);
+    const traceCtx =
+        new PluginContextTraceImpl(context, engineProxy, this.commandRegistry);
     pluginDetails.traceContext = traceCtx;
 
     const result = plugin.onTraceLoad?.(traceCtx);

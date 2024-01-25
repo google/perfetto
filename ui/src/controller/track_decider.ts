@@ -21,7 +21,6 @@ import {
   AddTrackArgs,
   DeferredAction,
 } from '../common/actions';
-import {pluginManager} from '../common/plugins';
 import {
   InThreadTrackSortKey,
   SCROLLING_TRACK_GROUP,
@@ -29,6 +28,7 @@ import {
   UtidToTrackSortKey,
 } from '../common/state';
 import {featureFlags, PERF_SAMPLE_FLAG} from '../core/feature_flags';
+import {globals} from '../frontend/globals';
 import {PrimaryTrackSortKey} from '../public';
 import {getTrackName} from '../public/utils';
 import {Engine, EngineProxy} from '../trace_processor/engine';
@@ -1729,7 +1729,7 @@ class TrackDecider {
   }
 
   addPluginTracks(): void {
-    const tracks = pluginManager.findPotentialTracks();
+    const tracks = globals.trackManager.findPotentialTracks();
     for (const info of tracks) {
       this.tracksToAdd.push({
         uri: info.uri,

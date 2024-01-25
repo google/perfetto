@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {ColumnDef} from '../../common/aggregation_data';
-import {pluginManager} from '../../common/plugins';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
@@ -30,7 +29,7 @@ export function getSelectedTrackKeys(area: Area): number[] {
     const track = globals.state.tracks[trackKey];
     // Track will be undefined for track groups.
     if (track?.uri !== undefined) {
-      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
       if (trackInfo?.kind === SLICE_TRACK_KIND) {
         trackInfo.trackIds && selectedTrackKeys.push(...trackInfo.trackIds);
       }
