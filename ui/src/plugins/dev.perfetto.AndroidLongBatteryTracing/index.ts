@@ -32,10 +32,9 @@ const DEFAULT_NETWORK = `
   with base as (
       select
           ts,
-          substr(s.name, 6, 1) as conn
+          substr(s.name, 6) as conn
       from track t join slice s on t.id = s.track_id
       where t.name = 'battery_stats.conn'
-          and s.name like '%"CONNECTED"'
   ),
   diff as (
       select
@@ -47,7 +46,13 @@ const DEFAULT_NETWORK = `
   select
       ts,
       ifnull(lead(ts) over (order by ts), (select end_ts from trace_bounds)) - ts as dur,
-      case conn when '1' then 'WiFi' when '0' then 'Modem' else conn end as name
+      case
+        when conn like '-1:%' then 'Disconnected'
+        when conn like '0:%' then 'Modem'
+        when conn like '1:%' then 'WiFi'
+        when conn like '4:%' then 'VPN'
+        else conn
+      end as name
   from diff where keep is null or keep`;
 
 const TETHERING = `
@@ -152,6 +157,105 @@ const MODEM_ACTIVITY_INFO = `
       from deltas
   )
   select * from ratios where sleep_time_ratio is not null and sleep_time_ratio >= 0`;
+
+const MODEM_RIL_STRENGTH = `
+  DROP VIEW IF EXISTS ScreenOn;
+  CREATE VIEW ScreenOn AS
+  SELECT ts, dur FROM (
+      SELECT
+          ts, value,
+          LEAD(ts, 1, TRACE_END()) OVER (ORDER BY ts)-ts AS dur
+      FROM counter, track ON (counter.track_id = track.id)
+      WHERE track.name = 'ScreenState'
+  ) WHERE value = 2;
+
+  DROP VIEW IF EXISTS RilSignalStrength;
+  CREATE VIEW RilSignalStrength AS
+  With RilMessages AS (
+      SELECT
+          ts, slice.name,
+          LEAD(ts, 1, TRACE_END()) OVER (ORDER BY ts)-ts AS dur
+      FROM slice, track
+      ON (slice.track_id = track.id)
+      WHERE track.name = 'RIL'
+        AND slice.name GLOB 'UNSOL_SIGNAL_STRENGTH*'
+  ),
+  BandTypes(band_ril, band_name) AS (
+      VALUES ("CellSignalStrengthLte:", "LTE"),
+              ("CellSignalStrengthNr:", "NR")
+  ),
+  ValueTypes(value_ril, value_name) AS (
+      VALUES ("rsrp=", "rsrp"),
+              ("rssi=", "rssi")
+  ),
+  Extracted AS (
+      SELECT ts, dur, band_name, value_name, (
+          SELECT CAST(SUBSTR(key_str, start_idx+1, end_idx-start_idx-1) AS INT64) AS value
+          FROM (
+              SELECT key_str, INSTR(key_str, "=") AS start_idx, INSTR(key_str, " ") AS end_idx
+              FROM (
+                  SELECT SUBSTR(band_str, INSTR(band_str, value_ril)) AS key_str
+                  FROM (SELECT SUBSTR(name, INSTR(name, band_ril)) AS band_str)
+              )
+          )
+      ) AS value
+      FROM RilMessages
+      JOIN BandTypes
+      JOIN ValueTypes
+  )
+  SELECT
+  ts, dur, band_name, value_name, value,
+  value_name || "=" || IIF(value = 2147483647, "unknown", ""||value) AS name,
+  ROW_NUMBER() OVER (ORDER BY ts) as id,
+  DENSE_RANK() OVER (ORDER BY band_name, value_name) AS track_id
+  FROM Extracted;
+
+  DROP TABLE IF EXISTS RilScreenOn;
+  CREATE VIRTUAL TABLE RilScreenOn
+  USING SPAN_JOIN(RilSignalStrength PARTITIONED track_id, ScreenOn)`;
+
+const MODEM_RIL_CHANNELS_PREAMBLE = `
+  SELECT IMPORT('android.battery_stats');
+
+  CREATE OR REPLACE PERFETTO FUNCTION EXTRACT_KEY_VALUE(source STRING, key_name STRING) RETURNS STRING AS
+  SELECT SUBSTR(trimmed, INSTR(trimmed, "=")+1, INSTR(trimmed, ",") - INSTR(trimmed, "=") - 1)
+  FROM (SELECT SUBSTR($source, INSTR($source, $key_name)) AS trimmed);`;
+
+const MODEM_RIL_CHANNELS = `
+  With RawChannelConfig AS (
+      SELECT ts, slice.name AS raw_config
+      FROM slice, track
+      ON (slice.track_id = track.id)
+      WHERE track.name = 'RIL'
+      AND slice.name LIKE 'UNSOL_PHYSICAL_CHANNEL_CONFIG%'
+  ),
+  Attributes(attribute, attrib_name) AS (
+      VALUES ("mCellBandwidthDownlinkKhz", "downlink"),
+          ("mCellBandwidthUplinkKhz", "uplink"),
+          ("mNetworkType", "network"),
+          ("mBand", "band")
+  ),
+  Slots(idx, slot_name) AS (
+      VALUES (0, "primary"),
+          (1, "secondary 1"),
+          (2, "secondary 2")
+  ),
+  Stage1 AS (
+      SELECT *, IFNULL(EXTRACT_KEY_VALUE(STR_SPLIT(raw_config, "}, {", idx), attribute), "") AS name
+      FROM RawChannelConfig
+      JOIN Attributes
+      JOIN Slots
+  ),
+  Stage2 AS (
+      SELECT *, LAG(name) OVER (PARTITION BY idx, attribute ORDER BY ts) AS last_name
+      FROM Stage1
+  ),
+  Stage3 AS (
+      SELECT *, LEAD(ts, 1, TRACE_END()) OVER (PARTITION BY idx, attribute ORDER BY ts) - ts AS dur
+      FROM Stage2 WHERE name != last_name
+  )
+  SELECT ts, dur, slot_name || "-" || attrib_name || "=" || name AS name
+  FROM Stage3`;
 
 const THERMAL_THROTTLING = `
   with step1 as (
@@ -819,6 +923,38 @@ class AndroidLongBatteryTracing implements Plugin {
     return action;
   }
 
+  async addBatteryStatsEvents(e: EngineProxy, groupId: string):
+      Promise<DeferredAction<{}>[]> {
+    const query = (name: string, track: string): Promise<DeferredAction<{}>> =>
+        this.addSliceTrack(
+            e,
+            name,
+            `SELECT ts, dur, str_value AS name
+            FROM android_battery_stats_event_slices
+            WHERE track_name = "${track}"`,
+            groupId);
+
+    return await Promise.all([
+      query('Top App', 'battery_stats.top'),
+      this.addSliceTrack(
+          e,
+          'Long wakelocks',
+          `SELECT
+             ts - 60000000000 as ts,
+             dur + 60000000000 as dur,
+             str_value AS name,
+             ifnull(
+              (select package_name from package_list where uid = int_value % 100000),
+              int_value) as package
+          FROM android_battery_stats_event_slices
+          WHERE track_name = "battery_stats.longwake"`,
+          groupId,
+          ['package']),
+      query('Foreground Apps', 'battery_stats.fg'),
+      query('Jobs', 'battery_stats.job'),
+    ]);
+  }
+
   async addNetworkSummary(e: EngineProxy, groupId: string):
       Promise<DeferredAction<{}>[]> {
     await e.query(NETWORK_SUMMARY);
@@ -877,6 +1013,30 @@ class AndroidLongBatteryTracing implements Plugin {
       query('Modem TX time power 2', 'controller_tx_time_pl2'),
       query('Modem TX time power 3', 'controller_tx_time_pl3'),
       query('Modem TX time power 4', 'controller_tx_time_pl4'),
+    ]);
+  }
+
+  async addModemRil(e: EngineProxy, groupId: string):
+      Promise<DeferredAction<{}>[]> {
+    const rilStrength =
+        (band: string, value: string): Promise<DeferredAction<{}>> =>
+            this.addSliceTrack(
+                e,
+                `Modem signal strength ${band} ${value}`,
+                `SELECT ts, dur, name FROM RilScreenOn WHERE band_name = '${
+                    band}' AND value_name = '${value}'`,
+                groupId);
+
+    await e.query(MODEM_RIL_STRENGTH);
+    await e.query(MODEM_RIL_CHANNELS_PREAMBLE);
+
+    return await Promise.all([
+      rilStrength('LTE', 'rsrp'),
+      rilStrength('LTE', 'rssi'),
+      rilStrength('NR', 'rssi'),
+      rilStrength('NR', 'rssi'),
+      this.addSliceTrack(
+          e, 'Modem channel config', MODEM_RIL_CHANNELS, groupId),
     ]);
   }
 
@@ -1058,8 +1218,10 @@ class AndroidLongBatteryTracing implements Plugin {
             ctx.engine, 'Thermal throttling', THERMAL_THROTTLING, miscGroupId));
 
         const promises: Promise<DeferredAction<{}>[]>[] = [
+          this.addBatteryStatsEvents(ctx.engine, miscGroupId),
           this.addNetworkSummary(ctx.engine, networkId),
           this.addModemActivityInfo(ctx.engine, networkId),
+          this.addModemRil(ctx.engine, networkId),
           this.addKernelWakelocks(ctx.engine, wakelocksId),
           this.addWakeups(ctx.engine, wakeupsId),
           this.addHighCpu(ctx.engine, cpuId),
