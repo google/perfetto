@@ -13,13 +13,13 @@
 // limitations under the License.
 
 import {runQuery} from '../../common/queries';
+import {addDebugSliceTrack} from '../../public';
 import {
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {addDebugSliceTrack} from '../../tracks/debug/slice_track';
 
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `

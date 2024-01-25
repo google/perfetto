@@ -27,7 +27,7 @@ import {NUM} from '../trace_processor/query_result';
 import {
   VISUALISED_ARGS_SLICE_TRACK_URI,
   VisualisedArgsState,
-} from '../tracks/visualised_args';
+} from './visualized_args_tracks';
 import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {TreeNode} from '../widgets/tree';

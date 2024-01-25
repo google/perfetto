@@ -18,7 +18,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {addDebugSliceTrack} from '../../tracks/debug/slice_track';
+import {addDebugSliceTrack} from '../../public';
 
 class AndroidPerfTraceCounters implements Plugin {
   onActivate(_: PluginContext): void {}

@@ -21,7 +21,6 @@ import {runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
 import {EngineProxy} from '../trace_processor/engine';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../trace_processor/query_result';
-import {addDebugSliceTrack} from '../tracks/debug/slice_track';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
@@ -44,6 +43,7 @@ import {
 } from './sql/thread_state';
 import {asSliceSqlId} from './sql_types';
 import {DurationWidget} from './widgets/duration';
+import {addDebugSliceTrack} from './debug_tracks';
 
 interface ContextMenuItem {
   name: string;

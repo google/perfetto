@@ -17,7 +17,6 @@ import m from 'mithril';
 import {Time, time} from '../base/time';
 import {runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
-import {addDebugSliceTrack} from '../tracks/debug/slice_track';
 import {Anchor} from '../widgets/anchor';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
@@ -43,6 +42,7 @@ import {
 } from './thread_state';
 import {DurationWidget, renderDuration} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
+import {addDebugSliceTrack} from './debug_tracks';
 
 interface ThreadStateTabConfig {
   // Id into |thread_state| sql table.
