@@ -18,8 +18,7 @@ import {getScrollbarWidth} from '../base/dom_utils';
 import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
-import {pluginManager} from '../common/plugins';
-import {TrackCache, TrackCacheEntry} from '../common/track_cache';
+import {TrackCacheEntry} from '../common/track_cache';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {TrackTags} from '../public';
@@ -89,8 +88,6 @@ class TraceViewer implements m.ClassComponent {
   private zoomContent?: PanAndZoomHandler;
   // Used to prevent global deselection if a pan/drag select occurred.
   private keepCurrentSelection = false;
-
-  readonly trackCache = new TrackCache();
 
   private overviewTimelinePanel = new OverviewTimelinePanel('overview');
   private timeAxisPanel = new TimeAxisPanel('timeaxis');
@@ -332,7 +329,7 @@ class TraceViewer implements m.ClassComponent {
           })))),
       this.renderTabPanel());
 
-    this.trackCache.flushOldTracks();
+    globals.trackManager.flushOldTracks();
     return result;
   }
 
@@ -340,9 +337,9 @@ class TraceViewer implements m.ClassComponent {
   private resolveTrack(key: string): TrackBundle {
     const trackState = globals.state.tracks[key];
     const {uri, params, name, labels} = trackState;
-    const trackDesc = pluginManager.resolveTrackInfo(uri);
+    const trackDesc = globals.trackManager.resolveTrackInfo(uri);
     const trackCacheEntry =
-        trackDesc && this.trackCache.resolveTrack(key, trackDesc, params);
+        trackDesc && globals.trackManager.resolveTrack(key, trackDesc, params);
     const trackFSM = trackCacheEntry;
     const tags = trackCacheEntry?.desc.tags;
     const trackIds = trackCacheEntry?.desc.trackIds;
