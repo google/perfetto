@@ -22,6 +22,7 @@ import {
   GenericSliceDetailsTabConfig,
   GenericSliceDetailsTabConfigBase,
 } from '../frontend/generic_slice_details_tab';
+import {globals} from '../frontend/globals';
 import {
   Aggregation,
   AggregationFunction,
@@ -46,7 +47,6 @@ import {
   traceEventEnd,
   TraceEventScope,
 } from './metatracing';
-import {pluginManager} from './plugins';
 import {
   AdbRecordingTarget,
   Area,
@@ -219,7 +219,7 @@ export const StateActions = {
     if (exists(uri)) {
       // If track is a new "plugin" type track (i.e. it has a uri), resolve the
       // track ids from through the pluginManager.
-      const trackInfo = pluginManager.resolveTrackInfo(uri);
+      const trackInfo = globals.trackManager.resolveTrackInfo(uri);
       if (trackInfo?.trackIds) {
         for (const trackId of trackInfo.trackIds) {
           setTrackKey(trackId, trackKey);

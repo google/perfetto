@@ -21,7 +21,6 @@ import {
   findRootSize,
   mergeCallsites,
 } from '../common/flamegraph_util';
-import {pluginManager} from '../common/plugins';
 import {
   CallsiteInfo,
   FlamegraphState,
@@ -134,7 +133,7 @@ export class FlamegraphController extends Controller<'main'> {
       for (const trackId of area.tracks) {
         const track = globals.state.tracks[trackId];
         if (track?.uri) {
-          const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+          const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
           if (trackInfo?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND) {
             exists(trackInfo.upid) && upids.push(trackInfo.upid);
           }

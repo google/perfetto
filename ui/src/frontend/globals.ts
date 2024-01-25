@@ -29,6 +29,7 @@ import {
   ConversionJobName,
   ConversionJobStatus,
 } from '../common/conversion_jobs';
+import {createEmptyState} from '../common/empty_state';
 import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
@@ -45,6 +46,7 @@ import {
 } from '../common/state';
 import {TabManager} from '../common/tab_registry';
 import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
+import {TrackManager} from '../common/track_cache';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {Engine} from '../trace_processor/engine';
@@ -248,7 +250,7 @@ class Globals {
 
   private _testing = false;
   private _dispatch?: Dispatch = undefined;
-  private _store?: Store<State>;
+  private _store = createStore(createEmptyState());
   private _timeline?: Timeline = undefined;
   private _serviceWorkerController?: ServiceWorkerController = undefined;
   private _logging?: Analytics = undefined;
@@ -286,6 +288,7 @@ class Globals {
   private _traceTzOffset = Time.ZERO;
   private _openQueryHandler?: OpenQueryHandler;
   private _tabManager = new TabManager();
+  private _trackManager = new TrackManager(this._store);
 
   scrollToTrackKey?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
@@ -311,12 +314,9 @@ class Globals {
 
   engines = new Map<string, Engine>();
 
-  initialize(
-    dispatch: Dispatch, router: Router, initialState: State,
-    cmdManager: CommandManager) {
+  initialize(dispatch: Dispatch, router: Router, cmdManager: CommandManager) {
     this._dispatch = dispatch;
     this._router = router;
-    this._store = createStore(initialState);
     this._cmdManager = cmdManager;
     this._timeline = new Timeline();
 
@@ -660,7 +660,6 @@ class Globals {
 
   resetForTesting() {
     this._dispatch = undefined;
-    this._store = undefined;
     this._timeline = undefined;
     this._serviceWorkerController = undefined;
 
@@ -782,6 +781,10 @@ class Globals {
 
   get tabManager() {
     return this._tabManager;
+  }
+
+  get trackManager() {
+    return this._trackManager;
   }
 
   // Offset between t=0 and the configured time domain.

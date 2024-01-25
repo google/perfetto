@@ -15,7 +15,6 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
-import {pluginManager} from '../common/plugins';
 import {translateState} from '../common/thread_state';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 import {Anchor} from '../widgets/anchor';
@@ -208,7 +207,7 @@ export class SliceDetailsPanel extends SlicePanel {
 
     let trackKey: string|number|undefined;
     for (const track of Object.values(globals.state.tracks)) {
-      const trackDesc = pluginManager.resolveTrackInfo(track.uri);
+      const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
       // TODO(stevegolton): Handle v2.
       if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
           trackDesc.utid === threadInfo.utid) {

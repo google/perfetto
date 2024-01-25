@@ -28,7 +28,6 @@ import {
   TimeSpan,
 } from '../base/time';
 import {Actions} from '../common/actions';
-import {pluginManager} from '../common/plugins';
 import {runQuery} from '../common/queries';
 import {
   DurationPrecision,
@@ -245,7 +244,7 @@ export class App implements m.ClassComponent {
 
       if (firstThreadStateTrack) {
         const trackInfo = globals.state.tracks[firstThreadStateTrack];
-        const trackDesc = pluginManager.resolveTrackInfo(trackInfo.uri);
+        const trackDesc = globals.trackManager.resolveTrackInfo(trackInfo.uri);
         if (trackDesc?.kind === THREAD_STATE_TRACK_KIND &&
             trackDesc?.utid !== undefined) {
           return trackDesc?.utid;
@@ -507,7 +506,7 @@ export class App implements m.ClassComponent {
       name: 'Find track by URI',
       callback:
           async () => {
-            const tracks = Array.from(pluginManager.trackRegistry.values());
+            const tracks = globals.trackManager.getAllTracks();
             const options = tracks.map(({uri}): PromptOption => {
               return {key: uri, displayName: uri};
             });

@@ -14,7 +14,6 @@
 
 import {exists} from '../../base/utils';
 import {ColumnDef, ThreadStateExtra} from '../../common/aggregation_data';
-import {pluginManager} from '../../common/plugins';
 import {Area, Sorting} from '../../common/state';
 import {translateState} from '../../common/thread_state';
 import {globals} from '../../frontend/globals';
@@ -33,7 +32,7 @@ export class ThreadAggregationController extends AggregationController {
       const track = globals.state.tracks[trackId];
       // Track will be undefined for track groups.
       if (track?.uri) {
-        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+        const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
         if (trackInfo?.kind === THREAD_STATE_TRACK_KIND) {
           exists(trackInfo.utid) && this.utids.push(trackInfo.utid);
         }

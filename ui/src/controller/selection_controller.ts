@@ -15,7 +15,6 @@
 import {assertTrue} from '../base/logging';
 import {Time, time} from '../base/time';
 import {Args, ArgValue} from '../common/arg_types';
-import {pluginManager} from '../common/plugins';
 import {ChromeSliceSelection} from '../common/state';
 import {
   CounterDetails,
@@ -310,7 +309,7 @@ export class SelectionController extends Controller<'main'> {
     // UI track id for slice tracks this would be unnecessary.
     let trackKey = '';
     for (const track of Object.values(globals.state.tracks)) {
-      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
       if (trackInfo?.kind === SLICE_TRACK_KIND) {
         const trackIds = trackInfo?.trackIds;
         if (trackIds && trackIds.length > 0 && trackIds[0] === trackId) {
