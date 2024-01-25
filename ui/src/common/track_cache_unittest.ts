@@ -12,9 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Track, TrackDescriptor} from '../public';
+import {createStore, Track, TrackDescriptor} from '../public';
 
-import {TrackCache} from './track_cache';
+import {createEmptyState} from './empty_state';
+import {TrackManager} from './track_cache';
 
 function makeMockTrack(): Track {
   return {
@@ -37,15 +38,22 @@ async function settle() {
   await new Promise((r) => setTimeout(r, 0));
 }
 
+let track: Track;
+let td: TrackDescriptor;
+let trackCache: TrackManager;
+
+beforeEach(() => {
+  track = makeMockTrack();
+  td = {
+    uri: 'test',
+    track: () => track,
+  };
+  const store = createStore(createEmptyState());
+  trackCache = new TrackManager(store);
+});
+
 describe('TrackCache', () => {
   it('calls track lifecycle hooks', async () => {
-    const track = makeMockTrack();
-    const td: TrackDescriptor = {
-      uri: 'test',
-      track: () => track,
-    };
-    const trackCache = new TrackCache();
-
     const entry = trackCache.resolveTrack('foo', td);
     entry.update();
     await settle();
@@ -53,13 +61,6 @@ describe('TrackCache', () => {
   });
 
   it('reuses tracks', async () => {
-    const track = makeMockTrack();
-    const td: TrackDescriptor = {
-      uri: 'test',
-      track: () => track,
-    };
-    const trackCache = new TrackCache();
-
     const first = trackCache.resolveTrack('foo', td);
     trackCache.flushOldTracks();
     const second = trackCache.resolveTrack('foo', td);
@@ -71,13 +72,6 @@ describe('TrackCache', () => {
   });
 
   it('destroys tracks', async () => {
-    const track = makeMockTrack();
-    const td: TrackDescriptor = {
-      uri: 'test',
-      track: () => track,
-    };
-    const trackCache = new TrackCache();
-
     trackCache.resolveTrack('foo', td);
 
     // Double flush should destroy all tracks
@@ -93,13 +87,6 @@ describe('TrackCache', () => {
 
 describe('TrackCacheEntry', () => {
   it('updates', async () => {
-    const track = makeMockTrack();
-    const td: TrackDescriptor = {
-      uri: 'test',
-      track: () => track,
-    };
-    const trackCache = new TrackCache();
-
     const entry = trackCache.resolveTrack('foo', td);
     entry.update();
     await settle();
@@ -107,13 +94,6 @@ describe('TrackCacheEntry', () => {
   });
 
   it('throws if updated when destroyed', async () => {
-    const track = makeMockTrack();
-    const td: TrackDescriptor = {
-      uri: 'test',
-      track: () => track,
-    };
-    const trackCache = new TrackCache();
-
     const entry = trackCache.resolveTrack('foo', td);
 
     // Double flush should destroy all tracks

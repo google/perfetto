@@ -14,7 +14,6 @@
 
 import {time} from '../base/time';
 import {exists} from '../base/utils';
-import {pluginManager} from '../common/plugins';
 import {TrackState} from '../common/state';
 import {SliceRect} from '../public';
 
@@ -53,7 +52,7 @@ interface TrackGroupPanelInfo {
 }
 
 function getTrackIds(track: TrackState): number[] {
-  const trackDesc = pluginManager.resolveTrackInfo(track.uri);
+  const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
   return trackDesc?.trackIds ?? [];
 }
 

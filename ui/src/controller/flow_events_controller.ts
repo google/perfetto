@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {pluginManager} from '../common/plugins';
 import {Area} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {Flow, globals} from '../frontend/globals';
@@ -233,7 +232,7 @@ export class FlowEventsController extends Controller<'main'> {
       // anything if there is only one TP track in this async track. In
       // that case experimental_slice_layout is just an expensive way
       // to find out depth === layout_depth.
-      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
       const trackIds = trackInfo?.trackIds;
       if (trackIds === undefined || trackIds.length <= 1) {
         uiTrackIdToInfo.set(uiTrackId, null);
@@ -378,7 +377,7 @@ export class FlowEventsController extends Controller<'main'> {
     for (const uiTrackId of area.tracks) {
       const track = globals.state.tracks[uiTrackId];
       if (track?.uri !== undefined) {
-        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+        const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
         const kind = trackInfo?.kind;
         if (kind === SLICE_TRACK_KIND ||
             kind === ACTUAL_FRAMES_SLICE_TRACK_KIND) {

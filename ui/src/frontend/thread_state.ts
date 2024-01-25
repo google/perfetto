@@ -22,7 +22,6 @@ import {
 } from '../base/time';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
-import {pluginManager} from '../common/plugins';
 import {translateState} from '../common/thread_state';
 import {EngineProxy} from '../trace_processor/engine';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../trace_processor/query_result';
@@ -147,7 +146,7 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   let trackId: string|undefined;
   for (const track of Object.values(globals.state.tracks)) {
     if (exists(track?.uri)) {
-      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
       if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
         if (trackInfo?.cpu === cpu) {
           trackId = track.key;
@@ -181,7 +180,8 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
         onclick: () => {
           let trackKey: string|number|undefined;
           for (const track of Object.values(globals.state.tracks)) {
-            const trackDesc = pluginManager.resolveTrackInfo(track.uri);
+            const trackDesc =
+                  globals.trackManager.resolveTrackInfo(track.uri);
             if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
                   trackDesc.utid === vnode.attrs.utid) {
               trackKey = track.key;

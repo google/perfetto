@@ -23,7 +23,6 @@ import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {CommandManager} from '../common/commands';
-import {createEmptyState} from '../common/empty_state';
 import {flattenArgs, traceEvent} from '../common/metatracing';
 import {pluginManager, pluginRegistry} from '../common/plugins';
 import {State} from '../common/state';
@@ -250,7 +249,7 @@ function main() {
 
   const cmdManager = new CommandManager();
 
-  globals.initialize(dispatch, router, createEmptyState(), cmdManager);
+  globals.initialize(dispatch, router, cmdManager);
 
   globals.serviceWorkerController.install();
 
