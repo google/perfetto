@@ -142,7 +142,7 @@ export class CounterTrack implements Track {
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   constructor(
-      ctx: TrackContext, private config: Config, private engine: EngineProxy) {
+    ctx: TrackContext, private config: Config, private engine: EngineProxy) {
     this.trackKey = ctx.trackKey;
     this.store = ctx.mountStore<CounterTrackState>((init: unknown) => {
       if (isCounterState(init)) {
@@ -218,7 +218,7 @@ export class CounterTrack implements Track {
         ifnull(min(delta), 0) as minDelta
       from ${this.tableName('counter_view')}`);
     const row = queryRes.firstRow(
-        {maxValue: NUM, minValue: NUM, maxDelta: NUM, minDelta: NUM});
+      {maxValue: NUM, minValue: NUM, maxDelta: NUM, minDelta: NUM});
     this.maximumValueSeen = row.maxValue;
     this.minimumValueSeen = row.minValue;
     this.maximumDeltaSeen = row.maxDelta;
@@ -342,11 +342,11 @@ export class CounterTrack implements Track {
     });
 
     return m(
-        PopupMenu2,
-        {
-          trigger: m(Button, {icon: 'show_chart', minimal: true}),
-        },
-        menuItems,
+      PopupMenu2,
+      {
+        trigger: m(Button, {icon: 'show_chart', minimal: true}),
+      },
+      menuItems,
     );
   }
 
@@ -500,8 +500,8 @@ export class CounterTrack implements Track {
 
       const xStart = Math.floor(timeScale.timeToPx(this.hoveredTs));
       const xEnd = this.hoveredTsEnd === undefined ?
-          endPx :
-          Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
+        endPx :
+        Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
       const y = MARGIN_TOP + RECT_HEIGHT -
           Math.round(((this.hoveredValue - yMin) / yRange) * RECT_HEIGHT);
 
@@ -516,7 +516,7 @@ export class CounterTrack implements Track {
       // Draw change marker.
       ctx.beginPath();
       ctx.arc(
-          xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
+        xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
       ctx.fill();
       ctx.stroke();
 
@@ -549,12 +549,12 @@ export class CounterTrack implements Track {
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end));
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      timeScale.timeToPx(data.start),
+      timeScale.timeToPx(data.end));
   }
 
   onMouseMove(pos: {x: number, y: number}) {
@@ -609,7 +609,7 @@ export class CounterTrack implements Track {
   async onDestroy(): Promise<void> {
     if (this.engine.isAlive) {
       await this.engine.query(
-          `DROP VIEW IF EXISTS ${this.tableName('counter_view')}`);
+        `DROP VIEW IF EXISTS ${this.tableName('counter_view')}`);
     }
     this.store.dispose();
   }

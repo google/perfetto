@@ -223,8 +223,8 @@ class CpuFreqTrack implements Track {
     }
 
     const geqConstraint = this.config.idleTrackId === undefined ?
-        `ts >= ${minTs}` :
-        `source_geq(ts, ${minTs})`;
+      `ts >= ${minTs}` :
+      `source_geq(ts, ${minTs})`;
     return this.engine.query(`
       select
         (ts + ${bucketSize / 2n}) / ${bucketSize} * ${bucketSize} as tsq,
@@ -251,14 +251,14 @@ class CpuFreqTrack implements Track {
 
   private async queryMaxSourceDur(): Promise<duration> {
     const maxDurFreqResult = await this.engine.query(
-        `select ifnull(max(dur), 0) as maxDur from ${this.tableName('freq')}`);
+      `select ifnull(max(dur), 0) as maxDur from ${this.tableName('freq')}`);
     const maxDur = maxDurFreqResult.firstRow({'maxDur': LONG}).maxDur;
     if (this.config.idleTrackId === undefined) {
       return maxDur;
     }
 
     const maxDurIdleResult = await this.engine.query(
-        `select ifnull(max(dur), 0) as maxDur from ${this.tableName('idle')}`);
+      `select ifnull(max(dur), 0) as maxDur from ${this.tableName('idle')}`);
     return BIMath.max(maxDur, maxDurIdleResult.firstRow({maxDur: LONG}).maxDur);
   }
 
@@ -414,8 +414,8 @@ class CpuFreqTrack implements Track {
       const timestamp = Time.fromRaw(data.timestamps[i]);
       const x = visibleTimeScale.timeToPx(timestamp);
       const xEnd = i === data.lastIdleValues.length - 1 ?
-          finalX :
-          visibleTimeScale.timeToPx(Time.fromRaw(data.timestamps[i + 1]));
+        finalX :
+        visibleTimeScale.timeToPx(Time.fromRaw(data.timestamps[i + 1]));
 
       const width = xEnd - x;
       const height = calculateY(data.lastFreqKHz[i]) - zeroY;
@@ -433,8 +433,8 @@ class CpuFreqTrack implements Track {
 
       const xStart = Math.floor(visibleTimeScale.timeToPx(this.hoveredTs));
       const xEnd = this.hoveredTsEnd === undefined ?
-          endPx :
-          Math.floor(visibleTimeScale.timeToPx(this.hoveredTsEnd));
+        endPx :
+        Math.floor(visibleTimeScale.timeToPx(this.hoveredTsEnd));
       const y = zeroY - Math.round((this.hoveredValue / yMax) * RECT_HEIGHT);
 
       // Highlight line.
@@ -448,7 +448,7 @@ class CpuFreqTrack implements Track {
       // Draw change marker.
       ctx.beginPath();
       ctx.arc(
-          xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
+        xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
       ctx.fill();
       ctx.stroke();
 
@@ -473,12 +473,12 @@ class CpuFreqTrack implements Track {
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        visibleTimeScale.timeToPx(data.start),
-        visibleTimeScale.timeToPx(data.end));
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      visibleTimeScale.timeToPx(data.start),
+      visibleTimeScale.timeToPx(data.end));
   }
 
   onMouseMove(pos: {x: number, y: number}) {

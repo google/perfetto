@@ -77,7 +77,7 @@ export class ThreadAggregationController extends AggregationController {
     const query = `select state, io_wait as ioWait, sum(dur) as totalDur
       FROM thread JOIN thread_state USING(utid)
       WHERE utid IN (${this.utids}) AND thread_state.ts + thread_state.dur > ${
-        area.start} AND
+  area.start} AND
       thread_state.ts < ${area.end}
       GROUP BY state, io_wait`;
     const result = await engine.query(query);

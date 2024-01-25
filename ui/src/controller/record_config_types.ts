@@ -115,7 +115,7 @@ export const recordConfigValidator = record({
   targetCmdLine: arrayOf(str()),
 });
 export const namedRecordConfigValidator = record(
-    {title: requiredStr, key: requiredStr, config: recordConfigValidator});
+  {title: requiredStr, key: requiredStr, config: recordConfigValidator});
 export type NamedRecordConfig =
     ValidatedType<typeof namedRecordConfigValidator>;
 export type RecordConfig = ValidatedType<typeof recordConfigValidator>;

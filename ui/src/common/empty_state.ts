@@ -40,7 +40,7 @@ const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
 });
 
 export function keyedMap<T>(
-    keyFn: (key: T) => string, ...values: T[]): Map<string, T> {
+  keyFn: (key: T) => string, ...values: T[]): Map<string, T> {
   const result = new Map<string, T>();
 
   for (const value of values) {
@@ -105,8 +105,8 @@ export function createEmptyState(): State {
     notes: {},
 
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get() ?
-        autosaveConfigStore.get() :
-        createEmptyRecordConfig(),
+      autosaveConfigStore.get() :
+      createEmptyRecordConfig(),
     displayConfigAsPbtxt: false,
     lastLoadedConfig: {type: 'NONE'},
 

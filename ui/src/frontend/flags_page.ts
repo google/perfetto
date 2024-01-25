@@ -40,23 +40,23 @@ class SelectWidget implements m.ClassComponent<SelectWidgetAttrs> {
   view(vnode: m.Vnode<SelectWidgetAttrs>) {
     const attrs = vnode.attrs;
     return m(
-        '.flag-widget',
-        m('label', attrs.label),
-        m(
-            'select',
-            {
-              onchange: (e: InputEvent) => {
-                const value = (e.target as HTMLSelectElement).value;
-                attrs.onSelect(value);
-                raf.scheduleFullRedraw();
-              },
-            },
-            attrs.options.map((o) => {
-              const selected = o.id === attrs.selected;
-              return m('option', {value: o.id, selected}, o.name);
-            }),
-            ),
-        m('.description', attrs.description),
+      '.flag-widget',
+      m('label', attrs.label),
+      m(
+        'select',
+        {
+          onchange: (e: InputEvent) => {
+            const value = (e.target as HTMLSelectElement).value;
+            attrs.onSelect(value);
+            raf.scheduleFullRedraw();
+          },
+        },
+        attrs.options.map((o) => {
+          const selected = o.id === attrs.selected;
+          return m('option', {value: o.id, selected}, o.name);
+        }),
+      ),
+      m('.description', attrs.description),
     );
   }
 }
@@ -80,16 +80,16 @@ class FlagWidget implements m.ClassComponent<FlagWidgetAttrs> {
       selected: flag.overriddenState(),
       onSelect: (value: string) => {
         switch (value) {
-          case OverrideState.TRUE:
-            flag.set(true);
-            break;
-          case OverrideState.FALSE:
-            flag.set(false);
-            break;
-          default:
-          case OverrideState.DEFAULT:
-            flag.reset();
-            break;
+        case OverrideState.TRUE:
+          flag.set(true);
+          break;
+        case OverrideState.FALSE:
+          flag.set(false);
+          break;
+        default:
+        case OverrideState.DEFAULT:
+          flag.reset();
+          break;
         }
       },
     });
@@ -100,43 +100,43 @@ export const FlagsPage = createPage({
   view() {
     const needsReload = channelChanged();
     return m(
-        '.flags-page',
-        m(
-            '.flags-content',
-            m('h1', 'Feature flags'),
-            needsReload &&
+      '.flags-page',
+      m(
+        '.flags-content',
+        m('h1', 'Feature flags'),
+        needsReload &&
                 [
                   m('h2', 'Please reload for your changes to take effect'),
                 ],
-            m(SelectWidget, {
-              label: 'Release channel',
-              description: [
-                'Which release channel of the UI to use. See ',
-                m('a',
-                  {
-                    href: RELEASE_PROCESS_URL,
-                  },
-                  'Release Process'),
-                ' for more information.',
-              ],
-              options: [
-                {id: 'stable', name: 'Stable (default)'},
-                {id: 'canary', name: 'Canary'},
-                {id: 'autopush', name: 'Autopush'},
-              ],
-              selected: getNextChannel(),
-              onSelect: (id) => setChannel(id),
-            }),
-            m('button',
+        m(SelectWidget, {
+          label: 'Release channel',
+          description: [
+            'Which release channel of the UI to use. See ',
+            m('a',
               {
-                onclick: () => {
-                  featureFlags.resetAll();
-                  raf.scheduleFullRedraw();
-                },
+                href: RELEASE_PROCESS_URL,
               },
-              'Reset all below'),
+              'Release Process'),
+            ' for more information.',
+          ],
+          options: [
+            {id: 'stable', name: 'Stable (default)'},
+            {id: 'canary', name: 'Canary'},
+            {id: 'autopush', name: 'Autopush'},
+          ],
+          selected: getNextChannel(),
+          onSelect: (id) => setChannel(id),
+        }),
+        m('button',
+          {
+            onclick: () => {
+              featureFlags.resetAll();
+              raf.scheduleFullRedraw();
+            },
+          },
+          'Reset all below'),
 
-            featureFlags.allFlags().map((flag) => m(FlagWidget, {flag})),
-            ));
+        featureFlags.allFlags().map((flag) => m(FlagWidget, {flag})),
+      ));
   },
 });

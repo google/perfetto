@@ -28,9 +28,9 @@ interface ControllerInitializer<ConstructorArgs> {
 export type ControllerInitializerAny = ControllerInitializer<any>;
 
 export function Child<ConstructorArgs>(
-    id: string,
-    factory: ControllerFactory<ConstructorArgs>,
-    args: ConstructorArgs): ControllerInitializer<ConstructorArgs> {
+  id: string,
+  factory: ControllerFactory<ConstructorArgs>,
+  args: ConstructorArgs): ControllerInitializer<ConstructorArgs> {
   return {id, factory, args};
 }
 

@@ -98,12 +98,12 @@ export abstract class SliceTrackLEGACY implements Track {
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        visibleTimeScale.timeToPx(data.start),
-        visibleTimeScale.timeToPx(data.end),
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      visibleTimeScale.timeToPx(data.start),
+      visibleTimeScale.timeToPx(data.end),
     );
 
     ctx.textAlign = 'center';
@@ -187,7 +187,7 @@ export abstract class SliceTrackLEGACY implements Track {
             ctx.beginPath();
             ctx.lineWidth = 3;
             ctx.strokeRect(
-                -HALF_CHEVRON_WIDTH_PX, 0, CHEVRON_WIDTH_PX, SLICE_HEIGHT);
+              -HALF_CHEVRON_WIDTH_PX, 0, CHEVRON_WIDTH_PX, SLICE_HEIGHT);
             ctx.closePath();
 
             // Draw inner chevron as interior
@@ -207,14 +207,14 @@ export abstract class SliceTrackLEGACY implements Track {
 
       if (isIncomplete && rect.width > SLICE_HEIGHT / 4) {
         drawIncompleteSlice(
-            ctx,
-            rect.left,
-            rect.top,
-            rect.width,
-            SLICE_HEIGHT,
-            !CROP_INCOMPLETE_SLICE_FLAG.get());
+          ctx,
+          rect.left,
+          rect.top,
+          rect.width,
+          SLICE_HEIGHT,
+          !CROP_INCOMPLETE_SLICE_FLAG.get());
       } else if (
-          data.cpuTimeRatio !== undefined && data.cpuTimeRatio[i] < 1 - 1e-9) {
+        data.cpuTimeRatio !== undefined && data.cpuTimeRatio[i] < 1 - 1e-9) {
         // We draw two rectangles, representing the ratio between wall time and
         // time spent on cpu.
         const cpuTimeRatio = data.cpuTimeRatio![i];
@@ -223,10 +223,10 @@ export abstract class SliceTrackLEGACY implements Track {
         ctx.fillRect(rect.left, rect.top, rect.width, SLICE_HEIGHT);
         ctx.fillStyle = '#FFFFFF50';
         ctx.fillRect(
-            rect.left + firstPartWidth,
-            rect.top,
-            secondPartWidth,
-            SLICE_HEIGHT);
+          rect.left + firstPartWidth,
+          rect.top,
+          secondPartWidth,
+          SLICE_HEIGHT);
       } else {
         ctx.fillRect(rect.left, rect.top, rect.width, SLICE_HEIGHT);
       }
@@ -238,7 +238,7 @@ export abstract class SliceTrackLEGACY implements Track {
           ctx.beginPath();
           ctx.lineWidth = 3;
           ctx.strokeRect(
-              rect.left, rect.top - 1.5, rect.width, SLICE_HEIGHT + 3);
+            rect.left, rect.top - 1.5, rect.width, SLICE_HEIGHT + 3);
           ctx.closePath();
         };
       }
@@ -310,7 +310,7 @@ export abstract class SliceTrackLEGACY implements Track {
     if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
       const widthTime =
           visibleTimeScale.pxDeltaToDuration(INCOMPLETE_SLICE_WIDTH_PX)
-              .toTime();
+            .toTime();
       end = Time.add(start, widthTime);
     }
 

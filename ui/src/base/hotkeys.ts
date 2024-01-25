@@ -94,7 +94,7 @@ export type KeyboardEventLike =
 
 // Check whether |hotkey| is present in the keyboard event |event|.
 export function checkHotkey(
-    hotkey: Hotkey, event: KeyboardEventLike, spoofPlatform?: Platform):
+  hotkey: Hotkey, event: KeyboardEventLike, spoofPlatform?: Platform):
     boolean {
   const result = parseHotkey(hotkey);
   if (!result) {
@@ -118,7 +118,7 @@ function compareKeys(e: KeyboardEventLike, key: Key): boolean {
 
 // Return true if modifiers specified in |mods| match those in the event.
 function checkMods(
-    event: KeyboardEventLike, hotkey: HotkeyParts, spoofPlatform?: Platform):
+  event: KeyboardEventLike, hotkey: HotkeyParts, spoofPlatform?: Platform):
     boolean {
   const platform = spoofPlatform ?? getPlatform();
 
@@ -134,8 +134,8 @@ function checkMods(
   const wantShift = modifier.includes('Shift');
   const wantAlt = modifier.includes('Alt');
   const wantCtrl = platform === 'Mac' ?
-      modifier.includes('Ctrl') :
-      (modifier.includes('Ctrl') || modifier.includes('Mod'));
+    modifier.includes('Ctrl') :
+    (modifier.includes('Ctrl') || modifier.includes('Mod'));
   const wantMeta = platform === 'Mac' && modifier.includes('Mod');
 
   // For certain keys we relax the shift requirement, as they usually cannot be

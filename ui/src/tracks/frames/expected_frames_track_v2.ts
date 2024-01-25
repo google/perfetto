@@ -22,7 +22,7 @@ const GREEN = makeColorScheme(new HSLColor('#4CAF50'));  // Green 500
 
 export class ExpectedFramesTrack extends NamedSliceTrack {
   constructor(
-      engine: EngineProxy, maxDepth: number, trackKey: string,
+    engine: EngineProxy, maxDepth: number, trackKey: string,
       private trackIds: number[]) {
     super({engine, trackKey});
     this.sliceLayout = {

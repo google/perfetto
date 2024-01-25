@@ -68,10 +68,10 @@ export function tableDisplayName(table: SqlTableDescription): string {
 // Additional columns needed to display the given column.
 export function dependendentColumns(display?: DisplayConfig): string[] {
   switch (display?.type) {
-    case 'slice_id':
-      return [display.ts, display.dur, display.trackId];
-    default:
-      return [];
+  case 'slice_id':
+    return [display.ts, display.dur, display.trackId];
+  default:
+    return [];
   }
 }
 

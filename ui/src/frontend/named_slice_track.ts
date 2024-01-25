@@ -46,7 +46,7 @@ export interface NamedSliceTrackTypes extends BaseSliceTrackTypes {
 
 export abstract class NamedSliceTrack<
     T extends NamedSliceTrackTypes = NamedSliceTrackTypes> extends
-    BaseSliceTrack<T> {
+  BaseSliceTrack<T> {
   constructor(args: NewTrackArgs) {
     super(args);
   }

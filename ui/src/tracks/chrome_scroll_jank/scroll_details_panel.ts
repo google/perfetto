@@ -85,7 +85,7 @@ interface JankSliceDetails {
 }
 
 export class ScrollDetailsPanel extends
-    BottomTab<GenericSliceDetailsTabConfig> {
+  BottomTab<GenericSliceDetailsTabConfig> {
   static readonly kind = 'org.perfetto.ScrollDetailsPanel';
   loaded = false;
   data: Data|undefined;
@@ -239,7 +239,7 @@ export class ScrollDetailsPanel extends
       const userDeltas =
           await getUserScrollDeltas(this.engine, this.data.ts, this.data.dur);
       const appliedDeltas = await getAppliedScrollDeltas(
-          this.engine, this.data.ts, this.data.dur);
+        this.engine, this.data.ts, this.data.dur);
       const jankIntervals =
           await getJankIntervals(this.engine, this.data.ts, this.data.dur);
       this.scrollDeltas =
@@ -315,7 +315,7 @@ export class ScrollDetailsPanel extends
       for (const jankSlice of this.orderedJankSlices) {
         data.push({
           jankLink: getSliceForTrack(
-              jankSlice.jankSlice, ScrollJankV3Track.kind, jankSlice.cause),
+            jankSlice.jankSlice, ScrollJankV3Track.kind, jankSlice.cause),
           dur: m(DurationWidget, {dur: jankSlice.delayDur}),
           delayedVSyncs: jankSlice.delayVsync,
         });
@@ -334,42 +334,42 @@ export class ScrollDetailsPanel extends
 
   private getDescriptionText(): m.Child {
     return m(
-        MultiParagraphText,
-        m(TextParagraph, {
-          text: `The interval during which the user has started a scroll ending
+      MultiParagraphText,
+      m(TextParagraph, {
+        text: `The interval during which the user has started a scroll ending
                  after their finger leaves the screen and any resulting fling
                  animations have finished.`,
-        }),
-        m(TextParagraph, {
-          text: `Note: This can contain periods of time where the finger is down
+      }),
+      m(TextParagraph, {
+        text: `Note: This can contain periods of time where the finger is down
                  and not moving and no active scrolling is occurring.`,
-        }),
-        m(TextParagraph, {
-          text: `Note: Sometimes if a user touches the screen quickly after 
+      }),
+      m(TextParagraph, {
+        text: `Note: Sometimes if a user touches the screen quickly after 
                  letting go or Chrome was hung and got into a bad state. A new
                  scroll will start which will result in a slightly overlapping
                  scroll. This can occur due to the last scroll still outputting
                  frames (to get caught up) and the "new" scroll having started
                  producing frames after the user has started scrolling again.`,
-        }),
+      }),
     );
   }
 
   private getGraphText(): m.Child {
     return m(
-        MultiParagraphText,
-        m(TextParagraph, {
-          text: `The scroll offset is the discrepancy in physical screen pixels
+      MultiParagraphText,
+      m(TextParagraph, {
+        text: `The scroll offset is the discrepancy in physical screen pixels
                  between two consecutive frames.`,
-        }),
-        m(TextParagraph, {
-          text: `The overall curve of the graph indicates the direction (up or
+      }),
+      m(TextParagraph, {
+        text: `The overall curve of the graph indicates the direction (up or
                  down) by which the user scrolled over time.`,
-        }),
-        m(TextParagraph, {
-          text: `Grey blocks in the graph represent intervals of jank
+      }),
+      m(TextParagraph, {
+        text: `Grey blocks in the graph represent intervals of jank
                  corresponding with the Chrome Scroll Janks track.`,
-        }),
+      }),
     );
   }
 
@@ -386,39 +386,39 @@ export class ScrollDetailsPanel extends
     });
 
     return m(
-        DetailsShell,
-        {
-          title: this.getTitle(),
-        },
-        m(GridLayout,
-          m(GridLayoutColumn,
-            m(
-                Section,
-                {title: 'Details'},
-                m(Tree, details),
-                ),
-            m(Section,
-              {title: 'Slice Metrics'},
-              m(Tree, this.renderMetricsDictionary())),
-            m(
-                Section,
-                {title: 'Frame Presentation Delays'},
-                this.getDelayTable(),
-                )),
+      DetailsShell,
+      {
+        title: this.getTitle(),
+      },
+      m(GridLayout,
+        m(GridLayoutColumn,
           m(
-              GridLayoutColumn,
-              m(
-                  Section,
-                  {title: 'Description'},
-                  this.getDescriptionText(),
-                  ),
-              m(
-                  Section,
-                  {title: 'Scroll Offsets Plot'},
-                  m('.div[style=\'padding-bottom:5px\']', this.getGraphText()),
-                  this.scrollDeltas,
-                  ),
-              )),
+            Section,
+            {title: 'Details'},
+            m(Tree, details),
+          ),
+          m(Section,
+            {title: 'Slice Metrics'},
+            m(Tree, this.renderMetricsDictionary())),
+          m(
+            Section,
+            {title: 'Frame Presentation Delays'},
+            this.getDelayTable(),
+          )),
+        m(
+          GridLayoutColumn,
+          m(
+            Section,
+            {title: 'Description'},
+            this.getDescriptionText(),
+          ),
+          m(
+            Section,
+            {title: 'Scroll Offsets Plot'},
+            m('.div[style=\'padding-bottom:5px\']', this.getGraphText()),
+            this.scrollDeltas,
+          ),
+        )),
     );
   }
 

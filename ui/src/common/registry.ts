@@ -40,7 +40,7 @@ export class Registry<T> {
     const kind = this.key(registrant);
     if (this.registry.has(kind)) {
       throw new RegistryError(
-          `Registrant ${kind} already exists in the registry`);
+        `Registrant ${kind} already exists in the registry`);
     }
     this.registry.set(kind, registrant);
 

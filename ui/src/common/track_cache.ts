@@ -122,77 +122,77 @@ class TrackFSM implements TrackCacheEntry {
 
   update(): void {
     switch (this.state) {
-      case TrackState.Creating:
-      case TrackState.Updating:
-        this.state = TrackState.UpdatePending;
-        break;
-      case TrackState.Ready:
-        const result = this.track.onUpdate?.();
-        Promise.resolve(result).then(() => this.onTrackUpdated());
-        this.state = TrackState.Updating;
-        break;
-      case TrackState.UpdatePending:
-        // Update already pending... do nothing!
-        break;
-      default:
-        throw new Error('Invalid state transition');
+    case TrackState.Creating:
+    case TrackState.Updating:
+      this.state = TrackState.UpdatePending;
+      break;
+    case TrackState.Ready:
+      const result = this.track.onUpdate?.();
+      Promise.resolve(result).then(() => this.onTrackUpdated());
+      this.state = TrackState.Updating;
+      break;
+    case TrackState.UpdatePending:
+      // Update already pending... do nothing!
+      break;
+    default:
+      throw new Error('Invalid state transition');
     }
   }
 
   destroy(): void {
     switch (this.state) {
-      case TrackState.Ready:
-        // Don't bother awaiting this as the track can no longer be used.
-        this.track.onDestroy?.();
-        this.state = TrackState.Destroyed;
-        break;
-      case TrackState.Creating:
-      case TrackState.Updating:
-      case TrackState.UpdatePending:
-        this.state = TrackState.DestroyPending;
-        break;
-      default:
-        throw new Error('Invalid state transition');
+    case TrackState.Ready:
+      // Don't bother awaiting this as the track can no longer be used.
+      this.track.onDestroy?.();
+      this.state = TrackState.Destroyed;
+      break;
+    case TrackState.Creating:
+    case TrackState.Updating:
+    case TrackState.UpdatePending:
+      this.state = TrackState.DestroyPending;
+      break;
+    default:
+      throw new Error('Invalid state transition');
     }
   }
 
   private onTrackCreated() {
     switch (this.state) {
-      case TrackState.DestroyPending:
-        // Don't bother awaiting this as the track can no longer be used.
-        this.track.onDestroy?.();
-        this.state = TrackState.Destroyed;
-        break;
-      case TrackState.UpdatePending:
-        const result = this.track.onUpdate?.();
-        Promise.resolve(result).then(() => this.onTrackUpdated());
-        this.state = TrackState.Updating;
-        break;
-      case TrackState.Creating:
-        this.state = TrackState.Ready;
-        break;
-      default:
-        throw new Error('Invalid state transition');
+    case TrackState.DestroyPending:
+      // Don't bother awaiting this as the track can no longer be used.
+      this.track.onDestroy?.();
+      this.state = TrackState.Destroyed;
+      break;
+    case TrackState.UpdatePending:
+      const result = this.track.onUpdate?.();
+      Promise.resolve(result).then(() => this.onTrackUpdated());
+      this.state = TrackState.Updating;
+      break;
+    case TrackState.Creating:
+      this.state = TrackState.Ready;
+      break;
+    default:
+      throw new Error('Invalid state transition');
     }
   }
 
   private onTrackUpdated() {
     switch (this.state) {
-      case TrackState.DestroyPending:
-        // Don't bother awaiting this as the track can no longer be used.
-        this.track.onDestroy?.();
-        this.state = TrackState.Destroyed;
-        break;
-      case TrackState.UpdatePending:
-        const result = this.track.onUpdate?.();
-        Promise.resolve(result).then(() => this.onTrackUpdated());
-        this.state = TrackState.Updating;
-        break;
-      case TrackState.Updating:
-        this.state = TrackState.Ready;
-        break;
-      default:
-        throw new Error('Invalid state transition');
+    case TrackState.DestroyPending:
+      // Don't bother awaiting this as the track can no longer be used.
+      this.track.onDestroy?.();
+      this.state = TrackState.Destroyed;
+      break;
+    case TrackState.UpdatePending:
+      const result = this.track.onUpdate?.();
+      Promise.resolve(result).then(() => this.onTrackUpdated());
+      this.state = TrackState.Updating;
+      break;
+    case TrackState.Updating:
+      this.state = TrackState.Ready;
+      break;
+    default:
+      throw new Error('Invalid state transition');
     }
   }
 }

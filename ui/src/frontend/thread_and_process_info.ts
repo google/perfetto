@@ -43,7 +43,7 @@ export interface ProcessInfo {
 }
 
 export async function getProcessInfo(
-    engine: EngineProxy, upid: Upid): Promise<ProcessInfo> {
+  engine: EngineProxy, upid: Upid): Promise<ProcessInfo> {
   const it = (await engine.query(`
               SELECT pid, name, uid FROM process WHERE upid = ${upid};
             `)).iter({pid: NUM, name: STR_NULL, uid: NUM_NULL});
@@ -95,25 +95,25 @@ function getDisplayName(name: string|undefined, id: number|undefined): string|
 export function renderProcessRef(info: ProcessInfo): m.Children {
   const name = info.name;
   return m(
-      PopupMenu2,
-      {
-        trigger: m(Anchor, getProcessName(info)),
-      },
-      exists(name) && m(MenuItem, {
-        icon: Icons.Copy,
-        label: 'Copy process name',
-        onclick: () => copyToClipboard(name),
-      }),
-      exists(info.pid) && m(MenuItem, {
-        icon: Icons.Copy,
-        label: 'Copy pid',
-        onclick: () => copyToClipboard(`${info.pid}`),
-      }),
-      m(MenuItem, {
-        icon: Icons.Copy,
-        label: 'Copy upid',
-        onclick: () => copyToClipboard(`${info.upid}`),
-      }));
+    PopupMenu2,
+    {
+      trigger: m(Anchor, getProcessName(info)),
+    },
+    exists(name) && m(MenuItem, {
+      icon: Icons.Copy,
+      label: 'Copy process name',
+      onclick: () => copyToClipboard(name),
+    }),
+    exists(info.pid) && m(MenuItem, {
+      icon: Icons.Copy,
+      label: 'Copy pid',
+      onclick: () => copyToClipboard(`${info.pid}`),
+    }),
+    m(MenuItem, {
+      icon: Icons.Copy,
+      label: 'Copy upid',
+      onclick: () => copyToClipboard(`${info.upid}`),
+    }));
 }
 
 export function getProcessName(info?: ProcessInfo): string|undefined {
@@ -128,7 +128,7 @@ export interface ThreadInfo {
 }
 
 export async function getThreadInfo(
-    engine: EngineProxy, utid: Utid): Promise<ThreadInfo> {
+  engine: EngineProxy, utid: Utid): Promise<ThreadInfo> {
   const it = (await engine.query(`
         SELECT tid, name, upid
         FROM thread

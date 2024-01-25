@@ -27,10 +27,10 @@ export class Callout implements m.ClassComponent<CalloutAttrs> {
     const {icon, ...htmlAttrs} = attrs;
 
     return m(
-        '.pf-callout',
-        htmlAttrs,
-        icon && m(Icon, {className: 'pf-left-icon', icon}),
-        children,
+      '.pf-callout',
+      htmlAttrs,
+      icon && m(Icon, {className: 'pf-left-icon', icon}),
+      children,
     );
   }
 }

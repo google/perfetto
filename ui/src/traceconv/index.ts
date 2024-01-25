@@ -89,9 +89,9 @@ async function runTraceconv(trace: Blob, args: string[]) {
   await deferredRuntimeInitialized;
   module.FS.mkdir('/fs');
   module.FS.mount(
-      assertExists(module.FS.filesystems.WORKERFS),
-      {blobs: [{name: 'trace.proto', data: trace}]},
-      '/fs');
+    assertExists(module.FS.filesystems.WORKERFS),
+    {blobs: [{name: 'trace.proto', data: trace}]},
+    '/fs');
   updateStatus('Converting trace');
   module.callMain(args);
   updateStatus('Trace conversion completed');
@@ -120,9 +120,9 @@ function isConvertTraceAndDownload(msg: Args):
 }
 
 async function ConvertTraceAndDownload(
-    trace: Blob,
-    format: Format,
-    truncate?: 'start'|'end'): Promise<void> {
+  trace: Blob,
+  format: Format,
+  truncate?: 'start'|'end'): Promise<void> {
   const jobName = format === 'json' ? 'convert_json' : 'convert_systrace';
   updateJobStatus(jobName, ConversionJobStatus.InProgress);
   const outPath = '/trace.json';
@@ -156,7 +156,7 @@ function isConvertTraceAndOpenInLegacy(msg: Args):
 }
 
 async function ConvertTraceAndOpenInLegacy(
-trace: Blob, truncate?: 'start'|'end') {
+  trace: Blob, truncate?: 'start'|'end') {
   const jobName = 'open_in_legacy';
   updateJobStatus(jobName, ConversionJobStatus.InProgress);
   const outPath = '/trace.json';

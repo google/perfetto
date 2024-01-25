@@ -49,84 +49,84 @@ function computeDuration(ts: time, dur: duration): m.Children {
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.
 export function renderDetails(
-    slice: SliceDetails, durationBreakdown?: BreakdownByThreadState) {
+  slice: SliceDetails, durationBreakdown?: BreakdownByThreadState) {
   return m(
-      Section,
-      {title: 'Details'},
-      m(
-          Tree,
-          m(TreeNode, {
-            left: 'Name',
-            right: m(
-                PopupMenu2,
-                {
-                  trigger: m(Anchor, slice.name),
+    Section,
+    {title: 'Details'},
+    m(
+      Tree,
+      m(TreeNode, {
+        left: 'Name',
+        right: m(
+          PopupMenu2,
+          {
+            trigger: m(Anchor, slice.name),
+          },
+          m(MenuItem, {
+            label: 'Slices with the same name',
+            onclick: () => {
+              addTab({
+                kind: SqlTableTab.kind,
+                config: {
+                  table: SqlTables.slice,
+                  displayName: 'slice',
+                  filters: [`name = ${sqliteString(slice.name)}`],
                 },
-                m(MenuItem, {
-                  label: 'Slices with the same name',
-                  onclick: () => {
-                    addTab({
-                      kind: SqlTableTab.kind,
-                      config: {
-                        table: SqlTables.slice,
-                        displayName: 'slice',
-                        filters: [`name = ${sqliteString(slice.name)}`],
-                      },
-                    });
-                  },
-                }),
-                ),
+              });
+            },
           }),
-          m(TreeNode, {
-            left: 'Category',
-            right: !slice.category || slice.category === '[NULL]' ?
-                'N/A' :
-                slice.category,
-          }),
-          m(TreeNode, {
-            left: 'Start time',
-            right: m(Timestamp, {ts: slice.ts}),
-          }),
-          exists(slice.absTime) &&
+        ),
+      }),
+      m(TreeNode, {
+        left: 'Category',
+        right: !slice.category || slice.category === '[NULL]' ?
+          'N/A' :
+          slice.category,
+      }),
+      m(TreeNode, {
+        left: 'Start time',
+        right: m(Timestamp, {ts: slice.ts}),
+      }),
+      exists(slice.absTime) &&
               m(TreeNode, {left: 'Absolute Time', right: slice.absTime}),
-          m(
-              TreeNode,
-              {
-                left: 'Duration',
-                right: computeDuration(slice.ts, slice.dur),
-              },
-              exists(durationBreakdown) && slice.dur > 0 &&
+      m(
+        TreeNode,
+        {
+          left: 'Duration',
+          right: computeDuration(slice.ts, slice.dur),
+        },
+        exists(durationBreakdown) && slice.dur > 0 &&
                   m(BreakdownByThreadStateTreeNode, {
                     data: durationBreakdown,
                     dur: slice.dur,
                   }),
-              ),
-          renderThreadDuration(slice),
-          slice.thread && m(TreeNode, {
-            left: 'Thread',
-            right: getThreadName(slice.thread),
-          }),
-          slice.process && m(TreeNode, {
-            left: 'Process',
-            right: getProcessName(slice.process),
-          }),
-          slice.process && exists(slice.process.uid) && m(TreeNode, {
-            left: 'User ID',
-            right: slice.process.uid,
-          }),
-          slice.process && slice.process.packageName && m(TreeNode, {
-            left: 'Package name',
-            right: slice.process.packageName,
-          }),
-          slice.process && exists(slice.process.versionCode) && m(TreeNode, {
-            left: 'Version code',
-            right: slice.process.versionCode,
-          }),
-          m(TreeNode, {
-            left: 'SQL ID',
-            right: m(SqlRef, {table: 'slice', id: slice.id}),
-          }),
-          ));
+      ),
+      renderThreadDuration(slice),
+      slice.thread && m(TreeNode, {
+        left: 'Thread',
+        right: getThreadName(slice.thread),
+      }),
+      slice.process && m(TreeNode, {
+        left: 'Process',
+        right: getProcessName(slice.process),
+      }),
+      slice.process && exists(slice.process.uid) && m(TreeNode, {
+        left: 'User ID',
+        right: slice.process.uid,
+      }),
+      slice.process && slice.process.packageName && m(TreeNode, {
+        left: 'Package name',
+        right: slice.process.packageName,
+      }),
+      slice.process && exists(slice.process.versionCode) && m(TreeNode, {
+        left: 'Version code',
+        right: slice.process.versionCode,
+      }),
+      m(TreeNode, {
+        left: 'SQL ID',
+        right: m(SqlRef, {table: 'slice', id: slice.id}),
+      }),
+    ));
 }
 
 function renderThreadDuration(sliceInfo: SliceDetails) {

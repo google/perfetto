@@ -53,10 +53,10 @@ export class AdbConnectionOverWebsocket extends AdbConnectionImpl {
   protected async openStream(destination: string):
       Promise<AdbOverWebsocketStream> {
     return AdbOverWebsocketStream.create(
-        this.websocketUrl,
-        destination,
-        this.deviceSerialNumber,
-        this.closeStream.bind(this));
+      this.websocketUrl,
+      destination,
+      this.deviceSerialNumber,
+      this.closeStream.bind(this));
   }
 
   // The disconnection for AdbConnectionOverWebsocket is synchronous, but this
@@ -103,7 +103,7 @@ export class AdbOverWebsocketStream implements ByteStream {
   private onStreamCloseCallbacks: OnStreamCloseCallback[] = [];
 
   private constructor(
-      websocketUrl: string, destination: string, deviceSerialNumber: string,
+    websocketUrl: string, destination: string, deviceSerialNumber: string,
       private removeFromConnection: (stream: AdbOverWebsocketStream) => void) {
     this.websocket = new WebSocket(websocketUrl);
 
@@ -170,7 +170,7 @@ export class AdbOverWebsocketStream implements ByteStream {
 
   private async onOpen(deviceSerialNumber: string): Promise<void> {
     this.websocket.send(
-        buildAbdWebsocketCommand(`host:transport:${deviceSerialNumber}`));
+      buildAbdWebsocketCommand(`host:transport:${deviceSerialNumber}`));
   }
 
   private async onMessage(destination: string, evt: MessageEvent):
@@ -187,11 +187,11 @@ export class AdbOverWebsocketStream implements ByteStream {
           this.commandSentSignal.resolve(this);
         } else if (prefix === 'FAIL' && txt.includes('device unauthorized')) {
           this.commandSentSignal.reject(
-              new RecordingError(ALLOW_USB_DEBUGGING));
+            new RecordingError(ALLOW_USB_DEBUGGING));
           this.close();
         } else {
           this.commandSentSignal.reject(
-              new RecordingError(WEBSOCKET_UNABLE_TO_CONNECT));
+            new RecordingError(WEBSOCKET_UNABLE_TO_CONNECT));
           this.close();
         }
       } else {
@@ -215,14 +215,14 @@ export class AdbOverWebsocketStream implements ByteStream {
   }
 
   static create(
-      websocketUrl: string, destination: string, deviceSerialNumber: string,
-      removeFromConnection: (stream: AdbOverWebsocketStream) => void):
+    websocketUrl: string, destination: string, deviceSerialNumber: string,
+    removeFromConnection: (stream: AdbOverWebsocketStream) => void):
       Promise<AdbOverWebsocketStream> {
     return (new AdbOverWebsocketStream(
-                websocketUrl,
-                destination,
-                deviceSerialNumber,
-                removeFromConnection))
-        .commandSentSignal;
+      websocketUrl,
+      destination,
+      deviceSerialNumber,
+      removeFromConnection))
+      .commandSentSignal;
   }
 }

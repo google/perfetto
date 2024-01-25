@@ -86,7 +86,7 @@ async function cacheKeys(): Promise<readonly Request[]> {
 }
 
 export async function cacheTrace(
-    traceSource: TraceSource, traceUuid: string): Promise<boolean> {
+  traceSource: TraceSource, traceUuid: string): Promise<boolean> {
   let trace;
   let title = '';
   let fileName = '';
@@ -94,21 +94,21 @@ export async function cacheTrace(
   let contentLength = 0;
   let localOnly = false;
   switch (traceSource.type) {
-    case 'ARRAY_BUFFER':
-      trace = traceSource.buffer;
-      title = traceSource.title;
-      fileName = traceSource.fileName || '';
-      url = traceSource.url || '';
-      contentLength = traceSource.buffer.byteLength;
-      localOnly = traceSource.localOnly || false;
-      break;
-    case 'FILE':
-      trace = await traceSource.file.arrayBuffer();
-      title = traceSource.file.name;
-      contentLength = traceSource.file.size;
-      break;
-    default:
-      return false;
+  case 'ARRAY_BUFFER':
+    trace = traceSource.buffer;
+    title = traceSource.title;
+    fileName = traceSource.fileName || '';
+    url = traceSource.url || '';
+    contentLength = traceSource.buffer.byteLength;
+    localOnly = traceSource.localOnly || false;
+    break;
+  case 'FILE':
+    trace = await traceSource.file.arrayBuffer();
+    title = traceSource.file.name;
+    contentLength = traceSource.file.size;
+    break;
+  default:
+    return false;
   }
 
   const headers = new Headers([
@@ -122,12 +122,12 @@ export async function cacheTrace(
       'expires',
       // Expires in a week from now (now = upload time)
       (new Date((new Date()).getTime() + (1000 * 60 * 60 * 24 * 7)))
-          .toUTCString(),
+        .toUTCString(),
     ],
   ]);
   await deleteStaleEntries();
   await cachePut(
-      `/_${TRACE_CACHE_NAME}/${traceUuid}`, new Response(trace, {headers}));
+    `/_${TRACE_CACHE_NAME}/${traceUuid}`, new Response(trace, {headers}));
   return true;
 }
 
@@ -180,7 +180,7 @@ async function deleteStaleEntries() {
   // delete them from cache.
   const oldTraces =
       storedTraces.sort((a, b) => b.date.getTime() - a.date.getTime())
-          .slice(TRACE_CACHE_SIZE);
+        .slice(TRACE_CACHE_SIZE);
   for (const oldTrace of oldTraces) {
     deletions.push(cacheDelete(oldTrace.key));
   }

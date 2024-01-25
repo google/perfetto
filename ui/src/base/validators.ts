@@ -247,7 +247,7 @@ export interface ValidationResult<T> {
 
 // Wrapper for running a validator initializing the context.
 export function runValidator<T>(
-    validator: Validator<T>, input: unknown): ValidationResult<T> {
+  validator: Validator<T>, input: unknown): ValidationResult<T> {
   const context: ValidatorContext = {
     path: [],
     invalidKeys: [],
@@ -288,12 +288,12 @@ export const optBool = new OptionalValidator<boolean>(requiredBool);
 
 
 export function record<T extends Record<string, Validator<unknown>>>(
-    validators: T): RecordValidator<T> {
+  validators: T): RecordValidator<T> {
   return new RecordValidator<T>(validators);
 }
 
 export function oneOf<T>(
-    values: readonly T[], defaultValue: T): OneOfValidator<T> {
+  values: readonly T[], defaultValue: T): OneOfValidator<T> {
   return new OneOfValidator<T>(values, defaultValue);
 }
 

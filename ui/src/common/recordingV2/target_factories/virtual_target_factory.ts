@@ -36,7 +36,7 @@ export class VirtualTargetFactory implements TargetFactory {
 
   connectNewTarget(): Promise<RecordingTargetV2> {
     throw new RecordingError(
-        'Can not create a new virtual target.' +
+      'Can not create a new virtual target.' +
         'All virtual targets are created at factory initialisation.');
   }
 

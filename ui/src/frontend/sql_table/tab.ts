@@ -84,27 +84,27 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
           }));
 
     return m(
-        DetailsShell,
-        {
-          title: 'Table',
-          description: this.getDisplayName(),
-          buttons: [
-            ...navigation,
-            addDebugTrack,
-            m(Button, {
-              label: 'Copy SQL query',
-              onclick: () =>
-                  copyToClipboard(this.state.getNonPaginatedSQLQuery()),
-            }),
-            m(Button, {
-              label: 'Close',
-              onclick: () => this.close(),
-            }),
-          ],
-        },
-        m(SqlTable, {
-          state: this.state,
-        }));
+      DetailsShell,
+      {
+        title: 'Table',
+        description: this.getDisplayName(),
+        buttons: [
+          ...navigation,
+          addDebugTrack,
+          m(Button, {
+            label: 'Copy SQL query',
+            onclick: () =>
+              copyToClipboard(this.state.getNonPaginatedSQLQuery()),
+          }),
+          m(Button, {
+            label: 'Close',
+            onclick: () => this.close(),
+          }),
+        ],
+      },
+      m(SqlTable, {
+        state: this.state,
+      }));
   }
 
   getTitle(): string {

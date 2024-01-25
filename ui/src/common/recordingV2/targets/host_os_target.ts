@@ -39,7 +39,7 @@ export class HostOsTarget implements RecordingTargetV2 {
   private onDisconnect: OnDisconnectCallback = (_) => {};
 
   constructor(
-      websocketUrl: string,
+    websocketUrl: string,
       private maybeClearTarget: (target: HostOsTarget) => void,
       private onTargetChange: OnTargetChangeCallback) {
     if (isMacOs(navigator.userAgent)) {
@@ -50,7 +50,7 @@ export class HostOsTarget implements RecordingTargetV2 {
       this.targetType = 'LINUX';
     } else {
       throw new RecordingError(
-          'Host OS target created on an unsupported operating system.');
+        'Host OS target created on an unsupported operating system.');
     }
 
     this.websocket = new WebSocket(websocketUrl);
@@ -128,8 +128,8 @@ export class HostOsTarget implements RecordingTargetV2 {
   private onClose(ev: CloseEvent): void {
     if (ev.code === WEBSOCKET_CLOSED_ABNORMALLY_CODE) {
       console.info(
-          `It's safe to ignore the 'WebSocket connection to ${
-              this.getUrl()} error above, if present. It occurs when ` +
+        `It's safe to ignore the 'WebSocket connection to ${
+          this.getUrl()} error above, if present. It occurs when ` +
           'checking the connection to the local Websocket server.');
     }
     this.disconnect();

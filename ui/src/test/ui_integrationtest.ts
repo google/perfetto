@@ -167,20 +167,20 @@ describe('routing', () => {
 
     test('open_first_trace_from_url', async () => {
       await page.goto(
-          'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/chrome_memory_snapshot.pftrace');
+        'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/chrome_memory_snapshot.pftrace');
       await waitForPerfettoIdle(page);
     });
 
     test('open_second_trace_from_url', async () => {
       await page.goto(
-          'http://localhost:10000/?testing=1#!/?url=http://localhost:10000/test/data/chrome_scroll_without_vsync.pftrace');
+        'http://localhost:10000/?testing=1#!/?url=http://localhost:10000/test/data/chrome_scroll_without_vsync.pftrace');
       await waitForPerfettoIdle(page);
     });
 
     test('access_subpage_then_go_back', async () => {
       await waitForPerfettoIdle(page);
       await page.goto(
-          'http://localhost:10000/?testing=1/#!/metrics?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
+        'http://localhost:10000/?testing=1/#!/metrics?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
       await page.goBack();
       await waitForPerfettoIdle(page);
     });
@@ -201,7 +201,7 @@ describe('routing', () => {
 
     test('open_trace ', async () => {
       await page.goto(
-          'http://localhost:10000/?testing=1#!/viewer?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
+        'http://localhost:10000/?testing=1#!/viewer?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
       await waitForPerfettoIdle(page);
     });
 
@@ -212,7 +212,7 @@ describe('routing', () => {
 
     test('open_second_trace', async () => {
       await page.goto(
-          'http://localhost:10000/?testing=1#!/viewer?local_cache_key=00000000-0000-0000-e13c-bd7db4ff646f');
+        'http://localhost:10000/?testing=1#!/viewer?local_cache_key=00000000-0000-0000-e13c-bd7db4ff646f');
       await waitForPerfettoIdle(page);
 
       // click on the 'Continue' button in the interstitial
@@ -230,7 +230,7 @@ describe('routing', () => {
 
     test('open_invalid_trace', async () => {
       await page.goto(
-          'http://localhost:10000/?testing=1#!/viewer?local_cache_key=invalid');
+        'http://localhost:10000/?testing=1#!/viewer?local_cache_key=invalid');
       await waitForPerfettoIdle(page);
     });
   });
@@ -246,7 +246,7 @@ describe('routing', () => {
 
     test('open_trace_from_url', async () => {
       await page.goto(
-          'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/chrome_memory_snapshot.pftrace');
+        'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/chrome_memory_snapshot.pftrace');
       await waitForPerfettoIdle(page);
     });
 
@@ -270,7 +270,7 @@ describe('routing', () => {
     const page = await getPage();
     await page.goto('http://localhost:10000/?testing=1');
     await page.goto(
-        'http://localhost:10000/?testing=1#!/viewer?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
+      'http://localhost:10000/?testing=1#!/viewer?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
     await waitForPerfettoIdle(page);
     await page.goBack();
     await waitForPerfettoIdle(page);
@@ -280,7 +280,7 @@ describe('routing', () => {
     const page = await getPage();
     await page.goto('about:blank');
     await page.goto(
-        'http://localhost:10000/?testing=1#!/viewer?local_cache_key=invalid');
+      'http://localhost:10000/?testing=1#!/viewer?local_cache_key=invalid');
     await waitForPerfettoIdle(page);
   });
 });

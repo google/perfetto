@@ -51,24 +51,24 @@ function runManualQuery(query: string) {
   const engine = getEngine();
   if (engine) {
     runQuery(undoCommonChatAppReplacements(query), engine)
-        .then((resp: QueryResponse) => {
-          addTab({
-            kind: QueryResultTab.kind,
-            tag: 'analyze_page_query',
-            config: {
-              query: query,
-              title: 'Standalone Query',
-              prefetchedResponse: resp,
-            },
-          });
-          // We might have started to execute another query. Ignore it in that
-          // case.
-          if (state.executedQuery !== query) {
-            return;
-          }
-          state.queryResult = resp;
-          raf.scheduleFullRedraw();
+      .then((resp: QueryResponse) => {
+        addTab({
+          kind: QueryResultTab.kind,
+          tag: 'analyze_page_query',
+          config: {
+            query: query,
+            title: 'Standalone Query',
+            prefetchedResponse: resp,
+          },
         });
+        // We might have started to execute another query. Ignore it in that
+        // case.
+        if (state.executedQuery !== query) {
+          return;
+        }
+        state.queryResult = resp;
+        raf.scheduleFullRedraw();
+      });
   }
   raf.scheduleDelayedFullRedraw();
 }
@@ -123,26 +123,26 @@ class QueryInput implements m.ClassComponent {
 export const QueryPage = createPage({
   view() {
     return m(
-        '.query-page',
-        m(Callout, 'Enter query and press Cmd/Ctrl + Enter'),
-        m(QueryInput),
-        state.executedQuery === undefined ? null : m(QueryTable, {
-          query: state.executedQuery,
-          resp: state.queryResult,
-          onClose: () => {
-            state.executedQuery = undefined;
-            state.queryResult = undefined;
-            raf.scheduleFullRedraw();
-          },
-          fillParent: false,
-        }),
-        m(QueryHistoryComponent, {
-          runQuery: runManualQuery,
-          setQuery: (q: string) => {
-            state.enteredText = q;
-            state.generation++;
-            raf.scheduleFullRedraw();
-          },
-        }));
+      '.query-page',
+      m(Callout, 'Enter query and press Cmd/Ctrl + Enter'),
+      m(QueryInput),
+      state.executedQuery === undefined ? null : m(QueryTable, {
+        query: state.executedQuery,
+        resp: state.queryResult,
+        onClose: () => {
+          state.executedQuery = undefined;
+          state.queryResult = undefined;
+          raf.scheduleFullRedraw();
+        },
+        fillParent: false,
+      }),
+      m(QueryHistoryComponent, {
+        runQuery: runManualQuery,
+        setQuery: (q: string) => {
+          state.enteredText = q;
+          state.generation++;
+          raf.scheduleFullRedraw();
+        },
+      }));
   },
 });

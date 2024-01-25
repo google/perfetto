@@ -20,8 +20,8 @@ import {POLL_INTERVAL_MS, RecordingSectionAttrs} from './recording_sections';
 export class CpuSettings implements m.ClassComponent<RecordingSectionAttrs> {
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
     return m(
-        `.record-section${attrs.cssClass}`,
-        m(Probe,
+      `.record-section${attrs.cssClass}`,
+      m(Probe,
           {
             title: 'Coarse CPU usage counter',
             img: 'rec_cpu_coarse.png',
@@ -38,14 +38,14 @@ export class CpuSettings implements m.ClassComponent<RecordingSectionAttrs> {
             set: (cfg, val) => cfg.cpuCoarsePollMs = val,
             get: (cfg) => cfg.cpuCoarsePollMs,
           } as SliderAttrs)),
-        m(Probe, {
-          title: 'Scheduling details',
-          img: 'rec_cpu_fine.png',
-          descr: 'Enables high-detailed tracking of scheduling events',
-          setEnabled: (cfg, val) => cfg.cpuSched = val,
-          isEnabled: (cfg) => cfg.cpuSched,
-        } as ProbeAttrs),
-        m(Probe,
+      m(Probe, {
+        title: 'Scheduling details',
+        img: 'rec_cpu_fine.png',
+        descr: 'Enables high-detailed tracking of scheduling events',
+        setEnabled: (cfg, val) => cfg.cpuSched = val,
+        isEnabled: (cfg) => cfg.cpuSched,
+      } as ProbeAttrs),
+      m(Probe,
           {
             title: 'CPU frequency and idle states',
             img: 'rec_cpu_freq.png',
@@ -62,13 +62,13 @@ export class CpuSettings implements m.ClassComponent<RecordingSectionAttrs> {
             set: (cfg, val) => cfg.cpuFreqPollMs = val,
             get: (cfg) => cfg.cpuFreqPollMs,
           } as SliderAttrs)),
-        m(Probe, {
-          title: 'Syscalls',
-          img: 'rec_syscalls.png',
-          descr: `Tracks the enter and exit of all syscalls. On Android
+      m(Probe, {
+        title: 'Syscalls',
+        img: 'rec_syscalls.png',
+        descr: `Tracks the enter and exit of all syscalls. On Android
                 requires a userdebug or eng build.`,
-          setEnabled: (cfg, val) => cfg.cpuSyscall = val,
-          isEnabled: (cfg) => cfg.cpuSyscall,
-        } as ProbeAttrs));
+        setEnabled: (cfg, val) => cfg.cpuSyscall = val,
+        isEnabled: (cfg) => cfg.cpuSyscall,
+      } as ProbeAttrs));
   }
 }

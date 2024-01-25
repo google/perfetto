@@ -24,37 +24,37 @@ import {createPage} from './pages';
 export const PluginsPage = createPage({
   view() {
     return m(
-        '.pf-plugins-page',
-        m('h1', 'Plugins'),
-        m(
-            '.pf-plugins-topbar',
-            m(Button, {
-              minimal: false,
-              label: 'Deactivate All',
-              onclick: () => {
-                for (const plugin of pluginRegistry.values()) {
-                  pluginManager.deactivatePlugin(plugin.pluginId);
-                }
-                raf.scheduleFullRedraw();
-              },
-            }),
-            m(Button, {
-              minimal: false,
-              label: 'Activate All',
-              onclick: () => {
-                for (const plugin of pluginRegistry.values()) {
-                  pluginManager.activatePlugin(plugin.pluginId);
-                }
-                raf.scheduleFullRedraw();
-              },
-            }),
-            ),
-        m(
-            '.pf-plugins-grid',
-            Array.from(pluginRegistry.values()).map((plugin) => {
-              return renderPluginRow(plugin);
-            }),
-            ));
+      '.pf-plugins-page',
+      m('h1', 'Plugins'),
+      m(
+        '.pf-plugins-topbar',
+        m(Button, {
+          minimal: false,
+          label: 'Deactivate All',
+          onclick: () => {
+            for (const plugin of pluginRegistry.values()) {
+              pluginManager.deactivatePlugin(plugin.pluginId);
+            }
+            raf.scheduleFullRedraw();
+          },
+        }),
+        m(Button, {
+          minimal: false,
+          label: 'Activate All',
+          onclick: () => {
+            for (const plugin of pluginRegistry.values()) {
+              pluginManager.activatePlugin(plugin.pluginId);
+            }
+            raf.scheduleFullRedraw();
+          },
+        }),
+      ),
+      m(
+        '.pf-plugins-grid',
+        Array.from(pluginRegistry.values()).map((plugin) => {
+          return renderPluginRow(plugin);
+        }),
+      ));
   },
 });
 
@@ -63,7 +63,7 @@ function renderPluginRow(plugin: PluginDescriptor): m.Children {
   return [
     plugin.pluginId,
     isActive ? m('.pf-tag.pf-active', 'Active') :
-               m('.pf-tag.pf-inactive', 'Inactive'),
+      m('.pf-tag.pf-inactive', 'Inactive'),
     m(Button, {
       label: isActive ? 'Deactivate' : 'Activate',
       onclick: () => {

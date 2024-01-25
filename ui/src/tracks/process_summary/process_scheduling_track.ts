@@ -178,10 +178,10 @@ export class ProcessSchedulingTrack implements Track {
       Promise<QueryResult> {
     const isCached = this.cachedBucketSize <= bucketSize;
     const tsq = isCached ?
-        `cached_tsq / ${bucketSize} * ${bucketSize}` :
-        `(ts + ${bucketSize / 2n}) / ${bucketSize} * ${bucketSize}`;
+      `cached_tsq / ${bucketSize} * ${bucketSize}` :
+      `(ts + ${bucketSize / 2n}) / ${bucketSize} * ${bucketSize}`;
     const queryTable = isCached ? this.tableName('process_sched_cached') :
-                                  this.tableName('process_sched');
+      this.tableName('process_sched');
     const constraintColumn = isCached ? 'cached_tsq' : 'ts';
 
     // The mouse move handler depends on slices being sorted by cpu then tsq
@@ -229,12 +229,12 @@ export class ProcessSchedulingTrack implements Track {
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        visibleTimeScale.timeToPx(data.start),
-        visibleTimeScale.timeToPx(data.end));
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      visibleTimeScale.timeToPx(data.start),
+      visibleTimeScale.timeToPx(data.end));
 
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);

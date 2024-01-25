@@ -119,8 +119,8 @@ export class AndroidSettings implements
     }
 
     return m(
-        `.record-section${attrs.cssClass}`,
-        m(Probe,
+      `.record-section${attrs.cssClass}`,
+      m(Probe,
           {
             title: 'Atrace userspace annotations',
             img: 'rec_atrace.png',
@@ -143,7 +143,7 @@ export class AndroidSettings implements
             isEnabled: (cfg) => cfg.allAtraceApps,
           } as ToggleAttrs),
           m(AtraceAppsList)),
-        m(Probe,
+      m(Probe,
           {
             title: 'Event log (logcat)',
             img: 'rec_logcat.png',
@@ -159,23 +159,23 @@ export class AndroidSettings implements
             set: (cfg, val) => cfg.androidLogBuffers = val,
             get: (cfg) => cfg.androidLogBuffers,
           } as DropdownAttrs)),
-        m(Probe, {
-          title: 'Frame timeline',
-          img: 'rec_frame_timeline.png',
-          descr: `Records expected/actual frame timings from surface_flinger.
+      m(Probe, {
+        title: 'Frame timeline',
+        img: 'rec_frame_timeline.png',
+        descr: `Records expected/actual frame timings from surface_flinger.
                       Requires Android 12 (S) or above.`,
-          setEnabled: (cfg, val) => cfg.androidFrameTimeline = val,
-          isEnabled: (cfg) => cfg.androidFrameTimeline,
-        } as ProbeAttrs),
-        m(Probe, {
-          title: 'Game intervention list',
-          img: '',
-          descr: `List game modes and interventions.
+        setEnabled: (cfg, val) => cfg.androidFrameTimeline = val,
+        isEnabled: (cfg) => cfg.androidFrameTimeline,
+      } as ProbeAttrs),
+      m(Probe, {
+        title: 'Game intervention list',
+        img: '',
+        descr: `List game modes and interventions.
                     Requires Android 13 (T) or above.`,
-          setEnabled: (cfg, val) => cfg.androidGameInterventionList = val,
-          isEnabled: (cfg) => cfg.androidGameInterventionList,
-        } as ProbeAttrs),
-        m(Probe,
+        setEnabled: (cfg, val) => cfg.androidGameInterventionList = val,
+        isEnabled: (cfg) => cfg.androidGameInterventionList,
+      } as ProbeAttrs),
+      m(Probe,
           {
             title: 'Network Tracing',
             img: '',

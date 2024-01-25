@@ -185,43 +185,43 @@ export type RowIterator<T extends Row> = RowIteratorBase&T;
 
 function columnTypeToString(t: ColumnType): string {
   switch (t) {
-    case NUM:
-      return 'NUM';
-    case NUM_NULL:
-      return 'NUM_NULL';
-    case STR:
-      return 'STR';
-    case STR_NULL:
-      return 'STR_NULL';
-    case BLOB:
-      return 'BLOB';
-    case BLOB_NULL:
-      return 'BLOB_NULL';
-    case LONG:
-      return 'LONG';
-    case LONG_NULL:
-      return 'LONG_NULL';
-    default:
-      return `INVALID(${t})`;
+  case NUM:
+    return 'NUM';
+  case NUM_NULL:
+    return 'NUM_NULL';
+  case STR:
+    return 'STR';
+  case STR_NULL:
+    return 'STR_NULL';
+  case BLOB:
+    return 'BLOB';
+  case BLOB_NULL:
+    return 'BLOB_NULL';
+  case LONG:
+    return 'LONG';
+  case LONG_NULL:
+    return 'LONG_NULL';
+  default:
+    return `INVALID(${t})`;
   }
 }
 
 function isCompatible(actual: CellType, expected: ColumnType): boolean {
   switch (actual) {
-    case CellType.CELL_NULL:
-      return expected === NUM_NULL || expected === STR_NULL ||
+  case CellType.CELL_NULL:
+    return expected === NUM_NULL || expected === STR_NULL ||
           expected === BLOB_NULL || expected === LONG_NULL;
-    case CellType.CELL_VARINT:
-      return expected === NUM || expected === NUM_NULL || expected === LONG ||
+  case CellType.CELL_VARINT:
+    return expected === NUM || expected === NUM_NULL || expected === LONG ||
           expected === LONG_NULL;
-    case CellType.CELL_FLOAT64:
-      return expected === NUM || expected === NUM_NULL;
-    case CellType.CELL_STRING:
-      return expected === STR || expected === STR_NULL;
-    case CellType.CELL_BLOB:
-      return expected === BLOB || expected === BLOB_NULL;
-    default:
-      throw new Error(`Unknown CellType ${actual}`);
+  case CellType.CELL_FLOAT64:
+    return expected === NUM || expected === NUM_NULL;
+  case CellType.CELL_STRING:
+    return expected === STR || expected === STR_NULL;
+  case CellType.CELL_BLOB:
+    return expected === BLOB || expected === BLOB_NULL;
+  default:
+    throw new Error(`Unknown CellType ${actual}`);
   }
 }
 
@@ -425,71 +425,71 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     while (reader.pos < reader.len) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 1:  // column_names
-          // Only the first batch should contain the column names. If this fires
-          // something is going wrong in the handling of the batch stream.
-          assertTrue(columnNamesEmptyAtStartOfBatch);
-          const origColName = reader.string();
-          let colName = origColName;
-          // In some rare cases two columns can have the same name (b/194891824)
-          // e.g. `select 1 as x, 2 as x`. These queries don't happen in the
-          // UI code, but they can happen when the user types a query (e.g.
-          // with a join). The most practical thing we can do here is renaming
-          // the columns with a suffix. Keeping the same name will break when
-          // iterating, because column names become iterator object keys.
-          for (let i = 1; columnNamesSet.has(colName); ++i) {
-            colName = `${origColName}_${i}`;
-            assertTrue(i < 100);  // Give up at some point;
-          }
-          columnNamesSet.add(colName);
-          this.columnNames.push(colName);
-          break;
-        case 2:  // error
-          // The query has errored only if the |error| field is non-empty.
-          // In protos, we don't distinguish between non-present and empty.
-          // Make sure we don't propagate ambiguous empty strings to JS.
-          const err = reader.string();
-          this._error = (err !== undefined && err.length) ? err : undefined;
-          break;
-        case 3:  // batch
-          const batchLen = reader.uint32();
-          const batchRaw = resBytes.subarray(reader.pos, reader.pos + batchLen);
-          reader.pos += batchLen;
+      case 1:  // column_names
+        // Only the first batch should contain the column names. If this fires
+        // something is going wrong in the handling of the batch stream.
+        assertTrue(columnNamesEmptyAtStartOfBatch);
+        const origColName = reader.string();
+        let colName = origColName;
+        // In some rare cases two columns can have the same name (b/194891824)
+        // e.g. `select 1 as x, 2 as x`. These queries don't happen in the
+        // UI code, but they can happen when the user types a query (e.g.
+        // with a join). The most practical thing we can do here is renaming
+        // the columns with a suffix. Keeping the same name will break when
+        // iterating, because column names become iterator object keys.
+        for (let i = 1; columnNamesSet.has(colName); ++i) {
+          colName = `${origColName}_${i}`;
+          assertTrue(i < 100);  // Give up at some point;
+        }
+        columnNamesSet.add(colName);
+        this.columnNames.push(colName);
+        break;
+      case 2:  // error
+        // The query has errored only if the |error| field is non-empty.
+        // In protos, we don't distinguish between non-present and empty.
+        // Make sure we don't propagate ambiguous empty strings to JS.
+        const err = reader.string();
+        this._error = (err !== undefined && err.length) ? err : undefined;
+        break;
+      case 3:  // batch
+        const batchLen = reader.uint32();
+        const batchRaw = resBytes.subarray(reader.pos, reader.pos + batchLen);
+        reader.pos += batchLen;
 
-          // The ResultBatch ctor parses the CellsBatch submessage.
-          const parsedBatch = new ResultBatch(batchRaw);
-          this.batches.push(parsedBatch);
-          this._isComplete = parsedBatch.isLastBatch;
+        // The ResultBatch ctor parses the CellsBatch submessage.
+        const parsedBatch = new ResultBatch(batchRaw);
+        this.batches.push(parsedBatch);
+        this._isComplete = parsedBatch.isLastBatch;
 
-          // In theory one could construct a valid proto serializing the column
-          // names after the cell batches. In practice the QueryResultSerializer
-          // doesn't do that so it's not worth complicating the code.
-          const numColumns = this.columnNames.length;
-          if (numColumns !== 0) {
-            assertTrue(parsedBatch.numCells % numColumns === 0);
-            this._numRows += parsedBatch.numCells / numColumns;
-          } else {
-            // numColumns == 0 is  plausible for queries like CREATE TABLE ... .
-            assertTrue(parsedBatch.numCells === 0);
-          }
-          break;
+        // In theory one could construct a valid proto serializing the column
+        // names after the cell batches. In practice the QueryResultSerializer
+        // doesn't do that so it's not worth complicating the code.
+        const numColumns = this.columnNames.length;
+        if (numColumns !== 0) {
+          assertTrue(parsedBatch.numCells % numColumns === 0);
+          this._numRows += parsedBatch.numCells / numColumns;
+        } else {
+          // numColumns == 0 is  plausible for queries like CREATE TABLE ... .
+          assertTrue(parsedBatch.numCells === 0);
+        }
+        break;
 
-        case 4:
-          this._statementCount = reader.uint32();
-          break;
+      case 4:
+        this._statementCount = reader.uint32();
+        break;
 
-        case 5:
-          this._statementWithOutputCount = reader.uint32();
-          break;
+      case 5:
+        this._statementWithOutputCount = reader.uint32();
+        break;
 
-        case 6:
-          this._lastStatementSql = reader.string();
-          break;
+      case 6:
+        this._lastStatementSql = reader.string();
+        break;
 
-        default:
-          console.warn(`Unexpected QueryResult field ${tag >>> 3}`);
-          reader.skipType(tag & 7);
-          break;
+      default:
+        console.warn(`Unexpected QueryResult field ${tag >>> 3}`);
+        reader.skipType(tag & 7);
+        break;
       }  // switch (tag)
     }    // while (pos < end)
 
@@ -563,78 +563,78 @@ class ResultBatch {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 1:  // cell types, a packed array containing one CellType per cell.
-          assertTrue((tag & 7) === TAG_LEN_DELIM);  // Must be packed varint.
-          this.cellTypesLen = reader.uint32();
-          this.cellTypesOff = reader.pos;
-          reader.pos += this.cellTypesLen;
-          break;
+      case 1:  // cell types, a packed array containing one CellType per cell.
+        assertTrue((tag & 7) === TAG_LEN_DELIM);  // Must be packed varint.
+        this.cellTypesLen = reader.uint32();
+        this.cellTypesOff = reader.pos;
+        reader.pos += this.cellTypesLen;
+        break;
 
-        case 2:  // varint_cells, a packed varint buffer.
-          assertTrue((tag & 7) === TAG_LEN_DELIM);  // Must be packed varint.
-          const packLen = reader.uint32();
-          this.varintOff = reader.pos;
-          this.varintLen = packLen;
-          assertTrue(reader.buf === batchBytes);
-          assertTrue(
-              this.varintOff + this.varintLen <=
+      case 2:  // varint_cells, a packed varint buffer.
+        assertTrue((tag & 7) === TAG_LEN_DELIM);  // Must be packed varint.
+        const packLen = reader.uint32();
+        this.varintOff = reader.pos;
+        this.varintLen = packLen;
+        assertTrue(reader.buf === batchBytes);
+        assertTrue(
+          this.varintOff + this.varintLen <=
               batchBytes.byteOffset + batchBytes.byteLength);
-          reader.pos += packLen;
-          break;
+        reader.pos += packLen;
+        break;
 
-        case 3:  // float64_cells, a 64-bit aligned packed fixed64 buffer.
-          assertTrue((tag & 7) === TAG_LEN_DELIM);  // Must be packed varint.
-          const f64Len = reader.uint32();
-          assertTrue(f64Len % 8 === 0);
-          // Float64Array's constructor is evil: the offset is in bytes but the
-          // length is in 8-byte words.
-          const f64Words = f64Len / 8;
-          const f64Off = batchBytes.byteOffset + reader.pos;
-          if (f64Off % 8 === 0) {
-            this.float64Cells =
+      case 3:  // float64_cells, a 64-bit aligned packed fixed64 buffer.
+        assertTrue((tag & 7) === TAG_LEN_DELIM);  // Must be packed varint.
+        const f64Len = reader.uint32();
+        assertTrue(f64Len % 8 === 0);
+        // Float64Array's constructor is evil: the offset is in bytes but the
+        // length is in 8-byte words.
+        const f64Words = f64Len / 8;
+        const f64Off = batchBytes.byteOffset + reader.pos;
+        if (f64Off % 8 === 0) {
+          this.float64Cells =
                 new Float64Array(batchBytes.buffer, f64Off, f64Words);
-          } else {
-            // When using the production code in trace_processor's rpc.cc, the
-            // float64 should be 8-bytes aligned. The slow-path case is only for
-            // tests.
-            const slice = batchBytes.buffer.slice(f64Off, f64Off + f64Len);
-            this.float64Cells = new Float64Array(slice);
-          }
-          reader.pos += f64Len;
-          break;
+        } else {
+          // When using the production code in trace_processor's rpc.cc, the
+          // float64 should be 8-bytes aligned. The slow-path case is only for
+          // tests.
+          const slice = batchBytes.buffer.slice(f64Off, f64Off + f64Len);
+          this.float64Cells = new Float64Array(slice);
+        }
+        reader.pos += f64Len;
+        break;
 
-        case 4:  // blob_cells: one entry per blob.
-          assertTrue((tag & 7) === TAG_LEN_DELIM);
-          // protobufjs's bytes() under the hoods calls slice() and creates
-          // a copy. Fine here as blobs are rare and not a fastpath.
-          this.blobCells.push(new Uint8Array(reader.bytes()));
-          break;
+      case 4:  // blob_cells: one entry per blob.
+        assertTrue((tag & 7) === TAG_LEN_DELIM);
+        // protobufjs's bytes() under the hoods calls slice() and creates
+        // a copy. Fine here as blobs are rare and not a fastpath.
+        this.blobCells.push(new Uint8Array(reader.bytes()));
+        break;
 
-        case 5:  // string_cells: all the string cells concatenated with \0s.
-          assertTrue((tag & 7) === TAG_LEN_DELIM);
-          const strLen = reader.uint32();
-          assertTrue(reader.pos + strLen <= end);
-          const subArr = batchBytes.subarray(reader.pos, reader.pos + strLen);
-          assertTrue(subArr.length === strLen);
-          // The reason why we do this split rather than creating one string
-          // per entry is that utf8 decoding has some non-negligible cost. See
-          // go/postmessage-benchmark .
-          this.stringCells = utf8Decode(subArr).split('\0');
-          reader.pos += strLen;
-          break;
+      case 5:  // string_cells: all the string cells concatenated with \0s.
+        assertTrue((tag & 7) === TAG_LEN_DELIM);
+        const strLen = reader.uint32();
+        assertTrue(reader.pos + strLen <= end);
+        const subArr = batchBytes.subarray(reader.pos, reader.pos + strLen);
+        assertTrue(subArr.length === strLen);
+        // The reason why we do this split rather than creating one string
+        // per entry is that utf8 decoding has some non-negligible cost. See
+        // go/postmessage-benchmark .
+        this.stringCells = utf8Decode(subArr).split('\0');
+        reader.pos += strLen;
+        break;
 
-        case 6:  // is_last_batch (boolean).
-          this.isLastBatch = !!reader.bool();
-          break;
+      case 6:  // is_last_batch (boolean).
+        this.isLastBatch = !!reader.bool();
+        break;
 
-        case 7:  // padding for realignment, skip silently.
-          reader.skipType(tag & 7);
-          break;
+      case 7:  // padding for realignment, skip silently.
+        reader.skipType(tag & 7);
+        break;
 
-        default:
-          console.warn(`Unexpected QueryResult.CellsBatch field ${tag >>> 3}`);
-          reader.skipType(tag & 7);
-          break;
+      default:
+        console.warn(`Unexpected QueryResult.CellsBatch field ${tag >>> 3}`);
+        reader.skipType(tag & 7);
+        break;
       }  // switch(tag)
     }    // while (pos < end)
   }
@@ -701,7 +701,7 @@ class RowIteratorImpl implements RowIteratorBase {
     const res = this.rowData[columnName];
     if (res === undefined) {
       throw this.makeError(
-          `Column '${columnName}' doesn't exist. ` +
+        `Column '${columnName}' doesn't exist. ` +
           `Actual columns: [${this.columnNames.join(',')}]`);
     }
     return res;
@@ -723,7 +723,7 @@ class RowIteratorImpl implements RowIteratorBase {
       // whole rows in each QueryResult batch and NOT truncate them midway.
       // If this assert fires the TP RPC logic has a bug.
       assertTrue(
-          this.nextCellTypeOff === this.cellTypesEnd ||
+        this.nextCellTypeOff === this.cellTypesEnd ||
           this.cellTypesEnd === -1);
       if (!this.tryMoveToNextBatch()) {
         this.isValid = false;
@@ -741,42 +741,42 @@ class RowIteratorImpl implements RowIteratorBase {
       const expType = this.rowSpec[colName];
 
       switch (cellType) {
-        case CellType.CELL_NULL:
-          rowData[colName] = null;
-          break;
+      case CellType.CELL_NULL:
+        rowData[colName] = null;
+        break;
 
-        case CellType.CELL_VARINT:
-          if (expType === NUM || expType === NUM_NULL) {
-            // This is very subtle. The return type of int64 can be either a
-            // number or a Long.js {high:number, low:number} if Long.js is
-            // installed. The default state seems different in node and browser.
-            // We force-disable Long.js support in the top of this source file.
-            const val = this.varIntReader.int64();
-            rowData[colName] = val as {} as number;
-          } else {
-            // LONG, LONG_NULL, or unspecified - return as bigint
-            const value =
+      case CellType.CELL_VARINT:
+        if (expType === NUM || expType === NUM_NULL) {
+          // This is very subtle. The return type of int64 can be either a
+          // number or a Long.js {high:number, low:number} if Long.js is
+          // installed. The default state seems different in node and browser.
+          // We force-disable Long.js support in the top of this source file.
+          const val = this.varIntReader.int64();
+          rowData[colName] = val as {} as number;
+        } else {
+          // LONG, LONG_NULL, or unspecified - return as bigint
+          const value =
                 decodeInt64Varint(this.batchBytes, this.varIntReader.pos);
-            rowData[colName] = value;
-            this.varIntReader.skip();  // Skips a varint
-          }
-          break;
+          rowData[colName] = value;
+          this.varIntReader.skip();  // Skips a varint
+        }
+        break;
 
-        case CellType.CELL_FLOAT64:
-          rowData[colName] = this.float64Cells[this.nextFloat64Cell++];
-          break;
+      case CellType.CELL_FLOAT64:
+        rowData[colName] = this.float64Cells[this.nextFloat64Cell++];
+        break;
 
-        case CellType.CELL_STRING:
-          rowData[colName] = this.stringCells[this.nextStringCell++];
-          break;
+      case CellType.CELL_STRING:
+        rowData[colName] = this.stringCells[this.nextStringCell++];
+        break;
 
-        case CellType.CELL_BLOB:
-          const blob = this.blobCells[this.nextBlobCell++];
-          rowData[colName] = blob;
-          break;
+      case CellType.CELL_BLOB:
+        const blob = this.blobCells[this.nextBlobCell++];
+        rowData[colName] = blob;
+        break;
 
-        default:
-          throw this.makeError(`Invalid cell type ${cellType}`);
+      default:
+        throw this.makeError(`Invalid cell type ${cellType}`);
       }
     }  // For (cells)
     this.isValid = true;
@@ -810,7 +810,7 @@ class RowIteratorImpl implements RowIteratorBase {
     for (const expectedCol of Object.keys(this.rowSpec)) {
       if (this.columnNames.indexOf(expectedCol) < 0) {
         throw this.makeError(
-            `Column ${expectedCol} not found in the SQL result ` +
+          `Column ${expectedCol} not found in the SQL result ` +
             `set {${this.columnNames.join(' ')}}`);
       }
     }
@@ -847,8 +847,8 @@ class RowIteratorImpl implements RowIteratorBase {
               'Did you mean NUM_NULL, LONG_NULL, STR_NULL or BLOB_NULL?';
         } else {
           err = `Incompatible cell type. Expected: ${
-              columnTypeToString(
-                  expType)} actual: ${CELL_TYPE_NAMES[actualType]}`;
+            columnTypeToString(
+              expType)} actual: ${CELL_TYPE_NAMES[actualType]}`;
         }
       }
       if (err.length > 0) {

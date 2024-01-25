@@ -42,18 +42,18 @@ export const VizPage = createPage({
 
   view() {
     return m(
-        '.viz-page',
-        m(VegaView, {
-          spec: SPEC,
-          engine: ENGINE,
-          data: {},
-        }),
-        m(Editor, {
-          onUpdate: (text: string) => {
-            SPEC = text;
-            raf.scheduleFullRedraw();
-          },
-        }),
+      '.viz-page',
+      m(VegaView, {
+        spec: SPEC,
+        engine: ENGINE,
+        data: {},
+      }),
+      m(Editor, {
+        onUpdate: (text: string) => {
+          SPEC = text;
+          raf.scheduleFullRedraw();
+        },
+      }),
     );
   },
 });

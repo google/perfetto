@@ -109,10 +109,10 @@ export class Time {
   static getLatestMidnight(time: time, offset: duration): time {
     const date = Time.toDate(time, offset);
     const floorDay = new Date(Date.UTC(
-        date.getUTCFullYear(),
-        date.getUTCMonth(),
-        date.getUTCDate(),
-        ));
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+    ));
 
     return Time.fromDate(floorDay, offset);
   }
@@ -306,7 +306,7 @@ export class Timecode {
 export function currentDateHourAndMinute(): string {
   const date = new Date();
   return `${date.toISOString().substr(0, 10)}-${date.getHours()}-${
-      date.getMinutes()}`;
+    date.getMinutes()}`;
 }
 
 // Create a Time value from an arbitrary SQL value.
@@ -334,8 +334,8 @@ export class TimeSpan implements Span<time, duration> {
 
   constructor(start: time, end: time) {
     assertTrue(
-        start <= end,
-        `Span start [${start}] cannot be greater than end [${end}]`);
+      start <= end,
+      `Span start [${start}] cannot be greater than end [${end}]`);
     this.start = start;
     this.end = end;
   }
@@ -378,7 +378,7 @@ export class TimeSpan implements Span<time, duration> {
 
   pad(padding: duration): Span<time, duration> {
     return new TimeSpan(
-        Time.sub(this.start, padding), Time.add(this.end, padding));
+      Time.sub(this.start, padding), Time.add(this.end, padding));
   }
 }
 

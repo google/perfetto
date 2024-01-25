@@ -176,7 +176,7 @@ test('QueryResult.NullChecks', () => {
   const actualNums = new Array<number|null>();
   const actualStrings = new Array<string|null>();
   for (const iter = qr.iter({n: NUM_NULL, s: STR_NULL}); iter.valid();
-       iter.next()) {
+    iter.next()) {
     actualNums.push(iter.n);
     actualStrings.push(iter.s);
   }
@@ -185,9 +185,9 @@ test('QueryResult.NullChecks', () => {
 
   // Check that using NUM / STR throws.
   expect(() => qr.iter({n: NUM_NULL, s: STR}))
-      .toThrowError(/col: 's'.*is NULL.*not expected/);
+    .toThrowError(/col: 's'.*is NULL.*not expected/);
   expect(() => qr.iter({n: NUM, s: STR_NULL}))
-      .toThrowError(/col: 'n'.*is NULL.*not expected/);
+    .toThrowError(/col: 'n'.*is NULL.*not expected/);
   expect(qr.iter({n: NUM_NULL})).toBeTruthy();
   expect(qr.iter({s: STR_NULL})).toBeTruthy();
 });
@@ -352,7 +352,7 @@ test('QueryResult.WaitMoreRows', async () => {
 describe('decodeInt64Varint', () => {
   test('Parsing empty input should throw an error', () => {
     expect(() => decodeInt64Varint(new Uint8Array(), 0))
-        .toThrow('Index out of range');
+      .toThrow('Index out of range');
   });
 
   test('Parsing single byte positive integers', () => {

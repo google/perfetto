@@ -271,29 +271,29 @@ describe('sub-store', () => {
   });
 
   it('check subscriber only called once when edits made to undefined root path',
-     () => {
-       const store = createStore(initialState);
-       const value: Foo = {
-         counter: 123,
-         nested: {
-           value: 456,
-         },
-       };
+    () => {
+      const store = createStore(initialState);
+      const value: Foo = {
+        counter: 123,
+        nested: {
+          value: 456,
+        },
+      };
 
-       const callback = jest.fn();
+      const callback = jest.fn();
 
-       // This target node is missing - baz doesn't exist in State
-       const subStore = store.createSubStore<Foo>(['baz', 'quux'], () => value);
-       subStore.subscribe(callback);
+      // This target node is missing - baz doesn't exist in State
+      const subStore = store.createSubStore<Foo>(['baz', 'quux'], () => value);
+      subStore.subscribe(callback);
 
-       // Edits should work just fine, but the root store will not be modified.
-       subStore.edit((draft) => {
-         draft.counter += 1;
-       });
+      // Edits should work just fine, but the root store will not be modified.
+      subStore.edit((draft) => {
+        draft.counter += 1;
+      });
 
-       expect(callback).toHaveBeenCalledTimes(1);
-       expect(callback).toHaveBeenCalledWith(subStore, value);
-     });
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenCalledWith(subStore, value);
+    });
 
   it('notifies subscribers even when path doesn\'t exist in root store', () => {
     const store = createStore(initialState);
@@ -376,21 +376,21 @@ describe('sub-store', () => {
   // TODO(stevegolton): See if we can get this working, regardless of migrate
   // function implementation.
   it.skip(
-      'unrelated state refs are still equal when modified from root store',
-      () => {
-        const store = createStore(initialState);
-        const subStore = store.createSubStore<Foo>(['foo'], migrateFoo);
-        const before = subStore.state;
+    'unrelated state refs are still equal when modified from root store',
+    () => {
+      const store = createStore(initialState);
+      const subStore = store.createSubStore<Foo>(['foo'], migrateFoo);
+      const before = subStore.state;
 
-        // Check that unrelated state is still the same even though subtree is
-        // modified from the root store
-        store.edit((draft) => {
-          draft.foo.counter = 1234;
-        });
-
-        expect(before.nested).toBe(subStore.state.nested);
-        expect(subStore.state.counter).toBe(1234);
+      // Check that unrelated state is still the same even though subtree is
+      // modified from the root store
+      store.edit((draft) => {
+        draft.foo.counter = 1234;
       });
+
+      expect(before.nested).toBe(subStore.state.nested);
+      expect(subStore.state.counter).toBe(1234);
+    });
 
   it('works when underlying state is undefined', () => {
     interface RootState {

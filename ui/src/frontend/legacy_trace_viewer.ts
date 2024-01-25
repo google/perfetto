@@ -94,7 +94,7 @@ export async function openFileWithLegacyTraceViewer(file: File) {
   reader.onload = () => {
     if (reader.result instanceof ArrayBuffer) {
       return openBufferWithLegacyTraceViewer(
-          file.name, reader.result, reader.result.byteLength);
+        file.name, reader.result, reader.result.byteLength);
     } else {
       const str = reader.result as string;
       return openBufferWithLegacyTraceViewer(file.name, str, str.length);
@@ -112,7 +112,7 @@ export async function openFileWithLegacyTraceViewer(file: File) {
 }
 
 export function openBufferWithLegacyTraceViewer(
-    name: string, data: ArrayBuffer|string, size: number) {
+  name: string, data: ArrayBuffer|string, size: number) {
   if (data instanceof ArrayBuffer) {
     assertTrue(size <= data.byteLength);
     if (size !== data.byteLength) {
@@ -146,9 +146,9 @@ export function openBufferWithLegacyTraceViewer(
   showModal({
     title: 'Open trace in the legacy Catapult Trace Viewer',
     content: m(
-        'div',
-        m('div', 'You are seeing this interstitial because popups are blocked'),
-        m('div', 'Enable popups to skip this dialog next time.')),
+      'div',
+      m('div', 'You are seeing this interstitial because popups are blocked'),
+      m('div', 'Enable popups to skip this dialog next time.')),
     buttons: [{
       text: 'Open legacy UI',
       primary: true,

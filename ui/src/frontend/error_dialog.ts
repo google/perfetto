@@ -156,22 +156,22 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     let shareTraceSection: m.Vnode|null = null;
     if (this.traceState !== 'NOT_AVAILABLE') {
       shareTraceSection = m(
-          'div',
-          m(
-              'label',
-              m(`input[type=checkbox]`, {
-                checked: this.attachTrace,
-                oninput: (ev: InputEvent) => {
-                  const checked = (ev.target as HTMLInputElement).checked;
-                  this.onUploadCheckboxChange(checked);
-                },
-              }),
-              this.traceState === 'UPLOADING' ?
-                  `Uploading trace... ${this.uploadStatus}` :
-                  'Tick to share the current trace and help debugging',
-              ),  // m('label')
-          m('div.modal-small',
-            `This will upload the trace and attach a link to the bug.
+        'div',
+        m(
+          'label',
+          m(`input[type=checkbox]`, {
+            checked: this.attachTrace,
+            oninput: (ev: InputEvent) => {
+              const checked = (ev.target as HTMLInputElement).checked;
+              this.onUploadCheckboxChange(checked);
+            },
+          }),
+          this.traceState === 'UPLOADING' ?
+            `Uploading trace... ${this.uploadStatus}` :
+            'Tick to share the current trace and help debugging',
+        ),  // m('label')
+        m('div.modal-small',
+          `This will upload the trace and attach a link to the bug.
           You may leave it unchecked and attach the trace manually to the bug
           if preferred.`),
       );
@@ -179,21 +179,21 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
 
     return [
       m(
-          'div',
-          m('.modal-logs', msg),
-          m('span', `Please provide any additional details describing
+        'div',
+        m('.modal-logs', msg),
+        m('span', `Please provide any additional details describing
         how the crash occurred:`),
-          m('textarea.modal-textarea', {
-            rows: 3,
-            maxlength: 1000,
-            oninput: (ev: InputEvent) => {
-              this.userDescription = (ev.target as HTMLTextAreaElement).value;
-            },
-            onkeydown: (e: Event) => e.stopPropagation(),
-            onkeyup: (e: Event) => e.stopPropagation(),
-          }),
-          shareTraceSection,
-          ),
+        m('textarea.modal-textarea', {
+          rows: 3,
+          maxlength: 1000,
+          oninput: (ev: InputEvent) => {
+            this.userDescription = (ev.target as HTMLTextAreaElement).value;
+          },
+          onkeydown: (e: Event) => e.stopPropagation(),
+          onkeyup: (e: Event) => e.stopPropagation(),
+        }),
+        shareTraceSection,
+      ),
       m('footer',
         m('button.modal-btn.modal-btn-primary',
           {onclick: () => this.fileBug(err)},
@@ -233,7 +233,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     url += '&description=';
     if (this.userDescription !== '') {
       url += encodeURIComponent(
-          'User description:\n' + this.userDescription + '\n\n');
+        'User description:\n' + this.userDescription + '\n\n');
     }
     url += encodeURIComponent(this.errorMessage);
     // 8kb is common limit on request size so restrict links to that long:
@@ -253,21 +253,21 @@ function showOutOfMemoryDialog() {
   showModal({
     title: 'Oops! Your WASM trace processor ran out of memory',
     content: m(
-        'div',
-        m('span',
-          'The in-memory representation of the trace is too big ' +
+      'div',
+      m('span',
+        'The in-memory representation of the trace is too big ' +
               'for the browser memory limits (typically 2GB per tab).'),
-        m('br'),
-        m('span',
-          'You can work around this problem by using the trace_processor ' +
+      m('br'),
+      m('span',
+        'You can work around this problem by using the trace_processor ' +
               'native binary as an accelerator for the UI as follows:'),
-        m('br'),
-        m('br'),
-        m('.modal-bash', tpCmd),
-        m('br'),
-        m('span', 'For details see '),
-        m('a', {href: url, target: '_blank'}, url),
-        ),
+      m('br'),
+      m('br'),
+      m('.modal-bash', tpCmd),
+      m('br'),
+      m('span', 'For details see '),
+      m('a', {href: url, target: '_blank'}, url),
+    ),
   });
 }
 
@@ -275,20 +275,20 @@ function showUnknownFileError() {
   showModal({
     title: 'Cannot open this file',
     content: m(
-        'div',
-        m('p',
-          'The file opened doesn\'t look like a Perfetto trace or any ' +
+      'div',
+      m('p',
+        'The file opened doesn\'t look like a Perfetto trace or any ' +
               'other format recognized by the Perfetto TraceProcessor.'),
-        m('p', 'Formats supported:'),
-        m(
-            'ul',
-            m('li', 'Perfetto protobuf trace'),
-            m('li', 'chrome://tracing JSON'),
-            m('li', 'Android systrace'),
-            m('li', 'Fuchsia trace'),
-            m('li', 'Ninja build log'),
-            ),
-        ),
+      m('p', 'Formats supported:'),
+      m(
+        'ul',
+        m('li', 'Perfetto protobuf trace'),
+        m('li', 'chrome://tracing JSON'),
+        m('li', 'Android systrace'),
+        m('li', 'Fuchsia trace'),
+        m('li', 'Ninja build log'),
+      ),
+    ),
   });
 }
 
@@ -296,15 +296,15 @@ function showWebUSBError() {
   showModal({
     title: 'A WebUSB error occurred',
     content: m(
-        'div',
-        m('span', `Is adb already running on the host? Run this command and
+      'div',
+      m('span', `Is adb already running on the host? Run this command and
       try again.`),
-        m('br'),
-        m('.modal-bash', '> adb kill-server'),
-        m('br'),
-        m('span', 'For details see '),
-        m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
-        ),
+      m('br'),
+      m('.modal-bash', '> adb kill-server'),
+      m('br'),
+      m('span', 'For details see '),
+      m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
+    ),
   });
 }
 
@@ -312,30 +312,30 @@ export function showWebUSBErrorV2() {
   showModal({
     title: 'A WebUSB error occurred',
     content: m(
-        'div',
-        m('span', `Is adb already running on the host? Run this command and
+      'div',
+      m('span', `Is adb already running on the host? Run this command and
       try again.`),
-        m('br'),
-        m('.modal-bash', '> adb kill-server'),
-        m('br'),
-        // The statement below covers the following edge case:
-        // 1. 'adb server' is running on the device.
-        // 2. The user selects the new Android target, so we try to fetch the
-        // OS version and do QSS.
-        // 3. The error modal is shown.
-        // 4. The user runs 'adb kill-server'.
-        // At this point we don't have a trigger to try fetching the OS version
-        // + QSS again. Therefore, the user will need to refresh the page.
-        m('span',
-          'If after running \'adb kill-server\', you don\'t see ' +
+      m('br'),
+      m('.modal-bash', '> adb kill-server'),
+      m('br'),
+      // The statement below covers the following edge case:
+      // 1. 'adb server' is running on the device.
+      // 2. The user selects the new Android target, so we try to fetch the
+      // OS version and do QSS.
+      // 3. The error modal is shown.
+      // 4. The user runs 'adb kill-server'.
+      // At this point we don't have a trigger to try fetching the OS version
+      // + QSS again. Therefore, the user will need to refresh the page.
+      m('span',
+        'If after running \'adb kill-server\', you don\'t see ' +
               'a \'Start Recording\' button on the page and you don\'t see ' +
               '\'Allow USB debugging\' on the device, ' +
               'you will need to reload this page.'),
-        m('br'),
-        m('br'),
-        m('span', 'For details see '),
-        m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
-        ),
+      m('br'),
+      m('br'),
+      m('span', 'For details see '),
+      m('a', {href: 'http://b/159048331', target: '_blank'}, 'b/159048331'),
+    ),
   });
 }
 
@@ -343,9 +343,9 @@ export function showConnectionLostError(): void {
   showModal({
     title: 'Connection with the ADB device lost',
     content: m(
-        'div',
-        m('span', `Please connect the device again to restart the recording.`),
-        m('br')),
+      'div',
+      m('span', `Please connect the device again to restart the recording.`),
+      m('br')),
   });
 }
 
@@ -353,7 +353,7 @@ export function showAllowUSBDebugging(): void {
   showModal({
     title: 'Could not connect to the device',
     content: m(
-        'div', m('span', 'Please allow USB debugging on the device.'), m('br')),
+      'div', m('span', 'Please allow USB debugging on the device.'), m('br')),
   });
 }
 
@@ -417,13 +417,13 @@ function showRpcSequencingError() {
   showModal({
     title: 'A TraceProcessor RPC error occurred',
     content: m(
-        'div',
-        m('p', 'The trace processor RPC sequence ID was broken'),
-        m('p', `This can happen when using a HTTP trace processor instance and
+      'div',
+      m('p', 'The trace processor RPC sequence ID was broken'),
+      m('p', `This can happen when using a HTTP trace processor instance and
 either accidentally sharing this between multiple tabs or
 restarting the trace processor while still in use by UI.`),
-        m('p', `Please refresh this tab and ensure that trace processor is used
+      m('p', `Please refresh this tab and ensure that trace processor is used
 at most one tab at a time.`),
-        ),
+    ),
   });
 }

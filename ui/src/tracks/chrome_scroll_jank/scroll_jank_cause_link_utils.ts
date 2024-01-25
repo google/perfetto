@@ -53,8 +53,8 @@ export interface EventLatencyCauseThreadTracks {
 }
 
 export async function getScrollJankCauseStage(
-    engine: EngineProxy,
-    eventLatencyId: SliceSqlId): Promise<EventLatencyStage|undefined> {
+  engine: EngineProxy,
+  eventLatencyId: SliceSqlId): Promise<EventLatencyStage|undefined> {
   const queryResult = await engine.query(`
     SELECT
       IFNULL(cause_of_jank, '${UNKNOWN_NAME}') AS causeOfJank,
@@ -94,7 +94,7 @@ export async function getScrollJankCauseStage(
 }
 
 export async function getEventLatencyCauseTracks(
-    engine: EngineProxy, scrollJankCauseStage: EventLatencyStage):
+  engine: EngineProxy, scrollJankCauseStage: EventLatencyStage):
     Promise<EventLatencyCauseThreadTracks[]> {
   const threadTracks: EventLatencyCauseThreadTracks[] = [];
   const causeDetails =
@@ -103,22 +103,22 @@ export async function getEventLatencyCauseTracks(
 
   for (const cause of causeDetails.jankCauses) {
     switch (cause.process) {
-      case CauseProcess.RENDERER:
-      case CauseProcess.BROWSER:
-      case CauseProcess.GPU:
-        const tracksForProcess = await getChromeCauseTracks(
-            engine,
-            scrollJankCauseStage.eventLatencyId,
-            cause.process,
-            cause.thread);
-        for (const track of tracksForProcess) {
-          track.causeDescription = cause.description;
-          threadTracks.push(track);
-        }
-        break;
-      case CauseProcess.UNKNOWN:
-      default:
-        break;
+    case CauseProcess.RENDERER:
+    case CauseProcess.BROWSER:
+    case CauseProcess.GPU:
+      const tracksForProcess = await getChromeCauseTracks(
+        engine,
+        scrollJankCauseStage.eventLatencyId,
+        cause.process,
+        cause.thread);
+      for (const track of tracksForProcess) {
+        track.causeDescription = cause.description;
+        threadTracks.push(track);
+      }
+      break;
+    case CauseProcess.UNKNOWN:
+    default:
+      break;
     }
   }
 
@@ -126,10 +126,10 @@ export async function getEventLatencyCauseTracks(
 }
 
 async function getChromeCauseTracks(
-    engine: EngineProxy,
-    eventLatencySliceId: number,
-    processName: CauseProcess,
-    threadName: CauseThread): Promise<EventLatencyCauseThreadTracks[]> {
+  engine: EngineProxy,
+  eventLatencySliceId: number,
+  processName: CauseProcess,
+  threadName: CauseThread): Promise<EventLatencyCauseThreadTracks[]> {
   const queryResult = await engine.query(`
       INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_cause_utils;
 
@@ -173,15 +173,15 @@ async function getChromeCauseTracks(
 }
 
 export function getCauseLink(
-    threadTracks: EventLatencyCauseThreadTracks,
-    ts: time|undefined,
-    dur: duration|undefined): m.Child {
+  threadTracks: EventLatencyCauseThreadTracks,
+  ts: time|undefined,
+  dur: duration|undefined): m.Child {
   const trackKeys: string[] = [];
   for (const trackId of threadTracks.trackIds) {
     const trackKey = globals.state.trackKeyByTrackId[trackId];
     if (trackKey === undefined) {
       return `Could not locate track ${trackId} for thread ${
-          threadTracks.thread} in the global state`;
+        threadTracks.thread} in the global state`;
     }
     trackKeys.push(trackKey);
   }
@@ -193,26 +193,26 @@ export function getCauseLink(
   // Fixed length of a container to ensure that the icon does not overlap with
   // the text due to table formatting.
   return m(
-      `div[style='width:250px']`,
-      m(Anchor,
-        {
-          icon: Icons.UpdateSelection,
-          onclick: () => {
-            verticalScrollToTrack(trackKeys[0], true);
-            if (exists(ts) && exists(dur)) {
-              focusHorizontalRange(ts, Time.fromRaw(ts + dur), 0.3);
-              globals.timeline.selectArea(
-                  ts, Time.fromRaw(ts + dur), trackKeys);
+    `div[style='width:250px']`,
+    m(Anchor,
+      {
+        icon: Icons.UpdateSelection,
+        onclick: () => {
+          verticalScrollToTrack(trackKeys[0], true);
+          if (exists(ts) && exists(dur)) {
+            focusHorizontalRange(ts, Time.fromRaw(ts + dur), 0.3);
+            globals.timeline.selectArea(
+              ts, Time.fromRaw(ts + dur), trackKeys);
 
-              globals.dispatch(Actions.selectArea({
-                area: {
-                  start: ts,
-                  end: Time.fromRaw(ts + dur),
-                  tracks: trackKeys,
-                },
-              }));
-            }
-          },
+            globals.dispatch(Actions.selectArea({
+              area: {
+                start: ts,
+                end: Time.fromRaw(ts + dur),
+                tracks: trackKeys,
+              },
+            }));
+          }
         },
-        threadTracks.thread));
+      },
+      threadTracks.thread));
 }

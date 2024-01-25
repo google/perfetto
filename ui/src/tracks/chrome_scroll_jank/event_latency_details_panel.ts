@@ -57,7 +57,7 @@ import {
 import {ScrollJankV3Track} from './scroll_jank_v3_track';
 
 export class EventLatencySliceDetailsPanel extends
-    BottomTab<GenericSliceDetailsTabConfig> {
+  BottomTab<GenericSliceDetailsTabConfig> {
   static readonly kind = 'dev.perfetto.EventLatencySliceDetailsPanel';
 
   private loaded = false;
@@ -163,7 +163,7 @@ export class EventLatencySliceDetailsPanel extends
 
     if (this.relevantThreadStage) {
       this.relevantThreadTracks = await getEventLatencyCauseTracks(
-          this.engine, this.relevantThreadStage);
+        this.engine, this.relevantThreadStage);
     }
   }
 
@@ -178,11 +178,11 @@ export class EventLatencySliceDetailsPanel extends
     }
 
     const name = this.relevantThreadStage ? this.relevantThreadStage.name :
-                                            this.sliceDetails.name;
+      this.sliceDetails.name;
     const ts = this.relevantThreadStage ? this.relevantThreadStage.ts :
-                                          this.sliceDetails.ts;
+      this.sliceDetails.ts;
     const dur = this.relevantThreadStage ? this.relevantThreadStage.dur :
-                                           this.sliceDetails.dur;
+      this.sliceDetails.dur;
     const stageDetails = ScrollJankCauseMap.getEventLatencyDetails(name);
     if (stageDetails === undefined) return undefined;
 
@@ -198,16 +198,16 @@ export class EventLatencySliceDetailsPanel extends
 
     const columns: ColumnDescriptor<RelevantThreadRow>[] = [
       widgetColumn<RelevantThreadRow>(
-          'Relevant Thread', (x) => getCauseLink(x.tracks, x.ts, x.dur)),
+        'Relevant Thread', (x) => getCauseLink(x.tracks, x.ts, x.dur)),
       widgetColumn<RelevantThreadRow>(
-          'Description',
-          (x) => {
-            if (x.description === '') {
-              return x.description;
-            } else {
-              return m(TextParagraph, {text: x.description});
-            }
-          }),
+        'Description',
+        (x) => {
+          if (x.description === '') {
+            return x.description;
+          } else {
+            return m(TextParagraph, {text: x.description});
+          }
+        }),
     ];
 
     const trackLinks: RelevantThreadRow[] = [];
@@ -236,9 +236,9 @@ export class EventLatencySliceDetailsPanel extends
     }
 
     return m(
-        Section,
-        {title: this.isJankStage ? `Jank Cause: ${name}` : name},
-        childWidgets);
+      Section,
+      {title: this.isJankStage ? `Jank Cause: ${name}` : name},
+      childWidgets);
   }
 
   private async getOldestAncestorSliceId(): Promise<number> {
@@ -265,53 +265,53 @@ export class EventLatencySliceDetailsPanel extends
 
   private getLinksSection(): m.Child {
     return m(
-        Section,
-        {title: 'Quick links'},
-        m(
-            Tree,
-            m(TreeNode, {
-              left: this.sliceDetails ?
-                  sliceRef(
-                      this.sliceDetails,
-                      'EventLatency in context of other Input events') :
-                  'EventLatency in context of other Input events',
-              right: this.sliceDetails ? '' : 'N/A',
-            }),
-            m(TreeNode, {
-              left: this.jankySlice ? getSliceForTrack(
-                                          this.jankySlice,
-                                          ScrollJankV3Track.kind,
-                                          'Jank Interval') :
-                                      'Jank Interval',
-              right: this.jankySlice ? '' : 'N/A',
-            }),
-            ),
+      Section,
+      {title: 'Quick links'},
+      m(
+        Tree,
+        m(TreeNode, {
+          left: this.sliceDetails ?
+            sliceRef(
+              this.sliceDetails,
+              'EventLatency in context of other Input events') :
+            'EventLatency in context of other Input events',
+          right: this.sliceDetails ? '' : 'N/A',
+        }),
+        m(TreeNode, {
+          left: this.jankySlice ? getSliceForTrack(
+            this.jankySlice,
+            ScrollJankV3Track.kind,
+            'Jank Interval') :
+            'Jank Interval',
+          right: this.jankySlice ? '' : 'N/A',
+        }),
+      ),
     );
   }
 
   private getDescriptionText(): m.Child {
     return m(
-        MultiParagraphText,
-        m(TextParagraph, {
-          text: `EventLatency tracks the latency of handling a given input event
+      MultiParagraphText,
+      m(TextParagraph, {
+        text: `EventLatency tracks the latency of handling a given input event
                  (Scrolls, Touches, Taps, etc). Ideally from when the input was
                  read by the hardware to when it was reflected on the screen.`,
-        }),
-        m(TextParagraph, {
-          text:
+      }),
+      m(TextParagraph, {
+        text:
               `Note however the concept of coalescing or terminating early. This
                occurs when we receive multiple events or handle them quickly by
                converting them into a different event. Such as a TOUCH_MOVE
                being converted into a GESTURE_SCROLL_UPDATE type, or a multiple
                GESTURE_SCROLL_UPDATE events being formed into a single frame at
                the end of the RendererCompositorQueuingDelay.`,
-        }),
-        m(TextParagraph, {
-          text:
+      }),
+      m(TextParagraph, {
+        text:
               `*Important:* On some platforms (MacOS) we do not get feedback on
                when something is presented on the screen so the timings are only
                accurate for what we know on a given platform.`,
-        }),
+      }),
     );
   }
 
@@ -321,9 +321,9 @@ export class EventLatencySliceDetailsPanel extends
 
       const rightSideWidgets: m.Child[] = [];
       rightSideWidgets.push(
-          m(Section,
-            {title: 'Description'},
-            m('.div', this.getDescriptionText())));
+        m(Section,
+          {title: 'Description'},
+          m('.div', this.getDescriptionText())));
 
       const stageWidget = this.getRelevantLinks();
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
@@ -333,23 +333,23 @@ export class EventLatencySliceDetailsPanel extends
       rightSideWidgets.push(this.getLinksSection());
 
       return m(
-          DetailsShell,
-          {
-            title: 'Slice',
-            description: this.name,
-          },
-          m(GridLayout,
-            m(GridLayoutColumn,
-              renderDetails(slice),
-              hasArgs(slice.args) &&
+        DetailsShell,
+        {
+          title: 'Slice',
+          description: this.name,
+        },
+        m(GridLayout,
+          m(GridLayoutColumn,
+            renderDetails(slice),
+            hasArgs(slice.args) &&
                   m(Section,
                     {title: 'Arguments'},
                     m(Tree, renderArguments(this.engine, slice.args)))),
-            m(GridLayoutColumn,
-              m(Section,
-                {title: 'Description'},
-                m('.div', this.getDescriptionText())),
-              this.getLinksSection())),
+          m(GridLayoutColumn,
+            m(Section,
+              {title: 'Description'},
+              m('.div', this.getDescriptionText())),
+            this.getLinksSection())),
       );
     } else {
       return m(DetailsShell, {title: 'Slice', description: 'Loading...'});

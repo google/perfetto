@@ -77,34 +77,34 @@ export class PermalinkController extends Controller<'main'> {
       });
 
       PermalinkController.createPermalink(isRecordingConfig)
-          .then((hash) => {
-            globals.dispatch(Actions.setPermalink({requestId, hash}));
-          })
-          .finally(() => {
-            publishConversionJobStatusUpdate({
-              jobName,
-              jobStatus: ConversionJobStatus.NotRunning,
-            });
+        .then((hash) => {
+          globals.dispatch(Actions.setPermalink({requestId, hash}));
+        })
+        .finally(() => {
+          publishConversionJobStatusUpdate({
+            jobName,
+            jobStatus: ConversionJobStatus.NotRunning,
           });
+        });
       return;
     }
 
     // Otherwise, this is a request to load the permalink.
     PermalinkController.loadState(globals.state.permalink.hash)
-        .then((stateOrConfig) => {
-          if (PermalinkController.isRecordConfig(stateOrConfig)) {
-            // This permalink state only contains a RecordConfig. Show the
-            // recording page with the config, but keep other state as-is.
-            const validConfig =
+      .then((stateOrConfig) => {
+        if (PermalinkController.isRecordConfig(stateOrConfig)) {
+          // This permalink state only contains a RecordConfig. Show the
+          // recording page with the config, but keep other state as-is.
+          const validConfig =
                 runValidator(recordConfigValidator, stateOrConfig as unknown)
-                    .result;
-            globals.dispatch(Actions.setRecordConfig({config: validConfig}));
-            Router.navigate('#!/record');
-            return;
-          }
-          globals.dispatch(Actions.setState({newState: stateOrConfig}));
-          this.lastRequestId = stateOrConfig.permalink.requestId;
-        });
+                  .result;
+          globals.dispatch(Actions.setRecordConfig({config: validConfig}));
+          Router.navigate('#!/record');
+          return;
+        }
+        globals.dispatch(Actions.setState({newState: stateOrConfig}));
+        this.lastRequestId = stateOrConfig.permalink.requestId;
+      });
   }
 
   private static upgradeState(state: State): State {
@@ -170,22 +170,22 @@ export class PermalinkController extends Controller<'main'> {
         PermalinkController.updateStatus(`Uploading ${traceName}`);
         const uploader = new TraceGcsUploader(dataToUpload, () => {
           switch (uploader.state) {
-            case 'UPLOADING':
-              const statusTxt = `Uploading ${uploader.getEtaString()}`;
-              PermalinkController.updateStatus(statusTxt);
-              break;
-            case 'UPLOADED':
-              // Convert state to use URLs and remove permalink.
-              const url = uploader.uploadedUrl;
-              uploadState = produce(globals.state, (draft) => {
-                assertExists(draft.engine).source = {type: 'URL', url};
-                draft.permalink = {};
-              });
-              break;
-            case 'ERROR':
-              PermalinkController.updateStatus(
-                  `Upload failed ${uploader.error}`);
-              break;
+          case 'UPLOADING':
+            const statusTxt = `Uploading ${uploader.getEtaString()}`;
+            PermalinkController.updateStatus(statusTxt);
+            break;
+          case 'UPLOADED':
+            // Convert state to use URLs and remove permalink.
+            const url = uploader.uploadedUrl;
+            uploadState = produce(globals.state, (draft) => {
+              assertExists(draft.engine).source = {type: 'URL', url};
+              draft.permalink = {};
+            });
+            break;
+          case 'ERROR':
+            PermalinkController.updateStatus(
+              `Upload failed ${uploader.error}`);
+            break;
           }  // switch (state)
         });  // onProgress
         await uploader.waitForCompletion();
@@ -204,7 +204,7 @@ export class PermalinkController extends Controller<'main'> {
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(
-          `Could not fetch permalink.\n` +
+        `Could not fetch permalink.\n` +
           `Are you sure the id (${id}) is correct?\n` +
           `URL: ${url}`);
     }

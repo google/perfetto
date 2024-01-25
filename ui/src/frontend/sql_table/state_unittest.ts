@@ -154,5 +154,5 @@ test('sqlTableState: sqlStatement', () => {
 
   // Check the generated SQL statement.
   expect(normalize(state.buildSqlSelectStatement().selectStatement))
-      .toBe('SELECT id as id, name as name FROM table');
+    .toBe('SELECT id as id, name as name FROM table');
 });

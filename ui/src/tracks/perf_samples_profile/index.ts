@@ -119,17 +119,17 @@ class PerfSamplesProfileTrack implements Track {
           selection.leftTs <= centerX && selection.rightTs >= centerX;
       const strokeWidth = isSelected ? 3 : 0;
       this.drawMarker(
-          ctx,
-          visibleTimeScale.timeToPx(centerX),
-          this.centerY,
-          isHovered,
-          strokeWidth);
+        ctx,
+        visibleTimeScale.timeToPx(centerX),
+        this.centerY,
+        isHovered,
+        strokeWidth);
     }
   }
 
   drawMarker(
-      ctx: CanvasRenderingContext2D, x: number, y: number, isHovered: boolean,
-      strokeWidth: number): void {
+    ctx: CanvasRenderingContext2D, x: number, y: number, isHovered: boolean,
+    strokeWidth: number): void {
     ctx.beginPath();
     ctx.moveTo(x, y - this.markerWidth);
     ctx.lineTo(x - this.markerWidth, y);
@@ -189,8 +189,8 @@ class PerfSamplesProfileTrack implements Track {
 
   // If the markers overlap the rightmost one will be selected.
   findTimestampIndex(
-      left: number, timeScale: TimeScale, data: Data, x: number, y: number,
-      right: number): number {
+    left: number, timeScale: TimeScale, data: Data, x: number, y: number,
+    right: number): number {
     let index = -1;
     if (left !== -1) {
       const start = Time.fromRaw(data.tsStarts[left]);

@@ -63,7 +63,7 @@ export class RunnableThreadCountTrack extends BaseCounterTrack {
 
   async onInit() {
     await this.engine.query(
-        `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`);
+      `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`);
     return new NullDisposable();
   }
 

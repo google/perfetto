@@ -122,7 +122,7 @@ class AndroidLogTrack implements Track {
     const dataEndPx = visibleTimeScale.timeToPx(data.end);
 
     checkerboardExcept(
-        ctx, this.getHeight(), 0, size.width, dataStartPx, dataEndPx);
+      ctx, this.getHeight(), 0, size.width, dataStartPx, dataEndPx);
 
     const quantWidth =
         Math.max(EVT_PX, visibleTimeScale.durationToPx(data.resolution));

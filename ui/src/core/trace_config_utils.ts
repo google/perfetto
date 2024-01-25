@@ -40,7 +40,7 @@ export function extractDurationFromTraceConfig(traceConfigProto: Uint8Array) {
 export function browserSupportsPerfettoConfig(): boolean {
   const minimumChromeVersion = '91.0.4448.0';
   const runningVersion = String(
-      (/Chrome\/(([0-9]+\.?){4})/.exec(navigator.userAgent) || [, 0])[1]);
+    (/Chrome\/(([0-9]+\.?){4})/.exec(navigator.userAgent) || [, 0])[1]);
 
   if (!runningVersion) return false;
 

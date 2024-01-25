@@ -74,7 +74,7 @@ export const FADE_THIN_SLICES_FLAG = featureFlags.register({
 // Exposed and standalone to allow for testing without making this
 // visible to subclasses.
 function filterVisibleSlices<S extends Slice>(
-    slices: S[], start: time, end: time): S[] {
+  slices: S[], start: time, end: time): S[] {
   // Here we aim to reduce the number of slices we have to draw
   // by ignoring those that are not visible. A slice is visible iff:
   //   slice.endNsQ >= start && slice.startNsQ <= end
@@ -124,7 +124,7 @@ function filterVisibleSlices<S extends Slice>(
   }
 
   return slices.filter(
-      (slice) => slice.startNsQ <= end && slice.endNsQ >= start);
+    (slice) => slice.startNsQ <= end && slice.endNsQ >= start);
 }
 
 export const filterVisibleSlicesForTesting = filterVisibleSlices;
@@ -185,7 +185,7 @@ export abstract class BaseSliceTrack<
 
   // This is the slices cache:
   private cache: TrackCache<Array<CastInternal<T['slice']>>> =
-      new TrackCache(5);
+    new TrackCache(5);
 
   // Incomplete slices (dur = -1). Rather than adding a lot of logic to
   // the SQL queries to handle this case we materialise them one off
@@ -259,7 +259,7 @@ export abstract class BaseSliceTrack<
 
   // TODO(hjd): Remove.
   drawSchedLatencyArrow(
-      _: CanvasRenderingContext2D, _selectedSlice?: T['slice']): void {}
+    _: CanvasRenderingContext2D, _selectedSlice?: T['slice']): void {}
 
   constructor(args: NewTrackArgs) {
     this.engine = args.engine;
@@ -277,7 +277,7 @@ export abstract class BaseSliceTrack<
         sliceLayout.depthGuess !== 0) {
       const {isFlat, depthGuess} = sliceLayout;
       throw new Error(`if isFlat (${isFlat}) then depthGuess (${
-          depthGuess}) must be 0 if defined`);
+        depthGuess}) must be 0 if defined`);
     }
     this.sliceLayout = sliceLayout;
   }
@@ -351,7 +351,7 @@ export abstract class BaseSliceTrack<
     // needed because maybeRequestData() over-fetches to handle small pan/zooms.
     // We don't want to waste time drawing slices that are off screen.
     const vizSlices = this.getVisibleSlicesInternal(
-        vizTime.start.toTime('floor'), vizTime.end.toTime('ceil'));
+      vizTime.start.toTime('floor'), vizTime.end.toTime('ceil'));
 
     let selection = globals.state.currentSelection;
     if (!selection || !this.isSelectionHandled(selection)) {
@@ -395,7 +395,7 @@ export abstract class BaseSliceTrack<
         let widthPx;
         if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
           widthPx = slice.x > 0 ? Math.min(pxEnd, INCOMPLETE_SLICE_WIDTH_PX) :
-              Math.max(0, INCOMPLETE_SLICE_WIDTH_PX + slice.x);
+            Math.max(0, INCOMPLETE_SLICE_WIDTH_PX + slice.x);
           slice.x = Math.max(slice.x, 0);
         } else {
           slice.x = Math.max(slice.x, 0);
@@ -425,11 +425,11 @@ export abstract class BaseSliceTrack<
     // Second pass: fill slices by color.
     const vizSlicesByColor = vizSlices.slice();
     vizSlicesByColor.sort(
-        (a, b) => colorCompare(a.colorScheme.base, b.colorScheme.base));
+      (a, b) => colorCompare(a.colorScheme.base, b.colorScheme.base));
     let lastColor = undefined;
     for (const slice of vizSlicesByColor) {
       const color = slice.isHighlighted ? slice.colorScheme.variant.cssString :
-                                          slice.colorScheme.base.cssString;
+        slice.colorScheme.base.cssString;
       if (color !== lastColor) {
         lastColor = color;
         ctx.fillStyle = color;
@@ -439,14 +439,14 @@ export abstract class BaseSliceTrack<
         this.drawChevron(ctx, slice.x, y, sliceHeight);
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
         const w = CROP_INCOMPLETE_SLICE_FLAG.get() ? slice.w :
-                                                     Math.max(slice.w - 2, 2);
+          Math.max(slice.w - 2, 2);
         drawIncompleteSlice(
-            ctx, slice.x, y, w, sliceHeight, !CROP_INCOMPLETE_SLICE_FLAG.get());
+          ctx, slice.x, y, w, sliceHeight, !CROP_INCOMPLETE_SLICE_FLAG.get());
       } else {
         const w = Math.max(
-            slice.w,
-            FADE_THIN_SLICES_FLAG.get() ? SLICE_MIN_WIDTH_FADED_PX :
-                                          SLICE_MIN_WIDTH_PX);
+          slice.w,
+          FADE_THIN_SLICES_FLAG.get() ? SLICE_MIN_WIDTH_FADED_PX :
+            SLICE_MIN_WIDTH_PX);
         ctx.fillRect(slice.x, y, w, sliceHeight);
       }
     }
@@ -493,7 +493,7 @@ export abstract class BaseSliceTrack<
 
       // Change the title color dynamically depending on contrast.
       const textColor = slice.isHighlighted ? slice.colorScheme.textVariant :
-                                              slice.colorScheme.textBase;
+        slice.colorScheme.textBase;
       ctx.fillStyle = textColor.cssString;
       const title = cropText(slice.title, charWidth, slice.w);
       const rectXCenter = slice.x + slice.w / 2;
@@ -533,19 +533,19 @@ export abstract class BaseSliceTrack<
       const THICKNESS = 3;
       ctx.lineWidth = THICKNESS;
       ctx.strokeRect(
-          slice.x, y - THICKNESS / 2, slice.w, sliceHeight + THICKNESS);
+        slice.x, y - THICKNESS / 2, slice.w, sliceHeight + THICKNESS);
       ctx.closePath();
     }
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        timeScale.timeToPx(this.slicesKey.start),
-        timeScale.timeToPx(this.slicesKey.end));
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      timeScale.timeToPx(this.slicesKey.start),
+      timeScale.timeToPx(this.slicesKey.end));
 
     // TODO(hjd): Remove this.
     // The only thing this does is drawing the sched latency arrow. We should
@@ -562,7 +562,7 @@ export abstract class BaseSliceTrack<
         drawTrackHoverTooltip(ctx, this.hoverPos, height, tooltip[0]);
       } else {
         drawTrackHoverTooltip(
-            ctx, this.hoverPos, height, tooltip[0], tooltip[1]);
+          ctx, this.hoverPos, height, tooltip[0], tooltip[1]);
       }
     }  // if (hoveredSlice)
   }
@@ -627,7 +627,7 @@ export abstract class BaseSliceTrack<
 
       this.sqlState = 'QUERY_DONE';
     } else if (
-        this.sqlState === 'INITIALIZING' || this.sqlState === 'QUERY_PENDING') {
+      this.sqlState === 'INITIALIZING' || this.sqlState === 'QUERY_PENDING') {
       return;
     }
 
@@ -639,7 +639,7 @@ export abstract class BaseSliceTrack<
     const slicesKey = rawSlicesKey.normalize();
     if (!rawSlicesKey.isCoveredBy(slicesKey)) {
       throw new Error(`Normalization error ${slicesKey.toString()} ${
-          rawSlicesKey.toString()}`);
+        rawSlicesKey.toString()}`);
     }
 
     const maybeCachedSlices = this.cache.lookup(slicesKey);
@@ -794,8 +794,8 @@ export abstract class BaseSliceTrack<
     for (const slice of this.incomplete) {
       const visibleTimeScale = globals.timeline.visibleTimeScale;
       const startPx = CROP_INCOMPLETE_SLICE_FLAG.get() ?
-          visibleTimeScale.timeToPx(slice.startNsQ) :
-          slice.x;
+        visibleTimeScale.timeToPx(slice.startNsQ) :
+        slice.x;
       const cropUnfinishedSlicesCondition = CROP_INCOMPLETE_SLICE_FLAG.get() ?
         startPx + INCOMPLETE_SLICE_WIDTH_PX >= x : true;
 
@@ -840,7 +840,7 @@ export abstract class BaseSliceTrack<
     } else {
       const args: OnSliceOverArgs<T['slice']> = {slice: this.hoveredSlice};
       globals.dispatch(
-          Actions.setHighlightedSliceId({sliceId: this.hoveredSlice.id}));
+        Actions.setHighlightedSliceId({sliceId: this.hoveredSlice.id}));
       this.onSliceOver(args);
       this.hoverTooltip = args.tooltip || [];
     }
@@ -910,7 +910,7 @@ export abstract class BaseSliceTrack<
   }
 
   private drawChevron(
-      ctx: CanvasRenderingContext2D, x: number, y: number, h: number) {
+    ctx: CanvasRenderingContext2D, x: number, y: number, h: number) {
     // Draw an upward facing chevrons, in order: A, B, C, D, and back to A.
     // . (x, y)
     //      A

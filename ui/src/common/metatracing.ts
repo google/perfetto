@@ -131,7 +131,7 @@ function now(): number {
 }
 
 export function traceEvent<T>(
-    name: string, event: () => T, params?: TraceEventParams): T {
+  name: string, event: () => T, params?: TraceEventParams): T {
   const scope = traceEventBegin(name, params);
   try {
     const result = event();
@@ -142,7 +142,7 @@ export function traceEvent<T>(
 }
 
 export function traceEventBegin(
-    eventName: string, params?: TraceEventParams): TraceEventScope {
+  eventName: string, params?: TraceEventParams): TraceEventScope {
   return {
     eventName,
     startNs: now(),
@@ -167,7 +167,7 @@ export function traceEventEnd(traceEvent: TraceEventScope) {
 
 // Flatten arbitrary values so they can be used as args in traceEvent() et al.
 export function flattenArgs(
-    input: unknown, parentKey = ''): {[key: string]: string} {
+  input: unknown, parentKey = ''): {[key: string]: string} {
   if (typeof input !== 'object' || input === null) {
     return {[parentKey]: String(input)};
   }
