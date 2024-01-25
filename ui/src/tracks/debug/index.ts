@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {DEBUG_SLICE_TRACK_URI} from '../../frontend/debug_tracks';
 import {
   Plugin,
   PluginContext,
@@ -22,7 +23,6 @@ import {
 import {DebugCounterTrack} from './counter_track';
 import {DebugTrackV2} from './slice_track';
 
-export const DEBUG_SLICE_TRACK_URI = 'perfetto.DebugSlices';
 export const DEBUG_COUNTER_TRACK_URI = 'perfetto.DebugCounter';
 
 class DebugTrackPlugin implements Plugin {

@@ -29,14 +29,10 @@ import {
   TrackContext,
 } from '../../public';
 import {ChromeSliceTrack} from '../chrome_slices';
-
-export const VISUALISED_ARGS_SLICE_TRACK_URI = 'perfetto.VisualisedArgs';
-
-export interface VisualisedArgsState {
-  argName: string;
-  maxDepth: number;
-  trackId: number;
-}
+import {
+  VISUALISED_ARGS_SLICE_TRACK_URI,
+  VisualisedArgsState,
+} from '../../frontend/visualized_args_tracks';
 
 export class VisualisedArgsTrack extends ChromeSliceTrack {
   private helperViewName: string;

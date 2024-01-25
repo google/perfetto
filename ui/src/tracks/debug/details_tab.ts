@@ -62,8 +62,7 @@ import {
   Tree,
   TreeNode,
 } from '../../widgets/tree';
-
-import {ARG_PREFIX} from './add_debug_track_menu';
+import {ARG_PREFIX} from '../../frontend/debug_tracks';
 
 function sqlValueToNumber(value?: ColumnType): number|undefined {
   if (typeof value === 'bigint') return Number(value);

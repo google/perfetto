@@ -19,7 +19,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {addDebugSliceTrack} from '../../tracks/debug/slice_track';
+import {addDebugSliceTrack} from '../../public';
 
 
 class AndroidNetwork implements Plugin {

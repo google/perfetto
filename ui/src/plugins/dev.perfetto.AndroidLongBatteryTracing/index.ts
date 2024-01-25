@@ -25,8 +25,8 @@ import {
 } from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
 import {createDebugCounterTrackActions} from '../../tracks/debug/counter_track';
-import {createDebugSliceTrackActions} from '../../tracks/debug/slice_track';
 import {NULL_TRACK_URI} from '../../tracks/null_track';
+import {createDebugSliceTrackActions} from '../../public';
 
 const DEFAULT_NETWORK = `
   with base as (
