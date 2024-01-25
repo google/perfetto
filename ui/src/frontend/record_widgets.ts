@@ -40,10 +40,10 @@ interface DocsChipAttrs {
 class DocsChip implements m.ClassComponent<DocsChipAttrs> {
   view({attrs}: m.CVnode<DocsChipAttrs>) {
     return m(
-        'a.inline-chip',
-        {href: attrs.href, title: 'Open docs in new tab', target: '_blank'},
-        m('i.material-icons', 'info'),
-        ' Docs');
+      'a.inline-chip',
+      {href: attrs.href, title: 'Open docs in new tab', target: '_blank'},
+      m('i.material-icons', 'info'),
+      ' Docs');
   }
 }
 
@@ -72,22 +72,22 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
     const enabled = attrs.isEnabled(globals.state.recordConfig);
 
     return m(
-        `.probe${attrs.compact ? '.compact' : ''}${enabled ? '.enabled' : ''}`,
-        attrs.img && m('img', {
-          src: `${globals.root}assets/${attrs.img}`,
-          onclick: () => onToggle(!enabled),
+      `.probe${attrs.compact ? '.compact' : ''}${enabled ? '.enabled' : ''}`,
+      attrs.img && m('img', {
+        src: `${globals.root}assets/${attrs.img}`,
+        onclick: () => onToggle(!enabled),
+      }),
+      m('label',
+        m(`input[type=checkbox]`, {
+          checked: enabled,
+          oninput: (e: InputEvent) => {
+            onToggle((e.target as HTMLInputElement).checked);
+          },
         }),
-        m('label',
-          m(`input[type=checkbox]`, {
-            checked: enabled,
-            oninput: (e: InputEvent) => {
-              onToggle((e.target as HTMLInputElement).checked);
-            },
-          }),
-          m('span', attrs.title)),
-        attrs.compact ?
-            '' :
-            m('div', m('div', attrs.descr), m('.probe-config', children)));
+        m('span', attrs.title)),
+      attrs.compact ?
+        '' :
+        m('div', m('div', attrs.descr), m('.probe-config', children)));
   }
 }
 
@@ -130,16 +130,16 @@ export class Toggle implements m.ClassComponent<ToggleAttrs> {
     const enabled = attrs.isEnabled(globals.state.recordConfig);
 
     return m(
-        `.toggle${enabled ? '.enabled' : ''}${attrs.cssClass || ''}`,
-        m('label',
-          m(`input[type=checkbox]`, {
-            checked: enabled,
-            oninput: (e: InputEvent) => {
-              onToggle((e.target as HTMLInputElement).checked);
-            },
-          }),
-          m('span', attrs.title)),
-        m('.descr', attrs.descr));
+      `.toggle${enabled ? '.enabled' : ''}${attrs.cssClass || ''}`,
+      m('label',
+        m(`input[type=checkbox]`, {
+          checked: enabled,
+          oninput: (e: InputEvent) => {
+            onToggle((e.target as HTMLInputElement).checked);
+          },
+        }),
+        m('span', attrs.title)),
+      m('.descr', attrs.descr));
   }
 }
 
@@ -222,18 +222,18 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
       };
     }
     return m(
-        '.slider' + (attrs.cssClass || ''),
-        m('header', attrs.title),
-        description ? m('header.descr', attrs.description) : '',
-        attrs.icon !== undefined ? m('i.material-icons', attrs.icon) : [],
-        m(`input[id="${id}"][type=range][min=0][max=${maxIdx}][value=${idx}]`, {
-          disabled,
-          oninput: (e: InputEvent) => {
-            this.onSliderChange(attrs, +(e.target as HTMLInputElement).value);
-          },
-        }),
-        m(`input.spinner[min=${min}][for=${id}]`, spinnerCfg),
-        m('.unit', attrs.unit));
+      '.slider' + (attrs.cssClass || ''),
+      m('header', attrs.title),
+      description ? m('header.descr', attrs.description) : '',
+      attrs.icon !== undefined ? m('i.material-icons', attrs.icon) : [],
+      m(`input[id="${id}"][type=range][min=0][max=${maxIdx}][value=${idx}]`, {
+        disabled,
+        oninput: (e: InputEvent) => {
+          this.onSliderChange(attrs, +(e.target as HTMLInputElement).value);
+        },
+      }),
+      m(`input.spinner[min=${min}][for=${id}]`, spinnerCfg),
+      m('.unit', attrs.unit));
   }
 }
 
@@ -290,15 +290,15 @@ export class Dropdown implements m.ClassComponent<DropdownAttrs> {
     }
     const label = `${attrs.title} ${numSelected ? `(${numSelected})` : ''}`;
     return m(
-        `select.dropdown${attrs.cssClass || ''}[multiple=multiple]`,
-        {
-          onblur: (e: Event) => this.resetScroll(e.target as HTMLSelectElement),
-          onmouseleave: (e: Event) =>
-              this.resetScroll(e.target as HTMLSelectElement),
-          oninput: (e: Event) => this.onChange(attrs, e),
-          oncreate: (vnode) => this.resetScroll(vnode.dom as HTMLSelectElement),
-        },
-        m('optgroup', {label}, options));
+      `select.dropdown${attrs.cssClass || ''}[multiple=multiple]`,
+      {
+        onblur: (e: Event) => this.resetScroll(e.target as HTMLSelectElement),
+        onmouseleave: (e: Event) =>
+          this.resetScroll(e.target as HTMLSelectElement),
+        oninput: (e: Event) => this.onChange(attrs, e),
+        oncreate: (vnode) => this.resetScroll(vnode.dom as HTMLSelectElement),
+      },
+      m('optgroup', {label}, options));
   }
 }
 
@@ -326,16 +326,16 @@ export class Textarea implements m.ClassComponent<TextareaAttrs> {
 
   view({attrs}: m.CVnode<TextareaAttrs>) {
     return m(
-        '.textarea-holder',
-        m('header',
-          attrs.title,
-          attrs.docsLink && [' ', m(DocsChip, {href: attrs.docsLink})]),
-        m(`textarea.extra-input${attrs.cssClass || ''}`, {
-          onchange: (e: Event) =>
-              this.onChange(attrs, e.target as HTMLTextAreaElement),
-          placeholder: attrs.placeholder,
-          value: attrs.get(globals.state.recordConfig),
-        }));
+      '.textarea-holder',
+      m('header',
+        attrs.title,
+        attrs.docsLink && [' ', m(DocsChip, {href: attrs.docsLink})]),
+      m(`textarea.extra-input${attrs.cssClass || ''}`, {
+        onchange: (e: Event) =>
+          this.onChange(attrs, e.target as HTMLTextAreaElement),
+        placeholder: attrs.placeholder,
+        value: attrs.get(globals.state.recordConfig),
+      }));
   }
 }
 
@@ -351,14 +351,14 @@ export interface CodeSnippetAttrs {
 export class CodeSnippet implements m.ClassComponent<CodeSnippetAttrs> {
   view({attrs}: m.CVnode<CodeSnippetAttrs>) {
     return m(
-        '.code-snippet',
-        m('button',
-          {
-            title: 'Copy to clipboard',
-            onclick: () => copyToClipboard(attrs.text),
-          },
-          m('i.material-icons', 'assignment')),
-        m('code', attrs.text),
+      '.code-snippet',
+      m('button',
+        {
+          title: 'Copy to clipboard',
+          onclick: () => copyToClipboard(attrs.text),
+        },
+        m('i.material-icons', 'assignment')),
+      m('code', attrs.text),
     );
   }
 }
@@ -377,7 +377,7 @@ type CategoriesCheckboxListParams = CategoryGetter&{
 export class CategoriesCheckboxList implements
     m.ClassComponent<CategoriesCheckboxListParams> {
   updateValue(
-      attrs: CategoriesCheckboxListParams, value: string, enabled: boolean) {
+    attrs: CategoriesCheckboxListParams, value: string, enabled: boolean) {
     const traceCfg = produce(globals.state.recordConfig, (draft) => {
       const values = attrs.get(draft);
       const index = values.indexOf(value);
@@ -394,45 +394,45 @@ export class CategoriesCheckboxList implements
   view({attrs}: m.CVnode<CategoriesCheckboxListParams>) {
     const enabled = new Set(attrs.get(globals.state.recordConfig));
     return m(
-        '.categories-list',
-        m('h3',
-          attrs.title,
-          m('button.config-button',
-            {
-              onclick: () => {
-                const config = produce(globals.state.recordConfig, (draft) => {
-                  attrs.set(draft, Array.from(attrs.categories.keys()));
-                });
-                globals.dispatch(Actions.setRecordConfig({config}));
-              },
+      '.categories-list',
+      m('h3',
+        attrs.title,
+        m('button.config-button',
+          {
+            onclick: () => {
+              const config = produce(globals.state.recordConfig, (draft) => {
+                attrs.set(draft, Array.from(attrs.categories.keys()));
+              });
+              globals.dispatch(Actions.setRecordConfig({config}));
             },
-            'All'),
-          m('button.config-button',
-            {
-              onclick: () => {
-                const config = produce(globals.state.recordConfig, (draft) => {
-                  attrs.set(draft, []);
-                });
-                globals.dispatch(Actions.setRecordConfig({config}));
-              },
+          },
+          'All'),
+        m('button.config-button',
+          {
+            onclick: () => {
+              const config = produce(globals.state.recordConfig, (draft) => {
+                attrs.set(draft, []);
+              });
+              globals.dispatch(Actions.setRecordConfig({config}));
             },
-            'None')),
-        m('ul.checkboxes',
-          Array.from(attrs.categories.entries()).map(([key, value]) => {
-            const id = `category-checkbox-${key}`;
-            return m(
-                'label',
-                {'for': id},
-                m('li',
-                  m('input[type=checkbox]', {
-                    id,
-                    checked: enabled.has(key),
-                    onclick: (e: InputEvent) => {
-                      const target = e.target as HTMLInputElement;
-                      this.updateValue(attrs, key, target.checked);
-                    },
-                  }),
-                  value));
-          })));
+          },
+          'None')),
+      m('ul.checkboxes',
+        Array.from(attrs.categories.entries()).map(([key, value]) => {
+          const id = `category-checkbox-${key}`;
+          return m(
+            'label',
+            {'for': id},
+            m('li',
+              m('input[type=checkbox]', {
+                id,
+                checked: enabled.has(key),
+                onclick: (e: InputEvent) => {
+                  const target = e.target as HTMLInputElement;
+                  this.updateValue(attrs, key, target.checked);
+                },
+              }),
+              value));
+        })));
   }
 }

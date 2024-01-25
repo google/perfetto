@@ -89,7 +89,7 @@ class ScreenshotsPlugin implements Plugin {
     await ctx.engine.query(`INCLUDE PERFETTO MODULE android.screenshots`);
 
     const res = await ctx.engine.query(
-        'select count() as count from android_screenshots');
+      'select count() as count from android_screenshots');
     const {count} = res.firstRow({count: NUM});
 
     if (count > 0) {

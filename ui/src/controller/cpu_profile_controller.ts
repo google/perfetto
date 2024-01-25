@@ -54,29 +54,29 @@ export class CpuProfileController extends Controller<'main'> {
     this.lastSelectedSample = this.copyCpuProfileSample(selection);
 
     this.getSampleData(selectedSample.id)
-        .then((sampleData) => {
-          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-          if (sampleData !== undefined && selectedSample &&
+      .then((sampleData) => {
+        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
+        if (sampleData !== undefined && selectedSample &&
               /* eslint-enable */
               this.lastSelectedSample &&
               this.lastSelectedSample.id === selectedSample.id) {
-            const cpuProfileDetails: CpuProfileDetails = {
-              id: selectedSample.id,
-              ts: selectedSample.ts,
-              utid: selectedSample.utid,
-              stack: sampleData,
-            };
+          const cpuProfileDetails: CpuProfileDetails = {
+            id: selectedSample.id,
+            ts: selectedSample.ts,
+            utid: selectedSample.utid,
+            stack: sampleData,
+          };
 
-            publishCpuProfileDetails(cpuProfileDetails);
-          }
-        })
-        .finally(() => {
-          this.requestingData = false;
-          if (this.queuedRunRequest) {
-            this.queuedRunRequest = false;
-            this.run();
-          }
-        });
+          publishCpuProfileDetails(cpuProfileDetails);
+        }
+      })
+      .finally(() => {
+        this.requestingData = false;
+        if (this.queuedRunRequest) {
+          this.queuedRunRequest = false;
+          this.run();
+        }
+      });
   }
 
   private copyCpuProfileSample(cpuProfileSample: CpuProfileSampleSelection):

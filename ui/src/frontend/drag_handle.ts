@@ -107,10 +107,10 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     this.fullscreenHeight = getFullScreenHeight();
     const elem = dom as HTMLElement;
     this.trash.add(new DragGestureHandler(
-        elem,
-        this.onDrag.bind(this),
-        this.onDragStart.bind(this),
-        this.onDragEnd.bind(this)));
+      elem,
+      this.onDrag.bind(this),
+      this.onDragStart.bind(this),
+      this.onDragEnd.bind(this)));
   }
 
   onupdate({attrs}: m.CVnodeDOM<DragHandleAttrs>) {
@@ -156,93 +156,93 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
       } = tab;
       const tag = (currentTabKey === key) ? '.tab[active]' : '.tab';
       return m(
-          tag,
-          {
-            key,
-            onclick: (event: Event) => {
-              if (!event.defaultPrevented) {
-                onTabClick(key);
-              }
-            },
+        tag,
+        {
+          key,
+          onclick: (event: Event) => {
+            if (!event.defaultPrevented) {
+              onTabClick(key);
+            }
           },
-          m('span.pf-tab-title', tab.title),
-          hasCloseButton && m(Button, {
-            onclick: (event: Event) => {
-              onTabClose(key);
-              event.preventDefault();
-            },
-            minimal: true,
-            compact: true,
-            icon: 'close',
-          }));
+        },
+        m('span.pf-tab-title', tab.title),
+        hasCloseButton && m(Button, {
+          onclick: (event: Event) => {
+            onTabClose(key);
+            event.preventDefault();
+          },
+          minimal: true,
+          compact: true,
+          icon: 'close',
+        }));
     };
 
     return m(
-        '.handle',
-        m('.tabs', tabs.map(renderTab)),
-        m('.buttons',
-          tabDropdownEntries && this.renderTabDropdown(tabDropdownEntries),
-          m(
-              Button,
-              {
-                onclick: () => {
-                  this.isClosed = false;
-                  this.isFullscreen = true;
-                  this.resize(this.fullscreenHeight);
-                  raf.scheduleFullRedraw();
-                },
-                title: 'Open fullscreen',
-                disabled: this.isFullscreen,
-                icon: 'vertical_align_top',
-                minimal: true,
-                compact: true,
-              },
-              ),
-          m(
-              Button,
-              {
-                onclick: () => {
-                  if (this.height === 0) {
-                    this.isClosed = false;
-                    if (this.previousHeight === 0) {
-                      this.previousHeight = getDetailsHeight();
-                    }
-                    this.resize(this.previousHeight);
-                  } else {
-                    this.isFullscreen = false;
-                    this.isClosed = true;
-                    this.previousHeight = this.height;
-                    this.resize(0);
-                  }
-                  raf.scheduleFullRedraw();
-                },
-                title,
-                icon,
-                minimal: true,
-                compact: true,
-              },
-              )));
+      '.handle',
+      m('.tabs', tabs.map(renderTab)),
+      m('.buttons',
+        tabDropdownEntries && this.renderTabDropdown(tabDropdownEntries),
+        m(
+          Button,
+          {
+            onclick: () => {
+              this.isClosed = false;
+              this.isFullscreen = true;
+              this.resize(this.fullscreenHeight);
+              raf.scheduleFullRedraw();
+            },
+            title: 'Open fullscreen',
+            disabled: this.isFullscreen,
+            icon: 'vertical_align_top',
+            minimal: true,
+            compact: true,
+          },
+        ),
+        m(
+          Button,
+          {
+            onclick: () => {
+              if (this.height === 0) {
+                this.isClosed = false;
+                if (this.previousHeight === 0) {
+                  this.previousHeight = getDetailsHeight();
+                }
+                this.resize(this.previousHeight);
+              } else {
+                this.isFullscreen = false;
+                this.isClosed = true;
+                this.previousHeight = this.height;
+                this.resize(0);
+              }
+              raf.scheduleFullRedraw();
+            },
+            title,
+            icon,
+            minimal: true,
+            compact: true,
+          },
+        )));
   }
 
   private renderTabDropdown(entries: TabDropdownEntry[]) {
     return m(
-        PopupMenu2,
-        {
-          trigger: m(Button, {
-            minimal: true,
-            compact: true,
-            icon: 'add',
-            disabled: entries.length === 0,
-            title: 'Open tab',
-          }),
-        },
-        entries.map((entry) => {
-          return m(MenuItem, {
-            key: entry.key,
-            label: entry.title,
-            onclick: () => entry.onClick(),
-          });
+      PopupMenu2,
+      {
+        trigger: m(Button, {
+          minimal: true,
+          compact: true,
+          icon: 'add',
+          disabled: entries.length === 0,
+          title: 'Open tab',
         }),
+      },
+      entries.map((entry) => {
+        return m(MenuItem, {
+          key: entry.key,
+          label: entry.title,
+          onclick: () => entry.onClick(),
+        });
+      }),
     );
   }
 }

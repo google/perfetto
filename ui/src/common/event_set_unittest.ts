@@ -131,7 +131,7 @@ describe('EventSet', () => {
 
     test('isConcreteEventSet', () => {
       expect(isConcreteEventSet(new ConcreteEventSet<EmptyKeySet>({}, [])))
-          .toEqual(true);
+        .toEqual(true);
       expect(isConcreteEventSet(EmptyEventSet.get())).toEqual(false);
     });
 

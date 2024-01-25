@@ -63,13 +63,13 @@ export class TabPanel implements m.ClassComponent {
 
     const tabDropdownEntries =
         globals.tabManager.tabs.filter((tab) => tab.isEphemeral === false)
-            .map(({content, uri}): TabDropdownEntry => {
-              return {
-                key: uri,
-                title: content.getTitle(),
-                onClick: () => globals.dispatch(Actions.showTab({uri})),
-              };
-            });
+          .map(({content, uri}): TabDropdownEntry => {
+            return {
+              key: uri,
+              title: content.getTitle(),
+              onClick: () => globals.dispatch(Actions.showTab({uri})),
+            };
+          });
 
     return [
       m(DragHandle, {
@@ -84,15 +84,15 @@ export class TabPanel implements m.ClassComponent {
         onTabClose: (key) => globals.dispatch(Actions.hideTab({uri: key})),
       }),
       m(
-          '.details-panel-container',
-          {
-            style: {height: `${this.detailsHeight}px`},
-          },
-          tabs.map(({key, content}) => {
-            const active = key === globals.state.tabs.currentTab;
-            return m(Gate, {open: active}, content);
-          }),
-          ),
+        '.details-panel-container',
+        {
+          style: {height: `${this.detailsHeight}px`},
+        },
+        tabs.map(({key, content}) => {
+          const active = key === globals.state.tabs.currentTab;
+          return m(Gate, {open: active}, content);
+        }),
+      ),
     ];
   }
 

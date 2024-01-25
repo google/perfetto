@@ -24,44 +24,44 @@ import {createPage} from './pages';
 export class Hints implements m.ClassComponent {
   view() {
     return m(
-        '.home-page-hints',
-        m('.tagline', 'New!'),
+      '.home-page-hints',
+      m('.tagline', 'New!'),
+      m(
+        'ul',
         m(
-            'ul',
-            m(
-                'li',
-                'Use ',
-                m(HotkeyGlyphs, {hotkey: 'W'}),
-                m(HotkeyGlyphs, {hotkey: 'A'}),
-                m(HotkeyGlyphs, {hotkey: 'S'}),
-                m(HotkeyGlyphs, {hotkey: 'D'}),
-                ' to navigate the trace.',
-                ),
-            m('li',
-              'Try the ',
-              m(Anchor,
-                {
-                  href:
+          'li',
+          'Use ',
+          m(HotkeyGlyphs, {hotkey: 'W'}),
+          m(HotkeyGlyphs, {hotkey: 'A'}),
+          m(HotkeyGlyphs, {hotkey: 'S'}),
+          m(HotkeyGlyphs, {hotkey: 'D'}),
+          ' to navigate the trace.',
+        ),
+        m('li',
+          'Try the ',
+          m(Anchor,
+            {
+              href:
                       'https://perfetto.dev/docs/visualization/perfetto-ui#command-palette',
-                },
-                'command palette,'),
-              ' press ',
-              m(HotkeyGlyphs, {hotkey: '!Mod+Shift+P'}),
-              '.'),
-            m(
-                'li',
-                'Customize the ',
-                m(
-                    Anchor,
-                    {
-                      href:
+            },
+            'command palette,'),
+          ' press ',
+          m(HotkeyGlyphs, {hotkey: '!Mod+Shift+P'}),
+          '.'),
+        m(
+          'li',
+          'Customize the ',
+          m(
+            Anchor,
+            {
+              href:
                           'https://perfetto.dev/docs/visualization/perfetto-ui#changing-the-time-format-and-offset',
-                    },
-                    'time format',
-                    ),
-                '.',
-                ),
-            ),
+            },
+            'time format',
+          ),
+          '.',
+        ),
+      ),
     );
   }
 }
@@ -69,32 +69,32 @@ export class Hints implements m.ClassComponent {
 export const HomePage = createPage({
   view() {
     return m(
-        '.page.home-page',
+      '.page.home-page',
+      m(
+        '.home-page-center',
         m(
-            '.home-page-center',
-            m(
-                '.home-page-title',
-                m(`img.logo[src=${globals.root}assets/logo-3d.png]`),
-                'Perfetto',
-                ),
-            m(Hints),
-            m(
-                '.channel-select',
-                m('',
-                  'Feeling adventurous? Try our bleeding edge Canary version'),
-                m(
-                    'fieldset',
-                    mkChan('stable'),
-                    mkChan('canary'),
-                    m('.highlight'),
-                    ),
-                m(`.home-page-reload${channelChanged() ? '.show' : ''}`,
-                  'You need to reload the page for the changes to have effect'),
-                ),
-            ),
-        m('a.privacy',
-          {href: 'https://policies.google.com/privacy', target: '_blank'},
-          'Privacy policy'));
+          '.home-page-title',
+          m(`img.logo[src=${globals.root}assets/logo-3d.png]`),
+          'Perfetto',
+        ),
+        m(Hints),
+        m(
+          '.channel-select',
+          m('',
+            'Feeling adventurous? Try our bleeding edge Canary version'),
+          m(
+            'fieldset',
+            mkChan('stable'),
+            mkChan('canary'),
+            m('.highlight'),
+          ),
+          m(`.home-page-reload${channelChanged() ? '.show' : ''}`,
+            'You need to reload the page for the changes to have effect'),
+        ),
+      ),
+      m('a.privacy',
+        {href: 'https://policies.google.com/privacy', target: '_blank'},
+        'Privacy policy'));
   },
 });
 

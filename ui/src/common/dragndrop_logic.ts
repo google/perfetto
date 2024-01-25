@@ -33,7 +33,7 @@ export interface Interval {
  * the element `dragTo`.
  */
 export function computeIntervals(
-    length: number, dragFrom: number, dragTo: number, direction: DropDirection):
+  length: number, dragFrom: number, dragTo: number, direction: DropDirection):
     Interval[] {
   assertTrue(dragFrom !== dragTo);
 

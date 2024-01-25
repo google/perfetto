@@ -44,12 +44,12 @@ export class HotkeyGlyphs implements m.ClassComponent<HotkeyGlyphsAttrs> {
       const hasShift = modifier.includes('Shift');
 
       return m(
-          'span.pf-hotkey',
-          hasMod && m('span.pf-keycap', glyphForMod(platform)),
-          hasCtrl && m('span.pf-keycap', glyphForCtrl(platform)),
-          hasAlt && m('span.pf-keycap', glyphForAlt(platform)),
-          hasShift && m('span.pf-keycap', glyphForShift()),
-          m('span.pf-keycap', glyphForKey(key, platform)));
+        'span.pf-hotkey',
+        hasMod && m('span.pf-keycap', glyphForMod(platform)),
+        hasCtrl && m('span.pf-keycap', glyphForCtrl(platform)),
+        hasAlt && m('span.pf-keycap', glyphForAlt(platform)),
+        hasShift && m('span.pf-keycap', glyphForShift()),
+        m('span.pf-keycap', glyphForKey(key, platform)));
     } else {
       return m('span.pf-keycap', '???');
     }

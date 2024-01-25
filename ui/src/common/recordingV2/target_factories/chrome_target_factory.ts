@@ -59,7 +59,7 @@ export class ChromeTargetFactory implements TargetFactory {
 
   connectNewTarget(): Promise<RecordingTargetV2> {
     throw new RecordingError(
-        'Can not create a new Chrome target.' +
+      'Can not create a new Chrome target.' +
         'All Chrome targets are created at factory initialisation.');
   }
 

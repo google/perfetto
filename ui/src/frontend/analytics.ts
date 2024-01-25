@@ -135,8 +135,8 @@ class AnalyticsImpl implements Analytics {
     document.head.appendChild(script);
     const route = window.location.href;
     console.log(
-        `GA initialized. route=${route}`,
-        `isInternalUser=${globals.isInternalUser}`);
+      `GA initialized. route=${route}`,
+      `isInternalUser=${globals.isInternalUser}`);
     // GA's recommendation for SPAs is to disable automatic page views and
     // manually send page_view events. See:
     // https://developers.google.com/analytics/devguides/collection/gtagjs/pages#manual_pageviews
@@ -160,7 +160,7 @@ class AnalyticsImpl implements Analytics {
 
   updatePath(path: string) {
     gtagGlobals.gtag(
-        'event', 'page_view', {page_path: path, page_title: PAGE_TITLE});
+      'event', 'page_view', {page_path: path, page_title: PAGE_TITLE});
   }
 
   logEvent(category: TraceCategories|null, event: string) {

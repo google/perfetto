@@ -26,10 +26,10 @@ export class Anchor implements m.ClassComponent<AnchorAttrs> {
     const {icon, ...htmlAttrs} = attrs;
 
     return m(
-        'a.pf-anchor',
-        htmlAttrs,
-        icon && m('i.material-icons', icon),
-        children,
+      'a.pf-anchor',
+      htmlAttrs,
+      icon && m('i.material-icons', icon),
+      children,
     );
   }
 }

@@ -66,8 +66,8 @@ export async function waitForPerfettoIdle(page: Page, minIdleMs?: number) {
     }
   }
   throw new Error(
-      `waitForPerfettoIdle() failed. Did not reach idle after ${
-          timeoutMs} ms. ` +
+    `waitForPerfettoIdle() failed. Did not reach idle after ${
+      timeoutMs} ms. ` +
       `Reasons not considered idle: ${reasons.join(', ')}`);
 }
 
@@ -80,10 +80,10 @@ export function getTestTracePath(fname: string): string {
 }
 
 export async function compareScreenshots(
-    reportPath: string, actualFilename: string, expectedFilename: string) {
+  reportPath: string, actualFilename: string, expectedFilename: string) {
   if (!fs.existsSync(expectedFilename)) {
     throw new Error(
-        `Could not find ${expectedFilename}. Run wih REBASELINE=1.`);
+      `Could not find ${expectedFilename}. Run wih REBASELINE=1.`);
   }
   const actualImg = PNG.sync.read(fs.readFileSync(actualFilename));
   const expectedImg = PNG.sync.read(fs.readFileSync(expectedFilename));
@@ -92,15 +92,15 @@ export async function compareScreenshots(
   expect(height).toEqual(expectedImg.height);
   const diffPng = new PNG({width, height});
   const diff = await pixelmatch(
-      actualImg.data, expectedImg.data, diffPng.data, width, height, {
-        threshold: DIFF_PER_PIXEL_THRESHOLD,
-      });
+    actualImg.data, expectedImg.data, diffPng.data, width, height, {
+      threshold: DIFF_PER_PIXEL_THRESHOLD,
+    });
   if (diff > DIFF_MAX_PIXELS) {
     const diffFilename = actualFilename.replace('.png', '-diff.png');
     fs.writeFileSync(diffFilename, PNG.sync.write(diffPng));
     fs.appendFileSync(
-        reportPath,
-        `${path.basename(actualFilename)};${path.basename(diffFilename)}\n`);
+      reportPath,
+      `${path.basename(actualFilename)};${path.basename(diffFilename)}\n`);
     fail(`Diff test failed on ${diffFilename}, delta: ${diff} pixels`);
   }
   return diff;

@@ -67,7 +67,7 @@ class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
           id,
           ts,
           'heap_profile:' || (select group_concat(distinct heap_name) from heap_profile_allocation where upid = ${
-        this.upid}) AS type
+  this.upid}) AS type
         from heap_profile_allocation
         where upid = ${this.upid}
         union
@@ -129,11 +129,11 @@ class HeapProfilePlugin implements Plugin {
         upid,
         track: ({trackKey}) => {
           return new HeapProfileTrack(
-              {
-                engine: ctx.engine,
-                trackKey,
-              },
-              upid);
+            {
+              engine: ctx.engine,
+              trackKey,
+            },
+            upid);
         },
       });
     }

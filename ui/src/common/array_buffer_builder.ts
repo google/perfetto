@@ -43,10 +43,10 @@ function tokenLength(token: ArrayBufferToken): number {
 // @param byteOffset Position to write at, in the buffer.
 // @param token Token to insert into the buffer.
 function insertToken(
-    dataView: DataView,
-    typedArray: Uint8Array,
-    byteOffset: number,
-    token: ArrayBufferToken): void {
+  dataView: DataView,
+  typedArray: Uint8Array,
+  byteOffset: number,
+  token: ArrayBufferToken): void {
   if (isString(token)) {
     // Encode the string in UTF-8
     const written = utf8Write(token, typedArray, byteOffset);

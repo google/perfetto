@@ -75,14 +75,14 @@ export class ChromeTracedTracingSession implements TracingSession {
     if (!this.isPortConnected) return;
     const duration = config.durationMs;
     this.tracingSessionListener.onStatus(`Recording in progress${
-        duration ? ' for ' + duration.toString() + ' ms' : ''}...`);
+      duration ? ' for ' + duration.toString() + ' ms' : ''}...`);
 
     const enableTracingRequest = new EnableTracingRequest();
     enableTracingRequest.traceConfig = config;
     const enableTracingRequestProto = binaryEncode(
-        EnableTracingRequest.encode(enableTracingRequest).finish());
+      EnableTracingRequest.encode(enableTracingRequest).finish());
     this.chromePort.postMessage(
-        {method: 'EnableTracing', requestData: enableTracingRequestProto});
+      {method: 'EnableTracing', requestData: enableTracingRequestProto});
   }
 
   // The 'cancel' method will end the tracing session and will NOT return the
@@ -105,7 +105,7 @@ export class ChromeTracedTracingSession implements TracingSession {
   getCategories(): Promise<string[]> {
     if (!this.isPortConnected) {
       throw new RecordingError(
-          'Attempting to get categories from a ' +
+        'Attempting to get categories from a ' +
           'disconnected tracing session.');
     }
     if (this.pendingGetCategoriesMessage) {
@@ -203,7 +203,7 @@ export class ChromeTracedTracingSession implements TracingSession {
       }
     } else if (isGetCategoriesResponse(message)) {
       assertExists(this.pendingGetCategoriesMessage)
-          .resolve(message.categories);
+        .resolve(message.categories);
       this.pendingGetCategoriesMessage = undefined;
     } else if (isEnableTracingResponse(message)) {
       // Once the service notifies us that a tracing session is enabled,
@@ -213,7 +213,7 @@ export class ChromeTracedTracingSession implements TracingSession {
       const maybePendingStatsMessage = this.pendingStatsMessages.shift();
       if (maybePendingStatsMessage) {
         maybePendingStatsMessage.resolve(
-            message?.traceStats?.bufferStats || []);
+          message?.traceStats?.bufferStats || []);
       }
     } else if (isFreeBuffersResponse(message)) {
       // No action required. If we successfully read a whole trace,

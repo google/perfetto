@@ -144,7 +144,7 @@ export class ChromeSliceTrack extends SliceTrackLEGACY {
         // it is less than or equal to one, incase the thread duration exceeds
         // the total duration.
         cpuTimeRatio = Math.min(
-            Math.round(BIMath.ratio(it.threadDur, it.dur) * 100) / 100, 1);
+          Math.round(BIMath.ratio(it.threadDur, it.dur) * 100) / 100, 1);
       }
       slices.cpuTimeRatio![row] = cpuTimeRatio;
     }
@@ -268,10 +268,10 @@ class ChromeSlicesPlugin implements Plugin {
         kind: SLICE_TRACK_KIND,
         track: ({trackKey}) => {
           return new ChromeSliceTrack(
-              engine,
-              maxDepth,
-              trackKey,
-              trackId,
+            engine,
+            maxDepth,
+            trackKey,
+            trackId,
           );
         },
       });

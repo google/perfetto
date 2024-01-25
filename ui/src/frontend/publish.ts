@@ -43,7 +43,7 @@ import {
 import {findCurrentSelection} from './keyboard_event_handler';
 
 export function publishOverviewData(
-    data: {[key: string]: QuantizedLoad|QuantizedLoad[]}) {
+  data: {[key: string]: QuantizedLoad|QuantizedLoad[]}) {
   for (const [key, value] of Object.entries(data)) {
     if (!globals.overviewStore.has(key)) {
       globals.overviewStore.set(key, []);
@@ -109,7 +109,7 @@ export function publishFtraceCounters(counters: FtraceStat[]) {
 }
 
 export function publishRealtimeOffset(
-    offset: time, utcOffset: time, traceTzOffset: time) {
+  offset: time, utcOffset: time, traceTzOffset: time) {
   globals.realtimeOffset = offset;
   globals.utcOffset = utcOffset;
   globals.traceTzOffset = traceTzOffset;
@@ -117,7 +117,7 @@ export function publishRealtimeOffset(
 }
 
 export function publishConversionJobStatusUpdate(
-    job: ConversionJobStatusUpdate) {
+  job: ConversionJobStatusUpdate) {
   globals.setConversionJobStatus(job.jobName, job.jobStatus);
   globals.publishRedraw();
 }
@@ -160,7 +160,7 @@ export function publishMetricError(error: string) {
 }
 
 export function publishAggregateData(
-    args: {data: AggregateData, kind: string}) {
+  args: {data: AggregateData, kind: string}) {
   globals.setAggregateData(args.kind, args.data);
   if (!isEmptyData(args.data)) {
     globals.dispatch(Actions.setCurrentTab({tab: args.data.tabName}));

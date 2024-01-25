@@ -107,10 +107,10 @@ export function areaFilters(area: Area): string[] {
 
 export function expression(column: TableColumn): string {
   switch (column.kind) {
-    case 'regular':
-      return `${column.table}.${column.column}`;
-    case 'argument':
-      return extractArgumentExpression(column.argument, SqlTables.slice.name);
+  case 'regular':
+    return `${column.table}.${column.column}`;
+  case 'argument':
+    return extractArgumentExpression(column.argument, SqlTables.slice.name);
   }
 }
 
@@ -119,7 +119,7 @@ function aggregationExpression(aggregation: Aggregation): string {
     return 'COUNT()';
   }
   return `${aggregation.aggregationFunction}(${
-      expression(aggregation.column)})`;
+    expression(aggregation.column)})`;
 }
 
 export function extractArgumentExpression(argument: string, table?: string) {
@@ -145,8 +145,8 @@ export function generateQueryFromState(state: PivotTableState):
   const pivots = state.selectedPivots;
 
   const aggregations = sliceTableAggregations.map(
-      (agg, index) =>
-          `${aggregationExpression(agg)} as ${aggregationAlias(index)}`);
+    (agg, index) =>
+      `${aggregationExpression(agg)} as ${aggregationAlias(index)}`);
   const countIndex = aggregations.length;
   // Extra count aggregation, needed in order to compute combined averages.
   aggregations.push('COUNT() as hidden_count');
@@ -161,10 +161,10 @@ export function generateQueryFromState(state: PivotTableState):
   }
 
   const whereClause = state.constrainToArea ?
-      `where ${
-          areaFilters(globals.state.areas[state.selectionArea.areaId])
-              .join(' and\n')}` :
-      '';
+    `where ${
+      areaFilters(globals.state.areas[state.selectionArea.areaId])
+        .join(' and\n')}` :
+    '';
   const text = `
     INCLUDE PERFETTO MODULE experimental.slices;
 

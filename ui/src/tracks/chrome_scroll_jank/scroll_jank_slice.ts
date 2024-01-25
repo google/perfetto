@@ -42,9 +42,9 @@ interface BasicSlice {
 }
 
 async function getSlicesFromTrack(
-    engine: EngineProxy,
-    track: ScrollJankTrackSpec,
-    constraints: SQLConstraints): Promise<BasicSlice[]> {
+  engine: EngineProxy,
+  track: ScrollJankTrackSpec,
+  constraints: SQLConstraints): Promise<BasicSlice[]> {
   const query = await engine.query(`
     SELECT
       id AS sliceId,
@@ -71,7 +71,7 @@ async function getSlicesFromTrack(
 
 export type ScrollJankSlice = BasicSlice;
 export async function getScrollJankSlices(
-    engine: EngineProxy, id: number): Promise<ScrollJankSlice[]> {
+  engine: EngineProxy, id: number): Promise<ScrollJankSlice[]> {
   const track =
       ScrollJankPluginState.getInstance().getTrack(ScrollJankV3Track.kind);
   if (track == undefined) {
@@ -86,7 +86,7 @@ export async function getScrollJankSlices(
 
 export type EventLatencySlice = BasicSlice;
 export async function getEventLatencySlice(
-    engine: EngineProxy, id: number): Promise<EventLatencySlice|undefined> {
+  engine: EngineProxy, id: number): Promise<EventLatencySlice|undefined> {
   const track =
       ScrollJankPluginState.getInstance().getTrack(EventLatencyTrack.kind);
   if (track == undefined) {
@@ -100,7 +100,7 @@ export async function getEventLatencySlice(
 }
 
 export async function getEventLatencyDescendantSlice(
-    engine: EngineProxy, id: number, descendant: string|undefined):
+  engine: EngineProxy, id: number, descendant: string|undefined):
     Promise<EventLatencySlice|undefined> {
   const query = await engine.query(`
     SELECT
@@ -134,9 +134,9 @@ export async function getEventLatencyDescendantSlice(
   if (result.length > 1) {
     throw new Error(`
         Slice table and track view ${
-        eventLatencyTrack
-            .sqlTableName} has more than one descendant of slice id ${
-        id} with name ${descendant}`);
+  eventLatencyTrack
+    .sqlTableName} has more than one descendant of slice id ${
+  id} with name ${descendant}`);
   }
   if (result.length === 0) {
     return undefined;
@@ -156,35 +156,35 @@ export class ScrollJankSliceRef implements
     m.ClassComponent<BasicScrollJankSliceRefAttrs> {
   view(vnode: m.Vnode<BasicScrollJankSliceRefAttrs>) {
     return m(
-        Anchor,
-        {
-          icon: Icons.UpdateSelection,
-          onclick: () => {
-            const track =
+      Anchor,
+      {
+        icon: Icons.UpdateSelection,
+        onclick: () => {
+          const track =
                 ScrollJankPluginState.getInstance().getTrack(vnode.attrs.kind);
-            if (track == undefined) {
-              throw new Error(`${vnode.attrs.kind} track is not registered.`);
-            }
+          if (track == undefined) {
+            throw new Error(`${vnode.attrs.kind} track is not registered.`);
+          }
 
-            globals.makeSelection(Actions.selectGenericSlice({
-              id: vnode.attrs.id,
-              sqlTableName: track.sqlTableName,
-              start: vnode.attrs.ts,
-              duration: vnode.attrs.dur,
-              trackKey: track.key,
-              detailsPanelConfig: track.detailsPanelConfig,
-            }));
+          globals.makeSelection(Actions.selectGenericSlice({
+            id: vnode.attrs.id,
+            sqlTableName: track.sqlTableName,
+            start: vnode.attrs.ts,
+            duration: vnode.attrs.dur,
+            trackKey: track.key,
+            detailsPanelConfig: track.detailsPanelConfig,
+          }));
 
-            scrollToTrackAndTs(track.key, vnode.attrs.ts, true);
-          },
+          scrollToTrackAndTs(track.key, vnode.attrs.ts, true);
         },
-        vnode.attrs.name,
+      },
+      vnode.attrs.name,
     );
   }
 }
 
 export function getSliceForTrack(
-    state: BasicSlice, trackKind: string, name: string): m.Child {
+  state: BasicSlice, trackKind: string, name: string): m.Child {
   return m(ScrollJankSliceRef, {
     id: state.sliceId,
     ts: state.ts,

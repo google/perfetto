@@ -29,17 +29,17 @@ class AndroidNetwork implements Plugin {
   // must be start with ts, dur, and a name column. The name column and all
   // following columns are shown as arguments in slice details.
   async addSimpleTrack(
-      engine: EngineProxy, trackName: string, tableOrQuery: string,
-      columns: string[]): Promise<void> {
+    engine: EngineProxy, trackName: string, tableOrQuery: string,
+    columns: string[]): Promise<void> {
     await addDebugSliceTrack(
-        engine,
-        {
-          sqlSource: `SELECT ${columns.join(',')} FROM ${tableOrQuery}`,
-          columns: columns,
-        },
-        trackName,
-        {ts: columns[0], dur: columns[1], name: columns[2]},
-        columns.slice(2),
+      engine,
+      {
+        sqlSource: `SELECT ${columns.join(',')} FROM ${tableOrQuery}`,
+        columns: columns,
+      },
+      trackName,
+      {ts: columns[0], dur: columns[1], name: columns[2]},
+      columns.slice(2),
     );
   }
 
@@ -55,12 +55,12 @@ class AndroidNetwork implements Plugin {
 
         await ctx.engine.query(`SELECT IMPORT('android.battery_stats');`);
         await this.addSimpleTrack(
-            ctx.engine,
-            track,
-            `(SELECT *
+          ctx.engine,
+          track,
+          `(SELECT *
             FROM android_battery_stats_event_slices
             WHERE track_name = "${track}")`,
-            ['ts', 'dur', 'str_value', 'int_value']);
+          ['ts', 'dur', 'str_value', 'int_value']);
       },
     });
 
@@ -93,10 +93,10 @@ class AndroidNetwork implements Plugin {
         // The first group column is used for the slice name.
         const groupCols = groupby.replaceAll(' ', '').split(',');
         await this.addSimpleTrack(
-            ctx.engine,
-            trackName || 'Network Activity',
-            `android_network_activity_${suffix}`,
-            ['ts', 'dur', ...groupCols, 'packet_length', 'packet_count']);
+          ctx.engine,
+          trackName || 'Network Activity',
+          `android_network_activity_${suffix}`,
+          ['ts', 'dur', ...groupCols, 'packet_length', 'packet_count']);
       },
     });
   }

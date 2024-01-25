@@ -74,7 +74,7 @@ export class FlowEventsRendererArgs {
       }
     } else if (exists(panel.trackGroupId)) {
       this.groupIdToTrackGroupPanel.set(
-          panel.trackGroupId, {panel, yStart, height});
+        panel.trackGroupId, {panel, yStart, height});
     }
   }
 }
@@ -86,7 +86,7 @@ export class FlowEventsRenderer {
   }
 
   private getTrackGroupYCoordinate(
-      args: FlowEventsRendererArgs, trackId: number): number|undefined {
+    args: FlowEventsRendererArgs, trackId: number): number|undefined {
     const trackGroupId = this.getTrackGroupIdByTrackId(trackId);
     if (!trackGroupId) {
       return undefined;
@@ -105,8 +105,8 @@ export class FlowEventsRenderer {
   }
 
   private getYConnection(
-      args: FlowEventsRendererArgs, trackId: number,
-      rect?: SliceRect): {y: number, connection: ConnectionType}|undefined {
+    args: FlowEventsRendererArgs, trackId: number,
+    rect?: SliceRect): {y: number, connection: ConnectionType}|undefined {
     if (!rect) {
       const y = this.getTrackGroupYCoordinate(args, trackId);
       if (y === undefined) {
@@ -134,7 +134,7 @@ export class FlowEventsRenderer {
       return undefined;
     }
     return trackPanel.getSliceRect?.(
-        point.sliceStartTs, point.sliceEndTs, point.depth);
+      point.sliceStartTs, point.sliceEndTs, point.depth);
   }
 
   render(ctx: CanvasRenderingContext2D, args: FlowEventsRendererArgs) {
@@ -162,8 +162,8 @@ export class FlowEventsRenderer {
   }
 
   private drawFlow(
-      ctx: CanvasRenderingContext2D, args: FlowEventsRendererArgs, flow: Flow,
-      hue: number) {
+    ctx: CanvasRenderingContext2D, args: FlowEventsRendererArgs, flow: Flow,
+    hue: number) {
     const beginSliceRect = this.getSliceRect(args, flow.begin);
     const endSliceRect = this.getSliceRect(args, flow.end);
 
@@ -191,8 +191,8 @@ export class FlowEventsRenderer {
       // beginning of the slice
       // rather from the end to avoid the flow arrow going backwards.
       x: this.getXCoordinate(
-          flow.flowToDescendant ? flow.begin.sliceStartTs :
-                                  flow.begin.sliceEndTs),
+        flow.flowToDescendant ? flow.begin.sliceStartTs :
+          flow.begin.sliceEndTs),
       y: beginYConnection.y,
       dir: beginDir,
     };
@@ -220,44 +220,44 @@ export class FlowEventsRenderer {
 
   private getDeltaX(dir: LineDirection, offset: number): number {
     switch (dir) {
-      case 'LEFT':
-        return -offset;
-      case 'RIGHT':
-        return offset;
-      case 'UP':
-        return 0;
-      case 'DOWN':
-        return 0;
-      default:
-        return 0;
+    case 'LEFT':
+      return -offset;
+    case 'RIGHT':
+      return offset;
+    case 'UP':
+      return 0;
+    case 'DOWN':
+      return 0;
+    default:
+      return 0;
     }
   }
 
   private getDeltaY(dir: LineDirection, offset: number): number {
     switch (dir) {
-      case 'LEFT':
-        return 0;
-      case 'RIGHT':
-        return 0;
-      case 'UP':
-        return -offset;
-      case 'DOWN':
-        return offset;
-      default:
-        return 0;
+    case 'LEFT':
+      return 0;
+    case 'RIGHT':
+      return 0;
+    case 'UP':
+      return -offset;
+    case 'DOWN':
+      return offset;
+    default:
+      return 0;
     }
   }
 
   private drawFlowArrow(
-      ctx: CanvasRenderingContext2D,
-      begin: {x: number, y: number, dir: LineDirection},
-      end: {x: number, y: number, dir: LineDirection}, hue: number,
-      intensity: number, width: number) {
+    ctx: CanvasRenderingContext2D,
+    begin: {x: number, y: number, dir: LineDirection},
+    end: {x: number, y: number, dir: LineDirection}, hue: number,
+    intensity: number, width: number) {
     const hasArrowHead = Math.abs(begin.x - end.x) > 3 * TRIANGLE_SIZE;
     const END_OFFSET =
         (((end.dir === 'RIGHT' || end.dir === 'LEFT') && hasArrowHead) ?
-             TRIANGLE_SIZE :
-             0);
+          TRIANGLE_SIZE :
+          0);
     const color = `hsl(${hue}, 50%, ${intensity}%)`;
     // draw curved line from begin to end (bezier curve)
     ctx.strokeStyle = color;
@@ -265,12 +265,12 @@ export class FlowEventsRenderer {
     ctx.beginPath();
     ctx.moveTo(begin.x, begin.y);
     ctx.bezierCurveTo(
-        begin.x - this.getDeltaX(begin.dir, BEZIER_OFFSET),
-        begin.y - this.getDeltaY(begin.dir, BEZIER_OFFSET),
-        end.x - this.getDeltaX(end.dir, BEZIER_OFFSET + END_OFFSET),
-        end.y - this.getDeltaY(end.dir, BEZIER_OFFSET + END_OFFSET),
-        end.x - this.getDeltaX(end.dir, END_OFFSET),
-        end.y - this.getDeltaY(end.dir, END_OFFSET));
+      begin.x - this.getDeltaX(begin.dir, BEZIER_OFFSET),
+      begin.y - this.getDeltaY(begin.dir, BEZIER_OFFSET),
+      end.x - this.getDeltaX(end.dir, BEZIER_OFFSET + END_OFFSET),
+      end.y - this.getDeltaY(end.dir, BEZIER_OFFSET + END_OFFSET),
+      end.x - this.getDeltaX(end.dir, END_OFFSET),
+      end.y - this.getDeltaY(end.dir, END_OFFSET));
     ctx.stroke();
 
     // TODO (andrewbb): probably we should add a parameter 'MarkerType' to be
@@ -299,8 +299,8 @@ export class FlowEventsRenderer {
   }
 
   private drawArrowHead(
-      end: {x: number; y: number; dir: LineDirection},
-      ctx: CanvasRenderingContext2D, color: string) {
+    end: {x: number; y: number; dir: LineDirection},
+    ctx: CanvasRenderingContext2D, color: string) {
     const dx = this.getDeltaX(end.dir, TRIANGLE_SIZE);
     const dy = this.getDeltaY(end.dir, TRIANGLE_SIZE);
     // draw small triangle

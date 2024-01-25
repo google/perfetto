@@ -21,15 +21,15 @@ export type SortDirection = 'DESC'|'ASC';
 // Having a comparison function of type S and a getter that returns value of
 // type S from value of type T, values of type T can be compared.
 export function comparingBy<T, S>(
-    getter: (t: T) => S, comparison: ComparisonFn<S>): ComparisonFn<T> {
+  getter: (t: T) => S, comparison: ComparisonFn<S>): ComparisonFn<T> {
   return (x, y) => {
     return comparison(getter(x), getter(y));
   };
 }
 
 export function withDirection<T>(
-    comparison: ComparisonFn<T>,
-    sortDirection?: SortDirection): ComparisonFn<T> {
+  comparison: ComparisonFn<T>,
+  sortDirection?: SortDirection): ComparisonFn<T> {
   if (sortDirection !== 'DESC') {
     return comparison;
   }

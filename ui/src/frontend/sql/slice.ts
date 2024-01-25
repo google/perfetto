@@ -90,8 +90,8 @@ async function getUtidAndUpid(engine: EngineProxy, sqlTrackId: number):
         FROM ${columnInfo.leafTrackTable}
         WHERE id = ${sqlTrackId};
     `)).firstRow({
-         utid: NUM,
-       }).utid;
+      utid: NUM,
+    }).utid;
     result.utid = asUtid(utid);
   } else if (hasUpid) {
     const upid = (await engine.query(`
@@ -99,15 +99,15 @@ async function getUtidAndUpid(engine: EngineProxy, sqlTrackId: number):
         FROM ${columnInfo.leafTrackTable}
         WHERE id = ${sqlTrackId};
     `)).firstRow({
-         upid: NUM,
-       }).upid;
+      upid: NUM,
+    }).upid;
     result.upid = asUpid(upid);
   }
   return result;
 }
 
 async function getSliceFromConstraints(
-    engine: EngineProxy, constraints: SQLConstraints): Promise<SliceDetails[]> {
+  engine: EngineProxy, constraints: SQLConstraints): Promise<SliceDetails[]> {
   const query = await engine.query(`
     SELECT
       id,
@@ -142,8 +142,8 @@ async function getSliceFromConstraints(
     const thread: ThreadInfo|undefined =
         utid === undefined ? undefined : await getThreadInfo(engine, utid);
     const process: ProcessInfo|undefined = thread !== undefined ?
-        thread.process :
-        (upid === undefined ? undefined : await getProcessInfo(engine, upid));
+      thread.process :
+      (upid === undefined ? undefined : await getProcessInfo(engine, upid));
 
     result.push({
       id: asSliceSqlId(it.id),
@@ -164,7 +164,7 @@ async function getSliceFromConstraints(
 }
 
 export async function getSlice(
-    engine: EngineProxy, id: SliceSqlId): Promise<SliceDetails|undefined> {
+  engine: EngineProxy, id: SliceSqlId): Promise<SliceDetails|undefined> {
   const result = await getSliceFromConstraints(engine, {
     filters: [`id=${id}`],
   });
@@ -194,25 +194,25 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
   view(vnode: m.Vnode<SliceRefAttrs>) {
     const switchTab = vnode.attrs.switchToCurrentSelectionTab ?? true;
     return m(
-        Anchor,
-        {
-          icon: Icons.UpdateSelection,
-          onclick: () => {
-            const trackKey =
+      Anchor,
+      {
+        icon: Icons.UpdateSelection,
+        onclick: () => {
+          const trackKey =
                 globals.state.trackKeyByTrackId[vnode.attrs.sqlTrackId];
-            if (trackKey === undefined) return;
-            verticalScrollToTrack(trackKey, true);
-            // Clamp duration to 1 - i.e. for instant events
-            const dur = BigintMath.max(1n, vnode.attrs.dur);
-            focusHorizontalRange(
-                vnode.attrs.ts, Time.fromRaw(vnode.attrs.ts + dur));
-            globals.makeSelection(
-                Actions.selectChromeSlice(
-                    {id: vnode.attrs.id, trackKey, table: 'slice'}),
-                {tab: switchTab ? 'current_selection' : null});
-          },
+          if (trackKey === undefined) return;
+          verticalScrollToTrack(trackKey, true);
+          // Clamp duration to 1 - i.e. for instant events
+          const dur = BigintMath.max(1n, vnode.attrs.dur);
+          focusHorizontalRange(
+            vnode.attrs.ts, Time.fromRaw(vnode.attrs.ts + dur));
+          globals.makeSelection(
+            Actions.selectChromeSlice(
+              {id: vnode.attrs.id, trackKey, table: 'slice'}),
+            {tab: switchTab ? 'current_selection' : null});
         },
-        vnode.attrs.name);
+      },
+      vnode.attrs.name);
   }
 }
 

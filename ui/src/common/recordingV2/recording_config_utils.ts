@@ -95,7 +95,7 @@ function enableCompactSched(androidApiLevel?: number): boolean {
 }
 
 export function genTraceConfig(
-    uiCfg: RecordConfig, targetInfo: TargetInfo): TraceConfig {
+  uiCfg: RecordConfig, targetInfo: TargetInfo): TraceConfig {
   const isAndroid = targetInfo.targetType === 'ANDROID';
   const androidApiLevel = isAndroid ? targetInfo.androidApiLevel : undefined;
   const protoCfg = new TraceConfig();
@@ -141,7 +141,7 @@ export function genTraceConfig(
   const chromeCategories = new Set<string>();
   uiCfg.chromeCategoriesSelected.forEach((it) => chromeCategories.add(it));
   uiCfg.chromeHighOverheadCategoriesSelected.forEach(
-      (it) => chromeCategories.add(it));
+    (it) => chromeCategories.add(it));
 
   let procThreadAssociationPolling = false;
   let procThreadAssociationFtrace = false;
@@ -784,7 +784,7 @@ function toPbtxt(configBuffer: Uint8Array): string {
           yield ' '.repeat(indent) + '}';
         } else {
           throw new Error(`Record proto entry "${entry}" with unexpected type ${
-              typeof entry}`);
+            typeof entry}`);
         }
         yield '\n';
       }

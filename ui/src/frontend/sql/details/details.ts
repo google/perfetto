@@ -83,10 +83,10 @@ export namespace DetailsSchema {
   export function Dict(args: {data: {[key: string]: ValueDesc}}&
                        ContainerParams): DictSchema {
     return new DictSchema(
-        args.data,
-        {
-          skipIfEmpty: args.skipIfEmpty,
-        },
+      args.data,
+      {
+        skipIfEmpty: args.skipIfEmpty,
+      },
     );
   }
 
@@ -125,8 +125,8 @@ export namespace DetailsSchema {
   // |ts|, |dur|, |utid| - SQL expressions (e.g. column names) for the
   // timestamp, duration and unique thread id.
   export function ThreadInterval(
-      ts: string, dur: string, utid: string,
-      args?: ScalarValueParams): ThreadIntervalSchema {
+    ts: string, dur: string, utid: string,
+    args?: ScalarValueParams): ThreadIntervalSchema {
     return new ThreadIntervalSchema(ts, dur, utid, args);
   }
 
@@ -189,7 +189,7 @@ export class Details {
     this.resolvedSchema = {
       kind: 'dict',
       data: Object.fromEntries(Object.entries(schema).map(
-          ([key, value]) => [key, resolve(value, this.dataController)])),
+        ([key, value]) => [key, resolve(value, this.dataController)])),
     };
     this.dataController.fetch();
   }
@@ -205,11 +205,11 @@ export class Details {
     const nodes = [];
     for (const [key, value] of Object.entries(this.resolvedSchema.data)) {
       nodes.push(renderValue(
-          this.engine,
-          key,
-          value,
-          this.dataController.data,
-          this.dataController.sqlIdRefRenderers));
+        this.engine,
+        key,
+        value,
+        this.dataController.data,
+        this.dataController.sqlIdRefRenderers));
     }
     nodes.push(m(TreeNode, {
       left: 'SQL ID',
@@ -247,9 +247,9 @@ export type SqlIdRefRenderer = {
 // Type-safe helper to create a SqlIdRefRenderer, which ensures that the
 // type returned from the fetch is the same type that renderer takes.
 export function createSqlIdRefRenderer<Data extends {}>(
-    fetch: (engine: EngineProxy, id: bigint) => Promise<Data>,
-    render: (data: Data) => RenderedValue,
-    ): SqlIdRefRenderer {
+  fetch: (engine: EngineProxy, id: bigint) => Promise<Data>,
+  render: (data: Data) => RenderedValue,
+): SqlIdRefRenderer {
   return {fetch, render: render as (data: {}) => RenderedValue};
 }
 
@@ -406,9 +406,9 @@ class DataController {
       argSetExpressions: this.argSets.map((index) => this.expressions[index]),
       argSets: [],
       sqlIdRefs: this.sqlIdRefs.map((ref) => ({
-                                      tableName: ref.tableName,
-                                      idExpression: this.expressions[ref.id],
-                                    })),
+        tableName: ref.tableName,
+        idExpression: this.expressions[ref.id],
+      })),
       sqlIdRefData: [],
     };
 
@@ -420,9 +420,9 @@ class DataController {
         (await this.engine.query(`
       SELECT
         ${
-             this.expressions
-                 .map((value, index) => `${value} as ${label(index)}`)
-                 .join(',\n')}
+          this.expressions
+            .map((value, index) => `${value} as ${label(index)}`)
+            .join(',\n')}
       FROM ${this.sqlTable}
       WHERE id = ${this.id}
     `)).firstRow({});
@@ -437,8 +437,8 @@ class DataController {
         data.argSets.push([]);
       } else if (typeof argSetId !== 'number') {
         data.argSets.push(new Err(`Incorrect type for arg set ${
-            data.argSetExpressions[argSetIndex]}: expected a number, got ${
-            typeof argSetId} instead}`));
+          data.argSetExpressions[argSetIndex]}: expected a number, got ${
+          typeof argSetId} instead}`));
       } else {
         data.argSets.push(await getArgs(this.engine, asArgSetId(argSetId)));
       }
@@ -454,14 +454,14 @@ class DataController {
       const id = data.values[ref.id];
       if (typeof id !== 'bigint') {
         data.sqlIdRefData.push(new Err(`Incorrect type for SQL reference ${
-            data.valueExpressions[ref.id]}: expected a bigint, got ${
-            typeof id} instead}`));
+          data.valueExpressions[ref.id]}: expected a bigint, got ${
+          typeof id} instead}`));
         continue;
       }
       const refData = await renderer.fetch(this.engine, id);
       if (refData === undefined) {
         data.sqlIdRefData.push(new Err(`Failed to fetch the data with id ${
-            id} for table ${ref.tableName}`));
+          id} for table ${ref.tableName}`));
         continue;
       }
       data.sqlIdRefData.push({data: refData, id});
@@ -563,162 +563,162 @@ function resolve(schema: ValueDesc, data: DataController): ResolvedValue {
     return {
       kind: 'dict',
       data: Object.fromEntries(
-          Object.entries(schema.data)
-              .map(([key, value]) => [key, resolve(value, data)])),
+        Object.entries(schema.data)
+          .map(([key, value]) => [key, resolve(value, data)])),
       ...schema.params,
     };
   }
   return {
     kind: 'dict',
     data: Object.fromEntries(Object.entries(schema).map(
-        ([key, value]) => [key, resolve(value, data)])),
+      ([key, value]) => [key, resolve(value, data)])),
   };
 }
 
 // Generate the vdom for a given value using the fetched `data`.
 function renderValue(
-    engine: EngineProxy,
-    key: string,
-    value: ResolvedValue,
-    data: Data,
-    sqlIdRefRenderers: {[table: string]: SqlIdRefRenderer}): m.Children {
+  engine: EngineProxy,
+  key: string,
+  value: ResolvedValue,
+  data: Data,
+  sqlIdRefRenderers: {[table: string]: SqlIdRefRenderer}): m.Children {
   switch (value.kind) {
-    case 'value':
-      if (data.values[value.source] === null && value.skipIfNull) return null;
-      return m(TreeNode, {
-        left: key,
-        right: sqlValueToString(data.values[value.source]),
-      });
-    case 'url': {
-      const url = data.values[value.source];
-      let rhs: m.Child;
-      if (url === null) {
-        if (value.skipIfNull) return null;
-        rhs = m('i', 'NULL');
-      } else if (typeof url !== 'string') {
-        rhs = renderError(`Incorrect type for URL ${
-            data.valueExpressions[value.source]}: expected string, got ${
-            typeof (url)}`);
-      } else {
-        rhs =
+  case 'value':
+    if (data.values[value.source] === null && value.skipIfNull) return null;
+    return m(TreeNode, {
+      left: key,
+      right: sqlValueToString(data.values[value.source]),
+    });
+  case 'url': {
+    const url = data.values[value.source];
+    let rhs: m.Child;
+    if (url === null) {
+      if (value.skipIfNull) return null;
+      rhs = m('i', 'NULL');
+    } else if (typeof url !== 'string') {
+      rhs = renderError(`Incorrect type for URL ${
+        data.valueExpressions[value.source]}: expected string, got ${
+        typeof (url)}`);
+    } else {
+      rhs =
             m(Anchor, {href: url, target: '_blank', icon: 'open_in_new'}, url);
+    }
+    return m(TreeNode, {
+      left: key,
+      right: rhs,
+    });
+  }
+  case 'timestamp': {
+    const ts = data.values[value.source];
+    let rhs: m.Child;
+    if (ts === null) {
+      if (value.skipIfNull) return null;
+      rhs = m('i', 'NULL');
+    } else if (typeof ts !== 'bigint') {
+      rhs = renderError(`Incorrect type for timestamp ${
+        data.valueExpressions[value.source]}: expected bigint, got ${
+        typeof (ts)}`);
+    } else {
+      rhs = m(TimestampWidget, {
+        ts: Time.fromRaw(ts),
+      });
+    }
+    return m(TreeNode, {
+      left: key,
+      right: rhs,
+    });
+  }
+  case 'duration': {
+    const dur = data.values[value.source];
+    return m(TreeNode, {
+      left: key,
+      right: typeof (dur) === 'bigint' && m(DurationWidget, {
+        dur,
+      }),
+    });
+  }
+  case 'interval':
+  case 'thread_interval': {
+    const dur = data.values[value.dur];
+    return m(TreeNode, {
+      left: key,
+      right: typeof (dur) === 'bigint' && m(DurationWidget, {
+        dur,
+      }),
+    });
+  }
+  case 'sql_id_ref':
+    const ref = data.sqlIdRefs[value.ref];
+    const refData = data.sqlIdRefData[value.ref];
+    let rhs: m.Children;
+    let children: m.Children;
+    if (refData instanceof Err) {
+      rhs = renderError(refData.message);
+    } else {
+      const renderer = sqlIdRefRenderers[ref.tableName];
+      if (renderer === undefined) {
+        rhs = renderError(`Unknown table ${ref.tableName} (${ref.tableName}[${
+          refData.id}])`);
+      } else {
+        const rendered = renderer.render(refData.data);
+        rhs = rendered.value;
+        children = rendered.children;
       }
-      return m(TreeNode, {
+    }
+    return m(
+      TreeNode,
+      {
         left: key,
         right: rhs,
-      });
+      },
+      children);
+  case 'arg_set_id':
+    const args = data.argSets[value.source];
+    if (args instanceof Err) {
+      return renderError(args.message);
     }
-    case 'timestamp': {
-      const ts = data.values[value.source];
-      let rhs: m.Child;
-      if (ts === null) {
-        if (value.skipIfNull) return null;
-        rhs = m('i', 'NULL');
-      } else if (typeof ts !== 'bigint') {
-        rhs = renderError(`Incorrect type for timestamp ${
-            data.valueExpressions[value.source]}: expected bigint, got ${
-            typeof (ts)}`);
-      } else {
-        rhs = m(TimestampWidget, {
-          ts: Time.fromRaw(ts),
-        });
-      }
-      return m(TreeNode, {
-        left: key,
-        right: rhs,
-      });
-    }
-    case 'duration': {
-      const dur = data.values[value.source];
-      return m(TreeNode, {
-        left: key,
-        right: typeof (dur) === 'bigint' && m(DurationWidget, {
-                 dur,
-               }),
-      });
-    }
-    case 'interval':
-    case 'thread_interval': {
-      const dur = data.values[value.dur];
-      return m(TreeNode, {
-        left: key,
-        right: typeof (dur) === 'bigint' && m(DurationWidget, {
-                 dur,
-               }),
-      });
-    }
-    case 'sql_id_ref':
-      const ref = data.sqlIdRefs[value.ref];
-      const refData = data.sqlIdRefData[value.ref];
-      let rhs: m.Children;
-      let children: m.Children;
-      if (refData instanceof Err) {
-        rhs = renderError(refData.message);
-      } else {
-        const renderer = sqlIdRefRenderers[ref.tableName];
-        if (renderer === undefined) {
-          rhs = renderError(`Unknown table ${ref.tableName} (${ref.tableName}[${
-              refData.id}])`);
-        } else {
-          const rendered = renderer.render(refData.data);
-          rhs = rendered.value;
-          children = rendered.children;
-        }
-      }
-      return m(
-          TreeNode,
-          {
-            left: key,
-            right: rhs,
-          },
-          children);
-    case 'arg_set_id':
-      const args = data.argSets[value.source];
-      if (args instanceof Err) {
-        return renderError(args.message);
-      }
-      return hasArgs(args) &&
+    return hasArgs(args) &&
           m(TreeNode,
             {
               left: key,
             },
             renderArguments(engine, args));
-    case 'array': {
-      const children: m.Children[] = [];
-      for (const child of value.data) {
-        const renderedChild = renderValue(
-            engine, `[${children.length}]`, child, data, sqlIdRefRenderers);
-        if (exists(renderedChild)) {
-          children.push(renderedChild);
-        }
+  case 'array': {
+    const children: m.Children[] = [];
+    for (const child of value.data) {
+      const renderedChild = renderValue(
+        engine, `[${children.length}]`, child, data, sqlIdRefRenderers);
+      if (exists(renderedChild)) {
+        children.push(renderedChild);
       }
-      if (children.length === 0 && value.skipIfEmpty) {
-        return null;
-      }
-      return m(
-          TreeNode,
-          {
-            left: key,
-          },
-          children);
     }
-    case 'dict': {
-      const children: m.Children[] = [];
-      for (const [key, val] of Object.entries(value.data)) {
-        const child = renderValue(engine, key, val, data, sqlIdRefRenderers);
-        if (exists(child)) {
-          children.push(child);
-        }
-      }
-      if (children.length === 0 && value.skipIfEmpty) {
-        return null;
-      }
-      return m(
-          TreeNode,
-          {
-            left: key,
-          },
-          children);
+    if (children.length === 0 && value.skipIfEmpty) {
+      return null;
     }
+    return m(
+      TreeNode,
+      {
+        left: key,
+      },
+      children);
+  }
+  case 'dict': {
+    const children: m.Children[] = [];
+    for (const [key, val] of Object.entries(value.data)) {
+      const child = renderValue(engine, key, val, data, sqlIdRefRenderers);
+      if (exists(child)) {
+        children.push(child);
+      }
+    }
+    if (children.length === 0 && value.skipIfEmpty) {
+      return null;
+    }
+    return m(
+      TreeNode,
+      {
+        left: key,
+      },
+      children);
+  }
   }
 }

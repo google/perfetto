@@ -78,7 +78,7 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
           this.state = AdbConnectionState.READY_TO_CONNECT;
           const target = globals.state.recordingTarget;
           throw Error(`Device with serial ${
-              isAdbTarget(target) ? target.serial : 'n/a'} not found.`);
+            isAdbTarget(target) ? target.serial : 'n/a'} not found.`);
         }
 
         this.sendStatus(`Please allow USB debugging on device.
@@ -118,7 +118,7 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
     if (!traceConfigProto) return;
     const duration = extractDurationFromTraceConfig(traceConfigProto);
     this.sendStatus(`Recording in progress${
-        exists(duration) ? ' for ' + duration.toString() + ' ms' : ''}...`);
+      exists(duration) ? ' for ' + duration.toString() + ' ms' : ''}...`);
   }
 
   abstract invoke(method: string, argsProto: Uint8Array): void;

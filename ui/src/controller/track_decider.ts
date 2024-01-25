@@ -821,7 +821,7 @@ class TrackDecider {
         name,
         trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
         trackGroup: upid === 0 ? SCROLLING_TRACK_GROUP :
-                                 this.upidToUuid.get(upid),
+          this.upidToUuid.get(upid),
       });
     }
   }
@@ -1334,8 +1334,8 @@ class TrackDecider {
           trackSortKey: {
             utid,
             priority: isDefaultTrackForScope ?
-                InThreadTrackSortKey.DEFAULT_TRACK :
-                InThreadTrackSortKey.ORDINARY,
+              InThreadTrackSortKey.DEFAULT_TRACK :
+              InThreadTrackSortKey.ORDINARY,
           },
         });
       }
@@ -1348,8 +1348,8 @@ class TrackDecider {
           trackSortKey: {
             utid,
             priority: isDefaultTrackForScope ?
-                InThreadTrackSortKey.DEFAULT_TRACK :
-                InThreadTrackSortKey.ORDINARY,
+              InThreadTrackSortKey.DEFAULT_TRACK :
+              InThreadTrackSortKey.ORDINARY,
           },
         });
       }
@@ -1382,12 +1382,12 @@ class TrackDecider {
       const processName = it.processName;
       const uuid = this.getUuid(0, upid);
       const name = getTrackName(
-          {name: trackName, upid, pid, kind: COUNTER_TRACK_KIND, processName});
+        {name: trackName, upid, pid, kind: COUNTER_TRACK_KIND, processName});
       this.tracksToAdd.push({
         uri: `perfetto.Counter#process${trackId}`,
         name,
         trackSortKey: await this.resolveTrackSortKeyForProcessCounterTrack(
-            upid, trackName || undefined),
+          upid, trackName || undefined),
         trackGroup: uuid,
       });
     }
@@ -1432,7 +1432,7 @@ class TrackDecider {
 
   getUuidUnchecked(utid: number, upid: number|null) {
     return upid === null ? this.utidToUuid.get(utid) :
-                           this.upidToUuid.get(upid);
+      this.upidToUuid.get(upid);
   }
 
   getUuid(utid: number, upid: number|null) {
@@ -1678,8 +1678,8 @@ class TrackDecider {
           uri,
           key: summaryTrackKey,
           trackSortKey: hasSched ?
-              PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK :
-              PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
+            PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK :
+            PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
           name: `${upid === null ? tid : pid} summary`,
           labels: it.chromeProcessLabels.split(','),
         });
@@ -1763,31 +1763,31 @@ class TrackDecider {
     await this.addScrollJankPluginTracks();
     await this.addCpuSchedulingTracks();
     await this.addFtraceTrack(
-        this.engine.getProxy('TrackDecider::addFtraceTrack'));
+      this.engine.getProxy('TrackDecider::addFtraceTrack'));
     await this.addCpuFreqTracks(
-        this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
+      this.engine.getProxy('TrackDecider::addCpuFreqTracks'));
     await this.addGlobalAsyncTracks(
-        this.engine.getProxy('TrackDecider::addGlobalAsyncTracks'));
+      this.engine.getProxy('TrackDecider::addGlobalAsyncTracks'));
     await this.addGpuFreqTracks(
-        this.engine.getProxy('TrackDecider::addGpuFreqTracks'));
+      this.engine.getProxy('TrackDecider::addGpuFreqTracks'));
     await this.addCpuFreqLimitCounterTracks(
-          this.engine.getProxy('TrackDecider::addCpuFreqLimitCounterTracks'));
+      this.engine.getProxy('TrackDecider::addCpuFreqLimitCounterTracks'));
     await this.addCpuPerfCounterTracks(
-        this.engine.getProxy('TrackDecider::addCpuPerfCounterTracks'));
+      this.engine.getProxy('TrackDecider::addCpuPerfCounterTracks'));
     this.addPluginTracks();
     await this.addAnnotationTracks(
-        this.engine.getProxy('TrackDecider::addAnnotationTracks'));
+      this.engine.getProxy('TrackDecider::addAnnotationTracks'));
     await this.groupGlobalIonTracks();
     await this.groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
     await this.groupGlobalIostatTracks(
-        F2FS_IOSTAT_LAT_TAG, F2FS_IOSTAT_LAT_GROUP_NAME);
+      F2FS_IOSTAT_LAT_TAG, F2FS_IOSTAT_LAT_GROUP_NAME);
     await this.groupGlobalIostatTracks(DISK_IOSTAT_TAG, DISK_IOSTAT_GROUP_NAME);
     await this.groupGlobalUfsCmdTagTracks(UFS_CMD_TAG, UFS_CMD_TAG_GROUP_NAME);
     await this.groupGlobalBuddyInfoTracks();
     await this.groupTracksByRegex(KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
     await this.groupTracksByRegex(NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
     await this.groupTracksByRegex(
-        ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
+      ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
     await this.groupTracksByRegex(UCLAMP_REGEX, UCLAMP_GROUP);
     await this.groupFrequencyTracks(FREQUENCY_GROUP);
     await this.groupTracksByRegex(POWER_RAILS_REGEX, POWER_RAILS_GROUP);
@@ -1800,7 +1800,7 @@ class TrackDecider {
     // be listed with their user/package name only, and they will be grouped
     // under on their original shared track names. E.g. "GPU Work Period"
     await this.addUserAsyncSliceTracks(
-        this.engine.getProxy('TrackDecider::addUserAsyncSliceTracks'));
+      this.engine.getProxy('TrackDecider::addUserAsyncSliceTracks'));
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
@@ -1809,37 +1809,37 @@ class TrackDecider {
     // TrackKindPriority.MAIN_THREAD, any process-level tracks will end up
     // pushed to the bottom of the group in the UI.
     await this.addKernelThreadGrouping(
-        this.engine.getProxy('TrackDecider::addKernelThreadGrouping'));
+      this.engine.getProxy('TrackDecider::addKernelThreadGrouping'));
 
     // Create the per-process track groups. Note that this won't necessarily
     // create a track per process. If a process has been completely idle and has
     // no sched events, no track group will be emitted.
     // Will populate this.addTrackGroupActions
     await this.addProcessTrackGroups(
-        this.engine.getProxy('TrackDecider::addProcessTrackGroups'));
+      this.engine.getProxy('TrackDecider::addProcessTrackGroups'));
 
     await this.addProcessHeapProfileTracks(
-        this.engine.getProxy('TrackDecider::addProcessHeapProfileTracks'));
+      this.engine.getProxy('TrackDecider::addProcessHeapProfileTracks'));
     if (PERF_SAMPLE_FLAG.get()) {
       await this.addProcessPerfSamplesTracks(
-          this.engine.getProxy('TrackDecider::addProcessPerfSamplesTracks'));
+        this.engine.getProxy('TrackDecider::addProcessPerfSamplesTracks'));
     }
     await this.addProcessCounterTracks(
-        this.engine.getProxy('TrackDecider::addProcessCounterTracks'));
+      this.engine.getProxy('TrackDecider::addProcessCounterTracks'));
     await this.addProcessAsyncSliceTracks(
-        this.engine.getProxy('TrackDecider::addProcessAsyncSliceTracks'));
+      this.engine.getProxy('TrackDecider::addProcessAsyncSliceTracks'));
     await this.addActualFramesTracks(
-        this.engine.getProxy('TrackDecider::addActualFramesTracks'));
+      this.engine.getProxy('TrackDecider::addActualFramesTracks'));
     await this.addExpectedFramesTracks(
-        this.engine.getProxy('TrackDecider::addExpectedFramesTracks'));
+      this.engine.getProxy('TrackDecider::addExpectedFramesTracks'));
     await this.addThreadCounterTracks(
-        this.engine.getProxy('TrackDecider::addThreadCounterTracks'));
+      this.engine.getProxy('TrackDecider::addThreadCounterTracks'));
     await this.addThreadStateTracks(
-        this.engine.getProxy('TrackDecider::addThreadStateTracks'));
+      this.engine.getProxy('TrackDecider::addThreadStateTracks'));
     await this.addThreadSliceTracks(
-        this.engine.getProxy('TrackDecider::addThreadSliceTracks'));
+      this.engine.getProxy('TrackDecider::addThreadSliceTracks'));
     await this.addThreadCpuSampleTracks(
-        this.engine.getProxy('TrackDecider::addThreadCpuSampleTracks'));
+      this.engine.getProxy('TrackDecider::addThreadCpuSampleTracks'));
     await this.addLogsTrack(this.engine.getProxy('TrackDecider::addLogsTrack'));
 
     // TODO(hjd): Move into plugin API.
@@ -1854,11 +1854,11 @@ class TrackDecider {
     }
 
     this.addTrackGroupActions.push(
-        Actions.addTracks({tracks: this.tracksToAdd}));
+      Actions.addTracks({tracks: this.tracksToAdd}));
 
     const threadOrderingMetadata = await this.computeThreadOrderingMetadata();
     this.addTrackGroupActions.push(
-        Actions.setUtidToTrackSortKey({threadOrderingMetadata}));
+      Actions.setUtidToTrackSortKey({threadOrderingMetadata}));
 
     return this.addTrackGroupActions;
   }
@@ -1866,7 +1866,7 @@ class TrackDecider {
   // Some process counter tracks are tied to specific threads based on their
   // name.
   private async resolveTrackSortKeyForProcessCounterTrack(
-      upid: number, threadName?: string): Promise<TrackSortKey> {
+    upid: number, threadName?: string): Promise<TrackSortKey> {
     if (threadName !== 'GPU completion') {
       return PrimaryTrackSortKey.COUNTER_TRACK;
     }
@@ -1889,8 +1889,8 @@ class TrackDecider {
   }
 
   private static getThreadSortKey(
-      threadName?: string|null, tid?: number|null,
-      pid?: number|null): PrimaryTrackSortKey {
+    threadName?: string|null, tid?: number|null,
+    pid?: number|null): PrimaryTrackSortKey {
     if (pid !== undefined && pid !== null && pid === tid) {
       return PrimaryTrackSortKey.MAIN_THREAD;
     }
@@ -1917,12 +1917,12 @@ class TrackDecider {
     }
 
     switch (true) {
-      case /.*RenderThread.*/.test(threadName):
-        return PrimaryTrackSortKey.RENDER_THREAD;
-      case /.*GPU completion.*/.test(threadName):
-        return PrimaryTrackSortKey.GPU_COMPLETION_THREAD;
-      default:
-        return PrimaryTrackSortKey.ORDINARY_THREAD;
+    case /.*RenderThread.*/.test(threadName):
+      return PrimaryTrackSortKey.RENDER_THREAD;
+    case /.*GPU completion.*/.test(threadName):
+      return PrimaryTrackSortKey.GPU_COMPLETION_THREAD;
+    default:
+      return PrimaryTrackSortKey.ORDINARY_THREAD;
     }
   }
 }

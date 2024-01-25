@@ -92,9 +92,9 @@ const ITEMS: ContextMenuItem[] = [
     name: 'Average duration of slice name',
     shouldDisplay: (slice: SliceDetails) => hasName(slice),
     run: (slice: SliceDetails) => globals.openQuery(
-        `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
-        `${slice.name} average dur`,
-        ),
+      `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
+      `${slice.name} average dur`,
+    ),
   },
   {
     name: 'Binder txn names + monitor contention on thread',
@@ -104,16 +104,16 @@ const ITEMS: ContextMenuItem[] = [
       const engine = getEngine();
       if (engine === undefined) return;
       runQuery(
-          `
+        `
         INCLUDE PERFETTO MODULE android.binder;
         INCLUDE PERFETTO MODULE android.monitor_contention;
       `,
-          engine)
-          .then(
-              () => addDebugSliceTrack(
-                  engine,
-                  {
-                    sqlSource: `
+        engine)
+        .then(
+          () => addDebugSliceTrack(
+            engine,
+            {
+              sqlSource: `
                                 WITH merged AS (
                                   SELECT s.ts, s.dur, tx.aidl_name AS name, 0 AS depth
                                   FROM android_binder_txns tx
@@ -145,16 +145,16 @@ const ITEMS: ContextMenuItem[] = [
                                   JOIN process ON process.upid = thread.upid
                                   WHERE process.pid = ${getPidFromSlice(slice)}
                                         AND thread.tid = ${
-                        getTidFromSlice(slice)}
+  getTidFromSlice(slice)}
                                         AND short_blocked_method IS NOT NULL
                                   ORDER BY depth
                                 ) SELECT ts, dur, name FROM merged`,
-                  },
-                  `Binder names (${getProcessNameFromSlice(slice)}:${
-                      getThreadNameFromSlice(slice)})`,
-                  {ts: 'ts', dur: 'dur', name: 'name'},
-                  [],
-                  ));
+            },
+            `Binder names (${getProcessNameFromSlice(slice)}:${
+              getThreadNameFromSlice(slice)})`,
+            {ts: 'ts', dur: 'dur', name: 'name'},
+            [],
+          ));
     },
   },
 ];
@@ -173,7 +173,7 @@ function getEngine(): EngineProxy|undefined {
 }
 
 async function getAnnotationSlice(
-    engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {
+  engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {
   const query = await engine.query(`
     SELECT
       id,
@@ -225,7 +225,7 @@ interface ChromeSliceDetailsTabConfig {
 }
 
 export class ChromeSliceDetailsTab extends
-    BottomTab<ChromeSliceDetailsTabConfig> {
+  BottomTab<ChromeSliceDetailsTabConfig> {
   static readonly kind = 'dev.perfetto.ChromeSliceDetailsTab';
 
   private sliceDetails?: SliceDetails;
@@ -249,9 +249,9 @@ export class ChromeSliceDetailsTab extends
     if (details !== undefined && details.thread !== undefined &&
         details.dur > 0) {
       this.breakdownByThreadState = await breakDownIntervalByThreadState(
-          this.engine,
-          TimeSpan.fromTimeAndDuration(details.ts, details.dur),
-          details.thread.utid);
+        this.engine,
+        TimeSpan.fromTimeAndDuration(details.ts, details.dur),
+        details.thread.utid);
     }
 
     this.sliceDetails = details;
@@ -268,17 +268,17 @@ export class ChromeSliceDetailsTab extends
     }
     const slice = this.sliceDetails;
     return m(
-        DetailsShell,
-        {
-          title: 'Slice',
-          description: slice.name,
-          buttons: this.renderContextButton(slice),
-        },
-        m(
-            GridLayout,
-            renderDetails(slice, this.breakdownByThreadState),
-            this.renderRhs(this.engine, slice),
-            ),
+      DetailsShell,
+      {
+        title: 'Slice',
+        description: slice.name,
+        buttons: this.renderContextButton(slice),
+      },
+      m(
+        GridLayout,
+        renderDetails(slice, this.breakdownByThreadState),
+        this.renderRhs(this.engine, slice),
+      ),
     );
   }
 
@@ -296,10 +296,10 @@ export class ChromeSliceDetailsTab extends
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (precFlows ?? followingFlows ?? args) {
       return m(
-          GridLayoutColumn,
-          precFlows,
-          followingFlows,
-          args,
+        GridLayoutColumn,
+        precFlows,
+        followingFlows,
+        args,
       );
     } else {
       return undefined;
@@ -315,13 +315,13 @@ export class ChromeSliceDetailsTab extends
           slice.name === 'ThreadPool_RunTask';
 
       return m(
-          Section,
-          {title: 'Preceding Flows'},
-          m(
-              Tree,
-              inFlows.map(
-                  ({begin, dur}) => this.renderFlow(begin, dur, !isRunTask)),
-              ));
+        Section,
+        {title: 'Preceding Flows'},
+        m(
+          Tree,
+          inFlows.map(
+            ({begin, dur}) => this.renderFlow(begin, dur, !isRunTask)),
+        ));
     } else {
       return null;
     }
@@ -336,42 +336,42 @@ export class ChromeSliceDetailsTab extends
           slice.name === 'SequenceManager PostTask';
 
       return m(
-          Section,
-          {title: 'Following Flows'},
-          m(
-              Tree,
-              outFlows.map(
-                  ({end, dur}) => this.renderFlow(end, dur, !isPostTask)),
-              ));
+        Section,
+        {title: 'Following Flows'},
+        m(
+          Tree,
+          outFlows.map(
+            ({end, dur}) => this.renderFlow(end, dur, !isPostTask)),
+        ));
     } else {
       return null;
     }
   }
 
   private renderFlow(
-      flow: FlowPoint, dur: duration, includeProcessName: boolean): m.Children {
+    flow: FlowPoint, dur: duration, includeProcessName: boolean): m.Children {
     const description = flow.sliceChromeCustomName === undefined ?
-        flow.sliceName :
-        flow.sliceChromeCustomName;
+      flow.sliceName :
+      flow.sliceChromeCustomName;
     const threadName = includeProcessName ?
-        `${flow.threadName} (${flow.processName})` :
-        flow.threadName;
+      `${flow.threadName} (${flow.processName})` :
+      flow.threadName;
 
     return m(
-        TreeNode,
-        {left: 'Flow'},
-        m(TreeNode, {
-          left: 'Slice',
-          right: m(SliceRef, {
-            id: asSliceSqlId(flow.sliceId),
-            name: description,
-            ts: flow.sliceStartTs,
-            dur: flow.sliceEndTs - flow.sliceStartTs,
-            sqlTrackId: flow.trackId,
-          }),
+      TreeNode,
+      {left: 'Flow'},
+      m(TreeNode, {
+        left: 'Slice',
+        right: m(SliceRef, {
+          id: asSliceSqlId(flow.sliceId),
+          name: description,
+          ts: flow.sliceStartTs,
+          dur: flow.sliceEndTs - flow.sliceStartTs,
+          sqlTrackId: flow.trackId,
         }),
-        m(TreeNode, {left: 'Delay', right: m(DurationWidget, {dur})}),
-        m(TreeNode, {left: 'Thread', right: threadName}),
+      }),
+      m(TreeNode, {left: 'Delay', right: m(DurationWidget, {dur})}),
+      m(TreeNode, {left: 'Thread', right: threadName}),
     );
   }
 
@@ -385,11 +385,11 @@ export class ChromeSliceDetailsTab extends
         rightIcon: Icons.ContextMenu,
       });
       return m(
-          PopupMenu2,
-          {trigger},
-          contextMenuItems.map(
-              ({name, run}) =>
-                  m(MenuItem, {label: name, onclick: () => run(sliceInfo)})),
+        PopupMenu2,
+        {trigger},
+        contextMenuItems.map(
+          ({name, run}) =>
+            m(MenuItem, {label: name, onclick: () => run(sliceInfo)})),
       );
     } else {
       return undefined;

@@ -52,7 +52,7 @@ export class AdbFileHandler {
     const transferFinished = defer<void>();
 
     this.byteStream.addOnStreamDataCallback(
-        (data) => this.onStreamData(data, transferFinished));
+      (data) => this.onStreamData(data, transferFinished));
     this.byteStream.addOnStreamCloseCallback(() => this.isPushOngoing = false);
 
     const sendMessage = new ArrayBufferBuilder();
@@ -82,7 +82,7 @@ export class AdbFileHandler {
       // but the date is not formatted correctly):
       // 'OKAYFAIL\npath too long'
       transferFinished.reject(
-          new RecordingError(`${BINARY_PUSH_FAILURE}: ${response}`));
+        new RecordingError(`${BINARY_PUSH_FAILURE}: ${response}`));
     } else if (textDecoder.decode(data).substring(0, 4) === 'OKAY') {
       // In case of success, the server responds to the last request with
       // 'OKAY'.
@@ -94,7 +94,7 @@ export class AdbFileHandler {
 
   private async sendNextDataChunk(binary: Uint8Array): Promise<boolean> {
     const endPosition = Math.min(
-        this.sentByteCount + MAX_SYNC_SEND_CHUNK_SIZE, binary.byteLength);
+      this.sentByteCount + MAX_SYNC_SEND_CHUNK_SIZE, binary.byteLength);
     const chunk = await binary.slice(this.sentByteCount, endPosition);
     // The file is sent in chunks. Each chunk is prefixed with "DATA" and the
     // chunk length. This is repeated until the entire file is transferred. Each
@@ -104,7 +104,7 @@ export class AdbFileHandler {
     dataMessage.append('DATA');
     dataMessage.append(chunkLength);
     dataMessage.append(
-        new Uint8Array(chunk.buffer, chunk.byteOffset, chunkLength));
+      new Uint8Array(chunk.buffer, chunk.byteOffset, chunkLength));
 
     this.sentByteCount += chunkLength;
     const isDone = this.sentByteCount === binary.byteLength;

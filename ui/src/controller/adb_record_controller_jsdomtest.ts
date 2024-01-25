@@ -107,20 +107,20 @@ test('generateStartTracing', () => {
   testArray[0] = 65;
   const generatedCmd = adbController.generateStartTracingCommand(testArray);
   expect(generatedCmd)
-      .toBe(`echo '${btoa('A')}' | base64 -d | perfetto -c - -o DEST`);
+    .toBe(`echo '${btoa('A')}' | base64 -d | perfetto -c - -o DEST`);
 });
 
 test('tracingEndedSuccessfully', () => {
   expect(
-      adbController.tracingEndedSuccessfully(
-          'Connected to the Perfetto traced service, starting tracing for 10000 ms\nWrote 564 bytes into /data/misc/perfetto-traces/trace'))
-      .toBe(true);
+    adbController.tracingEndedSuccessfully(
+      'Connected to the Perfetto traced service, starting tracing for 10000 ms\nWrote 564 bytes into /data/misc/perfetto-traces/trace'))
+    .toBe(true);
   expect(
-      adbController.tracingEndedSuccessfully(
-          'Connected to the Perfetto traced service, starting tracing for 10000 ms'))
-      .toBe(false);
+    adbController.tracingEndedSuccessfully(
+      'Connected to the Perfetto traced service, starting tracing for 10000 ms'))
+    .toBe(false);
   expect(
-      adbController.tracingEndedSuccessfully(
-          'Connected to the Perfetto traced service, starting tracing for 0 ms'))
-      .toBe(false);
+    adbController.tracingEndedSuccessfully(
+      'Connected to the Perfetto traced service, starting tracing for 0 ms'))
+    .toBe(false);
 });

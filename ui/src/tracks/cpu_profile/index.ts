@@ -122,12 +122,12 @@ class CpuProfileTrack implements Track {
           selection.kind === 'CPU_PROFILE_SAMPLE' && selection.ts === centerX;
       const strokeWidth = isSelected ? 3 : 0;
       this.drawMarker(
-          ctx,
-          timeScale.timeToPx(centerX),
-          this.centerY,
-          isHovered,
-          strokeWidth,
-          data.callsiteId[i]);
+        ctx,
+        timeScale.timeToPx(centerX),
+        this.centerY,
+        isHovered,
+        strokeWidth,
+        data.callsiteId[i]);
     }
 
     // Group together identical identical CPU profile samples by connecting them
@@ -162,8 +162,8 @@ class CpuProfileTrack implements Track {
   }
 
   drawMarker(
-      ctx: CanvasRenderingContext2D, x: number, y: number, isHovered: boolean,
-      strokeWidth: number, callsiteId: number): void {
+    ctx: CanvasRenderingContext2D, x: number, y: number, isHovered: boolean,
+    strokeWidth: number, callsiteId: number): void {
     ctx.beginPath();
     ctx.moveTo(x - this.markerWidth, y - this.markerWidth);
     ctx.lineTo(x, y + this.markerWidth);
@@ -213,7 +213,7 @@ class CpuProfileTrack implements Track {
       const ts = Time.fromRaw(data.tsStarts[index]);
 
       globals.makeSelection(
-          Actions.selectCpuProfileSample({id, utid: this.utid, ts}));
+        Actions.selectCpuProfileSample({id, utid: this.utid, ts}));
       return true;
     }
     return false;
@@ -221,8 +221,8 @@ class CpuProfileTrack implements Track {
 
   // If the markers overlap the rightmost one will be selected.
   findTimestampIndex(
-      left: number, timeScale: TimeScale, data: Data, x: number, y: number,
-      right: number): number {
+    left: number, timeScale: TimeScale, data: Data, x: number, y: number,
+    right: number): number {
     let index = -1;
     if (left !== -1) {
       const start = Time.fromRaw(data.tsStarts[left]);

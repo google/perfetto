@@ -47,8 +47,8 @@ export class FlowEventsPanel implements m.ClassComponent {
       const trackKey = globals.state.trackKeyByTrackId[trackId];
       if (trackKey) {
         globals.makeSelection(
-            Actions.selectChromeSlice({id: sliceId, trackKey, table: 'slice'}),
-            {tab: 'bound_flows'});
+          Actions.selectChromeSlice({id: sliceId, trackKey, table: 'slice'}),
+          {tab: 'bound_flows'});
       }
     };
 
@@ -87,9 +87,9 @@ export class FlowEventsPanel implements m.ClassComponent {
       const args = {
         onclick: () => flowClickHandler(otherEnd.sliceId, otherEnd.trackId),
         onmousemove: () => globals.dispatch(
-            Actions.setHighlightedSliceId({sliceId: otherEnd.sliceId})),
+          Actions.setHighlightedSliceId({sliceId: otherEnd.sliceId})),
         onmouseleave: () =>
-            globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1})),
+          globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1})),
       };
 
       const data = [

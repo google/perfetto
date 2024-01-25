@@ -24,8 +24,8 @@ export class AndroidWebsocketTarget extends AndroidTarget {
       private serialNumber: string, websocketUrl: string,
       onTargetChange: OnTargetChangeCallback) {
     super(
-        new AdbConnectionOverWebsocket(serialNumber, websocketUrl),
-        onTargetChange);
+      new AdbConnectionOverWebsocket(serialNumber, websocketUrl),
+      onTargetChange);
   }
 
   getInfo(): TargetInfo {

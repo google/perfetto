@@ -141,14 +141,14 @@ class AndroidCujs implements Plugin {
       callback: () => {
         runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine).then(() => {
           addDebugSliceTrack(
-              ctx.engine,
-              {
-                sqlSource: JANK_CUJ_QUERY,
-                columns: JANK_COLUMNS,
-              },
-              'Jank CUJs',
-              {ts: 'ts', dur: 'dur', name: 'name'},
-              []);
+            ctx.engine,
+            {
+              sqlSource: JANK_CUJ_QUERY,
+              columns: JANK_COLUMNS,
+            },
+            'Jank CUJs',
+            {ts: 'ts', dur: 'dur', name: 'name'},
+            []);
         });
       },
     });
@@ -158,8 +158,8 @@ class AndroidCujs implements Plugin {
       name: 'Run query: Android Jank CUJs',
       callback: () => {
         runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine)
-            .then(
-                () => ctx.tabs.openQuery(JANK_CUJ_QUERY, 'Android Jank CUJs'));
+          .then(
+            () => ctx.tabs.openQuery(JANK_CUJ_QUERY, 'Android Jank CUJs'));
       },
     });
 
@@ -168,14 +168,14 @@ class AndroidCujs implements Plugin {
       name: 'Pin: Android Latency CUJs',
       callback: () => {
         addDebugSliceTrack(
-            ctx.engine,
-            {
-              sqlSource: LATENCY_CUJ_QUERY,
-              columns: LATENCY_COLUMNS,
-            },
-            'Latency CUJs',
-            {ts: 'ts', dur: 'dur', name: 'name'},
-            []);
+          ctx.engine,
+          {
+            sqlSource: LATENCY_CUJ_QUERY,
+            columns: LATENCY_COLUMNS,
+          },
+          'Latency CUJs',
+          {ts: 'ts', dur: 'dur', name: 'name'},
+          []);
       },
     });
 
@@ -183,7 +183,7 @@ class AndroidCujs implements Plugin {
       id: 'dev.perfetto.AndroidCujs#ListLatencyCUJs',
       name: 'Run query: Android Latency CUJs',
       callback: () =>
-          ctx.tabs.openQuery(LATENCY_CUJ_QUERY, 'Android Latency CUJs'),
+        ctx.tabs.openQuery(LATENCY_CUJ_QUERY, 'Android Latency CUJs'),
     });
   }
 }

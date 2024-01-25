@@ -90,7 +90,7 @@ function renderTreeContents(dict: {[key: string]: m.Child}): m.Child[] {
 }
 
 export class DebugSliceDetailsTab extends
-    BottomTab<GenericSliceDetailsTabConfig> {
+  BottomTab<GenericSliceDetailsTabConfig> {
   static readonly kind = 'dev.perfetto.DebugSliceDetailsTab';
 
   data?: {
@@ -109,8 +109,8 @@ export class DebugSliceDetailsTab extends
   }
 
   private async maybeLoadThreadState(
-      id: number|undefined, ts: time, dur: duration, table: string|undefined,
-      utid?: Utid): Promise<ThreadState|undefined> {
+    id: number|undefined, ts: time, dur: duration, table: string|undefined,
+    utid?: Utid): Promise<ThreadState|undefined> {
     if (id === undefined) return undefined;
     if (utid === undefined) return undefined;
 
@@ -128,21 +128,21 @@ export class DebugSliceDetailsTab extends
   private renderThreadStateInfo(): m.Child {
     if (this.threadState === undefined) return null;
     return m(
-        TreeNode,
-        {
-          left: threadStateRef(this.threadState),
-          right: '',
-        },
-        renderTreeContents({
-          'Thread': getThreadName(this.threadState.thread),
-          'Process': getProcessName(this.threadState.thread?.process),
-          'State': this.threadState.state,
-        }));
+      TreeNode,
+      {
+        left: threadStateRef(this.threadState),
+        right: '',
+      },
+      renderTreeContents({
+        'Thread': getThreadName(this.threadState.thread),
+        'Process': getProcessName(this.threadState.thread?.process),
+        'State': this.threadState.state,
+      }));
   }
 
   private async maybeLoadSlice(
-      id: number|undefined, ts: time, dur: duration, table: string|undefined,
-      trackId?: number): Promise<SliceDetails|undefined> {
+    id: number|undefined, ts: time, dur: duration, table: string|undefined,
+    trackId?: number): Promise<SliceDetails|undefined> {
     if (id === undefined) return undefined;
     if ((table !== 'slice') && trackId === undefined) return undefined;
 
@@ -159,24 +159,24 @@ export class DebugSliceDetailsTab extends
   private renderSliceInfo(): m.Child {
     if (this.slice === undefined) return null;
     return m(
-        TreeNode,
-        {
-          left: sliceRef(this.slice, 'Slice'),
-          right: '',
-        },
-        m(TreeNode, {
-          left: 'Name',
-          right: this.slice.name,
-        }),
-        m(TreeNode, {
-          left: 'Thread',
-          right: getThreadName(this.slice.thread),
-        }),
-        m(TreeNode, {
-          left: 'Process',
-          right: getProcessName(this.slice.process),
-        }),
-        hasArgs(this.slice.args) &&
+      TreeNode,
+      {
+        left: sliceRef(this.slice, 'Slice'),
+        right: '',
+      },
+      m(TreeNode, {
+        left: 'Name',
+        right: this.slice.name,
+      }),
+      m(TreeNode, {
+        left: 'Thread',
+        right: getThreadName(this.slice.thread),
+      }),
+      m(TreeNode, {
+        left: 'Process',
+        right: getProcessName(this.slice.process),
+      }),
+      hasArgs(this.slice.args) &&
             m(TreeNode,
               {
                 left: 'Args',
@@ -187,7 +187,7 @@ export class DebugSliceDetailsTab extends
 
   private async loadData() {
     const queryResult = await this.engine.query(`select * from ${
-        this.config.sqlTableName} where id = ${this.config.id}`);
+      this.config.sqlTableName} where id = ${this.config.id}`);
     const row = queryResult.firstRow({
       ts: LONG,
       dur: LONG,
@@ -208,19 +208,19 @@ export class DebugSliceDetailsTab extends
     }
 
     this.threadState = await this.maybeLoadThreadState(
-        sqlValueToNumber(this.data.args['id']),
-        this.data.ts,
-        this.data.dur,
-        sqlValueToString(this.data.args['table_name']),
-        sqlValueToUtid(this.data.args['utid']));
+      sqlValueToNumber(this.data.args['id']),
+      this.data.ts,
+      this.data.dur,
+      sqlValueToString(this.data.args['table_name']),
+      sqlValueToUtid(this.data.args['utid']));
 
     this.slice = await this.maybeLoadSlice(
-        sqlValueToNumber(this.data.args['id']) ??
+      sqlValueToNumber(this.data.args['id']) ??
             sqlValueToNumber(this.data.args['slice_id']),
-        this.data.ts,
-        this.data.dur,
-        sqlValueToString(this.data.args['table_name']),
-        sqlValueToNumber(this.data.args['track_id']));
+      this.data.ts,
+      this.data.dur,
+      sqlValueToString(this.data.args['table_name']),
+      sqlValueToNumber(this.data.args['track_id']));
 
     raf.scheduleRedraw();
   }
@@ -249,19 +249,19 @@ export class DebugSliceDetailsTab extends
     }
 
     return m(
-        DetailsShell,
-        {
-          title: 'Debug Slice',
-        },
+      DetailsShell,
+      {
+        title: 'Debug Slice',
+      },
+      m(
+        GridLayout,
         m(
-            GridLayout,
-            m(
-                Section,
-                {title: 'Details'},
-                m(Tree, details),
-                ),
-            m(Section, {title: 'Arguments'}, dictToTree(args)),
-            ),
+          Section,
+          {title: 'Details'},
+          m(Tree, details),
+        ),
+        m(Section, {title: 'Arguments'}, dictToTree(args)),
+      ),
     );
   }
 

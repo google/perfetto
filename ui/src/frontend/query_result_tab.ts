@@ -112,19 +112,19 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
       onClose: () => closeTab(this.uuid),
       contextButtons: [
         this.sqlViewName === undefined ?
-            null :
-            m(PopupMenu2,
-              {
-                trigger: m(Button, {label: 'Show debug track', minimal: true}),
-                popupPosition: PopupPosition.Top,
+          null :
+          m(PopupMenu2,
+            {
+              trigger: m(Button, {label: 'Show debug track', minimal: true}),
+              popupPosition: PopupPosition.Top,
+            },
+            m(AddDebugTrackMenu, {
+              dataSource: {
+                sqlSource: `select * from ${this.sqlViewName}`,
+                columns: assertExists(this.queryResponse).columns,
               },
-              m(AddDebugTrackMenu, {
-                dataSource: {
-                  sqlSource: `select * from ${this.sqlViewName}`,
-                  columns: assertExists(this.queryResponse).columns,
-                },
-                engine: this.engine,
-              })),
+              engine: this.engine,
+            })),
       ],
     });
   }
@@ -141,7 +141,7 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
         this.queryResponse && this.queryResponse.error === undefined;
     const sqlQuery = hasValidQueryResponse ?
         this.queryResponse!.lastStatementSql :
-        this.config.query;
+      this.config.query;
     try {
       const createViewResult =
           await this.engine.query(`create view ${viewId} as ${sqlQuery}`);

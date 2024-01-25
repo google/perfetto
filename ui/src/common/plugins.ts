@@ -170,7 +170,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     const tabMan = globals.tabManager;
     tabMan.registerCurrentSelectionSection(section);
     this.trash.addCallback(
-        () => tabMan.unregisterCurrentSelectionSection(section));
+      () => tabMan.unregisterCurrentSelectionSection(section));
   }
 
   get sidebar() {
@@ -184,13 +184,13 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
     showTab(uri: string):
         void {
-          globals.dispatch(Actions.showTab({uri}));
-        },
+      globals.dispatch(Actions.showTab({uri}));
+    },
 
     hideTab(uri: string):
         void {
-          globals.dispatch(Actions.hideTab({uri}));
-        },
+      globals.dispatch(Actions.hideTab({uri}));
+    },
   };
 
   get pluginId(): string {
@@ -214,8 +214,8 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
     removeTrack(key: string):
         void {
-          globals.dispatch(Actions.removeTracks({trackKeys: [key]}));
-        },
+      globals.dispatch(Actions.removeTracks({trackKeys: [key]}));
+    },
 
     pinTrack(key: string) {
       if (!isPinned(key)) {
@@ -259,32 +259,32 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
     removeTracksByPredicate(predicate: TrackPredicate) {
       const trackKeysToRemove = Object.values(globals.state.tracks)
-                                    .filter((track) => {
-                                      const tags = {
-                                        name: track.name,
-                                      };
-                                      return predicate(tags);
-                                    })
-                                    .map((trackState) => trackState.key);
+        .filter((track) => {
+          const tags = {
+            name: track.name,
+          };
+          return predicate(tags);
+        })
+        .map((trackState) => trackState.key);
 
       globals.dispatch(Actions.removeTracks({trackKeys: trackKeysToRemove}));
     },
 
     get tracks():
         TrackRef[] {
-          return Object.values(globals.state.tracks).map((trackState) => {
-            return {
-              displayName: trackState.name,
-              uri: trackState.uri,
-              params: trackState.params,
-            };
-          });
-        },
+      return Object.values(globals.state.tracks).map((trackState) => {
+        return {
+          displayName: trackState.name,
+          uri: trackState.uri,
+          params: trackState.params,
+        };
+      });
+    },
 
     panToTimestamp(ts: time):
         void {
-          globals.panToTimestamp(ts);
-        },
+      globals.panToTimestamp(ts);
+    },
   };
 
   dispose(): void {
@@ -437,18 +437,18 @@ export class PluginManager {
   }
 
   private async doPluginTraceLoad(
-      pluginDetails: PluginDetails, engine: Engine,
-      pluginId: string): Promise<void> {
+    pluginDetails: PluginDetails, engine: Engine,
+    pluginId: string): Promise<void> {
     const {plugin, context} = pluginDetails;
 
     const engineProxy = engine.getProxy(pluginId);
 
     const traceCtx = new PluginContextTraceImpl(
-        context,
-        engineProxy,
-        this.trackRegistry,
-        this.defaultTracks,
-        this.commandRegistry);
+      context,
+      engineProxy,
+      this.trackRegistry,
+      this.defaultTracks,
+      this.commandRegistry);
     pluginDetails.traceContext = traceCtx;
 
     const result = plugin.onTraceLoad?.(traceCtx);

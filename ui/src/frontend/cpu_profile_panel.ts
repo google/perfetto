@@ -31,9 +31,9 @@ export class CpuProfileDetailsPanel implements
     }
 
     return m(
-        '.details-panel',
-        header,
-        m('table', this.getStackText(sampleDetails.stack)));
+      '.details-panel',
+      header,
+      m('table', this.getStackText(sampleDetails.stack)));
   }
 
   getStackText(stack?: CallsiteInfo[]): m.Vnode[] {

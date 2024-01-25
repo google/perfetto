@@ -29,7 +29,7 @@ import {asSliceSqlId} from '../../frontend/sql_types';
 import {EngineProxy} from '../../trace_processor/engine';
 
 async function getSliceDetails(
-    engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {
+  engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {
   return getSlice(engine, asSliceSqlId(id));
 }
 
@@ -46,7 +46,7 @@ export class ScreenshotTab extends BottomTab<GenericSliceDetailsTabConfig> {
   constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
     getSliceDetails(this.engine, this.config.id)
-        .then((sliceDetails) => this.sliceDetails = sliceDetails);
+      .then((sliceDetails) => this.sliceDetails = sliceDetails);
   }
 
   renderTabCanvas() {}
@@ -62,9 +62,9 @@ export class ScreenshotTab extends BottomTab<GenericSliceDetailsTabConfig> {
     }
     assertTrue(this.sliceDetails.args[0].key == 'screenshot.jpg_image');
     return m('.screenshot-panel', m('img', {
-               src: 'data:image/png;base64, ' +
+      src: 'data:image/png;base64, ' +
                    this.sliceDetails.args[0].displayValue,
-             }));
+    }));
   }
 }
 

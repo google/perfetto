@@ -119,7 +119,7 @@ export class ProtoRingBuffer {
   }
 
   private static tryReadMessage(
-      data: Uint8Array, dataStart: number, dataEnd: number): Uint8Array
+    data: Uint8Array, dataStart: number, dataEnd: number): Uint8Array
       |undefined {
     assertTrue(dataEnd <= data.length);
     let pos = dataStart;
@@ -127,7 +127,7 @@ export class ProtoRingBuffer {
     const tag = data[pos++];  // Assume one-byte tag.
     if (tag >= 0x80 || (tag & 0x07) !== 2 /* len delimited */) {
       throw new Error(
-          `RPC framing error, unexpected tag ${tag} @ offset ${pos - 1}`);
+        `RPC framing error, unexpected tag ${tag} @ offset ${pos - 1}`);
     }
 
     let len = 0;
@@ -142,7 +142,7 @@ export class ProtoRingBuffer {
 
     if (len >= kMaxMsgSize) {
       throw new Error(
-          `RPC framing error, message too large (${len} > ${kMaxMsgSize}`);
+        `RPC framing error, message too large (${len} > ${kMaxMsgSize}`);
     }
     const end = pos + len;
     if (end > dataEnd) return undefined;

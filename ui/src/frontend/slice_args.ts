@@ -53,7 +53,7 @@ export function hasArgs(args?: Arg[]): args is Arg[] {
 }
 
 function renderArgTreeNodes(
-    engine: EngineProxy, args: ArgNode<Arg>[]): m.Children {
+  engine: EngineProxy, args: ArgNode<Arg>[]): m.Children {
   return args.map((arg) => {
     const {key, value, children} = arg;
     if (children && children.length === 1) {
@@ -66,57 +66,57 @@ function renderArgTreeNodes(
       return renderArgTreeNodes(engine, [compositeArg]);
     } else {
       return m(
-          TreeNode,
-          {
-            left: renderArgKey(engine, stringifyKey(key), value),
-            right: exists(value) && renderArgValue(value),
-            summary: children && renderSummary(children),
-          },
-          children && renderArgTreeNodes(engine, children),
+        TreeNode,
+        {
+          left: renderArgKey(engine, stringifyKey(key), value),
+          right: exists(value) && renderArgValue(value),
+          summary: children && renderSummary(children),
+        },
+        children && renderArgTreeNodes(engine, children),
       );
     }
   });
 }
 
 function renderArgKey(
-    engine: EngineProxy, key: string, value?: Arg): m.Children {
+  engine: EngineProxy, key: string, value?: Arg): m.Children {
   if (value === undefined) {
     return key;
   } else {
     const {key: fullKey, displayValue} = value;
     return m(
-        PopupMenu2,
-        {trigger: m(Anchor, {icon: Icons.ContextMenu}, key)},
-        m(MenuItem, {
-          label: 'Copy full key',
-          icon: 'content_copy',
-          onclick: () => navigator.clipboard.writeText(fullKey),
-        }),
-        m(MenuItem, {
-          label: 'Find slices with same arg value',
-          icon: 'search',
-          onclick: () => {
-            addTab({
-              kind: SqlTableTab.kind,
-              config: {
-                table: SqlTables.slice,
-                filters: [{
-                  type: 'arg_filter',
-                  argSetIdColumn: 'arg_set_id',
-                  argName: fullKey,
-                  op: `= ${sqliteString(displayValue)}`,
-                }],
-              },
-            });
-          },
-        }),
-        m(MenuItem, {
-          label: 'Visualise argument values',
-          icon: 'query_stats',
-          onclick: () => {
-            addVisualisedArg(engine, fullKey);
-          },
-        }),
+      PopupMenu2,
+      {trigger: m(Anchor, {icon: Icons.ContextMenu}, key)},
+      m(MenuItem, {
+        label: 'Copy full key',
+        icon: 'content_copy',
+        onclick: () => navigator.clipboard.writeText(fullKey),
+      }),
+      m(MenuItem, {
+        label: 'Find slices with same arg value',
+        icon: 'search',
+        onclick: () => {
+          addTab({
+            kind: SqlTableTab.kind,
+            config: {
+              table: SqlTables.slice,
+              filters: [{
+                type: 'arg_filter',
+                argSetIdColumn: 'arg_set_id',
+                argName: fullKey,
+                op: `= ${sqliteString(displayValue)}`,
+              }],
+            },
+          });
+        },
+      }),
+      m(MenuItem, {
+        label: 'Visualise argument values',
+        icon: 'query_stats',
+        onclick: () => {
+          addVisualisedArg(engine, fullKey);
+        },
+      }),
     );
   }
 }
@@ -179,8 +179,8 @@ async function addVisualisedArg(engine: EngineProxy, argName: string) {
       trackGroup: track.trackGroup,
       name: argName,
       trackSortKey: utid === undefined ?
-          track.trackSortKey :
-          {utid, priority: InThreadTrackSortKey.VISUALISED_ARGS_TRACK},
+        track.trackSortKey :
+        {utid, priority: InThreadTrackSortKey.VISUALISED_ARGS_TRACK},
       params,
       uri: VISUALISED_ARGS_SLICE_TRACK_URI,
     });
@@ -212,14 +212,14 @@ function renderSummary(children: ArgNode<Arg>[]): m.Children {
 
 function stringifyKey(...key: Key[]): string {
   return key
-      .map((element, index) => {
-        if (typeof element === 'number') {
-          return `[${element}]`;
-        } else {
-          return (index === 0 ? '' : '.') + element;
-        }
-      })
-      .join('');
+    .map((element, index) => {
+      if (typeof element === 'number') {
+        return `[${element}]`;
+      } else {
+        return (index === 0 ? '' : '.') + element;
+      }
+    })
+    .join('');
 }
 
 function isWebLink(value: unknown): value is string {

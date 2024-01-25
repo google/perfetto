@@ -35,21 +35,21 @@ export class SqlRef implements m.ClassComponent<SqlRefAttrs> {
     const {table, id} = attrs;
     if (id !== undefined) {
       return m(
-          PopupMenu2,
-          {
-            trigger: m(Anchor, {icon: Icons.ContextMenu}, `${table}[${id}]`),
-          },
-          m(MenuItem, {
-            label: 'Copy ID',
-            icon: 'content_copy',
-            onclick: () => copyToClipboard(`${id}`),
-          }),
-          m(MenuItem, {
-            label: 'Copy SQL query',
-            icon: 'file_copy',
-            onclick: () =>
-                copyToClipboard(`select * from ${table} where id=${id}`),
-          }),
+        PopupMenu2,
+        {
+          trigger: m(Anchor, {icon: Icons.ContextMenu}, `${table}[${id}]`),
+        },
+        m(MenuItem, {
+          label: 'Copy ID',
+          icon: 'content_copy',
+          onclick: () => copyToClipboard(`${id}`),
+        }),
+        m(MenuItem, {
+          label: 'Copy SQL query',
+          icon: 'file_copy',
+          onclick: () =>
+            copyToClipboard(`select * from ${table} where id=${id}`),
+        }),
       );
     } else {
       return `${table}[Unknown]`;

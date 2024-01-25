@@ -144,8 +144,8 @@ class CpuSliceTrack implements Track {
 
     const isCached = this.cachedBucketSize <= resolution;
     const queryTsq = isCached ?
-        `cached_tsq / ${resolution} * ${resolution}` :
-        `(ts + ${resolution / 2n}) / ${resolution} * ${resolution}`;
+      `cached_tsq / ${resolution} * ${resolution}` :
+      `(ts + ${resolution / 2n}) / ${resolution} * ${resolution}`;
     const queryTable =
         isCached ? this.tableName('sched_cached') : this.tableName('sched');
     const constraintColumn = isCached ? 'cached_tsq' : 'ts';
@@ -225,7 +225,7 @@ class CpuSliceTrack implements Track {
   async onDestroy() {
     if (this.engine.isAlive) {
       await this.engine.query(
-          `drop table if exists ${this.tableName('sched_cached')}`);
+        `drop table if exists ${this.tableName('sched_cached')}`);
     }
     this.fetcher.dispose();
   }
@@ -244,12 +244,12 @@ class CpuSliceTrack implements Track {
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        visibleTimeScale.timeToPx(data.start),
-        visibleTimeScale.timeToPx(data.end));
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      visibleTimeScale.timeToPx(data.start),
+      visibleTimeScale.timeToPx(data.end));
 
     this.renderSlices(ctx, data);
   }
@@ -381,11 +381,11 @@ class CpuSliceTrack implements Track {
           const wakeupPos = visibleTimeScale.timeToPx(details.wakeupTs);
           const latencyWidth = rectStart - wakeupPos;
           drawDoubleHeadedArrow(
-              ctx,
-              wakeupPos,
-              MARGIN_TOP + RECT_HEIGHT,
-              latencyWidth,
-              latencyWidth >= 20);
+            ctx,
+            wakeupPos,
+            MARGIN_TOP + RECT_HEIGHT,
+            latencyWidth,
+            latencyWidth >= 20);
           // Latency time with a white semi-transparent background.
           const latency = tStart - details.wakeupTs;
           const displayText = Duration.humanise(latency);
@@ -393,16 +393,16 @@ class CpuSliceTrack implements Track {
           if (latencyWidth >= measured.width + 2) {
             ctx.fillStyle = 'rgba(255,255,255,0.7)';
             ctx.fillRect(
-                wakeupPos + latencyWidth / 2 - measured.width / 2 - 1,
-                MARGIN_TOP + RECT_HEIGHT - 12,
-                measured.width + 2,
-                11);
+              wakeupPos + latencyWidth / 2 - measured.width / 2 - 1,
+              MARGIN_TOP + RECT_HEIGHT - 12,
+              measured.width + 2,
+              11);
             ctx.textBaseline = 'bottom';
             ctx.fillStyle = 'black';
             ctx.fillText(
-                displayText,
-                wakeupPos + (latencyWidth) / 2,
-                MARGIN_TOP + RECT_HEIGHT - 1);
+              displayText,
+              wakeupPos + (latencyWidth) / 2,
+              MARGIN_TOP + RECT_HEIGHT - 1);
           }
         }
       }
@@ -465,7 +465,7 @@ class CpuSliceTrack implements Track {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     globals.dispatch(
-        Actions.setHoveredUtidAndPid({utid: hoveredUtid, pid: hoveredPid}));
+      Actions.setHoveredUtidAndPid({utid: hoveredUtid, pid: hoveredPid}));
   }
 
   onMouseOut() {

@@ -111,11 +111,11 @@ export function makeColorScheme(base: Color, variant?: Color): ColorScheme {
     variant,
     disabled: GRAY_COLOR,
     textBase: base.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT ?
-        BLACK_COLOR :
-        WHITE_COLOR,
+      BLACK_COLOR :
+      WHITE_COLOR,
     textVariant: variant.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT ?
-        BLACK_COLOR :
-        WHITE_COLOR,
+      BLACK_COLOR :
+      WHITE_COLOR,
     textDisabled: WHITE_COLOR,  // Low contrast is on purpose
   };
 }

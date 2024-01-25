@@ -77,10 +77,10 @@ export class TickmarkPanel implements Panel {
       const rectEnd = visibleTimeScale.timeToPx(tEnd) + TRACK_SHELL_WIDTH;
       ctx.fillStyle = '#ffe263';
       ctx.fillRect(
-          Math.floor(rectStart),
-          0,
-          Math.ceil(rectEnd - rectStart),
-          size.height);
+        Math.floor(rectStart),
+        0,
+        Math.ceil(rectEnd - rectStart),
+        size.height);
     }
     const index = globals.state.searchIndex;
     if (index !== -1 && index < globals.currentSearchResults.tsStarts.length) {

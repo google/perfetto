@@ -90,7 +90,7 @@ class FtraceRawTrack implements Track {
     };
 
     const it = queryRes.iter(
-        {tsQuant: LONG, type: STR, name: STR},
+      {tsQuant: LONG, type: STR, name: STR},
     );
     for (let row = 0; it.valid(); it.next(), row++) {
       result.timestamps[row] = it.tsQuant;
@@ -112,7 +112,7 @@ class FtraceRawTrack implements Track {
     const dataEndPx = visibleTimeScale.timeToPx(data.end);
 
     checkerboardExcept(
-        ctx, this.getHeight(), 0, size.width, dataStartPx, dataEndPx);
+      ctx, this.getHeight(), 0, size.width, dataStartPx, dataEndPx);
 
     const diamondSideLen = RECT_HEIGHT / Math.sqrt(2);
 

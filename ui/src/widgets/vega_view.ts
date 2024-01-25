@@ -215,12 +215,12 @@ class VegaWrapper {
 
       const pending = this.view.runAsync();
       pending
-          .then(() => {
-            this.handleComplete(pending);
-          })
-          .catch((err) => {
-            this.handleError(pending, err);
-          });
+        .then(() => {
+          this.handleComplete(pending);
+        })
+        .catch((err) => {
+          this.handleError(pending, err);
+        });
       this.pending = pending;
       this._status = Status.Loading;
     }
@@ -292,11 +292,11 @@ export class VegaView implements m.ClassComponent<VegaViewAttrs> {
 
   view(_: m.Vnode<VegaViewAttrs>) {
     return m(
-        '.pf-vega-view',
-        m(''),
-        (this.wrapper?.status === Status.Loading) &&
+      '.pf-vega-view',
+      m(''),
+      (this.wrapper?.status === Status.Loading) &&
             m('.pf-vega-view-status', m(Spinner)),
-        (this.wrapper?.status === Status.Error) &&
+      (this.wrapper?.status === Status.Error) &&
             m('.pf-vega-view-status', this.wrapper?.error ?? 'Error'),
     );
   }

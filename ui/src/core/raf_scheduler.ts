@@ -26,20 +26,20 @@ import {
 
 function statTableHeader() {
   return m(
-      'tr',
-      m('th', ''),
-      m('th', 'Last (ms)'),
-      m('th', 'Avg (ms)'),
-      m('th', 'Avg-10 (ms)'));
+    'tr',
+    m('th', ''),
+    m('th', 'Last (ms)'),
+    m('th', 'Avg (ms)'),
+    m('th', 'Avg-10 (ms)'));
 }
 
 function statTableRow(title: string, stat: RunningStatistics) {
   return m(
-      'tr',
-      m('td', title),
-      m('td', stat.last.toFixed(2)),
-      m('td', stat.mean.toFixed(2)),
-      m('td', stat.bufferMean.toFixed(2)));
+    'tr',
+    m('td', title),
+    m('td', stat.last.toFixed(2)),
+    m('td', stat.mean.toFixed(2)),
+    m('td', stat.bufferMean.toFixed(2)));
 }
 
 export type ActionCallback = (nowMs: number) => void;
@@ -196,8 +196,8 @@ export class RafScheduler implements PerfStatsSource {
   }
 
   private updatePerfStats(
-      actionsTime: number, domTime: number, canvasTime: number,
-      totalRafTime: number) {
+    actionsTime: number, domTime: number, canvasTime: number,
+    totalRafTime: number) {
     if (!perfDebug()) return;
     this.perfStats.rafActions.addValue(actionsTime);
     this.perfStats.rafDom.addValue(domTime);
@@ -207,28 +207,28 @@ export class RafScheduler implements PerfStatsSource {
 
   renderPerfStats() {
     return m(
-        'div',
-        m('div',
-          [
-            m('button',
-              {onclick: () => this.scheduleRedraw()},
-              'Do Canvas Redraw'),
-            '   |   ',
-            m('button',
-              {onclick: () => this.scheduleFullRedraw()},
-              'Do Full Redraw'),
-          ]),
-        m('div',
-          'Raf Timing ' +
+      'div',
+      m('div',
+        [
+          m('button',
+            {onclick: () => this.scheduleRedraw()},
+            'Do Canvas Redraw'),
+          '   |   ',
+          m('button',
+            {onclick: () => this.scheduleFullRedraw()},
+            'Do Full Redraw'),
+        ]),
+      m('div',
+        'Raf Timing ' +
               '(Total may not add up due to imprecision)'),
-        m('table',
-          statTableHeader(),
-          statTableRow('Actions', this.perfStats.rafActions),
-          statTableRow('Dom', this.perfStats.rafDom),
-          statTableRow('Canvas', this.perfStats.rafCanvas),
-          statTableRow('Total', this.perfStats.rafTotal)),
-        m('div',
-          'Dom redraw: ' +
+      m('table',
+        statTableHeader(),
+        statTableRow('Actions', this.perfStats.rafActions),
+        statTableRow('Dom', this.perfStats.rafDom),
+        statTableRow('Canvas', this.perfStats.rafCanvas),
+        statTableRow('Total', this.perfStats.rafTotal)),
+      m('div',
+        'Dom redraw: ' +
               `Count: ${this.perfStats.domRedraw.count} | ` +
               runningStatStr(this.perfStats.domRedraw)));
   }

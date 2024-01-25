@@ -19,22 +19,22 @@ import {showModal} from '../../widgets/modal';
 import {FORCE_RESET_MESSAGE} from './recording_ui_utils';
 
 export function couldNotClaimInterface(
-    onReset: () => Promise<void>, onCancel: () => void) {
+  onReset: () => Promise<void>, onCancel: () => void) {
   let hasPressedAButton = false;
   showModal({
     title: 'Could not claim the USB interface',
     content: m(
-        'div',
-        m('text',
-          'This can happen if you have the Android Debug Bridge ' +
+      'div',
+      m('text',
+        'This can happen if you have the Android Debug Bridge ' +
               '(adb) running on your workstation or any other tool which is ' +
               'taking exclusive access of the USB interface.'),
-        m('br'),
-        m('br'),
-        m('text.small-font',
-          'Resetting will cause the ADB server to disconnect and ' +
+      m('br'),
+      m('br'),
+      m('text.small-font',
+        'Resetting will cause the ADB server to disconnect and ' +
               'will try to reassign the interface to the current browser.'),
-        ),
+    ),
     buttons: [
       {
         text: FORCE_RESET_MESSAGE,

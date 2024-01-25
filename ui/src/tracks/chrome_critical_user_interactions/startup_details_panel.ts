@@ -43,7 +43,7 @@ interface Data {
 }
 
 export class StartupDetailsPanel extends
-    BottomTab<GenericSliceDetailsTabConfig> {
+  BottomTab<GenericSliceDetailsTabConfig> {
   static readonly kind = 'org.perfetto.StartupDetailsPanel';
   private loaded = false;
   private data: Data|undefined;
@@ -121,19 +121,19 @@ export class StartupDetailsPanel extends
     }
 
     return m(
-        DetailsShell,
-        {
-          title: this.getTitle(),
-        },
-        m(GridLayout,
+      DetailsShell,
+      {
+        title: this.getTitle(),
+      },
+      m(GridLayout,
+        m(
+          GridLayoutColumn,
           m(
-              GridLayoutColumn,
-              m(
-                  Section,
-                  {title: 'Details'},
-                  m(Tree, dictToTreeNodes(this.getDetailsDictionary())),
-                  ),
-              )));
+            Section,
+            {title: 'Details'},
+            m(Tree, dictToTreeNodes(this.getDetailsDictionary())),
+          ),
+        )));
   }
 
   getTitle(): string {

@@ -50,28 +50,28 @@ class KeyMappingsHelp implements m.ClassComponent {
 
   oninit() {
     nativeKeyboardLayoutMap()
-        .then((keyMap: KeyboardLayoutMap) => {
-          this.keyMap = keyMap;
-          raf.scheduleFullRedraw();
-        })
-        .catch((e) => {
-          if (e instanceof NotSupportedError ||
+      .then((keyMap: KeyboardLayoutMap) => {
+        this.keyMap = keyMap;
+        raf.scheduleFullRedraw();
+      })
+      .catch((e) => {
+        if (e instanceof NotSupportedError ||
               e.toString().includes('SecurityError')) {
-            // Keyboard layout is unavailable. Since showing the keyboard
-            // mappings correct for the user's keyboard layout is a nice-to-
-            // have, and users with non-QWERTY layouts are usually aware of the
-            // fact that the are using non-QWERTY layouts, we resort to showing
-            // English QWERTY mappings as a best-effort approach.
-            // The alternative would be to show key mappings for all keyboard
-            // layouts which is not feasible.
-            this.keyMap = new EnglishQwertyKeyboardLayoutMap();
-            raf.scheduleFullRedraw();
-          } else {
-            // Something unexpected happened. Either the browser doesn't conform
-            // to the keyboard API spec, or the keyboard API spec has changed!
-            throw e;
-          }
-        });
+          // Keyboard layout is unavailable. Since showing the keyboard
+          // mappings correct for the user's keyboard layout is a nice-to-
+          // have, and users with non-QWERTY layouts are usually aware of the
+          // fact that the are using non-QWERTY layouts, we resort to showing
+          // English QWERTY mappings as a best-effort approach.
+          // The alternative would be to show key mappings for all keyboard
+          // layouts which is not feasible.
+          this.keyMap = new EnglishQwertyKeyboardLayoutMap();
+          raf.scheduleFullRedraw();
+        } else {
+          // Something unexpected happened. Either the browser doesn't conform
+          // to the keyboard API spec, or the keyboard API spec has changed!
+          throw e;
+        }
+      });
   }
 
   view(_: m.Vnode): m.Children {
@@ -90,108 +90,108 @@ class KeyMappingsHelp implements m.ClassComponent {
     ];
 
     const sidebarInstructions = globals.hideSidebar ?
-        [] :
-        [m('tr',
-           m('td', keycap(ctrlOrCmd), ' + ', keycap('b')),
-           m('td', 'Toggle display of sidebar'))];
+      [] :
+      [m('tr',
+        m('td', keycap(ctrlOrCmd), ' + ', keycap('b')),
+        m('td', 'Toggle display of sidebar'))];
 
     return m(
-        '.help',
-        m('h2', 'Navigation'),
+      '.help',
+      m('h2', 'Navigation'),
+      m(
+        'table',
         m(
-            'table',
-            m(
-                'tr',
-                m('td',
-                  this.codeToKeycap(KeyMapping.KEY_ZOOM_IN),
-                  '/',
-                  this.codeToKeycap(KeyMapping.KEY_ZOOM_OUT)),
-                m('td', 'Zoom in/out'),
-                ),
-            m(
-                'tr',
-                m('td',
-                  this.codeToKeycap(KeyMapping.KEY_PAN_LEFT),
-                  '/',
-                  this.codeToKeycap(KeyMapping.KEY_PAN_RIGHT)),
-                m('td', 'Pan left/right'),
-                ),
-            ),
-        m('h2', 'Mouse Controls'),
-        m('table',
-          m('tr', m('td', 'Click'), m('td', 'Select event')),
-          m('tr', m('td', 'Ctrl + Scroll wheel'), m('td', 'Zoom in/out')),
-          m('tr', m('td', 'Click + Drag'), m('td', 'Select area')),
-          m('tr', m('td', 'Shift + Click + Drag'), m('td', 'Pan left/right'))),
-        m('h2', 'Running commands from the viewer page'),
-        m('table',
-          m('tr',
-            m('td', keycap('>'), ' in the (empty) search box'),
-            m('td', 'Switch to command mode'))),
-        m('h2', 'Making SQL queries from the viewer page'),
-        m('table',
-          m('tr',
-            m('td', keycap(':'), ' in the (empty) search box'),
-            m('td', 'Switch to query mode')),
-          m('tr', m('td', keycap('Enter')), m('td', 'Execute query')),
-          m('tr',
-            m('td', keycap('Ctrl'), ' + ', keycap('Enter')),
-            m('td',
-              'Execute query and pin output ' +
+          'tr',
+          m('td',
+            this.codeToKeycap(KeyMapping.KEY_ZOOM_IN),
+            '/',
+            this.codeToKeycap(KeyMapping.KEY_ZOOM_OUT)),
+          m('td', 'Zoom in/out'),
+        ),
+        m(
+          'tr',
+          m('td',
+            this.codeToKeycap(KeyMapping.KEY_PAN_LEFT),
+            '/',
+            this.codeToKeycap(KeyMapping.KEY_PAN_RIGHT)),
+          m('td', 'Pan left/right'),
+        ),
+      ),
+      m('h2', 'Mouse Controls'),
+      m('table',
+        m('tr', m('td', 'Click'), m('td', 'Select event')),
+        m('tr', m('td', 'Ctrl + Scroll wheel'), m('td', 'Zoom in/out')),
+        m('tr', m('td', 'Click + Drag'), m('td', 'Select area')),
+        m('tr', m('td', 'Shift + Click + Drag'), m('td', 'Pan left/right'))),
+      m('h2', 'Running commands from the viewer page'),
+      m('table',
+        m('tr',
+          m('td', keycap('>'), ' in the (empty) search box'),
+          m('td', 'Switch to command mode'))),
+      m('h2', 'Making SQL queries from the viewer page'),
+      m('table',
+        m('tr',
+          m('td', keycap(':'), ' in the (empty) search box'),
+          m('td', 'Switch to query mode')),
+        m('tr', m('td', keycap('Enter')), m('td', 'Execute query')),
+        m('tr',
+          m('td', keycap('Ctrl'), ' + ', keycap('Enter')),
+          m('td',
+            'Execute query and pin output ' +
                   '(output will not be replaced by regular query input)'))),
-        ...queryPageInstructions,
-        m('h2', 'Other'),
-        m(
-            'table',
-            m('tr',
-              m('td', keycap('f'), ' (with event selected)'),
-              m('td', 'Scroll + zoom to current selection')),
-            m('tr',
-              m('td', keycap('['), '/', keycap(']'), ' (with event selected)'),
-              m('td',
-                'Select next/previous slice that is connected by a flow.',
-                m('br'),
-                'If there are multiple flows,' +
+      ...queryPageInstructions,
+      m('h2', 'Other'),
+      m(
+        'table',
+        m('tr',
+          m('td', keycap('f'), ' (with event selected)'),
+          m('td', 'Scroll + zoom to current selection')),
+        m('tr',
+          m('td', keycap('['), '/', keycap(']'), ' (with event selected)'),
+          m('td',
+            'Select next/previous slice that is connected by a flow.',
+            m('br'),
+            'If there are multiple flows,' +
                     'the one that is in focus (bold) is selected')),
-            m('tr',
-              m('td',
-                keycap(ctrlOrCmd),
-                ' + ',
-                keycap('['),
-                '/',
-                keycap(']'),
-                ' (with event selected)'),
-              m('td', 'Switch focus to another flow')),
-            m('tr',
-              m('td', keycap('m'), ' (with event or area selected)'),
-              m('td', 'Mark the area (temporarily)')),
-            m('tr',
-              m('td',
-                keycap('Shift'),
-                ' + ',
-                keycap('m'),
-                ' (with event or area selected)'),
-              m('td', 'Mark the area (persistently)')),
-            m('tr',
-              m('td', keycap(ctrlOrCmd), ' + ', keycap('a')),
-              m('td', 'Select all')),
-            m('tr',
-              m('td',
-                keycap(ctrlOrCmd),
-                ' + ',
-                keycap('Shift'),
-                ' + ',
-                keycap('p')),
-              m('td', 'Open command palette')),
-            m('tr',
-              m('td', keycap(ctrlOrCmd), ' + ', keycap('o')),
-              m('td', 'Run query')),
-            m('tr',
-              m('td', keycap(ctrlOrCmd), ' + ', keycap('s')),
-              m('td', 'Search')),
-            ...sidebarInstructions,
-            m('tr', m('td', keycap('?')), m('td', 'Show help')),
-            ));
+        m('tr',
+          m('td',
+            keycap(ctrlOrCmd),
+            ' + ',
+            keycap('['),
+            '/',
+            keycap(']'),
+            ' (with event selected)'),
+          m('td', 'Switch focus to another flow')),
+        m('tr',
+          m('td', keycap('m'), ' (with event or area selected)'),
+          m('td', 'Mark the area (temporarily)')),
+        m('tr',
+          m('td',
+            keycap('Shift'),
+            ' + ',
+            keycap('m'),
+            ' (with event or area selected)'),
+          m('td', 'Mark the area (persistently)')),
+        m('tr',
+          m('td', keycap(ctrlOrCmd), ' + ', keycap('a')),
+          m('td', 'Select all')),
+        m('tr',
+          m('td',
+            keycap(ctrlOrCmd),
+            ' + ',
+            keycap('Shift'),
+            ' + ',
+            keycap('p')),
+          m('td', 'Open command palette')),
+        m('tr',
+          m('td', keycap(ctrlOrCmd), ' + ', keycap('o')),
+          m('td', 'Run query')),
+        m('tr',
+          m('td', keycap(ctrlOrCmd), ' + ', keycap('s')),
+          m('td', 'Search')),
+        ...sidebarInstructions,
+        m('tr', m('td', keycap('?')), m('td', 'Show help')),
+      ));
   }
 
   private codeToKeycap(code: string): m.Children {
