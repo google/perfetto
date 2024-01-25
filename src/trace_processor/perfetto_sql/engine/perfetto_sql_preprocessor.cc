@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
+
 #include <optional>
 #include <unordered_set>
 #include <utility>
@@ -146,7 +147,7 @@ PerfettoSqlPreprocessor::ParseMacroInvocation(
     RETURN_IF_ERROR(source_or.status());
     if (source_or->arg) {
       base::StatusOr<SqlSource> res =
-          RewriteInternal(*source_or->arg, arg_bindings);
+          RewriteInternal(source_or->arg.value(), arg_bindings);
       RETURN_IF_ERROR(res.status());
       if (macro->args.size() <= inner_bindings.size()) {
         // TODO(lalitm): add a link to macro documentation.
