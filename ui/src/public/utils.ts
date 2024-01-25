@@ -17,7 +17,7 @@ import m from 'mithril';
 import {Selection} from '../common/state';
 import {BottomTab} from '../frontend/bottom_tab';
 
-import {CurrentSelectionSection} from '.';
+import {CurrentSelectionSection, Tab} from '.';
 
 export function getTrackName(args: Partial<{
   name: string | null,
@@ -127,7 +127,7 @@ export interface BottomTabAdapterAttrs {
       },
     })
  */
-export class BottomTabAdapter implements CurrentSelectionSection {
+export class BottomTabToSCSAdapter implements CurrentSelectionSection {
   private oldSelection?: Selection;
   private bottomTab?: BottomTab;
   private attrs: BottomTabAdapterAttrs;
@@ -144,5 +144,20 @@ export class BottomTabAdapter implements CurrentSelectionSection {
     }
 
     return this.bottomTab?.renderPanel();
+  }
+}
+
+/**
+ * This adapter wraps a BottomTab, converting it to work with the Tab API.
+ */
+export class BottomTabToTabAdapter implements Tab {
+  constructor(private bottomTab: BottomTab) {}
+
+  getTitle(): string {
+    return this.bottomTab.getTitle();
+  }
+
+  render(): m.Children {
+    return this.bottomTab.viewTab();
   }
 }
