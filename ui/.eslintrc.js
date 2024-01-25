@@ -20,6 +20,13 @@ module.exports = {
     // We don't want to enforce jsdoc everywhere:
     'require-jsdoc': 'off',
 
+    // Relax jsdoc requirements
+    'valid-jsdoc': ['error', {
+      'requireParamType': false,
+      'requireReturnType': false,
+      'requireReturn': false,
+    }],
+
     // Max line length is 80 with 2 space tabs.
     // This matches the the old clang-format definition for consistency.
     'max-len': [
