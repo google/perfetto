@@ -926,20 +926,20 @@ class AndroidLongBatteryTracing implements Plugin {
   async addBatteryStatsEvents(e: EngineProxy, groupId: string):
       Promise<DeferredAction<{}>[]> {
     const query = (name: string, track: string): Promise<DeferredAction<{}>> =>
-        this.addSliceTrack(
-            e,
-            name,
-            `SELECT ts, dur, str_value AS name
+      this.addSliceTrack(
+        e,
+        name,
+        `SELECT ts, dur, str_value AS name
             FROM android_battery_stats_event_slices
             WHERE track_name = "${track}"`,
-            groupId);
+        groupId);
 
     return await Promise.all([
       query('Top App', 'battery_stats.top'),
       this.addSliceTrack(
-          e,
-          'Long wakelocks',
-          `SELECT
+        e,
+        'Long wakelocks',
+        `SELECT
              ts - 60000000000 as ts,
              dur + 60000000000 as dur,
              str_value AS name,
@@ -948,8 +948,8 @@ class AndroidLongBatteryTracing implements Plugin {
               int_value) as package
           FROM android_battery_stats_event_slices
           WHERE track_name = "battery_stats.longwake"`,
-          groupId,
-          ['package']),
+        groupId,
+        ['package']),
       query('Foreground Apps', 'battery_stats.fg'),
       query('Jobs', 'battery_stats.job'),
     ]);
@@ -1020,12 +1020,12 @@ class AndroidLongBatteryTracing implements Plugin {
       Promise<DeferredAction<{}>[]> {
     const rilStrength =
         (band: string, value: string): Promise<DeferredAction<{}>> =>
-            this.addSliceTrack(
-                e,
-                `Modem signal strength ${band} ${value}`,
-                `SELECT ts, dur, name FROM RilScreenOn WHERE band_name = '${
-                    band}' AND value_name = '${value}'`,
-                groupId);
+          this.addSliceTrack(
+            e,
+            `Modem signal strength ${band} ${value}`,
+            `SELECT ts, dur, name FROM RilScreenOn WHERE band_name = '${
+              band}' AND value_name = '${value}'`,
+            groupId);
 
     await e.query(MODEM_RIL_STRENGTH);
     await e.query(MODEM_RIL_CHANNELS_PREAMBLE);
@@ -1036,7 +1036,7 @@ class AndroidLongBatteryTracing implements Plugin {
       rilStrength('NR', 'rssi'),
       rilStrength('NR', 'rssi'),
       this.addSliceTrack(
-          e, 'Modem channel config', MODEM_RIL_CHANNELS, groupId),
+        e, 'Modem channel config', MODEM_RIL_CHANNELS, groupId),
     ]);
   }
 
