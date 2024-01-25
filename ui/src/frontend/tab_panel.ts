@@ -35,9 +35,12 @@ export class TabPanel implements m.ClassComponent {
   private detailsHeight = getDetailsHeight();
 
   view() {
-    const tabs = globals.state.tabs.openTabs.map((uri): TabWithContent => {
-      const tabDesc = globals.tabManager.resolveTab(uri);
-      if (exists(tabDesc)) {
+    const tabMan = globals.tabManager;
+    const tabList = globals.store.state.tabs.openTabs;
+
+    const resolvedTabs = tabMan.resolveTabs(tabList);
+    const tabs = resolvedTabs.map(({uri, tab: tabDesc}): TabWithContent => {
+      if (tabDesc) {
         return {
           key: uri,
           hasCloseButton: true,

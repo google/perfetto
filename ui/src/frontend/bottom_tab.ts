@@ -114,7 +114,7 @@ export abstract class BottomTab<Config = {}> extends BottomTabBase<Config> {
     super(args);
   }
 
-  abstract viewTab(): void|m.Children;
+  abstract viewTab(): m.Children;
 
   close(): void {
     closeTab(this.uuid);

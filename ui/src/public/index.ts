@@ -32,7 +32,7 @@ export {
   STR,
   STR_NULL,
 } from '../trace_processor/query_result';
-export {BottomTabAdapter} from './utils';
+export {BottomTabToSCSAdapter} from './utils';
 
 export interface Slice {
   // These properties are updated only once per query result when the Slice
@@ -317,9 +317,8 @@ export interface TabDescriptor {
   uri: string;  // TODO(stevegolton): Maybe optional for ephemeral tabs.
   content: Tab;
   isEphemeral?: boolean;  // Defaults false
-  // TODO(stevegolton): Implement these lifecycle hooks.
-  // onShow?: () => void;
-  // onHide?: () => void;
+  onHide?(): void;
+  onShow?(): void;
 }
 
 export interface CurrentSelectionSection {
