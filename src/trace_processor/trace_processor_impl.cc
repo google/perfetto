@@ -69,6 +69,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dominator_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.h"
@@ -888,6 +889,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
           new ExperimentalAnnotatedStack(&context_)));
   engine_->RegisterStaticTableFunction(std::unique_ptr<ExperimentalFlatSlice>(
       new ExperimentalFlatSlice(&context_)));
+  engine_->RegisterStaticTableFunction(
+      std::make_unique<DominatorTree>(context_.storage->mutable_string_pool()));
 
   // Metrics.
   RegisterAllProtoBuilderFunctions(&pool_, engine_.get(), this);

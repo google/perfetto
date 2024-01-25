@@ -837,19 +837,13 @@ base::Status PerfettoSqlEngine::ValidateColumnNames(
 const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(
     std::string_view name) const {
   auto table_ptr = runtime_tables_.Find(name.data());
-  if (!table_ptr) {
-    return nullptr;
-  }
-  return table_ptr->get();
+  return table_ptr ? table_ptr->get() : nullptr;
 }
 
 const Table* PerfettoSqlEngine::GetStaticTableOrNull(
     std::string_view name) const {
   auto table_ptr = static_tables_.Find(name.data());
-  if (!table_ptr) {
-    return nullptr;
-  }
-  return *table_ptr;
+  return table_ptr ? *table_ptr : nullptr;
 }
 
 }  // namespace trace_processor

@@ -97,6 +97,7 @@ from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
+from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
 from diff_tests.stdlib.linux.tests import LinuxStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
@@ -238,6 +239,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
 
   stdlib_tests = [
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
+      *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
       *LinuxStdlib(index_path, 'stdlib/linux', 'LinuxStdlib').fetch(),
