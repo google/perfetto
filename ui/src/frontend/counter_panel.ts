@@ -30,33 +30,33 @@ export class CounterDetailsPanel implements m.ClassComponent {
         counterInfo.value !== undefined && counterInfo.delta !== undefined &&
         counterInfo.duration !== undefined) {
       return m(
-          DetailsShell,
-          {title: 'Counter', description: `${counterInfo.name}`},
-          m(GridLayout,
+        DetailsShell,
+        {title: 'Counter', description: `${counterInfo.name}`},
+        m(GridLayout,
+          m(
+            Section,
+            {title: 'Properties'},
             m(
-                Section,
-                {title: 'Properties'},
-                m(
-                    Tree,
-                    m(TreeNode, {left: 'Name', right: `${counterInfo.name}`}),
-                    m(TreeNode, {
-                      left: 'Start time',
-                      right: m(Timestamp, {ts: counterInfo.startTime}),
-                    }),
-                    m(TreeNode, {
-                      left: 'Value',
-                      right: `${counterInfo.value.toLocaleString()}`,
-                    }),
-                    m(TreeNode, {
-                      left: 'Delta',
-                      right: `${counterInfo.delta.toLocaleString()}`,
-                    }),
-                    m(TreeNode, {
-                      left: 'Duration',
-                      right: m(DurationWidget, {dur: counterInfo.duration}),
-                    }),
-                    ),
-                )),
+              Tree,
+              m(TreeNode, {left: 'Name', right: `${counterInfo.name}`}),
+              m(TreeNode, {
+                left: 'Start time',
+                right: m(Timestamp, {ts: counterInfo.startTime}),
+              }),
+              m(TreeNode, {
+                left: 'Value',
+                right: `${counterInfo.value.toLocaleString()}`,
+              }),
+              m(TreeNode, {
+                left: 'Delta',
+                right: `${counterInfo.delta.toLocaleString()}`,
+              }),
+              m(TreeNode, {
+                left: 'Duration',
+                right: m(DurationWidget, {dur: counterInfo.duration}),
+              }),
+            ),
+          )),
       );
     } else {
       return m(DetailsShell, {title: 'Counter', description: 'Loading...'});

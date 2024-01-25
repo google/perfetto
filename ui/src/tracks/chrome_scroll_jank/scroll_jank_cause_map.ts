@@ -51,33 +51,33 @@ export interface ScrollJankCauseMapInternal {
 
 function getScrollJankProcess(process: string): CauseProcess {
   switch (process) {
-    case CauseProcess.BROWSER:
-      return CauseProcess.BROWSER;
-    case CauseProcess.RENDERER:
-      return CauseProcess.RENDERER;
-    case CauseProcess.GPU:
-      return CauseProcess.GPU;
-    default:
-      return CauseProcess.UNKNOWN;
+  case CauseProcess.BROWSER:
+    return CauseProcess.BROWSER;
+  case CauseProcess.RENDERER:
+    return CauseProcess.RENDERER;
+  case CauseProcess.GPU:
+    return CauseProcess.GPU;
+  default:
+    return CauseProcess.UNKNOWN;
   }
 }
 
 function getScrollJankThread(thread: string): CauseThread {
   switch (thread) {
-    case CauseThread.BROWSER_MAIN:
-      return CauseThread.BROWSER_MAIN;
-    case CauseThread.RENDERER_MAIN:
-      return CauseThread.RENDERER_MAIN;
-    case CauseThread.CHROME_CHILD_IO_THREAD:
-      return CauseThread.CHROME_CHILD_IO_THREAD;
-    case CauseThread.COMPOSITOR:
-      return CauseThread.COMPOSITOR;
-    case CauseThread.VIZ_COMPOSITOR:
-      return CauseThread.VIZ_COMPOSITOR;
-    case CauseThread.SURFACE_FLINGER:
-      return CauseThread.SURFACE_FLINGER;
-    default:
-      return CauseThread.UNKNOWN;
+  case CauseThread.BROWSER_MAIN:
+    return CauseThread.BROWSER_MAIN;
+  case CauseThread.RENDERER_MAIN:
+    return CauseThread.RENDERER_MAIN;
+  case CauseThread.CHROME_CHILD_IO_THREAD:
+    return CauseThread.CHROME_CHILD_IO_THREAD;
+  case CauseThread.COMPOSITOR:
+    return CauseThread.COMPOSITOR;
+  case CauseThread.VIZ_COMPOSITOR:
+    return CauseThread.VIZ_COMPOSITOR;
+  case CauseThread.SURFACE_FLINGER:
+    return CauseThread.SURFACE_FLINGER;
+  default:
+    return CauseThread.UNKNOWN;
   }
 }
 

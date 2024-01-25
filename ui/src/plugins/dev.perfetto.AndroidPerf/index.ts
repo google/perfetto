@@ -27,36 +27,36 @@ class AndroidPerf implements Plugin {
       id: 'dev.perfetto.AndroidPerf#BinderSystemServerIncoming',
       name: 'Run query: system_server incoming binder graph',
       callback: () => ctx.tabs.openQuery(
-          `INCLUDE PERFETTO MODULE android.binder;
+        `INCLUDE PERFETTO MODULE android.binder;
            SELECT * FROM android_binder_incoming_graph((SELECT upid FROM process WHERE name = 'system_server'))`,
-          'system_server incoming binder graph'),
+        'system_server incoming binder graph'),
     });
 
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidPerf#BinderSystemServerOutgoing',
       name: 'Run query: system_server outgoing binder graph',
       callback: () => ctx.tabs.openQuery(
-          `INCLUDE PERFETTO MODULE android.binder;
+        `INCLUDE PERFETTO MODULE android.binder;
            SELECT * FROM android_binder_outgoing_graph((SELECT upid FROM process WHERE name = 'system_server'))`,
-          'system_server outgoing binder graph'),
+        'system_server outgoing binder graph'),
     });
 
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidPerf#MonitorContentionSystemServer',
       name: 'Run query: system_server monitor_contention graph',
       callback: () => ctx.tabs.openQuery(
-          `INCLUDE PERFETTO MODULE android.monitor_contention;
+        `INCLUDE PERFETTO MODULE android.monitor_contention;
            SELECT * FROM android_monitor_contention_graph((SELECT upid FROM process WHERE name = 'system_server'))`,
-          'system_server monitor_contention graph'),
+        'system_server monitor_contention graph'),
     });
 
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidPerf#BinderAll',
       name: 'Run query: all process binder graph',
       callback: () => ctx.tabs.openQuery(
-          `INCLUDE PERFETTO MODULE android.binder;
+        `INCLUDE PERFETTO MODULE android.binder;
            SELECT * FROM android_binder_graph(-1000, 1000, -1000, 1000)`,
-          'all process binder graph'),
+        'all process binder graph'),
     });
 
     ctx.registerCommand({

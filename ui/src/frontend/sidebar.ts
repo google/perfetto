@@ -286,7 +286,7 @@ function openHelp(e: Event) {
 
 function getFileElement(): HTMLInputElement {
   return assertExists(
-      document.querySelector<HTMLInputElement>('input[type=file]'));
+    document.querySelector<HTMLInputElement>('input[type=file]'));
 }
 
 function popupFileSelectionDialog(e: Event) {
@@ -344,12 +344,12 @@ function openCurrentTraceWithOldUI(e: Event) {
   globals.logging.logEvent('Trace Actions', 'Open current trace in legacy UI');
   if (!isTraceLoaded()) return;
   getCurrentTrace()
-      .then((file) => {
-        openInOldUIWithSizeCheck(file);
-      })
-      .catch((error) => {
-        throw new Error(`Failed to get current trace ${error}`);
-      });
+    .then((file) => {
+      openInOldUIWithSizeCheck(file);
+    })
+    .catch((error) => {
+      throw new Error(`Failed to get current trace ${error}`);
+    });
 }
 
 function convertTraceToSystrace(e: Event) {
@@ -358,12 +358,12 @@ function convertTraceToSystrace(e: Event) {
   globals.logging.logEvent('Trace Actions', 'Convert to .systrace');
   if (!isTraceLoaded()) return;
   getCurrentTrace()
-      .then((file) => {
-        convertTraceToSystraceAndDownload(file);
-      })
-      .catch((error) => {
-        throw new Error(`Failed to get current trace ${error}`);
-      });
+    .then((file) => {
+      convertTraceToSystraceAndDownload(file);
+    })
+    .catch((error) => {
+      throw new Error(`Failed to get current trace ${error}`);
+    });
 }
 
 function convertTraceToJson(e: Event) {
@@ -372,12 +372,12 @@ function convertTraceToJson(e: Event) {
   globals.logging.logEvent('Trace Actions', 'Convert to .json');
   if (!isTraceLoaded()) return;
   getCurrentTrace()
-      .then((file) => {
-        convertTraceToJsonAndDownload(file);
-      })
-      .catch((error) => {
-        throw new Error(`Failed to get current trace ${error}`);
-      });
+    .then((file) => {
+      convertTraceToJsonAndDownload(file);
+    })
+    .catch((error) => {
+      throw new Error(`Failed to get current trace ${error}`);
+    });
 }
 
 export function isTraceLoaded(): boolean {
@@ -667,10 +667,10 @@ const EngineRPCWidget: m.Component = {
     }
 
     return m(
-        `.dbg-info-square${cssClass}`,
-        {title},
-        m('div', label),
-        m('div', `${failed ? 'FAIL' : globals.numQueuedQueries}`));
+      `.dbg-info-square${cssClass}`,
+      {title},
+      m('div', label),
+      m('div', `${failed ? 'FAIL' : globals.numQueuedQueries}`));
   },
 };
 
@@ -708,23 +708,23 @@ const ServiceWorkerWidget: m.Component = {
       showModal({
         title: 'Disable service worker?',
         content: m(
-            'div',
-            m('p', `If you continue the service worker will be disabled until
+          'div',
+          m('p', `If you continue the service worker will be disabled until
                       manually re-enabled.`),
-            m('p', `All future requests will be served from the network and the
+          m('p', `All future requests will be served from the network and the
                     UI won't be available offline.`),
-            m('p', `You should do this only if you are debugging the UI
+          m('p', `You should do this only if you are debugging the UI
                     or if you are experiencing caching-related problems.`),
-            m('p', `Disabling will cause a refresh of the UI, the current state
+          m('p', `Disabling will cause a refresh of the UI, the current state
                     will be lost.`),
-            ),
+        ),
         buttons: [
           {
             text: 'Disable and reload',
             primary: true,
             action: () => {
               globals.serviceWorkerController.setBypass(true).then(
-                  () => location.reload());
+                () => location.reload());
             },
           },
           {text: 'Cancel'},
@@ -733,29 +733,29 @@ const ServiceWorkerWidget: m.Component = {
     };
 
     return m(
-        `.dbg-info-square${cssClass}`,
-        {title, ondblclick: toggle},
-        m('div', 'SW'),
-        m('div', label));
+      `.dbg-info-square${cssClass}`,
+      {title, ondblclick: toggle},
+      m('div', 'SW'),
+      m('div', label));
   },
 };
 
 const SidebarFooter: m.Component = {
   view() {
     return m(
-        '.sidebar-footer',
-        m(EngineRPCWidget),
-        m(ServiceWorkerWidget),
-        m(
-            '.version',
-            m('a',
-              {
-                href: `${GITILES_URL}/+/${SCM_REVISION}/ui`,
-                title: `Channel: ${getCurrentChannel()}`,
-                target: '_blank',
-              },
-              `${VERSION.substr(0, 11)}`),
-            ),
+      '.sidebar-footer',
+      m(EngineRPCWidget),
+      m(ServiceWorkerWidget),
+      m(
+        '.version',
+        m('a',
+          {
+            href: `${GITILES_URL}/+/${SCM_REVISION}/ui`,
+            title: `Channel: ${getCurrentChannel()}`,
+            target: '_blank',
+          },
+          `${VERSION.substr(0, 11)}`),
+      ),
     );
   },
 };
@@ -763,13 +763,13 @@ const SidebarFooter: m.Component = {
 class HiringBanner implements m.ClassComponent {
   view() {
     return m(
-        '.hiring-banner',
-        m('a',
-          {
-            href: 'http://go/perfetto-open-roles',
-            target: '_blank',
-          },
-          'We\'re hiring!'));
+      '.hiring-banner',
+      m('a',
+        {
+          href: 'http://go/perfetto-open-roles',
+          target: '_blank',
+        },
+        'We\'re hiring!'));
   }
 }
 
@@ -827,7 +827,7 @@ export class Sidebar implements m.ClassComponent {
           };
         }
         vdomItems.push(m(
-            'li', m(`a${css}`, attrs, m('i.material-icons', item.i), item.t)));
+          'li', m(`a${css}`, attrs, m('i.material-icons', item.i), item.t)));
       }
       if (section.appendOpenedTraceTitle) {
         const engine = globals.state.engine;
@@ -835,28 +835,28 @@ export class Sidebar implements m.ClassComponent {
           let traceTitle = '';
           let traceUrl = '';
           switch (engine.source.type) {
-            case 'FILE':
-              // Split on both \ and / (because C:\Windows\paths\are\like\this).
-              traceTitle = engine.source.file.name.split(/[/\\]/).pop()!;
-              const fileSizeMB = Math.ceil(engine.source.file.size / 1e6);
-              traceTitle += ` (${fileSizeMB} MB)`;
-              break;
-            case 'URL':
-              traceUrl = engine.source.url;
-              traceTitle = traceUrl.split('/').pop()!;
-              break;
-            case 'ARRAY_BUFFER':
-              traceTitle = engine.source.title;
-              traceUrl = engine.source.url || '';
-              const arrayBufferSizeMB =
+          case 'FILE':
+            // Split on both \ and / (because C:\Windows\paths\are\like\this).
+            traceTitle = engine.source.file.name.split(/[/\\]/).pop()!;
+            const fileSizeMB = Math.ceil(engine.source.file.size / 1e6);
+            traceTitle += ` (${fileSizeMB} MB)`;
+            break;
+          case 'URL':
+            traceUrl = engine.source.url;
+            traceTitle = traceUrl.split('/').pop()!;
+            break;
+          case 'ARRAY_BUFFER':
+            traceTitle = engine.source.title;
+            traceUrl = engine.source.url || '';
+            const arrayBufferSizeMB =
                   Math.ceil(engine.source.buffer.byteLength / 1e6);
-              traceTitle += ` (${arrayBufferSizeMB} MB)`;
-              break;
-            case 'HTTP_RPC':
-              traceTitle = 'External trace (RPC)';
-              break;
-            default:
-              break;
+            traceTitle += ` (${arrayBufferSizeMB} MB)`;
+            break;
+          case 'HTTP_RPC':
+            traceTitle = 'External trace (RPC)';
+            break;
+          default:
+            break;
           }
           if (traceTitle !== '') {
             const tabTitle = `${traceTitle} - Perfetto UI`;
@@ -868,59 +868,59 @@ export class Sidebar implements m.ClassComponent {
         }
       }
       vdomSections.push(
-          m(`section${section.expanded ? '.expanded' : ''}`,
-            m('.section-header',
-              {
-                onclick: () => {
-                  section.expanded = !section.expanded;
-                  raf.scheduleFullRedraw();
-                },
+        m(`section${section.expanded ? '.expanded' : ''}`,
+          m('.section-header',
+            {
+              onclick: () => {
+                section.expanded = !section.expanded;
+                raf.scheduleFullRedraw();
               },
-              m('h1', {title: section.summary}, section.title),
-              m('h2', section.summary)),
-            m('.section-content', m('ul', vdomItems))));
+            },
+            m('h1', {title: section.summary}, section.title),
+            m('h2', section.summary)),
+          m('.section-content', m('ul', vdomItems))));
     }
     return m(
-        'nav.sidebar',
-        {
-          class: globals.state.sidebarVisible ? 'show-sidebar' : 'hide-sidebar',
-          // 150 here matches --sidebar-timing in the css.
-          // TODO(hjd): Should link to the CSS variable.
-          ontransitionstart: (e: TransitionEvent) => {
-            if (e.target !== e.currentTarget) return;
-            this._redrawWhileAnimating.start(150);
-          },
-          ontransitionend: (e: TransitionEvent) => {
-            if (e.target !== e.currentTarget) return;
-            this._redrawWhileAnimating.stop();
-          },
+      'nav.sidebar',
+      {
+        class: globals.state.sidebarVisible ? 'show-sidebar' : 'hide-sidebar',
+        // 150 here matches --sidebar-timing in the css.
+        // TODO(hjd): Should link to the CSS variable.
+        ontransitionstart: (e: TransitionEvent) => {
+          if (e.target !== e.currentTarget) return;
+          this._redrawWhileAnimating.start(150);
         },
-        shouldShowHiringBanner() ? m(HiringBanner) : null,
+        ontransitionend: (e: TransitionEvent) => {
+          if (e.target !== e.currentTarget) return;
+          this._redrawWhileAnimating.stop();
+        },
+      },
+      shouldShowHiringBanner() ? m(HiringBanner) : null,
+      m(
+        `header.${getCurrentChannel()}`,
+        m(`img[src=${globals.root}assets/brand.png].brand`),
+        m('button.sidebar-button',
+          {
+            onclick: () => {
+              globals.commandManager.runCommand(
+                'dev.perfetto.CoreCommands#ToggleLeftSidebar');
+            },
+          },
+          m('i.material-icons',
+            {
+              title: globals.state.sidebarVisible ? 'Hide menu' :
+                'Show menu',
+            },
+            'menu')),
+      ),
+      m('input.trace_file[type=file]',
+        {onchange: onInputElementFileSelectionChanged}),
+      m('.sidebar-scroll',
         m(
-            `header.${getCurrentChannel()}`,
-            m(`img[src=${globals.root}assets/brand.png].brand`),
-            m('button.sidebar-button',
-              {
-                onclick: () => {
-                  globals.commandManager.runCommand(
-                      'dev.perfetto.CoreCommands#ToggleLeftSidebar');
-                },
-              },
-              m('i.material-icons',
-                {
-                  title: globals.state.sidebarVisible ? 'Hide menu' :
-                                                        'Show menu',
-                },
-                'menu')),
-            ),
-        m('input.trace_file[type=file]',
-          {onchange: onInputElementFileSelectionChanged}),
-        m('.sidebar-scroll',
-          m(
-              '.sidebar-scroll-container',
-              ...vdomSections,
-              m(SidebarFooter),
-              )),
+          '.sidebar-scroll-container',
+          ...vdomSections,
+          m(SidebarFooter),
+        )),
     );
   }
 }

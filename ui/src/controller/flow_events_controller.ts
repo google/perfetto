@@ -314,12 +314,12 @@ export class FlowEventsController extends Controller<'main'> {
     this.lastSelectedKind = 'CHROME_SLICE';
 
     const connectedFlows = SHOW_INDIRECT_PRECEDING_FLOWS_FLAG.get() ?
-        `(
+      `(
            select * from directly_connected_flow(${sliceId})
            union
            select * from preceding_flow(${sliceId})
          )` :
-        `directly_connected_flow(${sliceId})`;
+      `directly_connected_flow(${sliceId})`;
 
     const query = `
     select
@@ -358,7 +358,7 @@ export class FlowEventsController extends Controller<'main'> {
     left join process process_in on process_in.upid = thread_in.upid
     `;
     this.queryFlowEvents(
-        query, (flows: Flow[]) => publishConnectedFlows(flows));
+      query, (flows: Flow[]) => publishConnectedFlows(flows));
   }
 
   areaSelected(areaId: string) {

@@ -138,7 +138,7 @@ function focusOtherFlow(direction: Direction) {
   }
 
   const boundFlows = globals.connectedFlows.filter(
-      (flow) => flow.begin.sliceId === sliceId && direction === 'Forward' ||
+    (flow) => flow.begin.sliceId === sliceId && direction === 'Forward' ||
           flow.end.sliceId === sliceId && direction === 'Backward');
 
   if (direction === 'Backward') {
@@ -162,7 +162,7 @@ function moveByFocusedFlow(direction: Direction): void {
   const sliceId = globals.state.currentSelection.id;
   const flowId =
       (direction === 'Backward' ? globals.state.focusedFlowIdLeft :
-                                  globals.state.focusedFlowIdRight);
+        globals.state.focusedFlowIdRight);
 
   if (sliceId === -1 || flowId === -1) {
     return;
@@ -190,8 +190,8 @@ function lockSliceSpan(persistent = false) {
   if (range.start !== -1n && range.end !== -1n &&
       globals.state.currentSelection !== null) {
     const tracks = globals.state.currentSelection.trackKey ?
-        [globals.state.currentSelection.trackKey] :
-        [];
+      [globals.state.currentSelection.trackKey] :
+      [];
     const area: Area = {start: range.start, end: range.end, tracks};
     globals.dispatch(Actions.markArea({area, persistent}));
   }

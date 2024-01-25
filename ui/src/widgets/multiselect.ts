@@ -74,10 +74,10 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
     });
 
     return m(
-        fixedSize ? '.pf-multiselect-panel.pf-multi-select-fixed-size' :
-                    '.pf-multiselect-panel',
-        this.renderSearchBox(),
-        this.renderListOfItems(attrs, filteredItems),
+      fixedSize ? '.pf-multiselect-panel.pf-multi-select-fixed-size' :
+        '.pf-multiselect-panel',
+      this.renderSearchBox(),
+      this.renderListOfItems(attrs, filteredItems),
     );
   }
 
@@ -95,88 +95,88 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
       });
     } else {
       return [m(
-          '.pf-list',
-          repeatCheckedItemsAtTop && anyChecked &&
+        '.pf-list',
+        repeatCheckedItemsAtTop && anyChecked &&
               m(
-                  '.pf-multiselect-container',
-                  m(
-                      '.pf-multiselect-header',
-                      m('span',
-                        this.searchText === '' ? 'Selected' :
-                                                 `Selected (Filtered)`),
-                      m(Button, {
-                        label: this.searchText === '' ? 'Clear All' :
-                                                        'Clear Filtered',
-                        icon: Icons.Deselect,
-                        minimal: true,
-                        onclick: () => {
-                          const diffs =
-                              options.filter(({checked}) => checked)
-                                  .map(({id}) => ({id, checked: false}));
-                          onChange(diffs);
-                          scheduleFullRedraw();
-                        },
-                        disabled: !anyChecked,
-                      }),
-                      ),
-                  this.renderOptions(
-                      attrs, options.filter(({checked}) => checked)),
-                  ),
-          m(
-              '.pf-multiselect-container',
-              m(
+                '.pf-multiselect-container',
+                m(
                   '.pf-multiselect-header',
                   m('span',
-                    this.searchText === '' ? 'Options' : `Options (Filtered)`),
-                  m(Button, {
-                    label: this.searchText === '' ? 'Select All' :
-                                                    'Select Filtered',
-                    icon: Icons.SelectAll,
-                    minimal: true,
-                    compact: true,
-                    onclick: () => {
-                      const diffs = options.filter(({checked}) => !checked)
-                                        .map(({id}) => ({id, checked: true}));
-                      onChange(diffs);
-                      scheduleFullRedraw();
-                    },
-                    disabled: allChecked,
-                  }),
+                    this.searchText === '' ? 'Selected' :
+                      `Selected (Filtered)`),
                   m(Button, {
                     label: this.searchText === '' ? 'Clear All' :
-                                                    'Clear Filtered',
+                      'Clear Filtered',
                     icon: Icons.Deselect,
                     minimal: true,
-                    compact: true,
                     onclick: () => {
-                      const diffs = options.filter(({checked}) => checked)
-                                        .map(({id}) => ({id, checked: false}));
+                      const diffs =
+                              options.filter(({checked}) => checked)
+                                .map(({id}) => ({id, checked: false}));
                       onChange(diffs);
                       scheduleFullRedraw();
                     },
                     disabled: !anyChecked,
                   }),
-                  ),
-              this.renderOptions(attrs, options),
+                ),
+                this.renderOptions(
+                  attrs, options.filter(({checked}) => checked)),
               ),
-          )];
+        m(
+          '.pf-multiselect-container',
+          m(
+            '.pf-multiselect-header',
+            m('span',
+              this.searchText === '' ? 'Options' : `Options (Filtered)`),
+            m(Button, {
+              label: this.searchText === '' ? 'Select All' :
+                'Select Filtered',
+              icon: Icons.SelectAll,
+              minimal: true,
+              compact: true,
+              onclick: () => {
+                const diffs = options.filter(({checked}) => !checked)
+                  .map(({id}) => ({id, checked: true}));
+                onChange(diffs);
+                scheduleFullRedraw();
+              },
+              disabled: allChecked,
+            }),
+            m(Button, {
+              label: this.searchText === '' ? 'Clear All' :
+                'Clear Filtered',
+              icon: Icons.Deselect,
+              minimal: true,
+              compact: true,
+              onclick: () => {
+                const diffs = options.filter(({checked}) => checked)
+                  .map(({id}) => ({id, checked: false}));
+                onChange(diffs);
+                scheduleFullRedraw();
+              },
+              disabled: !anyChecked,
+            }),
+          ),
+          this.renderOptions(attrs, options),
+        ),
+      )];
     }
   }
 
   private renderSearchBox() {
     return m(
-        '.pf-search-bar',
-        m(TextInput, {
-          oninput: (event: Event) => {
-            const eventTarget = event.target as HTMLTextAreaElement;
-            this.searchText = eventTarget.value;
-            scheduleFullRedraw();
-          },
-          value: this.searchText,
-          placeholder: 'Filter options...',
-          className: 'pf-search-box',
-        }),
-        this.renderClearButton(),
+      '.pf-search-bar',
+      m(TextInput, {
+        oninput: (event: Event) => {
+          const eventTarget = event.target as HTMLTextAreaElement;
+          this.searchText = eventTarget.value;
+          scheduleFullRedraw();
+        },
+        value: this.searchText,
+        placeholder: 'Filter options...',
+        className: 'pf-search-box',
+      }),
+      this.renderClearButton(),
     );
   }
 
@@ -230,13 +230,13 @@ export class PopupMultiSelect implements
     } = attrs;
 
     return m(
-        Popup,
-        {
-          trigger:
+      Popup,
+      {
+        trigger:
               m(Button, {label: this.labelText(attrs), icon, minimal, compact}),
-          position: popupPosition,
-        },
-        m(MultiSelect, attrs as MultiSelectAttrs),
+        position: popupPosition,
+      },
+      m(MultiSelect, attrs as MultiSelectAttrs),
     );
   }
 

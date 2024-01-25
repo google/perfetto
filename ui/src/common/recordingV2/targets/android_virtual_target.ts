@@ -33,7 +33,7 @@ export class AndroidVirtualTarget implements RecordingTargetV2 {
 
   createTracingSession(_: TracingSessionListener): Promise<TracingSession> {
     throw new RecordingError(
-        'Can not create tracing session for a virtual target');
+      'Can not create tracing session for a virtual target');
   }
 
   disconnect(_?: string): Promise<void> {

@@ -59,7 +59,7 @@ function hasLogs(): boolean {
 
 
 function handleSelectionChange(
-    newSelection: Selection|undefined, openCurrentSelectionTab: boolean): void {
+  newSelection: Selection|undefined, openCurrentSelectionTab: boolean): void {
   const currentSelectionTag = CURRENT_SELECTION_TAG;
   const bottomTabList = globals.bottomTabList;
   if (!bottomTabList) return;
@@ -68,59 +68,59 @@ function handleSelectionChange(
     return;
   }
   switch (newSelection.kind) {
-    case 'NOTE':
+  case 'NOTE':
+    bottomTabList.addTab({
+      kind: NotesEditorTab.kind,
+      tag: currentSelectionTag,
+      config: {
+        id: newSelection.id,
+      },
+      select: openCurrentSelectionTab,
+    });
+    break;
+  case 'AREA':
+    if (newSelection.noteId !== undefined) {
       bottomTabList.addTab({
         kind: NotesEditorTab.kind,
         tag: currentSelectionTag,
         config: {
-          id: newSelection.id,
+          id: newSelection.noteId,
         },
         select: openCurrentSelectionTab,
       });
-      break;
-    case 'AREA':
-      if (newSelection.noteId !== undefined) {
-        bottomTabList.addTab({
-          kind: NotesEditorTab.kind,
-          tag: currentSelectionTag,
-          config: {
-            id: newSelection.noteId,
-          },
-          select: openCurrentSelectionTab,
-        });
-      }
-      break;
-    case 'THREAD_STATE':
-      bottomTabList.addTab({
-        kind: ThreadStateTab.kind,
-        tag: currentSelectionTag,
-        config: {
-          id: newSelection.id,
-        },
-        select: openCurrentSelectionTab,
-      });
-      break;
-    case 'GENERIC_SLICE':
-      bottomTabList.addTab({
-        kind: newSelection.detailsPanelConfig.kind,
-        tag: currentSelectionTag,
-        config: newSelection.detailsPanelConfig.config,
-        select: openCurrentSelectionTab,
-      });
-      break;
-    case 'CHROME_SLICE':
-      bottomTabList.addTab({
-        kind: ChromeSliceDetailsTab.kind,
-        tag: currentSelectionTag,
-        config: {
-          id: newSelection.id,
-          table: newSelection.table,
-        },
-        select: openCurrentSelectionTab,
-      });
-      break;
-    default:
-      bottomTabList.closeTabByTag(currentSelectionTag);
+    }
+    break;
+  case 'THREAD_STATE':
+    bottomTabList.addTab({
+      kind: ThreadStateTab.kind,
+      tag: currentSelectionTag,
+      config: {
+        id: newSelection.id,
+      },
+      select: openCurrentSelectionTab,
+    });
+    break;
+  case 'GENERIC_SLICE':
+    bottomTabList.addTab({
+      kind: newSelection.detailsPanelConfig.kind,
+      tag: currentSelectionTag,
+      config: newSelection.detailsPanelConfig.config,
+      select: openCurrentSelectionTab,
+    });
+    break;
+  case 'CHROME_SLICE':
+    bottomTabList.addTab({
+      kind: ChromeSliceDetailsTab.kind,
+      tag: currentSelectionTag,
+      config: {
+        id: newSelection.id,
+        table: newSelection.table,
+      },
+      select: openCurrentSelectionTab,
+    });
+    break;
+  default:
+    bottomTabList.closeTabByTag(currentSelectionTag);
   }
 }
 addSelectionChangeObserver(handleSelectionChange);
@@ -150,55 +150,55 @@ export class DetailsPanel implements m.ClassComponent {
     const curSelection = globals.state.currentSelection;
     if (curSelection) {
       switch (curSelection.kind) {
-        case 'NOTE':
-          // Handled in handleSelectionChange.
-          break;
-        case 'AREA':
-          if (globals.flamegraphDetails.isInAreaSelection) {
-            detailsPanels.push({
-              key: 'flamegraph_selection',
-              name: 'Flamegraph Selection',
-              vnode: m(FlamegraphDetailsPanel, {key: 'flamegraph'}),
-            });
-          }
-          break;
-        case 'SLICE':
+      case 'NOTE':
+        // Handled in handleSelectionChange.
+        break;
+      case 'AREA':
+        if (globals.flamegraphDetails.isInAreaSelection) {
           detailsPanels.push({
-            key: 'current_selection',
-            name: 'Current Selection',
-            vnode: m(SliceDetailsPanel, {
-              key: 'slice',
-            }),
-          });
-          break;
-        case 'COUNTER':
-          detailsPanels.push({
-            key: 'current_selection',
-            name: 'Current Selection',
-            vnode: m(CounterDetailsPanel, {
-              key: 'counter',
-            }),
-          });
-          break;
-        case 'PERF_SAMPLES':
-        case 'HEAP_PROFILE':
-          detailsPanels.push({
-            key: 'current_selection',
-            name: 'Current Selection',
+            key: 'flamegraph_selection',
+            name: 'Flamegraph Selection',
             vnode: m(FlamegraphDetailsPanel, {key: 'flamegraph'}),
           });
-          break;
-        case 'CPU_PROFILE_SAMPLE':
-          detailsPanels.push({
-            key: 'current_selection',
-            name: 'Current Selection',
-            vnode: m(CpuProfileDetailsPanel, {
-              key: 'cpu_profile_sample',
-            }),
-          });
-          break;
-        default:
-          break;
+        }
+        break;
+      case 'SLICE':
+        detailsPanels.push({
+          key: 'current_selection',
+          name: 'Current Selection',
+          vnode: m(SliceDetailsPanel, {
+            key: 'slice',
+          }),
+        });
+        break;
+      case 'COUNTER':
+        detailsPanels.push({
+          key: 'current_selection',
+          name: 'Current Selection',
+          vnode: m(CounterDetailsPanel, {
+            key: 'counter',
+          }),
+        });
+        break;
+      case 'PERF_SAMPLES':
+      case 'HEAP_PROFILE':
+        detailsPanels.push({
+          key: 'current_selection',
+          name: 'Current Selection',
+          vnode: m(FlamegraphDetailsPanel, {key: 'flamegraph'}),
+        });
+        break;
+      case 'CPU_PROFILE_SAMPLE':
+        detailsPanels.push({
+          key: 'current_selection',
+          name: 'Current Selection',
+          vnode: m(CpuProfileDetailsPanel, {
+            key: 'cpu_profile_sample',
+          }),
+        });
+        break;
+      default:
+        break;
       }
     }
     if (hasLogs()) {
@@ -289,15 +289,15 @@ export class DetailsPanel implements m.ClassComponent {
         },
       }),
       m(
-          '.details-panel-container',
-          {
-            style: {height: `${this.detailsHeight}px`},
-          },
-          detailsPanels.map((tab) => {
-            const active = tab === currentTabDetails;
-            return m(Gate, {open: active}, tab.vnode);
-          }),
-          ),
+        '.details-panel-container',
+        {
+          style: {height: `${this.detailsHeight}px`},
+        },
+        detailsPanels.map((tab) => {
+          const active = tab === currentTabDetails;
+          return m(Gate, {open: active}, tab.vnode);
+        }),
+      ),
     ];
   }
 }

@@ -103,14 +103,14 @@ async function showDialogTraceProcessorTooOld(tpStatus: StatusResult) {
     content:
         m('.modal-pre',
           MSG_TOO_OLD.replace('$tpVersion', tpStatus.humanReadableVersion)
-              .replace('$tpApi', `${tpStatus.apiVersion}`)),
+            .replace('$tpApi', `${tpStatus.apiVersion}`)),
     buttons: [
       {
         text: 'Use builtin Wasm',
         primary: true,
         action: () => {
           globals.dispatch(
-              Actions.setNewEngineMode({mode: 'FORCE_BUILTIN_WASM'}));
+            Actions.setNewEngineMode({mode: 'FORCE_BUILTIN_WASM'}));
         },
       },
       {
@@ -145,7 +145,7 @@ async function showDialogToUsePreloadedTrace(tpStatus: StatusResult) {
         text: 'NO, Use builtin Wasm',
         action: () => {
           globals.dispatch(
-              Actions.setNewEngineMode({mode: 'FORCE_BUILTIN_WASM'}));
+            Actions.setNewEngineMode({mode: 'FORCE_BUILTIN_WASM'}));
         },
       },
     ],

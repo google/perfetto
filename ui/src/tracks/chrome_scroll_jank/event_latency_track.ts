@@ -40,7 +40,7 @@ const CHROME_EVENT_LATENCY_TRACK_KIND =
     'org.chromium.ScrollJank.event_latencies';
 
 export class EventLatencyTrack extends
-    CustomSqlTableSliceTrack<EventLatencyTrackTypes> {
+  CustomSqlTableSliceTrack<EventLatencyTrackTypes> {
   static readonly kind = CHROME_EVENT_LATENCY_TRACK_KIND;
 
   constructor(args: NewTrackArgs, private baseTable: string) {

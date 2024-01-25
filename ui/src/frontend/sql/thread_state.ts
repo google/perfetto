@@ -67,7 +67,7 @@ export interface BreakdownByThreadState {
 // Compute a breakdown of thread states for a given thread for a given time
 // interval.
 export async function breakDownIntervalByThreadState(
-    engine: EngineProxy, range: TimeSpan, utid: Utid):
+  engine: EngineProxy, range: TimeSpan, utid: Utid):
     Promise<BreakdownByThreadState> {
   // TODO(altimin): this probably should share some code with pivot tables when
   // we actually get some pivot tables we like.
@@ -82,7 +82,7 @@ export async function breakDownIntervalByThreadState(
       blocked_function as blockedFunction,
       dur
     FROM thread_state_summary_for_interval(${range.start}, ${range.duration}, ${
-      utid});
+  utid});
   `);
   const it = query.iter({
     state: STR,
@@ -115,23 +115,23 @@ export async function breakDownIntervalByThreadState(
 
 function renderChildren(node: Node, totalDur: duration): m.Child[] {
   const res = Array.from(node.children.entries())
-                  .map(([name, child]) => renderNode(child, name, totalDur));
+    .map(([name, child]) => renderNode(child, name, totalDur));
   return res;
 }
 
 function renderNode(node: Node, name: string, totalDur: duration): m.Child {
   const durPercent = 100. * Number(node.dur) / Number(totalDur);
   return m(
-      TreeNode,
-      {
-        left: name,
-        right: [
-          m(DurationWidget, {dur: node.dur}),
-          ` (${durPercent.toFixed(2)}%)`,
-        ],
-        startsCollapsed: node.startsCollapsed,
-      },
-      renderChildren(node, totalDur));
+    TreeNode,
+    {
+      left: name,
+      right: [
+        m(DurationWidget, {dur: node.dur}),
+        ` (${durPercent.toFixed(2)}%)`,
+      ],
+      startsCollapsed: node.startsCollapsed,
+    },
+    renderChildren(node, totalDur));
 }
 
 interface BreakdownByThreadStateTreeNodeAttrs {

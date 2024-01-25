@@ -42,7 +42,7 @@ function isDefined<T>(t: T|undefined): t is T {
 
 export function constraintsToQueryPrefix(c: SQLConstraints): string {
   const ctes = Object.entries(c.commonTableExpressions ?? {})
-                   .filter(([_, value]) => isDefined(value));
+    .filter(([_, value]) => isDefined(value));
   if (ctes.length === 0) return '';
   const cteStatements = ctes.map(([name, query]) => `${name} AS (${query})`);
   return `WITH ${cteStatements.join(',\n')}`;
@@ -110,15 +110,15 @@ export function sqlValueToString(val?: ColumnType): string|undefined {
 }
 
 export async function getTableRowCount(
-    engine: EngineProxy, tableName: string): Promise<number|undefined> {
+  engine: EngineProxy, tableName: string): Promise<number|undefined> {
   const result =
       await engine.query(`SELECT COUNT() as count FROM ${tableName}`);
   if (result.numRows() === 0) {
     return undefined;
   }
   return result
-      .firstRow({
-        count: NUM,
-      })
-      .count;
+    .firstRow({
+      count: NUM,
+    })
+    .count;
 }

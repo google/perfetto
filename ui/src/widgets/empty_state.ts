@@ -37,15 +37,15 @@ export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
       className,
     } = attrs;
     return m(
-        '.pf-empty-state',
-        {className},
-        m('i.material-icons', icon),
-        m(
-            '.pf-empty-state-header',
-            header && m('.pf-empty-state-title', header),
-            detail && m('.pf-empty-state-detail', detail),
-            ),
-        m('div.pf-empty-state-content', children),
+      '.pf-empty-state',
+      {className},
+      m('i.material-icons', icon),
+      m(
+        '.pf-empty-state-header',
+        header && m('.pf-empty-state-title', header),
+        detail && m('.pf-empty-state-detail', detail),
+      ),
+      m('div.pf-empty-state-content', children),
     );
   }
 }

@@ -38,16 +38,16 @@ export class SliceDetailsPanel extends SlicePanel {
     const threadInfo = globals.threads.get(sliceInfo.utid);
 
     return m(
-        DetailsShell,
-        {
-          title: 'CPU Sched Slice',
-          description: this.renderDescription(sliceInfo),
-        },
-        m(
-            GridLayout,
-            this.renderDetails(sliceInfo, threadInfo),
-            this.renderSchedLatencyInfo(sliceInfo),
-            ),
+      DetailsShell,
+      {
+        title: 'CPU Sched Slice',
+        description: this.renderDescription(sliceInfo),
+      },
+      m(
+        GridLayout,
+        this.renderDetails(sliceInfo, threadInfo),
+        this.renderSchedLatencyInfo(sliceInfo),
+      ),
     );
   }
 
@@ -64,16 +64,16 @@ export class SliceDetailsPanel extends SlicePanel {
       return null;
     }
     return m(
-        Section,
-        {title: 'Scheduling Latency'},
-        m(
-            '.slice-details-latency-panel',
-            m('img.slice-details-image', {
-              src: `${globals.root}assets/scheduling_latency.png`,
-            }),
-            this.renderWakeupText(sliceInfo),
-            this.renderDisplayLatencyText(sliceInfo),
-            ),
+      Section,
+      {title: 'Scheduling Latency'},
+      m(
+        '.slice-details-latency-panel',
+        m('img.slice-details-image', {
+          src: `${globals.root}assets/scheduling_latency.png`,
+        }),
+        this.renderWakeupText(sliceInfo),
+        this.renderDisplayLatencyText(sliceInfo),
+      ),
     );
   }
 
@@ -86,13 +86,13 @@ export class SliceDetailsPanel extends SlicePanel {
       return null;
     }
     return m(
-        '.slice-details-wakeup-text',
-        m('',
-          `Wakeup @ `,
-          m(Timestamp, {ts: sliceInfo.wakeupTs!}),
-          ` on CPU ${sliceInfo.wakerCpu} by`),
-        m('', `P: ${threadInfo.procName} [${threadInfo.pid}]`),
-        m('', `T: ${threadInfo.threadName} [${threadInfo.tid}]`),
+      '.slice-details-wakeup-text',
+      m('',
+        `Wakeup @ `,
+        m(Timestamp, {ts: sliceInfo.wakeupTs!}),
+        ` on CPU ${sliceInfo.wakerCpu} by`),
+      m('', `P: ${threadInfo.procName} [${threadInfo.pid}]`),
+      m('', `T: ${threadInfo.threadName} [${threadInfo.tid}]`),
     );
   }
 
@@ -103,10 +103,10 @@ export class SliceDetailsPanel extends SlicePanel {
 
     const latency = sliceInfo.ts - sliceInfo.wakeupTs;
     return m(
-        '.slice-details-latency-text',
-        m('', `Scheduling latency: `, m(DurationWidget, {dur: latency})),
-        m('.text-detail',
-          `This is the interval from when the task became eligible to run
+      '.slice-details-latency-text',
+      m('', `Scheduling latency: `, m(DurationWidget, {dur: latency})),
+      m('.text-detail',
+        `This is the interval from when the task became eligible to run
         (e.g. because of notifying a wait queue it was suspended on) to
         when it started running.`),
     );
@@ -188,9 +188,9 @@ export class SliceDetailsPanel extends SlicePanel {
       ];
 
       return m(
-          Section,
-          {title: 'Details'},
-          m(Tree, treeNodes),
+        Section,
+        {title: 'Details'},
+        m(Tree, treeNodes),
       );
     }
   }

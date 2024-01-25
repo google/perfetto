@@ -23,26 +23,26 @@ export class PowerSettings implements m.ClassComponent<RecordingSectionAttrs> {
     const DOC_URL = 'https://perfetto.dev/docs/data-sources/battery-counters';
     const descr =
         [m('div',
-           m('span', `Polls charge counters and instantaneous power draw from
+          m('span', `Polls charge counters and instantaneous power draw from
                     the battery power management IC and the power rails from
                     the PowerStats HAL (`),
-           m('a', {href: DOC_URL, target: '_blank'}, 'see docs for more'),
-           m('span', ')'))];
+          m('a', {href: DOC_URL, target: '_blank'}, 'see docs for more'),
+          m('span', ')'))];
     if (globals.isInternalUser) {
       descr.push(m(
-          'div',
-          m('span', 'Googlers: See '),
-          m('a',
-            {href: 'http://go/power-rails-internal-doc', target: '_blank'},
-            'this doc'),
-          m('span',
-            ` for instructions on how to change the default rail selection
+        'div',
+        m('span', 'Googlers: See '),
+        m('a',
+          {href: 'http://go/power-rails-internal-doc', target: '_blank'},
+          'this doc'),
+        m('span',
+          ` for instructions on how to change the default rail selection
                   on internal devices.`),
-          ));
+      ));
     }
     return m(
-        `.record-section${attrs.cssClass}`,
-        m(Probe,
+      `.record-section${attrs.cssClass}`,
+      m(Probe,
           {
             title: 'Battery drain & power rails',
             img: 'rec_battery_counters.png',
@@ -58,12 +58,12 @@ export class PowerSettings implements m.ClassComponent<RecordingSectionAttrs> {
             set: (cfg, val) => cfg.batteryDrainPollMs = val,
             get: (cfg) => cfg.batteryDrainPollMs,
           } as SliderAttrs)),
-        m(Probe, {
-          title: 'Board voltages & frequencies',
-          img: 'rec_board_voltage.png',
-          descr: 'Tracks voltage and frequency changes from board sensors',
-          setEnabled: (cfg, val) => cfg.boardSensors = val,
-          isEnabled: (cfg) => cfg.boardSensors,
-        } as ProbeAttrs));
+      m(Probe, {
+        title: 'Board voltages & frequencies',
+        img: 'rec_board_voltage.png',
+        descr: 'Tracks voltage and frequency changes from board sensors',
+        setEnabled: (cfg, val) => cfg.boardSensors = val,
+        isEnabled: (cfg) => cfg.boardSensors,
+      } as ProbeAttrs));
   }
 }

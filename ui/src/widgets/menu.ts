@@ -60,19 +60,19 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
         attrs;
 
     return m(
-        PopupMenu2,
-        {
-          popupPosition: PopupPosition.RightStart,
-          trigger: m(MenuItem, {
-            rightIcon: rightIcon,
-            closePopupOnClick,
-            ...rest,
-          }),
-          showArrow: false,
-          createNewGroup: false,
-          edgeOffset: 5,  // Adjust for popup padding & border.
-        },
-        children,
+      PopupMenu2,
+      {
+        popupPosition: PopupPosition.RightStart,
+        trigger: m(MenuItem, {
+          rightIcon: rightIcon,
+          closePopupOnClick,
+          ...rest,
+        }),
+        showArrow: false,
+        createNewGroup: false,
+        edgeOffset: 5,  // Adjust for popup padding & border.
+      },
+      children,
     );
   }
 
@@ -89,20 +89,20 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
     } = attrs;
 
     const classes = classNames(
-        active && 'pf-active',
-        !disabled && closePopupOnClick && Popup.DISMISS_POPUP_GROUP_CLASS,
-        className,
+      active && 'pf-active',
+      !disabled && closePopupOnClick && Popup.DISMISS_POPUP_GROUP_CLASS,
+      className,
     );
 
     return m(
-        'button.pf-menu-item' + (disabled ? '[disabled]' : ''),
-        {
-          ...htmlAttrs,
-          className: classes,
-        },
-        icon && m(Icon, {className: 'pf-left-icon', icon}),
-        rightIcon && m(Icon, {className: 'pf-right-icon', icon: rightIcon}),
-        label,
+      'button.pf-menu-item' + (disabled ? '[disabled]' : ''),
+      {
+        ...htmlAttrs,
+        className: classes,
+      },
+      icon && m(Icon, {className: 'pf-left-icon', icon}),
+      rightIcon && m(Icon, {className: 'pf-right-icon', icon: rightIcon}),
+      label,
     );
   }
 };
@@ -159,13 +159,13 @@ export class PopupMenu2 implements m.ClassComponent<PopupMenu2Attrs> {
         attrs;
 
     return m(
-        Popup,
-        {
-          trigger,
-          position: popupPosition,
-          className: 'pf-popup-menu',
-          ...popupAttrs,
-        },
-        m(Menu, children));
+      Popup,
+      {
+        trigger,
+        position: popupPosition,
+        className: 'pf-popup-menu',
+        ...popupAttrs,
+      },
+      m(Menu, children));
   }
 };

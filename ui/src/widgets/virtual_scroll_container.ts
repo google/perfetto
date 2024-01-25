@@ -30,12 +30,12 @@ export class VirtualScrollContainer implements
     } = attrs;
 
     return m(
-        '.pf-virtual-scroll-container',
-        {
-          ref: this.REF,
-          onscroll: (e: Event) => onScroll(e.target as HTMLElement),
-        },
-        children);
+      '.pf-virtual-scroll-container',
+      {
+        ref: this.REF,
+        onscroll: (e: Event) => onScroll(e.target as HTMLElement),
+      },
+      children);
   }
 
   oncreate({dom, attrs}: m.VnodeDOM<VirtualScrollContainerAttrs, this>) {

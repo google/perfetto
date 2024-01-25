@@ -93,8 +93,8 @@ export class SqlTableState {
   private rowCount?: RowCount;
 
   constructor(
-      engine: EngineProxy, table: SqlTableDescription, filters?: Filter[],
-      imports?: string[]) {
+    engine: EngineProxy, table: SqlTableDescription, filters?: Filter[],
+    imports?: string[]) {
     this.engine_ = engine;
     this.table_ = table;
     this.additionalImports = imports || [];
@@ -146,7 +146,7 @@ export class SqlTableState {
             AND display_value ${filter.op}
         `;
         result.joins!.push(`JOIN ${cteName} ON ${cteName}.arg_set_id = ${
-            this.table.name}.${filter.argSetIdColumn}`);
+          this.table.name}.${filter.argSetIdColumn}`);
       }
     }
     return result;
@@ -155,8 +155,8 @@ export class SqlTableState {
   private getSQLImports() {
     const tableImports = this.table.imports || [];
     return [...tableImports, ...this.additionalImports]
-        .map((i) => `INCLUDE PERFETTO MODULE ${i};`)
-        .join('\n');
+      .map((i) => `INCLUDE PERFETTO MODULE ${i};`)
+      .join('\n');
   }
 
   private getCountRowsSQLQuery(): string {
@@ -175,12 +175,12 @@ export class SqlTableState {
   buildSqlSelectStatement(): {
     selectStatement: string,
     columns: string[],
-  } {
+    } {
     const projections = this.getSQLProjections();
     const orderBy = this.orderBy.map((c) => ({
-                                       fieldName: c.column.alias,
-                                       direction: c.direction,
-                                     }));
+      fieldName: c.column.alias,
+      direction: c.direction,
+    }));
     const constraints = this.getQueryConstraints();
     constraints.orderBy = orderBy;
     const statement = `

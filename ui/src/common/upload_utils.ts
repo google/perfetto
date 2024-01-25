@@ -75,29 +75,29 @@ export class TraceGcsUploader {
   private onRpcEvent(e: ProgressEvent) {
     let done = false;
     switch (e.type) {
-      case 'progress':
-        this.uploadedSize = e.loaded;
-        this.totalSize = e.total;
-        break;
-      case 'abort':
-        this.state = 'ERROR';
-        this.error = 'Upload aborted';
-        break;
-      case 'error':
+    case 'progress':
+      this.uploadedSize = e.loaded;
+      this.totalSize = e.total;
+      break;
+    case 'abort':
+      this.state = 'ERROR';
+      this.error = 'Upload aborted';
+      break;
+    case 'error':
+      this.state = 'ERROR';
+      this.error = `${this.req.status} - ${this.req.statusText}`;
+      break;
+    case 'loadend':
+      done = true;
+      if (this.req.status === 200) {
+        this.state = 'UPLOADED';
+      } else if (this.state === 'UPLOADING') {
         this.state = 'ERROR';
         this.error = `${this.req.status} - ${this.req.statusText}`;
-        break;
-      case 'loadend':
-        done = true;
-        if (this.req.status === 200) {
-          this.state = 'UPLOADED';
-        } else if (this.state === 'UPLOADING') {
-          this.state = 'ERROR';
-          this.error = `${this.req.status} - ${this.req.statusText}`;
-        }
-        break;
-      default:
-        return;
+      }
+      break;
+    default:
+      return;
     }
     this.onProgress();
     if (done) {
@@ -188,6 +188,6 @@ export async function toSha256(str: string): Promise<string> {
   const buffer = new TextEncoder().encode(str);
   const digest = await crypto.subtle.digest('SHA-256', buffer);
   return Array.from(new Uint8Array(digest))
-      .map((x) => x.toString(16).padStart(2, '0'))
-      .join('');
+    .map((x) => x.toString(16).padStart(2, '0'))
+    .join('');
 }

@@ -60,7 +60,7 @@ function getNestedKey(key: string): Key[] {
 }
 
 function insert<T>(
-    args: ArgNode<T>[], keys: Key[], path: string, value: T): void {
+  args: ArgNode<T>[], keys: Key[], path: string, value: T): void {
   const currentKey = keys.shift()!;
   let node = args.find((x) => x.key === currentKey);
   if (!node) {

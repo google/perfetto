@@ -113,6 +113,6 @@ export function isString(s: unknown): s is string {
 
 // Given a string enum |enum|, check that |value| is a valid member of |enum|.
 export function isEnumValue<T extends {}>(
-    enm: T, value: unknown): value is T[keyof T] {
+  enm: T, value: unknown): value is T[keyof T] {
   return Object.values(enm).includes(value);
 }

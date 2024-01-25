@@ -105,9 +105,9 @@ export class AdbKey {
   static async GenerateNewKeyPair(): Promise<AdbKey> {
     // Construct a new CryptoKeyPair and keep its private key in JWB format.
     const keyPair = await crypto.subtle.generateKey(
-        ADB_WEB_CRYPTO_ALGORITHM,
-        ADB_WEB_CRYPTO_EXPORTABLE,
-        ADB_WEB_CRYPTO_OPERATIONS);
+      ADB_WEB_CRYPTO_ALGORITHM,
+      ADB_WEB_CRYPTO_EXPORTABLE,
+      ADB_WEB_CRYPTO_OPERATIONS);
     const jwkPrivate = await crypto.subtle.exportKey('jwk', keyPair.privateKey);
     if (!isValidJsonWebKey(jwkPrivate)) {
       throw new RecordingError('Could not generate a valid private key.');
@@ -130,14 +130,14 @@ export class AdbKey {
   sign(token: Uint8Array): Uint8Array {
     const rsaKey = new RSAKey();
     rsaKey.setPrivateEx(
-        hexEncode(base64Decode(this.jwkPrivate.n)),
-        hexEncode(base64Decode(this.jwkPrivate.e)),
-        hexEncode(base64Decode(this.jwkPrivate.d)),
-        hexEncode(base64Decode(this.jwkPrivate.p)),
-        hexEncode(base64Decode(this.jwkPrivate.q)),
-        hexEncode(base64Decode(this.jwkPrivate.dp)),
-        hexEncode(base64Decode(this.jwkPrivate.dq)),
-        hexEncode(base64Decode(this.jwkPrivate.qi)));
+      hexEncode(base64Decode(this.jwkPrivate.n)),
+      hexEncode(base64Decode(this.jwkPrivate.e)),
+      hexEncode(base64Decode(this.jwkPrivate.d)),
+      hexEncode(base64Decode(this.jwkPrivate.p)),
+      hexEncode(base64Decode(this.jwkPrivate.q)),
+      hexEncode(base64Decode(this.jwkPrivate.dp)),
+      hexEncode(base64Decode(this.jwkPrivate.dq)),
+      hexEncode(base64Decode(this.jwkPrivate.qi)));
     assertTrue(rsaKey.n.bitLength() === MODULUS_SIZE_BITS);
 
     // Message Layout (size equals that of the key modulus):
@@ -153,8 +153,8 @@ export class AdbKey {
 
     // add the ASN.1 prefix
     message.set(
-        SIGNING_ASN1_PREFIX,
-        message.length - SIGNING_ASN1_PREFIX.length - token.length);
+      SIGNING_ASN1_PREFIX,
+      message.length - SIGNING_ASN1_PREFIX.length - token.length);
 
     // then the actual token at the end
     message.set(token, message.length - token.length);
@@ -169,8 +169,8 @@ export class AdbKey {
   getPublicKey(): string {
     const rsaKey = new RSAKey();
     rsaKey.setPublic(
-        hexEncode(base64Decode((assertExists(this.jwkPrivate.n)))),
-        hexEncode(base64Decode((assertExists(this.jwkPrivate.e)))));
+      hexEncode(base64Decode((assertExists(this.jwkPrivate.n)))),
+      hexEncode(base64Decode((assertExists(this.jwkPrivate.e)))));
 
     const n0inv = R32.subtract(rsaKey.n.modInverse(R32)).intValue();
     const r = BigInteger.ONE.shiftLeft(1).pow(MODULUS_SIZE_BITS);
@@ -183,11 +183,11 @@ export class AdbKey {
 
     const dvU8 = new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
     dvU8.set(
-        bigIntToFixedByteArray(rsaKey.n, MODULUS_SIZE).reverse(),
-        2 * WORD_SIZE);
+      bigIntToFixedByteArray(rsaKey.n, MODULUS_SIZE).reverse(),
+      2 * WORD_SIZE);
     dvU8.set(
-        bigIntToFixedByteArray(rr, MODULUS_SIZE).reverse(),
-        2 * WORD_SIZE + MODULUS_SIZE);
+      bigIntToFixedByteArray(rr, MODULUS_SIZE).reverse(),
+      2 * WORD_SIZE + MODULUS_SIZE);
 
     dv.setUint32(2 * WORD_SIZE + 2 * MODULUS_SIZE, rsaKey.e, true);
     return base64Encode(dvU8) + ' ui.perfetto.dev';

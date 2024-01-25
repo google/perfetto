@@ -65,11 +65,11 @@ class AnnotationPlugin implements Plugin {
         },
         track: (({trackKey}) => {
           return new ChromeSliceTrack(
-              engine,
-              0,
-              trackKey,
-              id,
-              'annotation',
+            engine,
+            0,
+            trackKey,
+            id,
+            'annotation',
           );
         }),
       });

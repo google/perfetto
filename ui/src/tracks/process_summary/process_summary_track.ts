@@ -67,13 +67,13 @@ export class ProcessSummaryTrack implements Track {
 
   async onCreate(): Promise<void> {
     await this.engine.query(
-        `create virtual table ${this.tableName('window')} using window;`);
+      `create virtual table ${this.tableName('window')} using window;`);
 
     let utids = [this.config.utid];
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (this.config.upid) {
       const threadQuery = await this.engine.query(
-          `select utid from thread where upid=${this.config.upid}`);
+        `select utid from thread where upid=${this.config.upid}`);
       utids = [];
       for (const it = threadQuery.iter({utid: NUM}); it.valid(); it.next()) {
         utids.push(it.utid);
@@ -81,7 +81,7 @@ export class ProcessSummaryTrack implements Track {
     }
 
     const trackQuery = await this.engine.query(
-        `select id from thread_track where utid in (${utids.join(',')})`);
+      `select id from thread_track where utid in (${utids.join(',')})`);
     const tracks = [];
     for (const it = trackQuery.iter({id: NUM}); it.valid(); it.next()) {
       tracks.push(it.id);
@@ -89,7 +89,7 @@ export class ProcessSummaryTrack implements Track {
 
     const processSliceView = this.tableName('process_slice_view');
     await this.engine.query(
-        `create view ${processSliceView} as ` +
+      `create view ${processSliceView} as ` +
         // 0 as cpu is a dummy column to perform span join on.
         `select ts, dur/${utids.length} as dur ` +
         `from slice s ` +
@@ -124,8 +124,8 @@ export class ProcessSummaryTrack implements Track {
   }
 
   private async computeSummary(
-      start: time, end: time, resolution: duration,
-      bucketSize: duration): Promise<Data> {
+    start: time, end: time, resolution: duration,
+    bucketSize: duration): Promise<Data> {
     const duration = end - start;
     const numBuckets = Math.min(Number(duration / bucketSize), LIMIT);
 
@@ -161,8 +161,8 @@ export class ProcessSummaryTrack implements Track {
   async onDestroy(): Promise<void> {
     if (this.engine.isAlive) {
       await this.engine.query(`drop table if exists ${
-          this.tableName(
-              'window')}; drop table if exists ${this.tableName('span')}`);
+        this.tableName(
+          'window')}; drop table if exists ${this.tableName('span')}`);
     }
     this.fetcher.dispose();
   }
@@ -179,12 +179,12 @@ export class ProcessSummaryTrack implements Track {
     if (data === undefined) return;  // Can't possibly draw anything.
 
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        visibleTimeScale.timeToPx(data.start),
-        visibleTimeScale.timeToPx(data.end));
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      visibleTimeScale.timeToPx(data.start),
+      visibleTimeScale.timeToPx(data.end));
 
     this.renderSummary(ctx, data);
   }

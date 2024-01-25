@@ -159,35 +159,35 @@ export class PanAndZoomHandler implements Disposable {
     let dragStartY = -1;
     let edit = false;
     this.trash.add(new DragGestureHandler(
-        this.element,
-        (x, y) => {
-          if (this.shiftDown) {
-            this.onPanned(prevX - x);
-          } else {
-            this.onSelection(dragStartX, dragStartY, prevX, x, y, edit);
-          }
-          prevX = x;
-        },
-        (x, y) => {
-          prevX = x;
-          dragStartX = x;
-          dragStartY = y;
-          edit = this.editSelection(x);
-          // Set the cursor style based on where the cursor is when the drag
-          // starts.
-          if (edit) {
-            this.element.style.cursor = EDITING_RANGE_CURSOR;
-          } else if (!this.shiftDown) {
-            this.element.style.cursor = DRAG_CURSOR;
-          }
-        },
-        () => {
-          // Reset the cursor now the drag has ended.
-          this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
-          dragStartX = -1;
-          dragStartY = -1;
-          this.endSelection(edit);
-        }));
+      this.element,
+      (x, y) => {
+        if (this.shiftDown) {
+          this.onPanned(prevX - x);
+        } else {
+          this.onSelection(dragStartX, dragStartY, prevX, x, y, edit);
+        }
+        prevX = x;
+      },
+      (x, y) => {
+        prevX = x;
+        dragStartX = x;
+        dragStartY = y;
+        edit = this.editSelection(x);
+        // Set the cursor style based on where the cursor is when the drag
+        // starts.
+        if (edit) {
+          this.element.style.cursor = EDITING_RANGE_CURSOR;
+        } else if (!this.shiftDown) {
+          this.element.style.cursor = DRAG_CURSOR;
+        }
+      },
+      () => {
+        // Reset the cursor now the drag has ended.
+        this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
+        dragStartX = -1;
+        dragStartY = -1;
+        this.endSelection(edit);
+      }));
   }
 
 

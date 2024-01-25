@@ -117,26 +117,26 @@ export class SearchController extends Controller<'main'> {
     this.updateInProgress = true;
     const computeSummary =
         this.update(search, newSpan.start, newSpan.end, newResolution)
-            .then((summary) => {
-              publishSearch(summary);
-            });
+          .then((summary) => {
+            publishSearch(summary);
+          });
 
     const computeResults = this.specificSearch(search).then((searchResults) => {
       publishSearchResult(searchResults);
     });
 
     Promise.all([computeSummary, computeResults])
-        .finally(() => {
-          this.updateInProgress = false;
-          this.run();
-        });
+      .finally(() => {
+        this.updateInProgress = false;
+        this.run();
+      });
   }
 
   onDestroy() {}
 
   private async update(
-      search: string, start: time, end: time,
-      resolution: duration): Promise<SearchSummary> {
+    search: string, start: time, end: time,
+    resolution: duration): Promise<SearchSummary> {
     const searchLiteral = escapeSearchQuery(search);
 
     const quantum = resolution * 10n;
@@ -273,7 +273,7 @@ export class SearchController extends Controller<'main'> {
     };
 
     const it = queryRes.iter(
-        {sliceId: NUM, ts: LONG, source: STR, sourceId: NUM, utid: NUM});
+      {sliceId: NUM, ts: LONG, source: STR, sourceId: NUM, utid: NUM});
     for (; it.valid(); it.next()) {
       let trackId = undefined;
       if (it.source === 'cpu') {

@@ -296,7 +296,7 @@ class ChromeScrollJankPlugin implements Plugin {
       FROM latency_stages stage;`;
 
     await ctx.engine.query(
-        `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
+      `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
     await ctx.engine.query(tableDefSql);
 
     ctx.registerTrack({
@@ -312,7 +312,7 @@ class ChromeScrollJankPlugin implements Plugin {
   private async addScrollJankV3ScrollTrack(ctx: PluginContextTrace):
       Promise<void> {
     await ctx.engine.query(
-        `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
+      `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
 
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#scrollJankV3',

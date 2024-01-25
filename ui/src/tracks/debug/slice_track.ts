@@ -51,7 +51,7 @@ export interface DebugTrackV2CreateConfig {
 }
 
 export class DebugTrackV2 extends
-    CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+  CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   private config: DebugTrackV2Config;
 
   constructor(engine: EngineProxy, ctx: TrackContext) {
@@ -91,7 +91,7 @@ export class DebugTrackV2 extends
       tooltip: 'Close',
       showButton: true,
     }) :
-                                   [];
+      [];
   }
 }
 
@@ -114,12 +114,12 @@ export interface SqlDataSource {
 // once or want to tweak the actions once produced. Otherwise, use
 // addDebugSliceTrack().
 export async function createDebugSliceTrackActions(
-    engine: EngineProxy,
-    data: SqlDataSource,
-    trackName: string,
-    sliceColumns: SliceColumns,
-    argColumns: string[],
-    config?: DebugTrackV2CreateConfig): Promise<DeferredAction<{}>[]> {
+  engine: EngineProxy,
+  data: SqlDataSource,
+  trackName: string,
+  sliceColumns: SliceColumns,
+  argColumns: string[],
+  config?: DebugTrackV2CreateConfig): Promise<DeferredAction<{}>[]> {
   // To prepare displaying the provided data as a track, materialize it and
   // compute depths.
   const debugTrackId = ++debugTrackCount;
@@ -179,13 +179,13 @@ export async function createDebugSliceTrackActions(
 // Adds a debug track immediately. Use createDebugSliceTrackActions() if you
 // want to create many tracks at once.
 export async function addDebugSliceTrack(
-    engine: EngineProxy,
-    data: SqlDataSource,
-    trackName: string,
-    sliceColumns: SliceColumns,
-    argColumns: string[],
-    config?: DebugTrackV2CreateConfig) {
+  engine: EngineProxy,
+  data: SqlDataSource,
+  trackName: string,
+  sliceColumns: SliceColumns,
+  argColumns: string[],
+  config?: DebugTrackV2CreateConfig) {
   const actions = await createDebugSliceTrackActions(
-      engine, data, trackName, sliceColumns, argColumns, config);
+    engine, data, trackName, sliceColumns, argColumns, config);
   globals.dispatchMultiple(actions);
 }

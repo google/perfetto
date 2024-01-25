@@ -53,8 +53,8 @@ export class AdvancedSettings implements
     m.ClassComponent<RecordingSectionAttrs> {
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
     return m(
-        `.record-section${attrs.cssClass}`,
-        m(Probe,
+      `.record-section${attrs.cssClass}`,
+      m(Probe,
           {
             title: 'Advanced ftrace config',
             img: 'rec_ftrace.png',

@@ -172,13 +172,13 @@ class FlagImpl implements Flag {
 
   get(): boolean {
     switch (this.state) {
-      case OverrideState.TRUE:
-        return true;
-      case OverrideState.FALSE:
-        return false;
-      case OverrideState.DEFAULT:
-      default:
-        return this.defaultValue;
+    case OverrideState.TRUE:
+      return true;
+    case OverrideState.FALSE:
+      return false;
+    case OverrideState.DEFAULT:
+    default:
+      return this.defaultValue;
     }
   }
 

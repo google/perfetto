@@ -21,11 +21,11 @@ describe('HSLColor', () => {
     expect(col.cssString).toBe('rgb(39 190 47)');
     expect(new HSLColor({h: 0, s: 0, l: 0}).cssString).toBe('rgb(0 0 0)');
     expect(new HSLColor({h: 0, s: 100, l: 100}).cssString)
-        .toBe('rgb(255 255 255)');
+      .toBe('rgb(255 255 255)');
     expect(new HSLColor({h: 90, s: 25, l: 55}).cssString)
-        .toBe('rgb(140 169 112)');
+      .toBe('rgb(140 169 112)');
     expect(new HSLColor({h: 180, s: 80, l: 40}, 0.7).cssString)
-        .toBe('rgb(20 184 184 / 0.7)');
+      .toBe('rgb(20 184 184 / 0.7)');
   });
 
   test('lighten', () => {
@@ -48,14 +48,14 @@ describe('HSLColor', () => {
   test('perceivedBrightness', () => {
     // Test a few obviously light/dark colours.
     expect(new HSLColor({h: 0, s: 0, l: 0}).perceivedBrightness)
-        .toBeLessThan(128);
+      .toBeLessThan(128);
     expect(new HSLColor({h: 0, s: 0, l: 100}).perceivedBrightness)
-        .toBeGreaterThan(128);
+      .toBeGreaterThan(128);
 
     expect(new HSLColor({h: 0, s: 0, l: 40}).perceivedBrightness)
-        .toBeLessThan(128);
+      .toBeLessThan(128);
     expect(new HSLColor({h: 0, s: 0, l: 60}).perceivedBrightness)
-        .toBeGreaterThan(128);
+      .toBeGreaterThan(128);
   });
 });
 
@@ -66,11 +66,11 @@ describe('HSLuvColor', () => {
     expect(col.cssString).toBe('rgb(69 117 58)');
     expect(new HSLColor({h: 0, s: 0, l: 0}).cssString).toBe('rgb(0 0 0)');
     expect(new HSLColor({h: 0, s: 100, l: 100}).cssString)
-        .toBe('rgb(255 255 255)');
+      .toBe('rgb(255 255 255)');
     expect(new HSLuvColor({h: 90, s: 25, l: 55}).cssString)
-        .toBe('rgb(131 133 112)');
+      .toBe('rgb(131 133 112)');
     expect(new HSLuvColor({h: 240, s: 100, l: 100}, 0.3).cssString)
-        .toBe('rgb(254 255 255 / 0.3)');
+      .toBe('rgb(254 255 255 / 0.3)');
   });
 
   test('lighten', () => {
@@ -93,14 +93,14 @@ describe('HSLuvColor', () => {
   test('perceivedBrightness', () => {
     // Test a few obviously light/dark colours.
     expect(new HSLuvColor({h: 0, s: 0, l: 0}).perceivedBrightness)
-        .toBeLessThan(128);
+      .toBeLessThan(128);
     expect(new HSLuvColor({h: 0, s: 0, l: 100}).perceivedBrightness)
-        .toBeGreaterThan(128);
+      .toBeGreaterThan(128);
 
     expect(new HSLuvColor({h: 0, s: 0, l: 40}).perceivedBrightness)
-        .toBeLessThan(128);
+      .toBeLessThan(128);
     expect(new HSLuvColor({h: 0, s: 0, l: 60}).perceivedBrightness)
-        .toBeGreaterThan(128);
+      .toBeGreaterThan(128);
   });
 });
 

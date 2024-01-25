@@ -40,9 +40,9 @@ export class LinuxPerfSettings implements
   config = {targets: []} as LinuxPerfConfiguration;
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
     return m(
-        `.record-section${attrs.cssClass}`,
-        m(
-            Probe,
+      `.record-section${attrs.cssClass}`,
+      m(
+        Probe,
             {
               title: 'Callstack sampling',
               img: 'rec_profiling.png',
@@ -67,6 +67,6 @@ export class LinuxPerfSettings implements
               },
               get: (cfg) => cfg.targetCmdLine.join('\n'),
             } as TextareaAttrs),
-            ));
+      ));
   }
 }

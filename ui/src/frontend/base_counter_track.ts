@@ -164,11 +164,11 @@ export abstract class BaseCounterTrack implements Track {
   // it manually, if they want to customise rendering track buttons.
   protected getCounterContextMenu(): m.Child {
     return m(
-        PopupMenu2,
-        {
-          trigger: m(Button, {icon: 'show_chart', minimal: true}),
-        },
-        this.getCounterContextMenuItems(),
+      PopupMenu2,
+      {
+        trigger: m(Button, {icon: 'show_chart', minimal: true}),
+      },
+      this.getCounterContextMenuItems(),
     );
   }
 
@@ -241,7 +241,7 @@ export abstract class BaseCounterTrack implements Track {
 
     if (this.getRenderOptions().yRange === 'viewport') {
       const visValuesRange = this.getVisibleValuesRange(
-          data.timestamps, minValues, maxValues, vizTime);
+        data.timestamps, minValues, maxValues, vizTime);
       minimumValue = visValuesRange.minValue;
       maximumValue = visValuesRange.maxValue;
     }
@@ -336,8 +336,8 @@ export abstract class BaseCounterTrack implements Track {
 
       const xStart = Math.floor(timeScale.timeToPx(this.hoveredTs));
       const xEnd = this.hoveredTsEnd === undefined ?
-          endPx :
-          Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
+        endPx :
+        Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
       const y = MARGIN_TOP + effectiveHeight -
           Math.round(((this.hoveredValue - yMin) / yRange) * effectiveHeight);
 
@@ -352,7 +352,7 @@ export abstract class BaseCounterTrack implements Track {
       // Draw change marker.
       ctx.beginPath();
       ctx.arc(
-          xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
+        xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
       ctx.fill();
       ctx.stroke();
 
@@ -381,12 +381,12 @@ export abstract class BaseCounterTrack implements Track {
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        timeScale.timeToPx(this.countersKey.start),
-        timeScale.timeToPx(this.countersKey.end));
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      timeScale.timeToPx(this.countersKey.start),
+      timeScale.timeToPx(this.countersKey.end));
   }
 
   onMouseMove(pos: {x: number, y: number}) {
@@ -421,17 +421,17 @@ export abstract class BaseCounterTrack implements Track {
   // entire range of possible values or the values visible on the screen. This
   // method computes the latter.
   private getVisibleValuesRange(
-      timestamps: BigInt64Array, minValues: Float64Array,
-      maxValues: Float64Array, visibleWindowTime: Span<HighPrecisionTime>):
+    timestamps: BigInt64Array, minValues: Float64Array,
+    maxValues: Float64Array, visibleWindowTime: Span<HighPrecisionTime>):
       {minValue: number, maxValue: number} {
     let minValue = undefined;
     let maxValue = undefined;
     for (let i = 0; i < timestamps.length; ++i) {
       const next = i + 1 < timestamps.length ?
-          HighPrecisionTime.fromNanos(timestamps[i + 1]) :
-          HighPrecisionTime.fromTime(globals.state.traceTime.end);
+        HighPrecisionTime.fromNanos(timestamps[i + 1]) :
+        HighPrecisionTime.fromTime(globals.state.traceTime.end);
       if (visibleWindowTime.intersects(
-              HighPrecisionTime.fromNanos(timestamps[i]), next)) {
+        HighPrecisionTime.fromNanos(timestamps[i]), next)) {
         if (minValue === undefined) {
           minValue = minValues[i];
         } else {
@@ -548,7 +548,7 @@ export abstract class BaseCounterTrack implements Track {
 
       this.sqlState = 'QUERY_DONE';
     } else if (
-        this.sqlState === 'INITIALIZING' || this.sqlState === 'QUERY_PENDING') {
+      this.sqlState === 'INITIALIZING' || this.sqlState === 'QUERY_PENDING') {
       return;
     }
 
@@ -559,7 +559,7 @@ export abstract class BaseCounterTrack implements Track {
     const countersKey = rawCountersKey.normalize();
     if (!rawCountersKey.isCoveredBy(countersKey)) {
       throw new Error(`Normalization error ${countersKey.toString()} ${
-          rawCountersKey.toString()}`);
+        rawCountersKey.toString()}`);
     }
 
     const maybeCachedCounters = this.cache.lookup(countersKey);

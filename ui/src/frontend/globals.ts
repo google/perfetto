@@ -312,8 +312,8 @@ class Globals {
   engines = new Map<string, Engine>();
 
   initialize(
-      dispatch: Dispatch, router: Router, initialState: State,
-      cmdManager: CommandManager) {
+    dispatch: Dispatch, router: Router, initialState: State,
+    cmdManager: CommandManager) {
     this._dispatch = dispatch;
     this._router = router;
     this._store = createStore(initialState);
@@ -321,8 +321,8 @@ class Globals {
     this._timeline = new Timeline();
 
     setPerfHooks(
-        () => this.state.perfDebug,
-        () => this.dispatch(Actions.togglePerfDebug({})));
+      () => this.state.perfDebug,
+      () => this.dispatch(Actions.togglePerfDebug({})));
 
     this._serviceWorkerController = new ServiceWorkerController();
     this._testing =
@@ -653,8 +653,8 @@ class Globals {
       // the set of selected tracks via toggling per-track checkboxes.
       // Fix that.
       onSelectionChanged(
-          this.state.currentSelection ?? undefined,
-          tab === 'current_selection');
+        this.state.currentSelection ?? undefined,
+        tab === 'current_selection');
     }
   }
 
@@ -788,19 +788,19 @@ class Globals {
   timestampOffset(): time {
     const fmt = timestampFormat();
     switch (fmt) {
-      case TimestampFormat.Timecode:
-      case TimestampFormat.Seconds:
-        return this.state.traceTime.start;
-      case TimestampFormat.Raw:
-      case TimestampFormat.RawLocale:
-        return Time.ZERO;
-      case TimestampFormat.UTC:
-        return this.utcOffset;
-      case TimestampFormat.TraceTz:
-        return this.traceTzOffset;
-      default:
-        const x: never = fmt;
-        throw new Error(`Unsupported format ${x}`);
+    case TimestampFormat.Timecode:
+    case TimestampFormat.Seconds:
+      return this.state.traceTime.start;
+    case TimestampFormat.Raw:
+    case TimestampFormat.RawLocale:
+      return Time.ZERO;
+    case TimestampFormat.UTC:
+      return this.utcOffset;
+    case TimestampFormat.TraceTz:
+      return this.traceTzOffset;
+    default:
+      const x: never = fmt;
+      throw new Error(`Unsupported format ${x}`);
     }
   }
 
@@ -816,7 +816,7 @@ class Globals {
     if (selection === null) {
       return {start, end};
     } else if (
-        selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
+      selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
       const slice = this.sliceDetails;
       if (slice.ts && slice.dur !== undefined && slice.dur > 0) {
         start = slice.ts;
@@ -827,7 +827,7 @@ class Globals {
         // a)slice.dur === -1 -> unfinished slice
         // b)slice.dur === 0  -> instant event
         end = slice.dur === -1n ? Time.add(start, INCOMPLETE_SLICE_DURATION) :
-                                  Time.add(start, INSTANT_FOCUS_DURATION);
+          Time.add(start, INSTANT_FOCUS_DURATION);
       }
     } else if (selection.kind === 'THREAD_STATE') {
       const threadState = this.threadStateDetails;

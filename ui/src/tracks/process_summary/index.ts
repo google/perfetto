@@ -310,7 +310,7 @@ class ProcessSummaryPlugin implements Plugin {
 
   getUuidUnchecked(utid: number, upid: number|null) {
     return upid === null ? this.utidToUuid.get(utid) :
-                           this.upidToUuid.get(upid);
+      this.upidToUuid.get(upid);
   }
 }
 

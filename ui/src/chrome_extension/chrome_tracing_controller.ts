@@ -46,13 +46,13 @@ export class ChromeTracingController extends RpcConsumerPort {
   constructor(port: chrome.runtime.Port) {
     super({
       onConsumerPortResponse: (message: ConsumerPortResponse) =>
-          this.uiPort.postMessage(message),
+        this.uiPort.postMessage(message),
 
       onError: (error: string) =>
-          this.uiPort.postMessage({type: 'ChromeExtensionError', error}),
+        this.uiPort.postMessage({type: 'ChromeExtensionError', error}),
 
       onStatus: (status) =>
-          this.uiPort.postMessage({type: 'ChromeExtensionStatus', status}),
+        this.uiPort.postMessage({type: 'ChromeExtensionStatus', status}),
     });
     this.uiPort = port;
     this.devtoolsSocket = new DevToolsSocket();
@@ -68,28 +68,28 @@ export class ChromeTracingController extends RpcConsumerPort {
 
   handleCommand(methodName: string, requestData: Uint8Array) {
     switch (methodName) {
-      case 'EnableTracing':
-        this.enableTracing(requestData);
-        break;
-      case 'FreeBuffers':
-        this.freeBuffers();
-        break;
-      case 'ReadBuffers':
-        this.readBuffers();
-        break;
-      case 'DisableTracing':
-        this.disableTracing();
-        break;
-      case 'GetTraceStats':
-        this.getTraceStats();
-        break;
-      case 'GetCategories':
-        this.getCategories();
-        break;
-      default:
-        this.sendErrorMessage('Action not recognized');
-        console.log('Received not recognized message: ', methodName);
-        break;
+    case 'EnableTracing':
+      this.enableTracing(requestData);
+      break;
+    case 'FreeBuffers':
+      this.freeBuffers();
+      break;
+    case 'ReadBuffers':
+      this.readBuffers();
+      break;
+    case 'DisableTracing':
+      this.disableTracing();
+      break;
+    case 'GetTraceStats':
+      this.getTraceStats();
+      break;
+    case 'GetCategories':
+      this.getCategories();
+      break;
+    default:
+      this.sendErrorMessage('Action not recognized');
+      console.log('Received not recognized message: ', methodName);
+      break;
     }
   }
 
@@ -106,10 +106,10 @@ export class ChromeTracingController extends RpcConsumerPort {
 
   toCamelCase(key: string, separator: string): string {
     return key.split(separator)
-        .map((part, index) => {
-          return (index === 0) ? part : part[0].toUpperCase() + part.slice(1);
-        })
-        .join('');
+      .map((part, index) => {
+        return (index === 0) ? part : part[0].toUpperCase() + part.slice(1);
+      })
+      .join('');
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -167,7 +167,7 @@ export class ChromeTracingController extends RpcConsumerPort {
     }
 
     const res = await this.api.IO.read(
-        {handle: this.streamHandle, offset, size: CHUNK_SIZE});
+      {handle: this.streamHandle, offset, size: CHUNK_SIZE});
     if (res === undefined) return;
 
     const chunk = res.base64Encoded ? atob(res.data) : res.data;
@@ -226,7 +226,7 @@ export class ChromeTracingController extends RpcConsumerPort {
     this.devtoolsSocket.attachToBrowser(async (error?: string) => {
       if (error) {
         this.sendErrorMessage(
-            `Could not attach to DevTools browser target ` +
+          `Could not attach to DevTools browser target ` +
             `(req. Chrome >= M81): ${error}`);
         return;
       }
@@ -253,7 +253,7 @@ export class ChromeTracingController extends RpcConsumerPort {
     this.devtoolsSocket.attachToBrowser(async (error?: string) => {
       if (error) {
         this.sendErrorMessage(
-            `Could not attach to DevTools browser target ` +
+          `Could not attach to DevTools browser target ` +
             `(req. Chrome >= M81): ${error}`);
         return;
       }
@@ -269,26 +269,26 @@ export class ChromeTracingController extends RpcConsumerPort {
       if (browserSupportsPerfettoConfig()) {
         const configEncoded = base64Encode(traceConfigProto);
         await this.api.Tracing.start(
-            {perfettoConfig: configEncoded, ...requestParams});
+          {perfettoConfig: configEncoded, ...requestParams});
         this.tracingSessionOngoing = true;
         const tracingSessionId = ++this.tracingSessionId;
         setTimeout(
-            () => this.endTracing(tracingSessionId), traceConfig.durationMs);
+          () => this.endTracing(tracingSessionId), traceConfig.durationMs);
       } else {
         console.log(
-            'Used Chrome version is too old to support ' +
+          'Used Chrome version is too old to support ' +
             'perfettoConfig parameter. Using chrome config only instead.');
 
         if (hasSystemDataSourceConfig(traceConfig)) {
           this.sendErrorMessage(
-              'System tracing is not supported by this Chrome version. Choose' +
+            'System tracing is not supported by this Chrome version. Choose' +
               ' the \'Chrome\' target instead to record a Chrome-only trace.');
           return;
         }
 
         const chromeConfig = this.extractChromeConfig(traceConfig);
         await this.api.Tracing.start(
-            {traceConfig: chromeConfig, ...requestParams});
+          {traceConfig: chromeConfig, ...requestParams});
       }
     });
   }

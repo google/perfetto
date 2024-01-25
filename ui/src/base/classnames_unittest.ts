@@ -28,19 +28,19 @@ test('example usecase with flags', () => {
   const bar = false;
   const baz = true;
   expect(classNames(
-             foo && 'foo',
-             bar && 'bar',
-             baz && 'baz',
-             ))
-      .toEqual('foo baz');
+    foo && 'foo',
+    bar && 'bar',
+    baz && 'baz',
+  ))
+    .toEqual('foo baz');
 });
 
 test('example usecase with possibly undefined classnames', () => {
   let fooClass: string|undefined;
   const barClass = 'bar';
   expect(classNames(
-             fooClass,
-             barClass,
-             ))
-      .toEqual('bar');
+    fooClass,
+    barClass,
+  ))
+    .toEqual('bar');
 });

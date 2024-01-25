@@ -518,7 +518,7 @@ function bleScanQuery(condition: string) {
       from step1
   )
   select ts, dur, name from step2 where state = 'ON' and ${
-      condition} and dur is not null`;
+  condition} and dur is not null`;
 }
 
 const BLE_RESULTS = `
@@ -771,18 +771,18 @@ class AndroidLongBatteryTracing implements Plugin {
   onActivate(_: PluginContext): void {}
 
   async addSliceTrack(
-      engine: EngineProxy, name: string, query: string, groupId: string,
-      columns: string[] = []): Promise<DeferredAction<{}>> {
+    engine: EngineProxy, name: string, query: string, groupId: string,
+    columns: string[] = []): Promise<DeferredAction<{}>> {
     const actions = await createDebugSliceTrackActions(
-        engine,
-        {
-          sqlSource: query,
-          columns: ['ts', 'dur', 'name', ...columns],
-        },
-        name,
-        {ts: 'ts', dur: 'dur', name: 'name'},
-        columns,
-        {closeable: false, pinned: false},
+      engine,
+      {
+        sqlSource: query,
+        columns: ['ts', 'dur', 'name', ...columns],
+      },
+      name,
+      {ts: 'ts', dur: 'dur', name: 'name'},
+      columns,
+      {closeable: false, pinned: false},
     );
     if (actions.length > 1) {
       throw new Error();
@@ -796,17 +796,17 @@ class AndroidLongBatteryTracing implements Plugin {
   }
 
   async addCounterTrack(
-      engine: EngineProxy, name: string, query: string,
-      groupId: string): Promise<DeferredAction<{}>> {
+    engine: EngineProxy, name: string, query: string,
+    groupId: string): Promise<DeferredAction<{}>> {
     const actions = await createDebugCounterTrackActions(
-        engine,
-        {
-          sqlSource: query,
-          columns: ['ts', 'value'],
-        },
-        name,
-        {ts: 'ts', value: 'value'},
-        {closeable: false, pinned: false},
+      engine,
+      {
+        sqlSource: query,
+        columns: ['ts', 'value'],
+      },
+      name,
+      {ts: 'ts', value: 'value'},
+      {closeable: false, pinned: false},
     );
     if (actions.length > 1) {
       throw new Error();
@@ -826,46 +826,46 @@ class AndroidLongBatteryTracing implements Plugin {
       this.addSliceTrack(e, 'Default network', DEFAULT_NETWORK, groupId),
       this.addSliceTrack(e, 'Tethering', TETHERING, groupId),
       this.addCounterTrack(
-          e,
-          'Wifi bytes (logscale)',
-          `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'wifi' group by 1`,
-          groupId),
+        e,
+        'Wifi bytes (logscale)',
+        `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'wifi' group by 1`,
+        groupId),
       this.addCounterTrack(
-          e,
-          'Wifi TX bytes (logscale)',
-          `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'tx'`,
-          groupId),
+        e,
+        'Wifi TX bytes (logscale)',
+        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'tx'`,
+        groupId),
       this.addCounterTrack(
-          e,
-          'Wifi RX bytes (logscale)',
-          `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'rx'`,
-          groupId),
+        e,
+        'Wifi RX bytes (logscale)',
+        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'rx'`,
+        groupId),
       this.addCounterTrack(
-          e,
-          'Modem bytes (logscale)',
-          `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'modem' group by 1`,
-          groupId),
+        e,
+        'Modem bytes (logscale)',
+        `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'modem' group by 1`,
+        groupId),
       this.addCounterTrack(
-          e,
-          'Modem TX bytes (logscale)',
-          `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'tx'`,
-          groupId),
+        e,
+        'Modem TX bytes (logscale)',
+        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'tx'`,
+        groupId),
       this.addCounterTrack(
-          e,
-          'Modem RX bytes (logscale)',
-          `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'rx'`,
-          groupId),
+        e,
+        'Modem RX bytes (logscale)',
+        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'rx'`,
+        groupId),
     ]);
   }
 
   async addModemActivityInfo(e: EngineProxy, groupId: string):
       Promise<DeferredAction<{}>[]> {
     const query = (name: string, col: string): Promise<DeferredAction<{}>> =>
-        this.addCounterTrack(
-            e,
-            name,
-            `select ts, ${col}_ratio as value from modem_activity_info`,
-            groupId);
+      this.addCounterTrack(
+        e,
+        name,
+        `select ts, ${col}_ratio as value from modem_activity_info`,
+        groupId);
 
     await e.query(MODEM_ACTIVITY_INFO);
     return await Promise.all([
@@ -888,11 +888,11 @@ class AndroidLongBatteryTracing implements Plugin {
     const actions: Promise<DeferredAction<{}>>[] = [];
     for (; it.valid(); it.next()) {
       actions.push(this.addSliceTrack(
-          e,
-          it.wakelock_name,
-          `select ts, dur, name from kernel_wakelocks where wakelock_name = "${
-              it.wakelock_name}"`,
-          groupId));
+        e,
+        it.wakelock_name,
+        `select ts, dur, name from kernel_wakelocks where wakelock_name = "${
+          it.wakelock_name}"`,
+        groupId));
     }
     return await Promise.all(actions);
   }
@@ -929,19 +929,19 @@ class AndroidLongBatteryTracing implements Plugin {
     const actions: Promise<DeferredAction<{}>>[] = [];
     for (; it.valid(); it.next()) {
       actions.push(this.addSliceTrack(
-          e,
-          `Wakeup ${it.item}`,
-          `${sqlPrefix} where item="${it.item}"`,
-          groupId,
-          WAKEUPS_COLUMNS));
+        e,
+        `Wakeup ${it.item}`,
+        `${sqlPrefix} where item="${it.item}"`,
+        groupId,
+        WAKEUPS_COLUMNS));
       items.push(it.item);
     }
     actions.push(this.addSliceTrack(
-        e,
-        'Other wakeups',
-        `${sqlPrefix} where item not in ('${items.join('\',\'')}')`,
-        groupId,
-        WAKEUPS_COLUMNS));
+      e,
+      'Other wakeups',
+      `${sqlPrefix} where item not in ('${items.join('\',\'')}')`,
+      groupId,
+      WAKEUPS_COLUMNS));
     return await Promise.all(actions);
   }
 
@@ -949,16 +949,16 @@ class AndroidLongBatteryTracing implements Plugin {
       Promise<DeferredAction<{}>[]> {
     await e.query(HIGH_CPU);
     const result = await e.query(
-        `select distinct pkg, cluster from high_cpu where value > 10 order by 1, 2`);
+      `select distinct pkg, cluster from high_cpu where value > 10 order by 1, 2`);
     const it = result.iter({pkg: 'str', cluster: 'str'});
     const actions: Promise<DeferredAction<{}>>[] = [];
     for (; it.valid(); it.next()) {
       actions.push(this.addCounterTrack(
-          e,
-          `CPU (${it.cluster}): ${it.pkg}`,
-          `select ts, value from high_cpu where pkg = "${
-              it.pkg}" and cluster="${it.cluster}"`,
-          groupId));
+        e,
+        `CPU (${it.cluster}): ${it.pkg}`,
+        `select ts, value from high_cpu where pkg = "${
+          it.pkg}" and cluster="${it.cluster}"`,
+        groupId));
     }
     return await Promise.all(actions);
   }
@@ -967,40 +967,40 @@ class AndroidLongBatteryTracing implements Plugin {
       Promise<DeferredAction<{}>[]> {
     return await Promise.all([
       this.addSliceTrack(
-          e,
-          'BLE Scans (opportunistic)',
-          bleScanQuery('opportunistic'),
-          groupId),
+        e,
+        'BLE Scans (opportunistic)',
+        bleScanQuery('opportunistic'),
+        groupId),
       this.addSliceTrack(
-          e, 'BLE Scans (filtered)', bleScanQuery('filtered'), groupId),
+        e, 'BLE Scans (filtered)', bleScanQuery('filtered'), groupId),
       this.addSliceTrack(
-          e, 'BLE Scans (unfiltered)', bleScanQuery('not filtered'), groupId),
+        e, 'BLE Scans (unfiltered)', bleScanQuery('not filtered'), groupId),
       this.addSliceTrack(e, 'BLE Scan Results', BLE_RESULTS, groupId),
       this.addSliceTrack(e, 'Connections (ACL)', BT_CONNS_ACL, groupId),
       this.addSliceTrack(e, 'Connections (SCO)', BT_CONNS_SCO, groupId),
       this.addSliceTrack(
-          e,
-          'Link-level Events',
-          BT_LINK_LEVEL_EVENTS,
-          groupId,
-          BT_LINK_LEVEL_EVENTS_COLUMNS),
+        e,
+        'Link-level Events',
+        BT_LINK_LEVEL_EVENTS,
+        groupId,
+        BT_LINK_LEVEL_EVENTS_COLUMNS),
       this.addSliceTrack(e, 'A2DP Audio', BT_A2DP_AUDIO, groupId),
       this.addSliceTrack(
-          e,
-          'Quality reports',
-          BT_QUALITY_REPORTS,
-          groupId,
-          BT_QUALITY_REPORTS_COLUMNS),
+        e,
+        'Quality reports',
+        BT_QUALITY_REPORTS,
+        groupId,
+        BT_QUALITY_REPORTS_COLUMNS),
       this.addSliceTrack(
-          e, 'RSSI Reports', BT_RSSI_REPORTS, groupId, BT_RSSI_REPORTS_COLUMNS),
+        e, 'RSSI Reports', BT_RSSI_REPORTS, groupId, BT_RSSI_REPORTS_COLUMNS),
       this.addSliceTrack(
-          e, 'HAL Crashes', BT_HAL_CRASHES, groupId, BT_HAL_CRASHES_COLUMNS),
+        e, 'HAL Crashes', BT_HAL_CRASHES, groupId, BT_HAL_CRASHES_COLUMNS),
       this.addSliceTrack(
-          e,
-          'Code Path Counter',
-          BT_CODE_PATH_COUNTER,
-          groupId,
-          BT_CODE_PATH_COUNTER_COLUMNS),
+        e,
+        'Code Path Counter',
+        BT_CODE_PATH_COUNTER,
+        groupId,
+        BT_CODE_PATH_COUNTER_COLUMNS),
     ]);
   }
 
@@ -1055,7 +1055,7 @@ class AndroidLongBatteryTracing implements Plugin {
         const cpuId = addGroup('CPU');
         const btId = addGroup('Bluetooth');
         actions.push(await this.addSliceTrack(
-            ctx.engine, 'Thermal throttling', THERMAL_THROTTLING, miscGroupId));
+          ctx.engine, 'Thermal throttling', THERMAL_THROTTLING, miscGroupId));
 
         const promises: Promise<DeferredAction<{}>[]>[] = [
           this.addNetworkSummary(ctx.engine, networkId),

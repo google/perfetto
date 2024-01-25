@@ -27,21 +27,21 @@ export class Checkbox implements m.ClassComponent<CheckboxAttrs> {
   view({attrs}: m.CVnode<CheckboxAttrs>) {
     const {label, disabled, checked, className, ...htmlAttrs} = attrs;
     const classes = classNames(
-        disabled && 'pf-disabled',
-        className,
+      disabled && 'pf-disabled',
+      className,
     );
 
     // The default checkbox is removed and an entirely new one created inside
     // the span element in CSS.
     return m(
-        'label.pf-checkbox',
-        {
-          ...htmlAttrs,
-          className: classes,
-        },
-        m('input[type=checkbox]', {disabled, checked}),
-        m('span'),
-        label,
+      'label.pf-checkbox',
+      {
+        ...htmlAttrs,
+        className: classes,
+      },
+      m('input[type=checkbox]', {disabled, checked}),
+      m('span'),
+      label,
     );
   }
 }

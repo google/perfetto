@@ -33,7 +33,7 @@ class SchedPlugin implements Plugin {
     ctx.registerTrack({
       uri: RunnableThreadCountTrack.kind,
       track: (trackCtx) => new RunnableThreadCountTrack(
-          {engine: ctx.engine, trackKey: trackCtx.trackKey}),
+        {engine: ctx.engine, trackKey: trackCtx.trackKey}),
     });
     ctx.registerTrack({
       uri: ActiveCPUCountTrack.kind,

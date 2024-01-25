@@ -111,15 +111,15 @@ export class LogPanel implements m.ClassComponent {
 
     const rows: m.Children = [];
     rows.push(
-        m(`.row`,
-          m('.cell.row-header', 'Timestamp'),
-          m('.cell.row-header', 'Level'),
-          m('.cell.row-header', 'Tag'),
-          hasProcessNames ? m('.cell.with-process.row-header', 'Process name') :
-                            undefined,
-          hasProcessNames ? m('.cell.with-process.row-header', 'Message') :
-                            m('.cell.no-process.row-header', 'Message'),
-          m('br')));
+      m(`.row`,
+        m('.cell.row-header', 'Timestamp'),
+        m('.cell.row-header', 'Level'),
+        m('.cell.row-header', 'Tag'),
+        hasProcessNames ? m('.cell.with-process.row-header', 'Process name') :
+          undefined,
+        hasProcessNames ? m('.cell.with-process.row-header', 'Message') :
+          m('.cell.no-process.row-header', 'Message'),
+        m('br')));
     if (this.entries) {
       const offset = this.entries.offset;
       const timestamps = this.entries.timestamps;
@@ -140,39 +140,39 @@ export class LogPanel implements m.ClassComponent {
         }
 
         rows.push(
-            m(`.row.${prioClass}`,
-              {
-                'class': isStale ? 'stale' : '',
-                style,
-                'onmouseover': this.onRowOver.bind(this, ts),
-                'onmouseout': this.onRowOut.bind(this),
-              },
-              m('.cell', m(Timestamp, {ts})),
-              m('.cell', priorityLetter || '?'),
-              m('.cell', tags[i]),
-              hasProcessNames ? m('.cell.with-process', processNames[i]) :
-                                undefined,
-              hasProcessNames ? m('.cell.with-process', messages[i]) :
-                                m('.cell.no-process', messages[i]),
-              m('br')));
+          m(`.row.${prioClass}`,
+            {
+              'class': isStale ? 'stale' : '',
+              style,
+              'onmouseover': this.onRowOver.bind(this, ts),
+              'onmouseout': this.onRowOut.bind(this),
+            },
+            m('.cell', m(Timestamp, {ts})),
+            m('.cell', priorityLetter || '?'),
+            m('.cell', tags[i]),
+            hasProcessNames ? m('.cell.with-process', processNames[i]) :
+              undefined,
+            hasProcessNames ? m('.cell.with-process', messages[i]) :
+              m('.cell.no-process', messages[i]),
+            m('br')));
       }
     }
 
     // TODO(stevegolton): Add a 'loading' state to DetailsShell, which shows a
     // scrolling scrolly bar at the bottom of the banner & map isStale to it
     return m(
-        DetailsShell,
-        {
-          title: 'Android Logs',
-          description: `[${offset}, ${offset + count}] / ${total}`,
-          buttons: m(LogsFilters),
-        },
-        m(
-            VirtualScrollContainer,
-            {onScroll: this.onScroll},
-            m('.log-panel',
-              m('.rows', {style: {height: `${total * ROW_H}px`}}, rows)),
-            ),
+      DetailsShell,
+      {
+        title: 'Android Logs',
+        description: `[${offset}, ${offset + count}] / ${total}`,
+        buttons: m(LogsFilters),
+      },
+      m(
+        VirtualScrollContainer,
+        {onScroll: this.onScroll},
+        m('.log-panel',
+          m('.rows', {style: {height: `${total * ROW_H}px`}}, rows)),
+      ),
     );
   }
 }

@@ -81,8 +81,8 @@ export class TimeWindow {
     this.hpTimeSpan =
         new HighPrecisionTimeSpan(start, start.addNanos(durationNanos));
     this.timeSpan = new TimeSpan(
-        this.hpTimeSpan.start.toTime('floor'),
-        this.hpTimeSpan.end.toTime('ceil'));
+      this.hpTimeSpan.start.toTime('floor'),
+      this.hpTimeSpan.end.toTime('ceil'));
   }
 
   static fromHighPrecisionTimeSpan(span: Span<HighPrecisionTime>): TimeWindow {
@@ -92,7 +92,7 @@ export class TimeWindow {
   // Pan the window by certain number of seconds
   pan(offset: HighPrecisionTime) {
     return new TimeWindow(
-        this.hpTimeSpan.start.add(offset), this.hpTimeSpan.duration.nanos);
+      this.hpTimeSpan.start.add(offset), this.hpTimeSpan.duration.nanos);
   }
 
   // Zoom in or out a bit centered on a specific offset from the root
@@ -118,9 +118,9 @@ export class TimeWindow {
 
   createTimeScale(startPx: number, endPx: number): TimeScale {
     return new TimeScale(
-        this.hpTimeSpan.start,
-        this.hpTimeSpan.duration.nanos,
-        new PxSpan(startPx, endPx));
+      this.hpTimeSpan.start,
+      this.hpTimeSpan.duration.nanos,
+      new PxSpan(startPx, endPx));
   }
 
   get earliest(): time {
@@ -160,14 +160,14 @@ export class Timeline {
   zoomVisibleWindow(ratio: number, centerPoint: number) {
     this.visibleWindow = this.visibleWindow.zoom(ratio, centerPoint);
     this._timeScale = this.visibleWindow.createTimeScale(
-        this._windowSpan.start, this._windowSpan.end);
+      this._windowSpan.start, this._windowSpan.end);
     this.kickUpdateLocalState();
   }
 
   panVisibleWindow(delta: HighPrecisionTime) {
     this.visibleWindow = this.visibleWindow.pan(delta);
     this._timeScale = this.visibleWindow.createTimeScale(
-        this._windowSpan.start, this._windowSpan.end);
+      this._windowSpan.start, this._windowSpan.end);
     this.kickUpdateLocalState();
   }
 
@@ -184,19 +184,19 @@ export class Timeline {
     const visibleStateWasUpdated = previousVisibleState !== this._visibleState;
     if (visibleStateWasUpdated) {
       this.updateLocalTime(new HighPrecisionTimeSpan(
-          HighPrecisionTime.fromTime(this._visibleState.start),
-          HighPrecisionTime.fromTime(this._visibleState.end),
-          ));
+        HighPrecisionTime.fromTime(this._visibleState.start),
+        HighPrecisionTime.fromTime(this._visibleState.end),
+      ));
     }
   }
 
   // Set the highlight box to draw
   selectArea(
-      start: time, end: time,
-      tracks = this._selectedArea ? this._selectedArea.tracks : []) {
+    start: time, end: time,
+    tracks = this._selectedArea ? this._selectedArea.tracks : []) {
     assertTrue(
-        end >= start,
-        `Impossible select area: start [${start}] >= end [${end}]`);
+      end >= start,
+      `Impossible select area: start [${start}] >= end [${end}]`);
     this._selectedArea = {start, end, tracks};
     raf.scheduleFullRedraw();
   }
@@ -219,9 +219,9 @@ export class Timeline {
     const start = ts.start.clamp(traceBounds.start, traceBounds.end);
     const end = ts.end.clamp(traceBounds.start, traceBounds.end);
     this.visibleWindow = TimeWindow.fromHighPrecisionTimeSpan(
-        new HighPrecisionTimeSpan(start, end));
+      new HighPrecisionTimeSpan(start, end));
     this._timeScale = this.visibleWindow.createTimeScale(
-        this._windowSpan.start, this._windowSpan.end);
+      this._windowSpan.start, this._windowSpan.end);
     this.updateResolution();
   }
 

@@ -94,7 +94,7 @@ class FramesPlugin implements Plugin {
       }
 
       const displayName = getTrackName(
-          {name: trackName, upid, pid, processName, kind: 'ExpectedFrames'});
+        {name: trackName, upid, pid, processName, kind: 'ExpectedFrames'});
 
       ctx.registerTrack({
         uri: `perfetto.ExpectedFrames#${upid}`,
@@ -103,10 +103,10 @@ class FramesPlugin implements Plugin {
         kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
         track: ({trackKey}) => {
           return new ExpectedFramesTrack(
-              engine,
-              maxDepth,
-              trackKey,
-              trackIds,
+            engine,
+            maxDepth,
+            trackKey,
+            trackIds,
           );
         },
       });
@@ -118,10 +118,10 @@ class FramesPlugin implements Plugin {
         kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
         track: ({trackKey}) => {
           return new ExpectedFramesTrackV2(
-              engine,
-              maxDepth,
-              trackKey,
-              trackIds,
+            engine,
+            maxDepth,
+            trackKey,
+            trackIds,
           );
         },
       });
@@ -185,10 +185,10 @@ class FramesPlugin implements Plugin {
         kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
         track: ({trackKey}) => {
           return new ActualFramesTrack(
-              engine,
-              maxDepth,
-              trackKey,
-              trackIds,
+            engine,
+            maxDepth,
+            trackKey,
+            trackIds,
           );
         },
       });
@@ -200,10 +200,10 @@ class FramesPlugin implements Plugin {
         kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
         track: ({trackKey}) => {
           return new ActualFramesTrackV2(
-              engine,
-              maxDepth,
-              trackKey,
-              trackIds,
+            engine,
+            maxDepth,
+            trackKey,
+            trackIds,
           );
         },
       });

@@ -54,7 +54,7 @@ export interface ActualFrameTrackTypes extends NamedSliceTrackTypes {
 
 export class ActualFramesTrack extends NamedSliceTrack<ActualFrameTrackTypes> {
   constructor(
-      engine: EngineProxy, maxDepth: number, trackKey: string,
+    engine: EngineProxy, maxDepth: number, trackKey: string,
       private trackIds: number[]) {
     super({engine, trackKey});
     this.sliceLayout = {
@@ -95,38 +95,38 @@ export class ActualFramesTrack extends NamedSliceTrack<ActualFrameTrackTypes> {
 }
 
 function getColorSchemeForJank(
-    jankTag: string|null, jankSeverityType: string|null): ColorScheme {
+  jankTag: string|null, jankSeverityType: string|null): ColorScheme {
   if (jankSeverityType === 'Partial') {
     switch (jankTag) {
-      case 'Self Jank':
-        return RED_200;
-      case 'Other Jank':
-        return YELLOW_100;
-      case 'Dropped Frame':
-        return BLUE_200;
-      case 'Buffer Stuffing':
-      case 'SurfaceFlinger Stuffing':
-        return LIGHT_GREEN_100;
-      case 'No Jank':  // should not happen
-        return GREEN_200;
-      default:
-        return PINK_200;
+    case 'Self Jank':
+      return RED_200;
+    case 'Other Jank':
+      return YELLOW_100;
+    case 'Dropped Frame':
+      return BLUE_200;
+    case 'Buffer Stuffing':
+    case 'SurfaceFlinger Stuffing':
+      return LIGHT_GREEN_100;
+    case 'No Jank':  // should not happen
+      return GREEN_200;
+    default:
+      return PINK_200;
     }
   } else {
     switch (jankTag) {
-      case 'Self Jank':
-        return RED_500;
-      case 'Other Jank':
-        return YELLOW_500;
-      case 'Dropped Frame':
-        return BLUE_500;
-      case 'Buffer Stuffing':
-      case 'SurfaceFlinger Stuffing':
-        return LIGHT_GREEN_500;
-      case 'No Jank':
-        return GREEN_500;
-      default:
-        return PINK_500;
+    case 'Self Jank':
+      return RED_500;
+    case 'Other Jank':
+      return YELLOW_500;
+    case 'Dropped Frame':
+      return BLUE_500;
+    case 'Buffer Stuffing':
+    case 'SurfaceFlinger Stuffing':
+      return LIGHT_GREEN_500;
+    case 'No Jank':
+      return GREEN_500;
+    default:
+      return PINK_500;
     }
   }
 }

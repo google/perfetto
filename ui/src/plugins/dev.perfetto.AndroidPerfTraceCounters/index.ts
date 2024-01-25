@@ -49,7 +49,7 @@ WITH
   ),
   target_thread_sched_slice AS (
     SELECT s.*, t.tid, t.name FROM sched s LEFT JOIN thread t USING (utid) WHERE t.tid = ${
-            tid}
+  tid}
   ),
   target_thread_ipc_slice AS (
     SELECT
@@ -79,17 +79,17 @@ WITH
 `;
 
         await addDebugSliceTrack(
-            ctx.engine,
-            {
-              sqlSource: sqlPrefix + `
+          ctx.engine,
+          {
+            sqlSource: sqlPrefix + `
 SELECT * FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
-            },
-            'Rutime IPC:' + tid,
-            {ts: 'ts', dur: 'dur', name: 'ipc'},
-            ['instruction', 'cycle', 'stall_backend_mem', 'l3_cache_miss'],
+          },
+          'Rutime IPC:' + tid,
+          {ts: 'ts', dur: 'dur', name: 'ipc'},
+          ['instruction', 'cycle', 'stall_backend_mem', 'l3_cache_miss'],
         );
         ctx.tabs.openQuery(
-            sqlPrefix + `
+          sqlPrefix + `
 SELECT
   (sum(instruction) * 1.0 / sum(cycle)*1.0) AS avg_ipc,
   sum(dur)/1e6 as total_runtime_ms,
@@ -98,7 +98,7 @@ SELECT
   sum(stall_backend_mem) as total_stall_backend_mem,
   sum(l3_cache_miss) as total_l3_cache_miss
 FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
-            'target thread ipc statistic');
+          'target thread ipc statistic');
       },
     });
   }

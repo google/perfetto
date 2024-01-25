@@ -129,15 +129,15 @@ export class FtraceController extends Controller<'main'> {
       limit ${count} offset ${offset};`);
     const events: FtraceEvent[] = [];
     const it = queryRes.iter(
-        {
-          id: NUM,
-          ts: LONG,
-          name: STR,
-          cpu: NUM,
-          thread: STR_NULL,
-          process: STR_NULL,
-          args: STR,
-        },
+      {
+        id: NUM,
+        ts: LONG,
+        name: STR,
+        cpu: NUM,
+        thread: STR_NULL,
+        process: STR_NULL,
+        args: STR,
+      },
     );
     for (let row = 0; it.valid(); it.next(), row++) {
       events.push({

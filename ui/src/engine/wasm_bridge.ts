@@ -54,10 +54,10 @@ export class WasmBridge {
     this.whenInitialized = deferredRuntimeInitialized.then(() => {
       const fn = this.connection.addFunction(this.onReply.bind(this), 'vii');
       this.reqBufferAddr = this.connection.ccall(
-          'trace_processor_rpc_init',
-          /* return=*/ 'number',
-          /* args=*/['number', 'number'],
-          [fn, REQ_BUF_SIZE]);
+        'trace_processor_rpc_init',
+        /* return=*/ 'number',
+        /* args=*/['number', 'number'],
+        [fn, REQ_BUF_SIZE]);
     });
   }
 
@@ -87,10 +87,10 @@ export class WasmBridge {
       wrSize += sliceLen;
       try {
         this.connection.ccall(
-            'trace_processor_on_rpc_request',  // C function name.
-            'void',                            // Return type.
-            ['number'],                        // Arg types.
-            [sliceLen],                        // Args.
+          'trace_processor_on_rpc_request',  // C function name.
+          'void',                            // Return type.
+          ['number'],                        // Arg types.
+          [sliceLen],                        // Args.
         );
       } catch (err) {
         this.aborted = true;
