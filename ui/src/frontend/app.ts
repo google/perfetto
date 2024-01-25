@@ -39,7 +39,6 @@ import {
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
-import {addDebugSliceTrack} from '../tracks/debug/slice_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
@@ -61,6 +60,7 @@ import {Utid} from './sql_types';
 import {getThreadInfo} from './thread_and_process_info';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_attrs';
+import {addDebugSliceTrack} from './debug_tracks';
 
 function renderPermalink(): m.Children {
   const permalink = globals.state.permalink;

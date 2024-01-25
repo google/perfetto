@@ -34,6 +34,12 @@ export {
 } from '../trace_processor/query_result';
 export {BottomTabToSCSAdapter} from './utils';
 
+// This is a temporary fix until this is available in the plugin API.
+export {
+  createDebugSliceTrackActions,
+  addDebugSliceTrack,
+} from '../frontend/debug_tracks';
+
 export interface Slice {
   // These properties are updated only once per query result when the Slice
   // object is created and don't change afterwards.
