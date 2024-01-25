@@ -16,4 +16,4 @@
 set -e -u
 ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
 
-exec "$ROOT_DIR/ui/eslint" "$@" $(find $ROOT_DIR/ui/src -type f \( -name "*.ts" -o -name "*.js" \))
+exec "$ROOT_DIR/ui/eslint" "$ROOT_DIR/ui" --ext ".js,.ts" "$@"
