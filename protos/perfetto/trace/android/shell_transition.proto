@@ -44,11 +44,11 @@ message ShellTransition {
   // (using SystemClock.elapsedRealtimeNanos()).
   optional int64 merge_request_time_ns = 6;
   // If the transition was aborted on the shell side, this is the time that
-  // occured.
+  // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
   optional int64 shell_abort_time_ns = 7;
   // If the transition was aborted on the wm side, this is the time that
-  // occured.
+  // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
   optional int64 wm_abort_time_ns = 8;
   // The time WM considers the transition to be complete.
