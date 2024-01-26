@@ -33,7 +33,7 @@ message AndroidGameInterventionList {
 
   repeated GamePackageInfo game_packages = 1;
 
-  // True when at least one error occured when parsing
+  // True when at least one error occurred when parsing
   // game_mode_intervention.list
   optional bool parse_error = 2;
 
