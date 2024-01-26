@@ -117,7 +117,7 @@ class GeneratorJob {
   }
 
   // If generator fails to produce stubs for a particular proto definitions
-  // it finishes with undefined output and writes the first error occured.
+  // it finishes with undefined output and writes the first error occurred.
   const std::string& GetFirstError() const { return error_; }
 
  private:
