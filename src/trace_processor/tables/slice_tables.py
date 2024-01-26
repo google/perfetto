@@ -257,7 +257,7 @@ ACTUAL_FRAME_TIMELINE_SLICE_TABLE = Table(
             'jank_type':
                 '''
                 Specify the jank types for this frame if there's jank, or
-                none if no jank occured.
+                none if no jank occurred.
                 ''',
             'jank_severity_type':
                 'Severity of the jank: none if no jank.',

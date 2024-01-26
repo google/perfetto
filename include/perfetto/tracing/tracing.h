@@ -349,7 +349,7 @@ class PERFETTO_EXPORT_COMPONENT TracingSession {
   // thread.
   virtual void SetOnStartCallback(std::function<void()>) = 0;
 
-  // This callback can be used to get a notification when some error occured
+  // This callback can be used to get a notification when some error occurred
   // (e.g., peer disconnection). Error type will be passed as an argument. This
   // callback will be invoked on an internal perfetto thread.
   virtual void SetOnErrorCallback(std::function<void(TracingError)>) = 0;
