@@ -34,7 +34,8 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
   const now = performance.now();
 
   // Here we rely on the exception message from onCannotGrowMemory function
-  if (err.message.includes('Cannot enlarge memory')) {
+  if (err.message.includes('Cannot enlarge memory') ||
+      /^out of memory$/m.exec(err.message)) {
     showOutOfMemoryDialog();
     // Refresh timeLastReport to prevent a different error showing a dialog
     timeLastReport = now;
