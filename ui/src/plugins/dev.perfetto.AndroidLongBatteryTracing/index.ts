@@ -867,8 +867,17 @@ const BT_HAL_CRASHES = `
 
 const BT_HAL_CRASHES_COLUMNS = ['metric_id', 'error_code', 'vendor_error_code'];
 
-function flatten<T>(arr: T[][]): T[] {
-  return arr.reduce((a, b) => a.concat(b), []);
+// Make it less painful to wrangle promises and arrays and promises of arrays
+// etc...
+type MixedResults<T> = (T|T[]|Promise<T>|Promise<T[]>)[];
+type MixedActions = MixedResults<DeferredAction<{}>>;
+async function flatten<T>(arr: MixedResults<T>): Promise<T[]> {
+  const result: T[] = [];
+  for (const elem of arr) {
+    const awaited = elem instanceof Promise ? await elem : elem;
+    Array.isArray(awaited) ? result.push(...awaited) : result.push(awaited);
+  }
+  return result;
 }
 
 class AndroidLongBatteryTracing implements Plugin {
@@ -934,12 +943,10 @@ class AndroidLongBatteryTracing implements Plugin {
             WHERE track_name = "${track}"`,
         groupId);
 
-    return await Promise.all([
+    return flatten([
       query('Top App', 'battery_stats.top'),
       this.addSliceTrack(
-        e,
-        'Long wakelocks',
-        `SELECT
+        e, 'Long wakelocks', `SELECT
              ts - 60000000000 as ts,
              dur + 60000000000 as dur,
              str_value AS name,
@@ -948,50 +955,72 @@ class AndroidLongBatteryTracing implements Plugin {
               int_value) as package
           FROM android_battery_stats_event_slices
           WHERE track_name = "battery_stats.longwake"`,
-        groupId,
-        ['package']),
+        groupId, ['package']),
       query('Foreground Apps', 'battery_stats.fg'),
       query('Jobs', 'battery_stats.job'),
     ]);
   }
 
-  async addNetworkSummary(e: EngineProxy, groupId: string):
+  async addNetworkSummary(e: EngineProxy, features: Set<string>):
       Promise<DeferredAction<{}>[]> {
+    if (!features.has('net.modem') && !features.has('net.wifi')) {
+      return [];
+    }
+    const {groupId, groupActions} = this.addGroup('Network Summary');
+
     await e.query(NETWORK_SUMMARY);
-    return await Promise.all([
+    const actions = [
+      groupActions,
       this.addSliceTrack(e, 'Default network', DEFAULT_NETWORK, groupId),
-      this.addSliceTrack(e, 'Tethering', TETHERING, groupId),
-      this.addCounterTrack(
-        e,
-        'Wifi bytes (logscale)',
-        `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'wifi' group by 1`,
-        groupId),
-      this.addCounterTrack(
-        e,
-        'Wifi TX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'tx'`,
-        groupId),
-      this.addCounterTrack(
-        e,
-        'Wifi RX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'rx'`,
-        groupId),
-      this.addCounterTrack(
-        e,
-        'Modem bytes (logscale)',
-        `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'modem' group by 1`,
-        groupId),
-      this.addCounterTrack(
-        e,
-        'Modem TX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'tx'`,
-        groupId),
-      this.addCounterTrack(
-        e,
-        'Modem RX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'rx'`,
-        groupId),
-    ]);
+    ];
+    if (features.has('atom.network_tethering_reported')) {
+      actions.push(this.addSliceTrack(e, 'Tethering', TETHERING, groupId));
+    }
+    if (features.has('net.wifi')) {
+      actions.push(
+        this.addCounterTrack(
+          e, 'Wifi bytes (logscale)',
+          `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'wifi' group by 1`,
+          groupId),
+        this.addCounterTrack(
+          e, 'Wifi TX bytes (logscale)',
+          `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'tx'`,
+          groupId),
+        this.addCounterTrack(
+          e, 'Wifi RX bytes (logscale)',
+          `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'rx'`,
+          groupId));
+    }
+    if (features.has('net.modem')) {
+      actions.push(
+        this.addCounterTrack(
+          e, 'Modem bytes (logscale)',
+          `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'modem' group by 1`,
+          groupId),
+        this.addCounterTrack(
+          e, 'Modem TX bytes (logscale)',
+          `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'tx'`,
+          groupId),
+        this.addCounterTrack(
+          e, 'Modem RX bytes (logscale)',
+          `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'rx'`,
+          groupId),
+      );
+    }
+    return flatten(actions);
+  }
+
+  async addModemDetail(e: EngineProxy, features: Set<string>):
+      Promise<DeferredAction<{}>[]> {
+    if (!features.has('atom.modem_activity_info')) {
+      return [];
+    }
+    const {groupId, groupActions} = this.addGroup('Modem Detail');
+    const actions = [groupActions, this.addModemActivityInfo(e, groupId)];
+    if (features.has('track.ril')) {
+      actions.push(this.addModemRil(e, groupId));
+    }
+    return flatten(actions);
   }
 
   async addModemActivityInfo(e: EngineProxy, groupId: string):
@@ -1004,7 +1033,7 @@ class AndroidLongBatteryTracing implements Plugin {
         groupId);
 
     await e.query(MODEM_ACTIVITY_INFO);
-    return await Promise.all([
+    return flatten([
       query('Modem sleep', 'sleep_time'),
       query('Modem controller idle', 'controller_idle_time'),
       query('Modem RX time', 'controller_rx_time'),
@@ -1030,7 +1059,7 @@ class AndroidLongBatteryTracing implements Plugin {
     await e.query(MODEM_RIL_STRENGTH);
     await e.query(MODEM_RIL_CHANNELS_PREAMBLE);
 
-    return await Promise.all([
+    return flatten([
       rilStrength('LTE', 'rsrp'),
       rilStrength('LTE', 'rssi'),
       rilStrength('NR', 'rssi'),
@@ -1040,12 +1069,17 @@ class AndroidLongBatteryTracing implements Plugin {
     ]);
   }
 
-  async addKernelWakelocks(e: EngineProxy, groupId: string):
+  async addKernelWakelocks(e: EngineProxy, features: Set<string>):
       Promise<DeferredAction<{}>[]> {
+    if (!features.has('atom.kernel_wakelock')) {
+      return [];
+    }
+    const {groupId, groupActions} = this.addGroup('Kernel Wakelock Summary');
+
     await e.query(KERNEL_WAKELOCKS);
     const result = await e.query(KERNEL_WAKELOCKS_SUMMARY);
     const it = result.iter({wakelock_name: 'str'});
-    const actions: Promise<DeferredAction<{}>>[] = [];
+    const actions: MixedActions = [groupActions];
     for (; it.valid(); it.next()) {
       actions.push(this.addSliceTrack(
         e,
@@ -1054,11 +1088,16 @@ class AndroidLongBatteryTracing implements Plugin {
           it.wakelock_name}"`,
         groupId));
     }
-    return await Promise.all(actions);
+    return flatten(actions);
   }
 
-  async addWakeups(e: EngineProxy, groupId: string):
+  async addWakeups(e: EngineProxy, features: Set<string>):
       Promise<DeferredAction<{}>[]> {
+    if (!features.has('track.suspend_backoff')) {
+      return [];
+    }
+
+    const {groupId, groupActions} = this.addGroup('Wakeups');
     await e.query(WAKEUPS);
     const result = await e.query(`select
           item,
@@ -1086,8 +1125,10 @@ class AndroidLongBatteryTracing implements Plugin {
                 backoff_millis
             from wakeups`;
     const items = [];
-    const actions: Promise<DeferredAction<{}>>[] = [];
+    const actions: MixedActions = [groupActions];
+    let labelOther = false;
     for (; it.valid(); it.next()) {
+      labelOther = true;
       actions.push(this.addSliceTrack(
         e,
         `Wakeup ${it.item}`,
@@ -1097,21 +1138,24 @@ class AndroidLongBatteryTracing implements Plugin {
       items.push(it.item);
     }
     actions.push(this.addSliceTrack(
-      e,
-      'Other wakeups',
-      `${sqlPrefix} where item not in ('${items.join('\',\'')}')`,
-      groupId,
+      e, labelOther ? 'Other wakeups' : 'Wakeups',
+      `${sqlPrefix} where item not in ('${items.join('\',\'')}')`, groupId,
       WAKEUPS_COLUMNS));
-    return await Promise.all(actions);
+    return flatten(actions);
   }
 
-  async addHighCpu(e: EngineProxy, groupId: string):
+  async addHighCpu(e: EngineProxy, features: Set<string>):
       Promise<DeferredAction<{}>[]> {
+    if (!features.has('atom.cpu_cycles_per_uid_cluster')) {
+      return [];
+    }
+    const {groupId, groupActions} = this.addGroup('CPU per UID (major users)');
+
     await e.query(HIGH_CPU);
     const result = await e.query(
       `select distinct pkg, cluster from high_cpu where value > 10 order by 1, 2`);
     const it = result.iter({pkg: 'str', cluster: 'str'});
-    const actions: Promise<DeferredAction<{}>>[] = [];
+    const actions: MixedActions = [groupActions];
     for (; it.valid(); it.next()) {
       actions.push(this.addCounterTrack(
         e,
@@ -1120,16 +1164,22 @@ class AndroidLongBatteryTracing implements Plugin {
           it.pkg}" and cluster="${it.cluster}"`,
         groupId));
     }
-    return await Promise.all(actions);
+    return flatten(actions);
   }
 
-  async addBluetooth(e: EngineProxy, groupId: string):
+  async addBluetooth(e: EngineProxy, features: Set<string>):
       Promise<DeferredAction<{}>[]> {
-    return await Promise.all([
+    if (!Array.from(features.values())
+      .some(
+        (f) => f.startsWith('atom.bluetooth_') ||
+                     f.startsWith('atom.ble_'))) {
+      return [];
+    }
+    const {groupId, groupActions} = this.addGroup('Bluetooth');
+    return flatten([
+      groupActions,
       this.addSliceTrack(
-        e,
-        'BLE Scans (opportunistic)',
-        bleScanQuery('opportunistic'),
+        e, 'BLE Scans (opportunistic)', bleScanQuery('opportunistic'),
         groupId),
       this.addSliceTrack(
         e, 'BLE Scans (filtered)', bleScanQuery('filtered'), groupId),
@@ -1139,27 +1189,18 @@ class AndroidLongBatteryTracing implements Plugin {
       this.addSliceTrack(e, 'Connections (ACL)', BT_CONNS_ACL, groupId),
       this.addSliceTrack(e, 'Connections (SCO)', BT_CONNS_SCO, groupId),
       this.addSliceTrack(
-        e,
-        'Link-level Events',
-        BT_LINK_LEVEL_EVENTS,
-        groupId,
+        e, 'Link-level Events', BT_LINK_LEVEL_EVENTS, groupId,
         BT_LINK_LEVEL_EVENTS_COLUMNS),
       this.addSliceTrack(e, 'A2DP Audio', BT_A2DP_AUDIO, groupId),
       this.addSliceTrack(
-        e,
-        'Quality reports',
-        BT_QUALITY_REPORTS,
-        groupId,
+        e, 'Quality reports', BT_QUALITY_REPORTS, groupId,
         BT_QUALITY_REPORTS_COLUMNS),
       this.addSliceTrack(
         e, 'RSSI Reports', BT_RSSI_REPORTS, groupId, BT_RSSI_REPORTS_COLUMNS),
       this.addSliceTrack(
         e, 'HAL Crashes', BT_HAL_CRASHES, groupId, BT_HAL_CRASHES_COLUMNS),
       this.addSliceTrack(
-        e,
-        'Code Path Counter',
-        BT_CODE_PATH_COUNTER,
-        groupId,
+        e, 'Code Path Counter', BT_CODE_PATH_COUNTER, groupId,
         BT_CODE_PATH_COUNTER_COLUMNS),
     ]);
   }
@@ -1173,13 +1214,14 @@ class AndroidLongBatteryTracing implements Plugin {
     throw new Error(`No group ${name} found`);
   }
 
-  addGroup(groupName: string): {id: string, actions: DeferredAction<{}>[]} {
+  addGroup(groupName: string):
+      {groupId: string, groupActions: DeferredAction<{}>[]} {
     const summaryTrackKey = uuidv4();
     const groupUuid = uuidv4();
 
     return {
-      id: groupUuid,
-      actions: [
+      groupId: groupUuid,
+      groupActions: [
         Actions.addTrack({
           uri: NULL_TRACK_URI,
           key: summaryTrackKey,
@@ -1197,40 +1239,71 @@ class AndroidLongBatteryTracing implements Plugin {
     };
   }
 
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerCommand({
-      id: 'dev.perfetto.AndroidLongBatteryTracing#run',
-      name: 'Add long battery tracing tracks',
-      callback: async () => {
-        const actions: DeferredAction<{}>[] = [];
-        const addGroup = (name: string) => {
-          const {id, actions: a} = this.addGroup(name);
-          actions.push(...a);
-          return id;
-        };
-        const miscGroupId = this.findGroupId('Misc Global Tracks');
-        const networkId = addGroup('Network Summary');
-        const wakelocksId = addGroup('Kernel Wakelocks');
-        const wakeupsId = addGroup('Wakeups');
-        const cpuId = addGroup('CPU');
-        const btId = addGroup('Bluetooth');
-        actions.push(await this.addSliceTrack(
-          ctx.engine, 'Thermal throttling', THERMAL_THROTTLING, miscGroupId));
+  async findFeatures(e: EngineProxy): Promise<Set<string>> {
+    const features = new Set<string>();
 
-        const promises: Promise<DeferredAction<{}>[]>[] = [
-          this.addBatteryStatsEvents(ctx.engine, miscGroupId),
-          this.addNetworkSummary(ctx.engine, networkId),
-          this.addModemActivityInfo(ctx.engine, networkId),
-          this.addModemRil(ctx.engine, networkId),
-          this.addKernelWakelocks(ctx.engine, wakelocksId),
-          this.addWakeups(ctx.engine, wakeupsId),
-          this.addHighCpu(ctx.engine, cpuId),
-          this.addBluetooth(ctx.engine, btId),
-        ];
-        const flattenedActions: DeferredAction<{}>[] =
-            flatten(await Promise.all(promises));
-        globals.dispatchMultiple([...actions, ...flattenedActions]);
-      },
+    const addFeatures = async (q: string) => {
+      const result = await e.query(q);
+      const it = result.iter({feature: 'str'});
+      for (; it.valid(); it.next()) {
+        features.add(it.feature);
+      }
+    };
+
+    await addFeatures(`
+      select distinct 'atom.' || s.name as feature
+      from track t join slice s on t.id = s.track_id
+      where t.name = 'Statsd Atoms'`);
+
+    await addFeatures(`
+      select distinct
+        case when name like '%wlan%' then 'net.wifi'
+            when name like '%rmnet%' then 'net.modem'
+            else 'net.other'
+        end as feature
+      from track
+      where name like '%Transmitted' or name like '%Received'`);
+
+    await addFeatures(`
+      select distinct 'track.' || lower(name) as feature
+      from track where name in ('RIL', 'suspend_backoff')`);
+
+    return features;
+  }
+
+  async addTracks(ctx: PluginContextTrace): Promise<void> {
+    const actions: MixedActions = [];
+    const features: Set<string> = await this.findFeatures(ctx.engine);
+
+    const miscGroupId = this.findGroupId('Misc Global Tracks');
+
+    if (features.has('atom.thermal_throttling_severity_state_changed')) {
+      actions.push(this.addSliceTrack(
+        ctx.engine, 'Thermal throttling', THERMAL_THROTTLING, miscGroupId));
+    }
+
+    actions.push(
+      this.addBatteryStatsEvents(ctx.engine, miscGroupId),
+      this.addNetworkSummary(ctx.engine, features),
+      this.addModemDetail(ctx.engine, features),
+      this.addKernelWakelocks(ctx.engine, features),
+      this.addWakeups(ctx.engine, features),
+      this.addHighCpu(ctx.engine, features),
+      this.addBluetooth(ctx.engine, features),
+    );
+    globals.dispatchMultiple(await flatten(actions));
+  }
+
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    // If we add tracks immediately the decider will not have run and things
+    // will go rather wrong. So instead wait until the engine is ready then
+    // add our things on top. This is a bit of a hackm but the best we can
+    // do right now.
+    const disposer = globals.store.subscribe(async () => {
+      if (globals.state.engine?.ready) {
+        disposer.dispose();
+        await this.addTracks(ctx);
+      }
     });
   }
 }
