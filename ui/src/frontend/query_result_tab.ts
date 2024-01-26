@@ -34,21 +34,12 @@ import {
   closeTab,
   NewBottomTabArgs,
 } from './bottom_tab';
-import {globals} from './globals';
 import {QueryTable} from './query_table';
-
-export function runQueryInNewTab(query: string, title: string, tag?: string) {
-  return addTab({
-    kind: QueryResultTab.kind,
-    tag,
-    config: {
-      query,
-      title,
-    },
-  });
-}
-
-globals.registerOpenQueryHandler(runQueryInNewTab);
+import {TABS_V2_FLAG} from '../core/feature_flags';
+import {globals} from './globals';
+import {Actions} from '../common/actions';
+import {BottomTabToTabAdapter} from '../public/utils';
+import {EngineProxy} from '../public';
 
 interface QueryResultTabConfig {
   readonly query: string;
@@ -56,6 +47,42 @@ interface QueryResultTabConfig {
   // Optional data to display in this tab instead of fetching it again
   // (e.g. when duplicating an existing tab which already has the data).
   readonly prefetchedResponse?: QueryResponse;
+}
+
+// External interface for adding a new query results tab
+// Automatically decided whether to add v1 or v2 tab
+export function addQueryResultsTab(
+  config: QueryResultTabConfig, tag?: string): void {
+  if (TABS_V2_FLAG.get()) {
+    const queryResultsTab = new QueryResultTab({
+      config,
+      engine: getEngine(),
+      uuid: uuidv4(),
+    });
+
+    const uri = 'queryResults#' + (tag ?? uuidv4());
+
+    globals.tabManager.registerTab({
+      uri,
+      content: new BottomTabToTabAdapter(queryResultsTab),
+      isEphemeral: true,
+    });
+
+    globals.dispatch(Actions.showTab({uri}));
+  } else {
+    return addTab({
+      kind: QueryResultTab.kind,
+      tag,
+      config,
+    });
+  }
+}
+
+// TODO(stevegolton): Find a way to make this more elegant.
+function getEngine(): EngineProxy {
+  const engConfig = globals.getCurrentEngine();
+  const engineId = assertExists(engConfig).id;
+  return assertExists(globals.engines.get(engineId)).getProxy('QueryResult');
 }
 
 export class QueryResultTab extends BottomTab<QueryResultTabConfig> {

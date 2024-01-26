@@ -59,6 +59,7 @@ import {
   publishRealtimeOffset,
   publishThreads,
 } from '../frontend/publish';
+import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Router} from '../frontend/router';
 import {Engine} from '../trace_processor/engine';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
@@ -629,7 +630,10 @@ export class TraceController extends Controller<States> {
           pendingDeeplink.visStart, pendingDeeplink.visEnd);
       }
       if (pendingDeeplink.query !== undefined) {
-        globals.openQuery(pendingDeeplink.query, 'Deeplink Query');
+        addQueryResultsTab({
+          query: pendingDeeplink.query,
+          title: 'Deeplink Query',
+        });
       }
     }
 
