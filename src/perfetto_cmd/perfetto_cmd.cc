@@ -231,6 +231,8 @@ Usage: %s
                              received, non-zero otherwise (error or timeout).
   --clone TSID             : Creates a read-only clone of an existing tracing
                              session, identified by its ID (see --query).
+  --clone-skip-filter      : Can only be used with --clone. It disables the
+                             trace_filter on the cloned session.
   --config         -c      : /path/to/trace/config/file or - for stdin
   --out            -o      : /path/to/out/trace/file or - for stdout
                              If using CLONE_SNAPSHOT triggers, each snapshot
@@ -288,6 +290,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_ALERT_ID = 1000,
     OPT_BUGREPORT,
     OPT_CLONE,
+    OPT_CLONE_SKIP_FILTER,
     OPT_CONFIG_ID,
     OPT_CONFIG_UID,
     OPT_SUBSCRIPTION_ID,
@@ -327,6 +330,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"detach", required_argument, nullptr, OPT_DETACH},
       {"attach", required_argument, nullptr, OPT_ATTACH},
       {"clone", required_argument, nullptr, OPT_CLONE},
+      {"clone-skip-filter", no_argument, nullptr, OPT_CLONE_SKIP_FILTER},
       {"is_detached", required_argument, nullptr, OPT_IS_DETACHED},
       {"stop", no_argument, nullptr, OPT_STOP},
       {"query", no_argument, nullptr, OPT_QUERY},
@@ -412,6 +416,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
     if (option == OPT_CLONE) {
       clone_tsid_ = static_cast<TracingSessionID>(atoll(optarg));
+      continue;
+    }
+
+    if (option == OPT_CLONE_SKIP_FILTER) {
+      clone_skip_filter_ = true;
       continue;
     }
 
@@ -586,11 +595,17 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
 
+  if (clone_skip_filter_ && !clone_tsid_) {
+    PERFETTO_ELOG("--clone-skip-filter requires --clone");
+    return 1;
+  }
+
   // --save-for-bugreport is the equivalent of:
   // --clone kBugreportSessionId -o /data/misc/perfetto-traces/bugreport/...
   if (bugreport_ && trace_out_path_.empty()) {
     PERFETTO_LOG("Invoked perfetto with --save-for-bugreport");
     clone_tsid_ = kBugreportSessionId;
+    clone_skip_filter_ = true;
     trace_out_path_ = GetBugreportTracePath();
   }
 
@@ -1040,7 +1055,7 @@ void PerfettoCmd::OnConnect() {
 
   if (query_service_) {
     consumer_endpoint_->QueryServiceState(
-        [this](bool success, const TracingServiceState& svc_state) {
+        {}, [this](bool success, const TracingServiceState& svc_state) {
           PrintServiceState(success, svc_state);
           fflush(stdout);
           exit(success ? 0 : 1);
@@ -1056,7 +1071,9 @@ void PerfettoCmd::OnConnect() {
   if (clone_tsid_.has_value()) {
     task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnTimeout, this),
                                  kCloneTimeoutMs);
-    consumer_endpoint_->CloneSession(*clone_tsid_);
+    ConsumerEndpoint::CloneSessionArgs args;
+    args.skip_trace_filter = clone_skip_filter_;
+    consumer_endpoint_->CloneSession(*clone_tsid_, std::move(args));
     return;
   }
 

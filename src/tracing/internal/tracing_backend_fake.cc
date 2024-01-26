@@ -129,11 +129,12 @@ class UnsupportedConsumerEndpoint : public ConsumerEndpoint {
 
   void GetTraceStats() override {}
   void ObserveEvents(uint32_t /*events_mask*/) override {}
-  void QueryServiceState(QueryServiceStateCallback) override {}
+  void QueryServiceState(QueryServiceStateArgs,
+                         QueryServiceStateCallback) override {}
   void QueryCapabilities(QueryCapabilitiesCallback) override {}
 
   void SaveTraceForBugreport(SaveTraceForBugreportCallback) override {}
-  void CloneSession(TracingSessionID) override {}
+  void CloneSession(TracingSessionID, CloneSessionArgs) override {}
 
  private:
   Consumer* const consumer_;
