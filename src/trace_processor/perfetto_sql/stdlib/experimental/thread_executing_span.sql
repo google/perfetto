@@ -423,7 +423,13 @@ USING
 -- Limited slice_view that will later be span joined with the |experimental_thread_executing_span_graph|.
 CREATE PERFETTO VIEW internal_span_slice_view
 AS
-SELECT slice_id, depth AS slice_depth, name AS slice_name, ts, dur, utid
+SELECT
+  slice_id,
+  depth AS slice_depth,
+  name AS slice_name,
+  CAST(ts AS INT) AS ts,
+  CAST(dur AS INT) AS dur,
+  utid
 FROM experimental_slice_flattened;
 
 -- |experimental_thread_executing_span_graph| span joined with slice information.
