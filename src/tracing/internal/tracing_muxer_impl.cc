@@ -2078,7 +2078,7 @@ void TracingMuxerImpl::QueryServiceState(
     callback_arg.service_state_data = state.SerializeAsArray();
     callback(std::move(callback_arg));
   };
-  consumer->service_->QueryServiceState(std::move(callback_wrapper));
+  consumer->service_->QueryServiceState({}, std::move(callback_wrapper));
 }
 
 void TracingMuxerImpl::SetBatchCommitsDurationForTesting(

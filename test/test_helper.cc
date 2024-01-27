@@ -300,7 +300,7 @@ TracingServiceState TestHelper::QueryServiceStateAndWait() {
     res = tss;
     checkpoint();
   };
-  endpoint_->QueryServiceState(callback);
+  endpoint_->QueryServiceState({}, callback);
   RunUntilCheckpoint(checkpoint_name);
   return res;
 }

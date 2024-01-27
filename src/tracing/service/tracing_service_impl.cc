@@ -3634,10 +3634,10 @@ size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
 }
 
 void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
-                                              TracingSessionID tsid) {
+                                              TracingSessionID tsid,
+                                              bool skip_filter) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto clone_target = FlushFlags::CloneTarget::kUnknown;
-  bool skip_filter = false;
 
   if (tsid == kBugreportSessionId) {
     PERFETTO_LOG("Looking for sessions for bugreport");
@@ -3718,8 +3718,9 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
                                                 bool skip_filter,
                                                 bool final_flush_outcome,
                                                 base::Uuid* new_uuid) {
-  PERFETTO_DLOG("CloneSession(%" PRIu64 ") started, consumer uid: %d", src_tsid,
-                static_cast<int>(consumer->uid_));
+  PERFETTO_DLOG("CloneSession(%" PRIu64
+                ", skip_filter=%d) started, consumer uid: %d",
+                src_tsid, skip_filter, static_cast<int>(consumer->uid_));
 
   TracingSession* src = GetTracingSession(src_tsid);
 
@@ -4087,6 +4088,7 @@ TracingServiceImpl::ConsumerEndpointImpl::AddObservableEvents() {
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
+    QueryServiceStateArgs args,
     QueryServiceStateCallback callback) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingServiceState svc_state;
@@ -4101,6 +4103,8 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
   svc_state.set_num_sessions_started(static_cast<int>(num_started));
 
   for (const auto& kv : service_->producers_) {
+    if (args.sessions_only)
+      break;
     auto* producer = svc_state.add_producers();
     producer->set_id(static_cast<int>(kv.first));
     producer->set_name(kv.second->name_);
@@ -4110,6 +4114,8 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
   }
 
   for (const auto& kv : service_->data_sources_) {
+    if (args.sessions_only)
+      break;
     const auto& registered_data_source = kv.second;
     auto* data_source = svc_state.add_data_sources();
     *data_source->mutable_ds_descriptor() = registered_data_source.descriptor;
@@ -4187,10 +4193,11 @@ void TracingServiceImpl::ConsumerEndpointImpl::SaveTraceForBugreport(
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::CloneSession(
-    TracingSessionID tsid) {
+    TracingSessionID tsid,
+    CloneSessionArgs args) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // FlushAndCloneSession will call OnSessionCloned after the async flush.
-  service_->FlushAndCloneSession(this, tsid);
+  service_->FlushAndCloneSession(this, tsid, args.skip_trace_filter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
