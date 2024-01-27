@@ -195,7 +195,10 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
   // If TracingSessionID == kBugreportSessionId (0xff...ff) the session with the
   // highest bugreport score is cloned (if any exists).
   // TODO(primiano): make pure virtual after various 3way patches.
-  virtual void CloneSession(TracingSessionID);
+  struct CloneSessionArgs {
+    bool skip_trace_filter = false;
+  };
+  virtual void CloneSession(TracingSessionID, CloneSessionArgs);
 
   // Requests all data sources to flush their data immediately and invokes the
   // passed callback once all of them have acked the flush (in which case
@@ -239,9 +242,16 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
 
   // Used to obtain the list of connected data sources and other info about
   // the tracing service.
+  struct QueryServiceStateArgs {
+    // If set, only the TracingServiceState.tracing_sessions is filled.
+    bool sessions_only = false;
+  };
   using QueryServiceStateCallback =
       std::function<void(bool success, const TracingServiceState&)>;
-  virtual void QueryServiceState(QueryServiceStateCallback) = 0;
+  virtual void QueryServiceState(QueryServiceStateArgs,
+                                 QueryServiceStateCallback);
+  // TODO(primiano): remove this overload once arctraceservice is updated.
+  virtual void QueryServiceState(QueryServiceStateCallback);
 
   // Used for feature detection. Makes sense only when the consumer and the
   // service talk over IPC and can be from different versions.
