@@ -44,6 +44,8 @@ class MetadataMinimalModule : public ProtoImporterModule {
   void ParseChromeMetadataPacket(ConstBytes);
 
   TraceProcessorContext* context_;
+
+  uint32_t chrome_metadata_count_ = 0;
 };
 
 }  // namespace trace_processor

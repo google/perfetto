@@ -21,7 +21,7 @@ SELECT ChromeSliceNames(
   'chrome_version_code', (
     SELECT RepeatedField(int_value)
     FROM metadata
-    WHERE name = 'cr-playstore_version_code'
+    WHERE name GLOB 'cr-*playstore_version_code'
     ORDER BY int_value
   ),
   'slice_name', (
