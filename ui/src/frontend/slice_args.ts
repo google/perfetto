@@ -32,10 +32,9 @@ import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {TreeNode} from '../widgets/tree';
 
-import {addTab} from './bottom_tab';
 import {globals} from './globals';
 import {Arg} from './sql/args';
-import {SqlTableTab} from './sql_table/tab';
+import {addSqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
 
 // Renders slice arguments (key/value pairs) as a subtree.
@@ -96,17 +95,14 @@ function renderArgKey(
         label: 'Find slices with same arg value',
         icon: 'search',
         onclick: () => {
-          addTab({
-            kind: SqlTableTab.kind,
-            config: {
-              table: SqlTables.slice,
-              filters: [{
-                type: 'arg_filter',
-                argSetIdColumn: 'arg_set_id',
-                argName: fullKey,
-                op: `= ${sqliteString(displayValue)}`,
-              }],
-            },
+          addSqlTableTab({
+            table: SqlTables.slice,
+            filters: [{
+              type: 'arg_filter',
+              argSetIdColumn: 'arg_set_id',
+              argName: fullKey,
+              op: `= ${sqliteString(displayValue)}`,
+            }],
           });
         },
       }),

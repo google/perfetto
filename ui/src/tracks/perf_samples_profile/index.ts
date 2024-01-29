@@ -19,6 +19,7 @@ import {ProfileType} from '../../common/state';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
+import {FlamegraphDetailsPanel} from '../../frontend/flamegraph_panel';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {TimeScale} from '../../frontend/time_scale';
@@ -223,7 +224,7 @@ class PerfSamplesProfilePlugin implements Plugin {
       select distinct upid, pid
       from perf_sample join thread using (utid) join process using (upid)
       where callsite_id is not null
-  `);
+    `);
     for (const it = result.iter({upid: NUM, pid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       const pid = it.pid;
@@ -235,6 +236,16 @@ class PerfSamplesProfilePlugin implements Plugin {
         track: () => new PerfSamplesProfileTrack(ctx.engine, upid),
       });
     }
+
+    ctx.registerCurrentSelectionSection({
+      render: (sel) => {
+        if (sel.kind === 'PERF_SAMPLES') {
+          return m(FlamegraphDetailsPanel);
+        } else {
+          return undefined;
+        }
+      },
+    });
   }
 }
 
