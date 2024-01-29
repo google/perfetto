@@ -43,23 +43,24 @@ import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 
-import {addTab} from './bottom_tab';
 import {onClickCopy} from './clipboard';
 import {CookieConsent} from './cookie_consent';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
+import {Notes} from './notes';
 import {Omnibox, OmniboxOption} from './omnibox';
-import {runQueryInNewTab} from './query_result_tab';
+import {addQueryResultsTab} from './query_result_tab';
 import {verticalScrollToTrack} from './scroll_helper';
 import {executeSearch} from './search_handler';
 import {Sidebar} from './sidebar';
-import {SqlTableTab} from './sql_table/tab';
-import {SqlTables} from './sql_table/well_known_tables';
 import {Utid} from './sql_types';
 import {getThreadInfo} from './thread_and_process_info';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_attrs';
 import {addDebugSliceTrack} from './debug_tracks';
+import {AggregationsTabs} from './aggregation_tab';
+import {addSqlTableTab} from './sql_table/tab';
+import {SqlTables} from './sql_table/well_known_tables';
 
 function renderPermalink(): m.Children {
   const permalink = globals.state.permalink;
@@ -149,6 +150,8 @@ export class App implements m.ClassComponent {
   constructor() {
     const unreg = globals.commandManager.registerCommandSource(this);
     this.trash.add(unreg);
+    this.trash.add(new Notes());
+    this.trash.add(new AggregationsTabs());
   }
 
   private getEngine(): EngineProxy|undefined {
@@ -395,8 +398,8 @@ export class App implements m.ClassComponent {
             const engine = this.getEngine();
 
             if (engine !== undefined && trackUtid != 0) {
-              runQueryInNewTab(
-                `SELECT IMPORT('experimental.thread_executing_span');
+              addQueryResultsTab({
+                query: `SELECT IMPORT('experimental.thread_executing_span');
                    SELECT *
                       FROM
                         experimental_thread_executing_span_critical_path_graph(
@@ -404,8 +407,7 @@ export class App implements m.ClassComponent {
                          ${trackUtid},
                          ${window.start},
                          ${window.end} - ${window.start}) cr`,
-                'Critical path',
-                'omnibox_query');
+                title: 'Critical path'});
             }
           },
     },
@@ -414,12 +416,9 @@ export class App implements m.ClassComponent {
       name: 'Show slice table',
       callback:
           () => {
-            addTab({
-              kind: SqlTableTab.kind,
-              config: {
-                table: SqlTables.slice,
-                displayName: 'slice',
-              },
+            addSqlTableTab({
+              table: SqlTables.slice,
+              displayName: 'slice',
             });
           },
     },
@@ -722,11 +721,13 @@ export class App implements m.ClassComponent {
         this.queryText = value;
         raf.scheduleFullRedraw();
       },
-      onSubmit: (value, alt) => {
-        globals.openQuery(
-          undoCommonChatAppReplacements(value),
-          alt ? 'Pinned query' : 'Omnibox query',
-          alt ? undefined : 'omnibox_query');
+      onSubmit: (query, alt) => {
+        const config = {
+          query: undoCommonChatAppReplacements(query),
+          title: alt ? 'Pinned query' : 'Omnibox query',
+        };
+        const tag = alt? undefined : 'omnibox_query';
+        addQueryResultsTab(config, tag);
       },
       onClose: () => {
         this.queryText = '';

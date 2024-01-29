@@ -29,7 +29,6 @@ import {
 import {raf} from '../core/raf_scheduler';
 import {ColumnType} from '../trace_processor/query_result';
 
-import {addTab} from './bottom_tab';
 import {globals} from './globals';
 import {
   aggregationIndex,
@@ -47,7 +46,7 @@ import {
 } from './pivot_table_types';
 import {PopupMenuButton, popupMenuIcon, PopupMenuItem} from './popup_menu';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
-import {SqlTableTab} from './sql_table/tab';
+import {addSqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
 import {DurationWidget} from './widgets/duration';
@@ -136,12 +135,9 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
             if (this.constrainToArea) {
               queryFilters.push(...areaFilters(area));
             }
-            addTab({
-              kind: SqlTableTab.kind,
-              config: {
-                table: SqlTables.slice,
-                filters: queryFilters,
-              },
+            addSqlTableTab({
+              table: SqlTables.slice,
+              filters: queryFilters,
             });
           },
         },

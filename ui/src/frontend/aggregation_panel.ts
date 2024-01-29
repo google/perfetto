@@ -19,21 +19,30 @@ import {
   AggregateData,
   Column,
   ThreadStateExtra,
+  isEmptyData,
 } from '../common/aggregation_data';
 import {colorForState} from '../common/colorizer';
 import {translateState} from '../common/thread_state';
 
 import {globals} from './globals';
 import {DurationWidget} from './widgets/duration';
+import {EmptyState} from '../widgets/empty_state';
 
 export interface AggregationPanelAttrs {
-  data: AggregateData;
+  data?: AggregateData;
   kind: string;
 }
 
 export class AggregationPanel implements
     m.ClassComponent<AggregationPanelAttrs> {
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
+    if (!attrs.data || isEmptyData(attrs.data)) {
+      return m(EmptyState, {
+        className: 'pf-noselection',
+        header: 'Nothing selected',
+        detail: 'Aggregation data will appear here',
+      });
+    }
     return m(
       '.details-panel',
       m('.details-panel-heading.aggregation',

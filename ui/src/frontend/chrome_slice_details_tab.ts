@@ -44,6 +44,7 @@ import {
 import {asSliceSqlId} from './sql_types';
 import {DurationWidget} from './widgets/duration';
 import {addDebugSliceTrack} from './debug_tracks';
+import {addQueryResultsTab} from './query_result_tab';
 
 interface ContextMenuItem {
   name: string;
@@ -91,10 +92,10 @@ const ITEMS: ContextMenuItem[] = [
   {
     name: 'Average duration of slice name',
     shouldDisplay: (slice: SliceDetails) => hasName(slice),
-    run: (slice: SliceDetails) => globals.openQuery(
-      `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
-      `${slice.name} average dur`,
-    ),
+    run: (slice: SliceDetails) => addQueryResultsTab({
+      query: `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
+      title: `${slice.name} average dur`,
+    }),
   },
   {
     name: 'Binder txn names + monitor contention on thread',

@@ -27,7 +27,10 @@ import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
+import {asThreadStateSqlId} from '../../frontend/sql_types';
+import {ThreadStateTab} from '../../frontend/thread_state_tab';
 import {
+  BottomTabToSCSAdapter,
   EngineProxy,
   Plugin,
   PluginContext,
@@ -365,6 +368,21 @@ class ThreadState implements Plugin {
         },
       });
     }
+
+    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+      tabFactory: (sel) => {
+        if (sel.kind !== 'THREAD_STATE') {
+          return undefined;
+        }
+        return new ThreadStateTab({
+          config: {
+            id: asThreadStateSqlId(sel.id),
+          },
+          engine: ctx.engine,
+          uuid: uuidv4(),
+        });
+      },
+    }));
   }
 }
 

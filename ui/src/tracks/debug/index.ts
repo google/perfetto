@@ -13,7 +13,9 @@
 // limitations under the License.
 
 import {DEBUG_SLICE_TRACK_URI} from '../../frontend/debug_tracks';
+import {uuidv4} from '../../base/uuid';
 import {
+  BottomTabToSCSAdapter,
   Plugin,
   PluginContext,
   PluginContextTrace,
@@ -21,7 +23,9 @@ import {
 } from '../../public';
 
 import {DebugCounterTrack} from './counter_track';
+import {DebugSliceDetailsTab} from './details_tab';
 import {DebugTrackV2} from './slice_track';
+import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 
 export const DEBUG_COUNTER_TRACK_URI = 'perfetto.DebugCounter';
 
@@ -33,6 +37,22 @@ class DebugTrackPlugin implements Plugin {
       uri: DEBUG_SLICE_TRACK_URI,
       track: (trackCtx) => new DebugTrackV2(ctx.engine, trackCtx),
     });
+
+    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+      tabFactory: (selection) => {
+        if (selection.kind === 'GENERIC_SLICE' &&
+            selection.detailsPanelConfig.kind === DebugSliceDetailsTab.kind) {
+          const config = selection.detailsPanelConfig.config;
+          return new DebugSliceDetailsTab({
+            config: config as GenericSliceDetailsTabConfig,
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        }
+        return undefined;
+      },
+    }));
+
     ctx.registerTrack({
       uri: DEBUG_COUNTER_TRACK_URI,
       track: (trackCtx) => new DebugCounterTrack(ctx.engine, trackCtx),

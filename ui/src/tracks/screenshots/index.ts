@@ -12,11 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {uuidv4} from '../../base/uuid';
 import {AddTrackArgs} from '../../common/actions';
+import {
+  GenericSliceDetailsTabConfig,
+} from '../../frontend/generic_slice_details_tab';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {
+  BottomTabToSCSAdapter,
   NUM,
   Plugin,
   PluginContext,
@@ -106,6 +111,21 @@ class ScreenshotsPlugin implements Plugin {
           });
         },
       });
+
+      ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+        tabFactory: (selection) => {
+          if (selection.kind === 'GENERIC_SLICE' &&
+              selection.detailsPanelConfig.kind === ScreenshotTab.kind) {
+            const config = selection.detailsPanelConfig.config;
+            return new ScreenshotTab({
+              config: config as GenericSliceDetailsTabConfig,
+              engine: ctx.engine,
+              uuid: uuidv4(),
+            });
+          }
+          return undefined;
+        },
+      }));
     }
   }
 }

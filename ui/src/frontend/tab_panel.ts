@@ -104,8 +104,8 @@ export class TabPanel implements m.ClassComponent {
     if (!exists(cs)) {
       return m(EmptyState, {
         className: 'pf-noselection',
-        header: 'No selection',
-        detail: 'Please select something',
+        header: 'Nothing selected',
+        detail: 'Selection details will appear here',
       });
     }
 

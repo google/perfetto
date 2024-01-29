@@ -21,6 +21,10 @@ import {
 import {ObjectByKey} from '../../common/state';
 import {featureFlags} from '../../core/feature_flags';
 import {
+  GenericSliceDetailsTabConfig,
+} from '../../frontend/generic_slice_details_tab';
+import {
+  BottomTabToSCSAdapter,
   NUM,
   Plugin,
   PluginContext,
@@ -33,12 +37,15 @@ import {CustomSqlDetailsPanelConfig} from '../custom_sql_table_slices';
 import {NULL_TRACK_URI} from '../null_track';
 
 import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
+import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {
   addLatencyTracks,
   EventLatencyTrack,
   JANKY_LATENCY_NAME,
 } from './event_latency_track';
+import {ScrollDetailsPanel} from './scroll_details_panel';
 import {ScrollJankCauseMap} from './scroll_jank_cause_map';
+import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 import {
   addScrollJankV3ScrollTrack,
   ScrollJankV3Track,
@@ -227,6 +234,21 @@ class ChromeScrollJankPlugin implements Plugin {
         });
       },
     });
+
+    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+      tabFactory: (selection) => {
+        if (selection.kind === 'GENERIC_SLICE' &&
+            selection.detailsPanelConfig.kind === ScrollDetailsPanel.kind) {
+          const config = selection.detailsPanelConfig.config;
+          return new ScrollDetailsPanel({
+            config: config as GenericSliceDetailsTabConfig,
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        }
+        return undefined;
+      },
+    }));
   }
 
   private async addEventLatencyTrack(ctx: PluginContextTrace): Promise<void> {
@@ -307,6 +329,22 @@ class ChromeScrollJankPlugin implements Plugin {
         return new EventLatencyTrack({engine: ctx.engine, trackKey}, baseTable);
       },
     });
+
+    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+      tabFactory: (selection) => {
+        if (selection.kind === 'GENERIC_SLICE' &&
+            selection.detailsPanelConfig.kind ===
+                EventLatencySliceDetailsPanel.kind) {
+          const config = selection.detailsPanelConfig.config;
+          return new EventLatencySliceDetailsPanel({
+            config: config as GenericSliceDetailsTabConfig,
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        }
+        return undefined;
+      },
+    }));
   }
 
   private async addScrollJankV3ScrollTrack(ctx: PluginContextTrace):
@@ -325,6 +363,22 @@ class ChromeScrollJankPlugin implements Plugin {
         });
       },
     });
+
+    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+      tabFactory: (selection) => {
+        if (selection.kind === 'GENERIC_SLICE' &&
+            selection.detailsPanelConfig.kind ===
+                ScrollJankV3DetailsPanel.kind) {
+          const config = selection.detailsPanelConfig.config;
+          return new ScrollJankV3DetailsPanel({
+            config: config as GenericSliceDetailsTabConfig,
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        }
+        return undefined;
+      },
+    }));
   }
 }
 
