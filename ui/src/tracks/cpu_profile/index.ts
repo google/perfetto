@@ -285,7 +285,7 @@ class CpuProfile implements Plugin {
       });
     }
 
-    ctx.registerCurrentSelectionSection({
+    ctx.registerDetailsPanel({
       render: (sel) => {
         if (sel.kind === 'CPU_PROFILE_SAMPLE') {
           return m(CpuProfileDetailsPanel);

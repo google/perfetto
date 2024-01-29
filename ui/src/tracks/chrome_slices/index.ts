@@ -296,7 +296,7 @@ class ChromeSlicesPlugin implements Plugin {
       });
     }
 
-    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
       tabFactory: (sel) => {
         if (sel.kind !== 'CHROME_SLICE') {
           return undefined;

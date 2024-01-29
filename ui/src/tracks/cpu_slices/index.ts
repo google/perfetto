@@ -511,7 +511,7 @@ class CpuSlices implements Plugin {
       });
     }
 
-    ctx.registerCurrentSelectionSection({
+    ctx.registerDetailsPanel({
       render: (sel) => {
         if (sel.kind === 'SLICE') {
           return m(SliceDetailsPanel);

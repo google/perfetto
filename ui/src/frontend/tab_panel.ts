@@ -109,7 +109,7 @@ export class TabPanel implements m.ClassComponent {
       });
     }
 
-    const sectionReg = globals.tabManager.currentSelectionSections;
+    const sectionReg = globals.tabManager.detailsPanels;
     const allSections = Array.from(sectionReg.values());
 
     // Get the first "truthy" current selection section

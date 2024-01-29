@@ -237,7 +237,7 @@ class PerfSamplesProfilePlugin implements Plugin {
       });
     }
 
-    ctx.registerCurrentSelectionSection({
+    ctx.registerDetailsPanel({
       render: (sel) => {
         if (sel.kind === 'PERF_SAMPLES') {
           return m(FlamegraphDetailsPanel);

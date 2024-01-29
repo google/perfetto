@@ -139,7 +139,7 @@ class HeapProfilePlugin implements Plugin {
       });
     }
 
-    ctx.registerCurrentSelectionSection({
+    ctx.registerDetailsPanel({
       render: (sel) => {
         if (sel.kind === 'HEAP_PROFILE') {
           return m(FlamegraphDetailsPanel);
