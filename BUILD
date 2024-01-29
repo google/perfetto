@@ -436,7 +436,6 @@ perfetto_cc_library(
         ":src_perfetto_cmd_bugreport_path",
         ":src_perfetto_cmd_pbtxt_to_pb",
         ":src_perfetto_cmd_perfetto_cmd",
-        ":src_perfetto_cmd_trigger_perfetto_cmd",
         ":src_perfetto_cmd_trigger_producer",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
@@ -1148,14 +1147,6 @@ perfetto_filegroup(
         "src/perfetto_cmd/perfetto_cmd.h",
         "src/perfetto_cmd/rate_limiter.cc",
         "src/perfetto_cmd/rate_limiter.h",
-    ],
-)
-
-# GN target: //src/perfetto_cmd:trigger_perfetto_cmd
-perfetto_filegroup(
-    name = "src_perfetto_cmd_trigger_perfetto_cmd",
-    srcs = [
-        "src/perfetto_cmd/trigger_perfetto.cc",
     ],
 )
 

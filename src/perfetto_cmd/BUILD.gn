@@ -36,9 +36,8 @@ executable("perfetto") {
 # due to selinux rules.
 executable("trigger_perfetto") {
   deps = [
-    "../../:libperfetto",
+    ":trigger_perfetto_cmd",
     "../../gn:default_deps",
-    "../../include/perfetto/ext/traced",
   ]
   sources = [ "trigger_perfetto_main.cc" ]
 }
