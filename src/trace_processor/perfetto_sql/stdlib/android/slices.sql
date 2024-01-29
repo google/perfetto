@@ -37,7 +37,6 @@ CREATE PERFETTO FUNCTION android_standardize_slice_name(
 RETURNS STRING AS
 SELECT
   CASE
-    WHEN $name GLOB "Lock contention on*" THEN "Lock contention on <...>"
     WHEN $name GLOB "monitor contention with*" THEN "monitor contention with <...>"
     WHEN $name GLOB "SuspendThreadByThreadId*" THEN "SuspendThreadByThreadId <...>"
     WHEN $name GLOB "LoadApkAssetsFd*" THEN "LoadApkAssetsFd <...>"
@@ -49,6 +48,9 @@ SELECT
     WHEN $name GLOB "OpenDexFilesFromOat*" THEN "OpenDexFilesFromOat"
     WHEN $name GLOB "Open oat file*" THEN "Open oat file"
     WHEN $name GLOB "GC: Wait For*" THEN "Garbage Collector"
+    -- E.g. Lock contention on thread list lock (owner tid: 1665)
+    -- To: Lock contention on thread list lock <...>
+    WHEN $name GLOB "Lock contention on* (*" THEN substr($name, 0, instr($name, "(")) || "<...>"
     -- Top level handlers slices heuristics:
         -- E.g. android.os.Handler: com.android.systemui.qs.external.TileServiceManager$1
         -- To: Handler: com.android.systemui.qs.external.TileServiceManager

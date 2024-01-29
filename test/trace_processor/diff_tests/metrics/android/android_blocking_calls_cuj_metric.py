@@ -30,6 +30,8 @@ blocking_call_names = [
     'monitor contention with something else', 'SuspendThreadByThreadId 123',
     'LoadApkAssetsFd 123', 'binder transaction', 'inflate',
     'Lock contention on thread list lock (owner tid: 1665)',
+    "Lock contention on thread suspend count lock (owner tid: 0)",
+    "Lock contention on a monitor lock (owner tid: 0)",
     'android.os.Handler: kotlinx.coroutines.CancellableContinuationImpl',
     'relayoutWindow*', 'measure', 'layout', 'configChanged',
     'Contending for pthread mutex', 'ImageDecoder#decodeBitmap',
