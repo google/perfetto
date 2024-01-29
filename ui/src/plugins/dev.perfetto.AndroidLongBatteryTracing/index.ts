@@ -215,8 +215,6 @@ const MODEM_RIL_STRENGTH = `
   USING SPAN_JOIN(RilSignalStrength PARTITIONED track_id, ScreenOn)`;
 
 const MODEM_RIL_CHANNELS_PREAMBLE = `
-  SELECT IMPORT('android.battery_stats');
-
   CREATE OR REPLACE PERFETTO FUNCTION EXTRACT_KEY_VALUE(source STRING, key_name STRING) RETURNS STRING AS
   SELECT SUBSTR(trimmed, INSTR(trimmed, "=")+1, INSTR(trimmed, ",") - INSTR(trimmed, "=") - 1)
   FROM (SELECT SUBSTR($source, INSTR($source, $key_name)) AS trimmed);`;
@@ -943,6 +941,7 @@ class AndroidLongBatteryTracing implements Plugin {
             WHERE track_name = "${track}"`,
         groupId);
 
+    await e.query(`SELECT IMPORT('android.battery_stats');`);
     return flatten([
       query('Top App', 'battery_stats.top'),
       this.addSliceTrack(
