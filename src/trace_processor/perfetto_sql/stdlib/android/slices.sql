@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 
-CREATE PERFETTO FUNCTION internal_remove_lambda_name(
+CREATE PERFETTO FUNCTION _remove_lambda_name(
 -- Raw slice name containing at least one "$"
   name STRING)
 -- Removes everything after the first "$"
@@ -54,12 +54,12 @@ SELECT
     -- Top level handlers slices heuristics:
         -- E.g. android.os.Handler: com.android.systemui.qs.external.TileServiceManager$1
         -- To: Handler: com.android.systemui.qs.external.TileServiceManager
-    WHEN $name GLOB "*Handler: *$*" THEN internal_remove_lambda_name(substr($name, instr($name, "Handler:")))
+    WHEN $name GLOB "*Handler: *$*" THEN _remove_lambda_name(substr($name, instr($name, "Handler:")))
         -- E.g. : android.view.ViewRootImpl$ViewRootHandler: com.android.systemui.someClass$enableMarquee$1
         -- To: Handler: android.view.ViewRootImpl
-    WHEN $name GLOB "*.*.*: *$*" THEN "Handler: " || internal_remove_lambda_name(substr($name, ": "))
+    WHEN $name GLOB "*.*.*: *$*" THEN "Handler: " || _remove_lambda_name(substr($name, ": "))
         -- E.g.: android.os.AsyncTask$InternalHandler: #1
         -- To: Handler: android.os.AsyncTask
-    WHEN $name GLOB "*.*$*: #*" THEN "Handler: " || internal_remove_lambda_name($name)
+    WHEN $name GLOB "*.*$*: #*" THEN "Handler: " || _remove_lambda_name($name)
     ELSE $name
   END;

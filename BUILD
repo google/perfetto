@@ -2247,11 +2247,11 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_startup_startup",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startup_events.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startups_maxsdk28.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startups_minsdk29.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startups_minsdk33.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/startup/startup_events.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/startups.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/startup/startups_maxsdk28.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/startup/startups_minsdk29.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/startup/startups_minsdk33.sql",
     ],
 )
 

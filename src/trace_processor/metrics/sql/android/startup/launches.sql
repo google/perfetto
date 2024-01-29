@@ -32,4 +32,4 @@ SELECT startup_id AS launch_id, * FROM android_startup_threads;
 
 DROP VIEW IF EXISTS launching_events;
 CREATE PERFETTO VIEW launching_events AS
-SELECT * FROM internal_startup_events;
+SELECT * FROM _startup_events;

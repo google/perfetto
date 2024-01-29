@@ -16,7 +16,7 @@
 INCLUDE PERFETTO MODULE experimental.flat_slices;
 
 -- Create a table which joins the thread state across the flattened slices.
-CREATE VIRTUAL TABLE internal_experimental_span_joined_thread USING
+CREATE VIRTUAL TABLE _experimental_span_joined_thread USING
   SPAN_JOIN(experimental_slice_flattened PARTITIONED utid, thread_state PARTITIONED utid);
 
 -- Get the thread state breakdown of a flattened slice from its slice id.
@@ -84,7 +84,7 @@ SELECT
   blocked_function,
   waker_utid,
   irq_context
-FROM internal_experimental_span_joined_thread
+FROM _experimental_span_joined_thread
 WHERE
   track_id = (SELECT track_id FROM interesting_slice)
   AND ts >= (SELECT ts FROM interesting_slice)

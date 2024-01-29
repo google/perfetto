@@ -16,10 +16,10 @@ import("../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("startup") {
   sources = [
-    "internal_startup_events.sql",
-    "internal_startups_maxsdk28.sql",
-    "internal_startups_minsdk29.sql",
-    "internal_startups_minsdk33.sql",
+    "startup_events.sql",
     "startups.sql",
+    "startups_maxsdk28.sql",
+    "startups_minsdk29.sql",
+    "startups_minsdk33.sql",
   ]
 }

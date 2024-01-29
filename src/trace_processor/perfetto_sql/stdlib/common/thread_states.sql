@@ -21,7 +21,7 @@ INCLUDE PERFETTO MODULE common.cpus;
 -- but they are pretty niche.
 -- Translates the thread state name from a single-letter shorthard to
 -- a human-readable name.
-CREATE PERFETTO FUNCTION internal_translate_thread_state_name(name STRING)
+CREATE PERFETTO FUNCTION _translate_thread_state_name(name STRING)
 RETURNS STRING AS
 SELECT CASE $name
 WHEN 'Running' THEN 'Running'
@@ -50,7 +50,7 @@ CREATE PERFETTO FUNCTION human_readable_thread_state_name(
 RETURNS STRING AS
 WITH data AS (
   SELECT
-    internal_translate_thread_state_name(state) AS state,
+    _translate_thread_state_name(state) AS state,
     (CASE io_wait
       WHEN 1 THEN ' (IO)'
       WHEN 0 THEN ' (non-IO)'
