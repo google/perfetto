@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {PIVOT_TABLE_REDUX_FLAG} from '../../controller/pivot_table_controller';
 import {globals} from '../../frontend/globals';
 import {PivotTable} from '../../frontend/pivot_table';
 import {
@@ -25,17 +26,19 @@ class PivotTablePlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerTab({
-      isEphemeral: false,
-      uri: 'perfetto.PivotTable#PivotTable',
-      content: {
-        render: () => m(PivotTable, {
-          selectionArea:
-              globals.state.nonSerializableState.pivotTable.selectionArea,
-        }),
-        getTitle: () => 'Pivot Table',
-      },
-    });
+    if (PIVOT_TABLE_REDUX_FLAG.get()) {
+      ctx.registerTab({
+        isEphemeral: false,
+        uri: 'perfetto.PivotTable#PivotTable',
+        content: {
+          render: () => m(PivotTable, {
+            selectionArea:
+                globals.state.nonSerializableState.pivotTable.selectionArea,
+          }),
+          getTitle: () => 'Pivot Table',
+        },
+      });
+    }
   }
 }
 
