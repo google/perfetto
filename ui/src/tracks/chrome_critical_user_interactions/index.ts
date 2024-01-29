@@ -217,7 +217,7 @@ class CriticalUserInteractionPlugin implements Plugin {
         {engine: ctx.engine, trackKey: trackCtx.trackKey}),
     });
 
-    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
       tabFactory: (selection) => {
         if (selection.kind === 'GENERIC_SLICE' &&
             selection.detailsPanelConfig.kind === PageLoadDetailsPanel.kind) {
@@ -232,7 +232,7 @@ class CriticalUserInteractionPlugin implements Plugin {
       },
     }));
 
-    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
       tabFactory: (selection) => {
         if (selection.kind === 'GENERIC_SLICE' &&
             selection.detailsPanelConfig.kind === StartupDetailsPanel.kind) {
@@ -247,7 +247,7 @@ class CriticalUserInteractionPlugin implements Plugin {
       },
     }));
 
-    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
       tabFactory: (selection) => {
         if (selection.kind === 'GENERIC_SLICE' &&
             selection.detailsPanelConfig.kind ===
