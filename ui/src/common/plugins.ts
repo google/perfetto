@@ -41,6 +41,7 @@ import {Engine} from '../trace_processor/engine';
 import {Actions} from './actions';
 import {Registry} from './registry';
 import {SCROLLING_TRACK_GROUP} from './state';
+import {addQueryResultsTab} from '../frontend/query_result_tab';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -179,7 +180,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
   readonly tabs = {
     openQuery: (query: string, title: string) => {
-      globals.openQuery(query, title);
+      addQueryResultsTab({query, title});
     },
 
     showTab(uri: string):

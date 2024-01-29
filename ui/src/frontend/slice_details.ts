@@ -24,14 +24,13 @@ import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {Tree, TreeNode} from '../widgets/tree';
 
-import {addTab} from './bottom_tab';
 import {globals} from './globals';
 import {SliceDetails} from './sql/slice';
 import {
   BreakdownByThreadState,
   BreakdownByThreadStateTreeNode,
 } from './sql/thread_state';
-import {SqlTableTab} from './sql_table/tab';
+import {addSqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
 import {getProcessName, getThreadName} from './thread_and_process_info';
 import {DurationWidget} from './widgets/duration';
@@ -65,13 +64,10 @@ export function renderDetails(
           m(MenuItem, {
             label: 'Slices with the same name',
             onclick: () => {
-              addTab({
-                kind: SqlTableTab.kind,
-                config: {
-                  table: SqlTables.slice,
-                  displayName: 'slice',
-                  filters: [`name = ${sqliteString(slice.name)}`],
-                },
+              addSqlTableTab({
+                table: SqlTables.slice,
+                displayName: 'slice',
+                filters: [`name = ${sqliteString(slice.name)}`],
               });
             },
           }),

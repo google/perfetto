@@ -22,6 +22,7 @@ import {
   OnSliceClickArgs,
   OnSliceOverArgs,
 } from '../../frontend/base_slice_track';
+import {FlamegraphDetailsPanel} from '../../frontend/flamegraph_panel';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
 import {
@@ -116,10 +117,10 @@ class HeapProfilePlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
-    select distinct(upid) from heap_profile_allocation
-    union
-    select distinct(upid) from heap_graph_object
-  `);
+      select distinct(upid) from heap_profile_allocation
+      union
+      select distinct(upid) from heap_graph_object
+    `);
     for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       ctx.registerTrack({
@@ -137,6 +138,16 @@ class HeapProfilePlugin implements Plugin {
         },
       });
     }
+
+    ctx.registerCurrentSelectionSection({
+      render: (sel) => {
+        if (sel.kind === 'HEAP_PROFILE') {
+          return m(FlamegraphDetailsPanel);
+        } else {
+          return undefined;
+        }
+      },
+    });
   }
 }
 

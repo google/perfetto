@@ -17,13 +17,17 @@ import {v4 as uuidv4} from 'uuid';
 import {Actions} from '../../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
-import {GenericSliceDetailsTab} from '../../frontend/generic_slice_details_tab';
+import {
+  GenericSliceDetailsTab,
+  GenericSliceDetailsTabConfig,
+} from '../../frontend/generic_slice_details_tab';
 import {globals} from '../../frontend/globals';
 import {
   NAMED_ROW,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {
+  BottomTabToSCSAdapter,
   NUM,
   Plugin,
   PluginContext,
@@ -212,6 +216,52 @@ class CriticalUserInteractionPlugin implements Plugin {
       track: (trackCtx) => new CriticalUserInteractionTrack(
         {engine: ctx.engine, trackKey: trackCtx.trackKey}),
     });
+
+    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+      tabFactory: (selection) => {
+        if (selection.kind === 'GENERIC_SLICE' &&
+            selection.detailsPanelConfig.kind === PageLoadDetailsPanel.kind) {
+          const config = selection.detailsPanelConfig.config;
+          return new PageLoadDetailsPanel({
+            config: config as GenericSliceDetailsTabConfig,
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        }
+        return undefined;
+      },
+    }));
+
+    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+      tabFactory: (selection) => {
+        if (selection.kind === 'GENERIC_SLICE' &&
+            selection.detailsPanelConfig.kind === StartupDetailsPanel.kind) {
+          const config = selection.detailsPanelConfig.config;
+          return new StartupDetailsPanel({
+            config: config as GenericSliceDetailsTabConfig,
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        }
+        return undefined;
+      },
+    }));
+
+    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+      tabFactory: (selection) => {
+        if (selection.kind === 'GENERIC_SLICE' &&
+            selection.detailsPanelConfig.kind ===
+                WebContentInteractionPanel.kind) {
+          const config = selection.detailsPanelConfig.config;
+          return new WebContentInteractionPanel({
+            config: config as GenericSliceDetailsTabConfig,
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        }
+        return undefined;
+      },
+    }));
   }
 
   onActivate(ctx: PluginContext): void {

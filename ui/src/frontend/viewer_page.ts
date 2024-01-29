@@ -19,7 +19,7 @@ import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {TrackCacheEntry} from '../common/track_cache';
-import {featureFlags} from '../core/feature_flags';
+import {TABS_V2_FLAG, featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {TrackTags} from '../public';
 
@@ -45,13 +45,6 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
   name: 'Overview Panel',
   description: 'Show the panel providing an overview of the trace',
   defaultValue: true,
-});
-
-const TABS_V2 = featureFlags.register({
-  id: 'tabsv2',
-  name: 'Tabs V2',
-  description: 'Use Tabs V2',
-  defaultValue: false,
 });
 
 // Checks if the mousePos is within 3px of the start or end of the
@@ -353,7 +346,7 @@ class TraceViewer implements m.ClassComponent {
   }
 
   private renderTabPanel() {
-    if (TABS_V2.get()) {
+    if (TABS_V2_FLAG.get()) {
       return m(TabPanel);
     } else {
       return m(DetailsPanel);

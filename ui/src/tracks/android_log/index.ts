@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {duration, Time, time} from '../../base/time';
 import {LIMIT, TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
+import {LogPanel} from '../../frontend/logs_panel';
 import {PanelSize} from '../../frontend/panel';
 import {
   EngineProxy,
@@ -158,6 +161,16 @@ class AndroidLog implements Plugin {
         track: () => new AndroidLogTrack(ctx.engine),
       });
     }
+
+    // Eternal tabs should always be available even if there is nothing to show
+    ctx.registerTab({
+      isEphemeral: false,
+      uri: 'android_logs',
+      content: {
+        render: () => m(LogPanel),
+        getTitle: () => 'Android Logs',
+      },
+    });
   }
 }
 
