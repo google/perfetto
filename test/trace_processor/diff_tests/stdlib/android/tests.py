@@ -229,7 +229,9 @@ class AndroidStdlib(TestSuite):
         """,
         out=Csv("""
         "name"
-        "Lock contention on <...>"
+        "Lock contention on thread list lock <...>"
+        "Lock contention on thread suspend count lock <...>"
+        "Lock contention on a monitor lock <...>"
         "monitor contention with <...>"
         "SuspendThreadByThreadId <...>"
         "LoadApkAssetsFd <...>"

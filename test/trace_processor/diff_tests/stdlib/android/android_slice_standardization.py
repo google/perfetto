@@ -29,6 +29,8 @@ trace.add_ftrace_packet(cpu=0)
 
 slices_to_standardize = [
     "Lock contention on thread list lock (owner tid: 1665)",
+    "Lock contention on thread suspend count lock (owner tid: 0)",
+    "Lock contention on a monitor lock (owner tid: 0)",
     "monitor contention with owner BG Thread #1 (30) at",
     "SuspendThreadByThreadId suspended Primes-1 id=19",
     "LoadApkAssetsFd({ParcelFileDescriptor: java.io.FileDescriptor@340019d})",
