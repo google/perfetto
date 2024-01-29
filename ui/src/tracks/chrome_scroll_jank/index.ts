@@ -235,7 +235,7 @@ class ChromeScrollJankPlugin implements Plugin {
       },
     });
 
-    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
       tabFactory: (selection) => {
         if (selection.kind === 'GENERIC_SLICE' &&
             selection.detailsPanelConfig.kind === ScrollDetailsPanel.kind) {
@@ -330,7 +330,7 @@ class ChromeScrollJankPlugin implements Plugin {
       },
     });
 
-    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
       tabFactory: (selection) => {
         if (selection.kind === 'GENERIC_SLICE' &&
             selection.detailsPanelConfig.kind ===
@@ -364,7 +364,7 @@ class ChromeScrollJankPlugin implements Plugin {
       },
     });
 
-    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
       tabFactory: (selection) => {
         if (selection.kind === 'GENERIC_SLICE' &&
             selection.detailsPanelConfig.kind ===

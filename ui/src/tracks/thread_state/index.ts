@@ -369,7 +369,7 @@ class ThreadState implements Plugin {
       });
     }
 
-    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
       tabFactory: (sel) => {
         if (sel.kind !== 'THREAD_STATE') {
           return undefined;

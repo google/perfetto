@@ -327,7 +327,7 @@ export interface TabDescriptor {
   onShow?(): void;
 }
 
-export interface CurrentSelectionSection {
+export interface DetailsPanel {
   render(selection: Selection): m.Children;
 }
 
@@ -402,8 +402,9 @@ export interface PluginContextTrace extends PluginContext {
   // is deactivated or when the trace is unloaded.
   registerTab(tab: TabDescriptor): void;
 
-  // Register a current selection handler.
-  registerCurrentSelectionSection(sel: CurrentSelectionSection): void;
+  // Register a hook into the current selection tab rendering logic that allows
+  // customization of the current selection tab content.
+  registerDetailsPanel(sel: DetailsPanel): void;
 
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;

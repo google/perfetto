@@ -632,7 +632,7 @@ class CounterPlugin implements Plugin {
     await this.addThreadCounterTracks(ctx);
     await this.addProcessCounterTracks(ctx);
 
-    ctx.registerCurrentSelectionSection({
+    ctx.registerDetailsPanel({
       render: (sel) => {
         if (sel.kind === 'COUNTER') {
           return m(CounterDetailsPanel);

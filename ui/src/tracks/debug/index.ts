@@ -38,7 +38,7 @@ class DebugTrackPlugin implements Plugin {
       track: (trackCtx) => new DebugTrackV2(ctx.engine, trackCtx),
     });
 
-    ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
       tabFactory: (selection) => {
         if (selection.kind === 'GENERIC_SLICE' &&
             selection.detailsPanelConfig.kind === DebugSliceDetailsTab.kind) {

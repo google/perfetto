@@ -36,10 +36,10 @@ export class Notes implements Disposable {
   });
 
   constructor() {
-    globals.tabManager.registerCurrentSelectionSection(this.csc);
+    globals.tabManager.registerDetailsPanel(this.csc);
   }
 
   dispose(): void {
-    globals.tabManager.unregisterCurrentSelectionSection(this.csc);
+    globals.tabManager.unregisterDetailsPanel(this.csc);
   }
 }

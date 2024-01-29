@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Disposable} from '../base/disposable';
-import {CurrentSelectionSection, TabDescriptor} from '../public';
+import {DetailsPanel, TabDescriptor} from '../public';
 
 export interface ResolvedTab {
   uri: string;
@@ -26,7 +26,7 @@ export interface ResolvedTab {
  */
 export class TabManager implements Disposable {
   private _registry = new Map<string, TabDescriptor>();
-  private _currentSelectionSectionReg = new Set<CurrentSelectionSection>();
+  private _detailsPanelsRegistry = new Set<DetailsPanel>();
   private _currentTabs = new Map<string, TabDescriptor>();
 
   dispose(): void {
@@ -45,12 +45,12 @@ export class TabManager implements Disposable {
     this._registry.delete(uri);
   }
 
-  registerCurrentSelectionSection(section: CurrentSelectionSection): void {
-    this._currentSelectionSectionReg.add(section);
+  registerDetailsPanel(section: DetailsPanel): void {
+    this._detailsPanelsRegistry.add(section);
   }
 
-  unregisterCurrentSelectionSection(section: CurrentSelectionSection): void {
-    this._currentSelectionSectionReg.delete(section);
+  unregisterDetailsPanel(section: DetailsPanel): void {
+    this._detailsPanelsRegistry.delete(section);
   }
 
   resolveTab(uri: string): TabDescriptor|undefined {
@@ -61,8 +61,8 @@ export class TabManager implements Disposable {
     return Array.from(this._registry.values());
   }
 
-  get currentSelectionSections(): CurrentSelectionSection[] {
-    return Array.from(this._currentSelectionSectionReg);
+  get detailsPanels(): DetailsPanel[] {
+    return Array.from(this._detailsPanelsRegistry);
   }
 
   /**

@@ -112,7 +112,7 @@ class ScreenshotsPlugin implements Plugin {
         },
       });
 
-      ctx.registerCurrentSelectionSection(new BottomTabToSCSAdapter({
+      ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
         tabFactory: (selection) => {
           if (selection.kind === 'GENERIC_SLICE' &&
               selection.detailsPanelConfig.kind === ScreenshotTab.kind) {

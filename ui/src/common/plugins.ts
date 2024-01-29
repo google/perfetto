@@ -20,7 +20,7 @@ import {time} from '../base/time';
 import {globals} from '../frontend/globals';
 import {
   Command,
-  CurrentSelectionSection,
+  DetailsPanel,
   EngineProxy,
   MetricVisualisation,
   Migrate,
@@ -165,13 +165,13 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     this.trash.addCallback(() => globals.tabManager.unregisterTab(desc.uri));
   }
 
-  registerCurrentSelectionSection(section: CurrentSelectionSection): void {
+  registerDetailsPanel(section: DetailsPanel): void {
     if (!this.alive) return;
 
     const tabMan = globals.tabManager;
-    tabMan.registerCurrentSelectionSection(section);
+    tabMan.registerDetailsPanel(section);
     this.trash.addCallback(
-      () => tabMan.unregisterCurrentSelectionSection(section));
+      () => tabMan.unregisterDetailsPanel(section));
   }
 
   get sidebar() {
