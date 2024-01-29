@@ -47,6 +47,9 @@ export interface TabDropdownEntry {
 
   // Called when tab dropdown entry is clicked.
   onClick: () => void;
+
+  // Whether this tab is checked or not
+  checked: boolean;
 }
 
 export interface DragHandleAttrs {
@@ -241,6 +244,7 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
           key: entry.key,
           label: entry.title,
           onclick: () => entry.onClick(),
+          icon: entry.checked ? 'check_box' : 'check_box_outline_blank',
         });
       }),
     );
