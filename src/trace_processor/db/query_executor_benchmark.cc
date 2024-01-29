@@ -351,6 +351,14 @@ static void BM_QESliceTableTsAndTrackId(benchmark::State& state) {
 
 BENCHMARK(BM_QESliceTableTsAndTrackId)->ArgsProduct({{DB::V1, DB::V2}});
 
+static void BM_QEFilterOneElement(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  BenchmarkSliceTable(state, table,
+                      {table.table_.id().eq(10), table.table_.dur().eq(100)});
+}
+
+BENCHMARK(BM_QEFilterOneElement)->ArgsProduct({{DB::V1, DB::V2}});
+
 static void BM_QEFilterWithArrangement(benchmark::State& state) {
   Table::kUseFilterV2 = state.range(0) == 1;
 
