@@ -172,6 +172,26 @@ void ProtoTraceParser::ParseTraceStats(ConstBytes blob) {
                     static_cast<int64_t>(evt.flushes_succeeded()));
   storage->SetStats(stats::traced_flushes_failed,
                     static_cast<int64_t>(evt.flushes_failed()));
+
+  if (evt.has_filter_stats()) {
+    protos::pbzero::TraceStats::FilterStats::Decoder fstat(evt.filter_stats());
+    storage->SetStats(stats::filter_errors,
+                      static_cast<int64_t>(fstat.errors()));
+    storage->SetStats(stats::filter_input_bytes,
+                      static_cast<int64_t>(fstat.input_bytes()));
+    storage->SetStats(stats::filter_input_packets,
+                      static_cast<int64_t>(fstat.input_packets()));
+    storage->SetStats(stats::filter_output_bytes,
+                      static_cast<int64_t>(fstat.output_bytes()));
+    storage->SetStats(stats::filter_time_taken_ns,
+                      static_cast<int64_t>(fstat.time_taken_ns()));
+    for (auto [i, it] = std::tuple{0, fstat.bytes_discarded_per_buffer()}; it;
+         ++it, ++i) {
+      storage->SetIndexedStats(stats::traced_buf_bytes_filtered_out, i,
+                               static_cast<int64_t>(*it));
+    }
+  }
+
   switch (evt.final_flush_outcome()) {
     case protos::pbzero::TraceStats::FINAL_FLUSH_SUCCEEDED:
       storage->IncrementStats(stats::traced_final_flush_succeeded, 1);
