@@ -85,7 +85,7 @@ static void BM_TableIteratorChild(benchmark::State& state) {
 
   auto it = static_cast<Table&>(child).IterateRows();
   for (auto _ : state) {
-    for (uint32_t i = 0; i < child.GetColumnCount(); ++i) {
+    for (uint32_t i = 0; i < child.columns().size(); ++i) {
       benchmark::DoNotOptimize(it.Get(i));
     }
     it.Next();
