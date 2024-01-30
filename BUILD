@@ -1091,11 +1091,7 @@ perfetto_filegroup(
     srcs = [
         "src/kernel_utils/syscall_table.cc",
         "src/kernel_utils/syscall_table.h",
-        "src/kernel_utils/syscalls_aarch32.h",
-        "src/kernel_utils/syscalls_aarch64.h",
-        "src/kernel_utils/syscalls_armeabi.h",
-        "src/kernel_utils/syscalls_x86.h",
-        "src/kernel_utils/syscalls_x86_64.h",
+        "src/kernel_utils/syscall_table_generated.h",
     ],
 )
 
