@@ -91,7 +91,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
 
     if (options.length === 0) {
       return m(EmptyState, {
-        header: `No results for '${this.searchText}'`,
+        title: `No results for '${this.searchText}'`,
       });
     } else {
       return [m(
