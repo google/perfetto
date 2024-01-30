@@ -19,10 +19,10 @@ import("../../../gn/test.gni")
 # log buffers.
 executable("traced") {
   deps = [
-    # traced, traced_probes and perfetto_cmd depend on "libperfetto" instead of
-    # directly on lib. This is to reduce binary size on android builds. All the
-    # code is built into libperfetto and the executables are just tiny shells
-    # that call into the xxx_main() defined in the library.
+    # Both traced and traced_probes depend on "libprefetto" instead of directly
+    # on lib. This is to reduce binary size on android builds. All the code is
+    # built into libperfetto and the executables are just tiny shells that call
+    # into the xxx_main() defined in the library.
     "../../../:libperfetto",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/traced",
