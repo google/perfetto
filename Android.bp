@@ -1868,6 +1868,11 @@ filegroup {
     name: "perfetto_include_perfetto_ext_tracing_core_core",
 }
 
+// GN: //include/perfetto/ext/tracing/core:test_support
+filegroup {
+    name: "perfetto_include_perfetto_ext_tracing_core_test_support",
+}
+
 // GN: //include/perfetto/ext/tracing/ipc:ipc
 filegroup {
     name: "perfetto_include_perfetto_ext_tracing_ipc_ipc",
@@ -1964,6 +1969,7 @@ cc_test {
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",
+        ":perfetto_include_perfetto_ext_tracing_core_test_support",
         ":perfetto_include_perfetto_ext_tracing_ipc_ipc",
         ":perfetto_include_perfetto_protozero_protozero",
         ":perfetto_include_perfetto_public_abi_base",
