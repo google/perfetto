@@ -1,23 +1,30 @@
 
-‹
-8protos/perfetto/metrics/android/ad_services_metric.protoperfetto.protos"∞
+∫
+8protos/perfetto/metrics/android/ad_services_metric.protoperfetto.protos"¨
 AdServicesUiMetricQ
 %common_service_initialization_latency (R"commonServiceInitializationLatencyT
 'common_service_permission_check_latency (R#commonServicePermissionCheckLatencyO
-%common_service_ux_engine_flow_latency (R commonServiceUxEngineFlowLatencyG
- main_actitivity_creation_latency (RmainActitivityCreationLatencyS
+%common_service_ux_engine_flow_latency (R commonServiceUxEngineFlowLatencyC
+main_activity_creation_latency (RmainActivityCreationLatencyS
 &consent_manager_initialization_latency (R#consentManagerInitializationLatency?
 consent_manager_read_latency (RconsentManagerReadLatencyA
 consent_manager_write_latency (RconsentManagerWriteLatency"0
 AdServicesAdIdMetric
 latency (Rlatency"4
 AdServicesAppSetIdMetric
-latency (Rlatency"Û
+latency (Rlatency"ê
+OnDevicePersonalizationMetricU
+'managing_service_initialization_latency (R$managingServiceInitializationLatencyP
+%service_delegate_execute_flow_latency (R!serviceDelegateExecuteFlowLatencye
+0service_delegate_request_surface_package_latency (R+serviceDelegateRequestSurfacePackageLatency_
+-service_delegate_register_web_trigger_latency (R(serviceDelegateRegisterWebTriggerLatency"¬
 AdServicesMetric@
 	ui_metric (2#.perfetto.protos.AdServicesUiMetricRuiMetricG
 ad_id_metric (2%.perfetto.protos.AdServicesAdIdMetricR
 adIdMetricT
-app_set_id_metric (2).perfetto.protos.AdServicesAppSetIdMetricRappSetIdMetric
+app_set_id_metric (2).perfetto.protos.AdServicesAppSetIdMetricRappSetIdMetricM
+
+odp_metric (2..perfetto.protos.OnDevicePersonalizationMetricR	odpMetric
 »
 2protos/perfetto/metrics/android/android_boot.protoperfetto.protos"p
 ProcessStateDurations

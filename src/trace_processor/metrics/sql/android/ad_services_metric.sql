@@ -29,20 +29,14 @@ SELECT
       SELECT
         RepeatedField(
           AdServicesUiMetric(
-            'main_actitivity_creation_latency', (
-              GET_LATENCY('AdServicesSettingsMainActivity#OnCreate')
-            ),
-            'consent_manager_read_latency', (
-              GET_LATENCY('ConsentManager#ReadOperation')
-            ),
-            'consent_manager_write_latency', (
-              GET_LATENCY('ConsentManager#WriteOperation')
-            ),
-            'consent_manager_initialization_latency', (
-              GET_LATENCY('ConsentManager#Initialization')
-            )
-          )
-        )
+            'main_activity_creation_latency',
+            (GET_LATENCY('AdServicesSettingsMainActivity#OnCreate')),
+            'consent_manager_read_latency',
+            (GET_LATENCY('ConsentManager#ReadOperation')),
+            'consent_manager_write_latency',
+            (GET_LATENCY('ConsentManager#WriteOperation')),
+            'consent_manager_initialization_latency',
+            (GET_LATENCY('ConsentManager#Initialization'))))
     ),
     'app_set_id_metric',
     (
@@ -56,4 +50,18 @@ SELECT
       SELECT
         RepeatedField(
           AdServicesAdIdMetric('latency', GET_LATENCY('AppSetIdEvent')))
+    ),
+    'odp_metric',
+    (
+      SELECT
+        RepeatedField(
+          OnDevicePersonalizationMetric(
+            'managing_service_initialization_latency',
+            (GET_LATENCY('OdpManagingService#Initialization')),
+            'service_delegate_execute_flow_latency',
+            (GET_LATENCY('OdpManagingServiceDelegate#Execute')),
+            'service_delegate_request_surface_package_latency',
+            (GET_LATENCY('OdpManagingServiceDelegate#RequestSurfacePackage')),
+            'service_delegate_register_web_trigger_latency',
+            (GET_LATENCY('OdpManagingServiceDelegate#RegisterWebTrigger'))))
     ));
