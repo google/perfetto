@@ -9918,6 +9918,14 @@ filegroup {
     ],
 }
 
+// GN: //src/kernel_utils:unittests
+filegroup {
+    name: "perfetto_src_kernel_utils_unittests",
+    srcs: [
+        "src/kernel_utils/syscall_table_unittest.cc",
+    ],
+}
+
 // GN: //src/perfetto_cmd:bugreport_path
 filegroup {
     name: "perfetto_src_perfetto_cmd_bugreport_path",
@@ -13494,6 +13502,7 @@ cc_test {
         ":perfetto_src_kallsyms_kallsyms",
         ":perfetto_src_kallsyms_unittests",
         ":perfetto_src_kernel_utils_syscall_table",
+        ":perfetto_src_kernel_utils_unittests",
         ":perfetto_src_perfetto_cmd_bugreport_path",
         ":perfetto_src_perfetto_cmd_pbtxt_to_pb",
         ":perfetto_src_perfetto_cmd_perfetto_cmd",

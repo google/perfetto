@@ -608,7 +608,7 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
     base::StringView machine = utsname.machine();
     SyscallTracker* syscall_tracker = SyscallTracker::GetOrCreate(context_);
     Architecture arch = SyscallTable::ArchFromString(machine);
-    if (arch != kUnknown) {
+    if (arch != Architecture::kUnknown) {
       syscall_tracker->SetArchitecture(arch);
     } else {
       PERFETTO_ELOG("Unknown architecture %s. Syscall traces will not work.",

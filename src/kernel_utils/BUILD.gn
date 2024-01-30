@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../gn/test.gni")
+
 source_set("syscall_table") {
   deps = [
     "../../gn:default_deps",
@@ -20,10 +22,17 @@ source_set("syscall_table") {
   sources = [
     "syscall_table.cc",
     "syscall_table.h",
-    "syscalls_aarch32.h",
-    "syscalls_aarch64.h",
-    "syscalls_armeabi.h",
-    "syscalls_x86.h",
-    "syscalls_x86_64.h",
+    "syscall_table_generated.h",
   ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":syscall_table",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../base",
+  ]
+  sources = [ "syscall_table_unittest.cc" ]
 }

@@ -48,10 +48,11 @@ constexpr int kCgroupMkdirEventId = 12;
 constexpr int kFakePrintEventId = 20;
 constexpr int kSysEnterId = 329;
 
-constexpr size_t kFakeSyscallCount = 2;
-constexpr const char* kFakeSyscalls[] = {
-    "sys_open",
-    "sys_read",
+struct FakeSyscallTable {
+  static constexpr char names[] =
+      "sys_open\0"
+      "sys_read\0";
+  static constexpr SyscallTable::OffT offsets[]{0, 9};
 };
 
 std::string PageSizeKb() {
@@ -151,7 +152,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
   }
 
   SyscallTable GetSyscallTable() {
-    return SyscallTable(kFakeSyscalls, kFakeSyscallCount);
+    return SyscallTable::Load<FakeSyscallTable>();
   }
 
   std::unique_ptr<ProtoTranslationTable> CreateFakeTable(
