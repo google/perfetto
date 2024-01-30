@@ -497,6 +497,7 @@ export function genTraceConfig(
     addCategoryAndDisabledByDefault('scheduler');
     addCategoryAndDisabledByDefault('p2p');
     addCategoryAndDisabledByDefault('net');
+    chromeCategories.add('base');
   }
 
   if (uiCfg.video) {
