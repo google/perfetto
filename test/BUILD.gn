@@ -25,6 +25,7 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../gn:gtest_and_gmock",
       "../include/perfetto/ext/ipc",
       "../include/perfetto/ext/traced",
+      "../include/perfetto/ext/tracing/core:test_support",
       "../include/perfetto/protozero",
       "../protos/perfetto/config:cpp",
       "../protos/perfetto/config:zero",
