@@ -883,30 +883,32 @@ SELECT * FROM merged WHERE id IS NOT NULL;
 -- stacked from top to bottom: self thread_state, self blocked_function, self process_name,
 -- self thread_name, slice stack, critical_path thread_state, critical_path process_name,
 -- critical_path thread_name, critical_path slice_stack, running_cpu.
---
--- @arg critical_path_utid INT    Thread utid to filter critical paths to.
--- @arg ts LONG                   Timestamp of start of time range to filter critical paths to.
--- @arg dur LONG                  Duration of time range to filter critical paths to.
---
--- @column id                     Id of the thread_state or slice in the thread_executing_span.
--- @column ts                     Timestamp of slice in the critical path.
--- @column dur                    Duration of slice in the critical path.
--- @column utid                   Utid of thread that emitted the slice.
--- @column stack_depth            Stack depth of the entitity in the debug track.
--- @column name                   Name of entity in the critical path (could be a thread_state, kernel blocked_function, process_name, thread_name, slice name or cpu).
--- @column table_name             Table name of entity in the critical path (could be either slice or thread_state).
--- @column critical_path_utid     Thread Utid the critical path was filtered to.
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_stack(critical_path_utid INT, ts LONG, dur LONG)
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_stack(
+  -- Thread utid to filter critical paths to.
+  critical_path_utid INT,
+  -- Timestamp of start of time range to filter critical paths to.
+  ts LONG,
+  -- Duration of time range to filter critical paths to.
+  dur LONG)
 RETURNS
   TABLE(
+    -- Id of the thread_state or slice in the thread_executing_span.
     id INT,
+    -- Timestamp of slice in the critical path.
     ts LONG,
+    -- Duration of slice in the critical path.
     dur LONG,
+    -- Utid of thread that emitted the slice.
     utid INT,
+    -- Stack depth of the entitity in the debug track.
     stack_depth INT,
+    -- Name of entity in the critical path (could be a thread_state, kernel blocked_function, process_name, thread_name, slice name or cpu).
     name STRING,
+    -- Table name of entity in the critical path (could be either slice or thread_state).
     table_name STRING,
-    critical_path_utid INT) AS
+    -- Utid of the thread the critical path was filtered to.
+    critical_path_utid INT
+) AS
 SELECT * FROM _critical_path_stack($critical_path_utid, $ts, $dur, 1, 1, 1, 1);
 
 -- Returns a pprof aggregation of the stacks in |_critical_path_stack|.

@@ -40,16 +40,12 @@
 -- WHERE root_type IS NOT NULL;
 --
 -- SELECT *
--- FROM dominator_tree!(
+-- FROM graph_dominator_tree!(
 --   dominator_compatible_heap_graph,
 --   (SELECT max(id) + 1 FROM heap_graph_object)
 -- );
 -- ```
---
--- @column node_id            The id of the node from the input graph.
--- @column dominator_node_id  The id of the node in the input flow-graph which is the
---                            "dominator" of |node_id|.
-CREATE PERFETTO MACRO dominator_tree(
+CREATE PERFETTO MACRO graph_dominator_tree(
   -- A table/view/subquery corresponding to a directed flow-graph on which the
   -- dominator tree should be computed. This table must have the columns
   -- "source_node_id" and "dest_node_id" corresponding to the two nodes on
@@ -65,6 +61,10 @@ CREATE PERFETTO MACRO dominator_tree(
   -- tree.
   root_node_id Expr
 )
+-- The returned table has the schema (node_id UINT32, dominator_node_id UINT32).
+-- |node_id| is the id of the node from the input graph and |dominator_node_id|
+-- is the id of the node in the input flow-graph which is the "dominator" of
+-- |node_id|.
 RETURNS TableOrSubquery AS
 (
   WITH __temp_graph_table AS (SELECT * FROM $graph_table)

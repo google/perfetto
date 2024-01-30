@@ -56,6 +56,7 @@ class DocsExtractor:
     extracted += self._extract_for_kind(ObjKind.table_view)
     extracted += self._extract_for_kind(ObjKind.function)
     extracted += self._extract_for_kind(ObjKind.table_function)
+    extracted += self._extract_for_kind(ObjKind.macro)
     return extracted
 
   def _extract_for_kind(self, kind: ObjKind) -> List[Extract]:
@@ -75,18 +76,15 @@ class DocsExtractor:
       assert line.startswith('--')
 
       # Remove the comment.
-      stripped = line.lstrip('--').lstrip()
-
-      # Ignore lines which only contain '--'.
-      if not stripped:
-        continue
+      comment_stripped = line.lstrip('--')
+      stripped = comment_stripped.lstrip()
 
       # Check if the line is an annotation.
       if not stripped.startswith('@'):
         # We are not in annotation: if we haven't seen an annotation yet, we
         # must be still be parsing the description. Just add to that
         if not extract.annotations:
-          extract.description += stripped + " "
+          extract.description += comment_stripped + "\n"
           continue
 
         # Otherwise, add to the latest annotation.

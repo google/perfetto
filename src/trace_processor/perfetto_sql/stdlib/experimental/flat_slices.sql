@@ -28,9 +28,14 @@
 -- Note that, no slices will be generated for intervals without without any slices.
 --
 -- As an example, consider the following slice stack:
+-- ```
 -- A-------------B.
 -- ----C----D----.
--- The flattened slice will be: A----C----D----B.
+-- ```
+-- The flattened slice will be:
+-- ```
+-- A----C----D----B.
+-- ```
 --
 -- @column slice_id           Id of most active slice.
 -- @column ts                 Timestamp when `slice.id` became the most active slice.

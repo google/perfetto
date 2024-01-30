@@ -82,6 +82,7 @@ def main():
         'imports': [{
             'name': table.name,
             'desc': table.desc,
+            'summary_desc': table.desc.split('\n\n')[0].replace('\n', ' '),
             'type': table.type,
             'cols': {
                 col_name: {
@@ -93,6 +94,7 @@ def main():
         'functions': [{
             'name': function.name,
             'desc': function.desc,
+            'summary_desc': function.desc.split('\n\n')[0].replace('\n', ' '),
             'args': {
                 arg_name: {
                     'type': arg.type,
@@ -105,6 +107,7 @@ def main():
         'table_functions': [{
             'name': function.name,
             'desc': function.desc,
+            'summary_desc': function.desc.split('\n\n')[0].replace('\n', ' '),
             'args': {
                 arg_name: {
                     'type': arg.type,
@@ -118,6 +121,19 @@ def main():
                 } for (col_name, col) in function.cols.items()
             },
         } for function in docs.table_functions],
+        'macros': [{
+            'name': macro.name,
+            'desc': macro.desc,
+            'summary_desc': macro.desc.split('\n\n')[0].replace('\n', ' '),
+            'return_desc': macro.return_desc,
+            'return_type': macro.return_type,
+            'args': {
+                arg_name: {
+                    'type': arg.type,
+                    'desc': arg.description,
+                } for (arg_name, arg) in macro.args.items()
+            },
+        } for macro in docs.macros],
     }
     modules[module_name].append(file_dict)
 

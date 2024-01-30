@@ -14,11 +14,10 @@
 -- limitations under the License.
 
 -- Compute the distribution of the overlap of the given intervals over time.
+--
 -- Each interval is a (ts, dur) pair and the overlap represented as a (ts, value)
 -- counter, with the value corresponding to the number of intervals that overlap
 -- the given timestamp and interval until the next timestamp.
--- @column ts     Timestamp when the number of open segments changed.
--- @column value  Number of open segments.
 CREATE PERFETTO MACRO intervals_overlap_count(
     -- Table or subquery containing interval data.
     segments TableOrSubquery,
@@ -26,6 +25,9 @@ CREATE PERFETTO MACRO intervals_overlap_count(
     ts_column ColumnName,
     -- Column containing interval durations (usually `dur`).
     dur_column ColumnName)
+-- The returned table has the schema (ts INT64, value UINT32).
+-- |ts| is the timestamp when the number of open segments changed. |value| is
+-- the number of open segments.
 RETURNS TableOrSubquery AS
 (
 -- Algorithm: for each segment, emit a +1 at the start and a -1 at the end.
