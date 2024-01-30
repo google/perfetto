@@ -21,7 +21,6 @@ import {EmptyState} from '../widgets/empty_state';
 
 import {
   DragHandle,
-  getDetailsHeight,
   Tab,
   TabDropdownEntry,
 } from './drag_handle';
@@ -32,7 +31,8 @@ interface TabWithContent extends Tab {
 }
 
 export class TabPanel implements m.ClassComponent {
-  private detailsHeight = getDetailsHeight();
+  // Tabs panel starts collapsed.
+  private detailsHeight = 0;
 
   view() {
     const tabMan = globals.tabManager;

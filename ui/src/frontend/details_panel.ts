@@ -26,8 +26,7 @@ import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsTab} from './chrome_slice_details_tab';
 import {CounterDetailsPanel} from './counter_panel';
 import {CpuProfileDetailsPanel} from './cpu_profile_panel';
-import {DEFAULT_DETAILS_CONTENT_HEIGHT} from './css_constants';
-import {DragHandle} from './drag_handle';
+import {DragHandle, getDefaultDetailsHeight} from './drag_handle';
 import {FlamegraphDetailsPanel} from './flamegraph_panel';
 import {
   FlowEventsAreaSelectedPanel,
@@ -41,15 +40,7 @@ import {PivotTable} from './pivot_table';
 import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStateTab} from './thread_state_tab';
 
-const DRAG_HANDLE_HEIGHT_PX = 28;
-
 export const CURRENT_SELECTION_TAG = 'current_selection';
-
-function getDetailsHeight() {
-  // This needs to be a function instead of a const to ensure the CSS constants
-  // have been initialized by the time we perform this calculation;
-  return DEFAULT_DETAILS_CONTENT_HEIGHT + DRAG_HANDLE_HEIGHT_PX;
-}
 
 function hasLogs(): boolean {
   const data =
@@ -126,7 +117,7 @@ function handleSelectionChange(
 addSelectionChangeObserver(handleSelectionChange);
 
 export class DetailsPanel implements m.ClassComponent {
-  private detailsHeight = getDetailsHeight();
+  private detailsHeight = getDefaultDetailsHeight();
 
   view() {
     interface DetailsPanel {
