@@ -20,12 +20,14 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/db/runtime_table.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
@@ -118,7 +120,9 @@ class PerfettoSqlEngine {
 
   // Registers a trace processor C++ table with SQLite with an SQL name of
   // |name|.
-  void RegisterStaticTable(const Table&, const std::string& name);
+  void RegisterStaticTable(const Table&,
+                           const std::string& name,
+                           Table::Schema schema);
 
   // Registers a trace processor C++ table function with SQLite.
   void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);

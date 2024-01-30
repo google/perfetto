@@ -20,22 +20,27 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -181,9 +186,10 @@ PerfettoSqlEngine::~PerfettoSqlEngine() {
 }
 
 void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
-                                            const std::string& table_name) {
-  auto context =
-      std::make_unique<DbSqliteTable::Context>(query_cache_.get(), &table);
+                                            const std::string& table_name,
+                                            Table::Schema schema) {
+  auto context = std::make_unique<DbSqliteTable::Context>(
+      query_cache_.get(), &table, std::move(schema));
   static_tables_.Insert(table_name, &table);
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
       table_name, std::move(context), SqliteTable::kEponymousOnly, false);

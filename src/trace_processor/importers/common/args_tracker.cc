@@ -17,11 +17,15 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 
 #include <algorithm>
+#include <cstdint>
 
+#include "src/trace_processor/db/column.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 ArgsTracker::ArgsTracker(TraceProcessorContext* context) : context_(context) {}
 
@@ -121,5 +125,4 @@ ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
 
 ArgsTracker::BoundInserter::~BoundInserter() = default;
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -156,13 +156,13 @@ DbSqliteTable::~DbSqliteTable() {
 base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
   switch (context_->computation) {
     case TableComputation::kStatic:
-      schema_ = context_->static_table->ComputeSchema();
+      schema_ = context_->static_schema;
       break;
     case TableComputation::kRuntime:
       runtime_table_ = context_->get_runtime_table(name());
       PERFETTO_CHECK(runtime_table_);
       PERFETTO_CHECK(!runtime_table_->columns().empty());
-      schema_ = runtime_table_->ComputeSchema();
+      schema_ = runtime_table_->schema();
       break;
     case TableComputation::kTableFunction:
       schema_ = context_->static_table_function->CreateSchema();
@@ -759,10 +759,12 @@ base::Status DbSqliteTable::Cursor::ExtractTableFunctionArguments(
 }
 
 DbSqliteTableContext::DbSqliteTableContext(QueryCache* query_cache,
-                                           const Table* table)
+                                           const Table* table,
+                                           Table::Schema schema)
     : cache(query_cache),
       computation(Computation::kStatic),
-      static_table(table) {}
+      static_table(table),
+      static_schema(std::move(schema)) {}
 
 DbSqliteTableContext::DbSqliteTableContext(
     QueryCache* query_cache,
@@ -770,8 +772,8 @@ DbSqliteTableContext::DbSqliteTableContext(
     std::function<void(std::string)> erase_table)
     : cache(query_cache),
       computation(Computation::kRuntime),
-      get_runtime_table(get_table),
-      erase_runtime_table(erase_table) {}
+      get_runtime_table(std::move(get_table)),
+      erase_runtime_table(std::move(erase_table)) {}
 
 DbSqliteTableContext::DbSqliteTableContext(
     QueryCache* query_cache,

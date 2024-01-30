@@ -55,8 +55,8 @@ std::string ToVis(const Table& table) {
       continue;
     }
     for (int64_t j = 0; j < dur; ++j) {
-      size_t y = static_cast<size_t>(layout_depth);
-      size_t x = static_cast<size_t>(ts + j);
+      auto y = static_cast<size_t>(layout_depth);
+      auto x = static_cast<size_t>(ts + j);
       while (lines.size() <= y) {
         lines.push_back("");
       }
