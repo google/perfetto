@@ -17,19 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_RUNTIME_TABLE_H_
 #define SRC_TRACE_PROCESSOR_DB_RUNTIME_TABLE_H_
 
-#include <stdint.h>
-
-#include <limits>
+#include <cstdint>
 #include <memory>
-#include <numeric>
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/status.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/table.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Represents a table of data with named, strongly typed columns. Only used
 // where the schema of the table is decided at runtime.
@@ -60,12 +60,14 @@ class RuntimeTable : public Table {
 
   base::Status AddColumnsAndOverlays(uint32_t rows);
 
+  const Table::Schema& schema() const { return schema_; }
+
  private:
   std::vector<std::string> col_names_;
   std::vector<std::unique_ptr<VariantStorage>> storage_;
+  Table::Schema schema_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_DB_RUNTIME_TABLE_H_

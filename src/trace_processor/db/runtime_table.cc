@@ -17,11 +17,18 @@
 #include "src/trace_processor/db/runtime_table.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
 
 namespace perfetto {
@@ -50,8 +57,10 @@ bool IsStorageNotIntNorDouble(const RuntimeTable::VariantStorage& col) {
 }  // namespace
 
 RuntimeTable::RuntimeTable(StringPool* pool, std::vector<std::string> col_names)
-    : Table(pool), col_names_(col_names), storage_(col_names_.size()) {
-  for (uint32_t i = 0; i < col_names.size(); i++)
+    : Table(pool),
+      col_names_(std::move(col_names)),
+      storage_(col_names_.size()) {
+  for (uint32_t i = 0; i < col_names_.size(); i++)
     storage_[i] = std::make_unique<VariantStorage>();
 }
 
@@ -146,7 +155,7 @@ base::Status RuntimeTable::AddText(uint32_t idx, const char* ptr) {
 }
 
 base::Status RuntimeTable::AddColumnsAndOverlays(uint32_t rows) {
-  overlays_.push_back(ColumnStorageOverlay(rows));
+  overlays_.emplace_back(rows);
   for (uint32_t i = 0; i < col_names_.size(); ++i) {
     auto* col = storage_[i].get();
     PERFETTO_DCHECK(IsStorageNotIntNorDouble(*col));
@@ -206,6 +215,13 @@ base::Status RuntimeTable::AddColumnsAndOverlays(uint32_t rows) {
       this, static_cast<uint32_t>(col_names_.size()), 0, "_auto_id",
       ColumnLegacy::kIdFlags | ColumnLegacy::Flag::kHidden));
   row_count_ = rows;
+
+  schema_.columns.reserve(columns_.size());
+  for (const auto& col : columns_) {
+    schema_.columns.emplace_back(Schema::Column{col.name(), col.type(),
+                                                col.IsId(), col.IsSorted(),
+                                                col.IsHidden(), col.IsSetId()});
+  }
   return base::OkStatus();
 }
 

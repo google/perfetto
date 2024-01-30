@@ -64,6 +64,7 @@ source_set("common") {
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
+    "../../db",
     "../../storage",
     "../../types",
     "../fuchsia:fuchsia_record",

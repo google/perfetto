@@ -50,7 +50,9 @@ struct DbSqliteTableContext {
     // Table is defined in runtime.
     kRuntime
   };
-  DbSqliteTableContext(QueryCache* query_cache, const Table* table);
+  DbSqliteTableContext(QueryCache* query_cache,
+                       const Table* table,
+                       Table::Schema schema);
   DbSqliteTableContext(QueryCache* query_cache,
                        std::function<RuntimeTable*(std::string)> get_table,
                        std::function<void(std::string)> erase_table);
@@ -62,6 +64,7 @@ struct DbSqliteTableContext {
 
   // Only valid when computation == TableComputation::kStatic.
   const Table* static_table = nullptr;
+  Table::Schema static_schema;
 
   // Only valid when computation == TableComputation::kRuntime.
   // Those functions implement the interactions with
