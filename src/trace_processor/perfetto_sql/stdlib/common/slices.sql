@@ -244,8 +244,8 @@ FROM slice
 WHERE parent_id = $parent_id;
 
 -- Given a slice id, returns the name of the slice.
--- @arg id LONG the slice id which we need the name for.
 CREATE PERFETTO FUNCTION slice_name_from_id(
+  -- The slice id which we need the name for.
   id LONG
 )
 -- The name of slice with the given id.

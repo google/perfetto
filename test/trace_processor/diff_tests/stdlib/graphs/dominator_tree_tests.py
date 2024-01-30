@@ -31,7 +31,7 @@ class DominatorTree(TestSuite):
             SELECT 0 as source_node_id, 0 AS dest_node_id
             WHERE FALSE
           )
-          SELECT * FROM dominator_tree!(foo, NULL)
+          SELECT * FROM graph_dominator_tree!(foo, NULL)
         """,
         out=Csv("""
         "node_id","dominator_node_id"
@@ -48,7 +48,7 @@ class DominatorTree(TestSuite):
             UNION ALL
             SELECT 10, 10
           )
-          SELECT * FROM dominator_tree!(foo, 5);
+          SELECT * FROM graph_dominator_tree!(foo, 5);
         """,
         out=Csv("""
         "node_id","dominator_node_id"
@@ -69,7 +69,7 @@ class DominatorTree(TestSuite):
           UNION ALL
           VALUES (0, 10);
 
-          SELECT * FROM dominator_tree!(foo, 0);
+          SELECT * FROM graph_dominator_tree!(foo, 0);
         """,
         out=Csv("""
         "node_id","dominator_node_id"
@@ -112,7 +112,7 @@ class DominatorTree(TestSuite):
               NULL,
               char(dominator_node_id)
             ) AS dominator_node_id
-          FROM dominator_tree!(bar, unicode('R'))
+          FROM graph_dominator_tree!(bar, unicode('R'))
           ORDER BY node_id;
         """,
         out=Csv("""
@@ -149,7 +149,7 @@ class DominatorTree(TestSuite):
           UNION ALL
           VALUES (1, 10);
 
-          SELECT * FROM dominator_tree!(foo, 1) ORDER BY node_id;
+          SELECT * FROM graph_dominator_tree!(foo, 1) ORDER BY node_id;
         """,
         out=Csv("""
         "node_id","dominator_node_id"
@@ -177,7 +177,7 @@ class DominatorTree(TestSuite):
           VALUES (0, 1), (0, 11), (0, 21);
 
           SELECT *
-          FROM dominator_tree!(foo, 0)
+          FROM graph_dominator_tree!(foo, 0)
           ORDER BY node_id;
         """,
         out=Csv("""

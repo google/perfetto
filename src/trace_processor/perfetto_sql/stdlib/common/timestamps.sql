@@ -141,7 +141,7 @@ SELECT $hours * 60 * 60 * 1000 * 1000 * 1000;
 -- Converts a duration in days to nanoseconds, which is the default
 -- representation of time durations in trace processor.
 CREATE PERFETTO FUNCTION days(
--- @arg days INT  Time duration in days.
+  -- Time duration in days.
   days INT
 )
 -- Time duration in nanoseconds.
