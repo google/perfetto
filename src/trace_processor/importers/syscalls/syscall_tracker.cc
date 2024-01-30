@@ -35,7 +35,7 @@ namespace trace_processor {
 // of each process from the trace.
 SyscallTracker::SyscallTracker(TraceProcessorContext* context)
     : context_(context) {
-  SetArchitecture(kUnknown);
+  SetArchitecture(Architecture::kUnknown);
 }
 
 SyscallTracker::~SyscallTracker() = default;

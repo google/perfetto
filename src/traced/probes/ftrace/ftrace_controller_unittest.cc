@@ -103,8 +103,8 @@ std::unique_ptr<Table> FakeTable(FtraceProcfs* ftrace) {
 
 std::unique_ptr<FtraceConfigMuxer> FakeMuxer(FtraceProcfs* ftrace,
                                              ProtoTranslationTable* table) {
-  return std::unique_ptr<FtraceConfigMuxer>(
-      new FtraceConfigMuxer(ftrace, table, SyscallTable(kUnknown), {}));
+  return std::unique_ptr<FtraceConfigMuxer>(new FtraceConfigMuxer(
+      ftrace, table, SyscallTable(Architecture::kUnknown), {}));
 }
 
 class MockFtraceProcfs : public FtraceProcfs {
