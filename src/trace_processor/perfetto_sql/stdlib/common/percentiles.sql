@@ -16,7 +16,7 @@
 INCLUDE PERFETTO MODULE common.counters;
 INCLUDE PERFETTO MODULE common.timestamps;
 
-CREATE PERFETTO FUNCTION internal_number_generator(upper_limit INT)
+CREATE PERFETTO FUNCTION _number_generator(upper_limit INT)
 RETURNS TABLE(num INT) AS
 WITH nums AS
     (SELECT 1 num UNION SELECT num + 1
@@ -70,7 +70,7 @@ with_gaps AS (
 SELECT
     num AS percentile,
     IFNULL(value, MIN(value) OVER (ORDER BY percentile DESC)) AS value
-FROM INTERNAL_NUMBER_GENERATOR(100) AS nums
+FROM _NUMBER_GENERATOR(100) AS nums
 LEFT JOIN with_gaps ON with_gaps.percentile = nums.num
 ORDER BY percentile DESC;
 
