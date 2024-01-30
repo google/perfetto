@@ -56,6 +56,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/import.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
@@ -100,8 +101,7 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 template <typename SqlFunction, typename Ptr = typename SqlFunction::Context*>
@@ -1005,5 +1005,4 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
   return base::OkStatus();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

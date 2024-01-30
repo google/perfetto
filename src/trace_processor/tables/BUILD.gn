@@ -41,7 +41,9 @@ source_set("tables") {
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
+    "../containers",
     "../db",
+    "../db/column",
   ]
   public_deps = [ ":tables_python" ]
 }
@@ -58,6 +60,7 @@ source_set("unittests") {
     ":tables",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../containers",
     "../db",
   ]
 }
