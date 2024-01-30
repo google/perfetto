@@ -793,6 +793,11 @@ class TraceStorage {
     return &window_manager_shell_transition_handlers_table_;
   }
 
+  const tables::ProtoLogTable& protolog_table() const {
+    return protolog_table_;
+  }
+  tables::ProtoLogTable* mutable_protolog_table() { return &protolog_table_; }
+
   const tables::ExperimentalProtoPathTable& experimental_proto_path_table()
       const {
     return experimental_proto_path_table_;
@@ -1059,6 +1064,7 @@ class TraceStorage {
       window_manager_shell_transitions_table_{&string_pool_};
   tables::WindowManagerShellTransitionHandlersTable
       window_manager_shell_transition_handlers_table_{&string_pool_};
+  tables::ProtoLogTable protolog_table_{&string_pool_};
 
   tables::ExperimentalProtoPathTable experimental_proto_path_table_{
       &string_pool_};

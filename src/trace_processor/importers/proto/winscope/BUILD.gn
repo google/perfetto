@@ -16,6 +16,10 @@ import("../../../../../gn/perfetto_cc_proto_descriptor.gni")
 
 source_set("full") {
   sources = [
+    "protolog_messages_tracker.cc",
+    "protolog_messages_tracker.h",
+    "protolog_parser.cc",
+    "protolog_parser.h",
     "shell_transitions_parser.cc",
     "shell_transitions_parser.h",
     "shell_transitions_tracker.cc",
@@ -35,11 +39,15 @@ source_set("full") {
     "../../../../../gn:default_deps",
     "../../../../../protos/perfetto/trace:zero",
     "../../../../../protos/perfetto/trace/android:zero",
+    "../../../../../protos/perfetto/trace/interned_data:zero",
+    "../../../../../protos/perfetto/trace/profiling:zero",
     "../../../storage",
     "../../../tables",
     "../../../types",
     "../../common",
     "../../common:parser_types",
+    "../../proto:minimal",
+    "../../proto:packet_sequence_state_generation_hdr",
   ]
 }
 

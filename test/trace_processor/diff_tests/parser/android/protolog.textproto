@@ -1,0 +1,133 @@
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  sequence_flags: 1
+  previous_packet_dropped: true
+  trusted_pid: 1716
+  first_packet_on_sequence: true
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  interned_data {
+    protolog_string_args {
+      iid: 1
+      str: "MyTestString"
+    }
+  }
+  trusted_pid: 1716
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  sequence_flags: 2
+  trusted_pid: 1716
+  timestamp: 857384100
+  protolog_message {
+    message_id: 6924537961316301726
+    interned_str_params: 1
+    sint64_params: 888
+    double_params: 8.88
+    boolean_params: 1
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  sequence_flags: 1
+  previous_packet_dropped: true
+  trusted_pid: 1716
+  first_packet_on_sequence: true
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  trusted_pid: 1716
+  timestamp: 857384110
+  protolog_message {
+    message_id: 1994837961123301128
+    sint64_params: 888
+    sint64_params: 888
+    sint64_params: 888
+    double_params: 888
+    double_params: 888
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  interned_data {
+    protolog_string_args {
+      iid: 1
+      str: "MyOtherTestString"
+    }
+  }
+  trusted_pid: 1716
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  interned_data {
+    protolog_string_args {
+      iid: 2
+      str: "SomeOtherTestString"
+    }
+  }
+  trusted_pid: 1716
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  sequence_flags: 2
+  trusted_pid: 1716
+  timestamp: 857384130
+  protolog_message {
+    message_id: 9274895847396301003
+    interned_str_params: 1
+    interned_str_params: 1
+    interned_str_params: 2
+    interned_str_params: 1
+  }
+}
+packet {
+  trusted_uid: 10224
+  trusted_packet_sequence_id: 10
+  previous_packet_dropped: true
+  trusted_pid: 2063
+  first_packet_on_sequence: true
+  protolog_viewer_config {
+    messages {
+      message_id: 6924537961316301726
+      message: "Test message with a string (%s), an int (%d), a double %g, and a boolean %b."
+      level: PROTOLOG_LEVEL_DEBUG
+      group_id: 1
+    }
+    messages {
+      message_id: 1994837961123301128
+      message: "Test message with different int formats: %d, 0o%o, 0x%x, %f, %e."
+      level: PROTOLOG_LEVEL_WARN
+      group_id: 2
+    }
+    messages {
+      message_id: 9274895847396301003
+      message: "Message re-using interned string '%s' == '%s', but '%s' != '%s'"
+      level: PROTOLOG_LEVEL_ERROR
+      group_id: 3
+    }
+    groups {
+      id: 1
+      name: "MY_FIRST_GROUP"
+      tag: "MyFirstGroup"
+    }
+    groups {
+      id: 2
+      name: "MY_SECOND_GROUP"
+      tag: "MySecondGroup"
+    }
+    groups {
+      id: 3
+      name: "MY_THIRD_GROUP"
+      tag: "MyThirdGroup"
+    }
+  }
+}
