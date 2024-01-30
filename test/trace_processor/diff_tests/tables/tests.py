@@ -212,6 +212,41 @@ class Tables(TestSuite):
         "
         """))
 
+  # Ftrace stats imports in metadata and stats tables
+  def test_filter_stats(self):
+    return DiffTestBlueprint(
+        trace=TextProto("""
+          packet { trace_stats{ filter_stats {
+            input_packets: 836
+            input_bytes: 25689644
+            output_bytes: 24826981
+            errors: 12
+            time_taken_ns: 1228178548
+            bytes_discarded_per_buffer: 1
+            bytes_discarded_per_buffer: 34
+            bytes_discarded_per_buffer: 29
+            bytes_discarded_per_buffer: 0
+            bytes_discarded_per_buffer: 862588
+          }}}"""),
+        query="""
+        SELECT name, value FROM stats
+        WHERE name like 'filter_%' OR name = 'traced_buf_bytes_filtered_out'
+        ORDER by name ASC
+        """,
+        out=Csv("""
+        "name","value"
+        "filter_errors",12
+        "filter_input_bytes",25689644
+        "filter_input_packets",836
+        "filter_output_bytes",24826981
+        "filter_time_taken_ns",1228178548
+        "traced_buf_bytes_filtered_out",1
+        "traced_buf_bytes_filtered_out",34
+        "traced_buf_bytes_filtered_out",29
+        "traced_buf_bytes_filtered_out",0
+        "traced_buf_bytes_filtered_out",862588
+        """))
+
   # cpu_track table
   def test_cpu_track_table(self):
     return DiffTestBlueprint(
