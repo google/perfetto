@@ -1,4 +1,4 @@
-import {Disposable} from '../base/disposable';
+import {Disposable, Trash} from '../base/disposable';
 import {assertExists} from '../base/logging';
 import {uuidv4} from '../base/uuid';
 import {BottomTabToSCSAdapter} from '../public';
@@ -19,27 +19,29 @@ function getEngine() {
  * Notes are core functionality thus don't really belong in a plugin.
  */
 export class Notes implements Disposable {
-  private csc = new BottomTabToSCSAdapter({
-    tabFactory: (selection) => {
-      if (selection.kind === 'NOTE') {
-        return new NotesEditorTab({
-          config: {
-            id: selection.id,
-          },
-          engine: getEngine().getProxy('Notes'),
-          uuid: uuidv4(),
-        });
-      } else {
-        return undefined;
-      }
-    },
-  });
+  private trash = new Trash();
 
   constructor() {
-    globals.tabManager.registerDetailsPanel(this.csc);
+    const unregister = globals.tabManager.registerDetailsPanel(
+      new BottomTabToSCSAdapter({
+        tabFactory: (selection) => {
+          if (selection.kind === 'NOTE') {
+            return new NotesEditorTab({
+              config: {
+                id: selection.id,
+              },
+              engine: getEngine().getProxy('Notes'),
+              uuid: uuidv4(),
+            });
+          } else {
+            return undefined;
+          }
+        },
+      }));
+    this.trash.add(unregister);
   }
 
   dispose(): void {
-    globals.tabManager.unregisterDetailsPanel(this.csc);
+    this.trash.dispose();
   }
 }

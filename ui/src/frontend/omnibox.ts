@@ -249,7 +249,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     if (!options) return null;
 
     if (options.length === 0) {
-      return m(EmptyState, {header: 'No matching options...'});
+      return m(EmptyState, {title: 'No matching options...'});
     } else {
       return m(
         '.pf-omnibox-dropdown',
