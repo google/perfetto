@@ -1,5 +1,5 @@
 --
--- Copyright 2023 The Android Open Source Project
+-- Copyright 2019 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -13,16 +13,17 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- All activity startup events.
-CREATE PERFETTO TABLE internal_startup_events AS
+INCLUDE PERFETTO MODULE android.startup.startup_events;
+
+CREATE PERFETTO TABLE _startups_maxsdk28 AS
 SELECT
-  ts,
-  dur,
-  ts + dur AS ts_end,
-  STR_SPLIT(s.name, ": ", 1) AS package_name
-FROM slice s
-JOIN process_track t ON s.track_id = t.id
-JOIN process USING(upid)
-WHERE
-  s.name GLOB 'launching: *'
-  AND (process.name IS NULL OR process.name = 'system_server');
+  "maxsdk28" as sdk,
+  ROW_NUMBER() OVER(ORDER BY ts) AS startup_id,
+  le.ts,
+  le.ts_end AS ts_end,
+  le.ts_end - le.ts AS dur,
+  package_name AS package,
+  NULL AS startup_type
+FROM _startup_events le
+ORDER BY ts;
+

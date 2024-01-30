@@ -14,14 +14,14 @@
 -- limitations under the License.
 
 
-CREATE PERFETTO TABLE internal_cpu_sizes AS
+CREATE PERFETTO TABLE _cpu_sizes AS
 SELECT 0 AS n, 'little' AS size
 UNION
 SELECT 1 AS n, 'mid' AS size
 UNION
 SELECT 2 AS n, 'big' AS size;
 
-CREATE PERFETTO TABLE internal_ranked_cpus AS
+CREATE PERFETTO TABLE _ranked_cpus AS
 SELECT
  (DENSE_RANK() OVER win) - 1 AS n,
  cpu
@@ -50,9 +50,9 @@ CREATE PERFETTO FUNCTION guess_cpu_size(
 -- A descriptive size ('little', 'mid', 'big', etc) or NULL if we have insufficient information.
 RETURNS STRING AS
 SELECT
-  IIF((SELECT COUNT(DISTINCT n) FROM internal_ranked_cpus) >= 2, size, null) as size
-FROM internal_ranked_cpus
-LEFT JOIN internal_cpu_sizes USING(n)
+  IIF((SELECT COUNT(DISTINCT n) FROM _ranked_cpus) >= 2, size, null) as size
+FROM _ranked_cpus
+LEFT JOIN _cpu_sizes USING(n)
 WHERE cpu = $cpu_index;
 
 
@@ -66,4 +66,4 @@ CREATE PERFETTO TABLE cpus(
 SELECT
   cpu as cpu_index,
   guess_cpu_size(cpu) AS size
-FROM internal_ranked_cpus;
+FROM _ranked_cpus;

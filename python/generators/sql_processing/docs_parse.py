@@ -28,7 +28,7 @@ from python.generators.sql_processing.utils import COLUMN_ANNOTATION_PATTERN
 
 
 def is_internal(name: str) -> bool:
-  return re.match(r'^internal_.*', name, re.IGNORECASE) is not None
+  return re.match(r'^_.*', name, re.IGNORECASE) is not None
 
 
 def is_snake_case(s: str) -> bool:

@@ -373,7 +373,7 @@ export class App implements m.ClassComponent {
                   sqlSource: `
                         SELECT cr.id, cr.utid, cr.ts, cr.dur, cr.name, cr.table_name
                         FROM
-                        internal_critical_path_stack(
+                        _critical_path_stack(
                           ${trackUtid},
                           ${window.start},
                           ${window.end} - ${

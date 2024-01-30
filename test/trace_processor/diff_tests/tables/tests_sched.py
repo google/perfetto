@@ -185,12 +185,12 @@ class TablesSched(TestSuite):
         357,369,376,1735842081507,293868,1465,230,"[NULL]","[NULL]","[NULL]",0,4
         """))
 
-  def test_thread_executing_span_internal_runnable_state_has_no_running(self):
+  def test_thread_executing_span_runnable_state_has_no_running(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
         INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT COUNT(*) AS count FROM internal_runnable_state WHERE state = 'Running'
+        SELECT COUNT(*) AS count FROM _runnable_state WHERE state = 'Running'
         """,
         out=Csv("""
         "count"

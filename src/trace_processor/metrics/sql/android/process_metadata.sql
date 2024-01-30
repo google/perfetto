@@ -23,7 +23,7 @@ JOIN process USING(upid);
 
 DROP VIEW IF EXISTS uid_package_count;
 CREATE PERFETTO VIEW uid_package_count AS
-SELECT * FROM internal_uid_package_count;
+SELECT * FROM _uid_package_count;
 
 DROP VIEW IF EXISTS process_metadata;
 CREATE PERFETTO VIEW process_metadata AS

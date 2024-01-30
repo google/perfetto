@@ -13,9 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.startup.internal_startup_events;
+INCLUDE PERFETTO MODULE android.startup.startup_events;
 
-CREATE PERFETTO VIEW internal_startup_async_events AS
+CREATE PERFETTO VIEW _startup_async_events AS
 SELECT
   ts,
   dur,
@@ -26,7 +26,7 @@ WHERE
   AND dur != 0
   AND INSTR(name, ':') = 0;
 
-CREATE PERFETTO VIEW internal_startup_complete_events AS
+CREATE PERFETTO VIEW _startup_complete_events AS
 SELECT
   CAST(STR_SPLIT(completed, ':', 0) AS INT) AS startup_id,
   STR_SPLIT(completed, ':', 2) AS package_name,
@@ -48,7 +48,7 @@ FROM (
 )
 GROUP BY 1, 2, 3;
 
-CREATE PERFETTO TABLE internal_startups_minsdk33 AS
+CREATE PERFETTO TABLE _startups_minsdk33 AS
 SELECT
   "minsdk33" as sdk,
   startup_id,
@@ -57,8 +57,8 @@ SELECT
   dur,
   package_name AS package,
   startup_type
-FROM internal_startup_async_events
-JOIN internal_startup_complete_events USING (startup_id);
+FROM _startup_async_events
+JOIN _startup_complete_events USING (startup_id);
 
 
 
