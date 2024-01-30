@@ -555,16 +555,14 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'Empty State',
-        renderWidget: ({header, content, detail}) =>
+        renderWidget: ({header, content}) =>
           m(EmptyState,
             {
-              header: header && 'No search results found...',
-              detail: detail && 'Please try a different search query',
+              title: header && 'No search results found...',
             },
             content && m(Button, {label: 'Try again'})),
         initialOpts: {
           header: true,
-          detail: true,
           content: true,
         },
       }),

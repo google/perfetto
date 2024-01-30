@@ -112,9 +112,8 @@ export class TabPanel implements m.ClassComponent {
     if (!exists(cs)) {
       return m(EmptyState, {
         className: 'pf-noselection',
-        header: 'Nothing selected',
-        detail: 'Selection details will appear here',
-      });
+        title: 'Nothing selected',
+      }, 'Selection details will appear here');
     }
 
     const sectionReg = globals.tabManager.detailsPanels;
@@ -127,10 +126,9 @@ export class TabPanel implements m.ClassComponent {
     if (!Boolean(section)) {
       return m(EmptyState, {
         className: 'pf-noselection',
-        header: 'No details available',
-        detail: `Selection kind: '${cs.kind}'`,
+        title: 'No details available',
         icon: 'warning',
-      });
+      }, `Selection kind: '${cs.kind}'`);
     } else {
       return section;
     }
