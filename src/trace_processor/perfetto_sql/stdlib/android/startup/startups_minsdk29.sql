@@ -13,44 +13,44 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.startup.internal_startup_events;
+INCLUDE PERFETTO MODULE android.startup.startup_events;
 
 -- Marks the beginning of the trace and is equivalent to when the statsd startup
 -- logging begins.
-CREATE PERFETTO VIEW internal_activity_intent_received AS
+CREATE PERFETTO VIEW _activity_intent_received AS
 SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
 
 -- We partition the trace into spans based on posted activity intents.
 -- We will refine these progressively in the next steps to only encompass
 -- activity starts.
-CREATE PERFETTO TABLE internal_activity_intent_recv_spans AS
+CREATE PERFETTO TABLE _activity_intent_recv_spans AS
 SELECT
   ROW_NUMBER()
   OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS startup_id,
   ts,
   LEAD(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER(ORDER BY ts) - ts AS dur
-FROM internal_activity_intent_received
+FROM _activity_intent_received
 ORDER BY ts;
 
 -- Filter activity_intent_recv_spans, keeping only the ones that triggered
 -- a startup.
-CREATE PERFETTO VIEW internal_startup_partitions AS
-SELECT * FROM internal_activity_intent_recv_spans AS spans
+CREATE PERFETTO VIEW _startup_partitions AS
+SELECT * FROM _activity_intent_recv_spans AS spans
 WHERE 1 = (
   SELECT COUNT(1)
-  FROM internal_startup_events
-  WHERE internal_startup_events.ts BETWEEN spans.ts AND spans.ts + spans.dur);
+  FROM _startup_events
+  WHERE _startup_events.ts BETWEEN spans.ts AND spans.ts + spans.dur);
 
 -- Successful activity startup. The end of the 'launching' event is not related
 -- to whether it actually succeeded or not.
-CREATE PERFETTO VIEW internal_activity_intent_startup_successful AS
+CREATE PERFETTO VIEW _activity_intent_startup_successful AS
 SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
 
 -- Use the starting event package name. The finish event package name
 -- is not reliable in the case of failed startups.
-CREATE PERFETTO TABLE internal_startups_minsdk29 AS
+CREATE PERFETTO TABLE _startups_minsdk29 AS
 SELECT
   "minsdk29" as sdk,
   lpart.startup_id,
@@ -59,12 +59,12 @@ SELECT
   le.ts_end - lpart.ts AS dur,
   package_name AS package,
   NULL AS startup_type
-FROM internal_startup_partitions AS lpart
-JOIN internal_startup_events le ON
+FROM _startup_partitions AS lpart
+JOIN _startup_events le ON
   (le.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur)
   AND (le.ts_end BETWEEN lpart.ts AND lpart.ts + lpart.dur)
 WHERE (
   SELECT COUNT(1)
-  FROM internal_activity_intent_startup_successful AS successful
+  FROM _activity_intent_startup_successful AS successful
   WHERE successful.ts BETWEEN lpart.ts AND lpart.ts + lpart.dur
 ) > 0;

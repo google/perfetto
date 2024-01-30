@@ -42,7 +42,7 @@ GROUP BY
   process_name,
   slice_name;
 
-CREATE PERFETTO TABLE internal_binder_txn_merged AS
+CREATE PERFETTO TABLE _binder_txn_merged AS
 WITH maybe_broken_binder_txn AS (
   -- Fetch the broken binder txns first, i.e, the txns that have children slices
   -- They may be broken because synchronous txns are typically blocked sleeping while
@@ -157,7 +157,7 @@ GROUP BY
   binder_txn_id,
   binder_reply_id;
 
-CREATE TABLE internal_oom_score AS
+CREATE TABLE _oom_score AS
   SELECT
     process.upid,
     CAST(c.value AS INT) AS value,
@@ -168,7 +168,7 @@ CREATE TABLE internal_oom_score AS
          JOIN process USING (upid)
    WHERE t.name = 'oom_score_adj';
 
-CREATE INDEX internal_oom_score_idx ON internal_oom_score(upid, ts);
+CREATE INDEX _oom_score_idx ON _oom_score(upid, ts);
 
 -- Breakdown synchronous binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction.
@@ -223,33 +223,33 @@ CREATE PERFETTO VIEW android_sync_binder_metrics_by_txn(
   server_oom_score INT
 ) AS
 SELECT binder.*, client_oom.value AS client_oom_score, server_oom.value AS server_oom_score
-FROM internal_binder_txn_merged binder
-LEFT JOIN internal_oom_score client_oom
+FROM _binder_txn_merged binder
+LEFT JOIN _oom_score client_oom
   ON
     binder.client_upid = client_oom.upid
     AND binder.client_ts BETWEEN client_oom.ts AND client_oom.end_ts
-LEFT JOIN internal_oom_score server_oom
+LEFT JOIN _oom_score server_oom
   ON
     binder.server_upid = server_oom.upid
     AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts;
 
-CREATE PERFETTO VIEW internal_binder_txn
+CREATE PERFETTO VIEW _binder_txn
 AS
 SELECT client_ts AS ts, client_dur AS dur, client_utid AS utid, *
 FROM android_sync_binder_metrics_by_txn;
 
-CREATE PERFETTO VIEW internal_binder_reply
+CREATE PERFETTO VIEW _binder_reply
 AS
 SELECT server_ts AS ts, server_dur AS dur, server_utid AS utid, *
 FROM android_sync_binder_metrics_by_txn;
 
-CREATE VIRTUAL TABLE internal_sp_binder_txn_thread_state
+CREATE VIRTUAL TABLE _sp_binder_txn_thread_state
 USING
-  SPAN_JOIN(internal_binder_txn PARTITIONED utid, thread_state PARTITIONED utid);
+  SPAN_JOIN(_binder_txn PARTITIONED utid, thread_state PARTITIONED utid);
 
-CREATE VIRTUAL TABLE internal_sp_binder_reply_thread_state
+CREATE VIRTUAL TABLE _sp_binder_reply_thread_state
 USING
-  SPAN_JOIN(internal_binder_reply PARTITIONED utid, thread_state PARTITIONED utid);
+  SPAN_JOIN(_binder_reply PARTITIONED utid, thread_state PARTITIONED utid);
 
 -- Aggregated thread_states on the client and server side per binder txn
 -- This builds on the data from |android_sync_binder_metrics_by_txn| and
@@ -291,7 +291,7 @@ SELECT
   state AS thread_state,
   SUM(dur) AS thread_state_dur,
   COUNT(dur) AS thread_state_count
-FROM internal_sp_binder_txn_thread_state
+FROM _sp_binder_txn_thread_state
 GROUP BY binder_txn_id, binder_reply_id, thread_state_type, thread_state
 UNION ALL
 SELECT
@@ -305,7 +305,7 @@ SELECT
   state AS thread_state,
   SUM(dur) AS thread_state_dur,
   COUNT(dur) AS thread_state_count
-FROM internal_sp_binder_reply_thread_state
+FROM _sp_binder_reply_thread_state
 GROUP BY binder_txn_id, binder_reply_id, thread_state_type, thread_state;
 
 -- Aggregated blocked_functions on the client and server side per binder txn
@@ -348,7 +348,7 @@ SELECT
   blocked_function,
   SUM(dur) AS blocked_function_dur,
   COUNT(dur) AS blocked_function_count
-FROM internal_sp_binder_txn_thread_state
+FROM _sp_binder_txn_thread_state
 WHERE blocked_function IS NOT NULL
 GROUP BY binder_txn_id, binder_reply_id, blocked_function
 UNION ALL
@@ -363,11 +363,11 @@ SELECT
   blocked_function,
   SUM(dur) AS blocked_function_dur,
   COUNT(dur) AS blocked_function_count
-FROM internal_sp_binder_reply_thread_state
+FROM _sp_binder_reply_thread_state
 WHERE blocked_function IS NOT NULL
 GROUP BY binder_txn_id, binder_reply_id, blocked_function;
 
-CREATE TABLE internal_async_binder_reply AS
+CREATE TABLE _async_binder_reply AS
 WITH async_reply AS MATERIALIZED (
   SELECT id, ts, dur, track_id, name
   FROM slice
@@ -381,7 +381,7 @@ WITH async_reply AS MATERIALIZED (
     LEAD(dur) OVER (PARTITION BY track_id ORDER BY ts) AS next_dur
     FROM async_reply;
 
-CREATE TABLE internal_binder_async_txn_raw AS
+CREATE TABLE _binder_async_txn_raw AS
 SELECT
   slice.id AS binder_txn_id,
   process.name AS client_process,
@@ -402,7 +402,7 @@ JOIN process
   USING (upid)
 WHERE slice.name = 'binder transaction async';
 
-CREATE PERFETTO TABLE internal_binder_async_txn AS
+CREATE PERFETTO TABLE _binder_async_txn AS
 SELECT
   IIF(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_name) AS aidl_name,
   IIF(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_ts) AS aidl_ts,
@@ -417,10 +417,10 @@ SELECT
   reply_process.pid AS server_pid,
   binder_reply.ts AS server_ts,
   binder_reply.dur AS server_dur
-FROM internal_binder_async_txn_raw binder_txn
+FROM _binder_async_txn_raw binder_txn
 JOIN flow binder_flow
   ON binder_txn.binder_txn_id = binder_flow.slice_out
-JOIN internal_async_binder_reply binder_reply
+JOIN _async_binder_reply binder_reply
   ON binder_flow.slice_in = binder_reply.id
 JOIN thread_track reply_thread_track
   ON binder_reply.track_id = reply_thread_track.id
@@ -483,12 +483,12 @@ CREATE PERFETTO VIEW android_async_binder_metrics_by_txn(
   server_oom_score INT
 ) AS
 SELECT binder.*, client_oom.value AS client_oom_score, server_oom.value AS server_oom_score
-FROM internal_binder_async_txn binder
-LEFT JOIN internal_oom_score client_oom
+FROM _binder_async_txn binder
+LEFT JOIN _oom_score client_oom
   ON
     binder.client_upid = client_oom.upid
     AND binder.client_ts BETWEEN client_oom.ts AND client_oom.end_ts
-LEFT JOIN internal_oom_score server_oom
+LEFT JOIN _oom_score server_oom
   ON
     binder.server_upid = server_oom.upid
     AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts;
