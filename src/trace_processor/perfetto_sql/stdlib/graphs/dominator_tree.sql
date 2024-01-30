@@ -49,7 +49,13 @@ CREATE PERFETTO MACRO graph_dominator_tree(
   -- A table/view/subquery corresponding to a directed flow-graph on which the
   -- dominator tree should be computed. This table must have the columns
   -- "source_node_id" and "dest_node_id" corresponding to the two nodes on
-  -- either end of the edges of the graph.
+  -- either end of the edges in the graph.
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
   --
   -- Note: this means that the graph *must* be a single fully connected
   -- component with |root_node_id| (see below) being the "entry node" for this
