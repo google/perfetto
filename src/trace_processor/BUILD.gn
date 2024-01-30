@@ -158,6 +158,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "db",
       "importers/android_bugreport",
       "importers/common",
+      "importers/etw:full",
       "importers/ftrace:full",
       "importers/fuchsia:full",
       "importers/gzip:full",
