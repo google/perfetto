@@ -233,7 +233,9 @@ class TableViewDocParser(AbstractDocParser):
 
     if or_replace is not None:
       self._error(
-          f'{type} "{self.name}": CREATE OR REPLACE is not allowed in stdlib')
+          f'{type} "{self.name}": CREATE OR REPLACE is not allowed in stdlib '
+          f'as standard library modules can only included once. Please just '
+          f'use CREATE instead.')
     if is_internal(self.name):
       return None
 
@@ -279,7 +281,9 @@ class FunctionDocParser(AbstractDocParser):
 
     if or_replace is not None:
       self._error(
-          f'Function "{self.name}": CREATE OR REPLACE is not allowed in stdlib')
+          f'Function "{self.name}": CREATE OR REPLACE is not allowed in stdlib '
+          f'as standard library modules can only included once. Please just '
+          f'use CREATE instead.')
 
     # Ignore internal functions.
     if is_internal(self.name):
@@ -328,7 +332,9 @@ class TableFunctionDocParser(AbstractDocParser):
 
     if or_replace is not None:
       self._error(
-          f'Function "{self.name}": CREATE OR REPLACE is not allowed in stdlib')
+          f'Function "{self.name}": CREATE OR REPLACE is not allowed in stdlib '
+          f'as standard library modules can only included once. Please just '
+          f'use CREATE instead.')
 
     # Ignore internal functions.
     if is_internal(self.name):
@@ -377,7 +383,9 @@ class MacroDocParser(AbstractDocParser):
 
     if or_replace is not None:
       self._error(
-          f'Function "{self.name}": CREATE OR REPLACE is not allowed in stdlib')
+          f'Function "{self.name}": CREATE OR REPLACE is not allowed in stdlib '
+          f'as standard library modules can only included once. Please just '
+          f'use CREATE instead.')
 
     # Ignore internal macros.
     if is_internal(self.name):
