@@ -15,10 +15,12 @@
  */
 
 #include "src/trace_processor/db/column/id_storage.h"
+#include <algorithm>
 #include <optional>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
@@ -34,7 +36,7 @@ namespace {
 
 template <typename Comparator>
 RangeOrBitVector IndexSearchWithComparator(uint32_t val,
-                                           uint32_t* indices,
+                                           const uint32_t* indices,
                                            uint32_t indices_size,
                                            Comparator comparator) {
   // Slow path: we compare <64 elements and append to get us to a word
@@ -182,12 +184,10 @@ RangeOrBitVector IdStorage::Search(FilterOp op,
 
 RangeOrBitVector IdStorage::IndexSearch(FilterOp op,
                                         SqlValue sql_val,
-                                        uint32_t* indices,
-                                        uint32_t indices_size,
-                                        bool) const {
+                                        Indices indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "IdStorage::IndexSearch",
-                    [indices_size, op](metatrace::Record* r) {
-                      r->AddArg("Count", std::to_string(indices_size));
+                    [indices, op](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices.size));
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
@@ -199,7 +199,7 @@ RangeOrBitVector IdStorage::IndexSearch(FilterOp op,
       case SearchValidationResult::kOk:
         break;
       case SearchValidationResult::kAllData:
-        return RangeOrBitVector(Range(0, indices_size));
+        return RangeOrBitVector(Range(0, indices.size));
       case SearchValidationResult::kNoData:
         return RangeOrBitVector(Range());
     }
@@ -209,22 +209,22 @@ RangeOrBitVector IdStorage::IndexSearch(FilterOp op,
 
   switch (op) {
     case FilterOp::kEq:
-      return IndexSearchWithComparator(val, indices, indices_size,
+      return IndexSearchWithComparator(val, indices.data, indices.size,
                                        std::equal_to<uint32_t>());
     case FilterOp::kNe:
-      return IndexSearchWithComparator(val, indices, indices_size,
+      return IndexSearchWithComparator(val, indices.data, indices.size,
                                        std::not_equal_to<uint32_t>());
     case FilterOp::kLe:
-      return IndexSearchWithComparator(val, indices, indices_size,
+      return IndexSearchWithComparator(val, indices.data, indices.size,
                                        std::less_equal<uint32_t>());
     case FilterOp::kLt:
-      return IndexSearchWithComparator(val, indices, indices_size,
+      return IndexSearchWithComparator(val, indices.data, indices.size,
                                        std::less<uint32_t>());
     case FilterOp::kGt:
-      return IndexSearchWithComparator(val, indices, indices_size,
+      return IndexSearchWithComparator(val, indices.data, indices.size,
                                        std::greater<uint32_t>());
     case FilterOp::kGe:
-      return IndexSearchWithComparator(val, indices, indices_size,
+      return IndexSearchWithComparator(val, indices.data, indices.size,
                                        std::greater_equal<uint32_t>());
     case FilterOp::kIsNotNull:
     case FilterOp::kIsNull:
@@ -233,6 +233,49 @@ RangeOrBitVector IdStorage::IndexSearch(FilterOp op,
       PERFETTO_FATAL("Invalid filter operation");
   }
   PERFETTO_FATAL("FilterOp not matched");
+}
+
+Range IdStorage::OrderedIndexSearch(FilterOp op,
+                                    SqlValue sql_val,
+                                    Indices indices) const {
+  PERFETTO_DCHECK(op != FilterOp::kNe);
+
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "IdStorage::OrderedIndexSearch",
+                    [indices, op](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices.size));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                    });
+
+  // It's a valid filter operation if |sql_val| is a double, although it
+  // requires special logic.
+  if (sql_val.type == SqlValue::kDouble) {
+    switch (utils::CompareIntColumnWithDouble(&sql_val, op)) {
+      case SearchValidationResult::kOk:
+        break;
+      case SearchValidationResult::kAllData:
+        return Range(0, indices.size);
+      case SearchValidationResult::kNoData:
+        return Range();
+    }
+  }
+  uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
+
+  // Indices are monotonic non contiguous values if OrderedIndexSearch was
+  // called.
+
+  // Look for the first and last index and find the result of looking for this
+  // range in IdStorage.
+  Range indices_range(indices.data[0], indices.data[indices.size - 1] + 1);
+  Range bin_search_ret = BinarySearchIntrinsic(op, val, indices_range);
+
+  auto start_ptr = std::lower_bound(indices.data, indices.data + indices.size,
+                                    bin_search_ret.start);
+  auto end_ptr = std::lower_bound(start_ptr, indices.data + indices.size,
+                                  bin_search_ret.end);
+
+  return Range(static_cast<uint32_t>(std::distance(indices.data, start_ptr)),
+               static_cast<uint32_t>(std::distance(indices.data, end_ptr)));
 }
 
 Range IdStorage::BinarySearchIntrinsic(FilterOp op, Id val, Range range) const {

@@ -171,12 +171,10 @@ RangeOrBitVector SetIdStorage::Search(FilterOp op,
 
 RangeOrBitVector SetIdStorage::IndexSearch(FilterOp op,
                                            SqlValue sql_val,
-                                           uint32_t* indices,
-                                           uint32_t indices_size,
-                                           bool) const {
+                                           Indices indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "SetIdStorage::IndexSearch",
-                    [indices_size, op](metatrace::Record* r) {
-                      r->AddArg("Count", std::to_string(indices_size));
+                    [indices, op](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices.size));
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
@@ -188,7 +186,7 @@ RangeOrBitVector SetIdStorage::IndexSearch(FilterOp op,
       case SearchValidationResult::kOk:
         break;
       case SearchValidationResult::kAllData:
-        return RangeOrBitVector(Range(0, indices_size));
+        return RangeOrBitVector(Range(0, indices.size));
       case SearchValidationResult::kNoData:
         return RangeOrBitVector(Range());
     }
@@ -196,37 +194,37 @@ RangeOrBitVector SetIdStorage::IndexSearch(FilterOp op,
 
   uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
 
-  BitVector::Builder builder(indices_size);
+  BitVector::Builder builder(indices.size);
 
   // TODO(mayzner): Instead of utils::IndexSearchWithComparator, use the
   // property of SetId data - that for each index i, data[i] <= i.
   switch (op) {
     case FilterOp::kEq:
-      utils::IndexSearchWithComparator(val, values_->data(), indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
                                        std::equal_to<uint32_t>(), builder);
       break;
     case FilterOp::kNe:
-      utils::IndexSearchWithComparator(val, values_->data(), indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
                                        std::not_equal_to<uint32_t>(), builder);
       break;
     case FilterOp::kLe:
-      utils::IndexSearchWithComparator(val, values_->data(), indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
                                        std::less_equal<uint32_t>(), builder);
       break;
     case FilterOp::kLt:
-      utils::IndexSearchWithComparator(val, values_->data(), indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
                                        std::less<uint32_t>(), builder);
       break;
     case FilterOp::kGt:
-      utils::IndexSearchWithComparator(val, values_->data(), indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
                                        std::greater<uint32_t>(), builder);
       break;
     case FilterOp::kGe:
-      utils::IndexSearchWithComparator(val, values_->data(), indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
                                        std::greater_equal<uint32_t>(), builder);
       break;
     case FilterOp::kIsNotNull:
-      return RangeOrBitVector(Range(0, indices_size));
+      return RangeOrBitVector(Range(0, indices.size));
     case FilterOp::kIsNull:
       return RangeOrBitVector(Range());
     case FilterOp::kGlob:
@@ -234,6 +232,24 @@ RangeOrBitVector SetIdStorage::IndexSearch(FilterOp op,
       PERFETTO_FATAL("Illegal argument");
   }
   return RangeOrBitVector(std::move(builder).Build());
+}
+
+Range SetIdStorage::OrderedIndexSearch(FilterOp op,
+                                       SqlValue sql_val,
+                                       Indices indices) const {
+  // Indices are monotonic non-contiguous values.
+  auto res = SetIdStorage::Search(
+      op, sql_val, Range(indices.data[0], indices.data[indices.size - 1] + 1));
+  PERFETTO_CHECK(res.IsRange());
+  Range res_range = std::move(res).TakeIfRange();
+
+  auto start_ptr = std::lower_bound(indices.data, indices.data + indices.size,
+                                    res_range.start);
+  auto end_ptr =
+      std::lower_bound(start_ptr, indices.data + indices.size, res_range.end);
+
+  return Range(static_cast<uint32_t>(std::distance(indices.data, start_ptr)),
+               static_cast<uint32_t>(std::distance(indices.data, end_ptr)));
 }
 
 Range SetIdStorage::BinarySearchIntrinsic(FilterOp op,
