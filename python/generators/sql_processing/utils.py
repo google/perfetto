@@ -107,6 +107,7 @@ PATTERN_BY_KIND = {
 
 ALLOWED_PREFIXES = {
     'chrome/util': 'cr',
+    'graphs': 'graph',
 }
 
 # Given a regex pattern and a string to match against, returns all the
