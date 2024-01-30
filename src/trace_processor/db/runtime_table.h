@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/table.h"
@@ -46,19 +47,24 @@ class RuntimeTable : public Table {
                                       StringStorage,
                                       DoubleStorage,
                                       NullDoubleStorage>;
+  class Builder {
+   public:
+    Builder(StringPool* pool, std::vector<std::string> col_names);
 
-  RuntimeTable(StringPool* pool, std::vector<std::string> col_names);
+    base::Status AddNull(uint32_t idx);
+    base::Status AddInteger(uint32_t idx, int64_t res);
+    base::Status AddFloat(uint32_t idx, double res);
+    base::Status AddText(uint32_t idx, const char* ptr);
+
+    base::StatusOr<std::unique_ptr<RuntimeTable>> Build(uint32_t rows) &&;
+
+   private:
+    StringPool* string_pool_ = nullptr;
+    std::vector<std::string> col_names_;
+    std::vector<std::unique_ptr<VariantStorage>> storage_;
+  };
+
   ~RuntimeTable() override;
-
-  base::Status AddNull(uint32_t idx);
-
-  base::Status AddInteger(uint32_t idx, int64_t res);
-
-  base::Status AddFloat(uint32_t idx, double res);
-
-  base::Status AddText(uint32_t idx, const char* ptr);
-
-  base::Status AddColumnsAndOverlays(uint32_t rows);
 
   const Table::Schema& schema() const { return schema_; }
 

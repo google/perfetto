@@ -38,6 +38,6 @@
   PERFETTO_INTERNAL_MACRO_CONCAT(auto status_or, __LINE__) = rhs;    \
   RETURN_IF_ERROR(                                                   \
       PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__).status()); \
-  lhs = std::move(rhs.value())
+  lhs = std::move(PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__).value())
 
 #endif  // SRC_TRACE_PROCESSOR_UTIL_STATUS_MACROS_H_
