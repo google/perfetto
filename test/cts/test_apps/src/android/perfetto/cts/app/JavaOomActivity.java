@@ -26,6 +26,14 @@ public class JavaOomActivity extends Activity {
         new Thread(() -> {
             try {
                 byte[] alloc = new byte[Integer.MAX_VALUE];
+                // The return statement below is required to keep the allocation
+                // above when generating DEX. Without the return statement there is
+                // no way for a debugger to break where `alloc` is in scope and
+                // therefore javac will not generate local variable information for it.
+                // Without local variable information dexers (both D8 and R8) will
+                // remove the dead allocation as without local variable information it
+                // is dead even in debug mode. See b/322478366#comment3.
+                return;
             } catch (OutOfMemoryError e) {
             }
         }).start();
