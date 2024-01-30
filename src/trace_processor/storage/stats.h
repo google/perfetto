@@ -272,6 +272,12 @@ namespace stats {
       "Shell transition packet has unknown fields, which results "             \
       "in some arguments missing. You may need a newer version of trace "      \
       "processor to parse them."),                                             \
+  F(winscope_protolog_invalid_interpolation_parse_errors,                      \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "ProtoLog message string has invalid interplation parameter."),          \
+  F(winscope_protolog_missing_interned_arg_parse_errors,                       \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "Failed to find interned ProtoLog argument."),          \
   F(ftrace_missing_event_id,              kSingle,  kInfo,    kAnalysis,       \
       "Indicates that the ftrace event was dropped because the event id was "  \
       "missing. This is an 'info' stat rather than an error stat because "     \
