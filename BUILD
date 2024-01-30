@@ -2171,6 +2171,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/dominator_tree.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/dominator_tree.h",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.cc",
@@ -2298,6 +2300,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_graphs_graphs",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/graphs/dominator_tree.sql",
+        "src/trace_processor/perfetto_sql/stdlib/graphs/search.sql",
     ],
 )
 

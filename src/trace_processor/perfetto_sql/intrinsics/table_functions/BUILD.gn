@@ -25,6 +25,8 @@ source_set("table_functions") {
     "connected_flow.h",
     "descendant.cc",
     "descendant.h",
+    "dfs.cc",
+    "dfs.h",
     "dominator_tree.cc",
     "dominator_tree.h",
     "experimental_annotated_stack.cc",
