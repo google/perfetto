@@ -15,7 +15,7 @@
 --
 
 INCLUDE PERFETTO MODULE common.slices;
-INCLUDE PERFETTO MODULE experimental.flat_slices;
+INCLUDE PERFETTO MODULE slices.flat_slices;
 
 -- A 'thread_executing_span' is thread_state span starting with a runnable slice
 -- until the next runnable slice that's woken up by a process (as opposed
@@ -273,7 +273,7 @@ SELECT *, 1 AS is_root, 0 AS is_leaf FROM _wakeup_root;
 -- @column blocked_function   Kernel blocked_function of thread state before waking up.
 -- @column is_root            Whether the thread_executing_span is a root.
 -- @column depth              Tree depth of thread executing span from the root.
-CREATE TABLE experimental_thread_executing_span_graph AS
+CREATE TABLE _thread_executing_span_graph AS
 WITH roots AS (
 SELECT
   start_id AS root_id,
@@ -315,7 +315,7 @@ FROM _wakeup_root
 CREATE PERFETTO FUNCTION _critical_path_start_ts(ts LONG, leaf_blocked_ts LONG)
 RETURNS LONG AS SELECT MAX($ts, IFNULL($leaf_blocked_ts, $ts));
 
--- See |experimental_thread_executing_span_critical_path|
+-- See |_thread_executing_span_critical_path|
 CREATE PERFETTO TABLE _critical_path
 AS
 WITH chain AS (
@@ -332,7 +332,7 @@ WITH chain AS (
     blocked_function AS critical_path_blocked_function,
     utid AS critical_path_utid,
     upid AS critical_path_upid
-  FROM experimental_thread_executing_span_graph graph
+  FROM _thread_executing_span_graph graph
   UNION ALL
   SELECT
     graph.parent_id,
@@ -348,7 +348,7 @@ WITH chain AS (
     chain.critical_path_blocked_function,
     chain.critical_path_utid,
     chain.critical_path_upid
-  FROM experimental_thread_executing_span_graph graph
+  FROM _thread_executing_span_graph graph
   JOIN chain ON (chain.parent_id = graph.id AND (chain.ts > chain.critical_path_blocked_ts))
 ) SELECT * FROM chain;
 
@@ -356,7 +356,7 @@ WITH chain AS (
 -- every sleeping thread state is computed and unioned with the thread executing spans on that thread.
 -- The duration of a thread executing span in the critical path is the range between the start of the
 -- thread_executing_span and the start of the next span in the critical path.
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path(
+CREATE PERFETTO FUNCTION _thread_executing_span_critical_path(
   -- Utid of the thread to compute the critical path for.
   critical_path_utid INT,
   -- Timestamp.
@@ -409,18 +409,18 @@ WITH span_starts AS (
       critical_path_utid
    FROM span_starts;
 
--- Limited thread_state view that will later be span joined with the |experimental_thread_executing_span_graph|.
+-- Limited thread_state view that will later be span joined with the |_thread_executing_span_graph|.
 CREATE PERFETTO VIEW _span_thread_state_view
 AS SELECT id AS thread_state_id, ts, dur, utid, state, blocked_function as function, io_wait, cpu FROM thread_state;
 
--- |experimental_thread_executing_span_graph| span joined with thread_state information.
+-- |_thread_executing_span_graph| span joined with thread_state information.
 CREATE VIRTUAL TABLE _span_graph_thread_state_sp
 USING
   SPAN_JOIN(
-    experimental_thread_executing_span_graph PARTITIONED utid,
+    _thread_executing_span_graph PARTITIONED utid,
     _span_thread_state_view PARTITIONED utid);
 
--- Limited slice_view that will later be span joined with the |experimental_thread_executing_span_graph|.
+-- Limited slice_view that will later be span joined with the |_thread_executing_span_graph|.
 CREATE PERFETTO VIEW _span_slice_view
 AS
 SELECT
@@ -430,28 +430,28 @@ SELECT
   CAST(ts AS INT) AS ts,
   CAST(dur AS INT) AS dur,
   utid
-FROM experimental_slice_flattened;
+FROM _slice_flattened;
 
--- |experimental_thread_executing_span_graph| span joined with slice information.
+-- |_thread_executing_span_graph| span joined with slice information.
 CREATE VIRTUAL TABLE _span_graph_slice_sp
 USING
   SPAN_JOIN(
-    experimental_thread_executing_span_graph PARTITIONED utid,
+    _thread_executing_span_graph PARTITIONED utid,
     _span_slice_view PARTITIONED utid);
 
--- Limited |experimental_thread_executing_span_graph| + thread_state view.
+-- Limited |_thread_executing_span_graph| + thread_state view.
 CREATE PERFETTO VIEW _span_graph_thread_state
 AS
 SELECT ts, dur, id, thread_state_id, state, function, io_wait, cpu
 FROM _span_graph_thread_state_sp;
 
--- Limited |experimental_thread_executing_span_graph| + slice view.
+-- Limited |_thread_executing_span_graph| + slice view.
 CREATE PERFETTO VIEW _span_graph_slice
 AS
 SELECT ts, dur, id, slice_id, slice_depth, slice_name
 FROM _span_graph_slice_sp;
 
--- |experimental_thread_executing_span_graph| + thread_state view joined with critical_path information.
+-- |_thread_executing_span_graph| + thread_state view joined with critical_path information.
 CREATE PERFETTO TABLE _critical_path_thread_state AS
 WITH span AS MATERIALIZED (
     SELECT * FROM _critical_path
@@ -494,8 +494,8 @@ SELECT
 FROM span_starts
 WHERE MIN(span_end_ts, thread_state_end_ts) - ts > 0;
 
--- |experimental_thread_executing_span_graph| + thread_state + critical_path span joined with
--- |experimental_thread_executing_span_graph| + slice view.
+-- |_thread_executing_span_graph| + thread_state + critical_path span joined with
+-- |_thread_executing_span_graph| + slice view.
 CREATE VIRTUAL TABLE _critical_path_sp
 USING
   SPAN_LEFT_JOIN(
@@ -505,7 +505,7 @@ USING
 -- Flattened slices span joined with their thread_states. This contains the 'self' information
 -- without 'critical_path' (blocking) information.
 CREATE VIRTUAL TABLE _self_sp USING
-  SPAN_LEFT_JOIN(thread_state PARTITIONED utid, experimental_slice_flattened PARTITIONED utid);
+  SPAN_LEFT_JOIN(thread_state PARTITIONED utid, _slice_flattened PARTITIONED utid);
 
 -- Limited view of |_self_sp|.
 CREATE PERFETTO VIEW _self_view
@@ -883,7 +883,7 @@ SELECT * FROM merged WHERE id IS NOT NULL;
 -- stacked from top to bottom: self thread_state, self blocked_function, self process_name,
 -- self thread_name, slice stack, critical_path thread_state, critical_path process_name,
 -- critical_path thread_name, critical_path slice_stack, running_cpu.
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_stack(
+CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_stack(
   -- Thread utid to filter critical paths to.
   critical_path_utid INT,
   -- Timestamp of start of time range to filter critical paths to.
@@ -962,8 +962,8 @@ WITH
   )
 SELECT EXPERIMENTAL_PROFILE(stack, 'duration', 'ns', dur) AS pprof FROM stacks;
 
--- Returns a pprof aggreagation of the stacks in |experimental_thread_executing_span_critical_path_stack|
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_graph(
+-- Returns a pprof aggreagation of the stacks in |_thread_executing_span_critical_path_stack|
+CREATE PERFETTO FUNCTION _thread_executing_span_critical_path_graph(
   -- Descriptive name for the graph.
   graph_title STRING,
   -- Thread utid to filter critical paths to.
