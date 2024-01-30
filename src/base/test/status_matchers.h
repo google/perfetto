@@ -36,12 +36,21 @@ MATCHER(IsError, negation ? "is not error" : "is error") {
   return !arg.ok();
 }
 
-// Macros for testing the results of functions that return absl::Status or
-// absl::StatusOr<T> (for any type T).
+// Macros for testing the results of functions that return base::Status or
+// base::StatusOr<T> (for any type T).
 #define EXPECT_OK(expression) \
   EXPECT_THAT(expression, ::perfetto::base::gtest_matchers::IsOk())
 #define ASSERT_OK(expression) \
   ASSERT_THAT(expression, ::perfetto::base::gtest_matchers::IsOk())
+
+// Macros for testing the results of function returning base::StatusOr<T>.
+#define PERFETTO_TEST_STATUS_MATCHER_CONCAT(x, y) x##y
+#define ASSERT_OK_AND_ASSIGN(lhs, rhs)                                    \
+  PERFETTO_TEST_STATUS_MATCHER_CONCAT(auto status_or, __LINE__) = rhs;    \
+  ASSERT_OK(                                                              \
+      PERFETTO_TEST_STATUS_MATCHER_CONCAT(status_or, __LINE__).status()); \
+  lhs = std::move(                                                        \
+      PERFETTO_TEST_STATUS_MATCHER_CONCAT(status_or, __LINE__).value())
 
 }  // namespace gtest_matchers
 
