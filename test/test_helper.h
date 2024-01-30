@@ -468,7 +468,6 @@ class Exec {
       pass_env("TMPDIR", &subprocess_);
       pass_env("TMP", &subprocess_);
       pass_env("TEMP", &subprocess_);
-      pass_env("LD_LIBRARY_PATH", &subprocess_);
       cmd.push_back(base::GetCurExecutableDir() + "/" + argv0);
       cmd.insert(cmd.end(), args.begin(), args.end());
     }
