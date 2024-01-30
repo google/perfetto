@@ -90,7 +90,7 @@ def main():
       with open(path, 'r') as f:
         sql = f.read()
 
-      parsed = parse_file(path, sql)
+      parsed = parse_file(rel_path, sql)
       modules.append((path, sql, parsed))
 
       if args.verbose:

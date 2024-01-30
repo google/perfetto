@@ -22,8 +22,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple, NamedTuple
 from python.generators.sql_processing.docs_extractor import DocsExtractor
 from python.generators.sql_processing.utils import ALLOWED_PREFIXES, ANY_PATTERN, ARG_DEFINITION_PATTERN, ObjKind
 from python.generators.sql_processing.utils import ARG_ANNOTATION_PATTERN
-from python.generators.sql_processing.utils import NAME_AND_TYPE_PATTERN
-from python.generators.sql_processing.utils import FUNCTION_RETURN_PATTERN
 from python.generators.sql_processing.utils import COLUMN_ANNOTATION_PATTERN
 
 
@@ -94,7 +92,7 @@ class AbstractDocParser(ABC):
 
   def _parse_desc_not_empty(self, desc: str):
     if not desc:
-      self._error('Description of the table/view/function is missing')
+      self._error('Description of the table/view/function/macro is missing')
     return desc.strip()
 
   def _validate_only_contains_annotations(self,
@@ -194,7 +192,7 @@ class AbstractDocParser(ABC):
                     '({ARG_DEFINITION_PATTERN})')
         return result
       groups = m.groups()
-      comment = None if groups[0] is None else parse_comment(groups[0])
+      comment = '' if groups[0] is None else parse_comment(groups[0])
       name = groups[-3]
       type = groups[-2]
       result[name] = Arg(type, comment)
@@ -352,17 +350,70 @@ class TableFunctionDocParser(AbstractDocParser):
     )
 
 
+class Macro:
+  name: str
+  desc: str
+  return_desc: str
+  return_type: str
+  args: Dict[str, Arg]
+
+  def __init__(self, name: str, desc: str, return_desc: str, return_type: str,
+               args: Dict[str, Arg]):
+    self.name = name
+    self.desc = desc
+    self.return_desc = return_desc
+    self.return_type = return_type
+    self.args = args
+
+
+class MacroDocParser(AbstractDocParser):
+  """Parses documentation for macro statements."""
+
+  def __init__(self, path: str, module: str):
+    super().__init__(path, module)
+
+  def parse(self, doc: DocsExtractor.Extract) -> Optional[Macro]:
+    or_replace, self.name, args, return_desc, return_type = doc.obj_match
+
+    if or_replace is not None:
+      self._error(
+          f'Function "{self.name}": CREATE OR REPLACE is not allowed in stdlib')
+
+    # Ignore internal macros.
+    if is_internal(self.name):
+      return None
+
+    self._validate_only_contains_annotations(doc.annotations, set())
+    name = self._parse_name()
+
+    if not is_snake_case(name):
+      self._error(f'Macro name "{name}" is not snake_case'
+                  f' (should be "{name.casefold()}")')
+
+    return Macro(
+        name=name,
+        desc=self._parse_desc_not_empty(doc.description),
+        return_desc=parse_comment(return_desc),
+        return_type=return_type,
+        args=self._parse_args(doc.annotations, args),
+    )
+
+
 class ParsedFile:
   errors: List[str] = []
   table_views: List[TableOrView] = []
   functions: List[Function] = []
   table_functions: List[TableFunction] = []
+  macros: List[Macro] = []
 
-  def __init__(self, errors, table_views, functions, table_functions):
+  def __init__(self, errors: List[str], table_views: List[TableOrView],
+               functions: List[Function], table_functions: List[TableFunction],
+               macros: List[Macro]):
     self.errors = errors
     self.table_views = table_views
     self.functions = functions
     self.table_functions = table_functions
+    self.macros = macros
 
 
 # Reads the provided SQL and, if possible, generates a dictionary with data
@@ -378,13 +429,14 @@ def parse_file(path: str, sql: str) -> ParsedFile:
   extractor = DocsExtractor(path, module_name, sql)
   docs = extractor.extract()
   if extractor.errors:
-    return ParsedFile(extractor.errors, [], [], [])
+    return ParsedFile(extractor.errors, [], [], [], [])
 
   # Parse the extracted docs.
   errors = []
   table_views = []
   functions = []
   table_functions = []
+  macros = []
   for doc in docs:
     if doc.obj_kind == ObjKind.table_view:
       parser = TableViewDocParser(path, module_name)
@@ -404,5 +456,11 @@ def parse_file(path: str, sql: str) -> ParsedFile:
       if res:
         table_functions.append(res)
       errors += parser.errors
+    if doc.obj_kind == ObjKind.macro:
+      parser = MacroDocParser(path, module_name)
+      res = parser.parse(doc)
+      if res:
+        macros.append(res)
+      errors += parser.errors
 
-  return ParsedFile(errors, table_views, functions, table_functions)
+  return ParsedFile(errors, table_views, functions, table_functions, macros)

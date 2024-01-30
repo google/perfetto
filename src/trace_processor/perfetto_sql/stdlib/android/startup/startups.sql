@@ -77,13 +77,12 @@ WHERE
 --
 -- The vast majority of cases should be a single process. However it is
 -- possible that the process dies during the activity startup and is respawned.
---
--- @column startup_id   Startup id.
--- @column upid         Upid of process on which activity started.
--- @column startup_type Type of the startup.
 CREATE PERFETTO TABLE android_startup_processes(
+  -- Startup id.
   startup_id INT,
+  -- Upid of process on which activity started.
   upid INT,
+  -- Type of the startup.
   startup_type INT
 ) AS
 -- This is intentionally a materialized query. For some reason, if we don't
