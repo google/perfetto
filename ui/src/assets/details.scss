@@ -56,14 +56,13 @@
         cursor: default;
       }
 
-
-
       &:nth-child(1) {
         margin-left: 3px;
       }
 
       .pf-tab-title {
         margin: 0px 4px;
+        overflow: hidden;
       }
     }
   }
