@@ -20,6 +20,7 @@ import {raf} from '../core/raf_scheduler';
 
 import {Flow, globals} from './globals';
 import {DurationWidget} from './widgets/duration';
+import {EmptyState} from '../widgets/empty_state';
 
 export const ALL_CATEGORIES = '_all_';
 
@@ -39,8 +40,19 @@ export function getFlowCategories(flow: Flow): string[] {
 export class FlowEventsPanel implements m.ClassComponent {
   view() {
     const selection = globals.state.currentSelection;
-    if (!selection || selection.kind !== 'CHROME_SLICE') {
-      return;
+    if (!selection) {
+      return m(EmptyState, {
+        className: 'pf-noselection',
+        title: 'Nothing selected',
+      }, 'Flow data will appear here');
+    }
+
+    if (selection.kind !== 'CHROME_SLICE') {
+      return m(EmptyState, {
+        className: 'pf-noselection',
+        title: 'No flow data',
+        icon: 'warning',
+      }, `Flows are not applicable to the selection kind: '${selection.kind}'`);
     }
 
     const flowClickHandler = (sliceId: number, trackId: number) => {
