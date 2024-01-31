@@ -49,18 +49,17 @@ RangeOrBitVector FakeStorage::Search(FilterOp, SqlValue, Range in) const {
 
 RangeOrBitVector FakeStorage::IndexSearch(FilterOp,
                                           SqlValue,
-                                          uint32_t* indices,
-                                          uint32_t indices_size,
-                                          bool) const {
+                                          Indices indices) const {
   switch (strategy_) {
     case kAll:
-      return RangeOrBitVector(Range(0, indices_size));
+      return RangeOrBitVector(Range(0, indices.size));
     case kNone:
       return RangeOrBitVector(Range());
     case kRange:
     case kBitVector: {
-      BitVector::Builder builder(indices_size);
-      for (uint32_t* it = indices; it != indices + indices_size; ++it) {
+      BitVector::Builder builder(indices.size);
+      for (const uint32_t* it = indices.data; it != indices.data + indices.size;
+           ++it) {
         bool in_range = strategy_ == kRange && range_.Contains(*it);
         bool in_bv = strategy_ == kBitVector && bit_vector_.IsSet(*it);
         builder.Append(in_range || in_bv);
@@ -69,6 +68,44 @@ RangeOrBitVector FakeStorage::IndexSearch(FilterOp,
     }
   }
   PERFETTO_FATAL("For GCC");
+}
+
+Range FakeStorage::OrderedIndexSearch(FilterOp,
+                                      SqlValue,
+                                      Indices indices) const {
+  if (strategy_ == kAll) {
+    return Range(0, indices.size);
+  }
+
+  if (strategy_ == kNone) {
+    return Range();
+  }
+
+  if (strategy_ == kRange) {
+    // We are looking at intersection of |range_| and |indices_|.
+    const uint32_t* first_in_range = std::partition_point(
+        indices.data, indices.data + indices.size,
+        [this](uint32_t i) { return !range_.Contains(i); });
+    const uint32_t* first_outside_range =
+        std::partition_point(first_in_range, indices.data + indices.size,
+                             [this](uint32_t i) { return range_.Contains(i); });
+    return Range(
+        static_cast<uint32_t>(std::distance(indices.data, first_in_range)),
+        static_cast<uint32_t>(
+            std::distance(indices.data, first_outside_range)));
+  }
+
+  PERFETTO_DCHECK(strategy_ == kBitVector);
+  // We are looking at intersection of |range_| and |bit_vector_|.
+  const uint32_t* first_set = std::partition_point(
+      indices.data, indices.data + indices.size,
+      [this](uint32_t i) { return !bit_vector_.IsSet(i); });
+  const uint32_t* first_non_set =
+      std::partition_point(first_set, indices.data + indices.size,
+                           [this](uint32_t i) { return bit_vector_.IsSet(i); });
+  return Range(
+      static_cast<uint32_t>(std::distance(indices.data, first_set)),
+      static_cast<uint32_t>(std::distance(indices.data, first_non_set)));
 }
 
 void FakeStorage::StableSort(uint32_t*, uint32_t) const {

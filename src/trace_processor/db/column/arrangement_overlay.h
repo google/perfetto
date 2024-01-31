@@ -18,7 +18,10 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_ARRANGEMENT_OVERLAY_H_
 
 #include <memory>
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -30,7 +33,8 @@ namespace column {
 class ArrangementOverlay : public Column {
  public:
   explicit ArrangementOverlay(std::unique_ptr<Column> inner,
-                              const std::vector<uint32_t>* arrangement);
+                              const std::vector<uint32_t>* arrangement,
+                              bool does_arrangement_order_storage);
 
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
@@ -39,11 +43,11 @@ class ArrangementOverlay : public Column {
                           SqlValue value,
                           Range range) const override;
 
-  RangeOrBitVector IndexSearch(FilterOp op,
-                               SqlValue value,
-                               uint32_t* indices,
-                               uint32_t indices_count,
-                               bool sorted) const override;
+  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+
+  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override {
+    PERFETTO_FATAL("OrderedIndexSearch can't be called on ArrangementOverlay");
+  }
 
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
@@ -58,6 +62,8 @@ class ArrangementOverlay : public Column {
  private:
   std::unique_ptr<Column> inner_;
   const std::vector<uint32_t>* arrangement_;
+  const Indices::State arrangement_state_;
+  const bool does_arrangement_order_storage_;
 };
 
 }  // namespace column

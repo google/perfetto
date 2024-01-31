@@ -129,8 +129,9 @@ void QueryExecutor::IndexSearch(const Constraint& c,
   std::vector<uint32_t> table_indices = std::move(*rm).TakeAsIndexVector();
 
   RangeOrBitVector matched = storage.IndexSearch(
-      c.op, c.value, table_indices.data(),
-      static_cast<uint32_t>(table_indices.size()), false /* sorted */);
+      c.op, c.value,
+      Indices{table_indices.data(), static_cast<uint32_t>(table_indices.size()),
+              Indices::State::kMonotonic});
 
   if (matched.IsBitVector()) {
     BitVector res = std::move(matched).TakeIfBitVector();
@@ -151,8 +152,12 @@ void QueryExecutor::IndexSearch(const Constraint& c,
   if (res.size() == table_indices.size()) {
     return;
   }
-  // TODO(b/283763282): Remove after implementing extrinsic binary search.
-  PERFETTO_FATAL("Extrinsic binary search is not implemented.");
+
+  PERFETTO_DCHECK(res.end <= table_indices.size());
+  std::vector<uint32_t> res_as_iv(
+      table_indices.begin() + static_cast<int>(res.start),
+      table_indices.begin() + static_cast<int>(res.end));
+  *rm = RowMap(std::move(res_as_iv));
 }
 
 RowMap QueryExecutor::FilterLegacy(const Table* table,
@@ -172,10 +177,6 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     // Storage has different size than Range overlay.
     use_legacy = use_legacy || (col.overlay().size() != column_size &&
                                 col.overlay().row_map().IsRange());
-
-    // Extrinsically sorted columns.
-    use_legacy = use_legacy ||
-                 (col.IsSorted() && col.overlay().row_map().IsIndexVector());
 
     if (use_legacy) {
       col.FilterInto(c.op, c.value, &rm);
@@ -265,7 +266,8 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     }
     if (col.overlay().row_map().IsIndexVector()) {
       storage = std::make_unique<column::ArrangementOverlay>(
-          std::move(storage), col.overlay().row_map().GetIfIndexVector());
+          std::move(storage), col.overlay().row_map().GetIfIndexVector(),
+          col.IsSorted());
     }
     if (col.overlay().row_map().IsBitVector()) {
       storage = std::make_unique<column::SelectorOverlay>(
