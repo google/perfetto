@@ -270,7 +270,181 @@ class MyPlugin implements Plugin {
 ```
 
 ### Tabs
-TBD
+Tabs are a useful way to display contextual information about the trace, the
+current selection, or to show the results of an operation.
+
+To register a tab from a plugin, use the `PluginContextTrace.registerTab`
+method.
+
+```ts
+import m from 'mithril';
+import {Tab, Plugin, PluginContext, PluginContextTrace} from '../../public';
+
+class MyTab implements Tab {
+  render(): m.Children {
+    return m('div', 'Hello from my tab');
+  }
+
+  getTitle(): string {
+    return 'My Tab';
+  }
+}
+
+class MyPlugin implements Plugin {
+  onActivate(_: PluginContext): void {}
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    ctx.registerTab({
+      uri: 'dev.MyPlugin#MyTab',
+      content: new MyTab(),
+    });
+  }
+}
+```
+
+You'll need to pass in a tab-like object, something that implements the `Tab`
+interface. Tabs only need to define their title and a render function which
+specifies how to render the tab.
+
+Registered tabs don't appear immediately - we need to show it first. All
+registered tabs are displayed in the tab dropdown menu, and can be shown or
+hidden by clicking on the entries in the drop down menu.
+
+Tabs can also be hidden by clicking the little x in the top right of their
+handle.
+
+Alternatively, tabs may be shown or hidden programmatically using the tabs API.
+
+```ts
+ctx.tabs.showTab('dev.MyPlugin#MyTab');
+ctx.tabs.hideTab('dev.MyPlugin#MyTab');
+```
+
+Tabs have the following properties:
+- Each tab has a unique URI.
+- Only once instance of the tab may be open at a time. Calling showTab multiple
+  times with the same URI will only activate the tab, not add a new instance of
+  the tab to the tab bar.
+
+#### Ephemeral Tabs
+
+By default, tabs are registered as 'permanent' tabs. These tabs have the
+following additional properties:
+- They appear in the tab dropdown.
+- They remain once closed. The plugin controls the lifetime of the tab object.
+
+Ephemeral tabs, by contrast, have the following properties:
+- They do not appear in the tab dropdown.
+- When they are hidden, they will be automatically unregistered.
+
+Ephemeral tabs can be registered by setting the `isEphemeral` flag when
+registering the tab.
+
+```ts
+ctx.registerTab({
+  isEphemeral: true,
+  uri: 'dev.MyPlugin#MyTab',
+  content: new MyEphemeralTab(),
+});
+```
+
+Ephemeral tabs are usually added as a result of some user action, such as
+running a command. Thus, it's common pattern to register a tab and show the tab
+simultaneously.
+
+Motivating example:
+```ts
+import m from 'mithril';
+import {uuidv4} from '../../base/uuid';
+import {
+  Plugin,
+  PluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
+  Tab,
+} from '../../public';
+
+class MyNameTab implements Tab {
+  constructor(private name: string) {}
+  render(): m.Children {
+    return m('h1', `Hello, ${this.name}!`);
+  }
+  getTitle(): string {
+    return 'My Name Tab';
+  }
+}
+
+class MyPlugin implements Plugin {
+  onActivate(_: PluginContext): void {}
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    ctx.registerCommand({
+      id: 'dev.MyPlugin#AddNewEphemeralTab',
+      name: 'Add new ephemeral tab',
+      callback: () => handleCommand(ctx),
+    });
+  }
+}
+
+function handleCommand(ctx: PluginContextTrace): void {
+  const name = prompt('What is your name');
+  if (name) {
+    const uri = 'dev.MyPlugin#MyName' + uuidv4();
+    // This makes the tab available to perfetto
+    ctx.registerTab({
+      isEphemeral: true,
+      uri,
+      content: new MyNameTab(name),
+    });
+
+    // This opens the tab in the tab bar
+    ctx.tabs.showTab(uri);
+  }
+}
+
+export const plugin: PluginDescriptor = {
+  pluginId: 'dev.MyPlugin',
+  plugin: MyPlugin,
+};
+```
+
+### Details Panels & The Current Selection Tab
+The "Current Selection" tab is a special tab that cannot be hidden. It remains
+permanently in the left-most tab position in the tab bar. Its purpose is to
+display details about the current selection.
+
+Plugins may register interest in providing content for this tab using the
+`PluginContentTrace.registerDetailsPanel()` method.
+
+For example:
+
+```ts
+class MyPlugin implements Plugin {
+  onActivate(_: PluginContext): void {}
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    ctx.registerDetailsPanel({
+      render(selection: Selection) {
+        if (canHandleSelection(selection)) {
+          return m('div', 'Details for selection');
+        } else {
+          return undefined;
+        }
+      }
+    });
+  }
+}
+```
+
+This function takes an object that implements the `DetailsPanel` interface,
+which only requires a render function to be implemented that takes the current
+selection object and returns either mithril vnodes or a falsy value.
+
+Every render cycle, render is called on all registered details panels, and the
+first registered panel to return a truthy value will be used.
+
+Currently the winning details panel takes complete control over this tab. Also,
+the order that these panels are called in is not defined, so if we have multiple
+details panels competing for the same selection, the one that actually shows up
+is undefined. This is a limitation of the current approach and will be updated
+to a more democratic contribution model in the future.
 
 ### Metric Visualisations
 TBD
