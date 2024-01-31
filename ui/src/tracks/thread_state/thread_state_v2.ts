@@ -64,7 +64,7 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
       select
         id,
         ts,
-        max(dur, 1) as dur,
+        dur,
         cpu,
         state,
         io_wait as ioWait,
