@@ -216,7 +216,7 @@ TEST(QueryExecutor, ArrangementOverlayBounds) {
       &storage_data, ColumnType::kInt64);
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
-  column::ArrangementOverlay storage(std::move(numeric), &arrangement);
+  ArrangementOverlay storage(std::move(numeric), &arrangement, false);
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
   RowMap rm(0, 5);
@@ -230,7 +230,7 @@ TEST(QueryExecutor, ArrangementOverlaySubsetInputRange) {
       column::FakeStorage::SearchSubset(5u, RowMap::Range(2u, 4u));
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
-  column::ArrangementOverlay storage(std::move(fake), &arrangement);
+  ArrangementOverlay storage(std::move(fake), &arrangement, false);
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(0u)};
   RowMap rm(1, 3);
@@ -244,7 +244,7 @@ TEST(QueryExecutor, ArrangementOverlaySubsetInputBitvector) {
       column::FakeStorage::SearchSubset(5u, BitVector({0, 0, 1, 1, 0}));
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
-  column::ArrangementOverlay storage(std::move(fake), &arrangement);
+  ArrangementOverlay storage(std::move(fake), &arrangement, false);
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(0u)};
   RowMap rm(1, 3);
@@ -260,7 +260,7 @@ TEST(QueryExecutor, ArrangementOverlayIndex) {
       &storage_data, ColumnType::kInt64);
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
-  column::ArrangementOverlay storage(std::move(numeric), &arrangement);
+  ArrangementOverlay storage(std::move(numeric), &arrangement, false);
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
   RowMap rm(0, 5);
@@ -321,7 +321,7 @@ TEST(QueryExecutor, SingleConstraintWithNullAndArrangement) {
   // Final vector
   // NULL, 3, NULL, NULL, 3, NULL
   std::vector<uint32_t> arrangement{2, 4, 6, 2, 4, 6};
-  ArrangementOverlay storage(std::move(null), &arrangement);
+  ArrangementOverlay storage(std::move(null), &arrangement, false);
 
   // Filter.
   Constraint c{0, FilterOp::kGe, SqlValue::Long(1)};

@@ -70,10 +70,36 @@ TEST(SelectorOverlay, IndexSearch) {
       &selector);
 
   std::vector<uint32_t> table_idx{1u, 0u, 3u};
-  RangeOrBitVector res =
-      storage.IndexSearch(FilterOp::kGe, SqlValue::Long(0u), table_idx.data(),
-                          static_cast<uint32_t>(table_idx.size()), false);
+  RangeOrBitVector res = storage.IndexSearch(
+      FilterOp::kGe, SqlValue::Long(0u),
+      Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
+              Indices::State::kNonmonotonic});
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u));
+}
+
+TEST(SelectorOverlay, OrderedIndexSearchTrivial) {
+  BitVector selector{1, 0, 1, 0, 1};
+  SelectorOverlay storage(FakeStorage::SearchAll(5), &selector);
+
+  std::vector<uint32_t> table_idx{1u, 0u, 2u};
+  Range res = storage.OrderedIndexSearch(
+      FilterOp::kGe, SqlValue::Long(0u),
+      Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
+              Indices::State::kNonmonotonic});
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 3u);
+}
+
+TEST(SelectorOverlay, OrderedIndexSearchNone) {
+  BitVector selector{1, 0, 1, 0, 1};
+  SelectorOverlay storage(FakeStorage::SearchNone(5), &selector);
+
+  std::vector<uint32_t> table_idx{1u, 0u, 2u};
+  Range res = storage.OrderedIndexSearch(
+      FilterOp::kGe, SqlValue::Long(0u),
+      Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
+              Indices::State::kNonmonotonic});
+  ASSERT_EQ(res.size(), 0u);
 }
 
 }  // namespace
