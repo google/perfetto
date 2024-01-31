@@ -1030,3 +1030,29 @@ class AndroidStdlib(TestSuite):
          "bus_throughput Frequency",553000.000000,2000000,50.000000
          "bus_throughput Frequency",1014000.000000,2000000,50.000000
          """))
+
+  def test_app_process_starts(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE android.app_process_starts;
+        SELECT
+        process_name,
+        pid,
+        intent,
+        reason,
+        proc_start_ts,
+        proc_start_dur,
+        bind_app_ts,
+        bind_app_dur,
+        intent_ts,
+        intent_dur,
+        total_dur
+        FROM _android_app_process_starts
+        ORDER BY proc_start_ts
+      """,
+        out=Csv("""
+        "process_name","pid","intent","reason","proc_start_ts","proc_start_dur","bind_app_ts","bind_app_dur","intent_ts","intent_dur","total_dur"
+        "com.android.providers.media.module",3487,"com.android.providers.media.fuse.ExternalStorageServiceImpl","service",1737343157905,6527831,1737386174098,156129409,1737542356088,2114114,201312297
+        "com.android.externalstorage",3549," android.os.storage.action.VOLUME_STATE_CHANGED","broadcast",1739987238947,9277039,1740045665263,20602351,1740066288912,1480586,80530551
+      """))
