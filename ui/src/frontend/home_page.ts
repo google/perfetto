@@ -30,6 +30,18 @@ export class Hints implements m.ClassComponent {
         'ul',
         m(
           'li',
+          'New updated ',
+          m(
+            Anchor,
+            {
+              href: 'https://perfetto.dev/docs/visualization/perfetto-ui#tabs-v2',
+            },
+            'tabs',
+          ),
+          ' are extensible and user friendly.',
+        ),
+        m(
+          'li',
           'Use ',
           m(HotkeyGlyphs, {hotkey: 'W'}),
           m(HotkeyGlyphs, {hotkey: 'A'}),
@@ -48,19 +60,6 @@ export class Hints implements m.ClassComponent {
           ' press ',
           m(HotkeyGlyphs, {hotkey: '!Mod+Shift+P'}),
           '.'),
-        m(
-          'li',
-          'Customize the ',
-          m(
-            Anchor,
-            {
-              href:
-                          'https://perfetto.dev/docs/visualization/perfetto-ui#changing-the-time-format-and-offset',
-            },
-            'time format',
-          ),
-          '.',
-        ),
       ),
     );
   }
