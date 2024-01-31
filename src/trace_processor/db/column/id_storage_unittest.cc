@@ -163,43 +163,72 @@ TEST(IdStorage, SearchSimple) {
 TEST(IdStorage, IndexSearchSimple) {
   IdStorage storage(10);
   SqlValue val = SqlValue::Long(5);
-  std::vector<uint32_t> indices{5, 4, 3, 9, 8, 7};
-  uint32_t indices_count = 6;
+  std::vector<uint32_t> indices_vec{5, 4, 3, 9, 8, 7};
+  Indices indices{indices_vec.data(), 6, Indices::State::kNonmonotonic};
 
   FilterOp op = FilterOp::kEq;
-  auto res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  auto res = storage.IndexSearch(op, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
 
   op = FilterOp::kNe;
-  res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  res = storage.IndexSearch(op, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4, 5));
 
   op = FilterOp::kLe;
-  res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  res = storage.IndexSearch(op, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
 
   op = FilterOp::kLt;
-  res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  res = storage.IndexSearch(op, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2));
 
   op = FilterOp::kGe;
-  res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  res = storage.IndexSearch(op, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 3, 4, 5));
 
   op = FilterOp::kGt;
-  res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  res = storage.IndexSearch(op, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 5));
+}
+
+TEST(IdStorage, OrderedIndexSearch) {
+  IdStorage storage(10);
+
+  std::vector<uint32_t> indices_vec{0, 1, 2, 4, 4};
+  Indices indices{indices_vec.data(), 5, Indices::State::kMonotonic};
+
+  Range range =
+      storage.OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(2), indices);
+  ASSERT_EQ(range.start, 2u);
+  ASSERT_EQ(range.end, 3u);
+
+  range = storage.OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(2), indices);
+  ASSERT_EQ(range.start, 3u);
+  ASSERT_EQ(range.end, 5u);
+
+  range = storage.OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(2), indices);
+  ASSERT_EQ(range.start, 2u);
+  ASSERT_EQ(range.end, 5u);
+
+  range = storage.OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(2), indices);
+  ASSERT_EQ(range.start, 0u);
+  ASSERT_EQ(range.end, 2u);
+
+  range = storage.OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(2), indices);
+  ASSERT_EQ(range.start, 0u);
+  ASSERT_EQ(range.end, 3u);
 }
 
 TEST(IdStorage, IndexSearchEqTooBig) {
   IdStorage storage(12);
   std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
 
-  BitVector bv =
-      storage
-          .IndexSearch(FilterOp::kEq, SqlValue::Long(20), indices.data(),
-                       static_cast<uint32_t>(indices.size()), false)
-          .TakeIfBitVector();
+  BitVector bv = storage
+                     .IndexSearch(FilterOp::kEq, SqlValue::Long(20),
+                                  Indices{indices.data(),
+                                          static_cast<uint32_t>(indices.size()),
+                                          Indices::State::kMonotonic})
+                     .TakeIfBitVector();
 
   ASSERT_EQ(bv.CountSetBits(), 0u);
 }
