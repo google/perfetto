@@ -603,18 +603,35 @@ export abstract class BaseSliceTrack<
         // [     B  ]
         // Does it lead to odd results?
         const extraCols = this.extraSqlColumns.join(',');
-        const queryRes = await this.engine.query(`
-          select
-            ts as tsq,
-            ts as tsqEnd,
-            ts,
-            -1 as dur,
-            id,
-            ${this.depthColumn()}
-            ${extraCols ? ',' + extraCols : ''}
-          from (${this.getSqlSource()})
-          where dur = -1;
-        `);
+        let queryRes;
+        if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
+          queryRes = await this.engine.query(`
+            select
+              ${this.depthColumn()},
+              ts as tsq,
+              ts as tsqEnd,
+              ts,
+              -1 as dur,
+              id
+              ${extraCols ? ',' + extraCols : ''}
+            from (${this.getSqlSource()})
+            where dur = -1;
+          `);
+        } else {
+          queryRes = await this.engine.query(`
+            select
+              ${this.depthColumn()},
+              max(ts) as tsq,
+              max(ts) as tsqEnd,
+              max(ts) as ts,
+              -1 as dur,
+              id
+              ${extraCols ? ',' + extraCols : ''}
+            from (${this.getSqlSource()})
+            where dur = -1
+            group by 1;
+          `);
+        }
         const incomplete =
             new Array<CastInternal<T['slice']>>(queryRes.numRows());
         const it = queryRes.iter(this.getRowSpec());
