@@ -12,15 +12,38 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {addDebugSliceTrack, Plugin, PluginContext, PluginContextTrace, PluginDescriptor} from '../../public';
+import {EngineProxy} from '../../trace_processor/engine';
 
 class AndroidPerf implements Plugin {
   onActivate(_ctx: PluginContext): void {}
+
+  async addAppProcessStartsDebugTrack(
+    engine: EngineProxy, reason: string, sliceName: string): Promise<void> {
+    const sliceColumns =
+        ['id', 'ts', 'dur', 'reason', 'process_name', 'intent', 'table_name'];
+    await addDebugSliceTrack(
+      engine,
+      {
+        sqlSource: `
+                    SELECT
+                      start_id AS id,
+                      proc_start_ts AS ts,
+                      total_dur AS dur,
+                      reason,
+                      process_name,
+                      intent,
+                      'slice' AS table_name
+                    FROM _android_app_process_starts
+                    WHERE reason = '${reason}'
+                 `,
+        columns: sliceColumns,
+      },
+      'app_' + sliceName + '_start reason: ' + reason,
+      {ts: 'ts', dur: 'dur', name: sliceName},
+      sliceColumns,
+    );
+  }
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
@@ -109,6 +132,36 @@ class AndroidPerf implements Plugin {
           WHERE ts.state IN ('R', 'R+') AND tid = ${tid}
            ORDER BY dur DESC
           LIMIT 50`, `top 50 sched latency slice for tid ${tid}`);
+      },
+    });
+
+    ctx.registerCommand({
+      id: 'dev.perfetto.AndroidPerf#AppProcessStarts',
+      name: 'Add tracks: app process starts',
+      callback: async () => {
+        await ctx.engine.query(
+          `INCLUDE PERFETTO MODULE android.app_process_starts;`);
+
+        const startReason = ['activity', 'service', 'broadcast', 'provider'];
+        for (const reason of startReason) {
+          await this.addAppProcessStartsDebugTrack(
+            ctx.engine, reason, 'process_name');
+        }
+      },
+    });
+
+    ctx.registerCommand({
+      id: 'dev.perfetto.AndroidPerf#AppIntentStarts',
+      name: 'Add tracks: app intent starts',
+      callback: async () => {
+        await ctx.engine.query(
+          `INCLUDE PERFETTO MODULE android.app_process_starts;`);
+
+        const startReason = ['activity', 'service', 'broadcast'];
+        for (const reason of startReason) {
+          await this.addAppProcessStartsDebugTrack(
+            ctx.engine, reason, 'intent');
+        }
       },
     });
   }
