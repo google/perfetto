@@ -930,13 +930,16 @@ class AndroidLongBatteryTracing implements Plugin {
     return action;
   }
 
-  async addBatteryStatsEvents(e: EngineProxy, groupId: string):
-      Promise<DeferredAction<{}>[]> {
+  async addBatteryStatsEvents(
+    e: EngineProxy, features: Set<string>,
+    groupId: string): Promise<DeferredAction<{}>[]> {
+    if (!features.has('track.battery_stats')) {
+      return [];
+    }
+
     const query = (name: string, track: string): Promise<DeferredAction<{}>> =>
       this.addSliceTrack(
-        e,
-        name,
-        `SELECT ts, dur, str_value AS name
+        e, name, `SELECT ts, dur, str_value AS name
             FROM android_battery_stats_event_slices
             WHERE track_name = "${track}"`,
         groupId);
@@ -1204,13 +1207,13 @@ class AndroidLongBatteryTracing implements Plugin {
     ]);
   }
 
-  findGroupId(name: string) {
+  findGroupId(name: string): string|undefined {
     for (const group of Object.values(globals.state.trackGroups)) {
       if (group.name === name) {
         return group.id;
       }
     }
-    throw new Error(`No group ${name} found`);
+    return undefined;
   }
 
   addGroup(groupName: string):
@@ -1267,6 +1270,10 @@ class AndroidLongBatteryTracing implements Plugin {
       select distinct 'track.' || lower(name) as feature
       from track where name in ('RIL', 'suspend_backoff')`);
 
+    await addFeatures(`
+      select distinct 'track.battery_stats' as feature
+      from track where name like 'battery_stats.%'`);
+
     return features;
   }
 
@@ -1275,14 +1282,16 @@ class AndroidLongBatteryTracing implements Plugin {
     const features: Set<string> = await this.findFeatures(ctx.engine);
 
     const miscGroupId = this.findGroupId('Misc Global Tracks');
-
-    if (features.has('atom.thermal_throttling_severity_state_changed')) {
-      actions.push(this.addSliceTrack(
-        ctx.engine, 'Thermal throttling', THERMAL_THROTTLING, miscGroupId));
+    if (miscGroupId) {
+      if (features.has('atom.thermal_throttling_severity_state_changed')) {
+        actions.push(this.addSliceTrack(
+          ctx.engine, 'Thermal throttling', THERMAL_THROTTLING, miscGroupId));
+      }
+      actions.push(
+        this.addBatteryStatsEvents(ctx.engine, features, miscGroupId));
     }
 
     actions.push(
-      this.addBatteryStatsEvents(ctx.engine, miscGroupId),
       this.addNetworkSummary(ctx.engine, features),
       this.addModemDetail(ctx.engine, features),
       this.addKernelWakelocks(ctx.engine, features),
