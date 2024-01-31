@@ -168,6 +168,12 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
               onTabClick(key);
             }
           },
+          // Middle click to close
+          onauxclick: (event: MouseEvent) => {
+            if (!event.defaultPrevented) {
+              onTabClose(key);
+            }
+          },
         },
         m('span.pf-tab-title', tab.title),
         hasCloseButton && m(Button, {
