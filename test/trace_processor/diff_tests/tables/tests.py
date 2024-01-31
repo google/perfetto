@@ -303,8 +303,8 @@ class Tables(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      INCLUDE PERFETTO MODULE experimental.thread_state_flattened;
-      select * from experimental_get_flattened_thread_state_aggregated(11155, NULL);
+      INCLUDE PERFETTO MODULE sched.thread_state_flattened;
+      select * from _get_flattened_thread_state_aggregated(11155, NULL);
       """,
         out=Path('thread_state_flattened_aggregated_csv.out'))
 
@@ -312,8 +312,8 @@ class Tables(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      INCLUDE PERFETTO MODULE experimental.thread_state_flattened;
-      select * from experimental_get_flattened_thread_state(11155, NULL);
+      INCLUDE PERFETTO MODULE sched.thread_state_flattened;
+      select * from _get_flattened_thread_state(11155, NULL);
       """,
         out=Path('thread_state_flattened_csv.out'))
 
