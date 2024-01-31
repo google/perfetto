@@ -69,7 +69,9 @@ class Column {
   virtual RangeOrBitVector Search(FilterOp, SqlValue, Range) const = 0;
 
   // Searches for elements which match |op| and |value| at the positions given
-  // by |indices| array.
+  // by |indices| array. The |sorted| flag allows the caller to specify if the
+  // order defined by |indices| makes storage sorted; implementations can use
+  // this to optimize how they search the storage.
   //
   // Returns either a range of BitVector which indicate the positions in
   // |indices| which match the constraint. If a BitVector is returned, it will
@@ -83,23 +85,11 @@ class Column {
   // Notes for implementors:
   //  * Implementations should ensure that, if they return a BitVector, it is
   //    precisely of size |indices_count|.
-  virtual RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const = 0;
-
-  // Searches for elements which match |op| and |value| at the positions given
-  // by indices data.
-  //
-  // Returns a Range into Indices data of indices that pass the constraint.
-  //
-  // Notes for callers:
-  //  * Should not be called on:
-  //    - kGlob and kRegex as those operations can't use the sorted state hence
-  //      they can't return a Range.
-  //    - kNe as this is inherently unsorted. Use kEq and then reverse the
-  //      result.
-  //  * Should only be called if ValidateSearchContraints returned kOk.
-  //  * Callers should note that the return value of this function corresponds
-  //    to positions in |indices| *not* positions in the storage.
-  virtual Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const = 0;
+  virtual RangeOrBitVector IndexSearch(FilterOp,
+                                       SqlValue,
+                                       uint32_t* indices,
+                                       uint32_t indices_count,
+                                       bool sorted) const = 0;
 
   // Sorts |rows| in ascending order with the comparator:
   // data[rows[a]] < data[rows[b]].

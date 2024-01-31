@@ -91,9 +91,8 @@ TEST(NullOverlay, IndexSearchAllElements) {
 
   std::vector<uint32_t> table_idx{1, 5, 2};
   auto res =
-      storage.IndexSearch(FilterOp::kGt, SqlValue::Long(0),
-                          Indices{table_idx.data(), uint32_t(table_idx.size()),
-                                  Indices::State::kNonmonotonic});
+      storage.IndexSearch(FilterOp::kGt, SqlValue::Long(0), table_idx.data(),
+                          uint32_t(table_idx.size()), false);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
 }
 
@@ -103,9 +102,8 @@ TEST(NullOverlay, IndexSearchPartialElements) {
 
   std::vector<uint32_t> table_idx{1, 4, 2};
   auto res =
-      storage.IndexSearch(FilterOp::kGt, SqlValue::Long(0),
-                          Indices{table_idx.data(), uint32_t(table_idx.size()),
-                                  Indices::State::kNonmonotonic});
+      storage.IndexSearch(FilterOp::kGt, SqlValue::Long(0), table_idx.data(),
+                          uint32_t(table_idx.size()), false);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2));
 }
 
@@ -115,9 +113,8 @@ TEST(NullOverlay, IndexSearchIsNullOpEmptyRes) {
 
   std::vector<uint32_t> table_idx{0, 3, 5, 4, 2};
   auto res =
-      storage.IndexSearch(FilterOp::kIsNull, SqlValue(),
-                          Indices{table_idx.data(), uint32_t(table_idx.size()),
-                                  Indices::State::kNonmonotonic});
+      storage.IndexSearch(FilterOp::kIsNull, SqlValue(), table_idx.data(),
+                          uint32_t(table_idx.size()), false);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 3));
 }
 
@@ -127,9 +124,8 @@ TEST(NullOverlay, IndexSearchIsNullOp) {
 
   std::vector<uint32_t> table_idx{0, 3, 2, 4, 5};
   auto res =
-      storage.IndexSearch(FilterOp::kIsNull, SqlValue(),
-                          Indices{table_idx.data(), uint32_t(table_idx.size()),
-                                  Indices::State::kNonmonotonic});
+      storage.IndexSearch(FilterOp::kIsNull, SqlValue(), table_idx.data(),
+                          uint32_t(table_idx.size()), false);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 3, 4));
 }
 
@@ -139,52 +135,9 @@ TEST(NullOverlay, IndexSearchIsNotNullOp) {
 
   std::vector<uint32_t> table_idx{0, 3, 4};
   auto res =
-      storage.IndexSearch(FilterOp::kIsNotNull, SqlValue(),
-                          Indices{table_idx.data(), uint32_t(table_idx.size()),
-                                  Indices::State::kNonmonotonic});
+      storage.IndexSearch(FilterOp::kIsNotNull, SqlValue(), table_idx.data(),
+                          uint32_t(table_idx.size()), false);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
-}
-
-TEST(NullOverlay, OrderedIndexSearch) {
-  BitVector bv{0, 1, 1, 1, 0, 1};
-  // Passing values in final storage (on normal operations)
-  // 0, 1, 0, 1, 0, 0
-  NullOverlay storage(FakeStorage::SearchSubset(4, BitVector{1, 0, 1, 0}), &bv);
-
-  // Passing values on final data
-  // NULL, NULL, 0, 1, 1
-  std::vector<uint32_t> table_idx{0, 4, 5, 1, 3};
-  Indices indices{table_idx.data(), uint32_t(table_idx.size()),
-                  Indices::State::kNonmonotonic};
-
-  Range res =
-      storage.OrderedIndexSearch(FilterOp::kIsNull, SqlValue(), indices);
-  ASSERT_EQ(res.start, 0u);
-  ASSERT_EQ(res.end, 2u);
-
-  res = storage.OrderedIndexSearch(FilterOp::kIsNotNull, SqlValue(), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
-
-  res = storage.OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
-
-  res = storage.OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
-
-  res = storage.OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
-
-  res = storage.OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
-
-  res = storage.OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
 }
 
 }  // namespace
