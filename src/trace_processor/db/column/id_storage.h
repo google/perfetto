@@ -41,11 +41,15 @@ class IdStorage final : public Column {
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
 
-  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+  RangeOrBitVector Search(FilterOp op,
+                          SqlValue value,
+                          Range range) const override;
 
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
+  RangeOrBitVector IndexSearch(FilterOp op,
+                               SqlValue value,
+                               uint32_t* indices,
+                               uint32_t indices_count,
+                               bool sorted) const override;
 
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 

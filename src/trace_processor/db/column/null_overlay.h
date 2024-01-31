@@ -20,7 +20,6 @@
 #include <memory>
 #include <variant>
 
-#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
@@ -33,16 +32,20 @@ namespace column {
 // the storage with nulls using a BitVector.
 class NullOverlay : public Column {
  public:
-  NullOverlay(std::unique_ptr<Column>, const BitVector* non_null);
+  NullOverlay(std::unique_ptr<Column> storage, const BitVector* non_null);
 
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
 
-  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+  RangeOrBitVector Search(FilterOp op,
+                          SqlValue value,
+                          Range range) const override;
 
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
+  RangeOrBitVector IndexSearch(FilterOp op,
+                               SqlValue value,
+                               uint32_t* indices,
+                               uint32_t indices_count,
+                               bool sorted) const override;
 
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
@@ -53,7 +56,7 @@ class NullOverlay : public Column {
   uint32_t size() const override { return non_null_->size(); }
 
  private:
-  std::unique_ptr<Column> inner_ = nullptr;
+  std::unique_ptr<Column> storage_ = nullptr;
   const BitVector* non_null_ = nullptr;
 };
 
