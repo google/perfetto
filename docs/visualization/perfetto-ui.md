@@ -7,6 +7,32 @@ perfetto proto trace format and the legacy json trace format.
 ## New Features
 What features have come to the UI recently? See below.
 
+### Tabs V2
+
+We've refreshed how the tabs in the details pane at the bottom of the
+timeline work.
+
+NOTE: Temporarily you can use the previous tab implementation via
+setting the [Tabs V2 feature flag](http://ui.perfetto.dev/#!/flags) to
+'Disabled'. Please file a bug with feedback on Tabs V2.
+
+The update aimed to address a few major UX concerns with the existing
+implementation while also making tabs extensible via plugins.
+
+UX concerns in TabsV1:
+- Tabs disappear and reappear when the user changes the selection causing surprise and confusion.
+- We try to guess the right tab to get focus and this guess is often incorrect.
+- 'Ephemeral tabs' (query results and SQL tables) work differently from
+  'permanent tabs ('Ftrace events' and 'Android Logs'). Ephemeral tabs can be closed while permanent tabs can not.
+- 'Current selection' tabs work differently to both 'ephemeral' and 'permanent' tabs and there can only be a single 'Current selection' tab
+  even when the current selection contains many different kinds of data.
+- Ephemeral tabs are not persisted into permalinks.
+
+![Tabs V2 demo](https://storage.googleapis.com/perfetto-misc/feature-tabs-v2.gif)
+
+TabsV2 is extensible via the [plugin mechanism](/docs/contributing/ui-plugins).
+Plugins can add new permanent and ephemeral tabs as well as new selection panels.
+
 ### Custom visualisation with Vega and Vega-lite
 
 The `Viz` page available in the sidebar after you load the trace allows
