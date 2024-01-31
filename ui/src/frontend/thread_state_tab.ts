@@ -291,7 +291,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     ), m(Button,
       {
         label: 'Critical path lite',
-        onclick: () => runQuery(`INCLUDE PERFETTO MODULE experimental.thread_executing_span;`, this.engine)
+        onclick: () => runQuery(`INCLUDE PERFETTO MODULE sched.thread_executing_span;`, this.engine)
           .then(() => addDebugSliceTrack(
             this.engine,
             {
@@ -306,7 +306,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                       process.name AS process_name,
                       'thread_state' AS table_name
                     FROM
-                      experimental_thread_executing_span_critical_path(
+                      _thread_executing_span_critical_path(
                         ${this.state?.thread?.utid},
                         trace_bounds.start_ts,
                         trace_bounds.end_ts - trace_bounds.start_ts) cr,
@@ -323,7 +323,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     ), m(Button,
       {
         label: 'Critical path',
-        onclick: () => runQuery(`INCLUDE PERFETTO MODULE experimental.thread_executing_span;`, this.engine)
+        onclick: () => runQuery(`INCLUDE PERFETTO MODULE sched.thread_executing_span;`, this.engine)
           .then(() => addDebugSliceTrack(
             this.engine,
             {
@@ -331,7 +331,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                   `
                     SELECT cr.id, cr.utid, cr.ts, cr.dur, cr.name, cr.table_name
                       FROM
-                        experimental_thread_executing_span_critical_path_stack(
+                        _thread_executing_span_critical_path_stack(
                           ${this.state?.thread?.utid},
                           trace_bounds.start_ts,
                           trace_bounds.end_ts - trace_bounds.start_ts) cr,

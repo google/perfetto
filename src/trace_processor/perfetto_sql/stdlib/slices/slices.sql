@@ -19,7 +19,7 @@ INCLUDE PERFETTO MODULE common.slices;
 -- `thread_slice` and `process_slice`, this view contains all slices,
 -- with thread- and process-related columns set to NULL if the slice
 -- is not associated with a thread or a process.
-CREATE PERFETTO VIEW experimental_slice_with_thread_and_process_info(
+CREATE PERFETTO VIEW _slice_with_thread_and_process_info(
   -- Alias for `slice.id`.
   id INT,
   -- Alias for `slice.type`.

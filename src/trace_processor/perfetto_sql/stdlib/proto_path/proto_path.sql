@@ -15,7 +15,7 @@
 
 -- Creates a Stack consisting of one frame for a path in the
 -- EXPERIMENTAL_PROTO_PATH table.
-CREATE PERFETTO FUNCTION experimental_proto_path_to_frame(
+CREATE PERFETTO FUNCTION _proto_path_to_frame(
 -- Id of the path in EXPERIMENTAL_PROTO_PATH.
   path_id LONG)
 -- Stack with one frame
@@ -31,7 +31,7 @@ WHERE id = $path_id;
 
 -- Creates a Stack following the parent relations in EXPERIMENTAL_PROTO_PATH
 -- table starting at the given path_id.
-CREATE PERFETTO FUNCTION experimental_proto_path_to_stack(
+CREATE PERFETTO FUNCTION _proto_path_to_stack(
 -- Id of the path in EXPERIMENTAL_PROTO_PATH that will be the leaf in the returned stack.
   path_id LONG)
 -- Stack
