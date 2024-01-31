@@ -65,7 +65,8 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
   }
 
   private renderLinksSection() {
-    const aggTabLinks: m.Children = [];
+    const linkNodes: m.Children = [];
+
     globals.aggregateDataStore.forEach((value, type) => {
       if (!isEmptyData(value)) {
         const anchor = m(Anchor,
@@ -78,15 +79,30 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
           value.tabName,
         );
         const node = m(TreeNode, {left: anchor});
-        aggTabLinks.push(node);
+        linkNodes.push(node);
       }
     });
-    if (aggTabLinks.length === 0) return undefined;
+
+    linkNodes.push(m(TreeNode, {
+      left: m(
+        Anchor,
+        {
+          icon: Icons.ChangeTab,
+          onclick: () => {
+            globals.dispatch(
+              Actions.showTab({uri: 'perfetto.Flows#FlowEvents'}));
+          },
+        },
+        'Flow Events'),
+    }));
+
+    if (linkNodes.length === 0) return undefined;
+
     return m(Section,
       {
         title: 'Relevant Aggregations',
       },
-      m(Tree, aggTabLinks),
+      m(Tree, linkNodes),
     );
   }
 }
