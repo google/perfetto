@@ -15,6 +15,8 @@
  */
 
 #include "src/trace_processor/db/column/utils.h"
+#include <optional>
+#include "perfetto/base/logging.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -68,6 +70,30 @@ std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector& r_or_bv) {
   return rm.GetAllIndices();
 }
 
+std::optional<Range> CanReturnEarly(SearchValidationResult res, Range range) {
+  switch (res) {
+    case SearchValidationResult::kOk:
+      return std::nullopt;
+    case SearchValidationResult::kAllData:
+      return range;
+    case SearchValidationResult::kNoData:
+      return Range();
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+std::optional<Range> CanReturnEarly(SearchValidationResult res,
+                                    uint32_t indices_size) {
+  switch (res) {
+    case SearchValidationResult::kOk:
+      return std::nullopt;
+    case SearchValidationResult::kAllData:
+      return Range(0, indices_size);
+    case SearchValidationResult::kNoData:
+      return Range();
+  }
+  PERFETTO_FATAL("For GCC");
+}
 }  // namespace utils
 
 }  // namespace column
