@@ -37,17 +37,20 @@ class StringStorage final : public Column {
   StringStorage(StringPool* string_pool,
                 const std::vector<StringPool::Id>* data,
                 bool is_sorted = false)
-      : data_(data), string_pool_(string_pool), is_sorted_(is_sorted) {}
+      : values_(data), string_pool_(string_pool), is_sorted_(is_sorted) {}
 
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
 
-  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+  RangeOrBitVector Search(FilterOp op,
+                          SqlValue value,
+                          Range range) const override;
 
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
-
+  RangeOrBitVector IndexSearch(FilterOp op,
+                               SqlValue value,
+                               uint32_t* indices,
+                               uint32_t indices_count,
+                               bool sorted = false) const override;
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
   void Sort(uint32_t* rows, uint32_t rows_size) const override;
@@ -55,7 +58,7 @@ class StringStorage final : public Column {
   void Serialize(StorageProto*) const override;
 
   uint32_t size() const override {
-    return static_cast<uint32_t>(data_->size());
+    return static_cast<uint32_t>(values_->size());
   }
 
  private:
@@ -63,8 +66,10 @@ class StringStorage final : public Column {
 
   RangeOrBitVector IndexSearchInternal(FilterOp op,
                                        SqlValue sql_val,
-                                       const uint32_t* indices,
+                                       uint32_t* indices,
                                        uint32_t indices_size) const;
+
+  Range BinarySearchExtrinsic(FilterOp, SqlValue, uint32_t*, uint32_t) const;
 
   Range BinarySearchIntrinsic(FilterOp op,
                               SqlValue val,
@@ -72,7 +77,7 @@ class StringStorage final : public Column {
 
   // TODO(b/307482437): After the migration vectors should be owned by storage,
   // so change from pointer to value.
-  const std::vector<StringPool::Id>* data_ = nullptr;
+  const std::vector<StringPool::Id>* values_ = nullptr;
   StringPool* string_pool_ = nullptr;
   const bool is_sorted_ = false;
 };

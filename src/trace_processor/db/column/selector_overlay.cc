@@ -68,40 +68,24 @@ RangeOrBitVector SelectorOverlay::Search(FilterOp op,
 
 RangeOrBitVector SelectorOverlay::IndexSearch(FilterOp op,
                                               SqlValue sql_val,
-                                              Indices indices) const {
-  PERFETTO_DCHECK(
-      indices.size == 0 ||
-      *std::max_element(indices.data, indices.data + indices.size) <=
-          selector_->size());
-  // TODO(b/307482437): Use OrderedIndexSearch if arrangement orders storage.
+                                              uint32_t* indices,
+                                              uint32_t indices_size,
+                                              bool sorted) const {
+  PERFETTO_DCHECK(indices_size == 0 ||
+                  *std::max_element(indices, indices + indices_size) <=
+                      selector_->size());
 
   PERFETTO_TP_TRACE(metatrace::Category::DB, "SelectorOverlay::IndexSearch");
 
   // To go from TableIndexVector to StorageIndexVector we need to find index in
   // |selector_| by looking only into set bits.
-  std::vector<uint32_t> storage_iv(indices.size);
-  for (uint32_t i = 0; i < indices.size; ++i) {
-    storage_iv[i] = selector_->IndexOfNthSet(indices.data[i]);
+  std::vector<uint32_t> storage_iv;
+  storage_iv.reserve(indices_size);
+  for (const uint32_t* it = indices; it != indices + indices_size; ++it) {
+    storage_iv.push_back(selector_->IndexOfNthSet(*it));
   }
-  return inner_->IndexSearch(
-      op, sql_val,
-      Indices{storage_iv.data(), static_cast<uint32_t>(storage_iv.size()),
-              indices.state});
-}
-
-Range SelectorOverlay::OrderedIndexSearch(FilterOp op,
-                                          SqlValue sql_val,
-                                          Indices indices) const {
-  // To go from TableIndexVector to StorageIndexVector we need to find index in
-  // |selector_| by looking only into set bits.
-  std::vector<uint32_t> inner_indices(indices.size);
-  for (uint32_t i = 0; i < indices.size; ++i) {
-    inner_indices[i] = selector_->IndexOfNthSet(indices.data[i]);
-  }
-  return inner_->OrderedIndexSearch(
-      op, sql_val,
-      Indices{inner_indices.data(), static_cast<uint32_t>(inner_indices.size()),
-              indices.state});
+  return inner_->IndexSearch(op, sql_val, storage_iv.data(),
+                             static_cast<uint32_t>(storage_iv.size()), sorted);
 }
 
 void SelectorOverlay::StableSort(uint32_t*, uint32_t) const {

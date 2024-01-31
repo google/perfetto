@@ -39,9 +39,11 @@ class DummyStorage final : public Column {
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
 
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
+  RangeOrBitVector IndexSearch(FilterOp,
+                               SqlValue,
+                               uint32_t*,
+                               uint32_t,
+                               bool) const override;
 
   void StableSort(uint32_t*, uint32_t) const override;
 
