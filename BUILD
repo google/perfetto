@@ -2249,6 +2249,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/battery.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery_stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/binder.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/broadcasts.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/dvfs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/io.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/monitor_contention.sql",
@@ -2279,19 +2280,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/common/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/thread_states.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/timestamps.sql",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/stdlib/experimental:experimental
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_experimental_experimental",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/experimental/android_broadcast.sql",
-        "src/trace_processor/perfetto_sql/stdlib/experimental/flat_slices.sql",
-        "src/trace_processor/perfetto_sql/stdlib/experimental/proto_path.sql",
-        "src/trace_processor/perfetto_sql/stdlib/experimental/slices.sql",
-        "src/trace_processor/perfetto_sql/stdlib/experimental/thread_executing_span.sql",
-        "src/trace_processor/perfetto_sql/stdlib/experimental/thread_state_flattened.sql",
     ],
 )
 
@@ -2340,7 +2328,18 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_sched_sched",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/sched/thread_executing_span.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_level_parallelism.sql",
+        "src/trace_processor/perfetto_sql/stdlib/sched/thread_state_flattened.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/stdlib/slices:slices
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_slices_slices",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/slices/flat_slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/slices/slices.sql",
     ],
 )
 
@@ -2352,13 +2351,13 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_startup_startup",
         ":src_trace_processor_perfetto_sql_stdlib_chrome_chrome_sql",
         ":src_trace_processor_perfetto_sql_stdlib_common_common",
-        ":src_trace_processor_perfetto_sql_stdlib_experimental_experimental",
         ":src_trace_processor_perfetto_sql_stdlib_graphs_graphs",
         ":src_trace_processor_perfetto_sql_stdlib_intervals_intervals",
         ":src_trace_processor_perfetto_sql_stdlib_linux_linux",
         ":src_trace_processor_perfetto_sql_stdlib_pkvm_pkvm",
         ":src_trace_processor_perfetto_sql_stdlib_prelude_prelude",
         ":src_trace_processor_perfetto_sql_stdlib_sched_sched",
+        ":src_trace_processor_perfetto_sql_stdlib_slices_slices",
     ],
     outs = [
         "src/trace_processor/perfetto_sql/stdlib/stdlib.h",

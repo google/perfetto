@@ -323,7 +323,7 @@ export class App implements m.ClassComponent {
 
             if (engine !== undefined && trackUtid != 0) {
               await runQuery(
-                `SELECT IMPORT('experimental.thread_executing_span');`,
+                `SELECT IMPORT('sched.thread_executing_span');`,
                 engine);
               await addDebugSliceTrack(
                 engine,
@@ -338,7 +338,7 @@ export class App implements m.ClassComponent {
                       process.name AS process_name,
                       'thread_state' AS table_name
                     FROM
-                      experimental_thread_executing_span_critical_path(
+                      _thread_executing_span_critical_path(
                           ${trackUtid},
                           ${window.start},
                           ${window.end} - ${window.start}) cr
@@ -365,7 +365,7 @@ export class App implements m.ClassComponent {
 
             if (engine !== undefined && trackUtid != 0) {
               await runQuery(
-                `SELECT IMPORT('experimental.thread_executing_span');`,
+                `SELECT IMPORT('sched.thread_executing_span');`,
                 engine);
               await addDebugSliceTrack(
                 engine,
@@ -399,10 +399,10 @@ export class App implements m.ClassComponent {
 
             if (engine !== undefined && trackUtid != 0) {
               addQueryResultsTab({
-                query: `SELECT IMPORT('experimental.thread_executing_span');
+                query: `SELECT IMPORT('sched.thread_executing_span');
                    SELECT *
                       FROM
-                        experimental_thread_executing_span_critical_path_graph(
+                        _thread_executing_span_critical_path_graph(
                         "criical_path",
                          ${trackUtid},
                          ${window.start},

@@ -79,4 +79,3 @@ SELECT
 FROM _freq_idle_counters ific
 WHERE idle_value >=0
 GROUP BY cpu, idle_value;
-

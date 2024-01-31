@@ -13,18 +13,18 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE experimental.flat_slices;
+INCLUDE PERFETTO MODULE slices.flat_slices;
 
 -- Create a table which joins the thread state across the flattened slices.
-CREATE VIRTUAL TABLE _experimental_span_joined_thread USING
-  SPAN_JOIN(experimental_slice_flattened PARTITIONED utid, thread_state PARTITIONED utid);
+CREATE VIRTUAL TABLE __span_joined_thread USING
+  SPAN_JOIN(_slice_flattened PARTITIONED utid, thread_state PARTITIONED utid);
 
 -- Get the thread state breakdown of a flattened slice from its slice id.
 -- This table pivoted and summed for better visualization and aggregation.
 -- The concept of a "flat slice" is to take the data in the slice table and
 -- remove all notion of nesting. For more information, read the description
--- of experimental_slice_flattened.
-CREATE PERFETTO FUNCTION experimental_get_flattened_thread_state(
+-- of _slice_flattened.
+CREATE PERFETTO FUNCTION _get_flattened_thread_state(
   -- Id of the slice of interest.
   slice_id LONG,
   -- Utid.
@@ -84,7 +84,7 @@ SELECT
   blocked_function,
   waker_utid,
   irq_context
-FROM _experimental_span_joined_thread
+FROM __span_joined_thread
 WHERE
   track_id = (SELECT track_id FROM interesting_slice)
   AND ts >= (SELECT ts FROM interesting_slice)
@@ -94,8 +94,8 @@ WHERE
 -- This table pivoted and summed for better visualization and aggragation.
 -- The concept of a "flat slice" is to take the data in the slice table and
 -- remove all notion of nesting. For more information, read the description
--- of experimental_slice_flattened.
-CREATE PERFETTO FUNCTION experimental_get_flattened_thread_state_aggregated(
+-- of _slice_flattened.
+CREATE PERFETTO FUNCTION _get_flattened_thread_state_aggregated(
   -- Slice id.
   slice_id LONG,
   -- Utid.
@@ -145,7 +145,7 @@ AS
 WITH
 final_table AS (
   SELECT *
-  FROM experimental_get_flattened_thread_state($slice_id, $utid)
+  FROM _get_flattened_thread_state($slice_id, $utid)
 )
 SELECT
 fs.slice_id,
