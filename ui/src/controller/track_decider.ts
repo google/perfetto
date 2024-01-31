@@ -90,9 +90,9 @@ const F2FS_IOSTAT_LAT_TAG = 'f2fs_iostat_latency.';
 const F2FS_IOSTAT_LAT_GROUP_NAME = 'f2fs_iostat_latency';
 const DISK_IOSTAT_TAG = 'diskstat.';
 const DISK_IOSTAT_GROUP_NAME = 'diskstat';
-const UFS_CMD_TAG = 'io.ufs.command.tag';
-const UFS_CMD_TAG_GROUP_NAME = 'io.ufs.command.tags';
 const BUDDY_INFO_TAG = 'mem.buddyinfo';
+const UFS_CMD_TAG_REGEX = new RegExp('^io.ufs.command.tag.*$');
+const UFS_CMD_TAG_GROUP = 'io.ufs.command.tags';
 // NB: Userspace wakelocks start with "WakeLock" not "Wakelock".
 const KERNEL_WAKELOCK_REGEX = new RegExp('^Wakelock.*$');
 const KERNEL_WAKELOCK_GROUP = 'Kernel wakelocks';
@@ -467,35 +467,6 @@ class TrackDecider {
       });
       this.addTrackGroupActions.push(addGroup);
     }
-  }
-
-  async groupGlobalUfsCmdTagTracks(tag: string, group: string): Promise<void> {
-    const ufsCmdTagTracks: AddTrackArgs[] = [];
-
-    for (const track of this.tracksToAdd) {
-      if (track.name.startsWith(tag)) {
-        ufsCmdTagTracks.push(track);
-      }
-    }
-
-    if (ufsCmdTagTracks.length === 0) {
-      return;
-    }
-
-    const id = uuidv4();
-    const summaryTrackKey = uuidv4();
-    ufsCmdTagTracks[0].key = summaryTrackKey;
-    for (const track of ufsCmdTagTracks) {
-      track.trackGroup = id;
-    }
-
-    const addGroup = Actions.addTrackGroup({
-      summaryTrackKey,
-      name: group,
-      id,
-      collapsed: true,
-    });
-    this.addTrackGroupActions.push(addGroup);
   }
 
   async groupGlobalBuddyInfoTracks(): Promise<void> {
@@ -1782,7 +1753,7 @@ class TrackDecider {
     await this.groupGlobalIostatTracks(
       F2FS_IOSTAT_LAT_TAG, F2FS_IOSTAT_LAT_GROUP_NAME);
     await this.groupGlobalIostatTracks(DISK_IOSTAT_TAG, DISK_IOSTAT_GROUP_NAME);
-    await this.groupGlobalUfsCmdTagTracks(UFS_CMD_TAG, UFS_CMD_TAG_GROUP_NAME);
+    await this.groupTracksByRegex(UFS_CMD_TAG_REGEX, UFS_CMD_TAG_GROUP);
     await this.groupGlobalBuddyInfoTracks();
     await this.groupTracksByRegex(KERNEL_WAKELOCK_REGEX, KERNEL_WAKELOCK_GROUP);
     await this.groupTracksByRegex(NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
