@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable} from '../base/disposable';
+import {Disposable, DisposableCallback} from '../base/disposable';
 import {DetailsPanel, TabDescriptor} from '../public';
 
 export interface ResolvedTab {
@@ -37,20 +37,18 @@ export class TabManager implements Disposable {
     this._currentTabs.clear();
   }
 
-  registerTab(desc: TabDescriptor): void {
+  registerTab(desc: TabDescriptor): Disposable {
     this._registry.set(desc.uri, desc);
+    return new DisposableCallback(() => {
+      this._registry.delete(desc.uri);
+    });
   }
 
-  unregisterTab(uri: string): void {
-    this._registry.delete(uri);
-  }
-
-  registerDetailsPanel(section: DetailsPanel): void {
+  registerDetailsPanel(section: DetailsPanel): Disposable {
     this._detailsPanelsRegistry.add(section);
-  }
-
-  unregisterDetailsPanel(section: DetailsPanel): void {
-    this._detailsPanelsRegistry.delete(section);
+    return new DisposableCallback(() => {
+      this._detailsPanelsRegistry.delete(section);
+    });
   }
 
   resolveTab(uri: string): TabDescriptor|undefined {

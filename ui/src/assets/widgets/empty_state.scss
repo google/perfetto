@@ -21,36 +21,29 @@
   padding: 10px;
   user-select: none;
   color: $pf-minimal-foreground;
+  margin: auto;
+  justify-content: center;
 
   & > i {
-    margin: auto;
     font-size: 5em; // Size of the icon is relative to the font size.
     margin-bottom: 8px;
   }
 
-  .pf-empty-state-header {
-    margin-bottom: 8px;
+  // Limit width to the size of the container and use no wrap & elipsis to
+  // stop the size getting out of control.
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
-    // Limit width to the size of the container and use no wrap & elipsis to
-    // stop the size getting out of control.
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-
-    .pf-empty-state-title {
-      text-align: center;
-      font-weight: bolder;
-      margin-bottom: 2px;
-    }
-
-    .pf-empty-state-detail {
-      text-align: center;
-      font-size: smaller;
-    }
+  .pf-empty-state-title {
+    text-align: center;
+    font-weight: bolder;
+    margin-bottom: 2px;
   }
 
   .pf-empty-state-content {
-    margin: auto;
+    text-align: center;
+    font-size: smaller;
   }
 }

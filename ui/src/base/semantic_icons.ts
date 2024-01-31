@@ -37,4 +37,5 @@ export class Icons {
   static readonly SelectAll = 'select_all';
   static readonly Deselect = 'deselect';
   static readonly Star = 'star';
+  static readonly ChangeTab = 'tab';
 }

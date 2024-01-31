@@ -27,6 +27,8 @@ import {translateState} from '../common/thread_state';
 import {globals} from './globals';
 import {DurationWidget} from './widgets/duration';
 import {EmptyState} from '../widgets/empty_state';
+import {Anchor} from '../widgets/anchor';
+import {Icons} from '../base/semantic_icons';
 
 export interface AggregationPanelAttrs {
   data?: AggregateData;
@@ -36,13 +38,28 @@ export interface AggregationPanelAttrs {
 export class AggregationPanel implements
     m.ClassComponent<AggregationPanelAttrs> {
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
-    if (!attrs.data || isEmptyData(attrs.data)) {
+    if (!globals.state.currentSelection) {
       return m(EmptyState, {
         className: 'pf-noselection',
-        header: 'Nothing selected',
-        detail: 'Aggregation data will appear here',
-      });
+        title: 'Nothing selected',
+      }, 'Aggregation data will appear here');
     }
+
+    if (!attrs.data || isEmptyData(attrs.data)) {
+      return m(EmptyState,
+        {
+          className: 'pf-noselection',
+          title: 'No relevant tracks in selection',
+        },
+        m(Anchor, {
+          icon: Icons.ChangeTab,
+          onclick: () => {
+            globals.dispatch(Actions.showTab({uri: 'current_selection'}));
+          },
+        }, 'Go to current selection tab'),
+      );
+    }
+
     return m(
       '.details-panel',
       m('.details-panel-heading.aggregation',
