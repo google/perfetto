@@ -326,6 +326,7 @@ export interface TabDescriptor {
 
 export interface DetailsPanel {
   render(selection: Selection): m.Children;
+  isLoading?(): boolean;
 }
 
 // Similar to PluginContext but with additional methods to operate on the
