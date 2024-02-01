@@ -320,7 +320,7 @@ export abstract class Engine {
   // the rows incrementally.
   //
   // Example usage:
-  // const res = engine.query('SELECT foo, bar FROM table');
+  // const res = engine.execute('SELECT foo, bar FROM table');
   // console.log(res.numRows());  // Will print 0 because we didn't await.
   // await(res.waitAllRows());
   // console.log(res.numRows());  // Will print the total number of rows.
@@ -331,7 +331,7 @@ export abstract class Engine {
   //
   // Optional |tag| (usually a component name) can be provided to allow
   // attributing trace processor workload to different UI components.
-  query(sqlQuery: string, tag?: string): Promise<QueryResult>&QueryResult {
+  execute(sqlQuery: string, tag?: string): Promise<QueryResult>&QueryResult {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_QUERY_STREAMING;
     rpc.queryArgs = new QueryArgs();
@@ -345,6 +345,24 @@ export abstract class Engine {
     this.pendingQueries.push(result);
     this.rpcSendRequest(rpc);
     return result;
+  }
+
+  // Wraps .execute(), captures errors and re-throws with current stack.
+  //
+  // Note: This function is less flexible that .execute() as it only returns a
+  // promise which must be unwrapped before the QueryResult may be accessed.
+  async query(sqlQuery: string, tag?: string): Promise<QueryResult> {
+    try {
+      return await this.execute(sqlQuery, tag);
+    } catch (e) {
+      // Replace the error's stack trace with the one from here
+      // Note: It seems only V8 can trace the stack up the promise chain, so its
+      // likely this stack won't be useful on !V8.
+      // See
+      // https://docs.google.com/document/d/13Sy_kBIJGP0XT34V1CV3nkWya4TwYx9L3Yv45LdGB6Q
+      captureStackTrace(e);
+      throw e;
+    }
   }
 
   isMetatracingEnabled(): boolean {
@@ -482,11 +500,18 @@ export class EngineProxy implements Disposable {
     this._isAlive = true;
   }
 
-  query(query: string, tag?: string): Promise<QueryResult>&QueryResult {
+  execute(query: string, tag?: string): Promise<QueryResult>&QueryResult {
     if (!this.isAlive) {
       throw new Error(`EngineProxy ${this.tag} was disposed.`);
     }
-    return this.engine.query(query, tag || this.tag);
+    return this.engine.execute(query, tag || this.tag);
+  }
+
+  async query(query: string, tag?: string): Promise<QueryResult> {
+    if (!this.isAlive) {
+      throw new Error(`EngineProxy ${this.tag} was disposed.`);
+    }
+    return await this.engine.query(query, tag);
   }
 
   async computeMetric(metrics: string[], format: 'json'|'prototext'|'proto'):
@@ -517,5 +542,21 @@ export class EngineProxy implements Disposable {
 
   dispose() {
     this._isAlive = false;
+  }
+}
+
+// Capture stack trace and attach to the given error object
+function captureStackTrace(e: Error): void {
+  const stack = new Error().stack;
+  if ('captureStackTrace' in Error) {
+    // V8 specific
+    Error.captureStackTrace(e, captureStackTrace);
+  } else {
+    // Generic
+    Object.defineProperty(e, 'stack', {
+      value: stack,
+      writable: true,
+      configurable: true,
+    });
   }
 }
