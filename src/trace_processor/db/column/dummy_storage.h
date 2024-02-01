@@ -50,6 +50,8 @@ class DummyStorage final : public Column {
   void Serialize(StorageProto*) const override;
 
   uint32_t size() const override;
+
+  std::string_view name() const override { return "DummyStorage"; }
 };
 
 }  // namespace column

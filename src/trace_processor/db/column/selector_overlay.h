@@ -48,6 +48,8 @@ class SelectorOverlay : public Column {
 
   uint32_t size() const override { return selector_->size(); }
 
+  std::string_view name() const override { return "SelectorOverlay"; }
+
  private:
   std::unique_ptr<Column> inner_ = nullptr;
   const BitVector* selector_ = nullptr;

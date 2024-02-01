@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_ARRANGEMENT_OVERLAY_H_
 
 #include <memory>
+#include <string_view>
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/column.h"
@@ -58,6 +59,8 @@ class ArrangementOverlay : public Column {
   uint32_t size() const override {
     return static_cast<uint32_t>(arrangement_->size());
   }
+
+  std::string_view name() const override { return "ArrangementOverlay"; }
 
  private:
   std::unique_ptr<Column> inner_;
