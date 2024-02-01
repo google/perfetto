@@ -24,9 +24,9 @@ import {
   PrimaryTrackSortKey,
 } from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
-import {createDebugCounterTrackActions} from '../../tracks/debug/counter_track';
 import {NULL_TRACK_URI} from '../../tracks/null_track';
 import {createDebugSliceTrackActions} from '../../public';
+import {createDebugCounterTrackActions} from '../../frontend/debug_tracks';
 
 const DEFAULT_NETWORK = `
   with base as (

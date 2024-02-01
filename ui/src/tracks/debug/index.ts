@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DEBUG_SLICE_TRACK_URI} from '../../frontend/debug_tracks';
 import {uuidv4} from '../../base/uuid';
+import {DEBUG_COUNTER_TRACK_URI, DEBUG_SLICE_TRACK_URI} from '../../frontend/debug_tracks';
 import {
   BottomTabToSCSAdapter,
   Plugin,
@@ -26,8 +26,6 @@ import {DebugCounterTrack} from './counter_track';
 import {DebugSliceDetailsTab} from './details_tab';
 import {DebugTrackV2} from './slice_track';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-
-export const DEBUG_COUNTER_TRACK_URI = 'perfetto.DebugCounter';
 
 class DebugTrackPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
