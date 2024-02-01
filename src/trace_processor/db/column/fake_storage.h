@@ -82,6 +82,8 @@ class FakeStorage final : public Column {
 
   uint32_t size() const override { return size_; }
 
+  std::string_view name() const override { return "FakeStorage"; }
+
  private:
   enum SearchStrategy { kNone, kAll, kRange, kBitVector };
   FakeStorage(uint32_t size, SearchStrategy strategy);

@@ -52,6 +52,8 @@ class NullOverlay : public Column {
 
   uint32_t size() const override { return non_null_->size(); }
 
+  std::string_view name() const override { return "NullOverlay"; }
+
  private:
   std::unique_ptr<Column> inner_ = nullptr;
   const BitVector* non_null_ = nullptr;

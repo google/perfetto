@@ -55,6 +55,8 @@ class IdStorage final : public Column {
 
   uint32_t size() const override { return size_; }
 
+  std::string_view name() const override { return "IdStorage"; }
+
  private:
   using Id = uint32_t;
 

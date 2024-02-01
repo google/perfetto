@@ -51,6 +51,8 @@ class NumericStorageBase : public Column {
 
   inline uint32_t size() const override { return size_; }
 
+  std::string_view name() const override { return "NumericStorage"; }
+
  protected:
   NumericStorageBase(const void* data,
                      uint32_t size,

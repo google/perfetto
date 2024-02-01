@@ -55,6 +55,8 @@ class SetIdStorage final : public Column {
     return static_cast<uint32_t>(values_->size());
   }
 
+  std::string_view name() const override { return "SetIdStorage"; }
+
  private:
   BitVector IndexSearch(FilterOp, SetId, uint32_t*, uint32_t) const;
   Range BinarySearchIntrinsic(FilterOp, SetId, Range search_range) const;
