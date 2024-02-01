@@ -13,34 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {v4 as uuidv4} from 'uuid';
 
-import {Actions, DeferredAction} from '../../common/actions';
-import {SCROLLING_TRACK_GROUP} from '../../common/state';
+import {Actions} from '../../common/actions';
 import {BaseCounterTrack} from '../../frontend/base_counter_track';
 import {globals} from '../../frontend/globals';
 import {TrackButton} from '../../frontend/track_panel';
-import {PrimaryTrackSortKey, TrackContext} from '../../public';
+import {TrackContext} from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
+import {CounterDebugTrackConfig} from '../../frontend/debug_tracks';
 
-import {DEBUG_COUNTER_TRACK_URI} from '.';
-
-// Names of the columns of the underlying view to be used as ts / dur / name.
-export interface CounterColumns {
-  ts: string;
-  value: string;
-}
-
-export interface CounterDebugTrackConfig {
-  sqlTableName: string;
-  columns: CounterColumns;
-  closeable: boolean;
-}
-
-export interface CounterDebugTrackCreateConfig {
-  pinned?: boolean;     // default true
-  closeable?: boolean;  // default true
-}
 
 export class DebugCounterTrack extends BaseCounterTrack {
   private config: CounterDebugTrackConfig;
@@ -74,76 +55,4 @@ export class DebugCounterTrack extends BaseCounterTrack {
   getSqlSource(): string {
     return `select * from ${this.config.sqlTableName}`;
   }
-}
-
-let debugTrackCount = 0;
-
-export interface SqlDataSource {
-  // SQL source selecting the necessary data.
-  sqlSource: string;
-  // The caller is responsible for ensuring that the number of items in this
-  // list matches the number of columns returned by sqlSource.
-  columns: string[];
-}
-
-// Creates actions to add a debug track. The actions must be dispatched to
-// have an effect. Use this variant if you want to create many tracks at
-// once or want to tweak the actions once produced. Otherwise, use
-// addDebugCounterTrack().
-export async function createDebugCounterTrackActions(
-  engine: EngineProxy,
-  data: SqlDataSource,
-  trackName: string,
-  columns: CounterColumns,
-  config?: CounterDebugTrackCreateConfig) {
-  // To prepare displaying the provided data as a track, materialize it and
-  // compute depths.
-  const debugTrackId = ++debugTrackCount;
-  const sqlTableName = `__debug_counter_${debugTrackId}`;
-
-  // TODO(altimin): Support removing this table when the track is closed.
-  await engine.query(`
-      create table ${sqlTableName} as
-      with data as (
-        ${data.sqlSource}
-      )
-      select
-        ${columns.ts} as ts,
-        ${columns.value} as value
-      from data
-      order by ts;`);
-
-  const closeable = config?.closeable ?? true;
-  const trackKey = uuidv4();
-  const actions: DeferredAction<{}>[] = [
-    Actions.addTrack({
-      key: trackKey,
-      uri: DEBUG_COUNTER_TRACK_URI,
-      name: trackName.trim() || `Debug Track ${debugTrackId}`,
-      trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
-      trackGroup: SCROLLING_TRACK_GROUP,
-      params: {
-        sqlTableName,
-        columns,
-        closeable,
-      },
-    }),
-  ];
-  if (config?.pinned ?? true) {
-    actions.push(Actions.toggleTrackPinned({trackKey}));
-  }
-  return actions;
-}
-
-// Adds a debug track immediately. Use createDebugCounterTrackActions() if you
-// want to create many tracks at once.
-export async function addDebugCounterTrack(
-  engine: EngineProxy,
-  data: SqlDataSource,
-  trackName: string,
-  columns: CounterColumns,
-  config?: CounterDebugTrackCreateConfig) {
-  const actions = await createDebugCounterTrackActions(
-    engine, data, trackName, columns, config);
-  globals.dispatchMultiple(actions);
 }

@@ -21,8 +21,11 @@ import {Form, FormLabel} from '../../widgets/form';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 
-import {addDebugCounterTrack} from './counter_track';
-import {SqlDataSource, addDebugSliceTrack} from '../../frontend/debug_tracks';
+import {
+  SqlDataSource,
+  addDebugCounterTrack,
+  addDebugSliceTrack,
+} from '../../frontend/debug_tracks';
 
 export const ARG_PREFIX = 'arg_';
 
