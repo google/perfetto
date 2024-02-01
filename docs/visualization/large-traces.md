@@ -29,7 +29,7 @@ a WebSocket or the built-in WebAssembly runtime that runs in the browser.
 NOTE: this is a temporary workaround until getting to a better solution as
 described in [b/317076350](http://b/317076350) (Googlers only).
 
-As per [r.android.com/2940133](https://r.android.com/2940133) (Feb 2023) it is
+As per [r.android.com/2940133](https://r.android.com/2940133) (Feb 2024) it is
 possible to run different instances of trace_processor on different ports, and
 point the UI to them.
 
