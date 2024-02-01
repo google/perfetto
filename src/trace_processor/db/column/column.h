@@ -16,6 +16,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_COLUMN_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_COLUMN_H_
 
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/types.h"
@@ -114,6 +115,9 @@ class Column {
 
   // Number of elements in stored data.
   virtual uint32_t size() const = 0;
+
+  // Returns the name of the class. Used for debugging.
+  virtual std::string_view name() const = 0;
 };
 
 }  // namespace column

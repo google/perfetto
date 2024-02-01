@@ -58,6 +58,8 @@ class StringStorage final : public Column {
     return static_cast<uint32_t>(data_->size());
   }
 
+  std::string_view name() const override { return "StringStorage"; }
+
  private:
   BitVector LinearSearch(FilterOp, SqlValue, Range) const;
 
