@@ -17,9 +17,6 @@ import {assertExists} from '../base/logging';
 import {StatusResult} from '../protos';
 import {Engine, LoadingTracker} from '../trace_processor/engine';
 
-export const RPC_URL = 'http://127.0.0.1:9001/';
-export const WS_URL = 'ws://127.0.0.1:9001/websocket';
-
 const RPC_CONNECT_TIMEOUT_MS = 2000;
 
 export interface HttpRpcState {
@@ -35,6 +32,9 @@ export class HttpRpcEngine extends Engine {
   private websocket?: WebSocket;
   private connected = false;
 
+  // Can be changed by frontend/index.ts when passing ?rpc_port=1234 .
+  static rpcPort = '9001';
+
   constructor(id: string, loadingTracker?: LoadingTracker) {
     super(loadingTracker);
     this.id = id;
@@ -42,7 +42,8 @@ export class HttpRpcEngine extends Engine {
 
   rpcSendRequestBytes(data: Uint8Array): void {
     if (this.websocket === undefined) {
-      this.websocket = new WebSocket(WS_URL);
+      const wsUrl = `ws://${HttpRpcEngine.hostAndPort}/websocket`;
+      this.websocket = new WebSocket(wsUrl);
       this.websocket.onopen = () => this.onWebsocketConnected();
       this.websocket.onmessage = (e) => this.onWebsocketMessage(e);
       this.websocket.onclose = (e) =>
@@ -74,6 +75,7 @@ export class HttpRpcEngine extends Engine {
   }
 
   static async checkConnection(): Promise<HttpRpcState> {
+    const RPC_URL = `http://${HttpRpcEngine.hostAndPort}/`;
     const httpRpcState: HttpRpcState = {connected: false};
     console.info(
       `It's safe to ignore the ERR_CONNECTION_REFUSED on ${RPC_URL} below. ` +
@@ -95,5 +97,9 @@ export class HttpRpcEngine extends Engine {
       httpRpcState.failure = `${err}`;
     }
     return httpRpcState;
+  }
+
+  static get hostAndPort() {
+    return `127.0.0.1:${HttpRpcEngine.rpcPort}`;
   }
 }

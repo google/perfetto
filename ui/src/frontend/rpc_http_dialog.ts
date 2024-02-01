@@ -18,7 +18,7 @@ import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {VERSION} from '../gen/perfetto_version';
 import {StatusResult, TraceProcessorApiVersion} from '../protos';
-import {HttpRpcEngine, RPC_URL} from '../trace_processor/http_rpc_engine';
+import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
 
 import {globals} from './globals';
@@ -27,7 +27,8 @@ import {publishHttpRpcState} from './publish';
 const CURRENT_API_VERSION =
     TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
 
-const PROMPT = `Trace Processor Native Accelerator detected on ${RPC_URL} with:
+const PROMPT = () => `Trace Processor Native Accelerator detected on ` +
+`${HttpRpcEngine.hostAndPort} with:
 $loadedTraceName
 
 YES, use loaded trace:
@@ -50,7 +51,8 @@ too old. Get the latest version from get.perfetto.dev/trace_processor.
 `;
 
 
-const MSG_TOO_OLD = `The Trace Processor instance on ${RPC_URL} is too old.
+const MSG_TOO_OLD = () => `The Trace Processor instance on ` +
+`${HttpRpcEngine.hostAndPort} is too old.
 
 This UI requires TraceProcessor features that are not present in the
 Trace Processor native accelerator you are currently running.
@@ -102,7 +104,7 @@ async function showDialogTraceProcessorTooOld(tpStatus: StatusResult) {
     title: 'Your Trace Processor binary is outdated',
     content:
         m('.modal-pre',
-          MSG_TOO_OLD.replace('$tpVersion', tpStatus.humanReadableVersion)
+          MSG_TOO_OLD().replace('$tpVersion', tpStatus.humanReadableVersion)
             .replace('$tpApi', `${tpStatus.apiVersion}`)),
     buttons: [
       {
@@ -129,7 +131,7 @@ async function showDialogToUsePreloadedTrace(tpStatus: StatusResult) {
     title: 'Use Trace Processor Native Acceleration?',
     content:
         m('.modal-pre',
-          PROMPT.replace('$loadedTraceName', tpStatus.loadedTraceName)),
+          PROMPT().replace('$loadedTraceName', tpStatus.loadedTraceName)),
     buttons: [
       {
         text: 'YES, use loaded trace',

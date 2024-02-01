@@ -47,6 +47,7 @@ import {
   convertTraceToJsonAndDownload,
   convertTraceToSystraceAndDownload,
 } from './trace_converter';
+import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 
 const GITILES_URL =
     'https://android.googlesource.com/platform/external/perfetto';
@@ -853,7 +854,7 @@ export class Sidebar implements m.ClassComponent {
             traceTitle += ` (${arrayBufferSizeMB} MB)`;
             break;
           case 'HTTP_RPC':
-            traceTitle = 'External trace (RPC)';
+            traceTitle = `RPC @ ${HttpRpcEngine.hostAndPort}`;
             break;
           default:
             break;

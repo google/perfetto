@@ -52,6 +52,10 @@
   padding: 1rem 1rem;
   align-items: center;
 
+  &.focused {
+    background-color: #f8f0ac;
+  }
+
   select {
     grid-area: control;
     background: white;
