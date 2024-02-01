@@ -31,7 +31,7 @@ using testing::IsEmpty;
 
 TEST(ArrangementOverlay, SearchAll) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(FakeStorage::SearchAll(5), &arrangement);
+  ArrangementOverlay storage(FakeStorage::SearchAll(5), &arrangement, false);
 
   auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2u, 3u));
@@ -39,7 +39,7 @@ TEST(ArrangementOverlay, SearchAll) {
 
 TEST(ArrangementOverlay, SearchNone) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(FakeStorage::SearchNone(5), &arrangement);
+  ArrangementOverlay storage(FakeStorage::SearchNone(5), &arrangement, false);
 
   auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
@@ -48,7 +48,7 @@ TEST(ArrangementOverlay, SearchNone) {
 TEST(ArrangementOverlay, DISABLED_SearchLimited) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   ArrangementOverlay storage(FakeStorage::SearchSubset(5, Range(4, 5)),
-                             &arrangement);
+                             &arrangement, false);
 
   auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 7));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(6u));
@@ -57,7 +57,8 @@ TEST(ArrangementOverlay, DISABLED_SearchLimited) {
 TEST(ArrangementOverlay, SearchBitVector) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   ArrangementOverlay storage(
-      FakeStorage::SearchSubset(5, BitVector({0, 1, 0, 1, 0})), &arrangement);
+      FakeStorage::SearchSubset(5, BitVector({0, 1, 0, 1, 0})), &arrangement,
+      false);
 
   // Table bv:
   // 1, 1, 0, 0, 1, 1, 0, 0, 1, 1
@@ -68,14 +69,28 @@ TEST(ArrangementOverlay, SearchBitVector) {
 TEST(ArrangementOverlay, IndexSearch) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   ArrangementOverlay storage(
-      FakeStorage::SearchSubset(5, BitVector({0, 1, 0, 1, 0})), &arrangement);
+      FakeStorage::SearchSubset(5, BitVector({0, 1, 0, 1, 0})), &arrangement,
+      false);
 
   std::vector<uint32_t> table_idx{7u, 1u, 3u};
-  RangeOrBitVector res =
-      storage.IndexSearch(FilterOp::kGe, SqlValue::Long(0u), table_idx.data(),
-                          static_cast<uint32_t>(table_idx.size()), false);
+  RangeOrBitVector res = storage.IndexSearch(
+      FilterOp::kGe, SqlValue::Long(0u),
+      Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
+              Indices::State::kNonmonotonic});
 
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u));
+}
+
+TEST(ArrangementOverlay, OrderingSearch) {
+  std::vector<uint32_t> arrangement{0, 2, 4, 1, 3};
+  ArrangementOverlay storage(
+      FakeStorage::SearchSubset(5, BitVector({0, 1, 0, 1, 0})), &arrangement,
+      true);
+
+  RangeOrBitVector res =
+      storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));
+
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
 }  // namespace
