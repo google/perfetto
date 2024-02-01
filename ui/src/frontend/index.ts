@@ -30,7 +30,7 @@ import {initController, runControllers} from '../controller';
 import {
   isGetCategoriesResponse,
 } from '../controller/chrome_proxy_record_controller';
-import {RECORDING_V2_FLAG} from '../core/feature_flags';
+import {RECORDING_V2_FLAG, featureFlags} from '../core/feature_flags';
 import {initLiveReloadIfLocalhost} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {initWasm} from '../trace_processor/wasm_engine_proxy';
@@ -301,7 +301,18 @@ function main() {
   }
 
   for (const plugin of pluginRegistry.values()) {
-    pluginManager.activatePlugin(plugin.pluginId);
+    const id = `plugin_${plugin.pluginId}`;
+    const name = `Plugin: ${plugin.pluginId}`;
+    const flag = featureFlags.register({
+      id,
+      name,
+      description: `Overrides '${id}' plugin.`,
+      defaultValue: true,
+    });
+
+    if (flag.get()) {
+      pluginManager.activatePlugin(plugin.pluginId);
+    }
   }
 
   cmdManager.registerCommandSource(pluginManager);
