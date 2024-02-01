@@ -15,7 +15,6 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {Disposable, Trash} from '../base/disposable';
-import {assertFalse} from '../base/logging';
 import {time} from '../base/time';
 import {globals} from '../frontend/globals';
 import {
@@ -71,15 +70,8 @@ export class PluginContextImpl implements PluginContext, Disposable {
     // Silently ignore if context is dead.
     if (!this.alive) return;
 
-    const {id} = cmd;
-    assertFalse(this.commandRegistry.has(id));
-    this.commandRegistry.set(id, cmd);
-
-    this.trash.add({
-      dispose: () => {
-        this.commandRegistry.delete(id);
-      },
-    });
+    const disposable = globals.commandManager.registry.register(cmd);
+    this.trash.add(disposable);
   };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -87,13 +79,7 @@ export class PluginContextImpl implements PluginContext, Disposable {
     return globals.commandManager.runCommand(id, ...args);
   };
 
-  get commands(): Command[] {
-    return globals.commandManager.commands;
-  }
-
-  constructor(
-      readonly pluginId: string,
-      private commandRegistry: Map<string, Command>) {}
+  constructor(readonly pluginId: string) {}
 
   dispose(): void {
     this.trash.dispose();
@@ -109,9 +95,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   private trash = new Trash();
   private alive = true;
 
-  constructor(
-      private ctx: PluginContext, readonly engine: EngineProxy,
-      private commandRegistry: Map<string, Command>) {
+  constructor(private ctx: PluginContext, readonly engine: EngineProxy) {
     this.trash.add(engine);
   }
 
@@ -119,15 +103,8 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     // Silently ignore if context is dead.
     if (!this.alive) return;
 
-    const {id} = cmd;
-    assertFalse(this.commandRegistry.has(id));
-    this.commandRegistry.set(id, cmd);
-
-    this.trash.add({
-      dispose: () => {
-        this.commandRegistry.delete(id);
-      },
-    });
+    const disposable = globals.commandManager.registry.register(cmd);
+    this.trash.add(disposable);
   }
 
   registerTrack(trackDesc: TrackDescriptor): void {
@@ -147,10 +124,6 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   registerStaticTrack(track: TrackDescriptor&TrackRef): void {
     this.registerTrack(track);
     this.addDefaultTrack(track);
-  }
-
-  get commands(): Command[] {
-    return this.ctx.commands;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -337,7 +310,6 @@ export class PluginManager {
   private registry: PluginRegistry;
   private plugins: Map<string, PluginDetails>;
   private engine?: Engine;
-  readonly commandRegistry = new Map<string, Command>();
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
@@ -352,7 +324,7 @@ export class PluginManager {
     const pluginInfo = this.registry.get(id);
     const plugin = makePlugin(pluginInfo);
 
-    const context = new PluginContextImpl(id, this.commandRegistry);
+    const context = new PluginContextImpl(id);
 
     plugin.onActivate(context);
 
@@ -409,10 +381,6 @@ export class PluginManager {
     this.engine = undefined;
   }
 
-  commands(): Command[] {
-    return Array.from(this.commandRegistry.values());
-  }
-
   metricVisualisations(): MetricVisualisation[] {
     return Array.from(this.plugins.values()).flatMap((ctx) => {
       const tracePlugin = ctx.plugin;
@@ -431,8 +399,7 @@ export class PluginManager {
 
     const engineProxy = engine.getProxy(pluginId);
 
-    const traceCtx =
-        new PluginContextTraceImpl(context, engineProxy, this.commandRegistry);
+    const traceCtx = new PluginContextTraceImpl(context, engineProxy);
     pluginDetails.traceContext = traceCtx;
 
     const result = plugin.onTraceLoad?.(traceCtx);

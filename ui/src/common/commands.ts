@@ -12,43 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable} from '../base/disposable';
 import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
 import {Command} from '../public';
-
-export interface CommandSource {
-  commands(): Command[];
-}
+import {Registry} from './registry';
 
 export interface CommandWithMatchInfo extends Command {
   segments: FuzzySegment[];
 }
 
 export class CommandManager {
-  private commandSources = new Set<CommandSource>();
-
-  registerCommandSource(cs: CommandSource): Disposable {
-    this.commandSources.add(cs);
-    return {
-      dispose: () => {
-        this.commandSources.delete(cs);
-      },
-    };
-  }
+  readonly registry = new Registry<Command>((cmd) => cmd.id);
 
   get commands(): Command[] {
-    const sourcesArray = Array.from(this.commandSources);
-    return sourcesArray.flatMap((source) => source.commands());
+    return Array.from(this.registry.values());
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  runCommand(id: string, ...args: any[]): void {
-    const cmd = this.commands.find((cmd) => cmd.id === id);
-    if (cmd) {
-      cmd.callback(...args);
-    } else {
-      console.error(`No such command: ${id}`);
-    }
+  runCommand(id: string, ...args: any[]): any {
+    const cmd = this.registry.get(id);
+    return cmd.callback(...args);
   }
 
   // Returns a list of commands that match the search term, along with a list
