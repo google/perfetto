@@ -19,6 +19,7 @@ import {featureFlags, Flag, OverrideState} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 
 import {createPage} from './pages';
+import {Router} from './router';
 
 const RELEASE_PROCESS_URL =
     'https://perfetto.dev/docs/visualization/perfetto-ui-release-process';
@@ -29,6 +30,7 @@ interface FlagOption {
 }
 
 interface SelectWidgetAttrs {
+  id: string,
   label: string;
   description: m.Children;
   options: FlagOption[];
@@ -38,9 +40,12 @@ interface SelectWidgetAttrs {
 
 class SelectWidget implements m.ClassComponent<SelectWidgetAttrs> {
   view(vnode: m.Vnode<SelectWidgetAttrs>) {
+    const route = Router.parseUrl(window.location.href);
     const attrs = vnode.attrs;
+    const cssClass = route.subpage === `/${attrs.id}` ? '.focused' : '';
     return m(
-      '.flag-widget',
+      '.flag-widget' + cssClass,
+      {id: attrs.id},
       m('label', attrs.label),
       m(
         'select',
@@ -71,6 +76,7 @@ class FlagWidget implements m.ClassComponent<FlagWidgetAttrs> {
     const defaultState = flag.defaultValue ? 'Enabled' : 'Disabled';
     return m(SelectWidget, {
       label: flag.name,
+      id: flag.id,
       description: flag.description,
       options: [
         {id: OverrideState.DEFAULT, name: `Default (${defaultState})`},
@@ -110,6 +116,7 @@ export const FlagsPage = createPage({
                 ],
         m(SelectWidget, {
           label: 'Release channel',
+          id: 'releaseChannel',
           description: [
             'Which release channel of the UI to use. See ',
             m('a',
@@ -138,5 +145,16 @@ export const FlagsPage = createPage({
 
         featureFlags.allFlags().map((flag) => m(FlagWidget, {flag})),
       ));
+  },
+
+  oncreate(vnode: m.VnodeDOM) {
+    const route = Router.parseUrl(window.location.href);
+    const flagId = /[/](\w+)/.exec(route.subpage)?.slice(1, 2)[0];
+    if (flagId) {
+      const flag = vnode.dom.querySelector(`#${flagId}`);
+      if (flag) {
+        flag.scrollIntoView({block: 'center'});
+      }
+    }
   },
 });
