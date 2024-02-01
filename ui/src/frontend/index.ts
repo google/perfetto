@@ -22,7 +22,6 @@ import m from 'mithril';
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
-import {CommandManager} from '../common/commands';
 import {flattenArgs, traceEvent} from '../common/metatracing';
 import {pluginManager, pluginRegistry} from '../common/plugins';
 import {State} from '../common/state';
@@ -271,9 +270,7 @@ function main() {
   globals.embeddedMode = route.args.mode === 'embedded';
   globals.hideSidebar = route.args.hideSidebar === true;
 
-  const cmdManager = new CommandManager();
-
-  globals.initialize(dispatch, router, cmdManager);
+  globals.initialize(dispatch, router);
 
   globals.serviceWorkerController.install();
 
@@ -338,8 +335,6 @@ function main() {
       pluginManager.activatePlugin(plugin.pluginId);
     }
   }
-
-  cmdManager.registerCommandSource(pluginManager);
 }
 
 function onCssLoaded() {
