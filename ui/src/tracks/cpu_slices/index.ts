@@ -507,7 +507,9 @@ class CpuSlices implements Plugin {
         displayName: name,
         kind: CPU_SLICE_TRACK_KIND,
         cpu,
-        track: ({trackKey}) => new CpuSliceTrack(ctx.engine, trackKey, cpu),
+        trackFactory: ({trackKey}) => {
+          return new CpuSliceTrack(ctx.engine, trackKey, cpu);
+        },
       });
     }
 

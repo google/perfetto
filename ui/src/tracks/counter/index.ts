@@ -653,7 +653,7 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         trackIds: [trackId],
-        track: (trackCtx) => {
+        trackFactory: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
         sortKey: PrimaryTrackSortKey.COUNTER_TRACK,
@@ -728,7 +728,7 @@ class CounterPlugin implements Plugin {
           displayName: name,
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
-          track: (trackCtx) => {
+          trackFactory: (trackCtx) => {
             return new CounterTrack(trackCtx, config, ctx.engine);
           },
         });
@@ -784,7 +784,7 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         trackIds: [trackId],
-        track: (trackCtx) => {
+        trackFactory: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });
@@ -847,7 +847,7 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind,
         trackIds: [trackId],
-        track: (trackCtx) => {
+        trackFactory: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });
@@ -904,7 +904,7 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         trackIds: [trackId],
-        track: (trackCtx) => {
+        trackFactory: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });

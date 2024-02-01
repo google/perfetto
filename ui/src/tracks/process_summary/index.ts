@@ -219,7 +219,7 @@ class ProcessSummaryPlugin implements Plugin {
             tags: {
               isDebuggable,
             },
-            track: () => new ProcessSchedulingTrack(ctx.engine, config),
+            trackFactory: () => new ProcessSchedulingTrack(ctx.engine, config),
           });
         } else {
           const config: ProcessSummaryTrackConfig = {
@@ -235,7 +235,7 @@ class ProcessSummaryPlugin implements Plugin {
             tags: {
               isDebuggable,
             },
-            track: () => new ProcessSummaryTrack(ctx.engine, config),
+            trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
           });
         }
       }
@@ -291,7 +291,7 @@ class ProcessSummaryPlugin implements Plugin {
       uri: 'perfetto.ProcessSummary#kernel',
       displayName: `Kernel thread summary`,
       kind: PROCESS_SUMMARY_TRACK,
-      track: () => new ProcessSummaryTrack(ctx.engine, config),
+      trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
     });
   }
 

@@ -148,7 +148,7 @@ class FtraceRawPlugin implements Plugin {
         displayName: `Ftrace Track for CPU ${cpuNum}`,
         kind: FTRACE_RAW_TRACK_KIND,
         cpu: cpuNum,
-        track: () => {
+        trackFactory: () => {
           return new FtraceRawTrack(ctx.engine, cpuNum);
         },
       });

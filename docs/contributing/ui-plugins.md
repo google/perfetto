@@ -190,7 +190,7 @@ class MyPlugin implements Plugin {
     ctx.registerTrack({
       uri: 'dev.MyPlugin#ExampleTrack',
       displayName: 'My Example Track',
-      track: ({trackKey}) => {
+      trackFactory: ({trackKey}) => {
         return new MyTrack({engine: ctx.engine, trackKey});
       },
     });
@@ -233,7 +233,7 @@ class MyPlugin implements Plugin {
     ctx.registerStaticTrack({
       uri: 'dev.MyPlugin#ExampleTrack',
       displayName: 'My Example Track',
-      track: ({trackKey}) => {
+      trackFactory: ({trackKey}) => {
         return new MyTrack({engine: ctx.engine, trackKey});
       },
       sortKey: PrimaryTrackSortKey.COUNTER_TRACK,

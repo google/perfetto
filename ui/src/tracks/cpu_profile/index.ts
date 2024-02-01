@@ -281,7 +281,7 @@ class CpuProfile implements Plugin {
         displayName: `${threadName} (CPU Stack Samples)`,
         kind: CPU_PROFILE_TRACK_KIND,
         utid,
-        track: () => new CpuProfileTrack(ctx.engine, utid),
+        trackFactory: () => new CpuProfileTrack(ctx.engine, utid),
       });
     }
 

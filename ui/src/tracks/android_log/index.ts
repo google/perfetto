@@ -158,7 +158,7 @@ class AndroidLog implements Plugin {
         uri: 'perfetto.AndroidLog',
         displayName: 'Android logs',
         kind: ANDROID_LOGS_TRACK_KIND,
-        track: () => new AndroidLogTrack(ctx.engine),
+        trackFactory: () => new AndroidLogTrack(ctx.engine),
       });
     }
 

@@ -101,7 +101,7 @@ class FramesPlugin implements Plugin {
         displayName,
         trackIds,
         kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new ExpectedFramesTrack(
             engine,
             maxDepth,
@@ -116,7 +116,7 @@ class FramesPlugin implements Plugin {
         displayName,
         trackIds,
         kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new ExpectedFramesTrackV2(
             engine,
             maxDepth,
@@ -183,7 +183,7 @@ class FramesPlugin implements Plugin {
         displayName,
         trackIds,
         kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new ActualFramesTrack(
             engine,
             maxDepth,
@@ -198,7 +198,7 @@ class FramesPlugin implements Plugin {
         displayName,
         trackIds,
         kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new ActualFramesTrackV2(
             engine,
             maxDepth,

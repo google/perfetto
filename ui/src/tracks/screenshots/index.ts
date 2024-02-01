@@ -104,7 +104,7 @@ class ScreenshotsPlugin implements Plugin {
         uri,
         displayName,
         kind: ScreenshotsTrack.kind,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new ScreenshotsTrack({
             engine: ctx.engine,
             trackKey,
