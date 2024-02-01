@@ -1056,3 +1056,36 @@ class AndroidStdlib(TestSuite):
         "com.android.providers.media.module",3487,"com.android.providers.media.fuse.ExternalStorageServiceImpl","service",1737343157905,6527831,1737386174098,156129409,1737542356088,2114114,201312297
         "com.android.externalstorage",3549," android.os.storage.action.VOLUME_STATE_CHANGED","broadcast",1739987238947,9277039,1740045665263,20602351,1740066288912,1480586,80530551
       """))
+
+  def test_garbage_collection(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE android.garbage_collection;
+        SELECT
+        tid,
+        pid,
+        thread_name,
+        process_name,
+        gc_type,
+        is_mark_compact,
+        reclaimed_mb,
+        min_heap_mb,
+        max_heap_mb
+        gc_ts,
+        gc_dur,
+        gc_running_dur,
+        gc_runnable_dur,
+        gc_unint_io_dur,
+        gc_unint_non_io_dur,
+        gc_int_dur
+        FROM android_garbage_collection_events
+        ORDER BY tid, gc_ts
+      """,
+        out=Csv("""
+        "tid","pid","thread_name","process_name","gc_type","is_mark_compact","reclaimed_mb","min_heap_mb","gc_ts","gc_dur","gc_running_dur","gc_runnable_dur","gc_unint_io_dur","gc_unint_non_io_dur","gc_int_dur"
+        2013,2003,"HeapTaskDaemon","android.process.media","collector_transition",0,0.670000,2.153000,2.823000,326468170,80326441,11087787,0,0,10056086
+        3494,3487,"HeapTaskDaemon","com.android.providers.media.module","young",0,"[NULL]","[NULL]","[NULL]",213263593,55205035,10429437,0,0,1208604
+        3494,3487,"HeapTaskDaemon","com.android.providers.media.module","collector_transition",0,1.248000,2.201000,3.449000,169735717,65828710,20965673,0,0,0
+        3556,3549,"HeapTaskDaemon","com.android.externalstorage","collector_transition",0,0.450000,2.038000,2.488000,166379142,52906367,7881722,0,0,0
+      """))
