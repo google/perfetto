@@ -59,8 +59,20 @@ import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {ViewerPage} from './viewer_page';
 import {VizPage} from './viz_page';
 import {WidgetsPage} from './widgets_page';
+import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
+import {showModal} from '../widgets/modal';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
+
+
+const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
+  id: 'cspAllowAnyWebsocketPort',
+  name: 'Relax Content Security Policy for 127.0.0.1:*',
+  description: 'Allows simultaneous usage of several trace_processor_shell ' +
+               '-D --http-port 1234 by opening ' +
+               'https://ui.perfetto.dev/#!/?rpc_port=1234',
+  defaultValue: false,
+});
 
 class FrontendApi {
   constructor() {
@@ -128,6 +140,20 @@ function routeChange(route: Route) {
 
 function setupContentSecurityPolicy() {
   // Note: self and sha-xxx must be quoted, urls data: and blob: must not.
+
+  let rpcPolicy = [
+    'http://127.0.0.1:9001',  // For trace_processor_shell --httpd.
+    'ws://127.0.0.1:9001',    // Ditto, for the websocket RPC.
+  ];
+  if (CSP_WS_PERMISSIVE_PORT.get()) {
+    const route = Router.parseUrl(window.location.href);
+    if (/^\d+$/.exec(route.args.rpc_port ?? '')) {
+      rpcPolicy = [
+        `http://127.0.0.1:${route.args.rpc_port}`,
+        `ws://127.0.0.1:${route.args.rpc_port}`,
+      ];
+    }
+  }
   const policy = {
     'default-src': [
       `'self'`,
@@ -147,14 +173,12 @@ function setupContentSecurityPolicy() {
     'object-src': ['none'],
     'connect-src': [
       `'self'`,
-      'http://127.0.0.1:9001',  // For trace_processor_shell --httpd.
-      'ws://127.0.0.1:9001',    // Ditto, for the websocket RPC.
       'ws://127.0.0.1:8037',    // For the adb websocket server.
       'https://*.google-analytics.com',
       'https://*.googleapis.com',  // For Google Cloud Storage fetches.
       'blob:',
       'data:',
-    ],
+    ].concat(rpcPolicy),
     'img-src': [
       `'self'`,
       'data:',
@@ -342,15 +366,16 @@ function onCssLoaded() {
     }
   }
 
+
   // Will update the chip on the sidebar footer that notifies that the RPC is
   // connected. Has no effect on the controller (which will repeat this check
   // before creating a new engine).
   // Don't auto-open any trace URLs until we get a response here because we may
   // accidentially clober the state of an open trace processor instance
   // otherwise.
+  maybeChangeRpcPortFromFragment();
   CheckHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
-
     globals.dispatch(Actions.maybeSetPendingDeeplink({
       ts: route.args.ts,
       tid: route.args.tid,
@@ -379,6 +404,32 @@ function onCssLoaded() {
     // cases.
     routeChange(route);
   });
+}
+
+// If the URL is /#!?rpc_port=1234, change the default RPC port.
+// For security reasons, this requires toggling a flag. Detect this and tell the
+// user what to do in this case.
+function maybeChangeRpcPortFromFragment() {
+  const route = Router.parseUrl(window.location.href);
+  if (route.args.rpc_port !== undefined) {
+    if (!CSP_WS_PERMISSIVE_PORT.get()) {
+      showModal({
+        title: 'Using a different port requires a flag change',
+        content: m('div',
+          m('span',
+            'For security reasons before connecting to a non-standard ' +
+            'TraceProcessor port you need to manually enable the flag to ' +
+            'relax the Content Security Policy and restart the UI.',
+          )),
+        buttons: [{
+          text: 'Take me to the flags page',
+          primary: true,
+          action: () => Router.navigate('#!/flags/cspAllowAnyWebsocketPort')}],
+      });
+    } else {
+      HttpRpcEngine.rpcPort = route.args.rpc_port;
+    }
+  }
 }
 
 main();

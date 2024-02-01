@@ -67,6 +67,11 @@ const routeArgs = record({
   // as with record_android_trace.
   url: optStr,
 
+  // For connecting to a trace_processor_shell --httpd instance running on a
+  // non-standard port. This requires the CSP_WS_PERMISSIVE_PORT flag to relax
+  // the Content Security Policy.
+  rpc_port: optStr,
+
   // Override the referrer. Useful for scripts such as
   // record_android_trace to record where the trace is coming from.
   referrer: optStr,
