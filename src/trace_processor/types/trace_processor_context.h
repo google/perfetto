@@ -47,6 +47,7 @@ class ChunkedTraceReader;
 class ClockTracker;
 class ClockConverter;
 class DeobfuscationMappingTable;
+class EtwModule;
 class EventTracker;
 class ForwardingTraceParser;
 class FtraceModule;
@@ -157,6 +158,7 @@ class TraceProcessorContext {
   // all fields.
   std::vector<ProtoImporterModule*> modules_for_all_fields;
   FtraceModule* ftrace_module = nullptr;
+  EtwModule* etw_module = nullptr;
   TrackEventModule* track_module = nullptr;
 
   // Marks whether the uuid was read from the trace.
