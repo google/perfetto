@@ -145,6 +145,11 @@ export class BottomTabToSCSAdapter implements DetailsPanel {
 
     return this.bottomTab?.renderPanel();
   }
+
+  // Note: Must be called after render()
+  isLoading(): boolean {
+    return this.bottomTab?.isLoading() ?? false;
+  }
 }
 
 /**

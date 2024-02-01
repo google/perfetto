@@ -15,7 +15,6 @@
 import m from 'mithril';
 
 import {Gate} from '../base/mithril_utils';
-import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {EmptyState} from '../widgets/empty_state';
 
@@ -25,6 +24,7 @@ import {
   TabDropdownEntry,
 } from './drag_handle';
 import {globals} from './globals';
+import {raf} from '../core/raf_scheduler';
 
 interface TabWithContent extends Tab {
   content: m.Children;
@@ -33,6 +33,7 @@ interface TabWithContent extends Tab {
 export class TabPanel implements m.ClassComponent {
   // Tabs panel starts collapsed.
   private detailsHeight = 0;
+  private fadeContext = new FadeContext();
 
   view() {
     const tabMan = globals.tabManager;
@@ -61,7 +62,7 @@ export class TabPanel implements m.ClassComponent {
     tabs.unshift({
       key: 'current_selection',
       title: 'Current Selection',
-      content: this.renderCurrentSelectionTabContent(),
+      content: this.renderCSTabContentWithFading(),
     });
 
     const tabDropdownEntries =
@@ -100,37 +101,108 @@ export class TabPanel implements m.ClassComponent {
           style: {height: `${this.detailsHeight}px`},
         },
         tabs.map(({key, content}) => {
-          const active = key === globals.state.tabs.currentTab;
+          const active = (key === globals.state.tabs.currentTab);
           return m(Gate, {open: active}, content);
         }),
       ),
     ];
   }
 
-  private renderCurrentSelectionTabContent(): m.Children {
-    const cs = globals.state.currentSelection;
-    if (!exists(cs)) {
-      return m(EmptyState, {
-        className: 'pf-noselection',
-        title: 'Nothing selected',
-      }, 'Selection details will appear here');
-    }
-
-    const sectionReg = globals.tabManager.detailsPanels;
-    const allSections = Array.from(sectionReg.values());
-
-    // Get the first "truthy" current selection section
-    const section =
-        allSections.map((dp) => dp.render(cs)).find((panel) => panel);
-
-    if (!Boolean(section)) {
-      return m(EmptyState, {
-        className: 'pf-noselection',
-        title: 'No details available',
-        icon: 'warning',
-      }, `Selection kind: '${cs.kind}'`);
+  private renderCSTabContentWithFading(): m.Children {
+    const section = this.renderCSTabContent();
+    if (section.isLoading) {
+      return m(FadeIn, section.content);
     } else {
-      return section;
+      return m(FadeOut, {context: this.fadeContext}, section.content);
     }
+  }
+
+  private renderCSTabContent(): {isLoading: boolean, content: m.Children} {
+    const cs = globals.state.currentSelection;
+    if (!cs) {
+      return {
+        isLoading: false,
+        content: m(EmptyState, {
+          className: 'pf-noselection',
+          title: 'Nothing selected',
+        }, 'Selection details will appear here'),
+      };
+    }
+
+    const detailsPanels = globals.tabManager.detailsPanels;
+
+    // Get the first "truthy" details panel
+    const panel = detailsPanels
+      .map((dp) => {
+        return {
+          content: dp.render(cs),
+          isLoading: dp.isLoading?.() ?? false,
+        };
+      })
+      .find(({content}) => content);
+
+    if (panel) {
+      return panel;
+    } else {
+      return {
+        isLoading: false,
+        content: m(EmptyState, {
+          className: 'pf-noselection',
+          title: 'No details available',
+          icon: 'warning',
+        }, `Selection kind: '${cs.kind}'`),
+      };
+    }
+  }
+}
+
+const FADE_TIME_MS = 50;
+
+class FadeContext {
+  private resolver = () => {};
+
+  putResolver(res: () => void) {
+    this.resolver = res;
+  }
+
+  resolve() {
+    this.resolver();
+    this.resolver = () => {};
+  }
+}
+
+interface FadeOutAttrs {
+  context: FadeContext;
+}
+
+class FadeOut implements m.ClassComponent<FadeOutAttrs> {
+  onbeforeremove({attrs}: m.VnodeDOM<FadeOutAttrs>): Promise<void> {
+    return new Promise((res) => {
+      attrs.context.putResolver(res);
+      setTimeout(res, FADE_TIME_MS);
+    });
+  }
+
+  oncreate({attrs}: m.VnodeDOM<FadeOutAttrs>) {
+    attrs.context.resolve();
+  }
+
+  view(vnode: m.Vnode<FadeOutAttrs>): void | m.Children {
+    return vnode.children;
+  }
+}
+
+class FadeIn implements m.ClassComponent {
+  private show = false;
+
+  oncreate(_: m.VnodeDOM) {
+    setTimeout(() => {
+      this.show = true;
+      raf.scheduleFullRedraw();
+    }, FADE_TIME_MS);
+  }
+
+  view(vnode: m.Vnode): m.Children {
+    return this.show ? vnode.children : undefined;
   }
 }
