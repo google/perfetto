@@ -17,9 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_FAKE_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_FAKE_STORAGE_H_
 
+#include <cstdint>
 #include <memory>
+#include <string>
+#include <utility>
+
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 
@@ -82,7 +86,7 @@ class FakeStorage final : public Column {
 
   uint32_t size() const override { return size_; }
 
-  std::string_view name() const override { return "FakeStorage"; }
+  std::string DebugString() const override { return "FakeStorage"; }
 
  private:
   enum SearchStrategy { kNone, kAll, kRange, kBitVector };

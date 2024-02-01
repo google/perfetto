@@ -16,22 +16,15 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_ID_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_ID_STORAGE_H_
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
+#include <cstdint>
+#include <string>
+
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-
-namespace protos::pbzero {
-class SerializedColumn_Storage;
-}
-
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 // Storage for Id columns.
 class IdStorage final : public Column {
@@ -55,7 +48,7 @@ class IdStorage final : public Column {
 
   uint32_t size() const override { return size_; }
 
-  std::string_view name() const override { return "IdStorage"; }
+  std::string DebugString() const override { return "IdStorage"; }
 
  private:
   using Id = uint32_t;
@@ -66,7 +59,6 @@ class IdStorage final : public Column {
   const uint32_t size_ = 0;
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
+
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_ID_STORAGE_H_

@@ -16,20 +16,17 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_NUMERIC_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_NUMERIC_STORAGE_H_
 
+#include <cstdint>
+#include <string>
 #include <variant>
+#include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-
-namespace protos::pbzero {
-class SerializedColumn_Storage;
-}
-
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 // Storage for all numeric type data (i.e. doubles, int32, int64, uint32).
 class NumericStorageBase : public Column {
@@ -51,7 +48,7 @@ class NumericStorageBase : public Column {
 
   inline uint32_t size() const override { return size_; }
 
-  std::string_view name() const override { return "NumericStorage"; }
+  std::string DebugString() const override { return "NumericStorage"; }
 
  protected:
   NumericStorageBase(const void* data,
@@ -100,7 +97,6 @@ class NumericStorage : public NumericStorageBase {
   const std::vector<T>* vector_;
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
+
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_NUMERIC_STORAGE_H_
