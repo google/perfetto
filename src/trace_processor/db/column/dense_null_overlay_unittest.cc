@@ -97,8 +97,10 @@ TEST(DenseNullOverlay, IndexSearch) {
   DenseNullOverlay storage(std::move(numeric), &bv);
 
   std::vector<uint32_t> index({5, 2, 3, 4, 1});
-  auto res = storage.IndexSearch(FilterOp::kGe, SqlValue::Long(0), index.data(),
-                                 static_cast<uint32_t>(index.size()), false);
+  auto res = storage.IndexSearch(
+      FilterOp::kGe, SqlValue::Long(0),
+      Indices{index.data(), static_cast<uint32_t>(index.size()),
+              Indices::State::kNonmonotonic});
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2, 3));
 }
 
@@ -109,9 +111,50 @@ TEST(DenseNullOverlay, IsNullIndexSearch) {
   DenseNullOverlay storage(std::move(fake), &bv);
 
   std::vector<uint32_t> index({5, 2, 3, 4, 1});
-  auto res = storage.IndexSearch(FilterOp::kIsNull, SqlValue(), index.data(),
-                                 static_cast<uint32_t>(index.size()), false);
+  auto res = storage.IndexSearch(
+      FilterOp::kIsNull, SqlValue(),
+      Indices{index.data(), static_cast<uint32_t>(index.size()),
+              Indices::State::kMonotonic});
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3));
+}
+
+TEST(DenseNullOverlay, OrderedIndexSearch) {
+  auto fake = FakeStorage::SearchSubset(6, BitVector({0, 1, 0, 1, 0, 1}));
+
+  BitVector bv{0, 1, 0, 1, 0, 1};
+  DenseNullOverlay storage(std::move(fake), &bv);
+
+  std::vector<uint32_t> indices_vec({0, 2, 4, 1, 3, 5});
+  Indices indices{indices_vec.data(), 6, Indices::State::kNonmonotonic};
+
+  Range res =
+      storage.OrderedIndexSearch(FilterOp::kIsNull, SqlValue(), indices);
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 3u);
+
+  res = storage.OrderedIndexSearch(FilterOp::kIsNotNull, SqlValue(), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 6u);
+
+  res = storage.OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(3), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 6u);
+
+  res = storage.OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(3), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 6u);
+
+  res = storage.OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(3), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 6u);
+
+  res = storage.OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(3), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 6u);
+
+  res = storage.OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(3), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 6u);
 }
 
 }  // namespace

@@ -27,9 +27,9 @@ using Range = RowMap::Range;
 
 // Result of calling Storage::ValidateSearchResult function.
 enum class SearchValidationResult {
-  kOk = 0,       // It makes sense to run search
-  kAllData = 1,  // Don't run search, all data passes the constraint.
-  kNoData = 2    // Don't run search, no data passes the constraint.
+  kOk,       // It makes sense to run search
+  kAllData,  // Don't run search, all data passes the constraint.
+  kNoData    // Don't run search, no data passes the constraint.
 };
 
 // Used for result of filtering, which is sometimes (for more optimised
@@ -99,6 +99,21 @@ enum class ColumnType {
 
   // Types which don't have any data backing them.
   kDummy,
+};
+
+// Index vector related data required to Filter using IndexSearch.
+struct Indices {
+  enum class State {
+    // We can't guarantee that data is in monotonic order.
+    kNonmonotonic,
+    // Data is in monotonic order.
+    // TODO(b/307482437): Use this to optimise filtering if storage is sorted.
+    kMonotonic
+  };
+
+  const uint32_t* data = nullptr;
+  uint32_t size = 0;
+  State state = Indices::State::kNonmonotonic;
 };
 
 }  // namespace trace_processor
