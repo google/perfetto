@@ -46,7 +46,7 @@ beforeEach(() => {
   track = makeMockTrack();
   td = {
     uri: 'test',
-    track: () => track,
+    trackFactory: () => track,
   };
   const store = createStore(createEmptyState());
   trackCache = new TrackManager(store);

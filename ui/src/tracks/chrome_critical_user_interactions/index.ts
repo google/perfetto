@@ -213,7 +213,7 @@ class CriticalUserInteractionPlugin implements Plugin {
       uri: CriticalUserInteractionTrack.kind,
       kind: CriticalUserInteractionTrack.kind,
       displayName: 'Chrome Interactions',
-      track: (trackCtx) => new CriticalUserInteractionTrack(
+      trackFactory: (trackCtx) => new CriticalUserInteractionTrack(
         {engine: ctx.engine, trackKey: trackCtx.trackKey}),
     });
 

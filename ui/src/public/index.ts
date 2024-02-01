@@ -218,8 +218,8 @@ export interface TrackDescriptor {
   // A unique identifier for this track.
   uri: string;
 
-  // A factory function returning the track object.
-  track: (ctx: TrackContext) => Track;
+  // A factory function returning a new track instance.
+  trackFactory: (ctx: TrackContext) => Track;
 
   // The track "kind", used by various subsystems e.g. aggregation controllers.
   // This is where "XXX_TRACK_KIND" values should be placed.

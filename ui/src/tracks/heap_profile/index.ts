@@ -128,7 +128,7 @@ class HeapProfilePlugin implements Plugin {
         displayName: 'Heap Profile',
         kind: HEAP_PROFILE_TRACK_KIND,
         upid,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new HeapProfileTrack(
             {
               engine: ctx.engine,

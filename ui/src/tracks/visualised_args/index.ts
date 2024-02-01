@@ -112,7 +112,7 @@ class VisualisedArgsPlugin implements Plugin {
       tags: {
         metric: true,  // TODO(stevegolton): Is this track really a metric?
       },
-      track: (trackCtx) => {
+      trackFactory: (trackCtx) => {
         // TODO(stevegolton): Validate params properly. Note, this is no
         // worse than the situation we had before with track config.
         const params = trackCtx.params as VisualisedArgsState;
