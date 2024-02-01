@@ -280,7 +280,7 @@ class Globals {
   private _hideSidebar?: boolean = undefined;
   private _ftraceCounters?: FtraceStat[] = undefined;
   private _ftracePanelData?: FtracePanelData = undefined;
-  private _cmdManager?: CommandManager = undefined;
+  private _cmdManager = new CommandManager();
   private _realtimeOffset = Time.ZERO;
   private _utcOffset = Time.ZERO;
   private _traceTzOffset = Time.ZERO;
@@ -311,10 +311,9 @@ class Globals {
 
   engines = new Map<string, Engine>();
 
-  initialize(dispatch: Dispatch, router: Router, cmdManager: CommandManager) {
+  initialize(dispatch: Dispatch, router: Router) {
     this._dispatch = dispatch;
     this._router = router;
-    this._cmdManager = cmdManager;
     this._timeline = new Timeline();
 
     setPerfHooks(

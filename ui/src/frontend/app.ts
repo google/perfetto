@@ -148,8 +148,6 @@ export class App implements m.ClassComponent {
   private recentCommands: string[] = [];
 
   constructor() {
-    const unreg = globals.commandManager.registerCommandSource(this);
-    this.trash.add(unreg);
     this.trash.add(new Notes());
     this.trash.add(new AggregationsTabs());
   }
@@ -838,6 +836,12 @@ export class App implements m.ClassComponent {
   oncreate({dom}: m.VnodeDOM) {
     this.updateOmniboxInputRef(dom);
     this.maybeFocusOmnibar();
+
+    // Register each command with the command manager
+    this.cmds.forEach((cmd) => {
+      const dispose = globals.commandManager.registry.register(cmd);
+      this.trash.add(dispose);
+    });
   }
 
   onupdate({dom}: m.VnodeDOM) {
