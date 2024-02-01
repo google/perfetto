@@ -269,7 +269,7 @@ class ChromeSlicesPlugin implements Plugin {
         displayName,
         trackIds: [trackId],
         kind: SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new ChromeSliceTrack(
             engine,
             maxDepth,
@@ -286,7 +286,7 @@ class ChromeSlicesPlugin implements Plugin {
         displayName,
         trackIds: [trackId],
         kind: SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           const newTrackArgs = {
             engine: ctx.engine,
             trackKey,

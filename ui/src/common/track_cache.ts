@@ -101,7 +101,7 @@ export class TrackManager {
 
     // Ensure the cached track has the same factory type as the resolved track.
     // If this has changed, the track should be re-created.
-    if (cached && trackDesc.track === cached.desc.track) {
+    if (cached && trackDesc.trackFactory === cached.desc.trackFactory) {
       // Keep our cached track descriptor up to date, if anything's changed.
       cached.desc = trackDesc;
 
@@ -121,7 +121,7 @@ export class TrackManager {
         },
         params,
       };
-      const track = trackDesc.track(trackContext);
+      const track = trackDesc.trackFactory(trackContext);
       const entry = new TrackFSM(track, trackDesc, trackContext);
 
       // Push track into the safe cache.

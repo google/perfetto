@@ -35,7 +35,7 @@ class DebugTrackPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerTrack({
       uri: DEBUG_SLICE_TRACK_URI,
-      track: (trackCtx) => new DebugTrackV2(ctx.engine, trackCtx),
+      trackFactory: (trackCtx) => new DebugTrackV2(ctx.engine, trackCtx),
     });
 
     ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
@@ -55,7 +55,7 @@ class DebugTrackPlugin implements Plugin {
 
     ctx.registerTrack({
       uri: DEBUG_COUNTER_TRACK_URI,
-      track: (trackCtx) => new DebugCounterTrack(ctx.engine, trackCtx),
+      trackFactory: (trackCtx) => new DebugCounterTrack(ctx.engine, trackCtx),
     });
   }
 }

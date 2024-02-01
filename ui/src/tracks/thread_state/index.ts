@@ -348,7 +348,7 @@ class ThreadState implements Plugin {
         displayName,
         kind: THREAD_STATE_TRACK_KIND,
         utid: utid,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new ThreadStateTrack(trackKey, ctx.engine, utid);
         },
       });
@@ -358,7 +358,7 @@ class ThreadState implements Plugin {
         displayName,
         kind: THREAD_STATE_TRACK_KIND,
         utid,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new ThreadStateTrackV2(
             {
               engine: ctx.engine,

@@ -117,7 +117,7 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrack(
             engine,
             maxDepth,
@@ -132,7 +132,7 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrackV2(
             {engine, trackKey},
             maxDepth,
@@ -199,7 +199,7 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrack(
             ctx.engine,
             maxDepth,
@@ -214,7 +214,7 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrackV2(
             {engine: ctx.engine, trackKey},
             maxDepth,
@@ -290,7 +290,7 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrack(
             engine,
             maxDepth,
@@ -305,7 +305,7 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrackV2(
             {engine, trackKey},
             maxDepth,
