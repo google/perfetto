@@ -2267,6 +2267,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
+        ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_ftrace_full",
         ":perfetto_src_trace_processor_importers_ftrace_minimal",
@@ -11040,6 +11041,15 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/importers/etw:full
+filegroup {
+    name: "perfetto_src_trace_processor_importers_etw_full",
+    srcs: [
+        "src/trace_processor/importers/etw/etw_module.cc",
+        "src/trace_processor/importers/etw/etw_tokenizer.cc",
+    ],
+}
+
 // GN: //src/trace_processor/importers/ftrace:ftrace_descriptors
 filegroup {
     name: "perfetto_src_trace_processor_importers_ftrace_ftrace_descriptors",
@@ -13706,6 +13716,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
         ":perfetto_src_trace_processor_importers_common_unittests",
+        ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_ftrace_full",
         ":perfetto_src_trace_processor_importers_ftrace_minimal",
@@ -14418,6 +14429,7 @@ cc_binary {
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
+        ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_ftrace_full",
         ":perfetto_src_trace_processor_importers_ftrace_minimal",
@@ -14651,6 +14663,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
+        ":perfetto_src_trace_processor_importers_etw_full",
         ":perfetto_src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_ftrace_full",
         ":perfetto_src_trace_processor_importers_ftrace_minimal",

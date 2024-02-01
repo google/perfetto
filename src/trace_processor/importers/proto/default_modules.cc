@@ -32,6 +32,7 @@ void RegisterDefaultModules(TraceProcessorContext* context) {
   // ftrace packets. So we need to store a pointer to it separately.
   context->ftrace_module =
       static_cast<FtraceModule*>(context->modules.back().get());
+
   context->modules.emplace_back(new TrackEventModule(context));
   context->track_module =
       static_cast<TrackEventModule*>(context->modules.back().get());

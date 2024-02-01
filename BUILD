@@ -223,6 +223,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_trace_parser_hdr",
+        ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":src_trace_processor_importers_ftrace_full",
         ":src_trace_processor_importers_ftrace_minimal",
@@ -1399,6 +1400,17 @@ perfetto_filegroup(
     name = "src_trace_processor_importers_common_trace_parser_hdr",
     srcs = [
         "src/trace_processor/importers/common/trace_parser.h",
+    ],
+)
+
+# GN target: //src/trace_processor/importers/etw:full
+perfetto_filegroup(
+    name = "src_trace_processor_importers_etw_full",
+    srcs = [
+        "src/trace_processor/importers/etw/etw_module.cc",
+        "src/trace_processor/importers/etw/etw_module.h",
+        "src/trace_processor/importers/etw/etw_tokenizer.cc",
+        "src/trace_processor/importers/etw/etw_tokenizer.h",
     ],
 )
 
@@ -5288,6 +5300,7 @@ perfetto_cc_library(
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_trace_parser_hdr",
+        ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":src_trace_processor_importers_ftrace_full",
         ":src_trace_processor_importers_ftrace_minimal",
@@ -5452,6 +5465,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_trace_parser_hdr",
+        ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":src_trace_processor_importers_ftrace_full",
         ":src_trace_processor_importers_ftrace_minimal",
@@ -5674,6 +5688,7 @@ perfetto_cc_binary(
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
         ":src_trace_processor_importers_common_trace_parser_hdr",
+        ":src_trace_processor_importers_etw_full",
         ":src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":src_trace_processor_importers_ftrace_full",
         ":src_trace_processor_importers_ftrace_minimal",
