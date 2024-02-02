@@ -4,6 +4,8 @@
 
 #include <stdint.h>
 
+#include "src/kernel_utils/syscall_table.h"
+
 namespace perfetto {
 
 constexpr char kAllSyscalllNames[] =
