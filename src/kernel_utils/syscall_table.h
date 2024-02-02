@@ -17,7 +17,6 @@
 #ifndef SRC_KERNEL_UTILS_SYSCALL_TABLE_H_
 #define SRC_KERNEL_UTILS_SYSCALL_TABLE_H_
 
-#include <memory>
 #include <optional>
 #include <string>
 
