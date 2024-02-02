@@ -17,19 +17,23 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_SELECTOR_OVERLAY_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_SELECTOR_OVERLAY_H_
 
+#include <cstdint>
+#include <memory>
+#include <string>
+
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 // Storage which "selects" specific rows from an underlying storage using a
 // BitVector. See ArrangementOverlay for a more generic class which allows
 // duplication and rearragement but is less performant.
 class SelectorOverlay : public Column {
  public:
-  SelectorOverlay(std::unique_ptr<Column> storage, const BitVector* non_null);
+  SelectorOverlay(std::unique_ptr<Column>, const BitVector*);
 
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
@@ -48,15 +52,13 @@ class SelectorOverlay : public Column {
 
   uint32_t size() const override { return selector_->size(); }
 
-  std::string_view name() const override { return "SelectorOverlay"; }
+  std::string DebugString() const override { return "SelectorOverlay"; }
 
  private:
   std::unique_ptr<Column> inner_ = nullptr;
   const BitVector* selector_ = nullptr;
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
 
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_SELECTOR_OVERLAY_H_
