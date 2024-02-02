@@ -186,8 +186,11 @@ WHERE slice.name GLOB 'monitor contention*'
   AND short_blocked_method IS NOT NULL
 GROUP BY slice.id;
 
-CREATE INDEX _android_monitor_contention_idx
+CREATE INDEX _android_monitor_contention_blocking_utid_idx
   ON android_monitor_contention (blocking_utid, ts);
+
+CREATE INDEX _android_monitor_contention_id_idx
+  ON android_monitor_contention (id);
 
 -- Monitor contention slices that are blocked by another monitor contention slice.
 -- They will have a |parent_id| field which is the id of the slice they are blocked by.
