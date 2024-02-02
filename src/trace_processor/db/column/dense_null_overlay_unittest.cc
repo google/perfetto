@@ -15,10 +15,13 @@
  */
 
 #include "src/trace_processor/db/column/dense_null_overlay.h"
+
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/fake_storage.h"
 #include "src/trace_processor/db/column/numeric_storage.h"

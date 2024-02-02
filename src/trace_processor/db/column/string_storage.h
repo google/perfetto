@@ -16,20 +16,17 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_STRING_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_STRING_STORAGE_H_
 
+#include <cstdint>
+#include <string>
+#include <vector>
+
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-
-namespace protos::pbzero {
-class SerializedColumn_Storage;
-}
-
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 // Storage for String columns.
 class StringStorage final : public Column {
@@ -58,7 +55,7 @@ class StringStorage final : public Column {
     return static_cast<uint32_t>(data_->size());
   }
 
-  std::string_view name() const override { return "StringStorage"; }
+  std::string DebugString() const override { return "StringStorage"; }
 
  private:
   BitVector LinearSearch(FilterOp, SqlValue, Range) const;
@@ -79,7 +76,6 @@ class StringStorage final : public Column {
   const bool is_sorted_ = false;
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
+
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_STRING_STORAGE_H_

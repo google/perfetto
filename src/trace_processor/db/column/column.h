@@ -16,9 +16,10 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_COLUMN_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_COLUMN_H_
 
-#include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
+#include <cstdint>
+#include <string>
+
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto {
@@ -26,8 +27,7 @@ namespace protos::pbzero {
 class SerializedColumn_Storage;
 }
 
-namespace trace_processor {
-namespace column {
+namespace trace_processor::column {
 
 // Defines an API of a Column. Storages and Overlays both inherit from
 // Column.
@@ -113,14 +113,18 @@ class Column {
   // Serializes storage data to proto format.
   virtual void Serialize(StorageProto*) const = 0;
 
+  // Returns a string which represents the column for debugging purposes.
+  //
+  // Warning: the format of the string returned by this class is *not* stable
+  // and should be relied upon for anything except printing for debugging
+  // purposes.
+  virtual std::string DebugString() const = 0;
+
   // Number of elements in stored data.
   virtual uint32_t size() const = 0;
-
-  // Returns the name of the class. Used for debugging.
-  virtual std::string_view name() const = 0;
 };
 
-}  // namespace column
-}  // namespace trace_processor
+}  // namespace trace_processor::column
 }  // namespace perfetto
+
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_COLUMN_H_

@@ -17,10 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_ARRANGEMENT_OVERLAY_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_ARRANGEMENT_OVERLAY_H_
 
+#include <cstdint>
 #include <memory>
-#include <string_view>
+#include <string>
+#include <vector>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 
@@ -60,7 +63,7 @@ class ArrangementOverlay : public Column {
     return static_cast<uint32_t>(arrangement_->size());
   }
 
-  std::string_view name() const override { return "ArrangementOverlay"; }
+  std::string DebugString() const override { return "ArrangementOverlay"; }
 
  private:
   std::unique_ptr<Column> inner_;
