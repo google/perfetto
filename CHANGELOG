@@ -1,18 +1,41 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v42.0 - 2024-02-02:
+  Tracing service and probes:
     * Linux/Android: kernel scheduling data (sched_switch and sched_waking
       ftrace events) is now serialised in a more compact format by default
       (previously required setting ftrace_config.compact_sched.enabled).
-  Trace Processor:
-    *
   UI:
     * Added "Realtime (Trace TZ)" timestamp formatting option to see timestamps
       in the local time of the traced device. It requires recent versions of the
       tracing service which set the system_info.timezone_off_mins field.
+    * Added tab support to the plugin API.
+    * Added a plugin to improve visualization of Android power traces containing
+      ODPM (on-device power rail monitor) data.
+    * Added support to attach the UI via ?rpc_port=1234 to multiple instances of
+      trace_processor --httpd --http-port=1234 (see UI docs).
+    * Fixed OOM detection message on in-memory tables.
+    * Fixed rendering of events at the every beginning and end of the trace.
+    * Fixed rendering of low density slices.
+    * Fixed bug in filterVisibleSlices (Thanks to Liangliang Sui).
   SDK:
+    * Fixed a bug that would cause DataSource::OnStop to be called twice upon
+      service disconnection with HandleStopAsynchronously().
+    * Fixed a long standing bug that caused the last TracePacket for every
+      sequence to be lost during scraping, for data sources that do not support
+      flushing. The fix works with old versions of the tracing service.
 
 
-v41.0 - 2023-01-02:
+v41.0 - 2024-01-11:
   Tracing service and probes:
     * Added support for ADB_SERVER_SOCKET in the websocket bridge.
     * Added support for reading Pressure Stall Information (PSI) from the kernel.
@@ -25,9 +48,6 @@ v41.0 - 2023-01-02:
     * Fixed a long standing bug that caused the last TrackEvent event for each
       thread to be lost during scraping. The fix works with old versions of the
       tracing service.
-    * Fixed a long standing bug that caused the last TracePacket for every
-      sequence to be lost during scraping, for data sources that do not support
-      flushing. The fix works with old versions of the tracing service.
 
 
 v40.0 - 2023-12-04:
