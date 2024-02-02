@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {v4 as uuidv4} from 'uuid';
+
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchEq, searchRange} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
@@ -21,15 +23,12 @@ import {calcCachedBucketSize} from '../../common/cache_utils';
 import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {Color} from '../../common/color';
 import {colorForThread} from '../../common/colorizer';
-import {
-  TrackAdapter,
-  TrackControllerAdapter,
-} from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
+import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
-import {NewTrackArgs} from '../../frontend/track';
+import {EngineProxy, Track} from '../../public';
 import {
   LONG,
   NUM,
@@ -42,7 +41,7 @@ const MARGIN_TOP = 5;
 const RECT_HEIGHT = 30;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
-export interface Data extends TrackData {
+interface Data extends TrackData {
   kind: 'slice';
   maxCpu: number;
 
@@ -59,15 +58,32 @@ export interface Config {
   utid: number;
 }
 
-// This summary is displayed for any processes that have CPU scheduling activity
-// associated with them.
-export class ProcessSchedulingTrackController extends
-    TrackControllerAdapter<Config, Data> {
+export class ProcessSchedulingTrack implements Track {
+  private mousePos?: {x: number, y: number};
+  private utidHoveredInThisTrack = -1;
+  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private maxCpu = 0;
   private maxDur = 0n;
   private cachedBucketSize = BIMath.INT64_MAX;
+  private engine: EngineProxy;
+  private uuid = uuidv4();
+  private config: Config;
 
-  async onSetup() {
+  constructor(engine: EngineProxy, config: Config) {
+    this.engine = engine;
+    this.config = config;
+  }
+
+  // Returns a valid SQL table name with the given prefix that should be unique
+  // for each track.
+  private tableName(prefix: string) {
+    // Derive table name from, since that is unique for each track.
+    // Track ID can be UUID but '-' is not valid for sql table name.
+    const idSuffix = this.uuid.split('-').join('_');
+    return `${prefix}_${idSuffix}`;
+  }
+
+  async onCreate(): Promise<void> {
     await this.createSchedView();
 
     const cpus = await this.engine.getCpus();
@@ -76,7 +92,7 @@ export class ProcessSchedulingTrackController extends
     assertTrue(cpus.length > 0);
     this.maxCpu = Math.max(...cpus) + 1;
 
-    const result = (await this.query(`
+    const result = (await this.engine.query(`
       select ifnull(max(dur), 0) as maxDur, count(1) as count
       from ${this.tableName('process_sched')}
     `)).iter({maxDur: LONG, count: NUM});
@@ -88,7 +104,7 @@ export class ProcessSchedulingTrackController extends
     if (bucketSize === undefined) {
       return;
     }
-    await this.query(`
+    await this.engine.query(`
       create table ${this.tableName('process_sched_cached')} as
       select
         (ts + ${bucketSize / 2n}) / ${bucketSize} * ${bucketSize} as cached_tsq,
@@ -101,6 +117,14 @@ export class ProcessSchedulingTrackController extends
       order by cached_tsq, cpu
     `);
     this.cachedBucketSize = bucketSize;
+  }
+
+  async onUpdate(): Promise<void> {
+    await this.fetcher.requestDataForCurrentTime();
+  }
+
+  async onDestroy(): Promise<void> {
+    this.fetcher.dispose();
   }
 
   async onBoundsChange(start: time, end: time, resolution: duration):
@@ -154,14 +178,14 @@ export class ProcessSchedulingTrackController extends
       Promise<QueryResult> {
     const isCached = this.cachedBucketSize <= bucketSize;
     const tsq = isCached ?
-        `cached_tsq / ${bucketSize} * ${bucketSize}` :
-        `(ts + ${bucketSize / 2n}) / ${bucketSize} * ${bucketSize}`;
+      `cached_tsq / ${bucketSize} * ${bucketSize}` :
+      `(ts + ${bucketSize / 2n}) / ${bucketSize} * ${bucketSize}`;
     const queryTable = isCached ? this.tableName('process_sched_cached') :
-                                  this.tableName('process_sched');
+      this.tableName('process_sched');
     const constraintColumn = isCached ? 'cached_tsq' : 'ts';
 
     // The mouse move handler depends on slices being sorted by cpu then tsq
-    return this.query(`
+    return this.engine.query(`
       select
         ${tsq} as tsq,
         ts,
@@ -178,7 +202,7 @@ export class ProcessSchedulingTrackController extends
   }
 
   private async createSchedView() {
-    await this.query(`
+    await this.engine.query(`
       create view ${this.tableName('process_sched')} as
       select ts, dur, cpu, utid
       from experimental_sched_upid
@@ -187,39 +211,30 @@ export class ProcessSchedulingTrackController extends
         upid = ${this.config.upid}
     `);
   }
-}
-
-export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
-  private mousePos?: {x: number, y: number};
-  private utidHoveredInThisTrack = -1;
-
-  constructor(args: NewTrackArgs) {
-    super(args);
-  }
 
   getHeight(): number {
     return TRACK_HEIGHT;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const {
       visibleTimeScale,
       visibleTimeSpan,
     } = globals.timeline;
-    const data = this.data();
+    const data = this.fetcher.data;
 
     if (data === undefined) return;  // Can't possibly draw anything.
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        visibleTimeScale.timeToPx(data.start),
-        visibleTimeScale.timeToPx(data.end));
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      visibleTimeScale.timeToPx(data.start),
+      visibleTimeScale.timeToPx(data.end));
 
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
@@ -242,6 +257,7 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
       if (rectWidth < 0.3) continue;
 
       const threadInfo = globals.threads.get(utid);
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const pid = (threadInfo ? threadInfo.pid : -1) || -1;
 
       const isHovering = globals.state.hoveredUtid !== -1;
@@ -267,6 +283,7 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
     const height = this.getHeight();
     if (hoveredThread !== undefined && this.mousePos !== undefined) {
       const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (hoveredThread.pid) {
         const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
         drawTrackHoverTooltip(ctx, this.mousePos, height, pidText, tidText);
@@ -277,7 +294,7 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
   }
 
   onMouseMove(pos: {x: number, y: number}) {
-    const data = this.data();
+    const data = this.fetcher.data;
     this.mousePos = pos;
     if (data === undefined) return;
     if (pos.y < MARGIN_TOP || pos.y > MARGIN_TOP + RECT_HEIGHT) {
@@ -301,6 +318,7 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
     const utid = data.utids[i];
     this.utidHoveredInThisTrack = utid;
     const threadInfo = globals.threads.get(utid);
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const pid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     globals.dispatch(Actions.setHoveredUtidAndPid({utid, pid}));
   }

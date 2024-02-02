@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/metadata_minimal_module.h"
 
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -106,6 +107,15 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
   TraceStorage* storage = context_->storage.get();
   MetadataTracker* metadata = context_->metadata_tracker.get();
 
+  // TODO(b/322298334): There is no easy way to associate ChromeMetadataPacket
+  // with ChromeMetadata for the same instance, so we have opted for letters to
+  // differentiate Chrome instances for ChromeMetadataPacket. When a unifying
+  // Chrome instance ID is in place, update this code to use the same counter
+  // as ChromeMetadata values.
+  base::StackString<6> metadata_prefix(
+      "cr-%c-", static_cast<char>('a' + (chrome_metadata_count_ % 26)));
+  chrome_metadata_count_++;
+
   // Typed chrome metadata proto. The untyped metadata is parsed below in
   // ParseChromeEvents().
   protos::pbzero::ChromeMetadataPacket::Decoder packet_decoder(blob.data,
@@ -113,14 +123,48 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
 
   if (packet_decoder.has_chrome_version_code()) {
     metadata->SetDynamicMetadata(
-        storage->InternString("cr-playstore_version_code"),
+        storage->InternString(base::StringView(metadata_prefix.ToStdString() +
+                                               "playstore_version_code")),
         Variadic::Integer(packet_decoder.chrome_version_code()));
   }
   if (packet_decoder.has_enabled_categories()) {
     auto categories_id =
         storage->InternString(packet_decoder.enabled_categories());
-    metadata->SetDynamicMetadata(storage->InternString("cr-enabled_categories"),
-                                 Variadic::String(categories_id));
+    metadata->SetDynamicMetadata(
+        storage->InternString(base::StringView(metadata_prefix.ToStdString() +
+                                               "enabled_categories")),
+        Variadic::String(categories_id));
+  }
+
+  if (packet_decoder.has_field_trial_hashes()) {
+    std::string field_trials;
+
+    // Add  a line break after every 2 field trial hashes to better utilize the
+    // UI space.
+    int line_size = 0;
+    for (auto it = packet_decoder.field_trial_hashes(); it; ++it) {
+      if (line_size == 2) {
+        field_trials.append("\n");
+        line_size = 1;
+      } else {
+        line_size++;
+      }
+
+      perfetto::protos::pbzero::ChromeMetadataPacket::FinchHash::Decoder
+          field_trial(*it);
+
+      base::StackString<45> field_trial_string(
+          "{ name: %u, group: %u } ", field_trial.name(), field_trial.group());
+
+      field_trials.append(field_trial_string.ToStdString());
+    }
+
+    StringId field_trials_string =
+        context_->storage->InternString(base::StringView(field_trials));
+    metadata->SetDynamicMetadata(
+        storage->InternString(base::StringView(metadata_prefix.ToStdString() +
+                                               "field_trial_hashes")),
+        Variadic::String(field_trials_string));
   }
 
   if (packet_decoder.has_background_tracing_metadata()) {

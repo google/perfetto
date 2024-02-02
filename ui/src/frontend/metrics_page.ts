@@ -56,7 +56,7 @@ async function getMetrics(engine: EngineProxy): Promise<string[]> {
 }
 
 async function getMetric(
-    engine: EngineProxy, metric: string, format: Format): Promise<string> {
+  engine: EngineProxy, metric: string, format: Format): Promise<string> {
   const result = await engine.computeMetric([metric], format);
   if (result instanceof Uint8Array) {
     return `Uint8Array<len=${result.length}>`;
@@ -93,7 +93,7 @@ class MetricsController {
 
   get visualisations(): MetricVisualisation[] {
     return this.plugins.metricVisualisations().filter(
-        (v) => v.metric === this.selected);
+      (v) => v.metric === this.selected);
   }
 
   set selected(metric: string|undefined) {
@@ -139,23 +139,23 @@ class MetricsController {
       this._result = pending();
       this._json = {};
       getMetric(this.engine, selected, format)
-          .then((result) => {
-            if (this._selected === selected && this._format === format) {
-              this._result = success(result);
-              if (format === 'json') {
-                this._json = JSON.parse(result);
-              }
+        .then((result) => {
+          if (this._selected === selected && this._format === format) {
+            this._result = success(result);
+            if (format === 'json') {
+              this._json = JSON.parse(result);
             }
-          })
-          .catch((e) => {
-            if (this._selected === selected && this._format === format) {
-              this._result = error(e);
-              this._json = {};
-            }
-          })
-          .finally(() => {
-            raf.scheduleFullRedraw();
-          });
+          }
+        })
+        .catch((e) => {
+          if (this._selected === selected && this._format === format) {
+            this._result = error(e);
+            this._json = {};
+          }
+        })
+        .finally(() => {
+          raf.scheduleFullRedraw();
+        });
     }
     raf.scheduleFullRedraw();
   }
@@ -188,41 +188,41 @@ class MetricPicker implements m.ClassComponent<MetricPickerAttrs> {
   view({attrs}: m.CVnode<MetricPickerAttrs>) {
     const {controller} = attrs;
     return m(
-        '.metrics-page-picker',
-        m(Select,
-          {
-            value: controller.selected,
-            oninput: (e: Event) => {
-              if (!e.target) return;
-              controller.selected = (e.target as HTMLSelectElement).value;
-            },
+      '.metrics-page-picker',
+      m(Select,
+        {
+          value: controller.selected,
+          oninput: (e: Event) => {
+            if (!e.target) return;
+            controller.selected = (e.target as HTMLSelectElement).value;
           },
-          controller.metrics.map(
-              (metric) =>
-                  m('option',
-                    {
-                      value: metric,
-                      key: metric,
-                    },
-                    metric))),
-        m(
-            Select,
-            {
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                controller.format =
-                    (e.target as HTMLSelectElement).value as Format;
+        },
+        controller.metrics.map(
+          (metric) =>
+            m('option',
+              {
+                value: metric,
+                key: metric,
               },
-            },
-            FORMATS.map((f) => {
-              return m('option', {
-                selected: controller.format === f,
-                key: f,
-                value: f,
-                label: f,
-              });
-            }),
-            ),
+              metric))),
+      m(
+        Select,
+        {
+          oninput: (e: Event) => {
+            if (!e.target) return;
+            controller.format =
+                    (e.target as HTMLSelectElement).value as Format;
+          },
+        },
+        FORMATS.map((f) => {
+          return m('option', {
+            selected: controller.format === f,
+            key: f,
+            value: f,
+            label: f,
+          });
+        }),
+      ),
     );
   }
 }
@@ -237,13 +237,13 @@ interface MetricVizViewAttrs {
 class MetricVizView implements m.ClassComponent<MetricVizViewAttrs> {
   view({attrs}: m.CVnode<MetricVizViewAttrs>) {
     return m(
-        '',
-        m(VegaView, {
-          spec: attrs.visualisation.spec,
-          data: {
-            metric: attrs.data,
-          },
-        }),
+      '',
+      m(VegaView, {
+        spec: attrs.visualisation.spec,
+        data: {
+          metric: attrs.data,
+        },
+      }),
     );
   }
 };

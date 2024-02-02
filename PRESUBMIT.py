@@ -51,6 +51,7 @@ def CheckChange(input, output):
             '.*/Makefile$',
             '/perfetto_build_flags.h$',
             "infra/luci/.*",
+            "^ui/.*\.[jt]s$",  # TS/JS handled by eslint
         ])
 
   results = []
@@ -64,8 +65,9 @@ def CheckChange(input, output):
       output,
       80,
       source_file_filter=long_line_sources)
+  # TS/JS handled by eslint
   results += RunAndReportIfLong(
-      input.canned_checks.CheckPatchFormatted, input, output, check_js=True)
+      input.canned_checks.CheckPatchFormatted, input, output, check_js=False)
   results += RunAndReportIfLong(input.canned_checks.CheckGNFormatted, input,
                                 output)
   results += RunAndReportIfLong(CheckIncludeGuards, input, output)

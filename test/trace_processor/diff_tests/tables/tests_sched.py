@@ -126,7 +126,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
         SELECT
           root_id,
           parent_id,
@@ -140,7 +140,7 @@ class TablesSched(TestSuite):
           blocked_function,
           is_root,
           depth
-        FROM experimental_thread_executing_span_graph
+        FROM _thread_executing_span_graph
           WHERE blocked_function IS NOT NULL
         ORDER BY ts
         LIMIT 10
@@ -163,7 +163,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
         SELECT
           root_id,
           parent_id,
@@ -177,7 +177,7 @@ class TablesSched(TestSuite):
           blocked_function,
           is_root,
           depth
-        FROM experimental_thread_executing_span_graph
+        FROM _thread_executing_span_graph
           WHERE ts = 1735842081507 AND dur = 293868
         """,
         out=Csv("""
@@ -185,12 +185,12 @@ class TablesSched(TestSuite):
         357,369,376,1735842081507,293868,1465,230,"[NULL]","[NULL]","[NULL]",0,4
         """))
 
-  def test_thread_executing_span_internal_runnable_state_has_no_running(self):
+  def test_thread_executing_span_runnable_state_has_no_running(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT COUNT(*) AS count FROM internal_runnable_state WHERE state = 'Running'
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
+        SELECT COUNT(*) AS count FROM _runnable_state WHERE state = 'Running'
         """,
         out=Csv("""
         "count"
@@ -201,8 +201,8 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT ts,dur FROM experimental_thread_executing_span_graph
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
+        SELECT ts,dur FROM _thread_executing_span_graph
           WHERE dur IS NULL OR ts IS NULL
         """,
         out=Csv("""
@@ -213,8 +213,8 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_switch_original.pb'),
         query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT COUNT(*) AS count FROM experimental_thread_executing_span_graph
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
+        SELECT COUNT(*) AS count FROM _thread_executing_span_graph
         """,
         out=Csv("""
         "count"
@@ -225,7 +225,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
         SELECT
           id,
           ts,
@@ -236,7 +236,7 @@ class TablesSched(TestSuite):
           critical_path_blocked_state,
           critical_path_blocked_function,
           critical_path_utid INT
-        FROM experimental_thread_executing_span_critical_path(NULL, start_ts, end_ts), trace_bounds
+        FROM _thread_executing_span_critical_path(NULL, start_ts, end_ts), trace_bounds
         ORDER BY ts
         LIMIT 10
         """,
@@ -258,7 +258,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
         SELECT
           id,
           ts,
@@ -269,7 +269,7 @@ class TablesSched(TestSuite):
           critical_path_blocked_state,
           critical_path_blocked_function,
           critical_path_utid INT
-        FROM experimental_thread_executing_span_critical_path((select utid from thread where tid = 3487), start_ts, end_ts), trace_bounds
+        FROM _thread_executing_span_critical_path((select utid from thread where tid = 3487), start_ts, end_ts), trace_bounds
         ORDER BY ts
         LIMIT 10
         """,
@@ -291,7 +291,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
         SELECT
           id,
           ts,
@@ -301,7 +301,7 @@ class TablesSched(TestSuite):
           name,
           table_name,
           critical_path_utid
-        FROM experimental_thread_executing_span_critical_path_stack((select utid from thread where tid = 3487), start_ts, end_ts), trace_bounds
+        FROM _thread_executing_span_critical_path_stack((select utid from thread where tid = 3487), start_ts, end_ts), trace_bounds
         ORDER BY ts
         LIMIT 11
         """,
@@ -324,8 +324,8 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT HEX(pprof) FROM experimental_thread_executing_span_critical_path_graph("critical path", (select utid from thread where tid = 3487), 1737488133487, 16000), trace_bounds
+        INCLUDE PERFETTO MODULE sched.thread_executing_span;
+        SELECT HEX(pprof) FROM _thread_executing_span_critical_path_graph("critical path", (select utid from thread where tid = 3487), 1737488133487, 16000), trace_bounds
       """,
         out=BinaryProto(
             message_type="perfetto.third_party.perftools.profiles.Profile",

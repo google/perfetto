@@ -43,7 +43,7 @@ export class DragGestureHandler implements Disposable {
   private startDragGesture(e: MouseEvent) {
     this.clientRect = this.element.getBoundingClientRect();
     this.onDragStarted(
-        e.clientX - this.clientRect.left, e.clientY - this.clientRect.top);
+      e.clientX - this.clientRect.left, e.clientY - this.clientRect.top);
   }
 
   private onMouseMove(e: MouseEvent) {
@@ -58,7 +58,7 @@ export class DragGestureHandler implements Disposable {
     }
     if (!this.pendingMouseDownEvent) {
       this.onDrag(
-          e.clientX - this.clientRect!.left, e.clientY - this.clientRect!.top);
+        e.clientX - this.clientRect!.left, e.clientY - this.clientRect!.top);
     }
   }
 

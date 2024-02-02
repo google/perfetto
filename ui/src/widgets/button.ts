@@ -72,23 +72,23 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
     const label = 'label' in attrs ? attrs.label : undefined;
 
     const classes = classNames(
-        active && 'pf-active',
-        compact && 'pf-compact',
-        minimal && 'pf-minimal',
-        (icon && !label) && 'pf-icon-only',
-        dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
-        className,
+      active && 'pf-active',
+      compact && 'pf-compact',
+      minimal && 'pf-minimal',
+      (icon && !label) && 'pf-icon-only',
+      dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
+      className,
     );
 
     return m(
-        'button.pf-button',
-        {
-          ...htmlAttrs,
-          className: classes,
-        },
-        icon && m(Icon, {className: 'pf-left-icon', icon}),
-        rightIcon && m(Icon, {className: 'pf-right-icon', icon: rightIcon}),
-        label || '\u200B',  // Zero width space keeps button in-flow
+      'button.pf-button',
+      {
+        ...htmlAttrs,
+        className: classes,
+      },
+      icon && m(Icon, {className: 'pf-left-icon', icon}),
+      rightIcon && m(Icon, {className: 'pf-right-icon', icon: rightIcon}),
+      label || '\u200B',  // Zero width space keeps button in-flow
     );
   }
 }

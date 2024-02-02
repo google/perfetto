@@ -22,7 +22,7 @@ import {uuidv4} from '../base/uuid';
 import {drawTrackHoverTooltip} from '../common/canvas_utils';
 import {HighPrecisionTime} from '../common/high_precision_time';
 import {raf} from '../core/raf_scheduler';
-import {LONG, NUM} from '../public';
+import {EngineProxy, LONG, NUM, Track} from '../public';
 import {CounterScaleOptions} from '../tracks/counter';
 import {Button} from '../widgets/button';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
@@ -31,7 +31,7 @@ import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {PanelSize} from './panel';
 import {constraintsToQuerySuffix} from './sql_utils';
-import {NewTrackArgs, TrackBase} from './track';
+import {NewTrackArgs} from './track';
 import {CacheKey, TrackCache} from './track_cache';
 
 interface CounterData {
@@ -62,8 +62,10 @@ export interface RenderOptions {
   yBoundaries: 'strict'|'human_readable';
 }
 
-export abstract class BaseCounterTrack extends TrackBase {
+export abstract class BaseCounterTrack implements Track {
   protected readonly tableName: string;
+  protected engine: EngineProxy;
+  protected trackKey: string;
 
   // This is the over-skirted cached bounds:
   private countersKey: CacheKey = CacheKey.zero();
@@ -126,7 +128,8 @@ export abstract class BaseCounterTrack extends TrackBase {
   }
 
   constructor(args: NewTrackArgs) {
-    super(args);
+    this.engine = args.engine;
+    this.trackKey = args.trackKey;
     this.tableName = `track_${uuidv4().replace(/[^a-zA-Z0-9_]+/g, '_')}`;
   }
 
@@ -161,11 +164,11 @@ export abstract class BaseCounterTrack extends TrackBase {
   // it manually, if they want to customise rendering track buttons.
   protected getCounterContextMenu(): m.Child {
     return m(
-        PopupMenu2,
-        {
-          trigger: m(Button, {icon: 'show_chart', minimal: true}),
-        },
-        this.getCounterContextMenuItems(),
+      PopupMenu2,
+      {
+        trigger: m(Button, {icon: 'show_chart', minimal: true}),
+      },
+      this.getCounterContextMenuItems(),
     );
   }
 
@@ -195,7 +198,7 @@ export abstract class BaseCounterTrack extends TrackBase {
     await this.maybeRequestData(rawCountersKey);
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const {
       visibleTimeScale: timeScale,
       visibleWindowTime: vizTime,
@@ -238,7 +241,7 @@ export abstract class BaseCounterTrack extends TrackBase {
 
     if (this.getRenderOptions().yRange === 'viewport') {
       const visValuesRange = this.getVisibleValuesRange(
-          data.timestamps, minValues, maxValues, vizTime);
+        data.timestamps, minValues, maxValues, vizTime);
       minimumValue = visValuesRange.minValue;
       maximumValue = visValuesRange.maxValue;
     }
@@ -333,8 +336,8 @@ export abstract class BaseCounterTrack extends TrackBase {
 
       const xStart = Math.floor(timeScale.timeToPx(this.hoveredTs));
       const xEnd = this.hoveredTsEnd === undefined ?
-          endPx :
-          Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
+        endPx :
+        Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
       const y = MARGIN_TOP + effectiveHeight -
           Math.round(((this.hoveredValue - yMin) / yRange) * effectiveHeight);
 
@@ -349,7 +352,7 @@ export abstract class BaseCounterTrack extends TrackBase {
       // Draw change marker.
       ctx.beginPath();
       ctx.arc(
-          xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
+        xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
       ctx.fill();
       ctx.stroke();
 
@@ -378,12 +381,12 @@ export abstract class BaseCounterTrack extends TrackBase {
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        timeScale.timeToPx(this.countersKey.start),
-        timeScale.timeToPx(this.countersKey.end));
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      timeScale.timeToPx(this.countersKey.start),
+      timeScale.timeToPx(this.countersKey.end));
   }
 
   onMouseMove(pos: {x: number, y: number}) {
@@ -418,17 +421,17 @@ export abstract class BaseCounterTrack extends TrackBase {
   // entire range of possible values or the values visible on the screen. This
   // method computes the latter.
   private getVisibleValuesRange(
-      timestamps: BigInt64Array, minValues: Float64Array,
-      maxValues: Float64Array, visibleWindowTime: Span<HighPrecisionTime>):
+    timestamps: BigInt64Array, minValues: Float64Array,
+    maxValues: Float64Array, visibleWindowTime: Span<HighPrecisionTime>):
       {minValue: number, maxValue: number} {
     let minValue = undefined;
     let maxValue = undefined;
     for (let i = 0; i < timestamps.length; ++i) {
       const next = i + 1 < timestamps.length ?
-          HighPrecisionTime.fromNanos(timestamps[i + 1]) :
-          HighPrecisionTime.fromTime(globals.state.traceTime.end);
+        HighPrecisionTime.fromNanos(timestamps[i + 1]) :
+        HighPrecisionTime.fromTime(globals.state.traceTime.end);
       if (visibleWindowTime.intersects(
-              HighPrecisionTime.fromNanos(timestamps[i]), next)) {
+        HighPrecisionTime.fromNanos(timestamps[i]), next)) {
         if (minValue === undefined) {
           minValue = minValues[i];
         } else {
@@ -545,7 +548,7 @@ export abstract class BaseCounterTrack extends TrackBase {
 
       this.sqlState = 'QUERY_DONE';
     } else if (
-        this.sqlState === 'INITIALIZING' || this.sqlState === 'QUERY_PENDING') {
+      this.sqlState === 'INITIALIZING' || this.sqlState === 'QUERY_PENDING') {
       return;
     }
 
@@ -556,7 +559,7 @@ export abstract class BaseCounterTrack extends TrackBase {
     const countersKey = rawCountersKey.normalize();
     if (!rawCountersKey.isCoveredBy(countersKey)) {
       throw new Error(`Normalization error ${countersKey.toString()} ${
-          rawCountersKey.toString()}`);
+        rawCountersKey.toString()}`);
     }
 
     const maybeCachedCounters = this.cache.lookup(countersKey);

@@ -95,7 +95,7 @@ export class TrackGroupPanel implements Panel {
           trackGroup.tracks.every((id) => selectedArea.tracks.includes(id))) {
         checkBox = Icons.Checkbox;
       } else if (
-          selectedArea.tracks.includes(trackGroupId) ||
+        selectedArea.tracks.includes(trackGroupId) ||
           trackGroup.tracks.some((id) => selectedArea.tracks.includes(id))) {
         checkBox = Icons.IndeterminateCheckbox;
       }
@@ -107,56 +107,56 @@ export class TrackGroupPanel implements Panel {
     }
 
     return m(
-        `.track-group-panel[collapsed=${collapsed}]`,
+      `.track-group-panel[collapsed=${collapsed}]`,
+      {
+        id: 'track_' + trackGroupId,
+        oncreate: () => this.onupdate(),
+        onupdate: () => this.onupdate(),
+      },
+      m(`.shell`,
         {
-          id: 'track_' + trackGroupId,
-          oncreate: () => this.onupdate(),
-          onupdate: () => this.onupdate(),
-        },
-        m(`.shell`,
-          {
-            onclick: (e: MouseEvent) => {
-              globals.dispatch(Actions.toggleTrackGroupCollapsed({
-                trackGroupId,
-              })),
-                  e.stopPropagation();
-            },
-            class: `${highlightClass}`,
+          onclick: (e: MouseEvent) => {
+            globals.dispatch(Actions.toggleTrackGroupCollapsed({
+              trackGroupId,
+            })),
+            e.stopPropagation();
           },
+          class: `${highlightClass}`,
+        },
 
-          m('.fold-button',
-            m('i.material-icons',
-              collapsed ? Icons.ExpandDown : Icons.ExpandUp)),
-          m('.title-wrapper',
-            m(
-                'h1.track-title',
-                {title: name},
-                name,
-                renderChips(tags),
-                ),
-            (collapsed && child !== null) ? m('h2.track-subtitle', child) :
-                                            null),
-          selection && selection.kind === 'AREA' ?
-              m('i.material-icons.track-button',
-                {
-                  onclick: (e: MouseEvent) => {
-                    globals.dispatch(Actions.toggleTrackSelection(
-                        {id: trackGroupId, isTrackGroup: true}));
-                    e.stopPropagation();
-                  },
-                },
-                checkBox) :
-              ''),
+        m('.fold-button',
+          m('i.material-icons',
+            collapsed ? Icons.ExpandDown : Icons.ExpandUp)),
+        m('.title-wrapper',
+          m(
+            'h1.track-title',
+            {title: name},
+            name,
+            renderChips(tags),
+          ),
+          (collapsed && child !== null) ? m('h2.track-subtitle', child) :
+            null),
+        selection && selection.kind === 'AREA' ?
+          m('i.material-icons.track-button',
+            {
+              onclick: (e: MouseEvent) => {
+                globals.dispatch(Actions.toggleTrackSelection(
+                  {id: trackGroupId, isTrackGroup: true}));
+                e.stopPropagation();
+              },
+            },
+            checkBox) :
+          ''),
 
-        trackFSM ? m(TrackContent,
-                     {track: trackFSM.track},
-                     (!collapsed && child !== null) ? m('span', child) : null) :
-                   null);
+      trackFSM ? m(TrackContent,
+        {track: trackFSM.track},
+        (!collapsed && child !== null) ? m('span', child) : null) :
+        null);
   }
 
   private onupdate() {
     if (this.attrs.trackFSM !== undefined) {
-      this.attrs.trackFSM.track.onFullRedraw();
+      this.attrs.trackFSM.track.onFullRedraw?.();
     }
   }
 
@@ -169,10 +169,10 @@ export class TrackGroupPanel implements Panel {
     if (selectedArea.tracks.includes(this.trackGroupId)) {
       ctx.fillStyle = 'rgba(131, 152, 230, 0.3)';
       ctx.fillRect(
-          visibleTimeScale.timeToPx(selectedArea.start) + TRACK_SHELL_WIDTH,
-          0,
-          visibleTimeScale.durationToPx(selectedAreaDuration),
-          size.height);
+        visibleTimeScale.timeToPx(selectedArea.start) + TRACK_SHELL_WIDTH,
+        0,
+        visibleTimeScale.durationToPx(selectedAreaDuration),
+        size.height);
     }
   }
 
@@ -190,9 +190,9 @@ export class TrackGroupPanel implements Panel {
     this.highlightIfTrackSelected(ctx, size);
 
     drawGridLines(
-        ctx,
-        size.width,
-        size.height);
+      ctx,
+      size.width,
+      size.height);
 
     ctx.save();
     ctx.translate(TRACK_SHELL_WIDTH, 0);
@@ -209,30 +209,30 @@ export class TrackGroupPanel implements Panel {
     // Draw vertical line when hovering on the notes panel.
     if (globals.state.hoveredNoteTimestamp !== -1n) {
       drawVerticalLineAtTime(
-          ctx,
-          visibleTimeScale,
-          globals.state.hoveredNoteTimestamp,
-          size.height,
-          `#aaa`);
+        ctx,
+        visibleTimeScale,
+        globals.state.hoveredNoteTimestamp,
+        size.height,
+        `#aaa`);
     }
     if (globals.state.hoverCursorTimestamp !== -1n) {
       drawVerticalLineAtTime(
-          ctx,
-          visibleTimeScale,
-          globals.state.hoverCursorTimestamp,
-          size.height,
-          `#344596`);
+        ctx,
+        visibleTimeScale,
+        globals.state.hoverCursorTimestamp,
+        size.height,
+        `#344596`);
     }
 
     if (globals.state.currentSelection !== null) {
       if (globals.state.currentSelection.kind === 'SLICE' &&
           globals.sliceDetails.wakeupTs !== undefined) {
         drawVerticalLineAtTime(
-            ctx,
-            visibleTimeScale,
-            globals.sliceDetails.wakeupTs,
-            size.height,
-            `black`);
+          ctx,
+          visibleTimeScale,
+          globals.sliceDetails.wakeupTs,
+          size.height,
+          `black`);
       }
     }
     // All marked areas should have semi-transparent vertical lines
@@ -242,22 +242,22 @@ export class TrackGroupPanel implements Panel {
         const transparentNoteColor =
             'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
         drawVerticalLineAtTime(
-            ctx,
-            visibleTimeScale,
-            globals.state.areas[note.areaId].start,
-            size.height,
-            transparentNoteColor,
-            1);
+          ctx,
+          visibleTimeScale,
+          globals.state.areas[note.areaId].start,
+          size.height,
+          transparentNoteColor,
+          1);
         drawVerticalLineAtTime(
-            ctx,
-            visibleTimeScale,
-            globals.state.areas[note.areaId].end,
-            size.height,
-            transparentNoteColor,
-            1);
+          ctx,
+          visibleTimeScale,
+          globals.state.areas[note.areaId].end,
+          size.height,
+          transparentNoteColor,
+          1);
       } else if (note.noteType === 'DEFAULT') {
         drawVerticalLineAtTime(
-            ctx, visibleTimeScale, note.timestamp, size.height, note.color);
+          ctx, visibleTimeScale, note.timestamp, size.height, note.color);
       }
     }
   }

@@ -52,10 +52,12 @@ from diff_tests.parser.android.tests_games import AndroidGames
 from diff_tests.parser.android.tests_surfaceflinger_layers import SurfaceFlingerLayers
 from diff_tests.parser.android.tests_surfaceflinger_transactions import SurfaceFlingerTransactions
 from diff_tests.parser.android.tests_shell_transitions import ShellTransitions
+from diff_tests.parser.android.tests_protolog import ProtoLog
 from diff_tests.parser.android_fs.tests import AndroidFs
 from diff_tests.parser.atrace.tests import Atrace
 from diff_tests.parser.atrace.tests_error_handling import AtraceErrorHandling
 from diff_tests.parser.chrome.tests import ChromeParser
+from diff_tests.parser.chrome.tests_v8 import ChromeV8Parser
 from diff_tests.parser.chrome.tests_memory_snapshots import ChromeMemorySnapshots
 from diff_tests.parser.cros.tests import Cros
 from diff_tests.parser.fs.tests import Fs
@@ -63,6 +65,7 @@ from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.graphics.tests import GraphicsParser
 from diff_tests.parser.graphics.tests_drm_related_ftrace_events import GraphicsDrmRelatedFtraceEvents
 from diff_tests.parser.graphics.tests_gpu_trace import GraphicsGpuTrace
+from diff_tests.parser.json.tests import JsonTests
 from diff_tests.parser.memory.tests import MemoryParser
 from diff_tests.parser.network.tests import NetworkParser
 from diff_tests.parser.parsing.tests import Parsing
@@ -95,6 +98,8 @@ from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
+from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
+from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
 from diff_tests.stdlib.linux.tests import LinuxStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
@@ -135,6 +140,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ChromeMemorySnapshots(index_path, 'parser/chrome',
                              'ChromeMemorySnapshots').fetch(),
       *ChromeParser(index_path, 'parser/chrome', 'ChromeParser').fetch(),
+      *ChromeV8Parser(index_path, 'parser/chrome', 'ChromeV8Parser').fetch(),
       *Cros(index_path, 'parser/cros', 'Cros').fetch(),
       *Fs(index_path, 'parser/fs', 'Fs').fetch(),
       *Fuchsia(index_path, 'parser/fuchsia', 'Fuchsia').fetch(),
@@ -143,6 +149,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *GraphicsGpuTrace(index_path, 'parser/graphics',
                         'GraphicsGpuTrace').fetch(),
       *GraphicsParser(index_path, 'parser/graphics', 'GraphicsParser').fetch(),
+      *JsonTests(index_path, 'parser/json', 'JsonParser').fetch(),
       *MemoryParser(index_path, 'parser/memory', 'MemoryParser').fetch(),
       *NetworkParser(index_path, 'parser/network', 'NetworkParser').fetch(),
       *PowerEnergyBreakdown(index_path, 'parser/power',
@@ -175,6 +182,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
                                   'SurfaceFlingerTransactions').fetch(),
       *ShellTransitions(index_path, 'parser/android',
                         'ShellTransitions').fetch(),
+      *ProtoLog(index_path, 'parser/android', 'ProtoLog').fetch(),
       *TrackEvent(index_path, 'parser/track_event', 'TrackEvent').fetch(),
       *TranslatedArgs(index_path, 'parser/translated_args',
                       'TranslatedArgs').fetch(),
@@ -234,6 +242,9 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
 
   stdlib_tests = [
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
+      *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
+      *GraphSearchTests(index_path, 'stdlib/graphs',
+                        'GraphSearchTests').fetch(),
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
       *LinuxStdlib(index_path, 'stdlib/linux', 'LinuxStdlib').fetch(),

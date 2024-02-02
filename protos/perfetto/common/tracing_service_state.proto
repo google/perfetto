@@ -84,6 +84,18 @@ message TracingServiceState {
     // Time when the session was started, in the CLOCK_REALTIME domain.
     // Available only on Linux-based systems.
     optional int64 start_realtime_ns = 8;
+
+    // The fields below have been introduced in v42.
+
+    // The bugreport_score, as set in TraceConfig.bugreport_score.
+    optional int32 bugreport_score = 9;
+
+    // As per TraceConfig.bugreport_filename.
+    optional string bugreport_filename = 10;
+
+    // If true, the session is in the STARTED state. If false the session is in
+    // any other state (see `state` field).
+    optional bool is_started = 11;
   }
 
   // Lists all the producers connected.

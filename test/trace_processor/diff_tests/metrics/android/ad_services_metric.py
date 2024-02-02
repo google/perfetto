@@ -21,8 +21,14 @@ CONSENT_MANAGER_INITIALIZATION_EVENT = "ConsentManager#Initialization"
 CONSENT_MANAGER_READ_EVENT = "ConsentManager#ReadOperation"
 CONSENT_MANAGER_WRITE_EVENT = "ConsentManager#WriteOperation"
 MAIN_ACTIVITY_CREATION_EVENT = "AdServicesSettingsMainActivity#OnCreate"
+
 AD_ID_CACHE_EVENT = "AdIdCacheEvent"
 APP_SET_ID_EVENT = "AppSetIdEvent"
+
+ODP_MANAGER_INITIALIZATION_EVENT = "OdpManagingService#Initialization"
+ODP_MANAGER_EXECUTE_EVENT = "OdpManagingServiceDelegate#Execute"
+ODP_MANAGER_REQUEST_SURFACE_PACKAGE_EVENT = "OdpManagingServiceDelegate#RequestSurfacePackage"
+ODP_MANAGER_REGISTER_WEB_TRIGGER_EVENT = "OdpManagingServiceDelegate#RegisterWebTrigger"
 
 trace = synth_common.create_trace()
 
@@ -45,5 +51,17 @@ trace.add_atrace_begin(
     ts=1500, tid=43, pid=43, buf=CONSENT_MANAGER_READ_EVENT)
 trace.add_atrace_end(ts=1650, tid=43, pid=43)
 
+trace.add_atrace_begin(
+    ts=2500, tid=43, pid=44, buf=ODP_MANAGER_INITIALIZATION_EVENT)
+trace.add_atrace_end(ts=2550, tid=43, pid=44)
+trace.add_atrace_begin(
+    ts=2600, tid=43, pid=44, buf=ODP_MANAGER_EXECUTE_EVENT)
+trace.add_atrace_end(ts=2700, tid=43, pid=44)
+trace.add_atrace_begin(
+    ts=2800, tid=43, pid=44, buf=ODP_MANAGER_REQUEST_SURFACE_PACKAGE_EVENT)
+trace.add_atrace_end(ts=2950, tid=43, pid=44)
+trace.add_atrace_begin(
+    ts=3000, tid=43, pid=44, buf=ODP_MANAGER_REGISTER_WEB_TRIGGER_EVENT)
+trace.add_atrace_end(ts=3200, tid=43, pid=44)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

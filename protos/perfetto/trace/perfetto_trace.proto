@@ -283,6 +283,18 @@ message TracingServiceState {
     // Time when the session was started, in the CLOCK_REALTIME domain.
     // Available only on Linux-based systems.
     optional int64 start_realtime_ns = 8;
+
+    // The fields below have been introduced in v42.
+
+    // The bugreport_score, as set in TraceConfig.bugreport_score.
+    optional int32 bugreport_score = 9;
+
+    // As per TraceConfig.bugreport_filename.
+    optional string bugreport_filename = 10;
+
+    // If true, the session is in the STARTED state. If false the session is in
+    // any other state (see `state` field).
+    optional bool is_started = 11;
   }
 
   // Lists all the producers connected.
@@ -546,6 +558,41 @@ message PackagesListConfig {
 
 // End of protos/perfetto/config/android/packages_list_config.proto
 
+// Begin of protos/perfetto/common/protolog_common.proto
+
+enum ProtoLogLevel {
+  PROTOLOG_LEVEL_UNDEFINED = 0;
+  PROTOLOG_LEVEL_DEBUG = 1;
+  PROTOLOG_LEVEL_VERBOSE = 2;
+  PROTOLOG_LEVEL_INFO = 3;
+  PROTOLOG_LEVEL_WARN = 4;
+  PROTOLOG_LEVEL_ERROR = 5;
+  PROTOLOG_LEVEL_WTF = 6;
+}
+// End of protos/perfetto/common/protolog_common.proto
+
+// Begin of protos/perfetto/config/android/protolog_config.proto
+
+// Custom configuration for the "android.protolog" data source.
+// ProtoLog is a logging mechanism that is intented to be more efficient than
+// logcat. This configures what logs to capture in the tracing instance.
+message ProtoLogConfig {
+  // Specified the configurations for each of the logging groups. If none is
+  // specified for a group the defaults will be used.
+  repeated ProtoLogGroup group_overrides = 1;
+}
+
+message ProtoLogGroup {
+  // The ProtoLog tag this configuration entry applies to.
+  optional string tag = 1;
+  // Specify the level from which to start capturing protologs.
+  // e.g. if ProtoLogLevel.WARN is specified only warning, errors and fatal log
+  // message will be traced.
+  optional ProtoLogLevel log_from = 2;
+}
+
+// End of protos/perfetto/config/android/protolog_config.proto
+
 // Begin of protos/perfetto/config/android/surfaceflinger_layers_config.proto
 
 // Custom configuration for the "android.surfaceflinger.layers" data source.
@@ -645,6 +692,23 @@ message ChromeConfig {
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
 
+// Begin of protos/perfetto/config/chrome/v8_config.proto
+
+message V8Config {
+  // Whether to log the actual content of scripts (e.g. content of the JS file
+  // that was compiled to generate code).
+  // ATTENTION: This could considerably increase the size of the resuling trace
+  //            file.
+  optional bool log_script_sources = 1;
+  // Whether to log the generated code for jitted functions (machine code or
+  // bytecode).
+  // ATTENTION: This could considerably increase the size of the resuling trace
+  //            file.
+  optional bool log_instructions = 2;
+}
+
+// End of protos/perfetto/config/chrome/v8_config.proto
+
 // Begin of protos/perfetto/config/etw/etw_config.proto
 
 // Proto definition based on the struct _EVENT_TRACE_PROPERTIES definition
@@ -682,6 +746,10 @@ message FtraceConfig {
   message CompactSchedConfig {
     // If true, and sched_switch or sched_waking ftrace events are enabled,
     // record those events in the compact format.
+    //
+    // If the field is unset, the default is:
+    // * perfetto v42.0+: enabled
+    // * before: disabled
     optional bool enabled = 1;
   }
   optional CompactSchedConfig compact_sched = 12;
@@ -826,7 +894,6 @@ message FtraceConfig {
   // * Introduced in: Android U.
   optional bool use_monotonic_raw_clock = 24;
 
-  // Caution: under development as of 2023/03/01.
   // If |instance_name| is not empty, then attempt to use that tracefs instance
   // for event recording. Normally, this means
   // `/sys/kernel/tracing/instances/$instance_name`.
@@ -839,7 +906,6 @@ message FtraceConfig {
   // at the time of writing:
   //  * ftrace_events
   //  * buffer_size_kb
-  // TODO(b/249050813): reword comment once instance support is stable.
   optional string instance_name = 25;
 }
 
@@ -2729,7 +2795,68 @@ enum VmstatCounters {
   VMSTAT_SWAP_RA = 126;
   VMSTAT_SWAP_RA_HIT = 127;
   VMSTAT_WORKINGSET_RESTORE = 128;
+  VMSTAT_ALLOCSTALL_DEVICE = 129;
+  VMSTAT_ALLOCSTALL_DMA32 = 130;
+  VMSTAT_BALLOON_DEFLATE = 131;
+  VMSTAT_BALLOON_INFLATE = 132;
+  VMSTAT_BALLOON_MIGRATE = 133;
+  VMSTAT_CMA_ALLOC_FAIL = 134;
+  VMSTAT_CMA_ALLOC_SUCCESS = 135;
+  VMSTAT_NR_FILE_HUGEPAGES = 136;
+  VMSTAT_NR_FILE_PMDMAPPED = 137;
+  VMSTAT_NR_FOLL_PIN_ACQUIRED = 138;
+  VMSTAT_NR_FOLL_PIN_RELEASED = 139;
+  VMSTAT_NR_SEC_PAGE_TABLE_PAGES = 140;
+  VMSTAT_NR_SHADOW_CALL_STACK = 141;
+  VMSTAT_NR_SWAPCACHED = 142;
+  VMSTAT_NR_THROTTLED_WRITTEN = 143;
+  VMSTAT_PGALLOC_DEVICE = 144;
+  VMSTAT_PGALLOC_DMA32 = 145;
+  VMSTAT_PGDEMOTE_DIRECT = 146;
+  VMSTAT_PGDEMOTE_KSWAPD = 147;
+  VMSTAT_PGREUSE = 148;
+  VMSTAT_PGSCAN_ANON = 149;
+  VMSTAT_PGSCAN_FILE = 150;
+  VMSTAT_PGSKIP_DEVICE = 151;
+  VMSTAT_PGSKIP_DMA32 = 152;
+  VMSTAT_PGSTEAL_ANON = 153;
+  VMSTAT_PGSTEAL_FILE = 154;
+  VMSTAT_THP_COLLAPSE_ALLOC = 155;
+  VMSTAT_THP_COLLAPSE_ALLOC_FAILED = 156;
+  VMSTAT_THP_DEFERRED_SPLIT_PAGE = 157;
+  VMSTAT_THP_FAULT_ALLOC = 158;
+  VMSTAT_THP_FAULT_FALLBACK = 159;
+  VMSTAT_THP_FAULT_FALLBACK_CHARGE = 160;
+  VMSTAT_THP_FILE_ALLOC = 161;
+  VMSTAT_THP_FILE_FALLBACK = 162;
+  VMSTAT_THP_FILE_FALLBACK_CHARGE = 163;
+  VMSTAT_THP_FILE_MAPPED = 164;
+  VMSTAT_THP_MIGRATION_FAIL = 165;
+  VMSTAT_THP_MIGRATION_SPLIT = 166;
+  VMSTAT_THP_MIGRATION_SUCCESS = 167;
+  VMSTAT_THP_SCAN_EXCEED_NONE_PTE = 168;
+  VMSTAT_THP_SCAN_EXCEED_SHARE_PTE = 169;
+  VMSTAT_THP_SCAN_EXCEED_SWAP_PTE = 170;
+  VMSTAT_THP_SPLIT_PAGE = 171;
+  VMSTAT_THP_SPLIT_PAGE_FAILED = 172;
+  VMSTAT_THP_SPLIT_PMD = 173;
+  VMSTAT_THP_SWPOUT = 174;
+  VMSTAT_THP_SWPOUT_FALLBACK = 175;
+  VMSTAT_THP_ZERO_PAGE_ALLOC = 176;
+  VMSTAT_THP_ZERO_PAGE_ALLOC_FAILED = 177;
+  VMSTAT_VMA_LOCK_ABORT = 178;
+  VMSTAT_VMA_LOCK_MISS = 179;
+  VMSTAT_VMA_LOCK_RETRY = 180;
+  VMSTAT_VMA_LOCK_SUCCESS = 181;
+  VMSTAT_WORKINGSET_ACTIVATE_ANON = 182;
+  VMSTAT_WORKINGSET_ACTIVATE_FILE = 183;
+  VMSTAT_WORKINGSET_NODES = 184;
+  VMSTAT_WORKINGSET_REFAULT_ANON = 185;
+  VMSTAT_WORKINGSET_REFAULT_FILE = 186;
+  VMSTAT_WORKINGSET_RESTORE_ANON = 187;
+  VMSTAT_WORKINGSET_RESTORE_FILE = 188;
 }
+
 // End of protos/perfetto/common/sys_stats_counters.proto
 
 // Begin of protos/perfetto/config/sys_stats/sys_stats_config.proto
@@ -2943,7 +3070,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 126
+// Next id: 127
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3051,6 +3178,9 @@ message DataSourceConfig {
   // C++ class for it so it can pass around plain C++ objets.
   optional ChromeConfig chrome_config = 101;
 
+  // Data source name: code.v8.dev
+  optional V8Config v8_config = 127 [lazy = true];
+
   // If an interceptor is specified here, packets for this data source will be
   // rerouted to the interceptor instead of the main trace buffer. This can be
   // used, for example, to write trace data into ETW or for logging trace points
@@ -3082,6 +3212,9 @@ message DataSourceConfig {
   // Data source name: windows.etw
   optional EtwConfig etw_config = 125 [lazy = true];
 
+  // Data source name: android.protolog
+  optional ProtoLogConfig protolog_config = 126 [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -3107,7 +3240,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 38.
+// Next id: 39.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -3366,6 +3499,13 @@ message TraceConfig {
   // by other UIDs.
   optional int32 bugreport_score = 30;
 
+  // When set, defines name of the file that will be saved under
+  // /data/misc/perfetto-traces/bugreport/ when using --save-all-for-bugreport.
+  // If omitted, traces will be named systrace.pftrace, systrace_1.pftrace, etc,
+  // starting from the highest `bugreport_score`.
+  // Introduced in v42 / Android V.
+  optional string bugreport_filename = 38;
+
   // Triggers allow producers to start or stop the tracing session when an event
   // occurs.
   //
@@ -3527,10 +3667,8 @@ message TraceConfig {
   }
   optional CompressionType compression_type = 24;
 
-  // Use the legacy codepath that compresses from perfetto_cmd.cc instead of
-  // using the new codepath that compresses from tracing_service_impl.cc. This
-  // will be removed in the future.
-  optional bool compress_from_cli = 37;
+  // DEPRECATED, was compress_from_cli.
+  reserved 37;
 
   // Android-only. Not for general use. If set, saves the trace into an
   // incident. This field is read by perfetto_cmd, rather than the tracing
@@ -4000,7 +4138,7 @@ message AndroidGameInterventionList {
 
   repeated GamePackageInfo game_packages = 1;
 
-  // True when at least one error occured when parsing
+  // True when at least one error occurred when parsing
   // game_mode_intervention.list
   optional bool parse_error = 2;
 
@@ -4009,6 +4147,125 @@ message AndroidGameInterventionList {
 }
 
 // End of protos/perfetto/trace/android/android_game_intervention_list.proto
+
+// Begin of protos/perfetto/trace/android/android_input_event.proto
+
+// A representation of an Android MotionEvent.
+// See: https://developer.android.com/reference/android/view/MotionEvent
+message AndroidMotionEvent {
+  // A representation of one pointer inside a MotionEvent.
+  // Each Pointer contains the values present in its corresponding
+  // MotionEvent.PointerCoords and MotionEvent.PointerProperties.
+  message Pointer {
+     message AxisValue {
+      optional int32 axis = 1;
+      optional float value = 2;
+    }
+    repeated AxisValue axis_value = 1;
+    optional int32 pointer_id = 2;
+    optional int32 tool_type = 3;
+  }
+
+  // The randomly-generated ID used to track the event through the pipeline.
+  optional fixed32 event_id = 1;
+  // The event's timestamp - generated by the kernel.
+  optional int64 event_time_nanos = 2;
+  optional uint32 source = 3;
+  optional int32 action = 4;
+  optional int32 device_id = 5;
+  // Use a signed int for display_id, because -1 (DISPLAY_IS_NONE) is a common value.
+  optional sint32 display_id = 6;
+  optional int32 classification = 7;
+  optional uint32 flags = 8;
+  repeated Pointer pointer = 9;
+
+  // Field numbers 10-15 are reserved for commonly used fields.
+
+  // If this event was synthesized as a result of one or more different
+  // event, original_event_ids are the event_ids associated with the original events.
+  // For example, if this is an ACTION_HOVER_ENTER event that is synthesized
+  // due to an ACTION_HOVER_MOVE event entering the bounds of a window, the
+  // id of the original hover move event will be listed here.
+  repeated fixed32 original_event_id = 16 [packed = true];
+  // The timestamp of the ACTION_DOWN event associated with this gesture.
+  optional int64 down_time_nanos = 17;
+  optional float cursor_position_x = 18;
+  optional float cursor_position_y = 19;
+  optional int32 action_button = 20;
+  optional uint32 button_state = 21;
+  optional uint32 meta_state = 22;
+  optional uint32 policy_flags = 23;
+  optional float precision_x = 24;
+  optional float precision_y = 25;
+}
+
+// A representation of an Android KeyEvent.
+// See: https://developer.android.com/reference/android/view/KeyEvent
+message AndroidKeyEvent {
+  // The randomly-generated ID used to track the event through the pipeline.
+  optional fixed32 event_id = 1;
+  // The event's timestamp - generated by the kernel.
+  optional int64 event_time_nanos = 2;
+  // The timestamp of the ACTION_DOWN event associated with this gesture.
+  optional int64 down_time_nanos = 3;
+  optional uint32 source = 4;
+  optional int32 action = 5;
+  optional int32 device_id = 6;
+  // Use a signed int for display_id, because -1 (DISPLAY_IS_NONE) is a common value.
+  optional sint32 display_id = 7;
+  optional int32 key_code = 8;
+  optional uint32 scan_code = 9;
+  optional uint32 meta_state = 10;
+  optional int32 repeat_count = 11;
+  optional uint32 flags = 12;
+  optional uint32 policy_flags = 13;
+}
+
+// An event that traces an input event being dispatched by the system to one window.
+message AndroidWindowInputDispatchEvent {
+  // Stores x/y values for each pointer sent to the window for events
+  // that are dispatched to a certain location on the screen. This is not relevant
+  // for KeyEvents and MotionEvents that are dispatched to focused windows.
+  message DispatchedPointer {
+    optional int32 pointer_id = 1;
+    // The coordinates of the pointer in the logical display space, AKA "raw coordinates".
+    optional float x_in_display = 2;
+    optional float y_in_display = 3;
+    // The axis values for this pointer that were modified by the window transform.
+    repeated AndroidMotionEvent.Pointer.AxisValue axis_value_in_window = 4;
+  }
+
+  // The event_id of the event that was dispatched to the window.
+  optional fixed32 event_id = 1;
+  // The vsync_id of the frame in which the decision was made to dispatch the event to
+  // the window.
+  optional int64 vsync_id = 2;
+  // The id of the window to which the event was dispatched.
+  optional int32 window_id = 3;
+  // Only relevant for MotionEvents that are dispatched to a screen location.
+  // Each DispatchedPointer has a 1:1 correspondence with the Pointers in the AndroidMotionEvent.
+  repeated DispatchedPointer dispatched_pointer = 4;
+  // The event flags that were used when dispatching the event to this window.
+  // If the same event is dispatched to more than one window, it is possible that they
+  // were dispatched using different flag values for each window.
+  optional uint32 resolved_flags = 5;
+}
+
+message AndroidInputEvent {
+  oneof event {
+    // Traces input events received by or generated by InputDispatcher
+    AndroidMotionEvent dispatcher_motion_event = 1;
+    AndroidMotionEvent dispatcher_motion_event_sensitive = 2;
+    AndroidKeyEvent dispatcher_key_event = 3;
+    AndroidKeyEvent dispatcher_key_event_sensitive = 4;
+
+    // Traces an event being dispatched to a window.
+    AndroidWindowInputDispatchEvent dispatcher_window_dispatch_event = 5;
+    AndroidWindowInputDispatchEvent dispatcher_window_dispatch_event_sensitive = 6;
+  }
+}
+
+// End of protos/perfetto/trace/android/android_input_event.proto
 
 // Begin of protos/perfetto/trace/android/android_log.proto
 
@@ -4573,6 +4830,48 @@ message PackagesList {
 
 // End of protos/perfetto/trace/android/packages_list.proto
 
+// Begin of protos/perfetto/trace/android/protolog.proto
+
+/* represents a single log entry */
+message ProtoLogMessage {
+  /* log statement identifier, created from message string and log level. */
+  optional fixed64 message_id = 1;
+  /* string parameters passed to the log call that have been interned. */
+  repeated uint32 interned_str_params = 2;
+  /* integer parameters passed to the log call. */
+  repeated sint64 sint64_params = 3;
+  /* floating point parameters passed to the log call. */
+  repeated double double_params = 4;
+  /* boolean parameters passed to the log call. */
+  repeated int32 boolean_params = 5;
+}
+
+/* contains all the data required to fully decode the protolog messages */
+message ProtoLogViewerConfig {
+  message MessageData {
+    // the id of the message that is logged in a ProtoLogMessage
+    optional fixed64 message_id = 1;
+    // the string representation of the message
+    optional string message = 2;
+    // the level of the message
+    optional ProtoLogLevel level = 3;
+    // the id of the log group this message belongs to
+    optional uint32 group_id = 4;
+  }
+
+  /* information about a ProtoLog log group */
+  message Group {
+    optional uint32 id = 1;
+    optional string name = 2;
+    optional string tag = 3;
+  }
+
+  repeated MessageData messages = 1;
+  repeated Group groups = 2;
+}
+
+// End of protos/perfetto/trace/android/protolog.proto
+
 // Begin of protos/perfetto/trace/android/shell_transition.proto
 
 // ShellTransition messages record information about the shell transitions in
@@ -4601,11 +4900,11 @@ message ShellTransition {
   // (using SystemClock.elapsedRealtimeNanos()).
   optional int64 merge_request_time_ns = 6;
   // If the transition was aborted on the shell side, this is the time that
-  // occured.
+  // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
   optional int64 shell_abort_time_ns = 7;
   // If the transition was aborted on the wm side, this is the time that
-  // occured.
+  // occurred.
   // (using SystemClock.elapsedRealtimeNanos())
   optional int64 wm_abort_time_ns = 8;
   // The time WM considers the transition to be complete.
@@ -5514,6 +5813,262 @@ message ChromeEventBundle {
 }
 
 // End of protos/perfetto/trace/chrome/chrome_trace_event.proto
+
+// Begin of protos/perfetto/trace/chrome/v8.proto
+
+// These are the protos for the V8 data source.
+//
+// All events are associated to a V8 isolate instance. There can be multiple
+// instances associated to a given thread, although this is rare.
+//
+// Generated code in V8 is allocated in the V8 heap (in a special executeable
+// section), this means that code can be garbage collected (when no longer used)
+// or can be moved around (e.g. during heap compactation). This means that a
+// given callsite might correspond to function `A` at one point in time and to
+// function `B` later on.
+// In addition V8 code has various levels of optimization, so a function might
+// have multiple associated code snippets.
+//
+// V8 does not track code deletion, so we have to indirectly infer it by
+// detecting code overlaps, if a newer code creation event overlaps with older
+// code we need to asume that the old code was deleted. Code moves are logged,
+// and there is an event to track those.
+
+// Strings used by V8 can have different encodings, instead of coverting to a
+// common encoding (e.g. UTF-8) on device is expensive. Instead we send the
+// "raw" string and do the convestion at trace ingestion time.
+//
+// ATTENTION: There is some overhead in using a message (as opossed to having
+// the `oneof encoded_string`` direcly embedded in the message), so use this
+// message in places were these extra bytes don't matter that much.
+// Next id: 5
+message V8String {
+  oneof encoded_string {
+    // ISO/IEC 8859-1:1998 encoding aka latin1
+    // https://en.wikipedia.org/wiki/ISO/IEC_8859-1
+    bytes latin1 = 1;
+    // UTF-16 Little Endian Encoding
+    bytes utf16_le = 2;
+    // UTF-16 Big Endian Encoding
+    bytes utf16_be = 3;
+  }
+}
+
+// Interned version of V8String
+message InternedV8String {
+  optional uint64 iid = 1;
+  // We inline the fields in V8String here to save some bytes in the serialized
+  // proto format. Interning is about saving bytes so this makes sense here.
+  oneof encoded_string {
+    // ISO/IEC 8859-1:1998 encoding aka latin1
+    // https://en.wikipedia.org/wiki/ISO/IEC_8859-1
+    bytes latin1 = 2;
+    // UTF-16 Little Endian Encoding
+    bytes utf16_le = 3;
+    // UTF-16 Big Endian Encoding
+    bytes utf16_be = 4;
+  }
+}
+
+// Represents a script that was compiled to generate code. Some V8 code is
+// generated out of scripts and will reference a V8Script other types of code
+// will not (e.g. builtins).
+message InternedV8JsScript {
+  optional uint64 iid = 1;
+  // Unique in a given isolate
+  optional int32 script_id = 2;
+
+  enum Type {
+    TYPE_UNKNOWN = 0;
+    TYPE_NORMAL = 1;
+    TYPE_EVAL = 2;
+    TYPE_MODULE = 3;
+    TYPE_NATIVE = 4;
+    TYPE_EXTENSION = 5;
+    TYPE_INSPECTOR = 6;
+  }
+
+  optional Type type = 3;
+  optional V8String name = 4;
+  // Actual source of the script
+  optional V8String source = 5;
+}
+
+message InternedV8WasmScript {
+  optional uint64 iid = 1;
+  // Unique in a given isolate
+  optional int32 script_id = 2;
+
+  optional string url = 3;
+}
+
+message InternedV8JsFunction {
+  enum Kind {
+    KIND_UNKNOWN = 0;
+    KIND_NORMAL_FUNCTION = 1;
+    KIND_MODULE = 2;
+    KIND_ASYNC_MODULE = 3;
+    KIND_BASE_CONSTRUCTOR = 4;
+    KIND_DEFAULT_BASE_CONSTRUCTOR = 5;
+    KIND_DEFAULT_DERIVED_CONSTRUCTOR = 6;
+    KIND_DERIVED_CONSTRUCTOR = 7;
+    KIND_GETTER_FUNCTION = 8;
+    KIND_STATIC_GETTER_FUNCTION = 9;
+    KIND_SETTER_FUNCTION = 10;
+    KIND_STATIC_SETTER_FUNCTION = 11;
+    KIND_ARROW_FUNCTION = 12;
+    KIND_ASYNC_ARROW_FUNCTION = 13;
+    KIND_ASYNC_FUNCTION = 14;
+    KIND_ASYNC_CONCISE_METHOD = 15;
+    KIND_STATIC_ASYNC_CONCISE_METHOD = 16;
+    KIND_ASYNC_CONCISE_GENERATOR_METHOD = 17;
+    KIND_STATIC_ASYNC_CONCISE_GENERATOR_METHOD = 18;
+    KIND_ASYNC_GENERATOR_FUNCTION = 19;
+    KIND_GENERATOR_FUNCTION = 20;
+    KIND_CONCISE_GENERATOR_METHOD = 21;
+    KIND_STATIC_CONCISE_GENERATOR_METHOD = 22;
+    KIND_CONCISE_METHOD = 23;
+    KIND_STATIC_CONCISE_METHOD = 24;
+    KIND_CLASS_MEMBERS_INITIALIZER_FUNCTION = 25;
+    KIND_CLASS_STATIC_INITIALIZER_FUNCTION = 26;
+    KIND_INVALID = 27;
+  }
+  optional uint64 iid = 1;
+  optional uint64 v8_js_function_name_iid = 2;
+  optional uint64 v8_js_script_iid = 3;
+
+  optional bool is_toplevel = 4;
+  optional Kind kind = 5;
+
+  // Where in the script source this function is defined. This is counted in
+  // bytes not characters.
+  optional uint32 byte_offset = 6;
+}
+
+// A V8 Isolate instance. A V8 Isolate represents an isolated instance of the V8
+// engine.
+message InternedV8Isolate {
+  optional uint64 iid = 1;
+
+  optional uint32 pid = 2;
+
+  // Process unique isolate id.
+  optional int32 isolate_id = 3;
+
+  // A code range is a virtual memory cage that may contain executable code.
+  // Depending on the Isolate settings the Isolate might have one or not.
+  // See:
+  // https://source.chromium.org/chromium/chromium/src/+/main:v8/src/heap/code-range.h
+  // If the isolate defines code range this will be tracked here.
+  message CodeRange {
+    optional uint64 base_address = 1;
+    optional uint64 size = 2;
+    // Used when short builtin calls are enabled, where embedded builtins are
+    // copied into the CodeRange so calls can be nearer.
+    optional uint64 embedded_blob_code_copy_start_address = 3;
+    // Whether this code range is shared with other Isolates in the same process
+    optional bool is_process_wide = 4;
+  }
+  optional CodeRange code_range = 4;
+  // The embedded blob holds code for built in functions that are precompiled in
+  // the V8 library.
+  optional uint64 embedded_blob_code_start_address = 5;
+  optional uint64 embedded_blob_code_size = 6;
+}
+
+message V8JsCode {
+  enum Tier {
+    TIER_UNKNOWN = 0;
+    TIER_IGNITION = 1;
+    TIER_SPARKPLUG = 2;
+    TIER_MAGLEV = 3;
+    TIER_TURBOSHAFT = 4;
+    TIER_TURBOFAN = 5;
+  }
+  optional uint64 v8_isolate_iid = 1;
+  optional uint32 tid = 2;
+  optional uint64 v8_js_function_iid = 3;
+  optional Tier tier = 4;
+
+  optional uint64 instruction_start = 5;
+  optional uint64 instruction_size_bytes = 6;
+  oneof instructions {
+    bytes machine_code = 7;
+    bytes bytecode = 8;
+  }
+}
+
+message V8InternalCode {
+  enum Type {
+    TYPE_UNKNOWN = 0;
+    TYPE_BYTECODE_HANDLER = 1;
+    TYPE_FOR_TESTING = 2;
+    TYPE_BUILTIN = 3;
+    TYPE_WASM_FUNCTION = 4;
+    TYPE_WASM_TO_CAPI_FUNCTION = 5;
+    TYPE_WASM_TO_JS_FUNCTION = 6;
+    TYPE_JS_TO_WASM_FUNCTION = 7;
+    TYPE_JS_TO_JS_FUNCTION = 8;
+    TYPE_C_WASM_ENTRY = 9;
+  }
+  optional uint64 v8_isolate_iid = 1;
+  optional uint32 tid = 2;
+  optional string name = 3;
+  optional Type type = 4;
+  optional int32 builtin_id = 5;
+
+  optional uint64 instruction_start = 6;
+  optional uint64 instruction_size_bytes = 7;
+  optional bytes machine_code = 8;
+}
+
+message V8WasmCode {
+  enum Tier {
+    TIER_UNKNOWN = 0;
+    TIER_LIFTOFF = 1;
+    TIER_TURBOFAN = 2;
+  }
+  optional uint64 v8_isolate_iid = 1;
+  optional uint32 tid = 2;
+  optional uint64 v8_wasm_script_iid = 3;
+  optional string function_name = 4;
+
+  optional Tier tier = 5;
+  optional int32 code_offset_in_module = 6;
+
+  optional uint64 instruction_start = 7;
+  optional uint64 instruction_size_bytes = 8;
+  optional bytes machine_code = 9;
+}
+
+message V8RegExpCode {
+  optional uint64 v8_isolate_iid = 1;
+  optional uint32 tid = 2;
+  optional V8String pattern = 3;
+
+  optional uint64 instruction_start = 4;
+  optional uint64 instruction_size_bytes = 5;
+  optional bytes machine_code = 6;
+}
+
+// Move event for V8 code (JS / Wasm / Internal / Regexp) that was relocated in
+// memory by V8's GC.
+message V8CodeMove {
+  optional uint64 isolate_iid = 1;
+  optional uint32 tid = 2;
+  optional uint64 from_instruction_start_address = 3;
+  optional uint64 to_instruction_start_address = 4;
+  optional uint64 instruction_size_bytes = 5;
+  oneof to_instructions {
+    bytes to_machine_code = 6;
+    bytes to_bytecode = 7;
+  }
+}
+
+message V8CodeDefaults {
+  optional uint32 tid = 1;
+}
+// End of protos/perfetto/trace/chrome/v8.proto
 
 // Begin of protos/perfetto/trace/clock_snapshot.proto
 
@@ -9854,6 +10409,129 @@ message FtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/ftrace_event.proto
 
+// Begin of protos/perfetto/trace/ftrace/ftrace_stats.proto
+
+// Per-CPU kernel buffer stats for the ftrace data source gathered from
+// /sys/kernel/tracing/per_cpu/cpuX/stats.
+message FtraceCpuStats {
+  // CPU index.
+  optional uint64 cpu = 1;
+
+  // Number of entries currently in the kernel buffer.
+  optional uint64 entries = 2;
+
+  // Number of events lost in kernel buffers due to overwriting of old events
+  // before userspace had a chance to drain them. Valid if the buffer is in
+  // "overwrite" mode, otherwise see |dropped_events|.
+  optional uint64 overrun = 3;
+
+  // This should always be zero. If not the buffer size is way too small or
+  // something went wrong with the tracer. Quoting the kernel: "number of
+  // commits failing due to the buffer wrapping around while there are
+  // uncommitted events, such as during an interrupt storm".
+  optional uint64 commit_overrun = 4;
+
+  // Size of entries currently in the kernel buffer (see |entries|) in bytes.
+  // The field should be named "bytes", but is misnamed for historical reasons.
+  optional uint64 bytes_read = 5;
+
+  // The timestamp for the oldest event still in the ring buffer.
+  // Unit: seconds for typical trace clocks (i.e. not tsc/counter).
+  optional double oldest_event_ts = 6;
+
+  // The current timestamp.
+  // Unit: seconds for typical trace clocks (i.e. not tsc/counter).
+  optional double now_ts = 7;
+
+  // If the kernel buffer has overwrite mode disabled, this will show the number
+  // of new events that were lost because the buffer was full. This is similar
+  // to |overrun| but only for the overwrite=false case.
+  optional uint64 dropped_events = 8;
+
+  // The number of events read (consumed) from the buffer by userspace.
+  optional uint64 read_events = 9;
+}
+
+// Errors and kernel buffer stats for the ftrace data source.
+message FtraceStats {
+  enum Phase {
+    UNSPECIFIED = 0;
+    START_OF_TRACE = 1;
+    END_OF_TRACE = 2;
+  }
+
+  // A pair of FtraceStats is written on every trace flush:
+  // * START_OF_TRACE - stats recorded at the beginning of the trace.
+  // * END_OF_TRACE - stats recorded during the flush. In other words shortly
+  //                  before this packet was written. For simple traces this
+  //                  will be once at the end of the trace.
+  optional Phase phase = 1;
+
+  // Per-CPU stats (one entry for each CPU).
+  repeated FtraceCpuStats cpu_stats = 2;
+
+  // When FtraceConfig.symbolize_ksyms = true, this records the number of
+  // symbols parsed from /proc/kallsyms, whether they have been seen in the
+  // trace or not. It can be used to debug kptr_restrict or security-related
+  // errors.
+  // Note: this will be valid only when phase = END_OF_TRACE. The symbolizer is
+  // initialized. When START_OF_TRACE is emitted it is not ready yet.
+  optional uint32 kernel_symbols_parsed = 3;
+
+  // The memory used by the kernel symbolizer (KernelSymbolMap.size_bytes()).
+  optional uint32 kernel_symbols_mem_kb = 4;
+
+  // Atrace errors (even non-fatal ones) are reported here. A typical example is
+  // one or more atrace categories not available on the device.
+  optional string atrace_errors = 5;
+
+  // Ftrace events requested by the config but not present on device.
+  repeated string unknown_ftrace_events = 6;
+
+  // Ftrace events requested by the config and present on device, but which we
+  // failed to enable due to permissions, or due to a conflicting option
+  // (currently FtraceConfig.disable_generic_events).
+  repeated string failed_ftrace_events = 7;
+
+  // The data source was configured to preserve existing events in the ftrace
+  // buffer before the start of the trace.
+  optional bool preserve_ftrace_buffer = 8;
+
+  // Unique errors encountered during reading and parsing of the raw ftrace
+  // data. Ring buffer ABI related errors will also be recorded in the
+  // affected FtraceEventBundles with a timestamp.
+  // Any traces with entries in this field should be investigated, as they
+  // indicate a bug in perfetto or the kernel.
+  repeated FtraceParseStatus ftrace_parse_errors = 9;
+}
+
+enum FtraceParseStatus {
+  FTRACE_STATUS_UNSPECIFIED = 0;
+  // Not written, used for convenience of implementation:
+  FTRACE_STATUS_OK = 1;
+  // Issues with reading data out of the ftrace ring buffer:
+  FTRACE_STATUS_UNEXPECTED_READ_ERROR = 2;
+  FTRACE_STATUS_PARTIAL_PAGE_READ = 3;
+  // Ring buffer binary data not matching our understanding of the layout:
+  FTRACE_STATUS_ABI_INVALID_PAGE_HEADER = 4;
+  FTRACE_STATUS_ABI_SHORT_EVENT_HEADER = 5;
+  FTRACE_STATUS_ABI_NULL_PADDING = 6;
+  FTRACE_STATUS_ABI_SHORT_PADDING_LENGTH = 7;
+  FTRACE_STATUS_ABI_INVALID_PADDING_LENGTH = 8;
+  FTRACE_STATUS_ABI_SHORT_TIME_EXTEND = 9;
+  FTRACE_STATUS_ABI_SHORT_TIME_STAMP = 10;
+  FTRACE_STATUS_ABI_SHORT_DATA_LENGTH = 11;
+  FTRACE_STATUS_ABI_ZERO_DATA_LENGTH = 12;
+  FTRACE_STATUS_ABI_INVALID_DATA_LENGTH = 13;
+  FTRACE_STATUS_ABI_SHORT_EVENT_ID = 14;
+  FTRACE_STATUS_ABI_END_OVERFLOW = 15;
+  // Issues with parsing the event payload:
+  FTRACE_STATUS_SHORT_COMPACT_EVENT = 16;
+  FTRACE_STATUS_INVALID_EVENT = 17;
+}
+
+// End of protos/perfetto/trace/ftrace/ftrace_stats.proto
+
 // Begin of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
 
 // The result of tracing one or more ftrace data pages from a single per-cpu
@@ -9866,6 +10544,10 @@ message FtraceEventBundle {
   // Set to true if there was data loss between the last time we've read from
   // the corresponding per-cpu kernel buffer, and the earliest event recorded
   // in this bundle.
+  // TODO(rsavitski): consider replicating in the newer FtraceError. This field
+  // has been set since the original implementation, but used only for manual
+  // debugging. Trace processor instead looks at the FtraceStats totals for the
+  // tracing session.
   optional bool lost_events = 3;
 
   // Optionally-enabled compact encoding of a batch of scheduling events. Only
@@ -9932,6 +10614,21 @@ message FtraceEventBundle {
   //
   // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
   optional int64 boot_timestamp = 7;
+
+  // Errors encountered during parsing of the raw ftrace data. In case of ring
+  // buffer layout errors, the parser skips the rest of the offending kernel
+  // buffer page and continues from the next page.
+  // See also FtraceStats.ftrace_parse_errors, which collates all unique errors
+  // seen within the duration of the trace (even if the affected bundles get
+  // overwritten in ring buffer mode).
+  message FtraceError {
+    // Timestamp of the data that we're unable to parse, in the ftrace clock
+    // domain. Currently, we use the base timestamp of the tracing page
+    // containing the bad record rather than the time of the record itself.
+    optional uint64 timestamp = 1;
+    optional FtraceParseStatus status = 2;
+  }
+  repeated FtraceError error = 8;
 }
 
 enum FtraceClock {
@@ -9945,90 +10642,6 @@ enum FtraceClock {
 }
 
 // End of protos/perfetto/trace/ftrace/ftrace_event_bundle.proto
-
-// Begin of protos/perfetto/trace/ftrace/ftrace_stats.proto
-
-// Per-CPU stats for the ftrace data source gathered from the kernel from
-// /sys/kernel/debug/tracing/per_cpu/cpuX/stats.
-message FtraceCpuStats {
-  // CPU index.
-  optional uint64 cpu = 1;
-
-  // Number of entries still in the kernel buffer. Ideally this should be close
-  // to zero, as events are consumed regularly and moved into the userspace
-  // buffers (or file).
-  optional uint64 entries = 2;
-
-  // Number of events lost in kernel buffers due to overwriting of old events
-  // before userspace had a chance to drain them.
-  optional uint64 overrun = 3;
-
-  // This should always be zero. If not the buffer size is way too small or
-  // something went wrong with the tracer.
-  optional uint64 commit_overrun = 4;
-
-  // Bytes actually read (not overwritten).
-  optional uint64 bytes_read = 5;
-
-  // The timestamp for the oldest event still in the ring buffer.
-  optional double oldest_event_ts = 6;
-
-  // The current timestamp.
-  optional double now_ts = 7;
-
-  // If the kernel buffer has overwrite mode disabled, this will show the number
-  // of new events that were lost because the buffer was full. This is similar
-  // to |overrun| but only for the overwrite=false case.
-  optional uint64 dropped_events = 8;
-
-  // The number of events read.
-  optional uint64 read_events = 9;
-}
-
-// Ftrace stats for all CPUs.
-message FtraceStats {
-  enum Phase {
-    UNSPECIFIED = 0;
-    START_OF_TRACE = 1;
-    END_OF_TRACE = 2;
-  }
-
-  // Tells when stats were sampled. There should be one sample at the beginning
-  // of the trace and one sample at the end.
-  optional Phase phase = 1;
-
-  // Per-CPU stats (one entry for each CPU).
-  repeated FtraceCpuStats cpu_stats = 2;
-
-  // When FtraceConfig.symbolize_ksyms = true, this records the number of
-  // symbols parsed from /proc/kallsyms, whether they have been seen in the
-  // trace or not. It can be used to debug kptr_restrict or security-related
-  // errors.
-  // Note: this will be valid only when phase = END_OF_TRACE. The symbolizer is
-  // initialized. When START_OF_TRACE is emitted it is not ready yet.
-  optional uint32 kernel_symbols_parsed = 3;
-
-  // The memory used by the kernel symbolizer (KernelSymbolMap.size_bytes()).
-  optional uint32 kernel_symbols_mem_kb = 4;
-
-  // Atrace errors (even non-fatal ones) are reported here. A typical example is
-  // one or more atrace categories not available on the device.
-  optional string atrace_errors = 5;
-
-  // Ftrace events requested by the config but not present on device.
-  repeated string unknown_ftrace_events = 6;
-
-  // Ftrace events requested by the config and present on device, but which we
-  // failed to enable due to permissions, or due to a conflicting option
-  // (currently FtraceConfig.disable_generic_events).
-  repeated string failed_ftrace_events = 7;
-
-  // The data source was configured to preserve existing events in the ftrace
-  // buffer before the start of the trace.
-  optional bool preserve_ftrace_buffer = 8;
-}
-
-// End of protos/perfetto/trace/ftrace/ftrace_stats.proto
 
 // Begin of protos/perfetto/trace/gpu/gpu_counter_event.proto
 
@@ -11751,7 +12364,7 @@ message EventName {
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 31.
+// Next id: 36.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -11813,6 +12426,24 @@ message InternedData {
 
   // Interned packet context for android.network_packets.
   repeated NetworkPacketContext packet_context = 30;
+
+  // Interned name of a js function. We only intern js functions as there is a
+  // lot of duplication for them, but less so for other strings in the V8 data
+  // source.
+  repeated InternedV8String v8_js_function_name = 31;
+  // Js functions can be emitted multiple times for various compilation tiers,
+  // so it makes sense to deduplicate all this.
+  repeated InternedV8JsFunction v8_js_function = 32;
+  // Interned JS script (there is one associated with each JS function)
+  repeated InternedV8JsScript v8_js_script = 33;
+  // Interned Wasm script (there is one associated with each Wasm function)
+  repeated InternedV8WasmScript v8_wasm_script = 34;
+  // Every V8 event is associated with an isolate, intern the isolate to remove
+  // duplication.
+  repeated InternedV8Isolate v8_isolate = 35;
+
+  // Interned protolog strings args.
+  repeated InternedString protolog_string_args = 36;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto
@@ -13164,6 +13795,10 @@ message TracePacketDefaults {
 
   // Defaults for perf profiler packets (PerfSample).
   optional PerfSampleDefaults perf_sample_defaults = 12;
+
+  // Defaults for V8 code packets (V8JsCode, V8InternalCode, V8WasmCode,
+  // V8RegexpCode)
+  optional V8CodeDefaults v8_code_defaults = 99;
 }
 // End of protos/perfetto/trace/trace_packet_defaults.proto
 
@@ -13715,7 +14350,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 99.
+// Next id: 107.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -13836,9 +14471,20 @@ message TracePacket {
     TransactionTraceEntry surfaceflinger_transactions = 94;
     ShellTransition shell_transition = 96;
     ShellHandlerMappings shell_handler_mappings = 97;
+    ProtoLogMessage protolog_message = 104;
+    ProtoLogViewerConfig protolog_viewer_config = 105;
 
     // Events from the Windows etw infrastructure.
     EtwTraceEventBundle etw_events = 95;
+
+    V8JsCode v8_js_code = 99;
+    V8InternalCode v8_internal_code = 100;
+    V8WasmCode v8_wasm_code = 101;
+    V8RegExpCode v8_reg_exp_code = 102;
+    V8CodeMove v8_code_move = 103;
+
+    // InputFlinger traces
+    AndroidInputEvent android_input_event = 106;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

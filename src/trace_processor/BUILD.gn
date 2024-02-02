@@ -113,7 +113,6 @@ source_set("storage_minimal") {
     "util:gzip",
     "util:proto_to_args_parser",
     "util:stack_traces_util",
-    "views",
   ]
   public_deps = [ "../../include/perfetto/trace_processor:storage" ]
 }
@@ -159,6 +158,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "db",
       "importers/android_bugreport",
       "importers/common",
+      "importers/etw:full",
       "importers/ftrace:full",
       "importers/fuchsia:full",
       "importers/gzip:full",
@@ -186,7 +186,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "util:protozero_to_text",
       "util:regex",
       "util:stdlib",
-      "views",
     ]
     public_deps = [
       "../../gn:sqlite",  # iterator_impl.h includes sqlite3.h.
@@ -285,7 +284,6 @@ perfetto_unittest_source_set("unittests") {
     "tables:unittests",
     "types:unittests",
     "util:unittests",
-    "views:unittests",
   ]
   if (enable_perfetto_trace_processor_json) {
     deps += [ "importers/json:unittests" ]

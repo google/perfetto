@@ -16,16 +16,30 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h"
 
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
-#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column_storage.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace tables {
 
 ExperimentalAnnotatedCallstackTable::~ExperimentalAnnotatedCallstackTable() =
@@ -113,48 +127,23 @@ Table::Schema ExperimentalAnnotatedStack::CreateSchema() {
   return tables::ExperimentalAnnotatedCallstackTable::ComputeStaticSchema();
 }
 
-base::Status ExperimentalAnnotatedStack::ValidateConstraints(
-    const QueryConstraints& qc) {
-  const auto& cs = qc.constraints();
-  int column = static_cast<int>(
-      tables::ExperimentalAnnotatedCallstackTable::ColumnIndex::start_id);
-
-  auto id_fn = [column](const QueryConstraints::Constraint& c) {
-    return c.column == column && sqlite_utils::IsOpEq(c.op);
-  };
-  bool has_id_cs = std::find_if(cs.begin(), cs.end(), id_fn) != cs.end();
-  return has_id_cs ? base::OkStatus()
-                   : base::ErrStatus("Failed to find required constraints");
-}
-
 // TODO(carlscab): Replace annotation logic with
 // src/trace_processor/util/annotated_callsites.h
-base::Status ExperimentalAnnotatedStack::ComputeTable(
-    const std::vector<Constraint>& cs,
-    const std::vector<Order>&,
-    const BitVector&,
-    std::unique_ptr<Table>& table_return) {
+base::StatusOr<std::unique_ptr<Table>> ExperimentalAnnotatedStack::ComputeTable(
+    const std::vector<SqlValue>& arguments) {
+  PERFETTO_CHECK(arguments.size() == 1);
+
   using CallsiteTable = tables::StackProfileCallsiteTable;
 
   const auto& cs_table = context_->storage->stack_profile_callsite_table();
   const auto& f_table = context_->storage->stack_profile_frame_table();
   const auto& m_table = context_->storage->stack_profile_mapping_table();
 
-  // Input (id of the callsite leaf) is the constraint on the hidden |start_id|
-  // column.
-  using ColumnIndex = tables::ExperimentalAnnotatedCallstackTable::ColumnIndex;
-  auto constraint_it =
-      std::find_if(cs.begin(), cs.end(), [](const Constraint& c) {
-        return c.col_idx == ColumnIndex::start_id && c.op == FilterOp::kEq;
-      });
-  PERFETTO_DCHECK(constraint_it != cs.end());
-  if (constraint_it == cs.end() ||
-      constraint_it->value.type != SqlValue::Type::kLong) {
+  if (arguments[0].type != SqlValue::Type::kLong) {
     return base::ErrStatus("invalid input callsite id");
   }
 
-  CallsiteId start_id =
-      CallsiteId(static_cast<uint32_t>(constraint_it->value.AsLong()));
+  CallsiteId start_id(static_cast<uint32_t>(arguments[0].AsLong()));
   auto opt_start_ref = cs_table.FindById(start_id);
   if (!opt_start_ref) {
     return base::ErrStatus("callsite with id %" PRIu32 " not found",
@@ -307,16 +296,13 @@ base::Status ExperimentalAnnotatedStack::ComputeTable(
   for (uint32_t i = 0; i < cs_rows.size(); i++)
     start_id_vals.Append(start_id.value);
 
-  table_return =
-      tables::ExperimentalAnnotatedCallstackTable::SelectAndExtendParent(
-          cs_table, std::move(cs_rows), std::move(annotation_vals),
-          std::move(start_id_vals));
-  return base::OkStatus();
+  return tables::ExperimentalAnnotatedCallstackTable::SelectAndExtendParent(
+      cs_table, std::move(cs_rows), std::move(annotation_vals),
+      std::move(start_id_vals));
 }
 
 uint32_t ExperimentalAnnotatedStack::EstimateRowCount() {
   return 1;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

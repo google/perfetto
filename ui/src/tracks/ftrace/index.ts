@@ -12,11 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {duration, Time, time} from '../../base/time';
 import {colorForFtrace} from '../../common/colorizer';
 import {LIMIT, TrackData} from '../../common/track_data';
-import {TrackHelperLEGACY} from '../../common/track_helper';
+import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
+import {FtracePanel} from '../../frontend/ftrace_panel';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {
@@ -25,6 +28,7 @@ import {
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
+  Track,
 } from '../../public';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
@@ -43,9 +47,17 @@ const MARGIN = 2;
 const RECT_HEIGHT = 18;
 const TRACK_HEIGHT = (RECT_HEIGHT) + (2 * MARGIN);
 
-class FtraceRawTrack extends TrackHelperLEGACY<Data> {
-  constructor(private engine: EngineProxy, private cpu: number) {
-    super();
+class FtraceRawTrack implements Track {
+  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
+
+  constructor(private engine: EngineProxy, private cpu: number) {}
+
+  async onUpdate(): Promise<void> {
+    await this.fetcher.requestDataForCurrentTime();
+  }
+
+  async onDestroy?(): Promise<void> {
+    this.fetcher.dispose();
   }
 
   getHeight(): number {
@@ -81,7 +93,7 @@ class FtraceRawTrack extends TrackHelperLEGACY<Data> {
     };
 
     const it = queryRes.iter(
-        {tsQuant: LONG, type: STR, name: STR},
+      {tsQuant: LONG, type: STR, name: STR},
     );
     for (let row = 0; it.valid(); it.next(), row++) {
       result.timestamps[row] = it.tsQuant;
@@ -90,12 +102,12 @@ class FtraceRawTrack extends TrackHelperLEGACY<Data> {
     return result;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     const {
       visibleTimeScale,
     } = globals.timeline;
 
-    const data = this.data;
+    const data = this.fetcher.data;
 
     if (data === undefined) return;  // Can't possibly draw anything.
 
@@ -103,7 +115,7 @@ class FtraceRawTrack extends TrackHelperLEGACY<Data> {
     const dataEndPx = visibleTimeScale.timeToPx(data.end);
 
     checkerboardExcept(
-        ctx, this.getHeight(), 0, size.width, dataStartPx, dataEndPx);
+      ctx, this.getHeight(), 0, size.width, dataStartPx, dataEndPx);
 
     const diamondSideLen = RECT_HEIGHT / Math.sqrt(2);
 
@@ -136,11 +148,20 @@ class FtraceRawPlugin implements Plugin {
         displayName: `Ftrace Track for CPU ${cpuNum}`,
         kind: FTRACE_RAW_TRACK_KIND,
         cpu: cpuNum,
-        track: () => {
+        trackFactory: () => {
           return new FtraceRawTrack(ctx.engine, cpuNum);
         },
       });
     }
+
+    ctx.registerTab({
+      uri: 'perfetto.FtraceRaw#FtraceEventsTab',
+      isEphemeral: false,
+      content: {
+        render: () => m(FtracePanel),
+        getTitle: () => 'Ftrace Events',
+      },
+    });
   }
 
   private async lookupCpuCores(engine: EngineProxy): Promise<number[]> {

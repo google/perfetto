@@ -42,11 +42,11 @@ export interface GateAttrs {
 export const Gate = {
   view({attrs, children}: m.VnodeDOM<GateAttrs>) {
     return m(
-        '',
-        {
-          style: {display: attrs.open ? 'contents' : 'none'},
-        },
-        m(Passthrough, {onbeforeupdate: () => attrs.open}, children),
+      '',
+      {
+        style: {display: attrs.open ? 'contents' : 'none'},
+      },
+      m(Passthrough, {onbeforeupdate: () => attrs.open}, children),
     );
   },
 };

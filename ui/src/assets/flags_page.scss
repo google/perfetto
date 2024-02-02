@@ -52,6 +52,14 @@
   padding: 1rem 1rem;
   align-items: center;
 
+  &:nth-child(2n + 1) {
+    background-color: #f6f6f6;
+  }
+
+  &.focused {
+    background-color: #f8f0ac;
+  }
+
   select {
     grid-area: control;
     background: white;
@@ -72,8 +80,4 @@
   .description {
     font-size: smaller;
   }
-}
-
-.flag-widget:nth-child(2n + 1) {
-  background-color: #0000000a;
 }

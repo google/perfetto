@@ -22,7 +22,6 @@ import {
 } from '../base/time';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
-import {pluginManager} from '../common/plugins';
 import {translateState} from '../common/thread_state';
 import {EngineProxy} from '../trace_processor/engine';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../trace_processor/query_result';
@@ -72,7 +71,7 @@ export interface ThreadState {
 // Gets a list of thread state objects from Trace Processor with given
 // constraints.
 export async function getThreadStateFromConstraints(
-    engine: EngineProxy, constraints: SQLConstraints): Promise<ThreadState[]> {
+  engine: EngineProxy, constraints: SQLConstraints): Promise<ThreadState[]> {
   const query = await engine.query(`
     SELECT
       thread_state.id as threadStateSqlId,
@@ -108,6 +107,7 @@ export async function getThreadStateFromConstraints(
 
   for (; it.valid(); it.next()) {
     const ioWait = it.ioWait === null ? undefined : it.ioWait > 0;
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const wakerUtid = asUtid(it.wakerUtid || undefined);
 
     // TODO(altimin): Consider fetcing thread / process info using a single
@@ -122,14 +122,14 @@ export async function getThreadStateFromConstraints(
       blockedFunction: it.blockedFunction || undefined,
       thread: await getThreadInfo(engine, asUtid(it.utid)),
       wakerThread: wakerUtid ? await getThreadInfo(engine, wakerUtid) :
-                               undefined,
+        undefined,
     });
   }
   return result;
 }
 
 export async function getThreadState(
-    engine: EngineProxy, id: number): Promise<ThreadState|undefined> {
+  engine: EngineProxy, id: number): Promise<ThreadState|undefined> {
   const result = await getThreadStateFromConstraints(engine, {
     filters: [`id=${id}`],
   });
@@ -146,7 +146,7 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   let trackId: string|undefined;
   for (const track of Object.values(globals.state.tracks)) {
     if (exists(track?.uri)) {
-      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
       if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
         if (trackInfo?.cpu === cpu) {
           trackId = track.key;
@@ -174,30 +174,33 @@ interface ThreadStateRefAttrs {
 export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
   view(vnode: m.Vnode<ThreadStateRefAttrs>) {
     return m(
-        Anchor,
-        {
-          icon: Icons.UpdateSelection,
-          onclick: () => {
-            let trackKey: string|number|undefined;
-            for (const track of Object.values(globals.state.tracks)) {
-              const trackDesc = pluginManager.resolveTrackInfo(track.uri);
-              if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
+      Anchor,
+      {
+        icon: Icons.UpdateSelection,
+        onclick: () => {
+          let trackKey: string|number|undefined;
+          for (const track of Object.values(globals.state.tracks)) {
+            const trackDesc =
+                  globals.trackManager.resolveTrackInfo(track.uri);
+            if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
                   trackDesc.utid === vnode.attrs.utid) {
-                trackKey = track.key;
-              }
+              trackKey = track.key;
             }
+          }
 
-            if (trackKey) {
-              globals.makeSelection(Actions.selectThreadState({
-                id: vnode.attrs.id,
-                trackKey: trackKey.toString(),
-              }));
+          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
+          if (trackKey) {
+            /* eslint-enable */
+            globals.makeSelection(Actions.selectThreadState({
+              id: vnode.attrs.id,
+              trackKey: trackKey.toString(),
+            }));
 
-              scrollToTrackAndTs(trackKey, vnode.attrs.ts, true);
-            }
-          },
+            scrollToTrackAndTs(trackKey, vnode.attrs.ts, true);
+          }
         },
-        vnode.attrs.name ?? `Thread State ${vnode.attrs.id}`,
+      },
+      vnode.attrs.name ?? `Thread State ${vnode.attrs.id}`,
     );
   }
 }

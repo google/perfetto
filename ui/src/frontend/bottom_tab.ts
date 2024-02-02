@@ -16,6 +16,7 @@ import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
 import {stringifyJsonWithBigints} from '../base/json_utils';
+import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {traceEvent} from '../common/metatracing';
 import {Registry} from '../common/registry';
@@ -24,11 +25,11 @@ import {EngineProxy} from '../trace_processor/engine';
 
 import {globals} from './globals';
 
-export interface NewBottomTabArgs {
+export interface NewBottomTabArgs<Config> {
   engine: EngineProxy;
   tag?: string;
   uuid: string;
-  config: {};
+  config: Config;
 }
 
 // Interface for allowing registration and creation of bottom tabs.
@@ -36,7 +37,7 @@ export interface NewBottomTabArgs {
 export interface BottomTabCreator {
   readonly kind: string;
 
-  create(args: NewBottomTabArgs): BottomTab;
+  create(args: NewBottomTabArgs<unknown>): BottomTab;
 }
 
 export const bottomTabRegistry = Registry.kindRegistry<BottomTabCreator>();
@@ -77,8 +78,8 @@ export abstract class BottomTabBase<Config = {}> {
   // panel.
   readonly uuid: string;
 
-  constructor(args: NewBottomTabArgs) {
-    this.config = args.config as Config;
+  constructor(args: NewBottomTabArgs<Config>) {
+    this.config = args.config;
     this.engine = args.engine;
     this.tag = args.tag;
     this.uuid = args.uuid;
@@ -109,11 +110,11 @@ export abstract class BottomTabBase<Config = {}> {
 // lifecycle events. Most cases, however, don't need them and BottomTab
 // provides a simplified API for the common case.
 export abstract class BottomTab<Config = {}> extends BottomTabBase<Config> {
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<Config>) {
     super(args);
   }
 
-  abstract viewTab(): void|m.Children;
+  abstract viewTab(): m.Children;
 
   close(): void {
     closeTab(this.uuid);
@@ -121,7 +122,7 @@ export abstract class BottomTab<Config = {}> extends BottomTabBase<Config> {
 
   renderPanel(): m.Children {
     return m(
-        BottomTabAdapter,
+      BottomTabAdapter,
         {key: this.uuid, panel: this} as BottomTabAdapterAttrs);
   }
 }
@@ -259,7 +260,7 @@ export class BottomTabList {
     if (tab.uuid === globals.state.currentTab && this.tabs.length > 0) {
       const newActiveIndex = index === this.tabs.length ? index - 1 : index;
       globals.dispatch(Actions.setCurrentTab(
-          {tab: tabSelectionKey(this.tabs[newActiveIndex])}));
+        {tab: tabSelectionKey(this.tabs[newActiveIndex])}));
     }
     raf.scheduleFullRedraw();
   }
@@ -329,7 +330,7 @@ export class BottomTabList {
   }
 
   private schedulePendingTabsFlush(waitTimeMs: number) {
-    if (this.scheduledFlushSetTimeoutId) {
+    if (exists(this.scheduledFlushSetTimeoutId)) {
       // The flush is already pending, no action is required.
       return;
     }

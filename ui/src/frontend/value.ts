@@ -66,7 +66,7 @@ export type Dict = {
 // This function accepts and filters out nulls as values in the passed
 // dictionary (useful for simplifying the code to render optional values).
 export function dict(
-    items: {[name: string]: Value|null}, params?: ValueParams): Dict {
+  items: {[name: string]: Value|null}, params?: ValueParams): Dict {
   const result: {[name: string]: Value} = {};
   for (const [name, value] of Object.entries(items)) {
     if (value !== null) {
@@ -137,7 +137,7 @@ function renderValue(name: string, value: Value): m.Children {
       icon: 'arrow_drop_down',
       items: value.contextMenu,
     }) :
-                        null,
+      null,
   ];
   if (isArray(value)) {
     const nodes = value.items.map((value: Value, index: number) => {
@@ -156,12 +156,12 @@ function renderValue(name: string, value: Value): m.Children {
         return null;
       }
       return m(
-          'i.material-icons.grey',
-          {
-            onclick: button.action,
-            title: button.hoverText,
-          },
-          button.icon ? button.icon : 'call_made');
+        'i.material-icons.grey',
+        {
+          onclick: button.action,
+          title: button.hoverText,
+        },
+        button.icon ? button.icon : 'call_made');
     };
     if (value.kind === 'STRING') {
       const right = [

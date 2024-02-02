@@ -14,8 +14,6 @@
 
 import m from 'mithril';
 
-export class Err implements m.Component {
-  view(vnode: m.Vnode) {
-    return m('.pf-error', vnode.children);
-  }
+export function renderError(children: m.Children): m.Child {
+  return m('.pf-error', children);
 }

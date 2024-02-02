@@ -16,12 +16,15 @@
 
 #include "src/trace_processor/importers/json/json_trace_parser.h"
 
-#include <cinttypes>
-#include <limits>
+#include <cstdint>
+#include <cstring>
 #include <optional>
 #include <string>
+#include <utility>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -30,7 +33,10 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
+#include "src/trace_processor/importers/systrace/systrace_line.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -88,12 +94,33 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
   char phase = *ph.asCString();
 
   std::optional<uint32_t> opt_pid;
-  std::optional<uint32_t> opt_tid;
+  if (value.isMember("pid")) {
+    if (value["pid"].isString()) {
+      // If the pid is a string, treat raw id of the interned string as the pid.
+      // This "hack" which allows emitting "quick-and-dirty" compact JSON
+      // traces: relying on these traces for production is necessarily brittle
+      // as it is not a part of the actual spec.
+      const char* proc_name = value["pid"].asCString();
+      opt_pid = storage->InternString(proc_name).raw_id();
+      procs->SetProcessMetadata(*opt_pid, std::nullopt, proc_name,
+                                base::StringView());
+    } else {
+      opt_pid = json::CoerceToUint32(value["pid"]);
+    }
+  }
 
-  if (value.isMember("pid"))
-    opt_pid = json::CoerceToUint32(value["pid"]);
-  if (value.isMember("tid"))
-    opt_tid = json::CoerceToUint32(value["tid"]);
+  std::optional<uint32_t> opt_tid;
+  if (value.isMember("tid")) {
+    if (value["tid"].isString()) {
+      // See the comment for |pid| string handling above: the same applies here.
+      StringId thread_name_id = storage->InternString(value["tid"].asCString());
+      opt_tid = thread_name_id.raw_id();
+      procs->UpdateThreadName(*opt_tid, thread_name_id,
+                              ThreadNamePriority::kOther);
+    } else {
+      opt_tid = json::CoerceToUint32(value["tid"]);
+    }
+  }
 
   uint32_t pid = opt_pid.value_or(0);
   uint32_t tid = opt_tid.value_or(pid);

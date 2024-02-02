@@ -38,13 +38,13 @@ export function cropText(str: string, charWidth: number, rectWidth: number) {
 }
 
 export function drawDoubleHeadedArrow(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    length: number,
-    showArrowHeads: boolean,
-    width = 2,
-    color = 'black') {
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  length: number,
+  showArrowHeads: boolean,
+  width = 2,
+  color = 'black') {
   ctx.beginPath();
   ctx.lineWidth = width;
   ctx.lineCap = 'round';
@@ -71,12 +71,12 @@ export function drawDoubleHeadedArrow(
 }
 
 export function drawIncompleteSlice(
-    ctx: CanvasRenderingContext2D,
-    x: number,
-    y: number,
-    width: number,
-    height: number,
-    showGradient: boolean = true) {
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  showGradient: boolean = true) {
   if (width <= 0 || height <= 0) {
     return;
   }
@@ -104,8 +104,8 @@ export function drawIncompleteSlice(
     }
   } else {
     throw new Error(
-        `drawIncompleteSlice() expects fillStyle to be a simple color not ${
-            fillStyle}`);
+      `drawIncompleteSlice() expects fillStyle to be a simple color not ${
+        fillStyle}`);
   }
 
   ctx.fill();
@@ -113,11 +113,11 @@ export function drawIncompleteSlice(
 }
 
 export function drawTrackHoverTooltip(
-    ctx: CanvasRenderingContext2D,
-    pos: {x: number, y: number},
-    maxHeight: number,
-    text: string,
-    text2?: string) {
+  ctx: CanvasRenderingContext2D,
+  pos: {x: number, y: number},
+  maxHeight: number,
+  text: string,
+  text2?: string) {
   ctx.font = '10px Roboto Condensed';
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
@@ -168,7 +168,7 @@ export function drawTrackHoverTooltip(
 
   ctx.fillStyle = 'hsl(200, 50%, 40%)';
   ctx.fillText(
-      text, x + paddingPx, y + paddingPx + textMetrics.fontBoundingBoxAscent);
+    text, x + paddingPx, y + paddingPx + textMetrics.fontBoundingBoxAscent);
   if (text2 !== undefined) {
     const yOffsetPx = textMetrics.fontBoundingBoxAscent +
         textMetrics.fontBoundingBoxDescent + text2Metrics.fontBoundingBoxAscent;

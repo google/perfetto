@@ -30,7 +30,7 @@
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
-#include "src/tracing/core/metatrace_writer.h"
+#include "src/tracing/service/metatrace_writer.h"
 
 #include "protos/perfetto/config/android/android_sdk_sysprop_guard_config.pbzero.h"
 

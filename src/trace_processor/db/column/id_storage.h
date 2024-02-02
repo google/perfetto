@@ -16,22 +16,15 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_ID_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_ID_STORAGE_H_
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
+#include <cstdint>
+#include <string>
+
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-
-namespace protos::pbzero {
-class SerializedColumn_Storage;
-}
-
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 // Storage for Id columns.
 class IdStorage final : public Column {
@@ -41,15 +34,11 @@ class IdStorage final : public Column {
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
 
-  RangeOrBitVector Search(FilterOp op,
-                          SqlValue value,
-                          Range range) const override;
+  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
 
-  RangeOrBitVector IndexSearch(FilterOp op,
-                               SqlValue value,
-                               uint32_t* indices,
-                               uint32_t indices_count,
-                               bool sorted) const override;
+  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+
+  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
 
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
@@ -58,6 +47,8 @@ class IdStorage final : public Column {
   void Serialize(StorageProto*) const override;
 
   uint32_t size() const override { return size_; }
+
+  std::string DebugString() const override { return "IdStorage"; }
 
  private:
   using Id = uint32_t;
@@ -68,7 +59,6 @@ class IdStorage final : public Column {
   const uint32_t size_ = 0;
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
+
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_ID_STORAGE_H_

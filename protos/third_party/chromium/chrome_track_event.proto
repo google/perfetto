@@ -749,7 +749,7 @@ message RendererMainThreadTaskExecution {
     TASK_TYPE_INTERNAL_NAVIGATION_CANCELLATION = 80;
     TASK_TYPE_LOW_PRIORITY_SCRIPT_EXECUTION = 81;
     TASK_TYPE_STORAGE = 82;
-    TASK_TYPE_NETWORKING_UNFREEZABLE_IMAGE_LOADING = 83;
+    TASK_TYPE_NETWORKING_UNFREEZABLE_RENDER_BLOCKING_LOADING = 83;
     TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_LOW_PRIORITY = 84;
     TASK_TYPE_CLIPBOARD = 85;
   }
@@ -811,6 +811,9 @@ message EventLatency {
   // This is set only for scroll updates and is based on the
   // Event.ScrollJank.DelayedFramesPercentage.FixedWindow metric.
   optional bool is_janky_scrolled_frame = 5;
+  // The interval that this frame was produced for according to the
+  // BeginFrameArgs.
+  optional double vsync_interval_ms = 6;
 }
 
 message ProcessSingleton {
@@ -1069,7 +1072,7 @@ message BlinkExecutionContext {
     WORLD_MAIN = 1;
     WORLD_ISOLATED = 2;
     WORLD_INSPECTOR_ISOLATED = 3;
-    WORLD_REG_EXP = 4;
+    WORLD_BLINK_INTERNAL_NON_JS_EXPOSED = 4;
     WORLD_FOR_V8_CONTEXT_SNAPSHOT_NON_MAIN = 5;
     WORLD_WORKER = 6;
     WORLD_SHADOW_REALM = 7;
@@ -1500,6 +1503,24 @@ message WebContentInteraction {
   optional int64 total_duration_ms = 2;
 }
 
+// The EventForwarder is a subsystem in android that forwards events from Java
+// code to Chromium's native implementation. In this case we register how many
+// events there was, what time this event occurred and the current x & y on the
+// device screen (pixels).
+//
+// All data comes from MotionEvent getters so read these for more context:
+// https://developer.android.com/reference/android/view/MotionEvent
+message EventForwarder {
+  // The events getHistorySize().
+  optional int32 history_size = 1;
+  // The time of the oldest event (getHistoricalEventTimeNanos(0)).
+  optional int64 time_ns = 2;
+  // The X coordinate of the event as reported by MotionEvent.getX().
+  optional float x_pixel = 3;
+  // The Y coordinate of the event as reported by MotionEvent.getY().
+  optional float y_pixel = 4;
+}
+
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
   // Next ID: 1059
@@ -1626,5 +1647,7 @@ message ChromeTrackEvent {
     optional StartUp startup = 1057;
 
     optional WebContentInteraction web_content_interaction = 1058;
+
+    optional EventForwarder event_forwarder = 1059;
   }
 }

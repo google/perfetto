@@ -74,6 +74,7 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--namespace', required=True)
   parser.add_argument('--cpp-out', required=True)
+  parser.add_argument('--root-dir', default=None)
   parser.add_argument('--input-list-file')
   parser.add_argument('sql_files', nargs='*')
   args = parser.parse_args()
@@ -90,11 +91,11 @@ def main():
   else:
     sql_files = args.sql_files
 
-  # Unfortunately we cannot pass this in as an arg as soong does not provide
-  # us a way to get the path to the Perfetto source directory. This fails on
-  # empty path but it's a price worth paying to have to use gross hacks in
-  # Soong.
-  root_dir = os.path.commonpath(sql_files)
+  # Unfortunately we cannot always pass this in as an arg as soong does not
+  # provide us a way to get the path to the Perfetto source directory. This
+  # fails on empty path but it's a price worth paying to have to use gross hacks
+  # in Soong.
+  root_dir = args.root_dir if args.root_dir else os.path.commonpath(sql_files)
 
   # Extract the SQL output from each file.
   sql_outputs = {}

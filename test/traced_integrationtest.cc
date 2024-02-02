@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
+#include "perfetto/ext/tracing/core/null_consumer_endpoint_for_testing.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -56,6 +57,11 @@ using ::testing::Property;
 using ::testing::SizeIs;
 
 }  // namespace
+
+TEST(PerfettoTracedIntegrationTest, NullConsumerEndpointBuilds) {
+  NullConsumerEndpointForTesting npe;
+  npe.StartTracing();
+}
 
 TEST(PerfettoTracedIntegrationTest, TestFakeProducer) {
   base::TestTaskRunner task_runner;

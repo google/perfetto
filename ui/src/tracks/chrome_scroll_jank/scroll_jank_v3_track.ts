@@ -36,7 +36,7 @@ const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
 
 export class ScrollJankV3Track extends
-    CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+  CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.scroll_jank_v3_track';
 
   constructor(args: NewTrackArgs) {

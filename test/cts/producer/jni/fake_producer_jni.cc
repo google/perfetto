@@ -17,7 +17,7 @@
 #include <jni.h>
 
 #include "perfetto/ext/traced/traced.h"
-#include "perfetto/ext/tracing/ipc/default_socket.h"
+#include "perfetto/tracing/default_socket.h"
 
 #include "perfetto/ext/base/unix_task_runner.h"
 

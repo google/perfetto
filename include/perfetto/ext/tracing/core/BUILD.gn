@@ -35,3 +35,7 @@ source_set("core") {
     "tracing_service.h",
   ]
 }
+
+source_set("test_support") {
+  sources = [ "null_consumer_endpoint_for_testing.h" ]
+}

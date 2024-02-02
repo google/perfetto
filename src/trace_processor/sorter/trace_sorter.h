@@ -136,6 +136,17 @@ class TraceSorter {
     AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTrackEvent, id);
   }
 
+  inline void PushEtwEvent(uint32_t cpu,
+                           int64_t timestamp,
+                           TraceBlobView tbv,
+                           RefPtr<PacketSequenceStateGeneration> state) {
+    TraceTokenBuffer::Id id =
+        token_buffer_.Append(TracePacketData{std::move(tbv), std::move(state)});
+    auto* queue = GetQueue(cpu + 1);
+    queue->Append(timestamp, TimestampedEvent::Type::kEtwEvent, id);
+    UpdateAppendMaxTs(queue);
+  }
+
   inline void PushFtraceEvent(uint32_t cpu,
                               int64_t timestamp,
                               TraceBlobView tbv,
@@ -213,7 +224,8 @@ class TraceSorter {
       kFuchsiaRecord,
       kTrackEvent,
       kSystraceLine,
-      kMax = kSystraceLine,
+      kEtwEvent,
+      kMax = kEtwEvent,
     };
 
     // Number of bits required to store the max element in |Type|.
@@ -327,6 +339,7 @@ class TraceSorter {
 
   void ParseTracePacket(const TimestampedEvent&);
   void ParseFtracePacket(uint32_t cpu, const TimestampedEvent&);
+  void ParseEtwPacket(uint32_t cpu, const TimestampedEvent&);
 
   void MaybeExtractEvent(size_t queue_idx, const TimestampedEvent&);
   void ExtractAndDiscardTokenizedObject(const TimestampedEvent& event);

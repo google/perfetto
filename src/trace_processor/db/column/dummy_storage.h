@@ -16,17 +16,14 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_DUMMY_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_DUMMY_STORAGE_H_
 
+#include <cstdint>
+#include <string>
+
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-
-namespace protos::pbzero {
-class SerializedColumn_Storage;
-}
-
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 // Dummy storage. Used for columns that are not supposed to have operations done
 // on them.
@@ -39,11 +36,9 @@ class DummyStorage final : public Column {
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
 
-  RangeOrBitVector IndexSearch(FilterOp,
-                               SqlValue,
-                               uint32_t*,
-                               uint32_t,
-                               bool) const override;
+  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+
+  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
 
   void StableSort(uint32_t*, uint32_t) const override;
 
@@ -52,9 +47,10 @@ class DummyStorage final : public Column {
   void Serialize(StorageProto*) const override;
 
   uint32_t size() const override;
+
+  std::string DebugString() const override { return "DummyStorage"; }
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
+
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_DUMMY_STORAGE_H_

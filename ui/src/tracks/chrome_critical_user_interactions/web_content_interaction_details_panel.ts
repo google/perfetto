@@ -56,16 +56,17 @@ interface Data {
 }
 
 export class WebContentInteractionPanel extends
-    BottomTab<GenericSliceDetailsTabConfig> {
+  BottomTab<GenericSliceDetailsTabConfig> {
   static readonly kind = 'org.perfetto.WebContentInteractionPanel';
   private loaded = false;
   private data: Data|undefined;
 
-  static create(args: NewBottomTabArgs): WebContentInteractionPanel {
+  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
+      WebContentInteractionPanel {
     return new WebContentInteractionPanel(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
     this.loadData();
   }
@@ -111,7 +112,7 @@ export class WebContentInteractionPanel extends
     details['Total duration of all events'] =
         m(DurationWidget, {dur: this.data.totalDurationMs});
     details['SQL ID'] = m(
-        SqlRef, {table: 'chrome_web_content_interactions', id: this.config.id});
+      SqlRef, {table: 'chrome_web_content_interactions', id: this.config.id});
     return details;
   }
 
@@ -121,19 +122,19 @@ export class WebContentInteractionPanel extends
     }
 
     return m(
-        DetailsShell,
-        {
-          title: this.getTitle(),
-        },
-        m(GridLayout,
+      DetailsShell,
+      {
+        title: this.getTitle(),
+      },
+      m(GridLayout,
+        m(
+          GridLayoutColumn,
           m(
-              GridLayoutColumn,
-              m(
-                  Section,
-                  {title: 'Details'},
-                  m(Tree, dictToTreeNodes(this.getDetailsDictionary())),
-                  ),
-              )));
+            Section,
+            {title: 'Details'},
+            m(Tree, dictToTreeNodes(this.getDetailsDictionary())),
+          ),
+        )));
   }
 
   getTitle(): string {

@@ -108,7 +108,7 @@ export function convertToJson(trace: Blob, truncate?: 'start'|'end') {
 }
 
 export function convertTraceToPprofAndDownload(
-    trace: Blob, pid: number, ts: time) {
+  trace: Blob, pid: number, ts: time) {
   makeWorkerAndPost({
     kind: 'ConvertTraceToPprof',
     trace,

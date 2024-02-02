@@ -23,6 +23,11 @@ import json
 from typing import Any, List, Dict
 
 
+# Escapes special characters in a markdown table.
+def escape_in_table(desc: str):
+  return desc.replace('|', '\\|')
+
+
 # Responsible for module level markdown generation.
 class ModuleMd:
 
@@ -39,6 +44,8 @@ class ModuleMd:
     self.summary_view_funs = '\n'.join(file.summary_view_funs
                                        for file in self.files_md
                                        if file.summary_view_funs)
+    self.summary_macros = '\n'.join(
+        file.summary_macros for file in self.files_md if file.summary_macros)
 
   def print_description(self):
     if not self.files_md:
@@ -63,10 +70,15 @@ class ModuleMd:
       if table_funs:
         long_s.append('#### Table Functions')
         long_s.append(table_funs)
+      macros = '\n'.join(
+          macro for file in self.files_md for macro in file.macros)
+      if macros:
+        long_s.append('#### Macros')
+        long_s.append(macros)
       return '\n'.join(long_s)
 
     for file in self.files_md:
-      if not file.objs and not file.funs and not file.view_funs:
+      if not any((file.objs, file.funs, file.view_funs, file.macros)):
         continue
 
       long_s.append(f'### {file.import_key}')
@@ -79,6 +91,9 @@ class ModuleMd:
       if file.view_funs:
         long_s.append('#### Table Functions')
         long_s.append('\n'.join(file.view_funs))
+      if file.macros:
+        long_s.append('#### Macros')
+        long_s.append('\n'.join(file.macros))
 
     return '\n'.join(long_s)
 
@@ -89,8 +104,8 @@ class FileMd:
   def __init__(self, module_name, file_dict):
     self.import_key = file_dict['import_key']
     import_key_name = self.import_key if module_name != 'prelude' else 'N/A'
-    self.objs, self.funs, self.view_funs = [], [], []
-    summary_objs_list, summary_funs_list, summary_view_funs_list = [], [], []
+    self.objs, self.funs, self.view_funs, self.macros = [], [], [], []
+    summary_objs_list, summary_funs_list, summary_view_funs_list, summary_macros_list = [], [], [], []
 
     # Add imports if in file.
     for data in file_dict['imports']:
@@ -98,19 +113,19 @@ class FileMd:
       anchor = f'''obj/{module_name}/{data['name']}'''
 
       # Add summary of imported view/table
-      desc = data['desc'].split('.')[0]
       summary_objs_list.append(f'''[{data['name']}](#{anchor})|'''
                                f'''{import_key_name}|'''
-                               f'''{desc}''')
+                               f'''{escape_in_table(data['summary_desc'])}''')
 
       self.objs.append(f'''\n\n<a name="{anchor}"></a>'''
                        f'''**{data['name']}**, {data['type']}\n\n'''
-                       f'''{data['desc']}\n''')
+                       f'''{escape_in_table(data['desc'])}\n''')
 
       self.objs.append(
           'Column | Type | Description\n------ | --- | -----------')
       for name, info in data['cols'].items():
-        self.objs.append(f'{name} | {info["type"]} | {info["desc"]}')
+        self.objs.append(
+            f'{name} | {info["type"]} | {escape_in_table(info["desc"])}')
 
       self.objs.append('\n\n')
 
@@ -123,10 +138,10 @@ class FileMd:
       summary_funs_list.append(f'''[{data['name']}](#{anchor})|'''
                                f'''{import_key_name}|'''
                                f'''{data['return_type']}|'''
-                               f'''{data['desc'].split('.')[0]}''')
+                               f'''{escape_in_table(data['summary_desc'])}''')
       self.funs.append(
           f'''\n\n<a name="{anchor}"></a>'''
-          f'''**{data['name']}**\n'''
+          f'''**{data['name']}**\n\n'''
           f'''{data['desc']}\n\n'''
           f'''Returns: {data['return_type']}, {data['return_desc']}\n\n''')
       if data['args']:
@@ -134,7 +149,8 @@ class FileMd:
                          '-------- | ---- | -----------')
         for name, arg_dict in data['args'].items():
           self.funs.append(
-              f'''{name} | {arg_dict['type']} | {arg_dict['desc']}''')
+              f'''{name} | {arg_dict['type']} | {escape_in_table(arg_dict['desc'])}'''
+          )
 
         self.funs.append('\n\n')
 
@@ -143,9 +159,10 @@ class FileMd:
       # Anchor
       anchor = rf'''view_fun/{module_name}/{data['name']}'''
       # Add summary of imported view function
-      summary_view_funs_list.append(f'''[{data['name']}](#{anchor})|'''
-                                    f'''{import_key_name}|'''
-                                    f'''{data['desc'].split('.')[0]}''')
+      summary_view_funs_list.append(
+          f'''[{data['name']}](#{anchor})|'''
+          f'''{import_key_name}|'''
+          f'''{escape_in_table(data['summary_desc'])}''')
 
       self.view_funs.append(f'''\n\n<a name="{anchor}"></a>'''
                             f'''**{data['name']}**\n'''
@@ -155,7 +172,8 @@ class FileMd:
                               '-------- | ---- | -----------')
         for name, arg_dict in data['args'].items():
           self.view_funs.append(
-              f'''{name} | {arg_dict['type']} | {arg_dict['desc']}''')
+              f'''{name} | {arg_dict['type']} | {escape_in_table(arg_dict['desc'])}'''
+          )
         self.view_funs.append('\n')
       self.view_funs.append('Column | Type | Description\n'
                             '------ | -- | -----------')
@@ -164,9 +182,34 @@ class FileMd:
 
       self.view_funs.append('\n\n')
 
+    # Add macros if in file
+    for data in file_dict['macros']:
+      # Anchor
+      anchor = rf'''macro/{module_name}/{data['name']}'''
+      # Add summary of imported view function
+      summary_macros_list.append(f'''[{data['name']}](#{anchor})|'''
+                                 f'''{import_key_name}|'''
+                                 f'''{escape_in_table(data['summary_desc'])}''')
+
+      self.macros.append(
+          f'''\n\n<a name="{anchor}"></a>'''
+          f'''**{data['name']}**\n'''
+          f'''{data['desc']}\n\n'''
+          f'''Returns: {data['return_type']}, {data['return_desc']}\n\n''')
+      if data['args']:
+        self.macros.append('Argument | Type | Description\n'
+                           '-------- | ---- | -----------')
+        for name, arg_dict in data['args'].items():
+          self.macros.append(
+              f'''{name} | {arg_dict['type']} | {escape_in_table(arg_dict['desc'])}'''
+          )
+        self.macros.append('\n')
+      self.macros.append('\n\n')
+
     self.summary_objs = '\n'.join(summary_objs_list)
     self.summary_funs = '\n'.join(summary_funs_list)
     self.summary_view_funs = '\n'.join(summary_view_funs_list)
+    self.summary_macros = '\n'.join(summary_macros_list)
 
 
 def main():
@@ -178,7 +221,7 @@ def main():
   with open(args.input) as f:
     modules_json_dict = json.load(f)
 
-  modules_dict = {}
+  modules_dict: Dict[str, ModuleMd] = {}
 
   for module_name, module_files in modules_json_dict.items():
     modules_dict[module_name] = ModuleMd(module_name, module_files)
@@ -257,6 +300,15 @@ for the `INCLUDE PERFETTO MODULE` statement.
         for name, module in modules_dict.items()
         if (module.summary_view_funs and name != 'experimental')
     ]
+    summary_macros = [prelude_module.summary_macros
+                     ] if prelude_module.summary_macros else []
+    summary_macros += [common_module.summary_macros
+                      ] if common_module.summary_macros else []
+    summary_macros += [
+        module.summary_macros
+        for name, module in modules_dict.items()
+        if (module.summary_macros and name != 'experimental')
+    ]
 
     if summary_objs:
       f.write('### Views/tables\n\n'
@@ -277,6 +329,13 @@ for the `INCLUDE PERFETTO MODULE` statement.
               'Name | Import |  Description\n'
               '---- | ------ |  -----------\n')
       f.write('\n'.join(summary_view_funs))
+      f.write('\n')
+
+    if summary_macros:
+      f.write('### Macros\n\n'
+              'Name | Import |  Description\n'
+              '---- | ------ |  -----------\n')
+      f.write('\n'.join(summary_macros))
       f.write('\n')
 
     f.write('\n\n')

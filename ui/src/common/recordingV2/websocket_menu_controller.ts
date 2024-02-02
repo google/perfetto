@@ -64,7 +64,7 @@ export class WebsocketMenuController {
     const targetFactories = [];
     if (targetFactoryRegistry.has(ANDROID_WEBSOCKET_TARGET_FACTORY)) {
       targetFactories.push(
-          targetFactoryRegistry.get(ANDROID_WEBSOCKET_TARGET_FACTORY));
+        targetFactoryRegistry.get(ANDROID_WEBSOCKET_TARGET_FACTORY));
     }
     if (targetFactoryRegistry.has(HOST_OS_TARGET_FACTORY)) {
       targetFactories.push(targetFactoryRegistry.get(HOST_OS_TARGET_FACTORY));

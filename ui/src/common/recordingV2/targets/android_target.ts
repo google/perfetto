@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {fetchWithTimeout} from '../../../base/http_utils';
+import {exists} from '../../../base/utils';
 import {VERSION} from '../../../gen/perfetto_version';
 import {AdbConnectionImpl} from '../adb_connection_impl';
 import {
@@ -66,10 +67,10 @@ export abstract class AndroidTarget implements RecordingTargetV2 {
     this.adbConnection.onStatus = tracingSessionListener.onStatus;
     this.adbConnection.onDisconnect = tracingSessionListener.onDisconnect;
 
-    if (!this.androidApiLevel) {
+    if (!exists(this.androidApiLevel)) {
       // 1. Fetch the API version from the device.
       const version = await this.adbConnection.shellAndGetOutput(
-          'getprop ro.build.version.sdk');
+        'getprop ro.build.version.sdk');
       this.androidApiLevel = Number(version);
 
       this.onTargetChange();
@@ -80,9 +81,9 @@ export abstract class AndroidTarget implements RecordingTargetV2 {
         this.consumerSocketPath = CUSTOM_TRACED_CONSUMER_SOCKET_PATH;
 
         await this.adbConnection.shellAndWaitCompletion(
-            this.composeTraceboxCommand('traced'));
+          this.composeTraceboxCommand('traced'));
         await this.adbConnection.shellAndWaitCompletion(
-            this.composeTraceboxCommand('traced_probes'));
+          this.composeTraceboxCommand('traced_probes'));
       }
     }
 
@@ -108,22 +109,22 @@ export abstract class AndroidTarget implements RecordingTargetV2 {
     const shortVersion = VERSION.split('-')[0];
     const requestUrl =
         `https://commondatastorage.googleapis.com/perfetto-luci-artifacts/${
-            shortVersion}/${arch}/tracebox`;
+          shortVersion}/${arch}/tracebox`;
     const fetchResponse = await fetchWithTimeout(
-        requestUrl, {method: 'get'}, TRACEBOX_FETCH_TIMEOUT);
+      requestUrl, {method: 'get'}, TRACEBOX_FETCH_TIMEOUT);
     const traceboxBin = await fetchResponse.arrayBuffer();
     await this.adbConnection.push(
-        new Uint8Array(traceboxBin), TRACEBOX_DEVICE_PATH);
+      new Uint8Array(traceboxBin), TRACEBOX_DEVICE_PATH);
 
     // We explicitly set the tracebox permissions because adb does not reliably
     // set permissions when uploading the binary.
     await this.adbConnection.shellAndWaitCompletion(
-        `chmod 755 ${TRACEBOX_DEVICE_PATH}`);
+      `chmod 755 ${TRACEBOX_DEVICE_PATH}`);
   }
 
   async fetchArchitecture() {
     const abiList = await this.adbConnection.shellAndGetOutput(
-        'getprop ro.vendor.product.cpu.abilist');
+      'getprop ro.vendor.product.cpu.abilist');
     // If multiple ABIs are allowed, the 64bit ones should have higher priority.
     if (abiList.includes('arm64-v8a')) {
       return 'android-arm64';

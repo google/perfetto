@@ -16,9 +16,11 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_UTILS_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_UTILS_H_
 
+#include <optional>
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto {
@@ -92,8 +94,16 @@ void IndexSearchWithComparator(ValType val,
 SearchValidationResult CompareIntColumnWithDouble(SqlValue* sql_val,
                                                   FilterOp op);
 
-std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector&);
+// If the validation result doesn't require further search, it will return a
+// Range that can be passed further. Else it returns nullopt.
+std::optional<Range> CanReturnEarly(SearchValidationResult, Range);
 
+// If the validation result doesn't require further search, it will return a
+// Range that can be passed further. Else it returns nullopt.
+std::optional<Range> CanReturnEarly(SearchValidationResult,
+                                    uint32_t indices_size);
+
+std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector&);
 }  // namespace utils
 
 }  // namespace column

@@ -57,7 +57,7 @@ import {
 // b) When the user starts a tracing session, but cancels it before they
 //    authorize the session on the device.
 export async function wrapRecordingError<T>(
-    promise: Promise<T>, onFailure: OnMessageCallback): Promise<T|undefined> {
+  promise: Promise<T>, onFailure: OnMessageCallback): Promise<T|undefined> {
   try {
     return await promise;
   } catch (e) {
@@ -74,26 +74,26 @@ export async function wrapRecordingError<T>(
 // can be handled in a central location.
 export function showRecordingModal(message: string): void {
   if ([
-        'Unable to claim interface.',
-        'The specified endpoint is not part of a claimed and selected ' +
+    'Unable to claim interface.',
+    'The specified endpoint is not part of a claimed and selected ' +
             'alternate interface.',
-        // thrown when calling the 'reset' method on a WebUSB device.
-        'Unable to reset the device.',
-      ].some((partOfMessage) => message.includes(partOfMessage))) {
+    // thrown when calling the 'reset' method on a WebUSB device.
+    'Unable to reset the device.',
+  ].some((partOfMessage) => message.includes(partOfMessage))) {
     showWebUSBErrorV2();
   } else if (
-      [
-        'A transfer error has occurred.',
-        'The device was disconnected.',
-        'The transfer was cancelled.',
-      ].some((partOfMessage) => message.includes(partOfMessage)) ||
+    [
+      'A transfer error has occurred.',
+      'The device was disconnected.',
+      'The transfer was cancelled.',
+    ].some((partOfMessage) => message.includes(partOfMessage)) ||
       isDeviceDisconnectedError(message)) {
     showConnectionLostError();
   } else if (message === ALLOW_USB_DEBUGGING) {
     showAllowUSBDebugging();
   } else if (isMessageComposedOf(
-                 message,
-                 [BINARY_PUSH_FAILURE, BINARY_PUSH_UNKNOWN_RESPONSE])) {
+    message,
+    [BINARY_PUSH_FAILURE, BINARY_PUSH_UNKNOWN_RESPONSE])) {
     showFailedToPushBinary(message.substring(message.indexOf(':') + 1));
   } else if (message === NO_DEVICE_SELECTED) {
     showNoDeviceSelected();
@@ -102,11 +102,11 @@ export function showRecordingModal(message: string): void {
   } else if (message === EXTENSION_NOT_INSTALLED) {
     showExtensionNotInstalled();
   } else if (isMessageComposedOf(message, [
-               PARSING_UNKNWON_REQUEST_ID,
-               PARSING_UNABLE_TO_DECODE_METHOD,
-               PARSING_UNRECOGNIZED_PORT,
-               PARSING_UNRECOGNIZED_MESSAGE,
-             ])) {
+    PARSING_UNKNWON_REQUEST_ID,
+    PARSING_UNABLE_TO_DECODE_METHOD,
+    PARSING_UNRECOGNIZED_PORT,
+    PARSING_UNRECOGNIZED_MESSAGE,
+  ])) {
     showIssueParsingTheTracedResponse(message);
   } else {
     throw new Error(`${message}`);

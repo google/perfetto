@@ -25,9 +25,10 @@ import {TrackData} from '../../common/track_data';
 import {
   NUM_NULL,
   STR_NULL,
-  TrackHelperLEGACY,
+  TimelineFetcher,
 } from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
+import {CounterDetailsPanel} from '../../frontend/counter_panel';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {
@@ -42,6 +43,7 @@ import {
   PrimaryTrackSortKey,
   Store,
   STR,
+  Track,
   TrackContext,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
@@ -92,6 +94,8 @@ const COUNTER_REGEX: [RegExp, CounterScaleOptions][] = [
   // interested in the slope of the graph rather than the absolute
   // value.
   [new RegExp('^power\..*$'), 'RATE'],
+  // Same for cumulative PSI stall time counters, e.g., psi.cpu.some.
+  [new RegExp('^psi\..*$'), 'RATE'],
   // Same for network counters.
   [NETWORK_TRACK_REGEX, 'RATE'],
   // Entity residency
@@ -127,7 +131,7 @@ function isCounterState(x: unknown): x is CounterTrackState {
   }
 }
 
-export class CounterTrack extends TrackHelperLEGACY<Data> {
+export class CounterTrack implements Track {
   private maximumValueSeen = 0;
   private minimumValueSeen = 0;
   private maximumDeltaSeen = 0;
@@ -136,10 +140,10 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
   private store: Store<CounterTrackState>;
   private trackKey: string;
   private uuid = uuidv4();
+  private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   constructor(
-      ctx: TrackContext, private config: Config, private engine: EngineProxy) {
-    super();
+    ctx: TrackContext, private config: Config, private engine: EngineProxy) {
     this.trackKey = ctx.trackKey;
     this.store = ctx.mountStore<CounterTrackState>((init: unknown) => {
       if (isCounterState(init)) {
@@ -148,6 +152,10 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
         return {scale: this.config.defaultScale ?? 'ZERO_BASED'};
       }
     });
+  }
+
+  async onUpdate(): Promise<void> {
+    await this.fetcher.requestDataForCurrentTime();
   }
 
   // Returns a valid SQL table name with the given prefix that should be unique
@@ -201,7 +209,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
           ) as maxDur
         from ${this.tableName('counter_view')}
     `);
-    this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
+    this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur ?? 0n;
 
     const queryRes = await this.engine.query(`
       select
@@ -211,7 +219,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
         ifnull(min(delta), 0) as minDelta
       from ${this.tableName('counter_view')}`);
     const row = queryRes.firstRow(
-        {maxValue: NUM, minValue: NUM, maxDelta: NUM, minDelta: NUM});
+      {maxValue: NUM, minValue: NUM, maxDelta: NUM, minDelta: NUM});
     this.maximumValueSeen = row.maxValue;
     this.minimumValueSeen = row.minValue;
     this.maximumDeltaSeen = row.maxDelta;
@@ -335,20 +343,20 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
     });
 
     return m(
-        PopupMenu2,
-        {
-          trigger: m(Button, {icon: 'show_chart', minimal: true}),
-        },
-        menuItems,
+      PopupMenu2,
+      {
+        trigger: m(Button, {icon: 'show_chart', minimal: true}),
+      },
+      menuItems,
     );
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const {
       visibleTimeScale: timeScale,
     } = globals.timeline;
-    const data = this.data;
+    const data = this.fetcher.data;
 
     // Can't possibly draw anything.
     if (data === undefined || data.timestamps.length === 0) {
@@ -493,8 +501,8 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
 
       const xStart = Math.floor(timeScale.timeToPx(this.hoveredTs));
       const xEnd = this.hoveredTsEnd === undefined ?
-          endPx :
-          Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
+        endPx :
+        Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
       const y = MARGIN_TOP + RECT_HEIGHT -
           Math.round(((this.hoveredValue - yMin) / yRange) * RECT_HEIGHT);
 
@@ -509,7 +517,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
       // Draw change marker.
       ctx.beginPath();
       ctx.arc(
-          xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
+        xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
       ctx.fill();
       ctx.stroke();
 
@@ -542,16 +550,16 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        0,
-        size.width,
-        timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end));
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      timeScale.timeToPx(data.start),
+      timeScale.timeToPx(data.end));
   }
 
   onMouseMove(pos: {x: number, y: number}) {
-    const data = this.data;
+    const data = this.fetcher.data;
     if (data === undefined) return;
     this.mousePos = pos;
     const {visibleTimeScale} = globals.timeline;
@@ -579,7 +587,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
   }
 
   onMouseClick({x}: {x: number}): boolean {
-    const data = this.data;
+    const data = this.fetcher.data;
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);
@@ -602,7 +610,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
   async onDestroy(): Promise<void> {
     if (this.engine.isAlive) {
       await this.engine.query(
-          `DROP VIEW IF EXISTS ${this.tableName('counter_view')}`);
+        `DROP VIEW IF EXISTS ${this.tableName('counter_view')}`);
     }
     this.store.dispose();
   }
@@ -623,6 +631,16 @@ class CounterPlugin implements Plugin {
     await this.addCpuPerfCounterTracks(ctx);
     await this.addThreadCounterTracks(ctx);
     await this.addProcessCounterTracks(ctx);
+
+    ctx.registerDetailsPanel({
+      render: (sel) => {
+        if (sel.kind === 'COUNTER') {
+          return m(CounterDetailsPanel);
+        } else {
+          return undefined;
+        }
+      },
+    });
   }
 
   private async addCounterTracks(ctx: PluginContextTrace) {
@@ -635,7 +653,7 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         trackIds: [trackId],
-        track: (trackCtx) => {
+        trackFactory: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
         sortKey: PrimaryTrackSortKey.COUNTER_TRACK,
@@ -710,7 +728,7 @@ class CounterPlugin implements Plugin {
           displayName: name,
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
-          track: (trackCtx) => {
+          trackFactory: (trackCtx) => {
             return new CounterTrack(trackCtx, config, ctx.engine);
           },
         });
@@ -766,7 +784,7 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         trackIds: [trackId],
-        track: (trackCtx) => {
+        trackFactory: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });
@@ -829,7 +847,7 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind,
         trackIds: [trackId],
-        track: (trackCtx) => {
+        trackFactory: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });
@@ -886,7 +904,7 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         trackIds: [trackId],
-        track: (trackCtx) => {
+        trackFactory: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });

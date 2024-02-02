@@ -18,10 +18,13 @@ perfetto_sql_source_set("android") {
   deps = [ "startup" ]
   sources = [
     "anrs.sql",
+    "app_process_starts.sql",
     "battery.sql",
     "battery_stats.sql",
     "binder.sql",
+    "broadcasts.sql",
     "dvfs.sql",
+    "garbage_collection.sql",
     "io.sql",
     "monitor_contention.sql",
     "network_packets.sql",

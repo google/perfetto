@@ -185,7 +185,7 @@ export class AdbOverWebUsb implements Adb {
   }
 
   findEndpointNumber(
-      endpoints: USBEndpoint[], direction: 'out'|'in', type = 'bulk'): number {
+    endpoints: USBEndpoint[], direction: 'out'|'in', type = 'bulk'): number {
     const ep =
         endpoints.find((ep) => ep.type === type && ep.direction === direction);
 
@@ -196,18 +196,18 @@ export class AdbOverWebUsb implements Adb {
 
   receiveDeviceMessages() {
     this.recv()
-        .then((msg) => {
-          this.onMessage(msg);
-          this.receiveDeviceMessages();
-        })
-        .catch((e) => {
-          // Ignore error with "DEVICE_NOT_SET_ERROR" message since it is always
-          // thrown after the device disconnects.
-          if (e.message !== DEVICE_NOT_SET_ERROR) {
-            console.error(`Exception in recv: ${e.name}. error: ${e.message}`);
-          }
-          this.disconnect();
-        });
+      .then((msg) => {
+        this.onMessage(msg);
+        this.receiveDeviceMessages();
+      })
+      .catch((e) => {
+        // Ignore error with "DEVICE_NOT_SET_ERROR" message since it is always
+        // thrown after the device disconnects.
+        if (e.message !== DEVICE_NOT_SET_ERROR) {
+          console.error(`Exception in recv: ${e.name}. error: ${e.message}`);
+        }
+        this.disconnect();
+      });
   }
 
   async onMessage(msg: AdbMsg) {
@@ -217,14 +217,14 @@ export class AdbOverWebUsb implements Adb {
       this.handleAuthentication(msg);
     } else if (msg.cmd === 'CNXN') {
       console.assert(
-          [AdbState.AUTH_STEP2, AdbState.AUTH_STEP3].includes(this.state));
+        [AdbState.AUTH_STEP2, AdbState.AUTH_STEP3].includes(this.state));
       this.state = AdbState.CONNECTED;
       this.handleConnectedMessage(msg);
     } else if (this.state === AdbState.CONNECTED && [
-                 'OKAY',
-                 'WRTE',
-                 'CLSE',
-               ].indexOf(msg.cmd) >= 0) {
+      'OKAY',
+      'WRTE',
+      'CLSE',
+    ].indexOf(msg.cmd) >= 0) {
       const stream = this.streams.get(msg.arg1);
       if (!stream) {
         console.warn(`Received message ${msg} for unknown stream ${msg.arg1}`);
@@ -305,7 +305,7 @@ export class AdbOverWebUsb implements Adb {
         resolve(stream);
       };
       stream.onClose = () =>
-          reject(new Error(`Failed to openStream svc=${svc}`));
+        reject(new Error(`Failed to openStream svc=${svc}`));
     });
   }
 
@@ -320,9 +320,9 @@ export class AdbOverWebUsb implements Adb {
   }
 
   async send(
-      cmd: CmdType, arg0: number, arg1: number, data?: Uint8Array|string) {
+    cmd: CmdType, arg0: number, arg1: number, data?: Uint8Array|string) {
     await this.sendMsg(AdbMsgImpl.create(
-        {cmd, arg0, arg1, data, useChecksum: this.useChecksum}));
+      {cmd, arg0, arg1, data, useChecksum: this.useChecksum}));
   }
 
   //  The header and the message data must be sent consecutively. Using 2 awaits
@@ -362,7 +362,7 @@ export class AdbOverWebUsb implements Adb {
     };
 
     const key = await crypto.subtle.generateKey(
-        keySpec, /* extractable=*/ true, ['sign', 'verify']);
+      keySpec, /* extractable=*/ true, ['sign', 'verify']);
     return key;
   }
 
@@ -428,7 +428,7 @@ export class AdbStreamImpl implements AdbStream {
 
     if (this.writeQueue.length > 0) {
       console.error(`Dropping ${
-          this.writeQueue.length} queued messages due to stream closing.`);
+        this.writeQueue.length} queued messages due to stream closing.`);
       this.writeQueue = [];
     }
 
@@ -483,7 +483,7 @@ export class AdbStreamImpl implements AdbStream {
       return;
     }
     console.error(
-        `Unexpected stream msg ${msg.toString()} in state ${this.state}`);
+      `Unexpected stream msg ${msg.toString()} in state ${this.state}`);
   }
 }
 
@@ -504,8 +504,8 @@ export class AdbMsgImpl implements AdbMsg {
   useChecksum: boolean;
 
   constructor(
-      cmd: CmdType, arg0: number, arg1: number, dataLen: number,
-      dataChecksum: number, useChecksum = false) {
+    cmd: CmdType, arg0: number, arg1: number, dataLen: number,
+    dataChecksum: number, useChecksum = false) {
     console.assert(cmd.length === 4);
     this.cmd = cmd;
     this.arg0 = arg0;
@@ -655,7 +655,7 @@ async function encodePubKey(key: CryptoKey) {
 // CL can work:
 // https://android-review.googlesource.com/c/platform/external/perfetto/+/1105354/18
 async function signAdbTokenWithPrivateKey(
-    _privateKey: CryptoKey, token: Uint8Array): Promise<ArrayBuffer> {
+  _privateKey: CryptoKey, token: Uint8Array): Promise<ArrayBuffer> {
   // This function is not implemented.
   return token.buffer;
 }

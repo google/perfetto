@@ -29,21 +29,21 @@ export class Switch implements m.ClassComponent<SwitchAttrs> {
     const {label, checked, disabled, className, ...htmlAttrs} = attrs;
 
     const classes = classNames(
-        disabled && 'pf-disabled',
-        className,
+      disabled && 'pf-disabled',
+      className,
     );
 
     // The default checkbox is removed and an entirely new one created inside
     // the span element in CSS.
     return m(
-        'label.pf-switch',
-        {
-          ...htmlAttrs,
-          className: classes,
-        },
-        m('input[type=checkbox]', {disabled, checked}),
-        m('span'),
-        label,
+      'label.pf-switch',
+      {
+        ...htmlAttrs,
+        className: classes,
+      },
+      m('input[type=checkbox]', {disabled, checked}),
+      m('span'),
+      label,
     );
   }
 }

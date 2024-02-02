@@ -103,8 +103,29 @@ WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
             'handler_name': 'The name of the handler',
         }))
 
+PROTOLOG_TABLE = Table(
+    python_module=__file__,
+    class_name='ProtoLogTable',
+    sql_name='protolog',
+    columns=[
+        C('ts', CppInt64()),
+        C('level', CppString()),
+        C('tag', CppString()),
+        C('message', CppString()),
+    ],
+    tabledoc=TableDoc(
+        doc='Protolog',
+        group='Winscope',
+        columns={
+            'ts': 'The timestamp the log message was sent',
+            'level': 'The log level of the protolog message',
+            'tag': 'The log tag of the protolog message',
+            'message': 'The protolog message',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
+    PROTOLOG_TABLE,
     SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE,
     SURFACE_FLINGER_LAYER_TABLE,
     SURFACE_FLINGER_TRANSACTIONS_TABLE,

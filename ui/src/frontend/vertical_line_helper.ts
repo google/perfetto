@@ -18,29 +18,29 @@ import {TRACK_SHELL_WIDTH} from './css_constants';
 import {TimeScale} from './time_scale';
 
 export function drawVerticalLineAtTime(
-    ctx: CanvasRenderingContext2D,
-    timeScale: TimeScale,
-    time: time,
-    height: number,
-    color: string,
-    lineWidth = 2) {
+  ctx: CanvasRenderingContext2D,
+  timeScale: TimeScale,
+  time: time,
+  height: number,
+  color: string,
+  lineWidth = 2) {
   const xPos = TRACK_SHELL_WIDTH + Math.floor(timeScale.timeToPx(time));
   drawVerticalLine(ctx, xPos, height, color, lineWidth);
 }
 
 function drawVerticalLine(ctx: CanvasRenderingContext2D,
-                          xPos: number,
-                          height: number,
-                          color: string,
-                          lineWidth = 2) {
-    ctx.beginPath();
-    ctx.strokeStyle = color;
-    const prevLineWidth = ctx.lineWidth;
-    ctx.lineWidth = lineWidth;
-    ctx.moveTo(xPos, 0);
-    ctx.lineTo(xPos, height);
-    ctx.stroke();
-    ctx.closePath();
-    ctx.lineWidth = prevLineWidth;
+  xPos: number,
+  height: number,
+  color: string,
+  lineWidth = 2) {
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  const prevLineWidth = ctx.lineWidth;
+  ctx.lineWidth = lineWidth;
+  ctx.moveTo(xPos, 0);
+  ctx.lineTo(xPos, height);
+  ctx.stroke();
+  ctx.closePath();
+  ctx.lineWidth = prevLineWidth;
 }
 

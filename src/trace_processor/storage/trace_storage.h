@@ -46,9 +46,9 @@
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
-#include "src/trace_processor/views/slice_views.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -89,7 +89,7 @@ using MetadataId = tables::MetadataTable::Id;
 
 using RawId = tables::RawTable::Id;
 
-using FlamegraphId = tables::ExperimentalFlamegraphNodesTable::Id;
+using FlamegraphId = tables::ExperimentalFlamegraphTable::Id;
 
 using VulkanAllocId = tables::VulkanMemoryAllocationsTable::Id;
 
@@ -725,6 +725,31 @@ class TraceStorage {
     return &actual_frame_timeline_slice_table_;
   }
 
+  const tables::V8IsolateTable& v8_isolate_table() const {
+    return v8_isolate_table_;
+  }
+  tables::V8IsolateTable* mutable_v8_isolate_table() {
+    return &v8_isolate_table_;
+  }
+  const tables::V8JsScriptTable& v8_js_script_table() const {
+    return v8_js_script_table_;
+  }
+  tables::V8JsScriptTable* mutable_v8_js_script_table() {
+    return &v8_js_script_table_;
+  }
+  const tables::V8WasmScriptTable& v8_wasm_script_table() const {
+    return v8_wasm_script_table_;
+  }
+  tables::V8WasmScriptTable* mutable_v8_wasm_script_table() {
+    return &v8_wasm_script_table_;
+  }
+  const tables::V8JsFunctionTable& v8_js_function_table() const {
+    return v8_js_function_table_;
+  }
+  tables::V8JsFunctionTable* mutable_v8_js_function_table() {
+    return &v8_js_function_table_;
+  }
+
   const tables::SurfaceFlingerLayersSnapshotTable&
   surfaceflinger_layers_snapshot_table() const {
     return surfaceflinger_layers_snapshot_table_;
@@ -768,6 +793,11 @@ class TraceStorage {
     return &window_manager_shell_transition_handlers_table_;
   }
 
+  const tables::ProtoLogTable& protolog_table() const {
+    return protolog_table_;
+  }
+  tables::ProtoLogTable* mutable_protolog_table() { return &protolog_table_; }
+
   const tables::ExperimentalProtoPathTable& experimental_proto_path_table()
       const {
     return experimental_proto_path_table_;
@@ -792,10 +822,6 @@ class TraceStorage {
   tables::ExpMissingChromeProcTable*
   mutable_experimental_missing_chrome_processes_table() {
     return &experimental_missing_chrome_processes_table_;
-  }
-
-  const views::ThreadSliceView& thread_slice_view() const {
-    return thread_slice_view_;
   }
 
   const StringPool& string_pool() const { return string_pool_; }
@@ -1022,6 +1048,12 @@ class TraceStorage {
   tables::ActualFrameTimelineSliceTable actual_frame_timeline_slice_table_{
       &string_pool_, &slice_table_};
 
+  // V8 tables
+  tables::V8IsolateTable v8_isolate_table_{&string_pool_};
+  tables::V8JsScriptTable v8_js_script_table_{&string_pool_};
+  tables::V8WasmScriptTable v8_wasm_script_table_{&string_pool_};
+  tables::V8JsFunctionTable v8_js_function_table_{&string_pool_};
+
   // Winscope tables
   tables::SurfaceFlingerLayersSnapshotTable
       surfaceflinger_layers_snapshot_table_{&string_pool_};
@@ -1032,6 +1064,7 @@ class TraceStorage {
       window_manager_shell_transitions_table_{&string_pool_};
   tables::WindowManagerShellTransitionHandlersTable
       window_manager_shell_transition_handlers_table_{&string_pool_};
+  tables::ProtoLogTable protolog_table_{&string_pool_};
 
   tables::ExperimentalProtoPathTable experimental_proto_path_table_{
       &string_pool_};
@@ -1040,9 +1073,6 @@ class TraceStorage {
 
   tables::ExpMissingChromeProcTable
       experimental_missing_chrome_processes_table_{&string_pool_};
-
-  views::ThreadSliceView thread_slice_view_{&slice_table_, &thread_track_table_,
-                                            &thread_table_};
 
   // The below array allow us to map between enums and their string
   // representations.

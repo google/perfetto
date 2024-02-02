@@ -17,35 +17,31 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_NULL_OVERLAY_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_NULL_OVERLAY_H_
 
+#include <cstdint>
 #include <memory>
-#include <variant>
+#include <string>
 
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 // Overlay which introduces the layer of nullability. Specifically, spreads out
 // the storage with nulls using a BitVector.
 class NullOverlay : public Column {
  public:
-  NullOverlay(std::unique_ptr<Column> storage, const BitVector* non_null);
+  NullOverlay(std::unique_ptr<Column>, const BitVector* non_null);
 
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
 
-  RangeOrBitVector Search(FilterOp op,
-                          SqlValue value,
-                          Range range) const override;
+  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
 
-  RangeOrBitVector IndexSearch(FilterOp op,
-                               SqlValue value,
-                               uint32_t* indices,
-                               uint32_t indices_count,
-                               bool sorted) const override;
+  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+
+  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
 
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
@@ -55,13 +51,13 @@ class NullOverlay : public Column {
 
   uint32_t size() const override { return non_null_->size(); }
 
+  std::string DebugString() const override { return "NullOverlay"; }
+
  private:
-  std::unique_ptr<Column> storage_ = nullptr;
+  std::unique_ptr<Column> inner_ = nullptr;
   const BitVector* non_null_ = nullptr;
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
 
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_NULL_OVERLAY_H_

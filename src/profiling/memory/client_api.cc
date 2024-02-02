@@ -113,7 +113,7 @@ std::shared_ptr<perfetto::profiling::Client>* GetClientLocked() {
 constexpr auto kMinHeapId = 1;
 constexpr auto kMaxNumHeaps = 256;
 
-AHeapInfo g_heaps[kMaxNumHeaps];
+AHeapInfo g_heaps[kMaxNumHeaps] = {};
 
 AHeapInfo& GetHeap(uint32_t id) {
   return g_heaps[id];

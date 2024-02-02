@@ -17,10 +17,10 @@ let LOADING_TEXT_WIDTH = 0;
 
 // Checker board the range [leftPx, rightPx].
 export function checkerboard(
-    ctx: CanvasRenderingContext2D,
-    heightPx: number,
-    leftPx: number,
-    rightPx: number): void {
+  ctx: CanvasRenderingContext2D,
+  heightPx: number,
+  leftPx: number,
+  rightPx: number): void {
   const widthPx = rightPx - leftPx;
   ctx.font = '12px Roboto Condensed';
   ctx.fillStyle = '#eee';
@@ -33,21 +33,21 @@ export function checkerboard(
   }
   if (LOADING_TEXT_WIDTH <= widthPx) {
     ctx.fillText(
-        LOADING_TEXT,
-        leftPx + widthPx / 2 - LOADING_TEXT_WIDTH / 2,
-        heightPx / 2);
+      LOADING_TEXT,
+      leftPx + widthPx / 2 - LOADING_TEXT_WIDTH / 2,
+      heightPx / 2);
   }
   ctx.textBaseline = oldBaseline;
 }
 
 // Checker board everything between [startPx, endPx] except [leftPx, rightPx].
 export function checkerboardExcept(
-    ctx: CanvasRenderingContext2D,
-    heightPx: number,
-    startPx: number,
-    endPx: number,
-    leftPx: number,
-    rightPx: number): void {
+  ctx: CanvasRenderingContext2D,
+  heightPx: number,
+  startPx: number,
+  endPx: number,
+  leftPx: number,
+  rightPx: number): void {
   // [leftPx, rightPx] doesn't overlap [startPx, endPx] at all:
   if (rightPx <= startPx || leftPx >= endPx) {
     checkerboard(ctx, heightPx, startPx, endPx);

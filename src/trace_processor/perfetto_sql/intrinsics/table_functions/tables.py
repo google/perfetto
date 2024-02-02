@@ -139,6 +139,37 @@ EXPERIMENTAL_SLICE_LAYOUT_TABLE = Table(
     ],
     parent=SLICE_TABLE)
 
+DOMINATOR_TREE_TABLE = Table(
+    python_module=__file__,
+    class_name="DominatorTreeTable",
+    sql_name="__intrinsic_dominator_tree",
+    columns=[
+        C("node_id", CppUint32()),
+        C("dominator_node_id", CppOptional(CppUint32())),
+        C("in_source_node_ids",
+          CppOptional(CppString()),
+          flags=ColumnFlag.HIDDEN),
+        C("in_dest_node_ids", CppOptional(CppString()),
+          flags=ColumnFlag.HIDDEN),
+        C("in_root_node_id", CppOptional(CppUint32()), flags=ColumnFlag.HIDDEN),
+    ])
+
+DFS_TABLE = Table(
+    python_module=__file__,
+    class_name="DfsTable",
+    sql_name="__intrinsic_dfs",
+    columns=[
+        C("node_id", CppUint32()),
+        C("parent_node_id", CppOptional(CppUint32())),
+        C("in_source_node_ids",
+          CppOptional(CppString()),
+          flags=ColumnFlag.HIDDEN),
+        C("in_dest_node_ids", CppOptional(CppString()),
+          flags=ColumnFlag.HIDDEN),
+        C("in_start_node_id", CppOptional(CppUint32()),
+          flags=ColumnFlag.HIDDEN),
+    ])
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANCESTOR_SLICE_BY_STACK_TABLE,
@@ -147,6 +178,8 @@ ALL_TABLES = [
     CONNECTED_FLOW_TABLE,
     DESCENDANT_SLICE_BY_STACK_TABLE,
     DESCENDANT_SLICE_TABLE,
+    DFS_TABLE,
+    DOMINATOR_TREE_TABLE,
     EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE,
     EXPERIMENTAL_COUNTER_DUR_TABLE,
     EXPERIMENTAL_SCHED_UPID_TABLE,

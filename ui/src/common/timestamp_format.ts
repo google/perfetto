@@ -20,6 +20,7 @@ export enum TimestampFormat {
   RawLocale = 'rawLocale',
   Seconds = 'seconds',
   UTC = 'utc',
+  TraceTz = 'traceTz',
 }
 
 let timestampFormatCached: TimestampFormat|undefined;

@@ -22,6 +22,7 @@ import {
   OnSliceClickArgs,
   OnSliceOverArgs,
 } from '../../frontend/base_slice_track';
+import {FlamegraphDetailsPanel} from '../../frontend/flamegraph_panel';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
 import {
@@ -67,7 +68,7 @@ class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
           id,
           ts,
           'heap_profile:' || (select group_concat(distinct heap_name) from heap_profile_allocation where upid = ${
-        this.upid}) AS type
+  this.upid}) AS type
         from heap_profile_allocation
         where upid = ${this.upid}
         union
@@ -116,10 +117,10 @@ class HeapProfilePlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
-    select distinct(upid) from heap_profile_allocation
-    union
-    select distinct(upid) from heap_graph_object
-  `);
+      select distinct(upid) from heap_profile_allocation
+      union
+      select distinct(upid) from heap_graph_object
+    `);
     for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       ctx.registerTrack({
@@ -127,16 +128,26 @@ class HeapProfilePlugin implements Plugin {
         displayName: 'Heap Profile',
         kind: HEAP_PROFILE_TRACK_KIND,
         upid,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new HeapProfileTrack(
-              {
-                engine: ctx.engine,
-                trackKey,
-              },
-              upid);
+            {
+              engine: ctx.engine,
+              trackKey,
+            },
+            upid);
         },
       });
     }
+
+    ctx.registerDetailsPanel({
+      render: (sel) => {
+        if (sel.kind === 'HEAP_PROFILE') {
+          return m(FlamegraphDetailsPanel);
+        } else {
+          return undefined;
+        }
+      },
+    });
   }
 }
 

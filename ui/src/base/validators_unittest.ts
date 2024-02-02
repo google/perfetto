@@ -65,9 +65,9 @@ test('validator fills default values', () => {
 test('validator uses provided values', () => {
   const p: Point =
       runValidator(
-          point,
-          {id: 'test', x: 100, y: 200, color: 'GREEN', properties: {mass: 20}})
-          .result;
+        point,
+        {id: 'test', x: 100, y: 200, color: 'GREEN', properties: {mass: 20}})
+        .result;
 
   expect(p.color).toEqual('GREEN');
   expect(p.x).toEqual(100);

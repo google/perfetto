@@ -51,17 +51,17 @@ class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
     for (let i = IGNORED_STATES; i < attrs.options.length; i++) {
       const selected = i === attrs.selectedIndex;
       optionComponents.push(
-          m('option', {value: i, selected}, attrs.options[i]));
+        m('option', {value: i, selected}, attrs.options[i]));
     }
     return m(
-        Select,
-        {
-          onchange: (e: Event) => {
-            const selectionValue = (e.target as HTMLSelectElement).value;
-            attrs.onSelect(Number(selectionValue));
-          },
+      Select,
+      {
+        onchange: (e: Event) => {
+          const selectionValue = (e.target as HTMLSelectElement).value;
+          attrs.onSelect(Number(selectionValue));
         },
-        optionComponents,
+      },
+      optionComponents,
     );
   }
 }
@@ -85,9 +85,9 @@ class LogTagsWidget implements m.ClassComponent<LogTagsWidgetAttrs> {
     const tags = vnode.attrs.tags;
     return [
       tags.map((tag) => m(LogTagChip, {
-                 name: tag,
-                 removeTag: this.removeTag.bind(this),
-               })),
+        name: tag,
+        removeTag: this.removeTag.bind(this),
+      })),
       m(TextInput,
         {
           placeholder: 'Filter by tag...',
@@ -101,7 +101,7 @@ class LogTagsWidget implements m.ClassComponent<LogTagsWidgetAttrs> {
             if (e.key === 'Backspace' && tags.length > 0 &&
                 htmlElement.value === '') {
               globals.dispatch(
-                  Actions.removeLogTag({tag: tags[tags.length - 1]}));
+                Actions.removeLogTag({tag: tags[tags.length - 1]}));
               return;
             }
 
@@ -112,7 +112,7 @@ class LogTagsWidget implements m.ClassComponent<LogTagsWidgetAttrs> {
               return;
             }
             globals.dispatch(
-                Actions.addLogTag({tag: htmlElement.value.trim()}));
+              Actions.addLogTag({tag: htmlElement.value.trim()}));
             htmlElement.value = '';
           },
         }),
@@ -123,16 +123,16 @@ class LogTagsWidget implements m.ClassComponent<LogTagsWidgetAttrs> {
 class LogTextWidget implements m.ClassComponent {
   view() {
     return m(
-        TextInput, {
-          placeholder: 'Search logs...',
-          onkeyup: (e: KeyboardEvent) => {
-            // We want to use the value of the input field after it has been
-            // updated with the latest key (onkeyup).
-            const htmlElement = e.target as HTMLInputElement;
-            globals.dispatch(
-                Actions.updateLogFilterText({textEntry: htmlElement.value}));
-          },
-        });
+      TextInput, {
+        placeholder: 'Search logs...',
+        onkeyup: (e: KeyboardEvent) => {
+          // We want to use the value of the input field after it has been
+          // updated with the latest key (onkeyup).
+          const htmlElement = e.target as HTMLInputElement;
+          globals.dispatch(
+            Actions.updateLogFilterText({textEntry: htmlElement.value}));
+        },
+      });
   }
 }
 
@@ -140,7 +140,7 @@ class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
   view({attrs}: m.Vnode<FilterByTextWidgetAttrs>) {
     const icon = attrs.hideNonMatching ? 'unfold_less' : 'unfold_more';
     const tooltip = attrs.hideNonMatching ? 'Expand all and view highlighted' :
-                                            'Collapse all';
+      'Collapse all';
     return m(Button, {
       icon,
       title: tooltip,

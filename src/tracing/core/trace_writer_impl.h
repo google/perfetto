@@ -43,6 +43,7 @@ class SharedMemoryArbiterImpl;
 // the TraceWriter will keep writing into unmapped memory.
 //
 class TraceWriterImpl : public TraceWriter,
+                        public protozero::MessageFinalizationListener,
                         public protozero::ScatteredStreamWriter::Delegate {
  public:
   // TracePacketHandle is defined in trace_writer.h
@@ -79,6 +80,9 @@ class TraceWriterImpl : public TraceWriter,
   // ScatteredStreamWriter::Delegate implementation.
   protozero::ContiguousMemoryRange GetNewBuffer() override;
   uint8_t* AnnotatePatch(uint8_t*) override;
+
+  // MessageFinalizationListener implementation.
+  void OnMessageFinalized(protozero::Message*) override;
 
   // Writes the size of the current fragment into the chunk.
   //

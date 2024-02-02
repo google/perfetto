@@ -28,7 +28,7 @@ import {
   TimeSpan,
 } from '../base/time';
 import {Actions} from '../common/actions';
-import {pluginManager} from '../common/plugins';
+import {runQuery} from '../common/queries';
 import {
   DurationPrecision,
   setDurationPrecision,
@@ -37,23 +37,30 @@ import {
 } from '../common/timestamp_format';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
+import {EngineProxy} from '../trace_processor/engine';
+import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 
-import {addTab} from './bottom_tab';
 import {onClickCopy} from './clipboard';
 import {CookieConsent} from './cookie_consent';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
+import {Notes} from './notes';
 import {Omnibox, OmniboxOption} from './omnibox';
+import {addQueryResultsTab} from './query_result_tab';
 import {verticalScrollToTrack} from './scroll_helper';
 import {executeSearch} from './search_handler';
 import {Sidebar} from './sidebar';
-import {SqlTableTab} from './sql_table/tab';
-import {SqlTables} from './sql_table/well_known_tables';
+import {Utid} from './sql_types';
+import {getThreadInfo} from './thread_and_process_info';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_attrs';
+import {addDebugSliceTrack} from './debug_tracks';
+import {AggregationsTabs} from './aggregation_tab';
+import {addSqlTableTab} from './sql_table/tab';
+import {SqlTables} from './sql_table/well_known_tables';
 
 function renderPermalink(): m.Children {
   const permalink = globals.state.permalink;
@@ -96,6 +103,36 @@ enum OmniboxMode {
   Prompt,
 }
 
+const criticalPathSliceColumns = {
+  ts: 'ts',
+  dur: 'dur',
+  name: 'name',
+};
+const criticalPathsliceColumnNames = [
+  'id',
+  'utid',
+  'ts',
+  'dur',
+  'name',
+  'table_name',
+];
+
+const criticalPathsliceLiteColumns = {
+  ts: 'ts',
+  dur: 'dur',
+  name: 'thread_name',
+};
+const criticalPathsliceLiteColumnNames = [
+  'id',
+  'utid',
+  'ts',
+  'dur',
+  'thread_name',
+  'process_name',
+  'table_name',
+];
+
+
 export class App implements m.ClassComponent {
   private trash = new Trash();
 
@@ -111,8 +148,17 @@ export class App implements m.ClassComponent {
   private recentCommands: string[] = [];
 
   constructor() {
-    const unreg = globals.commandManager.registerCommandSource(this);
-    this.trash.add(unreg);
+    this.trash.add(new Notes());
+    this.trash.add(new AggregationsTabs());
+  }
+
+  private getEngine(): EngineProxy|undefined {
+    const engineId = globals.getCurrentEngine()?.id;
+    if (engineId === undefined) {
+      return undefined;
+    }
+    const engine = globals.engines.get(engineId)?.getProxy('QueryPage');
+    return engine;
   }
 
   private enterCommandMode(): void {
@@ -189,6 +235,27 @@ export class App implements m.ClassComponent {
     this.enterSearchMode(false);
   }
 
+  private getFirstUtidOfSelectionOrVisibleWindow(): number {
+    const selection = globals.state.currentSelection;
+    if (selection && selection.kind === 'AREA') {
+      const selectedArea = globals.state.areas[selection.areaId];
+      const firstThreadStateTrack = selectedArea.tracks.find((trackId) => {
+        return globals.state.tracks[trackId];
+      });
+
+      if (firstThreadStateTrack) {
+        const trackInfo = globals.state.tracks[firstThreadStateTrack];
+        const trackDesc = globals.trackManager.resolveTrackInfo(trackInfo.uri);
+        if (trackDesc?.kind === THREAD_STATE_TRACK_KIND &&
+            trackDesc?.utid !== undefined) {
+          return trackDesc?.utid;
+        }
+      }
+    }
+
+    return 0;
+  }
+
   private cmds: Command[] = [
     {
       id: 'perfetto.SetTimestampFormat',
@@ -198,6 +265,10 @@ export class App implements m.ClassComponent {
             const options: PromptOption[] = [
               {key: TimestampFormat.Timecode, displayName: 'Timecode'},
               {key: TimestampFormat.UTC, displayName: 'Realtime (UTC)'},
+              {
+                key: TimestampFormat.TraceTz,
+                displayName: 'Realtime (Trace TZ)',
+              },
               {key: TimestampFormat.Seconds, displayName: 'Seconds'},
               {key: TimestampFormat.Raw, displayName: 'Raw'},
               {
@@ -240,16 +311,112 @@ export class App implements m.ClassComponent {
           },
     },
     {
+      id: 'perfetto.CriticalPathLite',
+      name: `Critical path lite`,
+      callback:
+          async () => {
+            const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
+            const window = getTimeSpanOfSelectionOrVisibleWindow();
+            const engine = this.getEngine();
+
+            if (engine !== undefined && trackUtid != 0) {
+              await runQuery(
+                `SELECT IMPORT('sched.thread_executing_span');`,
+                engine);
+              await addDebugSliceTrack(
+                engine,
+                {
+                  sqlSource: `
+                   SELECT
+                      cr.id,
+                      cr.utid,
+                      cr.ts,
+                      cr.dur,
+                      thread.name AS thread_name,
+                      process.name AS process_name,
+                      'thread_state' AS table_name
+                    FROM
+                      _thread_executing_span_critical_path(
+                          ${trackUtid},
+                          ${window.start},
+                          ${window.end} - ${window.start}) cr
+                    JOIN thread USING(utid)
+                    JOIN process USING(upid)
+                  `,
+                  columns: criticalPathsliceLiteColumnNames,
+                },
+                (await getThreadInfo(engine, trackUtid as Utid)).name ??
+                      '<thread name>',
+                criticalPathsliceLiteColumns,
+                criticalPathsliceLiteColumnNames);
+            }
+          },
+    },
+    {
+      id: 'perfetto.CriticalPath',
+      name: `Critical path`,
+      callback:
+          async () => {
+            const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
+            const window = getTimeSpanOfSelectionOrVisibleWindow();
+            const engine = this.getEngine();
+
+            if (engine !== undefined && trackUtid != 0) {
+              await runQuery(
+                `SELECT IMPORT('sched.thread_executing_span');`,
+                engine);
+              await addDebugSliceTrack(
+                engine,
+                {
+                  sqlSource: `
+                        SELECT cr.id, cr.utid, cr.ts, cr.dur, cr.name, cr.table_name
+                        FROM
+                        _critical_path_stack(
+                          ${trackUtid},
+                          ${window.start},
+                          ${window.end} - ${
+  window.start}, 1, 1, 1, 1) cr WHERE name IS NOT NULL
+                  `,
+                  columns: criticalPathsliceColumnNames,
+                },
+                (await getThreadInfo(engine, trackUtid as Utid)).name ??
+                      '<thread name>',
+                criticalPathSliceColumns,
+                criticalPathsliceColumnNames);
+            }
+          },
+    },
+    {
+      id: 'perfetto.CriticalPathPprof',
+      name: `Critical path pprof`,
+      callback:
+          () => {
+            const trackUtid = this.getFirstUtidOfSelectionOrVisibleWindow();
+            const window = getTimeSpanOfSelectionOrVisibleWindow();
+            const engine = this.getEngine();
+
+            if (engine !== undefined && trackUtid != 0) {
+              addQueryResultsTab({
+                query: `SELECT IMPORT('sched.thread_executing_span');
+                   SELECT *
+                      FROM
+                        _thread_executing_span_critical_path_graph(
+                        "criical_path",
+                         ${trackUtid},
+                         ${window.start},
+                         ${window.end} - ${window.start}) cr`,
+                title: 'Critical path'});
+            }
+          },
+    },
+    {
       id: 'perfetto.ShowSliceTable',
       name: 'Show slice table',
       callback:
           () => {
-            addTab({
-              kind: SqlTableTab.kind,
-              config: {
-                table: SqlTables.slice,
-                displayName: 'slice',
-              },
+            addSqlTableTab({
+              table: SqlTables.slice,
+              displayName: 'slice',
             });
           },
     },
@@ -314,12 +481,10 @@ export class App implements m.ClassComponent {
       callback:
           () => {
             const window = getTimeSpanOfSelectionOrVisibleWindow();
-            if (window) {
-              this.enterQueryMode();
-              this.queryText =
-                  `select  where ts >= ${window.start} and ts < ${window.end}`;
-              this.pendingCursorPlacement = 7;
-            }
+            this.enterQueryMode();
+            this.queryText =
+                `select  where ts >= ${window.start} and ts < ${window.end}`;
+            this.pendingCursorPlacement = 7;
           },
     },
     {
@@ -328,10 +493,8 @@ export class App implements m.ClassComponent {
       callback:
           () => {
             const window = getTimeSpanOfSelectionOrVisibleWindow();
-            if (window) {
-              const query = `ts >= ${window.start} and ts < ${window.end}`;
-              copyToClipboard(query);
-            }
+            const query = `ts >= ${window.start} and ts < ${window.end}`;
+            copyToClipboard(query);
           },
     },
     {
@@ -340,7 +503,7 @@ export class App implements m.ClassComponent {
       name: 'Find track by URI',
       callback:
           async () => {
-            const tracks = Array.from(pluginManager.trackRegistry.values());
+            const tracks = globals.trackManager.getAllTracks();
             const options = tracks.map(({uri}): PromptOption => {
               return {key: uri, displayName: uri};
             });
@@ -360,19 +523,19 @@ export class App implements m.ClassComponent {
 
               // Find the first track with this URI
               const firstTrack = Object.values(globals.state.tracks)
-                                     .find(({uri}) => uri === selectedUri);
+                .find(({uri}) => uri === selectedUri);
               if (firstTrack) {
                 console.log(firstTrack);
                 verticalScrollToTrack(firstTrack.key, true);
                 const traceTime = globals.stateTraceTimeTP();
                 globals.makeSelection(
-                    Actions.selectArea({
-                      area: {
-                        start: traceTime.start,
-                        end: traceTime.end,
-                        tracks: [firstTrack.key],
-                      },
-                    }),
+                  Actions.selectArea({
+                    area: {
+                      start: traceTime.start,
+                      end: traceTime.end,
+                      tracks: [firstTrack.key],
+                    },
+                  }),
                 );
               } else {
                 alert(`No tracks with uri ${selectedUri} on the timeline`);
@@ -408,10 +571,10 @@ export class App implements m.ClassComponent {
     if (msgTTL > 0 || engineIsBusy) {
       setTimeout(() => raf.scheduleFullRedraw(), msgTTL * 1000);
       return m(
-          `.omnibox.message-mode`, m(`input[readonly][disabled][ref=omnibox]`, {
-            value: '',
-            placeholder: globals.state.status.msg,
-          }));
+        `.omnibox.message-mode`, m(`input[readonly][disabled][ref=omnibox]`, {
+          value: '',
+          placeholder: globals.state.status.msg,
+        }));
     }
 
     if (this.omniboxMode === OmniboxMode.Command) {
@@ -556,11 +719,13 @@ export class App implements m.ClassComponent {
         this.queryText = value;
         raf.scheduleFullRedraw();
       },
-      onSubmit: (value, alt) => {
-        globals.openQuery(
-            undoCommonChatAppReplacements(value),
-            alt ? 'Pinned query' : 'Omnibox query',
-            alt ? undefined : 'omnibox_query');
+      onSubmit: (query, alt) => {
+        const config = {
+          query: undoCommonChatAppReplacements(query),
+          title: alt ? 'Pinned query' : 'Omnibox query',
+        };
+        const tag = alt? undefined : 'omnibox_query';
+        addQueryResultsTab(config, tag);
       },
       onClose: () => {
         this.queryText = '';
@@ -602,7 +767,7 @@ export class App implements m.ClassComponent {
       onSubmit: (value, _mod, shift) => {
         executeSearch(shift);
         globals.dispatch(
-            Actions.setOmnibox({omnibox: value, mode: 'SEARCH', force: true}));
+          Actions.setOmnibox({omnibox: value, mode: 'SEARCH', force: true}));
         if (this.omniboxInputEl) {
           this.omniboxInputEl.blur();
         }
@@ -613,27 +778,27 @@ export class App implements m.ClassComponent {
 
   private renderStepThrough() {
     return m(
-        '.stepthrough',
-        m('.current',
-          `${
-              globals.currentSearchResults.totalResults === 0 ?
-                  '0 / 0' :
-                  `${globals.state.searchIndex + 1} / ${
-                      globals.currentSearchResults.totalResults}`}`),
-        m('button',
-          {
-            onclick: () => {
-              executeSearch(true /* reverse direction */);
-            },
+      '.stepthrough',
+      m('.current',
+        `${
+          globals.currentSearchResults.totalResults === 0 ?
+            '0 / 0' :
+            `${globals.state.searchIndex + 1} / ${
+              globals.currentSearchResults.totalResults}`}`),
+      m('button',
+        {
+          onclick: () => {
+            executeSearch(true /* reverse direction */);
           },
-          m('i.material-icons.left', 'keyboard_arrow_left')),
-        m('button',
-          {
-            onclick: () => {
-              executeSearch();
-            },
+        },
+        m('i.material-icons.left', 'keyboard_arrow_left')),
+      m('button',
+        {
+          onclick: () => {
+            executeSearch();
           },
-          m('i.material-icons.right', 'keyboard_arrow_right')));
+        },
+        m('i.material-icons.right', 'keyboard_arrow_right')));
   }
 
   view({children}: m.Vnode): m.Children {
@@ -651,26 +816,32 @@ export class App implements m.ClassComponent {
     }
 
     return m(
-        HotkeyContext,
-        {hotkeys},
-        m(
-            'main',
-            m(Sidebar),
-            m(Topbar, {
-              omnibox: this.renderOmnibox(),
-            }),
-            m(Alerts),
-            children,
-            m(CookieConsent),
-            maybeRenderFullscreenModalDialog(),
-            globals.state.perfDebug && m('.perf-stats'),
-            ),
+      HotkeyContext,
+      {hotkeys},
+      m(
+        'main',
+        m(Sidebar),
+        m(Topbar, {
+          omnibox: this.renderOmnibox(),
+        }),
+        m(Alerts),
+        children,
+        m(CookieConsent),
+        maybeRenderFullscreenModalDialog(),
+        globals.state.perfDebug && m('.perf-stats'),
+      ),
     );
   }
 
   oncreate({dom}: m.VnodeDOM) {
     this.updateOmniboxInputRef(dom);
     this.maybeFocusOmnibar();
+
+    // Register each command with the command manager
+    this.cmds.forEach((cmd) => {
+      const dispose = globals.commandManager.registry.register(cmd);
+      this.trash.add(dispose);
+    });
   }
 
   onupdate({dom}: m.VnodeDOM) {
@@ -699,7 +870,7 @@ export class App implements m.ClassComponent {
           omniboxEl.select();
         } else {
           omniboxEl.setSelectionRange(
-              this.pendingCursorPlacement, this.pendingCursorPlacement);
+            this.pendingCursorPlacement, this.pendingCursorPlacement);
           this.pendingCursorPlacement = -1;
         }
       }

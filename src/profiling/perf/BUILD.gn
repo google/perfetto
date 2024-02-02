@@ -46,7 +46,7 @@ source_set("producer") {
     ":regs_parsing",
     ":unwinding",
     "../../../include/perfetto/tracing/core",
-    "../../../src/tracing/core:service",  # for metatrace
+    "../../../src/tracing/service",  # for metatrace
   ]
   deps = [
     ":proc_descriptors",
@@ -90,7 +90,7 @@ source_set("common_types") {
 source_set("unwinding") {
   public_deps = [
     "../../../gn:libunwindstack",
-    "../../../src/tracing/core:service",  # for metatrace
+    "../../../src/tracing/service",  # for metatrace
   ]
   deps = [
     ":common_types",

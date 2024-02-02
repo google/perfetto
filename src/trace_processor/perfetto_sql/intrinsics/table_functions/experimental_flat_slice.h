@@ -17,10 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_EXPERIMENTAL_FLAT_SLICE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_EXPERIMENTAL_FLAT_SLICE_H_
 
-#include <optional>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
 
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -55,16 +62,13 @@ class TraceProcessorContext;
 // if they would spill past the provided end bound.
 class ExperimentalFlatSlice : public StaticTableFunction {
  public:
-  ExperimentalFlatSlice(TraceProcessorContext* context);
+  explicit ExperimentalFlatSlice(TraceProcessorContext* context);
 
   Table::Schema CreateSchema() override;
   std::string TableName() override;
   uint32_t EstimateRowCount() override;
-  base::Status ValidateConstraints(const QueryConstraints&) override;
-  base::Status ComputeTable(const std::vector<Constraint>& cs,
-                            const std::vector<Order>& ob,
-                            const BitVector& cols_used,
-                            std::unique_ptr<Table>& table_return) override;
+  base::StatusOr<std::unique_ptr<Table>> ComputeTable(
+      const std::vector<SqlValue>& arguments) override;
 
   // Visibile for testing.
   static std::unique_ptr<tables::ExperimentalFlatSliceTable>

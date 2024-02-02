@@ -52,8 +52,8 @@ export class FilterableSelect implements
     });
 
     const displayedValues = attrs.maxDisplayedItems === undefined ?
-        filteredValues :
-        filteredValues.slice(0, attrs.maxDisplayedItems);
+      filteredValues :
+      filteredValues.slice(0, attrs.maxDisplayedItems);
 
     const extraItems = exists(attrs.maxDisplayedItems) &&
         Math.max(0, filteredValues.length - attrs.maxDisplayedItems);
@@ -63,28 +63,28 @@ export class FilterableSelect implements
     // MAYBE(altimin): when the user presses enter and there are multiple items,
     // select the first one.
     return m(
-        'div',
-        m('.pf-search-bar',
-          m(TextInput, {
-            oninput: (event: Event) => {
-              const eventTarget = event.target as HTMLTextAreaElement;
-              this.searchText = eventTarget.value;
-              scheduleFullRedraw();
-            },
-            onload: (event: Event) => {
-              if (!attrs.autofocusInput) return;
-              const eventTarget = event.target as HTMLTextAreaElement;
-              eventTarget.focus();
-            },
-            value: this.searchText,
-            placeholder: 'Filter...',
-            className: 'pf-search-box',
-          }),
-          m(Menu,
-            ...displayedValues.map((value) => m(MenuItem, {
-                                     label: value,
-                                     onclick: () => attrs.onSelected(value),
-                                   })),
-            extraItems ? m('i', `+${extraItems} more`) : null)));
+      'div',
+      m('.pf-search-bar',
+        m(TextInput, {
+          oninput: (event: Event) => {
+            const eventTarget = event.target as HTMLTextAreaElement;
+            this.searchText = eventTarget.value;
+            scheduleFullRedraw();
+          },
+          onload: (event: Event) => {
+            if (!attrs.autofocusInput) return;
+            const eventTarget = event.target as HTMLTextAreaElement;
+            eventTarget.focus();
+          },
+          value: this.searchText,
+          placeholder: 'Filter...',
+          className: 'pf-search-box',
+        }),
+        m(Menu,
+          ...displayedValues.map((value) => m(MenuItem, {
+            label: value,
+            onclick: () => attrs.onSelected(value),
+          })),
+          Boolean(extraItems) && m('i', `+${extraItems} more`))));
   }
 }

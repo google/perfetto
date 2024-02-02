@@ -113,30 +113,30 @@ class AsyncSlicePlugin implements Plugin {
       // }
 
       ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#${rawName}`,
+        uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}`,
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrack(
-              engine,
-              maxDepth,
-              trackKey,
-              trackIds,
+            engine,
+            maxDepth,
+            trackKey,
+            trackIds,
           );
         },
       });
 
       ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#${rawName}.v2`,
+        uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}.v2`,
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrackV2(
-              {engine, trackKey},
-              maxDepth,
-              trackIds,
+            {engine, trackKey},
+            maxDepth,
+            trackIds,
           );
         },
       });
@@ -199,12 +199,12 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrack(
-              ctx.engine,
-              maxDepth,
-              trackKey,
-              trackIds,
+            ctx.engine,
+            maxDepth,
+            trackKey,
+            trackIds,
           );
         },
       });
@@ -214,11 +214,11 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrackV2(
-              {engine: ctx.engine, trackKey},
-              maxDepth,
-              trackIds,
+            {engine: ctx.engine, trackKey},
+            maxDepth,
+            trackIds,
           );
         },
       });
@@ -290,12 +290,12 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrack(
-              engine,
-              maxDepth,
-              trackKey,
-              trackIds,
+            engine,
+            maxDepth,
+            trackKey,
+            trackIds,
           );
         },
       });
@@ -305,11 +305,11 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
+        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrackV2(
-              {engine, trackKey},
-              maxDepth,
-              trackIds,
+            {engine, trackKey},
+            maxDepth,
+            trackIds,
           );
         },
       });

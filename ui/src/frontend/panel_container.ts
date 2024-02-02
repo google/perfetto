@@ -159,10 +159,10 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     // The Y value is given from the top of the pan and zoom region, we want it
     // from the top of the panel container. The parent offset corrects that.
     const panels = this.getPanelsInRegion(
-        visibleTimeScale.timeToPx(area.start),
-        visibleTimeScale.timeToPx(area.end),
-        globals.timeline.areaY.start + TOPBAR_HEIGHT,
-        globals.timeline.areaY.end + TOPBAR_HEIGHT);
+      visibleTimeScale.timeToPx(area.start),
+      visibleTimeScale.timeToPx(area.end),
+      globals.timeline.areaY.start + TOPBAR_HEIGHT,
+      globals.timeline.areaY.end + TOPBAR_HEIGHT);
     // Get the track ids from the panels.
     const tracks = [];
     for (const panel of panels) {
@@ -233,7 +233,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
         raf.scheduleRedraw();
       };
       dom.parentElement!.addEventListener(
-          'scroll', parentOnScroll, {passive: true});
+        'scroll', parentOnScroll, {passive: true});
       this.trash.addCallback(() => {
         dom.parentElement!.removeEventListener('scroll', parentOnScroll);
       });
@@ -250,11 +250,11 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     const mithril = node.mithril;
 
     return m(
-        `.panel${extraClass}`,
-        {key, 'data-key': key},
-        perfDebug() ?
-            [mithril, m('.debug-panel-border', {key: 'debug-panel-border'})] :
-            mithril);
+      `.panel${extraClass}`,
+      {key, 'data-key': key},
+      perfDebug() ?
+        [mithril, m('.debug-panel-border', {key: 'debug-panel-border'})] :
+        mithril);
   }
 
   // Render a tree of panels into one vnode. Argument `path` is used to build
@@ -263,12 +263,12 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   renderTree(node: PanelOrGroup, path: string): m.Vnode {
     if (node.kind === 'group') {
       return m(
-          'div',
-          {key: path},
-          this.renderPanel(
-              node.header, `${path}-header`, node.collapsed ? '' : '.sticky'),
-          ...node.childTracks.map(
-              (child, index) => this.renderTree(child, `${path}-${index}`)));
+        'div',
+        {key: path},
+        this.renderPanel(
+          node.header, `${path}-header`, node.collapsed ? '' : '.sticky'),
+        ...node.childTracks.map(
+          (child, index) => this.renderTree(child, `${path}-${index}`)));
     }
     return this.renderPanel(node, assertExists(node.key));
   }
@@ -277,13 +277,13 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     this.attrs = attrs;
     this.panelByKey.clear();
     const children = attrs.panels.map(
-        (panel, index) => this.renderTree(panel, `track-tree-${index}`));
+      (panel, index) => this.renderTree(panel, `track-tree-${index}`));
 
     return [
       m(
-          '.scroll-limiter',
-          m('canvas.main-canvas'),
-          ),
+        '.scroll-limiter',
+        m('canvas.main-canvas'),
+      ),
       m('.panels', children),
     ];
   }
@@ -298,7 +298,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       this.repositionCanvas();
       if (this.attrs.kind === 'TRACKS') {
         globals.timeline.updateLocalLimits(
-            0, this.parentWidth - TRACK_SHELL_WIDTH);
+          0, this.parentWidth - TRACK_SHELL_WIDTH);
       }
       this.redrawCanvas();
     }
@@ -306,8 +306,8 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
 
   private updateCanvasDimensions() {
     this.canvasHeight = Math.floor(
-        this.attrs.doesScroll ? this.parentHeight * this.canvasOverdrawFactor :
-                                this.totalPanelHeight);
+      this.attrs.doesScroll ? this.parentHeight * this.canvasOverdrawFactor :
+        this.totalPanelHeight);
     const ctx = assertExists(this.ctx);
     const canvas = assertExists(ctx.canvas);
     canvas.style.height = `${this.canvasHeight}px`;
@@ -419,7 +419,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       const beforeRender = debugNow();
       panel.renderCanvas(this.ctx, size);
       this.updatePanelStats(
-          i, panel, debugNow() - beforeRender, this.ctx, size);
+        i, panel, debugNow() - beforeRender, this.ctx, size);
       this.ctx.restore();
       panelYStart += panelHeight;
     }
@@ -451,8 +451,8 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
         trackFromCurrentContainerSelected = true;
         selectedTracksMinY = Math.min(selectedTracksMinY, this.panelInfos[i].y);
         selectedTracksMaxY = Math.max(
-            selectedTracksMaxY,
-            this.panelInfos[i].y + this.panelInfos[i].height);
+          selectedTracksMaxY,
+          this.panelInfos[i].y + this.panelInfos[i].height);
       }
     }
 
@@ -475,16 +475,16 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
         Math.floor(this.scrollTop - this.getCanvasOverdrawHeightPerSide());
     this.ctx.translate(TRACK_SHELL_WIDTH, -canvasYStart);
     this.ctx.strokeRect(
-        startX,
-        selectedTracksMaxY,
-        endX - startX,
-        selectedTracksMinY - selectedTracksMaxY);
+      startX,
+      selectedTracksMaxY,
+      endX - startX,
+      selectedTracksMinY - selectedTracksMaxY);
     this.ctx.restore();
   }
 
   private updatePanelStats(
-      panelIndex: number, panel: Panel, renderTime: number,
-      ctx: CanvasRenderingContext2D, size: PanelSize) {
+    panelIndex: number, panel: Panel, renderTime: number,
+    ctx: CanvasRenderingContext2D, size: PanelSize) {
     if (!perfDebug()) return;
     let renderStats = this.panelPerfStats.get(panel);
     if (renderStats === undefined) {
@@ -502,7 +502,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   }
 
   private updatePerfStats(
-      renderTime: number, totalPanels: number, panelsOnCanvas: number) {
+    renderTime: number, totalPanels: number, panelsOnCanvas: number) {
     if (!perfDebug()) return;
     this.perfStats.renderStats.addValue(renderTime);
     this.perfStats.totalPanels = totalPanels;

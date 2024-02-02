@@ -60,11 +60,11 @@
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
-#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
+#include "perfetto/tracing/default_socket.h"
 #include "src/android_stats/statsd_logging_helper.h"
 #include "src/perfetto_cmd/bugreport_path.h"
 #include "src/perfetto_cmd/config.h"
@@ -229,6 +229,8 @@ Usage: %s
                              received, non-zero otherwise (error or timeout).
   --clone TSID             : Creates a read-only clone of an existing tracing
                              session, identified by its ID (see --query).
+  --clone-skip-filter      : Can only be used with --clone. It disables the
+                             trace_filter on the cloned session.
   --config         -c      : /path/to/trace/config/file or - for stdin
   --out            -o      : /path/to/out/trace/file or - for stdout
                              If using CLONE_SNAPSHOT triggers, each snapshot
@@ -286,6 +288,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_ALERT_ID = 1000,
     OPT_BUGREPORT,
     OPT_CLONE,
+    OPT_CLONE_SKIP_FILTER,
     OPT_CONFIG_ID,
     OPT_CONFIG_UID,
     OPT_SUBSCRIPTION_ID,
@@ -325,6 +328,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"detach", required_argument, nullptr, OPT_DETACH},
       {"attach", required_argument, nullptr, OPT_ATTACH},
       {"clone", required_argument, nullptr, OPT_CLONE},
+      {"clone-skip-filter", no_argument, nullptr, OPT_CLONE_SKIP_FILTER},
       {"is_detached", required_argument, nullptr, OPT_IS_DETACHED},
       {"stop", no_argument, nullptr, OPT_STOP},
       {"query", no_argument, nullptr, OPT_QUERY},
@@ -410,6 +414,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
     if (option == OPT_CLONE) {
       clone_tsid_ = static_cast<TracingSessionID>(atoll(optarg));
+      continue;
+    }
+
+    if (option == OPT_CLONE_SKIP_FILTER) {
+      clone_skip_filter_ = true;
       continue;
     }
 
@@ -584,11 +593,17 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
 
+  if (clone_skip_filter_ && !clone_tsid_) {
+    PERFETTO_ELOG("--clone-skip-filter requires --clone");
+    return 1;
+  }
+
   // --save-for-bugreport is the equivalent of:
   // --clone kBugreportSessionId -o /data/misc/perfetto-traces/bugreport/...
   if (bugreport_ && trace_out_path_.empty()) {
     PERFETTO_LOG("Invoked perfetto with --save-for-bugreport");
     clone_tsid_ = kBugreportSessionId;
+    clone_skip_filter_ = true;
     trace_out_path_ = GetBugreportTracePath();
   }
 
@@ -825,24 +840,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     if (!OpenOutputFile())
       return 1;
     if (!trace_config_->write_into_file())
-      packet_writer_ = CreateFilePacketWriter(trace_out_stream_.get());
-  }
-
-  // TODO(b/281043457): this code path will go away after Android U. Compression
-  // has been moved to the service. This code is here only as a fallback in case
-  // of bugs in the U timeframe.
-  if (trace_config_->compress_from_cli() &&
-      trace_config_->compression_type() ==
-          TraceConfig::COMPRESSION_TYPE_DEFLATE) {
-    if (packet_writer_) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-      packet_writer_ = CreateZipPacketWriter(std::move(packet_writer_));
-#else
-      PERFETTO_ELOG("Cannot compress. Zlib not enabled in the build config");
-#endif
-    } else {
-      PERFETTO_ELOG("Cannot compress when tracing directly to file.");
-    }
+      packet_writer_.emplace(trace_out_stream_.get());
   }
 
   bool will_trace_indefinitely =
@@ -1055,7 +1053,7 @@ void PerfettoCmd::OnConnect() {
 
   if (query_service_) {
     consumer_endpoint_->QueryServiceState(
-        [this](bool success, const TracingServiceState& svc_state) {
+        {}, [this](bool success, const TracingServiceState& svc_state) {
           PrintServiceState(success, svc_state);
           fflush(stdout);
           exit(success ? 0 : 1);
@@ -1071,7 +1069,9 @@ void PerfettoCmd::OnConnect() {
   if (clone_tsid_.has_value()) {
     task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnTimeout, this),
                                  kCloneTimeoutMs);
-    consumer_endpoint_->CloneSession(*clone_tsid_);
+    ConsumerEndpoint::CloneSessionArgs args;
+    args.skip_trace_filter = clone_skip_filter_;
+    consumer_endpoint_->CloneSession(*clone_tsid_, std::move(args));
     return;
   }
 
@@ -1155,6 +1155,7 @@ void PerfettoCmd::CheckTraceDataTimeout() {
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   trace_data_timeout_armed_ = false;
 
+  PERFETTO_CHECK(packet_writer_.has_value());
   if (!packet_writer_->WritePackets(packets)) {
     PERFETTO_ELOG("Failed to write packets");
     FinalizeTraceAndExit();

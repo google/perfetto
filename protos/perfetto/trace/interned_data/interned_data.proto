@@ -17,6 +17,7 @@
 syntax = "proto2";
 
 import "protos/perfetto/trace/android/network_trace.proto";
+import "protos/perfetto/trace/chrome/v8.proto";
 import "protos/perfetto/trace/gpu/gpu_render_stage_event.proto";
 import "protos/perfetto/trace/track_event/chrome_histogram_sample.proto";
 import "protos/perfetto/trace/track_event/debug_annotation.proto";
@@ -54,7 +55,7 @@ package perfetto.protos;
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 31.
+// Next id: 36.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -116,4 +117,22 @@ message InternedData {
 
   // Interned packet context for android.network_packets.
   repeated NetworkPacketContext packet_context = 30;
+
+  // Interned name of a js function. We only intern js functions as there is a
+  // lot of duplication for them, but less so for other strings in the V8 data
+  // source.
+  repeated InternedV8String v8_js_function_name = 31;
+  // Js functions can be emitted multiple times for various compilation tiers,
+  // so it makes sense to deduplicate all this.
+  repeated InternedV8JsFunction v8_js_function = 32;
+  // Interned JS script (there is one associated with each JS function)
+  repeated InternedV8JsScript v8_js_script = 33;
+  // Interned Wasm script (there is one associated with each Wasm function)
+  repeated InternedV8WasmScript v8_wasm_script = 34;
+  // Every V8 event is associated with an isolate, intern the isolate to remove
+  // duplication.
+  repeated InternedV8Isolate v8_isolate = 35;
+
+  // Interned protolog strings args.
+  repeated InternedString protolog_string_args = 36;
 }

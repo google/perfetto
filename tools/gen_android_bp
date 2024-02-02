@@ -124,6 +124,9 @@ proto_groups = {
         '//protos/perfetto/trace:non_minimal_source_set',
         '//protos/perfetto/trace:minimal_source_set'
     ],
+    'config': [
+        '//protos/perfetto/config:source_set',
+    ],
 }
 
 needs_libfts = [

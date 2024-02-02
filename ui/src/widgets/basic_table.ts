@@ -28,10 +28,10 @@ export interface TableAttrs<T> {
 export class BasicTable implements m.ClassComponent<TableAttrs<any>> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   renderColumnHeader(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      _vnode: m.Vnode<TableAttrs<any>>,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      column: ColumnDescriptor<any>): m.Children {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    _vnode: m.Vnode<TableAttrs<any>>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    column: ColumnDescriptor<any>): m.Children {
     return m('td', column.title);
   }
 
@@ -40,22 +40,22 @@ export class BasicTable implements m.ClassComponent<TableAttrs<any>> {
     const attrs = vnode.attrs;
 
     return m(
-        'table.generic-table',
-        {
-          // TODO(altimin, stevegolton): this should be the default for
-          // generic-table, but currently it is overriden by
-          // .pf-details-shell .pf-content table, so specify this here for now.
-          style: {
-            'table-layout': 'auto',
-          },
+      'table.generic-table',
+      {
+        // TODO(altimin, stevegolton): this should be the default for
+        // generic-table, but currently it is overriden by
+        // .pf-details-shell .pf-content table, so specify this here for now.
+        style: {
+          'table-layout': 'auto',
         },
-        m('thead',
-          m('tr.header',
-            attrs.columns.map(
-                (column) => this.renderColumnHeader(vnode, column)))),
-        attrs.data.map(
-            (row) =>
-                m('tr',
-                  attrs.columns.map((column) => m('td', column.render(row))))));
+      },
+      m('thead',
+        m('tr.header',
+          attrs.columns.map(
+            (column) => this.renderColumnHeader(vnode, column)))),
+      attrs.data.map(
+        (row) =>
+          m('tr',
+            attrs.columns.map((column) => m('td', column.render(row))))));
   }
 }

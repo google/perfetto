@@ -82,7 +82,7 @@ export class OverviewTimelinePanel implements Panel {
   oncreate(vnode: m.CVnodeDOM) {
     this.onupdate(vnode);
     (vnode.dom as HTMLElement)
-        .addEventListener('mousemove', this.boundOnMouseMove);
+      .addEventListener('mousemove', this.boundOnMouseMove);
   }
 
   onremove({dom}: m.CVnodeDOM) {
@@ -91,7 +91,7 @@ export class OverviewTimelinePanel implements Panel {
       this.gesture = undefined;
     }
     (dom as HTMLElement)
-        .removeEventListener('mousemove', this.boundOnMouseMove);
+      .removeEventListener('mousemove', this.boundOnMouseMove);
   }
 
   get mithril(): m.Children {
@@ -163,10 +163,10 @@ export class OverviewTimelinePanel implements Panel {
 
     ctx.fillStyle = OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
     ctx.fillRect(
-        TRACK_SHELL_WIDTH - 1,
-        headerHeight,
-        vizStartPx - TRACK_SHELL_WIDTH,
-        tracksHeight);
+      TRACK_SHELL_WIDTH - 1,
+      headerHeight,
+      vizStartPx - TRACK_SHELL_WIDTH,
+      tracksHeight);
     ctx.fillRect(vizEndPx, headerHeight, this.width - vizEndPx, tracksHeight);
 
     // Draw brushes.
@@ -178,15 +178,15 @@ export class OverviewTimelinePanel implements Panel {
     const hbarHeight = tracksHeight * 0.4;
     // Draw handlebar
     ctx.fillRect(
-        vizStartPx - Math.floor(hbarWidth / 2) - 1,
-        headerHeight,
-        hbarWidth,
-        hbarHeight);
+      vizStartPx - Math.floor(hbarWidth / 2) - 1,
+      headerHeight,
+      hbarWidth,
+      hbarHeight);
     ctx.fillRect(
-        vizEndPx - Math.floor(hbarWidth / 2),
-        headerHeight,
-        hbarWidth,
-        hbarHeight);
+      vizEndPx - Math.floor(hbarWidth / 2),
+      headerHeight,
+      hbarWidth,
+      hbarHeight);
   }
 
   private onMouseMove(e: MouseEvent) {
@@ -250,30 +250,31 @@ export class OverviewTimelinePanel implements Panel {
 
 // Print a timestamp in the configured time format
 function renderTimestamp(
-    ctx: CanvasRenderingContext2D,
-    time: time,
-    x: number,
-    y: number,
-    minWidth: number,
-    ): void {
+  ctx: CanvasRenderingContext2D,
+  time: time,
+  x: number,
+  y: number,
+  minWidth: number,
+): void {
   const fmt = timestampFormat();
   switch (fmt) {
-    case TimestampFormat.UTC:
-    case TimestampFormat.Timecode:
-      renderTimecode(ctx, time, x, y, minWidth);
-      break;
-    case TimestampFormat.Raw:
-      ctx.fillText(time.toString(), x, y, minWidth);
-      break;
-    case TimestampFormat.RawLocale:
-      ctx.fillText(time.toLocaleString(), x, y, minWidth);
-      break;
-    case TimestampFormat.Seconds:
-      ctx.fillText(Time.formatSeconds(time), x, y, minWidth);
-      break;
-    default:
-      const z: never = fmt;
-      throw new Error(`Invalid timestamp ${z}`);
+  case TimestampFormat.UTC:
+  case TimestampFormat.TraceTz:
+  case TimestampFormat.Timecode:
+    renderTimecode(ctx, time, x, y, minWidth);
+    break;
+  case TimestampFormat.Raw:
+    ctx.fillText(time.toString(), x, y, minWidth);
+    break;
+  case TimestampFormat.RawLocale:
+    ctx.fillText(time.toLocaleString(), x, y, minWidth);
+    break;
+  case TimestampFormat.Seconds:
+    ctx.fillText(Time.formatSeconds(time), x, y, minWidth);
+    break;
+  default:
+    const z: never = fmt;
+    throw new Error(`Invalid timestamp ${z}`);
   }
 }
 
@@ -281,12 +282,12 @@ function renderTimestamp(
 // DdHH:MM:SS
 // mmm uuu nnn
 function renderTimecode(
-    ctx: CanvasRenderingContext2D,
-    time: time,
-    x: number,
-    y: number,
-    minWidth: number,
-    ): void {
+  ctx: CanvasRenderingContext2D,
+  time: time,
+  x: number,
+  y: number,
+  minWidth: number,
+): void {
   const timecode = Time.toTimecode(time);
   const {dhhmmss} = timecode;
   ctx.fillText(dhhmmss, x, y, minWidth);

@@ -67,12 +67,12 @@ interface Data {
 }
 
 async function getSliceDetails(
-    engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {
+  engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {
   return getSlice(engine, asSliceSqlId(id));
 }
 
 export class ScrollJankV3DetailsPanel extends
-    BottomTab<GenericSliceDetailsTabConfig> {
+  BottomTab<GenericSliceDetailsTabConfig> {
   static readonly kind = 'org.perfetto.ScrollJankV3DetailsPanel';
   data: Data|undefined;
   loaded = false;
@@ -98,11 +98,12 @@ export class ScrollJankV3DetailsPanel extends
   // slice. Does not apply to all causes.
   private subcauseSliceDetails?: EventLatencySlice;
 
-  static create(args: NewBottomTabArgs): ScrollJankV3DetailsPanel {
+  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
+      ScrollJankV3DetailsPanel {
     return new ScrollJankV3DetailsPanel(args);
   }
 
-  constructor(args: NewBottomTabArgs) {
+  constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
     this.loadData();
   }
@@ -176,12 +177,12 @@ export class ScrollJankV3DetailsPanel extends
 
       if (this.hasCause()) {
         this.causeSliceDetails = await getEventLatencyDescendantSlice(
-            this.engine, this.data.eventLatencyId, this.data.jankCause);
+          this.engine, this.data.eventLatencyId, this.data.jankCause);
       }
 
       if (this.hasSubcause()) {
         this.subcauseSliceDetails = await getEventLatencyDescendantSlice(
-            this.engine, this.data.eventLatencyId, this.data.jankSubcause);
+          this.engine, this.data.eventLatencyId, this.data.jankSubcause);
       }
     }
   }
@@ -240,15 +241,15 @@ export class ScrollJankV3DetailsPanel extends
 
   private getDescriptionText(): m.Child {
     return m(
-        MultiParagraphText,
-        m(TextParagraph, {
-          text: `Delay between when the frame was expected to be presented and
+      MultiParagraphText,
+      m(TextParagraph, {
+        text: `Delay between when the frame was expected to be presented and
                  when it was actually presented.`,
-        }),
-        m(TextParagraph, {
-          text: `This is the period of time during which the user is viewing a
+      }),
+      m(TextParagraph, {
+        text: `This is the period of time during which the user is viewing a
                  frame that isn't correct.`,
-        }));
+      }));
   }
 
   private getLinksSection(): m.Child[] {
@@ -256,28 +257,28 @@ export class ScrollJankV3DetailsPanel extends
 
     if (exists(this.sliceDetails) && exists(this.data)) {
       result['Janked Event Latency stage'] = exists(this.causeSliceDetails) ?
-          getSliceForTrack(
-              this.causeSliceDetails,
-              EventLatencyTrack.kind,
-              this.data.jankCause) :
-          sqlValueToString(this.data.jankCause);
+        getSliceForTrack(
+          this.causeSliceDetails,
+          EventLatencyTrack.kind,
+          this.data.jankCause) :
+        sqlValueToString(this.data.jankCause);
 
       if (this.hasSubcause()) {
         result['Sub-cause of Jank'] = exists(this.subcauseSliceDetails) ?
-            getSliceForTrack(
-                this.subcauseSliceDetails,
-                EventLatencyTrack.kind,
-                this.data.jankSubcause) :
-            sqlValueToString(this.data.jankSubcause);
+          getSliceForTrack(
+            this.subcauseSliceDetails,
+            EventLatencyTrack.kind,
+            this.data.jankSubcause) :
+          sqlValueToString(this.data.jankSubcause);
       }
 
       const children = dictToTreeNodes(result);
       if (exists(this.eventLatencySliceDetails)) {
         children.unshift(m(TreeNode, {
           left: getSliceForTrack(
-              this.eventLatencySliceDetails,
-              EventLatencyTrack.kind,
-              'Input EventLatency in context of ScrollUpdates'),
+            this.eventLatencySliceDetails,
+            EventLatencyTrack.kind,
+            'Input EventLatency in context of ScrollUpdates'),
           right: '',
         }));
       } else {
@@ -298,30 +299,30 @@ export class ScrollJankV3DetailsPanel extends
     const details = this.renderDetailsDictionary();
 
     return m(
-        DetailsShell,
-        {
-          title: this.getTitle(),
-        },
-        m(GridLayout,
+      DetailsShell,
+      {
+        title: this.getTitle(),
+      },
+      m(GridLayout,
+        m(
+          GridLayoutColumn,
           m(
-              GridLayoutColumn,
-              m(
-                  Section,
-                  {title: 'Details'},
-                  m(Tree, details),
-                  ),
-              ),
-          m(GridLayoutColumn,
-            m(
-                Section,
-                {title: 'Description'},
-                this.getDescriptionText(),
-                ),
-            m(
-                Section,
-                {title: 'Jank Cause'},
-                m(Tree, this.getLinksSection()),
-                ))),
+            Section,
+            {title: 'Details'},
+            m(Tree, details),
+          ),
+        ),
+        m(GridLayoutColumn,
+          m(
+            Section,
+            {title: 'Description'},
+            this.getDescriptionText(),
+          ),
+          m(
+            Section,
+            {title: 'Jank Cause'},
+            m(Tree, this.getLinksSection()),
+          ))),
     );
   }
 

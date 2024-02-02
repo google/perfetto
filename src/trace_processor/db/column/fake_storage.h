@@ -17,9 +17,13 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_FAKE_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_FAKE_STORAGE_H_
 
+#include <cstdint>
 #include <memory>
+#include <string>
+#include <utility>
+
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 
@@ -33,15 +37,11 @@ class FakeStorage final : public Column {
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
 
-  RangeOrBitVector Search(FilterOp op,
-                          SqlValue value,
-                          Range range) const override;
+  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
 
-  RangeOrBitVector IndexSearch(FilterOp op,
-                               SqlValue value,
-                               uint32_t* indices,
-                               uint32_t indices_count,
-                               bool sorted) const override;
+  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+
+  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
 
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
@@ -85,6 +85,8 @@ class FakeStorage final : public Column {
   }
 
   uint32_t size() const override { return size_; }
+
+  std::string DebugString() const override { return "FakeStorage"; }
 
  private:
   enum SearchStrategy { kNone, kAll, kRange, kBitVector };

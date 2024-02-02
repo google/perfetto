@@ -17,25 +17,33 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 
 #include <cctype>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/db/runtime_table.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -181,9 +189,10 @@ PerfettoSqlEngine::~PerfettoSqlEngine() {
 }
 
 void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
-                                            const std::string& table_name) {
-  auto context =
-      std::make_unique<DbSqliteTable::Context>(query_cache_.get(), &table);
+                                            const std::string& table_name,
+                                            Table::Schema schema) {
+  auto context = std::make_unique<DbSqliteTable::Context>(
+      query_cache_.get(), &table, std::move(schema));
   static_tables_.Insert(table_name, &table);
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
       table_name, std::move(context), SqliteTable::kEponymousOnly, false);
@@ -403,7 +412,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
                                       "CREATE PERFETTO TABLE"));
 
   size_t column_count = column_names.size();
-  auto table = std::make_unique<RuntimeTable>(pool_, std::move(column_names));
+  RuntimeTable::Builder builder(pool_, std::move(column_names));
   uint32_t rows = 0;
   int res;
   for (res = sqlite3_step(stmt.sqlite_stmt()); res == SQLITE_ROW;
@@ -412,18 +421,18 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
       int int_i = static_cast<int>(i);
       switch (sqlite3_column_type(stmt.sqlite_stmt(), int_i)) {
         case SQLITE_NULL:
-          RETURN_IF_ERROR(table->AddNull(i));
+          RETURN_IF_ERROR(builder.AddNull(i));
           break;
         case SQLITE_INTEGER:
-          RETURN_IF_ERROR(table->AddInteger(
+          RETURN_IF_ERROR(builder.AddInteger(
               i, sqlite3_column_int64(stmt.sqlite_stmt(), int_i)));
           break;
         case SQLITE_FLOAT:
-          RETURN_IF_ERROR(table->AddFloat(
+          RETURN_IF_ERROR(builder.AddFloat(
               i, sqlite3_column_double(stmt.sqlite_stmt(), int_i)));
           break;
         case SQLITE_TEXT: {
-          RETURN_IF_ERROR(table->AddText(
+          RETURN_IF_ERROR(builder.AddText(
               i, reinterpret_cast<const char*>(
                      sqlite3_column_text(stmt.sqlite_stmt(), int_i))));
           break;
@@ -442,7 +451,7 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
                            create_table.name.c_str(),
                            sqlite3_errmsg(engine_->db()));
   }
-  RETURN_IF_ERROR(table->AddColumnsAndOverlays(rows));
+  ASSIGN_OR_RETURN(auto table, std::move(builder).Build(rows));
 
   if (runtime_tables_.Find(create_table.name)) {
     if (!create_table.replace) {
@@ -837,19 +846,13 @@ base::Status PerfettoSqlEngine::ValidateColumnNames(
 const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(
     std::string_view name) const {
   auto table_ptr = runtime_tables_.Find(name.data());
-  if (!table_ptr) {
-    return nullptr;
-  }
-  return table_ptr->get();
+  return table_ptr ? table_ptr->get() : nullptr;
 }
 
 const Table* PerfettoSqlEngine::GetStaticTableOrNull(
     std::string_view name) const {
   auto table_ptr = static_tables_.Find(name.data());
-  if (!table_ptr) {
-    return nullptr;
-  }
-  return *table_ptr;
+  return table_ptr ? *table_ptr : nullptr;
 }
 
 }  // namespace trace_processor

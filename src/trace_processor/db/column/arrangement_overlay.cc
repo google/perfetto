@@ -22,6 +22,7 @@
 
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto {
@@ -30,8 +31,15 @@ namespace column {
 namespace {}  // namespace
 
 ArrangementOverlay::ArrangementOverlay(std::unique_ptr<Column> inner,
-                                       const std::vector<uint32_t>* arrangement)
-    : inner_(std::move(inner)), arrangement_(arrangement) {
+                                       const std::vector<uint32_t>* arrangement,
+                                       bool does_arrangement_order_storage)
+    : inner_(std::move(inner)),
+      arrangement_(arrangement),
+      arrangement_state_(
+          std::is_sorted(arrangement->begin(), arrangement->end())
+              ? Indices::State::kMonotonic
+              : Indices::State::kNonmonotonic),
+      does_arrangement_order_storage_(does_arrangement_order_storage) {
   PERFETTO_DCHECK(*std::max_element(arrangement->begin(), arrangement->end()) <=
                   inner_->size());
 }
@@ -46,6 +54,17 @@ RangeOrBitVector ArrangementOverlay::Search(FilterOp op,
                                             SqlValue sql_val,
                                             Range in) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "ArrangementOverlay::Search");
+
+  if (does_arrangement_order_storage_ && op != FilterOp::kGlob &&
+      op != FilterOp::kRegex) {
+    Range inner_res =
+        inner_->OrderedIndexSearch(op, sql_val,
+                                   Indices{arrangement_->data() + in.start,
+                                           in.size(), arrangement_state_});
+
+    return RangeOrBitVector(
+        Range(inner_res.start + in.start, inner_res.end + in.start));
+  }
 
   const auto& arrangement = *arrangement_;
   PERFETTO_DCHECK(in.end <= arrangement.size());
@@ -93,17 +112,28 @@ RangeOrBitVector ArrangementOverlay::Search(FilterOp op,
 
 RangeOrBitVector ArrangementOverlay::IndexSearch(FilterOp op,
                                                  SqlValue sql_val,
-                                                 uint32_t* indices,
-                                                 uint32_t indices_size,
-                                                 bool sorted) const {
+                                                 Indices indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "ArrangementOverlay::IndexSearch");
 
-  std::vector<uint32_t> storage_iv;
-  for (uint32_t* it = indices; it != indices + indices_size; ++it) {
-    storage_iv.push_back((*arrangement_)[*it]);
+  std::vector<uint32_t> storage_iv(indices.size);
+  // Should be SIMD optimized.
+  for (uint32_t i = 0; i < indices.size; ++i) {
+    storage_iv[i] = (*arrangement_)[indices.data[i]];
   }
-  return inner_->IndexSearch(op, sql_val, storage_iv.data(),
-                             static_cast<uint32_t>(storage_iv.size()), sorted);
+
+  // If both the arrangment passed indices are monotonic, we know that this
+  // state was not lost.
+  if (indices.state == Indices::State::kMonotonic) {
+    return inner_->IndexSearch(
+        op, sql_val,
+        Indices{storage_iv.data(), static_cast<uint32_t>(storage_iv.size()),
+                arrangement_state_});
+  }
+
+  return inner_->IndexSearch(
+      op, sql_val,
+      Indices{storage_iv.data(), static_cast<uint32_t>(storage_iv.size()),
+              Indices::State::kNonmonotonic});
 }
 
 void ArrangementOverlay::StableSort(uint32_t*, uint32_t) const {

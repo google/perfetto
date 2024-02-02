@@ -15,12 +15,17 @@
  */
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
+#include <memory>
 
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/base/test/status_matchers.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 TEST(Ancestor, SliceTableNullConstraint) {
@@ -33,12 +38,10 @@ TEST(Ancestor, SliceTableNullConstraint) {
 
   // Check that if we pass start_id = NULL as a constraint, we correctly return
   // an empty table.
-  std::unique_ptr<Table> res;
-  Constraint c{tables::AncestorSliceTable::ColumnIndex::start_id, FilterOp::kEq,
-               SqlValue()};
-  base::Status status = generator.ComputeTable({c}, {}, BitVector(), res);
-  ASSERT_TRUE(status.ok());
-  ASSERT_EQ(res->row_count(), 0u);
+  base::StatusOr<std::unique_ptr<Table>> res =
+      generator.ComputeTable({SqlValue()});
+  ASSERT_OK(res);
+  ASSERT_EQ(res->get()->row_count(), 0u);
 }
 
 TEST(Ancestor, CallsiteTableNullConstraint) {
@@ -51,12 +54,10 @@ TEST(Ancestor, CallsiteTableNullConstraint) {
 
   // Check that if we pass start_id = NULL as a constraint, we correctly return
   // an empty table.
-  std::unique_ptr<Table> res;
-  Constraint c{tables::AncestorStackProfileCallsiteTable::ColumnIndex::start_id,
-               FilterOp::kEq, SqlValue()};
-  base::Status status = generator.ComputeTable({c}, {}, BitVector(), res);
-  ASSERT_TRUE(status.ok());
-  ASSERT_EQ(res->row_count(), 0u);
+  base::StatusOr<std::unique_ptr<Table>> res =
+      generator.ComputeTable({SqlValue()});
+  ASSERT_OK(res);
+  ASSERT_EQ(res->get()->row_count(), 0u);
 }
 
 TEST(Ancestor, SliceByStackTableNullConstraint) {
@@ -69,14 +70,11 @@ TEST(Ancestor, SliceByStackTableNullConstraint) {
 
   // Check that if we pass start_id = NULL as a constraint, we correctly return
   // an empty table.
-  std::unique_ptr<Table> res;
-  Constraint c{tables::AncestorSliceTable::ColumnIndex::start_id, FilterOp::kEq,
-               SqlValue()};
-  base::Status status = generator.ComputeTable({c}, {}, BitVector(), res);
-  ASSERT_TRUE(status.ok());
-  ASSERT_EQ(res->row_count(), 0u);
+  base::StatusOr<std::unique_ptr<Table>> res =
+      generator.ComputeTable({SqlValue()});
+  ASSERT_OK(res);
+  ASSERT_EQ(res->get()->row_count(), 0u);
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

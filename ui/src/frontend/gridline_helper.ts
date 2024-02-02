@@ -103,15 +103,15 @@ function tickPatternToArray(pattern: string): TickType[] {
   const array = Array.from(pattern);
   return array.map((char) => {
     switch (char) {
-      case '|':
-        return TickType.MAJOR;
-      case ':':
-        return TickType.MEDIUM;
-      case '.':
-        return TickType.MINOR;
-      default:
-        // This is almost certainly a developer/fat-finger error
-        throw Error(`Invalid char "${char}" in pattern "${pattern}"`);
+    case '|':
+      return TickType.MAJOR;
+    case ':':
+      return TickType.MEDIUM;
+    case '.':
+      return TickType.MINOR;
+    default:
+      // This is almost certainly a developer/fat-finger error
+      throw Error(`Invalid char "${char}" in pattern "${pattern}"`);
     }
   });
 }
@@ -140,8 +140,8 @@ export class TickGenerator implements Iterable<Tick> {
   private _offset: time;
 
   constructor(
-      timeSpan: Span<time, duration>, maxMajorTicks: number,
-      offset: time = Time.ZERO) {
+    timeSpan: Span<time, duration>, maxMajorTicks: number,
+    offset: time = Time.ZERO) {
     assertTrue(timeSpan.duration > 0n, 'timeSpan.duration cannot be lte 0');
     assertTrue(maxMajorTicks > 0, 'maxMajorTicks cannot be lte 0');
 
@@ -165,7 +165,7 @@ export class TickGenerator implements Iterable<Tick> {
     let patternIndex = 0;
 
     for (let time = start; time < end;
-         time = Time.add(time, stepSize), patternIndex++) {
+      time = Time.add(time, stepSize), patternIndex++) {
       if (time >= this._timeSpan.start) {
         patternIndex = patternIndex % this._tickPattern.length;
         const type = this._tickPattern[patternIndex];
@@ -177,14 +177,14 @@ export class TickGenerator implements Iterable<Tick> {
 
 // Gets the timescale associated with the current visible window.
 export function timeScaleForVisibleWindow(
-    startPx: number, endPx: number): TimeScale {
+  startPx: number, endPx: number): TimeScale {
   return globals.timeline.getTimeScale(startPx, endPx);
 }
 
 export function drawGridLines(
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number): void {
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number): void {
   ctx.strokeStyle = TRACK_BORDER_COLOR;
   ctx.lineWidth = 1;
 

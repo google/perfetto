@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/db/column/dummy_storage.h"
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
+#include "src/trace_processor/db/column/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -30,11 +31,11 @@ RangeOrBitVector DummyStorage::Search(FilterOp, SqlValue, Range) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 
-RangeOrBitVector DummyStorage::IndexSearch(FilterOp,
-                                           SqlValue,
-                                           uint32_t*,
-                                           uint32_t,
-                                           bool) const {
+RangeOrBitVector DummyStorage::IndexSearch(FilterOp, SqlValue, Indices) const {
+  PERFETTO_FATAL("Shouldn't be called");
+}
+
+Range DummyStorage::OrderedIndexSearch(FilterOp, SqlValue, Indices) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 

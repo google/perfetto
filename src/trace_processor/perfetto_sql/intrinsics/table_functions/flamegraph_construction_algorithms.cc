@@ -39,7 +39,7 @@ struct MergedCallsite {
 };
 
 struct FlamegraphTableAndMergedCallsites {
-  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl;
+  std::unique_ptr<tables::ExperimentalFlamegraphTable> tbl;
   std::vector<uint32_t> callsite_to_merged_callsite;
 };
 
@@ -101,9 +101,8 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
                                                     0);
   std::map<MergedCallsite, uint32_t> merged_callsites_to_table_idx;
 
-  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl(
-      new tables::ExperimentalFlamegraphNodesTable(
-          storage->mutable_string_pool()));
+  std::unique_ptr<tables::ExperimentalFlamegraphTable> tbl(
+      new tables::ExperimentalFlamegraphTable(storage->mutable_string_pool()));
 
   // FORWARD PASS:
   // Aggregate callstacks by frame name / mapping name. Use symbolization
@@ -129,7 +128,7 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
       if (it == merged_callsites_to_table_idx.end()) {
         std::tie(it, std::ignore) = merged_callsites_to_table_idx.emplace(
             merged_callsite, merged_callsites_to_table_idx.size());
-        tables::ExperimentalFlamegraphNodesTable::Row row{};
+        tables::ExperimentalFlamegraphTable::Row row{};
         if (parent_idx) {
           row.depth = tbl->depth()[*parent_idx] + 1;
           row.parent_id = tbl->id()[*parent_idx];
@@ -140,10 +139,14 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
 
         // The 'ts' column is given a default value, taken from the query.
         // So if the query is:
-        // `select * form experimental_flamegraph
-        //  where ts = 605908369259172
-        //  and upid = 1
-        //  and profile_type = 'native'`
+        // `select * from experimental_flamegraph(
+        //   'native',
+        //   605908369259172,
+        //   NULL,
+        //   1,
+        //   NULL,
+        //   NULL
+        // )`
         // then row.ts == 605908369259172, for all rows
         // This is not accurate. However, at present there is no other
         // straightforward way of assigning timestamps to non-leaf nodes in the
@@ -195,9 +198,9 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
   return {std::move(tbl), callsite_to_merged_callsite};
 }
 
-static std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
+static std::unique_ptr<tables::ExperimentalFlamegraphTable>
 BuildFlamegraphTableHeapSizeAndCount(
-    std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl,
+    std::unique_ptr<tables::ExperimentalFlamegraphTable> tbl,
     const std::vector<uint32_t>& callsite_to_merged_callsite,
     const Table& filtered) {
   for (auto it = filtered.IterateRows(); it; it.Next()) {
@@ -252,8 +255,8 @@ BuildFlamegraphTableHeapSizeAndCount(
 
     auto parent = tbl->parent_id()[idx];
     if (parent) {
-      uint32_t parent_idx = *tbl->id().IndexOf(
-          tables::ExperimentalFlamegraphNodesTable::Id(*parent));
+      uint32_t parent_idx =
+          *tbl->id().IndexOf(tables::ExperimentalFlamegraphTable::Id(*parent));
       tbl->mutable_cumulative_size()->Set(
           parent_idx,
           tbl->cumulative_size()[parent_idx] + tbl->cumulative_size()[idx]);
@@ -273,9 +276,9 @@ BuildFlamegraphTableHeapSizeAndCount(
   return tbl;
 }
 
-static std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
+static std::unique_ptr<tables::ExperimentalFlamegraphTable>
 BuildFlamegraphTableCallstackSizeAndCount(
-    std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl,
+    std::unique_ptr<tables::ExperimentalFlamegraphTable> tbl,
     const std::vector<uint32_t>& callsite_to_merged_callsite,
     const Table& filtered) {
   for (auto it = filtered.IterateRows(); it; it.Next()) {
@@ -306,8 +309,8 @@ BuildFlamegraphTableCallstackSizeAndCount(
 
     auto parent = tbl->parent_id()[idx];
     if (parent) {
-      uint32_t parent_idx = *tbl->id().IndexOf(
-          tables::ExperimentalFlamegraphNodesTable::Id(*parent));
+      uint32_t parent_idx =
+          *tbl->id().IndexOf(tables::ExperimentalFlamegraphTable::Id(*parent));
       tbl->mutable_cumulative_size()->Set(
           parent_idx,
           tbl->cumulative_size()[parent_idx] + tbl->cumulative_size()[idx]);
@@ -319,10 +322,10 @@ BuildFlamegraphTableCallstackSizeAndCount(
   return tbl;
 }
 
-std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
-BuildHeapProfileFlamegraph(TraceStorage* storage,
-                           UniquePid upid,
-                           int64_t timestamp) {
+std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildHeapProfileFlamegraph(
+    TraceStorage* storage,
+    UniquePid upid,
+    int64_t timestamp) {
   const tables::HeapProfileAllocationTable& allocation_tbl =
       storage->heap_profile_allocation_table();
   // PASS OVER ALLOCATIONS:
@@ -341,7 +344,7 @@ BuildHeapProfileFlamegraph(TraceStorage* storage,
       table_and_callsites.callsite_to_merged_callsite, filtered);
 }
 
-std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
+std::unique_ptr<tables::ExperimentalFlamegraphTable>
 BuildNativeCallStackSamplingFlamegraph(
     TraceStorage* storage,
     std::optional<UniquePid> upid,
@@ -402,8 +405,8 @@ BuildNativeCallStackSamplingFlamegraph(
     filtered = filtered.Filter({cs});
   }
   if (filtered.row_count() == 0) {
-    std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> empty_tbl(
-        new tables::ExperimentalFlamegraphNodesTable(
+    std::unique_ptr<tables::ExperimentalFlamegraphTable> empty_tbl(
+        new tables::ExperimentalFlamegraphTable(
             storage->mutable_string_pool()));
     return empty_tbl;
   }
@@ -412,7 +415,7 @@ BuildNativeCallStackSamplingFlamegraph(
   // frames which do not have a timestamp. The timestamp is taken from the query
   // value and it's not meaningful for the row. It prevents however the rows
   // with no timestamp from being filtered out by Sqlite, after we create the
-  // table ExperimentalFlamegraphNodesTable in this class.
+  // table ExperimentalFlamegraphTable in this class.
   int64_t default_timestamp = 0;
   if (!time_constraints.empty()) {
     auto& tc = time_constraints[0];

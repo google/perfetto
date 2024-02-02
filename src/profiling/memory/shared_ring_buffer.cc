@@ -98,8 +98,9 @@ SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
 }
 
 SharedRingBuffer::~SharedRingBuffer() {
-  static_assert(std::is_trivially_constructible<MetadataPage>::value,
-                "MetadataPage must be trivially constructible");
+  // MetadataPage is not trivially constructible because it contains a Spinlock,
+  // which contains std::atomic, which is no longer trivially constructible
+  // after wg21.link/p0883r2 changed std::atomic() to do value-initialization.
   static_assert(std::is_trivially_destructible<MetadataPage>::value,
                 "MetadataPage must be trivially destructible");
 

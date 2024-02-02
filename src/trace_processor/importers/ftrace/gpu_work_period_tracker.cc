@@ -31,7 +31,7 @@ namespace trace_processor {
 
 GpuWorkPeriodTracker::GpuWorkPeriodTracker(TraceProcessorContext* context)
     : context_(context),
-      gpu_work_period_id_(context->storage->InternString("gpu_work_period")) {}
+      gpu_work_period_id_(context->storage->InternString("GPU Work Period")) {}
 
 void GpuWorkPeriodTracker::ParseGpuWorkPeriodEvent(int64_t timestamp,
                                                    protozero::ConstBytes blob) {

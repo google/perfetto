@@ -16,45 +16,51 @@
 
 #include "src/trace_processor/db/runtime_table.h"
 
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "src/base/test/status_matchers.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
+using base::gtest_matchers::IsOk;
+using testing::Not;
 
 class RuntimeTableTest : public ::testing::Test {
  protected:
   StringPool pool_;
   std::vector<std::string> names_{{"foo"}};
-  RuntimeTable table_{&pool_, names_};
+  RuntimeTable::Builder builder_{&pool_, names_};
 };
 
 TEST_F(RuntimeTableTest, DoubleThenIntValid) {
-  ASSERT_TRUE(table_.AddFloat(0, 1024.3).ok());
-  ASSERT_TRUE(table_.AddInteger(0, 1ll << 53).ok());
-  ASSERT_TRUE(table_.AddColumnsAndOverlays(2).ok());
+  ASSERT_OK(builder_.AddFloat(0, 1024.3));
+  ASSERT_OK(builder_.AddInteger(0, 1ll << 53));
+  ASSERT_OK_AND_ASSIGN(auto table, std::move(builder_).Build(2));
 
-  const auto& col = table_.columns()[0];
+  const auto& col = table->columns()[0];
   ASSERT_EQ(col.Get(0).AsDouble(), 1024.3);
   ASSERT_EQ(col.Get(1).AsDouble(), static_cast<double>(1ll << 53));
 }
 
 TEST_F(RuntimeTableTest, DoubleThenIntInvalid) {
-  ASSERT_TRUE(table_.AddFloat(0, 1024.0).ok());
-  ASSERT_FALSE(table_.AddInteger(0, (1ll << 53) + 1).ok());
-  ASSERT_FALSE(table_.AddInteger(0, -(1ll << 53) - 1).ok());
+  ASSERT_OK(builder_.AddFloat(0, 1024.0));
+  ASSERT_THAT(builder_.AddInteger(0, (1ll << 53) + 1), Not(IsOk()));
+  ASSERT_THAT(builder_.AddInteger(0, -(1ll << 53) - 1), Not(IsOk()));
 }
 
 TEST_F(RuntimeTableTest, IntThenDouble) {
-  ASSERT_TRUE(table_.AddInteger(0, 1024).ok());
-  ASSERT_TRUE(table_.AddFloat(0, 1.3).ok());
-  ASSERT_TRUE(table_.AddColumnsAndOverlays(2).ok());
+  ASSERT_TRUE(builder_.AddInteger(0, 1024).ok());
+  ASSERT_TRUE(builder_.AddFloat(0, 1.3).ok());
+  ASSERT_OK_AND_ASSIGN(auto table, std::move(builder_).Build(2));
 
-  const auto& col = table_.columns()[0];
+  const auto& col = table->columns()[0];
   ASSERT_EQ(col.Get(0).AsDouble(), 1024.0);
   ASSERT_EQ(col.Get(1).AsDouble(), 1.3);
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -44,6 +44,7 @@ export class ChromeTargetFactory implements TargetFactory {
 
   init() {
     const testPort = chrome.runtime.connect(EXTENSION_ID);
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     this.isExtensionInstalled = !!testPort;
     testPort.disconnect();
 
@@ -58,7 +59,7 @@ export class ChromeTargetFactory implements TargetFactory {
 
   connectNewTarget(): Promise<RecordingTargetV2> {
     throw new RecordingError(
-        'Can not create a new Chrome target.' +
+      'Can not create a new Chrome target.' +
         'All Chrome targets are created at factory initialisation.');
   }
 
@@ -86,6 +87,7 @@ export class ChromeTargetFactory implements TargetFactory {
 }
 
 // We only instantiate the factory if Perfetto UI is open in the Chrome browser.
+// eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
 if (window.chrome && chrome.runtime) {
   targetFactoryRegistry.register(new ChromeTargetFactory());
 }

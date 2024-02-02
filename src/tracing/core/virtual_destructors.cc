@@ -20,6 +20,8 @@
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 
+#include "protos/perfetto/common/tracing_service_state.gen.h"
+
 // This translation unit contains the definitions for the destructor of pure
 // virtual interfaces for the current build target. The alternative would be
 // introducing a one-liner .cc file for each pure virtual interface, which is
@@ -37,7 +39,7 @@ SharedMemory::Factory::~Factory() = default;
 SharedMemoryArbiter::~SharedMemoryArbiter() = default;
 
 // TODO(primiano): make pure virtual after various 3way patches.
-void ConsumerEndpoint::CloneSession(TracingSessionID) {}
+void ConsumerEndpoint::CloneSession(TracingSessionID, CloneSessionArgs) {}
 void Consumer::OnSessionCloned(const OnSessionClonedArgs&) {}
 
 void ConsumerEndpoint::Flush(uint32_t, FlushCallback, FlushFlags) {
@@ -52,6 +54,15 @@ void ConsumerEndpoint::Flush(uint32_t timeout_ms, FlushCallback callback) {
   // This 2-arg version of Flush() is invoked by arctraceservice's
   // PerfettoClient::Flush().
   Flush(timeout_ms, std::move(callback), FlushFlags(0));
+}
+
+void ConsumerEndpoint::QueryServiceState(QueryServiceStateArgs,
+                                         QueryServiceStateCallback cb) {
+  cb(/*success=*/false, TracingServiceState());
+}
+
+void ConsumerEndpoint::QueryServiceState(QueryServiceStateCallback cb) {
+  QueryServiceState({}, std::move(cb));
 }
 
 }  // namespace perfetto

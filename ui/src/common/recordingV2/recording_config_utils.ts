@@ -15,6 +15,7 @@
 
 import {isString} from '../../base/object_utils';
 import {base64Encode} from '../../base/string_utils';
+import {exists} from '../../base/utils';
 import {RecordConfig} from '../../controller/record_config_types';
 import {
   AndroidLogConfig,
@@ -94,7 +95,7 @@ function enableCompactSched(androidApiLevel?: number): boolean {
 }
 
 export function genTraceConfig(
-    uiCfg: RecordConfig, targetInfo: TargetInfo): TraceConfig {
+  uiCfg: RecordConfig, targetInfo: TargetInfo): TraceConfig {
   const isAndroid = targetInfo.targetType === 'ANDROID';
   const androidApiLevel = isAndroid ? targetInfo.androidApiLevel : undefined;
   const protoCfg = new TraceConfig();
@@ -140,7 +141,7 @@ export function genTraceConfig(
   const chromeCategories = new Set<string>();
   uiCfg.chromeCategoriesSelected.forEach((it) => chromeCategories.add(it));
   uiCfg.chromeHighOverheadCategoriesSelected.forEach(
-      (it) => chromeCategories.add(it));
+    (it) => chromeCategories.add(it));
 
   let procThreadAssociationPolling = false;
   let procThreadAssociationFtrace = false;
@@ -496,6 +497,7 @@ export function genTraceConfig(
     addCategoryAndDisabledByDefault('scheduler');
     addCategoryAndDisabledByDefault('p2p');
     addCategoryAndDisabledByDefault('net');
+    chromeCategories.add('base');
   }
 
   if (uiCfg.video) {
@@ -694,7 +696,7 @@ export function genTraceConfig(
     }
 
     let ftraceEventsArray: string[] = [];
-    if (androidApiLevel && androidApiLevel === 28) {
+    if (exists(androidApiLevel) && androidApiLevel === 28) {
       for (const ftraceEvent of ftraceEvents) {
         // On P, we don't support groups so strip all group names from ftrace
         // events.
@@ -783,7 +785,7 @@ function toPbtxt(configBuffer: Uint8Array): string {
           yield ' '.repeat(indent) + '}';
         } else {
           throw new Error(`Record proto entry "${entry}" with unexpected type ${
-              typeof entry}`);
+            typeof entry}`);
         }
         yield '\n';
       }

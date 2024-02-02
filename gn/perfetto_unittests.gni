@@ -22,6 +22,7 @@ perfetto_unittests_targets = [
   "src/protozero:unittests",
   "src/shared_lib:unittests",
   "src/tracing/core:unittests",
+  "src/tracing/service:unittests",
   "src/tracing:unittests",
   "src/profiling:unittests",
   "src/profiling/symbolizer:unittests",
@@ -47,6 +48,7 @@ if (enable_perfetto_platform_services) {
   perfetto_unittests_targets += [
     "src/perfetto_cmd:unittests",
     "src/traced/service:unittests",
+    "src/kernel_utils:unittests",
   ]
   if (enable_perfetto_traced_probes) {
     perfetto_unittests_targets += [

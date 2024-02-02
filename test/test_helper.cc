@@ -20,8 +20,8 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
-#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
+#include "perfetto/tracing/default_socket.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -300,7 +300,7 @@ TracingServiceState TestHelper::QueryServiceStateAndWait() {
     res = tss;
     checkpoint();
   };
-  endpoint_->QueryServiceState(callback);
+  endpoint_->QueryServiceState({}, callback);
   RunUntilCheckpoint(checkpoint_name);
   return res;
 }

@@ -172,13 +172,13 @@ class FlagImpl implements Flag {
 
   get(): boolean {
     switch (this.state) {
-      case OverrideState.TRUE:
-        return true;
-      case OverrideState.FALSE:
-        return false;
-      case OverrideState.DEFAULT:
-      default:
-        return this.defaultValue;
+    case OverrideState.TRUE:
+      return true;
+    case OverrideState.FALSE:
+      return false;
+    case OverrideState.DEFAULT:
+    default:
+      return this.defaultValue;
     }
   }
 
@@ -242,5 +242,12 @@ export const RECORDING_V2_FLAG = featureFlags.register({
   id: 'recordingv2',
   name: 'Recording V2',
   description: 'Record using V2 interface',
+  defaultValue: false,
+});
+
+export const TABS_V2_FLAG = featureFlags.register({
+  id: 'tabsv2',
+  name: 'Tabs V2',
+  description: 'Use Tabs V2',
   defaultValue: false,
 });

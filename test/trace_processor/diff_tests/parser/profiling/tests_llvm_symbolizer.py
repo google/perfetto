@@ -34,45 +34,75 @@ class ProfilingLlvmSymbolizer(TestSuite):
         trace=DataPath('callstack_sampling.pftrace'),
         query="""
         SELECT ef.*
-        FROM experimental_flamegraph ef
-        JOIN process USING (upid)
+        FROM process
+        JOIN experimental_flamegraph(
+          'perf',
+          NULL,
+          '<=7689491063351',
+          process.upid,
+          NULL,
+          NULL
+        ) ef
         WHERE pid = 1728
-          AND profile_type = 'perf'
-          AND ts <= 7689491063351
         LIMIT 10;
         """,
-        out=Path('callstack_sampling_flamegraph.out'))
+        out=Csv('''
+          "id","type","ts","depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size","parent_id","source_file","line_number"
+          0,"experimental_flamegraph",7689491063351,0,"__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,560,0,560,0,0,0,0,"[NULL]","[NULL]","[NULL]"
+          1,"experimental_flamegraph",7689491063351,1,"_ZL15__pthread_startPv","/apex/com.android.runtime/lib64/bionic/libc.so",0,560,0,560,0,0,0,0,0,"[NULL]","[NULL]"
+          2,"experimental_flamegraph",7689491063351,2,"_ZN3art6Thread14CreateCallbackEPv","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,1,"[NULL]","[NULL]"
+          3,"experimental_flamegraph",7689491063351,3,"_ZN3art35InvokeVirtualOrInterfaceWithJValuesIPNS_9ArtMethodEEENS_6JValueERKNS_33ScopedObjectAccessAlreadyRunnableEP8_jobjectT_PK6jvalue","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,2,"[NULL]","[NULL]"
+          4,"experimental_flamegraph",7689491063351,4,"_ZN3art9ArtMethod6InvokeEPNS_6ThreadEPjjPNS_6JValueEPKc","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,3,"[NULL]","[NULL]"
+          5,"experimental_flamegraph",7689491063351,5,"art_quick_invoke_stub","/apex/com.android.art/lib64/libart.so",0,301,0,301,0,0,0,0,4,"[NULL]","[NULL]"
+          6,"experimental_flamegraph",7689491063351,6,"android.os.HandlerThread.run","/system/framework/arm64/boot-framework.oat",0,43,0,43,0,0,0,0,5,"[NULL]","[NULL]"
+          7,"experimental_flamegraph",7689491063351,7,"android.os.Looper.loop","/system/framework/arm64/boot-framework.oat",0,43,0,43,0,0,0,0,6,"[NULL]","[NULL]"
+          8,"experimental_flamegraph",7683950792832,8,"android.os.Looper.loopOnce","/system/framework/arm64/boot-framework.oat",1,43,1,43,0,0,0,0,7,"[NULL]","[NULL]"
+          9,"experimental_flamegraph",7689491063351,9,"android.os.Handler.dispatchMessage","/system/framework/arm64/boot-framework.oat",0,35,0,35,0,0,0,0,8,"[NULL]","[NULL]"
+        '''))
 
   def test_callstack_sampling_flamegraph_multi_process(self):
     return DiffTestBlueprint(
         trace=DataPath('callstack_sampling.pftrace'),
         query="""
         SELECT count(*) AS count, 'BothProcesses' AS description
-        FROM experimental_flamegraph
-        WHERE
-          upid_group = (
+        FROM experimental_flamegraph(
+          'perf',
+          NULL,
+          '<=7689491063351',
+          NULL,
+          (
             SELECT group_concat(DISTINCT upid)
-            FROM perf_sample JOIN thread t USING (utid) JOIN process p USING (upid)
-          )
-          AND profile_type = 'perf'
-          AND ts <= 7689491063351
-          AND size > 0
+            FROM perf_sample
+            JOIN thread t USING (utid)
+            JOIN process p USING (upid)
+          ),
+          NULL
+        )
+        WHERE size > 0
         UNION ALL
         SELECT count(*) AS count, 'FirstProcess' AS description
-        FROM experimental_flamegraph
-        JOIN process USING (upid)
-        WHERE pid = 1728
-          AND profile_type = 'perf'
-          AND ts <= 7689491063351
-          AND size > 0
+        FROM process
+        JOIN experimental_flamegraph(
+          'perf',
+          NULL,
+          '<=7689491063351',
+          process.upid,
+          NULL,
+          NULL
+        )
+        WHERE pid = 1728 AND size > 0
         UNION ALL
         SELECT count(*) AS count, 'SecondProcess' AS description
-        FROM experimental_flamegraph
-        JOIN process USING (upid)
-        WHERE pid = 703
-          AND profile_type = 'perf'
-          AND ts <= 7689491063351
-          AND size > 0;
+        FROM process
+        JOIN experimental_flamegraph(
+          'perf',
+          NULL,
+          '<=7689491063351',
+          process.upid,
+          NULL,
+          NULL
+        )
+        WHERE pid = 703 AND size > 0;
         """,
         out=Csv("""
         "count","description"

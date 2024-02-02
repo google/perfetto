@@ -351,6 +351,14 @@ static void BM_QESliceTableTsAndTrackId(benchmark::State& state) {
 
 BENCHMARK(BM_QESliceTableTsAndTrackId)->ArgsProduct({{DB::V1, DB::V2}});
 
+static void BM_QEFilterOneElement(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  BenchmarkSliceTable(state, table,
+                      {table.table_.id().eq(10), table.table_.dur().eq(100)});
+}
+
+BENCHMARK(BM_QEFilterOneElement)->ArgsProduct({{DB::V1, DB::V2}});
+
 static void BM_QEFilterWithArrangement(benchmark::State& state) {
   Table::kUseFilterV2 = state.range(0) == 1;
 
@@ -420,6 +428,26 @@ static void BM_QEIdColumnWithDouble(benchmark::State& state) {
 }
 
 BENCHMARK(BM_QEIdColumnWithDouble)->ArgsProduct({{DB::V1, DB::V2}});
+
+static void BM_QEFilterOrderedArrangement(benchmark::State& state) {
+  Table::kUseFilterV2 = state.range(0) == 1;
+
+  SliceTableForBenchmark table(state);
+  Order order{table.table_.dur().index_in_table(), false};
+  Table slice_sorted_with_duration = table.table_.Sort({order});
+
+  Constraint c{table.table_.dur().index_in_table(), FilterOp::kGt,
+               SqlValue::Long(10)};
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(slice_sorted_with_duration.FilterToRowMap({c}));
+  }
+  state.counters["s/row"] = benchmark::Counter(
+      static_cast<double>(slice_sorted_with_duration.row_count()),
+      benchmark::Counter::kIsIterationInvariantRate |
+          benchmark::Counter::kInvert);
+}
+
+BENCHMARK(BM_QEFilterOrderedArrangement)->ArgsProduct({{DB::V1, DB::V2}});
 
 }  // namespace
 }  // namespace trace_processor

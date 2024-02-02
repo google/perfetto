@@ -79,7 +79,7 @@ void MockConsumer::FreeBuffers() {
 }
 
 void MockConsumer::CloneSession(TracingSessionID tsid) {
-  service_endpoint_->CloneSession(tsid);
+  service_endpoint_->CloneSession(tsid, {});
 }
 
 void MockConsumer::WaitForTracingDisabled(uint32_t timeout_ms) {
@@ -193,7 +193,7 @@ TracingServiceState MockConsumer::QueryServiceState() {
     res = svc_state;
     checkpoint();
   };
-  service_endpoint_->QueryServiceState(callback);
+  service_endpoint_->QueryServiceState({}, callback);
   task_runner_->RunUntilCheckpoint(checkpoint_name);
   return res;
 }

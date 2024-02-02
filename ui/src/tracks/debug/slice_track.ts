@@ -13,14 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {v4 as uuidv4} from 'uuid';
 
 import {Actions} from '../../common/actions';
-import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {TrackButton} from '../../frontend/track_panel';
-import {PrimaryTrackSortKey, TrackContext} from '../../public';
+import {TrackContext} from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
 import {
   CustomSqlDetailsPanelConfig,
@@ -28,24 +26,18 @@ import {
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
 
-import {DEBUG_SLICE_TRACK_URI} from '.';
-import {ARG_PREFIX} from './add_debug_track_menu';
 import {DebugSliceDetailsTab} from './details_tab';
-
-// Names of the columns of the underlying view to be used as ts / dur / name.
-export interface SliceColumns {
-  ts: string;
-  dur: string;
-  name: string;
-}
+import {SliceColumns} from '../../frontend/debug_tracks';
 
 export interface DebugTrackV2Config {
   sqlTableName: string;
   columns: SliceColumns;
+  closeable: boolean;
 }
 
+
 export class DebugTrackV2 extends
-    CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+  CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   private config: DebugTrackV2Config;
 
   constructor(engine: EngineProxy, ctx: TrackContext) {
@@ -77,83 +69,15 @@ export class DebugTrackV2 extends
   }
 
   getTrackShellButtons(): m.Children {
-    return m(TrackButton, {
+    return this.config.closeable ? m(TrackButton, {
       action: () => {
         globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
       },
       i: 'close',
       tooltip: 'Close',
       showButton: true,
-    });
+    }) :
+      [];
   }
 }
 
-let debugTrackCount = 0;
-
-export interface SqlDataSource {
-  // SQL source selecting the necessary data.
-  sqlSource: string;
-
-  // Optional: Rename columns from the query result.
-  // If omitted, original column names from the query are used instead.
-  // The caller is responsible for ensuring that the number of items in this
-  // list matches the number of columns returned by sqlSource.
-  columns?: string[];
-}
-
-export async function addDebugSliceTrack(
-    engine: EngineProxy,
-    data: SqlDataSource,
-    trackName: string,
-    sliceColumns: SliceColumns,
-    argColumns: string[]) {
-  // To prepare displaying the provided data as a track, materialize it and
-  // compute depths.
-  const debugTrackId = ++debugTrackCount;
-  const sqlTableName = `__debug_slice_${debugTrackId}`;
-
-  // If the view has clashing names (e.g. "name" coming from joining two
-  // different tables, we will see names like "name_1", "name_2", but they won't
-  // be addressable from the SQL. So we explicitly name them through a list of
-  // columns passed to CTE.
-  const dataColumns =
-      data.columns !== undefined ? `(${data.columns.join(', ')})` : '';
-
-  // TODO(altimin): Support removing this table when the track is closed.
-  const dur = sliceColumns.dur === '0' ? 0 : sliceColumns.dur;
-  await engine.query(`
-      create table ${sqlTableName} as
-      with data${dataColumns} as (
-        ${data.sqlSource}
-      ),
-      prepared_data as (
-        select
-          row_number() over () as id,
-          ${sliceColumns.ts} as ts,
-          ifnull(cast(${dur} as int), -1) as dur,
-          printf('%s', ${sliceColumns.name}) as name
-          ${argColumns.length > 0 ? ',' : ''}
-          ${argColumns.map((c) => `${c} as ${ARG_PREFIX}${c}`).join(',\n')}
-        from data
-      )
-      select
-        *
-      from prepared_data
-      order by ts;`);
-
-  const trackKey = uuidv4();
-  globals.dispatchMultiple([
-    Actions.addTrack({
-      key: trackKey,
-      name: trackName.trim() || `Debug Track ${debugTrackId}`,
-      uri: DEBUG_SLICE_TRACK_URI,
-      trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
-      trackGroup: SCROLLING_TRACK_GROUP,
-      params: {
-        sqlTableName,
-        columns: sliceColumns,
-      },
-    }),
-    Actions.toggleTrackPinned({trackKey}),
-  ]);
-}

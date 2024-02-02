@@ -59,6 +59,7 @@ import {
   publishRealtimeOffset,
   publishThreads,
 } from '../frontend/publish';
+import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Router} from '../frontend/router';
 import {Engine} from '../trace_processor/engine';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
@@ -258,101 +259,101 @@ export class TraceController extends Controller<States> {
   run() {
     const engineCfg = assertExists(globals.state.engine);
     switch (this.state) {
-      case 'init':
-        this.loadTrace()
-            .then((mode) => {
-              globals.dispatch(Actions.setEngineReady({
-                engineId: this.engineId,
-                ready: true,
-                mode,
-              }));
-            })
-            .catch((err) => {
-              this.updateStatus(`${err}`);
-              throw err;
-            });
-        this.updateStatus('Opening trace');
-        this.setState('loading_trace');
-        break;
+    case 'init':
+      this.loadTrace()
+        .then((mode) => {
+          globals.dispatch(Actions.setEngineReady({
+            engineId: this.engineId,
+            ready: true,
+            mode,
+          }));
+        })
+        .catch((err) => {
+          this.updateStatus(`${err}`);
+          throw err;
+        });
+      this.updateStatus('Opening trace');
+      this.setState('loading_trace');
+      break;
 
-      case 'loading_trace':
-        // Stay in this state until loadTrace() returns and marks the engine as
-        // ready.
-        if (this.engine === undefined || !engineCfg.ready) return;
-        this.setState('ready');
-        break;
+    case 'loading_trace':
+      // Stay in this state until loadTrace() returns and marks the engine as
+      // ready.
+      if (this.engine === undefined || !engineCfg.ready) return;
+      this.setState('ready');
+      break;
 
-      case 'ready':
-        // At this point we are ready to serve queries and handle tracks.
-        const engine = assertExists(this.engine);
-        const childControllers: Children = [];
+    case 'ready':
+      // At this point we are ready to serve queries and handle tracks.
+      const engine = assertExists(this.engine);
+      const childControllers: Children = [];
 
-        const selectionArgs: SelectionControllerArgs = {engine};
-        childControllers.push(
-          Child('selection', SelectionController, selectionArgs));
+      const selectionArgs: SelectionControllerArgs = {engine};
+      childControllers.push(
+        Child('selection', SelectionController, selectionArgs));
 
-        const flowEventsArgs: FlowEventsControllerArgs = {engine};
-        childControllers.push(
-          Child('flowEvents', FlowEventsController, flowEventsArgs));
+      const flowEventsArgs: FlowEventsControllerArgs = {engine};
+      childControllers.push(
+        Child('flowEvents', FlowEventsController, flowEventsArgs));
 
-        const cpuProfileArgs: CpuProfileControllerArgs = {engine};
-        childControllers.push(
-          Child('cpuProfile', CpuProfileController, cpuProfileArgs));
+      const cpuProfileArgs: CpuProfileControllerArgs = {engine};
+      childControllers.push(
+        Child('cpuProfile', CpuProfileController, cpuProfileArgs));
 
-        const flamegraphArgs: FlamegraphControllerArgs = {engine};
-        childControllers.push(
-          Child('flamegraph', FlamegraphController, flamegraphArgs));
+      const flamegraphArgs: FlamegraphControllerArgs = {engine};
+      childControllers.push(
+        Child('flamegraph', FlamegraphController, flamegraphArgs));
+      childControllers.push(Child(
+        'cpu_aggregation',
+        CpuAggregationController,
+        {engine, kind: 'cpu_aggregation'}));
+      childControllers.push(Child(
+        'thread_aggregation',
+        ThreadAggregationController,
+        {engine, kind: 'thread_state_aggregation'}));
+      childControllers.push(Child(
+        'cpu_process_aggregation',
+        CpuByProcessAggregationController,
+        {engine, kind: 'cpu_by_process_aggregation'}));
+      if (!PIVOT_TABLE_REDUX_FLAG.get()) {
+        // Pivot table is supposed to handle the use cases the slice
+        // aggregation panel is used right now. When a flag to use pivot
+        // tables is enabled, do not add slice aggregation controller.
         childControllers.push(Child(
-          'cpu_aggregation',
-          CpuAggregationController,
-          {engine, kind: 'cpu_aggregation'}));
-        childControllers.push(Child(
-          'thread_aggregation',
-          ThreadAggregationController,
-          {engine, kind: 'thread_state_aggregation'}));
-        childControllers.push(Child(
-          'cpu_process_aggregation',
-          CpuByProcessAggregationController,
-          {engine, kind: 'cpu_by_process_aggregation'}));
-        if (!PIVOT_TABLE_REDUX_FLAG.get()) {
-          // Pivot table is supposed to handle the use cases the slice
-          // aggregation panel is used right now. When a flag to use pivot
-          // tables is enabled, do not add slice aggregation controller.
-          childControllers.push(Child(
-            'slice_aggregation',
-            SliceAggregationController,
-            {engine, kind: 'slice_aggregation'}));
-        }
-        childControllers.push(Child(
-          'counter_aggregation',
-          CounterAggregationController,
-          {engine, kind: 'counter_aggregation'}));
-        childControllers.push(Child(
-          'frame_aggregation',
-          FrameAggregationController,
-          {engine, kind: 'frame_aggregation'}));
-        childControllers.push(Child('search', SearchController, {
-          engine,
-          app: globals,
-        }));
-        childControllers.push(
-            Child('pivot_table', PivotTableController, {engine}));
+          'slice_aggregation',
+          SliceAggregationController,
+          {engine, kind: 'slice_aggregation'}));
+      }
+      childControllers.push(Child(
+        'counter_aggregation',
+        CounterAggregationController,
+        {engine, kind: 'counter_aggregation'}));
+      childControllers.push(Child(
+        'frame_aggregation',
+        FrameAggregationController,
+        {engine, kind: 'frame_aggregation'}));
+      childControllers.push(Child('search', SearchController, {
+        engine,
+        app: globals,
+      }));
+      childControllers.push(
+        Child('pivot_table', PivotTableController, {engine}));
 
-        childControllers.push(Child('logs', LogsController, {
-          engine,
-          app: globals,
-        }));
+      childControllers.push(Child('logs', LogsController, {
+        engine,
+        app: globals,
+      }));
 
-        childControllers.push(
-            Child('ftrace', FtraceController, {engine, app: globals}));
+      childControllers.push(
+        Child('ftrace', FtraceController, {engine, app: globals}));
 
-        childControllers.push(
-            Child('traceError', TraceErrorController, {engine}));
+      childControllers.push(
+        Child('traceError', TraceErrorController, {engine}));
 
-        return childControllers;
+      return childControllers;
 
-      default:
-        throw new Error(`unknown state ${this.state}`);
+    default:
+      throw new Error(`unknown state ${this.state}`);
     }
     return;
   }
@@ -378,7 +379,7 @@ export class TraceController extends Controller<States> {
       engine = new HttpRpcEngine(this.engineId, LoadingManager.getInstance);
       engine.errorHandler = (err) => {
         globals.dispatch(
-            Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
+          Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
         throw err;
       };
     } else {
@@ -492,7 +493,7 @@ export class TraceController extends Controller<States> {
     ];
 
     const visibleTimeSpan = await computeVisibleTime(
-        traceTime.start, traceTime.end, isJsonTrace, this.engine);
+      traceTime.start, traceTime.end, isJsonTrace, this.engine);
     // We don't know the resolution at this point. However this will be
     // replaced in 50ms so a guess is fine.
     const resolution = visibleTimeSpan.duration.divide(1000).toTime();
@@ -511,7 +512,8 @@ export class TraceController extends Controller<States> {
 
     await defineMaxLayoutDepthSqlFunction(engine);
 
-    pluginManager.onTraceLoad(engine);
+    this.updateStatus('Loading plugins');
+    await pluginManager.onTraceLoad(engine);
 
     {
       // When we reload from a permalink don't create extra tracks:
@@ -586,18 +588,28 @@ export class TraceController extends Controller<States> {
         }
       }
 
+      // The max() is so the query returns NULL if the tz info doesn't exist.
+      const queryTz = `select max(int_value) as tzOffMin from metadata
+          where name = 'timezone_off_mins'`;
+      const resTz = await assertExists(this.engine).query(queryTz);
+      const tzOffMin = resTz.firstRow({tzOffMin: NUM_NULL}).tzOffMin ?? 0;
+
       // This is the offset between the unix epoch and ts in the ts domain.
       // I.e. the value of ts at the time of the unix epoch - usually some large
       // negative value.
       const realtimeOffset = Time.sub(snapshot.ts, snapshot.clockValue);
 
       // Find the previous closest midnight from the trace start time.
-      const utcOffset = Time.quantWholeDaysUTC(
-          globals.state.traceTime.start,
-          realtimeOffset,
+      const utcOffset = Time.getLatestMidnight(
+        globals.state.traceTime.start,
+        realtimeOffset,
       );
 
-      publishRealtimeOffset(realtimeOffset, utcOffset);
+      const traceTzOffset = Time.getLatestMidnight(
+        globals.state.traceTime.start,
+        Time.sub(realtimeOffset, Time.fromSeconds(tzOffMin * 60)));
+
+      publishRealtimeOffset(realtimeOffset, utcOffset, traceTzOffset);
     }
 
     globals.dispatch(Actions.sortThreadTracks({}));
@@ -615,10 +627,13 @@ export class TraceController extends Controller<States> {
       if (pendingDeeplink.visStart !== undefined &&
           pendingDeeplink.visEnd !== undefined) {
         this.zoomPendingDeeplink(
-            pendingDeeplink.visStart, pendingDeeplink.visEnd);
+          pendingDeeplink.visStart, pendingDeeplink.visEnd);
       }
       if (pendingDeeplink.query !== undefined) {
-        globals.openQuery(pendingDeeplink.query, 'Deeplink Query');
+        addQueryResultsTab({
+          query: pendingDeeplink.query,
+          title: 'Deeplink Query',
+        });
       }
     }
 
@@ -660,7 +675,7 @@ export class TraceController extends Controller<States> {
     const leftTs = globals.state.traceTime.start;
     const rightTs = globals.state.traceTime.end;
     globals.dispatch(Actions.selectPerfSamples(
-        {id: 0, upid, leftTs, rightTs, type: ProfileType.PERF_SAMPLE}));
+      {id: 0, upid, leftTs, rightTs, type: ProfileType.PERF_SAMPLE}));
   }
 
   private async selectFirstHeapProfile() {
@@ -787,11 +802,11 @@ export class TraceController extends Controller<States> {
     if (hasSchedOverview) {
       const stepPromises = [];
       for (let start = trace.start; start < trace.end;
-           start = Time.add(start, stepSize)) {
+        start = Time.add(start, stepSize)) {
         const progress = start - trace.start;
         const ratio = Number(progress) / Number(trace.duration);
         this.updateStatus(
-            'Loading overview ' +
+          'Loading overview ' +
             `${Math.round(ratio * 100)}%`);
         const end = Time.add(start, stepSize);
         // The (async() => {})() queues all the 100 async promises in one batch.
@@ -800,8 +815,8 @@ export class TraceController extends Controller<States> {
         // between each step, slowing down significantly the overall process.
         stepPromises.push((async () => {
           const schedResult = await engine.query(
-              `select cast(sum(dur) as float)/${
-                  stepSize} as load, cpu from sched ` +
+            `select cast(sum(dur) as float)/${
+              stepSize} as load, cpu from sched ` +
               `where ts >= ${start} and ts < ${end} and utid != 0 ` +
               'group by cpu order by cpu');
           const schedData: {[key: string]: QuantizedLoad} = {};
@@ -827,7 +842,7 @@ export class TraceController extends Controller<States> {
          inner join (
            select
              ifnull(cast((ts - ${trace.start})/${
-        stepSize} as int), 0) as bucket,
+  stepSize} as int), 0) as bucket,
              sum(dur) as utid_sum,
              utid
            from slice
@@ -1102,7 +1117,7 @@ async function computeTraceReliableRangeStart(engine: Engine): Promise<time> {
 }
 
 async function computeVisibleTime(
-    traceStart: time, traceEnd: time, isJsonTrace: boolean, engine: Engine):
+  traceStart: time, traceEnd: time, isJsonTrace: boolean, engine: Engine):
     Promise<Span<HighPrecisionTime>> {
   // if we have non-default visible state, update the visible time to it
   const previousVisibleState = globals.stateVisibleTime();
@@ -1113,7 +1128,7 @@ async function computeVisibleTime(
       (previousVisibleState.start >= traceStart &&
        previousVisibleState.end <= traceEnd)) {
     return HighPrecisionTimeSpan.fromTime(
-        previousVisibleState.start, previousVisibleState.end);
+      previousVisibleState.start, previousVisibleState.end);
   }
 
   // initialise visible time to the trace time bounds

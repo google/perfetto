@@ -19,60 +19,87 @@ import {
   AggregateData,
   Column,
   ThreadStateExtra,
+  isEmptyData,
 } from '../common/aggregation_data';
 import {colorForState} from '../common/colorizer';
 import {translateState} from '../common/thread_state';
 
 import {globals} from './globals';
 import {DurationWidget} from './widgets/duration';
+import {EmptyState} from '../widgets/empty_state';
+import {Anchor} from '../widgets/anchor';
+import {Icons} from '../base/semantic_icons';
 
 export interface AggregationPanelAttrs {
-  data: AggregateData;
+  data?: AggregateData;
   kind: string;
 }
 
 export class AggregationPanel implements
     m.ClassComponent<AggregationPanelAttrs> {
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
+    if (!globals.state.currentSelection) {
+      return m(EmptyState, {
+        className: 'pf-noselection',
+        title: 'Nothing selected',
+      }, 'Aggregation data will appear here');
+    }
+
+    if (!attrs.data || isEmptyData(attrs.data)) {
+      return m(EmptyState,
+        {
+          className: 'pf-noselection',
+          title: 'No relevant tracks in selection',
+        },
+        m(Anchor, {
+          icon: Icons.ChangeTab,
+          onclick: () => {
+            globals.dispatch(Actions.showTab({uri: 'current_selection'}));
+          },
+        }, 'Go to current selection tab'),
+      );
+    }
+
     return m(
-        '.details-panel',
-        m('.details-panel-heading.aggregation',
-          attrs.data.extra !== undefined &&
+      '.details-panel',
+      m('.details-panel-heading.aggregation',
+        attrs.data.extra !== undefined &&
                   attrs.data.extra.kind === 'THREAD_STATE' ?
-              this.showStateSummary(attrs.data.extra) :
-              null,
-          this.showTimeRange(),
-          m('table',
-            m('tr',
-              attrs.data.columns.map(
-                  (col) => this.formatColumnHeading(col, attrs.kind))),
-            m('tr.sum', attrs.data.columnSums.map((sum) => {
-              const sumClass = sum === '' ? 'td' : 'td.sum-data';
-              return m(sumClass, sum);
-            })))),
-        m(
-            '.details-table.aggregation',
-            m('table', this.getRows(attrs.data)),
-            ));
+          this.showStateSummary(attrs.data.extra) :
+          null,
+        this.showTimeRange(),
+        m('table',
+          m('tr',
+            attrs.data.columns.map(
+              (col) => this.formatColumnHeading(col, attrs.kind))),
+          m('tr.sum', attrs.data.columnSums.map((sum) => {
+            const sumClass = sum === '' ? 'td' : 'td.sum-data';
+            return m(sumClass, sum);
+          })))),
+      m(
+        '.details-table.aggregation',
+        m('table', this.getRows(attrs.data)),
+      ));
   }
 
   formatColumnHeading(col: Column, id: string) {
     const pref = globals.state.aggregatePreferences[id];
     let sortIcon = '';
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (pref && pref.sorting && pref.sorting.column === col.columnId) {
       sortIcon = pref.sorting.direction === 'DESC' ? 'arrow_drop_down' :
-                                                     'arrow_drop_up';
+        'arrow_drop_up';
     }
     return m(
-        'th',
-        {
-          onclick: () => {
-            globals.dispatch(
-                Actions.updateAggregateSorting({id, column: col.columnId}));
-          },
+      'th',
+      {
+        onclick: () => {
+          globals.dispatch(
+            Actions.updateAggregateSorting({id, column: col.columnId}));
         },
-        col.title,
-        m('i.material-icons', sortIcon));
+      },
+      col.title,
+      m('i.material-icons', sortIcon));
   }
 
   getRows(data: AggregateData) {
@@ -90,21 +117,21 @@ export class AggregationPanel implements
 
   getFormattedData(data: AggregateData, rowIndex: number, columnIndex: number) {
     switch (data.columns[columnIndex].kind) {
-      case 'STRING':
-        return data.strings[data.columns[columnIndex].data[rowIndex]];
-      case 'TIMESTAMP_NS':
-        return `${data.columns[columnIndex].data[rowIndex] / 1000000}`;
-      case 'STATE': {
-        const concatState =
+    case 'STRING':
+      return data.strings[data.columns[columnIndex].data[rowIndex]];
+    case 'TIMESTAMP_NS':
+      return `${data.columns[columnIndex].data[rowIndex] / 1000000}`;
+    case 'STATE': {
+      const concatState =
             data.strings[data.columns[columnIndex].data[rowIndex]];
-        const split = concatState.split(',');
-        const ioWait =
+      const split = concatState.split(',');
+      const ioWait =
             split[1] === 'NULL' ? undefined : !!Number.parseInt(split[1], 10);
-        return translateState(split[0], ioWait);
-      }
-      case 'NUMBER':
-      default:
-        return data.columns[columnIndex].data[rowIndex];
+      return translateState(split[0], ioWait);
+    }
+    case 'NUMBER':
+    default:
+      return data.columns[columnIndex].data[rowIndex];
     }
   }
 
@@ -114,7 +141,7 @@ export class AggregationPanel implements
     const selectedArea = globals.state.areas[selection.areaId];
     const duration = selectedArea.end - selectedArea.start;
     return m(
-        '.time-range', 'Selected range: ', m(DurationWidget, {dur: duration}));
+      '.time-range', 'Selected range: ', m(DurationWidget, {dur: duration}));
   }
 
   // Thread state aggregation panel only
@@ -125,15 +152,15 @@ export class AggregationPanel implements
       const colorScheme = colorForState(data.states[i]);
       const width = data.values[i] / data.totalMs * 100;
       states.push(
-          m('.state',
-            {
-              style: {
-                background: colorScheme.base.cssString,
-                color: colorScheme.textBase.cssString,
-                width: `${width}%`,
-              },
+        m('.state',
+          {
+            style: {
+              background: colorScheme.base.cssString,
+              color: colorScheme.textBase.cssString,
+              width: `${width}%`,
             },
-            `${data.states[i]}: ${data.values[i]} ms`));
+          },
+          `${data.states[i]}: ${data.values[i]} ms`));
     }
     return m('.states', states);
   }

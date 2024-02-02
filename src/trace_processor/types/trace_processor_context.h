@@ -47,6 +47,7 @@ class ChunkedTraceReader;
 class ClockTracker;
 class ClockConverter;
 class DeobfuscationMappingTable;
+class EtwModule;
 class EventTracker;
 class ForwardingTraceParser;
 class FtraceModule;
@@ -122,8 +123,10 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> thread_state_tracker;    // ThreadStateTracker
   std::unique_ptr<Destructible> i2c_tracker;             // I2CTracker
   std::unique_ptr<Destructible> perf_data_tracker;       // PerfDataTracker
-  std::unique_ptr<Destructible> content_analyzer;
-  std::unique_ptr<Destructible> shell_transitions_tracker;
+  std::unique_ptr<Destructible> content_analyzer;        // ProtoContentAnalyzer
+  std::unique_ptr<Destructible>
+      shell_transitions_tracker;             // ShellTransitionsTracker
+  std::unique_ptr<Destructible> v8_tracker;  // V8Tracker
 
   // These fields are trace readers which will be called by |forwarding_parser|
   // once the format of the trace is discovered. They are placed here as they
@@ -155,6 +158,7 @@ class TraceProcessorContext {
   // all fields.
   std::vector<ProtoImporterModule*> modules_for_all_fields;
   FtraceModule* ftrace_module = nullptr;
+  EtwModule* etw_module = nullptr;
   TrackEventModule* track_module = nullptr;
 
   // Marks whether the uuid was read from the trace.

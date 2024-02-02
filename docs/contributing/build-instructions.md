@@ -504,6 +504,13 @@ In `.vscode/settings.json`:
     "--completion-style=detailed",
     "--header-insertion=never"
   ],
+  "eslint.workingDirectories": [
+    "./ui",
+  ],
+  "eslint.format.enable": true,
+  "[typescript]": {
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+  }
 }
 ```
 

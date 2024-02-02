@@ -24,6 +24,7 @@
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/tables/winscope_tables_py.h"
 
 namespace perfetto {
@@ -64,7 +65,7 @@ CpuProfileStackSampleTable::~CpuProfileStackSampleTable() = default;
 PerfSampleTable::~PerfSampleTable() = default;
 SymbolTable::~SymbolTable() = default;
 HeapProfileAllocationTable::~HeapProfileAllocationTable() = default;
-ExperimentalFlamegraphNodesTable::~ExperimentalFlamegraphNodesTable() = default;
+ExperimentalFlamegraphTable::~ExperimentalFlamegraphTable() = default;
 HeapGraphObjectTable::~HeapGraphObjectTable() = default;
 HeapGraphClassTable::~HeapGraphClassTable() = default;
 HeapGraphReferenceTable::~HeapGraphReferenceTable() = default;
@@ -117,6 +118,12 @@ ProcessMemorySnapshotTable::~ProcessMemorySnapshotTable() = default;
 MemorySnapshotNodeTable::~MemorySnapshotNodeTable() = default;
 MemorySnapshotEdgeTable::~MemorySnapshotEdgeTable() = default;
 
+// v8_tables_py.h
+V8IsolateTable::~V8IsolateTable() = default;
+V8JsScriptTable::~V8JsScriptTable() = default;
+V8WasmScriptTable::~V8WasmScriptTable() = default;
+V8JsFunctionTable::~V8JsFunctionTable() = default;
+
 // winscope_tables_py.h
 SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =
     default;
@@ -126,6 +133,7 @@ WindowManagerShellTransitionsTable::~WindowManagerShellTransitionsTable() =
     default;
 WindowManagerShellTransitionHandlersTable::
     ~WindowManagerShellTransitionHandlersTable() = default;
+ProtoLogTable::~ProtoLogTable() = default;
 
 }  // namespace tables
 

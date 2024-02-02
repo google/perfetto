@@ -16,8 +16,10 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_COLUMN_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_COLUMN_H_
 
-#include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
+#include <cstdint>
+#include <string>
+
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto {
@@ -25,8 +27,7 @@ namespace protos::pbzero {
 class SerializedColumn_Storage;
 }
 
-namespace trace_processor {
-namespace column {
+namespace trace_processor::column {
 
 // Defines an API of a Column. Storages and Overlays both inherit from
 // Column.
@@ -69,9 +70,7 @@ class Column {
   virtual RangeOrBitVector Search(FilterOp, SqlValue, Range) const = 0;
 
   // Searches for elements which match |op| and |value| at the positions given
-  // by |indices| array. The |sorted| flag allows the caller to specify if the
-  // order defined by |indices| makes storage sorted; implementations can use
-  // this to optimize how they search the storage.
+  // by |indices| array.
   //
   // Returns either a range of BitVector which indicate the positions in
   // |indices| which match the constraint. If a BitVector is returned, it will
@@ -85,11 +84,23 @@ class Column {
   // Notes for implementors:
   //  * Implementations should ensure that, if they return a BitVector, it is
   //    precisely of size |indices_count|.
-  virtual RangeOrBitVector IndexSearch(FilterOp,
-                                       SqlValue,
-                                       uint32_t* indices,
-                                       uint32_t indices_count,
-                                       bool sorted) const = 0;
+  virtual RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const = 0;
+
+  // Searches for elements which match |op| and |value| at the positions given
+  // by indices data.
+  //
+  // Returns a Range into Indices data of indices that pass the constraint.
+  //
+  // Notes for callers:
+  //  * Should not be called on:
+  //    - kGlob and kRegex as those operations can't use the sorted state hence
+  //      they can't return a Range.
+  //    - kNe as this is inherently unsorted. Use kEq and then reverse the
+  //      result.
+  //  * Should only be called if ValidateSearchContraints returned kOk.
+  //  * Callers should note that the return value of this function corresponds
+  //    to positions in |indices| *not* positions in the storage.
+  virtual Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const = 0;
 
   // Sorts |rows| in ascending order with the comparator:
   // data[rows[a]] < data[rows[b]].
@@ -102,11 +113,18 @@ class Column {
   // Serializes storage data to proto format.
   virtual void Serialize(StorageProto*) const = 0;
 
+  // Returns a string which represents the column for debugging purposes.
+  //
+  // Warning: the format of the string returned by this class is *not* stable
+  // and should be relied upon for anything except printing for debugging
+  // purposes.
+  virtual std::string DebugString() const = 0;
+
   // Number of elements in stored data.
   virtual uint32_t size() const = 0;
 };
 
-}  // namespace column
-}  // namespace trace_processor
+}  // namespace trace_processor::column
 }  // namespace perfetto
+
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_COLUMN_H_

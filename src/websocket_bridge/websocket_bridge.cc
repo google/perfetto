@@ -27,7 +27,7 @@
 #include "perfetto/ext/base/http/http_server.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/unix_task_runner.h"
-#include "perfetto/ext/tracing/ipc/default_socket.h"
+#include "perfetto/tracing/default_socket.h"
 
 namespace perfetto {
 namespace {

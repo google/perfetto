@@ -283,6 +283,18 @@ message TracingServiceState {
     // Time when the session was started, in the CLOCK_REALTIME domain.
     // Available only on Linux-based systems.
     optional int64 start_realtime_ns = 8;
+
+    // The fields below have been introduced in v42.
+
+    // The bugreport_score, as set in TraceConfig.bugreport_score.
+    optional int32 bugreport_score = 9;
+
+    // As per TraceConfig.bugreport_filename.
+    optional string bugreport_filename = 10;
+
+    // If true, the session is in the STARTED state. If false the session is in
+    // any other state (see `state` field).
+    optional bool is_started = 11;
   }
 
   // Lists all the producers connected.
@@ -546,6 +558,41 @@ message PackagesListConfig {
 
 // End of protos/perfetto/config/android/packages_list_config.proto
 
+// Begin of protos/perfetto/common/protolog_common.proto
+
+enum ProtoLogLevel {
+  PROTOLOG_LEVEL_UNDEFINED = 0;
+  PROTOLOG_LEVEL_DEBUG = 1;
+  PROTOLOG_LEVEL_VERBOSE = 2;
+  PROTOLOG_LEVEL_INFO = 3;
+  PROTOLOG_LEVEL_WARN = 4;
+  PROTOLOG_LEVEL_ERROR = 5;
+  PROTOLOG_LEVEL_WTF = 6;
+}
+// End of protos/perfetto/common/protolog_common.proto
+
+// Begin of protos/perfetto/config/android/protolog_config.proto
+
+// Custom configuration for the "android.protolog" data source.
+// ProtoLog is a logging mechanism that is intented to be more efficient than
+// logcat. This configures what logs to capture in the tracing instance.
+message ProtoLogConfig {
+  // Specified the configurations for each of the logging groups. If none is
+  // specified for a group the defaults will be used.
+  repeated ProtoLogGroup group_overrides = 1;
+}
+
+message ProtoLogGroup {
+  // The ProtoLog tag this configuration entry applies to.
+  optional string tag = 1;
+  // Specify the level from which to start capturing protologs.
+  // e.g. if ProtoLogLevel.WARN is specified only warning, errors and fatal log
+  // message will be traced.
+  optional ProtoLogLevel log_from = 2;
+}
+
+// End of protos/perfetto/config/android/protolog_config.proto
+
 // Begin of protos/perfetto/config/android/surfaceflinger_layers_config.proto
 
 // Custom configuration for the "android.surfaceflinger.layers" data source.
@@ -645,6 +692,23 @@ message ChromeConfig {
 
 // End of protos/perfetto/config/chrome/chrome_config.proto
 
+// Begin of protos/perfetto/config/chrome/v8_config.proto
+
+message V8Config {
+  // Whether to log the actual content of scripts (e.g. content of the JS file
+  // that was compiled to generate code).
+  // ATTENTION: This could considerably increase the size of the resuling trace
+  //            file.
+  optional bool log_script_sources = 1;
+  // Whether to log the generated code for jitted functions (machine code or
+  // bytecode).
+  // ATTENTION: This could considerably increase the size of the resuling trace
+  //            file.
+  optional bool log_instructions = 2;
+}
+
+// End of protos/perfetto/config/chrome/v8_config.proto
+
 // Begin of protos/perfetto/config/etw/etw_config.proto
 
 // Proto definition based on the struct _EVENT_TRACE_PROPERTIES definition
@@ -682,6 +746,10 @@ message FtraceConfig {
   message CompactSchedConfig {
     // If true, and sched_switch or sched_waking ftrace events are enabled,
     // record those events in the compact format.
+    //
+    // If the field is unset, the default is:
+    // * perfetto v42.0+: enabled
+    // * before: disabled
     optional bool enabled = 1;
   }
   optional CompactSchedConfig compact_sched = 12;
@@ -826,7 +894,6 @@ message FtraceConfig {
   // * Introduced in: Android U.
   optional bool use_monotonic_raw_clock = 24;
 
-  // Caution: under development as of 2023/03/01.
   // If |instance_name| is not empty, then attempt to use that tracefs instance
   // for event recording. Normally, this means
   // `/sys/kernel/tracing/instances/$instance_name`.
@@ -839,7 +906,6 @@ message FtraceConfig {
   // at the time of writing:
   //  * ftrace_events
   //  * buffer_size_kb
-  // TODO(b/249050813): reword comment once instance support is stable.
   optional string instance_name = 25;
 }
 
@@ -2729,7 +2795,68 @@ enum VmstatCounters {
   VMSTAT_SWAP_RA = 126;
   VMSTAT_SWAP_RA_HIT = 127;
   VMSTAT_WORKINGSET_RESTORE = 128;
+  VMSTAT_ALLOCSTALL_DEVICE = 129;
+  VMSTAT_ALLOCSTALL_DMA32 = 130;
+  VMSTAT_BALLOON_DEFLATE = 131;
+  VMSTAT_BALLOON_INFLATE = 132;
+  VMSTAT_BALLOON_MIGRATE = 133;
+  VMSTAT_CMA_ALLOC_FAIL = 134;
+  VMSTAT_CMA_ALLOC_SUCCESS = 135;
+  VMSTAT_NR_FILE_HUGEPAGES = 136;
+  VMSTAT_NR_FILE_PMDMAPPED = 137;
+  VMSTAT_NR_FOLL_PIN_ACQUIRED = 138;
+  VMSTAT_NR_FOLL_PIN_RELEASED = 139;
+  VMSTAT_NR_SEC_PAGE_TABLE_PAGES = 140;
+  VMSTAT_NR_SHADOW_CALL_STACK = 141;
+  VMSTAT_NR_SWAPCACHED = 142;
+  VMSTAT_NR_THROTTLED_WRITTEN = 143;
+  VMSTAT_PGALLOC_DEVICE = 144;
+  VMSTAT_PGALLOC_DMA32 = 145;
+  VMSTAT_PGDEMOTE_DIRECT = 146;
+  VMSTAT_PGDEMOTE_KSWAPD = 147;
+  VMSTAT_PGREUSE = 148;
+  VMSTAT_PGSCAN_ANON = 149;
+  VMSTAT_PGSCAN_FILE = 150;
+  VMSTAT_PGSKIP_DEVICE = 151;
+  VMSTAT_PGSKIP_DMA32 = 152;
+  VMSTAT_PGSTEAL_ANON = 153;
+  VMSTAT_PGSTEAL_FILE = 154;
+  VMSTAT_THP_COLLAPSE_ALLOC = 155;
+  VMSTAT_THP_COLLAPSE_ALLOC_FAILED = 156;
+  VMSTAT_THP_DEFERRED_SPLIT_PAGE = 157;
+  VMSTAT_THP_FAULT_ALLOC = 158;
+  VMSTAT_THP_FAULT_FALLBACK = 159;
+  VMSTAT_THP_FAULT_FALLBACK_CHARGE = 160;
+  VMSTAT_THP_FILE_ALLOC = 161;
+  VMSTAT_THP_FILE_FALLBACK = 162;
+  VMSTAT_THP_FILE_FALLBACK_CHARGE = 163;
+  VMSTAT_THP_FILE_MAPPED = 164;
+  VMSTAT_THP_MIGRATION_FAIL = 165;
+  VMSTAT_THP_MIGRATION_SPLIT = 166;
+  VMSTAT_THP_MIGRATION_SUCCESS = 167;
+  VMSTAT_THP_SCAN_EXCEED_NONE_PTE = 168;
+  VMSTAT_THP_SCAN_EXCEED_SHARE_PTE = 169;
+  VMSTAT_THP_SCAN_EXCEED_SWAP_PTE = 170;
+  VMSTAT_THP_SPLIT_PAGE = 171;
+  VMSTAT_THP_SPLIT_PAGE_FAILED = 172;
+  VMSTAT_THP_SPLIT_PMD = 173;
+  VMSTAT_THP_SWPOUT = 174;
+  VMSTAT_THP_SWPOUT_FALLBACK = 175;
+  VMSTAT_THP_ZERO_PAGE_ALLOC = 176;
+  VMSTAT_THP_ZERO_PAGE_ALLOC_FAILED = 177;
+  VMSTAT_VMA_LOCK_ABORT = 178;
+  VMSTAT_VMA_LOCK_MISS = 179;
+  VMSTAT_VMA_LOCK_RETRY = 180;
+  VMSTAT_VMA_LOCK_SUCCESS = 181;
+  VMSTAT_WORKINGSET_ACTIVATE_ANON = 182;
+  VMSTAT_WORKINGSET_ACTIVATE_FILE = 183;
+  VMSTAT_WORKINGSET_NODES = 184;
+  VMSTAT_WORKINGSET_REFAULT_ANON = 185;
+  VMSTAT_WORKINGSET_REFAULT_FILE = 186;
+  VMSTAT_WORKINGSET_RESTORE_ANON = 187;
+  VMSTAT_WORKINGSET_RESTORE_FILE = 188;
 }
+
 // End of protos/perfetto/common/sys_stats_counters.proto
 
 // Begin of protos/perfetto/config/sys_stats/sys_stats_config.proto
@@ -2943,7 +3070,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 126
+// Next id: 127
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3051,6 +3178,9 @@ message DataSourceConfig {
   // C++ class for it so it can pass around plain C++ objets.
   optional ChromeConfig chrome_config = 101;
 
+  // Data source name: code.v8.dev
+  optional V8Config v8_config = 127 [lazy = true];
+
   // If an interceptor is specified here, packets for this data source will be
   // rerouted to the interceptor instead of the main trace buffer. This can be
   // used, for example, to write trace data into ETW or for logging trace points
@@ -3082,6 +3212,9 @@ message DataSourceConfig {
   // Data source name: windows.etw
   optional EtwConfig etw_config = 125 [lazy = true];
 
+  // Data source name: android.protolog
+  optional ProtoLogConfig protolog_config = 126 [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -3107,7 +3240,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 38.
+// Next id: 39.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -3366,6 +3499,13 @@ message TraceConfig {
   // by other UIDs.
   optional int32 bugreport_score = 30;
 
+  // When set, defines name of the file that will be saved under
+  // /data/misc/perfetto-traces/bugreport/ when using --save-all-for-bugreport.
+  // If omitted, traces will be named systrace.pftrace, systrace_1.pftrace, etc,
+  // starting from the highest `bugreport_score`.
+  // Introduced in v42 / Android V.
+  optional string bugreport_filename = 38;
+
   // Triggers allow producers to start or stop the tracing session when an event
   // occurs.
   //
@@ -3527,10 +3667,8 @@ message TraceConfig {
   }
   optional CompressionType compression_type = 24;
 
-  // Use the legacy codepath that compresses from perfetto_cmd.cc instead of
-  // using the new codepath that compresses from tracing_service_impl.cc. This
-  // will be removed in the future.
-  optional bool compress_from_cli = 37;
+  // DEPRECATED, was compress_from_cli.
+  reserved 37;
 
   // Android-only. Not for general use. If set, saves the trace into an
   // incident. This field is read by perfetto_cmd, rather than the tracing

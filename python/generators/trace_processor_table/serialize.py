@@ -606,6 +606,7 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #ifndef {ifdef_guard}
 #define {ifdef_guard}
 
+#include "src/trace_processor/db/typed_column.h"
 #include "src/trace_processor/tables/macros_internal.h"
 
 {include_paths_str}

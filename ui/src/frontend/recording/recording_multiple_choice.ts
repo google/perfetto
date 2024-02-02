@@ -38,8 +38,8 @@ export class RecordingMultipleChoice implements
   private selectedIndex: number = -1;
 
   targetSelection(
-      targets: RecordingTargetV2[],
-      controller: RecordingPageController): m.Vnode|undefined {
+    targets: RecordingTargetV2[],
+    controller: RecordingPageController): m.Vnode|undefined {
     const targetInfo = controller.getTargetInfo();
     const targetNames = [];
     this.selectedIndex = -1;
@@ -53,30 +53,30 @@ export class RecordingMultipleChoice implements
 
     const selectedIndex = this.selectedIndex;
     return m(
-        'label',
-        m('select',
-          {
-            selectedIndex,
-            onchange: (e: Event) => {
-              controller.onTargetSelection(
-                  (e.target as HTMLSelectElement).value);
-            },
-            onupdate: (select) => {
-              // Work around mithril bug
-              // (https://github.com/MithrilJS/mithril.js/issues/2107): We
-              // may update the select's options while also changing the
-              // selectedIndex at the same time. The update of selectedIndex
-              // may be applied before the new options are added to the
-              // select element. Because the new selectedIndex may be
-              // outside of the select's options at that time, we have to
-              // reselect the correct index here after any new children were
-              // added.
-              (select.dom as HTMLSelectElement).selectedIndex =
-                  this.selectedIndex;
-            },
-            ...{size: targets.length, multiple: 'multiple'},
+      'label',
+      m('select',
+        {
+          selectedIndex,
+          onchange: (e: Event) => {
+            controller.onTargetSelection(
+              (e.target as HTMLSelectElement).value);
           },
-          ...targetNames),
+          onupdate: (select) => {
+            // Work around mithril bug
+            // (https://github.com/MithrilJS/mithril.js/issues/2107): We
+            // may update the select's options while also changing the
+            // selectedIndex at the same time. The update of selectedIndex
+            // may be applied before the new options are added to the
+            // select element. Because the new selectedIndex may be
+            // outside of the select's options at that time, we have to
+            // reselect the correct index here after any new children were
+            // added.
+            (select.dom as HTMLSelectElement).selectedIndex =
+                  this.selectedIndex;
+          },
+          ...{size: targets.length, multiple: 'multiple'},
+        },
+        ...targetNames),
     );
   }
 

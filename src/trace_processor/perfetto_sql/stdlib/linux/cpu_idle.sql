@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- CPU frequency counter per core.
-CREATE PERFETTO VIEW internal_cpu_freq_counters
+CREATE PERFETTO VIEW _cpu_freq_counters
 AS
 SELECT
   ts,
@@ -27,7 +27,7 @@ LEFT JOIN cpu_counter_track cct
 WHERE cct.name = 'cpufreq';
 
 -- CPU idle counter per core.
-CREATE PERFETTO VIEW internal_cpu_idle_counters
+CREATE PERFETTO VIEW _cpu_idle_counters
 AS
 SELECT
   ts,
@@ -41,9 +41,9 @@ LEFT JOIN cpu_counter_track cct
 WHERE cct.name = 'cpuidle';
 
 -- Combined cpu freq & idle counter
-CREATE VIRTUAL TABLE internal_freq_idle_counters
+CREATE VIRTUAL TABLE _freq_idle_counters
 USING
-  span_join(internal_cpu_freq_counters PARTITIONED cpu, internal_cpu_idle_counters PARTITIONED cpu);
+  span_join(_cpu_freq_counters PARTITIONED cpu, _cpu_idle_counters PARTITIONED cpu);
 
 -- Aggregates cpu idle statistics per core.
 CREATE PERFETTO TABLE linux_cpu_idle_stats(
@@ -66,7 +66,7 @@ total AS (
   SELECT
     cpu,
     sum(dur) AS dur
-  FROM internal_freq_idle_counters
+  FROM _freq_idle_counters
   GROUP BY cpu
 )
 SELECT
@@ -76,7 +76,6 @@ SELECT
   SUM(dur) AS dur,
   SUM(dur) / COUNT(idle_value) AS avg_dur,
   SUM(dur) * 100.0 / (SELECT dur FROM total t WHERE t.cpu = ific.cpu) AS idle_percent
-FROM internal_freq_idle_counters ific
+FROM _freq_idle_counters ific
 WHERE idle_value >=0
 GROUP BY cpu, idle_value;
-
