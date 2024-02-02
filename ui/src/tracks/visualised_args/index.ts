@@ -81,7 +81,7 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
 
   async onDestroy(): Promise<void> {
     if (this.engine.isAlive) {
-      this.engine.query(`drop view ${this.helperViewName}`);
+      await this.engine.query(`drop view ${this.helperViewName}`);
     }
   }
 

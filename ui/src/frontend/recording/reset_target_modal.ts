@@ -31,7 +31,7 @@ import {
 import {
   WebsocketMenuController,
 } from '../../common/recordingV2/websocket_menu_controller';
-import {closeModal, showModal} from '../modal';
+import {closeModal, showModal} from '../../widgets/modal';
 import {CodeSnippet} from '../record_widgets';
 
 import {RecordingMultipleChoice} from './recording_multiple_choice';

@@ -56,8 +56,8 @@ const INCOMPLETE_SLICE_WIDTH_PX = 20;
 
 export const CROP_INCOMPLETE_SLICE_FLAG = featureFlags.register({
   id: 'cropIncompleteSlice',
-  name: 'Crop incomplete Slice',
-  description: 'Display incomplete slice in short form',
+  name: 'Crop incomplete slices',
+  description: 'Display incomplete slices in short form',
   defaultValue: false,
 });
 
@@ -113,7 +113,8 @@ function filterVisibleSlices<S extends Slice>(
     return [];
   }
 
-  return slices.filter(slice => {return slice.startNsQ <= end && slice.endNsQ >= start});
+  return slices.filter(
+      (slice) => slice.startNsQ <= end && slice.endNsQ >= start);
 }
 
 export const filterVisibleSlicesForTesting = filterVisibleSlices;
@@ -202,12 +203,6 @@ export abstract class BaseSliceTrack<
   private computedSliceHeight = 0;
   private computedRowSpacing = 0;
 
-  // True if this track (and any views tables it might have created) has been
-  // destroyed. This is unfortunately error prone (since we must manually check
-  // this between each query).
-  // TODO(hjd): Replace once we have cancellable query sequences.
-  private isDestroyed = false;
-
   // Cleanup hook for onInit.
   private initState?: Disposable;
 
@@ -265,9 +260,11 @@ export abstract class BaseSliceTrack<
   }
 
   setSliceLayout(sliceLayout: SliceLayout) {
-    if (sliceLayout.minDepth > sliceLayout.maxDepth) {
-      const {maxDepth, minDepth} = sliceLayout;
-      throw new Error(`minDepth ${minDepth} must be <= maxDepth ${maxDepth}`);
+    if (sliceLayout.isFlat && sliceLayout.depthGuess !== undefined &&
+        sliceLayout.depthGuess !== 0) {
+      const {isFlat, depthGuess} = sliceLayout;
+      throw new Error(`if isFlat (${isFlat}) then depthGuess (${
+          depthGuess}) must be 0 if defined`);
     }
     this.sliceLayout = sliceLayout;
   }
@@ -301,6 +298,26 @@ export abstract class BaseSliceTrack<
     return `${size}px Roboto Condensed`;
   }
 
+  async onCreate(): Promise<void> {
+    this.initState = await this.onInit();
+  }
+
+  async onUpdate(): Promise<void> {
+    const {
+      visibleTimeScale: timeScale,
+      visibleWindowTime: vizTime,
+    } = globals.timeline;
+
+    const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
+    const rawStartNs = vizTime.start.toTime();
+    const rawEndNs = vizTime.end.toTime();
+    const rawSlicesKey = CacheKey.create(rawStartNs, rawEndNs, windowSizePx);
+
+    // If the visible time range is outside the cached area, requests
+    // asynchronously new data from the SQL engine.
+    await this.maybeRequestData(rawSlicesKey);
+  }
+
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
@@ -309,19 +326,7 @@ export abstract class BaseSliceTrack<
       visibleWindowTime: vizTime,
     } = globals.timeline;
 
-    {
-      const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
-      const rawStartNs = vizTime.start.toTime();
-      const rawEndNs = vizTime.end.toTime();
-      const rawSlicesKey = CacheKey.create(rawStartNs, rawEndNs, windowSizePx);
-
-      // If the visible time range is outside the cached area, requests
-      // asynchronously new data from the SQL engine.
-      this.maybeRequestData(rawSlicesKey);
-    }
-
     // In any case, draw whatever we have (which might be stale/incomplete).
-
     let charWidth = this.charWidth;
     if (charWidth < 0) {
       // TODO(hjd): Centralize font measurement/invalidation.
@@ -547,8 +552,6 @@ export abstract class BaseSliceTrack<
   }
 
   onDestroy() {
-    super.onDestroy();
-    this.isDestroyed = true;
     if (this.initState) {
       this.initState.dispose();
       this.initState = undefined;
@@ -564,26 +567,12 @@ export abstract class BaseSliceTrack<
     if (this.sqlState === 'UNINITIALIZED') {
       this.sqlState = 'INITIALIZING';
 
-      if (this.isDestroyed) {
-        return;
-      }
-      this.initState = await this.onInit();
-
-      if (this.isDestroyed) {
-        return;
-      }
       const queryRes = await this.engine.query(`select
           ifnull(max(dur), 0) as maxDur, count(1) as rowCount
           from (${this.getSqlSource()})`);
       const row = queryRes.firstRow({maxDur: LONG, rowCount: NUM});
       this.maxDurNs = row.maxDur;
 
-      // One off materialise the incomplete slices. The number of
-      // incomplete slices is smaller than the depth of the track and
-      // both are expected to be small.
-      if (this.isDestroyed) {
-        return;
-      }
       {
         // TODO(hjd): Consider case below:
         // raw:
@@ -679,10 +668,6 @@ export abstract class BaseSliceTrack<
       ],
     });
 
-    if (this.isDestroyed) {
-      this.sqlState = 'QUERY_DONE';
-      return;
-    }
     // TODO(hjd): Count and expose the number of slices summarized in
     // each bucket?
     const queryRes = await this.engine.query(`
@@ -808,16 +793,11 @@ export abstract class BaseSliceTrack<
   }
 
   private isFlat(): boolean {
-    // maxDepth and minDepth are a half open range so in the normal flat
-    // case maxDepth = 1 and minDepth = 0. In the non flat case:
-    // maxDepth = 42 and minDepth = 0. maxDepth === minDepth should not
-    // occur but is could happen if there are zero slices I guess so
-    // treat this as flat also.
-    return (this.sliceLayout.maxDepth - this.sliceLayout.minDepth) <= 1;
+    return this.sliceLayout.isFlat ?? false;
   }
 
   private depthColumn(): string {
-    return this.isFlat() ? `${this.sliceLayout.minDepth} as depth` : 'depth';
+    return this.isFlat() ? '0 as depth' : 'depth';
   }
 
   onMouseMove(position: {x: number, y: number}): void {
@@ -874,9 +854,7 @@ export abstract class BaseSliceTrack<
 
   private updateSliceAndTrackHeight() {
     const lay = this.sliceLayout;
-
-    const rows =
-        Math.min(Math.max(this.maxDataDepth + 1, lay.minDepth), lay.maxDepth);
+    const rows = Math.max(this.maxDataDepth, lay.depthGuess ?? 0) + 1;
 
     // Compute the track height.
     let trackHeight;

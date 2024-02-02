@@ -1,8 +1,14 @@
 
-Ÿ
-8protos/perfetto/metrics/android/ad_services_metric.protoperfetto.protos".
-AdServicesUiMetric
-latency (Rlatency"0
+‹
+8protos/perfetto/metrics/android/ad_services_metric.protoperfetto.protos"∞
+AdServicesUiMetricQ
+%common_service_initialization_latency (R"commonServiceInitializationLatencyT
+'common_service_permission_check_latency (R#commonServicePermissionCheckLatencyO
+%common_service_ux_engine_flow_latency (R commonServiceUxEngineFlowLatencyG
+ main_actitivity_creation_latency (RmainActitivityCreationLatencyS
+&consent_manager_initialization_latency (R#consentManagerInitializationLatency?
+consent_manager_read_latency (RconsentManagerReadLatencyA
+consent_manager_write_latency (RconsentManagerWriteLatency"0
 AdServicesAdIdMetric
 latency (Rlatency"4
 AdServicesAppSetIdMetric
@@ -1006,8 +1012,8 @@ m
 build_id (	RbuildId
 address (Raddress(
 google_lookup_id (	RgoogleLookupId
-ê
-3protos/perfetto/metrics/android/binder_metric.protoperfetto.protos"«
+ƒ
+3protos/perfetto/metrics/android/binder_metric.protoperfetto.protos"˚
 AndroidBinderMetrice
 process_breakdown (28.perfetto.protos.AndroidBinderMetric.PerProcessBreakdownRprocessBreakdown{
 unaggregated_txn_breakdown (2=.perfetto.protos.AndroidBinderMetric.UnaggregatedTxnBreakdownRunaggregatedTxnBreakdown
@@ -1016,9 +1022,11 @@ m
 pid (Rpid
 
 slice_name (	R	sliceName
-count (RcountÆ
+count (Rcount‚
 UnaggregatedTxnBreakdown
 	aidl_name (	RaidlName
+aidl_ts (RaidlTs
+aidl_dur (RaidlDur
 is_sync (RisSync%
 client_process (	RclientProcess#
 client_thread (	RclientThread$

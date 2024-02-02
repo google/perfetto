@@ -15,7 +15,6 @@
 import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
-import {Disposable} from '../../base/disposable';
 import {Actions} from '../../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
@@ -75,10 +74,6 @@ export class DebugTrackV2 extends
         title: 'Debug Slice',
       },
     };
-  }
-
-  async onInit(): Promise<Disposable> {
-    return super.onInit();
   }
 
   getTrackShellButtons(): m.Children {

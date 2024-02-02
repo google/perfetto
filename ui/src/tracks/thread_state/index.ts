@@ -325,7 +325,7 @@ class ThreadState implements Plugin {
       const displayName =
           getTrackName({utid, tid, threadName, kind: THREAD_STATE_TRACK_KIND});
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.ThreadState#${upid}.${utid}`,
         displayName,
         kind: THREAD_STATE_TRACK_KIND,
@@ -340,7 +340,7 @@ class ThreadState implements Plugin {
         },
       });
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.ThreadState#${utid}.v2`,
         displayName,
         kind: THREAD_STATE_TRACK_KIND,

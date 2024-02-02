@@ -67,14 +67,14 @@ class MacroTable : public Table {
       : Table(pool), allow_inserts_(true), parent_(parent) {
     if (!parent) {
       overlays_.emplace_back();
-      columns_.emplace_back(Column::IdColumn(this, 0, 0));
+      columns_.emplace_back(ColumnLegacy::IdColumn(this, 0, 0));
       columns_.emplace_back(
-          Column("type", &type_, Column::kNonNull, this, 1, 0));
+          ColumnLegacy("type", &type_, ColumnLegacy::kNonNull, this, 1, 0));
       return;
     }
 
     overlays_.resize(parent->overlays().size() + 1);
-    for (const Column& col : parent->columns()) {
+    for (const ColumnLegacy& col : parent->columns()) {
       columns_.emplace_back(col, this, col.index_in_table(),
                             col.overlay_index());
     }
@@ -92,7 +92,7 @@ class MacroTable : public Table {
     }
     overlays_.emplace_back(ColumnStorageOverlay(row_count_));
 
-    for (const Column& col : parent.columns()) {
+    for (const ColumnLegacy& col : parent.columns()) {
       columns_.emplace_back(col, this, col.index_in_table(),
                             col.overlay_index());
     }

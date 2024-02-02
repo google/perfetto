@@ -131,4 +131,32 @@ message SysStats {
   }
   // One entry per disk device.
   repeated DiskStat disk_stat = 13;
+
+  // Reading from /proc/pressure/*.
+  message PsiSample {
+    // Type of resource that may have exhibited pressure stalls.
+    //    * _SOME indicates some resource tasks stalled.
+    //    * _FULL indicates all non-idle resource tasks stalled simultaneously.
+    enum PsiResource {
+      PSI_RESOURCE_UNSPECIFIED = 0;
+      PSI_RESOURCE_CPU_SOME = 1;
+      PSI_RESOURCE_CPU_FULL = 2;
+      PSI_RESOURCE_IO_SOME = 3;
+      PSI_RESOURCE_IO_FULL = 4;
+      PSI_RESOURCE_MEMORY_SOME = 5;
+      PSI_RESOURCE_MEMORY_FULL = 6;
+    }
+    optional PsiResource resource = 1;
+
+    // Total absolute stall time (in nanos) for a given resource.
+    // While PSI readings are in micros, we store in nanos for consistency with
+    // most other time-based counters.
+    optional uint64 total_ns = 2;
+
+    // Note that /proc/pressure/* exposes historical average utilization values
+    // (as a %), but we don't yet sample those. They could easily be added as
+    // additional fields should the total stall time readings be insufficient.
+  }
+  // One entry per PsiResource type.
+  repeated PsiSample psi = 14;
 }

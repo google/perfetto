@@ -153,6 +153,7 @@ namespace stats {
       "before they were closed in reality"),                                   \
   F(tokenizer_skipped_packets,            kSingle,  kInfo,     kAnalysis, ""), \
   F(vmstat_unknown_keys,                  kSingle,  kError,    kAnalysis, ""), \
+  F(psi_unknown_resource,                 kSingle,  kError,    kAnalysis, ""), \
   F(vulkan_allocations_invalid_string_id,                                      \
                                           kSingle,  kError,    kTrace,    ""), \
   F(clock_sync_failure,                   kSingle,  kError,    kAnalysis, ""), \

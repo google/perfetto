@@ -75,6 +75,10 @@ class SystemProbesParser {
   static constexpr size_t kProcStatsProcessSize = 21;
   std::array<StringId, kProcStatsProcessSize> proc_stats_process_names_{};
 
+  // Maps a SysStats::PsiSample::PsiResource type to its StringId.
+  std::array<StringId, protos::pbzero::SysStats_PsiSample_PsiResource_MAX + 1>
+      sys_stats_psi_resource_names_{};
+
   uint64_t ms_per_tick_ = 0;
   uint32_t page_size_ = 0;
 

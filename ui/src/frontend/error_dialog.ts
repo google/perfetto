@@ -20,9 +20,9 @@ import {TraceGcsUploader} from '../common/upload_utils';
 import {RECORDING_V2_FLAG} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
+import {getCurrentModalKey, showModal} from '../widgets/modal';
 
 import {globals} from './globals';
-import {getCurrentModalKey, showModal} from './modal';
 
 const MODAL_KEY = 'crash_modal';
 

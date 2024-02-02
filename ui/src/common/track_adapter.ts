@@ -41,7 +41,6 @@ export class TrackWithControllerAdapter<Config, Data> extends
     TrackHelperLEGACY<Data> {
   private track: TrackAdapter<Config, Data>;
   private controller: TrackControllerAdapter<Config, Data>;
-  private isSetup = false;
 
   constructor(
       engine: EngineProxy, trackKey: string, config: Config,
@@ -58,10 +57,14 @@ export class TrackWithControllerAdapter<Config, Data> extends
     this.controller = new Controller(config, engine);
   }
 
-  onDestroy(): void {
+  async onCreate(): Promise<void> {
+    await this.controller.onSetup();
+  }
+
+  async onDestroy(): Promise<void> {
     this.track.onDestroy();
-    this.controller.onDestroy();
-    super.onDestroy();
+    await this.controller.onDestroy();
+    await super.onDestroy();
   }
 
   getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect|undefined {
@@ -94,10 +97,6 @@ export class TrackWithControllerAdapter<Config, Data> extends
 
   async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
-    if (!this.isSetup) {
-      await this.controller.onSetup();
-      this.isSetup = true;
-    }
     return await this.controller.onBoundsChange(start, end, resolution);
   }
 

@@ -16,6 +16,7 @@
 import m from 'mithril';
 
 import {raf} from '../core/raf_scheduler';
+import {showModal} from '../widgets/modal';
 import {Spinner} from '../widgets/spinner';
 
 import {globals} from './globals';
@@ -24,7 +25,6 @@ import {
   nativeKeyboardLayoutMap,
   NotSupportedError,
 } from './keyboard_layout_map';
-import {showModal} from './modal';
 import {KeyMapping} from './pan_and_zoom_handler';
 
 export function toggleHelp() {

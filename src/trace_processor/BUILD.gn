@@ -270,7 +270,7 @@ perfetto_unittest_source_set("unittests") {
     ":top_level_unittests",
     "containers:unittests",
     "db:unittests",
-    "db/storage:unittests",
+    "db/column:unittests",
     "importers/android_bugreport:unittests",
     "importers/common:unittests",
     "importers/ftrace:unittests",

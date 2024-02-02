@@ -136,7 +136,6 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
   private store: Store<CounterTrackState>;
   private trackKey: string;
   private uuid = uuidv4();
-  private isSetup = false;
 
   constructor(
       ctx: TrackContext, private config: Config, private engine: EngineProxy) {
@@ -168,7 +167,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
     }
   }
 
-  private async setup() {
+  async onCreate() {
     if (this.config.namespace === undefined) {
       await this.engine.query(`
         create view ${this.tableName('counter_view')} as
@@ -221,11 +220,6 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
 
   async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
-    if (!this.isSetup) {
-      await this.setup();
-      this.isSetup = true;
-    }
-
     const queryRes = await this.engine.query(`
       select
         (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
@@ -636,19 +630,14 @@ class CounterPlugin implements Plugin {
     for (const {trackId, name} of counters) {
       const config:
           Config = {name, trackId, defaultScale: getCounterScale(name)};
-      const uri = `perfetto.Counter#${trackId}`;
       ctx.registerStaticTrack({
-        uri,
+        uri: `perfetto.Counter#${trackId}`,
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         trackIds: [trackId],
         track: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
-      });
-      ctx.addDefaultTrack({
-        uri,
-        displayName: name,
         sortKey: PrimaryTrackSortKey.COUNTER_TRACK,
       });
     }
@@ -716,7 +705,7 @@ class CounterPlugin implements Plugin {
           maximumValue,
           defaultScale: getCounterScale(name),
         };
-        ctx.registerStaticTrack({
+        ctx.registerTrack({
           uri,
           displayName: name,
           kind: COUNTER_TRACK_KIND,
@@ -772,7 +761,7 @@ class CounterPlugin implements Plugin {
         trackId,
         defaultScale: getCounterScale(name),
       };
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.Counter#cpu${trackId}`,
         displayName: name,
         kind: COUNTER_TRACK_KIND,
@@ -835,7 +824,7 @@ class CounterPlugin implements Plugin {
         endTs: Time.fromRaw(endTs),
         defaultScale: getCounterScale(name),
       };
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.Counter#thread${trackId}`,
         displayName: name,
         kind,
@@ -892,7 +881,7 @@ class CounterPlugin implements Plugin {
         endTs: Time.fromRaw(endTs),
         defaultScale: getCounterScale(name),
       };
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.Counter#process${trackId}`,
         displayName: name,
         kind: COUNTER_TRACK_KIND,

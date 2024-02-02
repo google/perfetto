@@ -205,7 +205,7 @@ export function addCriticalUserInteractionTrack() {
 
 class CriticalUserInteractionPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.registerStaticTrack({
+    ctx.registerTrack({
       uri: CriticalUserInteractionTrack.kind,
       kind: CriticalUserInteractionTrack.kind,
       displayName: 'Chrome Interactions',

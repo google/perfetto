@@ -20,7 +20,8 @@ import {Actions} from '../common/actions';
 import {
   getContainingTrackId,
 } from '../common/state';
-import {Track, TrackTags} from '../public';
+import {TrackCacheEntry} from '../common/track_cache';
+import {TrackTags} from '../public';
 
 import {
   COLLAPSED_BACKGROUND,
@@ -41,7 +42,7 @@ interface Attrs {
   key: string;
   title: string;
   collapsed: boolean;
-  track?: Track;
+  trackFSM?: TrackCacheEntry;
   tags?: TrackTags;
   labels?: string[];
 }
@@ -64,7 +65,7 @@ export class TrackGroupPanel implements Panel {
       labels,
       tags,
       collapsed,
-      track,
+      trackFSM,
     } = this.attrs;
 
     let name = title;
@@ -147,15 +148,15 @@ export class TrackGroupPanel implements Panel {
                 checkBox) :
               ''),
 
-        track ? m(TrackContent,
-                  {track},
-                  (!collapsed && child !== null) ? m('span', child) : null) :
-                null);
+        trackFSM ? m(TrackContent,
+                     {track: trackFSM.track},
+                     (!collapsed && child !== null) ? m('span', child) : null) :
+                   null);
   }
 
   private onupdate() {
-    if (this.attrs.track !== undefined) {
-      this.attrs.track.onFullRedraw();
+    if (this.attrs.trackFSM !== undefined) {
+      this.attrs.trackFSM.track.onFullRedraw();
     }
   }
 
@@ -178,7 +179,7 @@ export class TrackGroupPanel implements Panel {
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const {
       collapsed,
-      track,
+      trackFSM: track,
     } = this.attrs;
 
     ctx.fillStyle = collapsed ? COLLAPSED_BACKGROUND : EXPANDED_BACKGROUND;
@@ -197,7 +198,8 @@ export class TrackGroupPanel implements Panel {
     ctx.translate(TRACK_SHELL_WIDTH, 0);
     if (track) {
       const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
-      track.render(ctx, trackSize);
+      track.update();
+      track.track.render(ctx, trackSize);
     }
     ctx.restore();
 

@@ -2289,11 +2289,15 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
 
   if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
-    MaybeEmitUuidAndTraceConfig(tracing_session, &packets);
+    MaybeEmitTraceConfig(tracing_session, &packets);
     MaybeEmitReceivedTriggers(tracing_session, &packets);
   }
-  if (!tracing_session->config.builtin_data_sources().disable_system_info())
-    MaybeEmitSystemInfo(tracing_session, &packets);
+  if (!tracing_session->did_emit_initial_packets) {
+    EmitUuid(tracing_session, &packets);
+    if (!tracing_session->config.builtin_data_sources().disable_system_info())
+      EmitSystemInfo(&packets);
+  }
+  tracing_session->did_emit_initial_packets = true;
 
   // Note that in the proto comment, we guarantee that the tracing_started
   // lifecycle event will be emitted before any data packets so make sure to
@@ -3460,38 +3464,30 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
   return trace_stats;
 }
 
-void TracingServiceImpl::MaybeEmitUuidAndTraceConfig(
-    TracingSession* tracing_session,
-    std::vector<TracePacket>* packets) {
-  if (tracing_session->did_emit_config)
-    return;
-  tracing_session->did_emit_config = true;
-
-  {
-    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-    packet->set_trusted_uid(static_cast<int32_t>(uid_));
-    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
-    auto* uuid = packet->set_trace_uuid();
-    uuid->set_lsb(tracing_session->trace_uuid.lsb());
-    uuid->set_msb(tracing_session->trace_uuid.msb());
-    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
-  }
-
-  {
-    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-    packet->set_trusted_uid(static_cast<int32_t>(uid_));
-    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
-    tracing_session->config.Serialize(packet->set_trace_config());
-    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
-  }
+void TracingServiceImpl::EmitUuid(TracingSession* tracing_session,
+                                  std::vector<TracePacket>* packets) {
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_trusted_uid(static_cast<int32_t>(uid_));
+  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  auto* uuid = packet->set_trace_uuid();
+  uuid->set_lsb(tracing_session->trace_uuid.lsb());
+  uuid->set_msb(tracing_session->trace_uuid.msb());
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
-void TracingServiceImpl::MaybeEmitSystemInfo(
+void TracingServiceImpl::MaybeEmitTraceConfig(
     TracingSession* tracing_session,
     std::vector<TracePacket>* packets) {
-  if (tracing_session->did_emit_system_info)
+  if (tracing_session->did_emit_initial_packets)
     return;
-  tracing_session->did_emit_system_info = true;
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_trusted_uid(static_cast<int32_t>(uid_));
+  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  tracing_session->config.Serialize(packet->set_trace_config());
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+}
+
+void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
   auto* info = packet->set_system_info();
   info->set_tracing_service_version(base::GetVersionString());
@@ -3632,6 +3628,7 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
                                               TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto clone_target = FlushFlags::CloneTarget::kUnknown;
+  bool for_bugreport = false;
 
   if (tsid == kBugreportSessionId) {
     PERFETTO_LOG("Looking for sessions for bugreport");
@@ -3643,6 +3640,7 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
     }
     tsid = session->id;
     clone_target = FlushFlags::CloneTarget::kBugreport;
+    for_bugreport = true;
   }
 
   TracingSession* session = GetTracingSession(tsid);
@@ -3691,14 +3689,15 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
   auto weak_consumer = consumer->GetWeakPtr();
   Flush(
       tsid, 0,
-      [weak_this, tsid, weak_consumer](bool final_flush_outcome) {
+      [weak_this, tsid, for_bugreport,
+       weak_consumer](bool final_flush_outcome) {
         PERFETTO_LOG("FlushAndCloneSession(%" PRIu64 ") started, success=%d",
                      tsid, final_flush_outcome);
         if (!weak_this || !weak_consumer)
           return;
         base::Uuid uuid;
         base::Status result = weak_this->DoCloneSession(
-            &*weak_consumer, tsid, final_flush_outcome, &uuid);
+            &*weak_consumer, tsid, for_bugreport, final_flush_outcome, &uuid);
         weak_consumer->consumer_->OnSessionCloned(
             {result.ok(), result.message(), uuid});
       },
@@ -3708,6 +3707,7 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
 
 base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
                                                 TracingSessionID src_tsid,
+                                                bool for_bugreport,
                                                 bool final_flush_outcome,
                                                 base::Uuid* new_uuid) {
   PERFETTO_DLOG("CloneSession(%" PRIu64 ") started, consumer uid: %d", src_tsid,
@@ -3825,8 +3825,8 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
   cloned_session->compress_deflate = src->compress_deflate;
-  if (src->trace_filter) {
-    // Copy the trace filter.
+  if (src->trace_filter && !for_bugreport) {
+    // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(
         new protozero::MessageFilter(src->trace_filter->config()));
   }

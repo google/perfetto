@@ -109,6 +109,7 @@ from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
+from diff_tests.syntax.filtering_tests import PerfettoFiltering
 from diff_tests.syntax.function_tests import PerfettoFunction
 from diff_tests.syntax.include_tests import PerfettoInclude
 from diff_tests.syntax.macro_tests import PerfettoMacro
@@ -261,6 +262,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
   ] + chrome_stdlib_tests
 
   syntax_tests = [
+      *PerfettoFiltering(index_path, 'syntax', 'PerfettoFiltering').fetch(),
       *PerfettoFunction(index_path, 'syntax', 'PerfettoFunction').fetch(),
       *PerfettoInclude(index_path, 'syntax', 'PerfettoInclude').fetch(),
       *PerfettoMacro(index_path, 'syntax', 'PerfettoMacro').fetch(),
