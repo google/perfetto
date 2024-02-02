@@ -74,21 +74,32 @@ base::StatusOr<std::vector<Destinations>> ParseSourceToDestionationsMap(
 void DfsImpl(tables::DfsTable* table,
              const std::vector<Destinations>& source_to_destinations_map,
              std::vector<uint8_t>& seen_node_ids,
-             uint32_t id,
-             std::optional<uint32_t> parent_id) {
-  if (seen_node_ids[id]) {
-    return;
-  }
-  seen_node_ids[id] = true;
+             uint32_t start_id) {
+  struct StackState {
+    uint32_t id;
+    std::optional<uint32_t> parent_id;
+  };
 
-  tables::DfsTable::Row row;
-  row.node_id = id;
-  row.parent_node_id = parent_id;
-  table->Insert(row);
+  std::vector<StackState> stack{{start_id, std::nullopt}};
+  while (!stack.empty()) {
+    StackState stack_state = stack.back();
+    stack.pop_back();
 
-  PERFETTO_DCHECK(id < source_to_destinations_map.size());
-  for (uint32_t dest : source_to_destinations_map[id]) {
-    DfsImpl(table, source_to_destinations_map, seen_node_ids, dest, id);
+    if (seen_node_ids[stack_state.id]) {
+      continue;
+    }
+    seen_node_ids[stack_state.id] = true;
+
+    tables::DfsTable::Row row;
+    row.node_id = stack_state.id;
+    row.parent_node_id = stack_state.parent_id;
+    table->Insert(row);
+
+    PERFETTO_DCHECK(stack_state.id < source_to_destinations_map.size());
+    const auto& children = source_to_destinations_map[stack_state.id];
+    for (auto it = children.rbegin(); it != children.rend(); ++it) {
+      stack.emplace_back(StackState{*it, stack_state.id});
+    }
   }
 }
 
@@ -165,7 +176,7 @@ base::StatusOr<std::unique_ptr<Table>> Dfs::ComputeTable(
 
   std::vector<uint8_t> seen_node_ids(map.size());
   auto table = std::make_unique<tables::DfsTable>(pool_);
-  DfsImpl(table.get(), map, seen_node_ids, start_node_id, std::nullopt);
+  DfsImpl(table.get(), map, seen_node_ids, start_node_id);
   return std::unique_ptr<Table>(std::move(table));
 }
 
