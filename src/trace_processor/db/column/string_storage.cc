@@ -16,27 +16,32 @@
 
 #include "src/trace_processor/db/column/string_storage.h"
 
-#include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_utils.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
+#include <algorithm>
+#include <cstdint>
+#include <functional>
+#include <iterator>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
-#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
-
 #include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/glob.h"
 #include "src/trace_processor/util/regex.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
+
+namespace perfetto::trace_processor::column {
 
 namespace {
 
@@ -139,7 +144,7 @@ uint32_t LowerBoundIntrinsic(StringPool* pool,
                              NullTermStringView val,
                              Range search_range) {
   Less comp{pool};
-  auto lower =
+  const auto* lower =
       std::lower_bound(data + search_range.start, data + search_range.end, val,
                        [comp](StringPool::Id id, NullTermStringView val) {
                          return comp(id, val);
@@ -152,7 +157,7 @@ uint32_t UpperBoundIntrinsic(StringPool* pool,
                              NullTermStringView val,
                              Range search_range) {
   Greater comp{pool};
-  auto upper =
+  const auto* upper =
       std::upper_bound(data + search_range.start, data + search_range.end, val,
                        [comp](NullTermStringView val, StringPool::Id id) {
                          return comp(id, val);
@@ -166,7 +171,7 @@ uint32_t LowerBoundExtrinsic(StringPool* pool,
                              const uint32_t* indices,
                              uint32_t indices_count) {
   Less comp{pool};
-  auto lower =
+  const auto* lower =
       std::lower_bound(indices, indices + indices_count, val,
                        [comp, data](uint32_t index, NullTermStringView val) {
                          return comp(data[index], val);
@@ -180,7 +185,7 @@ uint32_t UpperBoundExtrinsic(StringPool* pool,
                              const uint32_t* indices,
                              uint32_t indices_count) {
   Greater comp{pool};
-  auto upper =
+  const auto* upper =
       std::upper_bound(indices, indices + indices_count, val,
                        [comp, data](NullTermStringView val, uint32_t index) {
                          return comp(data[index], val);
@@ -310,8 +315,8 @@ BitVector StringStorage::LinearSearch(FilterOp op,
       // If glob pattern doesn't involve any special characters, the function
       // called should be equality.
       if (matcher.IsEquality()) {
-        utils::LinearSearchWithComparator(
-            val, start, std::equal_to<StringPool::Id>(), builder);
+        utils::LinearSearchWithComparator(val, start, std::equal_to<>(),
+                                          builder);
         break;
       }
 
@@ -369,30 +374,30 @@ Range StringStorage::OrderedIndexSearch(FilterOp op,
 
   switch (op) {
     case FilterOp::kEq:
-      return Range(LowerBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                       indices.data, indices.size),
-                   UpperBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                       indices.data, indices.size));
+      return {LowerBoundExtrinsic(string_pool_, data_->data(), val_str,
+                                  indices.data, indices.size),
+              UpperBoundExtrinsic(string_pool_, data_->data(), val_str,
+                                  indices.data, indices.size)};
     case FilterOp::kLe:
-      return Range(0, UpperBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                          indices.data, indices.size));
+      return {0, UpperBoundExtrinsic(string_pool_, data_->data(), val_str,
+                                     indices.data, indices.size)};
     case FilterOp::kLt:
-      return Range(0, LowerBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                          indices.data, indices.size));
+      return {0, LowerBoundExtrinsic(string_pool_, data_->data(), val_str,
+                                     indices.data, indices.size)};
     case FilterOp::kGe:
-      return Range(LowerBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                       indices.data, indices.size),
-                   indices.size);
+      return {LowerBoundExtrinsic(string_pool_, data_->data(), val_str,
+                                  indices.data, indices.size),
+              indices.size};
     case FilterOp::kGt:
-      return Range(UpperBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                       indices.data, indices.size),
-                   indices.size);
+      return {UpperBoundExtrinsic(string_pool_, data_->data(), val_str,
+                                  indices.data, indices.size),
+              indices.size};
     case FilterOp::kIsNull: {
       // Assuming nulls are at the front.
       IsNull comp;
-      auto first_non_null = std::partition_point(
+      const auto* first_non_null = std::partition_point(
           indices.data, indices.data + indices.size, [comp, this](uint32_t i) {
-            return comp(data_->data()[i], StringPool::Id::Null());
+            return comp((*data_)[i], StringPool::Id::Null());
           });
       return Range(0, static_cast<uint32_t>(
                           std::distance(indices.data, first_non_null)));
@@ -400,9 +405,9 @@ Range StringStorage::OrderedIndexSearch(FilterOp op,
     case FilterOp::kIsNotNull: {
       // Assuming nulls are at the front.
       IsNull comp;
-      auto first_non_null = std::partition_point(
+      const auto* first_non_null = std::partition_point(
           indices.data, indices.data + indices.size, [comp, this](uint32_t i) {
-            return comp(data_->data()[i], StringPool::Id::Null());
+            return comp((*data_)[i], StringPool::Id::Null());
           });
       return Range(
           static_cast<uint32_t>(std::distance(indices.data, first_non_null)),
@@ -531,16 +536,16 @@ Range StringStorage::BinarySearchIntrinsic(FilterOp op,
 void StringStorage::StableSort(uint32_t* indices, uint32_t indices_size) const {
   std::stable_sort(indices, indices + indices_size,
                    [this](uint32_t a_idx, uint32_t b_idx) {
-                     return string_pool_->Get(data_->data()[a_idx]) <
-                            string_pool_->Get(data_->data()[b_idx]);
+                     return string_pool_->Get((*data_)[a_idx]) <
+                            string_pool_->Get((*data_)[b_idx]);
                    });
 }
 
 void StringStorage::Sort(uint32_t* indices, uint32_t indices_size) const {
   std::sort(indices, indices + indices_size,
             [this](uint32_t a_idx, uint32_t b_idx) {
-              return string_pool_->Get(data_->data()[a_idx]) <
-                     string_pool_->Get(data_->data()[b_idx]);
+              return string_pool_->Get((*data_)[a_idx]) <
+                     string_pool_->Get((*data_)[b_idx]);
             });
 }
 
@@ -553,6 +558,4 @@ void StringStorage::Serialize(StorageProto* msg) const {
       sizeof(StringPool::Id) * size());
 }
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column

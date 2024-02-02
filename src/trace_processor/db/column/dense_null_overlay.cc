@@ -16,17 +16,23 @@
 
 #include "src/trace_processor/db/column/dense_null_overlay.h"
 
+#include <algorithm>
 #include <cstdint>
-#include <variant>
+#include <iterator>
+#include <memory>
+#include <utility>
 
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/tp_metatrace.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
+
+namespace perfetto::trace_processor::column {
 
 DenseNullOverlay::DenseNullOverlay(std::unique_ptr<Column> inner,
                                    const BitVector* non_null)
@@ -209,6 +215,4 @@ void DenseNullOverlay::Serialize(StorageProto* storage) const {
   inner_->Serialize(null_overlay->set_storage());
 }
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column

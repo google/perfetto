@@ -16,14 +16,23 @@
 
 #include "src/trace_processor/db/column/selector_overlay.h"
 
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/tp_metatrace.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
+
+namespace perfetto::trace_processor::column {
 
 SelectorOverlay::SelectorOverlay(std::unique_ptr<Column> inner,
                                  const BitVector* selector)
@@ -120,6 +129,4 @@ void SelectorOverlay::Serialize(StorageProto* storage) const {
   selector_->Serialize(selector_overlay->set_bit_vector());
 }
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column

@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_DENSE_NULL_OVERLAY_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_DENSE_NULL_OVERLAY_H_
 
+#include <cstdint>
 #include <memory>
 #include <variant>
 
@@ -52,7 +53,7 @@ class DenseNullOverlay : public Column {
 
   uint32_t size() const override { return non_null_->size(); }
 
-  std::string_view name() const override { return "DenseNullOverlay"; }
+  std::string DebugString() const override { return "DenseNullOverlay"; }
 
  private:
   std::unique_ptr<Column> inner_;
