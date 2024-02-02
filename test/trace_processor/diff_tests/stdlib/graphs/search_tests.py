@@ -129,5 +129,5 @@ class GraphSearchTests(TestSuite):
           "J","G"
           "K","H"
           "L","D"
-          "R","[NULL]
+          "R","[NULL]"
         """))
