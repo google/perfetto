@@ -92,7 +92,7 @@ class Graph {
   }
 
   // Lengauer-Tarjan Dominators: Step 1.
-  void RunDfs(Node root_node) { Dfs(root_node, std::nullopt); }
+  void RunDfs(Node root_node);
 
   // Lengauer-Tarjan Dominators: Step 2 and 3.
   void ComputeSemiDominatorAndPartialDominator(Forest&);
@@ -151,8 +151,6 @@ class Graph {
     GetStateForNode(source).successors.push_back(dest);
     GetStateForNode(dest).predecessors.push_back(source);
   }
-
-  void Dfs(Node v, std::optional<TreeNumber> parent);
 
   const NodeState& GetStateForNode(Node v) const {
     return state_by_node_[v.id];
@@ -224,19 +222,30 @@ class Forest {
 };
 
 // Lengauer-Tarjan Dominators: Step 1.
-void Graph::Dfs(Node v, std::optional<TreeNumber> parent) {
-  NodeState& state = GetStateForNode(v);
-  if (state.semi_dominator) {
-    return;
-  }
+void Graph::RunDfs(Node root) {
+  struct StackState {
+    Node node;
+    std::optional<TreeNumber> parent;
+  };
 
-  TreeNumber tree_number{static_cast<uint32_t>(node_by_tree_number_.size())};
-  state.tree_parent = parent;
-  state.semi_dominator = tree_number;
-  node_by_tree_number_.push_back(v);
+  std::vector<StackState> stack{{root, std::nullopt}};
+  while (!stack.empty()) {
+    StackState stack_state = stack.back();
+    stack.pop_back();
 
-  for (Node c : state.successors) {
-    Dfs(c, tree_number);
+    NodeState& s = GetStateForNode(stack_state.node);
+    if (s.semi_dominator) {
+      continue;
+    }
+
+    TreeNumber tree_number{static_cast<uint32_t>(node_by_tree_number_.size())};
+    s.tree_parent = stack_state.parent;
+    s.semi_dominator = tree_number;
+    node_by_tree_number_.push_back(stack_state.node);
+
+    for (auto it = s.successors.rbegin(); it != s.successors.rend(); ++it) {
+      stack.emplace_back(StackState{*it, tree_number});
+    }
   }
 }
 
