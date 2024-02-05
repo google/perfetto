@@ -16,19 +16,25 @@
 
 #include "src/trace_processor/db/column/null_overlay.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
+#include <memory>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_node.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/tp_metatrace.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
+
+namespace perfetto::trace_processor::column {
 namespace {
 
 BitVector ReconcileStorageResult(FilterOp op,
@@ -72,7 +78,20 @@ BitVector ReconcileStorageResult(FilterOp op,
 
 }  // namespace
 
-SearchValidationResult NullOverlay::ValidateSearchConstraints(
+NullOverlay::NullOverlay(const BitVector* non_null) : non_null_(non_null) {}
+
+std::unique_ptr<DataNode::Queryable> NullOverlay::MakeQueryable(
+    std::unique_ptr<DataNode::Queryable> inner) {
+  return std::make_unique<Queryable>(std::move(inner), non_null_);
+}
+
+NullOverlay::Queryable::Queryable(std::unique_ptr<DataNode::Queryable> innner,
+                                  const BitVector* non_null)
+    : inner_(std::move(innner)), non_null_(non_null) {
+  PERFETTO_DCHECK(non_null_->CountSetBits() <= inner_->size());
+}
+
+SearchValidationResult NullOverlay::Queryable::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
   if (op == FilterOp::kIsNull) {
@@ -82,16 +101,10 @@ SearchValidationResult NullOverlay::ValidateSearchConstraints(
   return inner_->ValidateSearchConstraints(sql_val, op);
 }
 
-NullOverlay::NullOverlay(std::unique_ptr<Column> storage,
-                         const BitVector* non_null)
-    : inner_(std::move(storage)), non_null_(non_null) {
-  PERFETTO_DCHECK(non_null_->CountSetBits() <= inner_->size());
-}
-
-RangeOrBitVector NullOverlay::Search(FilterOp op,
-                                     SqlValue sql_val,
-                                     Range in) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "NullOverlay::Search");
+RangeOrBitVector NullOverlay::Queryable::Search(FilterOp op,
+                                                SqlValue sql_val,
+                                                Range in) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "NullOverlay::Queryable::Search");
 
   if (op == FilterOp::kIsNull) {
     switch (inner_->ValidateSearchConstraints(sql_val, op)) {
@@ -121,10 +134,11 @@ RangeOrBitVector NullOverlay::Search(FilterOp op,
   return RangeOrBitVector(std::move(res));
 }
 
-RangeOrBitVector NullOverlay::IndexSearch(FilterOp op,
-                                          SqlValue sql_val,
-                                          Indices indices) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "NullOverlay::IndexSearch");
+RangeOrBitVector NullOverlay::Queryable::IndexSearch(FilterOp op,
+                                                     SqlValue sql_val,
+                                                     Indices indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "NullOverlay::Queryable::IndexSearch");
 
   if (op == FilterOp::kIsNull) {
     switch (inner_->ValidateSearchConstraints(sql_val, op)) {
@@ -168,35 +182,36 @@ RangeOrBitVector NullOverlay::IndexSearch(FilterOp op,
   return RangeOrBitVector(std::move(res));
 }
 
-Range NullOverlay::OrderedIndexSearch(FilterOp op,
-                                      SqlValue sql_val,
-                                      Indices indices) const {
+Range NullOverlay::Queryable::OrderedIndexSearch(FilterOp op,
+                                                 SqlValue sql_val,
+                                                 Indices indices) const {
   // For NOT EQUAL the translation or results from EQUAL needs to be done by the
   // caller.
   PERFETTO_CHECK(op != FilterOp::kNe);
 
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "NullOverlay::OrderedIndexSearch");
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "NullOverlay::Queryable::OrderedIndexSearch");
 
   // We assume all NULLs are ordered to be in the front. We are looking for the
   // first index that points to non NULL value.
   const uint32_t* first_non_null =
       std::partition_point(indices.data, indices.data + indices.size,
                            [this](uint32_t i) { return !non_null_->IsSet(i); });
-  const uint32_t non_null_offset =
+  auto non_null_offset =
       static_cast<uint32_t>(std::distance(indices.data, first_non_null));
-  const uint32_t non_null_size = static_cast<uint32_t>(
+  auto non_null_size = static_cast<uint32_t>(
       std::distance(first_non_null, indices.data + indices.size));
 
   if (op == FilterOp::kIsNull) {
-    return Range(0, non_null_offset);
+    return {0, non_null_offset};
   }
 
   if (op == FilterOp::kIsNotNull) {
     switch (inner_->ValidateSearchConstraints(sql_val, op)) {
       case SearchValidationResult::kNoData:
-        return Range();
+        return {};
       case SearchValidationResult::kAllData:
-        return Range(non_null_offset, indices.size);
+        return {non_null_offset, indices.size};
       case SearchValidationResult::kOk:
         break;
     }
@@ -211,26 +226,24 @@ Range NullOverlay::OrderedIndexSearch(FilterOp op,
 
   Range inner_range = inner_->OrderedIndexSearch(
       op, sql_val, Indices{storage_iv.data(), non_null_size, indices.state});
-  return Range(inner_range.start + non_null_offset,
-               inner_range.end + non_null_offset);
+  return {inner_range.start + non_null_offset,
+          inner_range.end + non_null_offset};
 }
 
-void NullOverlay::StableSort(uint32_t*, uint32_t) const {
+void NullOverlay::Queryable::StableSort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void NullOverlay::Sort(uint32_t*, uint32_t) const {
+void NullOverlay::Queryable::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void NullOverlay::Serialize(StorageProto* storage) const {
+void NullOverlay::Queryable::Serialize(StorageProto* storage) const {
   auto* null_storage = storage->set_null_overlay();
   non_null_->Serialize(null_storage->set_bit_vector());
   inner_->Serialize(null_storage->set_storage());
 }
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column

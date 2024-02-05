@@ -17,60 +17,73 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_NUMERIC_STORAGE_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <variant>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_node.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Storage for all numeric type data (i.e. doubles, int32, int64, uint32).
-class NumericStorageBase : public Column {
+class NumericStorageBase : public DataNode {
  public:
-  SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                   FilterOp) const override;
-
-  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
-
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  void StableSort(uint32_t* rows, uint32_t rows_size) const override;
-
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  void Sort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Serialize(StorageProto*) const override;
-
-  inline uint32_t size() const override { return size_; }
-
-  std::string DebugString() const override { return "NumericStorage"; }
+  std::unique_ptr<DataNode::Queryable> MakeQueryable() override;
 
  protected:
   NumericStorageBase(const void* data,
                      uint32_t size,
                      ColumnType type,
-                     bool is_sorted = false)
-      : size_(size), data_(data), storage_type_(type), is_sorted_(is_sorted) {}
+                     bool is_sorted);
 
  private:
-  // All viable numeric values for ColumnTypes.
-  using NumericValue = std::variant<uint32_t, int32_t, int64_t, double>;
+  class Queryable : public DataNode::Queryable {
+   public:
+    Queryable(const void* data, uint32_t size, ColumnType type, bool is_sorted);
 
-  BitVector LinearSearchInternal(FilterOp op, NumericValue val, Range) const;
+    SearchValidationResult ValidateSearchConstraints(SqlValue,
+                                                     FilterOp) const override;
 
-  BitVector IndexSearchInternal(FilterOp op,
-                                NumericValue value,
-                                const uint32_t* indices,
-                                uint32_t indices_count) const;
+    RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
 
-  Range BinarySearchIntrinsic(FilterOp op,
-                              NumericValue val,
-                              Range search_range) const;
+    RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+
+    void StableSort(uint32_t*, uint32_t) const override;
+
+    Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
+
+    void Sort(uint32_t*, uint32_t) const override;
+
+    void Serialize(StorageProto*) const override;
+
+    inline uint32_t size() const override { return size_; }
+
+    std::string DebugString() const override { return "NumericStorage"; }
+
+   private:
+    // All viable numeric values for ColumnTypes.
+    using NumericValue = std::variant<uint32_t, int32_t, int64_t, double>;
+
+    BitVector LinearSearchInternal(FilterOp op, NumericValue val, Range) const;
+
+    BitVector IndexSearchInternal(FilterOp op,
+                                  NumericValue value,
+                                  const uint32_t* indices,
+                                  uint32_t indices_count) const;
+
+    Range BinarySearchIntrinsic(FilterOp op,
+                                NumericValue val,
+                                Range search_range) const;
+
+    const uint32_t size_ = 0;
+    const void* data_ = nullptr;
+    const ColumnType storage_type_ = ColumnType::kDummy;
+    const bool is_sorted_ = false;
+  };
 
   const uint32_t size_ = 0;
   const void* data_ = nullptr;

@@ -14,20 +14,22 @@
  * limitations under the License.
  */
 
-#include <array>
-#include <cmath>
-#include <cstddef>
+#include <algorithm>
+#include <cstdint>
 #include <memory>
-#include <numeric>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column/arrangement_overlay.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_node.h"
 #include "src/trace_processor/db/column/dense_null_overlay.h"
 #include "src/trace_processor/db/column/dummy_storage.h"
 #include "src/trace_processor/db/column/id_storage.h"
@@ -40,18 +42,16 @@
 #include "src/trace_processor/db/query_executor.h"
 #include "src/trace_processor/db/table.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
 using Range = RowMap::Range;
-using Storage = column::Column;
 
 }  // namespace
 
 void QueryExecutor::FilterColumn(const Constraint& c,
-                                 const column::Column& storage,
+                                 const column::DataNode::Queryable& queryable,
                                  RowMap* rm) {
   // Shortcut of empty row map.
   if (rm->empty())
@@ -65,7 +65,7 @@ void QueryExecutor::FilterColumn(const Constraint& c,
     return;
   }
 
-  switch (storage.ValidateSearchConstraints(c.value, c.op)) {
+  switch (queryable.ValidateSearchConstraints(c.value, c.op)) {
     case SearchValidationResult::kAllData:
       return;
     case SearchValidationResult::kNoData:
@@ -88,20 +88,20 @@ void QueryExecutor::FilterColumn(const Constraint& c,
       rm->IsIndexVector() || rm_size < 1024 || rm_size * 10 < range_size;
 
   if (!disallows_index_search && prefers_index_search) {
-    IndexSearch(c, storage, rm);
+    IndexSearch(c, queryable, rm);
     return;
   }
-  LinearSearch(c, storage, rm);
+  LinearSearch(c, queryable, rm);
 }
 
 void QueryExecutor::LinearSearch(const Constraint& c,
-                                 const column::Column& storage,
+                                 const column::DataNode::Queryable& queryable,
                                  RowMap* rm) {
   // TODO(b/283763282): Align these to word boundaries.
   Range bounds(rm->Get(0), rm->Get(rm->size() - 1) + 1);
 
   // Search the storage.
-  RangeOrBitVector res = storage.Search(c.op, c.value, bounds);
+  RangeOrBitVector res = queryable.Search(c.op, c.value, bounds);
   if (rm->IsRange()) {
     if (res.IsRange()) {
       Range range = std::move(res).TakeIfRange();
@@ -123,12 +123,12 @@ void QueryExecutor::LinearSearch(const Constraint& c,
 }
 
 void QueryExecutor::IndexSearch(const Constraint& c,
-                                const column::Column& storage,
+                                const column::DataNode::Queryable& queryable,
                                 RowMap* rm) {
   // Create outmost TableIndexVector.
   std::vector<uint32_t> table_indices = std::move(*rm).TakeAsIndexVector();
 
-  RangeOrBitVector matched = storage.IndexSearch(
+  RangeOrBitVector matched = queryable.IndexSearch(
       c.op, c.value,
       Indices{table_indices.data(), static_cast<uint32_t>(table_indices.size()),
               Indices::State::kMonotonic});
@@ -184,105 +184,133 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     }
 
     // Create storage
-    std::unique_ptr<column::Column> storage;
+    base::SmallVector<std::unique_ptr<column::DataNode>, 4> data_nodes;
+    std::unique_ptr<column::DataNode::Queryable> queryable;
     if (col.IsSetId()) {
       if (col.IsNullable()) {
-        storage = std::make_unique<column::SetIdStorage>(
-            &col.storage<std::optional<uint32_t>>().non_null_vector());
+        data_nodes.emplace_back(std::make_unique<column::SetIdStorage>(
+            &col.storage<std::optional<uint32_t>>().non_null_vector()));
+        queryable = data_nodes.back()->MakeQueryable();
       } else {
-        storage = std::make_unique<column::SetIdStorage>(
-            &col.storage<uint32_t>().vector());
+        data_nodes.emplace_back(std::make_unique<column::SetIdStorage>(
+            &col.storage<uint32_t>().vector()));
+        queryable = data_nodes.back()->MakeQueryable();
       }
     } else {
       switch (col.col_type()) {
         case ColumnType::kDummy:
-          storage = std::make_unique<column::DummyStorage>();
+          data_nodes.emplace_back(std::make_unique<column::DummyStorage>());
+          queryable = data_nodes.back()->MakeQueryable();
           break;
         case ColumnType::kId:
-          storage = std::make_unique<column::IdStorage>(column_size);
+          data_nodes.emplace_back(
+              std::make_unique<column::IdStorage>(column_size));
+          queryable = data_nodes.back()->MakeQueryable();
           break;
         case ColumnType::kString:
-          storage = std::make_unique<column::StringStorage>(
+          data_nodes.emplace_back(std::make_unique<column::StringStorage>(
               table->string_pool(), &col.storage<StringPool::Id>().vector(),
-              col.IsSorted());
+              col.IsSorted()));
+          queryable = data_nodes.back()->MakeQueryable();
           break;
         case ColumnType::kInt64:
           if (col.IsNullable()) {
-            storage = std::make_unique<column::NumericStorage<int64_t>>(
-                &col.storage<std::optional<int64_t>>().non_null_vector(),
-                col.col_type(), col.IsSorted());
+            data_nodes.emplace_back(
+                std::make_unique<column::NumericStorage<int64_t>>(
+                    &col.storage<std::optional<int64_t>>().non_null_vector(),
+                    col.col_type(), col.IsSorted()));
+            queryable = data_nodes.back()->MakeQueryable();
 
           } else {
-            storage = std::make_unique<column::NumericStorage<int64_t>>(
-                &col.storage<int64_t>().vector(), col.col_type(),
-                col.IsSorted());
+            data_nodes.emplace_back(
+                std::make_unique<column::NumericStorage<int64_t>>(
+                    &col.storage<int64_t>().vector(), col.col_type(),
+                    col.IsSorted()));
+            queryable = data_nodes.back()->MakeQueryable();
           }
           break;
         case ColumnType::kUint32:
           if (col.IsNullable()) {
-            storage = std::make_unique<column::NumericStorage<uint32_t>>(
-                &col.storage<std::optional<uint32_t>>().non_null_vector(),
-                col.col_type(), col.IsSorted());
+            data_nodes.emplace_back(
+                std::make_unique<column::NumericStorage<uint32_t>>(
+                    &col.storage<std::optional<uint32_t>>().non_null_vector(),
+                    col.col_type(), col.IsSorted()));
+            queryable = data_nodes.back()->MakeQueryable();
           } else {
-            storage = std::make_unique<column::NumericStorage<uint32_t>>(
-                &col.storage<uint32_t>().vector(), col.col_type(),
-                col.IsSorted());
+            data_nodes.emplace_back(
+                std::make_unique<column::NumericStorage<uint32_t>>(
+                    &col.storage<uint32_t>().vector(), col.col_type(),
+                    col.IsSorted()));
+            queryable = data_nodes.back()->MakeQueryable();
           }
           break;
         case ColumnType::kInt32:
           if (col.IsNullable()) {
-            storage = std::make_unique<column::NumericStorage<int32_t>>(
-                &col.storage<std::optional<int32_t>>().non_null_vector(),
-                col.col_type(), col.IsSorted());
+            data_nodes.emplace_back(
+                std::make_unique<column::NumericStorage<int32_t>>(
+                    &col.storage<std::optional<int32_t>>().non_null_vector(),
+                    col.col_type(), col.IsSorted()));
+            queryable = data_nodes.back()->MakeQueryable();
           } else {
-            storage = std::make_unique<column::NumericStorage<int32_t>>(
-                &col.storage<int32_t>().vector(), col.col_type(),
-                col.IsSorted());
+            data_nodes.emplace_back(
+                std::make_unique<column::NumericStorage<int32_t>>(
+                    &col.storage<int32_t>().vector(), col.col_type(),
+                    col.IsSorted()));
+            queryable = data_nodes.back()->MakeQueryable();
           }
           break;
         case ColumnType::kDouble:
           if (col.IsNullable()) {
-            storage = std::make_unique<column::NumericStorage<double>>(
-                &col.storage<std::optional<double>>().non_null_vector(),
-                col.col_type(), col.IsSorted());
+            data_nodes.emplace_back(
+                std::make_unique<column::NumericStorage<double>>(
+                    &col.storage<std::optional<double>>().non_null_vector(),
+                    col.col_type(), col.IsSorted()));
+            queryable = data_nodes.back()->MakeQueryable();
           } else {
-            storage = std::make_unique<column::NumericStorage<double>>(
-                &col.storage<double>().vector(), col.col_type(),
-                col.IsSorted());
+            data_nodes.emplace_back(
+                std::make_unique<column::NumericStorage<double>>(
+                    &col.storage<double>().vector(), col.col_type(),
+                    col.IsSorted()));
+            queryable = data_nodes.back()->MakeQueryable();
           }
       }
     }
+
     if (col.IsNullable()) {
       // String columns are inherently nullable: null values are signified
       // with Id::Null().
       PERFETTO_CHECK(col.col_type() != ColumnType::kString);
       if (col.IsDense()) {
-        storage = std::make_unique<column::DenseNullOverlay>(
-            std::move(storage), col.storage_base().bv());
+        data_nodes.emplace_back(std::make_unique<column::DenseNullOverlay>(
+            col.storage_base().bv()));
+        queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
       } else {
-        storage = std::make_unique<column::NullOverlay>(
-            std::move(storage), col.storage_base().bv());
+        data_nodes.emplace_back(
+            std::make_unique<column::NullOverlay>(col.storage_base().bv()));
+        queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
       }
     }
     if (col.overlay().row_map().IsIndexVector()) {
-      storage = std::make_unique<column::ArrangementOverlay>(
-          std::move(storage), col.overlay().row_map().GetIfIndexVector(),
-          col.IsSorted());
+      data_nodes.emplace_back(std::make_unique<column::ArrangementOverlay>(
+          col.overlay().row_map().GetIfIndexVector(), col.IsSorted()));
+      queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
     }
     if (col.overlay().row_map().IsBitVector()) {
-      storage = std::make_unique<column::SelectorOverlay>(
-          std::move(storage), col.overlay().row_map().GetIfBitVector());
+      data_nodes.emplace_back(std::make_unique<column::SelectorOverlay>(
+          col.overlay().row_map().GetIfBitVector()));
+      queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
     }
     uint32_t pre_count = rm.size();
-    FilterColumn(c, *storage.get(), &rm);
+    FilterColumn(c, *queryable, &rm);
     PERFETTO_DCHECK(rm.size() <= pre_count);
   }
   return rm;
 }
 
-void QueryExecutor::BoundedColumnFilterForTesting(const Constraint& c,
-                                                  const column::Column& col,
-                                                  RowMap* rm) {
+void QueryExecutor::BoundedColumnFilterForTesting(
+    const Constraint& c,
+    const column::DataNode::Queryable& col,
+    RowMap* rm) {
   switch (col.ValidateSearchConstraints(c.value, c.op)) {
     case SearchValidationResult::kAllData:
       return;
@@ -296,9 +324,10 @@ void QueryExecutor::BoundedColumnFilterForTesting(const Constraint& c,
   LinearSearch(c, col, rm);
 }
 
-void QueryExecutor::IndexedColumnFilterForTesting(const Constraint& c,
-                                                  const column::Column& col,
-                                                  RowMap* rm) {
+void QueryExecutor::IndexedColumnFilterForTesting(
+    const Constraint& c,
+    const column::DataNode::Queryable& col,
+    RowMap* rm) {
   switch (col.ValidateSearchConstraints(c.value, c.op)) {
     case SearchValidationResult::kAllData:
       return;
@@ -312,5 +341,4 @@ void QueryExecutor::IndexedColumnFilterForTesting(const Constraint& c,
   IndexSearch(c, col, rm);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

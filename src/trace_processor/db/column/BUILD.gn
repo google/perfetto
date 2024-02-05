@@ -18,8 +18,8 @@ source_set("column") {
   sources = [
     "arrangement_overlay.cc",
     "arrangement_overlay.h",
-    "column.cc",
-    "column.h",
+    "data_node.cc",
+    "data_node.h",
     "dense_null_overlay.cc",
     "dense_null_overlay.h",
     "dummy_storage.cc",
@@ -44,6 +44,7 @@ source_set("column") {
     "../..:metatrace",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:basic_types",
+    "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../../protos/perfetto/trace_processor:zero",
     "../../../base",
     "../../containers",
@@ -86,6 +87,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../../../include/perfetto/trace_processor:basic_types",
+    "../../../base",
     "../../containers",
   ]
 }

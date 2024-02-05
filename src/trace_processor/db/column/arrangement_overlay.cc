@@ -18,42 +18,62 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
+#include <utility>
 #include <vector>
 
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/data_node.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/tp_metatrace.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
-namespace {}  // namespace
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
-ArrangementOverlay::ArrangementOverlay(std::unique_ptr<Column> inner,
-                                       const std::vector<uint32_t>* arrangement,
+namespace perfetto::trace_processor::column {
+
+ArrangementOverlay::ArrangementOverlay(const std::vector<uint32_t>* arrangement,
                                        bool does_arrangement_order_storage)
-    : inner_(std::move(inner)),
-      arrangement_(arrangement),
+    : arrangement_(arrangement),
       arrangement_state_(
           std::is_sorted(arrangement->begin(), arrangement->end())
               ? Indices::State::kMonotonic
               : Indices::State::kNonmonotonic),
+      does_arrangement_order_storage_(does_arrangement_order_storage) {}
+
+std::unique_ptr<DataNode::Queryable> ArrangementOverlay::MakeQueryable(
+    std::unique_ptr<DataNode::Queryable> inner) {
+  return std::make_unique<Queryable>(std::move(inner), arrangement_,
+                                     arrangement_state_,
+                                     does_arrangement_order_storage_);
+}
+
+ArrangementOverlay::Queryable::Queryable(
+    std::unique_ptr<DataNode::Queryable> inner,
+    const std::vector<uint32_t>* arrangement,
+    Indices::State arrangement_state,
+    bool does_arrangement_order_storage)
+    : inner_(std::move(inner)),
+      arrangement_(arrangement),
+      arrangement_state_(arrangement_state),
       does_arrangement_order_storage_(does_arrangement_order_storage) {
   PERFETTO_DCHECK(*std::max_element(arrangement->begin(), arrangement->end()) <=
                   inner_->size());
 }
 
-SearchValidationResult ArrangementOverlay::ValidateSearchConstraints(
+SearchValidationResult ArrangementOverlay::Queryable::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
   return inner_->ValidateSearchConstraints(sql_val, op);
 }
 
-RangeOrBitVector ArrangementOverlay::Search(FilterOp op,
-                                            SqlValue sql_val,
-                                            Range in) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "ArrangementOverlay::Search");
+RangeOrBitVector ArrangementOverlay::Queryable::Search(FilterOp op,
+                                                       SqlValue sql_val,
+                                                       Range in) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "ArrangementOverlay::Queryable::Search");
 
   if (does_arrangement_order_storage_ && op != FilterOp::kGlob &&
       op != FilterOp::kRegex) {
@@ -110,10 +130,12 @@ RangeOrBitVector ArrangementOverlay::Search(FilterOp op,
   return RangeOrBitVector(std::move(builder).Build());
 }
 
-RangeOrBitVector ArrangementOverlay::IndexSearch(FilterOp op,
-                                                 SqlValue sql_val,
-                                                 Indices indices) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "ArrangementOverlay::IndexSearch");
+RangeOrBitVector ArrangementOverlay::Queryable::IndexSearch(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "ArrangementOverlay::Queryable::IndexSearch");
 
   std::vector<uint32_t> storage_iv(indices.size);
   // Should be SIMD optimized.
@@ -136,17 +158,17 @@ RangeOrBitVector ArrangementOverlay::IndexSearch(FilterOp op,
               Indices::State::kNonmonotonic});
 }
 
-void ArrangementOverlay::StableSort(uint32_t*, uint32_t) const {
+void ArrangementOverlay::Queryable::StableSort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void ArrangementOverlay::Sort(uint32_t*, uint32_t) const {
+void ArrangementOverlay::Queryable::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void ArrangementOverlay::Serialize(StorageProto* storage) const {
+void ArrangementOverlay::Queryable::Serialize(StorageProto* storage) const {
   auto* arrangement_overlay = storage->set_arrangement_overlay();
   arrangement_overlay->set_values(
       reinterpret_cast<const uint8_t*>(arrangement_->data()),
@@ -154,6 +176,4 @@ void ArrangementOverlay::Serialize(StorageProto* storage) const {
   inner_->Serialize(arrangement_overlay->set_storage());
 }
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column

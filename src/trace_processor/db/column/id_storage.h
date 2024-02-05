@@ -17,44 +17,55 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_ID_STORAGE_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_node.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Storage for Id columns.
-class IdStorage final : public Column {
+class IdStorage final : public DataNode {
  public:
-  explicit IdStorage(uint32_t size) : size_(size) {}
+  explicit IdStorage(uint32_t size);
 
-  SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                   FilterOp) const override;
-
-  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
-
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  void StableSort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Sort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Serialize(StorageProto*) const override;
-
-  uint32_t size() const override { return size_; }
-
-  std::string DebugString() const override { return "IdStorage"; }
+  std::unique_ptr<DataNode::Queryable> MakeQueryable() override;
 
  private:
-  using Id = uint32_t;
+  class Queryable : public DataNode::Queryable {
+   public:
+    explicit Queryable(uint32_t size);
 
-  BitVector IndexSearch(FilterOp, Id, uint32_t*, uint32_t) const;
-  Range BinarySearchIntrinsic(FilterOp op, Id, Range search_range) const;
+    SearchValidationResult ValidateSearchConstraints(SqlValue,
+                                                     FilterOp) const override;
+
+    RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+
+    RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+
+    Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
+
+    void StableSort(uint32_t*, uint32_t) const override;
+
+    void Sort(uint32_t*, uint32_t) const override;
+
+    void Serialize(StorageProto*) const override;
+
+    uint32_t size() const override { return size_; }
+
+    std::string DebugString() const override { return "IdStorage"; }
+
+   private:
+    using Id = uint32_t;
+
+    BitVector IndexSearch(FilterOp, Id, uint32_t*, uint32_t) const;
+    static Range BinarySearchIntrinsic(FilterOp, Id, Range);
+
+    const uint32_t size_ = 0;
+  };
 
   const uint32_t size_ = 0;
 };

@@ -24,56 +24,66 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_node.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 // Storage responsible for rearranging the elements of another Storage. It deals
 // with duplicates, permutations and selection; for selection only, it's more
 // efficient to use `SelectorOverlay`.
-class ArrangementOverlay : public Column {
+class ArrangementOverlay : public DataNode {
  public:
-  explicit ArrangementOverlay(std::unique_ptr<Column> inner,
-                              const std::vector<uint32_t>* arrangement,
-                              bool does_arrangement_order_storage);
+  ArrangementOverlay(const std::vector<uint32_t>* arrangement,
+                     bool does_arrangement_order_storage);
 
-  SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                   FilterOp) const override;
-
-  RangeOrBitVector Search(FilterOp op,
-                          SqlValue value,
-                          Range range) const override;
-
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override {
-    PERFETTO_FATAL("OrderedIndexSearch can't be called on ArrangementOverlay");
-  }
-
-  void StableSort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Sort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Serialize(StorageProto*) const override;
-
-  uint32_t size() const override {
-    return static_cast<uint32_t>(arrangement_->size());
-  }
-
-  std::string DebugString() const override { return "ArrangementOverlay"; }
+  std::unique_ptr<Queryable> MakeQueryable(std::unique_ptr<Queryable>) override;
 
  private:
-  std::unique_ptr<Column> inner_;
+  class Queryable : public DataNode::Queryable {
+   public:
+    Queryable(std::unique_ptr<DataNode::Queryable> inner,
+              const std::vector<uint32_t>* arrangement,
+              Indices::State arrangement_state,
+              bool does_arrangement_order_storage);
+
+    SearchValidationResult ValidateSearchConstraints(SqlValue,
+                                                     FilterOp) const override;
+
+    RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+
+    RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+
+    Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override {
+      PERFETTO_FATAL(
+          "OrderedIndexSearch can't be called on ArrangementOverlay");
+    }
+
+    void StableSort(uint32_t* rows, uint32_t rows_size) const override;
+
+    void Sort(uint32_t* rows, uint32_t rows_size) const override;
+
+    void Serialize(StorageProto*) const override;
+
+    uint32_t size() const override {
+      return static_cast<uint32_t>(arrangement_->size());
+    }
+
+    std::string DebugString() const override { return "ArrangementOverlay"; }
+
+   private:
+    std::unique_ptr<DataNode::Queryable> inner_;
+    const std::vector<uint32_t>* arrangement_;
+    const Indices::State arrangement_state_;
+    const bool does_arrangement_order_storage_;
+  };
+
+  std::unique_ptr<DataNode::Queryable> inner_;
   const std::vector<uint32_t>* arrangement_;
   const Indices::State arrangement_state_;
   const bool does_arrangement_order_storage_;
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
 
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_ARRANGEMENT_OVERLAY_H_

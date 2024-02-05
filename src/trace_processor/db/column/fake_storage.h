@@ -21,59 +21,47 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_node.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 // Fake implementation of Storage for use in tests.
-class FakeStorage final : public Column {
+class FakeStorage final : public DataNode {
  public:
-  SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                   FilterOp) const override;
+  std::unique_ptr<Queryable> MakeQueryable() override;
 
-  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
-
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  void StableSort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Sort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Serialize(StorageProto*) const override;
-
-  static std::unique_ptr<Column> SearchAll(uint32_t size) {
-    return std::unique_ptr<Column>(new FakeStorage(size, SearchStrategy::kAll));
+  static std::unique_ptr<DataNode> SearchAll(uint32_t size) {
+    return std::unique_ptr<DataNode>(
+        new FakeStorage(size, SearchStrategy::kAll));
   }
 
-  static std::unique_ptr<Column> SearchNone(uint32_t size) {
-    return std::unique_ptr<Column>(
+  static std::unique_ptr<DataNode> SearchNone(uint32_t size) {
+    return std::unique_ptr<DataNode>(
         new FakeStorage(size, SearchStrategy::kNone));
   }
 
-  static std::unique_ptr<Column> SearchSubset(uint32_t size, Range r) {
+  static std::unique_ptr<DataNode> SearchSubset(uint32_t size, Range r) {
     std::unique_ptr<FakeStorage> storage(
         new FakeStorage(size, SearchStrategy::kRange));
     storage->range_ = r;
     return std::move(storage);
   }
 
-  static std::unique_ptr<Column> SearchSubset(uint32_t size, BitVector bv) {
+  static std::unique_ptr<DataNode> SearchSubset(uint32_t size, BitVector bv) {
     std::unique_ptr<FakeStorage> storage(
         new FakeStorage(size, SearchStrategy::kBitVector));
     storage->bit_vector_ = std::move(bv);
     return std::move(storage);
   }
 
-  static std::unique_ptr<Column> SearchSubset(uint32_t size,
-                                              std::vector<uint32_t> index_vec) {
+  static std::unique_ptr<DataNode> SearchSubset(
+      uint32_t size,
+      const std::vector<uint32_t>& index_vec) {
     std::unique_ptr<FakeStorage> storage(
         new FakeStorage(size, SearchStrategy::kBitVector));
     BitVector bv(size);
@@ -84,12 +72,39 @@ class FakeStorage final : public Column {
     return std::move(storage);
   }
 
-  uint32_t size() const override { return size_; }
-
-  std::string DebugString() const override { return "FakeStorage"; }
-
  private:
   enum SearchStrategy { kNone, kAll, kRange, kBitVector };
+
+  class Queryable : public DataNode::Queryable {
+   public:
+    Queryable(uint32_t, SearchStrategy, Range, BitVector);
+
+    SearchValidationResult ValidateSearchConstraints(SqlValue,
+                                                     FilterOp) const override;
+
+    RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+
+    RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+
+    Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
+
+    void StableSort(uint32_t* rows, uint32_t rows_size) const override;
+
+    void Sort(uint32_t* rows, uint32_t rows_size) const override;
+
+    void Serialize(StorageProto*) const override;
+
+    uint32_t size() const override { return size_; }
+
+    std::string DebugString() const override { return "FakeStorage"; }
+
+   private:
+    uint32_t size_ = 0;
+    SearchStrategy strategy_ = SearchStrategy::kNone;
+    Range range_;
+    BitVector bit_vector_;
+  };
+
   FakeStorage(uint32_t size, SearchStrategy strategy);
 
   uint32_t size_ = 0;
@@ -98,8 +113,6 @@ class FakeStorage final : public Column {
   BitVector bit_vector_;
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
 
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_FAKE_STORAGE_H_

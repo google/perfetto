@@ -17,38 +17,45 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_DUMMY_STORAGE_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_node.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Dummy storage. Used for columns that are not supposed to have operations done
 // on them.
-class DummyStorage final : public Column {
+class DummyStorage final : public DataNode {
  public:
-  DummyStorage() = default;
+  std::unique_ptr<DataNode::Queryable> MakeQueryable() override;
 
-  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+ private:
+  class Queryable : public DataNode::Queryable {
+   public:
+    Queryable() = default;
 
-  SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                   FilterOp) const override;
+    RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
 
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+    SearchValidationResult ValidateSearchConstraints(SqlValue,
+                                                     FilterOp) const override;
 
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
+    RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
 
-  void StableSort(uint32_t*, uint32_t) const override;
+    Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
 
-  void Sort(uint32_t*, uint32_t) const override;
+    void StableSort(uint32_t*, uint32_t) const override;
 
-  void Serialize(StorageProto*) const override;
+    void Sort(uint32_t*, uint32_t) const override;
 
-  uint32_t size() const override;
+    void Serialize(StorageProto*) const override;
 
-  std::string DebugString() const override { return "DummyStorage"; }
+    uint32_t size() const override;
+
+    std::string DebugString() const override { return "DummyStorage"; }
+  };
 };
 
 }  // namespace perfetto::trace_processor::column
