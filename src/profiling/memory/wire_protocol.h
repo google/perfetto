@@ -47,7 +47,7 @@ constexpr size_t kMaxRegisterDataSize =
               sizeof(uint64_t) * unwindstack::ARM64_REG_LAST,
               sizeof(uint32_t) * unwindstack::X86_REG_LAST,
               sizeof(uint64_t) * unwindstack::X86_64_REG_LAST,
-              sizeof(uint64_t) * unwindstack::RISCV64_REG_MAX});
+              sizeof(uint64_t) * unwindstack::RISCV64_REG_COUNT});
 
 // Types needed for the wire format used for communication between the client
 // and heapprofd. The basic format of a record sent by the client is
