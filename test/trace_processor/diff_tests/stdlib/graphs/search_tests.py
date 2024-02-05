@@ -131,3 +131,25 @@ class GraphSearchTests(TestSuite):
           "L","D"
           "R","[NULL]"
         """))
+
+  def test_next_sibling(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          CREATE PERFETTO TABLE foo AS
+          SELECT 1 AS node_id, 0 AS node_parent_id, 1 AS sort_key
+          UNION ALL
+          SELECT 2 AS node_id, 1 AS node_parent_id, 2 AS sort_key
+          UNION ALL
+          SELECT 3 AS node_id, 1 AS node_parent_id, 1 AS sort_key;
+
+          SELECT * FROM graph_next_sibling!(foo);
+        """,
+        out=Csv("""
+        "node_id","next_node_id"
+        1,"[NULL]"
+        3,2
+        2,"[NULL]"
+        """))
