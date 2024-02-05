@@ -37,6 +37,7 @@ message BlinkTaskScope {
     TASK_SCOPE_POP_STATE = 5;
     TASK_SCOPE_SCHEDULER_POST_TASK = 6;
     TASK_SCOPE_REQUEST_IDLE_CALLBACK = 7;
+    TASK_SCOPE_XML_HTTP_REQUEST = 8;
   }
   optional TaskScopeType type = 1;
   optional int64 scope_task_id = 2;
@@ -1072,7 +1073,7 @@ message BlinkExecutionContext {
     WORLD_MAIN = 1;
     WORLD_ISOLATED = 2;
     WORLD_INSPECTOR_ISOLATED = 3;
-    WORLD_BLINK_INTERNAL_NON_JS_EXPOSED = 4;
+    WORLD_REG_EXP = 4;
     WORLD_FOR_V8_CONTEXT_SNAPSHOT_NON_MAIN = 5;
     WORLD_WORKER = 6;
     WORLD_SHADOW_REALM = 7;
