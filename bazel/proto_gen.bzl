@@ -38,8 +38,7 @@ def _proto_gen_impl(ctx):
 
         # The below will likely be //third_party/perfetto/ but may also be any
         # subdir under //third_party/perfetto.
-        last_slash_idx = ctx.build_file_path.rfind("/")
-        strip_base_path = ctx.build_file_path[:last_slash_idx + 1]
+        strip_base_path = ctx.label.package + "/"
     elif ctx.label.workspace_root:
         # This path is hit when proto targets are built as @perfetto//:xxx
         # instead of //:xxx. This happens in embedder builds. In this case,
