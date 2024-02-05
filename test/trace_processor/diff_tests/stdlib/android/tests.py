@@ -1127,3 +1127,25 @@ class AndroidStdlib(TestSuite):
         9848456,9806401,22714,7493,"ndroid.systemui",7493,"com.android.systemui","0x1","0x9","4325794 NotificationShade (server)",582051061377,1227,582051084091,1596
         5533919,5487703,25013,7964,"droid.launcher3",7964,"com.android.launcher3","0x1","0xa","[Gesture Monitor] swipe-up (server)",582051112236,1258,582051137249,1771
       """))
+
+  def test_job_scheduler_events(self):
+    return DiffTestBlueprint(
+        trace=DataPath('post_boot_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE android.job_scheduler;
+        SELECT job_id, uid, package_name, job_service_name, ts, dur FROM android_job_scheduler_events ORDER BY ts
+      """,
+        out=Csv("""
+        "job_id","uid","package_name","job_service_name","ts","dur"
+        237039804,1000,"android","com.android.server.notification.NotificationHistoryJobService$system",575488743679,10909825
+        201,10060,"com.android.dialer","com.android.voicemail.impl.StatusCheckJobService",579210443477,15650722
+        -300,10089,"com.android.providers.media.module","com.android.providers.media.MediaService",579448376938,1716731633
+        7,10085,"com.android.devicelockcontroller","androidx.work.impl.background.systemjob.SystemJobService",579645356805,148784109
+        2,10058,"com.android.imsserviceentitlement",".fcm.FcmRegistrationService",580025518616,47458225
+        1000,10071,"com.android.messaging",".datamodel.action.ActionServiceImpl",581680366145,327541238
+        1001,10071,"com.android.messaging",".datamodel.action.BackgroundWorkerService",581948976360,90502706
+        1000,10071,"com.android.messaging",".datamodel.action.ActionServiceImpl",582038224048,65747884
+        7,10088,"com.android.rkpdapp","androidx.work.impl.background.systemjob.SystemJobService",582582119592,103911382
+        7,10037,"com.android.statementservice","androidx.work.impl.background.systemjob.SystemJobService",583151483122,115767494
+        27950934,10022,"com.android.providers.calendar",".CalendarProviderJobService",587237955847,37434516
+      """))
