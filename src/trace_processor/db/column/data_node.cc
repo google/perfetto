@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_node.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
-Column::~Column() = default;
+DataNode::~DataNode() = default;
+DataNode::Queryable::~Queryable() = default;
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column

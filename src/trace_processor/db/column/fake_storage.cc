@@ -15,24 +15,47 @@
  */
 
 #include "src/trace_processor/db/column/fake_storage.h"
+
+#include <algorithm>
+#include <cstdint>
+#include <iterator>
+#include <memory>
+#include <utility>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_node.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 FakeStorage::FakeStorage(uint32_t size, SearchStrategy strategy)
     : size_(size), strategy_(strategy) {}
 
-SearchValidationResult FakeStorage::ValidateSearchConstraints(SqlValue,
-                                                              FilterOp) const {
+std::unique_ptr<DataNode::Queryable> FakeStorage::MakeQueryable() {
+  return std::make_unique<Queryable>(size_, strategy_, range_,
+                                     bit_vector_.Copy());
+}
+
+FakeStorage::Queryable::Queryable(uint32_t size,
+                                  SearchStrategy strategy,
+                                  Range range,
+                                  BitVector bv)
+    : size_(size),
+      strategy_(strategy),
+      range_(range),
+      bit_vector_(std::move(bv)) {}
+
+SearchValidationResult FakeStorage::Queryable::ValidateSearchConstraints(
+    SqlValue,
+    FilterOp) const {
   return SearchValidationResult::kOk;
 }
 
-RangeOrBitVector FakeStorage::Search(FilterOp, SqlValue, Range in) const {
+RangeOrBitVector FakeStorage::Queryable::Search(FilterOp,
+                                                SqlValue,
+                                                Range in) const {
   switch (strategy_) {
     case kAll:
       return RangeOrBitVector(in);
@@ -47,9 +70,9 @@ RangeOrBitVector FakeStorage::Search(FilterOp, SqlValue, Range in) const {
   PERFETTO_FATAL("For GCC");
 }
 
-RangeOrBitVector FakeStorage::IndexSearch(FilterOp,
-                                          SqlValue,
-                                          Indices indices) const {
+RangeOrBitVector FakeStorage::Queryable::IndexSearch(FilterOp,
+                                                     SqlValue,
+                                                     Indices indices) const {
   switch (strategy_) {
     case kAll:
       return RangeOrBitVector(Range(0, indices.size));
@@ -70,15 +93,15 @@ RangeOrBitVector FakeStorage::IndexSearch(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
-Range FakeStorage::OrderedIndexSearch(FilterOp,
-                                      SqlValue,
-                                      Indices indices) const {
+Range FakeStorage::Queryable::OrderedIndexSearch(FilterOp,
+                                                 SqlValue,
+                                                 Indices indices) const {
   if (strategy_ == kAll) {
-    return Range(0, indices.size);
+    return {0, indices.size};
   }
 
   if (strategy_ == kNone) {
-    return Range();
+    return {};
   }
 
   if (strategy_ == kRange) {
@@ -89,10 +112,9 @@ Range FakeStorage::OrderedIndexSearch(FilterOp,
     const uint32_t* first_outside_range =
         std::partition_point(first_in_range, indices.data + indices.size,
                              [this](uint32_t i) { return range_.Contains(i); });
-    return Range(
-        static_cast<uint32_t>(std::distance(indices.data, first_in_range)),
-        static_cast<uint32_t>(
-            std::distance(indices.data, first_outside_range)));
+    return {static_cast<uint32_t>(std::distance(indices.data, first_in_range)),
+            static_cast<uint32_t>(
+                std::distance(indices.data, first_outside_range))};
   }
 
   PERFETTO_DCHECK(strategy_ == kBitVector);
@@ -103,26 +125,23 @@ Range FakeStorage::OrderedIndexSearch(FilterOp,
   const uint32_t* first_non_set =
       std::partition_point(first_set, indices.data + indices.size,
                            [this](uint32_t i) { return bit_vector_.IsSet(i); });
-  return Range(
-      static_cast<uint32_t>(std::distance(indices.data, first_set)),
-      static_cast<uint32_t>(std::distance(indices.data, first_non_set)));
+  return {static_cast<uint32_t>(std::distance(indices.data, first_set)),
+          static_cast<uint32_t>(std::distance(indices.data, first_non_set))};
 }
 
-void FakeStorage::StableSort(uint32_t*, uint32_t) const {
+void FakeStorage::Queryable::StableSort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void FakeStorage::Sort(uint32_t*, uint32_t) const {
+void FakeStorage::Queryable::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void FakeStorage::Serialize(StorageProto*) const {
+void FakeStorage::Queryable::Serialize(StorageProto*) const {
   // FakeStorage doesn't really make sense to serialize.
   PERFETTO_FATAL("Not implemented");
 }
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
