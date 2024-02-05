@@ -16,14 +16,17 @@
 
 #include "src/trace_processor/db/column/arrangement_overlay.h"
 
+#include <cstdint>
+#include <vector>
+
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/fake_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 namespace {
 
 using testing::ElementsAre;
@@ -31,49 +34,56 @@ using testing::IsEmpty;
 
 TEST(ArrangementOverlay, SearchAll) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(FakeStorage::SearchAll(5), &arrangement, false);
+  auto fake = FakeStorage::SearchAll(5);
+  ArrangementOverlay storage(&arrangement, false);
+  auto queriable = storage.MakeQueryable(fake->MakeQueryable());
 
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
+  auto res = queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2u, 3u));
 }
 
 TEST(ArrangementOverlay, SearchNone) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(FakeStorage::SearchNone(5), &arrangement, false);
+  auto fake = FakeStorage::SearchNone(5);
+  ArrangementOverlay storage(&arrangement, false);
+  auto queriable = storage.MakeQueryable(fake->MakeQueryable());
 
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
+  auto res = queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 }
 
 TEST(ArrangementOverlay, DISABLED_SearchLimited) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(FakeStorage::SearchSubset(5, Range(4, 5)),
-                             &arrangement, false);
+  auto fake = FakeStorage::SearchSubset(5, Range(4, 5));
+  ArrangementOverlay storage(&arrangement, false);
+  auto queriable = storage.MakeQueryable(fake->MakeQueryable());
 
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 7));
+  auto res = queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 7));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(6u));
 }
 
 TEST(ArrangementOverlay, SearchBitVector) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(
-      FakeStorage::SearchSubset(5, BitVector({0, 1, 0, 1, 0})), &arrangement,
-      false);
+  auto fake = FakeStorage::SearchSubset(
+      5, BitVector({false, true, false, true, false}));
+  ArrangementOverlay storage(&arrangement, false);
+  auto queriable = storage.MakeQueryable(fake->MakeQueryable());
 
   // Table bv:
   // 1, 1, 0, 0, 1, 1, 0, 0, 1, 1
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 10));
+  auto res = queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 10));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 4, 5, 8, 9));
 }
 
 TEST(ArrangementOverlay, IndexSearch) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(
-      FakeStorage::SearchSubset(5, BitVector({0, 1, 0, 1, 0})), &arrangement,
-      false);
+  auto fake = FakeStorage::SearchSubset(
+      5, BitVector({false, true, false, true, false}));
+  ArrangementOverlay storage(&arrangement, false);
+  auto queriable = storage.MakeQueryable(fake->MakeQueryable());
 
   std::vector<uint32_t> table_idx{7u, 1u, 3u};
-  RangeOrBitVector res = storage.IndexSearch(
+  RangeOrBitVector res = queriable->IndexSearch(
       FilterOp::kGe, SqlValue::Long(0u),
       Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
               Indices::State::kNonmonotonic});
@@ -83,17 +93,16 @@ TEST(ArrangementOverlay, IndexSearch) {
 
 TEST(ArrangementOverlay, OrderingSearch) {
   std::vector<uint32_t> arrangement{0, 2, 4, 1, 3};
-  ArrangementOverlay storage(
-      FakeStorage::SearchSubset(5, BitVector({0, 1, 0, 1, 0})), &arrangement,
-      true);
+  auto fake = FakeStorage::SearchSubset(
+      5, BitVector({false, true, false, true, false}));
+  ArrangementOverlay storage(&arrangement, true);
+  auto queriable = storage.MakeQueryable(fake->MakeQueryable());
 
   RangeOrBitVector res =
-      storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));
+      queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));
 
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
 }  // namespace
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
