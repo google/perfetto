@@ -1,5 +1,3 @@
-CREATE TABLE perfetto_tables(name STRING);
-
 CREATE TABLE trace_bounds AS
 SELECT 0 AS start_ts, 0 AS end_ts;
 

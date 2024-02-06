@@ -72,8 +72,7 @@
 // * PerfettoSqlPreprocessor: this class is responsible for taking a chunk of
 //   SQL and breaking them into statements, while also expanding any macros
 //   which might be present inside.
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 void IncrementCountForStmt(const SqliteEngine::PreparedStatement& p_stmt,
@@ -161,6 +160,17 @@ std::string GetTokenNamesAllowedInMacro() {
 
 PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
     : query_cache_(new QueryCache()), pool_(pool), engine_(new SqliteEngine()) {
+  // Initialize `perfetto_tables` table, which will contain the names of all of
+  // the registered tables.
+  char* errmsg_raw = nullptr;
+  int err =
+      sqlite3_exec(engine_->db(), "CREATE TABLE perfetto_tables(name STRING);",
+                   nullptr, nullptr, &errmsg_raw);
+  ScopedSqliteString errmsg(errmsg_raw);
+  if (err != SQLITE_OK) {
+    PERFETTO_FATAL("Failed to initialize perfetto_tables: %s", errmsg_raw);
+  }
+
   engine_->RegisterVirtualTableModule<RuntimeTableFunction>(
       "runtime_table_function", this, SqliteTable::TableType::kExplicitCreate,
       false);
@@ -855,5 +865,4 @@ const Table* PerfettoSqlEngine::GetStaticTableOrNull(
   return table_ptr ? *table_ptr : nullptr;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
