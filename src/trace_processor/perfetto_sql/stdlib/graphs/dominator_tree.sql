@@ -28,7 +28,8 @@
 --   owner_id AS source_node_id,
 --   owned_id as dest_node_id
 -- FROM heap_graph_reference
--- WHERE owned_id IS NOT NULL
+-- JOIN heap_graph_object owner on heap_graph_reference.owner_id = owner.id
+-- WHERE owned_id IS NOT NULL AND owner.reachable
 -- UNION ALL
 -- -- Since a Java heap graph is a "forest" structure, we need to add a dummy
 -- -- "root" node which connects all the roots of the forest into a single
@@ -59,9 +60,13 @@ CREATE PERFETTO MACRO graph_dominator_tree(
   --
   -- Note: this means that the graph *must* be a single fully connected
   -- component with |root_node_id| (see below) being the "entry node" for this
-  -- component. If working with a "forest"-like structure, a dummy node should
-  -- be added which links all the roots of the forest together into a single
-  -- component.
+  -- component. Specifically, all nodes *must* be reachable by following paths
+  -- from the root node. Failing to adhere to this property will result in
+  -- undefined behaviour.
+  --
+  -- If working with a "forest"-like structure, a dummy node should be added which
+  -- links all the roots of the forest together into a single component; an example
+  -- of this can be found in the heap graph example query above.
   graph_table TableOrSubquery,
   -- The entry node to |graph_table| which will be the root of the dominator
   -- tree.
