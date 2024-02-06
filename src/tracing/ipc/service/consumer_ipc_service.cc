@@ -332,6 +332,7 @@ void ConsumerIPCService::CloneSession(
   remote_consumer->clone_session_response = std::move(resp);
   ConsumerEndpoint::CloneSessionArgs args;
   args.skip_trace_filter = req.skip_trace_filter();
+  args.for_bugreport = req.for_bugreport();
   remote_consumer->service_endpoint->CloneSession(req.session_id(),
                                                   std::move(args));
 }
