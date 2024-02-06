@@ -13,3 +13,8 @@
 /data/chrome/*
 !/data/chrome/*.sha256
 !/data/chrome/README.md
+
+!/data/parser
+/data/parser/*
+!/data/parser/*.sha256
+!/data/parser/README.md
