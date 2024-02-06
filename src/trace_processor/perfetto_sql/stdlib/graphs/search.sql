@@ -67,3 +67,35 @@ RETURNS TableOrSubquery AS
     $start_node_id
   ) dt
 );
+
+-- Computes the next sibling node in a directed graph. The next node under a parent node
+-- is determined by on the |sort_key|, which should be unique for every node under a parent.
+-- The order of the next sibling is undefined if the |sort_key| is not unique.
+--
+-- Example usage:
+--
+-- -- Compute the next sibling:
+-- SELECT *
+-- FROM graph_next_sibling!(
+--   (
+--     SELECT
+--       id AS node_id,
+--       parent_id AS node_parent_id,
+--       ts AS sort_key
+--     FROM slice
+--   )
+-- );
+-- ```
+CREATE PERFETTO MACRO graph_next_sibling(
+  -- A table/view/subquery corresponding to a directed graph for which to find the next sibling.
+  -- This table must have the columns "node_id", "node_parent_id" and "sort_key".
+  graph_table TableOrSubquery
+)
+-- The returned table has the schema (node_id UINT32, next_node_id UINT32).
+-- |node_id| is the id of the node from the input graph and |next_node_id|
+-- is the id of the node which is its next sibling.
+RETURNS TableOrSubquery AS
+(
+  SELECT node_id, lead(node_id) OVER (PARTITION BY node_parent_id ORDER BY sort_key) AS next_node_id
+    FROM $graph_table
+);
