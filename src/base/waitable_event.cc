@@ -22,14 +22,14 @@ namespace base {
 WaitableEvent::WaitableEvent() = default;
 WaitableEvent::~WaitableEvent() = default;
 
-void WaitableEvent::Wait() {
+void WaitableEvent::Wait(uint64_t notifications) {
   std::unique_lock<std::mutex> lock(mutex_);
-  return event_.wait(lock, [this] { return notified_; });
+  return event_.wait(lock, [&] { return notifications_ >= notifications; });
 }
 
 void WaitableEvent::Notify() {
   std::unique_lock<std::mutex> lock(mutex_);
-  notified_ = true;
+  notifications_++;
   event_.notify_all();
 }
 
