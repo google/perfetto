@@ -118,6 +118,8 @@ class Graph {
 
   // Returns the TreeNumber for a given Node.
   TreeNumber GetSemiDominator(Node v) const {
+    // Note: if you happen to see this check failing, it's likely a problem that
+    // the graph has nodes which are not reachable from the root node.
     return *GetStateForNode(v).semi_dominator;
   }
 
@@ -258,7 +260,7 @@ void Graph::ComputeSemiDominatorAndPartialDominator(Forest& forest) {
     for (Node v : w_state.predecessors) {
       Node u = forest.GetMinSemiDominatorToAncestor(v, *this);
       w_state.semi_dominator =
-          std::min(w_state.semi_dominator, GetStateForNode(u).semi_dominator);
+          std::min(*w_state.semi_dominator, GetSemiDominator(u));
     }
     NodeState& semi_dominator_state =
         GetStateForNode(GetNodeForTreeNumber(*w_state.semi_dominator));
