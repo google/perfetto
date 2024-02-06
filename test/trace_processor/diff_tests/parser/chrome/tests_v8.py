@@ -35,28 +35,28 @@ class ChromeV8Parser(TestSuite):
 
   def test_no_duplicates_in_v8_js_function(self):
     return DiffTestBlueprint(
-        trace=DataPath('chrome/v8.code.trace.pb.gz'),
+        trace=DataPath('parser/v8.code.trace.pb.gz'),
         query=_no_duplicates_query(V8_JS_FUNCTION),
         out=Csv(""""count"\n1\n"""),
     )
 
   def test_no_duplicates_in_v8_js_script(self):
     return DiffTestBlueprint(
-        trace=DataPath('chrome/v8.code.trace.pb.gz'),
+        trace=DataPath('parser/v8.code.trace.pb.gz'),
         query=_no_duplicates_query(V8_JS_SCRIPT),
         out=Csv(""""count"\n1\n"""),
     )
 
   def test_no_duplicates_in_v8_isolate(self):
     return DiffTestBlueprint(
-        trace=DataPath('chrome/v8.code.trace.pb.gz'),
+        trace=DataPath('parser/v8.code.trace.pb.gz'),
         query=_no_duplicates_query(V8_ISOLATE),
         out=Csv(""""count"\n1\n"""),
     )
 
   def test_no_duplicates_in_v8_wasm_script(self):
     return DiffTestBlueprint(
-        trace=DataPath('chrome/v8.code.trace.pb.gz'),
+        trace=DataPath('parser/v8.code.trace.pb.gz'),
         query=_no_duplicates_query(V8_WASM_SCRIPT),
         out=Csv(""""count"\n1\n"""),
     )
