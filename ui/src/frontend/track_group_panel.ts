@@ -32,7 +32,7 @@ import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {PanelSize} from './panel';
 import {Panel} from './panel_container';
-import {renderChips, TrackContent} from './track_panel';
+import {CrashButton, renderChips, TrackContent} from './track_panel';
 import {
   drawVerticalLineAtTime,
 } from './vertical_line_helper';
@@ -106,6 +106,8 @@ export class TrackGroupPanel implements Panel {
       child = labels.join(', ');
     }
 
+    const error = trackFSM?.getError();
+
     return m(
       `.track-group-panel[collapsed=${collapsed}]`,
       {
@@ -116,6 +118,7 @@ export class TrackGroupPanel implements Panel {
       m(`.shell`,
         {
           onclick: (e: MouseEvent) => {
+            if (e.defaultPrevented) return;
             globals.dispatch(Actions.toggleTrackGroupCollapsed({
               trackGroupId,
             })),
@@ -123,7 +126,6 @@ export class TrackGroupPanel implements Panel {
           },
           class: `${highlightClass}`,
         },
-
         m('.fold-button',
           m('i.material-icons',
             collapsed ? Icons.ExpandDown : Icons.ExpandUp)),
@@ -136,6 +138,7 @@ export class TrackGroupPanel implements Panel {
           ),
           (collapsed && child !== null) ? m('h2.track-subtitle', child) :
             null),
+        error && m(CrashButton, {error}),
         selection && selection.kind === 'AREA' ?
           m('i.material-icons.track-button',
             {
@@ -147,9 +150,11 @@ export class TrackGroupPanel implements Panel {
             },
             checkBox) :
           ''),
-
       trackFSM ? m(TrackContent,
-        {track: trackFSM.track},
+        {
+          track: trackFSM.track,
+          hasError: Boolean(trackFSM.getError()),
+        },
         (!collapsed && child !== null) ? m('span', child) : null) :
         null);
   }
@@ -198,8 +203,10 @@ export class TrackGroupPanel implements Panel {
     ctx.translate(TRACK_SHELL_WIDTH, 0);
     if (track) {
       const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
-      track.update();
-      track.track.render(ctx, trackSize);
+      if (!track.getError()) {
+        track.update();
+        track.track.render(ctx, trackSize);
+      }
     }
     ctx.restore();
 
