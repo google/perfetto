@@ -35,7 +35,6 @@ export interface DebugTrackV2Config {
   closeable: boolean;
 }
 
-
 export class DebugTrackV2 extends
   CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   private config: DebugTrackV2Config;
