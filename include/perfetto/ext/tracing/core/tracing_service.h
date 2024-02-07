@@ -195,7 +195,13 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
   // If TracingSessionID == kBugreportSessionId (0xff...ff) the session with the
   // highest bugreport score is cloned (if any exists).
   struct CloneSessionArgs {
+    // If set, the trace filter will not have effect on the cloned session.
+    // Used for bugreports.
     bool skip_trace_filter = false;
+
+    // If set, affects the generation of the FlushFlags::CloneTarget to be set
+    // to kBugreport when requesting the flush to the producers.
+    bool for_bugreport = false;
   };
   virtual void CloneSession(TracingSessionID, CloneSessionArgs) = 0;
 

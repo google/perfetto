@@ -294,6 +294,10 @@ message CloneSessionRequest {
   // If set, the trace filter will not have effect on the cloned session.
   // Used for bugreports.
   optional bool skip_trace_filter = 2;
+
+  // If set, affects the generation of the FlushFlags::CloneTarget to be set
+  // to kBugreport when requesting the flush to the producers.
+  optional bool for_bugreport = 3;
 }
 
 message CloneSessionResponse {
