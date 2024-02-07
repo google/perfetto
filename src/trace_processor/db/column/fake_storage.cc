@@ -64,8 +64,11 @@ RangeOrBitVector FakeStorage::Queryable::Search(FilterOp,
     case kRange:
       return RangeOrBitVector(Range(std::max(in.start, range_.start),
                                     std::min(in.end, range_.end)));
-    case kBitVector:
-      return RangeOrBitVector{bit_vector_.IntersectRange(in.start, in.end)};
+    case kBitVector: {
+      BitVector intersection = bit_vector_.IntersectRange(in.start, in.end);
+      intersection.Resize(in.end, false);
+      return RangeOrBitVector(std::move(intersection));
+    }
   }
   PERFETTO_FATAL("For GCC");
 }
