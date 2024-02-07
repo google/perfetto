@@ -489,6 +489,10 @@ class RowMap {
     return std::get_if<IndexVector>(&data_);
   }
 
+  // Returns the data in RowMap Range, nullptr if RowMap is in a different
+  // mode.
+  const Range* GetIfIRange() const { return std::get_if<Range>(&data_); }
+
   // Returns the iterator over the rows in this RowMap.
   Iterator IterateRows() const { return Iterator(this); }
 
