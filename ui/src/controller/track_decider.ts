@@ -59,9 +59,9 @@ import {
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
 const TRACKS_V2_FLAG = featureFlags.register({
-  id: 'tracksV2.1',
+  id: 'tracksV2.2',
   name: 'Tracks V2',
-  description: 'Show tracks built on top of the Track V2 API.',
+  description: '[WARNING SOON TO BE REMOVED] Show tracks built on top of the Track V2 API.',
   defaultValue: true,
 });
 
