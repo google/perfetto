@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 
 #include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -292,6 +293,29 @@ TEST_F(PerfettoSqlEngineTest, Include_Module) {
       engine_.FindModule("foo")->include_key_to_file["foo.foo2"].included);
   ASSERT_FALSE(
       engine_.FindModule("bar")->include_key_to_file["bar.bar"].included);
+}
+
+TEST_F(PerfettoSqlEngineTest, MismatchedRange) {
+  tables::SliceTable parent(&pool_);
+  tables::ExpectedFrameTimelineSliceTable child(&pool_, &parent);
+
+  engine_.RegisterStaticTable(parent, "parent",
+                              tables::SliceTable::ComputeStaticSchema());
+  engine_.RegisterStaticTable(
+      child, "child",
+      tables::ExpectedFrameTimelineSliceTable::ComputeStaticSchema());
+
+  for (uint32_t i = 0; i < 5; i++) {
+    child.Insert({});
+  }
+
+  for (uint32_t i = 0; i < 10; i++) {
+    parent.Insert({});
+  }
+
+  auto res = engine_.Execute(
+      SqlSource::FromExecuteQuery("SELECT * FROM child WHERE ts > 3"));
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
 }  // namespace
