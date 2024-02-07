@@ -35,6 +35,7 @@
 #include "src/trace_processor/db/column/id_storage.h"
 #include "src/trace_processor/db/column/null_overlay.h"
 #include "src/trace_processor/db/column/numeric_storage.h"
+#include "src/trace_processor/db/column/range_overlay.h"
 #include "src/trace_processor/db/column/selector_overlay.h"
 #include "src/trace_processor/db/column/set_id_storage.h"
 #include "src/trace_processor/db/column/string_storage.h"
@@ -167,16 +168,13 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     if (rm.empty()) {
       return rm;
     }
+
     const ColumnLegacy& col = table->columns()[c.col_idx];
     uint32_t column_size =
         col.IsId() ? col.overlay().row_map().Max() : col.storage_base().size();
 
     // RowMap size is 1.
     bool use_legacy = rm.size() == 1;
-
-    // Storage has different size than Range overlay.
-    use_legacy = use_legacy || (col.overlay().size() != column_size &&
-                                col.overlay().row_map().IsRange());
 
     if (use_legacy) {
       col.FilterInto(c.op, c.value, &rm);
@@ -298,6 +296,12 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     if (col.overlay().row_map().IsBitVector()) {
       data_nodes.emplace_back(std::make_unique<column::SelectorOverlay>(
           col.overlay().row_map().GetIfBitVector()));
+      queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
+    }
+    if (col.overlay().row_map().IsRange() &&
+        col.overlay().size() != column_size) {
+      data_nodes.emplace_back(std::make_unique<column::RangeOverlay>(
+          *col.overlay().row_map().GetIfIRange()));
       queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
     }
     uint32_t pre_count = rm.size();
