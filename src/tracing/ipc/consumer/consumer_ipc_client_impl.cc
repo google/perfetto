@@ -474,6 +474,7 @@ void ConsumerIPCClientImpl::CloneSession(TracingSessionID tsid,
   protos::gen::CloneSessionRequest req;
   req.set_session_id(tsid);
   req.set_skip_trace_filter(args.skip_trace_filter);
+  req.set_for_bugreport(args.for_bugreport);
   ipc::Deferred<protos::gen::CloneSessionResponse> async_response;
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
 
