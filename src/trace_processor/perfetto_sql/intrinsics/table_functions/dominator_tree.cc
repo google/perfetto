@@ -199,23 +199,38 @@ class Forest {
     Node min_semi_dominator_until_ancestor;
   };
 
-  // Implements the O(log(n)) path-compression algorithm in the paper.
+  // Implements the O(log(n)) path-compression algorithm in the paper: note that
+  // we use stack-based recursion to avoid stack-overflows with very large heap
+  // graphs.
   void Compress(Node vertex, const Graph& graph) {
-    NodeState& state = GetStateForNode(vertex);
-    PERFETTO_CHECK(state.ancestor);
-    NodeState& ancestor_state = state_by_node_[state.ancestor->id];
-    if (auto grand_ancestor = ancestor_state.ancestor; !grand_ancestor) {
-      return;
+    struct CompressState {
+      Node current;
+      bool recurse_done;
+    };
+    std::vector<CompressState> states{CompressState{vertex, false}};
+    while (!states.empty()) {
+      CompressState& s = states.back();
+      NodeState& state = GetStateForNode(s.current);
+      PERFETTO_CHECK(state.ancestor);
+      NodeState& ancestor_state = GetStateForNode(*state.ancestor);
+      if (s.recurse_done) {
+        states.pop_back();
+        Node ancestor_min = ancestor_state.min_semi_dominator_until_ancestor;
+        Node self_min = state.min_semi_dominator_until_ancestor;
+        if (graph.GetSemiDominator(ancestor_min) <
+            graph.GetSemiDominator(self_min)) {
+          state.min_semi_dominator_until_ancestor = ancestor_min;
+        }
+        state.ancestor = ancestor_state.ancestor;
+      } else {
+        s.recurse_done = true;
+        if (auto grand_ancestor = ancestor_state.ancestor; grand_ancestor) {
+          states.push_back(CompressState{*state.ancestor, false});
+        } else {
+          states.pop_back();
+        }
+      }
     }
-    Compress(*state.ancestor, graph);
-
-    Node ancestor_min = ancestor_state.min_semi_dominator_until_ancestor;
-    Node self_min = state.min_semi_dominator_until_ancestor;
-    if (graph.GetSemiDominator(ancestor_min) <
-        graph.GetSemiDominator(self_min)) {
-      state.min_semi_dominator_until_ancestor = ancestor_min;
-    }
-    state.ancestor = ancestor_state.ancestor;
   }
 
   NodeState& GetStateForNode(Node v) { return state_by_node_[v.id]; }
