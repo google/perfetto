@@ -3635,11 +3635,17 @@ size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
 
 void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
                                               TracingSessionID tsid,
-                                              bool skip_filter) {
+                                              bool skip_trace_filter,
+                                              bool for_bugreport) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto clone_target = FlushFlags::CloneTarget::kUnknown;
 
   if (tsid == kBugreportSessionId) {
+    // This branch is only here to support the legacy protocol where we could
+    // clone only a single session using the magic ID kBugreportSessionId.
+    // The newer perfetto --clone-all-for-bugreport first queries the existing
+    // sessions and then issues individual clone requests specifying real
+    // session IDs, setting args.{for_bugreport,skip_trace_filter}=true.
     PERFETTO_LOG("Looking for sessions for bugreport");
     TracingSession* session = FindTracingSessionWithMaxBugreportScore();
     if (!session) {
@@ -3649,7 +3655,10 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
     }
     tsid = session->id;
     clone_target = FlushFlags::CloneTarget::kBugreport;
-    skip_filter = true;
+    skip_trace_filter = true;
+    for_bugreport = true;
+  } else if (for_bugreport) {
+    clone_target = FlushFlags::CloneTarget::kBugreport;
   }
 
   TracingSession* session = GetTracingSession(tsid);
@@ -3698,14 +3707,16 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
   auto weak_consumer = consumer->GetWeakPtr();
   Flush(
       tsid, 0,
-      [weak_this, tsid, skip_filter, weak_consumer](bool final_flush_outcome) {
+      [weak_this, tsid, skip_trace_filter,
+       weak_consumer](bool final_flush_outcome) {
         PERFETTO_LOG("FlushAndCloneSession(%" PRIu64 ") started, success=%d",
                      tsid, final_flush_outcome);
         if (!weak_this || !weak_consumer)
           return;
         base::Uuid uuid;
-        base::Status result = weak_this->DoCloneSession(
-            &*weak_consumer, tsid, skip_filter, final_flush_outcome, &uuid);
+        base::Status result =
+            weak_this->DoCloneSession(&*weak_consumer, tsid, skip_trace_filter,
+                                      final_flush_outcome, &uuid);
         weak_consumer->consumer_->OnSessionCloned(
             {result.ok(), result.message(), uuid});
       },
@@ -3715,12 +3726,12 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
 
 base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
                                                 TracingSessionID src_tsid,
-                                                bool skip_filter,
+                                                bool skip_trace_filter,
                                                 bool final_flush_outcome,
                                                 base::Uuid* new_uuid) {
   PERFETTO_DLOG("CloneSession(%" PRIu64
-                ", skip_filter=%d) started, consumer uid: %d",
-                src_tsid, skip_filter, static_cast<int>(consumer->uid_));
+                ", skip_trace_filter=%d) started, consumer uid: %d",
+                src_tsid, skip_trace_filter, static_cast<int>(consumer->uid_));
 
   TracingSession* src = GetTracingSession(src_tsid);
 
@@ -3834,7 +3845,7 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
   cloned_session->compress_deflate = src->compress_deflate;
-  if (src->trace_filter && !skip_filter) {
+  if (src->trace_filter && !skip_trace_filter) {
     // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(
         new protozero::MessageFilter(src->trace_filter->config()));
@@ -4197,7 +4208,8 @@ void TracingServiceImpl::ConsumerEndpointImpl::CloneSession(
     CloneSessionArgs args) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // FlushAndCloneSession will call OnSessionCloned after the async flush.
-  service_->FlushAndCloneSession(this, tsid, args.skip_trace_filter);
+  service_->FlushAndCloneSession(this, tsid, args.skip_trace_filter,
+                                 args.for_bugreport);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
