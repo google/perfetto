@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@use "sass:math";
+
 @import "widgets/theme";
 @import "typefaces";
 @import "fonts";
@@ -375,6 +377,21 @@ $bottom-tab-padding: 10px;
   }
 }
 
+.track-content.pf-track-content-error {
+  // Necessary trig because we have a 45deg stripes
+  $pattern-density: 1px * math.sqrt(2);
+  $pattern-col: #ddd;
+
+  // box-shadow: inset 0 0 0 5px red;
+  background: repeating-linear-gradient(
+    -45deg,
+    $pattern-col,
+    $pattern-col $pattern-density,
+    white $pattern-density,
+    white $pattern-density * 2
+  );
+}
+
 .track {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -706,8 +723,8 @@ button.query-ctrl {
   .shell {
     padding: 4px 4px;
     display: grid;
-    grid-template-areas: "fold-button title check";
-    grid-template-columns: 28px 1fr 20px;
+    grid-template-areas: "fold-button title buttons check";
+    grid-template-columns: 28px 1fr auto 20px;
     align-items: center;
     line-height: 1;
     width: var(--track-shell-width);
