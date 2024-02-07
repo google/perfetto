@@ -192,7 +192,7 @@ android_binder {
     count: 1
   }
   process_breakdown {
-    process_name: "kworker/0:2-virtio_vsock"
+    process_name: "kworker/0:2"
     pid: 146
     slice_name: "binder_deferred_func"
     count: 1
