@@ -59,19 +59,24 @@ export class BigintMath {
   // If step is less than or equal to 0, returns n.
   static quantFloor(n: bigint, step: bigint): bigint {
     step = BigintMath.max(1n, step);
-    return step * (n / step);
+    if (n >= 0) {
+      return n - (n % step);
+    } else {
+      // If we're negative, just subtract one more "step", unless we're already
+      // aligned to a step then do nothing.
+      return n - (n % step) - (n % step === 0n ? 0n : step);
+    }
   }
 
   // Returns the smallest integral multiple of step which is not smaller than n.
   // If step is less than or equal to 0, returns n.
   static quantCeil(n: bigint, step: bigint): bigint {
     step = BigintMath.max(1n, step);
-    const remainder = n % step;
-    if (remainder === 0n) {
-      return n;
+    if (n >= 0) {
+      return n - (n % step) + (n % step === 0n ? 0n : step);
+    } else {
+      return n - (n % step);
     }
-    const quotient = n / step;
-    return (quotient + 1n) * step;
   }
 
   // Returns the greater of a and b.
