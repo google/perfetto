@@ -88,9 +88,7 @@ order by total_self_size desc
 limit 100;`;
 
 const coreCommands: Plugin = {
-  onActivate(_ctx: PluginContext) {},
-
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  onActivate(ctx: PluginContext) {
     ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#ToggleLeftSidebar',
       name: 'Toggle left sidebar',
@@ -103,7 +101,9 @@ const coreCommands: Plugin = {
       },
       defaultHotkey: '!Mod+B',
     });
+  },
 
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#RunQueryAllProcesses',
       name: 'Run query: all processes',
