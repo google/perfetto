@@ -26,11 +26,9 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 
-import {ActualFramesTrack} from './actual_frames_track';
 import {
   ActualFramesTrack as ActualFramesTrackV2,
 } from './actual_frames_track_v2';
-import {ExpectedFramesTrack} from './expected_frames_track';
 import {
   ExpectedFramesTrack as ExpectedFramesTrackV2,
 } from './expected_frames_track_v2';
@@ -102,21 +100,6 @@ class FramesPlugin implements Plugin {
         trackIds,
         kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
-          return new ExpectedFramesTrack(
-            engine,
-            maxDepth,
-            trackKey,
-            trackIds,
-          );
-        },
-      });
-
-      ctx.registerTrack({
-        uri: `perfetto.ExpectedFrames#${upid}.v2`,
-        displayName,
-        trackIds,
-        kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
-        trackFactory: ({trackKey}) => {
           return new ExpectedFramesTrackV2(
             engine,
             maxDepth,
@@ -180,21 +163,6 @@ class FramesPlugin implements Plugin {
 
       ctx.registerTrack({
         uri: `perfetto.ActualFrames#${upid}`,
-        displayName,
-        trackIds,
-        kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
-        trackFactory: ({trackKey}) => {
-          return new ActualFramesTrack(
-            engine,
-            maxDepth,
-            trackKey,
-            trackIds,
-          );
-        },
-      });
-
-      ctx.registerTrack({
-        uri: `perfetto.ActualFrames#${upid}.v2`,
         displayName,
         trackIds,
         kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
