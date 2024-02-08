@@ -75,11 +75,17 @@ class PerfettoCmd : public Consumer {
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
  private:
+  enum CloneThreadMode { kSingleExtraThread, kNewThreadPerRequest };
+
   bool OpenOutputFile();
   void SetupCtrlCSignalHandler();
   void FinalizeTraceAndExit();
   void PrintUsage(const char* argv0);
   void PrintServiceState(bool success, const TracingServiceState&);
+  void CloneSessionOnThread(TracingSessionID,
+                            const std::string& cmdline,  // \0 separated.
+                            CloneThreadMode,
+                            std::function<void()> on_clone_callback);
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
   bool is_attach() const { return !attach_key_.empty(); }
@@ -165,15 +171,16 @@ class PerfettoCmd : public Consumer {
   std::string uuid_;
   std::optional<TracingSessionID> clone_tsid_{};
   bool clone_for_bugreport_ = false;
+  std::function<void()> on_session_cloned_;
 
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;
   bool trace_data_timeout_armed_ = false;
 
-  // The aux thread that is used to invoke secondary instances of PerfettoCmd
-  // to create snapshots. This is used only when the trace config involves a
-  // CLONE_SNAPSHOT trigger.
-  std::unique_ptr<base::ThreadTaskRunner> snapshot_thread_;
+  // The aux threads used to invoke secondary instances of PerfettoCmd to create
+  // snapshots. This is used only when the trace config involves a
+  // CLONE_SNAPSHOT trigger or when using --save-all-for-bugreport.
+  std::list<base::ThreadTaskRunner> snapshot_threads_;
   int snapshot_count_ = 0;
   std::string snapshot_config_;
 
