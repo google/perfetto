@@ -169,7 +169,10 @@ class TrackFSM implements TrackCacheEntry {
     const result = this.track.onCreate?.(ctx);
     Promise.resolve(result)
       .then(() => this.onTrackCreated())
-      .catch(() => this.state = TrackState.Error);
+      .catch((e) => {
+        this.error = e;
+        this.state = TrackState.Error;
+      });
   }
 
   update(): void {
@@ -203,7 +206,10 @@ class TrackFSM implements TrackCacheEntry {
     case TrackState.Ready:
       // Don't bother awaiting this as the track can no longer be used.
       Promise.resolve(this.track.onDestroy?.())
-        .catch((e) => console.error(`Track threw up! ${e}`));
+        .catch(() => {
+          // Track crashed while being destroyed
+          // There's not a lot we can do here - just swallow the error
+        });
       this.state = TrackState.Destroyed;
       break;
     case TrackState.Creating:
