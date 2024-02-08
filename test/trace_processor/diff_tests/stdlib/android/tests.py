@@ -542,24 +542,29 @@ class AndroidStdlib(TestSuite):
           client_ts,
           server_ts,
           aidl_ts,
-          aidl_dur
+          aidl_dur,
+          is_sync,
+          client_package_version_code,
+          server_package_version_code,
+          is_client_package_debuggable,
+          is_server_package_debuggable
         FROM android_binder_txns
         WHERE aidl_name IS NOT NULL
         ORDER BY client_ts
         LIMIT 10;
       """,
         out=Csv("""
-        "aidl_name","client_process","server_process","client_thread","client_tid","server_tid","is_main_thread","client_oom_score","server_oom_score","client_ts","server_ts","aidl_ts","aidl_dur"
-        "AIDL::cpp::IClientCallback::onClients::cppServer","/system/bin/servicemanager","/system/bin/apexd","servicemanager",243,386,1,-1000,-1000,22213481492,22213517474,22213598784,322601
-        "AIDL::cpp::IInstalld::rmdex::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25230101202,25230125660,25230231365,77249
-        "AIDL::cpp::IInstalld::cleanupInvalidPackageDirs::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25243511980,25243544499,25243566439,408943
-        "AIDL::cpp::IInstalld::createAppDataBatched::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25244949065,25244971300,25244976815,33221505
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25279371214,25279387389,25279400683,90089
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25279567724,25279592927,25280492716,147183
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25280736368,25280756522,25280769543,109576
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25280932813,25280946041,25280952957,107685
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281131360,25281145719,25281152341,84930
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281273755,25281315273,25281321909,83540
+        "aidl_name","client_process","server_process","client_thread","client_tid","server_tid","is_main_thread","client_oom_score","server_oom_score","client_ts","server_ts","aidl_ts","aidl_dur","is_sync","client_package_version_code","server_package_version_code","is_client_package_debuggable","is_server_package_debuggable"
+        "AIDL::cpp::IClientCallback::onClients::cppServer","/system/bin/servicemanager","/system/bin/apexd","servicemanager",243,386,1,-1000,-1000,22213481492,22213517474,22213598784,322601,0,"[NULL]","[NULL]","[NULL]","[NULL]"
+        "AIDL::cpp::IInstalld::rmdex::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25230101202,25230125660,25230231365,77249,1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        "AIDL::cpp::IInstalld::cleanupInvalidPackageDirs::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25243511980,25243544499,25243566439,408943,1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        "AIDL::cpp::IInstalld::createAppDataBatched::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25244949065,25244971300,25244976815,33221505,1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25279371214,25279387389,25279400683,90089,1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25279567724,25279592927,25280492716,147183,1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25280736368,25280756522,25280769543,109576,1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25280932813,25280946041,25280952957,107685,1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281131360,25281145719,25281152341,84930,1,"[NULL]","[NULL]","[NULL]","[NULL]"
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281273755,25281315273,25281321909,83540,1,"[NULL]","[NULL]","[NULL]","[NULL]"
       """))
 
   def test_binder_outgoing_graph(self):

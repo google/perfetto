@@ -15,6 +15,7 @@
 --
 
 INCLUDE PERFETTO MODULE common.timestamps;
+INCLUDE PERFETTO MODULE android.process_metadata;
 
 -- Count Binder transactions per process.
 CREATE PERFETTO VIEW android_binder_metrics_by_process(
@@ -447,11 +448,30 @@ CREATE PERFETTO TABLE android_binder_txns(
   -- oom score of the server process at the start of the reply.
   server_oom_score INT,
   -- whether the txn is synchronous or async (oneway).
-  is_sync BOOL
-) AS
-SELECT *, 1 AS is_sync FROM _sync_binder_metrics_by_txn
+  is_sync BOOL,
+  -- Client package version_code.
+  client_package_version_code STRING,
+  -- Server package version_code.
+  server_package_version_code STRING,
+  -- Whether client package is debuggable.
+  is_client_package_debuggable INT,
+  -- Whether server package is debuggable.
+  is_server_package_debuggable INT
+) AS WITH all_binder AS (
+  SELECT *, 1 AS is_sync FROM _sync_binder_metrics_by_txn
 UNION ALL
-SELECT *, 0 AS is_sync FROM _async_binder_metrics_by_txn;
+SELECT *, 0 AS is_sync FROM _async_binder_metrics_by_txn
+) SELECT
+  all_binder.*,
+  client_process_metadata.version_code AS client_package_version_code,
+  server_process_metadata.version_code AS server_package_version_code,
+  client_process_metadata.debuggable AS is_client_package_debuggable,
+  server_process_metadata.debuggable AS is_server_package_debuggable
+FROM all_binder
+LEFT JOIN android_process_metadata client_process_metadata
+  ON all_binder.client_upid = client_process_metadata.upid
+LEFT JOIN android_process_metadata server_process_metadata
+  ON all_binder.server_upid = client_process_metadata.upid;
 
 -- Returns a DAG of all outgoing binder txns from a process.
 -- The roots of the graph are the threads making the txns and the graph flows from:

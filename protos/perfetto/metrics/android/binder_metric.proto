@@ -32,7 +32,7 @@ message AndroidBinderMetric {
     optional uint32 count = 4;
   }
 
-  // Next field id: 24
+  // Next field id: 28
   message UnaggregatedTxnBreakdown {
     // General
     optional string aidl_name = 1;
@@ -48,6 +48,8 @@ message AndroidBinderMetric {
     optional int64 client_ts = 6;
     optional int64 client_dur = 7;
     optional int64 client_oom_score = 19;
+    optional string client_package_version_code = 24;
+    optional bool is_client_package_debuggable = 25;
     // Server
     // Removed: was binder_reply_id
     reserved 8;
@@ -56,6 +58,8 @@ message AndroidBinderMetric {
     optional int64 server_ts = 11;
     optional int64 server_dur = 12;
     optional int64 server_oom_score = 20;
+    optional string server_package_version_code = 26;
+    optional bool is_server_package_debuggable = 27;
     // Aggregations
     repeated ThreadStateBreakdown thread_states = 13;
     repeated BlockedFunctionBreakdown blocked_functions = 14;
