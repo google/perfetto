@@ -153,7 +153,7 @@ class AndroidStdlib(TestSuite):
           server_ts,
           server_dur,
           server_oom_score
-        FROM android_sync_binder_metrics_by_txn
+        FROM android_binder_txns
         WHERE binder_txn_id = 34382
         ORDER BY client_ts
         LIMIT 1;
@@ -505,8 +505,8 @@ class AndroidStdlib(TestSuite):
           server_ts,
           aidl_ts,
           aidl_dur
-        FROM android_async_binder_metrics_by_txn
-        WHERE aidl_name IS NOT NULL
+        FROM android_binder_txns
+        WHERE aidl_name IS NOT NULL AND is_sync = 0
         ORDER BY client_ts
         LIMIT 10;
       """,
