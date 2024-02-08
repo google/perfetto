@@ -23,6 +23,7 @@ perfetto_sql_source_set("android") {
     "battery_stats.sql",
     "binder.sql",
     "broadcasts.sql",
+    "counter_span_view_merged.sql",
     "dvfs.sql",
     "freezer.sql",
     "garbage_collection.sql",
@@ -36,6 +37,7 @@ perfetto_sql_source_set("android") {
     "services.sql",
     "slices.sql",
     "statsd.sql",
+    "suspend_resume.sql",
     "thread.sql",
   ]
 }

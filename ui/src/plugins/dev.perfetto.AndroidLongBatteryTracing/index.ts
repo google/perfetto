@@ -255,6 +255,75 @@ const MODEM_RIL_CHANNELS = `
   SELECT ts, dur, slot_name || "-" || attrib_name || "=" || name AS name
   FROM Stage3`;
 
+const SUSPEND_RESUME = `
+  SELECT
+    ts,
+    dur,
+    'Suspended' AS name
+  FROM android_suspend_resume
+  WHERE power_state = 'suspended'`;
+
+const SCREEN_STATE = `
+  SELECT
+    ts,
+    dur,
+    CASE value
+      WHEN 1 THEN 'Screen off'
+      WHEN 2 THEN 'Screen on'
+      WHEN 3 THEN 'Always-on display (doze)'
+      ELSE 'unknown'
+    END AS name
+  FROM android_counter_span_view_merged('ScreenState')`;
+
+// See DeviceIdleController.java for where these states come from and how
+// they transition.
+const DOZE_LIGHT = `
+  SELECT
+    ts,
+    dur,
+    CASE value
+      WHEN 0 THEN 'active'
+      WHEN 1 THEN 'inactive'
+      WHEN 4 THEN 'idle'
+      WHEN 5 THEN 'waiting_for_network'
+      WHEN 6 THEN 'idle_maintenance'
+      WHEN 7 THEN 'override'
+      ELSE 'unknown'
+    END AS name
+  FROM android_counter_span_view_merged('DozeLightState')`;
+
+const DOZE_DEEP = `
+  SELECT
+    ts,
+    dur,
+    CASE value
+      WHEN 0 THEN 'active'
+      WHEN 1 THEN 'inactive'
+      WHEN 2 THEN 'idle_pending'
+      WHEN 3 THEN 'sensing'
+      WHEN 4 THEN 'locating'
+      WHEN 5 THEN 'idle'
+      WHEN 6 THEN 'idle_maintenance'
+      WHEN 7 THEN 'quick_doze_delay'
+      ELSE 'unknown'
+    END AS name
+  FROM android_counter_span_view_merged('DozeDeepState')`;
+
+const CHARGING = `
+  SELECT
+    ts,
+    dur,
+    CASE value
+      -- 0 and 1 are both unknown
+      WHEN 2 THEN 'Charging'
+      WHEN 3 THEN 'Discharging'
+      -- special case when charger is present but battery isn't charging
+      WHEN 4 THEN 'Not charging'
+      WHEN 5 THEN 'Full'
+      ELSE 'unknown'
+    END AS name
+  FROM android_counter_span_view_merged('BatteryStatus')`;
+
 const THERMAL_THROTTLING = `
   with step1 as (
       select
@@ -314,7 +383,10 @@ const KERNEL_WAKELOCKS = `
     select
       ts,
       ts_end,
-      ifnull((select sum(dur) from suspend_slice_ s where s.ts > step2.ts and s.ts < step2.ts_end), 0) as suspended_dur,
+      ifnull((select sum(dur) from android_suspend_resume s
+              where power_state = 'suspended'
+                and s.ts > step2.ts
+                and s.ts < step2.ts_end), 0) as suspended_dur,
       wakelock_name,
       count,
       wakelock_dur
@@ -474,7 +546,8 @@ const WAKEUPS = `
       null as backoff_count,
       null as backoff_millis,
       true as suspend_end
-    from suspend_slice_
+    from android_suspend_resume
+    where power_state = 'suspended'
   ),
   step4 as (
     select
@@ -930,37 +1003,77 @@ class AndroidLongBatteryTracing implements Plugin {
     return action;
   }
 
-  async addBatteryStatsEvents(
-    e: EngineProxy, features: Set<string>,
-    groupId: string): Promise<DeferredAction<{}>[]> {
-    if (!features.has('track.battery_stats')) {
+  async addBatteryStatsState(
+    e: EngineProxy, name: string, track: string, groupId: string,
+    features: Set<string>): Promise<DeferredAction<{}>[]> {
+    if (!features.has(`track.${track}`)) {
+      return [];
+    }
+    return flatten([this.addSliceTrack(
+      e, name, `SELECT ts, dur, value_name AS name
+    FROM android_battery_stats_state
+    WHERE track_name = "${track}"`,
+      groupId)]);
+  }
+
+  async addBatteryStatsEvent(
+    e: EngineProxy, name: string, track: string, groupId: string,
+    features: Set<string>): Promise<DeferredAction<{}>[]> {
+    if (!features.has(`track.${track}`)) {
+      return [];
+    }
+    return flatten([this.addSliceTrack(
+      e, name, `SELECT ts, dur, str_value AS name
+    FROM android_battery_stats_event_slices
+    WHERE track_name = "${track}"`,
+      groupId)]);
+  }
+
+  async addDeviceState(e: EngineProxy, features: Set<string>):
+      Promise<DeferredAction<{}>[]> {
+    if (!features.has('track.battery_stats.*')) {
       return [];
     }
 
-    const query = (name: string, track: string): Promise<DeferredAction<{}>> =>
-      this.addSliceTrack(
-        e, name, `SELECT ts, dur, str_value AS name
-            FROM android_battery_stats_event_slices
-            WHERE track_name = "${track}"`,
-        groupId);
+    const {groupId, groupActions} = this.addGroup('Device State', false);
 
-    await e.query(`SELECT IMPORT('android.battery_stats');`);
-    return flatten([
-      query('Top App', 'battery_stats.top'),
+    const query =
+        (name: string, track: string): Promise<DeferredAction<{}>[]> =>
+          this.addBatteryStatsEvent(e, name, track, groupId, features);
+
+    await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
+    await e.query(`INCLUDE PERFETTO MODULE android.suspend_resume;`);
+    await e.query(`INCLUDE PERFETTO MODULE android.counter_span_view_merged;`);
+
+    const actions = [
+      groupActions,
+      this.addSliceTrack(e, 'Screen state', SCREEN_STATE, groupId),
+      this.addSliceTrack(e, 'Charging', CHARGING, groupId),
+      this.addSliceTrack(e, 'Suspend / resume', SUSPEND_RESUME, groupId),
+      this.addSliceTrack(e, 'Doze light state', DOZE_LIGHT, groupId),
+      this.addSliceTrack(e, 'Doze deep state', DOZE_DEEP, groupId),
+      query('Top app', 'battery_stats.top'),
       this.addSliceTrack(
         e, 'Long wakelocks', `SELECT
-             ts - 60000000000 as ts,
-             dur + 60000000000 as dur,
-             str_value AS name,
-             ifnull(
+              ts - 60000000000 as ts,
+              dur + 60000000000 as dur,
+              str_value AS name,
+              ifnull(
               (select package_name from package_list where uid = int_value % 100000),
               int_value) as package
           FROM android_battery_stats_event_slices
           WHERE track_name = "battery_stats.longwake"`,
         groupId, ['package']),
-      query('Foreground Apps', 'battery_stats.fg'),
+      query('Foreground apps', 'battery_stats.fg'),
       query('Jobs', 'battery_stats.job'),
-    ]);
+    ];
+
+    if (features.has('atom.thermal_throttling_severity_state_changed')) {
+      actions.push(this.addSliceTrack(
+        e, 'Thermal throttling', THERMAL_THROTTLING, groupId));
+    }
+
+    return flatten(actions);
   }
 
   async addNetworkSummary(e: EngineProxy, features: Set<string>):
@@ -971,10 +1084,11 @@ class AndroidLongBatteryTracing implements Plugin {
     const {groupId, groupActions} = this.addGroup('Network Summary');
 
     await e.query(NETWORK_SUMMARY);
-    const actions = [
+    const actions: MixedActions = [
       groupActions,
       this.addSliceTrack(e, 'Default network', DEFAULT_NETWORK, groupId),
     ];
+
     if (features.has('atom.network_tethering_reported')) {
       actions.push(this.addSliceTrack(e, 'Tethering', TETHERING, groupId));
     }
@@ -1009,6 +1123,24 @@ class AndroidLongBatteryTracing implements Plugin {
           groupId),
       );
     }
+    actions.push(
+      this.addBatteryStatsState(
+        e, 'Cellular interface', 'battery_stats.mobile_radio', groupId,
+        features),
+      this.addBatteryStatsState(
+        e, 'Cellular connection', 'battery_stats.data_conn', groupId,
+        features),
+      this.addBatteryStatsState(
+        e, 'Cellular strength', 'battery_stats.phone_signal_strength',
+        groupId, features),
+      this.addBatteryStatsState(
+        e, 'Wifi interface', 'battery_stats.wifi_radio', groupId, features),
+      this.addBatteryStatsState(
+        e, 'Wifi supplicant state', 'battery_stats.wifi_suppl', groupId,
+        features),
+      this.addBatteryStatsState(
+        e, 'Wifi strength', 'battery_stats.wifi_signal_strength', groupId,
+        features));
     return flatten(actions);
   }
 
@@ -1078,6 +1210,7 @@ class AndroidLongBatteryTracing implements Plugin {
     }
     const {groupId, groupActions} = this.addGroup('Kernel Wakelock Summary');
 
+    await e.query(`INCLUDE PERFETTO MODULE android.suspend_resume;`);
     await e.query(KERNEL_WAKELOCKS);
     const result = await e.query(KERNEL_WAKELOCKS_SUMMARY);
     const it = result.iter({wakelock_name: 'str'});
@@ -1100,6 +1233,7 @@ class AndroidLongBatteryTracing implements Plugin {
     }
 
     const {groupId, groupActions} = this.addGroup('Wakeups');
+    await e.query(`INCLUDE PERFETTO MODULE android.suspend_resume;`);
     await e.query(WAKEUPS);
     const result = await e.query(`select
           item,
@@ -1207,16 +1341,7 @@ class AndroidLongBatteryTracing implements Plugin {
     ]);
   }
 
-  findGroupId(name: string): string|undefined {
-    for (const group of Object.values(globals.state.trackGroups)) {
-      if (group.name === name) {
-        return group.id;
-      }
-    }
-    return undefined;
-  }
-
-  addGroup(groupName: string):
+  addGroup(groupName: string, collapsed = true):
       {groupId: string, groupActions: DeferredAction<{}>[]} {
     const summaryTrackKey = uuidv4();
     const groupUuid = uuidv4();
@@ -1235,7 +1360,7 @@ class AndroidLongBatteryTracing implements Plugin {
           summaryTrackKey,
           name: groupName,
           id: groupUuid,
-          collapsed: true,
+          collapsed,
         }),
       ],
     };
@@ -1268,10 +1393,10 @@ class AndroidLongBatteryTracing implements Plugin {
 
     await addFeatures(`
       select distinct 'track.' || lower(name) as feature
-      from track where name in ('RIL', 'suspend_backoff')`);
+      from track where name in ('RIL', 'suspend_backoff') or name like 'battery_stats.%'`);
 
     await addFeatures(`
-      select distinct 'track.battery_stats' as feature
+      select distinct 'track.battery_stats.*' as feature
       from track where name like 'battery_stats.%'`);
 
     return features;
@@ -1281,15 +1406,7 @@ class AndroidLongBatteryTracing implements Plugin {
     const actions: MixedActions = [];
     const features: Set<string> = await this.findFeatures(ctx.engine);
 
-    const miscGroupId = this.findGroupId('Misc Global Tracks');
-    if (miscGroupId) {
-      if (features.has('atom.thermal_throttling_severity_state_changed')) {
-        actions.push(this.addSliceTrack(
-          ctx.engine, 'Thermal throttling', THERMAL_THROTTLING, miscGroupId));
-      }
-      actions.push(
-        this.addBatteryStatsEvents(ctx.engine, features, miscGroupId));
-    }
+    actions.push(this.addDeviceState(ctx.engine, features));
 
     actions.push(
       this.addNetworkSummary(ctx.engine, features),
