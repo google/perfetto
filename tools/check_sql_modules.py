@@ -35,7 +35,7 @@ from python.generators.sql_processing.utils import check_banned_include_all
 # Allowlist path are relative to the stdlib root.
 CREATE_TABLE_ALLOWLIST = {
     '/android/binder.sql': [
-        '_oom_score', '_async_binder_reply', '_binder_async_txn_raw'
+        '_oom_score'
     ],
     '/android/monitor_contention.sql': [
         '_isolated', 'android_monitor_contention_chain',

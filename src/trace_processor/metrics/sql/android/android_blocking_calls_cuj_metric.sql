@@ -75,7 +75,6 @@ UNION
 SELECT ROW_NUMBER() OVER (ORDER BY ts) AS cuj_id, *
 FROM all_cujs;
 
-
 DROP TABLE IF EXISTS relevant_binder_calls_with_names;
 CREATE TABLE relevant_binder_calls_with_names AS
 SELECT DISTINCT
@@ -87,10 +86,9 @@ SELECT DISTINCT
     tx.client_process as process_name,
     tx.client_utid as utid,
     tx.client_upid as upid
-FROM android_sync_binder_metrics_by_txn AS tx
+FROM android_binder_txns AS tx
          JOIN slice AS s ON s.id = tx.binder_txn_id
-WHERE is_main_thread AND aidl_name IS NOT NULL;
-
+WHERE is_main_thread AND aidl_name IS NOT NULL AND is_sync = 1;
 
 DROP TABLE IF EXISTS android_blocking_calls_cuj_calls;
 CREATE TABLE android_blocking_calls_cuj_calls AS
