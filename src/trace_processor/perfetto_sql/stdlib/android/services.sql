@@ -19,7 +19,7 @@ INCLUDE PERFETTO MODULE android.binder;
 INCLUDE PERFETTO MODULE graphs.search;
 
 -- Details of all Service#onBind dispatched events.
-CREATE PERFETTO VIEW _bind_dispatch
+CREATE PERFETTO TABLE _bind_dispatch
 AS
 WITH
   next_sibling AS MATERIALIZED (
@@ -57,7 +57,7 @@ FROM service
 WHERE bind_seq_name GLOB 'requestServiceBinding*' AND name = 'binder transaction async';
 
 -- Details of all Service#onBind received events.
-CREATE PERFETTO VIEW _bind_receive
+CREATE PERFETTO TABLE _bind_receive
 AS
 SELECT
   id,
