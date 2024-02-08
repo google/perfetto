@@ -84,6 +84,7 @@ def CheckChange(input, output):
   results += RunAndReportIfLong(CheckSqlMetrics, input, output)
   results += RunAndReportIfLong(CheckTestData, input, output)
   results += RunAndReportIfLong(CheckAmalgamatedPythonTools, input, output)
+  results += RunAndReportIfLong(CheckChromeStdlib, input, output)
   return results
 
 
@@ -380,6 +381,37 @@ def CheckTestData(input_api, output_api):
         )
     ]
   return []
+
+
+def CheckChromeStdlib(input_api, output_api):
+  stdlib_paths = ("src/trace_processor/perfetto_sql/stdlib/chrome/",
+                  "test/data/chrome/",
+                  "test/trace_processor/diff_tests/stdlib/chrome/")
+
+  def chrome_stdlib_file_filter(x):
+    return input_api.FilterSourceFile(x, files_to_check=stdlib_paths)
+
+  # Only check chrome stdlib files
+  if not any(input_api.AffectedFiles(file_filter=chrome_stdlib_file_filter)):
+    return []
+
+  # Always allow Copybara service to make changes to chrome stdlib
+  if input_api.change.COPYBARA_IMPORT:
+    return []
+
+  if input_api.change.CHROME_STDLIB_MANUAL_ROLL:
+    return []
+
+  message = (
+      'Files under {0} and {1} '
+      'are rolled from the Chromium repository by a '
+      'Copybara service.\nYou should not modify these in '
+      'the Perfetto repository, please make your changes '
+      'in Chromium instead.\n'
+      'If you want to do a manual roll, you must specify '
+      'CHROME_STDLIB_MANUAL_ROLL=<reason> in the CL description.').format(
+          *stdlib_paths)
+  return [output_api.PresubmitError(message)]
 
 
 def CheckAmalgamatedPythonTools(input_api, output_api):
