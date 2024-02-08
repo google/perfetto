@@ -274,9 +274,6 @@ size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
     // 1. Keep track of the frequency of each token.
     // 2. Keep track of the list of token hashes for each symbol.
     Tokenize(name, [&tokens, &symbol_tokens, addr](base::StringView token) {
-      // Strip the .cfi part if present.
-      if (token.substr(token.size() - 4) == ".cfi")
-        token = token.substr(0, token.size() - 4);
       auto it_and_ins = tokens.emplace(token.ToStdString(), TokenInfo{});
       it_and_ins.first->second.count++;
       symbol_tokens.emplace_back(SymAddrAndTokenPtr{addr, &*it_and_ins.first});
