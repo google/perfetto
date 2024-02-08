@@ -19,6 +19,7 @@ import {
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
+  addDebugSliceTrack,
 } from '../../public';
 
 const SQL_STATS = `
@@ -191,6 +192,27 @@ const coreCommands: Plugin = {
             ctx.timeline.panToTimestamp(Time.fromRaw(ts));
           }
         }
+      },
+    });
+
+    ctx.registerCommand({
+      id: 'test',
+      name: 'Make Test Debug Track',
+      callback: () => {
+        addDebugSliceTrack(
+          ctx.engine,
+          {
+            sqlSource: `
+              SELECT *
+              FROM slice
+              WHERE name like 'a%'
+              LIMIT 10000
+            `,
+          },
+          'Track Name',
+          {ts: 'ts', dur: 'dur', name: 'name'},
+          [],
+        );
       },
     });
   },
