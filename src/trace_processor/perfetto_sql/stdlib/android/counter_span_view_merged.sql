@@ -1,5 +1,5 @@
 --
--- Copyright 2020 The Android Open Source Project
+-- Copyright 2024 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -22,19 +22,25 @@
 --
 -- It also does another type of merging: it merges together temporally adjacent
 -- identical values.
-
---TODO(simonmacm) remove when not referenced internally
-DROP VIEW IF EXISTS {{table_name}}_span;
-CREATE PERFETTO VIEW {{table_name}}_span AS
+CREATE PERFETTO FUNCTION android_counter_span_view_merged(
+  -- The counter name to use
+  counter_name STRING)
+RETURNS TABLE(
+  -- The timestamp
+  ts INT,
+  -- The duration
+  dur INT,
+  -- The value
+  value INT) AS
+WITH base AS (
+  SELECT ts, value, LAG(value) OVER (ORDER BY ts) AS lag_value
+  FROM counter c JOIN counter_track t
+      ON t.id = c.track_id
+  WHERE name = $counter_name
+)
 SELECT
   ts,
-  LEAD(ts, 1, (SELECT end_ts + 1 FROM trace_bounds))
-  OVER(ORDER BY ts) - ts AS dur,
-  CAST(value AS INT) AS {{table_name}}_val
-FROM (
-    SELECT ts, value, LAG(value) OVER (ORDER BY ts) AS lag_value
-    FROM counter c JOIN counter_track t
-      ON t.id = c.track_id
-    WHERE name = '{{counter_name}}'
-)
+  LEAD(ts, 1, (SELECT end_ts + 1 FROM trace_bounds)) OVER(ORDER BY ts) - ts AS dur,
+  CAST(value AS INT) AS value
+FROM base
 WHERE value != lag_value OR lag_value IS NULL;
