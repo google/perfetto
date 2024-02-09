@@ -19,20 +19,22 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <variant>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Storage for all numeric type data (i.e. doubles, int32, int64, uint32).
-class NumericStorageBase : public DataNode {
+class NumericStorageBase : public DataLayer {
  public:
-  std::unique_ptr<DataNode::Queryable> MakeQueryable() override;
+  std::unique_ptr<DataLayerChain> MakeChain() override;
 
  protected:
   NumericStorageBase(const void* data,
@@ -41,9 +43,9 @@ class NumericStorageBase : public DataNode {
                      bool is_sorted);
 
  private:
-  class Queryable : public DataNode::Queryable {
+  class ChainImpl : public DataLayerChain {
    public:
-    Queryable(const void* data, uint32_t size, ColumnType type, bool is_sorted);
+    ChainImpl(const void* data, uint32_t size, ColumnType type, bool is_sorted);
 
     SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                      FilterOp) const override;
@@ -93,7 +95,7 @@ class NumericStorageBase : public DataNode {
 
 // Storage for all numeric type data (i.e. doubles, int32, int64, uint32).
 template <typename T>
-class NumericStorage : public NumericStorageBase {
+class NumericStorage final : public NumericStorageBase {
  public:
   NumericStorage(const std::vector<T>* vec,
                  ColumnType type,

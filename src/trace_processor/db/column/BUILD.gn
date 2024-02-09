@@ -18,8 +18,8 @@ source_set("column") {
   sources = [
     "arrangement_overlay.cc",
     "arrangement_overlay.h",
-    "data_node.cc",
-    "data_node.h",
+    "data_layer.cc",
+    "data_layer.h",
     "dense_null_overlay.cc",
     "dense_null_overlay.h",
     "dummy_storage.cc",

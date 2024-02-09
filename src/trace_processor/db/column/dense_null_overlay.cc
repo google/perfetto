@@ -25,7 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/tp_metatrace.h"
 
@@ -37,17 +37,16 @@ namespace perfetto::trace_processor::column {
 DenseNullOverlay::DenseNullOverlay(const BitVector* non_null)
     : non_null_(non_null) {}
 
-std::unique_ptr<DataNode::Queryable> DenseNullOverlay::MakeQueryable(
-    std::unique_ptr<DataNode::Queryable> inner) {
-  return std::make_unique<Queryable>(std::move(inner), non_null_);
+std::unique_ptr<DataLayerChain> DenseNullOverlay::MakeChain(
+    std::unique_ptr<DataLayerChain> inner) {
+  return std::make_unique<ChainImpl>(std::move(inner), non_null_);
 }
 
-DenseNullOverlay::Queryable::Queryable(
-    std::unique_ptr<DataNode::Queryable> inner,
-    const BitVector* non_null)
+DenseNullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
+                                       const BitVector* non_null)
     : inner_(std::move(inner)), non_null_(non_null) {}
 
-SearchValidationResult DenseNullOverlay::Queryable::ValidateSearchConstraints(
+SearchValidationResult DenseNullOverlay::ChainImpl::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
   if (op == FilterOp::kIsNull) {
@@ -57,11 +56,11 @@ SearchValidationResult DenseNullOverlay::Queryable::ValidateSearchConstraints(
   return inner_->ValidateSearchConstraints(sql_val, op);
 }
 
-RangeOrBitVector DenseNullOverlay::Queryable::Search(FilterOp op,
+RangeOrBitVector DenseNullOverlay::ChainImpl::Search(FilterOp op,
                                                      SqlValue sql_val,
                                                      Range in) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
-                    "DenseNullOverlay::Queryable::Search");
+                    "DenseNullOverlay::ChainImpl::Search");
 
   if (op == FilterOp::kIsNull) {
     switch (inner_->ValidateSearchConstraints(sql_val, op)) {
@@ -113,12 +112,12 @@ RangeOrBitVector DenseNullOverlay::Queryable::Search(FilterOp op,
   return RangeOrBitVector(std::move(res));
 }
 
-RangeOrBitVector DenseNullOverlay::Queryable::IndexSearch(
+RangeOrBitVector DenseNullOverlay::ChainImpl::IndexSearch(
     FilterOp op,
     SqlValue sql_val,
     Indices indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
-                    "DenseNullOverlay::Queryable::IndexSearch");
+                    "DenseNullOverlay::ChainImpl::IndexSearch");
 
   if (op == FilterOp::kIsNull) {
     switch (inner_->ValidateSearchConstraints(sql_val, op)) {
@@ -169,14 +168,14 @@ RangeOrBitVector DenseNullOverlay::Queryable::IndexSearch(
   return RangeOrBitVector(std::move(res));
 }
 
-Range DenseNullOverlay::Queryable::OrderedIndexSearch(FilterOp op,
+Range DenseNullOverlay::ChainImpl::OrderedIndexSearch(FilterOp op,
                                                       SqlValue sql_val,
                                                       Indices indices) const {
   // For NOT EQUAL the further analysis needs to be done by the caller.
   PERFETTO_CHECK(op != FilterOp::kNe);
 
   PERFETTO_TP_TRACE(metatrace::Category::DB,
-                    "DenseNullOverlay::Queryable::OrderedIndexSearch");
+                    "DenseNullOverlay::ChainImpl::OrderedIndexSearch");
 
   // We assume all NULLs are ordered to be in the front. We are looking for the
   // first index that points to non NULL value.
@@ -211,17 +210,17 @@ Range DenseNullOverlay::Queryable::OrderedIndexSearch(FilterOp op,
                inner_range.end + non_null_offset);
 }
 
-void DenseNullOverlay::Queryable::StableSort(uint32_t*, uint32_t) const {
+void DenseNullOverlay::ChainImpl::StableSort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void DenseNullOverlay::Queryable::Sort(uint32_t*, uint32_t) const {
+void DenseNullOverlay::ChainImpl::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void DenseNullOverlay::Queryable::Serialize(StorageProto* storage) const {
+void DenseNullOverlay::ChainImpl::Serialize(StorageProto* storage) const {
   auto* null_overlay = storage->set_dense_null_overlay();
   non_null_->Serialize(null_overlay->set_bit_vector());
   inner_->Serialize(null_overlay->set_storage());

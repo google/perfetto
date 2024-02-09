@@ -23,7 +23,7 @@
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
@@ -31,17 +31,17 @@ namespace perfetto::trace_processor::column {
 // Overlay which introduces the layer of nullability but without changing the
 // "spacing" of the underlying storage i.e. this overlay simply "masks" out
 // rows in the underlying storage with nulls.
-class DenseNullOverlay : public DataNode {
+class DenseNullOverlay : public DataLayer {
  public:
   explicit DenseNullOverlay(const BitVector* non_null);
 
-  std::unique_ptr<Queryable> MakeQueryable(std::unique_ptr<Queryable>) override;
+  std::unique_ptr<DataLayerChain> MakeChain(
+      std::unique_ptr<DataLayerChain>) override;
 
  private:
-  class Queryable : public DataNode::Queryable {
+  class ChainImpl : public DataLayerChain {
    public:
-    Queryable(std::unique_ptr<DataNode::Queryable> inner,
-              const BitVector* non_null);
+    ChainImpl(std::unique_ptr<DataLayerChain> inner, const BitVector* non_null);
 
     SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                      FilterOp) const override;
@@ -63,7 +63,7 @@ class DenseNullOverlay : public DataNode {
     std::string DebugString() const override { return "DenseNullOverlay"; }
 
    private:
-    std::unique_ptr<DataNode::Queryable> inner_;
+    std::unique_ptr<DataLayerChain> inner_;
     const BitVector* non_null_ = nullptr;
   };
 

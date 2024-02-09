@@ -25,41 +25,41 @@
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Fake implementation of Storage for use in tests.
-class FakeStorage final : public DataNode {
+class FakeStorage final : public DataLayer {
  public:
-  std::unique_ptr<Queryable> MakeQueryable() override;
+  std::unique_ptr<DataLayerChain> MakeChain() override;
 
-  static std::unique_ptr<DataNode> SearchAll(uint32_t size) {
-    return std::unique_ptr<DataNode>(
+  static std::unique_ptr<DataLayer> SearchAll(uint32_t size) {
+    return std::unique_ptr<DataLayer>(
         new FakeStorage(size, SearchStrategy::kAll));
   }
 
-  static std::unique_ptr<DataNode> SearchNone(uint32_t size) {
-    return std::unique_ptr<DataNode>(
+  static std::unique_ptr<DataLayer> SearchNone(uint32_t size) {
+    return std::unique_ptr<DataLayer>(
         new FakeStorage(size, SearchStrategy::kNone));
   }
 
-  static std::unique_ptr<DataNode> SearchSubset(uint32_t size, Range r) {
+  static std::unique_ptr<DataLayer> SearchSubset(uint32_t size, Range r) {
     std::unique_ptr<FakeStorage> storage(
         new FakeStorage(size, SearchStrategy::kRange));
     storage->range_ = r;
     return std::move(storage);
   }
 
-  static std::unique_ptr<DataNode> SearchSubset(uint32_t size, BitVector bv) {
+  static std::unique_ptr<DataLayer> SearchSubset(uint32_t size, BitVector bv) {
     std::unique_ptr<FakeStorage> storage(
         new FakeStorage(size, SearchStrategy::kBitVector));
     storage->bit_vector_ = std::move(bv);
     return std::move(storage);
   }
 
-  static std::unique_ptr<DataNode> SearchSubset(
+  static std::unique_ptr<DataLayer> SearchSubset(
       uint32_t size,
       const std::vector<uint32_t>& index_vec) {
     std::unique_ptr<FakeStorage> storage(
@@ -75,9 +75,9 @@ class FakeStorage final : public DataNode {
  private:
   enum SearchStrategy { kNone, kAll, kRange, kBitVector };
 
-  class Queryable : public DataNode::Queryable {
+  class ChainImpl : public DataLayerChain {
    public:
-    Queryable(uint32_t, SearchStrategy, Range, BitVector);
+    ChainImpl(uint32_t, SearchStrategy, Range, BitVector);
 
     SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                      FilterOp) const override;
