@@ -85,6 +85,7 @@ def CheckChange(input, output):
   results += RunAndReportIfLong(CheckTestData, input, output)
   results += RunAndReportIfLong(CheckAmalgamatedPythonTools, input, output)
   results += RunAndReportIfLong(CheckChromeStdlib, input, output)
+  results += RunAndReportIfLong(CheckAbsolutePathsInGn, input, output)
   return results
 
 
@@ -434,3 +435,29 @@ def CheckAmalgamatedPythonTools(input_api, output_api):
             ' to update them.')
     ]
   return []
+
+
+def CheckAbsolutePathsInGn(input_api, output_api):
+
+  def file_filter(x):
+    return input_api.FilterSourceFile(
+        x,
+        files_to_check=[r'.*\.gni?$'],
+        files_to_skip=['^.gn$', '^gn/.*', '^buildtools/.*'])
+
+  error_lines = []
+  for f in input_api.AffectedSourceFiles(file_filter):
+    for line_number, line in f.ChangedContents():
+      if input_api.re.search(r'(^\s*[#])|([#]\s*nogncheck)', line):
+        continue  # Skip comments and '# nogncheck' lines
+      if input_api.re.search(r'"//[^"]', line):
+        error_lines.append('  %s:%s: %s' %
+                           (f.LocalPath(), line_number, line.strip()))
+
+  if len(error_lines) == 0:
+    return []
+  return [
+      output_api.PresubmitError(
+          'Use relative paths in GN rather than absolute:\n' +
+          '\n'.join(error_lines))
+  ]

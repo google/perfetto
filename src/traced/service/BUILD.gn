@@ -28,7 +28,7 @@ executable("traced") {
     "../../../include/perfetto/ext/traced",
   ]
   sources = [ "main.cc" ]
-  assert_no_deps = [ "//gn:protobuf_lite" ]
+  assert_no_deps = [ "../../../gn:protobuf_lite" ]
 }
 
 # Contains all the implementation but not the main() entry point. This target
