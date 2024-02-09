@@ -87,6 +87,7 @@ if (enable_perfetto_benchmarks) {
       "../../../include/perfetto/ext/base",
       "../../../include/perfetto/trace_processor:basic_types",
       "../../base:test_support",
+      "../containers",
       "../tables:tables_python",
     ]
     sources = [

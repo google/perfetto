@@ -15,21 +15,28 @@
  */
 
 #include <benchmark/benchmark.h>
-#include <initializer_list>
-#include <string>
 
+#include <cstddef>
+#include <cstdint>
+#include <initializer_list>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/base/test/utils.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 using SliceTable = tables::SliceTable;
@@ -223,7 +230,7 @@ void BenchmarkSliceTable(benchmark::State& state,
                          std::initializer_list<Constraint> c) {
   Table::kUseFilterV2 = state.range(0) == 1;
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.FilterToRowMap(c));
+    benchmark::DoNotOptimize(table.table_.QueryToRowMap(c, {}));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
@@ -236,7 +243,7 @@ void BenchmarkExpectedFrameTable(benchmark::State& state,
                                  Constraint c) {
   Table::kUseFilterV2 = state.range(0) == 1;
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.FilterToRowMap({c}));
+    benchmark::DoNotOptimize(table.table_.QueryToRowMap({c}, {}));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
@@ -249,7 +256,7 @@ void BenchmarkFtraceEventTable(benchmark::State& state,
                                std::initializer_list<Constraint> c) {
   Table::kUseFilterV2 = state.range(0) == 1;
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.FilterToRowMap(c));
+    benchmark::DoNotOptimize(table.table_.QueryToRowMap(c, {}));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
@@ -257,7 +264,7 @@ void BenchmarkFtraceEventTable(benchmark::State& state,
                              benchmark::Counter::kInvert);
 }
 
-static void BM_QESliceTableTrackIdEq(benchmark::State& state) {
+void BM_QESliceTableTrackIdEq(benchmark::State& state) {
   SliceTableForBenchmark table(state);
   BenchmarkSliceTable(state, table, {table.table_.track_id().eq(100)});
 }
@@ -369,7 +376,7 @@ static void BM_QEFilterWithArrangement(benchmark::State& state) {
   Constraint c{table.table_.track_id().index_in_table(), FilterOp::kGt,
                SqlValue::Long(10)};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(slice_sorted_with_duration.FilterToRowMap({c}));
+    benchmark::DoNotOptimize(slice_sorted_with_duration.QueryToRowMap({c}, {}));
   }
   state.counters["s/row"] = benchmark::Counter(
       static_cast<double>(slice_sorted_with_duration.row_count()),
@@ -386,7 +393,7 @@ static void BM_QEDenseNullFilter(benchmark::State& state) {
   Constraint c{table.table_.reference_set_id().index_in_table(), FilterOp::kGt,
                SqlValue::Long(1000)};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.FilterToRowMap({c}));
+    benchmark::DoNotOptimize(table.table_.QueryToRowMap({c}, {}));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
@@ -402,7 +409,7 @@ static void BM_QEDenseNullFilterIsNull(benchmark::State& state) {
   Constraint c{table.table_.reference_set_id().index_in_table(),
                FilterOp::kIsNull, SqlValue()};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.FilterToRowMap({c}));
+    benchmark::DoNotOptimize(table.table_.QueryToRowMap({c}, {}));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
@@ -439,7 +446,7 @@ static void BM_QEFilterOrderedArrangement(benchmark::State& state) {
   Constraint c{table.table_.dur().index_in_table(), FilterOp::kGt,
                SqlValue::Long(10)};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(slice_sorted_with_duration.FilterToRowMap({c}));
+    benchmark::DoNotOptimize(slice_sorted_with_duration.QueryToRowMap({c}, {}));
   }
   state.counters["s/row"] = benchmark::Counter(
       static_cast<double>(slice_sorted_with_duration.row_count()),
@@ -450,5 +457,4 @@ static void BM_QEFilterOrderedArrangement(benchmark::State& state) {
 BENCHMARK(BM_QEFilterOrderedArrangement)->ArgsProduct({{DB::V1, DB::V2}});
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

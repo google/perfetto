@@ -72,6 +72,9 @@ if (enable_perfetto_benchmarks) {
       ":py_tables_benchmark",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
+      "../../../include/perfetto/trace_processor",
+      "../containers",
+      "../db",
     ]
     sources = [ "py_tables_benchmark.cc" ]
   }

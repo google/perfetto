@@ -16,14 +16,30 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.h"
 
-#include <set>
+#include <algorithm>
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <optional>
+#include <string>
+#include <tuple>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 struct MergedCallsite {
@@ -202,25 +218,14 @@ static std::unique_ptr<tables::ExperimentalFlamegraphTable>
 BuildFlamegraphTableHeapSizeAndCount(
     std::unique_ptr<tables::ExperimentalFlamegraphTable> tbl,
     const std::vector<uint32_t>& callsite_to_merged_callsite,
-    const Table& filtered) {
-  for (auto it = filtered.IterateRows(); it; it.Next()) {
-    int64_t size =
-        it.Get(static_cast<uint32_t>(
-                   tables::HeapProfileAllocationTable::ColumnIndex::size))
-            .long_value;
-    int64_t count =
-        it.Get(static_cast<uint32_t>(
-                   tables::HeapProfileAllocationTable::ColumnIndex::count))
-            .long_value;
-    int64_t callsite_id =
-        it
-            .Get(static_cast<uint32_t>(
-                tables::HeapProfileAllocationTable::ColumnIndex::callsite_id))
-            .long_value;
+    tables::HeapProfileAllocationTable::ConstIterator it) {
+  for (; it; ++it) {
+    int64_t size = it.size();
+    int64_t count = it.count();
+    tables::StackProfileCallsiteTable::Id callsite_id = it.callsite_id();
 
     PERFETTO_CHECK((size <= 0 && count <= 0) || (size >= 0 && count >= 0));
-    uint32_t merged_idx =
-        callsite_to_merged_callsite[static_cast<unsigned long>(callsite_id)];
+    uint32_t merged_idx = callsite_to_merged_callsite[callsite_id.value];
     // On old heapprofd producers, the count field is incorrectly set and we
     // zero it in proto_trace_parser.cc.
     // As such, we cannot depend on count == 0 to imply size == 0, so we check
@@ -280,18 +285,13 @@ static std::unique_ptr<tables::ExperimentalFlamegraphTable>
 BuildFlamegraphTableCallstackSizeAndCount(
     std::unique_ptr<tables::ExperimentalFlamegraphTable> tbl,
     const std::vector<uint32_t>& callsite_to_merged_callsite,
-    const Table& filtered) {
-  for (auto it = filtered.IterateRows(); it; it.Next()) {
+    Table::Iterator it) {
+  for (; it; ++it) {
     int64_t callsite_id =
-        it.Get(static_cast<uint32_t>(
-                   tables::PerfSampleTable::ColumnIndex::callsite_id))
-            .long_value;
-    int64_t ts =
-        it.Get(static_cast<uint32_t>(tables::PerfSampleTable::ColumnIndex::ts))
-            .long_value;
-
+        it.Get(tables::PerfSampleTable::ColumnIndex::callsite_id).long_value;
+    int64_t ts = it.Get(tables::PerfSampleTable::ColumnIndex::ts).long_value;
     uint32_t merged_idx =
-        callsite_to_merged_callsite[static_cast<unsigned long>(callsite_id)];
+        callsite_to_merged_callsite[static_cast<uint32_t>(callsite_id)];
     tbl->mutable_size()->Set(merged_idx, tbl->size()[merged_idx] + 1);
     tbl->mutable_count()->Set(merged_idx, tbl->count()[merged_idx] + 1);
     tbl->mutable_ts()->Set(merged_idx, ts);
@@ -330,9 +330,9 @@ std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildHeapProfileFlamegraph(
       storage->heap_profile_allocation_table();
   // PASS OVER ALLOCATIONS:
   // Aggregate allocations into the newly built tree.
-  auto filtered = allocation_tbl.Filter(
+  auto it = allocation_tbl.FilterToIterator(
       {allocation_tbl.ts().le(timestamp), allocation_tbl.upid().eq(upid)});
-  if (filtered.row_count() == 0) {
+  if (!it) {
     return nullptr;
   }
   StringId profile_type = storage->InternString("native");
@@ -341,7 +341,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildHeapProfileFlamegraph(
                                         profile_type);
   return BuildFlamegraphTableHeapSizeAndCount(
       std::move(table_and_callsites.tbl),
-      table_and_callsites.callsite_to_merged_callsite, filtered);
+      table_and_callsites.callsite_to_merged_callsite, std::move(it));
 }
 
 std::unique_ptr<tables::ExperimentalFlamegraphTable>
@@ -350,7 +350,7 @@ BuildNativeCallStackSamplingFlamegraph(
     std::optional<UniquePid> upid,
     std::optional<std::string> upid_group,
     const std::vector<TimeConstraints>& time_constraints) {
-  // 1.Extract required upids from input.
+  // 1. Extract required upids from input.
   std::unordered_set<UniquePid> upids;
   if (upid) {
     upids.insert(*upid);
@@ -363,52 +363,44 @@ BuildNativeCallStackSamplingFlamegraph(
     }
   }
 
-  // 2.Create set of all utids mapped to the given vector of upids
-  std::set<tables::ThreadTable::Id> utids;
-  RowMap threads_in_pid_rm;
-  for (uint32_t i = 0; i < storage->thread_table().row_count(); ++i) {
-    std::optional<uint32_t> row_upid = storage->thread_table().upid()[i];
-    if (row_upid && upids.count(*row_upid) > 0) {
-      threads_in_pid_rm.Insert(i);
+  // 2. Create set of all utids mapped to the given vector of upids
+  std::unordered_set<UniqueTid> utids;
+  {
+    auto it = storage->thread_table().FilterToIterator(
+        {storage->thread_table().upid().is_not_null()});
+    for (; it; ++it) {
+      if (upids.count(*it.upid())) {
+        utids.emplace(it.id().value);
+      }
     }
   }
 
-  for (auto it = threads_in_pid_rm.IterateRows(); it; it.Next()) {
-    utids.insert(storage->thread_table().id()[it.index()]);
-  }
-
-  // 3.Get all row indices in perf_sample that have callstacks (some samples
-  // can have only counter values) and correspond to the requested utids.
-  std::vector<uint32_t> cs_rows;
-  for (uint32_t i = 0; i < storage->perf_sample_table().row_count(); ++i) {
-    if (storage->perf_sample_table().callsite_id()[i].has_value() &&
-        utids.find(static_cast<tables::ThreadTable::Id>(
-            storage->perf_sample_table().utid()[i])) != utids.end()) {
-      cs_rows.push_back(i);
-    }
-  }
-
-  // 4.Filter rows that correspond to the selected utids
-  RowMap filtered_rm = RowMap(std::move(cs_rows));
-  Table filtered = storage->perf_sample_table().Apply(std::move(filtered_rm));
-
-  // 5.Filter rows by time constraints
+  // 3. Get all row indices in perf_sample that have callstacks (some samples
+  // can have only counter values), are in timestamp bounds and correspond to
+  // the requested utids.
+  std::vector<Constraint> cs{
+      storage->perf_sample_table().callsite_id().is_not_null()};
   for (const auto& tc : time_constraints) {
-    if (!(tc.op == FilterOp::kGt || tc.op == FilterOp::kLt ||
-          tc.op == FilterOp::kGe || tc.op == FilterOp::kLe)) {
+    if (tc.op != FilterOp::kGt && tc.op != FilterOp::kLt &&
+        tc.op != FilterOp::kGe && tc.op != FilterOp::kLe) {
       PERFETTO_FATAL("Filter operation %d not permitted for perf.",
                      static_cast<int>(tc.op));
     }
-    Constraint cs = Constraint{
-        static_cast<uint32_t>(tables::PerfSampleTable::ColumnIndex::ts), tc.op,
-        SqlValue::Long(tc.value)};
-    filtered = filtered.Filter({cs});
+    cs.emplace_back(Constraint{tables::PerfSampleTable::ColumnIndex::ts, tc.op,
+                               SqlValue::Long(tc.value)});
   }
-  if (filtered.row_count() == 0) {
-    std::unique_ptr<tables::ExperimentalFlamegraphTable> empty_tbl(
-        new tables::ExperimentalFlamegraphTable(
-            storage->mutable_string_pool()));
-    return empty_tbl;
+  std::vector<uint32_t> cs_rows;
+  {
+    auto it = storage->perf_sample_table().FilterToIterator(cs);
+    for (; it; ++it) {
+      if (utids.find(it.utid()) != utids.end()) {
+        cs_rows.push_back(it.row_number().row_number());
+      }
+    }
+  }
+  if (cs_rows.empty()) {
+    return std::make_unique<tables::ExperimentalFlamegraphTable>(
+        storage->mutable_string_pool());
   }
 
   // The logic underneath is selecting a default timestamp to be used by all
@@ -427,14 +419,17 @@ BuildNativeCallStackSamplingFlamegraph(
       default_timestamp = tc.value;
     }
   }
-  StringId profile_type = storage->InternString("perf");
+
+  // 4. Build the flamegraph structure.
   FlamegraphTableAndMergedCallsites table_and_callsites =
       BuildFlamegraphTableTreeStructure(storage, upid, upid_group,
-                                        default_timestamp, profile_type);
+                                        default_timestamp,
+                                        storage->InternString("perf"));
   return BuildFlamegraphTableCallstackSizeAndCount(
       std::move(table_and_callsites.tbl),
-      table_and_callsites.callsite_to_merged_callsite, filtered);
+      table_and_callsites.callsite_to_merged_callsite,
+      storage->perf_sample_table().ApplyAndIterateRows(
+          RowMap(std::move(cs_rows))));
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

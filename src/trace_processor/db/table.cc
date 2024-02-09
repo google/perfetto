@@ -16,8 +16,20 @@
 
 #include "src/trace_processor/db/table.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include <algorithm>
+#include <cstdint>
+#include <numeric>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/db/column_storage_overlay.h"
+
+namespace perfetto::trace_processor {
 
 bool Table::kUseFilterV2 = true;
 
@@ -56,26 +68,28 @@ Table Table::CopyExceptOverlays() const {
   return table;
 }
 
-Table Table::Sort(const std::vector<Order>& od) const {
-  if (od.empty())
-    return Copy();
+RowMap Table::QueryToRowMap(const std::vector<Constraint>& cs,
+                            const std::vector<Order>& ob,
+                            RowMap::OptimizeFor optimize_for) const {
+  RowMap rm = FilterToRowMap(cs, optimize_for);
+  if (ob.empty())
+    return rm;
 
-  // Return a copy if there is a single constraint to sort the table
-  // by a column which is already sorted.
-  const auto& first_col = GetColumn(od.front().col_idx);
-  if (od.size() == 1 && first_col.IsSorted() && !od.front().desc)
-    return Copy();
+  // Return the RowMap directly if there is a single constraint to sort the
+  // table by a column which is already sorted.
+  const auto& first_col = columns_[ob.front().col_idx];
+  if (ob.size() == 1 && first_col.IsSorted() && !ob.front().desc)
+    return rm;
 
   // Build an index vector with all the indices for the first |size_| rows.
-  std::vector<uint32_t> idx(row_count_);
-
-  if (od.size() == 1 && first_col.IsSorted()) {
+  std::vector<uint32_t> idx = std::move(rm).TakeAsIndexVector();
+  if (ob.size() == 1 && first_col.IsSorted()) {
     // We special case a single constraint in descending order as this
     // happens any time the |max| function is used in SQLite. We can be
     // more efficient as this column is already sorted so we simply need
     // to reverse the order of this column.
-    PERFETTO_DCHECK(od.front().desc);
-    std::iota(idx.rbegin(), idx.rend(), 0);
+    PERFETTO_DCHECK(ob.front().desc);
+    std::reverse(idx.begin(), idx.end());
   } else {
     // As our data is columnar, it's always more efficient to sort one column
     // at a time rather than try and sort lexiographically all at once.
@@ -107,16 +121,22 @@ Table Table::Sort(const std::vector<Order>& od) const {
     // worthwhile. This also needs changes to the constraint modification logic
     // in DbSqliteTable which currently eliminates constraints on sorted
     // columns.
-    std::iota(idx.begin(), idx.end(), 0);
-    for (auto it = od.rbegin(); it != od.rend(); ++it) {
+    for (auto it = ob.rbegin(); it != ob.rend(); ++it) {
       columns_[it->col_idx].StableSort(it->desc, &idx);
     }
+  }
+  return RowMap(std::move(idx));
+}
+
+Table Table::Sort(const std::vector<Order>& ob) const {
+  if (ob.empty()) {
+    return Copy();
   }
 
   // Return a copy of this table with the RowMaps using the computed ordered
   // RowMap.
   Table table = CopyExceptOverlays();
-  RowMap rm(std::move(idx));
+  RowMap rm = QueryToRowMap({}, ob);
   for (const ColumnStorageOverlay& overlay : overlays_) {
     table.overlays_.emplace_back(overlay.SelectRows(rm));
     PERFETTO_DCHECK(table.overlays_.back().size() == table.row_count());
@@ -130,12 +150,10 @@ Table Table::Sort(const std::vector<Order>& od) const {
 
   // For the first order by, make the column flag itself as sorted but
   // only if the sort was in ascending order.
-  if (!od.front().desc) {
-    table.columns_[od.front().col_idx].flags_ |= ColumnLegacy::Flag::kSorted;
+  if (!ob.front().desc) {
+    table.columns_[ob.front().col_idx].flags_ |= ColumnLegacy::Flag::kSorted;
   }
-
   return table;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -57,22 +57,20 @@ class TableInseter {
 
 class TableAsserter {
  public:
-  explicit TableAsserter(Table table) : table_(std::move(table)) {}
+  explicit TableAsserter(Table::Iterator it) : iterator_(std::move(it)) {}
 
   void NextSlice(int64_t ts, int64_t dur) {
-    ++idx_;
-    ASSERT_LT(idx_, table_.row_count());
-    ASSERT_EQ(table_.GetTypedColumnByName<int64_t>("ts")[idx_], ts)
-        << "where idx_ = " << idx_;
-    ASSERT_EQ(table_.GetTypedColumnByName<int64_t>("dur")[idx_], dur)
-        << "where idx_ = " << idx_;
+    using CI = tables::ExperimentalFlatSliceTable::ColumnIndex;
+    ASSERT_TRUE(HasMoreSlices());
+    ASSERT_EQ(iterator_.Get(CI::ts).AsLong(), ts);
+    ASSERT_EQ(iterator_.Get(CI::dur).AsLong(), dur);
+    ++iterator_;
   }
 
-  bool HasMoreSlices() { return idx_ + 1 < table_.row_count(); }
+  bool HasMoreSlices() { return bool(iterator_); }
 
  private:
-  Table table_;
-  uint32_t idx_ = std::numeric_limits<uint32_t>::max();
+  Table::Iterator iterator_;
 };
 
 TEST(ExperimentalFlatSlice, Smoke) {
@@ -102,9 +100,10 @@ TEST(ExperimentalFlatSlice, Smoke) {
   inserter.Populate(table);
 
   auto out = ExperimentalFlatSlice::ComputeFlatSliceTable(table, &pool, 0, 400);
-  auto sorted = out->Sort({out->track_id().ascending(), out->ts().ascending()});
+  auto it = out->ApplyAndIterateRows(out->QueryToRowMap(
+      {}, {out->track_id().ascending(), out->ts().ascending()}));
 
-  TableAsserter asserter(std::move(sorted));
+  TableAsserter asserter(std::move(it));
 
   // Track 1's slices.
   ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(0, 100));
@@ -184,9 +183,10 @@ TEST(ExperimentalFlatSlice, Bounds) {
 
   auto out =
       ExperimentalFlatSlice::ComputeFlatSliceTable(table, &pool, start, end);
-  auto sorted = out->Sort({out->track_id().ascending(), out->ts().ascending()});
+  auto it = out->ApplyAndIterateRows(out->QueryToRowMap(
+      {}, {out->track_id().ascending(), out->ts().ascending()}));
 
-  TableAsserter asserter(std::move(sorted));
+  TableAsserter asserter(std::move(it));
 
   // Track 1's slices.
   ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(200, 0));
