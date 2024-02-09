@@ -21,10 +21,13 @@ import {TrackButton} from '../../frontend/track_panel';
 import {TrackContext} from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
 import {CounterDebugTrackConfig} from '../../frontend/debug_tracks';
+import {Disposable, DisposableCallback} from '../../base/disposable';
+import {uuidv4Sql} from '../../base/uuid';
 
 
 export class DebugCounterTrack extends BaseCounterTrack {
   private config: CounterDebugTrackConfig;
+  private sqlTableName: string;
 
   constructor(engine: EngineProxy, ctx: TrackContext) {
     super({
@@ -36,6 +39,14 @@ export class DebugCounterTrack extends BaseCounterTrack {
     // TODO(stevegolton): Avoid just pushing this config up for some base
     // class to use. Be more explicit.
     this.config = ctx.params as CounterDebugTrackConfig;
+    this.sqlTableName = `__debug_counter_${uuidv4Sql(this.trackKey)}`;
+  }
+
+  async onInit(): Promise<Disposable> {
+    await this.createTrackTable();
+    return new DisposableCallback(() => {
+      this.dropTrackTable();
+    });
   }
 
   getTrackShellButtons(): m.Children {
@@ -53,6 +64,25 @@ export class DebugCounterTrack extends BaseCounterTrack {
   }
 
   getSqlSource(): string {
-    return `select * from ${this.config.sqlTableName}`;
+    return `select * from ${this.sqlTableName}`;
+  }
+
+  private async createTrackTable(): Promise<void> {
+    await this.engine.query(`
+        create table ${this.sqlTableName} as
+        with data as (
+          ${this.config.data.sqlSource}
+        )
+        select
+          ${this.config.columns.ts} as ts,
+          ${this.config.columns.value} as value
+        from data
+        order by ts;`);
+  }
+
+  private async dropTrackTable(): Promise<void> {
+    if (this.engine.isAlive) {
+      this.engine.query(`drop table if exists ${this.sqlTableName}`);
+    }
   }
 }
