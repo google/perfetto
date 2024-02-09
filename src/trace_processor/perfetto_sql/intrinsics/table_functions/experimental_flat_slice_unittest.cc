@@ -100,9 +100,10 @@ TEST(ExperimentalFlatSlice, Smoke) {
   inserter.Populate(table);
 
   auto out = ExperimentalFlatSlice::ComputeFlatSliceTable(table, &pool, 0, 400);
-  auto sorted = out->Sort({out->track_id().ascending(), out->ts().ascending()});
+  auto it = out->ApplyAndIterateRows(out->QueryToRowMap(
+      {}, {out->track_id().ascending(), out->ts().ascending()}));
 
-  TableAsserter asserter(sorted.IterateRows());
+  TableAsserter asserter(std::move(it));
 
   // Track 1's slices.
   ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(0, 100));
@@ -182,9 +183,10 @@ TEST(ExperimentalFlatSlice, Bounds) {
 
   auto out =
       ExperimentalFlatSlice::ComputeFlatSliceTable(table, &pool, start, end);
-  auto sorted = out->Sort({out->track_id().ascending(), out->ts().ascending()});
+  auto it = out->ApplyAndIterateRows(out->QueryToRowMap(
+      {}, {out->track_id().ascending(), out->ts().ascending()}));
 
-  TableAsserter asserter(sorted.IterateRows());
+  TableAsserter asserter(std::move(it));
 
   // Track 1's slices.
   ASSERT_NO_FATAL_FAILURE(asserter.NextSlice(200, 0));

@@ -840,10 +840,10 @@ class TraceStorage {
 
   util::Status ExtractArg(uint32_t arg_set_id,
                           const char* key,
-                          std::optional<Variadic>* result) {
+                          std::optional<Variadic>* result) const {
     const auto& args = arg_table();
-    RowMap filtered = args.FilterToRowMap(
-        {args.arg_set_id().eq(arg_set_id), args.key().eq(key)});
+    RowMap filtered = args.QueryToRowMap(
+        {args.arg_set_id().eq(arg_set_id), args.key().eq(key)}, {});
     if (filtered.empty()) {
       *result = std::nullopt;
       return util::OkStatus();

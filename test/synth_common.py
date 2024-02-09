@@ -16,7 +16,8 @@
 import argparse
 
 from collections import namedtuple
-from google.protobuf import descriptor_pb2, message_factory, descriptor_pool
+from google.protobuf import descriptor_pb2, descriptor_pool
+from google.protobuf.message_factory import GetMessageClass
 
 CLONE_THREAD = 0x00010000
 CLONE_VFORK = 0x00004000
@@ -831,8 +832,7 @@ def create_trace():
   args = parser.parse_args()
 
   pool = create_pool(args)
-  factory = message_factory.MessageFactory(pool)
-  ProtoTrace = factory.GetPrototype(
+  ProtoTrace = GetMessageClass(
       pool.FindMessageTypeByName('perfetto.protos.Trace'))
 
   class EnumPrototype(object):
@@ -866,17 +866,17 @@ def create_trace():
   )
 
   prototypes = Prototypes(
-      TrackEvent=factory.GetPrototype(
+      TrackEvent=GetMessageClass(
           pool.FindMessageTypeByName('perfetto.protos.TrackEvent')),
       ChromeRAILMode=EnumPrototype.from_descriptor(
           pool.FindEnumTypeByName('perfetto.protos.ChromeRAILMode')),
       ChromeLatencyInfo=chrome_latency_info_prototypes,
-      ChromeProcessDescriptor=factory.GetPrototype(
+      ChromeProcessDescriptor=GetMessageClass(
           pool.FindMessageTypeByName(
               'perfetto.protos.ChromeProcessDescriptor')),
-      CounterDescriptor=factory.GetPrototype(
+      CounterDescriptor=GetMessageClass(
           pool.FindMessageTypeByName('perfetto.protos.CounterDescriptor')),
-      ThreadDescriptor=factory.GetPrototype(
+      ThreadDescriptor=GetMessageClass(
           pool.FindMessageTypeByName('perfetto.protos.ThreadDescriptor')),
   )
   return Trace(ProtoTrace(), prototypes)

@@ -16,16 +16,16 @@
 
 #include <cstdint>
 #include <utility>
+#include <vector>
 
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/tables/py_tables_unittest_py.h"
 
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace tables {
+namespace perfetto::trace_processor::tables {
 
 TestEventTable::~TestEventTable() = default;
 TestEventChildTable::~TestEventChildTable() = default;
@@ -208,7 +208,7 @@ TEST_F(PyTablesUnittest, SelectAndExtend) {
   event_.Insert(TestEventTable::Row(150, 2));
 
   std::vector<TestEventTable::RowNumber> rows;
-  rows.emplace_back(TestEventTable::RowNumber(1));
+  rows.emplace_back(1);
   ColumnStorage<int64_t> dur;
   dur.Append(1024);
 
@@ -243,57 +243,50 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
   // Verify that not-present ids are not returned.
   {
     static constexpr uint32_t kFilterArgSetId = 1;
-    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
-    ASSERT_EQ(res.row_count(), 0u);
+    auto res =
+        table.QueryToRowMap({table.arg_set_id().eq(kFilterArgSetId)}, {});
+    ASSERT_TRUE(res.empty());
   }
   {
     static constexpr uint32_t kFilterArgSetId = 9;
-    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
-    ASSERT_EQ(res.row_count(), 0u);
+    auto res =
+        table.QueryToRowMap({table.arg_set_id().eq(kFilterArgSetId)}, {});
+    ASSERT_TRUE(res.empty());
   }
 
-  // Verify that kSetId flag is correctly removed after filtering/sorting.
-  {
-    static constexpr uint32_t kFilterArgSetId = 3;
-    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
-    ASSERT_EQ(res.row_count(), 1u);
-    ASSERT_FALSE(res.GetColumnByName("arg_set_id")->IsSetId());
-  }
-  {
-    auto res = table.Sort({table.type().descending()});
-    ASSERT_FALSE(res.GetColumnByName("arg_set_id")->IsSetId());
-  }
-
-  uint32_t arg_set_id_col_idx =
+  auto arg_set_id_col_idx =
       static_cast<uint32_t>(TestArgsTable::ColumnIndex::arg_set_id);
 
   // Verify that filtering equality for real arg set ids works as expected.
   {
     static constexpr uint32_t kFilterArgSetId = 4;
-    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
-    ASSERT_EQ(res.row_count(), 4u);
-    for (auto it = res.IterateRows(); it; ++it) {
-      uint32_t arg_set_id =
+    auto res =
+        table.QueryToRowMap({table.arg_set_id().eq(kFilterArgSetId)}, {});
+    ASSERT_EQ(res.size(), 4u);
+    for (auto it = table.ApplyAndIterateRows(std::move(res)); it; ++it) {
+      auto arg_set_id =
           static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
       ASSERT_EQ(arg_set_id, kFilterArgSetId);
     }
   }
   {
     static constexpr uint32_t kFilterArgSetId = 0;
-    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
-    ASSERT_EQ(res.row_count(), 2u);
-    for (auto it = res.IterateRows(); it; ++it) {
-      uint32_t arg_set_id =
+    auto res =
+        table.QueryToRowMap({table.arg_set_id().eq(kFilterArgSetId)}, {});
+    ASSERT_EQ(res.size(), 2u);
+    for (auto it = table.ApplyAndIterateRows(std::move(res)); it; ++it) {
+      auto arg_set_id =
           static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
       ASSERT_EQ(arg_set_id, kFilterArgSetId);
     }
   }
   {
     static constexpr uint32_t kFilterArgSetId = 8;
-    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
-    ASSERT_EQ(res.row_count(), 1u);
-    for (auto it = res.IterateRows(); it; ++it) {
-      uint32_t arg_set_id =
+    auto res =
+        table.QueryToRowMap({table.arg_set_id().eq(kFilterArgSetId)}, {});
+    ASSERT_EQ(res.size(), 1u);
+    for (auto it = table.ApplyAndIterateRows(std::move(res)); it; ++it) {
+      auto arg_set_id =
           static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
       ASSERT_EQ(arg_set_id, kFilterArgSetId);
     }
@@ -303,10 +296,11 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
   // column works.
   {
     static constexpr uint32_t kFilterArgSetId = 4;
-    auto res = table.Filter(
-        {table.int_value().eq(200), table.arg_set_id().eq(kFilterArgSetId)});
-    ASSERT_EQ(res.row_count(), 2u);
-    for (auto it = res.IterateRows(); it; ++it) {
+    auto res = table.QueryToRowMap(
+        {table.int_value().eq(200), table.arg_set_id().eq(kFilterArgSetId)},
+        {});
+    ASSERT_EQ(res.size(), 2u);
+    for (auto it = table.ApplyAndIterateRows(std::move(res)); it; ++it) {
       uint32_t arg_set_id =
           static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
       ASSERT_EQ(arg_set_id, kFilterArgSetId);
@@ -315,6 +309,4 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
 }
 
 }  // namespace
-}  // namespace tables
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::tables

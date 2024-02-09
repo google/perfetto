@@ -17,14 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_TABLE_H_
 #define SRC_TRACE_PROCESSOR_DB_TABLE_H_
 
-#include <algorithm>
 #include <cstdint>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -32,7 +29,6 @@
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/query_executor.h"
-#include "src/trace_processor/db/typed_column.h"
 
 namespace perfetto::trace_processor {
 
@@ -127,84 +123,24 @@ class Table {
   Table(Table&& other) noexcept { *this = std::move(other); }
   Table& operator=(Table&& other) noexcept;
 
-  // Filters the Table using the specified filter constraints.
-  Table Filter(
-      const std::vector<Constraint>& cs,
-      RowMap::OptimizeFor optimize_for = RowMap::OptimizeFor::kMemory) const {
-    if (cs.empty())
-      return Copy();
-    return Apply(FilterToRowMap(cs, optimize_for));
-  }
-
-  // Filters the Table using the specified filter constraints optionally
-  // specifying what the returned RowMap should optimize for.
-  // Returns a RowMap which, if applied to the table, would contain the rows
-  // post filter.
-  RowMap FilterToRowMap(
-      const std::vector<Constraint>& cs,
-      RowMap::OptimizeFor optimize_for = RowMap::OptimizeFor::kMemory) const {
-    if (kUseFilterV2) {
-      if (optimize_for == RowMap::OptimizeFor::kMemory) {
-        return QueryExecutor::FilterLegacy(this, cs);
-      }
-      return RowMap(QueryExecutor::FilterLegacy(this, cs).TakeAsIndexVector());
-    }
-
-    RowMap rm(0, row_count_, optimize_for);
-    for (const Constraint& c : cs) {
-      columns_[c.col_idx].FilterInto(c.op, c.value, &rm);
-    }
-    return rm;
-  }
-
-  // Applies the given RowMap to the current table by picking out the rows
-  // specified in the RowMap to be present in the output table.
-  // Note: the RowMap should not reorder this table; this is guaranteed if the
-  // passed RowMap is generated using |FilterToRowMap|.
-  Table Apply(RowMap rm) const {
-    Table table = CopyExceptOverlays();
-    table.row_count_ = rm.size();
-    table.overlays_.reserve(overlays_.size());
-    for (const ColumnStorageOverlay& map : overlays_) {
-      table.overlays_.emplace_back(map.SelectRows(rm));
-      PERFETTO_DCHECK(table.overlays_.back().size() == table.row_count());
-    }
-    // Pretty much any application of a RowMap will break the requirements on
-    // kSetId so remove it.
-    for (auto& col : table.columns_) {
-      col.flags_ &= ~ColumnLegacy::Flag::kSetId;
-    }
-    return table;
-  }
-
-  // Sorts the Table using the specified order by constraints.
-  Table Sort(const std::vector<Order>& od) const;
-
-  // Returns the column at index |idx| in the Table.
-  const ColumnLegacy& GetColumn(uint32_t idx) const { return columns_[idx]; }
-
-  // Returns the column with the given name or nullptr otherwise.
-  const ColumnLegacy* GetColumnByName(const char* name) const {
-    auto it = std::find_if(columns_.begin(), columns_.end(),
-                           [name](const ColumnLegacy& col) {
-                             return std::string_view(col.name()) == name;
-                           });
-    return it == columns_.end() ? nullptr : &*it;
-  }
-
-  template <typename T>
-  const TypedColumn<T>& GetTypedColumnByName(const char* name) const {
-    return *TypedColumn<T>::FromColumn(GetColumnByName(name));
-  }
-
-  // Returns an iterator into the Table.
-  Iterator IterateRows() const { return Iterator(this); }
+  // Filters and sorts the tables with the arguments specified, returning the
+  // result as a RowMap.
+  RowMap QueryToRowMap(
+      const std::vector<Constraint>&,
+      const std::vector<Order>&,
+      RowMap::OptimizeFor = RowMap::OptimizeFor::kMemory) const;
 
   // Applies the RowMap |rm| onto this table and returns an iterator over the
   // resulting rows.
   Iterator ApplyAndIterateRows(RowMap rm) const {
     return Iterator(this, std::move(rm));
   }
+
+  // Sorts the table using the specified order by constraints.
+  Table Sort(const std::vector<Order>&) const;
+
+  // Returns an iterator over the rows in this table.
+  Iterator IterateRows() const { return Iterator(this); }
 
   // Creates a copy of this table.
   Table Copy() const;
@@ -216,13 +152,6 @@ class Table {
  protected:
   explicit Table(StringPool* pool);
 
-  std::vector<ColumnStorageOverlay> CopyOverlays() const {
-    std::vector<ColumnStorageOverlay> rm(overlays_.size());
-    for (uint32_t i = 0; i < overlays_.size(); ++i) {
-      rm[i] = overlays_[i].Copy();
-    }
-    return rm;
-  }
   const std::vector<ColumnStorageOverlay>& overlays() const {
     return overlays_;
   }
@@ -235,7 +164,26 @@ class Table {
 
  private:
   friend class ColumnLegacy;
-  friend class View;
+
+  RowMap FilterToRowMap(
+      const std::vector<Constraint>& cs,
+      RowMap::OptimizeFor optimize_for = RowMap::OptimizeFor::kMemory) const {
+    if (cs.empty()) {
+      return {0, row_count_, optimize_for};
+    }
+
+    if (kUseFilterV2) {
+      if (optimize_for == RowMap::OptimizeFor::kMemory) {
+        return QueryExecutor::FilterLegacy(this, cs);
+      }
+      return RowMap(QueryExecutor::FilterLegacy(this, cs).TakeAsIndexVector());
+    }
+    RowMap rm(0, row_count_, optimize_for);
+    for (const Constraint& c : cs) {
+      columns_[c.col_idx].FilterInto(c.op, c.value, &rm);
+    }
+    return rm;
+  }
 
   Table CopyExceptOverlays() const;
 };

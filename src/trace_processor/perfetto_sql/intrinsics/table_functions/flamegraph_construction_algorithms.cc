@@ -425,10 +425,11 @@ BuildNativeCallStackSamplingFlamegraph(
       BuildFlamegraphTableTreeStructure(storage, upid, upid_group,
                                         default_timestamp,
                                         storage->InternString("perf"));
-  Table table = storage->perf_sample_table().Apply(RowMap(std::move(cs_rows)));
   return BuildFlamegraphTableCallstackSizeAndCount(
       std::move(table_and_callsites.tbl),
-      table_and_callsites.callsite_to_merged_callsite, table.IterateRows());
+      table_and_callsites.callsite_to_merged_callsite,
+      storage->perf_sample_table().ApplyAndIterateRows(
+          RowMap(std::move(cs_rows))));
 }
 
 }  // namespace perfetto::trace_processor
