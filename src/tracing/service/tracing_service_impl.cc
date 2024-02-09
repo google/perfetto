@@ -1767,6 +1767,25 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
     return;
   }
 
+  std::map<ProducerID, std::vector<DataSourceInstanceID>> data_source_instances;
+  for (const auto& [producer_id, ds_inst] :
+       tracing_session->data_source_instances) {
+    if (ds_inst.no_flush)
+      continue;
+    data_source_instances[producer_id].push_back(ds_inst.instance_id);
+  }
+  FlushDataSourceInstances(tracing_session, timeout_ms, data_source_instances,
+                           callback, flush_flags);
+}
+
+void TracingServiceImpl::FlushDataSourceInstances(
+    TracingSession* tracing_session,
+    uint32_t timeout_ms,
+    std::map<ProducerID, std::vector<DataSourceInstanceID>>
+        data_source_instances,
+    ConsumerEndpoint::FlushCallback callback,
+    FlushFlags flush_flags) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!timeout_ms)
     timeout_ms = tracing_session->flush_timeout_ms();
 
@@ -1795,31 +1814,20 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
   // order to issue a flush request we have to build a map of all data source
   // instance ids enabled for each producer.
 
-  std::map<ProducerID, std::vector<DataSourceInstanceID>> flush_map;
-  for (const auto& kv : tracing_session->data_source_instances) {
-    const ProducerID producer_id = kv.first;
-    const DataSourceInstance& ds_inst = kv.second;
-    if (ds_inst.no_flush)
-      continue;
-    flush_map[producer_id].push_back(ds_inst.instance_id);
-  }
-
-  for (const auto& kv : flush_map) {
-    ProducerID producer_id = kv.first;
+  for (const auto& [producer_id, data_sources] : data_source_instances) {
     ProducerEndpointImpl* producer = GetProducer(producer_id);
-    const std::vector<DataSourceInstanceID>& data_sources = kv.second;
     producer->Flush(flush_request_id, data_sources, flush_flags);
     pending_flush.producers.insert(producer_id);
   }
 
   // If there are no producers to flush (realistically this happens only in
   // some tests) fire OnFlushTimeout() straight away, without waiting.
-  if (flush_map.empty())
+  if (data_source_instances.empty())
     timeout_ms = 0;
 
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
-      [weak_this, tsid, flush_request_id] {
+      [weak_this, tsid = tracing_session->id, flush_request_id] {
         if (weak_this)
           weak_this->OnFlushTimeout(tsid, flush_request_id);
       },
