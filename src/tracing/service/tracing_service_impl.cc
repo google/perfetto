@@ -3736,22 +3736,36 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
   clone_op.weak_consumer = weak_consumer;
   clone_op.skip_trace_filter = skip_trace_filter;
 
-  std::set<BufferID> bufs;
-
+  // Issue separate flush requests for separate buffer groups. The buffer marked
+  // as transfer_on_clone will be flushed and cloned separately: even if they're
+  // slower (like in the case of Winscope tracing), they will not delay the
+  // snapshot of the other buffers.
+  //
+  // In the future we might want to split the buffer into more groups and maybe
+  // allow this to be configurable.
+  std::array<std::set<BufferID>, 2> bufs_groups;
   for (size_t i = 0; i < session->buffers_index.size(); i++) {
-    bufs.insert(session->buffers_index[i]);
+    if (session->config.buffers()[i].transfer_on_clone()) {
+      bufs_groups[0].insert(session->buffers_index[i]);
+    } else {
+      bufs_groups[1].insert(session->buffers_index[i]);
+    }
   }
 
-  clone_op.pending_flush_cnt++;
-  FlushDataSourceInstances(
-      session, 0, GetFlushableDataSourceInstancesForBuffers(session, bufs),
-      [tsid, clone_id, bufs, weak_this](bool final_flush) {
-        if (!weak_this)
-          return;
-        weak_this->OnFlushDoneForClone(tsid, clone_id, bufs, final_flush);
-      },
-      FlushFlags(FlushFlags::Initiator::kTraced,
-                 FlushFlags::Reason::kTraceClone, clone_target));
+  clone_op.pending_flush_cnt = bufs_groups.size();
+  for (const std::set<BufferID>& buf_group : bufs_groups) {
+    FlushDataSourceInstances(
+        session, 0,
+        GetFlushableDataSourceInstancesForBuffers(session, buf_group),
+        [tsid, clone_id, buf_group, weak_this](bool final_flush) {
+          if (!weak_this)
+            return;
+          weak_this->OnFlushDoneForClone(tsid, clone_id, buf_group,
+                                         final_flush);
+        },
+        FlushFlags(FlushFlags::Initiator::kTraced,
+                   FlushFlags::Reason::kTraceClone, clone_target));
+  }
 }
 
 std::map<ProducerID, std::vector<DataSourceInstanceID>>

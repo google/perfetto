@@ -73,6 +73,7 @@ using ::testing::IsEmpty;
 using ::testing::Mock;
 using ::testing::Ne;
 using ::testing::Not;
+using ::testing::Pointee;
 using ::testing::Property;
 using ::testing::SaveArg;
 using ::testing::StrictMock;
@@ -5040,7 +5041,22 @@ TEST_F(TracingServiceImplTest, TransferOnClone) {
     clone_consumer->CloneSession(1);
 
     // CloneSession() will implicitly issue a flush. Linearize with that.
-    producer->ExpectFlush({writers[0].get(), writers[1].get()});
+    EXPECT_CALL(
+        *producer,
+        Flush(_, Pointee(producer->GetDataSourceInstanceId("ds_1")), 1, _))
+        .WillOnce(Invoke([&](FlushRequestID flush_req_id,
+                             const DataSourceInstanceID*, size_t, FlushFlags) {
+          writers[0]->Flush();
+          producer->endpoint()->NotifyFlushComplete(flush_req_id);
+        }));
+    EXPECT_CALL(
+        *producer,
+        Flush(_, Pointee(producer->GetDataSourceInstanceId("ds_2")), 1, _))
+        .WillOnce(Invoke([&](FlushRequestID flush_req_id,
+                             const DataSourceInstanceID*, size_t, FlushFlags) {
+          writers[1]->Flush();
+          producer->endpoint()->NotifyFlushComplete(flush_req_id);
+        }));
     task_runner.RunUntilCheckpoint(clone_checkpoint_name);
 
     auto packets = clone_consumer->ReadBuffers();
@@ -5369,10 +5385,9 @@ TEST_F(TracingServiceImplTest, CloneTransferFlush) {
     }
     EXPECT_THAT(actual_payloads, Contains("buf1_beforeflush"));
     EXPECT_THAT(actual_payloads, Contains("buf2_beforeflush"));
-    // Even though this packet was sent after producer1 acked the flush,
-    // producer2 had not acked the flush yet, so the buffer was still not
-    // cloned.
-    EXPECT_THAT(actual_payloads, Contains("buf1_afterflush"));
+    // This packet was sent after producer1 acked the flush. producer2 hadn't
+    // acked the flush yet, but producer2's buffer is on a separate flush group.
+    EXPECT_THAT(actual_payloads, Not(Contains("buf1_afterflush")));
     EXPECT_THAT(actual_payloads, Contains("buf2_afterflush"));
   }
 
