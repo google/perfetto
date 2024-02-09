@@ -25,7 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
@@ -33,12 +33,12 @@ namespace perfetto::trace_processor::column {
 FakeStorage::FakeStorage(uint32_t size, SearchStrategy strategy)
     : size_(size), strategy_(strategy) {}
 
-std::unique_ptr<DataNode::Queryable> FakeStorage::MakeQueryable() {
-  return std::make_unique<Queryable>(size_, strategy_, range_,
+std::unique_ptr<DataLayerChain> FakeStorage::MakeChain() {
+  return std::make_unique<ChainImpl>(size_, strategy_, range_,
                                      bit_vector_.Copy());
 }
 
-FakeStorage::Queryable::Queryable(uint32_t size,
+FakeStorage::ChainImpl::ChainImpl(uint32_t size,
                                   SearchStrategy strategy,
                                   Range range,
                                   BitVector bv)
@@ -47,13 +47,13 @@ FakeStorage::Queryable::Queryable(uint32_t size,
       range_(range),
       bit_vector_(std::move(bv)) {}
 
-SearchValidationResult FakeStorage::Queryable::ValidateSearchConstraints(
+SearchValidationResult FakeStorage::ChainImpl::ValidateSearchConstraints(
     SqlValue,
     FilterOp) const {
   return SearchValidationResult::kOk;
 }
 
-RangeOrBitVector FakeStorage::Queryable::Search(FilterOp,
+RangeOrBitVector FakeStorage::ChainImpl::Search(FilterOp,
                                                 SqlValue,
                                                 Range in) const {
   switch (strategy_) {
@@ -73,7 +73,7 @@ RangeOrBitVector FakeStorage::Queryable::Search(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
-RangeOrBitVector FakeStorage::Queryable::IndexSearch(FilterOp,
+RangeOrBitVector FakeStorage::ChainImpl::IndexSearch(FilterOp,
                                                      SqlValue,
                                                      Indices indices) const {
   switch (strategy_) {
@@ -96,7 +96,7 @@ RangeOrBitVector FakeStorage::Queryable::IndexSearch(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
-Range FakeStorage::Queryable::OrderedIndexSearch(FilterOp,
+Range FakeStorage::ChainImpl::OrderedIndexSearch(FilterOp,
                                                  SqlValue,
                                                  Indices indices) const {
   if (strategy_ == kAll) {
@@ -132,17 +132,17 @@ Range FakeStorage::Queryable::OrderedIndexSearch(FilterOp,
           static_cast<uint32_t>(std::distance(indices.data, first_non_set))};
 }
 
-void FakeStorage::Queryable::StableSort(uint32_t*, uint32_t) const {
+void FakeStorage::ChainImpl::StableSort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void FakeStorage::Queryable::Sort(uint32_t*, uint32_t) const {
+void FakeStorage::ChainImpl::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void FakeStorage::Queryable::Serialize(StorageProto*) const {
+void FakeStorage::ChainImpl::Serialize(StorageProto*) const {
   // FakeStorage doesn't really make sense to serialize.
   PERFETTO_FATAL("Not implemented");
 }

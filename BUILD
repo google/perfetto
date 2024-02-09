@@ -1290,8 +1290,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/db/column/arrangement_overlay.cc",
         "src/trace_processor/db/column/arrangement_overlay.h",
-        "src/trace_processor/db/column/data_node.cc",
-        "src/trace_processor/db/column/data_node.h",
+        "src/trace_processor/db/column/data_layer.cc",
+        "src/trace_processor/db/column/data_layer.h",
         "src/trace_processor/db/column/dense_null_overlay.cc",
         "src/trace_processor/db/column/dense_null_overlay.h",
         "src/trace_processor/db/column/dummy_storage.cc",

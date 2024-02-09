@@ -21,9 +21,7 @@
 #include "src/trace_processor/db/column/utils.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 namespace {
 
 using testing::ElementsAre;
@@ -33,7 +31,7 @@ using Range = Range;
 TEST(RangeOverlay, SearchAll) {
   RangeOverlay storage(Range(3, 8));
   auto fake = FakeStorage::SearchAll(10);
-  auto queryable = storage.MakeQueryable(fake->MakeQueryable());
+  auto queryable = storage.MakeChain(fake->MakeChain());
 
   auto res = queryable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u, 2u, 3u));
@@ -42,7 +40,7 @@ TEST(RangeOverlay, SearchAll) {
 TEST(RangeOverlay, SearchNone) {
   RangeOverlay storage(Range(3, 8));
   auto fake = FakeStorage::SearchNone(10);
-  auto queryable = storage.MakeQueryable(fake->MakeQueryable());
+  auto queryable = storage.MakeChain(fake->MakeChain());
 
   auto res = queryable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
@@ -51,7 +49,7 @@ TEST(RangeOverlay, SearchNone) {
 TEST(RangeOverlay, SearchLimited) {
   auto fake = FakeStorage::SearchSubset(10, std::vector<uint32_t>{4});
   RangeOverlay storage(Range(3, 5));
-  auto queryable = storage.MakeQueryable(fake->MakeQueryable());
+  auto queryable = storage.MakeChain(fake->MakeChain());
 
   auto res = queryable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 2));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u));
@@ -60,7 +58,7 @@ TEST(RangeOverlay, SearchLimited) {
 TEST(RangeOverlay, SearchBitVector) {
   auto fake = FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0}));
   RangeOverlay storage(Range(3, 6));
-  auto queryable = storage.MakeQueryable(fake->MakeQueryable());
+  auto queryable = storage.MakeChain(fake->MakeChain());
 
   auto res = queryable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 3));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2));
@@ -69,7 +67,7 @@ TEST(RangeOverlay, SearchBitVector) {
 TEST(RangeOverlay, IndexSearch) {
   auto fake = FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0}));
   RangeOverlay storage(Range(3, 5));
-  auto queryable = storage.MakeQueryable(fake->MakeQueryable());
+  auto queryable = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{1u, 0u, 3u};
   RangeOrBitVector res = queryable->IndexSearch(
@@ -80,6 +78,4 @@ TEST(RangeOverlay, IndexSearch) {
 }
 
 }  // namespace
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column

@@ -17,23 +17,27 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_RANGE_OVERLAY_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_RANGE_OVERLAY_H_
 
-#include "src/trace_processor/db/column/data_node.h"
+#include <cstdint>
+#include <memory>
+#include <string>
+
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
-class RangeOverlay : public DataNode {
+class RangeOverlay : public DataLayer {
  public:
-  explicit RangeOverlay(const Range);
+  explicit RangeOverlay(Range);
 
-  std::unique_ptr<Queryable> MakeQueryable(std::unique_ptr<Queryable>) override;
+  std::unique_ptr<DataLayerChain> MakeChain(
+      std::unique_ptr<DataLayerChain>) override;
 
  private:
-  class Queryable : public DataNode::Queryable {
+  class ChainImpl : public DataLayerChain {
    public:
-    Queryable(std::unique_ptr<DataNode::Queryable>, const Range);
+    ChainImpl(std::unique_ptr<DataLayerChain>, Range);
 
     SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                      FilterOp) const override;
@@ -55,16 +59,13 @@ class RangeOverlay : public DataNode {
     std::string DebugString() const override { return "RangeOverlay"; }
 
    private:
-    std::unique_ptr<DataNode::Queryable> inner_ = nullptr;
+    std::unique_ptr<DataLayerChain> inner_;
     const Range range_;
   };
 
- private:
   const Range range_;
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
 
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_RANGE_OVERLAY_H_
