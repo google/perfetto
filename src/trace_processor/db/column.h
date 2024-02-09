@@ -30,8 +30,7 @@
 #include "src/trace_processor/db/compare.h"
 #include "src/trace_processor/db/typed_column_internal.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Helper class for converting a type to a ColumnType.
 template <typename T>
@@ -183,13 +182,11 @@ class ColumnLegacy {
   ColumnLegacy(const char* name,
                ColumnStorage<T>* storage,
                /* Flag */ uint32_t flags,
-               Table* table,
                uint32_t col_idx_in_table,
                uint32_t row_map_idx)
       : ColumnLegacy(name,
                      ColumnTypeHelper<stored_type<T>>::ToColumnType(),
                      flags,
-                     table,
                      col_idx_in_table,
                      row_map_idx,
                      storage) {}
@@ -197,7 +194,6 @@ class ColumnLegacy {
   // Create a Column backed by the same data as |column| but is associated to a
   // different table and, optionally, having a different name.
   ColumnLegacy(const ColumnLegacy& column,
-               Table* table,
                uint32_t col_idx_in_table,
                uint32_t row_map_idx,
                const char* name = nullptr);
@@ -207,13 +203,10 @@ class ColumnLegacy {
   ColumnLegacy& operator=(ColumnLegacy&&) = default;
 
   // Creates a Column which does not have any data backing it.
-  static ColumnLegacy DummyColumn(const char* name,
-                                  Table* table,
-                                  uint32_t col_idx_in_table);
+  static ColumnLegacy DummyColumn(const char* name, uint32_t col_idx_in_table);
 
   // Creates a Column which returns the index as the value of the row.
-  static ColumnLegacy IdColumn(Table* table,
-                               uint32_t col_idx_in_table,
+  static ColumnLegacy IdColumn(uint32_t col_idx_in_table,
                                uint32_t row_map_idx,
                                const char* name = "id",
                                uint32_t flags = kIdFlags);
@@ -463,7 +456,6 @@ class ColumnLegacy {
   ColumnLegacy(const char* name,
                ColumnType type,
                uint32_t flags,
-               Table* table,
                uint32_t col_idx_in_table,
                uint32_t overlay_index,
                ColumnStorageBase* nullable_vector);
@@ -674,6 +666,39 @@ class ColumnLegacy {
     return string_pool_->Get(storage<StringPool::Id>().Get(idx));
   }
 
+  void BindToTable(Table* table, StringPool* string_pool) {
+    PERFETTO_DCHECK(!table_);
+    table_ = table;
+    string_pool_ = string_pool;
+
+    // Check that the dense-ness of the column and the nullable vector match.
+    if (IsNullable() && !IsDummy()) {
+      bool is_storage_dense;
+      switch (type_) {
+        case ColumnType::kInt32:
+          is_storage_dense = storage<std::optional<int32_t>>().IsDense();
+          break;
+        case ColumnType::kUint32:
+          is_storage_dense = storage<std::optional<uint32_t>>().IsDense();
+          break;
+        case ColumnType::kInt64:
+          is_storage_dense = storage<std::optional<int64_t>>().IsDense();
+          break;
+        case ColumnType::kDouble:
+          is_storage_dense = storage<std::optional<double>>().IsDense();
+          break;
+        case ColumnType::kString:
+          PERFETTO_FATAL("String column should not be nullable");
+        case ColumnType::kId:
+          PERFETTO_FATAL("Id column should not be nullable");
+        case ColumnType::kDummy:
+          PERFETTO_FATAL("Dummy column excluded above");
+      }
+      PERFETTO_DCHECK(is_storage_dense == IsDense());
+    }
+    PERFETTO_DCHECK(IsFlagsAndTypeValid(flags_, type_));
+  }
+
   // type_ is used to cast nullable_vector_ to the correct type.
   ColumnType type_ = ColumnType::kInt64;
   ColumnStorageBase* storage_ = nullptr;
@@ -686,7 +711,6 @@ class ColumnLegacy {
   const StringPool* string_pool_ = nullptr;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_H_
