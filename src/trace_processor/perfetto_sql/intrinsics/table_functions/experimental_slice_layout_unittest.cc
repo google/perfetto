@@ -29,6 +29,7 @@
 #include "src/base/test/status_matchers.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -38,19 +39,13 @@ namespace perfetto::trace_processor {
 namespace {
 
 std::string ToVis(const Table& table) {
-  const ColumnLegacy* layout_depth_column =
-      table.GetColumnByName("layout_depth");
-  const ColumnLegacy* ts_column = table.GetColumnByName("ts");
-  const ColumnLegacy* dur_column = table.GetColumnByName("dur");
-  const ColumnLegacy* filter_track_ids_column =
-      table.GetColumnByName("filter_track_ids");
-
+  using CI = tables::ExperimentalSliceLayoutTable::ColumnIndex;
   std::vector<std::string> lines;
-  for (uint32_t i = 0; i < table.row_count(); ++i) {
-    int64_t layout_depth = layout_depth_column->Get(i).long_value;
-    int64_t ts = ts_column->Get(i).long_value;
-    int64_t dur = dur_column->Get(i).long_value;
-    const char* filter_track_ids = filter_track_ids_column->Get(i).AsString();
+  for (auto it = table.IterateRows(); it; ++it) {
+    int64_t layout_depth = it.Get(CI::layout_depth).long_value;
+    int64_t ts = it.Get(CI::ts).long_value;
+    int64_t dur = it.Get(CI::dur).long_value;
+    const char* filter_track_ids = it.Get(CI::filter_track_ids).AsString();
     if (std::string("") == filter_track_ids) {
       continue;
     }

@@ -576,11 +576,11 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   PERFETTO_TP_TRACE(
       metatrace::Category::QUERY_DETAILED, "DB_TABLE_FILTER_AND_SORT",
       [this](metatrace::Record* r) {
-        const Table* source = SourceTable();
         r->AddArg("Table", db_sqlite_table_->name());
         for (const Constraint& c : constraints_) {
           SafeStringWriter writer;
-          writer.AppendString(source->GetColumn(c.col_idx).name());
+          writer.AppendString(
+              db_sqlite_table_->schema_.columns[c.col_idx].name);
 
           writer.AppendString(" ");
           switch (c.op) {
@@ -641,7 +641,8 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
 
         for (const auto& o : orders_) {
           SafeStringWriter writer;
-          writer.AppendString(source->GetColumn(o.col_idx).name());
+          writer.AppendString(
+              db_sqlite_table_->schema_.columns[o.col_idx].name);
           if (o.desc)
             writer.AppendString(" desc");
           r->AddArg("Order by", writer.GetStringView());
@@ -691,8 +692,7 @@ base::Status DbSqliteTable::Cursor::Next() {
   if (mode_ == Mode::kSingleRow) {
     eof_ = true;
   } else {
-    iterator_->Next();
-    eof_ = !*iterator_;
+    eof_ = !++*iterator_;
   }
   return base::OkStatus();
 }
@@ -704,7 +704,7 @@ bool DbSqliteTable::Cursor::Eof() {
 base::Status DbSqliteTable::Cursor::Column(sqlite3_context* ctx, int raw_col) {
   uint32_t column = static_cast<uint32_t>(raw_col);
   SqlValue value = mode_ == Mode::kSingleRow
-                       ? SourceTable()->GetColumn(column).Get(*single_row_)
+                       ? SourceTable()->columns()[column].Get(*single_row_)
                        : iterator_->Get(column);
   // We can say kSqliteStatic for strings  because all strings are expected to
   // come from the string pool and thus will be valid for the lifetime

@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#include <cstdint>
+#include <utility>
+
 #include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/tables/py_tables_unittest_py.h"
@@ -269,7 +272,7 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
     static constexpr uint32_t kFilterArgSetId = 4;
     auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
     ASSERT_EQ(res.row_count(), 4u);
-    for (auto it = res.IterateRows(); it; it.Next()) {
+    for (auto it = res.IterateRows(); it; ++it) {
       uint32_t arg_set_id =
           static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
       ASSERT_EQ(arg_set_id, kFilterArgSetId);
@@ -279,7 +282,7 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
     static constexpr uint32_t kFilterArgSetId = 0;
     auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
     ASSERT_EQ(res.row_count(), 2u);
-    for (auto it = res.IterateRows(); it; it.Next()) {
+    for (auto it = res.IterateRows(); it; ++it) {
       uint32_t arg_set_id =
           static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
       ASSERT_EQ(arg_set_id, kFilterArgSetId);
@@ -289,7 +292,7 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
     static constexpr uint32_t kFilterArgSetId = 8;
     auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
     ASSERT_EQ(res.row_count(), 1u);
-    for (auto it = res.IterateRows(); it; it.Next()) {
+    for (auto it = res.IterateRows(); it; ++it) {
       uint32_t arg_set_id =
           static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
       ASSERT_EQ(arg_set_id, kFilterArgSetId);
@@ -303,7 +306,7 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
     auto res = table.Filter(
         {table.int_value().eq(200), table.arg_set_id().eq(kFilterArgSetId)});
     ASSERT_EQ(res.row_count(), 2u);
-    for (auto it = res.IterateRows(); it; it.Next()) {
+    for (auto it = res.IterateRows(); it; ++it) {
       uint32_t arg_set_id =
           static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
       ASSERT_EQ(arg_set_id, kFilterArgSetId);

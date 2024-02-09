@@ -165,7 +165,8 @@ class ColumnSerializer:
     return f'''
     ColumnType::{self.name}::type {name}() const {{
       const auto& col = table_->{name}();
-      return col.GetAtIdx(its_[col.overlay_index()].index());
+      return col.GetAtIdx(
+        iterator_.StorageIndexForColumn(col.index_in_table()));
     }}
     '''
 
@@ -175,7 +176,8 @@ class ColumnSerializer:
     return f'''
       void set_{self.name}(ColumnType::{self.name}::non_optional_type v) {{
         auto* col = mutable_table_->mutable_{self.name}();
-        col->SetAtIdx(its_[col->overlay_index()].index(), v);
+        col->SetAtIdx(
+          iterator_.StorageIndexForColumn(col->index_in_table()), v);
       }}
     '''
 
@@ -392,11 +394,11 @@ class TableSerializer(object):
 
    protected:
     explicit ConstIterator(const {self.table_name}* table,
-                           std::vector<ColumnStorageOverlay> overlays)
-        : AbstractConstIterator(table, std::move(overlays)) {{}}
+                           Table::Iterator iterator)
+        : AbstractConstIterator(table, std::move(iterator)) {{}}
 
     uint32_t CurrentRowNumber() const {{
-      return its_.back().index();
+      return iterator_.StorageIndexForLastOverlay();
     }}
 
    private:
@@ -421,9 +423,8 @@ class TableSerializer(object):
     private:
     friend class {self.table_name};
 
-    explicit Iterator({self.table_name}* table,
-                      std::vector<ColumnStorageOverlay> overlays)
-        : ConstIterator(table, std::move(overlays)),
+    explicit Iterator({self.table_name}* table, Table::Iterator iterator)
+        : ConstIterator(table, std::move(iterator)),
           mutable_table_(table) {{}}
 
     {self.table_name}* mutable_table_ = nullptr;
@@ -542,21 +543,22 @@ class {self.table_name} : public macros_internal::MacroTable {{
   }}
 
   ConstIterator IterateRows() const {{
-    return ConstIterator(this, CopyOverlays());
+    return ConstIterator(this, Table::IterateRows());
   }}
 
-  Iterator IterateRows() {{ return Iterator(this, CopyOverlays()); }}
+  Iterator IterateRows() {{ return Iterator(this, Table::IterateRows()); }}
 
   ConstIterator FilterToIterator(
       const std::vector<Constraint>& cs,
       RowMap::OptimizeFor opt = RowMap::OptimizeFor::kMemory) const {{
-    return ConstIterator(this, FilterAndApplyToOverlays(cs, opt));
+    return ConstIterator(
+      this, ApplyAndIterateRows(FilterToRowMap(cs, opt)));
   }}
 
   Iterator FilterToIterator(
       const std::vector<Constraint>& cs,
       RowMap::OptimizeFor opt = RowMap::OptimizeFor::kMemory) {{
-    return Iterator(this, FilterAndApplyToOverlays(cs, opt));
+    return Iterator(this, ApplyAndIterateRows(FilterToRowMap(cs, opt)));
   }}
 
   void ShrinkToFit() {{

@@ -16,8 +16,18 @@
 
 #include "src/trace_processor/db/table.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include <cstdint>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/db/column_storage_overlay.h"
+
+namespace perfetto::trace_processor {
 
 bool Table::kUseFilterV2 = true;
 
@@ -137,5 +147,4 @@ Table Table::Sort(const std::vector<Order>& od) const {
   return table;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

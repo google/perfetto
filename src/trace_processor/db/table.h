@@ -17,30 +17,24 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_TABLE_H_
 #define SRC_TRACE_PROCESSOR_DB_TABLE_H_
 
-#include <stdint.h>
-
 #include <algorithm>
-#include <iterator>
-#include <limits>
-#include <memory>
-#include <numeric>
-#include <optional>
+#include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/query_executor.h"
 #include "src/trace_processor/db/typed_column.h"
-#include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Represents a table of data with named, strongly typed columns.
 class Table {
@@ -55,6 +49,18 @@ class Table {
       }
     }
 
+    // Creates an iterator which iterates over |table| by first creating
+    // overlays by Applying |apply| to the existing overlays and using the
+    // indices there for iteration.
+    explicit Iterator(const Table* table, RowMap apply) : table_(table) {
+      overlays_.reserve(table->overlays().size());
+      its_.reserve(table->overlays().size());
+      for (const auto& rm : table->overlays()) {
+        overlays_.emplace_back(rm.SelectRows(apply));
+        its_.emplace_back(overlays_.back().IterateRows());
+      }
+    }
+
     Iterator(Iterator&&) noexcept = default;
     Iterator& operator=(Iterator&&) = default;
 
@@ -62,10 +68,11 @@ class Table {
     Iterator& operator=(const Iterator&) = delete;
 
     // Advances the iterator to the next row of the table.
-    void Next() {
+    Iterator& operator++() {
       for (auto& it : its_) {
         it.Next();
       }
+      return *this;
     }
 
     // Returns whether the row the iterator is pointing at is valid.
@@ -77,8 +84,18 @@ class Table {
       return col.GetAtIdx(its_[col.overlay_index()].index());
     }
 
+    // Returns the storage index for the current row for column |col_idx|.
+    uint32_t StorageIndexForColumn(uint32_t col_idx) const {
+      const auto& col = table_->columns_[col_idx];
+      return its_[col.overlay_index()].index();
+    }
+
+    // Returns the storage index for the last overlay.
+    uint32_t StorageIndexForLastOverlay() const { return its_.back().index(); }
+
    private:
     const Table* table_ = nullptr;
+    std::vector<ColumnStorageOverlay> overlays_;
     std::vector<ColumnStorageOverlay::Iterator> its_;
   };
 
@@ -183,6 +200,12 @@ class Table {
   // Returns an iterator into the Table.
   Iterator IterateRows() const { return Iterator(this); }
 
+  // Applies the RowMap |rm| onto this table and returns an iterator over the
+  // resulting rows.
+  Iterator ApplyAndIterateRows(RowMap rm) const {
+    return Iterator(this, std::move(rm));
+  }
+
   // Creates a copy of this table.
   Table Copy() const;
 
@@ -217,7 +240,6 @@ class Table {
   Table CopyExceptOverlays() const;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_DB_TABLE_H_

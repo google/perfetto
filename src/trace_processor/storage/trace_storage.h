@@ -17,24 +17,28 @@
 #ifndef SRC_TRACE_PROCESSOR_STORAGE_TRACE_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_STORAGE_TRACE_STORAGE_H_
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <deque>
+#include <functional>
+#include <iterator>
+#include <limits>
 #include <map>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
+#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
@@ -119,7 +123,7 @@ const std::vector<NullTermStringView>& GetRefTypeStringMap();
 // names for a given CPU).
 class TraceStorage {
  public:
-  TraceStorage(const Config& = Config());
+  explicit TraceStorage(const Config& = Config());
 
   virtual ~TraceStorage();
 
