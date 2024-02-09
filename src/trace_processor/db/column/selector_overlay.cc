@@ -25,7 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/tp_metatrace.h"
 
@@ -37,27 +37,26 @@ namespace perfetto::trace_processor::column {
 SelectorOverlay::SelectorOverlay(const BitVector* selector)
     : selector_(selector) {}
 
-std::unique_ptr<DataNode::Queryable> SelectorOverlay::MakeQueryable(
-    std::unique_ptr<DataNode::Queryable> inner) {
-  return std::make_unique<Queryable>(std::move(inner), selector_);
+std::unique_ptr<DataLayerChain> SelectorOverlay::MakeChain(
+    std::unique_ptr<DataLayerChain> inner) {
+  return std::make_unique<ChainImpl>(std::move(inner), selector_);
 }
 
-SelectorOverlay::Queryable::Queryable(
-    std::unique_ptr<DataNode::Queryable> inner,
-    const BitVector* selector)
+SelectorOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
+                                      const BitVector* selector)
     : inner_(std::move(inner)), selector_(selector) {}
 
-SearchValidationResult SelectorOverlay::Queryable::ValidateSearchConstraints(
+SearchValidationResult SelectorOverlay::ChainImpl::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
   return inner_->ValidateSearchConstraints(sql_val, op);
 }
 
-RangeOrBitVector SelectorOverlay::Queryable::Search(FilterOp op,
+RangeOrBitVector SelectorOverlay::ChainImpl::Search(FilterOp op,
                                                     SqlValue sql_val,
                                                     Range in) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
-                    "SelectorOverlay::Queryable::Search");
+                    "SelectorOverlay::ChainImpl::Search");
 
   // Figure out the bounds of the indices in the underlying storage and search
   // it.
@@ -85,7 +84,7 @@ RangeOrBitVector SelectorOverlay::Queryable::Search(FilterOp op,
   return RangeOrBitVector(std::move(res).Build());
 }
 
-RangeOrBitVector SelectorOverlay::Queryable::IndexSearch(
+RangeOrBitVector SelectorOverlay::ChainImpl::IndexSearch(
     FilterOp op,
     SqlValue sql_val,
     Indices indices) const {
@@ -96,7 +95,7 @@ RangeOrBitVector SelectorOverlay::Queryable::IndexSearch(
   // TODO(b/307482437): Use OrderedIndexSearch if arrangement orders storage.
 
   PERFETTO_TP_TRACE(metatrace::Category::DB,
-                    "SelectorOverlay::Queryable::IndexSearch");
+                    "SelectorOverlay::ChainImpl::IndexSearch");
 
   // To go from TableIndexVector to StorageIndexVector we need to find index in
   // |selector_| by looking only into set bits.
@@ -110,7 +109,7 @@ RangeOrBitVector SelectorOverlay::Queryable::IndexSearch(
               indices.state});
 }
 
-Range SelectorOverlay::Queryable::OrderedIndexSearch(FilterOp op,
+Range SelectorOverlay::ChainImpl::OrderedIndexSearch(FilterOp op,
                                                      SqlValue sql_val,
                                                      Indices indices) const {
   // To go from TableIndexVector to StorageIndexVector we need to find index in
@@ -125,17 +124,17 @@ Range SelectorOverlay::Queryable::OrderedIndexSearch(FilterOp op,
               indices.state});
 }
 
-void SelectorOverlay::Queryable::StableSort(uint32_t*, uint32_t) const {
+void SelectorOverlay::ChainImpl::StableSort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void SelectorOverlay::Queryable::Sort(uint32_t*, uint32_t) const {
+void SelectorOverlay::ChainImpl::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void SelectorOverlay::Queryable::Serialize(StorageProto* storage) const {
+void SelectorOverlay::ChainImpl::Serialize(StorageProto* storage) const {
   auto* selector_overlay = storage->set_selector_overlay();
   inner_->Serialize(selector_overlay->set_storage());
   selector_->Serialize(selector_overlay->set_bit_vector());

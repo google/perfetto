@@ -22,22 +22,22 @@
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Storage for Id columns.
-class IdStorage final : public DataNode {
+class IdStorage final : public DataLayer {
  public:
   explicit IdStorage(uint32_t size);
 
-  std::unique_ptr<DataNode::Queryable> MakeQueryable() override;
+  std::unique_ptr<DataLayerChain> MakeChain() override;
 
  private:
-  class Queryable : public DataNode::Queryable {
+  class ChainImpl : public DataLayerChain {
    public:
-    explicit Queryable(uint32_t size);
+    explicit ChainImpl(uint32_t size);
 
     SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                      FilterOp) const override;

@@ -30,7 +30,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column/arrangement_overlay.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/dense_null_overlay.h"
 #include "src/trace_processor/db/column/dummy_storage.h"
 #include "src/trace_processor/db/column/id_storage.h"
@@ -53,7 +53,7 @@ using Range = RowMap::Range;
 }  // namespace
 
 void QueryExecutor::FilterColumn(const Constraint& c,
-                                 const column::DataNode::Queryable& queryable,
+                                 const column::DataLayerChain& chain,
                                  RowMap* rm) {
   // Shortcut of empty row map.
   if (rm->empty())
@@ -67,7 +67,7 @@ void QueryExecutor::FilterColumn(const Constraint& c,
     return;
   }
 
-  switch (queryable.ValidateSearchConstraints(c.value, c.op)) {
+  switch (chain.ValidateSearchConstraints(c.value, c.op)) {
     case SearchValidationResult::kAllData:
       return;
     case SearchValidationResult::kNoData:
@@ -90,20 +90,20 @@ void QueryExecutor::FilterColumn(const Constraint& c,
       rm->IsIndexVector() || rm_size < 1024 || rm_size * 10 < range_size;
 
   if (!disallows_index_search && prefers_index_search) {
-    IndexSearch(c, queryable, rm);
+    IndexSearch(c, chain, rm);
     return;
   }
-  LinearSearch(c, queryable, rm);
+  LinearSearch(c, chain, rm);
 }
 
 void QueryExecutor::LinearSearch(const Constraint& c,
-                                 const column::DataNode::Queryable& queryable,
+                                 const column::DataLayerChain& chain,
                                  RowMap* rm) {
   // TODO(b/283763282): Align these to word boundaries.
   Range bounds(rm->Get(0), rm->Get(rm->size() - 1) + 1);
 
   // Search the storage.
-  RangeOrBitVector res = queryable.Search(c.op, c.value, bounds);
+  RangeOrBitVector res = chain.Search(c.op, c.value, bounds);
   if (rm->IsRange()) {
     if (res.IsRange()) {
       Range range = std::move(res).TakeIfRange();
@@ -125,12 +125,12 @@ void QueryExecutor::LinearSearch(const Constraint& c,
 }
 
 void QueryExecutor::IndexSearch(const Constraint& c,
-                                const column::DataNode::Queryable& queryable,
+                                const column::DataLayerChain& chain,
                                 RowMap* rm) {
   // Create outmost TableIndexVector.
   std::vector<uint32_t> table_indices = std::move(*rm).TakeAsIndexVector();
 
-  RangeOrBitVector matched = queryable.IndexSearch(
+  RangeOrBitVector matched = chain.IndexSearch(
       c.op, c.value,
       Indices{table_indices.data(), static_cast<uint32_t>(table_indices.size()),
               Indices::State::kMonotonic});
@@ -183,94 +183,94 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     }
 
     // Create storage
-    base::SmallVector<std::unique_ptr<column::DataNode>, 4> data_nodes;
-    std::unique_ptr<column::DataNode::Queryable> queryable;
+    base::SmallVector<std::unique_ptr<column::DataLayer>, 4> data_layers;
+    std::unique_ptr<column::DataLayerChain> chain;
     if (col.IsSetId()) {
       if (col.IsNullable()) {
-        data_nodes.emplace_back(std::make_unique<column::SetIdStorage>(
+        data_layers.emplace_back(std::make_unique<column::SetIdStorage>(
             &col.storage<std::optional<uint32_t>>().non_null_vector()));
-        queryable = data_nodes.back()->MakeQueryable();
+        chain = data_layers.back()->MakeChain();
       } else {
-        data_nodes.emplace_back(std::make_unique<column::SetIdStorage>(
+        data_layers.emplace_back(std::make_unique<column::SetIdStorage>(
             &col.storage<uint32_t>().vector()));
-        queryable = data_nodes.back()->MakeQueryable();
+        chain = data_layers.back()->MakeChain();
       }
     } else {
       switch (col.col_type()) {
         case ColumnType::kDummy:
-          data_nodes.emplace_back(std::make_unique<column::DummyStorage>());
-          queryable = data_nodes.back()->MakeQueryable();
+          data_layers.emplace_back(std::make_unique<column::DummyStorage>());
+          chain = data_layers.back()->MakeChain();
           break;
         case ColumnType::kId:
-          data_nodes.emplace_back(
+          data_layers.emplace_back(
               std::make_unique<column::IdStorage>(column_size));
-          queryable = data_nodes.back()->MakeQueryable();
+          chain = data_layers.back()->MakeChain();
           break;
         case ColumnType::kString:
-          data_nodes.emplace_back(std::make_unique<column::StringStorage>(
+          data_layers.emplace_back(std::make_unique<column::StringStorage>(
               table->string_pool(), &col.storage<StringPool::Id>().vector(),
               col.IsSorted()));
-          queryable = data_nodes.back()->MakeQueryable();
+          chain = data_layers.back()->MakeChain();
           break;
         case ColumnType::kInt64:
           if (col.IsNullable()) {
-            data_nodes.emplace_back(
+            data_layers.emplace_back(
                 std::make_unique<column::NumericStorage<int64_t>>(
                     &col.storage<std::optional<int64_t>>().non_null_vector(),
                     col.col_type(), col.IsSorted()));
-            queryable = data_nodes.back()->MakeQueryable();
+            chain = data_layers.back()->MakeChain();
 
           } else {
-            data_nodes.emplace_back(
+            data_layers.emplace_back(
                 std::make_unique<column::NumericStorage<int64_t>>(
                     &col.storage<int64_t>().vector(), col.col_type(),
                     col.IsSorted()));
-            queryable = data_nodes.back()->MakeQueryable();
+            chain = data_layers.back()->MakeChain();
           }
           break;
         case ColumnType::kUint32:
           if (col.IsNullable()) {
-            data_nodes.emplace_back(
+            data_layers.emplace_back(
                 std::make_unique<column::NumericStorage<uint32_t>>(
                     &col.storage<std::optional<uint32_t>>().non_null_vector(),
                     col.col_type(), col.IsSorted()));
-            queryable = data_nodes.back()->MakeQueryable();
+            chain = data_layers.back()->MakeChain();
           } else {
-            data_nodes.emplace_back(
+            data_layers.emplace_back(
                 std::make_unique<column::NumericStorage<uint32_t>>(
                     &col.storage<uint32_t>().vector(), col.col_type(),
                     col.IsSorted()));
-            queryable = data_nodes.back()->MakeQueryable();
+            chain = data_layers.back()->MakeChain();
           }
           break;
         case ColumnType::kInt32:
           if (col.IsNullable()) {
-            data_nodes.emplace_back(
+            data_layers.emplace_back(
                 std::make_unique<column::NumericStorage<int32_t>>(
                     &col.storage<std::optional<int32_t>>().non_null_vector(),
                     col.col_type(), col.IsSorted()));
-            queryable = data_nodes.back()->MakeQueryable();
+            chain = data_layers.back()->MakeChain();
           } else {
-            data_nodes.emplace_back(
+            data_layers.emplace_back(
                 std::make_unique<column::NumericStorage<int32_t>>(
                     &col.storage<int32_t>().vector(), col.col_type(),
                     col.IsSorted()));
-            queryable = data_nodes.back()->MakeQueryable();
+            chain = data_layers.back()->MakeChain();
           }
           break;
         case ColumnType::kDouble:
           if (col.IsNullable()) {
-            data_nodes.emplace_back(
+            data_layers.emplace_back(
                 std::make_unique<column::NumericStorage<double>>(
                     &col.storage<std::optional<double>>().non_null_vector(),
                     col.col_type(), col.IsSorted()));
-            queryable = data_nodes.back()->MakeQueryable();
+            chain = data_layers.back()->MakeChain();
           } else {
-            data_nodes.emplace_back(
+            data_layers.emplace_back(
                 std::make_unique<column::NumericStorage<double>>(
                     &col.storage<double>().vector(), col.col_type(),
                     col.IsSorted()));
-            queryable = data_nodes.back()->MakeQueryable();
+            chain = data_layers.back()->MakeChain();
           }
       }
     }
@@ -280,34 +280,34 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
       // with Id::Null().
       PERFETTO_CHECK(col.col_type() != ColumnType::kString);
       if (col.IsDense()) {
-        data_nodes.emplace_back(std::make_unique<column::DenseNullOverlay>(
+        data_layers.emplace_back(std::make_unique<column::DenseNullOverlay>(
             col.storage_base().bv()));
-        queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
+        chain = data_layers.back()->MakeChain(std::move(chain));
       } else {
-        data_nodes.emplace_back(
+        data_layers.emplace_back(
             std::make_unique<column::NullOverlay>(col.storage_base().bv()));
-        queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
+        chain = data_layers.back()->MakeChain(std::move(chain));
       }
     }
     if (col.overlay().row_map().IsIndexVector()) {
-      data_nodes.emplace_back(std::make_unique<column::ArrangementOverlay>(
+      data_layers.emplace_back(std::make_unique<column::ArrangementOverlay>(
           col.overlay().row_map().GetIfIndexVector(),
           Indices::State::kNonmonotonic, col.IsSorted()));
-      queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
+      chain = data_layers.back()->MakeChain(std::move(chain));
     }
     if (col.overlay().row_map().IsBitVector()) {
-      data_nodes.emplace_back(std::make_unique<column::SelectorOverlay>(
+      data_layers.emplace_back(std::make_unique<column::SelectorOverlay>(
           col.overlay().row_map().GetIfBitVector()));
-      queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
+      chain = data_layers.back()->MakeChain(std::move(chain));
     }
     if (col.overlay().row_map().IsRange() &&
         col.overlay().size() != column_size) {
-      data_nodes.emplace_back(std::make_unique<column::RangeOverlay>(
+      data_layers.emplace_back(std::make_unique<column::RangeOverlay>(
           *col.overlay().row_map().GetIfIRange()));
-      queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
+      chain = data_layers.back()->MakeChain(std::move(chain));
     }
     uint32_t pre_count = rm.size();
-    FilterColumn(c, *queryable, &rm);
+    FilterColumn(c, *chain, &rm);
     PERFETTO_DCHECK(rm.size() <= pre_count);
   }
   return rm;
@@ -315,7 +315,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
 
 void QueryExecutor::BoundedColumnFilterForTesting(
     const Constraint& c,
-    const column::DataNode::Queryable& col,
+    const column::DataLayerChain& col,
     RowMap* rm) {
   switch (col.ValidateSearchConstraints(c.value, c.op)) {
     case SearchValidationResult::kAllData:
@@ -332,7 +332,7 @@ void QueryExecutor::BoundedColumnFilterForTesting(
 
 void QueryExecutor::IndexedColumnFilterForTesting(
     const Constraint& c,
-    const column::DataNode::Queryable& col,
+    const column::DataLayerChain& col,
     RowMap* rm) {
   switch (col.ValidateSearchConstraints(c.value, c.op)) {
     case SearchValidationResult::kAllData:

@@ -16,10 +16,19 @@
 
 #include "src/trace_processor/db/column/range_overlay.h"
 
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
+#include <cstdint>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/tp_metatrace.h"
+
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 
 namespace perfetto::trace_processor::column {
 
@@ -27,24 +36,24 @@ using Range = Range;
 
 RangeOverlay::RangeOverlay(const Range range) : range_(range) {}
 
-std::unique_ptr<DataNode::Queryable> RangeOverlay::MakeQueryable(
-    std::unique_ptr<DataNode::Queryable> inner) {
-  return std::make_unique<Queryable>(std::move(inner), range_);
+std::unique_ptr<DataLayerChain> RangeOverlay::MakeChain(
+    std::unique_ptr<DataLayerChain> inner) {
+  return std::make_unique<ChainImpl>(std::move(inner), range_);
 }
 
-RangeOverlay::Queryable::Queryable(std::unique_ptr<DataNode::Queryable> inner,
+RangeOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                    const Range range)
     : inner_(std::move(inner)), range_(range) {
   PERFETTO_CHECK(range.end <= inner_->size());
 }
 
-SearchValidationResult RangeOverlay::Queryable::ValidateSearchConstraints(
+SearchValidationResult RangeOverlay::ChainImpl::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
   return inner_->ValidateSearchConstraints(sql_val, op);
 }
 
-RangeOrBitVector RangeOverlay::Queryable::Search(FilterOp op,
+RangeOrBitVector RangeOverlay::ChainImpl::Search(FilterOp op,
                                                  SqlValue sql_val,
                                                  Range search_range) const {
   PERFETTO_CHECK(search_range.size() <= range_.size());
@@ -91,7 +100,7 @@ RangeOrBitVector RangeOverlay::Queryable::Search(FilterOp op,
   return RangeOrBitVector(std::move(builder).Build());
 }
 
-RangeOrBitVector RangeOverlay::Queryable::IndexSearch(FilterOp op,
+RangeOrBitVector RangeOverlay::ChainImpl::IndexSearch(FilterOp op,
                                                       SqlValue sql_val,
                                                       Indices indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "RangeOverlay::IndexSearch");
@@ -105,7 +114,7 @@ RangeOrBitVector RangeOverlay::Queryable::IndexSearch(FilterOp op,
       op, sql_val, Indices{storage_iv.data(), indices.size, indices.state});
 }
 
-Range RangeOverlay::Queryable::OrderedIndexSearch(FilterOp op,
+Range RangeOverlay::ChainImpl::OrderedIndexSearch(FilterOp op,
                                                   SqlValue sql_val,
                                                   Indices indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "RangeOverlay::IndexSearch");
@@ -119,17 +128,17 @@ Range RangeOverlay::Queryable::OrderedIndexSearch(FilterOp op,
       op, sql_val, Indices{storage_iv.data(), indices.size, indices.state});
 }
 
-void RangeOverlay::Queryable::StableSort(uint32_t*, uint32_t) const {
+void RangeOverlay::ChainImpl::StableSort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void RangeOverlay::Queryable::Sort(uint32_t*, uint32_t) const {
+void RangeOverlay::ChainImpl::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void RangeOverlay::Queryable::Serialize(StorageProto*) const {
+void RangeOverlay::ChainImpl::Serialize(StorageProto*) const {
   PERFETTO_FATAL("Not implemented");
 }
 

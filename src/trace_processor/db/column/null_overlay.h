@@ -20,26 +20,28 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Overlay which introduces the layer of nullability. Specifically, spreads out
 // the storage with nulls using a BitVector.
-class NullOverlay : public DataNode {
+class NullOverlay : public DataLayer {
  public:
   explicit NullOverlay(const BitVector* non_null);
 
-  std::unique_ptr<Queryable> MakeQueryable(std::unique_ptr<Queryable>) override;
+  std::unique_ptr<DataLayerChain> MakeChain(
+      std::unique_ptr<DataLayerChain>) override;
 
  private:
-  class Queryable : public DataNode::Queryable {
+  class ChainImpl : public DataLayerChain {
    public:
-    Queryable(std::unique_ptr<DataNode::Queryable>, const BitVector* non_null);
+    ChainImpl(std::unique_ptr<DataLayerChain>, const BitVector* non_null);
 
     SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                      FilterOp) const override;
@@ -61,7 +63,7 @@ class NullOverlay : public DataNode {
     std::string DebugString() const override { return "NullOverlay"; }
 
    private:
-    std::unique_ptr<DataNode::Queryable> inner_ = nullptr;
+    std::unique_ptr<DataLayerChain> inner_ = nullptr;
     const BitVector* non_null_ = nullptr;
   };
 
