@@ -35,6 +35,7 @@ namespace perfetto::trace_processor::column {
 class ArrangementOverlay : public DataNode {
  public:
   ArrangementOverlay(const std::vector<uint32_t>* arrangement,
+                     Indices::State arrangement_state,
                      bool does_arrangement_order_storage);
 
   std::unique_ptr<Queryable> MakeQueryable(std::unique_ptr<Queryable>) override;

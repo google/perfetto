@@ -35,12 +35,10 @@
 namespace perfetto::trace_processor::column {
 
 ArrangementOverlay::ArrangementOverlay(const std::vector<uint32_t>* arrangement,
+                                       Indices::State arrangement_state,
                                        bool does_arrangement_order_storage)
     : arrangement_(arrangement),
-      arrangement_state_(
-          std::is_sorted(arrangement->begin(), arrangement->end())
-              ? Indices::State::kMonotonic
-              : Indices::State::kNonmonotonic),
+      arrangement_state_(arrangement_state),
       does_arrangement_order_storage_(does_arrangement_order_storage) {}
 
 std::unique_ptr<DataNode::Queryable> ArrangementOverlay::MakeQueryable(
