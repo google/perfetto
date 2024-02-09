@@ -1700,15 +1700,54 @@ class TrackDecider {
   }
 
   addPluginTracks(): void {
+    const groupNameToUuid = new Map<string, string>();
     const tracks = globals.trackManager.findPotentialTracks();
+
     for (const info of tracks) {
+      const groupName = info.groupName;
+
+      let groupUuid = SCROLLING_TRACK_GROUP;
+      if (groupName) {
+        const uuid = groupNameToUuid.get(groupName);
+        if (uuid) {
+          groupUuid = uuid;
+        } else {
+          console.log(`Creating group "${groupName}"`);
+
+          // Add the summary track
+          const summaryTrackKey = uuidv4();
+          this.tracksToAdd.push({
+            uri: NULL_TRACK_URI,
+            trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
+            name: groupName,
+            trackGroup: undefined,
+            key: summaryTrackKey,
+          });
+
+          // Add the group
+          groupUuid = uuidv4();
+          const addGroup = Actions.addTrackGroup({
+            name: groupName,
+            id: groupUuid,
+            collapsed: true,
+            summaryTrackKey,
+            fixedOrdering: true,
+          });
+          this.addTrackGroupActions.push(addGroup);
+
+          // Add group to the map
+          groupNameToUuid.set(groupName, groupUuid);
+        }
+      }
+
       this.tracksToAdd.push({
         uri: info.uri,
         name: info.displayName,
         // TODO(hjd): Fix how sorting works. Plugins should expose
         // 'sort keys' which the user can use to choose a sort order.
         trackSortKey: info.sortKey ?? PrimaryTrackSortKey.ORDINARY_TRACK,
-        trackGroup: SCROLLING_TRACK_GROUP,
+        trackGroup: groupUuid,
+        params: info.params,
       });
     }
   }
