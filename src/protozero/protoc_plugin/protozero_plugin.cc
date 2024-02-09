@@ -743,15 +743,21 @@ case $full_class$::$value_name$:
           cpp_type = "bool";
           break;
         case FieldDescriptor::TYPE_SFIXED32:
-        case FieldDescriptor::TYPE_SINT32:
         case FieldDescriptor::TYPE_INT32:
           getter = "as_int32";
           cpp_type = "int32_t";
           break;
+        case FieldDescriptor::TYPE_SINT32:
+          getter = "as_sint32";
+          cpp_type = "int32_t";
+          break;
         case FieldDescriptor::TYPE_SFIXED64:
-        case FieldDescriptor::TYPE_SINT64:
         case FieldDescriptor::TYPE_INT64:
           getter = "as_int64";
+          cpp_type = "int64_t";
+          break;
+        case FieldDescriptor::TYPE_SINT64:
+          getter = "as_sint64";
           cpp_type = "int64_t";
           break;
         case FieldDescriptor::TYPE_FIXED32:
