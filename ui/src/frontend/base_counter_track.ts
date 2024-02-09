@@ -517,8 +517,6 @@ export abstract class BaseCounterTrack implements Track {
     if (this.sqlState === 'UNINITIALIZED') {
       this.sqlState = 'INITIALIZING';
 
-      this.initState = await this.onInit();
-
       {
         const queryRes = (await this.engine.query(`
           ${this.getSqlPreamble()}

@@ -448,6 +448,9 @@ export interface TrackRef {
   // Optional: Used to define default sort order for new traces.
   // Note: This will be deprecated soon in favour of tags & sort rules.
   sortKey?: PrimaryTrackSortKey;
+
+  // Optional: Add tracks to a group with this name.
+  groupName?: string;
 }
 
 // A predicate for selecting a groups of tracks.
