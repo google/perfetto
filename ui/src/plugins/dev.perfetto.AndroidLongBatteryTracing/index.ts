@@ -1046,7 +1046,7 @@ class AndroidLongBatteryTracing implements Plugin {
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
     await e.query(`INCLUDE PERFETTO MODULE android.suspend;`);
-    await e.query(`INCLUDE PERFETTO MODULE counter.intervals;`);
+    await e.query(`INCLUDE PERFETTO MODULE counters.intervals;`);
 
     this.addSliceTrack(ctx, 'Device State: Screen state', SCREEN_STATE);
     this.addSliceTrack(ctx, 'Device State: Charging', CHARGING);
