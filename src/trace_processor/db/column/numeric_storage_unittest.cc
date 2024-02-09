@@ -46,30 +46,29 @@ TEST(NumericStorage, InvalidSearchConstraintsGeneralChecks) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
 
   Range test_range(20, 100);
   Range full_range(0, 100);
   Range empty_range;
 
   // NULL checks
-  ASSERT_EQ(queryable->ValidateSearchConstraints(SqlValue(), FilterOp::kIsNull),
+  ASSERT_EQ(chain->ValidateSearchConstraints(SqlValue(), FilterOp::kIsNull),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(
-      queryable->ValidateSearchConstraints(SqlValue(), FilterOp::kIsNotNull),
-      SearchValidationResult::kAllData);
+  ASSERT_EQ(chain->ValidateSearchConstraints(SqlValue(), FilterOp::kIsNotNull),
+            SearchValidationResult::kAllData);
 
   // FilterOp checks
   ASSERT_EQ(
-      queryable->ValidateSearchConstraints(SqlValue::Long(15), FilterOp::kGlob),
+      chain->ValidateSearchConstraints(SqlValue::Long(15), FilterOp::kGlob),
       SearchValidationResult::kNoData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(SqlValue::Long(15),
-                                                 FilterOp::kRegex),
-            SearchValidationResult::kNoData);
+  ASSERT_EQ(
+      chain->ValidateSearchConstraints(SqlValue::Long(15), FilterOp::kRegex),
+      SearchValidationResult::kNoData);
 
   // Type checks
-  ASSERT_EQ(queryable->ValidateSearchConstraints(SqlValue::String("cheese"),
-                                                 FilterOp::kGe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(SqlValue::String("cheese"),
+                                             FilterOp::kGe),
             SearchValidationResult::kNoData);
 }
 
@@ -77,38 +76,38 @@ TEST(NumericStorage, InvalidValueBoundsUint32) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
 
   SqlValue max_val = SqlValue::Long(
       static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) + 10);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kGe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kGe),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kGt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kGt),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kEq),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kEq),
             SearchValidationResult::kNoData);
 
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kLe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kLe),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kLt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kLt),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kNe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kNe),
             SearchValidationResult::kAllData);
 
   SqlValue min_val = SqlValue::Long(
       static_cast<int64_t>(std::numeric_limits<uint32_t>::min()) - 1);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kGe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kGe),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kGt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kGt),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kNe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kNe),
             SearchValidationResult::kAllData);
 
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kLe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kLe),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kLt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kLt),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kEq),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kEq),
             SearchValidationResult::kNoData);
 }
 
@@ -116,38 +115,38 @@ TEST(NumericStorage, InvalidValueBoundsInt32) {
   std::vector<int32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
 
   SqlValue max_val = SqlValue::Long(
       static_cast<int64_t>(std::numeric_limits<int32_t>::max()) + 10);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kGe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kGe),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kGt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kGt),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kEq),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kEq),
             SearchValidationResult::kNoData);
 
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kLe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kLe),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kLt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kLt),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(max_val, FilterOp::kNe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kNe),
             SearchValidationResult::kAllData);
 
   SqlValue min_val = SqlValue::Long(
       static_cast<int64_t>(std::numeric_limits<int32_t>::min()) - 1);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kGe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kGe),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kGt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kGt),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kNe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kNe),
             SearchValidationResult::kAllData);
 
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kLe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kLe),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kLt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kLt),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(queryable->ValidateSearchConstraints(min_val, FilterOp::kEq),
+  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kEq),
             SearchValidationResult::kNoData);
 }
 
@@ -156,9 +155,9 @@ TEST(NumericStorage, StableSortTrivial) {
   std::vector<uint32_t> out = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   RowMap rm(0, 9);
-  queryable->StableSort(out.data(), 9);
+  chain->StableSort(out.data(), 9);
 
   std::vector<uint32_t> stable_out{0, 3, 6, 1, 4, 7, 2, 5, 8};
   ASSERT_EQ(out, stable_out);
@@ -169,9 +168,9 @@ TEST(NumericStorage, StableSort) {
   std::vector<uint32_t> out = {1, 7, 4, 0, 6, 3, 2, 5, 8};
 
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   RowMap rm(0, 9);
-  queryable->StableSort(out.data(), 9);
+  chain->StableSort(out.data(), 9);
 
   std::vector<uint32_t> stable_out{0, 6, 3, 1, 7, 4, 2, 5, 8};
   ASSERT_EQ(out, stable_out);
@@ -180,110 +179,110 @@ TEST(NumericStorage, StableSort) {
 TEST(NumericStorage, Search) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Long(4);
 
-  auto res = queryable->Search(FilterOp::kEq, val, test_range);
+  auto res = chain->Search(FilterOp::kEq, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3));
 
-  res = queryable->Search(FilterOp::kNe, val, test_range);
+  res = chain->Search(FilterOp::kNe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 4));
 
-  res = queryable->Search(FilterOp::kLt, val, test_range);
+  res = chain->Search(FilterOp::kLt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4));
 
-  res = queryable->Search(FilterOp::kLe, val, test_range);
+  res = chain->Search(FilterOp::kLe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 3, 4));
 
-  res = queryable->Search(FilterOp::kGt, val, test_range);
+  res = chain->Search(FilterOp::kGt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 
-  res = queryable->Search(FilterOp::kGe, val, test_range);
+  res = chain->Search(FilterOp::kGe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3));
 }
 
 TEST(NumericStorage, SearchCompareWithNegative) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Long(-3);
 
-  auto res = queryable->Search(FilterOp::kEq, val, test_range);
+  auto res = chain->Search(FilterOp::kEq, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(4));
 
-  res = queryable->Search(FilterOp::kNe, val, test_range);
+  res = chain->Search(FilterOp::kNe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3));
 
-  res = queryable->Search(FilterOp::kLt, val, test_range);
+  res = chain->Search(FilterOp::kLt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2));
 
-  res = queryable->Search(FilterOp::kLe, val, test_range);
+  res = chain->Search(FilterOp::kLe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4));
 
-  res = queryable->Search(FilterOp::kGt, val, test_range);
+  res = chain->Search(FilterOp::kGt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3));
 
-  res = queryable->Search(FilterOp::kGe, val, test_range);
+  res = chain->Search(FilterOp::kGe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3, 4));
 }
 
 TEST(NumericStorage, IndexSearch) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
 
   // -5, -3, -3, 3, 5, 0
   std::vector<uint32_t> indices_vec{0, 4, 4, 5, 1, 6};
   Indices indices{indices_vec.data(), 6, Indices::State::kMonotonic};
   SqlValue val = SqlValue::Long(3);
 
-  auto res = queryable->IndexSearch(FilterOp::kEq, val, indices);
+  auto res = chain->IndexSearch(FilterOp::kEq, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3));
 
-  res = queryable->IndexSearch(FilterOp::kNe, val, indices);
+  res = chain->IndexSearch(FilterOp::kNe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 4, 5));
 
-  res = queryable->IndexSearch(FilterOp::kLt, val, indices);
+  res = chain->IndexSearch(FilterOp::kLt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 5));
 
-  res = queryable->IndexSearch(FilterOp::kLe, val, indices);
+  res = chain->IndexSearch(FilterOp::kLe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 5));
 
-  res = queryable->IndexSearch(FilterOp::kGt, val, indices);
+  res = chain->IndexSearch(FilterOp::kGt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(4));
 
-  res = queryable->IndexSearch(FilterOp::kGe, val, indices);
+  res = chain->IndexSearch(FilterOp::kGe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
 TEST(NumericStorage, IndexSearchCompareWithNegative) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
 
   // -5, -3, -3, 3, 5, 0
   std::vector<uint32_t> indices_vec{0, 4, 4, 5, 1, 6};
   Indices indices{indices_vec.data(), 6, Indices::State::kMonotonic};
   SqlValue val = SqlValue::Long(-3);
 
-  auto res = queryable->IndexSearch(FilterOp::kEq, val, indices);
+  auto res = chain->IndexSearch(FilterOp::kEq, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2));
 
-  res = queryable->IndexSearch(FilterOp::kNe, val, indices);
+  res = chain->IndexSearch(FilterOp::kNe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 3, 4, 5));
 
-  res = queryable->IndexSearch(FilterOp::kLt, val, indices);
+  res = chain->IndexSearch(FilterOp::kLt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
 
-  res = queryable->IndexSearch(FilterOp::kLe, val, indices);
+  res = chain->IndexSearch(FilterOp::kLe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
 
-  res = queryable->IndexSearch(FilterOp::kGt, val, indices);
+  res = chain->IndexSearch(FilterOp::kGt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 5));
 
-  res = queryable->IndexSearch(FilterOp::kGe, val, indices);
+  res = chain->IndexSearch(FilterOp::kGe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4, 5));
 }
 
@@ -291,9 +290,9 @@ TEST(NumericStorage, SearchFast) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   RangeOrBitVector range_or_bv =
-      queryable->Search(FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
+      chain->Search(FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
   BitVector bv = std::move(range_or_bv).TakeIfBitVector();
   ASSERT_TRUE(range_or_bv.IsBitVector());
   ASSERT_EQ(bv.CountSetBits(), 28u);
@@ -304,10 +303,9 @@ TEST(NumericStorage, SearchSorted) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, true);
-  auto queryable = storage.MakeQueryable();
-  Range range =
-      queryable->Search(FilterOp::kGe, SqlValue::Long(100), Range(0, 128))
-          .TakeIfRange();
+  auto chain = storage.MakeChain();
+  Range range = chain->Search(FilterOp::kGe, SqlValue::Long(100), Range(0, 128))
+                    .TakeIfRange();
   ASSERT_EQ(range.size(), 28u);
   ASSERT_EQ(range.start, 100u);
   ASSERT_EQ(range.end, 128u);
@@ -317,9 +315,9 @@ TEST(NumericStorage, SearchSortedNe) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, true);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   BitVector bv =
-      queryable->Search(FilterOp::kNe, SqlValue::Long(100), Range(0, 128))
+      chain->Search(FilterOp::kNe, SqlValue::Long(100), Range(0, 128))
           .TakeIfBitVector();
   ASSERT_EQ(bv.CountSetBits(), 127u);
 }
@@ -328,9 +326,9 @@ TEST(NumericStorage, SearchSortedSubset) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, true);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   Range range =
-      queryable->Search(FilterOp::kGe, SqlValue::Long(100), Range(102, 104))
+      chain->Search(FilterOp::kGe, SqlValue::Long(100), Range(102, 104))
           .TakeIfRange();
   ASSERT_EQ(range.size(), 2u);
   ASSERT_EQ(range.start, 102u);
@@ -344,34 +342,34 @@ TEST(NumericStorage, OrderedIndexSearch) {
                        Indices::State::kNonmonotonic};
 
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
 
-  Range range = queryable->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(60),
-                                              sorted_order);
+  Range range = chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(60),
+                                          sorted_order);
   ASSERT_EQ(range.size(), 1u);
   ASSERT_EQ(range.start, 6u);
   ASSERT_EQ(range.end, 7u);
 
-  range = queryable->OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(60),
-                                        sorted_order);
+  range = chain->OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(60),
+                                    sorted_order);
   ASSERT_EQ(range.size(), 3u);
   ASSERT_EQ(range.start, 7u);
   ASSERT_EQ(range.end, 10u);
 
-  range = queryable->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(60),
-                                        sorted_order);
+  range = chain->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(60),
+                                    sorted_order);
   ASSERT_EQ(range.size(), 4u);
   ASSERT_EQ(range.start, 6u);
   ASSERT_EQ(range.end, 10u);
 
-  range = queryable->OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(60),
-                                        sorted_order);
+  range = chain->OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(60),
+                                    sorted_order);
   ASSERT_EQ(range.size(), 6u);
   ASSERT_EQ(range.start, 0u);
   ASSERT_EQ(range.end, 6u);
 
-  range = queryable->OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(60),
-                                        sorted_order);
+  range = chain->OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(60),
+                                    sorted_order);
   ASSERT_EQ(range.size(), 7u);
   ASSERT_EQ(range.start, 0u);
   ASSERT_EQ(range.end, 7u);
@@ -380,219 +378,219 @@ TEST(NumericStorage, OrderedIndexSearch) {
 TEST(NumericStorage, SearchWithIntAsDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(4);
 
-  auto res = queryable->Search(FilterOp::kEq, val, test_range);
+  auto res = chain->Search(FilterOp::kEq, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3));
 
-  res = queryable->Search(FilterOp::kNe, val, test_range);
+  res = chain->Search(FilterOp::kNe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 4));
 
-  res = queryable->Search(FilterOp::kLt, val, test_range);
+  res = chain->Search(FilterOp::kLt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4));
 
-  res = queryable->Search(FilterOp::kLe, val, test_range);
+  res = chain->Search(FilterOp::kLe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 3, 4));
 
-  res = queryable->Search(FilterOp::kGt, val, test_range);
+  res = chain->Search(FilterOp::kGt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 
-  res = queryable->Search(FilterOp::kGe, val, test_range);
+  res = chain->Search(FilterOp::kGe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3));
 }
 
 TEST(NumericStorage, IndexSearchWithIntAsDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
 
   // -5, -3, -3, 3, 5, 0
   std::vector<uint32_t> indices_vec{0, 4, 4, 5, 1, 6};
   Indices indices{indices_vec.data(), 6, Indices::State::kMonotonic};
   SqlValue val = SqlValue::Double(3);
 
-  auto res = queryable->IndexSearch(FilterOp::kEq, val, indices);
+  auto res = chain->IndexSearch(FilterOp::kEq, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3));
 
-  res = queryable->IndexSearch(FilterOp::kNe, val, indices);
+  res = chain->IndexSearch(FilterOp::kNe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 4, 5));
 
-  res = queryable->IndexSearch(FilterOp::kLt, val, indices);
+  res = chain->IndexSearch(FilterOp::kLt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 5));
 
-  res = queryable->IndexSearch(FilterOp::kLe, val, indices);
+  res = chain->IndexSearch(FilterOp::kLe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 5));
 
-  res = queryable->IndexSearch(FilterOp::kGt, val, indices);
+  res = chain->IndexSearch(FilterOp::kGt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(4));
 
-  res = queryable->IndexSearch(FilterOp::kGe, val, indices);
+  res = chain->IndexSearch(FilterOp::kGe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
 TEST(NumericStorage, SearchInt32WithDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(3.5);
 
-  auto res = queryable->Search(FilterOp::kEq, val, test_range);
+  auto res = chain->Search(FilterOp::kEq, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->Search(FilterOp::kNe, val, test_range);
+  res = chain->Search(FilterOp::kNe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4));
 
-  res = queryable->Search(FilterOp::kLt, val, test_range);
+  res = chain->Search(FilterOp::kLt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4));
 
-  res = queryable->Search(FilterOp::kLe, val, test_range);
+  res = chain->Search(FilterOp::kLe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4));
 
-  res = queryable->Search(FilterOp::kGt, val, test_range);
+  res = chain->Search(FilterOp::kGt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3));
 
-  res = queryable->Search(FilterOp::kGe, val, test_range);
+  res = chain->Search(FilterOp::kGe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3));
 }
 
 TEST(NumericStorage, SearchInt32WithNegDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(-3.5);
 
-  auto res = queryable->Search(FilterOp::kEq, val, test_range);
+  auto res = chain->Search(FilterOp::kEq, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->Search(FilterOp::kNe, val, test_range);
+  res = chain->Search(FilterOp::kNe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4));
 
-  res = queryable->Search(FilterOp::kLt, val, test_range);
+  res = chain->Search(FilterOp::kLt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2));
 
-  res = queryable->Search(FilterOp::kLe, val, test_range);
+  res = chain->Search(FilterOp::kLe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2));
 
-  res = queryable->Search(FilterOp::kGt, val, test_range);
+  res = chain->Search(FilterOp::kGt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3, 4));
 
-  res = queryable->Search(FilterOp::kGe, val, test_range);
+  res = chain->Search(FilterOp::kGe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3, 4));
 }
 
 TEST(NumericStorage, IndexSearchInt32WithDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
 
   // -5, -3, -3, 3, 5, 0
   std::vector<uint32_t> indices_vec{0, 4, 4, 5, 1, 6};
   Indices indices{indices_vec.data(), 6, Indices::State::kMonotonic};
   SqlValue val = SqlValue::Double(1.5);
 
-  auto res = queryable->IndexSearch(FilterOp::kEq, val, indices);
+  auto res = chain->IndexSearch(FilterOp::kEq, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->IndexSearch(FilterOp::kNe, val, indices);
+  res = chain->IndexSearch(FilterOp::kNe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 4, 5));
 
-  res = queryable->IndexSearch(FilterOp::kLt, val, indices);
+  res = chain->IndexSearch(FilterOp::kLt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 5));
 
-  res = queryable->IndexSearch(FilterOp::kLe, val, indices);
+  res = chain->IndexSearch(FilterOp::kLe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 5));
 
-  res = queryable->IndexSearch(FilterOp::kGt, val, indices);
+  res = chain->IndexSearch(FilterOp::kGt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 
-  res = queryable->IndexSearch(FilterOp::kGe, val, indices);
+  res = chain->IndexSearch(FilterOp::kGe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
 TEST(NumericStorage, IndexSearchInt32WithNegDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
 
   // -5, -3, -3, 3, 5, 0
   std::vector<uint32_t> indices_vec{0, 4, 4, 5, 1, 6};
   Indices indices{indices_vec.data(), 6, Indices::State::kMonotonic};
   SqlValue val = SqlValue::Double(-2.5);
 
-  auto res = queryable->IndexSearch(FilterOp::kEq, val, indices);
+  auto res = chain->IndexSearch(FilterOp::kEq, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->IndexSearch(FilterOp::kNe, val, indices);
+  res = chain->IndexSearch(FilterOp::kNe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 4, 5));
 
-  res = queryable->IndexSearch(FilterOp::kLt, val, indices);
+  res = chain->IndexSearch(FilterOp::kLt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
 
-  res = queryable->IndexSearch(FilterOp::kLe, val, indices);
+  res = chain->IndexSearch(FilterOp::kLe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
 
-  res = queryable->IndexSearch(FilterOp::kGt, val, indices);
+  res = chain->IndexSearch(FilterOp::kGt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 5));
 
-  res = queryable->IndexSearch(FilterOp::kGe, val, indices);
+  res = chain->IndexSearch(FilterOp::kGe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 5));
 }
 
 TEST(NumericStorage, SearchUint32WithNegDouble) {
   std::vector<uint32_t> data_vec{0, 1, 2, 3, 4, 5};
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(-3.5);
 
-  auto res = queryable->Search(FilterOp::kEq, val, test_range);
+  auto res = chain->Search(FilterOp::kEq, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->Search(FilterOp::kNe, val, test_range);
+  res = chain->Search(FilterOp::kNe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4));
 
-  res = queryable->Search(FilterOp::kLt, val, test_range);
+  res = chain->Search(FilterOp::kLt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->Search(FilterOp::kLe, val, test_range);
+  res = chain->Search(FilterOp::kLe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->Search(FilterOp::kGt, val, test_range);
+  res = chain->Search(FilterOp::kGt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4));
 
-  res = queryable->Search(FilterOp::kGe, val, test_range);
+  res = chain->Search(FilterOp::kGe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4));
 }
 
 TEST(NumericStorage, IndexSearchUint32WithNegDouble) {
   std::vector<uint32_t> data_vec{0, 1, 2, 3, 4, 5, 6};
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kInt32);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
 
   std::vector<uint32_t> indices_vec{0, 4, 4, 5, 1, 6};
   Indices indices{indices_vec.data(), 6, Indices::State::kMonotonic};
   SqlValue val = SqlValue::Double(-2.5);
 
-  auto res = queryable->IndexSearch(FilterOp::kEq, val, indices);
+  auto res = chain->IndexSearch(FilterOp::kEq, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->IndexSearch(FilterOp::kNe, val, indices);
+  res = chain->IndexSearch(FilterOp::kNe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 4, 5));
 
-  res = queryable->IndexSearch(FilterOp::kLt, val, indices);
+  res = chain->IndexSearch(FilterOp::kLt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->IndexSearch(FilterOp::kLe, val, indices);
+  res = chain->IndexSearch(FilterOp::kLe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->IndexSearch(FilterOp::kGt, val, indices);
+  res = chain->IndexSearch(FilterOp::kGt, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 4, 5));
 
-  res = queryable->IndexSearch(FilterOp::kGe, val, indices);
+  res = chain->IndexSearch(FilterOp::kGe, val, indices);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 4, 5));
 }
 
@@ -610,25 +608,25 @@ TEST(NumericStorage, DoubleColumnWithIntThatCantBeRepresentedAsDouble) {
   ASSERT_TRUE(compare::LongToDouble(not_rep_i, data_vec[1]) < 0);
 
   NumericStorage<double> storage(&data_vec, ColumnType::kDouble);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   Range test_range(0, 2);
 
-  auto res = queryable->Search(FilterOp::kEq, val, test_range);
+  auto res = chain->Search(FilterOp::kEq, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->Search(FilterOp::kNe, val, test_range);
+  res = chain->Search(FilterOp::kNe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1));
 
-  res = queryable->Search(FilterOp::kLt, val, test_range);
+  res = chain->Search(FilterOp::kLt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
 
-  res = queryable->Search(FilterOp::kLe, val, test_range);
+  res = chain->Search(FilterOp::kLe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
 
-  res = queryable->Search(FilterOp::kGt, val, test_range);
+  res = chain->Search(FilterOp::kGt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 
-  res = queryable->Search(FilterOp::kGe, val, test_range);
+  res = chain->Search(FilterOp::kGe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 }
 
@@ -646,25 +644,25 @@ TEST(NumericStorage, DoubleColumnWithNegIntThatCantBeRepresentedAsDouble) {
   ASSERT_TRUE(compare::LongToDouble(not_rep_i, data_vec[1]) > 0);
 
   NumericStorage<double> storage(&data_vec, ColumnType::kDouble);
-  auto queryable = storage.MakeQueryable();
+  auto chain = storage.MakeChain();
   Range test_range(0, 2);
 
-  auto res = queryable->Search(FilterOp::kEq, val, test_range);
+  auto res = chain->Search(FilterOp::kEq, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
-  res = queryable->Search(FilterOp::kNe, val, test_range);
+  res = chain->Search(FilterOp::kNe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1));
 
-  res = queryable->Search(FilterOp::kLt, val, test_range);
+  res = chain->Search(FilterOp::kLt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 
-  res = queryable->Search(FilterOp::kLe, val, test_range);
+  res = chain->Search(FilterOp::kLe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 
-  res = queryable->Search(FilterOp::kGt, val, test_range);
+  res = chain->Search(FilterOp::kGt, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
 
-  res = queryable->Search(FilterOp::kGe, val, test_range);
+  res = chain->Search(FilterOp::kGe, val, test_range);
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
 }
 

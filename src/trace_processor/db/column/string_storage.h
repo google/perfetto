@@ -24,24 +24,24 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Storage for String columns.
-class StringStorage final : public DataNode {
+class StringStorage final : public DataLayer {
  public:
   StringStorage(StringPool* string_pool,
                 const std::vector<StringPool::Id>* data,
                 bool is_sorted = false);
 
-  std::unique_ptr<DataNode::Queryable> MakeQueryable() override;
+  std::unique_ptr<DataLayerChain> MakeChain() override;
 
  private:
-  class Queryable : public DataNode::Queryable {
+  class ChainImpl : public DataLayerChain {
    public:
-    Queryable(StringPool* string_pool,
+    ChainImpl(StringPool* string_pool,
               const std::vector<StringPool::Id>* data,
               bool is_sorted);
 

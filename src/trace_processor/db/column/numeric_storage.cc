@@ -27,14 +27,14 @@
 #include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/iterator.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -294,17 +294,17 @@ NumericStorageBase::NumericStorageBase(const void* data,
                                        bool is_sorted)
     : size_(size), data_(data), storage_type_(type), is_sorted_(is_sorted) {}
 
-std::unique_ptr<DataNode::Queryable> NumericStorageBase::MakeQueryable() {
-  return std::make_unique<Queryable>(data_, size_, storage_type_, is_sorted_);
+std::unique_ptr<DataLayerChain> NumericStorageBase::MakeChain() {
+  return std::make_unique<ChainImpl>(data_, size_, storage_type_, is_sorted_);
 }
 
-NumericStorageBase::Queryable::Queryable(const void* data,
+NumericStorageBase::ChainImpl::ChainImpl(const void* data,
                                          uint32_t size,
                                          ColumnType type,
                                          bool is_sorted)
     : size_(size), data_(data), storage_type_(type), is_sorted_(is_sorted) {}
 
-SearchValidationResult NumericStorageBase::Queryable::ValidateSearchConstraints(
+SearchValidationResult NumericStorageBase::ChainImpl::ValidateSearchConstraints(
     SqlValue val,
     FilterOp op) const {
   // NULL checks.
@@ -413,14 +413,14 @@ SearchValidationResult NumericStorageBase::Queryable::ValidateSearchConstraints(
   PERFETTO_FATAL("For GCC");
 }
 
-RangeOrBitVector NumericStorageBase::Queryable::Search(
+RangeOrBitVector NumericStorageBase::ChainImpl::Search(
     FilterOp op,
     SqlValue sql_val,
     Range search_range) const {
   PERFETTO_DCHECK(search_range.end <= size_);
 
   PERFETTO_TP_TRACE(
-      metatrace::Category::DB, "NumericStorage::Queryable::Search",
+      metatrace::Category::DB, "NumericStorage::ChainImpl::Search",
       [&search_range, op](metatrace::Record* r) {
         r->AddArg("Start", std::to_string(search_range.start));
         r->AddArg("End", std::to_string(search_range.end));
@@ -464,7 +464,7 @@ RangeOrBitVector NumericStorageBase::Queryable::Search(
   return RangeOrBitVector(LinearSearchInternal(op, val, search_range));
 }
 
-RangeOrBitVector NumericStorageBase::Queryable::IndexSearch(
+RangeOrBitVector NumericStorageBase::ChainImpl::IndexSearch(
     FilterOp op,
     SqlValue sql_val,
     Indices indices) const {
@@ -472,7 +472,7 @@ RangeOrBitVector NumericStorageBase::Queryable::IndexSearch(
                   size_);
 
   PERFETTO_TP_TRACE(
-      metatrace::Category::DB, "NumericStorage::Queryable::IndexSearch",
+      metatrace::Category::DB, "NumericStorage::ChainImpl::IndexSearch",
       [indices, op](metatrace::Record* r) {
         r->AddArg("Count", std::to_string(indices.size));
         r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
@@ -503,14 +503,14 @@ RangeOrBitVector NumericStorageBase::Queryable::IndexSearch(
       IndexSearchInternal(op, val, indices.data, indices.size));
 }
 
-Range NumericStorageBase::Queryable::OrderedIndexSearch(FilterOp op,
+Range NumericStorageBase::ChainImpl::OrderedIndexSearch(FilterOp op,
                                                         SqlValue sql_val,
                                                         Indices indices) const {
   PERFETTO_DCHECK(*std::max_element(indices.data, indices.data + indices.size) <
                   size_);
 
   PERFETTO_TP_TRACE(
-      metatrace::Category::DB, "NumericStorage::Queryable::OrderedIndexSearch",
+      metatrace::Category::DB, "NumericStorage::ChainImpl::OrderedIndexSearch",
       [indices, op](metatrace::Record* r) {
         r->AddArg("Count", std::to_string(indices.size));
         r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
@@ -578,7 +578,7 @@ Range NumericStorageBase::Queryable::OrderedIndexSearch(FilterOp op,
   PERFETTO_FATAL("For GCC");
 }
 
-BitVector NumericStorageBase::Queryable::LinearSearchInternal(
+BitVector NumericStorageBase::ChainImpl::LinearSearchInternal(
     FilterOp op,
     NumericValue val,
     Range range) const {
@@ -601,7 +601,7 @@ BitVector NumericStorageBase::Queryable::LinearSearchInternal(
   return std::move(builder).Build();
 }
 
-BitVector NumericStorageBase::Queryable::IndexSearchInternal(
+BitVector NumericStorageBase::ChainImpl::IndexSearchInternal(
     FilterOp op,
     NumericValue val,
     const uint32_t* indices,
@@ -622,7 +622,7 @@ BitVector NumericStorageBase::Queryable::IndexSearchInternal(
   return std::move(builder).Build();
 }
 
-Range NumericStorageBase::Queryable::BinarySearchIntrinsic(
+Range NumericStorageBase::ChainImpl::BinarySearchIntrinsic(
     FilterOp op,
     NumericValue val,
     Range search_range) const {
@@ -651,7 +651,7 @@ Range NumericStorageBase::Queryable::BinarySearchIntrinsic(
   return {};
 }
 
-void NumericStorageBase::Queryable::StableSort(uint32_t* rows,
+void NumericStorageBase::ChainImpl::StableSort(uint32_t* rows,
                                                uint32_t rows_size) const {
   std::visit(
       [this, &rows, rows_size](auto val_data) {
@@ -667,12 +667,12 @@ void NumericStorageBase::Queryable::StableSort(uint32_t* rows,
       GetNumericTypeVariant(storage_type_, SqlValue::Long(0)));
 }
 
-void NumericStorageBase::Queryable::Sort(uint32_t*, uint32_t) const {
+void NumericStorageBase::ChainImpl::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_ELOG("Not implemented");
 }
 
-void NumericStorageBase::Queryable::Serialize(StorageProto* msg) const {
+void NumericStorageBase::ChainImpl::Serialize(StorageProto* msg) const {
   auto* numeric_storage_msg = msg->set_numeric_storage();
   numeric_storage_msg->set_is_sorted(is_sorted_);
   numeric_storage_msg->set_column_type(static_cast<uint32_t>(storage_type_));

@@ -44,7 +44,7 @@ TEST(StringStorage, Search) {
   }
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
   StringStorage storage(&pool, &ids);
-  auto queriable = storage.MakeQueryable();
+  auto queriable = storage.MakeChain();
   SqlValue val = SqlValue::String("pierogi");
   Range filter_range(0, 7);
 
@@ -95,7 +95,7 @@ TEST(StringStorage, IndexSearch) {
   }
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
   StringStorage storage(&pool, &ids);
-  auto queriable = storage.MakeQueryable();
+  auto queriable = storage.MakeChain();
   SqlValue val = SqlValue::String("pierogi");
   // "fries", "onion", "pierogi", NULL, "pizza", "pasta", "cheese"
   std::vector<uint32_t> indices_vec{6, 5, 4, 3, 2, 1, 0};
@@ -150,7 +150,7 @@ TEST(StringStorage, LinearSearchRegex) {
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
 
   StringStorage storage(&pool, &ids);
-  auto queriable = storage.MakeQueryable();
+  auto queriable = storage.MakeChain();
   BitVector bv =
       queriable
           ->Search(FilterOp::kRegex, SqlValue::String(".*zz.*"), Range(0, 7))
@@ -170,7 +170,7 @@ TEST(StringStorage, LinearSearchRegexMalformed) {
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
 
   StringStorage storage(&pool, &ids);
-  auto queriable = storage.MakeQueryable();
+  auto queriable = storage.MakeChain();
   BitVector bv =
       queriable->Search(FilterOp::kRegex, SqlValue::String("*"), Range(0, 7))
           .TakeIfBitVector();
@@ -188,7 +188,7 @@ TEST(StringStorage, SearchSorted) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
   StringStorage storage(&pool, &ids, true);
-  auto queriable = storage.MakeQueryable();
+  auto queriable = storage.MakeChain();
   SqlValue val = SqlValue::String("cheese");
   Range filter_range(0, 6);
 
@@ -230,7 +230,7 @@ TEST(StringStorage, IndexSearchSorted) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
   StringStorage storage(&pool, &ids, true);
-  auto queriable = storage.MakeQueryable();
+  auto queriable = storage.MakeChain();
   SqlValue val = SqlValue::String("cheese");
   // fries, eggplant, cheese, burger
   std::vector<uint32_t> indices_vec{5, 4, 2, 1};
@@ -274,7 +274,7 @@ TEST(StringStorage, OrderedIndexSearch) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
   StringStorage storage(&pool, &ids);
-  auto queriable = storage.MakeQueryable();
+  auto queriable = storage.MakeChain();
   SqlValue val = SqlValue::String("pierogi");
   // cheese, fries, onion, pasta, pierogi, pizza
   std::vector<uint32_t> indices_vec{0, 5, 4, 1, 3, 2};
@@ -315,7 +315,7 @@ TEST(StringStorage, OrderedIndexSearchIsNull) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
   StringStorage storage(&pool, &ids);
-  auto queriable = storage.MakeQueryable();
+  auto queriable = storage.MakeChain();
 
   std::vector<uint32_t> indices_vec{0, 2, 5, 7};
   Indices indices{indices_vec.data(), 4, Indices::State::kNonmonotonic};
@@ -334,7 +334,7 @@ TEST(StringStorage, OrderedIndexSearchIsNotNull) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
   StringStorage storage(&pool, &ids);
-  auto queriable = storage.MakeQueryable();
+  auto queriable = storage.MakeChain();
 
   std::vector<uint32_t> indices_vec{0, 2, 5, 7};
   Indices indices{indices_vec.data(), 4, Indices::State::kNonmonotonic};

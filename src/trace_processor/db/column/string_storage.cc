@@ -32,7 +32,7 @@
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -201,16 +201,16 @@ StringStorage::StringStorage(StringPool* string_pool,
                              bool is_sorted)
     : data_(data), string_pool_(string_pool), is_sorted_(is_sorted) {}
 
-std::unique_ptr<DataNode::Queryable> StringStorage::MakeQueryable() {
-  return std::make_unique<Queryable>(string_pool_, data_, is_sorted_);
+std::unique_ptr<DataLayerChain> StringStorage::MakeChain() {
+  return std::make_unique<ChainImpl>(string_pool_, data_, is_sorted_);
 }
 
-StringStorage::Queryable::Queryable(StringPool* string_pool,
+StringStorage::ChainImpl::ChainImpl(StringPool* string_pool,
                                     const std::vector<StringPool::Id>* data,
                                     bool is_sorted)
     : data_(data), string_pool_(string_pool), is_sorted_(is_sorted) {}
 
-SearchValidationResult StringStorage::Queryable::ValidateSearchConstraints(
+SearchValidationResult StringStorage::ChainImpl::ValidateSearchConstraints(
     SqlValue val,
     FilterOp op) const {
   // Type checks.
@@ -232,10 +232,10 @@ SearchValidationResult StringStorage::Queryable::ValidateSearchConstraints(
   return SearchValidationResult::kOk;
 }
 
-RangeOrBitVector StringStorage::Queryable::Search(FilterOp op,
+RangeOrBitVector StringStorage::ChainImpl::Search(FilterOp op,
                                                   SqlValue sql_val,
                                                   Range search_range) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::Queryable::Search",
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::ChainImpl::Search",
                     [&search_range, op](metatrace::Record* r) {
                       r->AddArg("Start", std::to_string(search_range.start));
                       r->AddArg("End", std::to_string(search_range.end));
@@ -274,12 +274,12 @@ RangeOrBitVector StringStorage::Queryable::Search(FilterOp op,
   return RangeOrBitVector(LinearSearch(op, sql_val, search_range));
 }
 
-RangeOrBitVector StringStorage::Queryable::IndexSearch(FilterOp op,
+RangeOrBitVector StringStorage::ChainImpl::IndexSearch(FilterOp op,
                                                        SqlValue sql_val,
                                                        Indices indices) const {
   PERFETTO_DCHECK(indices.size <= size());
   PERFETTO_TP_TRACE(
-      metatrace::Category::DB, "StringStorage::Queryable::IndexSearch",
+      metatrace::Category::DB, "StringStorage::ChainImpl::IndexSearch",
       [indices, op](metatrace::Record* r) {
         r->AddArg("Count", std::to_string(indices.size));
         r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
@@ -288,7 +288,7 @@ RangeOrBitVector StringStorage::Queryable::IndexSearch(FilterOp op,
       IndexSearchInternal(op, sql_val, indices.data, indices.size));
 }
 
-BitVector StringStorage::Queryable::LinearSearch(FilterOp op,
+BitVector StringStorage::ChainImpl::LinearSearch(FilterOp op,
                                                  SqlValue sql_val,
                                                  Range range) const {
   StringPool::Id val =
@@ -377,7 +377,7 @@ BitVector StringStorage::Queryable::LinearSearch(FilterOp op,
   return std::move(builder).Build();
 }
 
-Range StringStorage::Queryable::OrderedIndexSearch(FilterOp op,
+Range StringStorage::ChainImpl::OrderedIndexSearch(FilterOp op,
                                                    SqlValue sql_val,
                                                    Indices indices) const {
   StringPool::Id val =
@@ -436,7 +436,7 @@ Range StringStorage::Queryable::OrderedIndexSearch(FilterOp op,
   PERFETTO_FATAL("For GCC");
 }
 
-RangeOrBitVector StringStorage::Queryable::IndexSearchInternal(
+RangeOrBitVector StringStorage::ChainImpl::IndexSearchInternal(
     FilterOp op,
     SqlValue sql_val,
     const uint32_t* indices,
@@ -505,7 +505,7 @@ RangeOrBitVector StringStorage::Queryable::IndexSearchInternal(
   return RangeOrBitVector(std::move(builder).Build());
 }
 
-Range StringStorage::Queryable::BinarySearchIntrinsic(
+Range StringStorage::ChainImpl::BinarySearchIntrinsic(
     FilterOp op,
     SqlValue sql_val,
     Range search_range) const {
@@ -547,7 +547,7 @@ Range StringStorage::Queryable::BinarySearchIntrinsic(
   PERFETTO_FATAL("For gcc");
 }
 
-void StringStorage::Queryable::StableSort(uint32_t* indices,
+void StringStorage::ChainImpl::StableSort(uint32_t* indices,
                                           uint32_t indices_size) const {
   std::stable_sort(indices, indices + indices_size,
                    [this](uint32_t a_idx, uint32_t b_idx) {
@@ -556,7 +556,7 @@ void StringStorage::Queryable::StableSort(uint32_t* indices,
                    });
 }
 
-void StringStorage::Queryable::Sort(uint32_t* indices,
+void StringStorage::ChainImpl::Sort(uint32_t* indices,
                                     uint32_t indices_size) const {
   std::sort(indices, indices + indices_size,
             [this](uint32_t a_idx, uint32_t b_idx) {
@@ -565,7 +565,7 @@ void StringStorage::Queryable::Sort(uint32_t* indices,
             });
 }
 
-void StringStorage::Queryable::Serialize(StorageProto* msg) const {
+void StringStorage::ChainImpl::Serialize(StorageProto* msg) const {
   auto* string_storage_msg = msg->set_string_storage();
   string_storage_msg->set_is_sorted(is_sorted_);
 

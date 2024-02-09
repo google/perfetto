@@ -29,7 +29,7 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/data_node.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -80,7 +80,7 @@ RangeOrBitVector IndexSearchWithComparator(uint32_t val,
 
 }  // namespace
 
-SearchValidationResult IdStorage::Queryable::ValidateSearchConstraints(
+SearchValidationResult IdStorage::ChainImpl::ValidateSearchConstraints(
     SqlValue val,
     FilterOp op) const {
   // NULL checks.
@@ -154,16 +154,16 @@ SearchValidationResult IdStorage::Queryable::ValidateSearchConstraints(
 
 IdStorage::IdStorage(uint32_t size) : size_(size) {}
 
-std::unique_ptr<DataNode::Queryable> IdStorage::MakeQueryable() {
-  return std::make_unique<Queryable>(size_);
+std::unique_ptr<DataLayerChain> IdStorage::MakeChain() {
+  return std::make_unique<ChainImpl>(size_);
 }
 
-IdStorage::Queryable::Queryable(uint32_t size) : size_(size) {}
+IdStorage::ChainImpl::ChainImpl(uint32_t size) : size_(size) {}
 
-RangeOrBitVector IdStorage::Queryable::Search(FilterOp op,
+RangeOrBitVector IdStorage::ChainImpl::Search(FilterOp op,
                                               SqlValue sql_val,
                                               Range search_range) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "IdStorage::Queryable::Search",
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "IdStorage::ChainImpl::Search",
                     [&search_range, op](metatrace::Record* r) {
                       r->AddArg("Start", std::to_string(search_range.start));
                       r->AddArg("End", std::to_string(search_range.end));
@@ -197,11 +197,11 @@ RangeOrBitVector IdStorage::Queryable::Search(FilterOp op,
   return RangeOrBitVector(BinarySearchIntrinsic(op, val, search_range));
 }
 
-RangeOrBitVector IdStorage::Queryable::IndexSearch(FilterOp op,
+RangeOrBitVector IdStorage::ChainImpl::IndexSearch(FilterOp op,
                                                    SqlValue sql_val,
                                                    Indices indices) const {
   PERFETTO_TP_TRACE(
-      metatrace::Category::DB, "IdStorage::Queryable::IndexSearch",
+      metatrace::Category::DB, "IdStorage::ChainImpl::IndexSearch",
       [indices, op](metatrace::Record* r) {
         r->AddArg("Count", std::to_string(indices.size));
         r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
@@ -249,13 +249,13 @@ RangeOrBitVector IdStorage::Queryable::IndexSearch(FilterOp op,
   PERFETTO_FATAL("FilterOp not matched");
 }
 
-Range IdStorage::Queryable::OrderedIndexSearch(FilterOp op,
+Range IdStorage::ChainImpl::OrderedIndexSearch(FilterOp op,
                                                SqlValue sql_val,
                                                Indices indices) const {
   PERFETTO_DCHECK(op != FilterOp::kNe);
 
   PERFETTO_TP_TRACE(
-      metatrace::Category::DB, "IdStorage::Queryable::OrderedIndexSearch",
+      metatrace::Category::DB, "IdStorage::ChainImpl::OrderedIndexSearch",
       [indices, op](metatrace::Record* r) {
         r->AddArg("Count", std::to_string(indices.size));
         r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
@@ -290,7 +290,7 @@ Range IdStorage::Queryable::OrderedIndexSearch(FilterOp op,
           static_cast<uint32_t>(std::distance(indices.data, end_ptr))};
 }
 
-Range IdStorage::Queryable::BinarySearchIntrinsic(FilterOp op,
+Range IdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
                                                   Id val,
                                                   Range range) {
   switch (op) {
@@ -314,18 +314,18 @@ Range IdStorage::Queryable::BinarySearchIntrinsic(FilterOp op,
   PERFETTO_FATAL("FilterOp not matched");
 }
 
-void IdStorage::Queryable::StableSort(uint32_t* indices,
+void IdStorage::ChainImpl::StableSort(uint32_t* indices,
                                       uint32_t indices_size) const {
   // We can use sort, as |indices| will not have duplicates.
   Sort(indices, indices_size);
 }
 
-void IdStorage::Queryable::Sort(uint32_t* indices,
+void IdStorage::ChainImpl::Sort(uint32_t* indices,
                                 uint32_t indices_size) const {
   std::sort(indices, indices + indices_size);
 }
 
-void IdStorage::Queryable::Serialize(StorageProto* storage) const {
+void IdStorage::ChainImpl::Serialize(StorageProto* storage) const {
   auto* id_storage = storage->set_id_storage();
   id_storage->set_size(size_);
 }
