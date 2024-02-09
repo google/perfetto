@@ -15,8 +15,8 @@
 --
 INCLUDE PERFETTO MODULE android.battery;
 INCLUDE PERFETTO MODULE android.battery_stats;
-INCLUDE PERFETTO MODULE android.suspend_resume;
-INCLUDE PERFETTO MODULE android.counter_span_view_merged;
+INCLUDE PERFETTO MODULE android.suspend;
+INCLUDE PERFETTO MODULE counters.intervals;
 
 DROP VIEW IF EXISTS battery_view;
 CREATE PERFETTO VIEW battery_view AS
@@ -55,11 +55,17 @@ GROUP BY group_id;
 -- TODO(simonmacm) remove this shim once no longer used internally
 DROP TABLE IF EXISTS suspend_slice_;
 CREATE PERFETTO TABLE suspend_slice_ AS
-SELECT ts, dur FROM android_suspend_resume where power_state = 'suspended';
+SELECT ts, dur FROM android_suspend_state where power_state = 'suspended';
 
 DROP TABLE IF EXISTS screen_state_span;
 CREATE PERFETTO TABLE screen_state_span AS
-SELECT * FROM android_counter_span_view_merged('ScreenState');
+WITH screen_state AS (
+  SELECT *
+  FROM counter
+  JOIN counter_track ON counter_track.id = counter.track_id
+  WHERE name = 'ScreenState'
+)
+SELECT * FROM counter_leading_intervals!(screen_state);
 
 DROP TABLE IF EXISTS screen_state_span_with_suspend;
 CREATE VIRTUAL TABLE screen_state_span_with_suspend
