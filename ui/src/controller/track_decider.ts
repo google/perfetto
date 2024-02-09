@@ -567,6 +567,7 @@ class TrackDecider {
       new RegExp('^Gpu .*$', 'i'),
       new RegExp('^Trace Triggers$'),
       new RegExp('^Android App Startups$'),
+      new RegExp('^Device State.*$'),
     ];
 
     let groupUuid = undefined;
