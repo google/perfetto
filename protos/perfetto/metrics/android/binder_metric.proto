@@ -48,7 +48,7 @@ message AndroidBinderMetric {
     optional int64 client_ts = 6;
     optional int64 client_dur = 7;
     optional int64 client_oom_score = 19;
-    optional string client_package_version_code = 24;
+    optional int64 client_package_version_code = 24;
     optional bool is_client_package_debuggable = 25;
     // Server
     // Removed: was binder_reply_id
@@ -58,7 +58,7 @@ message AndroidBinderMetric {
     optional int64 server_ts = 11;
     optional int64 server_dur = 12;
     optional int64 server_oom_score = 20;
-    optional string server_package_version_code = 26;
+    optional int64 server_package_version_code = 26;
     optional bool is_server_package_debuggable = 27;
     // Aggregations
     repeated ThreadStateBreakdown thread_states = 13;
