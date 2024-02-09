@@ -60,9 +60,9 @@ if (perfetto_build_with_android) {
     # This target should never depend on any other perfetto target to avoid ODR
     # violation by doubly linking code in two .so(s) loaded in the same exe.
     assert_no_deps = [
-      "//include/*",
-      "//src/base/*",
-      "//src/tracing/*",
+      "../../include/*",
+      "../../src/base/*",
+      "../../src/tracing/*",
     ]
   }
 }  # if (perfetto_build_with_android)
