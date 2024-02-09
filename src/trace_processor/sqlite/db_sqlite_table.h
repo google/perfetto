@@ -138,7 +138,6 @@ class DbSqliteTable final
     std::optional<uint32_t> single_row_;
 
     // Only valid for Mode::kTable.
-    std::optional<Table> db_table_;
     std::optional<Table::Iterator> iterator_;
 
     bool eof_ = true;

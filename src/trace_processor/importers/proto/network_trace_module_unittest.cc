@@ -67,21 +67,18 @@ class NetworkTraceModuleTest : public testing::Test {
     return status;
   }
 
-  bool HasArg(ArgSetId set_id, base::StringView key, Variadic value) {
+  bool HasArg(ArgSetId sid, base::StringView key, Variadic value) {
     StringId key_id = storage_->InternString(key);
-    const auto& args = storage_->arg_table();
-    RowMap rm = args.FilterToRowMap({args.arg_set_id().eq(set_id)});
-    bool found = false;
-    for (auto it = rm.IterateRows(); it; it.Next()) {
-      if (args.key()[it.index()] == key_id) {
-        EXPECT_EQ(args.flat_key()[it.index()], key_id);
-        if (storage_->GetArgValue(it.index()) == value) {
-          found = true;
-          break;
+    const auto& a = storage_->arg_table();
+    for (auto it = a.FilterToIterator({a.arg_set_id().eq(sid)}); it; ++it) {
+      if (it.key() == key_id) {
+        EXPECT_EQ(it.flat_key(), key_id);
+        if (storage_->GetArgValue(it.row_number().row_number()) == value) {
+          return true;
         }
       }
     }
-    return found;
+    return false;
   }
 
  protected:
