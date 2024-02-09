@@ -108,6 +108,7 @@ PATTERN_BY_KIND = {
 }
 
 ALLOWED_PREFIXES = {
+    'counters': 'counter',
     'chrome/util': 'cr',
     'graphs': 'graph',
 }
