@@ -254,10 +254,16 @@ const SUSPEND_RESUME = `
     ts,
     dur,
     'Suspended' AS name
-  FROM android_suspend_resume
+  FROM android_suspend_state
   WHERE power_state = 'suspended'`;
 
 const SCREEN_STATE = `
+  WITH _counter AS (
+    SELECT *
+    FROM counter
+    JOIN counter_track ON counter_track.id = counter.track_id
+    WHERE name = 'ScreenState'
+  )
   SELECT
     ts,
     dur,
@@ -267,11 +273,17 @@ const SCREEN_STATE = `
       WHEN 3 THEN 'Always-on display (doze)'
       ELSE 'unknown'
     END AS name
-  FROM android_counter_span_view_merged('ScreenState')`;
+  FROM counter_leading_intervals!(_counter)`;
 
 // See DeviceIdleController.java for where these states come from and how
 // they transition.
 const DOZE_LIGHT = `
+  WITH _counter AS (
+    SELECT *
+    FROM counter
+    JOIN counter_track ON counter_track.id = counter.track_id
+    WHERE name = 'DozeLightState'
+  )
   SELECT
     ts,
     dur,
@@ -284,9 +296,15 @@ const DOZE_LIGHT = `
       WHEN 7 THEN 'override'
       ELSE 'unknown'
     END AS name
-  FROM android_counter_span_view_merged('DozeLightState')`;
+  FROM counter_leading_intervals!(_counter)`;
 
 const DOZE_DEEP = `
+  WITH _counter AS (
+    SELECT *
+    FROM counter
+    JOIN counter_track ON counter_track.id = counter.track_id
+    WHERE name = 'DozeDeepState'
+  )
   SELECT
     ts,
     dur,
@@ -301,9 +319,15 @@ const DOZE_DEEP = `
       WHEN 7 THEN 'quick_doze_delay'
       ELSE 'unknown'
     END AS name
-  FROM android_counter_span_view_merged('DozeDeepState')`;
+  FROM counter_leading_intervals!(_counter)`;
 
 const CHARGING = `
+  WITH _counter AS (
+    SELECT *
+    FROM counter
+    JOIN counter_track ON counter_track.id = counter.track_id
+    WHERE name = 'BatteryStatus'
+  )
   SELECT
     ts,
     dur,
@@ -316,7 +340,7 @@ const CHARGING = `
       WHEN 5 THEN 'Full'
       ELSE 'unknown'
     END AS name
-  FROM android_counter_span_view_merged('BatteryStatus')`;
+  FROM counter_leading_intervals!(_counter)`;
 
 const THERMAL_THROTTLING = `
   with step1 as (
@@ -377,7 +401,7 @@ const KERNEL_WAKELOCKS = `
     select
       ts,
       ts_end,
-      ifnull((select sum(dur) from android_suspend_resume s
+      ifnull((select sum(dur) from android_suspend_state s
               where power_state = 'suspended'
                 and s.ts > step2.ts
                 and s.ts < step2.ts_end), 0) as suspended_dur,
@@ -540,7 +564,7 @@ const WAKEUPS = `
       null as backoff_count,
       null as backoff_millis,
       true as suspend_end
-    from android_suspend_resume
+    from android_suspend_state
     where power_state = 'suspended'
   ),
   step4 as (
@@ -1021,8 +1045,8 @@ class AndroidLongBatteryTracing implements Plugin {
 
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
-    await e.query(`INCLUDE PERFETTO MODULE android.suspend_resume;`);
-    await e.query(`INCLUDE PERFETTO MODULE android.counter_span_view_merged;`);
+    await e.query(`INCLUDE PERFETTO MODULE android.suspend;`);
+    await e.query(`INCLUDE PERFETTO MODULE counter.intervals;`);
 
     this.addSliceTrack(ctx, 'Device State: Screen state', SCREEN_STATE);
     this.addSliceTrack(ctx, 'Device State: Charging', CHARGING);
@@ -1179,7 +1203,7 @@ class AndroidLongBatteryTracing implements Plugin {
     const groupName = 'Kernel Wakelock Summary';
 
     const e = ctx.engine;
-    await e.query(`INCLUDE PERFETTO MODULE android.suspend_resume;`);
+    await e.query(`INCLUDE PERFETTO MODULE android.suspend;`);
     await e.query(KERNEL_WAKELOCKS);
     const result = await e.query(KERNEL_WAKELOCKS_SUMMARY);
     const it = result.iter({wakelock_name: 'str'});

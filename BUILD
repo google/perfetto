@@ -2264,7 +2264,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/battery_stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/binder.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/broadcasts.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/counter_span_view_merged.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/dvfs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/freezer.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/garbage_collection.sql",
@@ -2278,7 +2277,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/services.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/statsd.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/suspend_resume.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/suspend.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/thread.sql",
     ],
 )
@@ -2301,6 +2300,14 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/common/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/thread_states.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/timestamps.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/stdlib/counters:counters
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_counters_counters",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/counters/intervals.sql",
     ],
 )
 
@@ -2372,6 +2379,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_startup_startup",
         ":src_trace_processor_perfetto_sql_stdlib_chrome_chrome_sql",
         ":src_trace_processor_perfetto_sql_stdlib_common_common",
+        ":src_trace_processor_perfetto_sql_stdlib_counters_counters",
         ":src_trace_processor_perfetto_sql_stdlib_graphs_graphs",
         ":src_trace_processor_perfetto_sql_stdlib_intervals_intervals",
         ":src_trace_processor_perfetto_sql_stdlib_linux_linux",

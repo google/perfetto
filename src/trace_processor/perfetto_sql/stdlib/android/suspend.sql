@@ -19,7 +19,7 @@
 -- Selects either the minimal or full ftrace source depending on what's
 -- available, marks suspended periods, and complements them to give awake
 -- periods.
-CREATE PERFETTO TABLE android_suspend_resume(
+CREATE PERFETTO TABLE android_suspend_state(
   -- Timestamp
   ts INT,
   -- Duration
