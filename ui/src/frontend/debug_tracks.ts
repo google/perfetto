@@ -109,7 +109,7 @@ export interface CounterColumns {
 
 
 export interface CounterDebugTrackConfig {
-  sqlTableName: string;
+  data: SqlDataSource;
   columns: CounterColumns;
   closeable: boolean;
 }
@@ -125,7 +125,6 @@ export interface CounterDebugTrackCreateConfig {
 // once or want to tweak the actions once produced. Otherwise, use
 // addDebugCounterTrack().
 export async function createDebugCounterTrackActions(
-  engine: EngineProxy,
   data: SqlDataSource,
   trackName: string,
   columns: CounterColumns,
@@ -133,21 +132,14 @@ export async function createDebugCounterTrackActions(
   // To prepare displaying the provided data as a track, materialize it and
   // compute depths.
   const debugTrackId = ++debugTrackCount;
-  const sqlTableName = `__debug_counter_${debugTrackId}`;
-
-  // TODO(altimin): Support removing this table when the track is closed.
-  await engine.query(`
-      create table ${sqlTableName} as
-      with data as (
-        ${data.sqlSource}
-      )
-      select
-        ${columns.ts} as ts,
-        ${columns.value} as value
-      from data
-      order by ts;`);
 
   const closeable = config?.closeable ?? true;
+  const params: CounterDebugTrackConfig = {
+    data,
+    columns,
+    closeable,
+  };
+
   const trackKey = uuidv4();
   const actions: DeferredAction<{}>[] = [
     Actions.addTrack({
@@ -156,11 +148,7 @@ export async function createDebugCounterTrackActions(
       name: trackName.trim() || `Debug Track ${debugTrackId}`,
       trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
       trackGroup: SCROLLING_TRACK_GROUP,
-      params: {
-        sqlTableName,
-        columns,
-        closeable,
-      },
+      params,
     }),
   ];
   if (config?.pinned ?? true) {
@@ -172,12 +160,11 @@ export async function createDebugCounterTrackActions(
 // Adds a debug track immediately. Use createDebugCounterTrackActions() if you
 // want to create many tracks at once.
 export async function addDebugCounterTrack(
-  engine: EngineProxy,
   data: SqlDataSource,
   trackName: string,
   columns: CounterColumns,
   config?: CounterDebugTrackCreateConfig) {
   const actions = await createDebugCounterTrackActions(
-    engine, data, trackName, columns, config);
+    data, trackName, columns, config);
   globals.dispatchMultiple(actions);
 }
