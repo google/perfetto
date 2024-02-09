@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
+#include <sqlite3.h>
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -27,8 +28,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <sqlite3.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -51,8 +50,7 @@
 #include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -481,8 +479,8 @@ void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
     return;
 
   // If the column is already sorted, we don't need to cache at all.
-  uint32_t col = static_cast<uint32_t>(c.column);
-  if (upstream_table_->GetColumn(col).IsSorted())
+  auto col = static_cast<uint32_t>(c.column);
+  if (db_sqlite_table_->schema_.columns[col].is_sorted)
     return;
 
   // Try again to get the result or start caching it.
@@ -576,11 +574,11 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   PERFETTO_TP_TRACE(
       metatrace::Category::QUERY_DETAILED, "DB_TABLE_FILTER_AND_SORT",
       [this](metatrace::Record* r) {
-        const Table* source = SourceTable();
         r->AddArg("Table", db_sqlite_table_->name());
         for (const Constraint& c : constraints_) {
           SafeStringWriter writer;
-          writer.AppendString(source->GetColumn(c.col_idx).name());
+          writer.AppendString(
+              db_sqlite_table_->schema_.columns[c.col_idx].name);
 
           writer.AppendString(" ");
           switch (c.op) {
@@ -641,7 +639,8 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
 
         for (const auto& o : orders_) {
           SafeStringWriter writer;
-          writer.AppendString(source->GetColumn(o.col_idx).name());
+          writer.AppendString(
+              db_sqlite_table_->schema_.columns[o.col_idx].name);
           if (o.desc)
             writer.AppendString(" desc");
           r->AddArg("Order by", writer.GetStringView());
@@ -655,13 +654,11 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   RowMap::OptimizeFor optimize_for = orders_.empty()
                                          ? RowMap::OptimizeFor::kMemory
                                          : RowMap::OptimizeFor::kLookupSpeed;
-  RowMap filter_map = SourceTable()->FilterToRowMap(constraints_, optimize_for);
-
-  // If we have no order by constraints and it's cheap for us to use the
-  // RowMap, just use the RowMap directoy.
+  RowMap filter_map =
+      SourceTable()->QueryToRowMap(constraints_, orders_, optimize_for);
   if (filter_map.IsRange() && filter_map.size() <= 1) {
     // Currently, our criteria where we have a special fast path is if it's
-    // a single ranged row. We have tihs fast path for joins on id columns
+    // a single ranged row. We have this fast path for joins on id columns
     // where we get repeated queries filtering down to a single row. The
     // other path performs allocations when creating the new table as well
     // as the iterator on the new table whereas this path only uses a single
@@ -675,13 +672,7 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
     eof_ = !single_row_.has_value();
   } else {
     mode_ = Mode::kTable;
-
-    db_table_ = SourceTable()->Apply(std::move(filter_map));
-    if (!orders_.empty())
-      db_table_ = db_table_->Sort(orders_);
-
-    iterator_ = db_table_->IterateRows();
-
+    iterator_ = SourceTable()->ApplyAndIterateRows(std::move(filter_map));
     eof_ = !*iterator_;
   }
   return base::OkStatus();
@@ -691,8 +682,7 @@ base::Status DbSqliteTable::Cursor::Next() {
   if (mode_ == Mode::kSingleRow) {
     eof_ = true;
   } else {
-    iterator_->Next();
-    eof_ = !*iterator_;
+    eof_ = !++*iterator_;
   }
   return base::OkStatus();
 }
@@ -702,9 +692,9 @@ bool DbSqliteTable::Cursor::Eof() {
 }
 
 base::Status DbSqliteTable::Cursor::Column(sqlite3_context* ctx, int raw_col) {
-  uint32_t column = static_cast<uint32_t>(raw_col);
+  auto column = static_cast<uint32_t>(raw_col);
   SqlValue value = mode_ == Mode::kSingleRow
-                       ? SourceTable()->GetColumn(column).Get(*single_row_)
+                       ? SourceTable()->columns()[column].Get(*single_row_)
                        : iterator_->Get(column);
   // We can say kSqliteStatic for strings  because all strings are expected to
   // come from the string pool and thus will be valid for the lifetime
@@ -782,5 +772,4 @@ DbSqliteTableContext::DbSqliteTableContext(
       computation(Computation::kTableFunction),
       static_table_function(std::move(table)) {}
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

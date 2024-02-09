@@ -27,7 +27,6 @@
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/table.h"
@@ -131,18 +130,6 @@ class MacroTable : public Table {
     overlays_.back().Insert(row_count_++);
   }
 
-  std::vector<ColumnStorageOverlay> FilterAndApplyToOverlays(
-      const std::vector<Constraint>& cs,
-      RowMap::OptimizeFor optimize_for) const {
-    RowMap rm = FilterToRowMap(cs, optimize_for);
-    std::vector<ColumnStorageOverlay> overlays;
-    overlays.reserve(overlays_.size());
-    for (uint32_t i = 0; i < overlays_.size(); ++i) {
-      overlays.emplace_back(overlays_[i].SelectRows(rm));
-    }
-    return overlays;
-  }
-
   // Stores whether inserts are allowed into this macro table; by default
   // inserts are allowed but they are disallowed when a parent table is extended
   // with |ExtendParent|; the rationale for this is that extensions usually
@@ -174,12 +161,10 @@ template <typename Iterator,
           typename ConstRowReference>
 class AbstractConstIterator {
  public:
-  explicit operator bool() const { return its_[0]; }
+  explicit operator bool() const { return bool(iterator_); }
 
   Iterator& operator++() {
-    for (ColumnStorageOverlay::Iterator& it : its_) {
-      it.Next();
-    }
+    ++iterator_;
     return *this_it();
   }
 
@@ -195,20 +180,13 @@ class AbstractConstIterator {
 
  protected:
   explicit AbstractConstIterator(const MacroTable* table,
-                                 std::vector<ColumnStorageOverlay> overlays)
-      : overlays_(std::move(overlays)), table_(table) {
+                                 Table::Iterator iterator)
+      : iterator_(std::move(iterator)), table_(table) {
     static_assert(std::is_base_of<Table, MacroTable>::value,
                   "Template param should be a subclass of Table.");
-
-    for (const auto& rm : overlays_) {
-      its_.emplace_back(rm.IterateRows());
-    }
   }
 
-  // Must not be modified as |its_| contains pointers into this vector.
-  std::vector<ColumnStorageOverlay> overlays_;
-  std::vector<ColumnStorageOverlay::Iterator> its_;
-
+  Table::Iterator iterator_;
   const MacroTable* table_;
 
  private:
