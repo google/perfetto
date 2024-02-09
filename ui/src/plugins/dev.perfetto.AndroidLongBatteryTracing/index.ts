@@ -939,7 +939,7 @@ class AndroidLongBatteryTracing implements Plugin {
     ctx: PluginContextTrace,
     name: string,
     query: string,
-    groupName: string,
+    groupName?: string,
     columns: string[] = []): void {
     const config: SimpleSliceTrackConfig = {
       data: {
@@ -993,7 +993,10 @@ class AndroidLongBatteryTracing implements Plugin {
   }
 
   addBatteryStatsEvent(
-    ctx: PluginContextTrace, name: string, track: string, groupName: string,
+    ctx: PluginContextTrace,
+    name: string,
+    track: string,
+    groupName: string|undefined,
     features: Set<string>): void {
     if (!features.has(`track.${track}`)) {
       return;
@@ -1012,23 +1015,22 @@ class AndroidLongBatteryTracing implements Plugin {
       return;
     }
 
-    const groupName = 'Device State';
     const query =
         (name: string, track: string) =>
-          this.addBatteryStatsEvent(ctx, name, track, groupName, features);
+          this.addBatteryStatsEvent(ctx, name, track, undefined, features);
 
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
     await e.query(`INCLUDE PERFETTO MODULE android.suspend_resume;`);
     await e.query(`INCLUDE PERFETTO MODULE android.counter_span_view_merged;`);
 
-    this.addSliceTrack(ctx, 'Screen state', SCREEN_STATE, groupName);
-    this.addSliceTrack(ctx, 'Charging', CHARGING, groupName);
-    this.addSliceTrack(ctx, 'Suspend / resume', SUSPEND_RESUME, groupName);
-    this.addSliceTrack(ctx, 'Doze light state', DOZE_LIGHT, groupName);
-    this.addSliceTrack(ctx, 'Doze deep state', DOZE_DEEP, groupName);
+    this.addSliceTrack(ctx, 'Device State: Screen state', SCREEN_STATE);
+    this.addSliceTrack(ctx, 'Device State: Charging', CHARGING);
+    this.addSliceTrack(ctx, 'Device State: Suspend / resume', SUSPEND_RESUME);
+    this.addSliceTrack(ctx, 'Device State: Doze light state', DOZE_LIGHT);
+    this.addSliceTrack(ctx, 'Device State: Doze deep state', DOZE_DEEP);
 
-    query('Top app', 'battery_stats.top');
+    query('Device State: Top app', 'battery_stats.top');
 
     this.addSliceTrack(
       ctx, 'Long wakelocks', `SELECT
@@ -1040,14 +1042,14 @@ class AndroidLongBatteryTracing implements Plugin {
             int_value) as package
         FROM android_battery_stats_event_slices
         WHERE track_name = "battery_stats.longwake"`,
-      groupName, ['package']);
+      undefined, ['package']);
 
-    query('Foreground apps', 'battery_stats.fg');
-    query('Jobs', 'battery_stats.job');
+    query('Device State: Foreground apps', 'battery_stats.fg');
+    query('Device State: Jobs', 'battery_stats.job');
 
     if (features.has('atom.thermal_throttling_severity_state_changed')) {
       this.addSliceTrack(
-        ctx, 'Thermal throttling', THERMAL_THROTTLING, groupName);
+        ctx, 'Device State: Thermal throttling', THERMAL_THROTTLING);
     }
   }
 
