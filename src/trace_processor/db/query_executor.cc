@@ -21,6 +21,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -290,7 +291,8 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     }
     if (col.overlay().row_map().IsIndexVector()) {
       data_nodes.emplace_back(std::make_unique<column::ArrangementOverlay>(
-          col.overlay().row_map().GetIfIndexVector(), col.IsSorted()));
+          col.overlay().row_map().GetIfIndexVector(),
+          Indices::State::kNonmonotonic, col.IsSorted()));
       queryable = data_nodes.back()->MakeQueryable(std::move(queryable));
     }
     if (col.overlay().row_map().IsBitVector()) {
