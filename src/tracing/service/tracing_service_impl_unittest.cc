@@ -78,6 +78,7 @@ using ::testing::SaveArg;
 using ::testing::StrictMock;
 using ::testing::StringMatchResultListener;
 using ::testing::StrNe;
+using ::testing::UnorderedElementsAre;
 
 namespace perfetto {
 
@@ -5147,6 +5148,135 @@ TEST_F(TracingServiceImplTest, ClearBeforeClone) {
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
                                                   HasSubstr("after_clone")))));
+}
+
+TEST_F(TracingServiceImplTest, CloneTransferFlush) {
+  // The consumer the creates the initial tracing session.
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer1");
+  producer1->RegisterDataSource("ds_1");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer2");
+  producer2->RegisterDataSource("ds_2");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);  // Buf 0.
+  auto* buf1_cfg = trace_config.add_buffers();    // Buf 1 (transfer_on_clone).
+  buf1_cfg->set_size_kb(1024);
+  buf1_cfg->set_transfer_on_clone(true);
+  buf1_cfg->set_clear_before_clone(true);
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+  ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_2");
+  ds_cfg->set_target_buffer(1);
+
+  consumer->EnableTracing(trace_config);
+  producer1->WaitForTracingSetup();
+  producer1->WaitForDataSourceSetup("ds_1");
+
+  producer2->WaitForTracingSetup();
+  producer2->WaitForDataSourceSetup("ds_2");
+
+  producer1->WaitForDataSourceStart("ds_1");
+  producer2->WaitForDataSourceStart("ds_2");
+
+  std::unique_ptr<TraceWriter> writer1 = producer1->CreateTraceWriter("ds_1");
+  std::unique_ptr<TraceWriter> writer2 = producer2->CreateTraceWriter("ds_2");
+
+  {
+    auto tp = writer1->NewTracePacket();
+    tp->set_for_testing()->set_str("buf1_beforeflush");
+  }
+
+  {
+    std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+    clone_consumer->Connect(svc.get());
+
+    {
+      auto tp = writer2->NewTracePacket();
+      tp->set_for_testing()->set_str("buf2_beforeflush");
+    }
+
+    std::string clone_checkpoint_name = "clone";
+    auto clone_done = task_runner.CreateCheckpoint(clone_checkpoint_name);
+    EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
+        .WillOnce(InvokeWithoutArgs(clone_done));
+    clone_consumer->CloneSession(1);
+
+    std::string producer1_flush_checkpoint_name = "producer1_flush_requested";
+    FlushRequestID flush1_req_id;
+    auto flush1_requested =
+        task_runner.CreateCheckpoint(producer1_flush_checkpoint_name);
+    std::string producer2_flush_checkpoint_name = "producer2_flush_requested";
+    FlushRequestID flush2_req_id;
+    auto flush2_requested =
+        task_runner.CreateCheckpoint(producer2_flush_checkpoint_name);
+
+    // CloneSession() will issue a flush.
+    EXPECT_CALL(*producer1, Flush(_, _, _, _))
+        .WillOnce([&](FlushRequestID req_id, const DataSourceInstanceID*,
+                      size_t, FlushFlags) {
+          flush1_req_id = req_id;
+          flush1_requested();
+        });
+    EXPECT_CALL(*producer2, Flush(_, _, _, _))
+        .WillOnce([&](FlushRequestID req_id, const DataSourceInstanceID*,
+                      size_t, FlushFlags) {
+          flush2_req_id = req_id;
+          flush2_requested();
+        });
+
+    task_runner.RunUntilCheckpoint(producer1_flush_checkpoint_name);
+    task_runner.RunUntilCheckpoint(producer2_flush_checkpoint_name);
+
+    // producer1 is fast and replies to the Flush request immediately.
+    writer1->Flush();
+    producer1->endpoint()->NotifyFlushComplete(flush1_req_id);
+    task_runner.RunUntilIdle();
+
+    // producer1 writes another packet, after acking the flush.
+    {
+      auto tp = writer1->NewTracePacket();
+      tp->set_for_testing()->set_str("buf1_afterflush");
+    }
+    writer1->Flush();
+
+    // producer2 is slower and is still writing data.
+    {
+      auto tp = writer2->NewTracePacket();
+      tp->set_for_testing()->set_str("buf2_afterflush");
+    }
+
+    // now producer2 replies to the Flush request.
+    writer2->Flush();
+    producer2->endpoint()->NotifyFlushComplete(flush2_req_id);
+    task_runner.RunUntilCheckpoint(clone_checkpoint_name);
+
+    auto packets = clone_consumer->ReadBuffers();
+    std::vector<std::string> actual_payloads;
+    for (const auto& packet : packets) {
+      if (packet.has_for_testing())
+        actual_payloads.emplace_back(packet.for_testing().str());
+    }
+    EXPECT_THAT(actual_payloads, Contains("buf1_beforeflush"));
+    EXPECT_THAT(actual_payloads, Contains("buf2_beforeflush"));
+    // Even though this packet was sent after producer1 acked the flush,
+    // producer2 had not acked the flush yet, so the buffer was still not
+    // cloned.
+    EXPECT_THAT(actual_payloads, Contains("buf1_afterflush"));
+    EXPECT_THAT(actual_payloads, Contains("buf2_afterflush"));
+  }
+
+  consumer->DisableTracing();
+  producer1->WaitForDataSourceStop("ds_1");
+  producer2->WaitForDataSourceStop("ds_2");
+  consumer->WaitForTracingDisabled();
 }
 
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
