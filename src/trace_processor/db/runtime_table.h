@@ -27,7 +27,9 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column_storage.h"
+#include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/table.h"
 
 namespace perfetto::trace_processor {
@@ -64,7 +66,14 @@ class RuntimeTable : public Table {
     std::vector<std::unique_ptr<VariantStorage>> storage_;
   };
 
+  explicit RuntimeTable(StringPool*,
+                        uint32_t row_count,
+                        std::vector<ColumnLegacy>,
+                        std::vector<ColumnStorageOverlay>);
   ~RuntimeTable() override;
+
+  RuntimeTable(RuntimeTable&&) = default;
+  RuntimeTable& operator=(RuntimeTable&&) = default;
 
   const Table::Schema& schema() const { return schema_; }
 

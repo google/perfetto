@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -115,7 +116,6 @@ class Table {
 
   static bool kUseFilterV2;
 
-  Table();
   virtual ~Table();
 
   // We explicitly define the move constructor here because we need to update
@@ -150,17 +150,39 @@ class Table {
   const std::vector<ColumnLegacy>& columns() const { return columns_; }
 
  protected:
-  explicit Table(StringPool* pool);
+  Table(StringPool*,
+        uint32_t row_count,
+        std::vector<ColumnLegacy>,
+        std::vector<ColumnStorageOverlay>);
+
+  void CopyLastInsertFrom(const std::vector<ColumnStorageOverlay>& overlays) {
+    PERFETTO_DCHECK(overlays.size() <= overlays_.size());
+
+    // Add the last inserted row in each of the parent row maps to the
+    // corresponding row map in the child.
+    for (uint32_t i = 0; i < overlays.size(); ++i) {
+      const ColumnStorageOverlay& other = overlays[i];
+      overlays_[i].Insert(other.Get(other.size() - 1));
+    }
+  }
+
+  void IncrementRowCountAndAddToLastOverlay() {
+    // Also add the index of the new row to the identity row map and increment
+    // the size.
+    overlays_.back().Insert(row_count_++);
+  }
+
+  void OnConstructionCompleted() {
+    for (ColumnLegacy& col : columns_) {
+      col.BindToTable(this, string_pool_);
+    }
+  }
+
+  ColumnLegacy* GetColumn(uint32_t index) { return &columns_[index]; }
 
   const std::vector<ColumnStorageOverlay>& overlays() const {
     return overlays_;
   }
-
-  std::vector<ColumnStorageOverlay> overlays_;
-  std::vector<ColumnLegacy> columns_;
-  uint32_t row_count_ = 0;
-
-  StringPool* string_pool_ = nullptr;
 
  private:
   friend class ColumnLegacy;
@@ -186,6 +208,11 @@ class Table {
   }
 
   Table CopyExceptOverlays() const;
+
+  StringPool* string_pool_ = nullptr;
+  uint32_t row_count_ = 0;
+  std::vector<ColumnStorageOverlay> overlays_;
+  std::vector<ColumnLegacy> columns_;
 };
 
 }  // namespace perfetto::trace_processor

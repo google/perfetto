@@ -115,9 +115,8 @@ class ColumnSerializer:
     if self.is_ancestor:
       return None
     return f'''
-    columns_.emplace_back("{self.name}", &{self.name}_, ColumnFlag::{self.name},
-                          this, static_cast<uint32_t>(columns_.size()),
-                          olay_idx);
+    columns.emplace_back("{self.name}", &self->{self.name}_, ColumnFlag::{self.name},
+                         static_cast<uint32_t>(columns.size()), olay_idx);
     '''
 
   def shrink_to_fit(self) -> Optional[str]:
@@ -135,7 +134,7 @@ class ColumnSerializer:
     return f'    mutable_{self.name}()->Append(std::move(row.{self.name}));'
 
   def accessor(self) -> Optional[str]:
-    inner = f'columns_[ColumnIndex::{self.name}]'
+    inner = f'columns()[ColumnIndex::{self.name}]'
     return f'''
   const {self.typed_column_type}& {self.name}() const {{
     return static_cast<const ColumnType::{self.name}&>({inner});
@@ -148,7 +147,7 @@ class ColumnSerializer:
     return f'''
   {self.typed_column_type}* mutable_{self.name}() {{
     return static_cast<ColumnType::{self.name}*>(
-        &columns_[ColumnIndex::{self.name}]);
+        GetColumn(ColumnIndex::{self.name}));
   }}
   '''
 
@@ -351,16 +350,25 @@ class TableSerializer(object):
       parent_init = ''
     col_init = self.foreach_col(ColumnSerializer.column_init)
     if col_init:
-      olay = 'uint32_t olay_idx = static_cast<uint32_t>(overlays_.size()) - 1;'
+      olay = 'uint32_t olay_idx = OverlayCount(parent);'
     else:
       olay = ''
     return f'''
-  explicit {self.table_name}(StringPool* pool{parent_param})
-      : macros_internal::MacroTable(pool, {parent_arg}),
-        {parent_init}{storage_init} {{
-    {self.foreach_col(ColumnSerializer.static_assert_flags)}
+  static std::vector<ColumnLegacy> GetColumns(
+      {self.table_name}* self,
+      const macros_internal::MacroTable* parent) {{
+    std::vector<ColumnLegacy> columns =
+        CopyColumnsFromParentOrAddRootColumns(self, parent);
     {olay}
     {col_init}
+    return columns;
+  }}
+
+  explicit {self.table_name}(StringPool* pool{parent_param})
+      : macros_internal::MacroTable(pool, GetColumns(this, {parent_arg}), {parent_arg}),
+        {parent_init}{storage_init} {{
+    {self.foreach_col(ColumnSerializer.static_assert_flags)}
+    OnConstructionCompleted();
   }}
     '''
 
@@ -379,7 +387,7 @@ class TableSerializer(object):
       '''
     return '''
     Id id = Id{row_number};
-    type_.Append(string_pool_->InternString(row.type()));
+    type_.Append(string_pool()->InternString(row.type()));
       '''
 
   def const_iterator(self) -> str:
@@ -467,21 +475,15 @@ class TableSerializer(object):
       return ''
     params = self.foreach_col(
         ColumnSerializer.extend_parent_param, delimiter='\n, ')
-    if params:
-      olay = 'uint32_t olay_idx = static_cast<uint32_t>(overlays_.size()) - 1;'
-    else:
-      olay = ''
     return f'''
   {self.table_name}(StringPool* pool,
             const {self.parent_class_name}& parent,
             const RowMap& parent_overlay{',' if params else ''}
             {params})
-      : macros_internal::MacroTable(pool, parent, parent_overlay) {{
+      : macros_internal::MacroTable(pool, GetColumns(this, &parent), parent, parent_overlay) {{
     {self.foreach_col(ColumnSerializer.static_assert_flags)}
     {self.foreach_col(ColumnSerializer.extend_nullable_vector)}
-
-    {olay}
-    {self.foreach_col(ColumnSerializer.column_init)}
+    OnConstructionCompleted();
   }}
     '''
 

@@ -16,7 +16,6 @@
 #include "src/trace_processor/db/column.h"
 
 #include "perfetto/base/logging.h"
-#include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/db/compare.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/util/glob.h"
@@ -26,14 +25,12 @@ namespace perfetto {
 namespace trace_processor {
 
 ColumnLegacy::ColumnLegacy(const ColumnLegacy& column,
-                           Table* table,
                            uint32_t col_idx,
                            uint32_t overlay_idx,
                            const char* name)
     : ColumnLegacy(name ? name : column.name_,
                    column.type_,
                    column.flags_ & ~kNoCrossTableInheritFlags,
-                   table,
                    col_idx,
                    overlay_idx,
                    column.storage_) {}
@@ -41,7 +38,6 @@ ColumnLegacy::ColumnLegacy(const ColumnLegacy& column,
 ColumnLegacy::ColumnLegacy(const char* name,
                            ColumnType type,
                            uint32_t flags,
-                           Table* table,
                            uint32_t index_in_table,
                            uint32_t overlay_index,
                            ColumnStorageBase* st)
@@ -49,52 +45,20 @@ ColumnLegacy::ColumnLegacy(const char* name,
       storage_(st),
       name_(name),
       flags_(flags),
-      table_(table),
       index_in_table_(index_in_table),
-      overlay_index_(overlay_index),
-      string_pool_(table->string_pool_) {
-  // Check that the dense-ness of the column and the nullable vector match.
-  if (IsNullable() && !IsDummy()) {
-    bool is_storage_dense;
-    switch (type_) {
-      case ColumnType::kInt32:
-        is_storage_dense = storage<std::optional<int32_t>>().IsDense();
-        break;
-      case ColumnType::kUint32:
-        is_storage_dense = storage<std::optional<uint32_t>>().IsDense();
-        break;
-      case ColumnType::kInt64:
-        is_storage_dense = storage<std::optional<int64_t>>().IsDense();
-        break;
-      case ColumnType::kDouble:
-        is_storage_dense = storage<std::optional<double>>().IsDense();
-        break;
-      case ColumnType::kString:
-        PERFETTO_FATAL("String column should not be nullable");
-      case ColumnType::kId:
-        PERFETTO_FATAL("Id column should not be nullable");
-      case ColumnType::kDummy:
-        PERFETTO_FATAL("Dummy column excluded above");
-    }
-    PERFETTO_DCHECK(is_storage_dense == IsDense());
-  }
-  PERFETTO_DCHECK(IsFlagsAndTypeValid(flags_, type_));
-}
+      overlay_index_(overlay_index) {}
 
 ColumnLegacy ColumnLegacy::DummyColumn(const char* name,
-                                       Table* table,
                                        uint32_t col_idx_in_table) {
-  return ColumnLegacy(name, ColumnType::kDummy, Flag::kNoFlag, table,
-                      col_idx_in_table, std::numeric_limits<uint32_t>::max(),
-                      nullptr);
+  return ColumnLegacy(name, ColumnType::kDummy, Flag::kNoFlag, col_idx_in_table,
+                      std::numeric_limits<uint32_t>::max(), nullptr);
 }
 
-ColumnLegacy ColumnLegacy::IdColumn(Table* table,
-                                    uint32_t col_idx,
+ColumnLegacy ColumnLegacy::IdColumn(uint32_t col_idx,
                                     uint32_t overlay_idx,
                                     const char* name,
                                     uint32_t flags) {
-  return ColumnLegacy(name, ColumnType::kId, flags, table, col_idx, overlay_idx,
+  return ColumnLegacy(name, ColumnType::kId, flags, col_idx, overlay_idx,
                       nullptr);
 }
 
