@@ -69,44 +69,7 @@ class RootParentTable : public Table {
 // This class is used to extract common code from the macro tables to reduce
 // code size.
 class MacroTable : public Table {
- protected:
-  // Constructors for tables created by the regular constructor.
-  MacroTable(StringPool* pool, const MacroTable* parent = nullptr)
-      : Table(pool), allow_inserts_(true), parent_(parent) {
-    if (!parent) {
-      overlays_.emplace_back();
-      columns_.emplace_back(ColumnLegacy::IdColumn(this, 0, 0));
-      columns_.emplace_back(
-          ColumnLegacy("type", &type_, ColumnLegacy::kNonNull, this, 1, 0));
-      return;
-    }
-
-    overlays_.resize(parent->overlays().size() + 1);
-    for (const ColumnLegacy& col : parent->columns()) {
-      columns_.emplace_back(col, this, col.index_in_table(),
-                            col.overlay_index());
-    }
-  }
-
-  // Constructor for tables created by SelectAndExtendParent.
-  MacroTable(StringPool* pool,
-             const MacroTable& parent,
-             const RowMap& parent_overlay)
-      : Table(pool), allow_inserts_(false) {
-    row_count_ = parent_overlay.size();
-    for (const auto& rm : parent.overlays()) {
-      overlays_.emplace_back(rm.SelectRows(parent_overlay));
-      PERFETTO_DCHECK(overlays_.back().size() == row_count_);
-    }
-    overlays_.emplace_back(ColumnStorageOverlay(row_count_));
-
-    for (const ColumnLegacy& col : parent.columns()) {
-      columns_.emplace_back(col, this, col.index_in_table(),
-                            col.overlay_index());
-    }
-  }
-  ~MacroTable() override;
-
+ public:
   // We don't want a move or copy constructor because we store pointers to
   // fields of macro tables which will be invalidated if we move/copy them.
   MacroTable(const MacroTable&) = delete;
@@ -115,19 +78,53 @@ class MacroTable : public Table {
   MacroTable(MacroTable&&) = delete;
   MacroTable& operator=(MacroTable&&) noexcept = delete;
 
+ protected:
+  // Constructors for tables created by the regular constructor.
+  explicit MacroTable(StringPool* pool,
+                      std::vector<ColumnLegacy> columns,
+                      const MacroTable* parent = nullptr)
+      : Table(pool, 0u, std::move(columns), EmptyOverlaysFromParent(parent)),
+        allow_inserts_(true),
+        parent_(parent) {}
+
+  // Constructor for tables created by SelectAndExtendParent.
+  MacroTable(StringPool* pool,
+             std::vector<ColumnLegacy> columns,
+             const MacroTable& parent,
+             const RowMap& parent_overlay)
+      : Table(pool,
+              parent_overlay.size(),
+              std::move(columns),
+              SelectedOverlaysFromParent(parent, parent_overlay)),
+        allow_inserts_(false) {}
+
+  ~MacroTable() override;
+
   void UpdateOverlaysAfterParentInsert() {
-    // Add the last inserted row in each of the parent row maps to the
-    // corresponding row map in the child.
-    for (uint32_t i = 0; i < parent_->overlays().size(); ++i) {
-      const ColumnStorageOverlay& parent_rm = parent_->overlays()[i];
-      overlays_[i].Insert(parent_rm.Get(parent_rm.size() - 1));
-    }
+    CopyLastInsertFrom(parent_->overlays());
   }
 
   void UpdateSelfOverlayAfterInsert() {
-    // Also add the index of the new row to the identity row map and increment
-    // the size.
-    overlays_.back().Insert(row_count_++);
+    IncrementRowCountAndAddToLastOverlay();
+  }
+
+  static std::vector<ColumnLegacy> CopyColumnsFromParentOrAddRootColumns(
+      MacroTable* self,
+      const MacroTable* parent) {
+    std::vector<ColumnLegacy> columns;
+    if (parent) {
+      for (const ColumnLegacy& col : parent->columns()) {
+        columns.emplace_back(col, col.index_in_table(), col.overlay_index());
+      }
+    } else {
+      columns.emplace_back(ColumnLegacy::IdColumn(0, 0));
+      columns.emplace_back("type", &self->type_, ColumnLegacy::kNonNull, 1, 0);
+    }
+    return columns;
+  }
+
+  static uint32_t OverlayCount(const MacroTable* parent) {
+    return parent ? static_cast<uint32_t>(parent->overlays().size()) : 0;
   }
 
   // Stores whether inserts are allowed into this macro table; by default
@@ -150,6 +147,23 @@ class MacroTable : public Table {
   ColumnStorage<StringPool::Id> type_;
 
  private:
+  static std::vector<ColumnStorageOverlay> EmptyOverlaysFromParent(
+      const MacroTable* parent) {
+    return std::vector<ColumnStorageOverlay>(
+        parent ? parent->overlays().size() + 1 : 1);
+  }
+  static std::vector<ColumnStorageOverlay> SelectedOverlaysFromParent(
+      const macros_internal::MacroTable& parent,
+      const RowMap& rm) {
+    std::vector<ColumnStorageOverlay> overlays;
+    for (const auto& overlay : parent.overlays()) {
+      overlays.emplace_back(overlay.SelectRows(rm));
+      PERFETTO_DCHECK(overlays.back().size() == rm.size());
+    }
+    overlays.emplace_back(rm.size());
+    return overlays;
+  }
+
   const MacroTable* parent_ = nullptr;
 };
 

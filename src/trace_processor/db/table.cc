@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <numeric>
 #include <utility>
 #include <vector>
 
@@ -33,10 +32,18 @@ namespace perfetto::trace_processor {
 
 bool Table::kUseFilterV2 = true;
 
-Table::Table() = default;
-Table::~Table() = default;
+Table::Table(StringPool* pool,
+             uint32_t row_count,
+             std::vector<ColumnLegacy> columns,
+             std::vector<ColumnStorageOverlay> overlays)
+    : string_pool_(pool),
+      row_count_(row_count),
+      overlays_(std::move(overlays)),
+      columns_(std::move(columns)) {
+  PERFETTO_DCHECK(string_pool_);
+}
 
-Table::Table(StringPool* pool) : string_pool_(pool) {}
+Table::~Table() = default;
 
 Table& Table::operator=(Table&& other) noexcept {
   row_count_ = other.row_count_;
@@ -55,17 +62,17 @@ Table Table::Copy() const {
   for (const ColumnStorageOverlay& overlay : overlays_) {
     table.overlays_.emplace_back(overlay.Copy());
   }
+  table.OnConstructionCompleted();
   return table;
 }
 
 Table Table::CopyExceptOverlays() const {
-  Table table(string_pool_);
-  table.row_count_ = row_count_;
+  std::vector<ColumnLegacy> cols;
+  cols.reserve(columns_.size());
   for (const ColumnLegacy& col : columns_) {
-    table.columns_.emplace_back(col, &table, col.index_in_table(),
-                                col.overlay_index());
+    cols.emplace_back(col, col.index_in_table(), col.overlay_index());
   }
-  return table;
+  return {string_pool_, row_count_, std::move(cols), {}};
 }
 
 RowMap Table::QueryToRowMap(const std::vector<Constraint>& cs,
@@ -141,6 +148,7 @@ Table Table::Sort(const std::vector<Order>& ob) const {
     table.overlays_.emplace_back(overlay.SelectRows(rm));
     PERFETTO_DCHECK(table.overlays_.back().size() == table.row_count());
   }
+  table.OnConstructionCompleted();
 
   // Remove the sorted and row set flags from all the columns.
   for (auto& col : table.columns_) {

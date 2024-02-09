@@ -19,7 +19,6 @@
 #include <cstdint>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column/data_layer.h"
