@@ -16,12 +16,19 @@
 import argparse
 
 from collections import namedtuple
-from google.protobuf import descriptor_pb2, descriptor_pool
-from google.protobuf.message_factory import GetMessageClass
+from google.protobuf import descriptor_pb2, message_factory, descriptor_pool
 
 CLONE_THREAD = 0x00010000
 CLONE_VFORK = 0x00004000
 CLONE_VM = 0x00000100
+
+
+# For compatibility with older pb module versions.
+def get_message_class(pool, msg):
+  if hasattr(message_factory, "GetMessageClass"):
+    return message_factory.GetMessageClass(msg)
+  else:
+    return message_factory.MessageFactory(pool).GetPrototype(msg)
 
 
 def ms_to_ns(time_in_ms):
@@ -832,8 +839,8 @@ def create_trace():
   args = parser.parse_args()
 
   pool = create_pool(args)
-  ProtoTrace = GetMessageClass(
-      pool.FindMessageTypeByName('perfetto.protos.Trace'))
+  ProtoTrace = get_message_class(
+      pool, pool.FindMessageTypeByName('perfetto.protos.Trace'))
 
   class EnumPrototype(object):
 
@@ -866,17 +873,19 @@ def create_trace():
   )
 
   prototypes = Prototypes(
-      TrackEvent=GetMessageClass(
-          pool.FindMessageTypeByName('perfetto.protos.TrackEvent')),
+      TrackEvent=get_message_class(
+          pool, pool.FindMessageTypeByName('perfetto.protos.TrackEvent')),
       ChromeRAILMode=EnumPrototype.from_descriptor(
           pool.FindEnumTypeByName('perfetto.protos.ChromeRAILMode')),
       ChromeLatencyInfo=chrome_latency_info_prototypes,
-      ChromeProcessDescriptor=GetMessageClass(
+      ChromeProcessDescriptor=get_message_class(
+          pool,
           pool.FindMessageTypeByName(
               'perfetto.protos.ChromeProcessDescriptor')),
-      CounterDescriptor=GetMessageClass(
+      CounterDescriptor=get_message_class(
+          pool,
           pool.FindMessageTypeByName('perfetto.protos.CounterDescriptor')),
-      ThreadDescriptor=GetMessageClass(
-          pool.FindMessageTypeByName('perfetto.protos.ThreadDescriptor')),
+      ThreadDescriptor=get_message_class(
+          pool, pool.FindMessageTypeByName('perfetto.protos.ThreadDescriptor')),
   )
   return Trace(ProtoTrace(), prototypes)
