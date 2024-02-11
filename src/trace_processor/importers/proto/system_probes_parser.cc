@@ -20,6 +20,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -457,7 +458,8 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       context_->process_tracker->UpdateNamespacedProcess(pid, std::move(nspid));
     }
 
-    auto raw_cmdline = proc.cmdline();
+    protozero::RepeatedFieldIterator<protozero::ConstChars> raw_cmdline =
+        proc.cmdline();
     base::StringView argv0 = raw_cmdline ? *raw_cmdline : base::StringView();
     base::StringView joined_cmdline{};
 
@@ -485,13 +487,16 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       }
     }
 
-    // Special case: chrome child process overwrites /proc/self/cmdline and
-    // replaces all '\0' with ' '. This makes argv0 contain the full command
-    // line. Extract the actual argv0 if it's Chrome.
-    static const char kChromeBinary[] = "/chrome ";
-    auto pos = argv0.find(kChromeBinary);
-    if (pos != base::StringView::npos) {
-      argv0 = argv0.substr(0, pos + strlen(kChromeBinary) - 1);
+    // Special case: some processes rewrite their cmdline with spaces as a
+    // separator instead of a NUL byte. Assume that's the case if there's only a
+    // single cmdline element. This will be wrong for binaries that have spaces
+    // in their path and are invoked without additional arguments, but those are
+    // very rare. The full cmdline will still be correct either way.
+    if (bool(++proc.cmdline()) == false) {
+      size_t delim_pos = argv0.find(' ');
+      if (delim_pos != base::StringView::npos) {
+        argv0 = argv0.substr(0, delim_pos);
+      }
     }
 
     std::string cmdline_str;
