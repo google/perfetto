@@ -3,53 +3,28 @@ android_simpleperf {
     name: "cpu-cycles"
     processes {
       pid: 10
-      name: "process A"
-      threads {
-        tid: 101
-        name: "thread A2"
-        cpu: 0
-        total: 17.000000
-      }
-      total: 17.000000
+      name: "process_a"
+      threads { tid: 101 name: "thread_a2" cpu: 0 total: 17.0 }
+      total: 17.0
     }
-    total: 17.000000
+    total: 17.0
   }
   events {
     name: "instructions"
     processes {
       pid: 10
-      name: "process A"
-      threads {
-        tid: 100
-        name: "thread A1"
-        cpu: 0
-        total: 4.000000
-      }
-      threads {
-        tid: 100
-        name: "thread A1"
-        cpu: 1
-        total: 2.000000
-      }
-      threads {
-        tid: 101
-        name: "thread A2"
-        cpu: 0
-        total: 5.000000
-      }
-      total: 11.000000
+      name: "process_a"
+      threads { tid: 100 name: "thread_a1" cpu: 0 total: 4.0 }
+      threads { tid: 100 name: "thread_a1" cpu: 1 total: 2.0 }
+      threads { tid: 101 name: "thread_a2" cpu: 0 total: 5.0 }
+      total: 11.0
     }
     processes {
       pid: 11
-      name: "process B"
-      threads {
-        tid: 111
-        name: "thread B2"
-        cpu: 0
-        total: 2.000000
-      }
-      total: 2.000000
+      name: "process_b"
+      threads { tid: 111 name: "thread_b2" cpu: 0 total: 2.0 }
+      total: 2.0
     }
-    total: 13.000000
+    total: 13.0
   }
 }
