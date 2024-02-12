@@ -294,7 +294,8 @@ class TraceViewer implements m.ClassComponent {
               globals.makeSelection(Actions.deselect({}));
             },
           },
-          m('.pinned-panel-container', m(PanelContainer, {
+          m(PanelContainer, {
+            className: 'header-panel-container',
             doesScroll: false,
             panels: [
               ...overviewPanel,
@@ -302,24 +303,33 @@ class TraceViewer implements m.ClassComponent {
               this.timeSelectionPanel,
               this.notesPanel,
               this.tickmarkPanel,
-              ...globals.state.pinnedTracks.map((key) => {
-                const trackBundle = this.resolveTrack(key);
-                return new TrackPanel({
-                  key,
-                  trackKey: key,
-                  title: trackBundle.title,
-                  tags: trackBundle.tags,
-                  trackFSM: trackBundle.trackFSM,
-                });
-              }),
             ],
             kind: 'OVERVIEW',
-          })),
-          m('.scrolling-panel-container', m(PanelContainer, {
+          }),
+          m(PanelContainer, {
+            className: 'pinned-panel-container',
+            doesScroll: true,
+            panels: globals.state.pinnedTracks.map((key) => {
+              const trackBundle = this.resolveTrack(key);
+              return new TrackPanel({
+                key,
+                trackKey: key,
+                title: trackBundle.title,
+                tags: trackBundle.tags,
+                trackFSM: trackBundle.trackFSM,
+                revealOnCreate: true,
+              });
+            }),
+            kind: 'TRACKS',
+          }),
+          m(PanelContainer, {
+            className: 'scrolling-panel-container',
             doesScroll: true,
             panels: scrollingPanels,
             kind: 'TRACKS',
-          })))),
+          }),
+        ),
+      ),
       this.renderTabPanel());
 
     globals.trackManager.flushOldTracks();
