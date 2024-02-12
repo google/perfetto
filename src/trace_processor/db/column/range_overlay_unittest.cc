@@ -16,6 +16,10 @@
 
 #include "src/trace_processor/db/column/range_overlay.h"
 
+#include <cstdint>
+#include <vector>
+
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/column/fake_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
@@ -29,7 +33,8 @@ using testing::IsEmpty;
 using Range = Range;
 
 TEST(RangeOverlay, SearchAll) {
-  RangeOverlay storage(Range(3, 8));
+  Range range(3, 8);
+  RangeOverlay storage(&range);
   auto fake = FakeStorage::SearchAll(10);
   auto queryable = storage.MakeChain(fake->MakeChain());
 
@@ -38,7 +43,8 @@ TEST(RangeOverlay, SearchAll) {
 }
 
 TEST(RangeOverlay, SearchNone) {
-  RangeOverlay storage(Range(3, 8));
+  Range range(3, 8);
+  RangeOverlay storage(&range);
   auto fake = FakeStorage::SearchNone(10);
   auto queryable = storage.MakeChain(fake->MakeChain());
 
@@ -48,7 +54,8 @@ TEST(RangeOverlay, SearchNone) {
 
 TEST(RangeOverlay, SearchLimited) {
   auto fake = FakeStorage::SearchSubset(10, std::vector<uint32_t>{4});
-  RangeOverlay storage(Range(3, 5));
+  Range range(3, 5);
+  RangeOverlay storage(&range);
   auto queryable = storage.MakeChain(fake->MakeChain());
 
   auto res = queryable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 2));
@@ -57,7 +64,8 @@ TEST(RangeOverlay, SearchLimited) {
 
 TEST(RangeOverlay, SearchBitVector) {
   auto fake = FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0}));
-  RangeOverlay storage(Range(3, 6));
+  Range range(3, 6);
+  RangeOverlay storage(&range);
   auto queryable = storage.MakeChain(fake->MakeChain());
 
   auto res = queryable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 3));
@@ -66,7 +74,8 @@ TEST(RangeOverlay, SearchBitVector) {
 
 TEST(RangeOverlay, IndexSearch) {
   auto fake = FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0}));
-  RangeOverlay storage(Range(3, 5));
+  Range range(3, 5);
+  RangeOverlay storage(&range);
   auto queryable = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{1u, 0u, 3u};
