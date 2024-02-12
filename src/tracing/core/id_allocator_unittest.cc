@@ -16,10 +16,34 @@
 
 #include "src/tracing/core/id_allocator.h"
 
+#include <type_traits>
+#include <unordered_set>
+
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace {
+
+using ::testing::AllOf;
+using ::testing::Each;
+using ::testing::Eq;
+using ::testing::IsEmpty;
+using ::testing::Not;
+using ::testing::SizeIs;
+
+MATCHER(ElementsAreUnique, "") {
+  std::unordered_set<typename std::remove_reference_t<arg_type>::value_type>
+      seenElements;
+
+  for (const auto& element : arg) {
+    if (!seenElements.insert(element).second) {
+      *result_listener << "Duplicate element " << element;
+      return false;
+    }
+  }
+
+  return true;
+}
 
 TEST(IdAllocatorTest, IdAllocation) {
   using IdType = uint32_t;
@@ -70,6 +94,19 @@ TEST(IdAllocatorTest, IdAllocation_U8) {
   ASSERT_EQ(0u, id_allocator.Allocate());
   id_allocator.Free(0xff);
   ASSERT_EQ(0xff, id_allocator.Allocate());
+}
+
+TEST(IdAllocatorTest, IdAllocationMultiple) {
+  using IdType = uint16_t;
+  const IdType kMaxId = 1023;
+  IdAllocator<IdType> id_allocator(kMaxId);
+
+  for (size_t i = 0; i < 250; i++) {
+    EXPECT_THAT(id_allocator.AllocateMultiple(4),
+                AllOf(SizeIs(4), ElementsAreUnique(), Each(Not(Eq(0)))));
+  }
+
+  EXPECT_THAT(id_allocator.AllocateMultiple(25), IsEmpty());
 }
 
 }  // namespace
