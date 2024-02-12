@@ -16,12 +16,16 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_TYPES_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_TYPES_H_
 
+#include <cstdint>
+#include <utility>
 #include <variant>
+
+#include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 using Range = RowMap::Range;
 
@@ -49,7 +53,7 @@ class RangeOrBitVector {
   }
   Range TakeIfRange() && {
     PERFETTO_DCHECK(IsRange());
-    return std::move(*std::get_if<Range>(&val));
+    return *std::get_if<Range>(&val);
   }
 
  private:
@@ -116,7 +120,6 @@ struct Indices {
   State state = Indices::State::kNonmonotonic;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_TYPES_H_
