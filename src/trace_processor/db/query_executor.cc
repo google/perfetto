@@ -21,7 +21,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/small_vector.h"
 #include "perfetto/trace_processor/basic_types.h"
