@@ -480,7 +480,7 @@ TEST(QueryExecutor, BinarySearchNotEq) {
 }
 
 TEST(QueryExecutor, IdSearchIsNull) {
-  IdStorage storage(5);
+  IdStorage storage;
   auto chain = storage.MakeChain();
 
   // Filter.
@@ -492,7 +492,7 @@ TEST(QueryExecutor, IdSearchIsNull) {
 }
 
 TEST(QueryExecutor, IdSearchIsNotNull) {
-  IdStorage storage(5);
+  IdStorage storage;
   auto chain = storage.MakeChain();
 
   // Filter.
@@ -504,7 +504,7 @@ TEST(QueryExecutor, IdSearchIsNotNull) {
 }
 
 TEST(QueryExecutor, IdSearchNotEq) {
-  IdStorage storage(5);
+  IdStorage storage;
   auto chain = storage.MakeChain();
 
   // Filter.
@@ -589,7 +589,7 @@ TEST(QueryExecutor, StringSearchNeSorted) {
 }
 
 TEST(QueryExecutor, MismatchedTypeIdWithString) {
-  IdStorage storage(5);
+  IdStorage storage;
   auto chain = storage.MakeChain();
 
   // Filter.
@@ -601,7 +601,7 @@ TEST(QueryExecutor, MismatchedTypeIdWithString) {
 }
 
 TEST(QueryExecutor, MismatchedTypeIdWithDouble) {
-  IdStorage storage(5);
+  IdStorage storage;
   auto chain = storage.MakeChain();
 
   // Filter.

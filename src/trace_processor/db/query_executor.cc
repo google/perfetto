@@ -202,8 +202,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
           chain = data_layers.back()->MakeChain();
           break;
         case ColumnType::kId:
-          data_layers.emplace_back(
-              std::make_unique<column::IdStorage>(column_size));
+          data_layers.emplace_back(std::make_unique<column::IdStorage>());
           chain = data_layers.back()->MakeChain();
           break;
         case ColumnType::kString:

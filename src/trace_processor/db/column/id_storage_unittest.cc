@@ -43,7 +43,7 @@ using testing::ElementsAre;
 using testing::IsEmpty;
 
 TEST(IdStorage, InvalidSearchConstraints) {
-  IdStorage storage(100);
+  IdStorage storage;
   auto chain = storage.MakeChain();
 
   // NULL checks
@@ -104,7 +104,7 @@ TEST(IdStorage, InvalidSearchConstraints) {
 }
 
 TEST(IdStorage, SearchEqSimple) {
-  IdStorage storage(100);
+  IdStorage storage;
   auto chain = storage.MakeChain();
   Range range = chain->Search(FilterOp::kEq, SqlValue::Long(15), Range(10, 20))
                     .TakeIfRange();
@@ -114,7 +114,7 @@ TEST(IdStorage, SearchEqSimple) {
 }
 
 TEST(IdStorage, SearchEqOnRangeBoundary) {
-  IdStorage storage(100);
+  IdStorage storage;
   auto chain = storage.MakeChain();
   Range range = chain->Search(FilterOp::kEq, SqlValue::Long(20), Range(10, 20))
                     .TakeIfRange();
@@ -122,7 +122,7 @@ TEST(IdStorage, SearchEqOnRangeBoundary) {
 }
 
 TEST(IdStorage, SearchEqOutsideRange) {
-  IdStorage storage(100);
+  IdStorage storage;
   auto chain = storage.MakeChain();
   Range range = chain->Search(FilterOp::kEq, SqlValue::Long(25), Range(10, 20))
                     .TakeIfRange();
@@ -130,7 +130,7 @@ TEST(IdStorage, SearchEqOutsideRange) {
 }
 
 TEST(IdStorage, SearchEqTooBig) {
-  IdStorage storage(100);
+  IdStorage storage;
   auto chain = storage.MakeChain();
   Range range = chain->Search(FilterOp::kEq, SqlValue::Long(125), Range(10, 20))
                     .TakeIfRange();
@@ -138,7 +138,7 @@ TEST(IdStorage, SearchEqTooBig) {
 }
 
 TEST(IdStorage, SearchSimple) {
-  IdStorage storage(10);
+  IdStorage storage;
   auto chain = storage.MakeChain();
   SqlValue val = SqlValue::Long(5);
   Range filter_range(3, 7);
@@ -169,7 +169,7 @@ TEST(IdStorage, SearchSimple) {
 }
 
 TEST(IdStorage, IndexSearchSimple) {
-  IdStorage storage(10);
+  IdStorage storage;
   auto chain = storage.MakeChain();
   SqlValue val = SqlValue::Long(5);
   std::vector<uint32_t> indices_vec{5, 4, 3, 9, 8, 7};
@@ -201,7 +201,7 @@ TEST(IdStorage, IndexSearchSimple) {
 }
 
 TEST(IdStorage, OrderedIndexSearch) {
-  IdStorage storage(10);
+  IdStorage storage;
   auto chain = storage.MakeChain();
 
   std::vector<uint32_t> indices_vec{0, 1, 2, 4, 4};
@@ -230,7 +230,7 @@ TEST(IdStorage, OrderedIndexSearch) {
 }
 
 TEST(IdStorage, IndexSearchEqTooBig) {
-  IdStorage storage(12);
+  IdStorage storage;
   auto chain = storage.MakeChain();
   std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
 
@@ -246,7 +246,7 @@ TEST(IdStorage, IndexSearchEqTooBig) {
 }
 
 TEST(IdStorage, SearchWithIdAsDoubleSimple) {
-  IdStorage storage(100);
+  IdStorage storage;
   auto chain = storage.MakeChain();
   SqlValue double_val = SqlValue::Double(15.0);
   SqlValue long_val = SqlValue::Long(15);
@@ -284,7 +284,7 @@ TEST(IdStorage, SearchWithIdAsDoubleSimple) {
 }
 
 TEST(IdStorage, SearchWithIdAsDouble) {
-  IdStorage storage(100);
+  IdStorage storage;
   auto chain = storage.MakeChain();
   Range range(10, 20);
   SqlValue val = SqlValue::Double(15.5);
@@ -312,7 +312,7 @@ TEST(IdStorage, SearchWithIdAsDouble) {
 
 TEST(IdStorage, Sort) {
   std::vector<uint32_t> order{4, 3, 6, 1, 5};
-  IdStorage storage(10);
+  IdStorage storage;
   auto chain = storage.MakeChain();
   chain->Sort(order.data(), 5);
 
