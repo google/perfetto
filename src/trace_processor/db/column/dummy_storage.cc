@@ -31,26 +31,26 @@ std::unique_ptr<DataLayerChain> DummyStorage::MakeChain() {
 }
 
 SearchValidationResult DummyStorage::ChainImpl::ValidateSearchConstraints(
-    SqlValue,
-    FilterOp) const {
+    FilterOp,
+    SqlValue) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 
-RangeOrBitVector DummyStorage::ChainImpl::Search(FilterOp,
-                                                 SqlValue,
-                                                 Range) const {
+RangeOrBitVector DummyStorage::ChainImpl::SearchValidated(FilterOp,
+                                                          SqlValue,
+                                                          Range) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 
-RangeOrBitVector DummyStorage::ChainImpl::IndexSearch(FilterOp,
-                                                      SqlValue,
-                                                      Indices) const {
+RangeOrBitVector DummyStorage::ChainImpl::IndexSearchValidated(FilterOp,
+                                                               SqlValue,
+                                                               Indices) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 
-Range DummyStorage::ChainImpl::OrderedIndexSearch(FilterOp,
-                                                  SqlValue,
-                                                  Indices) const {
+Range DummyStorage::ChainImpl::OrderedIndexSearchValidated(FilterOp,
+                                                           SqlValue,
+                                                           Indices) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 

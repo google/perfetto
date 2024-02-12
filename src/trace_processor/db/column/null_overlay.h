@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <utility>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
@@ -31,7 +30,7 @@ namespace perfetto::trace_processor::column {
 
 // Overlay which introduces the layer of nullability. Specifically, spreads out
 // the storage with nulls using a BitVector.
-class NullOverlay : public DataLayer {
+class NullOverlay final : public DataLayer {
  public:
   explicit NullOverlay(const BitVector* non_null);
 
@@ -43,14 +42,18 @@ class NullOverlay : public DataLayer {
    public:
     ChainImpl(std::unique_ptr<DataLayerChain>, const BitVector* non_null);
 
-    SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                     FilterOp) const override;
+    SearchValidationResult ValidateSearchConstraints(FilterOp,
+                                                     SqlValue) const override;
 
-    RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+    RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-    RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+    RangeOrBitVector IndexSearchValidated(FilterOp,
+                                          SqlValue,
+                                          Indices) const override;
 
-    Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
+    Range OrderedIndexSearchValidated(FilterOp,
+                                      SqlValue,
+                                      Indices) const override;
 
     void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 

@@ -53,22 +53,22 @@ TEST(NumericStorage, InvalidSearchConstraintsGeneralChecks) {
   Range empty_range;
 
   // NULL checks
-  ASSERT_EQ(chain->ValidateSearchConstraints(SqlValue(), FilterOp::kIsNull),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kIsNull, SqlValue()),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(SqlValue(), FilterOp::kIsNotNull),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kIsNotNull, SqlValue()),
             SearchValidationResult::kAllData);
 
   // FilterOp checks
   ASSERT_EQ(
-      chain->ValidateSearchConstraints(SqlValue::Long(15), FilterOp::kGlob),
+      chain->ValidateSearchConstraints(FilterOp::kGlob, SqlValue::Long(15)),
       SearchValidationResult::kNoData);
   ASSERT_EQ(
-      chain->ValidateSearchConstraints(SqlValue::Long(15), FilterOp::kRegex),
+      chain->ValidateSearchConstraints(FilterOp::kRegex, SqlValue::Long(15)),
       SearchValidationResult::kNoData);
 
   // Type checks
-  ASSERT_EQ(chain->ValidateSearchConstraints(SqlValue::String("cheese"),
-                                             FilterOp::kGe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kGe,
+                                             SqlValue::String("cheese")),
             SearchValidationResult::kNoData);
 }
 
@@ -80,34 +80,34 @@ TEST(NumericStorage, InvalidValueBoundsUint32) {
 
   SqlValue max_val = SqlValue::Long(
       static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) + 10);
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kGe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kGe, max_val),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kGt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kGt, max_val),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kEq),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kEq, max_val),
             SearchValidationResult::kNoData);
 
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kLe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kLe, max_val),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kLt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kLt, max_val),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kNe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kNe, max_val),
             SearchValidationResult::kAllData);
 
   SqlValue min_val = SqlValue::Long(
       static_cast<int64_t>(std::numeric_limits<uint32_t>::min()) - 1);
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kGe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kGe, min_val),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kGt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kGt, min_val),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kNe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kNe, min_val),
             SearchValidationResult::kAllData);
 
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kLe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kLe, min_val),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kLt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kLt, min_val),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kEq),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kEq, min_val),
             SearchValidationResult::kNoData);
 }
 
@@ -119,34 +119,34 @@ TEST(NumericStorage, InvalidValueBoundsInt32) {
 
   SqlValue max_val = SqlValue::Long(
       static_cast<int64_t>(std::numeric_limits<int32_t>::max()) + 10);
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kGe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kGe, max_val),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kGt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kGt, max_val),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kEq),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kEq, max_val),
             SearchValidationResult::kNoData);
 
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kLe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kLe, max_val),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kLt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kLt, max_val),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(max_val, FilterOp::kNe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kNe, max_val),
             SearchValidationResult::kAllData);
 
   SqlValue min_val = SqlValue::Long(
       static_cast<int64_t>(std::numeric_limits<int32_t>::min()) - 1);
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kGe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kGe, min_val),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kGt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kGt, min_val),
             SearchValidationResult::kAllData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kNe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kNe, min_val),
             SearchValidationResult::kAllData);
 
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kLe),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kLe, min_val),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kLt),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kLt, min_val),
             SearchValidationResult::kNoData);
-  ASSERT_EQ(chain->ValidateSearchConstraints(min_val, FilterOp::kEq),
+  ASSERT_EQ(chain->ValidateSearchConstraints(FilterOp::kEq, min_val),
             SearchValidationResult::kNoData);
 }
 

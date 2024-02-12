@@ -47,23 +47,23 @@ DenseNullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
     : inner_(std::move(inner)), non_null_(non_null) {}
 
 SearchValidationResult DenseNullOverlay::ChainImpl::ValidateSearchConstraints(
-    SqlValue sql_val,
-    FilterOp op) const {
+    FilterOp op,
+    SqlValue sql_val) const {
   if (op == FilterOp::kIsNull) {
     return SearchValidationResult::kOk;
   }
 
-  return inner_->ValidateSearchConstraints(sql_val, op);
+  return inner_->ValidateSearchConstraints(op, sql_val);
 }
 
-RangeOrBitVector DenseNullOverlay::ChainImpl::Search(FilterOp op,
-                                                     SqlValue sql_val,
-                                                     Range in) const {
+RangeOrBitVector DenseNullOverlay::ChainImpl::SearchValidated(FilterOp op,
+                                                              SqlValue sql_val,
+                                                              Range in) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "DenseNullOverlay::ChainImpl::Search");
 
   if (op == FilterOp::kIsNull) {
-    switch (inner_->ValidateSearchConstraints(sql_val, op)) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
       case SearchValidationResult::kNoData: {
         // There is no need to search in underlying storage. It's enough to
         // intersect the |non_null_|.
@@ -79,7 +79,7 @@ RangeOrBitVector DenseNullOverlay::ChainImpl::Search(FilterOp op,
     }
   }
 
-  RangeOrBitVector inner_res = inner_->Search(op, sql_val, in);
+  RangeOrBitVector inner_res = inner_->SearchValidated(op, sql_val, in);
   BitVector res;
   if (inner_res.IsRange()) {
     // If the inner storage returns a range, mask out the appropriate values in
@@ -112,7 +112,7 @@ RangeOrBitVector DenseNullOverlay::ChainImpl::Search(FilterOp op,
   return RangeOrBitVector(std::move(res));
 }
 
-RangeOrBitVector DenseNullOverlay::ChainImpl::IndexSearch(
+RangeOrBitVector DenseNullOverlay::ChainImpl::IndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
     Indices indices) const {
@@ -120,7 +120,7 @@ RangeOrBitVector DenseNullOverlay::ChainImpl::IndexSearch(
                     "DenseNullOverlay::ChainImpl::IndexSearch");
 
   if (op == FilterOp::kIsNull) {
-    switch (inner_->ValidateSearchConstraints(sql_val, op)) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
       case SearchValidationResult::kNoData: {
         BitVector::Builder null_indices(indices.size);
         for (const uint32_t* it = indices.data;
@@ -138,7 +138,8 @@ RangeOrBitVector DenseNullOverlay::ChainImpl::IndexSearch(
     }
   }
 
-  RangeOrBitVector inner_res = inner_->IndexSearch(op, sql_val, indices);
+  RangeOrBitVector inner_res =
+      inner_->IndexSearchValidated(op, sql_val, indices);
   if (inner_res.IsRange()) {
     Range inner_range = std::move(inner_res).TakeIfRange();
     BitVector::Builder builder(indices.size, inner_range.start);
@@ -168,9 +169,10 @@ RangeOrBitVector DenseNullOverlay::ChainImpl::IndexSearch(
   return RangeOrBitVector(std::move(res));
 }
 
-Range DenseNullOverlay::ChainImpl::OrderedIndexSearch(FilterOp op,
-                                                      SqlValue sql_val,
-                                                      Indices indices) const {
+Range DenseNullOverlay::ChainImpl::OrderedIndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
   // For NOT EQUAL the further analysis needs to be done by the caller.
   PERFETTO_CHECK(op != FilterOp::kNe);
 
@@ -183,31 +185,31 @@ Range DenseNullOverlay::ChainImpl::OrderedIndexSearch(FilterOp op,
       std::partition_point(indices.data, indices.data + indices.size,
                            [this](uint32_t i) { return !non_null_->IsSet(i); });
 
-  uint32_t non_null_offset =
+  auto non_null_offset =
       static_cast<uint32_t>(std::distance(indices.data, first_non_null));
-  uint32_t non_null_size = static_cast<uint32_t>(
+  auto non_null_size = static_cast<uint32_t>(
       std::distance(first_non_null, indices.data + indices.size));
 
   if (op == FilterOp::kIsNull) {
-    return Range(0, non_null_offset);
+    return {0, non_null_offset};
   }
 
   if (op == FilterOp::kIsNotNull) {
-    switch (inner_->ValidateSearchConstraints(sql_val, op)) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
       case SearchValidationResult::kNoData:
-        return Range();
+        return {};
       case SearchValidationResult::kAllData:
-        return Range(non_null_offset, indices.size);
+        return {non_null_offset, indices.size};
       case SearchValidationResult::kOk:
         break;
     }
   }
 
-  Range inner_range = inner_->OrderedIndexSearch(
+  Range inner_range = inner_->OrderedIndexSearchValidated(
       op, sql_val,
       Indices{first_non_null, non_null_size, Indices::State::kNonmonotonic});
-  return Range(inner_range.start + non_null_offset,
-               inner_range.end + non_null_offset);
+  return {inner_range.start + non_null_offset,
+          inner_range.end + non_null_offset};
 }
 
 void DenseNullOverlay::ChainImpl::StableSort(uint32_t*, uint32_t) const {
