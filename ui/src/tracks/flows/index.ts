@@ -28,9 +28,10 @@ class FlowsPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    const tabUri = 'perfetto.Flows#FlowEvents';
     ctx.registerTab({
       isEphemeral: false,
-      uri: 'perfetto.Flows#FlowEvents',
+      uri: tabUri,
       content: {
         render: () => {
           const selection = globals.state.currentSelection;
@@ -41,6 +42,14 @@ class FlowsPlugin implements Plugin {
           }
         },
         getTitle: () => 'Flow Events',
+      },
+    });
+
+    ctx.registerCommand({
+      id: 'perfetto.Flows#ShowFlowsTab',
+      name: `Show Flows Tab`,
+      callback: () => {
+        ctx.tabs.showTab(tabUri);
       },
     });
   }

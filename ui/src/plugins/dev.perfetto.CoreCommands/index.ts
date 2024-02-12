@@ -215,6 +215,14 @@ const coreCommands: Plugin = {
         );
       },
     });
+
+    ctx.registerCommand({
+      id: 'dev.perfetto.CoreCommands#ShowCurrentSelectionTab',
+      name: 'Show Current Selection Tab',
+      callback: () => {
+        ctx.tabs.showTab('current_selection');
+      },
+    });
   },
 };
 
