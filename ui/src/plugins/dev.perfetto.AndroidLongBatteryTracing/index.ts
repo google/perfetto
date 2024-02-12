@@ -1225,7 +1225,7 @@ class AndroidLongBatteryTracing implements Plugin {
 
     const e = ctx.engine;
     const groupName = 'Wakeups';
-    await e.query(`INCLUDE PERFETTO MODULE android.suspend_resume;`);
+    await e.query(`INCLUDE PERFETTO MODULE android.suspend;`);
     await e.query(WAKEUPS);
     const result = await e.query(`select
           item,
