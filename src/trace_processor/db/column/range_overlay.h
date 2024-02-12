@@ -29,7 +29,7 @@ namespace perfetto::trace_processor::column {
 
 class RangeOverlay final : public DataLayer {
  public:
-  explicit RangeOverlay(Range);
+  explicit RangeOverlay(const Range*);
 
   std::unique_ptr<DataLayerChain> MakeChain(
       std::unique_ptr<DataLayerChain>) override;
@@ -37,7 +37,7 @@ class RangeOverlay final : public DataLayer {
  private:
   class ChainImpl : public DataLayerChain {
    public:
-    ChainImpl(std::unique_ptr<DataLayerChain>, Range);
+    ChainImpl(std::unique_ptr<DataLayerChain>, const Range*);
 
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
@@ -58,16 +58,16 @@ class RangeOverlay final : public DataLayer {
 
     void Serialize(StorageProto*) const override;
 
-    uint32_t size() const override { return range_.size(); }
+    uint32_t size() const override { return range_->size(); }
 
     std::string DebugString() const override { return "RangeOverlay"; }
 
    private:
     std::unique_ptr<DataLayerChain> inner_;
-    const Range range_;
+    const Range* range_;
   };
 
-  const Range range_;
+  const Range* range_;
 };
 
 }  // namespace perfetto::trace_processor::column
