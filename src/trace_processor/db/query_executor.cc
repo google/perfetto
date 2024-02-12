@@ -292,7 +292,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     if (col.overlay().row_map().IsRange() &&
         col.overlay().size() != column_size) {
       data_layers.emplace_back(std::make_unique<column::RangeOverlay>(
-          *col.overlay().row_map().GetIfIRange()));
+          col.overlay().row_map().GetIfIRange()));
       chain = data_layers.back()->MakeChain(std::move(chain));
     }
     uint32_t pre_count = rm.size();

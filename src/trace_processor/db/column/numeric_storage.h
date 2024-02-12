@@ -31,20 +31,9 @@ namespace perfetto::trace_processor::column {
 
 // Storage for all numeric type data (i.e. doubles, int32, int64, uint32).
 class NumericStorageBase : public DataLayer {
- public:
-  std::unique_ptr<DataLayerChain> MakeChain() override;
-
  protected:
-  NumericStorageBase(const void* data,
-                     uint32_t size,
-                     ColumnType type,
-                     bool is_sorted);
-
- private:
   class ChainImpl : public DataLayerChain {
    public:
-    ChainImpl(const void* data, uint32_t size, ColumnType type, bool is_sorted);
-
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 
@@ -64,9 +53,10 @@ class NumericStorageBase : public DataLayer {
 
     void Serialize(StorageProto*) const override;
 
-    inline uint32_t size() const override { return size_; }
-
     std::string DebugString() const override { return "NumericStorage"; }
+
+   protected:
+    ChainImpl(const void* vector_ptr, ColumnType type, bool is_sorted);
 
    private:
     // All viable numeric values for ColumnTypes.
@@ -83,14 +73,14 @@ class NumericStorageBase : public DataLayer {
                                 NumericValue val,
                                 Range search_range) const;
 
-    const uint32_t size_ = 0;
-    const void* data_ = nullptr;
+    const void* vector_ptr_ = nullptr;
     const ColumnType storage_type_ = ColumnType::kDummy;
     const bool is_sorted_ = false;
   };
 
-  const uint32_t size_ = 0;
-  const void* data_ = nullptr;
+  NumericStorageBase(ColumnType type, bool is_sorted);
+  ~NumericStorageBase() override;
+
   const ColumnType storage_type_ = ColumnType::kDummy;
   const bool is_sorted_ = false;
 };
@@ -102,15 +92,27 @@ class NumericStorage final : public NumericStorageBase {
   NumericStorage(const std::vector<T>* vec,
                  ColumnType type,
                  bool is_sorted = false)
-      : NumericStorageBase(vec->data(),
-                           static_cast<uint32_t>(vec->size()),
-                           type,
-                           is_sorted),
-        vector_(vec) {}
+      : NumericStorageBase(type, is_sorted), vector_(vec) {}
+
+  std::unique_ptr<DataLayerChain> MakeChain() override {
+    return std::make_unique<ChainImpl>(vector_, storage_type_, is_sorted_);
+  }
 
  private:
-  // TODO(b/307482437): After the migration vectors should be owned by storage,
-  // so change from pointer to value.
+  class ChainImpl : public NumericStorageBase::ChainImpl {
+   public:
+    ChainImpl(const std::vector<T>* vector, ColumnType type, bool is_sorted)
+        : NumericStorageBase::ChainImpl(vector, type, is_sorted),
+          vector_(vector) {}
+
+    uint32_t size() const override {
+      return static_cast<uint32_t>(vector_->size());
+    }
+
+   private:
+    const std::vector<T>* vector_;
+  };
+
   const std::vector<T>* vector_;
 };
 

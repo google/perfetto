@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
@@ -42,7 +43,7 @@ class RootParentTable : public Table {
  public:
   struct Row {
    public:
-    Row(std::nullptr_t = nullptr) {}
+    explicit Row(std::nullptr_t = nullptr) {}
 
     const char* type() const { return type_; }
 
@@ -57,9 +58,9 @@ class RootParentTable : public Table {
     uint32_t id;
   };
   struct RowNumber {
-    uint32_t row_number() { PERFETTO_FATAL("Should not be called"); }
+    static uint32_t row_number() { PERFETTO_FATAL("Should not be called"); }
   };
-  IdAndRow Insert(const Row&) { PERFETTO_FATAL("Should not be called"); }
+  static IdAndRow Insert(const Row&) { PERFETTO_FATAL("Should not be called"); }
 
  private:
   explicit RootParentTable(std::nullptr_t);
@@ -149,8 +150,13 @@ class MacroTable : public Table {
  private:
   static std::vector<ColumnStorageOverlay> EmptyOverlaysFromParent(
       const MacroTable* parent) {
-    return std::vector<ColumnStorageOverlay>(
-        parent ? parent->overlays().size() + 1 : 1);
+    std::vector<ColumnStorageOverlay> overlays(
+        parent ? parent->overlays().size() : 0);
+    for (auto& overlay : overlays) {
+      overlay = ColumnStorageOverlay(BitVector());
+    }
+    overlays.emplace_back();
+    return overlays;
   }
   static std::vector<ColumnStorageOverlay> SelectedOverlaysFromParent(
       const macros_internal::MacroTable& parent,
