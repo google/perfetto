@@ -1057,12 +1057,6 @@ export const StateActions = {
     }
   },
 
-  toggleAllTrackGroups(state: StateDraft, args: {collapsed: boolean}) {
-    for (const group of Object.values(state.trackGroups)) {
-      group.collapsed = args.collapsed;
-    }
-  },
-
   clearAllPinnedTracks(state: StateDraft, _: {}) {
     const pinnedTracks = state.pinnedTracks.slice();
     for (let index = pinnedTracks.length-1; index >= 0; index--) {
