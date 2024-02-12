@@ -1767,6 +1767,25 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
     return;
   }
 
+  std::map<ProducerID, std::vector<DataSourceInstanceID>> data_source_instances;
+  for (const auto& [producer_id, ds_inst] :
+       tracing_session->data_source_instances) {
+    if (ds_inst.no_flush)
+      continue;
+    data_source_instances[producer_id].push_back(ds_inst.instance_id);
+  }
+  FlushDataSourceInstances(tracing_session, timeout_ms, data_source_instances,
+                           callback, flush_flags);
+}
+
+void TracingServiceImpl::FlushDataSourceInstances(
+    TracingSession* tracing_session,
+    uint32_t timeout_ms,
+    std::map<ProducerID, std::vector<DataSourceInstanceID>>
+        data_source_instances,
+    ConsumerEndpoint::FlushCallback callback,
+    FlushFlags flush_flags) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!timeout_ms)
     timeout_ms = tracing_session->flush_timeout_ms();
 
@@ -1795,31 +1814,20 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
   // order to issue a flush request we have to build a map of all data source
   // instance ids enabled for each producer.
 
-  std::map<ProducerID, std::vector<DataSourceInstanceID>> flush_map;
-  for (const auto& kv : tracing_session->data_source_instances) {
-    const ProducerID producer_id = kv.first;
-    const DataSourceInstance& ds_inst = kv.second;
-    if (ds_inst.no_flush)
-      continue;
-    flush_map[producer_id].push_back(ds_inst.instance_id);
-  }
-
-  for (const auto& kv : flush_map) {
-    ProducerID producer_id = kv.first;
+  for (const auto& [producer_id, data_sources] : data_source_instances) {
     ProducerEndpointImpl* producer = GetProducer(producer_id);
-    const std::vector<DataSourceInstanceID>& data_sources = kv.second;
     producer->Flush(flush_request_id, data_sources, flush_flags);
     pending_flush.producers.insert(producer_id);
   }
 
   // If there are no producers to flush (realistically this happens only in
   // some tests) fire OnFlushTimeout() straight away, without waiting.
-  if (flush_map.empty())
+  if (data_source_instances.empty())
     timeout_ms = 0;
 
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
-      [weak_this, tsid, flush_request_id] {
+      [weak_this, tsid = tracing_session->id, flush_request_id] {
         if (weak_this)
           weak_this->OnFlushTimeout(tsid, flush_request_id);
       },
@@ -3754,10 +3762,9 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
 
   // First clone all TraceBuffer(s). This can fail because of ENOMEM. If it
   // happens bail out early before creating any session.
-  std::vector<std::pair<BufferID, std::unique_ptr<TraceBuffer>>> buf_snaps;
+  std::vector<std::unique_ptr<TraceBuffer>> buf_snaps;
   buf_snaps.reserve(src->num_buffers());
   PERFETTO_DCHECK(src->num_buffers() == src->config.buffers().size());
-  bool buf_clone_failed = false;
   size_t buf_idx = 0;
   for (BufferID src_buf_id : src->buffers_index) {
     auto buf_iter = buffers_.find(src_buf_id);
@@ -3777,20 +3784,17 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
     } else {
       new_buf = src_buf->CloneReadOnly();
     }
-    BufferID buf_global_id = buffer_ids_.Allocate();
-    buf_clone_failed |= !new_buf.get() || !buf_global_id;
-    buf_snaps.emplace_back(buf_global_id, std::move(new_buf));
+    if (!new_buf.get()) {
+      return PERFETTO_SVC_ERR("Buffer allocation failed");
+    }
+    buf_snaps.emplace_back(std::move(new_buf));
     ++buf_idx;
   }
 
-  // Free up allocated IDs in case of failure. No need to free the TraceBuffers,
-  // as they are still owned by the temporary |buf_snaps|.
-  if (buf_clone_failed) {
-    for (auto& kv : buf_snaps) {
-      if (kv.first)
-        buffer_ids_.Free(kv.first);
-    }
-    return PERFETTO_SVC_ERR("Buffer allocation failed");
+  std::vector<BufferID> buf_ids =
+      buffer_ids_.AllocateMultiple(buf_snaps.size());
+  if (buf_ids.size() != buf_snaps.size()) {
+    return PERFETTO_SVC_ERR("Buffer id allocation failed");
   }
 
   const TracingSessionID tsid = ++last_tracing_session_id_;
@@ -3811,9 +3815,9 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   cloned_session->trace_uuid.set_lsb(orig_uuid_lsb);
   *new_uuid = cloned_session->trace_uuid;
 
-  for (auto& kv : buf_snaps) {
-    BufferID buf_global_id = kv.first;
-    std::unique_ptr<TraceBuffer>& buf = kv.second;
+  for (size_t i = 0; i < buf_snaps.size(); i++) {
+    BufferID buf_global_id = buf_ids[i];
+    std::unique_ptr<TraceBuffer>& buf = buf_snaps[i];
     // This is only needed for transfer_on_clone. Other buffers are already
     // marked as read-only by CloneReadOnly(). We cannot do this early because
     // in case of an allocation failure we will put std::move() the original
