@@ -1042,7 +1042,7 @@ slice_name (	R	sliceName
 
 client_dur (R	clientDur(
 client_oom_score (RclientOomScore=
-client_package_version_code (	RclientPackageVersionCode?
+client_package_version_code (RclientPackageVersionCode?
 is_client_package_debuggable (RisClientPackageDebuggable%
 server_process	 (	RserverProcess#
 server_thread
@@ -1051,7 +1051,7 @@ client_dur (R	clientDur(
 
 server_dur (R	serverDur(
 server_oom_score (RserverOomScore=
-server_package_version_code (	RserverPackageVersionCode?
+server_package_version_code (RserverPackageVersionCode?
 is_server_package_debuggable (RisServerPackageDebuggable^
 thread_states (29.perfetto.protos.AndroidBinderMetric.ThreadStateBreakdownRthreadStatesj
 blocked_functions (2=.perfetto.protos.AndroidBinderMetric.BlockedFunctionBreakdownRblockedFunctions

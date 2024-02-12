@@ -450,9 +450,9 @@ CREATE PERFETTO TABLE android_binder_txns(
   -- whether the txn is synchronous or async (oneway).
   is_sync BOOL,
   -- Client package version_code.
-  client_package_version_code STRING,
+  client_package_version_code INT,
   -- Server package version_code.
-  server_package_version_code STRING,
+  server_package_version_code INT,
   -- Whether client package is debuggable.
   is_client_package_debuggable INT,
   -- Whether server package is debuggable.
