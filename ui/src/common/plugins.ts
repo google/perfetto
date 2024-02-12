@@ -33,6 +33,7 @@ import {
   TabDescriptor,
   TrackDescriptor,
   TrackPredicate,
+  GroupPredicate,
   TrackRef,
 } from '../public';
 import {Engine} from '../trace_processor/engine';
@@ -241,6 +242,42 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
         .map((trackState) => trackState.key);
 
       globals.dispatch(Actions.removeTracks({trackKeys: trackKeysToRemove}));
+    },
+
+    expandGroupsByPredicate(predicate: GroupPredicate) {
+      const groups = globals.state.trackGroups;
+      const groupsToExpand = Object.values(groups)
+        .filter((group) => group.collapsed)
+        .filter((group) => {
+          const ref = {
+            displayName: group.name,
+            collapsed: group.collapsed,
+          };
+          return predicate(ref);
+        })
+        .map((group) => group.id);
+
+      for (const trackGroupId of groupsToExpand) {
+        globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+      }
+    },
+
+    collapseGroupsByPredicate(predicate: GroupPredicate) {
+      const groups = globals.state.trackGroups;
+      const groupsToCollapse = Object.values(groups)
+        .filter((group) => !group.collapsed)
+        .filter((group) => {
+          const ref = {
+            displayName: group.name,
+            collapsed: group.collapsed,
+          };
+          return predicate(ref);
+        })
+        .map((group) => group.id);
+
+      for (const trackGroupId of groupsToCollapse) {
+        globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+      }
     },
 
     get tracks():
