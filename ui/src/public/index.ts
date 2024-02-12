@@ -359,6 +359,12 @@ export interface PluginContextTrace extends PluginContext {
     // Remove all tracks that match a predicate.
     removeTracksByPredicate(predicate: TrackPredicate): void;
 
+    // Expand all groups that match a predicate.
+    expandGroupsByPredicate(predicate: GroupPredicate): void;
+
+    // Collapse all groups that match a predicate.
+    collapseGroupsByPredicate(predicate: GroupPredicate): void;
+
     // Retrieve a list of tracks on the timeline.
     tracks: TrackRef[];
 
@@ -453,8 +459,20 @@ export interface TrackRef {
   groupName?: string;
 }
 
-// A predicate for selecting a groups of tracks.
+// A predicate for selecting a subset of tracks.
 export type TrackPredicate = (info: TrackTags) => boolean;
+
+// Describes a reference to a group of tracks.
+export interface GroupRef {
+  // A human readable name for this track group.
+  displayName: string;
+
+  // True if the track is open else false.
+  collapsed: boolean;
+}
+
+// A predicate for selecting a subset of groups.
+export type GroupPredicate = (info: GroupRef) => boolean;
 
 interface WellKnownTrackTags {
   // A human readable name for this specific track.
