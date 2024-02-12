@@ -60,7 +60,7 @@ export class FlowEventsPanel implements m.ClassComponent {
       if (trackKey) {
         globals.makeSelection(
           Actions.selectChromeSlice({id: sliceId, trackKey, table: 'slice'}),
-          {tab: 'bound_flows'});
+          {switchToCurrentSelectionTab: false});
       }
     };
 

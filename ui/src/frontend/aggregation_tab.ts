@@ -143,8 +143,9 @@ export class AggregationsTabs implements Disposable {
 
   constructor() {
     for (const {type, title} of this.tabs) {
+      const uri = uriForAggType(type);
       const unregister = globals.tabManager.registerTab({
-        uri: uriForAggType(type),
+        uri,
         isEphemeral: false,
         content: {
           getTitle: () => `Aggregation: ${title}`,
@@ -155,6 +156,15 @@ export class AggregationsTabs implements Disposable {
         },
       });
       this.trash.add(unregister);
+
+      const unregisterCmd = globals.commandManager.registry.register({
+        id: uri,
+        name: `Show ${title} Aggregation Tab`,
+        callback: () => {
+          globals.dispatch(Actions.showTab({uri}));
+        },
+      });
+      this.trash.add(unregisterCmd);
     }
 
     const unregister = globals.tabManager.registerDetailsPanel({
