@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -25,6 +26,7 @@
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 
@@ -51,6 +53,12 @@ Table& Table::operator=(Table&& other) noexcept {
 
   overlays_ = std::move(other.overlays_);
   columns_ = std::move(other.columns_);
+
+  storage_layers_ = std::move(other.storage_layers_);
+  null_layers_ = std::move(other.null_layers_);
+  overlay_layers_ = std::move(other.overlay_layers_);
+  chains_ = std::move(other.chains_);
+
   for (ColumnLegacy& col : columns_) {
     col.table_ = this;
   }
@@ -62,7 +70,7 @@ Table Table::Copy() const {
   for (const ColumnStorageOverlay& overlay : overlays_) {
     table.overlays_.emplace_back(overlay.Copy());
   }
-  table.OnConstructionCompleted();
+  table.OnConstructionCompleted(storage_layers_, null_layers_, overlay_layers_);
   return table;
 }
 
@@ -148,7 +156,7 @@ Table Table::Sort(const std::vector<Order>& ob) const {
     table.overlays_.emplace_back(overlay.SelectRows(rm));
     PERFETTO_DCHECK(table.overlays_.back().size() == table.row_count());
   }
-  table.OnConstructionCompleted();
+  table.OnConstructionCompleted(storage_layers_, null_layers_, overlay_layers_);
 
   // Remove the sorted and row set flags from all the columns.
   for (auto& col : table.columns_) {

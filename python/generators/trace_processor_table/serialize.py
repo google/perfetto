@@ -19,6 +19,7 @@ from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.util import ParsedTable
 from python.generators.trace_processor_table.util import ParsedColumn
+from python.generators.trace_processor_table.util import data_layer_type
 from python.generators.trace_processor_table.util import parse_type
 from python.generators.trace_processor_table.util import typed_column_type
 
@@ -32,13 +33,18 @@ class ColumnSerializer:
     self.col = self.parsed_col.column
     self.name = self.col.name
     self.flags = self.col.flags
+
+    parsed_type = parse_type(table.table, self.col.type)
+
     self.typed_column_type = typed_column_type(table.table, self.parsed_col)
-    self.cpp_type = parse_type(table.table,
-                               self.col.type).cpp_type_with_optionality()
+    self.cpp_type = parsed_type.cpp_type_with_optionality()
+    self.data_layer_type = data_layer_type(table.table, self.parsed_col)
 
     self.is_implicit_id = self.parsed_col.is_implicit_id
     self.is_implicit_type = self.parsed_col.is_implicit_type
     self.is_ancestor = self.parsed_col.is_ancestor
+    self.is_string = parsed_type.cpp_type == 'StringPool::Id'
+    self.is_optional = parsed_type.is_optional
 
   def colindex(self) -> str:
     return f'    static constexpr uint32_t {self.name} = {self.col_index};'
@@ -63,14 +69,14 @@ class ColumnSerializer:
       return None
     if not self.is_ancestor:
       return None
-    return f'std::move(in_{self.name})'
+    return f'in_{self.name}'
 
   def row_initializer(self) -> Optional[str]:
     if self.is_implicit_id or self.is_implicit_type:
       return None
     if self.is_ancestor:
       return None
-    return f'{self.name}(std::move(in_{self.name}))'
+    return f'{self.name}(in_{self.name})'
 
   def const_row_ref_getter(self) -> Optional[str]:
     return f'''ColumnType::{self.name}::type {self.name}() const {{
@@ -131,7 +137,7 @@ class ColumnSerializer:
       return None
     if self.is_ancestor:
       return None
-    return f'    mutable_{self.name}()->Append(std::move(row.{self.name}));'
+    return f'    mutable_{self.name}()->Append(row.{self.name});'
 
   def accessor(self) -> Optional[str]:
     inner = f'columns()[ColumnIndex::{self.name}]'
@@ -232,6 +238,70 @@ class ColumnSerializer:
     {self.name}_ = std::move({self.name});
     '''
 
+  def storage_layer(self) -> Optional[str]:
+    if self.is_ancestor:
+      return None
+    return f'''
+  RefPtr<{self.data_layer_type}> {self.name}_storage_layer_;
+  '''
+
+  def null_layer(self) -> Optional[str]:
+    if self.is_ancestor:
+      return None
+    if not self.is_optional or self.is_string:
+      return f''
+    return f'''
+  RefPtr<column::NullOverlay> {self.name}_null_layer_;
+  '''
+
+  def storage_layer_create(self) -> str:
+    if self.is_ancestor:
+      return f'''
+    storage_layers[ColumnIndex::{self.name}] = const_parent_->storage_layers()[ColumnIndex::{self.name}];
+    '''
+    return f'''
+    storage_layers[ColumnIndex::{self.name}].reset({self.name}_storage_layer_.get());
+    '''
+
+  def null_layer_create(self) -> str:
+    if not self.is_optional or self.is_string:
+      return f''
+    if self.is_ancestor:
+      return f'''
+    null_layers[ColumnIndex::{self.name}] = const_parent_->null_layers()[ColumnIndex::{self.name}];
+      '''
+    return f'''
+    null_layers[ColumnIndex::{self.name}].reset({self.name}_null_layer_.get());
+    '''
+
+  def storage_layer_init(self) -> str:
+    if self.is_ancestor:
+      return f''
+    if self.is_implicit_id:
+      return f'{self.name}_storage_layer_(new column::IdStorage())'
+    if self.is_string:
+      return f'''{self.name}_storage_layer_(
+          new column::StringStorage(string_pool(), &{self.name}_.vector()))'''
+    if ColumnFlag.SET_ID in self.flags:
+      return f'''{self.name}_storage_layer_(
+          new column::SetIdStorage(&{self.name}_.vector()))'''
+    if self.is_optional:
+      return f'''{self.name}_storage_layer_(
+          new column::NumericStorage<ColumnType::{self.name}::non_optional_stored_type>(
+            &{self.name}_.non_null_vector(),
+            ColumnTypeHelper<ColumnType::{self.name}::stored_type>::ToColumnType()))'''
+    return f'''{self.name}_storage_layer_(
+        new column::NumericStorage<ColumnType::{self.name}::non_optional_stored_type>(
+          &{self.name}_.vector(),
+          ColumnTypeHelper<ColumnType::{self.name}::stored_type>::ToColumnType()))'''
+
+  def null_layer_init(self) -> str:
+    if self.is_ancestor:
+      return f''
+    if not self.is_optional or self.is_string:
+      return f''
+    return f'''{self.name}_null_layer_(new column::NullOverlay({self.name}_.bv()))'''
+
 
 class TableSerializer(object):
   """Functions for seralizing a single Table into C++."""
@@ -272,7 +342,7 @@ class TableSerializer(object):
     Id() = default;
     explicit constexpr Id(uint32_t v) : BaseId(v) {}
   };
-  static_assert(std::is_trivially_destructible<Id>::value,
+  static_assert(std::is_trivially_destructible_v<Id>,
                 "Inheritance used without trivial destruction");
     '''
 
@@ -313,7 +383,7 @@ class TableSerializer(object):
 
     {row_ref_getters}
   }};
-  static_assert(std::is_trivially_destructible<ConstRowReference>::value,
+  static_assert(std::is_trivially_destructible_v<ConstRowReference>,
                 "Inheritance used without trivial destruction");
     '''
 
@@ -333,17 +403,35 @@ class TableSerializer(object):
       return const_cast<{self.table_name}*>(table_);
     }}
   }};
-  static_assert(std::is_trivially_destructible<RowReference>::value,
+  static_assert(std::is_trivially_destructible_v<RowReference>,
                 "Inheritance used without trivial destruction");
+    '''
+
+  def overlay_layer_create(self) -> str:
+    if not self.table.parent:
+      return f''
+    return f'''
+    for (uint32_t i = 0; i < kSelectorOverlayCount; ++i) {{
+      PERFETTO_CHECK(overlays()[i].row_map().IsBitVector());
+      overlay_layers[i].reset(new column::SelectorOverlay(
+          overlays()[i].row_map().GetIfBitVector()));
+    }}
     '''
 
   def constructor(self) -> str:
     storage_init = self.foreach_col(
         ColumnSerializer.storage_init, delimiter=',\n        ')
+    storage_layer_init = self.foreach_col(
+        ColumnSerializer.storage_layer_init, delimiter=',\n        ')
+    storage_layer_sep = '\n,' if storage_layer_init else ''
+    null_layer_init = self.foreach_col(
+        ColumnSerializer.null_layer_init, delimiter=',\n        ')
+    null_layer_sep = '\n,' if null_layer_init else ''
     if self.table.parent:
       parent_param = f', {self.parent_class_name}* parent'
       parent_arg = 'parent'
-      parent_init = 'parent_(parent)' + (', ' if storage_init else '')
+      parent_init = 'parent_(parent), const_parent_(parent)' + (
+          ', ' if storage_init else '')
     else:
       parent_param = ''
       parent_arg = 'nullptr'
@@ -365,10 +453,27 @@ class TableSerializer(object):
   }}
 
   explicit {self.table_name}(StringPool* pool{parent_param})
-      : macros_internal::MacroTable(pool, GetColumns(this, {parent_arg}), {parent_arg}),
-        {parent_init}{storage_init} {{
+      : macros_internal::MacroTable(
+          pool,
+          GetColumns(this, {parent_arg}),
+          {parent_arg}),
+        {parent_init}{storage_init}{storage_layer_sep}
+        {storage_layer_init}{null_layer_sep}
+        {null_layer_init} {{
     {self.foreach_col(ColumnSerializer.static_assert_flags)}
-    OnConstructionCompleted();
+
+    std::vector<RefPtr<column::DataLayer>> storage_layers(kColumnCount);
+    {self.foreach_col(ColumnSerializer.storage_layer_create)}
+
+    std::vector<RefPtr<column::DataLayer>> null_layers(kColumnCount);
+    {self.foreach_col(ColumnSerializer.null_layer_create)}
+
+    std::vector<RefPtr<column::DataLayer>> overlay_layers(
+        kSelectorOverlayCount + 1);
+    {self.overlay_layer_create()}
+
+    OnConstructionCompleted(
+      std::move(storage_layers), std::move(null_layers), std::move(overlay_layers));
   }}
     '''
 
@@ -376,6 +481,7 @@ class TableSerializer(object):
     if self.table.parent:
       return f'''
   {self.parent_class_name}* parent_ = nullptr;
+  const {self.parent_class_name}* const_parent_ = nullptr;
       '''
     return ''
 
@@ -422,20 +528,20 @@ class TableSerializer(object):
     return f'''
   class Iterator : public ConstIterator {{
     public:
-    {iterator_setters}
+     {iterator_setters}
 
-    RowReference row_reference() const {{
-      return RowReference(mutable_table_, CurrentRowNumber());
-    }}
+     RowReference row_reference() const {{
+       return RowReference(mutable_table_, CurrentRowNumber());
+     }}
 
     private:
-    friend class {self.table_name};
+     friend class {self.table_name};
 
-    explicit Iterator({self.table_name}* table, Table::Iterator iterator)
+     explicit Iterator({self.table_name}* table, Table::Iterator iterator)
         : ConstIterator(table, std::move(iterator)),
           mutable_table_(table) {{}}
 
-    {self.table_name}* mutable_table_ = nullptr;
+     {self.table_name}* mutable_table_ = nullptr;
   }};
       '''
 
@@ -473,6 +579,9 @@ class TableSerializer(object):
   def extend_constructor(self) -> str:
     if not self.table.parent:
       return ''
+    storage_layer_init = self.foreach_col(
+        ColumnSerializer.storage_layer_init, delimiter=',\n        ')
+    storage_layer_sep = '\n,' if storage_layer_init else ''
     params = self.foreach_col(
         ColumnSerializer.extend_parent_param, delimiter='\n, ')
     return f'''
@@ -480,17 +589,57 @@ class TableSerializer(object):
             const {self.parent_class_name}& parent,
             const RowMap& parent_overlay{',' if params else ''}
             {params})
-      : macros_internal::MacroTable(pool, GetColumns(this, &parent), parent, parent_overlay) {{
+      : macros_internal::MacroTable(
+          pool,
+          GetColumns(this, &parent),
+          parent,
+          parent_overlay),
+          const_parent_(&parent){storage_layer_sep}
+        {storage_layer_init} {{
     {self.foreach_col(ColumnSerializer.static_assert_flags)}
     {self.foreach_col(ColumnSerializer.extend_nullable_vector)}
-    OnConstructionCompleted();
+
+    std::vector<RefPtr<column::DataLayer>> storage_layers(kColumnCount);
+    {self.foreach_col(ColumnSerializer.storage_layer_create)}
+
+    std::vector<RefPtr<column::DataLayer>> null_layers(kColumnCount);
+    {self.foreach_col(ColumnSerializer.null_layer_create)}
+
+    std::vector<RefPtr<column::DataLayer>> overlay_layers(kSelectorOverlayCount + 1);
+    for (uint32_t i = 0; i < kSelectorOverlayCount; ++i) {{
+      if (overlays()[i].row_map().IsIndexVector()) {{
+        overlay_layers[i].reset(new column::ArrangementOverlay(
+            overlays()[i].row_map().GetIfIndexVector(),
+            Indices::State::kNonmonotonic, false));
+      }} else if (overlays()[i].row_map().IsBitVector()) {{
+        overlay_layers[i].reset(new column::SelectorOverlay(
+            overlays()[i].row_map().GetIfBitVector()));
+      }} else if (overlays()[i].row_map().IsRange()) {{
+        overlay_layers[i].reset(new column::RangeOverlay(
+            overlays()[i].row_map().GetIfIRange()));
+      }}
+    }}
+
+    OnConstructionCompleted(
+      std::move(storage_layers), std::move(null_layers), std::move(overlay_layers));
   }}
     '''
+
+  def selector_overlay_count(self) -> str:
+    if self.table.parent:
+      return f'{self.parent_class_name}::kSelectorOverlayCount + 1'
+    return '0'
+
+  def column_count(self) -> str:
+    return str(len(self.column_serializers))
 
   def serialize(self) -> str:
     return f'''
 class {self.table_name} : public macros_internal::MacroTable {{
  public:
+  static constexpr uint32_t kColumnCount = {self.column_count().strip()};
+  static constexpr uint32_t kSelectorOverlayCount = {self.selector_overlay_count().strip()};
+
   {self.id_defn().lstrip()}
   struct ColumnIndex {{
     {self.foreach_col(ColumnSerializer.colindex)}
@@ -513,7 +662,7 @@ class {self.table_name} : public macros_internal::MacroTable {{
     explicit RowNumber(uint32_t row_number)
         : AbstractRowNumber(row_number) {{}}
   }};
-  static_assert(std::is_trivially_destructible<RowNumber>::value,
+  static_assert(std::is_trivially_destructible_v<RowNumber>,
                 "Inheritance used without trivial destruction");
 
   {self.const_row_reference_struct().strip()}
@@ -583,7 +732,7 @@ class {self.table_name} : public macros_internal::MacroTable {{
     {self.insert_common().strip()}
     {self.foreach_col(ColumnSerializer.append)}
     UpdateSelfOverlayAfterInsert();
-    return IdAndRow{{std::move(id), row_number, RowReference(this, row_number),
+    return IdAndRow{{id, row_number, RowReference(this, row_number),
                      RowNumber(row_number)}};
   }}
 
@@ -597,6 +746,10 @@ class {self.table_name} : public macros_internal::MacroTable {{
   {self.extend_constructor().strip()}
   {self.parent_field().strip()}
   {self.foreach_col(ColumnSerializer.storage)}
+
+  {self.foreach_col(ColumnSerializer.storage_layer)}
+
+  {self.foreach_col(ColumnSerializer.null_layer)}
 }};
   '''.strip('\n')
 
@@ -610,19 +763,44 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #ifndef {ifdef_guard}
 #define {ifdef_guard}
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column/arrangement_overlay.h"
+#include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/numeric_storage.h"
+#include "src/trace_processor/db/column/id_storage.h"
+#include "src/trace_processor/db/column/null_overlay.h"
+#include "src/trace_processor/db/column/range_overlay.h"
+#include "src/trace_processor/db/column/selector_overlay.h"
+#include "src/trace_processor/db/column/set_id_storage.h"
+#include "src/trace_processor/db/column/string_storage.h"
+#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/db/column_storage.h"
+#include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/db/typed_column.h"
+#include "src/trace_processor/db/typed_column_internal.h"
 #include "src/trace_processor/tables/macros_internal.h"
 
 {include_paths_str}
 
-namespace perfetto {{
-namespace trace_processor {{
-namespace tables {{
+namespace perfetto::trace_processor::tables {{
 
 {tables_str.strip()}
 
-}}  // namespace tables
-}}  // namespace trace_processor
 }}  // namespace perfetto
 
 #endif  // {ifdef_guard}
