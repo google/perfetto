@@ -162,13 +162,23 @@ class AndroidLog implements Plugin {
       });
     }
 
+    const androidLogsTabUri = 'perfetto.AndroidLog#tab';
+
     // Eternal tabs should always be available even if there is nothing to show
     ctx.registerTab({
       isEphemeral: false,
-      uri: 'android_logs',
+      uri: androidLogsTabUri,
       content: {
         render: () => m(LogPanel),
         getTitle: () => 'Android Logs',
+      },
+    });
+
+    ctx.registerCommand({
+      id: 'perfetto.AndroidLog#ShowLogsTab',
+      name: 'Show Android Logs Tab',
+      callback: () => {
+        ctx.tabs.showTab(androidLogsTabUri);
       },
     });
   }

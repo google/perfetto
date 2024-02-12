@@ -154,12 +154,22 @@ class FtraceRawPlugin implements Plugin {
       });
     }
 
+    const ftraceTabUri = 'perfetto.FtraceRaw#FtraceEventsTab';
+
     ctx.registerTab({
-      uri: 'perfetto.FtraceRaw#FtraceEventsTab',
+      uri: ftraceTabUri,
       isEphemeral: false,
       content: {
         render: () => m(FtracePanel),
         getTitle: () => 'Ftrace Events',
+      },
+    });
+
+    ctx.registerCommand({
+      id: 'perfetto.FtraceRaw#ShowFtraceTab',
+      name: 'Show Ftrace Tab',
+      callback: () => {
+        ctx.tabs.showTab(ftraceTabUri);
       },
     });
   }

@@ -209,7 +209,7 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
           globals.makeSelection(
             Actions.selectChromeSlice(
               {id: vnode.attrs.id, trackKey, table: 'slice'}),
-            {tab: switchTab ? 'current_selection' : null});
+            {switchToCurrentSelectionTab: switchTab});
         },
       },
       vnode.attrs.name);

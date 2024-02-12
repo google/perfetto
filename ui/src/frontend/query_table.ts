@@ -107,10 +107,10 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
       return m(
         'tr',
         {
-          onclick: () => this.highlightSlice(row, globals.state.currentTab),
+          onclick: () => this.selectAndRevealSlice(row, false),
           // TODO(altimin): Consider improving the logic here (e.g. delay?) to
           // account for cases when dblclick fires late.
-          ondblclick: () => this.highlightSlice(row),
+          ondblclick: () => this.selectAndRevealSlice(row, true),
           clickable: true,
           title: 'Go to slice',
         },
@@ -137,7 +137,9 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
       `Blob (${value.length} bytes)`);
   }
 
-  private highlightSlice(row: Row&Sliceish, nextTab?: string) {
+  private selectAndRevealSlice(
+    row: Row&Sliceish,
+    switchToCurrentSelectionTab: boolean) {
     const trackId = Number(row.track_id);
     const sliceStart = Time.fromRaw(BigInt(row.ts));
     // row.dur can be negative. Clamp to 1ns.
@@ -147,18 +149,21 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
       reveal(trackKey, sliceStart, Time.add(sliceStart, sliceDur), true);
       const sliceId = getSliceId(row);
       if (sliceId !== undefined) {
-        this.selectSlice(sliceId, trackKey, nextTab);
+        this.selectSlice(sliceId, trackKey, switchToCurrentSelectionTab);
       }
     }
   }
 
-  private selectSlice(sliceId: number, trackKey: string, nextTab?: string) {
+  private selectSlice(
+    sliceId: number,
+    trackKey: string,
+    switchToCurrentSelectionTab: boolean) {
     const action = Actions.selectChromeSlice({
       id: sliceId,
       trackKey,
       table: 'slice',
     });
-    globals.makeSelection(action, {tab: nextTab});
+    globals.makeSelection(action, {switchToCurrentSelectionTab});
   }
 }
 

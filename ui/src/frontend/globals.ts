@@ -47,6 +47,7 @@ import {
 import {TabManager} from '../common/tab_registry';
 import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
 import {TrackManager} from '../common/track_cache';
+import {TABS_V2_FLAG} from '../core/feature_flags';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {Engine} from '../trace_processor/engine';
@@ -230,9 +231,8 @@ function getRoot() {
 
 // Options for globals.makeSelection().
 export interface MakeSelectionOpts {
-  // The ID of the next tab to reveal, or null to keep the current tab.
-  // If undefined, the 'current_selection' tab will be revealed.
-  tab?: string|null;
+  // Whether to switch to the current selection tab or not. Default = true.
+  switchToCurrentSelectionTab?: boolean;
 
   // Whether to cancel the current search selection. Default = true.
   clearSearch?: boolean;
@@ -626,19 +626,27 @@ class Globals {
 
   makeSelection(action: DeferredAction<{}>, opts: MakeSelectionOpts = {}) {
     const {
-      tab = 'current_selection',
+      switchToCurrentSelectionTab = true,
       clearSearch = true,
     } = opts;
 
     const previousState = this.state;
 
+    const currentSelectionTabUri = 'current_selection';
+
     // A new selection should cancel the current search selection.
     clearSearch && globals.dispatch(Actions.setSearchIndex({index: -1}));
 
-    if (action.type === 'deselect') {
-      globals.dispatch(Actions.setCurrentTab({tab: undefined}));
-    } else if (tab !== null) {
-      globals.dispatch(Actions.setCurrentTab({tab}));
+    if (TABS_V2_FLAG.get()) {
+      if (action.type !== 'deselect' && switchToCurrentSelectionTab) {
+        globals.dispatch(Actions.showTab({uri: currentSelectionTabUri}));
+      }
+    } else {
+      if (action.type === 'deselect') {
+        globals.dispatch(Actions.setCurrentTab({tab: undefined}));
+      } else if (switchToCurrentSelectionTab) {
+        globals.dispatch(Actions.setCurrentTab({tab: currentSelectionTabUri}));
+      }
     }
     globals.dispatch(action);
 
@@ -650,7 +658,7 @@ class Globals {
       // Fix that.
       onSelectionChanged(
         this.state.currentSelection ?? undefined,
-        tab === 'current_selection');
+        switchToCurrentSelectionTab);
     }
   }
 
