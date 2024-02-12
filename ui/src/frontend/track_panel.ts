@@ -313,6 +313,9 @@ interface TrackComponentAttrs {
   tags?: TrackTags;
   track?: Track;
   error?: Error | undefined;
+
+  // Issues a scrollTo() on this DOM element at creation time. Default: false.
+  revealOnCreate?: boolean;
 }
 
 class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
@@ -320,11 +323,15 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
     // TODO(hjd): The min height below must match the track_shell_title
     // max height in common.scss so we should read it from CSS to avoid
     // them going out of sync.
+    const height = Math.max(24, attrs.heightPx ?? 0);
+
     return m(
       '.track',
       {
         style: {
-          height: `${Math.max(24, attrs.heightPx ?? 0)}px`,
+          // Note: Sub-pixel track heights can mess with sticky elements.
+          // Round up to the nearest integer number of pixels.
+          height: `${Math.ceil(height)}px`,
         },
         id: 'track_' + attrs.trackKey,
       },
@@ -352,6 +359,10 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
       globals.scrollToTrackKey = undefined;
     }
     this.onupdate(vnode);
+
+    if (attrs.revealOnCreate) {
+      vnode.dom.scrollIntoView();
+    }
   }
 
   onupdate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
@@ -391,6 +402,7 @@ interface TrackPanelAttrs {
   title: string;
   tags?: TrackTags;
   trackFSM?: TrackCacheEntry;
+  revealOnCreate?: boolean;
 }
 
 export class TrackPanel implements Panel {
@@ -428,12 +440,14 @@ export class TrackPanel implements Panel {
         tags: attrs.tags,
         track: attrs.trackFSM.track,
         error: attrs.trackFSM.getError(),
+        revealOnCreate: attrs.revealOnCreate,
       });
     } else {
       return m(TrackComponent, {
         key: attrs.key,
         trackKey: attrs.trackKey,
         title: attrs.title,
+        revealOnCreate: attrs.revealOnCreate,
       });
     }
   }

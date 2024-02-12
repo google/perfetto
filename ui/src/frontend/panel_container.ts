@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {Trash} from '../base/disposable';
-import {getScrollbarWidth} from '../base/dom_utils';
+import {findRef, getScrollbarWidth} from '../base/dom_utils';
 import {assertExists, assertFalse} from '../base/logging';
 import {SimpleResizeObserver} from '../base/resize_observer';
 import {time} from '../base/time';
@@ -71,6 +71,7 @@ export interface Attrs {
   panels: PanelOrGroup[];
   doesScroll: boolean;
   kind: 'TRACKS'|'OVERVIEW';
+  className?: string;
 }
 
 interface PanelInfo {
@@ -112,6 +113,9 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   private ctx?: CanvasRenderingContext2D;
 
   private trash: Trash;
+
+  private readonly SCROLL_LIMITER_REF = 'scroll-limiter';
+  private readonly PANELS_REF = 'panels';
 
   get canvasOverdrawFactor() {
     return this.attrs.doesScroll ? SCROLLING_CANVAS_OVERDRAW_FACTOR : 1;
@@ -216,7 +220,8 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     this.updateCanvasDimensions();
     this.repositionCanvas();
 
-    this.trash.add(new SimpleResizeObserver(dom, () => {
+    const scrollLimiter = assertExists(findRef(dom, this.SCROLL_LIMITER_REF));
+    this.trash.add(new SimpleResizeObserver(scrollLimiter, () => {
       const parentSizeChanged = this.readParentSizeFromDom(dom);
       if (parentSizeChanged) {
         this.updateCanvasDimensions();
@@ -228,14 +233,14 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     // TODO(dproy): Handle change in doesScroll attribute.
     if (this.attrs.doesScroll) {
       const parentOnScroll = () => {
-        this.scrollTop = dom.parentElement!.scrollTop;
+        this.scrollTop = dom.scrollTop;
         this.repositionCanvas();
         raf.scheduleRedraw();
       };
-      dom.parentElement!.addEventListener(
+      dom.addEventListener(
         'scroll', parentOnScroll, {passive: true});
       this.trash.addCallback(() => {
-        dom.parentElement!.removeEventListener('scroll', parentOnScroll);
+        dom.removeEventListener('scroll', parentOnScroll);
       });
     }
   }
@@ -279,13 +284,14 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     const children = attrs.panels.map(
       (panel, index) => this.renderTree(panel, `track-tree-${index}`));
 
-    return [
-      m(
-        '.scroll-limiter',
-        m('canvas.main-canvas'),
+    return m('.panel-container', {className: attrs.className},
+      m('.panels', {ref: this.PANELS_REF},
+        m('.scroll-limiter', {ref: this.SCROLL_LIMITER_REF},
+          m('canvas.main-canvas'),
+        ),
+        children,
       ),
-      m('.panels', children),
-    ];
+    );
   }
 
   onupdate({dom}: m.CVnodeDOM<Attrs>) {
@@ -339,7 +345,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   private readParentSizeFromDom(dom: Element): boolean {
     const oldWidth = this.parentWidth;
     const oldHeight = this.parentHeight;
-    const clientRect = assertExists(dom.parentElement).getBoundingClientRect();
+    const clientRect = dom.getBoundingClientRect();
     // On non-MacOS if there is a solid scroll bar it can cover important
     // pixels, reduce the size of the canvas so it doesn't overlap with
     // the scroll bar.
@@ -354,11 +360,13 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     const prevHeight = this.totalPanelHeight;
     this.panelInfos = [];
     this.totalPanelHeight = 0;
-    const domRect = dom.getBoundingClientRect();
+
+    const panels = assertExists(findRef(dom, this.PANELS_REF));
+    const domRect = panels.getBoundingClientRect();
     this.panelContainerTop = domRect.y;
     this.panelContainerHeight = domRect.height;
 
-    dom.parentElement!.querySelectorAll('.panel').forEach((panelElement) => {
+    dom.querySelectorAll('.panel').forEach((panelElement) => {
       const key = assertExists(panelElement.getAttribute('data-key'));
       const panel = assertExists(this.panelByKey.get(key));
 

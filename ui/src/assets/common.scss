@@ -489,16 +489,21 @@ $bottom-tab-padding: 10px;
   }
 }
 
+.pinned-panel-container {
+  max-height: 50%;
+  box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
+  z-index: 1;
+  flex-grow: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+  overflow-y: auto;
+}
+
 .scrolling-panel-container {
-  position: relative;
   overflow-x: hidden;
   overflow-y: auto;
   flex: 1 1 auto;
   will-change: transform; // Force layer creation.
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr;
-  grid-template-areas: "space";
 }
 
 .details-panel-container {
@@ -506,47 +511,10 @@ $bottom-tab-padding: 10px;
   overflow: auto;
 }
 
-.pinned-panel-container {
-  position: relative;
-  // Override top level overflow: hidden so height of this flex item can be
-  // its content height.
+.header-panel-container {
   overflow: visible;
   box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
   z-index: 2;
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr;
-  grid-template-areas: "space";
-}
-
-// In the scrolling case, since the canvas is overdrawn and continuously
-// repositioned, we need the canvas to be in a div with overflow hidden and
-// height equaling the total height of the content to prevent scrolling
-// height from growing.
-.scroll-limiter {
-  position: relative;
-  grid-area: space;
-  overflow: hidden;
-}
-
-canvas.main-canvas {
-  z-index: -1;
-}
-
-.panels {
-  grid-area: space;
-  user-select: none;
-}
-
-.panel {
-  position: relative; // Otherwise canvas covers panel dom.
-
-  &.sticky {
-    position: sticky;
-    z-index: 3;
-    top: 0;
-    background-color: hsl(215, 22%, 19%);
-  }
 }
 
 .pan-and-zoom-content {
