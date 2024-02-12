@@ -17,6 +17,7 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_ID_STORAGE_H_
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -27,18 +28,19 @@
 
 namespace perfetto::trace_processor::column {
 
-// Storage for Id columns.
+// Base level storage for id columns.
+//
+// Note: This storage does not have any size instead spanning the entire
+// uint32_t space (any such integer is a valid id). Overlays (e.g.
+// RangeOverlay/SelectorOverlay) can be used to limit which ids are
+// included in the column.
 class IdStorage final : public DataLayer {
  public:
-  explicit IdStorage(uint32_t size);
-
   std::unique_ptr<DataLayerChain> MakeChain() override;
 
  private:
   class ChainImpl : public DataLayerChain {
    public:
-    explicit ChainImpl(uint32_t size);
-
     SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                      FilterOp) const override;
 
@@ -54,7 +56,9 @@ class IdStorage final : public DataLayer {
 
     void Serialize(StorageProto*) const override;
 
-    uint32_t size() const override { return size_; }
+    uint32_t size() const override {
+      return std::numeric_limits<uint32_t>::max();
+    }
 
     std::string DebugString() const override { return "IdStorage"; }
 
@@ -63,11 +67,7 @@ class IdStorage final : public DataLayer {
 
     BitVector IndexSearch(FilterOp, Id, uint32_t*, uint32_t) const;
     static Range BinarySearchIntrinsic(FilterOp, Id, Range);
-
-    const uint32_t size_ = 0;
   };
-
-  const uint32_t size_ = 0;
 };
 
 }  // namespace perfetto::trace_processor::column

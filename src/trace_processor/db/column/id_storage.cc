@@ -152,13 +152,9 @@ SearchValidationResult IdStorage::ChainImpl::ValidateSearchConstraints(
   return SearchValidationResult::kOk;
 }
 
-IdStorage::IdStorage(uint32_t size) : size_(size) {}
-
 std::unique_ptr<DataLayerChain> IdStorage::MakeChain() {
-  return std::make_unique<ChainImpl>(size_);
+  return std::make_unique<ChainImpl>();
 }
-
-IdStorage::ChainImpl::ChainImpl(uint32_t size) : size_(size) {}
 
 RangeOrBitVector IdStorage::ChainImpl::Search(FilterOp op,
                                               SqlValue sql_val,
@@ -170,8 +166,6 @@ RangeOrBitVector IdStorage::ChainImpl::Search(FilterOp op,
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
-
-  PERFETTO_DCHECK(search_range.end <= size_);
 
   // It's a valid filter operation if |sql_val| is a double, although it
   // requires special logic.
@@ -190,7 +184,6 @@ RangeOrBitVector IdStorage::ChainImpl::Search(FilterOp op,
   if (op == FilterOp::kNe) {
     BitVector ret(search_range.start, false);
     ret.Resize(search_range.end, true);
-    ret.Resize(size_, false);
     ret.Clear(val);
     return RangeOrBitVector(std::move(ret));
   }
@@ -326,8 +319,7 @@ void IdStorage::ChainImpl::Sort(uint32_t* indices,
 }
 
 void IdStorage::ChainImpl::Serialize(StorageProto* storage) const {
-  auto* id_storage = storage->set_id_storage();
-  id_storage->set_size(size_);
+  storage->set_id_storage();
 }
 
 }  // namespace perfetto::trace_processor::column
