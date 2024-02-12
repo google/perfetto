@@ -147,6 +147,19 @@ def typed_column_type(table: Table, col: ParsedColumn) -> str:
   return f'TypedColumn<{parsed.cpp_type_with_optionality()}>'
 
 
+def data_layer_type(table: Table, col: ParsedColumn) -> str:
+  """Returns the DataLayer C++ type for a given column."""
+
+  parsed = parse_type(table, col.column.type)
+  if col.is_implicit_id:
+    return 'column::IdStorage'
+  if parsed.cpp_type == 'StringPool::Id':
+    return 'column::StringStorage'
+  if ColumnFlag.SET_ID in col.column.flags:
+    return 'column::SetIdStorage'
+  return f'column::NumericStorage<ColumnType::{col.column.name}::non_optional_stored_type>'
+
+
 def find_table_deps(table: Table) -> List[Table]:
   """Finds all the other table class names this table depends on.
 
