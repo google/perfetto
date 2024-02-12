@@ -32,7 +32,7 @@ namespace perfetto::trace_processor::column {
 // Storage responsible for rearranging the elements of another Storage. It deals
 // with duplicates, permutations and selection; for selection only, it's more
 // efficient to use `SelectorOverlay`.
-class ArrangementOverlay : public DataLayer {
+class ArrangementOverlay final : public DataLayer {
  public:
   ArrangementOverlay(const std::vector<uint32_t>* arrangement,
                      Indices::State arrangement_state,
@@ -49,14 +49,18 @@ class ArrangementOverlay : public DataLayer {
               Indices::State arrangement_state,
               bool does_arrangement_order_storage);
 
-    SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                     FilterOp) const override;
+    SearchValidationResult ValidateSearchConstraints(FilterOp,
+                                                     SqlValue) const override;
 
-    RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+    RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-    RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+    RangeOrBitVector IndexSearchValidated(FilterOp,
+                                          SqlValue,
+                                          Indices) const override;
 
-    Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override {
+    Range OrderedIndexSearchValidated(FilterOp,
+                                      SqlValue,
+                                      Indices) const override {
       PERFETTO_FATAL(
           "OrderedIndexSearch can't be called on ArrangementOverlay");
     }

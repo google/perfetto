@@ -48,14 +48,14 @@ FakeStorage::ChainImpl::ChainImpl(uint32_t size,
       bit_vector_(std::move(bv)) {}
 
 SearchValidationResult FakeStorage::ChainImpl::ValidateSearchConstraints(
-    SqlValue,
-    FilterOp) const {
+    FilterOp,
+    SqlValue) const {
   return SearchValidationResult::kOk;
 }
 
-RangeOrBitVector FakeStorage::ChainImpl::Search(FilterOp,
-                                                SqlValue,
-                                                Range in) const {
+RangeOrBitVector FakeStorage::ChainImpl::SearchValidated(FilterOp,
+                                                         SqlValue,
+                                                         Range in) const {
   switch (strategy_) {
     case kAll:
       return RangeOrBitVector(in);
@@ -73,9 +73,10 @@ RangeOrBitVector FakeStorage::ChainImpl::Search(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
-RangeOrBitVector FakeStorage::ChainImpl::IndexSearch(FilterOp,
-                                                     SqlValue,
-                                                     Indices indices) const {
+RangeOrBitVector FakeStorage::ChainImpl::IndexSearchValidated(
+    FilterOp,
+    SqlValue,
+    Indices indices) const {
   switch (strategy_) {
     case kAll:
       return RangeOrBitVector(Range(0, indices.size));
@@ -96,9 +97,10 @@ RangeOrBitVector FakeStorage::ChainImpl::IndexSearch(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
-Range FakeStorage::ChainImpl::OrderedIndexSearch(FilterOp,
-                                                 SqlValue,
-                                                 Indices indices) const {
+Range FakeStorage::ChainImpl::OrderedIndexSearchValidated(
+    FilterOp,
+    SqlValue,
+    Indices indices) const {
   if (strategy_ == kAll) {
     return {0, indices.size};
   }

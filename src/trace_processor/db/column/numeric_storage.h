@@ -19,8 +19,6 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <type_traits>
-#include <utility>
 #include <variant>
 #include <vector>
 
@@ -47,16 +45,20 @@ class NumericStorageBase : public DataLayer {
    public:
     ChainImpl(const void* data, uint32_t size, ColumnType type, bool is_sorted);
 
-    SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                     FilterOp) const override;
+    SearchValidationResult ValidateSearchConstraints(FilterOp,
+                                                     SqlValue) const override;
 
-    RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+    RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-    RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+    RangeOrBitVector IndexSearchValidated(FilterOp,
+                                          SqlValue,
+                                          Indices) const override;
+
+    Range OrderedIndexSearchValidated(FilterOp,
+                                      SqlValue,
+                                      Indices) const override;
 
     void StableSort(uint32_t*, uint32_t) const override;
-
-    Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
 
     void Sort(uint32_t*, uint32_t) const override;
 

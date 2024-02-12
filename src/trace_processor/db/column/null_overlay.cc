@@ -92,22 +92,22 @@ NullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> innner,
 }
 
 SearchValidationResult NullOverlay::ChainImpl::ValidateSearchConstraints(
-    SqlValue sql_val,
-    FilterOp op) const {
+    FilterOp op,
+    SqlValue sql_val) const {
   if (op == FilterOp::kIsNull) {
     return SearchValidationResult::kOk;
   }
 
-  return inner_->ValidateSearchConstraints(sql_val, op);
+  return inner_->ValidateSearchConstraints(op, sql_val);
 }
 
-RangeOrBitVector NullOverlay::ChainImpl::Search(FilterOp op,
-                                                SqlValue sql_val,
-                                                Range in) const {
+RangeOrBitVector NullOverlay::ChainImpl::SearchValidated(FilterOp op,
+                                                         SqlValue sql_val,
+                                                         Range in) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "NullOverlay::ChainImpl::Search");
 
   if (op == FilterOp::kIsNull) {
-    switch (inner_->ValidateSearchConstraints(sql_val, op)) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
       case SearchValidationResult::kNoData: {
         // There is no need to search in underlying storage. It's enough to
         // intersect the |non_null_|.
@@ -128,20 +128,22 @@ RangeOrBitVector NullOverlay::ChainImpl::Search(FilterOp op,
   uint32_t start = non_null_->CountSetBits(in.start);
   uint32_t end = non_null_->CountSetBits(in.end);
   BitVector res = ReconcileStorageResult(
-      op, *non_null_, inner_->Search(op, sql_val, Range(start, end)), in);
+      op, *non_null_, inner_->SearchValidated(op, sql_val, Range(start, end)),
+      in);
 
   PERFETTO_DCHECK(res.size() == in.end);
   return RangeOrBitVector(std::move(res));
 }
 
-RangeOrBitVector NullOverlay::ChainImpl::IndexSearch(FilterOp op,
-                                                     SqlValue sql_val,
-                                                     Indices indices) const {
+RangeOrBitVector NullOverlay::ChainImpl::IndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "NullOverlay::ChainImpl::IndexSearch");
 
   if (op == FilterOp::kIsNull) {
-    switch (inner_->ValidateSearchConstraints(sql_val, op)) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
       case SearchValidationResult::kNoData: {
         BitVector::Builder null_indices(indices.size);
         for (const uint32_t* it = indices.data;
@@ -170,7 +172,7 @@ RangeOrBitVector NullOverlay::ChainImpl::IndexSearch(FilterOp op,
     }
     storage_non_null.Append(is_non_null);
   }
-  RangeOrBitVector range_or_bv = inner_->IndexSearch(
+  RangeOrBitVector range_or_bv = inner_->IndexSearchValidated(
       op, sql_val,
       Indices{storage_iv.data(), static_cast<uint32_t>(storage_iv.size()),
               indices.state});
@@ -182,9 +184,10 @@ RangeOrBitVector NullOverlay::ChainImpl::IndexSearch(FilterOp op,
   return RangeOrBitVector(std::move(res));
 }
 
-Range NullOverlay::ChainImpl::OrderedIndexSearch(FilterOp op,
-                                                 SqlValue sql_val,
-                                                 Indices indices) const {
+Range NullOverlay::ChainImpl::OrderedIndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
   // For NOT EQUAL the translation or results from EQUAL needs to be done by the
   // caller.
   PERFETTO_CHECK(op != FilterOp::kNe);
@@ -207,7 +210,7 @@ Range NullOverlay::ChainImpl::OrderedIndexSearch(FilterOp op,
   }
 
   if (op == FilterOp::kIsNotNull) {
-    switch (inner_->ValidateSearchConstraints(sql_val, op)) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
       case SearchValidationResult::kNoData:
         return {};
       case SearchValidationResult::kAllData:
@@ -224,7 +227,7 @@ Range NullOverlay::ChainImpl::OrderedIndexSearch(FilterOp op,
     storage_iv.push_back(non_null_->CountSetBits(*it));
   }
 
-  Range inner_range = inner_->OrderedIndexSearch(
+  Range inner_range = inner_->OrderedIndexSearchValidated(
       op, sql_val, Indices{storage_iv.data(), non_null_size, indices.state});
   return {inner_range.start + non_null_offset,
           inner_range.end + non_null_offset};

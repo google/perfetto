@@ -91,8 +91,8 @@ void IndexSearchWithComparator(ValType val,
 // Used for comparing the integer column ({u|}int{32|64}) with a double value.
 // If further search is required it would return kOk and change the SqlValue to
 // a `SqlLong` which would return real results.
-SearchValidationResult CompareIntColumnWithDouble(SqlValue* sql_val,
-                                                  FilterOp op);
+SearchValidationResult CompareIntColumnWithDouble(FilterOp op,
+                                                  SqlValue* sql_val);
 
 // If the validation result doesn't require further search, it will return a
 // Range that can be passed further. Else it returns nullopt.
@@ -104,6 +104,7 @@ std::optional<Range> CanReturnEarly(SearchValidationResult,
                                     uint32_t indices_size);
 
 std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector&);
+
 }  // namespace utils
 
 }  // namespace column

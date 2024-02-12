@@ -78,8 +78,8 @@ SetIdStorage::ChainImpl::ChainImpl(const std::vector<uint32_t>* values)
     : values_(values) {}
 
 SearchValidationResult SetIdStorage::ChainImpl::ValidateSearchConstraints(
-    SqlValue val,
-    FilterOp op) const {
+    FilterOp op,
+    SqlValue val) const {
   // NULL checks.
   if (PERFETTO_UNLIKELY(val.is_null())) {
     if (op == FilterOp::kIsNotNull) {
@@ -147,9 +147,10 @@ SearchValidationResult SetIdStorage::ChainImpl::ValidateSearchConstraints(
   return SearchValidationResult::kOk;
 }
 
-RangeOrBitVector SetIdStorage::ChainImpl::Search(FilterOp op,
-                                                 SqlValue sql_val,
-                                                 Range search_range) const {
+RangeOrBitVector SetIdStorage::ChainImpl::SearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Range search_range) const {
   PERFETTO_DCHECK(search_range.end <= size());
 
   PERFETTO_TP_TRACE(metatrace::Category::DB, "SetIdStorage::ChainImpl::Search",
@@ -163,7 +164,7 @@ RangeOrBitVector SetIdStorage::ChainImpl::Search(FilterOp op,
   // It's a valid filter operation if |sql_val| is a double, although it
   // requires special logic.
   if (sql_val.type == SqlValue::kDouble) {
-    switch (utils::CompareIntColumnWithDouble(&sql_val, op)) {
+    switch (utils::CompareIntColumnWithDouble(op, &sql_val)) {
       case SearchValidationResult::kOk:
         break;
       case SearchValidationResult::kAllData:
@@ -187,9 +188,10 @@ RangeOrBitVector SetIdStorage::ChainImpl::Search(FilterOp op,
   return RangeOrBitVector(BinarySearchIntrinsic(op, val, search_range));
 }
 
-RangeOrBitVector SetIdStorage::ChainImpl::IndexSearch(FilterOp op,
-                                                      SqlValue sql_val,
-                                                      Indices indices) const {
+RangeOrBitVector SetIdStorage::ChainImpl::IndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
   PERFETTO_TP_TRACE(
       metatrace::Category::DB, "SetIdStorage::ChainImpl::IndexSearch",
       [indices, op](metatrace::Record* r) {
@@ -200,7 +202,7 @@ RangeOrBitVector SetIdStorage::ChainImpl::IndexSearch(FilterOp op,
   // It's a valid filter operation if |sql_val| is a double, although it
   // requires special logic.
   if (sql_val.type == SqlValue::kDouble) {
-    switch (utils::CompareIntColumnWithDouble(&sql_val, op)) {
+    switch (utils::CompareIntColumnWithDouble(op, &sql_val)) {
       case SearchValidationResult::kOk:
         break;
       case SearchValidationResult::kAllData:
@@ -251,11 +253,12 @@ RangeOrBitVector SetIdStorage::ChainImpl::IndexSearch(FilterOp op,
   return RangeOrBitVector(std::move(builder).Build());
 }
 
-Range SetIdStorage::ChainImpl::OrderedIndexSearch(FilterOp op,
-                                                  SqlValue sql_val,
-                                                  Indices indices) const {
+Range SetIdStorage::ChainImpl::OrderedIndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
   // Indices are monotonic non-contiguous values.
-  auto res = SetIdStorage::ChainImpl::Search(
+  auto res = SearchValidated(
       op, sql_val, Range(indices.data[0], indices.data[indices.size - 1] + 1));
   PERFETTO_CHECK(res.IsRange());
   Range res_range = std::move(res).TakeIfRange();

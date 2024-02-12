@@ -62,24 +62,24 @@ ArrangementOverlay::ChainImpl::ChainImpl(
 }
 
 SearchValidationResult ArrangementOverlay::ChainImpl::ValidateSearchConstraints(
-    SqlValue sql_val,
-    FilterOp op) const {
-  return inner_->ValidateSearchConstraints(sql_val, op);
+    FilterOp op,
+    SqlValue value) const {
+  return inner_->ValidateSearchConstraints(op, value);
 }
 
-RangeOrBitVector ArrangementOverlay::ChainImpl::Search(FilterOp op,
-                                                       SqlValue sql_val,
-                                                       Range in) const {
+RangeOrBitVector ArrangementOverlay::ChainImpl::SearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Range in) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "ArrangementOverlay::ChainImpl::Search");
 
   if (does_arrangement_order_storage_ && op != FilterOp::kGlob &&
       op != FilterOp::kRegex) {
-    Range inner_res =
-        inner_->OrderedIndexSearch(op, sql_val,
-                                   Indices{arrangement_->data() + in.start,
-                                           in.size(), arrangement_state_});
-
+    Range inner_res = inner_->OrderedIndexSearchValidated(
+        op, sql_val,
+        Indices{arrangement_->data() + in.start, in.size(),
+                arrangement_state_});
     return RangeOrBitVector(
         Range(inner_res.start + in.start, inner_res.end + in.start));
   }
@@ -90,7 +90,8 @@ RangeOrBitVector ArrangementOverlay::ChainImpl::Search(FilterOp op,
       std::minmax_element(arrangement.begin() + static_cast<int32_t>(in.start),
                           arrangement.begin() + static_cast<int32_t>(in.end));
 
-  auto storage_result = inner_->Search(op, sql_val, Range(*min_i, *max_i + 1));
+  auto storage_result =
+      inner_->SearchValidated(op, sql_val, Range(*min_i, *max_i + 1));
   BitVector::Builder builder(in.end, in.start);
   if (storage_result.IsRange()) {
     Range storage_range = std::move(storage_result).TakeIfRange();
@@ -128,7 +129,7 @@ RangeOrBitVector ArrangementOverlay::ChainImpl::Search(FilterOp op,
   return RangeOrBitVector(std::move(builder).Build());
 }
 
-RangeOrBitVector ArrangementOverlay::ChainImpl::IndexSearch(
+RangeOrBitVector ArrangementOverlay::ChainImpl::IndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
     Indices indices) const {
@@ -144,13 +145,12 @@ RangeOrBitVector ArrangementOverlay::ChainImpl::IndexSearch(
   // If both the arrangment passed indices are monotonic, we know that this
   // state was not lost.
   if (indices.state == Indices::State::kMonotonic) {
-    return inner_->IndexSearch(
+    return inner_->IndexSearchValidated(
         op, sql_val,
         Indices{storage_iv.data(), static_cast<uint32_t>(storage_iv.size()),
                 arrangement_state_});
   }
-
-  return inner_->IndexSearch(
+  return inner_->IndexSearchValidated(
       op, sql_val,
       Indices{storage_iv.data(), static_cast<uint32_t>(storage_iv.size()),
               Indices::State::kNonmonotonic});
