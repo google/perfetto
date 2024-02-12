@@ -99,8 +99,11 @@ export class NotesPanel implements Panel {
             {
               onclick: (e: Event) => {
                 e.preventDefault();
-                globals.dispatch(Actions.toggleAllTrackGroups(
-                  {collapsed: !allCollapsed}));
+                if (allCollapsed) {
+                  globals.commandManager.runCommand('dev.perfetto.CoreCommands#ExpandAllGroups');
+                } else {
+                  globals.commandManager.runCommand('dev.perfetto.CoreCommands#CollapseAllGroups');
+                }
               },
             },
             m('i.material-icons',
