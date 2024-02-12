@@ -111,7 +111,7 @@ class AndroidMetrics(TestSuite):
 
   def test_binder_metric(self):
     return DiffTestBlueprint(
-        trace=DataPath('android_binder_metric_trace.atr'),
+        trace=DataPath('sched_wakeup_trace.atr'),
         query=Metric('android_binder'),
         out=Path('android_binder_metric.out'))
 

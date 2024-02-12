@@ -526,7 +526,7 @@ class AndroidStdlib(TestSuite):
 
   def test_binder_txns(self):
     return DiffTestBlueprint(
-        trace=DataPath('android_binder_metric_trace.atr'),
+        trace=DataPath('sched_wakeup_trace.atr'),
         query="""
         INCLUDE PERFETTO MODULE android.binder;
         SELECT
@@ -549,23 +549,23 @@ class AndroidStdlib(TestSuite):
           is_client_package_debuggable,
           is_server_package_debuggable
         FROM android_binder_txns
-        WHERE aidl_name IS NOT NULL
+        WHERE aidl_name IS NOT NULL AND client_package_version_code IS NOT NULL
         ORDER BY client_ts
         LIMIT 10;
       """,
         out=Csv("""
         "aidl_name","client_process","server_process","client_thread","client_tid","server_tid","is_main_thread","client_oom_score","server_oom_score","client_ts","server_ts","aidl_ts","aidl_dur","is_sync","client_package_version_code","server_package_version_code","is_client_package_debuggable","is_server_package_debuggable"
-        "AIDL::cpp::IClientCallback::onClients::cppServer","/system/bin/servicemanager","/system/bin/apexd","servicemanager",243,386,1,-1000,-1000,22213481492,22213517474,22213598784,322601,0,"[NULL]","[NULL]","[NULL]","[NULL]"
-        "AIDL::cpp::IInstalld::rmdex::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25230101202,25230125660,25230231365,77249,1,"[NULL]","[NULL]","[NULL]","[NULL]"
-        "AIDL::cpp::IInstalld::cleanupInvalidPackageDirs::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25243511980,25243544499,25243566439,408943,1,"[NULL]","[NULL]","[NULL]","[NULL]"
-        "AIDL::cpp::IInstalld::createAppDataBatched::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25244949065,25244971300,25244976815,33221505,1,"[NULL]","[NULL]","[NULL]","[NULL]"
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25279371214,25279387389,25279400683,90089,1,"[NULL]","[NULL]","[NULL]","[NULL]"
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25279567724,25279592927,25280492716,147183,1,"[NULL]","[NULL]","[NULL]","[NULL]"
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25280736368,25280756522,25280769543,109576,1,"[NULL]","[NULL]","[NULL]","[NULL]"
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25280932813,25280946041,25280952957,107685,1,"[NULL]","[NULL]","[NULL]","[NULL]"
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281131360,25281145719,25281152341,84930,1,"[NULL]","[NULL]","[NULL]","[NULL]"
-        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281273755,25281315273,25281321909,83540,1,"[NULL]","[NULL]","[NULL]","[NULL]"
-      """))
+        "AIDL::java::INetworkStatsService::getMobileIfaces::server","com.android.phone","system_server","m.android.phone",1469,657,1,-800,-900,1736110278076,1736110435876,1736110692464,135281,1,33,"[NULL]",0,"[NULL]"
+        "AIDL::java::INetworkStatsService::getIfaceStats::server","com.android.phone","system_server","m.android.phone",1469,657,1,-800,-900,1736111274404,1736111340019,1736111417370,249758,1,33,"[NULL]",0,"[NULL]"
+        "AIDL::java::INetworkStatsService::getMobileIfaces::server","com.android.phone","system_server","m.android.phone",1469,657,1,-800,-900,1736111874030,1736111923740,1736111994038,64535,1,33,"[NULL]",0,"[NULL]"
+        "AIDL::java::INetworkStatsService::getIfaceStats::server","com.android.phone","system_server","m.android.phone",1469,657,1,-800,-900,1736112257185,1736112301639,1736112361927,133727,1,33,"[NULL]",0,"[NULL]"
+        "AIDL::java::IPackageManager::isProtectedBroadcast::server","com.android.systemui","system_server","ndroid.systemui",1253,657,1,-800,-900,1737108493015,1737125387579,1737125511194,24959,1,33,"[NULL]",0,"[NULL]"
+        "AIDL::java::IActivityManager::checkPermission::server","com.android.phone","system_server","m.android.phone",1469,2721,1,-800,-900,1737110161286,1737110746980,1737110799860,75563,1,33,"[NULL]",0,"[NULL]"
+        "AIDL::java::INetworkStatsService::getMobileIfaces::server","com.android.phone","system_server","m.android.phone",1469,2721,1,-800,-900,1737123460104,1737123475761,1737123532124,48775,1,33,"[NULL]",0,"[NULL]"
+        "AIDL::java::INetworkStatsService::getIfaceStats::server","com.android.phone","system_server","m.android.phone",1469,2721,1,-800,-900,1737123982140,1737123994640,1737124033555,109797,1,33,"[NULL]",0,"[NULL]"
+        "AIDL::java::INetworkStatsService::getMobileIfaces::server","com.android.phone","system_server","m.android.phone",1469,2721,1,-800,-900,1737124228451,1737124238356,1737124269922,24911,1,33,"[NULL]",0,"[NULL]"
+        "AIDL::java::INetworkStatsService::getIfaceStats::server","com.android.phone","system_server","m.android.phone",1469,2721,1,-800,-900,1737124369273,1737124378273,1737124406331,54810,1,33,"[NULL]",0,"[NULL]"
+        """))
 
   def test_binder_outgoing_graph(self):
     return DiffTestBlueprint(
