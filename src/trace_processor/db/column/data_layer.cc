@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/db/column/data_layer.h"
 
-#include <utility>
-
 namespace perfetto::trace_processor::column {
 
 DataLayer::~DataLayer() = default;

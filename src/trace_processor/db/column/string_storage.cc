@@ -211,8 +211,8 @@ StringStorage::ChainImpl::ChainImpl(StringPool* string_pool,
     : data_(data), string_pool_(string_pool), is_sorted_(is_sorted) {}
 
 SearchValidationResult StringStorage::ChainImpl::ValidateSearchConstraints(
-    SqlValue val,
-    FilterOp op) const {
+    FilterOp op,
+    SqlValue val) const {
   // Type checks.
   switch (val.type) {
     case SqlValue::kNull:
@@ -232,9 +232,10 @@ SearchValidationResult StringStorage::ChainImpl::ValidateSearchConstraints(
   return SearchValidationResult::kOk;
 }
 
-RangeOrBitVector StringStorage::ChainImpl::Search(FilterOp op,
-                                                  SqlValue sql_val,
-                                                  Range search_range) const {
+RangeOrBitVector StringStorage::ChainImpl::SearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Range search_range) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::ChainImpl::Search",
                     [&search_range, op](metatrace::Record* r) {
                       r->AddArg("Start", std::to_string(search_range.start));
@@ -274,9 +275,10 @@ RangeOrBitVector StringStorage::ChainImpl::Search(FilterOp op,
   return RangeOrBitVector(LinearSearch(op, sql_val, search_range));
 }
 
-RangeOrBitVector StringStorage::ChainImpl::IndexSearch(FilterOp op,
-                                                       SqlValue sql_val,
-                                                       Indices indices) const {
+RangeOrBitVector StringStorage::ChainImpl::IndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
   PERFETTO_DCHECK(indices.size <= size());
   PERFETTO_TP_TRACE(
       metatrace::Category::DB, "StringStorage::ChainImpl::IndexSearch",
@@ -377,9 +379,10 @@ BitVector StringStorage::ChainImpl::LinearSearch(FilterOp op,
   return std::move(builder).Build();
 }
 
-Range StringStorage::ChainImpl::OrderedIndexSearch(FilterOp op,
-                                                   SqlValue sql_val,
-                                                   Indices indices) const {
+Range StringStorage::ChainImpl::OrderedIndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
   StringPool::Id val =
       (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull)
           ? StringPool::Id::Null()

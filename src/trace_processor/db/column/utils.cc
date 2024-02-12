@@ -23,8 +23,8 @@ namespace trace_processor {
 namespace column {
 namespace utils {
 
-SearchValidationResult CompareIntColumnWithDouble(SqlValue* sql_val,
-                                                  FilterOp op) {
+SearchValidationResult CompareIntColumnWithDouble(FilterOp op,
+                                                  SqlValue* sql_val) {
   double double_val = sql_val->AsDouble();
   if (std::equal_to<double>()(
           double_val, static_cast<double>(static_cast<uint32_t>(double_val)))) {

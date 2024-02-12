@@ -27,7 +27,7 @@
 
 namespace perfetto::trace_processor::column {
 
-class RangeOverlay : public DataLayer {
+class RangeOverlay final : public DataLayer {
  public:
   explicit RangeOverlay(Range);
 
@@ -39,14 +39,18 @@ class RangeOverlay : public DataLayer {
    public:
     ChainImpl(std::unique_ptr<DataLayerChain>, Range);
 
-    SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                     FilterOp) const override;
+    SearchValidationResult ValidateSearchConstraints(FilterOp,
+                                                     SqlValue) const override;
 
-    RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+    RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-    RangeOrBitVector IndexSearch(FilterOp p, SqlValue, Indices) const override;
+    RangeOrBitVector IndexSearchValidated(FilterOp p,
+                                          SqlValue,
+                                          Indices) const override;
 
-    Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
+    Range OrderedIndexSearchValidated(FilterOp,
+                                      SqlValue,
+                                      Indices) const override;
 
     void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 

@@ -67,16 +67,6 @@ void QueryExecutor::FilterColumn(const Constraint& c,
     return;
   }
 
-  switch (chain.ValidateSearchConstraints(c.value, c.op)) {
-    case SearchValidationResult::kAllData:
-      return;
-    case SearchValidationResult::kNoData:
-      rm->Clear();
-      return;
-    case SearchValidationResult::kOk:
-      break;
-  }
-
   uint32_t rm_size = rm->size();
   uint32_t rm_first = rm->Get(0);
   uint32_t rm_last = rm->Get(rm_size - 1);
@@ -316,16 +306,6 @@ void QueryExecutor::BoundedColumnFilterForTesting(
     const Constraint& c,
     const column::DataLayerChain& col,
     RowMap* rm) {
-  switch (col.ValidateSearchConstraints(c.value, c.op)) {
-    case SearchValidationResult::kAllData:
-      return;
-    case SearchValidationResult::kNoData:
-      rm->Clear();
-      return;
-    case SearchValidationResult::kOk:
-      break;
-  }
-
   LinearSearch(c, col, rm);
 }
 
@@ -333,16 +313,6 @@ void QueryExecutor::IndexedColumnFilterForTesting(
     const Constraint& c,
     const column::DataLayerChain& col,
     RowMap* rm) {
-  switch (col.ValidateSearchConstraints(c.value, c.op)) {
-    case SearchValidationResult::kAllData:
-      return;
-    case SearchValidationResult::kNoData:
-      rm->Clear();
-      return;
-    case SearchValidationResult::kOk:
-      break;
-  }
-
   IndexSearch(c, col, rm);
 }
 

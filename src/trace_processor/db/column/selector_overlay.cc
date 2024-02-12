@@ -47,14 +47,14 @@ SelectorOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
     : inner_(std::move(inner)), selector_(selector) {}
 
 SearchValidationResult SelectorOverlay::ChainImpl::ValidateSearchConstraints(
-    SqlValue sql_val,
-    FilterOp op) const {
-  return inner_->ValidateSearchConstraints(sql_val, op);
+    FilterOp op,
+    SqlValue sql_val) const {
+  return inner_->ValidateSearchConstraints(op, sql_val);
 }
 
-RangeOrBitVector SelectorOverlay::ChainImpl::Search(FilterOp op,
-                                                    SqlValue sql_val,
-                                                    Range in) const {
+RangeOrBitVector SelectorOverlay::ChainImpl::SearchValidated(FilterOp op,
+                                                             SqlValue sql_val,
+                                                             Range in) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "SelectorOverlay::ChainImpl::Search");
 
@@ -63,7 +63,8 @@ RangeOrBitVector SelectorOverlay::ChainImpl::Search(FilterOp op,
   uint32_t start_idx = selector_->IndexOfNthSet(in.start);
   uint32_t end_idx = selector_->IndexOfNthSet(in.end - 1) + 1;
 
-  auto storage_result = inner_->Search(op, sql_val, Range(start_idx, end_idx));
+  auto storage_result =
+      inner_->SearchValidated(op, sql_val, Range(start_idx, end_idx));
   if (storage_result.IsRange()) {
     Range storage_range = std::move(storage_result).TakeIfRange();
     uint32_t out_start = selector_->CountSetBits(storage_range.start);
@@ -84,7 +85,7 @@ RangeOrBitVector SelectorOverlay::ChainImpl::Search(FilterOp op,
   return RangeOrBitVector(std::move(res).Build());
 }
 
-RangeOrBitVector SelectorOverlay::ChainImpl::IndexSearch(
+RangeOrBitVector SelectorOverlay::ChainImpl::IndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
     Indices indices) const {
@@ -103,22 +104,23 @@ RangeOrBitVector SelectorOverlay::ChainImpl::IndexSearch(
   for (uint32_t i = 0; i < indices.size; ++i) {
     storage_iv[i] = selector_->IndexOfNthSet(indices.data[i]);
   }
-  return inner_->IndexSearch(
+  return inner_->IndexSearchValidated(
       op, sql_val,
       Indices{storage_iv.data(), static_cast<uint32_t>(storage_iv.size()),
               indices.state});
 }
 
-Range SelectorOverlay::ChainImpl::OrderedIndexSearch(FilterOp op,
-                                                     SqlValue sql_val,
-                                                     Indices indices) const {
+Range SelectorOverlay::ChainImpl::OrderedIndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
   // To go from TableIndexVector to StorageIndexVector we need to find index in
   // |selector_| by looking only into set bits.
   std::vector<uint32_t> inner_indices(indices.size);
   for (uint32_t i = 0; i < indices.size; ++i) {
     inner_indices[i] = selector_->IndexOfNthSet(indices.data[i]);
   }
-  return inner_->OrderedIndexSearch(
+  return inner_->OrderedIndexSearchValidated(
       op, sql_val,
       Indices{inner_indices.data(), static_cast<uint32_t>(inner_indices.size()),
               indices.state});

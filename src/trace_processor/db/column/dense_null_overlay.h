@@ -31,7 +31,7 @@ namespace perfetto::trace_processor::column {
 // Overlay which introduces the layer of nullability but without changing the
 // "spacing" of the underlying storage i.e. this overlay simply "masks" out
 // rows in the underlying storage with nulls.
-class DenseNullOverlay : public DataLayer {
+class DenseNullOverlay final : public DataLayer {
  public:
   explicit DenseNullOverlay(const BitVector* non_null);
 
@@ -43,14 +43,18 @@ class DenseNullOverlay : public DataLayer {
    public:
     ChainImpl(std::unique_ptr<DataLayerChain> inner, const BitVector* non_null);
 
-    SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                     FilterOp) const override;
+    SearchValidationResult ValidateSearchConstraints(FilterOp,
+                                                     SqlValue) const override;
 
-    RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+    RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-    RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+    RangeOrBitVector IndexSearchValidated(FilterOp,
+                                          SqlValue,
+                                          Indices) const override;
 
-    Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
+    Range OrderedIndexSearchValidated(FilterOp,
+                                      SqlValue,
+                                      Indices) const override;
 
     void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 

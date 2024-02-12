@@ -213,7 +213,7 @@ void TypedLinearSearch(T typed_val,
   }
 }
 
-SearchValidationResult IntColumnWithDouble(SqlValue* sql_val, FilterOp op) {
+SearchValidationResult IntColumnWithDouble(FilterOp op, SqlValue* sql_val) {
   double double_val = sql_val->AsDouble();
 
   // Case when |sql_val| can be interpreted as a SqlValue::Double.
@@ -248,7 +248,7 @@ SearchValidationResult IntColumnWithDouble(SqlValue* sql_val, FilterOp op) {
   PERFETTO_FATAL("For GCC");
 }
 
-SearchValidationResult DoubleColumnWithInt(SqlValue* sql_val, FilterOp op) {
+SearchValidationResult DoubleColumnWithInt(FilterOp op, SqlValue* sql_val) {
   int64_t i = sql_val->AsLong();
   auto i_as_d = static_cast<double>(i);
 
@@ -305,8 +305,8 @@ NumericStorageBase::ChainImpl::ChainImpl(const void* data,
     : size_(size), data_(data), storage_type_(type), is_sorted_(is_sorted) {}
 
 SearchValidationResult NumericStorageBase::ChainImpl::ValidateSearchConstraints(
-    SqlValue val,
-    FilterOp op) const {
+    FilterOp op,
+    SqlValue val) const {
   // NULL checks.
   if (PERFETTO_UNLIKELY(val.is_null())) {
     if (op == FilterOp::kIsNotNull) {
@@ -413,7 +413,7 @@ SearchValidationResult NumericStorageBase::ChainImpl::ValidateSearchConstraints(
   PERFETTO_FATAL("For GCC");
 }
 
-RangeOrBitVector NumericStorageBase::ChainImpl::Search(
+RangeOrBitVector NumericStorageBase::ChainImpl::SearchValidated(
     FilterOp op,
     SqlValue sql_val,
     Range search_range) const {
@@ -431,7 +431,7 @@ RangeOrBitVector NumericStorageBase::ChainImpl::Search(
   if (sql_val.type == SqlValue::kDouble &&
       storage_type_ != ColumnType::kDouble) {
     auto ret_opt =
-        utils::CanReturnEarly(IntColumnWithDouble(&sql_val, op), search_range);
+        utils::CanReturnEarly(IntColumnWithDouble(op, &sql_val), search_range);
     if (ret_opt) {
       return RangeOrBitVector(*ret_opt);
     }
@@ -441,7 +441,7 @@ RangeOrBitVector NumericStorageBase::ChainImpl::Search(
   if (sql_val.type != SqlValue::kDouble &&
       storage_type_ == ColumnType::kDouble) {
     auto ret_opt =
-        utils::CanReturnEarly(DoubleColumnWithInt(&sql_val, op), search_range);
+        utils::CanReturnEarly(DoubleColumnWithInt(op, &sql_val), search_range);
     if (ret_opt) {
       return RangeOrBitVector(*ret_opt);
     }
@@ -464,7 +464,7 @@ RangeOrBitVector NumericStorageBase::ChainImpl::Search(
   return RangeOrBitVector(LinearSearchInternal(op, val, search_range));
 }
 
-RangeOrBitVector NumericStorageBase::ChainImpl::IndexSearch(
+RangeOrBitVector NumericStorageBase::ChainImpl::IndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
     Indices indices) const {
@@ -482,7 +482,7 @@ RangeOrBitVector NumericStorageBase::ChainImpl::IndexSearch(
   if (sql_val.type == SqlValue::kDouble &&
       storage_type_ != ColumnType::kDouble) {
     auto ret_opt =
-        utils::CanReturnEarly(IntColumnWithDouble(&sql_val, op), indices.size);
+        utils::CanReturnEarly(IntColumnWithDouble(op, &sql_val), indices.size);
     if (ret_opt) {
       return RangeOrBitVector(*ret_opt);
     }
@@ -492,7 +492,7 @@ RangeOrBitVector NumericStorageBase::ChainImpl::IndexSearch(
   if (sql_val.type != SqlValue::kDouble &&
       storage_type_ == ColumnType::kDouble) {
     auto ret_opt =
-        utils::CanReturnEarly(DoubleColumnWithInt(&sql_val, op), indices.size);
+        utils::CanReturnEarly(DoubleColumnWithInt(op, &sql_val), indices.size);
     if (ret_opt) {
       return RangeOrBitVector(*ret_opt);
     }
@@ -503,9 +503,10 @@ RangeOrBitVector NumericStorageBase::ChainImpl::IndexSearch(
       IndexSearchInternal(op, val, indices.data, indices.size));
 }
 
-Range NumericStorageBase::ChainImpl::OrderedIndexSearch(FilterOp op,
-                                                        SqlValue sql_val,
-                                                        Indices indices) const {
+Range NumericStorageBase::ChainImpl::OrderedIndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
   PERFETTO_DCHECK(*std::max_element(indices.data, indices.data + indices.size) <
                   size_);
 
@@ -519,7 +520,7 @@ Range NumericStorageBase::ChainImpl::OrderedIndexSearch(FilterOp op,
   // Mismatched types - value is double and column is int.
   if (sql_val.type == SqlValue::kDouble &&
       storage_type_ != ColumnType::kDouble) {
-    if (auto ret = utils::CanReturnEarly(IntColumnWithDouble(&sql_val, op),
+    if (auto ret = utils::CanReturnEarly(IntColumnWithDouble(op, &sql_val),
                                          indices.size);
         ret) {
       return *ret;
@@ -529,7 +530,7 @@ Range NumericStorageBase::ChainImpl::OrderedIndexSearch(FilterOp op,
   // Mismatched types - column is double and value is int.
   if (sql_val.type != SqlValue::kDouble &&
       storage_type_ == ColumnType::kDouble) {
-    if (auto ret = utils::CanReturnEarly(DoubleColumnWithInt(&sql_val, op),
+    if (auto ret = utils::CanReturnEarly(DoubleColumnWithInt(op, &sql_val),
                                          indices.size);
         ret) {
       return *ret;
