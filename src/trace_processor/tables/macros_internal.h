@@ -84,9 +84,9 @@ class MacroTable : public Table {
 
  protected:
   // Constructors for tables created by the regular constructor.
-  explicit MacroTable(StringPool* pool,
-                      std::vector<ColumnLegacy> columns,
-                      const MacroTable* parent)
+  PERFETTO_NO_INLINE explicit MacroTable(StringPool* pool,
+                                         std::vector<ColumnLegacy> columns,
+                                         const MacroTable* parent)
       : Table(pool, 0u, std::move(columns), EmptyOverlaysFromParent(parent)),
         allow_inserts_(true),
         parent_(parent) {}
