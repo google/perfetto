@@ -16,7 +16,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -24,7 +23,6 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/query_executor.h"
@@ -42,8 +40,22 @@ void QueryExecutor::FilterColumn(const Constraint& c,
                                  const column::DataLayerChain& chain,
                                  RowMap* rm) {
   // Shortcut of empty row map.
-  if (rm->empty())
+  uint32_t rm_size = rm->size();
+  if (rm_size == 0)
     return;
+
+  uint32_t rm_first = rm->Get(0);
+  if (rm_size == 1) {
+    switch (chain.SingleSearch(c.op, c.value, rm_first)) {
+      case SingleSearchResult::kMatch:
+        return;
+      case SingleSearchResult::kNoMatch:
+        rm->Clear();
+        return;
+      case SingleSearchResult::kNeedsFullSearch:
+        break;
+    }
+  }
 
   // Comparison of NULL with any operation apart from |IS_NULL| and
   // |IS_NOT_NULL| should return no rows.
@@ -53,8 +65,6 @@ void QueryExecutor::FilterColumn(const Constraint& c,
     return;
   }
 
-  uint32_t rm_size = rm->size();
-  uint32_t rm_first = rm->Get(0);
   uint32_t rm_last = rm->Get(rm_size - 1);
   uint32_t range_size = rm_last - rm_first;
 
@@ -142,15 +152,6 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
                                    const std::vector<Constraint>& c_vec) {
   RowMap rm(0, table->row_count());
   for (const auto& c : c_vec) {
-    const ColumnLegacy& col = table->columns()[c.col_idx];
-
-    // RowMap size is 1.
-    bool use_legacy = rm.size() == 1;
-
-    if (use_legacy) {
-      col.FilterInto(c.op, c.value, &rm);
-      continue;
-    }
     FilterColumn(c, table->ChainForColumn(c.col_idx), &rm);
   }
   return rm;

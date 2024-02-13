@@ -86,6 +86,32 @@ std::unique_ptr<DataLayerChain> NullOverlay::MakeChain(
   return std::make_unique<ChainImpl>(std::move(inner), non_null_);
 }
 
+SingleSearchResult NullOverlay::ChainImpl::SingleSearch(FilterOp op,
+                                                        SqlValue sql_val,
+                                                        uint32_t index) const {
+  switch (op) {
+    case FilterOp::kIsNull:
+      return non_null_->IsSet(index)
+                 ? inner_->SingleSearch(op, sql_val,
+                                        non_null_->CountSetBits(index))
+                 : SingleSearchResult::kMatch;
+    case FilterOp::kIsNotNull:
+    case FilterOp::kEq:
+    case FilterOp::kGe:
+    case FilterOp::kGt:
+    case FilterOp::kLt:
+    case FilterOp::kLe:
+    case FilterOp::kNe:
+    case FilterOp::kGlob:
+    case FilterOp::kRegex:
+      return non_null_->IsSet(index)
+                 ? inner_->SingleSearch(op, sql_val,
+                                        non_null_->CountSetBits(index))
+                 : SingleSearchResult::kNoMatch;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 NullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> innner,
                                   const BitVector* non_null)
     : inner_(std::move(innner)), non_null_(non_null) {
@@ -98,7 +124,6 @@ SearchValidationResult NullOverlay::ChainImpl::ValidateSearchConstraints(
   if (op == FilterOp::kIsNull) {
     return SearchValidationResult::kOk;
   }
-
   return inner_->ValidateSearchConstraints(op, sql_val);
 }
 

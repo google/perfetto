@@ -33,13 +33,25 @@ namespace {
 using testing::ElementsAre;
 using testing::IsEmpty;
 
+TEST(ArrangementOverlay, SingleSearch) {
+  std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
+  auto fake = FakeStorage::SearchSubset(5, std::vector<uint32_t>{1, 2});
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto chain = storage.MakeChain(fake->MakeChain());
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 8),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 4),
+            SingleSearchResult::kNoMatch);
+}
+
 TEST(ArrangementOverlay, SearchAll) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   auto fake = FakeStorage::SearchAll(5);
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
-  auto queriable = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2u, 3u));
 }
 
@@ -47,9 +59,9 @@ TEST(ArrangementOverlay, SearchNone) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   auto fake = FakeStorage::SearchNone(5);
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
-  auto queriable = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 }
 
@@ -57,9 +69,9 @@ TEST(ArrangementOverlay, DISABLED_SearchLimited) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   auto fake = FakeStorage::SearchSubset(5, Range(4, 5));
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
-  auto queriable = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 7));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 7));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(6u));
 }
 
@@ -68,11 +80,11 @@ TEST(ArrangementOverlay, SearchBitVector) {
   auto fake = FakeStorage::SearchSubset(
       5, BitVector({false, true, false, true, false}));
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
-  auto queriable = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   // Table bv:
   // 1, 1, 0, 0, 1, 1, 0, 0, 1, 1
-  auto res = queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 10));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 10));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 4, 5, 8, 9));
 }
 
@@ -81,10 +93,10 @@ TEST(ArrangementOverlay, IndexSearch) {
   auto fake = FakeStorage::SearchSubset(
       5, BitVector({false, true, false, true, false}));
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
-  auto queriable = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{7u, 1u, 3u};
-  RangeOrBitVector res = queriable->IndexSearch(
+  RangeOrBitVector res = chain->IndexSearch(
       FilterOp::kGe, SqlValue::Long(0u),
       Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
               Indices::State::kNonmonotonic});
@@ -97,11 +109,11 @@ TEST(ArrangementOverlay, OrderingSearch) {
   auto fake = FakeStorage::SearchSubset(
       5, BitVector({false, true, false, true, false}));
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
-  auto queriable =
+  auto chain =
       storage.MakeChain(fake->MakeChain(), DataLayer::ChainCreationArgs(true));
 
   RangeOrBitVector res =
-      queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));
+      chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));
 
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }

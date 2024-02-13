@@ -32,6 +32,18 @@ namespace {
 using testing::ElementsAre;
 using testing::IsEmpty;
 
+TEST(SelectorOverlay, SingleSearch) {
+  BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
+  auto fake = FakeStorage::SearchSubset(8, Range(2, 5));
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(fake->MakeChain());
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 1),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 0),
+            SingleSearchResult::kNoMatch);
+}
+
 TEST(SelectorOverlay, SearchAll) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
   auto fake = FakeStorage::SearchAll(10);

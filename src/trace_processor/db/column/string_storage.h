@@ -45,6 +45,10 @@ class StringStorage final : public DataLayer {
               const std::vector<StringPool::Id>* data,
               bool is_sorted);
 
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 

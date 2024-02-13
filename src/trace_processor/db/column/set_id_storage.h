@@ -42,6 +42,10 @@ class SetIdStorage final : public DataLayer {
    public:
     explicit ChainImpl(const std::vector<uint32_t>*);
 
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 

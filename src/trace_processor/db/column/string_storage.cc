@@ -21,6 +21,7 @@
 #include <functional>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -209,6 +210,84 @@ StringStorage::ChainImpl::ChainImpl(StringPool* string_pool,
                                     const std::vector<StringPool::Id>* data,
                                     bool is_sorted)
     : data_(data), string_pool_(string_pool), is_sorted_(is_sorted) {}
+
+SingleSearchResult StringStorage::ChainImpl::SingleSearch(FilterOp op,
+                                                          SqlValue sql_val,
+                                                          uint32_t i) const {
+  if (sql_val.type == SqlValue::kNull) {
+    if (op == FilterOp::kIsNull) {
+      return IsNull()((*data_)[i], StringPool::Id::Null())
+                 ? SingleSearchResult::kMatch
+                 : SingleSearchResult::kNoMatch;
+    }
+    if (op == FilterOp::kIsNotNull) {
+      return IsNotNull()((*data_)[i], StringPool::Id::Null())
+                 ? SingleSearchResult::kMatch
+                 : SingleSearchResult::kNoMatch;
+    }
+    return SingleSearchResult::kNeedsFullSearch;
+  }
+
+  if (sql_val.type != SqlValue::kString) {
+    return SingleSearchResult::kNeedsFullSearch;
+  }
+
+  switch (op) {
+    case FilterOp::kEq: {
+      std::optional<StringPool::Id> id =
+          string_pool_->GetId(base::StringView(sql_val.string_value));
+      return id && std::equal_to<>()((*data_)[i], *id)
+                 ? SingleSearchResult::kMatch
+                 : SingleSearchResult::kNoMatch;
+    }
+    case FilterOp::kNe: {
+      std::optional<StringPool::Id> id =
+          string_pool_->GetId(base::StringView(sql_val.string_value));
+      return id && NotEqual()((*data_)[i], *id) ? SingleSearchResult::kMatch
+                                                : SingleSearchResult::kNoMatch;
+    }
+    case FilterOp::kGe:
+      return GreaterEqual{string_pool_}(
+                 (*data_)[i], NullTermStringView(sql_val.string_value))
+                 ? SingleSearchResult::kMatch
+                 : SingleSearchResult::kNoMatch;
+    case FilterOp::kGt:
+      return Greater{string_pool_}((*data_)[i],
+                                   NullTermStringView(sql_val.string_value))
+                 ? SingleSearchResult::kMatch
+                 : SingleSearchResult::kNoMatch;
+    case FilterOp::kLe:
+      return LessEqual{string_pool_}((*data_)[i],
+                                     NullTermStringView(sql_val.string_value))
+                 ? SingleSearchResult::kMatch
+                 : SingleSearchResult::kNoMatch;
+    case FilterOp::kLt:
+      return Less{string_pool_}((*data_)[i],
+                                NullTermStringView(sql_val.string_value))
+                 ? SingleSearchResult::kMatch
+                 : SingleSearchResult::kNoMatch;
+    case FilterOp::kGlob: {
+      util::GlobMatcher matcher =
+          util::GlobMatcher::FromPattern(sql_val.string_value);
+      return Glob{string_pool_}((*data_)[i], matcher)
+                 ? SingleSearchResult::kMatch
+                 : SingleSearchResult::kNoMatch;
+    }
+    case FilterOp::kRegex: {
+      // Caller should ensure that the regex is valid.
+      base::StatusOr<regex::Regex> regex =
+          regex::Regex::Create(sql_val.AsString());
+      PERFETTO_CHECK(regex.status().ok());
+      return Regex{string_pool_}((*data_)[i], regex.value())
+                 ? SingleSearchResult::kMatch
+                 : SingleSearchResult::kNoMatch;
+    }
+    case FilterOp::kIsNull:
+    case FilterOp::kIsNotNull:
+      PERFETTO_FATAL("Already handled above");
+  }
+  PERFETTO_FATAL("For GCC");
+}
 
 SearchValidationResult StringStorage::ChainImpl::ValidateSearchConstraints(
     FilterOp op,

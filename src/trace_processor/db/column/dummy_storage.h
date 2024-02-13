@@ -37,6 +37,10 @@ class DummyStorage final : public DataLayer {
    public:
     ChainImpl() = default;
 
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 
