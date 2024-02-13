@@ -251,28 +251,20 @@ class ColumnSerializer:
     if not self.is_optional or self.is_string:
       return f''
     return f'''
-  RefPtr<column::NullOverlay> {self.name}_null_layer_;
+  RefPtr<column::DataLayer> {self.name}_null_layer_;
   '''
 
   def storage_layer_create(self) -> str:
     if self.is_ancestor:
-      return f'''
-    storage_layers[ColumnIndex::{self.name}] = const_parent_->storage_layers()[ColumnIndex::{self.name}];
-    '''
-    return f'''
-    storage_layers[ColumnIndex::{self.name}].reset({self.name}_storage_layer_.get());
-    '''
+      return f'''const_parent_->storage_layers()[ColumnIndex::{self.name}]'''
+    return f'''{self.name}_storage_layer_'''
 
   def null_layer_create(self) -> str:
     if not self.is_optional or self.is_string:
-      return f''
+      return f'{{}}'
     if self.is_ancestor:
-      return f'''
-    null_layers[ColumnIndex::{self.name}] = const_parent_->null_layers()[ColumnIndex::{self.name}];
-      '''
-    return f'''
-    null_layers[ColumnIndex::{self.name}].reset({self.name}_null_layer_.get());
-    '''
+      return f'''const_parent_->null_layers()[ColumnIndex::{self.name}]'''
+    return f'''{self.name}_null_layer_'''
 
   def storage_layer_init(self) -> str:
     if self.is_ancestor:
@@ -409,17 +401,6 @@ class TableSerializer(object):
                 "Inheritance used without trivial destruction");
     '''
 
-  def overlay_layer_create(self) -> str:
-    if not self.table.parent:
-      return f''
-    return f'''
-    for (uint32_t i = 0; i < kSelectorOverlayCount; ++i) {{
-      PERFETTO_CHECK(overlays()[i].row_map().IsBitVector());
-      overlay_layers[i].reset(new column::SelectorOverlay(
-          overlays()[i].row_map().GetIfBitVector()));
-    }}
-    '''
-
   def constructor(self) -> str:
     storage_init = self.foreach_col(
         ColumnSerializer.storage_init, delimiter=',\n        ')
@@ -443,6 +424,10 @@ class TableSerializer(object):
       olay = 'uint32_t olay_idx = OverlayCount(parent);'
     else:
       olay = ''
+    storage_layer_create = self.foreach_col(
+        ColumnSerializer.storage_layer_create, delimiter=',')
+    null_layer_create = self.foreach_col(
+        ColumnSerializer.null_layer_create, delimiter=',')
     return f'''
   static std::vector<ColumnLegacy> GetColumns(
       {self.table_name}* self,
@@ -463,19 +448,9 @@ class TableSerializer(object):
         {storage_layer_init}{null_layer_sep}
         {null_layer_init} {{
     {self.foreach_col(ColumnSerializer.static_assert_flags)}
-
-    std::vector<RefPtr<column::DataLayer>> storage_layers(kColumnCount);
-    {self.foreach_col(ColumnSerializer.storage_layer_create)}
-
-    std::vector<RefPtr<column::DataLayer>> null_layers(kColumnCount);
-    {self.foreach_col(ColumnSerializer.null_layer_create)}
-
-    std::vector<RefPtr<column::DataLayer>> overlay_layers(
-        kSelectorOverlayCount + 1);
-    {self.overlay_layer_create()}
-
-    OnConstructionCompleted(
-      std::move(storage_layers), std::move(null_layers), std::move(overlay_layers));
+    OnConstructionCompletedRegularConstructor(
+      {{{storage_layer_create}}},
+      {{{null_layer_create}}});
   }}
     '''
 
@@ -586,6 +561,10 @@ class TableSerializer(object):
     storage_layer_sep = '\n,' if storage_layer_init else ''
     params = self.foreach_col(
         ColumnSerializer.extend_parent_param, delimiter='\n, ')
+    storage_layer_create = self.foreach_col(
+        ColumnSerializer.storage_layer_create, delimiter=',')
+    null_layer_create = self.foreach_col(
+        ColumnSerializer.null_layer_create, delimiter=',')
     return f'''
   {self.table_name}(StringPool* pool,
             const {self.parent_class_name}& parent,
@@ -601,14 +580,8 @@ class TableSerializer(object):
     {self.foreach_col(ColumnSerializer.static_assert_flags)}
     {self.foreach_col(ColumnSerializer.extend_nullable_vector)}
 
-    std::vector<RefPtr<column::DataLayer>> storage_layers(kColumnCount);
-    {self.foreach_col(ColumnSerializer.storage_layer_create)}
-
-    std::vector<RefPtr<column::DataLayer>> null_layers(kColumnCount);
-    {self.foreach_col(ColumnSerializer.null_layer_create)}
-
-    std::vector<RefPtr<column::DataLayer>> overlay_layers(kSelectorOverlayCount + 1);
-    for (uint32_t i = 0; i < kSelectorOverlayCount; ++i) {{
+    std::vector<RefPtr<column::DataLayer>> overlay_layers(OverlayCount(&parent) + 1);
+    for (uint32_t i = 0; i < overlay_layers.size(); ++i) {{
       if (overlays()[i].row_map().IsIndexVector()) {{
         overlay_layers[i].reset(new column::ArrangementOverlay(
             overlays()[i].row_map().GetIfIndexVector(),
@@ -623,14 +596,9 @@ class TableSerializer(object):
     }}
 
     OnConstructionCompleted(
-      std::move(storage_layers), std::move(null_layers), std::move(overlay_layers));
+      {{{storage_layer_create}}}, {{{null_layer_create}}}, std::move(overlay_layers));
   }}
     '''
-
-  def selector_overlay_count(self) -> str:
-    if self.table.parent:
-      return f'{self.parent_class_name}::kSelectorOverlayCount + 1'
-    return '0'
 
   def column_count(self) -> str:
     return str(len(self.column_serializers))
@@ -640,7 +608,6 @@ class TableSerializer(object):
 class {self.table_name} : public macros_internal::MacroTable {{
  public:
   static constexpr uint32_t kColumnCount = {self.column_count().strip()};
-  static constexpr uint32_t kSelectorOverlayCount = {self.selector_overlay_count().strip()};
 
   {self.id_defn().lstrip()}
   struct ColumnIndex {{
