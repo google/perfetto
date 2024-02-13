@@ -318,10 +318,11 @@ export class PluginRegistry extends Registry<PluginDescriptor> {
   }
 }
 
-interface PluginDetails {
+export interface PluginDetails {
   plugin: Plugin;
   context: PluginContext&Disposable;
   traceContext?: PluginContextTraceImpl;
+  previousOnTraceLoadTimeMillis?: number;
 }
 
 function isPluginClass(v: unknown): v is PluginClass {
@@ -345,12 +346,16 @@ function makePlugin(info: PluginDescriptor): Plugin {
 
 export class PluginManager {
   private registry: PluginRegistry;
-  private plugins: Map<string, PluginDetails>;
+  private _plugins: Map<string, PluginDetails>;
   private engine?: Engine;
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
-    this.plugins = new Map();
+    this._plugins = new Map();
+  }
+
+  get plugins(): Map<string, PluginDetails> {
+    return this._plugins;
   }
 
   activatePlugin(id: string): void {
@@ -376,7 +381,7 @@ export class PluginManager {
       this.doPluginTraceLoad(pluginDetails, this.engine, id);
     }
 
-    this.plugins.set(id, pluginDetails);
+    this._plugins.set(id, pluginDetails);
   }
 
   deactivatePlugin(id: string): void {
@@ -391,7 +396,7 @@ export class PluginManager {
     plugin.onDeactivate && plugin.onDeactivate(context);
     context.dispose();
 
-    this.plugins.delete(id);
+    this._plugins.delete(id);
   }
 
   isActive(pluginId: string): boolean {
@@ -399,27 +404,31 @@ export class PluginManager {
   }
 
   getPluginContext(pluginId: string): PluginDetails|undefined {
-    return this.plugins.get(pluginId);
+    return this._plugins.get(pluginId);
   }
 
   async onTraceLoad(engine: Engine): Promise<void> {
     this.engine = engine;
-    const plugins = Array.from(this.plugins.entries());
-    const promises = plugins.map(([id, pluginDetails]) => {
-      return this.doPluginTraceLoad(pluginDetails, engine, id);
-    });
-    await Promise.all(promises);
+    const plugins = Array.from(this._plugins.entries());
+    // Awaiting all plugins in parallel will skew timing data as later plugins
+    // will spend most of their time waiting for earlier plugins to load.
+    // Running in parallel will have very little performance benefit assuming
+    // most plugins use the same engine, which can only process one query at a
+    // time.
+    for (const [id, pluginDetails] of plugins) {
+      await this.doPluginTraceLoad(pluginDetails, engine, id);
+    }
   }
 
   onTraceClose() {
-    for (const pluginDetails of this.plugins.values()) {
+    for (const pluginDetails of this._plugins.values()) {
       maybeDoPluginTraceUnload(pluginDetails);
     }
     this.engine = undefined;
   }
 
   metricVisualisations(): MetricVisualisation[] {
-    return Array.from(this.plugins.values()).flatMap((ctx) => {
+    return Array.from(this._plugins.values()).flatMap((ctx) => {
       const tracePlugin = ctx.plugin;
       if (tracePlugin.metricVisualisations) {
         return tracePlugin.metricVisualisations(ctx.context);
@@ -439,8 +448,12 @@ export class PluginManager {
     const traceCtx = new PluginContextTraceImpl(context, engineProxy);
     pluginDetails.traceContext = traceCtx;
 
-    const result = plugin.onTraceLoad?.(traceCtx);
-    return Promise.resolve(result);
+    const startTime = performance.now();
+    const result = await Promise.resolve(plugin.onTraceLoad?.(traceCtx));
+    const loadTime = performance.now() - startTime;
+    pluginDetails.previousOnTraceLoadTimeMillis = loadTime;
+
+    return result;
   }
 }
 
