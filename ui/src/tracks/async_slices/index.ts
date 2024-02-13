@@ -26,7 +26,6 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 
-import {AsyncSliceTrack} from './async_slice_track';
 import {AsyncSliceTrackV2} from './async_slice_track_v2';
 
 export const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
@@ -118,21 +117,6 @@ class AsyncSlicePlugin implements Plugin {
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrack(
-            engine,
-            maxDepth,
-            trackKey,
-            trackIds,
-          );
-        },
-      });
-
-      ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}.v2`,
-        displayName,
-        trackIds,
-        kind: ASYNC_SLICE_TRACK_KIND,
-        trackFactory: ({trackKey}) => {
           return new AsyncSliceTrackV2(
             {engine, trackKey},
             maxDepth,
@@ -196,21 +180,6 @@ class AsyncSlicePlugin implements Plugin {
 
       ctx.registerTrack({
         uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}`,
-        displayName,
-        trackIds,
-        kind: ASYNC_SLICE_TRACK_KIND,
-        trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrack(
-            ctx.engine,
-            maxDepth,
-            trackKey,
-            trackIds,
-          );
-        },
-      });
-
-      ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}.v2`,
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
@@ -287,21 +256,6 @@ class AsyncSlicePlugin implements Plugin {
 
       ctx.registerTrack({
         uri: `perfetto.AsyncSlices#${rawName}.${uid}`,
-        displayName,
-        trackIds,
-        kind: ASYNC_SLICE_TRACK_KIND,
-        trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrack(
-            engine,
-            maxDepth,
-            trackKey,
-            trackIds,
-          );
-        },
-      });
-
-      ctx.registerTrack({
-        uri: `perfetto.AsyncSlices#${rawName}.${uid}.v2`,
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
