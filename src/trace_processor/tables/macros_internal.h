@@ -142,6 +142,17 @@ class MacroTable : public Table {
                                    std::move(overlay_layers));
   }
 
+  template <typename T>
+  PERFETTO_NO_INLINE static void AddColumnToVector(
+      std::vector<ColumnLegacy>& columns,
+      const char* name,
+      ColumnStorage<T>* storage,
+      uint32_t flags,
+      uint32_t column_index,
+      uint32_t overlay_index) {
+    columns.emplace_back(name, storage, flags, column_index, overlay_index);
+  }
+
   static uint32_t OverlayCount(const MacroTable* parent) {
     return parent ? static_cast<uint32_t>(parent->overlays().size()) : 0;
   }
