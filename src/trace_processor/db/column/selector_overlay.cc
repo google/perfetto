@@ -38,7 +38,8 @@ SelectorOverlay::SelectorOverlay(const BitVector* selector)
     : selector_(selector) {}
 
 std::unique_ptr<DataLayerChain> SelectorOverlay::MakeChain(
-    std::unique_ptr<DataLayerChain> inner) {
+    std::unique_ptr<DataLayerChain> inner,
+    ChainCreationArgs) {
   return std::make_unique<ChainImpl>(std::move(inner), selector_);
 }
 

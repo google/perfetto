@@ -81,7 +81,8 @@ BitVector ReconcileStorageResult(FilterOp op,
 NullOverlay::NullOverlay(const BitVector* non_null) : non_null_(non_null) {}
 
 std::unique_ptr<DataLayerChain> NullOverlay::MakeChain(
-    std::unique_ptr<DataLayerChain> inner) {
+    std::unique_ptr<DataLayerChain> inner,
+    ChainCreationArgs) {
   return std::make_unique<ChainImpl>(std::move(inner), non_null_);
 }
 

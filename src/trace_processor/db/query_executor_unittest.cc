@@ -237,8 +237,7 @@ TEST(QueryExecutor, ArrangementOverlayBounds) {
       &storage_data, ColumnType::kInt64);
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic,
-                             false);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
   auto chain = storage.MakeChain(numeric->MakeChain());
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
@@ -252,8 +251,7 @@ TEST(QueryExecutor, ArrangementOverlaySubsetInputRange) {
   auto fake = column::FakeStorage::SearchSubset(5u, RowMap::Range(2u, 4u));
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic,
-                             false);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
   auto chain = storage.MakeChain(fake->MakeChain());
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(0u)};
@@ -267,8 +265,7 @@ TEST(QueryExecutor, ArrangementOverlaySubsetInputBitvector) {
   auto fake = column::FakeStorage::SearchSubset(5u, BitVector({0, 0, 1, 1, 0}));
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic,
-                             false);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
   auto chain = storage.MakeChain(fake->MakeChain());
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(0u)};
@@ -285,8 +282,7 @@ TEST(QueryExecutor, ArrangementOverlayIndex) {
       &storage_data, ColumnType::kInt64);
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic,
-                             false);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
   auto chain = storage.MakeChain(numeric->MakeChain());
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
@@ -348,8 +344,7 @@ TEST(QueryExecutor, SingleConstraintWithNullAndArrangement) {
   // Final vector
   // NULL, 3, NULL, NULL, 3, NULL
   std::vector<uint32_t> arrangement{2, 4, 6, 2, 4, 6};
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic,
-                             false);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
   auto chain = storage.MakeChain(null->MakeChain(numeric->MakeChain()));
 
   // Filter.

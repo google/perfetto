@@ -38,7 +38,8 @@ DenseNullOverlay::DenseNullOverlay(const BitVector* non_null)
     : non_null_(non_null) {}
 
 std::unique_ptr<DataLayerChain> DenseNullOverlay::MakeChain(
-    std::unique_ptr<DataLayerChain> inner) {
+    std::unique_ptr<DataLayerChain> inner,
+    ChainCreationArgs) {
   return std::make_unique<ChainImpl>(std::move(inner), non_null_);
 }
 

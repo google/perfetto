@@ -280,8 +280,10 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     if (col.overlay().row_map().IsIndexVector()) {
       data_layers.emplace_back(std::make_unique<column::ArrangementOverlay>(
           col.overlay().row_map().GetIfIndexVector(),
-          Indices::State::kNonmonotonic, col.IsSorted()));
-      chain = data_layers.back()->MakeChain(std::move(chain));
+          Indices::State::kNonmonotonic));
+      chain = data_layers.back()->MakeChain(
+          std::move(chain),
+          column::DataLayer::ChainCreationArgs(col.IsSorted()));
     }
     if (col.overlay().row_map().IsBitVector()) {
       data_layers.emplace_back(std::make_unique<column::SelectorOverlay>(
