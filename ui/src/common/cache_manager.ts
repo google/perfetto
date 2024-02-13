@@ -42,7 +42,7 @@ async function cacheDelete(key: Request): Promise<boolean> {
   try {
     const cache = await getCache();
     if (cache === undefined) return false;  // Cache storage not supported.
-    return cache.delete(key);
+    return await cache.delete(key);
   } catch (_) {
     // TODO(288483453): Reinstate:
     // return ignoreCacheUnactionableErrors(e, false);
@@ -54,7 +54,7 @@ async function cachePut(key: string, value: Response): Promise<void> {
   try {
     const cache = await getCache();
     if (cache === undefined) return;  // Cache storage not supported.
-    cache.put(key, value);
+    await cache.put(key, value);
   } catch (_) {
     // TODO(288483453): Reinstate:
     // ignoreCacheUnactionableErrors(e, undefined);
@@ -65,7 +65,7 @@ async function cacheMatch(key: Request|string): Promise<Response|undefined> {
   try {
     const cache = await getCache();
     if (cache === undefined) return undefined;  // Cache storage not supported.
-    return cache.match(key);
+    return await cache.match(key);
   } catch (_) {
     // TODO(288483453): Reinstate:
     // ignoreCacheUnactionableErrors(e, undefined);
@@ -77,7 +77,7 @@ async function cacheKeys(): Promise<readonly Request[]> {
   try {
     const cache = await getCache();
     if (cache === undefined) return [];  // Cache storage not supported.
-    return cache.keys();
+    return await cache.keys();
   } catch (e) {
     // TODO(288483453): Reinstate:
     // return ignoreCacheUnactionableErrors(e, []);
