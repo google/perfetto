@@ -1477,7 +1477,7 @@ message AndroidMonitorContentionAggMetric {
 // This metric provides information about the monitor contention graph in a
 // trace
 message AndroidMonitorContentionMetric {
-  // Next field id: 25
+  // Next field id: 26
   message Node {
     // Global context
     optional int64 node_parent_id = 1;
@@ -1485,6 +1485,7 @@ message AndroidMonitorContentionMetric {
     optional int64 node_id = 2;
     optional int64 ts = 3;
     optional int64 dur = 4;
+    optional int64 monotonic_dur = 25;
     optional string process_name = 14;
     optional uint32 pid = 23;
     optional uint32 waiter_count = 11;
