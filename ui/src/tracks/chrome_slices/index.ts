@@ -270,23 +270,6 @@ class ChromeSlicesPlugin implements Plugin {
         trackIds: [trackId],
         kind: SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
-          return new ChromeSliceTrack(
-            engine,
-            maxDepth,
-            trackKey,
-            trackId,
-          );
-        },
-      });
-
-      // trackIds can only be registered by one track at a time.
-      // TODO(hjd): Move trackIds to only be on V2.
-      ctx.registerTrack({
-        uri: `perfetto.ChromeSlices#${trackId}.v2`,
-        displayName,
-        trackIds: [trackId],
-        kind: SLICE_TRACK_KIND,
-        trackFactory: ({trackKey}) => {
           const newTrackArgs = {
             engine: ctx.engine,
             trackKey,

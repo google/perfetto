@@ -131,8 +131,9 @@ export const MAX_TIME = 180;
 // 41. Ported all remaining tracks.
 // 42. Rename trackId -> trackKey.
 // 43. Remove visibleTracks.
-// 44. Add TabsV2 state
-export const STATE_VERSION = 44;
+// 44. Add TabsV2 state.
+// 45. Remove v1 tracks.
+export const STATE_VERSION = 45;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 

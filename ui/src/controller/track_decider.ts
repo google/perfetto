@@ -27,8 +27,8 @@ import {
   TrackSortKey,
   UtidToTrackSortKey,
 } from '../common/state';
-import {featureFlags, PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {globals} from '../frontend/globals';
+import {PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {PrimaryTrackSortKey} from '../public';
 import {getTrackName} from '../public/utils';
 import {Engine, EngineProxy} from '../trace_processor/engine';
@@ -38,7 +38,7 @@ import {
   STR,
   STR_NULL,
 } from '../trace_processor/query_result';
-import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/async_slice_track';
+import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices';
 import {
   ENABLE_SCROLL_JANK_PLUGIN_V2,
   getScrollJankTracks,
@@ -57,29 +57,6 @@ import {
   decideTracks as screenshotDecideTracks,
 } from '../tracks/screenshots';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
-
-const TRACKS_V2_FLAG = featureFlags.register({
-  id: 'tracksV2.2',
-  name: 'Tracks V2',
-  description: '[WARNING SOON TO BE REMOVED] Show tracks built on top of the Track V2 API.',
-  defaultValue: true,
-});
-
-const TRACKS_V2_COMPARE_FLAG = featureFlags.register({
-  id: 'tracksV2Compare',
-  name: 'Tracks V2: Also show V1 tracks',
-  description:
-      'Show V1 tracks side by side with V2 tracks. Does nothing if TracksV2 is not enabled.',
-  defaultValue: false,
-});
-
-function showV2(): boolean {
-  return TRACKS_V2_FLAG.get();
-}
-
-function showV1(): boolean {
-  return !showV2() || (showV2() && TRACKS_V2_COMPARE_FLAG.get());
-}
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';
@@ -290,25 +267,14 @@ class TrackDecider {
         }
       }
 
-      if (showV1()) {
-        const track: AddTrackArgs = {
-          uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}`,
-          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-          trackGroup,
-          name,
-        };
-        this.tracksToAdd.push(track);
-      }
+      const track: AddTrackArgs = {
+        uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}`,
+        trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+        trackGroup,
+        name,
+      };
 
-      if (showV2()) {
-        const track: AddTrackArgs = {
-          uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}.v2`,
-          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-          trackGroup,
-          name,
-        };
-        this.tracksToAdd.push(track);
-      }
+      this.tracksToAdd.push(track);
     }
   }
 
@@ -837,29 +803,15 @@ class TrackDecider {
       const name =
           getTrackName({utid, tid, threadName, kind: THREAD_STATE_TRACK_KIND});
 
-      if (showV1()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.ThreadState#${upid}.${utid}`,
-          name,
-          trackGroup: uuid,
-          trackSortKey: {
-            utid,
-            priority,
-          },
-        });
-      }
-
-      if (showV2()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.ThreadState#${utid}.v2`,
-          name,
-          trackGroup: uuid,
-          trackSortKey: {
-            utid,
-            priority,
-          },
-        });
-      }
+      this.tracksToAdd.push({
+        uri: `perfetto.ThreadState#${utid}`,
+        name,
+        trackGroup: uuid,
+        trackSortKey: {
+          utid,
+          priority,
+        },
+      });
     }
   }
 
@@ -1008,23 +960,12 @@ class TrackDecider {
         kind: ASYNC_SLICE_TRACK_KIND,
       });
 
-      if (showV1()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}`,
-          name,
-          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-          trackGroup: uuid,
-        });
-      }
-
-      if (showV2()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}.v2`,
-          name,
-          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-          trackGroup: uuid,
-        });
-      }
+      this.tracksToAdd.push({
+        uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}`,
+        name,
+        trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+        trackGroup: uuid,
+      });
     }
   }
 
@@ -1089,23 +1030,12 @@ class TrackDecider {
         groupMap.set(rawName, [groupUuid, summaryTrackKey]);
       }
 
-      if (showV1()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.AsyncSlices#${rawName}.${uid}`,
-          name: userName,
-          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-          trackGroup: groupUuid,
-        });
-      }
-
-      if (showV2()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.AsyncSlices#${rawName}.${uid}.v2`,
-          name: userName,
-          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-          trackGroup: groupUuid,
-        });
-      }
+      this.tracksToAdd.push({
+        uri: `perfetto.AsyncSlices#${rawName}.${uid}`,
+        name: userName,
+        trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+        trackGroup: groupUuid,
+      });
     }
 
     for (const [name, [groupUuid, summaryTrackKey]] of groupMap) {
@@ -1167,23 +1097,12 @@ class TrackDecider {
       const name =
           getTrackName({name: trackName, upid, pid, processName, kind});
 
-      if (showV1()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.ActualFrames#${upid}`,
-          name,
-          trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
-          trackGroup: uuid,
-        });
-      }
-
-      if (showV2()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.ActualFrames#${upid}.v2`,
-          name,
-          trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
-          trackGroup: uuid,
-        });
-      }
+      this.tracksToAdd.push({
+        uri: `perfetto.ActualFrames#${upid}`,
+        name,
+        trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
+        trackGroup: uuid,
+      });
     }
   }
 
@@ -1236,23 +1155,12 @@ class TrackDecider {
       const name =
           getTrackName({name: trackName, upid, pid, processName, kind});
 
-      if (showV1()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.ExpectedFrames#${upid}`,
-          name,
-          trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
-          trackGroup: uuid,
-        });
-      }
-
-      if (showV2()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.ExpectedFrames#${upid}.v2`,
-          name,
-          trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
-          trackGroup: uuid,
-        });
-      }
+      this.tracksToAdd.push({
+        uri: `perfetto.ExpectedFrames#${upid}`,
+        name,
+        trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
+        trackGroup: uuid,
+      });
     }
   }
 
@@ -1298,33 +1206,18 @@ class TrackDecider {
 
       const kind = SLICE_TRACK_KIND;
       const name = getTrackName({name: trackName, utid, tid, threadName, kind});
-      if (showV1()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.ChromeSlices#${trackId}`,
-          name,
-          trackGroup: uuid,
-          trackSortKey: {
-            utid,
-            priority: isDefaultTrackForScope ?
-              InThreadTrackSortKey.DEFAULT_TRACK :
-              InThreadTrackSortKey.ORDINARY,
-          },
-        });
-      }
 
-      if (showV2()) {
-        this.tracksToAdd.push({
-          uri: `perfetto.ChromeSlices#${trackId}.v2`,
-          name,
-          trackGroup: uuid,
-          trackSortKey: {
-            utid,
-            priority: isDefaultTrackForScope ?
-              InThreadTrackSortKey.DEFAULT_TRACK :
-              InThreadTrackSortKey.ORDINARY,
-          },
-        });
-      }
+      this.tracksToAdd.push({
+        uri: `perfetto.ChromeSlices#${trackId}`,
+        name,
+        trackGroup: uuid,
+        trackSortKey: {
+          utid,
+          priority: isDefaultTrackForScope ?
+            InThreadTrackSortKey.DEFAULT_TRACK :
+            InThreadTrackSortKey.ORDINARY,
+        },
+      });
     }
   }
 
