@@ -1161,14 +1161,21 @@ class AndroidStdlib(TestSuite):
 
   def test_freezer_events(self):
     return DiffTestBlueprint(
-        trace=DataPath('post_boot_trace.atr'),
+        trace=DataPath('freezer_trace.atr'),
         query="""
         INCLUDE PERFETTO MODULE android.freezer;
-        SELECT pid, ts, dur FROM android_freezer_events ORDER BY ts
+        SELECT pid, ts, dur, unfreeze_reason_int, unfreeze_reason_str FROM android_freezer_events ORDER BY ts
       """,
         out=Csv("""
-        "pid","ts","dur"
-        8361,588092720937,576298685
+        "pid","ts","dur","unfreeze_reason_int","unfreeze_reason_str"
+        6506,91266310231819,94699935803,"[NULL]","[NULL]"
+        3804,91266322277324,94687890298,"[NULL]","[NULL]"
+        3299,91281767065245,78699885147,6,"start_service"
+        5782,91296291190245,64718977377,"[NULL]","[NULL]"
+        6533,91296292403211,64717764411,"[NULL]","[NULL]"
+        4044,91296293188372,64716979250,"[NULL]","[NULL]"
+        4002,91296294215356,64715952266,"[NULL]","[NULL]"
+        3981,91296294804650,64715362972,"[NULL]","[NULL]"
         """))
 
   def test_service_bindings(self):
