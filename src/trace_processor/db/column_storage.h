@@ -22,6 +22,7 @@
 #include <optional>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/bit_vector.h"
@@ -62,7 +63,7 @@ class ColumnStorage final : public ColumnStorageBase {
   T Get(uint32_t idx) const { return vector_[idx]; }
   void Append(T val) { vector_.emplace_back(val); }
   void Set(uint32_t idx, T val) { vector_[idx] = val; }
-  void ShrinkToFit() { vector_.shrink_to_fit(); }
+  PERFETTO_NO_INLINE void ShrinkToFit() { vector_.shrink_to_fit(); }
   const std::vector<T>& vector() const { return vector_; }
 
   const void* data() const final { return vector_.data(); }
@@ -137,7 +138,7 @@ class ColumnStorage<std::optional<T>> final : public ColumnStorageBase {
     }
   }
   bool IsDense() const { return mode_ == Mode::kDense; }
-  void ShrinkToFit() {
+  PERFETTO_NO_INLINE void ShrinkToFit() {
     data_.shrink_to_fit();
     valid_.ShrinkToFit();
   }
