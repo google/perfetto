@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE common.timestamps;
+
 -- Table of suspended and awake slices.
 --
 -- Selects either the minimal or full ftrace source depending on what's
@@ -74,3 +76,15 @@ FROM awake_slice
 UNION ALL
 SELECT ts, dur, 'suspended' AS power_state
 FROM suspend_slice;
+
+-- Extracts the duration without counting CPU suspended time from an event.
+-- This is the same as converting an event duration from wall clock to monotonic clock.
+-- If there was no CPU suspend, the result is same as |dur|.
+CREATE PERFETTO FUNCTION _extract_duration_without_suspend(
+  -- Timestamp of event.
+  ts INT,
+  -- Duration of event.
+  dur INT)
+RETURNS INT
+AS
+SELECT to_monotonic($ts + $dur) - to_monotonic($ts);
