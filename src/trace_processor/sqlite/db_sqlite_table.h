@@ -26,6 +26,7 @@
 
 #include <sqlite3.h>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/column/types.h"
@@ -35,6 +36,7 @@
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/query_constraints.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -97,9 +99,33 @@ class DbSqliteTable final
     base::Status Filter(const QueryConstraints& qc,
                         sqlite3_value** argv,
                         FilterHistory);
-    base::Status Next();
-    bool Eof() const;
-    base::Status Column(sqlite3_context*, int);
+
+    PERFETTO_ALWAYS_INLINE void Next() {
+      if (mode_ == Mode::kSingleRow) {
+        eof_ = true;
+      } else {
+        eof_ = !++*iterator_;
+      }
+    }
+
+    PERFETTO_ALWAYS_INLINE bool Eof() const { return eof_; }
+
+    PERFETTO_ALWAYS_INLINE void Column(sqlite3_context* ctx,
+                                       int raw_col) const {
+      auto column = static_cast<uint32_t>(raw_col);
+      SqlValue value = mode_ == Mode::kSingleRow
+                           ? SourceTable()->columns()[column].Get(*single_row_)
+                           : iterator_->Get(column);
+      // We can say kSqliteStatic for strings because all strings are expected
+      // to come from the string pool. Thus they will be valid for the lifetime
+      // of trace processor. Similarily, for bytes, we can also use
+      // kSqliteStatic because for our iterator will hold onto the pointer as
+      // long as we don't call Next(). However, that only happens when Next() is
+      // called on the Cursor itself, at which point SQLite no longer cares
+      // about the bytes pointer.
+      sqlite_utils::ReportSqlValue(ctx, value, sqlite_utils::kSqliteStatic,
+                                   sqlite_utils::kSqliteStatic);
+    }
 
    private:
     enum class Mode {
