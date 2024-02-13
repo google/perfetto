@@ -233,10 +233,24 @@ std::unique_ptr<Table> ExperimentalSliceLayout::ComputeLayoutTable(
       }
     }
 
+    uint32_t layout_depth = 0;
+
+    // In a pathological case you can end up stacking up slices forever
+    // triggering n^2 behaviour below. In those cases we want to give
+    // up on trying to find a pretty (height minimizing ) layout and
+    // just find *some* layout. To do that we start looking for
+    // a layout depth below the maximum open group which should
+    // immediately succeed.
+    if (still_open.size() > 500) {
+      for (const auto& open : still_open) {
+        layout_depth =
+            std::max(layout_depth, open->layout_depth + open->max_depth);
+      }
+    }
+
     // Find a start layout depth for this group s.t. our start depth +
     // our max depth will not intersect with the start depth + max depth for
     // any of the open groups:
-    uint32_t layout_depth = 0;
     bool done = false;
     while (!done) {
       done = true;
