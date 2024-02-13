@@ -23,7 +23,7 @@ import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {flattenArgs, traceEvent} from '../common/metatracing';
-import {pluginManager, pluginRegistry} from '../common/plugins';
+import {pluginManager} from '../common/plugins';
 import {State} from '../common/state';
 import {initController, runControllers} from '../controller';
 import {
@@ -321,20 +321,7 @@ function main() {
     document.body.classList.add('testing');
   }
 
-  for (const plugin of pluginRegistry.values()) {
-    const id = `plugin_${plugin.pluginId}`;
-    const name = `Plugin: ${plugin.pluginId}`;
-    const flag = featureFlags.register({
-      id,
-      name,
-      description: `Overrides '${id}' plugin.`,
-      defaultValue: true,
-    });
-
-    if (flag.get()) {
-      pluginManager.activatePlugin(plugin.pluginId);
-    }
-  }
+  pluginManager.initialize();
 }
 
 function onCssLoaded() {
