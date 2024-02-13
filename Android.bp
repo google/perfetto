@@ -2323,7 +2323,9 @@ cc_test {
         ":perfetto_src_shared_lib_test_utils",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_column_column",
+        ":perfetto_src_trace_processor_db_column_minimal",
         ":perfetto_src_trace_processor_db_db",
+        ":perfetto_src_trace_processor_db_minimal",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
@@ -10931,15 +10933,10 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_db_column_column",
     srcs: [
-        "src/trace_processor/db/column/arrangement_overlay.cc",
-        "src/trace_processor/db/column/data_layer.cc",
         "src/trace_processor/db/column/dense_null_overlay.cc",
-        "src/trace_processor/db/column/dummy_storage.cc",
         "src/trace_processor/db/column/id_storage.cc",
         "src/trace_processor/db/column/null_overlay.cc",
         "src/trace_processor/db/column/numeric_storage.cc",
-        "src/trace_processor/db/column/range_overlay.cc",
-        "src/trace_processor/db/column/selector_overlay.cc",
         "src/trace_processor/db/column/set_id_storage.cc",
         "src/trace_processor/db/column/string_storage.cc",
         "src/trace_processor/db/column/utils.cc",
@@ -10951,6 +10948,18 @@ filegroup {
     name: "perfetto_src_trace_processor_db_column_fake_storage",
     srcs: [
         "src/trace_processor/db/column/fake_storage.cc",
+    ],
+}
+
+// GN: //src/trace_processor/db/column:minimal
+filegroup {
+    name: "perfetto_src_trace_processor_db_column_minimal",
+    srcs: [
+        "src/trace_processor/db/column/arrangement_overlay.cc",
+        "src/trace_processor/db/column/data_layer.cc",
+        "src/trace_processor/db/column/dummy_storage.cc",
+        "src/trace_processor/db/column/range_overlay.cc",
+        "src/trace_processor/db/column/selector_overlay.cc",
     ],
 }
 
@@ -10979,10 +10988,17 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_db_db",
     srcs: [
+        "src/trace_processor/db/runtime_table.cc",
+    ],
+}
+
+// GN: //src/trace_processor/db:minimal
+filegroup {
+    name: "perfetto_src_trace_processor_db_minimal",
+    srcs: [
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column_storage.cc",
         "src/trace_processor/db/query_executor.cc",
-        "src/trace_processor/db/runtime_table.cc",
         "src/trace_processor/db/table.cc",
     ],
 }
@@ -13792,9 +13808,11 @@ cc_test {
         ":perfetto_src_trace_processor_containers_unittests",
         ":perfetto_src_trace_processor_db_column_column",
         ":perfetto_src_trace_processor_db_column_fake_storage",
+        ":perfetto_src_trace_processor_db_column_minimal",
         ":perfetto_src_trace_processor_db_column_unittests",
         ":perfetto_src_trace_processor_db_compare",
         ":perfetto_src_trace_processor_db_db",
+        ":perfetto_src_trace_processor_db_minimal",
         ":perfetto_src_trace_processor_db_unittests",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
@@ -14511,7 +14529,9 @@ cc_binary {
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_column_column",
+        ":perfetto_src_trace_processor_db_column_minimal",
         ":perfetto_src_trace_processor_db_db",
+        ":perfetto_src_trace_processor_db_minimal",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
@@ -14746,7 +14766,9 @@ cc_binary_host {
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_column_column",
+        ":perfetto_src_trace_processor_db_column_minimal",
         ":perfetto_src_trace_processor_db_db",
+        ":perfetto_src_trace_processor_db_minimal",
         ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
