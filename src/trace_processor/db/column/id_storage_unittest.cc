@@ -103,6 +103,48 @@ TEST(IdStorage, InvalidSearchConstraints) {
             SearchValidationResult::kNoData);
 }
 
+TEST(IdStorage, SinglSearch) {
+  IdStorage storage;
+  auto chain = storage.MakeChain();
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kEq, SqlValue::Long(5), 5),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kEq, SqlValue::Long(5), 3),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kNe, SqlValue::Long(5), 3),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kNe, SqlValue::Long(5), 5),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLe, SqlValue::Long(5), 5),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLe, SqlValue::Long(5), 6),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLt, SqlValue::Long(5), 4),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLt, SqlValue::Long(5), 6),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(5), 5),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(5), 4),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGt, SqlValue::Long(5), 6),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGt, SqlValue::Long(5), 4),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kEq, SqlValue::Double(5), 4),
+            SingleSearchResult::kNeedsFullSearch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kEq, SqlValue::String(""), 4),
+            SingleSearchResult::kNeedsFullSearch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGlob, SqlValue::Long(5), 4),
+            SingleSearchResult::kNoMatch);
+}
+
 TEST(IdStorage, SearchEqSimple) {
   IdStorage storage;
   auto chain = storage.MakeChain();

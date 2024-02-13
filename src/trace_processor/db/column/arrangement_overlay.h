@@ -49,6 +49,10 @@ class ArrangementOverlay final : public DataLayer {
               Indices::State arrangement_state,
               bool does_arrangement_order_storage);
 
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 

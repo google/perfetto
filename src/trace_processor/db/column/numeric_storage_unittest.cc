@@ -176,6 +176,42 @@ TEST(NumericStorage, StableSort) {
   ASSERT_EQ(out, stable_out);
 }
 
+TEST(NumericStorage, SingleSearch) {
+  std::vector<int32_t> data_vec{0, 1, 2, 3, 0, -1, -2, -3};
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
+  auto chain = storage.MakeChain();
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kEq, SqlValue::Long(1), 1),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kEq, SqlValue::Long(1), 5),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kNe, SqlValue::Long(1), 0),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kNe, SqlValue::Long(-2), 6),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLt, SqlValue::Long(3), 2),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLt, SqlValue::Long(-2), 5),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLe, SqlValue::Long(4), 4),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLe, SqlValue::Long(0), 3),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGt, SqlValue::Long(0), 3),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGt, SqlValue::Long(0), 5),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0), 0),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0), 5),
+            SingleSearchResult::kNoMatch);
+}
+
 TEST(NumericStorage, Search) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);

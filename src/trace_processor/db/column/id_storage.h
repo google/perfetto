@@ -41,6 +41,10 @@ class IdStorage final : public DataLayer {
  private:
   class ChainImpl : public DataLayerChain {
    public:
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 

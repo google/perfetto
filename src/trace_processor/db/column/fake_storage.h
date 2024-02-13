@@ -79,6 +79,10 @@ class FakeStorage final : public DataLayer {
    public:
     ChainImpl(uint32_t, SearchStrategy, Range, BitVector);
 
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 

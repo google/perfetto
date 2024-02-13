@@ -43,6 +43,10 @@ class NullOverlay final : public DataLayer {
    public:
     ChainImpl(std::unique_ptr<DataLayerChain>, const BitVector* non_null);
 
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 

@@ -156,6 +156,46 @@ std::unique_ptr<DataLayerChain> IdStorage::MakeChain() {
   return std::make_unique<ChainImpl>();
 }
 
+SingleSearchResult IdStorage::ChainImpl::SingleSearch(FilterOp op,
+                                                      SqlValue sql_val,
+                                                      uint32_t index) const {
+  if (sql_val.type != SqlValue::kLong ||
+      sql_val.long_value > std::numeric_limits<uint32_t>::max() ||
+      sql_val.long_value < std::numeric_limits<uint32_t>::min()) {
+    // Because of the large amount of code needing for handling comparisions
+    // with doubles or out of range values, just defer to the full search.
+    return SingleSearchResult::kNeedsFullSearch;
+  }
+  auto val = static_cast<uint32_t>(sql_val.long_value);
+  switch (op) {
+    case FilterOp::kEq:
+      return index == val ? SingleSearchResult::kMatch
+                          : SingleSearchResult::kNoMatch;
+    case FilterOp::kNe:
+      return index != val ? SingleSearchResult::kMatch
+                          : SingleSearchResult::kNoMatch;
+    case FilterOp::kGe:
+      return index >= val ? SingleSearchResult::kMatch
+                          : SingleSearchResult::kNoMatch;
+    case FilterOp::kGt:
+      return index > val ? SingleSearchResult::kMatch
+                         : SingleSearchResult::kNoMatch;
+    case FilterOp::kLe:
+      return index <= val ? SingleSearchResult::kMatch
+                          : SingleSearchResult::kNoMatch;
+    case FilterOp::kLt:
+      return index < val ? SingleSearchResult::kMatch
+                         : SingleSearchResult::kNoMatch;
+    case FilterOp::kIsNotNull:
+      return SingleSearchResult::kMatch;
+    case FilterOp::kIsNull:
+    case FilterOp::kGlob:
+    case FilterOp::kRegex:
+      return SingleSearchResult::kNoMatch;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 RangeOrBitVector IdStorage::ChainImpl::SearchValidated(
     FilterOp op,
     SqlValue sql_val,

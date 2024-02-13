@@ -42,6 +42,42 @@ namespace {
 using testing::ElementsAre;
 using testing::IsEmpty;
 
+TEST(SetIdStorage, SearchSingle) {
+  std::vector<uint32_t> storage_data{0, 0, 2, 2, 4, 4, 6, 6};
+  SetIdStorage storage(&storage_data);
+  auto chain = storage.MakeChain();
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kEq, SqlValue::Long(4), 4),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kEq, SqlValue::Long(4), 3),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kNe, SqlValue::Long(4), 3),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kNe, SqlValue::Long(4), 4),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(4), 4),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(4), 1),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGt, SqlValue::Long(4), 6),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGt, SqlValue::Long(4), 4),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLe, SqlValue::Long(4), 4),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLe, SqlValue::Long(4), 6),
+            SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLt, SqlValue::Long(4), 3),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kLt, SqlValue::Long(4), 4),
+            SingleSearchResult::kNoMatch);
+}
+
 TEST(SetIdStorage, InvalidSearchConstraints) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
   SetIdStorage storage(&storage_data);

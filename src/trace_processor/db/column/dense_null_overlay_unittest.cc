@@ -167,6 +167,42 @@ TEST(DenseNullOverlay, OrderedIndexSearch) {
   ASSERT_EQ(res.end, 6u);
 }
 
+TEST(DenseNullOverlay, SingleSearch) {
+  BitVector bv{0, 1, 0, 1, 1, 1};
+  DenseNullOverlay storage(&bv);
+  auto fake = FakeStorage::SearchSubset(5, std::vector<uint32_t>{1, 2});
+  auto chain = storage.MakeChain(fake->MakeChain());
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 1),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 2),
+            SingleSearchResult::kNoMatch);
+}
+
+TEST(DenseNullOverlay, SingleSearchIsNull) {
+  BitVector bv{0, 1, 0, 1, 1, 1};
+  DenseNullOverlay storage(&bv);
+  auto fake = FakeStorage::SearchNone(5);
+  auto chain = storage.MakeChain(fake->MakeChain());
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNull, SqlValue(), 0),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNull, SqlValue(), 1),
+            SingleSearchResult::kNoMatch);
+}
+
+TEST(DenseNullOverlay, SingleSearchIsNotNull) {
+  BitVector bv{0, 1, 0, 1, 1, 1};
+  DenseNullOverlay storage(&bv);
+  auto fake = FakeStorage::SearchAll(5);
+  auto chain = storage.MakeChain(fake->MakeChain());
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNotNull, SqlValue(), 0),
+            SingleSearchResult::kNoMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNotNull, SqlValue(), 1),
+            SingleSearchResult::kMatch);
+}
+
 }  // namespace
 }  // namespace column
 }  // namespace trace_processor

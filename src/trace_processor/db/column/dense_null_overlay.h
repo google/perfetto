@@ -44,6 +44,10 @@ class DenseNullOverlay final : public DataLayer {
    public:
     ChainImpl(std::unique_ptr<DataLayerChain> inner, const BitVector* non_null);
 
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 

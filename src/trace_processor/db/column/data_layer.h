@@ -78,6 +78,13 @@ class DataLayerChain {
 
   // Start of public API.
 
+  // Checks whether element at the the provided index match |op| and |value|.
+  //
+  // Returns true if the element matches, false otherwise.
+  virtual SingleSearchResult SingleSearch(FilterOp op,
+                                          SqlValue value,
+                                          uint32_t row) const = 0;
+
   // Searches for elements which match |op| and |value| between |range.start|
   // and |range.end|.
   //

@@ -17,6 +17,7 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_NUMERIC_STORAGE_H_
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <variant>
@@ -27,6 +28,7 @@
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/db/column/utils.h"
 
 namespace perfetto::trace_processor::column {
 
@@ -105,6 +107,26 @@ class NumericStorage final : public NumericStorageBase {
     ChainImpl(const std::vector<T>* vector, ColumnType type, bool is_sorted)
         : NumericStorageBase::ChainImpl(vector, type, is_sorted),
           vector_(vector) {}
+
+    SingleSearchResult SingleSearch(FilterOp op,
+                                    SqlValue sql_val,
+                                    uint32_t i) const override {
+      if constexpr (std::is_same_v<T, double>) {
+        if (sql_val.type != SqlValue::kDouble) {
+          return SingleSearchResult::kNeedsFullSearch;
+        }
+        return utils::SingleSearchNumeric(op, (*vector_)[i],
+                                          sql_val.double_value);
+      } else {
+        if (sql_val.type != SqlValue::kLong ||
+            sql_val.long_value > std::numeric_limits<T>::max() ||
+            sql_val.long_value < std::numeric_limits<T>::min()) {
+          return SingleSearchResult::kNeedsFullSearch;
+        }
+        return utils::SingleSearchNumeric(op, (*vector_)[i],
+                                          static_cast<T>(sql_val.long_value));
+      }
+    }
 
     uint32_t size() const override {
       return static_cast<uint32_t>(vector_->size());

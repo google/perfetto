@@ -47,13 +47,35 @@ DenseNullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                        const BitVector* non_null)
     : inner_(std::move(inner)), non_null_(non_null) {}
 
+SingleSearchResult DenseNullOverlay::ChainImpl::SingleSearch(
+    FilterOp op,
+    SqlValue sql_val,
+    uint32_t index) const {
+  switch (op) {
+    case FilterOp::kIsNull:
+      return non_null_->IsSet(index) ? inner_->SingleSearch(op, sql_val, index)
+                                     : SingleSearchResult::kMatch;
+    case FilterOp::kIsNotNull:
+    case FilterOp::kEq:
+    case FilterOp::kGe:
+    case FilterOp::kGt:
+    case FilterOp::kLt:
+    case FilterOp::kLe:
+    case FilterOp::kNe:
+    case FilterOp::kGlob:
+    case FilterOp::kRegex:
+      return non_null_->IsSet(index) ? inner_->SingleSearch(op, sql_val, index)
+                                     : SingleSearchResult::kNoMatch;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 SearchValidationResult DenseNullOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue sql_val) const {
   if (op == FilterOp::kIsNull) {
     return SearchValidationResult::kOk;
   }
-
   return inner_->ValidateSearchConstraints(op, sql_val);
 }
 

@@ -48,6 +48,13 @@ RangeOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
   PERFETTO_CHECK(range->end <= inner_->size());
 }
 
+SingleSearchResult RangeOverlay::ChainImpl::SingleSearch(FilterOp op,
+                                                         SqlValue sql_val,
+                                                         uint32_t i) const {
+  PERFETTO_DCHECK(i < range_->size());
+  return inner_->SingleSearch(op, sql_val, i + range_->start);
+}
+
 SearchValidationResult RangeOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue sql_val) const {
