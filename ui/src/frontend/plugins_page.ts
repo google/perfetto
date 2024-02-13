@@ -16,9 +16,10 @@ import m from 'mithril';
 
 import {pluginManager, pluginRegistry} from '../common/plugins';
 import {raf} from '../core/raf_scheduler';
-import {PluginDescriptor} from '../public';
 import {Button} from '../widgets/button';
 
+import {exists} from '../base/utils';
+import {PluginDescriptor} from '../public';
 import {createPage} from './pages';
 
 export const PluginsPage = createPage({
@@ -51,6 +52,12 @@ export const PluginsPage = createPage({
       ),
       m(
         '.pf-plugins-grid',
+        [
+          m('span', 'Plugin'),
+          m('span', 'Status'),
+          m('span', 'Control'),
+          m('span', 'Load Time'),
+        ],
         Array.from(pluginRegistry.values()).map((plugin) => {
           return renderPluginRow(plugin);
         }),
@@ -59,21 +66,27 @@ export const PluginsPage = createPage({
 });
 
 function renderPluginRow(plugin: PluginDescriptor): m.Children {
-  const isActive = pluginManager.isActive(plugin.pluginId);
+  const pluginId = plugin.pluginId;
+  const pluginDetails = pluginManager.plugins.get(pluginId);
+  const isActive = pluginManager.isActive(pluginId);
+  const loadTime = pluginDetails?.previousOnTraceLoadTimeMillis;
   return [
-    plugin.pluginId,
+    pluginId,
     isActive ? m('.pf-tag.pf-active', 'Active') :
       m('.pf-tag.pf-inactive', 'Inactive'),
     m(Button, {
       label: isActive ? 'Deactivate' : 'Activate',
       onclick: () => {
         if (isActive) {
-          pluginManager.deactivatePlugin(plugin.pluginId);
+          pluginManager.deactivatePlugin(pluginId);
         } else {
-          pluginManager.activatePlugin(plugin.pluginId);
+          pluginManager.activatePlugin(pluginId);
         }
         raf.scheduleFullRedraw();
       },
     }),
+    exists(loadTime) ?
+      m('span', `${loadTime.toFixed(1)} ms`) :
+      m('span', `-`),
   ];
 }
