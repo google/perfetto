@@ -45,7 +45,7 @@ using testing::IsEmpty;
 TEST(NumericStorage, InvalidSearchConstraintsGeneralChecks) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
-  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, false);
   auto chain = storage.MakeChain();
 
   Range test_range(20, 100);
@@ -75,7 +75,7 @@ TEST(NumericStorage, InvalidSearchConstraintsGeneralChecks) {
 TEST(NumericStorage, InvalidValueBoundsUint32) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
-  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, false);
   auto chain = storage.MakeChain();
 
   SqlValue max_val = SqlValue::Long(
@@ -114,7 +114,7 @@ TEST(NumericStorage, InvalidValueBoundsUint32) {
 TEST(NumericStorage, InvalidValueBoundsInt32) {
   std::vector<int32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
-  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
 
   SqlValue max_val = SqlValue::Long(
@@ -154,7 +154,7 @@ TEST(NumericStorage, StableSortTrivial) {
   std::vector<uint32_t> data_vec{0, 1, 2, 0, 1, 2, 0, 1, 2};
   std::vector<uint32_t> out = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
-  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, false);
   auto chain = storage.MakeChain();
   RowMap rm(0, 9);
   chain->StableSort(out.data(), 9);
@@ -167,7 +167,7 @@ TEST(NumericStorage, StableSort) {
   std::vector<uint32_t> data_vec{0, 1, 2, 0, 1, 2, 0, 1, 2};
   std::vector<uint32_t> out = {1, 7, 4, 0, 6, 3, 2, 5, 8};
 
-  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, false);
   auto chain = storage.MakeChain();
   RowMap rm(0, 9);
   chain->StableSort(out.data(), 9);
@@ -178,7 +178,7 @@ TEST(NumericStorage, StableSort) {
 
 TEST(NumericStorage, Search) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
-  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Long(4);
@@ -204,7 +204,7 @@ TEST(NumericStorage, Search) {
 
 TEST(NumericStorage, SearchCompareWithNegative) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
-  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Long(-3);
@@ -230,7 +230,7 @@ TEST(NumericStorage, SearchCompareWithNegative) {
 
 TEST(NumericStorage, IndexSearch) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
-  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
 
   // -5, -3, -3, 3, 5, 0
@@ -259,7 +259,7 @@ TEST(NumericStorage, IndexSearch) {
 
 TEST(NumericStorage, IndexSearchCompareWithNegative) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
-  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
 
   // -5, -3, -3, 3, 5, 0
@@ -289,7 +289,7 @@ TEST(NumericStorage, IndexSearchCompareWithNegative) {
 TEST(NumericStorage, SearchFast) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
-  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, false);
   auto chain = storage.MakeChain();
   RangeOrBitVector range_or_bv =
       chain->Search(FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
@@ -341,7 +341,7 @@ TEST(NumericStorage, OrderedIndexSearch) {
   Indices sorted_order{sorted_order_vec.data(), 10,
                        Indices::State::kNonmonotonic};
 
-  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, false);
   auto chain = storage.MakeChain();
 
   Range range = chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(60),
@@ -377,7 +377,7 @@ TEST(NumericStorage, OrderedIndexSearch) {
 
 TEST(NumericStorage, SearchWithIntAsDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
-  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(4);
@@ -403,7 +403,7 @@ TEST(NumericStorage, SearchWithIntAsDouble) {
 
 TEST(NumericStorage, IndexSearchWithIntAsDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
-  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
 
   // -5, -3, -3, 3, 5, 0
@@ -432,7 +432,7 @@ TEST(NumericStorage, IndexSearchWithIntAsDouble) {
 
 TEST(NumericStorage, SearchInt32WithDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
-  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(3.5);
@@ -458,7 +458,7 @@ TEST(NumericStorage, SearchInt32WithDouble) {
 
 TEST(NumericStorage, SearchInt32WithNegDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
-  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(-3.5);
@@ -484,7 +484,7 @@ TEST(NumericStorage, SearchInt32WithNegDouble) {
 
 TEST(NumericStorage, IndexSearchInt32WithDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
-  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
 
   // -5, -3, -3, 3, 5, 0
@@ -513,7 +513,7 @@ TEST(NumericStorage, IndexSearchInt32WithDouble) {
 
 TEST(NumericStorage, IndexSearchInt32WithNegDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
-  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
 
   // -5, -3, -3, 3, 5, 0
@@ -542,7 +542,7 @@ TEST(NumericStorage, IndexSearchInt32WithNegDouble) {
 
 TEST(NumericStorage, SearchUint32WithNegDouble) {
   std::vector<uint32_t> data_vec{0, 1, 2, 3, 4, 5};
-  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(-3.5);
@@ -568,7 +568,7 @@ TEST(NumericStorage, SearchUint32WithNegDouble) {
 
 TEST(NumericStorage, IndexSearchUint32WithNegDouble) {
   std::vector<uint32_t> data_vec{0, 1, 2, 3, 4, 5, 6};
-  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kInt32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kInt32, false);
   auto chain = storage.MakeChain();
 
   std::vector<uint32_t> indices_vec{0, 4, 4, 5, 1, 6};
@@ -607,7 +607,7 @@ TEST(NumericStorage, DoubleColumnWithIntThatCantBeRepresentedAsDouble) {
   ASSERT_TRUE(compare::LongToDouble(not_rep_i, data_vec[0]) > 0);
   ASSERT_TRUE(compare::LongToDouble(not_rep_i, data_vec[1]) < 0);
 
-  NumericStorage<double> storage(&data_vec, ColumnType::kDouble);
+  NumericStorage<double> storage(&data_vec, ColumnType::kDouble, false);
   auto chain = storage.MakeChain();
   Range test_range(0, 2);
 
@@ -643,7 +643,7 @@ TEST(NumericStorage, DoubleColumnWithNegIntThatCantBeRepresentedAsDouble) {
   ASSERT_TRUE(compare::LongToDouble(not_rep_i, data_vec[0]) < 0);
   ASSERT_TRUE(compare::LongToDouble(not_rep_i, data_vec[1]) > 0);
 
-  NumericStorage<double> storage(&data_vec, ColumnType::kDouble);
+  NumericStorage<double> storage(&data_vec, ColumnType::kDouble, false);
   auto chain = storage.MakeChain();
   Range test_range(0, 2);
 

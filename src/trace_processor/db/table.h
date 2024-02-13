@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
@@ -126,6 +127,11 @@ class Table {
   Table(Table&& other) noexcept { *this = std::move(other); }
   Table& operator=(Table&& other) noexcept;
 
+  // Return a chain corresponding to a given column.
+  const column::DataLayerChain& ChainForColumn(uint32_t col_idx) const {
+    return *chains_[col_idx];
+  }
+
   // Filters and sorts the tables with the arguments specified, returning the
   // result as a RowMap.
   RowMap QueryToRowMap(
@@ -184,29 +190,7 @@ class Table {
   void OnConstructionCompleted(
       std::vector<RefPtr<column::DataLayer>> storage_layers,
       std::vector<RefPtr<column::DataLayer>> null_layers,
-      std::vector<RefPtr<column::DataLayer>> overlay_layers) {
-    for (ColumnLegacy& col : columns_) {
-      col.BindToTable(this, string_pool_);
-    }
-    PERFETTO_CHECK(storage_layers.size() == columns_.size());
-    PERFETTO_CHECK(null_layers.size() == columns_.size());
-    PERFETTO_CHECK(overlay_layers.size() == overlays_.size());
-    storage_layers_ = std::move(storage_layers);
-    null_layers_ = std::move(null_layers);
-    overlay_layers_ = std::move(overlay_layers);
-
-    for (uint32_t i = 0; i < columns_.size(); ++i) {
-      auto chain = storage_layers_[i]->MakeChain();
-      if (const auto& null_overlay = null_layers_[i]; null_overlay.get()) {
-        chain = null_overlay->MakeChain(std::move(chain));
-      }
-      const auto& oly_idx = columns_[i].overlay_index();
-      if (const auto& overlay = overlay_layers_[oly_idx]; overlay.get()) {
-        chain = overlay->MakeChain(std::move(chain));
-      }
-      chains_.emplace_back(std::move(chain));
-    }
-  }
+      std::vector<RefPtr<column::DataLayer>> overlay_layers);
 
   ColumnLegacy* GetColumn(uint32_t index) { return &columns_[index]; }
 
@@ -217,7 +201,7 @@ class Table {
  private:
   friend class ColumnLegacy;
 
-  RowMap FilterToRowMap(
+  PERFETTO_ALWAYS_INLINE RowMap FilterToRowMap(
       const std::vector<Constraint>& cs,
       RowMap::OptimizeFor optimize_for = RowMap::OptimizeFor::kMemory) const {
     if (cs.empty()) {
@@ -247,7 +231,6 @@ class Table {
   std::vector<RefPtr<column::DataLayer>> storage_layers_;
   std::vector<RefPtr<column::DataLayer>> null_layers_;
   std::vector<RefPtr<column::DataLayer>> overlay_layers_;
-
   std::vector<std::unique_ptr<column::DataLayerChain>> chains_;
 };
 

@@ -89,9 +89,7 @@ class NumericStorageBase : public DataLayer {
 template <typename T>
 class NumericStorage final : public NumericStorageBase {
  public:
-  NumericStorage(const std::vector<T>* vec,
-                 ColumnType type,
-                 bool is_sorted = false)
+  NumericStorage(const std::vector<T>* vec, ColumnType type, bool is_sorted)
       : NumericStorageBase(type, is_sorted), vector_(vec) {}
 
   std::unique_ptr<DataLayerChain> MakeChain() override {
