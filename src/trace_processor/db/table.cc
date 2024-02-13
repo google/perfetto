@@ -23,10 +23,14 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column/arrangement_overlay.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/range_overlay.h"
+#include "src/trace_processor/db/column/selector_overlay.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 
@@ -156,7 +160,6 @@ Table Table::Sort(const std::vector<Order>& ob) const {
     table.overlays_.emplace_back(overlay.SelectRows(rm));
     PERFETTO_DCHECK(table.overlays_.back().size() == table.row_count());
   }
-  table.OnConstructionCompleted(storage_layers_, null_layers_, overlay_layers_);
 
   // Remove the sorted and row set flags from all the columns.
   for (auto& col : table.columns_) {
@@ -169,7 +172,53 @@ Table Table::Sort(const std::vector<Order>& ob) const {
   if (!ob.front().desc) {
     table.columns_[ob.front().col_idx].flags_ |= ColumnLegacy::Flag::kSorted;
   }
+
+  std::vector<RefPtr<column::DataLayer>> overlay_layers(table.overlays_.size());
+  for (uint32_t i = 0; i < table.overlays_.size(); ++i) {
+    if (table.overlays_[i].row_map().IsIndexVector()) {
+      overlay_layers[i].reset(new column::ArrangementOverlay(
+          table.overlays_[i].row_map().GetIfIndexVector(),
+          Indices::State::kNonmonotonic));
+    } else if (table.overlays_[i].row_map().IsBitVector()) {
+      overlay_layers[i].reset(new column::SelectorOverlay(
+          table.overlays_[i].row_map().GetIfBitVector()));
+    } else if (table.overlays_[i].row_map().IsRange()) {
+      overlay_layers[i].reset(
+          new column::RangeOverlay(table.overlays_[i].row_map().GetIfIRange()));
+    }
+  }
+  table.OnConstructionCompleted(storage_layers_, null_layers_,
+                                std::move(overlay_layers));
   return table;
+}
+
+void Table::OnConstructionCompleted(
+    std::vector<RefPtr<column::DataLayer>> storage_layers,
+    std::vector<RefPtr<column::DataLayer>> null_layers,
+    std::vector<RefPtr<column::DataLayer>> overlay_layers) {
+  for (ColumnLegacy& col : columns_) {
+    col.BindToTable(this, string_pool_);
+  }
+  PERFETTO_CHECK(storage_layers.size() == columns_.size());
+  PERFETTO_CHECK(null_layers.size() == columns_.size());
+  PERFETTO_CHECK(overlay_layers.size() == overlays_.size());
+  storage_layers_ = std::move(storage_layers);
+  null_layers_ = std::move(null_layers);
+  overlay_layers_ = std::move(overlay_layers);
+
+  for (uint32_t i = 0; i < columns_.size(); ++i) {
+    auto chain = storage_layers_[i]->MakeChain();
+    if (const auto& null_overlay = null_layers_[i]; null_overlay.get()) {
+      chain = null_overlay->MakeChain(std::move(chain));
+    }
+    const auto& oly_idx = columns_[i].overlay_index();
+    if (const auto& overlay = overlay_layers_[oly_idx]; overlay.get()) {
+      chain = overlay->MakeChain(
+          std::move(chain),
+          column::DataLayer::ChainCreationArgs{columns_[i].IsSorted()});
+    }
+    chains_.emplace_back(std::move(chain));
+  }
 }
 
 }  // namespace perfetto::trace_processor

@@ -16,29 +16,16 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/small_vector.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/column/arrangement_overlay.h"
 #include "src/trace_processor/db/column/data_layer.h"
-#include "src/trace_processor/db/column/dense_null_overlay.h"
-#include "src/trace_processor/db/column/dummy_storage.h"
-#include "src/trace_processor/db/column/id_storage.h"
-#include "src/trace_processor/db/column/null_overlay.h"
-#include "src/trace_processor/db/column/numeric_storage.h"
-#include "src/trace_processor/db/column/range_overlay.h"
-#include "src/trace_processor/db/column/selector_overlay.h"
-#include "src/trace_processor/db/column/set_id_storage.h"
-#include "src/trace_processor/db/column/string_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/query_executor.h"
 #include "src/trace_processor/db/table.h"
@@ -155,13 +142,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
                                    const std::vector<Constraint>& c_vec) {
   RowMap rm(0, table->row_count());
   for (const auto& c : c_vec) {
-    if (rm.empty()) {
-      return rm;
-    }
-
     const ColumnLegacy& col = table->columns()[c.col_idx];
-    uint32_t column_size =
-        col.IsId() ? col.overlay().row_map().Max() : col.storage_base().size();
 
     // RowMap size is 1.
     bool use_legacy = rm.size() == 1;
@@ -170,135 +151,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
       col.FilterInto(c.op, c.value, &rm);
       continue;
     }
-
-    // Create storage
-    base::SmallVector<std::unique_ptr<column::DataLayer>, 4> data_layers;
-    std::unique_ptr<column::DataLayerChain> chain;
-    if (col.IsSetId()) {
-      if (col.IsNullable()) {
-        data_layers.emplace_back(std::make_unique<column::SetIdStorage>(
-            &col.storage<std::optional<uint32_t>>().non_null_vector()));
-        chain = data_layers.back()->MakeChain();
-      } else {
-        data_layers.emplace_back(std::make_unique<column::SetIdStorage>(
-            &col.storage<uint32_t>().vector()));
-        chain = data_layers.back()->MakeChain();
-      }
-    } else {
-      switch (col.col_type()) {
-        case ColumnType::kDummy:
-          data_layers.emplace_back(std::make_unique<column::DummyStorage>());
-          chain = data_layers.back()->MakeChain();
-          break;
-        case ColumnType::kId:
-          data_layers.emplace_back(std::make_unique<column::IdStorage>());
-          chain = data_layers.back()->MakeChain();
-          break;
-        case ColumnType::kString:
-          data_layers.emplace_back(std::make_unique<column::StringStorage>(
-              table->string_pool(), &col.storage<StringPool::Id>().vector(),
-              col.IsSorted()));
-          chain = data_layers.back()->MakeChain();
-          break;
-        case ColumnType::kInt64:
-          if (col.IsNullable()) {
-            data_layers.emplace_back(
-                std::make_unique<column::NumericStorage<int64_t>>(
-                    &col.storage<std::optional<int64_t>>().non_null_vector(),
-                    col.col_type(), col.IsSorted()));
-            chain = data_layers.back()->MakeChain();
-
-          } else {
-            data_layers.emplace_back(
-                std::make_unique<column::NumericStorage<int64_t>>(
-                    &col.storage<int64_t>().vector(), col.col_type(),
-                    col.IsSorted()));
-            chain = data_layers.back()->MakeChain();
-          }
-          break;
-        case ColumnType::kUint32:
-          if (col.IsNullable()) {
-            data_layers.emplace_back(
-                std::make_unique<column::NumericStorage<uint32_t>>(
-                    &col.storage<std::optional<uint32_t>>().non_null_vector(),
-                    col.col_type(), col.IsSorted()));
-            chain = data_layers.back()->MakeChain();
-          } else {
-            data_layers.emplace_back(
-                std::make_unique<column::NumericStorage<uint32_t>>(
-                    &col.storage<uint32_t>().vector(), col.col_type(),
-                    col.IsSorted()));
-            chain = data_layers.back()->MakeChain();
-          }
-          break;
-        case ColumnType::kInt32:
-          if (col.IsNullable()) {
-            data_layers.emplace_back(
-                std::make_unique<column::NumericStorage<int32_t>>(
-                    &col.storage<std::optional<int32_t>>().non_null_vector(),
-                    col.col_type(), col.IsSorted()));
-            chain = data_layers.back()->MakeChain();
-          } else {
-            data_layers.emplace_back(
-                std::make_unique<column::NumericStorage<int32_t>>(
-                    &col.storage<int32_t>().vector(), col.col_type(),
-                    col.IsSorted()));
-            chain = data_layers.back()->MakeChain();
-          }
-          break;
-        case ColumnType::kDouble:
-          if (col.IsNullable()) {
-            data_layers.emplace_back(
-                std::make_unique<column::NumericStorage<double>>(
-                    &col.storage<std::optional<double>>().non_null_vector(),
-                    col.col_type(), col.IsSorted()));
-            chain = data_layers.back()->MakeChain();
-          } else {
-            data_layers.emplace_back(
-                std::make_unique<column::NumericStorage<double>>(
-                    &col.storage<double>().vector(), col.col_type(),
-                    col.IsSorted()));
-            chain = data_layers.back()->MakeChain();
-          }
-      }
-    }
-
-    if (col.IsNullable()) {
-      // String columns are inherently nullable: null values are signified
-      // with Id::Null().
-      PERFETTO_CHECK(col.col_type() != ColumnType::kString);
-      if (col.IsDense()) {
-        data_layers.emplace_back(std::make_unique<column::DenseNullOverlay>(
-            col.storage_base().bv()));
-        chain = data_layers.back()->MakeChain(std::move(chain));
-      } else {
-        data_layers.emplace_back(
-            std::make_unique<column::NullOverlay>(col.storage_base().bv()));
-        chain = data_layers.back()->MakeChain(std::move(chain));
-      }
-    }
-    if (col.overlay().row_map().IsIndexVector()) {
-      data_layers.emplace_back(std::make_unique<column::ArrangementOverlay>(
-          col.overlay().row_map().GetIfIndexVector(),
-          Indices::State::kNonmonotonic));
-      chain = data_layers.back()->MakeChain(
-          std::move(chain),
-          column::DataLayer::ChainCreationArgs(col.IsSorted()));
-    }
-    if (col.overlay().row_map().IsBitVector()) {
-      data_layers.emplace_back(std::make_unique<column::SelectorOverlay>(
-          col.overlay().row_map().GetIfBitVector()));
-      chain = data_layers.back()->MakeChain(std::move(chain));
-    }
-    if (col.overlay().row_map().IsRange() &&
-        col.overlay().size() != column_size) {
-      data_layers.emplace_back(std::make_unique<column::RangeOverlay>(
-          col.overlay().row_map().GetIfIRange()));
-      chain = data_layers.back()->MakeChain(std::move(chain));
-    }
-    uint32_t pre_count = rm.size();
-    FilterColumn(c, *chain, &rm);
-    PERFETTO_DCHECK(rm.size() <= pre_count);
+    FilterColumn(c, table->ChainForColumn(c.col_idx), &rm);
   }
   return rm;
 }

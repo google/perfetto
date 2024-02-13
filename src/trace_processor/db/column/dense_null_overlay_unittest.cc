@@ -39,8 +39,8 @@ using testing::IsEmpty;
 
 TEST(DenseNullOverlay, NoFilteringSearch) {
   std::vector<uint32_t> data{0, 1, 0, 1, 0};
-  auto numeric =
-      std::make_unique<NumericStorage<uint32_t>>(&data, ColumnType::kUint32);
+  auto numeric = std::make_unique<NumericStorage<uint32_t>>(
+      &data, ColumnType::kUint32, false);
 
   BitVector bv{0, 1, 0, 1, 0};
   DenseNullOverlay storage(&bv);
@@ -52,8 +52,8 @@ TEST(DenseNullOverlay, NoFilteringSearch) {
 
 TEST(DenseNullOverlay, RestrictInputSearch) {
   std::vector<uint32_t> data{0, 1, 0, 1, 0};
-  auto numeric =
-      std::make_unique<NumericStorage<uint32_t>>(&data, ColumnType::kUint32);
+  auto numeric = std::make_unique<NumericStorage<uint32_t>>(
+      &data, ColumnType::kUint32, false);
 
   BitVector bv{0, 1, 0, 1, 0};
   DenseNullOverlay storage(&bv);
@@ -98,8 +98,8 @@ TEST(DenseNullOverlay, IsNullSearch) {
 
 TEST(DenseNullOverlay, IndexSearch) {
   std::vector<uint32_t> data{1, 0, 0, 1, 1, 1};
-  auto numeric =
-      std::make_unique<NumericStorage<uint32_t>>(&data, ColumnType::kUint32);
+  auto numeric = std::make_unique<NumericStorage<uint32_t>>(
+      &data, ColumnType::kUint32, false);
 
   BitVector bv{1, 0, 0, 1, 1, 1};
   DenseNullOverlay storage(&bv);
