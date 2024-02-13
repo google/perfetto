@@ -323,7 +323,10 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
     // TODO(hjd): The min height below must match the track_shell_title
     // max height in common.scss so we should read it from CSS to avoid
     // them going out of sync.
-    const height = Math.max(24, attrs.heightPx ?? 0);
+    const TRACK_HEIGHT_MIN_PX = 18;
+    const TRACK_HEIGHT_DEFAULT_PX = 24;
+    const trackHeightRaw = attrs.heightPx ?? TRACK_HEIGHT_DEFAULT_PX;
+    const trackHeight = Math.max(trackHeightRaw, TRACK_HEIGHT_MIN_PX);
 
     return m(
       '.track',
@@ -331,7 +334,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
         style: {
           // Note: Sub-pixel track heights can mess with sticky elements.
           // Round up to the nearest integer number of pixels.
-          height: `${Math.ceil(height)}px`,
+          height: `${Math.ceil(trackHeight)}px`,
         },
         id: 'track_' + attrs.trackKey,
       },
