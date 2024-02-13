@@ -21,6 +21,7 @@ import {Button} from '../widgets/button';
 import {exists} from '../base/utils';
 import {PluginDescriptor} from '../public';
 import {createPage} from './pages';
+import {defaultPlugins} from '../common/default_plugins';
 
 export const PluginsPage = createPage({
   view() {
@@ -62,6 +63,7 @@ export const PluginsPage = createPage({
         '.pf-plugins-grid',
         [
           m('span', 'Plugin'),
+          m('span', 'Default?'),
           m('span', 'Enabled?'),
           m('span', 'Active?'),
           m('span', 'Control'),
@@ -76,12 +78,14 @@ export const PluginsPage = createPage({
 
 function renderPluginRow(plugin: PluginDescriptor): m.Children {
   const pluginId = plugin.pluginId;
+  const isDefault = defaultPlugins.includes(pluginId);
   const pluginDetails = pluginManager.plugins.get(pluginId);
   const isActive = pluginManager.isActive(pluginId);
   const isEnabled = pluginManager.isEnabled(pluginId);
   const loadTime = pluginDetails?.previousOnTraceLoadTimeMillis;
   return [
-    pluginId,
+    m('span', pluginId),
+    m('span', isDefault ? 'Yes' : 'No'),
     isEnabled ? m('.pf-tag.pf-active', 'Enabled') :
       m('.pf-tag.pf-inactive', 'Disabled'),
     isActive ? m('.pf-tag.pf-active', 'Active') :
