@@ -230,7 +230,7 @@ bool PerfettoSqlParser::ParseIncludePerfettoModule(
 
   if (!ValidateModuleName(key)) {
     base::StackString<1024> err(
-        "Include key should be a dot-separated list of module names, with the"
+        "Include key should be a dot-separated list of module names, with the "
         "last name optionally being a wildcard: '%s'",
         key.c_str());
     return ErrorAtToken(tok, err.c_str());

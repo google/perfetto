@@ -13,10 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Extracts an int value with the given name from the metadata table.
-CREATE PERFETTO FUNCTION extract_int_metadata(
-  -- The name of the metadata entry.
-  name STRING)
--- int_value for the given name. NULL if there's no such entry.
-RETURNS LONG AS
-SELECT int_value FROM metadata WHERE name = ($name);
+-- No new changes allowed. Will be removed after v45 of Perfetto.
+--
+-- We decided to move away from the generalised `common` module and migrate the
+-- most useful functionality into specialised modules.
+INCLUDE PERFETTO MODULE deprecated.v42.common.args;
+INCLUDE PERFETTO MODULE deprecated.v42.common.metadata;

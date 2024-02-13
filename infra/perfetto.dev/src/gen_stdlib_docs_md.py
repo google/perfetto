@@ -224,9 +224,10 @@ def main():
   modules_dict: Dict[str, ModuleMd] = {}
 
   for module_name, module_files in modules_json_dict.items():
-    modules_dict[module_name] = ModuleMd(module_name, module_files)
+    # Remove 'common' when it has been removed from the code.
+    if module_name not in ['deprecated', 'common']:
+      modules_dict[module_name] = ModuleMd(module_name, module_files)
 
-  common_module = modules_dict.pop('common')
   prelude_module = modules_dict.pop('prelude')
 
   with open(args.output, 'w') as f:
@@ -274,8 +275,6 @@ for the `INCLUDE PERFETTO MODULE` statement.
 
     summary_objs = [prelude_module.summary_objs
                    ] if prelude_module.summary_objs else []
-    summary_objs += [common_module.summary_objs
-                    ] if common_module.summary_objs else []
     summary_objs += [
         module.summary_objs
         for name, module in modules_dict.items()
@@ -284,8 +283,6 @@ for the `INCLUDE PERFETTO MODULE` statement.
 
     summary_funs = [prelude_module.summary_funs
                    ] if prelude_module.summary_funs else []
-    summary_funs += [common_module.summary_funs
-                    ] if common_module.summary_funs else []
     summary_funs += [
         module.summary_funs
         for name, module in modules_dict.items()
@@ -293,8 +290,6 @@ for the `INCLUDE PERFETTO MODULE` statement.
     ]
     summary_view_funs = [prelude_module.summary_view_funs
                         ] if prelude_module.summary_view_funs else []
-    summary_view_funs += [common_module.summary_view_funs
-                         ] if common_module.summary_view_funs else []
     summary_view_funs += [
         module.summary_view_funs
         for name, module in modules_dict.items()
@@ -302,8 +297,6 @@ for the `INCLUDE PERFETTO MODULE` statement.
     ]
     summary_macros = [prelude_module.summary_macros
                      ] if prelude_module.summary_macros else []
-    summary_macros += [common_module.summary_macros
-                      ] if common_module.summary_macros else []
     summary_macros += [
         module.summary_macros
         for name, module in modules_dict.items()
@@ -340,8 +333,6 @@ for the `INCLUDE PERFETTO MODULE` statement.
 
     f.write('\n\n')
     f.write(prelude_module.print_description())
-    f.write('\n')
-    f.write(common_module.print_description())
     f.write('\n')
     f.write('\n'.join(
         module.print_description() for module in modules_dict.values()))
