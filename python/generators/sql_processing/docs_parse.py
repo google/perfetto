@@ -50,7 +50,7 @@ class Arg(NamedTuple):
 # Returns: error message if the name is not correct, None otherwise.
 def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
   prefix = name.lower().split('_')[0]
-  if module == "common" or module == "prelude":
+  if module in ["common", "prelude", "deprecated"]:
     if prefix == module:
       return (f'Names of tables/views/functions in the "{module}" module '
               f'should not start with {module}')
