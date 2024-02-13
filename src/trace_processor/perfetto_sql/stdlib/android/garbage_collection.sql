@@ -43,8 +43,14 @@ WHERE depth = 0
   gc_name,
   ts AS gc_ts,
   ts,
-  gc_dur + IIF(compact_name = 'CompactionPhase', compact_dur, 0) AS gc_dur,
-  gc_dur + IIF(compact_name = 'CompactionPhase', compact_dur, 0) AS dur,
+  gc_dur + IIF(
+    compact_name = 'CompactionPhase' OR compact_name = 'Background concurrent copying GC',
+    compact_dur,
+    0) AS gc_dur,
+  gc_dur + IIF(
+    compact_name = 'CompactionPhase' OR compact_name = 'Background concurrent copying GC',
+    compact_dur,
+    0) AS dur,
   utid,
   tid,
   upid,
