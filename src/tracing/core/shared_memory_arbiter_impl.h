@@ -130,8 +130,7 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // BufferExhaustedPolicy, this may return an invalid chunk if no valid free
   // chunk could be found in the SMB.
   SharedMemoryABI::Chunk GetNewChunk(const SharedMemoryABI::ChunkHeader&,
-                                     BufferExhaustedPolicy,
-                                     size_t size_hint = 0);
+                                     BufferExhaustedPolicy);
 
   // Puts back a Chunk that has been completed and sends a request to the
   // service to move it to the central tracing buffer. |target_buffer| is the
