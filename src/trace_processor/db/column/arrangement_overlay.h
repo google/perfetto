@@ -35,11 +35,11 @@ namespace perfetto::trace_processor::column {
 class ArrangementOverlay final : public DataLayer {
  public:
   ArrangementOverlay(const std::vector<uint32_t>* arrangement,
-                     Indices::State arrangement_state,
-                     bool does_arrangement_order_storage);
+                     Indices::State arrangement_state);
 
   std::unique_ptr<DataLayerChain> MakeChain(
-      std::unique_ptr<DataLayerChain>) override;
+      std::unique_ptr<DataLayerChain>,
+      ChainCreationArgs = ChainCreationArgs()) override;
 
  private:
   class ChainImpl : public DataLayerChain {
@@ -87,7 +87,6 @@ class ArrangementOverlay final : public DataLayer {
   std::unique_ptr<DataLayerChain> inner_;
   const std::vector<uint32_t>* arrangement_;
   const Indices::State arrangement_state_;
-  const bool does_arrangement_order_storage_;
 };
 
 }  // namespace perfetto::trace_processor::column

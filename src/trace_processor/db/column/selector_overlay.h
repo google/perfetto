@@ -36,7 +36,8 @@ class SelectorOverlay final : public DataLayer {
   explicit SelectorOverlay(const BitVector*);
 
   std::unique_ptr<DataLayerChain> MakeChain(
-      std::unique_ptr<DataLayerChain>) override;
+      std::unique_ptr<DataLayerChain>,
+      ChainCreationArgs = ChainCreationArgs()) override;
 
  private:
   class ChainImpl : public DataLayerChain {

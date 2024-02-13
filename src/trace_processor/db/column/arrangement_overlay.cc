@@ -35,17 +35,15 @@
 namespace perfetto::trace_processor::column {
 
 ArrangementOverlay::ArrangementOverlay(const std::vector<uint32_t>* arrangement,
-                                       Indices::State arrangement_state,
-                                       bool does_arrangement_order_storage)
-    : arrangement_(arrangement),
-      arrangement_state_(arrangement_state),
-      does_arrangement_order_storage_(does_arrangement_order_storage) {}
+                                       Indices::State arrangement_state)
+    : arrangement_(arrangement), arrangement_state_(arrangement_state) {}
 
 std::unique_ptr<DataLayerChain> ArrangementOverlay::MakeChain(
-    std::unique_ptr<DataLayerChain> inner) {
+    std::unique_ptr<DataLayerChain> inner,
+    ChainCreationArgs args) {
   return std::make_unique<ChainImpl>(std::move(inner), arrangement_,
                                      arrangement_state_,
-                                     does_arrangement_order_storage_);
+                                     args.does_layer_order_chain_contents);
 }
 
 ArrangementOverlay::ChainImpl::ChainImpl(

@@ -35,7 +35,8 @@ class NullOverlay final : public DataLayer {
   explicit NullOverlay(const BitVector* non_null);
 
   std::unique_ptr<DataLayerChain> MakeChain(
-      std::unique_ptr<DataLayerChain>) override;
+      std::unique_ptr<DataLayerChain>,
+      ChainCreationArgs = ChainCreationArgs()) override;
 
  private:
   class ChainImpl : public DataLayerChain {

@@ -39,6 +39,18 @@ class DataLayerChain;
 // table.
 class DataLayer : public RefCounted {
  public:
+  // Arguments for MakeChain on how the inner chain should be interpreted.
+  struct ChainCreationArgs {
+    constexpr explicit ChainCreationArgs(
+        bool _does_layer_order_chain_contents = false)
+        : does_layer_order_chain_contents(_does_layer_order_chain_contents) {}
+
+    // Indicates whether the current data layer orders the inner chain.
+    // Currently used by ArrangementOverlay to decide whether the arrangement
+    // orders a given chain.
+    bool does_layer_order_chain_contents;
+  };
+
   virtual ~DataLayer();
 
   // Creates a DataLayerChain for a terminal DataLayer. This means the
@@ -50,7 +62,8 @@ class DataLayer : public RefCounted {
   // Creates a DataLayerChain for a non-terminal DataLayer. This means
   // the DataLayer should transform the contents of the inner chain.
   virtual std::unique_ptr<DataLayerChain> MakeChain(
-      std::unique_ptr<DataLayerChain>) {
+      std::unique_ptr<DataLayerChain>,
+      ChainCreationArgs = ChainCreationArgs()) {
     PERFETTO_FATAL("Unimplemented");
   }
 };
