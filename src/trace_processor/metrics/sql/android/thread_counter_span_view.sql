@@ -21,7 +21,7 @@ SELECT
   LEAD(ts, 1, (
     SELECT IFNULL(
       end_ts,
-      (SELECT end_ts FROM trace_bounds)
+      trace_end()
     )
     FROM thread th WHERE th.utid = t.utid) + 1
   ) OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,

@@ -426,12 +426,16 @@ class ParsedFile:
 
 # Reads the provided SQL and, if possible, generates a dictionary with data
 # from documentation together with errors from validation of the schema.
-def parse_file(path: str, sql: str) -> ParsedFile:
+def parse_file(path: str, sql: str) -> Optional[ParsedFile]:
   if sys.platform.startswith('win'):
     path = path.replace('\\', '/')
 
   # Get module name
   module_name = path.split('/stdlib/')[-1].split('/')[0]
+
+  # Disable support for `deprecated` module
+  if module_name == "deprecated":
+    return
 
   # Extract all the docs from the SQL.
   extractor = DocsExtractor(path, module_name, sql)

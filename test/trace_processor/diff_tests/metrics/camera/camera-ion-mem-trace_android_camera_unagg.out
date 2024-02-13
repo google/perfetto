@@ -72687,4 +72687,12 @@ android_camera_unagg {
     dma_val: 322318336.0
     value: 1277186048.0
   }
+  gc_rss_and_dma {
+    ts: 790258000000
+    gca_rss_val: 622112768.0
+    hal_rss_val: 327274496.0
+    cameraserver_rss_val: 5480448.0
+    dma_val: 0.0
+    value: 954867712.0
+  }
 }

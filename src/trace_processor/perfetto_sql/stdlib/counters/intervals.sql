@@ -14,8 +14,6 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE common.timestamps;
-
 -- For a given counter timeline (e.g. a single counter track), returns
 -- intervals of time where the counter has the same value.
 --

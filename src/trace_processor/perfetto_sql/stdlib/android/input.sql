@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE common.timestamps;
-
 CREATE PERFETTO TABLE _input_message_sent
 AS
 SELECT

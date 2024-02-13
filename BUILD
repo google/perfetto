@@ -2364,6 +2364,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_prelude_prelude",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/prelude/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/trace_bounds.sql",
     ],
 )
 
@@ -2386,6 +2387,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/time:time
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_time_time",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/time/conversion.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib:stdlib
 perfetto_cc_amalgamated_sql(
     name = "src_trace_processor_perfetto_sql_stdlib_stdlib",
@@ -2403,6 +2412,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_prelude_prelude",
         ":src_trace_processor_perfetto_sql_stdlib_sched_sched",
         ":src_trace_processor_perfetto_sql_stdlib_slices_slices",
+        ":src_trace_processor_perfetto_sql_stdlib_time_time",
     ],
     outs = [
         "src/trace_processor/perfetto_sql/stdlib/stdlib.h",

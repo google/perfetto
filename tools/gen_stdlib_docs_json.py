@@ -71,6 +71,11 @@ def main():
     import_key = path.split(".sql")[0].replace("/", ".")
 
     docs = parse_file(path, sql)
+
+    # Some modules (i.e `deprecated`) should not generate docs.
+    if not docs:
+      continue
+
     if len(docs.errors) > 0:
       for e in docs.errors:
         print(e)

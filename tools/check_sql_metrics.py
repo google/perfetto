@@ -48,7 +48,7 @@ CREATE_TABLE_ALLOWLIST = {
     '/chrome/gesture_jank.sql': [
         '{{prefix}}_jank_maybe_null_prev_and_next_without_precompute'
     ],
-    '/experimental/frame_times.sql': ['DisplayCompositorPresentationEvents']
+    '/experimental/frame_times.sql': ['DisplayCompositorPresentationEvents'],
 }
 
 
