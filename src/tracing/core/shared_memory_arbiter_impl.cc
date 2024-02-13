@@ -93,10 +93,7 @@ SharedMemoryArbiterImpl::SharedMemoryArbiterImpl(
 
 Chunk SharedMemoryArbiterImpl::GetNewChunk(
     const SharedMemoryABI::ChunkHeader& header,
-    BufferExhaustedPolicy buffer_exhausted_policy,
-    size_t size_hint) {
-  PERFETTO_DCHECK(size_hint == 0);  // Not implemented yet.
-
+    BufferExhaustedPolicy buffer_exhausted_policy) {
   int stall_count = 0;
   unsigned stall_interval_us = 0;
   bool task_runner_runs_on_current_thread = false;
