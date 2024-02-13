@@ -61,9 +61,9 @@ class SelectorOverlay final : public DataLayer {
                                       SqlValue,
                                       Indices) const override;
 
-    void StableSort(uint32_t* rows, uint32_t rows_size) const override;
-
-    void Sort(uint32_t* rows, uint32_t rows_size) const override;
+    void StableSort(SortToken* start,
+                    SortToken* end,
+                    SortDirection) const override;
 
     void Serialize(StorageProto*) const override;
 

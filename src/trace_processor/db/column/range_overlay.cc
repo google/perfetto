@@ -143,14 +143,13 @@ Range RangeOverlay::ChainImpl::OrderedIndexSearchValidated(
       op, sql_val, Indices{storage_iv.data(), indices.size, indices.state});
 }
 
-void RangeOverlay::ChainImpl::StableSort(uint32_t*, uint32_t) const {
-  // TODO(b/307482437): Implement.
-  PERFETTO_FATAL("Not implemented");
-}
-
-void RangeOverlay::ChainImpl::Sort(uint32_t*, uint32_t) const {
-  // TODO(b/307482437): Implement.
-  PERFETTO_FATAL("Not implemented");
+void RangeOverlay::ChainImpl::StableSort(SortToken* start,
+                                         SortToken* end,
+                                         SortDirection direction) const {
+  for (SortToken* it = start; it != end; ++it) {
+    it->index += range_->start;
+  }
+  inner_->StableSort(start, end, direction);
 }
 
 void RangeOverlay::ChainImpl::Serialize(StorageProto*) const {

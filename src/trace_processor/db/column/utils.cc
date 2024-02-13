@@ -15,18 +15,26 @@
  */
 
 #include "src/trace_processor/db/column/utils.h"
-#include <optional>
-#include "perfetto/base/logging.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
-namespace utils {
+#include <cmath>
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/types.h"
+
+namespace perfetto::trace_processor::column::utils {
 
 SearchValidationResult CompareIntColumnWithDouble(FilterOp op,
                                                   SqlValue* sql_val) {
   double double_val = sql_val->AsDouble();
-  if (std::equal_to<double>()(
+  if (std::equal_to<>()(
           double_val, static_cast<double>(static_cast<uint32_t>(double_val)))) {
     // If double is the same as uint32_t, we should just "cast" the |sql_val|
     // to be treated as long.
@@ -70,6 +78,16 @@ std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector& r_or_bv) {
   return rm.GetAllIndices();
 }
 
+std::vector<uint32_t> ExtractPayloadForTesting(
+    std::vector<column::DataLayerChain::SortToken>& tokens) {
+  std::vector<uint32_t> payload;
+  payload.reserve(tokens.size());
+  for (const auto& token : tokens) {
+    payload.push_back(token.payload);
+  }
+  return payload;
+}
+
 std::optional<Range> CanReturnEarly(SearchValidationResult res, Range range) {
   switch (res) {
     case SearchValidationResult::kOk:
@@ -94,8 +112,5 @@ std::optional<Range> CanReturnEarly(SearchValidationResult res,
   }
   PERFETTO_FATAL("For GCC");
 }
-}  // namespace utils
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column::utils

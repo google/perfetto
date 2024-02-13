@@ -626,25 +626,29 @@ Range StringStorage::ChainImpl::BinarySearchIntrinsic(
     case FilterOp::kRegex:
       PERFETTO_FATAL("Shouldn't be called");
   }
-  PERFETTO_FATAL("For gcc");
+  PERFETTO_FATAL("For GCC");
 }
 
-void StringStorage::ChainImpl::StableSort(uint32_t* indices,
-                                          uint32_t indices_size) const {
-  std::stable_sort(indices, indices + indices_size,
-                   [this](uint32_t a_idx, uint32_t b_idx) {
-                     return string_pool_->Get((*data_)[a_idx]) <
-                            string_pool_->Get((*data_)[b_idx]);
-                   });
-}
-
-void StringStorage::ChainImpl::Sort(uint32_t* indices,
-                                    uint32_t indices_size) const {
-  std::sort(indices, indices + indices_size,
-            [this](uint32_t a_idx, uint32_t b_idx) {
-              return string_pool_->Get((*data_)[a_idx]) <
-                     string_pool_->Get((*data_)[b_idx]);
-            });
+void StringStorage::ChainImpl::StableSort(SortToken* start,
+                                          SortToken* end,
+                                          SortDirection direction) const {
+  switch (direction) {
+    case SortDirection::kAscending:
+      std::stable_sort(start, end,
+                       [this](const SortToken& a, const SortToken& b) {
+                         return string_pool_->Get((*data_)[a.index]) <
+                                string_pool_->Get((*data_)[b.index]);
+                       });
+      return;
+    case SortDirection::kDescending:
+      std::stable_sort(start, end,
+                       [this](const SortToken& a, const SortToken& b) {
+                         return string_pool_->Get((*data_)[a.index]) >
+                                string_pool_->Get((*data_)[b.index]);
+                       });
+      return;
+  }
+  PERFETTO_FATAL("For GCC");
 }
 
 void StringStorage::ChainImpl::Serialize(StorageProto* msg) const {
