@@ -600,6 +600,9 @@ message ProtoLogGroup {
   // e.g. if ProtoLogLevel.WARN is specified only warning, errors and fatal log
   // message will be traced.
   optional ProtoLogLevel log_from = 2;
+  // When set to true we will collect the stacktrace for each protolog message
+  // in this group that we are tracing.
+  optional bool collect_stacktrace = 3;
 }
 
 // End of protos/perfetto/config/android/protolog_config.proto
@@ -4855,6 +4858,9 @@ message ProtoLogMessage {
   repeated double double_params = 4;
   /* boolean parameters passed to the log call. */
   repeated int32 boolean_params = 5;
+  // id of the interned stacktrace string
+  // (only dumped if explicitly confuigured to do so)
+  optional uint32 stacktrace_iid = 6;
 }
 
 /* contains all the data required to fully decode the protolog messages */
@@ -12455,6 +12461,8 @@ message InternedData {
 
   // Interned protolog strings args.
   repeated InternedString protolog_string_args = 36;
+  // Interned protolog stacktraces.
+  repeated InternedString protolog_stacktrace = 37;
 }
 
 // End of protos/perfetto/trace/interned_data/interned_data.proto

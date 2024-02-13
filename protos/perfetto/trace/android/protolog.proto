@@ -32,6 +32,9 @@ message ProtoLogMessage {
   repeated double double_params = 4;
   /* boolean parameters passed to the log call. */
   repeated int32 boolean_params = 5;
+  // id of the interned stacktrace string
+  // (only dumped if explicitly confuigured to do so)
+  optional uint32 stacktrace_iid = 6;
 }
 
 /* contains all the data required to fully decode the protolog messages */
