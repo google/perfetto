@@ -22,6 +22,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/data_layer.h"
@@ -89,7 +90,9 @@ class NumericStorageBase : public DataLayer {
 template <typename T>
 class NumericStorage final : public NumericStorageBase {
  public:
-  NumericStorage(const std::vector<T>* vec, ColumnType type, bool is_sorted)
+  PERFETTO_NO_INLINE NumericStorage(const std::vector<T>* vec,
+                                    ColumnType type,
+                                    bool is_sorted)
       : NumericStorageBase(type, is_sorted), vector_(vec) {}
 
   std::unique_ptr<DataLayerChain> MakeChain() override {
