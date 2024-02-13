@@ -21,8 +21,8 @@
 namespace perfetto {
 namespace {
 
-TEST(SyscallTableTest, Aarch64) {
-  SyscallTable t(Architecture::kAarch64);
+TEST(SyscallTableTest, Arm64) {
+  SyscallTable t(Architecture::kArm64);
   EXPECT_STREQ(t.GetById(0), "sys_io_setup");
   EXPECT_EQ(t.GetByName("sys_io_setup"), 0u);
 
@@ -35,14 +35,14 @@ TEST(SyscallTableTest, Aarch64) {
   EXPECT_STREQ(t.GetById(293), "sys_rseq");
   EXPECT_EQ(t.GetByName("sys_rseq"), 293u);
 
-  EXPECT_STREQ(t.GetById(294), nullptr);
+  EXPECT_STREQ(t.GetById(457), nullptr);
   EXPECT_STREQ(t.GetById(kMaxSyscalls), nullptr);
 
   EXPECT_EQ(t.GetByName("sys_non_existent"), std::nullopt);
 }
 
-TEST(SyscallTableTest, ArmEabi) {
-  SyscallTable t(Architecture::kArmEabi);
+TEST(SyscallTableTest, Arm32) {
+  SyscallTable t(Architecture::kArm32);
   EXPECT_STREQ(t.GetById(0), "sys_restart_syscall");
   EXPECT_EQ(t.GetByName("sys_restart_syscall"), 0u);
 
@@ -55,7 +55,7 @@ TEST(SyscallTableTest, ArmEabi) {
   EXPECT_STREQ(t.GetById(399), "sys_io_pgetevents");
   EXPECT_EQ(t.GetByName("sys_io_pgetevents"), 399u);
 
-  EXPECT_STREQ(t.GetById(400), nullptr);
+  EXPECT_STREQ(t.GetById(457), nullptr);
   EXPECT_STREQ(t.GetById(kMaxSyscalls), nullptr);
 
   EXPECT_EQ(t.GetByName("sys_non_existent"), std::nullopt);
@@ -100,7 +100,7 @@ TEST(SyscallTableTest, X86) {
   EXPECT_STREQ(t.GetById(386), "sys_rseq");
   EXPECT_EQ(t.GetByName("sys_rseq"), 386);
 
-  EXPECT_STREQ(t.GetById(387), nullptr);
+  EXPECT_STREQ(t.GetById(457), nullptr);
   EXPECT_STREQ(t.GetById(kMaxSyscalls), nullptr);
   EXPECT_EQ(t.GetByName("sys_non_existent"), std::nullopt);
 }
