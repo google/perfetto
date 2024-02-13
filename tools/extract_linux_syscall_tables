@@ -11,7 +11,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SELF_PATH = os.path.relpath(__file__, PROJECT_ROOT).replace('\\', '/')
 
 syscalls = {}
-archs = ['aarch32', 'aarch64', 'armeabi', 'x86', 'x86_64']
+archs = ['arm64', 'arm32', 'x86', 'x86_64']
 
 
 def print_tables():
@@ -83,7 +83,7 @@ def parse_def(data):
 
 
 def Main():
-  KSRC = 'https://raw.githubusercontent.com/torvalds/linux/v4.20/'
+  KSRC = 'https://raw.githubusercontent.com/torvalds/linux/v6.7/'
 
   response = urlopen(KSRC + 'arch/x86/entry/syscalls/syscall_64.tbl')
   syscalls['x86_64'] = parse_tlb(response.read().decode())
@@ -92,17 +92,14 @@ def Main():
   syscalls['x86'] = parse_tlb(response.read().decode())
 
   response = urlopen(KSRC + 'arch/arm/tools/syscall.tbl')
-  syscalls['armeabi'] = parse_tlb(response.read().decode())
-
-  response = urlopen(KSRC + 'arch/arm64/include/asm/unistd32.h')
-  syscalls['aarch32'] = parse_def(response.read().decode())
+  syscalls['arm32'] = parse_tlb(response.read().decode())
 
   # From:
   # arch/arm64/include/asm/unistd.h
   #   -> arch/arm64/include/uapi/asm/unistd.h
   #     -> include/uapi/asm-generic/unistd.h
   response = urlopen(KSRC + 'include/uapi/asm-generic/unistd.h')
-  syscalls['aarch64'] = parse_def(response.read().decode())
+  syscalls['arm64'] = parse_def(response.read().decode())
 
   dst_file = os.path.join(PROJECT_ROOT, 'src', 'kernel_utils',
                           'syscall_table_generated.h')
