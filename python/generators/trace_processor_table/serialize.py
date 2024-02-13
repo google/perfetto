@@ -289,11 +289,13 @@ class ColumnSerializer:
       return f'''{self.name}_storage_layer_(
           new column::NumericStorage<ColumnType::{self.name}::non_optional_stored_type>(
             &{self.name}_.non_null_vector(),
-            ColumnTypeHelper<ColumnType::{self.name}::stored_type>::ToColumnType()))'''
+            ColumnTypeHelper<ColumnType::{self.name}::stored_type>::ToColumnType(),
+            {str(ColumnFlag.SORTED in self.flags).lower()}))'''
     return f'''{self.name}_storage_layer_(
         new column::NumericStorage<ColumnType::{self.name}::non_optional_stored_type>(
           &{self.name}_.vector(),
-          ColumnTypeHelper<ColumnType::{self.name}::stored_type>::ToColumnType()))'''
+          ColumnTypeHelper<ColumnType::{self.name}::stored_type>::ToColumnType(),
+          {str(ColumnFlag.SORTED in self.flags).lower()}))'''
 
   def null_layer_init(self) -> str:
     if self.is_ancestor:
