@@ -29,6 +29,14 @@ namespace perfetto::trace_processor {
 
 using Range = RowMap::Range;
 
+// Result of calling Storage::SingleSearch function.
+enum class SingleSearchResult {
+  kMatch,            // The specified row matches the constraint.
+  kNoMatch,          // The specified row does not matches the constraint.
+  kNeedsFullSearch,  // SingleSearch was unable to determine if the row meets
+                     // the crtiteria, a call to *Search is required.
+};
+
 // Result of calling Storage::ValidateSearchResult function.
 enum class SearchValidationResult {
   kOk,       // It makes sense to run search

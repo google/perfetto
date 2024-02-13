@@ -44,6 +44,10 @@ class SelectorOverlay final : public DataLayer {
    public:
     ChainImpl(std::unique_ptr<DataLayerChain>, const BitVector*);
 
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 

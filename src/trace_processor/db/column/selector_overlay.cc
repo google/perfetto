@@ -47,6 +47,12 @@ SelectorOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                       const BitVector* selector)
     : inner_(std::move(inner)), selector_(selector) {}
 
+SingleSearchResult SelectorOverlay::ChainImpl::SingleSearch(FilterOp op,
+                                                            SqlValue sql_val,
+                                                            uint32_t i) const {
+  return inner_->SingleSearch(op, sql_val, selector_->IndexOfNthSet(i));
+}
+
 SearchValidationResult SelectorOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue sql_val) const {

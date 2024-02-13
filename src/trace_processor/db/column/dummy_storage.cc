@@ -30,6 +30,12 @@ std::unique_ptr<DataLayerChain> DummyStorage::MakeChain() {
   return std::make_unique<ChainImpl>();
 }
 
+SingleSearchResult DummyStorage::ChainImpl::SingleSearch(FilterOp,
+                                                         SqlValue,
+                                                         uint32_t) const {
+  PERFETTO_FATAL("Shouldn't be called");
+}
+
 SearchValidationResult DummyStorage::ChainImpl::ValidateSearchConstraints(
     FilterOp,
     SqlValue) const {
