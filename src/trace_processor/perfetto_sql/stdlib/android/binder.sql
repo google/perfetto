@@ -16,6 +16,7 @@
 
 INCLUDE PERFETTO MODULE common.timestamps;
 INCLUDE PERFETTO MODULE android.process_metadata;
+INCLUDE PERFETTO MODULE android.suspend;
 
 -- Count Binder transactions per process.
 CREATE PERFETTO VIEW android_binder_metrics_by_process(
@@ -423,7 +424,7 @@ CREATE PERFETTO TABLE android_binder_txns(
   is_main_thread BOOL,
   -- timestamp of the client txn.
   client_ts INT,
-  -- dur of the client txn.
+  -- wall clock dur of the client txn.
   client_dur INT,
   -- slice id of the binder reply.
   binder_reply_id INT,
@@ -441,7 +442,7 @@ CREATE PERFETTO TABLE android_binder_txns(
   server_pid INT,
   -- timestamp of the server txn.
   server_ts INT,
-  -- dur of the server txn.
+  -- wall clock dur of the server txn.
   server_dur INT,
   -- oom score of the client process at the start of the txn.
   client_oom_score INT,
@@ -449,6 +450,10 @@ CREATE PERFETTO TABLE android_binder_txns(
   server_oom_score INT,
   -- whether the txn is synchronous or async (oneway).
   is_sync BOOL,
+  -- monotonic clock dur of the client txn.
+  client_monotonic_dur INT,
+  -- monotonic clock dur of the server txn.
+  server_monotonic_dur INT,
   -- Client package version_code.
   client_package_version_code INT,
   -- Server package version_code.
@@ -463,6 +468,8 @@ UNION ALL
 SELECT *, 0 AS is_sync FROM _async_binder_metrics_by_txn
 ) SELECT
   all_binder.*,
+  _extract_duration_without_suspend(client_ts, client_dur) AS client_monotonic_dur,
+  _extract_duration_without_suspend(server_ts, server_dur) AS server_monotonic_dur,
   client_process_metadata.version_code AS client_package_version_code,
   server_process_metadata.version_code AS server_package_version_code,
   client_process_metadata.debuggable AS is_client_package_debuggable,
