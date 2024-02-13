@@ -37,7 +37,8 @@ using Range = Range;
 RangeOverlay::RangeOverlay(const Range* range) : range_(range) {}
 
 std::unique_ptr<DataLayerChain> RangeOverlay::MakeChain(
-    std::unique_ptr<DataLayerChain> inner) {
+    std::unique_ptr<DataLayerChain> inner,
+    ChainCreationArgs) {
   return std::make_unique<ChainImpl>(std::move(inner), range_);
 }
 

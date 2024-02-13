@@ -32,7 +32,8 @@ class RangeOverlay final : public DataLayer {
   explicit RangeOverlay(const Range*);
 
   std::unique_ptr<DataLayerChain> MakeChain(
-      std::unique_ptr<DataLayerChain>) override;
+      std::unique_ptr<DataLayerChain>,
+      ChainCreationArgs = ChainCreationArgs()) override;
 
  private:
   class ChainImpl : public DataLayerChain {

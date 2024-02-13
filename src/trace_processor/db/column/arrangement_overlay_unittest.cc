@@ -21,6 +21,7 @@
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/fake_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
@@ -35,8 +36,7 @@ using testing::IsEmpty;
 TEST(ArrangementOverlay, SearchAll) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   auto fake = FakeStorage::SearchAll(5);
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic,
-                             false);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
   auto queriable = storage.MakeChain(fake->MakeChain());
 
   auto res = queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
@@ -46,8 +46,7 @@ TEST(ArrangementOverlay, SearchAll) {
 TEST(ArrangementOverlay, SearchNone) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   auto fake = FakeStorage::SearchNone(5);
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic,
-                             false);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
   auto queriable = storage.MakeChain(fake->MakeChain());
 
   auto res = queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
@@ -57,8 +56,7 @@ TEST(ArrangementOverlay, SearchNone) {
 TEST(ArrangementOverlay, DISABLED_SearchLimited) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   auto fake = FakeStorage::SearchSubset(5, Range(4, 5));
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic,
-                             false);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
   auto queriable = storage.MakeChain(fake->MakeChain());
 
   auto res = queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 7));
@@ -69,8 +67,7 @@ TEST(ArrangementOverlay, SearchBitVector) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   auto fake = FakeStorage::SearchSubset(
       5, BitVector({false, true, false, true, false}));
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic,
-                             false);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
   auto queriable = storage.MakeChain(fake->MakeChain());
 
   // Table bv:
@@ -83,8 +80,7 @@ TEST(ArrangementOverlay, IndexSearch) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   auto fake = FakeStorage::SearchSubset(
       5, BitVector({false, true, false, true, false}));
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic,
-                             false);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
   auto queriable = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{7u, 1u, 3u};
@@ -100,8 +96,9 @@ TEST(ArrangementOverlay, OrderingSearch) {
   std::vector<uint32_t> arrangement{0, 2, 4, 1, 3};
   auto fake = FakeStorage::SearchSubset(
       5, BitVector({false, true, false, true, false}));
-  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic, true);
-  auto queriable = storage.MakeChain(fake->MakeChain());
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto queriable =
+      storage.MakeChain(fake->MakeChain(), DataLayer::ChainCreationArgs(true));
 
   RangeOrBitVector res =
       queriable->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));

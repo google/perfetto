@@ -98,8 +98,8 @@ class DbSqliteTable final
                         sqlite3_value** argv,
                         FilterHistory);
     base::Status Next();
-    bool Eof();
-    base::Status Column(sqlite3_context*, int N);
+    bool Eof() const;
+    base::Status Column(sqlite3_context*, int);
 
    private:
     enum class Mode {
