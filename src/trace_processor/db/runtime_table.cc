@@ -206,7 +206,7 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
         columns.emplace_back(col_names_[i].c_str(), ints,
                              ColumnLegacy::Flag::kNoFlag, i, 0);
         storage_layers[i].reset(new column::NumericStorage<int64_t>(
-            &ints->non_null_vector(), ColumnType::kInt64));
+            &ints->non_null_vector(), ColumnType::kInt64, false));
         null_layers[i].reset(
             new column::NullOverlay(&ints->non_null_bit_vector()));
       }
@@ -236,7 +236,7 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
         columns.emplace_back(col_names_[i].c_str(), doubles,
                              ColumnLegacy::Flag::kNoFlag, i, 0);
         storage_layers[i].reset(new column::NumericStorage<double>(
-            &doubles->non_null_vector(), ColumnType::kDouble));
+            &doubles->non_null_vector(), ColumnType::kDouble, false));
         null_layers[i].reset(
             new column::NullOverlay(&doubles->non_null_bit_vector()));
       }

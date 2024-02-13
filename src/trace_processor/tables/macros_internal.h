@@ -19,18 +19,15 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/table.h"

@@ -54,7 +54,8 @@ using SelectorOverlay = column::SelectorOverlay;
 
 TEST(QueryExecutor, OnlyStorageRange) {
   std::vector<int64_t> storage_data{1, 2, 3, 4, 5};
-  column::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
+  column::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64,
+                                          false);
   auto chain = storage.MakeChain();
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
@@ -67,7 +68,8 @@ TEST(QueryExecutor, OnlyStorageRange) {
 
 TEST(QueryExecutor, OnlyStorageRangeIsNull) {
   std::vector<int64_t> storage_data{1, 2, 3, 4, 5};
-  column::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
+  column::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64,
+                                          false);
   auto chain = storage.MakeChain();
 
   Constraint c{0, FilterOp::kIsNull, SqlValue()};
@@ -83,7 +85,8 @@ TEST(QueryExecutor, OnlyStorageIndex) {
   std::iota(storage_data.begin(), storage_data.end(), 0);
   std::transform(storage_data.begin(), storage_data.end(), storage_data.begin(),
                  [](int64_t n) { return n % 5; });
-  column::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
+  column::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64,
+                                          false);
   auto chain = storage.MakeChain();
 
   Constraint c{0, FilterOp::kLt, SqlValue::Long(2)};
@@ -99,7 +102,8 @@ TEST(QueryExecutor, OnlyStorageIndex) {
 
 TEST(QueryExecutor, OnlyStorageIndexIsNull) {
   std::vector<int64_t> storage_data{1, 2, 3, 4, 5};
-  column::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
+  column::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64,
+                                          false);
   auto chain = storage.MakeChain();
 
   Constraint c{0, FilterOp::kIsNull, SqlValue()};
@@ -113,7 +117,7 @@ TEST(QueryExecutor, NullBounds) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
   auto numeric = std::make_unique<column::NumericStorage<int64_t>>(
-      &storage_data, ColumnType::kInt64);
+      &storage_data, ColumnType::kInt64, false);
   BitVector bv{1, 1, 0, 1, 1, 0, 0, 0, 1, 0};
   column::NullOverlay storage(&bv);
   auto chain = storage.MakeChain(numeric->MakeChain());
@@ -131,7 +135,7 @@ TEST(QueryExecutor, NullRangeIsNull) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
   auto numeric = std::make_unique<column::NumericStorage<int64_t>>(
-      &storage_data, ColumnType::kInt64);
+      &storage_data, ColumnType::kInt64, false);
 
   BitVector bv{1, 1, 0, 1, 1, 0, 0, 0, 1, 0};
   column::NullOverlay storage(&bv);
@@ -155,7 +159,7 @@ TEST(QueryExecutor, NullIndex) {
   std::transform(storage_data.begin(), storage_data.end(), storage_data.begin(),
                  [](int64_t n) { return n % 3; });
   auto numeric = std::make_unique<column::NumericStorage<int64_t>>(
-      &storage_data, ColumnType::kInt64);
+      &storage_data, ColumnType::kInt64, false);
 
   BitVector bv{1, 1, 0, 1, 1, 0, 1, 0, 0, 1};
   column::NullOverlay storage(&bv);
@@ -176,7 +180,7 @@ TEST(QueryExecutor, NullIndexIsNull) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
   auto numeric = std::make_unique<column::NumericStorage<int64_t>>(
-      &storage_data, ColumnType::kInt64);
+      &storage_data, ColumnType::kInt64, false);
 
   BitVector bv{1, 1, 0, 1, 1, 0, 0, 0, 1, 0};
   column::NullOverlay storage(&bv);
@@ -198,7 +202,7 @@ TEST(QueryExecutor, SelectorOverlayBounds) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
   auto numeric = std::make_unique<column::NumericStorage<int64_t>>(
-      &storage_data, ColumnType::kInt64);
+      &storage_data, ColumnType::kInt64, false);
 
   BitVector bv{1, 1, 0, 0, 1};
   SelectorOverlay storage(&bv);
@@ -217,7 +221,7 @@ TEST(QueryExecutor, SelectorOverlayIndex) {
   std::transform(storage_data.begin(), storage_data.end(), storage_data.begin(),
                  [](int64_t n) { return n % 5; });
   auto numeric = std::make_unique<column::NumericStorage<int64_t>>(
-      &storage_data, ColumnType::kInt64);
+      &storage_data, ColumnType::kInt64, false);
 
   BitVector bv{1, 1, 0, 1, 1, 0, 1, 0, 0, 1};
   SelectorOverlay storage(&bv);
@@ -234,7 +238,7 @@ TEST(QueryExecutor, ArrangementOverlayBounds) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
   auto numeric = std::make_unique<column::NumericStorage<int64_t>>(
-      &storage_data, ColumnType::kInt64);
+      &storage_data, ColumnType::kInt64, false);
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
@@ -279,7 +283,7 @@ TEST(QueryExecutor, ArrangementOverlayIndex) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
   auto numeric = std::make_unique<column::NumericStorage<int64_t>>(
-      &storage_data, ColumnType::kInt64);
+      &storage_data, ColumnType::kInt64, false);
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
@@ -294,7 +298,8 @@ TEST(QueryExecutor, ArrangementOverlayIndex) {
 
 TEST(QueryExecutor, MismatchedTypeNullWithOtherOperations) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
-  column::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
+  column::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64,
+                                          false);
   auto chain = storage.MakeChain();
 
   // Filter.
@@ -308,7 +313,7 @@ TEST(QueryExecutor, MismatchedTypeNullWithOtherOperations) {
 TEST(QueryExecutor, SingleConstraintWithNullAndSelector) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
   auto numeric = std::make_unique<column::NumericStorage<int64_t>>(
-      &storage_data, ColumnType::kInt64);
+      &storage_data, ColumnType::kInt64, false);
 
   // Current vector
   // 0, 1, NULL, 2, 3, 0, NULL, NULL, 1, 2, 3, NULL
@@ -334,7 +339,7 @@ TEST(QueryExecutor, SingleConstraintWithNullAndSelector) {
 TEST(QueryExecutor, SingleConstraintWithNullAndArrangement) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
   auto numeric = std::make_unique<column::NumericStorage<int64_t>>(
-      &storage_data, ColumnType::kInt64);
+      &storage_data, ColumnType::kInt64, false);
 
   // Current vector
   // 0, 1, NULL, 2, 3, 0, NULL, NULL, 1, 2, 3, NULL
@@ -360,7 +365,7 @@ TEST(QueryExecutor, SingleConstraintWithNullAndArrangement) {
 TEST(QueryExecutor, IsNullWithSelector) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
   auto numeric = std::make_unique<column::NumericStorage<int64_t>>(
-      &storage_data, ColumnType::kInt64);
+      &storage_data, ColumnType::kInt64, false);
 
   // Current vector
   // 0, 1, NULL, 2, 3, 0, NULL, NULL, 1, 2, 3, NULL
