@@ -242,7 +242,7 @@ class ColumnSerializer:
     if self.is_ancestor:
       return None
     return f'''
-  RefPtr<{self.data_layer_type}> {self.name}_storage_layer_;
+  RefPtr<column::DataLayer> {self.name}_storage_layer_;
   '''
 
   def null_layer(self) -> Optional[str]:
