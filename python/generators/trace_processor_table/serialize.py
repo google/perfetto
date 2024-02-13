@@ -439,7 +439,7 @@ class TableSerializer(object):
     return columns;
   }}
 
-  explicit {self.table_name}(StringPool* pool{parent_param})
+  PERFETTO_NO_INLINE explicit {self.table_name}(StringPool* pool{parent_param})
       : macros_internal::MacroTable(
           pool,
           GetColumns(this, {parent_arg}),
