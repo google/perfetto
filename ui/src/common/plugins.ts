@@ -42,6 +42,10 @@ import {Actions} from './actions';
 import {Registry} from './registry';
 import {SCROLLING_TRACK_GROUP} from './state';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
+import {Flag, featureFlags} from '../core/feature_flags';
+import {assertExists} from '../base/logging';
+import {raf} from '../core/raf_scheduler';
+import {defaultPlugins} from './default_plugins';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -348,6 +352,7 @@ export class PluginManager {
   private registry: PluginRegistry;
   private _plugins: Map<string, PluginDetails>;
   private engine?: Engine;
+  private flags = new Map<string, Flag>();
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
@@ -358,7 +363,55 @@ export class PluginManager {
     return this._plugins;
   }
 
-  activatePlugin(id: string): void {
+  // Must only be called once on startup
+  async initialize(): Promise<void> {
+    for (const plugin of pluginRegistry.values()) {
+      const id = `plugin_${plugin.pluginId}`;
+      const name = `Plugin: ${plugin.pluginId}`;
+      const flag = featureFlags.register({
+        id,
+        name,
+        description: `Overrides '${id}' plugin.`,
+        defaultValue: defaultPlugins.includes(plugin.pluginId),
+      });
+      this.flags.set(plugin.pluginId, flag);
+      if (flag.get()) {
+        await this.activatePlugin(plugin.pluginId);
+      }
+    }
+  }
+
+  /**
+   * Enable plugin flag - i.e. configure a plugin to start on boot.
+   * @param id The ID of the plugin.
+   * @param now Optional: If true, also activate the plugin now.
+   */
+  async enablePlugin(id: string, now?: boolean): Promise<void> {
+    const flag = this.flags.get(id);
+    if (flag) {
+      flag.set(true);
+    }
+    now && await this.activatePlugin(id);
+  }
+
+  /**
+   * Disable plugin flag - i.e. configure a plugin not to start on boot.
+   * @param id The ID of the plugin.
+   * @param now Optional: If true, also deactivate the plugin now.
+   */
+  async disablePlugin(id: string, now?: boolean): Promise<void> {
+    const flag = this.flags.get(id);
+    if (flag) {
+      flag.set(false);
+    }
+    now && await this.deactivatePlugin(id);
+  }
+
+  /**
+   * Start a plugin just for this session. This setting is not persisted.
+   * @param id The ID of the plugin to start.
+   */
+  async activatePlugin(id: string): Promise<void> {
     if (this.isActive(id)) {
       return;
     }
@@ -378,29 +431,61 @@ export class PluginManager {
     // If a trace is already loaded when plugin is activated, make sure to
     // call onTraceLoad().
     if (this.engine) {
-      this.doPluginTraceLoad(pluginDetails, this.engine, id);
+      await doPluginTraceLoad(pluginDetails, this.engine, id);
     }
 
     this._plugins.set(id, pluginDetails);
+
+    raf.scheduleFullRedraw();
   }
 
-  deactivatePlugin(id: string): void {
+  /**
+   * Stop a plugin just for this session. This setting is not persisted.
+   * @param id The ID of the plugin to stop.
+   */
+  async deactivatePlugin(id: string): Promise<void> {
     const pluginDetails = this.getPluginContext(id);
     if (pluginDetails === undefined) {
       return;
     }
     const {context, plugin} = pluginDetails;
 
-    maybeDoPluginTraceUnload(pluginDetails);
+    await doPluginTraceUnload(pluginDetails);
 
     plugin.onDeactivate && plugin.onDeactivate(context);
     context.dispose();
 
     this._plugins.delete(id);
+
+    raf.scheduleFullRedraw();
+  }
+
+  /**
+   * Restore all plugins enable/disabled flags to their default values.
+   * @param now Optional: Also activates/deactivates plugins to match flag
+   * settings.
+   */
+  async restoreDefaults(now?: boolean): Promise<void> {
+    for (const plugin of pluginRegistry.values()) {
+      const pluginId = plugin.pluginId;
+      const flag = assertExists(this.flags.get(pluginId));
+      flag.reset();
+      if (now) {
+        if (flag.get()) {
+          await this.activatePlugin(plugin.pluginId);
+        } else {
+          await this.deactivatePlugin(plugin.pluginId);
+        }
+      }
+    }
   }
 
   isActive(pluginId: string): boolean {
     return this.getPluginContext(pluginId) !== undefined;
+  }
+
+  isEnabled(pluginId: string): boolean {
+    return Boolean(this.flags.get(pluginId)?.get());
   }
 
   getPluginContext(pluginId: string): PluginDetails|undefined {
@@ -416,13 +501,13 @@ export class PluginManager {
     // most plugins use the same engine, which can only process one query at a
     // time.
     for (const [id, pluginDetails] of plugins) {
-      await this.doPluginTraceLoad(pluginDetails, engine, id);
+      await doPluginTraceLoad(pluginDetails, engine, id);
     }
   }
 
   onTraceClose() {
     for (const pluginDetails of this._plugins.values()) {
-      maybeDoPluginTraceUnload(pluginDetails);
+      doPluginTraceUnload(pluginDetails);
     }
     this.engine = undefined;
   }
@@ -437,32 +522,35 @@ export class PluginManager {
       }
     });
   }
-
-  private async doPluginTraceLoad(
-    pluginDetails: PluginDetails, engine: Engine,
-    pluginId: string): Promise<void> {
-    const {plugin, context} = pluginDetails;
-
-    const engineProxy = engine.getProxy(pluginId);
-
-    const traceCtx = new PluginContextTraceImpl(context, engineProxy);
-    pluginDetails.traceContext = traceCtx;
-
-    const startTime = performance.now();
-    const result = await Promise.resolve(plugin.onTraceLoad?.(traceCtx));
-    const loadTime = performance.now() - startTime;
-    pluginDetails.previousOnTraceLoadTimeMillis = loadTime;
-
-    return result;
-  }
 }
 
-function maybeDoPluginTraceUnload(pluginDetails: PluginDetails): void {
+async function doPluginTraceLoad(
+  pluginDetails: PluginDetails,
+  engine: Engine,
+  pluginId: string): Promise<void> {
+  const {plugin, context} = pluginDetails;
+
+  const engineProxy = engine.getProxy(pluginId);
+
+  const traceCtx = new PluginContextTraceImpl(context, engineProxy);
+  pluginDetails.traceContext = traceCtx;
+
+  const startTime = performance.now();
+  const result = await Promise.resolve(plugin.onTraceLoad?.(traceCtx));
+  const loadTime = performance.now() - startTime;
+  pluginDetails.previousOnTraceLoadTimeMillis = loadTime;
+
+  raf.scheduleFullRedraw();
+
+  return result;
+}
+
+async function doPluginTraceUnload(
+  pluginDetails: PluginDetails): Promise<void> {
   const {traceContext, plugin} = pluginDetails;
 
   if (traceContext) {
-    // TODO(stevegolton): Await onTraceUnload.
-    plugin.onTraceUnload && plugin.onTraceUnload(traceContext);
+    plugin.onTraceUnload && await plugin.onTraceUnload(traceContext);
     traceContext.dispose();
     pluginDetails.traceContext = undefined;
   }
