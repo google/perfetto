@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -699,5 +700,12 @@ void NumericStorageBase::ChainImpl::Serialize(StorageProto* msg) const {
       PERFETTO_FATAL("Invalid column type for NumericStorage");
   }
 }
+
+// Define explicit instantiation of the necessary templates here to reduce
+// binary size bloat.
+template class NumericStorage<double>;
+template class NumericStorage<uint32_t>;
+template class NumericStorage<int32_t>;
+template class NumericStorage<int64_t>;
 
 }  // namespace perfetto::trace_processor::column

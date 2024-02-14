@@ -202,10 +202,6 @@ StringStorage::StringStorage(StringPool* string_pool,
                              bool is_sorted)
     : data_(data), string_pool_(string_pool), is_sorted_(is_sorted) {}
 
-std::unique_ptr<DataLayerChain> StringStorage::MakeChain() {
-  return std::make_unique<ChainImpl>(string_pool_, data_, is_sorted_);
-}
-
 StringStorage::ChainImpl::ChainImpl(StringPool* string_pool,
                                     const std::vector<StringPool::Id>* data,
                                     bool is_sorted)

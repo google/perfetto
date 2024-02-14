@@ -37,12 +37,6 @@ namespace perfetto::trace_processor::column {
 DenseNullOverlay::DenseNullOverlay(const BitVector* non_null)
     : non_null_(non_null) {}
 
-std::unique_ptr<DataLayerChain> DenseNullOverlay::MakeChain(
-    std::unique_ptr<DataLayerChain> inner,
-    ChainCreationArgs) {
-  return std::make_unique<ChainImpl>(std::move(inner), non_null_);
-}
-
 DenseNullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                        const BitVector* non_null)
     : inner_(std::move(inner)), non_null_(non_null) {}

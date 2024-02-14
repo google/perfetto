@@ -39,7 +39,7 @@ source_set("minimal") {
     "../util:glob",
     "../util:regex",
     "../util:util",
-    "column:minimal",
+    "column",
   ]
 }
 

@@ -30,9 +30,6 @@ namespace perfetto::trace_processor::column {
 // on them.
 class DummyStorage final : public DataLayer {
  public:
-  std::unique_ptr<DataLayerChain> MakeChain() override;
-
- private:
   class ChainImpl : public DataLayerChain {
    public:
     ChainImpl() = default;
@@ -64,6 +61,7 @@ class DummyStorage final : public DataLayer {
 
     std::string DebugString() const override { return "DummyStorage"; }
   };
+  std::unique_ptr<DataLayerChain> MakeChain() override;
 };
 
 }  // namespace perfetto::trace_processor::column

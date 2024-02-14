@@ -37,12 +37,6 @@ namespace perfetto::trace_processor::column {
 SelectorOverlay::SelectorOverlay(const BitVector* selector)
     : selector_(selector) {}
 
-std::unique_ptr<DataLayerChain> SelectorOverlay::MakeChain(
-    std::unique_ptr<DataLayerChain> inner,
-    ChainCreationArgs) {
-  return std::make_unique<ChainImpl>(std::move(inner), selector_);
-}
-
 SelectorOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                       const BitVector* selector)
     : inner_(std::move(inner)), selector_(selector) {}
