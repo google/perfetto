@@ -523,6 +523,8 @@ export class TraceController extends Controller<States> {
       }
     }
 
+    this.decideTabs();
+
     await this.listThreads();
     await this.loadTimelineOverview(traceTime);
 
@@ -755,6 +757,13 @@ export class TraceController extends Controller<States> {
     const engine = assertExists<Engine>(this.engine);
     const actions = await decideTracks(engine);
     globals.dispatchMultiple(actions);
+  }
+
+  // Show the list of default tabs, but don't make them active!
+  private decideTabs() {
+    for (const tabUri of globals.tabManager.defaultTabs) {
+      globals.dispatch(Actions.showTab({uri: tabUri}));
+    }
   }
 
   private async listThreads() {

@@ -152,8 +152,8 @@ class AndroidLog implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result =
         await ctx.engine.query(`select count(1) as cnt from android_logs`);
-    const count = result.firstRow({cnt: NUM}).cnt;
-    if (count > 0) {
+    const logCount = result.firstRow({cnt: NUM}).cnt;
+    if (logCount > 0) {
       ctx.registerTrack({
         uri: 'perfetto.AndroidLog',
         displayName: 'Android logs',
@@ -173,6 +173,10 @@ class AndroidLog implements Plugin {
         getTitle: () => 'Android Logs',
       },
     });
+
+    if (logCount > 0) {
+      ctx.addDefaultTab(androidLogsTabUri);
+    }
 
     ctx.registerCommand({
       id: 'perfetto.AndroidLog#ShowLogsTab',

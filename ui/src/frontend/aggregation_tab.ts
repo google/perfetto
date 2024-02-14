@@ -26,6 +26,7 @@ import {GridLayout} from '../widgets/grid_layout';
 import {Icons} from '../base/semantic_icons';
 import {Tree, TreeNode} from '../widgets/tree';
 import {Timestamp} from './widgets/timestamp';
+import {PIVOT_TABLE_REDUX_FLAG} from '../controller/pivot_table_controller';
 
 interface AreaDetailsPanelAttrs {
   selection: AreaSelection;
@@ -96,6 +97,21 @@ class AreaDetailsPanel implements m.ClassComponent<AreaDetailsPanelAttrs> {
         'Flow Events'),
     }));
 
+    if (PIVOT_TABLE_REDUX_FLAG.get()) {
+      linkNodes.push(m(TreeNode, {
+        left: m(
+          Anchor,
+          {
+            icon: Icons.ChangeTab,
+            onclick: () => {
+              globals.dispatch(
+                Actions.showTab({uri: 'perfetto.PivotTable#PivotTable'}));
+            },
+          },
+          'Pivot Table'),
+      }));
+    }
+
     if (linkNodes.length === 0) return undefined;
 
     return m(Section,
@@ -148,7 +164,12 @@ export class AggregationsTabs implements Disposable {
         uri,
         isEphemeral: false,
         content: {
-          getTitle: () => `Aggregation: ${title}`,
+          hasContent: () => {
+            const data = globals.aggregateDataStore.get(type);
+            const hasData = Boolean(data && !isEmptyData(data));
+            return hasData;
+          },
+          getTitle: () => title,
           render: () => {
             const data = globals.aggregateDataStore.get(type);
             return m(AggregationPanel, {kind: type, data});

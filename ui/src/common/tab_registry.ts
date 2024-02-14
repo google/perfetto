@@ -26,6 +26,7 @@ export interface ResolvedTab {
  */
 export class TabManager implements Disposable {
   private _registry = new Map<string, TabDescriptor>();
+  private _defaultTabs = new Set<string>();
   private _detailsPanelsRegistry = new Set<DetailsPanel>();
   private _currentTabs = new Map<string, TabDescriptor>();
 
@@ -44,6 +45,13 @@ export class TabManager implements Disposable {
     });
   }
 
+  addDefaultTab(uri: string): Disposable {
+    this._defaultTabs.add(uri);
+    return new DisposableCallback(() => {
+      this._defaultTabs.delete(uri);
+    });
+  }
+
   registerDetailsPanel(section: DetailsPanel): Disposable {
     this._detailsPanelsRegistry.add(section);
     return new DisposableCallback(() => {
@@ -57,6 +65,10 @@ export class TabManager implements Disposable {
 
   get tabs(): TabDescriptor[] {
     return Array.from(this._registry.values());
+  }
+
+  get defaultTabs(): string[] {
+    return Array.from(this._defaultTabs);
   }
 
   get detailsPanels(): DetailsPanel[] {
