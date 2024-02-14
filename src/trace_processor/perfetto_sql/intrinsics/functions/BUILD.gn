@@ -42,7 +42,7 @@ source_set("functions") {
   ]
   deps = [
     "../../..:demangle",
-    "../../..:export_json",
+    "../../..:export_json_sources",
     "../../..:metatrace",
     "../../../../../gn:default_deps",
     "../../../../../gn:sqlite",

@@ -217,10 +217,10 @@ perfetto_cc_library(
         ":src_kernel_utils_syscall_table",
         ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_column_minimal",
+        ":src_trace_processor_db_column_make_chain",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
-        ":src_trace_processor_export_json",
+        ":src_trace_processor_export_json_sources",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
@@ -1375,38 +1375,39 @@ perfetto_cc_library(
 perfetto_filegroup(
     name = "src_trace_processor_db_column_column",
     srcs = [
+        "src/trace_processor/db/column/arrangement_overlay.cc",
+        "src/trace_processor/db/column/arrangement_overlay.h",
+        "src/trace_processor/db/column/data_layer.cc",
+        "src/trace_processor/db/column/data_layer.h",
         "src/trace_processor/db/column/dense_null_overlay.cc",
         "src/trace_processor/db/column/dense_null_overlay.h",
+        "src/trace_processor/db/column/dummy_storage.cc",
+        "src/trace_processor/db/column/dummy_storage.h",
         "src/trace_processor/db/column/id_storage.cc",
         "src/trace_processor/db/column/id_storage.h",
         "src/trace_processor/db/column/null_overlay.cc",
         "src/trace_processor/db/column/null_overlay.h",
         "src/trace_processor/db/column/numeric_storage.cc",
         "src/trace_processor/db/column/numeric_storage.h",
+        "src/trace_processor/db/column/range_overlay.cc",
+        "src/trace_processor/db/column/range_overlay.h",
+        "src/trace_processor/db/column/selector_overlay.cc",
+        "src/trace_processor/db/column/selector_overlay.h",
         "src/trace_processor/db/column/set_id_storage.cc",
         "src/trace_processor/db/column/set_id_storage.h",
         "src/trace_processor/db/column/string_storage.cc",
         "src/trace_processor/db/column/string_storage.h",
+        "src/trace_processor/db/column/types.h",
         "src/trace_processor/db/column/utils.cc",
         "src/trace_processor/db/column/utils.h",
     ],
 )
 
-# GN target: //src/trace_processor/db/column:minimal
+# GN target: //src/trace_processor/db/column:make_chain
 perfetto_filegroup(
-    name = "src_trace_processor_db_column_minimal",
+    name = "src_trace_processor_db_column_make_chain",
     srcs = [
-        "src/trace_processor/db/column/arrangement_overlay.cc",
-        "src/trace_processor/db/column/arrangement_overlay.h",
-        "src/trace_processor/db/column/data_layer.cc",
-        "src/trace_processor/db/column/data_layer.h",
-        "src/trace_processor/db/column/dummy_storage.cc",
-        "src/trace_processor/db/column/dummy_storage.h",
-        "src/trace_processor/db/column/range_overlay.cc",
-        "src/trace_processor/db/column/range_overlay.h",
-        "src/trace_processor/db/column/selector_overlay.cc",
-        "src/trace_processor/db/column/selector_overlay.h",
-        "src/trace_processor/db/column/types.h",
+        "src/trace_processor/db/column/make_chain.cc",
     ],
 )
 
@@ -2838,9 +2839,9 @@ perfetto_cc_library(
     linkstatic = True,
 )
 
-# GN target: //src/trace_processor:export_json
+# GN target: //src/trace_processor:export_json_sources
 perfetto_filegroup(
-    name = "src_trace_processor_export_json",
+    name = "src_trace_processor_export_json_sources",
     srcs = [
         "src/trace_processor/export_json.cc",
         "src/trace_processor/export_json.h",
@@ -5552,10 +5553,10 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_syscall_table",
         ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_column_minimal",
+        ":src_trace_processor_db_column_make_chain",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
-        ":src_trace_processor_export_json",
+        ":src_trace_processor_export_json_sources",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
@@ -5720,10 +5721,10 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_column_minimal",
+        ":src_trace_processor_db_column_make_chain",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
-        ":src_trace_processor_export_json",
+        ":src_trace_processor_export_json_sources",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
@@ -5946,10 +5947,10 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_column_minimal",
+        ":src_trace_processor_db_column_make_chain",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
-        ":src_trace_processor_export_json",
+        ":src_trace_processor_export_json_sources",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",

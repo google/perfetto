@@ -26,10 +26,6 @@
 
 namespace perfetto::trace_processor::column {
 
-std::unique_ptr<DataLayerChain> DummyStorage::MakeChain() {
-  return std::make_unique<ChainImpl>();
-}
-
 SingleSearchResult DummyStorage::ChainImpl::SingleSearch(FilterOp,
                                                          SqlValue,
                                                          uint32_t) const {

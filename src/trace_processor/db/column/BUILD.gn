@@ -14,44 +14,31 @@
 
 import("../../../../gn/test.gni")
 
-source_set("minimal") {
+source_set("column") {
   sources = [
     "arrangement_overlay.cc",
     "arrangement_overlay.h",
     "data_layer.cc",
     "data_layer.h",
-    "dummy_storage.cc",
-    "dummy_storage.h",
-    "range_overlay.cc",
-    "range_overlay.h",
-    "selector_overlay.cc",
-    "selector_overlay.h",
-    "types.h",
-  ]
-  deps = [
-    "../..:metatrace",
-    "../../../../gn:default_deps",
-    "../../../../include/perfetto/trace_processor",
-    "../../../../include/perfetto/trace_processor:basic_types",
-    "../../../../protos/perfetto/trace_processor:zero",
-    "../../containers",
-  ]
-}
-
-source_set("column") {
-  sources = [
     "dense_null_overlay.cc",
     "dense_null_overlay.h",
+    "dummy_storage.cc",
+    "dummy_storage.h",
     "id_storage.cc",
     "id_storage.h",
     "null_overlay.cc",
     "null_overlay.h",
     "numeric_storage.cc",
     "numeric_storage.h",
+    "range_overlay.cc",
+    "range_overlay.h",
+    "selector_overlay.cc",
+    "selector_overlay.h",
     "set_id_storage.cc",
     "set_id_storage.h",
     "string_storage.cc",
     "string_storage.h",
+    "types.h",
     "utils.cc",
     "utils.h",
   ]
@@ -66,7 +53,22 @@ source_set("column") {
     "../../util:glob",
     "../../util:regex",
   ]
-  public_deps = [ ":minimal" ]
+}
+
+source_set("make_chain_minimal") {
+  sources = [ "make_chain_minimal.cc" ]
+  deps = [
+    ":column",
+    "../../../../gn:default_deps",
+  ]
+}
+
+source_set("make_chain") {
+  sources = [ "make_chain.cc" ]
+  deps = [
+    ":column",
+    "../../../../gn:default_deps",
+  ]
 }
 
 perfetto_unittest_source_set("fake_storage") {

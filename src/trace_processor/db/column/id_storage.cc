@@ -151,10 +151,6 @@ SearchValidationResult IdStorage::ChainImpl::ValidateSearchConstraints(
   return SearchValidationResult::kOk;
 }
 
-std::unique_ptr<DataLayerChain> IdStorage::MakeChain() {
-  return std::make_unique<ChainImpl>();
-}
-
 SingleSearchResult IdStorage::ChainImpl::SingleSearch(FilterOp op,
                                                       SqlValue sql_val,
                                                       uint32_t index) const {

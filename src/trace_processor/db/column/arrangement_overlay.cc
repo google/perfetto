@@ -38,14 +38,6 @@ ArrangementOverlay::ArrangementOverlay(const std::vector<uint32_t>* arrangement,
                                        Indices::State arrangement_state)
     : arrangement_(arrangement), arrangement_state_(arrangement_state) {}
 
-std::unique_ptr<DataLayerChain> ArrangementOverlay::MakeChain(
-    std::unique_ptr<DataLayerChain> inner,
-    ChainCreationArgs args) {
-  return std::make_unique<ChainImpl>(std::move(inner), arrangement_,
-                                     arrangement_state_,
-                                     args.does_layer_order_chain_contents);
-}
-
 ArrangementOverlay::ChainImpl::ChainImpl(
     std::unique_ptr<DataLayerChain> inner,
     const std::vector<uint32_t>* arrangement,
