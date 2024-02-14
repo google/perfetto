@@ -96,6 +96,7 @@ from diff_tests.stdlib.chrome.tests_chrome_interactions import ChromeInteraction
 from diff_tests.stdlib.chrome.tests_scroll_jank import ChromeScrollJankStdlib
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.common.tests import StdlibCommon
+from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
@@ -245,6 +246,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
       *GraphSearchTests(index_path, 'stdlib/graphs',
                         'GraphSearchTests').fetch(),
+      *StdlibCounterIntervals(index_path, 'stdlib/counters',
+                       'StdlibCounterIntervals').fetch(),
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
       *LinuxStdlib(index_path, 'stdlib/linux', 'LinuxStdlib').fetch(),
