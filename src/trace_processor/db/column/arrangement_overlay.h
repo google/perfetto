@@ -69,9 +69,9 @@ class ArrangementOverlay final : public DataLayer {
           "OrderedIndexSearch can't be called on ArrangementOverlay");
     }
 
-    void StableSort(uint32_t* rows, uint32_t rows_size) const override;
-
-    void Sort(uint32_t* rows, uint32_t rows_size) const override;
+    void StableSort(SortToken* start,
+                    SortToken* end,
+                    SortDirection) const override;
 
     void Serialize(StorageProto*) const override;
 

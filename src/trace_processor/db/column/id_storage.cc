@@ -38,7 +38,6 @@
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
-
 namespace {
 
 template <typename Comparator>
@@ -349,15 +348,22 @@ Range IdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
   PERFETTO_FATAL("FilterOp not matched");
 }
 
-void IdStorage::ChainImpl::StableSort(uint32_t* indices,
-                                      uint32_t indices_size) const {
-  // We can use sort, as |indices| will not have duplicates.
-  Sort(indices, indices_size);
-}
-
-void IdStorage::ChainImpl::Sort(uint32_t* indices,
-                                uint32_t indices_size) const {
-  std::sort(indices, indices + indices_size);
+void IdStorage::ChainImpl::StableSort(SortToken* start,
+                                      SortToken* end,
+                                      SortDirection direction) const {
+  switch (direction) {
+    case SortDirection::kAscending:
+      std::stable_sort(start, end, [](const SortToken& a, const SortToken& b) {
+        return a.index < b.index;
+      });
+      return;
+    case SortDirection::kDescending:
+      std::stable_sort(start, end, [](const SortToken& a, const SortToken& b) {
+        return a.index > b.index;
+      });
+      return;
+  }
+  PERFETTO_FATAL("For GCC");
 }
 
 void IdStorage::ChainImpl::Serialize(StorageProto* storage) const {

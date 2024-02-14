@@ -60,11 +60,9 @@ Range DummyStorage::ChainImpl::OrderedIndexSearchValidated(FilterOp,
   PERFETTO_FATAL("Shouldn't be called");
 }
 
-void DummyStorage::ChainImpl::StableSort(uint32_t*, uint32_t) const {
-  PERFETTO_FATAL("Shouldn't be called");
-}
-
-void DummyStorage::ChainImpl::Sort(uint32_t*, uint32_t) const {
+void DummyStorage::ChainImpl::StableSort(SortToken*,
+                                         SortToken*,
+                                         SortDirection) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 

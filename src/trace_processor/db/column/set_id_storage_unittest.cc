@@ -22,6 +22,8 @@
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/numeric_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "test/gtest_and_gmock.h"
@@ -360,6 +362,35 @@ TEST(SetIdStorage, SearchWithIdAsDouble) {
 
   res = chain->Search(FilterOp::kGt, val, range).TakeIfRange();
   ASSERT_EQ(res, Range(9, 10));
+}
+
+TEST(SetIdStorage, StableSort) {
+  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3};
+  SetIdStorage storage(&storage_data);
+  auto chain = storage.MakeChain();
+  auto make_tokens = []() {
+    return std::vector{
+        column::DataLayerChain::SortToken{3, 3},
+        column::DataLayerChain::SortToken{2, 2},
+        column::DataLayerChain::SortToken{1, 1},
+        column::DataLayerChain::SortToken{0, 0},
+        column::DataLayerChain::SortToken{4, 4},
+    };
+  };
+  {
+    auto tokens = make_tokens();
+    chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                      column::DataLayerChain::SortDirection::kAscending);
+    ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+                ElementsAre(2, 1, 0, 3, 4));
+  }
+  {
+    auto tokens = make_tokens();
+    chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                      column::DataLayerChain::SortDirection::kDescending);
+    ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+                ElementsAre(3, 4, 2, 1, 0));
+  }
 }
 
 }  // namespace

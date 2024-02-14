@@ -152,13 +152,9 @@ Range FakeStorage::ChainImpl::OrderedIndexSearchValidated(
           static_cast<uint32_t>(std::distance(indices.data, first_non_set))};
 }
 
-void FakeStorage::ChainImpl::StableSort(uint32_t*, uint32_t) const {
-  // TODO(b/307482437): Implement.
-  PERFETTO_FATAL("Not implemented");
-}
-
-void FakeStorage::ChainImpl::Sort(uint32_t*, uint32_t) const {
-  // TODO(b/307482437): Implement.
+void FakeStorage::ChainImpl::StableSort(SortToken*,
+                                        SortToken*,
+                                        SortDirection) const {
   PERFETTO_FATAL("Not implemented");
 }
 
