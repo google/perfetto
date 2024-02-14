@@ -294,6 +294,8 @@ class ColumnSerializer:
       return f''
     if not self.is_optional or self.is_string:
       return f''
+    if ColumnFlag.DENSE in self.flags:
+      return f'''{self.name}_null_layer_(new column::DenseNullOverlay({self.name}_.bv()))'''
     return f'''{self.name}_null_layer_(new column::NullOverlay({self.name}_.bv()))'''
 
 
@@ -749,6 +751,7 @@ def serialize_header(ifdef_guard: str, tables: List[ParsedTable],
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column/arrangement_overlay.h"
 #include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/dense_null_overlay.h"
 #include "src/trace_processor/db/column/numeric_storage.h"
 #include "src/trace_processor/db/column/id_storage.h"
 #include "src/trace_processor/db/column/null_overlay.h"
