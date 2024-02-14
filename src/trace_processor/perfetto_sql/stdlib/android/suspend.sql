@@ -53,21 +53,21 @@ suspend_slice as (
 awake_slice AS (
   -- If we don't have any rows, use the trace bounds.
   SELECT
-    (SELECT start_ts FROM trace_bounds) AS ts,
-    (SELECT end_ts - start_ts FROM trace_bounds) AS dur
+    trace_start() AS ts,
+    trace_dur() AS dur
   WHERE (SELECT COUNT(*) FROM suspend_slice) = 0
   UNION ALL
   -- If we do have rows, create one slice from the trace start to the first suspend.
   SELECT
-    (SELECT start_ts FROM trace_bounds) AS ts,
-    (SELECT min(ts) FROM suspend_slice) - (SELECT start_ts FROM trace_bounds) AS dur
+    trace_start() AS ts,
+    (SELECT min(ts) FROM suspend_slice) - trace_start() AS dur
   WHERE (SELECT COUNT(*) FROM suspend_slice) != 0
   UNION ALL
   -- And then one slice for each suspend, from the end of the suspend to the
   -- start of the next one (or the end of the trace if there is no next one).
   SELECT
     ts + dur AS ts,
-    ifnull(lead(ts) OVER (ORDER BY ts), (SELECT end_ts FROM trace_bounds)) - ts - dur
+    ifnull(lead(ts) OVER (ORDER BY ts), trace_end()) - ts - dur
       AS dur
   FROM suspend_slice
 )

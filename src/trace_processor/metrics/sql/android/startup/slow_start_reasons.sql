@@ -20,6 +20,15 @@ SELECT RUN_METRIC('android/startup/thread_state_breakdown.sql');
 SELECT RUN_METRIC('android/startup/system_state.sql');
 SELECT RUN_METRIC('android/startup/mcycles_per_launch.sql');
 
+CREATE OR REPLACE PERFETTO FUNCTION is_spans_overlapping(
+  ts1 LONG,
+  ts_end1 LONG,
+  ts2 LONG,
+  ts_end2 LONG)
+RETURNS BOOL AS
+SELECT (IIF($ts1 < $ts2, $ts2, $ts1)
+      < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2));
+
 CREATE OR REPLACE PERFETTO FUNCTION get_percent(num LONG, total LONG)
 RETURNS STRING AS
   SELECT SUBSTRING(CAST(($num * 100 + 0.0) / $total AS STRING), 1, 5);

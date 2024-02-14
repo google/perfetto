@@ -28,8 +28,7 @@ SELECT
   counter_track.name,
   counter.ts,
   counter.value,
-  LEAD(counter.ts, 1, (SELECT end_ts + 1 FROM trace_bounds))
-  OVER (PARTITION BY counter_track.id ORDER BY counter.ts) - counter.ts AS dur
+  LEAD(counter.ts, 1, trace_end()) OVER (PARTITION BY counter_track.id ORDER BY counter.ts) - counter.ts AS dur
 FROM counter
 JOIN counter_track
   ON counter.track_id = counter_track.id

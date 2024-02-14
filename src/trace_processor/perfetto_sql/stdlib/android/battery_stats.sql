@@ -13,8 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE common.timestamps;
-
 -- Converts a battery_stats counter value to human readable string.
 CREATE PERFETTO FUNCTION android_battery_stats_counter_to_string(
   -- The counter track name (e.g. 'battery_stats.audio').

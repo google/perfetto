@@ -1,6 +1,3 @@
-CREATE TABLE trace_bounds AS
-SELECT 0 AS start_ts, 0 AS end_ts;
-
 CREATE TABLE power_profile(
   device STRING,
   cpu INT,
