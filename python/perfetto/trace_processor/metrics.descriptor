@@ -1075,16 +1075,17 @@ server_pid (R	serverPidJJ	½
 blocked_function (	RblockedFunction0
 blocked_function_dur (RblockedFunctionDur4
 blocked_function_count (RblockedFunctionCount
-Ã
-?protos/perfetto/metrics/android/monitor_contention_metric.protoperfetto.protos"î
+è
+?protos/perfetto/metrics/android/monitor_contention_metric.protoperfetto.protos"“
 AndroidMonitorContentionMetricH
-node (24.perfetto.protos.AndroidMonitorContentionMetric.NodeRnode½
+node (24.perfetto.protos.AndroidMonitorContentionMetric.NodeRnodeâ
 Node$
 node_parent_id (RnodeParentId"
 node_child_id (RnodeChildId
 node_id (RnodeId
 ts (Rts
-dur (Rdur!
+dur (Rdur#
+monotonic_dur (RmonotonicDur!
 process_name (	RprocessName
 pid (Rpid!
 waiter_count (RwaiterCounti
