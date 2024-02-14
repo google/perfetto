@@ -207,6 +207,19 @@ class ProfilingHeapGraph(TestSuite):
         """,
         out=Path('heap_graph_object.out'))
 
+  def test_heap_graph_object_reference_set_id(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph.textproto'),
+        query="""
+        SELECT o.reference_set_id
+        FROM heap_graph_object o
+        WHERE o.reference_set_id = 3
+        """,
+        out=Csv('''
+          "reference_set_id"
+          3
+        '''))
+
   def test_heap_graph_reference_2(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph.textproto'),
