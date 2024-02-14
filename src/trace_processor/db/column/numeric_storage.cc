@@ -26,7 +26,6 @@
 #include <string>
 #include <utility>
 #include <variant>
-#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
@@ -357,9 +356,9 @@ SearchValidationResult NumericStorageBase::ChainImpl::ValidateSearchConstraints(
   enum ExtremeVal { kTooBig, kTooSmall, kOk };
   ExtremeVal extreme_validator = kOk;
 
-  double_t num_val = val.type == SqlValue::kLong
-                         ? static_cast<double_t>(val.AsLong())
-                         : val.AsDouble();
+  double num_val = val.type == SqlValue::kLong
+                       ? static_cast<double>(val.AsLong())
+                       : val.AsDouble();
 
   switch (storage_type_) {
     case ColumnType::kDouble:
@@ -638,10 +637,9 @@ Range NumericStorageBase::ChainImpl::BinarySearchIntrinsic(
     case FilterOp::kEq:
       return {LowerBoundIntrinsic(vector_ptr_, val, search_range),
               UpperBoundIntrinsic(vector_ptr_, val, search_range)};
-    case FilterOp::kLe: {
+    case FilterOp::kLe:
       return {search_range.start,
               UpperBoundIntrinsic(vector_ptr_, val, search_range)};
-    }
     case FilterOp::kLt:
       return {search_range.start,
               LowerBoundIntrinsic(vector_ptr_, val, search_range)};
@@ -659,28 +657,6 @@ Range NumericStorageBase::ChainImpl::BinarySearchIntrinsic(
       return {};
   }
   return {};
-}
-
-void NumericStorageBase::ChainImpl::StableSort(uint32_t* rows,
-                                               uint32_t rows_size) const {
-  std::visit(
-      [this, &rows, rows_size](auto val_data) {
-        using T = decltype(val_data);
-        const T* typed_start =
-            static_cast<const std::vector<T>*>(vector_ptr_)->data();
-        std::stable_sort(rows, rows + rows_size,
-                         [typed_start](uint32_t a_idx, uint32_t b_idx) {
-                           T first_val = typed_start[a_idx];
-                           T second_val = typed_start[b_idx];
-                           return first_val < second_val;
-                         });
-      },
-      GetNumericTypeVariant(storage_type_, SqlValue::Long(0)));
-}
-
-void NumericStorageBase::ChainImpl::Sort(uint32_t*, uint32_t) const {
-  // TODO(b/307482437): Implement.
-  PERFETTO_ELOG("Not implemented");
 }
 
 void NumericStorageBase::ChainImpl::Serialize(StorageProto* msg) const {

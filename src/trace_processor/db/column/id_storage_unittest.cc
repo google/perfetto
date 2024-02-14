@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include "src/trace_processor/db/column/id_storage.h"
+
 #include <cstdint>
 #include <limits>
 #include <vector>
@@ -25,8 +26,7 @@
 #include "src/trace_processor/db/column/utils.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 inline bool operator==(const Range& a, const Range& b) {
   return std::tie(a.start, a.end) == std::tie(b.start, b.end);
@@ -352,17 +352,27 @@ TEST(IdStorage, SearchWithIdAsDouble) {
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(16, 17, 18, 19));
 }
 
-TEST(IdStorage, Sort) {
-  std::vector<uint32_t> order{4, 3, 6, 1, 5};
+TEST(IdStorage, StableSort) {
   IdStorage storage;
   auto chain = storage.MakeChain();
-  chain->Sort(order.data(), 5);
+  std::vector tokens{
+      column::DataLayerChain::SortToken{0, 0},
+      column::DataLayerChain::SortToken{1, 1},
+      column::DataLayerChain::SortToken{2, 2},
+      column::DataLayerChain::SortToken{3, 3},
+      column::DataLayerChain::SortToken{4, 4},
+  };
+  chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                    column::DataLayerChain::SortDirection::kAscending);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+              ElementsAre(0, 1, 2, 3, 4));
 
-  std::vector<uint32_t> sorted_order{1, 3, 4, 5, 6};
-  ASSERT_EQ(order, sorted_order);
+  chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                    column::DataLayerChain::SortDirection::kDescending);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+              ElementsAre(4, 3, 2, 1, 0));
 }
 
 }  // namespace
 }  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

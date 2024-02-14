@@ -101,6 +101,7 @@ if (enable_perfetto_benchmarks) {
       "../../base:test_support",
       "../containers",
       "../tables:tables_python",
+      "column",
     ]
     sources = [
       "column_storage_overlay_benchmark.cc",

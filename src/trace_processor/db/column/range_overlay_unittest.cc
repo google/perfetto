@@ -21,7 +21,9 @@
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/fake_storage.h"
+#include "src/trace_processor/db/column/numeric_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "test/gtest_and_gmock.h"
@@ -98,6 +100,24 @@ TEST(RangeOverlay, IndexSearch) {
       Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
               Indices::State::kNonmonotonic});
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u));
+}
+
+TEST(RangeOverlay, StableSort) {
+  std::vector<uint32_t> numeric_data{100, 99, 2, 0, 1};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
+  Range range(2, 4);
+  RangeOverlay storage(&range);
+  auto chain = storage.MakeChain(numeric.MakeChain());
+
+  std::vector tokens{
+      column::DataLayerChain::SortToken{0, 0},
+      column::DataLayerChain::SortToken{1, 1},
+      column::DataLayerChain::SortToken{2, 2},
+  };
+  chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                    column::DataLayerChain::SortDirection::kAscending);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(tokens), ElementsAre(1, 2, 0));
 }
 
 }  // namespace

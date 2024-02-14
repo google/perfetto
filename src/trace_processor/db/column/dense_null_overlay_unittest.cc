@@ -18,20 +18,18 @@
 
 #include <cstdint>
 #include <memory>
-#include <utility>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/fake_storage.h"
 #include "src/trace_processor/db/column/numeric_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 namespace {
 
 using testing::ElementsAre;
@@ -203,7 +201,40 @@ TEST(DenseNullOverlay, SingleSearchIsNotNull) {
             SingleSearchResult::kMatch);
 }
 
+TEST(DenseNullOverlay, StableSort) {
+  std::vector<uint32_t> numeric_data{0, 3, 0, 1, 0, 2, 4};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
+  BitVector null{0, 1, 0, 1, 1, 1, 1};
+  DenseNullOverlay overlay(&null);
+  auto chain = overlay.MakeChain(numeric.MakeChain());
+
+  auto make_tokens = []() {
+    return std::vector{
+        column::DataLayerChain::SortToken{0, 0},
+        column::DataLayerChain::SortToken{1, 1},
+        column::DataLayerChain::SortToken{2, 2},
+        column::DataLayerChain::SortToken{3, 3},
+        column::DataLayerChain::SortToken{4, 4},
+        column::DataLayerChain::SortToken{5, 5},
+        column::DataLayerChain::SortToken{6, 6},
+    };
+  };
+  {
+    auto tokens = make_tokens();
+    chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                      column::DataLayerChain::SortDirection::kAscending);
+    ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+                ElementsAre(0, 2, 4, 3, 5, 1, 6));
+  }
+  {
+    auto tokens = make_tokens();
+    chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                      column::DataLayerChain::SortDirection::kDescending);
+    ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+                ElementsAre(6, 1, 5, 3, 4, 0, 2));
+  }
+}
+
 }  // namespace
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column

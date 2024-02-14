@@ -20,9 +20,11 @@
 #include <functional>
 #include <optional>
 #include <vector>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column::utils {
@@ -133,6 +135,9 @@ std::optional<Range> CanReturnEarly(SearchValidationResult, Range);
 // Range that can be passed further. Else it returns nullopt.
 std::optional<Range> CanReturnEarly(SearchValidationResult,
                                     uint32_t indices_size);
+
+std::vector<uint32_t> ExtractPayloadForTesting(
+    std::vector<column::DataLayerChain::SortToken>&);
 
 std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector&);
 

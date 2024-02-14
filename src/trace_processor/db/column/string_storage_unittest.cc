@@ -24,6 +24,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "test/gtest_and_gmock.h"
@@ -400,6 +401,45 @@ TEST(StringStorage, OrderedIndexSearchIsNotNull) {
       chain->OrderedIndexSearch(FilterOp::kIsNotNull, SqlValue(), indices);
   ASSERT_EQ(res.start, 2u);
   ASSERT_EQ(res.end, 4u);
+}
+
+TEST(StringStorage, StableSort) {
+  std::vector<std::string> strings{"cheese",  "pasta", "pizza",
+                                   "pierogi", "onion", "fries"};
+  std::vector<StringPool::Id> ids(3, StringPool::Id::Null());
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  StringStorage storage(&pool, &ids);
+  auto chain = storage.MakeChain();
+  auto make_tokens = []() {
+    return std::vector{
+        column::DataLayerChain::SortToken{0, 0},
+        column::DataLayerChain::SortToken{1, 1},
+        column::DataLayerChain::SortToken{2, 2},
+        column::DataLayerChain::SortToken{3, 3},
+        column::DataLayerChain::SortToken{4, 4},
+        column::DataLayerChain::SortToken{5, 5},
+        column::DataLayerChain::SortToken{6, 6},
+        column::DataLayerChain::SortToken{7, 7},
+        column::DataLayerChain::SortToken{8, 8},
+    };
+  };
+  {
+    auto tokens = make_tokens();
+    chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                      column::DataLayerChain::SortDirection::kAscending);
+    ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+                ElementsAre(0, 1, 2, 3, 8, 7, 4, 6, 5));
+  }
+  {
+    auto tokens = make_tokens();
+    chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                      column::DataLayerChain::SortDirection::kDescending);
+    ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+                ElementsAre(5, 6, 4, 7, 8, 3, 0, 1, 2));
+  }
 }
 
 }  // namespace

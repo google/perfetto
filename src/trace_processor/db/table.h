@@ -119,6 +119,7 @@ class Table {
   };
 
   static bool kUseFilterV2;
+  static bool kUseSortV2;
 
   virtual ~Table();
 
