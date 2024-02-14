@@ -259,7 +259,7 @@ const SUSPEND_RESUME = `
 
 const SCREEN_STATE = `
   WITH _counter AS (
-    SELECT id, ts, 0 AS track_id, value
+    SELECT counter.id, ts, 0 AS track_id, value
     FROM counter
     JOIN counter_track ON counter_track.id = counter.track_id
     WHERE name = 'ScreenState'
@@ -279,7 +279,7 @@ const SCREEN_STATE = `
 // they transition.
 const DOZE_LIGHT = `
   WITH _counter AS (
-    SELECT id, ts, 0 AS track_id, value
+    SELECT counter.id, ts, 0 AS track_id, value
     FROM counter
     JOIN counter_track ON counter_track.id = counter.track_id
     WHERE name = 'DozeLightState'
@@ -300,7 +300,7 @@ const DOZE_LIGHT = `
 
 const DOZE_DEEP = `
   WITH _counter AS (
-    SELECT id, ts, 0 AS track_id, value
+    SELECT counter.id, ts, 0 AS track_id, value
     FROM counter
     JOIN counter_track ON counter_track.id = counter.track_id
     WHERE name = 'DozeDeepState'
@@ -323,7 +323,7 @@ const DOZE_DEEP = `
 
 const CHARGING = `
   WITH _counter AS (
-    SELECT id, ts, 0 AS track_id, value
+    SELECT counter.id, ts, 0 AS track_id, value
     FROM counter
     JOIN counter_track ON counter_track.id = counter.track_id
     WHERE name = 'BatteryStatus'
