@@ -64,6 +64,7 @@ gn_args = ' '.join([
 public_targets = [
     '//:libperfetto_client_experimental',
     '//src/perfetto_cmd:perfetto',
+    '//src/shared_lib:libperfetto_c',
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
     '//src/trace_processor:trace_processor_shell',
@@ -172,6 +173,15 @@ target_overrides = {
     'srcs': 'glob(["src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql"])'
   }
 }
+
+# Defines required for Bazel.
+bazel_required_defines = [
+  "PERFETTO_SHLIB_SDK_IMPLEMENTATION"
+]
+
+# Filter defines that appear in the bazel build file to only those that bazel requires.
+def filter_defines(defines):
+  return [d for d in defines if d in bazel_required_defines]
 
 
 def gen_version_header(target):
@@ -322,6 +332,7 @@ class BazelLabel(object):
     self.visibility: Union[List[str], str] = []
     self.srcs: Union[List[str], str] = []
     self.hdrs = []
+    self.defines = []
     self.data = []
     self.deps = []
     self.external_deps = []
@@ -348,8 +359,8 @@ class BazelLabel(object):
     res += '%s(\n' % self.type
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = [
-        'name', 'srcs', 'hdrs', 'visibility', 'data', 'deps', 'outs', 'cmd',
-        'tools', 'exports', 'main', 'python_version'
+        'name', 'srcs', 'hdrs', 'defines', 'visibility', 'data', 'deps', 'outs',
+        'cmd', 'tools', 'exports', 'main', 'python_version'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])
@@ -624,7 +635,7 @@ def gen_target_helper(gn_target: GnParser.Target):
   elif gn_target.type == 'executable':
     bazel_type = 'perfetto_cc_binary'
   elif gn_target.type == 'shared_library':
-    bazel_type = 'perfetto_cc_binary'
+    bazel_type = 'perfetto_cc_library'
   elif gn_target.type == 'static_library':
     bazel_type = 'perfetto_cc_library'
   elif gn_target.type == 'source_set':
@@ -670,6 +681,10 @@ def gen_target_helper(gn_target: GnParser.Target):
         label.hdrs += [name]
       else:
         label.srcs += [name]
+
+      # Add defines from all transitive dependencies.
+      label.defines += trans_dep.defines
+
     for dep in sorted(gn_target.non_proto_or_source_set_deps()):
       dep_name = dep.name
       if dep_name.startswith('//gn:'):
@@ -684,6 +699,7 @@ def gen_target_helper(gn_target: GnParser.Target):
         label.external_deps += external_deps[dep_name]
       else:
         label.deps += [':' + get_bazel_label_name(dep_name)]
+
     label.deps += [
         ':' + get_bazel_label_name(x.name)
         for x in gn_target.transitive_cpp_proto_deps()
@@ -698,6 +714,7 @@ def gen_target_helper(gn_target: GnParser.Target):
 
   label.deps = sorted(label.deps)
   label.hdrs = sorted(label.hdrs)
+  label.defines = sorted(filter_defines(set(label.defines)))
   return [label]
 
 
