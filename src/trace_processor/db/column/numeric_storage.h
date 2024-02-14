@@ -93,9 +93,10 @@ class NumericStorage final : public NumericStorageBase {
                                     bool is_sorted)
       : NumericStorageBase(type, is_sorted), vector_(vec) {}
 
-  std::unique_ptr<DataLayerChain> MakeChain() override {
-    return std::make_unique<ChainImpl>(vector_, storage_type_, is_sorted_);
-  }
+  // The implementation of this function is given by
+  // make_chain.cc/make_chain_minimal.cc depending on whether this is a minimal
+  // or full build of trace processor.
+  std::unique_ptr<DataLayerChain> MakeChain() override;
 
  private:
   class ChainImpl : public NumericStorageBase::ChainImpl {
@@ -154,6 +155,22 @@ class NumericStorage final : public NumericStorageBase {
 
   const std::vector<T>* vector_;
 };
+
+// Define external templates to reduce binary size bloat.
+extern template class NumericStorage<double>;
+extern template class NumericStorage<uint32_t>;
+extern template class NumericStorage<int32_t>;
+extern template class NumericStorage<int64_t>;
+
+// Define external templates to allow splitting minimal vs full targets.
+extern template std::unique_ptr<DataLayerChain>
+NumericStorage<double>::MakeChain();
+extern template std::unique_ptr<DataLayerChain>
+NumericStorage<uint32_t>::MakeChain();
+extern template std::unique_ptr<DataLayerChain>
+NumericStorage<int32_t>::MakeChain();
+extern template std::unique_ptr<DataLayerChain>
+NumericStorage<int64_t>::MakeChain();
 
 }  // namespace perfetto::trace_processor::column
 

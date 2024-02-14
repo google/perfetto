@@ -65,7 +65,10 @@ config("extra_warnings") {
   # Disable variadic macro warning as we make extensive use of them in trace
   # processor and client API.
   if (is_clang) {
-    if (!is_fuzzer) {
+    # Only enable -Weverything on hermetic clang as system clang might be quite
+    # out of date.
+    if (is_hermetic_clang && current_toolchain == host_toolchain &&
+        !is_fuzzer) {
       # Disable Weverything on fuzzers to avoid breakages when new versions of
       # clang are rolled into OSS-fuzz.
       cflags += [ "-Weverything" ]

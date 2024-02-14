@@ -69,10 +69,6 @@ uint32_t LowerBoundIntrinsic(const SetId* data, SetId id, Range range) {
 SetIdStorage::SetIdStorage(const std::vector<uint32_t>* values)
     : values_(values) {}
 
-std::unique_ptr<DataLayerChain> SetIdStorage::MakeChain() {
-  return std::make_unique<ChainImpl>(values_);
-}
-
 SetIdStorage::ChainImpl::ChainImpl(const std::vector<uint32_t>* values)
     : values_(values) {}
 
