@@ -45,7 +45,7 @@ SELECT RUN_METRIC('android/startup/gc_slices.sql');
 -- Define helper functions for system state.
 SELECT RUN_METRIC('android/startup/system_state.sql');
 
-CREATE OR REPLACE PERFETTO FUNCTION is_spans_overlapping(
+CREATE OR REPLACE PERFETTO FUNCTION _is_spans_overlapping(
   ts1 LONG,
   ts_end1 LONG,
   ts2 LONG,
@@ -327,7 +327,7 @@ SELECT
       SELECT RepeatedField(package)
       FROM android_startups l
       WHERE l.startup_id != launches.startup_id
-        AND is_spans_overlapping(l.ts, l.ts_end, launches.ts, launches.ts_end)
+        AND _is_spans_overlapping(l.ts, l.ts_end, launches.ts, launches.ts_end)
     ),
     'dlopen_file', (
       SELECT RepeatedField(STR_SPLIT(slice_name, "dlopen: ", 1))
@@ -488,7 +488,7 @@ SELECT
           SELECT package
           FROM android_startups l
           WHERE l.startup_id != launches.startup_id
-            AND is_spans_overlapping(l.ts, l.ts_end, launches.ts, launches.ts_end)
+            AND _is_spans_overlapping(l.ts, l.ts_end, launches.ts, launches.ts_end)
         )
 
         UNION ALL
