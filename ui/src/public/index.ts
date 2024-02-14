@@ -312,6 +312,7 @@ export interface DebugCounterTrackArgs {
 }
 
 export interface Tab {
+  hasContent?(): boolean;
   render(): m.Children;
   getTitle(): string;
 }
@@ -405,6 +406,9 @@ export interface PluginContextTrace extends PluginContext {
   // Register a new tab for this plugin. Will be unregistered when the plugin
   // is deactivated or when the trace is unloaded.
   registerTab(tab: TabDescriptor): void;
+
+  // Suggest that a tab should be shown immediately.
+  addDefaultTab(uri: string): void;
 
   // Register a hook into the current selection tab rendering logic that allows
   // customization of the current selection tab content.

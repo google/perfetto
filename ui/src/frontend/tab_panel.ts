@@ -44,10 +44,13 @@ export class TabPanel implements m.ClassComponent {
     const resolvedTabs = tabMan.resolveTabs(tabList);
     const tabs = resolvedTabs.map(({uri, tab: tabDesc}): TabWithContent => {
       if (tabDesc) {
+        const titleStr = tabDesc.content.getTitle();
         return {
           key: uri,
           hasCloseButton: true,
-          title: tabDesc.content.getTitle(),
+          title: (tabDesc.content.hasContent?.() ?? true) ?
+            titleStr :
+            m('.pf-nocontent', titleStr),
           content: tabDesc.content.render(),
         };
       } else {

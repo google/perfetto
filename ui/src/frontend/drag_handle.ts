@@ -31,7 +31,7 @@ export interface Tab {
   key: string;
 
   // Tab title to show on the tab handle.
-  title: string;
+  title: m.Children;
 
   // Whether to show a close button on the tab handle or not.
   // Default = false.
