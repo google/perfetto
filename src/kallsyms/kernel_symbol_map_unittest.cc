@@ -108,7 +108,6 @@ ffffff8f73e2faa0 t tls_get.cfi_jt
   EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa20ULL), "two_");
   EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa30LL), "_three");
   EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa40ULL), "_fo_ur_");
-  EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa50ULL), "_five__.cfi");
   EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa60ULL), "__si__x__");
   EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa70ULL), "___se___v_e__n___");
   EXPECT_EQ(
@@ -124,7 +123,10 @@ ffffff8f73e2faa0 t tls_get.cfi_jt
   EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa71ULL), "___se___v_e__n___");
   EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa91ULL), "NiNe");
   EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa99ULL), "NiNe");
-  EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2faa0ULL), "tls_get.cfi_jt");
+
+  // We strip arm64 clang control flow integrity suffixes straight away.
+  EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2fa50ULL), "_five__");
+  EXPECT_EQ(kallsyms.Lookup(0xffffff8f73e2faa0ULL), "tls_get");
 
   // This is too far from the last symbol and should fail.
   EXPECT_EQ(kallsyms.Lookup(0xffffff8fffffffffULL), "");
