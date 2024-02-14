@@ -60,7 +60,7 @@ SELECT ts, dur FROM android_suspend_state where power_state = 'suspended';
 DROP TABLE IF EXISTS screen_state_span;
 CREATE PERFETTO TABLE screen_state_span AS
 WITH screen_state AS (
-  SELECT id, ts, 0 AS track_id, value
+  SELECT counter.id, ts, 0 AS track_id, value
   FROM counter
   JOIN counter_track ON counter_track.id = counter.track_id
   WHERE name = 'ScreenState'
