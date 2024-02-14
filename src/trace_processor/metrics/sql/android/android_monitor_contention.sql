@@ -27,6 +27,7 @@ SELECT AndroidMonitorContentionMetric(
         'node_id', id,
         'ts', ts,
         'dur', dur,
+        'monotonic_dur', monotonic_dur,
         'blocking_method', blocking_method,
         'blocked_method', blocked_method,
         'short_blocking_method', short_blocking_method,
