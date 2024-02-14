@@ -923,7 +923,7 @@ class AndroidStdlib(TestSuite):
          "name","ts","value","dur"
          "domain@1 Frequency",200001000000,400000.000000,2000000
          "domain@1 Frequency",200003000000,1024000.000000,2000000
-         "domain@1 Frequency",200005000000,1024000.000000,1
+         "domain@1 Frequency",200005000000,1024000.000000,0
          """))
 
   def test_android_dvfs_counter_stats(self):
@@ -991,8 +991,8 @@ class AndroidStdlib(TestSuite):
          """,
         out=Csv("""
          "name","max","min","dur","wgt_avg"
-         "bus_throughput Frequency",1014000.000000,553000.000000,4000000,783499.942375
-         "domain@1 Frequency",1024000.000000,400000.000000,4000000,712000.078000
+         "bus_throughput Frequency",1014000.000000,553000.000000,2000000,783500.000000
+         "domain@1 Frequency",1024000.000000,400000.000000,2000000,712000.000000
          """))
 
   def test_android_dvfs_counter_residency(self):
@@ -1002,7 +1002,7 @@ class AndroidStdlib(TestSuite):
             ftrace_events {
               cpu: 0
               event {
-                timestamp: 200001000001
+                timestamp: 200001000000
                 pid: 2
                 clock_set_rate {
                 name : "bus_throughput"
@@ -1010,7 +1010,7 @@ class AndroidStdlib(TestSuite):
                 }
               }
               event {
-                timestamp: 200003000001
+                timestamp: 200003000000
                 pid: 2
                 clock_set_rate {
                   name: "bus_throughput"

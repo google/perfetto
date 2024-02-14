@@ -20,7 +20,7 @@ DROP VIEW IF EXISTS thread_state_extended;
 CREATE PERFETTO VIEW thread_state_extended AS
 SELECT
   ts,
-  IIF(dur = -1, (SELECT end_ts FROM trace_bounds), dur) AS dur,
+  IIF(dur = -1, trace_end(), dur) AS dur,
   utid,
   state,
   io_wait

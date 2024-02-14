@@ -21,8 +21,7 @@ SELECT
   track.name AS freq_name,
   ts,
   value AS freq_value,
-  LEAD(ts, 1, (SELECT end_ts + 1 FROM trace_bounds))
-  OVER (PARTITION BY track.id ORDER BY ts) - ts AS duration
+  LEAD(ts, 1, trace_end()) OVER (PARTITION BY track.id ORDER BY ts) - ts AS duration
 FROM counter
 LEFT JOIN track ON counter.track_id = track.id
 WHERE track.name GLOB "* Frequency"

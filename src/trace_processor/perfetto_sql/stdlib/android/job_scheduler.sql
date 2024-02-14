@@ -14,8 +14,6 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE common.timestamps;
-
 -- All scheduled jobs and their latencies.
 CREATE PERFETTO TABLE android_job_scheduler_events (
   -- Id of the scheduled job assigned by the app developer.
