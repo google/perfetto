@@ -121,8 +121,8 @@ class ColumnSerializer:
     if self.is_ancestor:
       return None
     return f'''
-    columns.emplace_back("{self.name}", &self->{self.name}_, ColumnFlag::{self.name},
-                         static_cast<uint32_t>(columns.size()), olay_idx);
+    AddColumnToVector(columns, "{self.name}", &self->{self.name}_, ColumnFlag::{self.name},
+                      static_cast<uint32_t>(columns.size()), olay_idx);
     '''
 
   def shrink_to_fit(self) -> Optional[str]:
