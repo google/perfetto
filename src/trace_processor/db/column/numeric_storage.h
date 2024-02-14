@@ -50,10 +50,6 @@ class NumericStorageBase : public DataLayer {
                                       SqlValue,
                                       Indices) const override;
 
-    void StableSort(uint32_t*, uint32_t) const override;
-
-    void Sort(uint32_t*, uint32_t) const override;
-
     void Serialize(StorageProto*) const override;
 
     std::string DebugString() const override { return "NumericStorage"; }
@@ -125,6 +121,26 @@ class NumericStorage final : public NumericStorageBase {
         }
         return utils::SingleSearchNumeric(op, (*vector_)[i],
                                           static_cast<T>(sql_val.long_value));
+      }
+    }
+
+    void StableSort(SortToken* start,
+                    SortToken* end,
+                    SortDirection direction) const override {
+      const T* base = vector_->data();
+      switch (direction) {
+        case SortDirection::kAscending:
+          std::stable_sort(start, end,
+                           [base](const SortToken& a, const SortToken& b) {
+                             return base[a.index] < base[b.index];
+                           });
+          break;
+        case SortDirection::kDescending:
+          std::stable_sort(start, end,
+                           [base](const SortToken& a, const SortToken& b) {
+                             return base[a.index] > base[b.index];
+                           });
+          break;
       }
     }
 

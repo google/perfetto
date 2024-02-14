@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/db/column/arrangement_overlay.h"
 
+#include <array>
 #include <cstdint>
 #include <vector>
 
@@ -23,6 +24,7 @@
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/fake_storage.h"
+#include "src/trace_processor/db/column/numeric_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "test/gtest_and_gmock.h"
@@ -116,6 +118,27 @@ TEST(ArrangementOverlay, OrderingSearch) {
       chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));
 
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
+}
+
+TEST(ArrangementOverlay, StableSort) {
+  std::vector<uint32_t> numeric_data{0, 1, 2, 3, 4};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
+  std::vector<uint32_t> arrangement{0, 2, 4, 1, 3};
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto chain = storage.MakeChain(numeric.MakeChain());
+
+  std::vector tokens{
+      column::DataLayerChain::SortToken{0, 0},
+      column::DataLayerChain::SortToken{1, 1},
+      column::DataLayerChain::SortToken{2, 2},
+      column::DataLayerChain::SortToken{3, 3},
+      column::DataLayerChain::SortToken{4, 4},
+  };
+  chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                    column::DataLayerChain::SortDirection::kAscending);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+              ElementsAre(0, 3, 1, 4, 2));
 }
 
 }  // namespace

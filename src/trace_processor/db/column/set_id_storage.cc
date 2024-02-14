@@ -39,7 +39,6 @@
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
-
 namespace {
 
 using SetId = SetIdStorage::SetId;
@@ -314,14 +313,23 @@ Range SetIdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
   return {};
 }
 
-void SetIdStorage::ChainImpl::StableSort(uint32_t*, uint32_t) const {
-  // TODO(b/307482437): Implement.
-  PERFETTO_ELOG("Not implemented");
-}
-
-void SetIdStorage::ChainImpl::Sort(uint32_t*, uint32_t) const {
-  // TODO(b/307482437): Implement.
-  PERFETTO_ELOG("Not implemented");
+void SetIdStorage::ChainImpl::StableSort(SortToken* start,
+                                         SortToken* end,
+                                         SortDirection direction) const {
+  switch (direction) {
+    case SortDirection::kAscending:
+      std::stable_sort(start, end,
+                       [this](const SortToken& a, const SortToken& b) {
+                         return (*values_)[a.index] < (*values_)[b.index];
+                       });
+      break;
+    case SortDirection::kDescending:
+      std::stable_sort(start, end,
+                       [this](const SortToken& a, const SortToken& b) {
+                         return (*values_)[a.index] > (*values_)[b.index];
+                       });
+      break;
+  }
 }
 
 void SetIdStorage::ChainImpl::Serialize(StorageProto* msg) const {

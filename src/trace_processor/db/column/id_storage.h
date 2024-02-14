@@ -58,9 +58,9 @@ class IdStorage final : public DataLayer {
                                       SqlValue,
                                       Indices) const override;
 
-    void StableSort(uint32_t*, uint32_t) const override;
-
-    void Sort(uint32_t*, uint32_t) const override;
+    void StableSort(SortToken* start,
+                    SortToken* end,
+                    SortDirection) const override;
 
     void Serialize(StorageProto*) const override;
 

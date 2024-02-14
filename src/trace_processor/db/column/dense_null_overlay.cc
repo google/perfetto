@@ -235,14 +235,16 @@ Range DenseNullOverlay::ChainImpl::OrderedIndexSearchValidated(
           inner_range.end + non_null_offset};
 }
 
-void DenseNullOverlay::ChainImpl::StableSort(uint32_t*, uint32_t) const {
-  // TODO(b/307482437): Implement.
-  PERFETTO_FATAL("Not implemented");
-}
-
-void DenseNullOverlay::ChainImpl::Sort(uint32_t*, uint32_t) const {
-  // TODO(b/307482437): Implement.
-  PERFETTO_FATAL("Not implemented");
+void DenseNullOverlay::ChainImpl::StableSort(SortToken* start,
+                                             SortToken* end,
+                                             SortDirection direction) const {
+  SortToken* it = std::stable_partition(
+      start, end,
+      [this](const SortToken& idx) { return !non_null_->IsSet(idx.index); });
+  inner_->StableSort(it, end, direction);
+  if (direction == SortDirection::kDescending) {
+    std::rotate(start, it, end);
+  }
 }
 
 void DenseNullOverlay::ChainImpl::Serialize(StorageProto* storage) const {

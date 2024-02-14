@@ -17,6 +17,7 @@
 #define SRC_TRACE_PROCESSOR_DB_QUERY_EXECUTOR_H_
 
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "src/trace_processor/containers/row_map.h"
@@ -48,6 +49,11 @@ class QueryExecutor {
 
   // Enables QueryExecutor::Filter on Table columns.
   static RowMap FilterLegacy(const Table*, const std::vector<Constraint>&);
+
+  // Enables QueryExecutor::Sort on Table columns.
+  static void SortLegacy(const Table*,
+                         const std::vector<Order>&,
+                         std::vector<uint32_t>&);
 
   // Used only in unittests. Exposes private function.
   static void BoundedColumnFilterForTesting(const Constraint&,

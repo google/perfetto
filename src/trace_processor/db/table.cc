@@ -33,10 +33,12 @@
 #include "src/trace_processor/db/column/selector_overlay.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
+#include "src/trace_processor/db/query_executor.h"
 
 namespace perfetto::trace_processor {
 
 bool Table::kUseFilterV2 = true;
+bool Table::kUseSortV2 = true;
 
 Table::Table(StringPool* pool,
              uint32_t row_count,
@@ -140,8 +142,12 @@ RowMap Table::QueryToRowMap(const std::vector<Constraint>& cs,
     // worthwhile. This also needs changes to the constraint modification logic
     // in DbSqliteTable which currently eliminates constraints on sorted
     // columns.
-    for (auto it = ob.rbegin(); it != ob.rend(); ++it) {
-      columns_[it->col_idx].StableSort(it->desc, &idx);
+    if (Table::kUseSortV2) {
+      QueryExecutor::SortLegacy(this, ob, idx);
+    } else {
+      for (auto it = ob.rbegin(); it != ob.rend(); ++it) {
+        columns_[it->col_idx].StableSort(it->desc, &idx);
+      }
     }
   }
   return RowMap(std::move(idx));
