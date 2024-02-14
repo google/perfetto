@@ -181,7 +181,8 @@ class ChromeScrollJankPlugin implements Plugin {
     // Initialise the chrome_tasks_delaying_input_processing table. It will be
     // used in the tracks above.
     await ctx.engine.query(`
-      select RUN_METRIC(
+      INCLUDE PERFETTO MODULE deprecated.v42.common.slices;
+      SELECT RUN_METRIC(
         'chrome/chrome_tasks_delaying_input_processing.sql',
         'duration_causing_jank_ms',
         /* duration_causing_jank_ms = */ '8');`);
