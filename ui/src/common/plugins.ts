@@ -143,6 +143,11 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     this.trash.add(unregister);
   }
 
+  addDefaultTab(uri: string): void {
+    const remove = globals.tabManager.addDefaultTab(uri);
+    this.trash.add(remove);
+  }
+
   registerDetailsPanel(section: DetailsPanel): void {
     if (!this.alive) return;
 
