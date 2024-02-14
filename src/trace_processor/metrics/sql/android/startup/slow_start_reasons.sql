@@ -20,7 +20,7 @@ SELECT RUN_METRIC('android/startup/thread_state_breakdown.sql');
 SELECT RUN_METRIC('android/startup/system_state.sql');
 SELECT RUN_METRIC('android/startup/mcycles_per_launch.sql');
 
-CREATE OR REPLACE PERFETTO FUNCTION is_spans_overlapping(
+CREATE OR REPLACE PERFETTO FUNCTION _is_spans_overlapping(
   ts1 LONG,
   ts_end1 LONG,
   ts2 LONG,
@@ -385,7 +385,7 @@ RETURNS PROTO AS
           SELECT package
           FROM android_startups l
           WHERE l.startup_id != launch.startup_id
-            AND is_spans_overlapping(l.ts, l.ts_end, launch.ts, launch.ts_end)
+            AND _is_spans_overlapping(l.ts, l.ts_end, launch.ts, launch.ts_end)
         )
 
         UNION ALL
