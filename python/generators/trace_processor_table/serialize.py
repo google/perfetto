@@ -561,6 +561,9 @@ class TableSerializer(object):
     storage_layer_init = self.foreach_col(
         ColumnSerializer.storage_layer_init, delimiter=',\n        ')
     storage_layer_sep = '\n,' if storage_layer_init else ''
+    null_layer_init = self.foreach_col(
+        ColumnSerializer.null_layer_init, delimiter=',\n        ')
+    null_layer_sep = '\n,' if null_layer_init else ''
     params = self.foreach_col(
         ColumnSerializer.extend_parent_param, delimiter='\n, ')
     storage_layer_create = self.foreach_col(
@@ -578,7 +581,8 @@ class TableSerializer(object):
           parent,
           parent_overlay),
           const_parent_(&parent){storage_layer_sep}
-        {storage_layer_init} {{
+        {storage_layer_init}{null_layer_sep}
+        {null_layer_init} {{
     {self.foreach_col(ColumnSerializer.static_assert_flags)}
     {self.foreach_col(ColumnSerializer.extend_nullable_vector)}
 
