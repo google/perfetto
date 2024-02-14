@@ -63,6 +63,10 @@
       .pf-tab-title {
         margin: 0px 4px;
         overflow: hidden;
+
+        .pf-nocontent {
+          font-weight: lighter;
+        }
       }
     }
   }
