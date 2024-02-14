@@ -14,7 +14,6 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE common.timestamps;
 INCLUDE PERFETTO MODULE android.process_metadata;
 INCLUDE PERFETTO MODULE android.suspend;
 
@@ -164,8 +163,8 @@ CREATE TABLE _oom_score AS
     process.upid,
     CAST(c.value AS INT) AS value,
     c.ts,
-    IFNULL(LEAD(ts) OVER (PARTITION BY upid ORDER BY ts), trace_bounds.end_ts) AS end_ts
-    FROM counter c, trace_bounds
+    IFNULL(LEAD(ts) OVER (PARTITION BY upid ORDER BY ts), trace_end()) AS end_ts
+    FROM counter c
          JOIN process_counter_track t ON c.track_id = t.id
          JOIN process USING (upid)
    WHERE t.name = 'oom_score_adj';

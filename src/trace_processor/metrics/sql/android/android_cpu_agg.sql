@@ -21,7 +21,7 @@ CREATE PERFETTO VIEW cpu_freq_view AS
 SELECT
   cpu,
   ts,
-  LEAD(ts, 1, (SELECT end_ts FROM trace_bounds))
+  LEAD(ts, 1, trace_end())
   OVER (PARTITION BY cpu ORDER BY ts) - ts AS dur,
   CAST(value AS INT) AS freq_khz
 FROM counter

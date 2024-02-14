@@ -31,6 +31,7 @@ perfetto_amalgamated_sql_header("stdlib") {
     "prelude",
     "sched",
     "slices",
+    "time",
   ]
   generated_header = "stdlib.h"
   namespace = "stdlib"

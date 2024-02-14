@@ -101,7 +101,7 @@ class GraphicsMetrics(TestSuite):
           }
           mem_max: 4
           mem_min: 1
-          mem_avg: 2
+          mem_avg: 1
         }
         """))
 

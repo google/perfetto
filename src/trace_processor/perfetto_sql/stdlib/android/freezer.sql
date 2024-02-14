@@ -14,8 +14,6 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE common.timestamps;
-
 CREATE PERFETTO FUNCTION _extract_freezer_pid(name STRING)
 RETURNS INT
 AS
