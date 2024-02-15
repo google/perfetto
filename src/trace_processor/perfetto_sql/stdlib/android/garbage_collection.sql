@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE common.slices;
+INCLUDE PERFETTO MODULE slices.with_context;
 
 -- Collect all GC slices. There's typically one enclosing slice but sometimes the
 -- CompactionPhase is outside the nesting and we need to include that.
