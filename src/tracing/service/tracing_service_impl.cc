@@ -3167,6 +3167,19 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
     total_buffer_bytes += id_to_buffer.second->size();
   }
 
+  // Sum up all the cloned traced buffers.
+  for (const auto& id_to_ts : tracing_sessions_) {
+    const TracingSession& ts = id_to_ts.second;
+    for (const auto& id_to_pending_clone : ts.pending_clones) {
+      const PendingClone& pending_clone = id_to_pending_clone.second;
+      for (const std::unique_ptr<TraceBuffer>& buf : pending_clone.buffers) {
+        if (buf) {
+          total_buffer_bytes += buf->size();
+        }
+      }
+    }
+  }
+
   // Set the guard rail to 32MB + the sum of all the buffers over a 30 second
   // interval.
   uint64_t guardrail = base::kWatchdogDefaultMemorySlack + total_buffer_bytes;
@@ -3713,30 +3726,154 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
 
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   auto weak_consumer = consumer->GetWeakPtr();
-  Flush(
-      tsid, 0,
-      [weak_this, tsid, skip_trace_filter,
-       weak_consumer](bool final_flush_outcome) {
-        PERFETTO_LOG("FlushAndCloneSession(%" PRIu64 ") started, success=%d",
-                     tsid, final_flush_outcome);
-        if (!weak_this || !weak_consumer)
+
+  const PendingCloneID clone_id = session->last_pending_clone_id_++;
+
+  auto& clone_op = session->pending_clones[clone_id];
+  clone_op.pending_flush_cnt = 0;
+  clone_op.buffers =
+      std::vector<std::unique_ptr<TraceBuffer>>(session->buffers_index.size());
+  clone_op.weak_consumer = weak_consumer;
+  clone_op.skip_trace_filter = skip_trace_filter;
+
+  std::set<BufferID> bufs;
+
+  for (size_t i = 0; i < session->buffers_index.size(); i++) {
+    bufs.insert(session->buffers_index[i]);
+  }
+
+  clone_op.pending_flush_cnt++;
+  FlushDataSourceInstances(
+      session, 0, GetFlushableDataSourceInstancesForBuffers(session, bufs),
+      [tsid, clone_id, bufs, weak_this](bool final_flush) {
+        if (!weak_this)
           return;
-        base::Uuid uuid;
-        base::Status result =
-            weak_this->DoCloneSession(&*weak_consumer, tsid, skip_trace_filter,
-                                      final_flush_outcome, &uuid);
-        weak_consumer->consumer_->OnSessionCloned(
-            {result.ok(), result.message(), uuid});
+        weak_this->OnFlushDoneForClone(tsid, clone_id, bufs, final_flush);
       },
       FlushFlags(FlushFlags::Initiator::kTraced,
                  FlushFlags::Reason::kTraceClone, clone_target));
 }
 
-base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
-                                                TracingSessionID src_tsid,
-                                                bool skip_trace_filter,
-                                                bool final_flush_outcome,
-                                                base::Uuid* new_uuid) {
+std::map<ProducerID, std::vector<DataSourceInstanceID>>
+TracingServiceImpl::GetFlushableDataSourceInstancesForBuffers(
+    TracingSession* session,
+    std::set<BufferID> bufs) {
+  std::map<ProducerID, std::vector<DataSourceInstanceID>> data_source_instances;
+
+  for (const auto& [producer_id, ds_inst] : session->data_source_instances) {
+    // TODO(ddiproietto): Consider if we should skip instances if ds_inst.state
+    // != DataSourceInstance::STARTED
+    if (ds_inst.no_flush) {
+      continue;
+    }
+    if (!bufs.count(static_cast<BufferID>(ds_inst.config.target_buffer()))) {
+      continue;
+    }
+    data_source_instances[producer_id].push_back(ds_inst.instance_id);
+  }
+
+  return data_source_instances;
+}
+
+void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
+                                             PendingCloneID clone_id,
+                                             std::set<BufferID> buf_ids,
+                                             bool final_flush_outcome) {
+  TracingSession* src = GetTracingSession(tsid);
+  // The session might be gone by the time we try to clone it.
+  if (!src) {
+    return;
+  }
+
+  auto it = src->pending_clones.find(clone_id);
+  if (it == src->pending_clones.end()) {
+    return;
+  }
+  auto& clone_op = it->second;
+
+  if (final_flush_outcome == false) {
+    clone_op.flush_failed = true;
+  }
+
+  base::Status result;
+  base::Uuid uuid;
+
+  // First clone the flushed TraceBuffer(s). This can fail because of ENOMEM. If
+  // it happens bail out early before creating any session.
+  if (!DoCloneBuffers(src, buf_ids, &clone_op.buffers)) {
+    result = PERFETTO_SVC_ERR("Buffer allocation failed");
+  }
+
+  if (result.ok()) {
+    UpdateMemoryGuardrail();
+
+    if (--clone_op.pending_flush_cnt != 0) {
+      // Wait for more pending flushes.
+      return;
+    }
+
+    PERFETTO_LOG("FlushAndCloneSession(%" PRIu64 ") started, success=%d", tsid,
+                 final_flush_outcome);
+
+    if (clone_op.weak_consumer) {
+      result = FinishCloneSession(
+          &*clone_op.weak_consumer, tsid, std::move(clone_op.buffers),
+          clone_op.skip_trace_filter, !clone_op.flush_failed, &uuid);
+    }
+  }  // if (result.ok())
+
+  if (clone_op.weak_consumer) {
+    clone_op.weak_consumer->consumer_->OnSessionCloned(
+        {result.ok(), result.message(), uuid});
+  }
+
+  src->pending_clones.erase(it);
+  UpdateMemoryGuardrail();
+}
+
+bool TracingServiceImpl::DoCloneBuffers(
+    TracingSession* src,
+    std::set<BufferID> buf_ids,
+    std::vector<std::unique_ptr<TraceBuffer>>* buf_snaps) {
+  PERFETTO_DCHECK(src->num_buffers() == src->config.buffers().size());
+  buf_snaps->resize(src->buffers_index.size());
+
+  for (size_t buf_idx = 0; buf_idx < src->buffers_index.size(); buf_idx++) {
+    BufferID src_buf_id = src->buffers_index[buf_idx];
+    if (buf_ids.count(src_buf_id) == 0)
+      continue;
+    auto buf_iter = buffers_.find(src_buf_id);
+    PERFETTO_CHECK(buf_iter != buffers_.end());
+    std::unique_ptr<TraceBuffer>& src_buf = buf_iter->second;
+    std::unique_ptr<TraceBuffer> new_buf;
+    if (src->config.buffers()[buf_idx].transfer_on_clone()) {
+      const auto buf_policy = src_buf->overwrite_policy();
+      const auto buf_size = src_buf->size();
+      new_buf = std::move(src_buf);
+      src_buf = TraceBuffer::Create(buf_size, buf_policy);
+      if (!src_buf) {
+        // If the allocation fails put the buffer back and let the code below
+        // handle the failure gracefully.
+        src_buf = std::move(new_buf);
+      }
+    } else {
+      new_buf = src_buf->CloneReadOnly();
+    }
+    if (!new_buf.get()) {
+      return false;
+    }
+    (*buf_snaps)[buf_idx] = std::move(new_buf);
+  }
+  return true;
+}
+
+base::Status TracingServiceImpl::FinishCloneSession(
+    ConsumerEndpointImpl* consumer,
+    TracingSessionID src_tsid,
+    std::vector<std::unique_ptr<TraceBuffer>> buf_snaps,
+    bool skip_trace_filter,
+    bool final_flush_outcome,
+    base::Uuid* new_uuid) {
   PERFETTO_DLOG("CloneSession(%" PRIu64
                 ", skip_trace_filter=%d) started, consumer uid: %d",
                 src_tsid, skip_trace_filter, static_cast<int>(consumer->uid_));
@@ -3760,42 +3897,15 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
     return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
   }
 
-  // First clone all TraceBuffer(s). This can fail because of ENOMEM. If it
-  // happens bail out early before creating any session.
-  std::vector<std::unique_ptr<TraceBuffer>> buf_snaps;
-  buf_snaps.reserve(src->num_buffers());
-  PERFETTO_DCHECK(src->num_buffers() == src->config.buffers().size());
-  size_t buf_idx = 0;
-  for (BufferID src_buf_id : src->buffers_index) {
-    auto buf_iter = buffers_.find(src_buf_id);
-    PERFETTO_CHECK(buf_iter != buffers_.end());
-    std::unique_ptr<TraceBuffer>& src_buf = buf_iter->second;
-    std::unique_ptr<TraceBuffer> new_buf;
-    if (src->config.buffers()[buf_idx].transfer_on_clone()) {
-      const auto buf_policy = src_buf->overwrite_policy();
-      const auto buf_size = src_buf->size();
-      new_buf = std::move(src_buf);
-      src_buf = TraceBuffer::Create(buf_size, buf_policy);
-      if (!src_buf) {
-        // If the allocation fails put the buffer back and let the code below
-        // handle the failure gracefully.
-        src_buf = std::move(new_buf);
-      }
-    } else {
-      new_buf = src_buf->CloneReadOnly();
-    }
-    if (!new_buf.get()) {
-      return PERFETTO_SVC_ERR("Buffer allocation failed");
-    }
-    buf_snaps.emplace_back(std::move(new_buf));
-    ++buf_idx;
-  }
-
   std::vector<BufferID> buf_ids =
       buffer_ids_.AllocateMultiple(buf_snaps.size());
   if (buf_ids.size() != buf_snaps.size()) {
     return PERFETTO_SVC_ERR("Buffer id allocation failed");
   }
+
+  PERFETTO_CHECK(std::none_of(
+      buf_snaps.begin(), buf_snaps.end(),
+      [](const std::unique_ptr<TraceBuffer>& buf) { return buf == nullptr; }));
 
   const TracingSessionID tsid = ++last_tracing_session_id_;
   TracingSession* cloned_session =
