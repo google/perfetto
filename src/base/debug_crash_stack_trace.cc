@@ -149,7 +149,11 @@ void SignalHandler(int sig_num, siginfo_t* info, void* /*ucontext*/) {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  auto bt_error = [](void*, const char* msg, int) { Print(msg); };
+  auto bt_error = [](void*, const char* msg, int) {
+    Print("libbacktrace error: ");
+    perfetto::base::WriteAll(STDERR_FILENO, msg, strlen(msg));
+    Print("\n");
+  };
   struct backtrace_state* bt_state =
       backtrace_create_state(nullptr, 0, bt_error, nullptr);
 #endif
