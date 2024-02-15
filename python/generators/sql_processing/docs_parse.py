@@ -20,9 +20,15 @@ import sys
 from typing import Any, Dict, List, Optional, Set, Tuple, NamedTuple
 
 from python.generators.sql_processing.docs_extractor import DocsExtractor
-from python.generators.sql_processing.utils import ALLOWED_PREFIXES, ANY_PATTERN, ARG_DEFINITION_PATTERN, ObjKind
-from python.generators.sql_processing.utils import ARG_ANNOTATION_PATTERN
+from python.generators.sql_processing.utils import ObjKind
+
+from python.generators.sql_processing.utils import ALLOWED_PREFIXES
+from python.generators.sql_processing.utils import OBJECT_NAME_ALLOWLIST
+
 from python.generators.sql_processing.utils import COLUMN_ANNOTATION_PATTERN
+from python.generators.sql_processing.utils import ANY_PATTERN
+from python.generators.sql_processing.utils import ARG_DEFINITION_PATTERN
+from python.generators.sql_processing.utils import ARG_ANNOTATION_PATTERN
 
 
 def is_internal(name: str) -> bool:
@@ -64,6 +70,8 @@ def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
       if prefix == allowed_name_prefix:
         return None
       allowed_prefixes.append(allowed_name_prefix)
+    if path in OBJECT_NAME_ALLOWLIST and name in OBJECT_NAME_ALLOWLIST[path]:
+      return None
   return (
       f'Names of tables/views/functions at path "{path}" should be prefixed '
       f'with one of following names: {", ".join(allowed_prefixes)}')

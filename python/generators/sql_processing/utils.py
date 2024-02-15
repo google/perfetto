@@ -111,6 +111,12 @@ ALLOWED_PREFIXES = {
     'counters': 'counter',
     'chrome/util': 'cr',
     'graphs': 'graph',
+    'slices': 'slice'
+}
+
+# Allows for nonstandard object names.
+OBJECT_NAME_ALLOWLIST = {
+    'slices/with_context.sql': ['process_slice', 'thread_slice']
 }
 
 # Given a regex pattern and a string to match against, returns all the
