@@ -144,8 +144,9 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     trigger.attrs = {
       ...trigger.attrs,
       ref: Popup.TRIGGER_REF,
-      onclick: () => {
+      onclick: (e: MouseEvent) => {
         this.togglePopup();
+        e.preventDefault();
       },
       active: this.isOpen,
     };

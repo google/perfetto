@@ -19,14 +19,11 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 perfetto_sql_source_set("android") {
   sources = [
-    "android_anr.sql",
     "ad_services_metric.sql",
+    "android_anr.sql",
     "android_batt.sql",
     "android_binder.sql",
     "android_blocking_calls_cuj_metric.sql",
-    "sysui_notif_shade_list_builder_metric.sql",
-    "sysui_notif_shade_list_builder_slices.sql",
-    "sysui_update_notif_on_ui_mode_changed_metric.sql",
     "android_boot.sql",
     "android_camera.sql",
     "android_camera_unagg.sql",
@@ -132,6 +129,9 @@ perfetto_sql_source_set("android") {
     "startup/slow_start_reasons.sql",
     "startup/system_state.sql",
     "startup/thread_state_breakdown.sql",
+    "sysui_notif_shade_list_builder_metric.sql",
+    "sysui_notif_shade_list_builder_slices.sql",
+    "sysui_update_notif_on_ui_mode_changed_metric.sql",
     "unsymbolized_frames.sql",
   ]
 }

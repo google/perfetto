@@ -13,19 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Returns the formatted value of a given argument.
--- Similar to EXTRACT_ARG, but instead of returning the raw value, it returns
--- the value formatted according to the 'value_type' column (e.g. for booleans,
--- EXTRACT_ARG will return 0 or 1, while FORMATTED_ARG will return 'true' or
--- 'false').
-CREATE PERFETTO FUNCTION formatted_arg(
-  -- Id of the arg set.
-  arg_set_id INT,
-  -- Key of the argument.
-  arg_key STRING
-)
--- Formatted value of the argument.
-RETURNS STRING AS
-SELECT display_value
-FROM args
-WHERE arg_set_id = $arg_set_id AND key = $arg_key;
+-- No new changes allowed. Will be removed after v45 of Perfetto.
+--
+-- We decided to move away from the generalised `common` module and migrate the
+-- most useful functionality into specialised modules.
+INCLUDE PERFETTO MODULE deprecated.v42.common.args;

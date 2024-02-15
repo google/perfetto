@@ -41,8 +41,12 @@ source_set("tables") {
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
+    "../../../include/perfetto/trace_processor",
     "../containers",
-    "../db",
+    "../db:minimal",
+
+    # TODO(lalitm): change this to minimal to reduce binary size
+    # impact on Chrome.
     "../db/column",
   ]
   public_deps = [ ":tables_python" ]
@@ -72,6 +76,9 @@ if (enable_perfetto_benchmarks) {
       ":py_tables_benchmark",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
+      "../../../include/perfetto/trace_processor",
+      "../containers",
+      "../db",
     ]
     sources = [ "py_tables_benchmark.cc" ]
   }

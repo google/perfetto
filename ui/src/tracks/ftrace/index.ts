@@ -154,14 +154,40 @@ class FtraceRawPlugin implements Plugin {
       });
     }
 
+    const ftraceTabUri = 'perfetto.FtraceRaw#FtraceEventsTab';
+
     ctx.registerTab({
-      uri: 'perfetto.FtraceRaw#FtraceEventsTab',
+      uri: ftraceTabUri,
       isEphemeral: false,
       content: {
         render: () => m(FtracePanel),
         getTitle: () => 'Ftrace Events',
       },
     });
+
+    if (await this.hasFtrace(ctx.engine)) {
+      ctx.addDefaultTab(ftraceTabUri);
+    }
+
+    ctx.registerCommand({
+      id: 'perfetto.FtraceRaw#ShowFtraceTab',
+      name: 'Show Ftrace Tab',
+      callback: () => {
+        ctx.tabs.showTab(ftraceTabUri);
+      },
+    });
+  }
+
+  private async hasFtrace(engine: EngineProxy): Promise<boolean> {
+    // Check if we have any ftrace events at all
+    const query = `
+      select
+        *
+      from ftrace_event
+      limit 1`;
+
+    const res = await engine.query(query);
+    return res.numRows() > 0;
   }
 
   private async lookupCpuCores(engine: EngineProxy): Promise<number[]> {

@@ -17,13 +17,15 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_QUERY_CACHE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_QUERY_CACHE_H_
 
-#include <optional>
+#include <algorithm>
+#include <functional>
+#include <memory>
+#include <vector>
 
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/sqlite/query_constraints.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Implements a simple caching strategy for commonly executed queries.
 // TODO(lalitm): the design of this class is very experimental. It was mainly
@@ -75,7 +77,6 @@ class QueryCache {
   CachedTable cached_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_SQLITE_QUERY_CACHE_H_

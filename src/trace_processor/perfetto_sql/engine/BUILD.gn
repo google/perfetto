@@ -61,6 +61,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../../gn:sqlite",
     "../../../base",
+    "../..//tables:tables_python",
     "../../perfetto_sql/intrinsics/table_functions:interface",
     "../../sqlite",
   ]

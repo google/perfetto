@@ -1767,6 +1767,25 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
     return;
   }
 
+  std::map<ProducerID, std::vector<DataSourceInstanceID>> data_source_instances;
+  for (const auto& [producer_id, ds_inst] :
+       tracing_session->data_source_instances) {
+    if (ds_inst.no_flush)
+      continue;
+    data_source_instances[producer_id].push_back(ds_inst.instance_id);
+  }
+  FlushDataSourceInstances(tracing_session, timeout_ms, data_source_instances,
+                           callback, flush_flags);
+}
+
+void TracingServiceImpl::FlushDataSourceInstances(
+    TracingSession* tracing_session,
+    uint32_t timeout_ms,
+    std::map<ProducerID, std::vector<DataSourceInstanceID>>
+        data_source_instances,
+    ConsumerEndpoint::FlushCallback callback,
+    FlushFlags flush_flags) {
+  PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!timeout_ms)
     timeout_ms = tracing_session->flush_timeout_ms();
 
@@ -1795,31 +1814,20 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
   // order to issue a flush request we have to build a map of all data source
   // instance ids enabled for each producer.
 
-  std::map<ProducerID, std::vector<DataSourceInstanceID>> flush_map;
-  for (const auto& kv : tracing_session->data_source_instances) {
-    const ProducerID producer_id = kv.first;
-    const DataSourceInstance& ds_inst = kv.second;
-    if (ds_inst.no_flush)
-      continue;
-    flush_map[producer_id].push_back(ds_inst.instance_id);
-  }
-
-  for (const auto& kv : flush_map) {
-    ProducerID producer_id = kv.first;
+  for (const auto& [producer_id, data_sources] : data_source_instances) {
     ProducerEndpointImpl* producer = GetProducer(producer_id);
-    const std::vector<DataSourceInstanceID>& data_sources = kv.second;
     producer->Flush(flush_request_id, data_sources, flush_flags);
     pending_flush.producers.insert(producer_id);
   }
 
   // If there are no producers to flush (realistically this happens only in
   // some tests) fire OnFlushTimeout() straight away, without waiting.
-  if (flush_map.empty())
+  if (data_source_instances.empty())
     timeout_ms = 0;
 
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
-      [weak_this, tsid, flush_request_id] {
+      [weak_this, tsid = tracing_session->id, flush_request_id] {
         if (weak_this)
           weak_this->OnFlushTimeout(tsid, flush_request_id);
       },
@@ -3635,11 +3643,17 @@ size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
 
 void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
                                               TracingSessionID tsid,
-                                              bool skip_filter) {
+                                              bool skip_trace_filter,
+                                              bool for_bugreport) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto clone_target = FlushFlags::CloneTarget::kUnknown;
 
   if (tsid == kBugreportSessionId) {
+    // This branch is only here to support the legacy protocol where we could
+    // clone only a single session using the magic ID kBugreportSessionId.
+    // The newer perfetto --clone-all-for-bugreport first queries the existing
+    // sessions and then issues individual clone requests specifying real
+    // session IDs, setting args.{for_bugreport,skip_trace_filter}=true.
     PERFETTO_LOG("Looking for sessions for bugreport");
     TracingSession* session = FindTracingSessionWithMaxBugreportScore();
     if (!session) {
@@ -3649,7 +3663,10 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
     }
     tsid = session->id;
     clone_target = FlushFlags::CloneTarget::kBugreport;
-    skip_filter = true;
+    skip_trace_filter = true;
+    for_bugreport = true;
+  } else if (for_bugreport) {
+    clone_target = FlushFlags::CloneTarget::kBugreport;
   }
 
   TracingSession* session = GetTracingSession(tsid);
@@ -3698,14 +3715,16 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
   auto weak_consumer = consumer->GetWeakPtr();
   Flush(
       tsid, 0,
-      [weak_this, tsid, skip_filter, weak_consumer](bool final_flush_outcome) {
+      [weak_this, tsid, skip_trace_filter,
+       weak_consumer](bool final_flush_outcome) {
         PERFETTO_LOG("FlushAndCloneSession(%" PRIu64 ") started, success=%d",
                      tsid, final_flush_outcome);
         if (!weak_this || !weak_consumer)
           return;
         base::Uuid uuid;
-        base::Status result = weak_this->DoCloneSession(
-            &*weak_consumer, tsid, skip_filter, final_flush_outcome, &uuid);
+        base::Status result =
+            weak_this->DoCloneSession(&*weak_consumer, tsid, skip_trace_filter,
+                                      final_flush_outcome, &uuid);
         weak_consumer->consumer_->OnSessionCloned(
             {result.ok(), result.message(), uuid});
       },
@@ -3715,12 +3734,12 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
 
 base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
                                                 TracingSessionID src_tsid,
-                                                bool skip_filter,
+                                                bool skip_trace_filter,
                                                 bool final_flush_outcome,
                                                 base::Uuid* new_uuid) {
   PERFETTO_DLOG("CloneSession(%" PRIu64
-                ", skip_filter=%d) started, consumer uid: %d",
-                src_tsid, skip_filter, static_cast<int>(consumer->uid_));
+                ", skip_trace_filter=%d) started, consumer uid: %d",
+                src_tsid, skip_trace_filter, static_cast<int>(consumer->uid_));
 
   TracingSession* src = GetTracingSession(src_tsid);
 
@@ -3743,10 +3762,9 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
 
   // First clone all TraceBuffer(s). This can fail because of ENOMEM. If it
   // happens bail out early before creating any session.
-  std::vector<std::pair<BufferID, std::unique_ptr<TraceBuffer>>> buf_snaps;
+  std::vector<std::unique_ptr<TraceBuffer>> buf_snaps;
   buf_snaps.reserve(src->num_buffers());
   PERFETTO_DCHECK(src->num_buffers() == src->config.buffers().size());
-  bool buf_clone_failed = false;
   size_t buf_idx = 0;
   for (BufferID src_buf_id : src->buffers_index) {
     auto buf_iter = buffers_.find(src_buf_id);
@@ -3766,20 +3784,17 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
     } else {
       new_buf = src_buf->CloneReadOnly();
     }
-    BufferID buf_global_id = buffer_ids_.Allocate();
-    buf_clone_failed |= !new_buf.get() || !buf_global_id;
-    buf_snaps.emplace_back(buf_global_id, std::move(new_buf));
+    if (!new_buf.get()) {
+      return PERFETTO_SVC_ERR("Buffer allocation failed");
+    }
+    buf_snaps.emplace_back(std::move(new_buf));
     ++buf_idx;
   }
 
-  // Free up allocated IDs in case of failure. No need to free the TraceBuffers,
-  // as they are still owned by the temporary |buf_snaps|.
-  if (buf_clone_failed) {
-    for (auto& kv : buf_snaps) {
-      if (kv.first)
-        buffer_ids_.Free(kv.first);
-    }
-    return PERFETTO_SVC_ERR("Buffer allocation failed");
+  std::vector<BufferID> buf_ids =
+      buffer_ids_.AllocateMultiple(buf_snaps.size());
+  if (buf_ids.size() != buf_snaps.size()) {
+    return PERFETTO_SVC_ERR("Buffer id allocation failed");
   }
 
   const TracingSessionID tsid = ++last_tracing_session_id_;
@@ -3800,9 +3815,9 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   cloned_session->trace_uuid.set_lsb(orig_uuid_lsb);
   *new_uuid = cloned_session->trace_uuid;
 
-  for (auto& kv : buf_snaps) {
-    BufferID buf_global_id = kv.first;
-    std::unique_ptr<TraceBuffer>& buf = kv.second;
+  for (size_t i = 0; i < buf_snaps.size(); i++) {
+    BufferID buf_global_id = buf_ids[i];
+    std::unique_ptr<TraceBuffer>& buf = buf_snaps[i];
     // This is only needed for transfer_on_clone. Other buffers are already
     // marked as read-only by CloneReadOnly(). We cannot do this early because
     // in case of an allocation failure we will put std::move() the original
@@ -3834,7 +3849,7 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
   cloned_session->compress_deflate = src->compress_deflate;
-  if (src->trace_filter && !skip_filter) {
+  if (src->trace_filter && !skip_trace_filter) {
     // Copy the trace filter, unless it's a clone-for-bugreport (b/317065412).
     cloned_session->trace_filter.reset(
         new protozero::MessageFilter(src->trace_filter->config()));
@@ -4197,7 +4212,8 @@ void TracingServiceImpl::ConsumerEndpointImpl::CloneSession(
     CloneSessionArgs args) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // FlushAndCloneSession will call OnSessionCloned after the async flush.
-  service_->FlushAndCloneSession(this, tsid, args.skip_trace_filter);
+  service_->FlushAndCloneSession(this, tsid, args.skip_trace_filter,
+                                 args.for_bugreport);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

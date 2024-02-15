@@ -15,3 +15,13 @@
 import {v4} from 'uuid';
 
 export const uuidv4 = v4;
+
+/**
+ * Get a SQL friendly UUID, or convert a pre-existing one.
+ * @param uuid Optional: Pre-existing uuid to format.
+ * @returns string The resulting uuid.
+ */
+export function uuidv4Sql(uuid?: string): string {
+  const str = uuid ?? uuidv4();
+  return str.replace(/[^a-zA-Z0-9_]+/g, '_');
+}

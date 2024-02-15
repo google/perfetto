@@ -48,12 +48,12 @@ if (enable_perfetto_integration_tests) {
   source_set("integrationtests") {
     testonly = true
     deps = [
-      "protos",
       ":utils",
       "..:shared_lib",
       "../../../gn:default_deps",
       "../../../gn:gtest_and_gmock",
       "../../../include/perfetto/public",
+      "protos",
     ]
     defines = [ "PERFETTO_SDK_DISABLE_SHLIB_EXPORT" ]
     sources = [ "api_integrationtest.cc" ]

@@ -22,6 +22,7 @@ import {
   DragHandle,
   Tab,
   TabDropdownEntry,
+  getDefaultDetailsHeight,
 } from './drag_handle';
 import {globals} from './globals';
 import {raf} from '../core/raf_scheduler';
@@ -34,6 +35,7 @@ export class TabPanel implements m.ClassComponent {
   // Tabs panel starts collapsed.
   private detailsHeight = 0;
   private fadeContext = new FadeContext();
+  private hasBeenDragged = false;
 
   view() {
     const tabMan = globals.tabManager;
@@ -42,10 +44,13 @@ export class TabPanel implements m.ClassComponent {
     const resolvedTabs = tabMan.resolveTabs(tabList);
     const tabs = resolvedTabs.map(({uri, tab: tabDesc}): TabWithContent => {
       if (tabDesc) {
+        const titleStr = tabDesc.content.getTitle();
         return {
           key: uri,
           hasCloseButton: true,
-          title: tabDesc.content.getTitle(),
+          title: (tabDesc.content.hasContent?.() ?? true) ?
+            titleStr :
+            m('.pf-nocontent', titleStr),
           content: tabDesc.content.render(),
         };
       } else {
@@ -57,6 +62,11 @@ export class TabPanel implements m.ClassComponent {
         };
       }
     });
+
+    if (!this.hasBeenDragged &&
+        (tabs.length > 0 || globals.state.currentSelection)) {
+      this.detailsHeight = getDefaultDetailsHeight();
+    }
 
     // Add the permanent current selection tab to the front of the list of tabs
     tabs.unshift({
@@ -87,6 +97,7 @@ export class TabPanel implements m.ClassComponent {
       m(DragHandle, {
         resize: (height: number) => {
           this.detailsHeight = Math.max(height, 0);
+          this.hasBeenDragged = true;
         },
         height: this.detailsHeight,
         tabs,

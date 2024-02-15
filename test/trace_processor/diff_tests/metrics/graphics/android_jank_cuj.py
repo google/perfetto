@@ -13,8 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from lib2to3.pgen2 import token
-from os import sys, path
+from os import sys
 
 import synth_common
 

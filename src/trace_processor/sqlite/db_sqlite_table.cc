@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
+#include <sqlite3.h>
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -27,8 +28,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <sqlite3.h>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
@@ -47,12 +46,11 @@
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/regex.h"
-
-#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
+
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -118,6 +116,8 @@ SqlValue SqliteValueToSqlValue(sqlite3_value* sqlite_val) {
     case SQLITE_NULL:
       value.type = SqlValue::kNull;
       break;
+    default:
+      PERFETTO_FATAL("Unexpected sqlite3_value type");
   }
   return value;
 }
@@ -407,10 +407,11 @@ base::Status DbSqliteTable::ValidateTableFunctionArguments(
     if (!col.is_hidden) {
       continue;
     }
-    auto it = std::find_if(qc.constraints().begin(), qc.constraints().end(),
-                           [i](const QueryConstraints::Constraint& c) {
-                             return i == static_cast<uint32_t>(c.column);
-                           });
+    auto pred = [i](const QueryConstraints::Constraint& c) {
+      return i == static_cast<uint32_t>(c.column);
+    };
+    auto it =
+        std::find_if(qc.constraints().begin(), qc.constraints().end(), pred);
     if (it == qc.constraints().end()) {
       return base::ErrStatus("Failed to find constraint on column '%u'", i);
     }
@@ -418,12 +419,8 @@ base::Status DbSqliteTable::ValidateTableFunctionArguments(
       return base::ErrStatus(
           "Only equality constraints supported on column '%u'", i);
     }
-    auto count = std::count_if(qc.constraints().begin(), qc.constraints().end(),
-                               [i](const QueryConstraints::Constraint& c) {
-                                 return i == static_cast<uint32_t>(c.column);
-                               });
-    PERFETTO_CHECK(count > 0);
-    if (count > 1) {
+    auto count = std::count_if(it + 1, qc.constraints().end(), pred);
+    if (count > 0) {
       return base::ErrStatus("Found multiple constraints on column '%u'", i);
     }
   }
@@ -431,7 +428,7 @@ base::Status DbSqliteTable::ValidateTableFunctionArguments(
 }
 
 std::unique_ptr<SqliteTable::BaseCursor> DbSqliteTable::CreateCursor() {
-  return std::unique_ptr<Cursor>(new Cursor(this, context_->cache));
+  return std::make_unique<Cursor>(this, context_->cache);
 }
 
 DbSqliteTable::Cursor::Cursor(DbSqliteTable* sqlite_table, QueryCache* cache)
@@ -481,8 +478,8 @@ void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
     return;
 
   // If the column is already sorted, we don't need to cache at all.
-  uint32_t col = static_cast<uint32_t>(c.column);
-  if (upstream_table_->GetColumn(col).IsSorted())
+  auto col = static_cast<uint32_t>(c.column);
+  if (db_sqlite_table_->schema_.columns[col].is_sorted)
     return;
 
   // Try again to get the result or start caching it.
@@ -504,7 +501,7 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   uint32_t constraints_pos = 0;
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
     const auto& cs = qc.constraints()[i];
-    uint32_t col = static_cast<uint32_t>(cs.column);
+    auto col = static_cast<uint32_t>(cs.column);
 
     // If we get a std::nullopt FilterOp, that means we should allow SQLite
     // to handle the constraint.
@@ -531,7 +528,7 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   orders_.resize(qc.order_by().size());
   for (size_t i = 0; i < qc.order_by().size(); ++i) {
     const auto& ob = qc.order_by()[i];
-    uint32_t col = static_cast<uint32_t>(ob.iColumn);
+    auto col = static_cast<uint32_t>(ob.iColumn);
     orders_[i] = Order{col, static_cast<bool>(ob.desc)};
   }
 
@@ -576,11 +573,11 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   PERFETTO_TP_TRACE(
       metatrace::Category::QUERY_DETAILED, "DB_TABLE_FILTER_AND_SORT",
       [this](metatrace::Record* r) {
-        const Table* source = SourceTable();
         r->AddArg("Table", db_sqlite_table_->name());
         for (const Constraint& c : constraints_) {
           SafeStringWriter writer;
-          writer.AppendString(source->GetColumn(c.col_idx).name());
+          writer.AppendString(
+              db_sqlite_table_->schema_.columns[c.col_idx].name);
 
           writer.AppendString(" ");
           switch (c.op) {
@@ -641,7 +638,8 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
 
         for (const auto& o : orders_) {
           SafeStringWriter writer;
-          writer.AppendString(source->GetColumn(o.col_idx).name());
+          writer.AppendString(
+              db_sqlite_table_->schema_.columns[o.col_idx].name);
           if (o.desc)
             writer.AppendString(" desc");
           r->AddArg("Order by", writer.GetStringView());
@@ -655,13 +653,11 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   RowMap::OptimizeFor optimize_for = orders_.empty()
                                          ? RowMap::OptimizeFor::kMemory
                                          : RowMap::OptimizeFor::kLookupSpeed;
-  RowMap filter_map = SourceTable()->FilterToRowMap(constraints_, optimize_for);
-
-  // If we have no order by constraints and it's cheap for us to use the
-  // RowMap, just use the RowMap directoy.
+  RowMap filter_map =
+      SourceTable()->QueryToRowMap(constraints_, orders_, optimize_for);
   if (filter_map.IsRange() && filter_map.size() <= 1) {
     // Currently, our criteria where we have a special fast path is if it's
-    // a single ranged row. We have tihs fast path for joins on id columns
+    // a single ranged row. We have this fast path for joins on id columns
     // where we get repeated queries filtering down to a single row. The
     // other path performs allocations when creating the new table as well
     // as the iterator on the new table whereas this path only uses a single
@@ -675,46 +671,9 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
     eof_ = !single_row_.has_value();
   } else {
     mode_ = Mode::kTable;
-
-    db_table_ = SourceTable()->Apply(std::move(filter_map));
-    if (!orders_.empty())
-      db_table_ = db_table_->Sort(orders_);
-
-    iterator_ = db_table_->IterateRows();
-
+    iterator_ = SourceTable()->ApplyAndIterateRows(std::move(filter_map));
     eof_ = !*iterator_;
   }
-  return base::OkStatus();
-}
-
-base::Status DbSqliteTable::Cursor::Next() {
-  if (mode_ == Mode::kSingleRow) {
-    eof_ = true;
-  } else {
-    iterator_->Next();
-    eof_ = !*iterator_;
-  }
-  return base::OkStatus();
-}
-
-bool DbSqliteTable::Cursor::Eof() {
-  return eof_;
-}
-
-base::Status DbSqliteTable::Cursor::Column(sqlite3_context* ctx, int raw_col) {
-  uint32_t column = static_cast<uint32_t>(raw_col);
-  SqlValue value = mode_ == Mode::kSingleRow
-                       ? SourceTable()->GetColumn(column).Get(*single_row_)
-                       : iterator_->Get(column);
-  // We can say kSqliteStatic for strings  because all strings are expected to
-  // come from the string pool and thus will be valid for the lifetime
-  // of trace processor.
-  // Similarily for bytes we can also use kSqliteStatic because for our iterator
-  // will hold onto the pointer as long as we don't call Next() but that only
-  // happens with Next() is called on the Cursor itself at which point
-  // SQLite no longer cares about the bytes pointer.
-  sqlite_utils::ReportSqlValue(ctx, value, sqlite_utils::kSqliteStatic,
-                               sqlite_utils::kSqliteStatic);
   return base::OkStatus();
 }
 
@@ -782,5 +741,4 @@ DbSqliteTableContext::DbSqliteTableContext(
       computation(Computation::kTableFunction),
       static_table_function(std::move(table)) {}
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

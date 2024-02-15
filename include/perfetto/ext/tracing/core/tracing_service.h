@@ -194,11 +194,16 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
   // existing tracing session. Will invoke Consumer::OnSessionCloned().
   // If TracingSessionID == kBugreportSessionId (0xff...ff) the session with the
   // highest bugreport score is cloned (if any exists).
-  // TODO(primiano): make pure virtual after various 3way patches.
   struct CloneSessionArgs {
+    // If set, the trace filter will not have effect on the cloned session.
+    // Used for bugreports.
     bool skip_trace_filter = false;
+
+    // If set, affects the generation of the FlushFlags::CloneTarget to be set
+    // to kBugreport when requesting the flush to the producers.
+    bool for_bugreport = false;
   };
-  virtual void CloneSession(TracingSessionID, CloneSessionArgs);
+  virtual void CloneSession(TracingSessionID, CloneSessionArgs) = 0;
 
   // Requests all data sources to flush their data immediately and invokes the
   // passed callback once all of them have acked the flush (in which case
@@ -208,15 +213,15 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
   // if that one is not set (or is set to 0), kDefaultFlushTimeoutMs (5s) is
   // used.
   using FlushCallback = std::function<void(bool /*success*/)>;
-  virtual void Flush(uint32_t timeout_ms, FlushCallback callback, FlushFlags);
+  virtual void Flush(uint32_t timeout_ms,
+                     FlushCallback callback,
+                     FlushFlags) = 0;
 
-  // The only caller of this method is arctraceservice's PerfettoClient.
-  // Everything else in the codebase uses the 3-arg Flush() above.
-  // TODO(primiano): remove the overload without FlushFlags once
-  // arctraceservice moves away from this interface. arctraceservice lives in
-  // the internal repo and changes to this interface require multi-side patches.
-  // Inernally this calls Flush(timeout, callback, FlushFlags(0)).
-  virtual void Flush(uint32_t timeout_ms, FlushCallback callback);
+  // This is required for legacy out-of-repo clients like arctraceservice which
+  // use the 2-version parameter.
+  inline void Flush(uint32_t timeout_ms, FlushCallback callback) {
+    Flush(timeout_ms, std::move(callback), FlushFlags());
+  }
 
   // Tracing data will be delivered invoking Consumer::OnTraceData().
   virtual void ReadBuffers() = 0;
@@ -249,9 +254,7 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
   using QueryServiceStateCallback =
       std::function<void(bool success, const TracingServiceState&)>;
   virtual void QueryServiceState(QueryServiceStateArgs,
-                                 QueryServiceStateCallback);
-  // TODO(primiano): remove this overload once arctraceservice is updated.
-  virtual void QueryServiceState(QueryServiceStateCallback);
+                                 QueryServiceStateCallback) = 0;
 
   // Used for feature detection. Makes sense only when the consumer and the
   // service talk over IPC and can be from different versions.

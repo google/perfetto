@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE android.suspend;
+
 -- Extracts the blocking thread from a slice name
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_thread(
   -- Name of slice
@@ -133,7 +135,8 @@ GROUP BY slice.id;
 -- @column process_name Process name of process experiencing lock contention.
 -- @column id Slice id of lock contention.
 -- @column ts Timestamp of lock contention start.
--- @column dur Duration of lock contention.
+-- @column dur Wall clock duration of lock contention.
+-- @column monotonic_dur Monotonic clock duration of lock contention.
 -- @column track_id Thread track id of blocked thread.
 -- @column is_blocked_main_thread Whether the blocked thread is the main thread.
 -- @column is_blocking_main_thread Whether the blocking thread is the main thread.
@@ -159,6 +162,7 @@ SELECT
   slice.id,
   slice.ts,
   slice.dur,
+  _extract_duration_without_suspend(slice.ts, slice.dur) AS monotonic_dur,
   slice.track_id,
   thread.is_main_thread AS is_blocked_thread_main,
   thread.tid AS blocked_thread_tid,
@@ -236,7 +240,8 @@ SELECT * FROM android_monitor_contention JOIN isolated USING (id);
 -- @column process_name Process name of process experiencing lock contention.
 -- @column id Slice id of lock contention.
 -- @column ts Timestamp of lock contention start.
--- @column dur Duration of lock contention.
+-- @column dur Wall clock duration of lock contention.
+-- @column monotonic_dur Monotonic clock duration of lock contention.
 -- @column track_id Thread track id of blocked thread.
 -- @column is_blocked_main_thread Whether the blocked thread is the main thread.
 -- @column is_blocking_main_thread Whether the blocking thread is the main thread.
@@ -299,7 +304,8 @@ FROM thread_state;
 -- @column process_name Process name of process experiencing lock contention.
 -- @column id Slice id of lock contention.
 -- @column ts Timestamp of lock contention start.
--- @column dur Duration of lock contention.
+-- @column dur Wall clock duration of lock contention.
+-- @column monotonic_dur Monotonic clock duration of lock contention.
 -- @column track_id Thread track id of blocked thread.
 -- @column is_blocked_main_thread Whether the blocked thread is the main thread.
 -- @column is_blocking_main_thread Whether the blocking thread is the main thread.

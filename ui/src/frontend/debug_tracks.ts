@@ -17,6 +17,7 @@ import {Actions, DeferredAction} from '../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../common/state';
 import {globals} from './globals';
 import {EngineProxy, PrimaryTrackSortKey} from '../public';
+import {DebugTrackV2Config} from '../tracks/debug/slice_track';
 
 export const ARG_PREFIX = 'arg_';
 export const DEBUG_SLICE_TRACK_URI = 'perfetto.DebugSlices';
@@ -53,48 +54,23 @@ export interface SqlDataSource {
 // once or want to tweak the actions once produced. Otherwise, use
 // addDebugSliceTrack().
 export async function createDebugSliceTrackActions(
-  engine: EngineProxy,
+  _engine: EngineProxy,
   data: SqlDataSource,
   trackName: string,
   sliceColumns: SliceColumns,
   argColumns: string[],
   config?: DebugTrackV2CreateConfig): Promise<DeferredAction<{}>[]> {
-  // To prepare displaying the provided data as a track, materialize it and
-  // compute depths.
   const debugTrackId = ++debugTrackCount;
-  const sqlTableName = `__debug_slice_${debugTrackId}`;
-
-  // If the view has clashing names (e.g. "name" coming from joining two
-  // different tables, we will see names like "name_1", "name_2", but they won't
-  // be addressable from the SQL. So we explicitly name them through a list of
-  // columns passed to CTE.
-  const dataColumns =
-      data.columns !== undefined ? `(${data.columns.join(', ')})` : '';
-
-  // TODO(altimin): Support removing this table when the track is closed.
-  const dur = sliceColumns.dur === '0' ? 0 : sliceColumns.dur;
-  await engine.query(`
-      create table ${sqlTableName} as
-      with data${dataColumns} as (
-        ${data.sqlSource}
-      ),
-      prepared_data as (
-        select
-          row_number() over () as id,
-          ${sliceColumns.ts} as ts,
-          ifnull(cast(${dur} as int), -1) as dur,
-          printf('%s', ${sliceColumns.name}) as name
-          ${argColumns.length > 0 ? ',' : ''}
-          ${argColumns.map((c) => `${c} as ${ARG_PREFIX}${c}`).join(',\n')}
-        from data
-      )
-      select
-        *
-      from prepared_data
-      order by ts;`);
-
   const closeable = config?.closeable ?? true;
   const trackKey = uuidv4();
+
+  const trackConfig: DebugTrackV2Config = {
+    data,
+    columns: sliceColumns,
+    closeable,
+    argColumns,
+  };
+
   const actions: DeferredAction<{}>[] = [
     Actions.addTrack({
       key: trackKey,
@@ -102,11 +78,7 @@ export async function createDebugSliceTrackActions(
       uri: DEBUG_SLICE_TRACK_URI,
       trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
       trackGroup: SCROLLING_TRACK_GROUP,
-      params: {
-        sqlTableName,
-        columns: sliceColumns,
-        closeable,
-      },
+      params: trackConfig,
     }),
   ];
   if (config?.pinned ?? true) {
@@ -137,7 +109,7 @@ export interface CounterColumns {
 
 
 export interface CounterDebugTrackConfig {
-  sqlTableName: string;
+  data: SqlDataSource;
   columns: CounterColumns;
   closeable: boolean;
 }
@@ -153,7 +125,6 @@ export interface CounterDebugTrackCreateConfig {
 // once or want to tweak the actions once produced. Otherwise, use
 // addDebugCounterTrack().
 export async function createDebugCounterTrackActions(
-  engine: EngineProxy,
   data: SqlDataSource,
   trackName: string,
   columns: CounterColumns,
@@ -161,21 +132,14 @@ export async function createDebugCounterTrackActions(
   // To prepare displaying the provided data as a track, materialize it and
   // compute depths.
   const debugTrackId = ++debugTrackCount;
-  const sqlTableName = `__debug_counter_${debugTrackId}`;
-
-  // TODO(altimin): Support removing this table when the track is closed.
-  await engine.query(`
-      create table ${sqlTableName} as
-      with data as (
-        ${data.sqlSource}
-      )
-      select
-        ${columns.ts} as ts,
-        ${columns.value} as value
-      from data
-      order by ts;`);
 
   const closeable = config?.closeable ?? true;
+  const params: CounterDebugTrackConfig = {
+    data,
+    columns,
+    closeable,
+  };
+
   const trackKey = uuidv4();
   const actions: DeferredAction<{}>[] = [
     Actions.addTrack({
@@ -184,11 +148,7 @@ export async function createDebugCounterTrackActions(
       name: trackName.trim() || `Debug Track ${debugTrackId}`,
       trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
       trackGroup: SCROLLING_TRACK_GROUP,
-      params: {
-        sqlTableName,
-        columns,
-        closeable,
-      },
+      params,
     }),
   ];
   if (config?.pinned ?? true) {
@@ -200,12 +160,11 @@ export async function createDebugCounterTrackActions(
 // Adds a debug track immediately. Use createDebugCounterTrackActions() if you
 // want to create many tracks at once.
 export async function addDebugCounterTrack(
-  engine: EngineProxy,
   data: SqlDataSource,
   trackName: string,
   columns: CounterColumns,
   config?: CounterDebugTrackCreateConfig) {
   const actions = await createDebugCounterTrackActions(
-    engine, data, trackName, columns, config);
+    data, trackName, columns, config);
   globals.dispatchMultiple(actions);
 }

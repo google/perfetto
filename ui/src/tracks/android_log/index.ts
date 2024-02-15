@@ -152,8 +152,8 @@ class AndroidLog implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result =
         await ctx.engine.query(`select count(1) as cnt from android_logs`);
-    const count = result.firstRow({cnt: NUM}).cnt;
-    if (count > 0) {
+    const logCount = result.firstRow({cnt: NUM}).cnt;
+    if (logCount > 0) {
       ctx.registerTrack({
         uri: 'perfetto.AndroidLog',
         displayName: 'Android logs',
@@ -162,13 +162,27 @@ class AndroidLog implements Plugin {
       });
     }
 
+    const androidLogsTabUri = 'perfetto.AndroidLog#tab';
+
     // Eternal tabs should always be available even if there is nothing to show
     ctx.registerTab({
       isEphemeral: false,
-      uri: 'android_logs',
+      uri: androidLogsTabUri,
       content: {
         render: () => m(LogPanel),
         getTitle: () => 'Android Logs',
+      },
+    });
+
+    if (logCount > 0) {
+      ctx.addDefaultTab(androidLogsTabUri);
+    }
+
+    ctx.registerCommand({
+      id: 'perfetto.AndroidLog#ShowLogsTab',
+      name: 'Show Android Logs Tab',
+      callback: () => {
+        ctx.tabs.showTab(androidLogsTabUri);
       },
     });
   }

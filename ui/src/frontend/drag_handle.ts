@@ -31,7 +31,7 @@ export interface Tab {
   key: string;
 
   // Tab title to show on the tab handle.
-  title: string;
+  title: m.Children;
 
   // Whether to show a close button on the tab handle or not.
   // Default = false.
@@ -189,9 +189,11 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
 
     return m(
       '.handle',
-      m('.tabs', tabs.map(renderTab)),
       m('.buttons',
         tabDropdownEntries && this.renderTabDropdown(tabDropdownEntries),
+      ),
+      m('.tabs', tabs.map(renderTab)),
+      m('.buttons',
         m(
           Button,
           {
@@ -243,9 +245,9 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
         trigger: m(Button, {
           minimal: true,
           compact: true,
-          icon: 'add',
+          icon: 'more_vert',
           disabled: entries.length === 0,
-          title: 'Open tab',
+          title: 'More Tabs',
         }),
       },
       entries.map((entry) => {

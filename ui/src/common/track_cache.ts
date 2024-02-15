@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {PanelSize} from '../frontend/panel';
 import {Store} from '../frontend/store';
 import {
   Migrate,
@@ -27,7 +28,9 @@ export interface TrackCacheEntry {
   track: Track;
   desc: TrackDescriptor;
   update(): void;
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void;
   destroy(): void;
+  getError(): Error | undefined;
 }
 
 // This class is responsible for managing the lifecycle of tracks over render
@@ -149,6 +152,7 @@ enum TrackState {
   Updating = 'updating',
   DestroyPending = 'destroy_pending',
   Destroyed = 'destroyed',  // <- Final state, cannot escape.
+  Error = 'error',
 }
 
 /**
@@ -157,12 +161,18 @@ enum TrackState {
  */
 class TrackFSM implements TrackCacheEntry {
   private state: TrackState;
+  private error?: Error;
 
   constructor(
       public track: Track, public desc: TrackDescriptor, ctx: TrackContext) {
     this.state = TrackState.Creating;
     const result = this.track.onCreate?.(ctx);
-    Promise.resolve(result).then(() => this.onTrackCreated());
+    Promise.resolve(result)
+      .then(() => this.onTrackCreated())
+      .catch((e) => {
+        this.error = e;
+        this.state = TrackState.Error;
+      });
   }
 
   update(): void {
@@ -173,11 +183,18 @@ class TrackFSM implements TrackCacheEntry {
       break;
     case TrackState.Ready:
       const result = this.track.onUpdate?.();
-      Promise.resolve(result).then(() => this.onTrackUpdated());
+      Promise.resolve(result)
+        .then(() => this.onTrackUpdated())
+        .catch((e) => {
+          this.error = e;
+          this.state = TrackState.Error;
+        });
       this.state = TrackState.Updating;
       break;
     case TrackState.UpdatePending:
       // Update already pending... do nothing!
+      break;
+    case TrackState.Error:
       break;
     default:
       throw new Error('Invalid state transition');
@@ -188,13 +205,19 @@ class TrackFSM implements TrackCacheEntry {
     switch (this.state) {
     case TrackState.Ready:
       // Don't bother awaiting this as the track can no longer be used.
-      this.track.onDestroy?.();
+      Promise.resolve(this.track.onDestroy?.())
+        .catch(() => {
+          // Track crashed while being destroyed
+          // There's not a lot we can do here - just swallow the error
+        });
       this.state = TrackState.Destroyed;
       break;
     case TrackState.Creating:
     case TrackState.Updating:
     case TrackState.UpdatePending:
       this.state = TrackState.DestroyPending;
+      break;
+    case TrackState.Error:
       break;
     default:
       throw new Error('Invalid state transition');
@@ -210,11 +233,18 @@ class TrackFSM implements TrackCacheEntry {
       break;
     case TrackState.UpdatePending:
       const result = this.track.onUpdate?.();
-      Promise.resolve(result).then(() => this.onTrackUpdated());
+      Promise.resolve(result)
+        .then(() => this.onTrackUpdated())
+        .catch((e) => {
+          this.error = e;
+          this.state = TrackState.Error;
+        });
       this.state = TrackState.Updating;
       break;
     case TrackState.Creating:
       this.state = TrackState.Ready;
+      break;
+    case TrackState.Error:
       break;
     default:
       throw new Error('Invalid state transition');
@@ -230,14 +260,37 @@ class TrackFSM implements TrackCacheEntry {
       break;
     case TrackState.UpdatePending:
       const result = this.track.onUpdate?.();
-      Promise.resolve(result).then(() => this.onTrackUpdated());
+      Promise.resolve(result)
+        .then(() => this.onTrackUpdated())
+        .catch((e) => {
+          this.error = e;
+          this.state = TrackState.Error;
+        });
       this.state = TrackState.Updating;
       break;
     case TrackState.Updating:
       this.state = TrackState.Ready;
       break;
+    case TrackState.Error:
+      break;
     default:
       throw new Error('Invalid state transition');
+    }
+  }
+
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+    try {
+      this.track.render(ctx, size);
+    } catch {
+      this.state = TrackState.Error;
+    }
+  }
+
+  getError(): Error | undefined {
+    if (this.state === TrackState.Error) {
+      return this.error;
+    } else {
+      return undefined;
     }
   }
 }

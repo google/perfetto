@@ -17,60 +17,82 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_STRING_STORAGE_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Storage for String columns.
-class StringStorage final : public Column {
+class StringStorage final : public DataLayer {
  public:
   StringStorage(StringPool* string_pool,
                 const std::vector<StringPool::Id>* data,
-                bool is_sorted = false)
-      : data_(data), string_pool_(string_pool), is_sorted_(is_sorted) {}
+                bool is_sorted = false);
 
-  SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                   FilterOp) const override;
-
-  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
-
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  void StableSort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Sort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Serialize(StorageProto*) const override;
-
-  uint32_t size() const override {
-    return static_cast<uint32_t>(data_->size());
-  }
-
-  std::string DebugString() const override { return "StringStorage"; }
+  std::unique_ptr<DataLayerChain> MakeChain() override;
 
  private:
-  BitVector LinearSearch(FilterOp, SqlValue, Range) const;
+  class ChainImpl : public DataLayerChain {
+   public:
+    ChainImpl(StringPool* string_pool,
+              const std::vector<StringPool::Id>* data,
+              bool is_sorted);
 
-  RangeOrBitVector IndexSearchInternal(FilterOp op,
-                                       SqlValue sql_val,
-                                       const uint32_t* indices,
-                                       uint32_t indices_size) const;
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
 
-  Range BinarySearchIntrinsic(FilterOp op,
-                              SqlValue val,
-                              Range search_range) const;
+    SearchValidationResult ValidateSearchConstraints(FilterOp,
+                                                     SqlValue) const override;
 
-  // TODO(b/307482437): After the migration vectors should be owned by storage,
-  // so change from pointer to value.
+    RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
+
+    RangeOrBitVector IndexSearchValidated(FilterOp,
+                                          SqlValue,
+                                          Indices) const override;
+
+    Range OrderedIndexSearchValidated(FilterOp,
+                                      SqlValue,
+                                      Indices) const override;
+
+    void StableSort(SortToken* start,
+                    SortToken* end,
+                    SortDirection direction) const override;
+
+    void Serialize(StorageProto*) const override;
+
+    uint32_t size() const override {
+      return static_cast<uint32_t>(data_->size());
+    }
+
+    std::string DebugString() const override { return "StringStorage"; }
+
+   private:
+    BitVector LinearSearch(FilterOp, SqlValue, Range) const;
+
+    RangeOrBitVector IndexSearchInternal(FilterOp op,
+                                         SqlValue sql_val,
+                                         const uint32_t* indices,
+                                         uint32_t indices_size) const;
+
+    Range BinarySearchIntrinsic(FilterOp op,
+                                SqlValue val,
+                                Range search_range) const;
+
+    // TODO(b/307482437): After the migration vectors should be owned by
+    // storage, so change from pointer to value.
+    const std::vector<StringPool::Id>* data_ = nullptr;
+    StringPool* string_pool_ = nullptr;
+    const bool is_sorted_ = false;
+  };
+
   const std::vector<StringPool::Id>* data_ = nullptr;
   StringPool* string_pool_ = nullptr;
   const bool is_sorted_ = false;

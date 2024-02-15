@@ -97,8 +97,7 @@ WHERE slice.name = "Scheduler.RAILMode"
 -- metrics that use the trace.
 DROP VIEW IF EXISTS trace_has_realistic_length;
 CREATE PERFETTO VIEW trace_has_realistic_length AS
-SELECT (end_ts - start_ts) < 1e9 * 60 * 10 AS value
-FROM trace_bounds;
+SELECT trace_dur() < 1e9 * 60 * 10 AS value;
 
 -- RAIL_MODE_LOAD seems to get stuck which makes it not very useful so remap it
 -- to RAIL_MODE_ANIMATION so it doesn't dominate the overall RAIL mode.
@@ -214,11 +213,12 @@ SELECT
   dur,
   1
 FROM (SELECT start_ts AS ts,
-  COALESCE((
+  COALESCE(
+    (
     SELECT MIN(ts)
     FROM slice
     WHERE name = "VSync"
-  ) - start_ts - const.vsync_padding,
+) - start_ts - const.vsync_padding,
   end_ts - start_ts
   ) AS dur
   FROM trace_bounds, const)

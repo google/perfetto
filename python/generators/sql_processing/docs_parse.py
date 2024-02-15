@@ -50,7 +50,7 @@ class Arg(NamedTuple):
 # Returns: error message if the name is not correct, None otherwise.
 def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
   prefix = name.lower().split('_')[0]
-  if module == "common" or module == "prelude":
+  if module in ["common", "prelude", "deprecated"]:
     if prefix == module:
       return (f'Names of tables/views/functions in the "{module}" module '
               f'should not start with {module}')
@@ -426,12 +426,16 @@ class ParsedFile:
 
 # Reads the provided SQL and, if possible, generates a dictionary with data
 # from documentation together with errors from validation of the schema.
-def parse_file(path: str, sql: str) -> ParsedFile:
+def parse_file(path: str, sql: str) -> Optional[ParsedFile]:
   if sys.platform.startswith('win'):
     path = path.replace('\\', '/')
 
   # Get module name
   module_name = path.split('/stdlib/')[-1].split('/')[0]
+
+  # Disable support for `deprecated` module
+  if module_name == "deprecated":
+    return
 
   # Extract all the docs from the SQL.
   extractor = DocsExtractor(path, module_name, sql)

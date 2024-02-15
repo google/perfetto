@@ -45,13 +45,16 @@ size_t KernelSymbolMap::kTokenIndexSampling = 4;
 namespace {
 
 using TokenId = KernelSymbolMap::TokenTable::TokenId;
+// TODO(rsavitski): the ToT kernel can supposedly contain symbols >255 bytes in
+// length (in particular due to Rust). Consider bumping this.
+// https://github.com/torvalds/linux/commit/73bbb94
 constexpr size_t kSymNameMaxLen = 128;
 constexpr size_t kSymMaxSizeBytes = 1024 * 1024;
 
 // Reads a kallsyms file in blocks of 4 pages each and decode its lines using
 // a simple FSM. Calls the passed lambda for each valid symbol.
 // It skips undefined symbols and other useless stuff.
-template <typename Lambda /* void(uint64_t, const char*) */>
+template <typename Lambda /* void(uint64_t, char, base::StringView) */>
 void ForEachSym(const std::string& kallsyms_path, Lambda fn) {
   base::ScopedFile fd = base::OpenFile(kallsyms_path.c_str(), O_RDONLY);
   if (!fd) {
@@ -119,8 +122,7 @@ void ForEachSym(const std::string& kallsyms_path, Lambda fn) {
             sym_name[sym_name_len++] = c;
             break;
           }
-          sym_name[sym_name_len] = '\0';
-          fn(sym_addr, sym_type, sym_name);
+          fn(sym_addr, sym_type, base::StringView(sym_name, sym_name_len));
           sym_addr = 0;
           sym_type = '\0';
           state = c == '\n' ? kSymAddr : kEatRestOfLine;
@@ -144,29 +146,26 @@ void ForEachSym(const std::string& kallsyms_path, Lambda fn) {
 // __fo_a_b_    ->  [_, fo, a, b, ""]
 // __fo_a_b____ ->  [_, fo, a, b, ___]
 template <typename Lambda /* void(base::StringView) */>
-void Tokenize(const char* name, Lambda fn) {
-  const char* tok_start = name;
-  bool is_start_of_token = true;
-  bool tok_is_sep = false;
-  for (const char* ptr = name;; ptr++) {
-    const char c = *ptr;
-    if (is_start_of_token) {
-      tok_is_sep = *tok_start == '_';  // Deals with tokens made of '_'s.
-      is_start_of_token = false;
-    }
-    // Scan until either the end of string or the next character (which is a '_'
-    // in nominal cases, or anything != '_' for tokens made by 1+ '_').
-    if (c == '\0' || (!tok_is_sep && c == '_') || (tok_is_sep && c != '_')) {
-      size_t tok_len = static_cast<size_t>(ptr - tok_start);
-      if (tok_is_sep && c != '\0')
-        --tok_len;
-      fn(base::StringView(tok_start, tok_len));
-      if (c == '\0')
-        return;
-      tok_start = tok_is_sep ? ptr : ptr + 1;
-      is_start_of_token = true;
+void Tokenize(const base::StringView name, Lambda fn) {
+  size_t tok_start = 0;
+  bool tok_is_sep = !name.empty() && name.at(tok_start) == '_';
+  for (size_t i = 0; i < name.size(); i++) {
+    char c = name.at(i);
+    // Scan until either the end of string or the next character (which is a
+    // '_' in nominal cases, or anything != '_' for tokens made by 1+ '_').
+    if (!tok_is_sep && c == '_') {
+      fn(name.substr(tok_start, i - tok_start));
+      tok_start = i + 1;
+      if (tok_start < name.size()) {
+        tok_is_sep = name.at(tok_start) == '_';
+      }
+    } else if (tok_is_sep && c != '_') {
+      fn(name.substr(tok_start, i - tok_start - 1));
+      tok_start = i;
+      tok_is_sep = false;
     }
   }
+  fn(name.substr(tok_start));  // last token
 }
 
 }  // namespace
@@ -264,9 +263,33 @@ size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
   // Based on `cat /proc/kallsyms | egrep "\b[tT]\b" | wc -l`.
   symbol_tokens.reserve(128 * 1024);
 
-  ForEachSym(kallsyms_path, [&](SymAddr addr, char type, const char* name) {
-    if (addr == 0 || (type != 't' && type != 'T') || name[0] == '$') {
+  ForEachSym(kallsyms_path, [&](SymAddr addr, char type,
+                                base::StringView name) {
+    // Special cases:
+    //
+    // Skip arm mapping symbols such as $x, $x.123, $d, $d.123. They exist to
+    // delineate interleaved data and text for certain tools, and do not
+    // identify real functions. Should be fine to ignore on non-arm platforms
+    // since '$' isn't a valid C identifier and therefore unlikely to mark a
+    // real function.
+    //
+    // Strip .cfi/.cfi_jt suffixes if the kernel is built with clang control
+    // flow integrity checks (where for "my_func" there will be a
+    // "my_func.cfi_jt"). These can account for a third of the total symbols
+    // after the above filters, and tracing users want to see the unadorned
+    // name anyway. Normally we'd record the full string here and remove the
+    // suffix during trace ingestion, but it makes a nontrivial impact on the
+    // size of the in-memory token table since we tokenize only on underscore
+    // boundaries.
+    if (addr == 0 || (type != 't' && type != 'T') || name.at(0) == '$') {
       return;
+    }
+    const base::StringView cfi = ".cfi";
+    const base::StringView cfi_jt = ".cfi_jt";
+    if (name.EndsWith(cfi)) {
+      name = name.substr(0, name.size() - cfi.size());
+    } else if (name.EndsWith(cfi_jt)) {
+      name = name.substr(0, name.size() - cfi_jt.size());
     }
 
     // Split each symbol name in tokens, using '_' as a separator (so that
@@ -274,9 +297,6 @@ size_t KernelSymbolMap::Parse(const std::string& kallsyms_path) {
     // 1. Keep track of the frequency of each token.
     // 2. Keep track of the list of token hashes for each symbol.
     Tokenize(name, [&tokens, &symbol_tokens, addr](base::StringView token) {
-      // Strip the .cfi part if present.
-      if (token.substr(token.size() - 4) == ".cfi")
-        token = token.substr(0, token.size() - 4);
       auto it_and_ins = tokens.emplace(token.ToStdString(), TokenInfo{});
       it_and_ins.first->second.count++;
       symbol_tokens.emplace_back(SymAddrAndTokenPtr{addr, &*it_and_ins.first});

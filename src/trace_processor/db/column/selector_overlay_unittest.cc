@@ -16,61 +16,84 @@
 
 #include "src/trace_processor/db/column/selector_overlay.h"
 
+#include <cstdint>
+#include <vector>
+
+#include "data_layer.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/column/fake_storage.h"
+#include "src/trace_processor/db/column/numeric_storage.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 namespace {
 
 using testing::ElementsAre;
 using testing::IsEmpty;
 
+TEST(SelectorOverlay, SingleSearch) {
+  BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
+  auto fake = FakeStorage::SearchSubset(8, Range(2, 5));
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(fake->MakeChain());
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 1),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 0),
+            SingleSearchResult::kNoMatch);
+}
+
 TEST(SelectorOverlay, SearchAll) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
-  SelectorOverlay storage(FakeStorage::SearchAll(10), &selector);
+  auto fake = FakeStorage::SearchAll(10);
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 4));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u, 2u, 3u));
 }
 
 TEST(SelectorOverlay, SearchNone) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
-  SelectorOverlay storage(FakeStorage::SearchNone(10), &selector);
+  auto fake = FakeStorage::SearchNone(10);
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 4));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 }
 
 TEST(SelectorOverlay, SearchLimited) {
   BitVector selector{0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1};
-  SelectorOverlay storage(FakeStorage::SearchSubset(10, Range(4, 5)),
-                          &selector);
+  auto fake = FakeStorage::SearchSubset(10, Range(4, 5));
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 5));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 5));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2u));
 }
 
 TEST(SelectorOverlay, SearchBitVector) {
   BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
-  SelectorOverlay storage(
-      FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0})),
-      &selector);
+  auto fake = FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0}));
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 4));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2));
 }
 
 TEST(SelectorOverlay, IndexSearch) {
   BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
-  SelectorOverlay storage(
-      FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0})),
-      &selector);
+  auto fake = FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0}));
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{1u, 0u, 3u};
-  RangeOrBitVector res = storage.IndexSearch(
+  RangeOrBitVector res = chain->IndexSearch(
       FilterOp::kGe, SqlValue::Long(0u),
       Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
               Indices::State::kNonmonotonic});
@@ -79,10 +102,12 @@ TEST(SelectorOverlay, IndexSearch) {
 
 TEST(SelectorOverlay, OrderedIndexSearchTrivial) {
   BitVector selector{1, 0, 1, 0, 1};
-  SelectorOverlay storage(FakeStorage::SearchAll(5), &selector);
+  auto fake = FakeStorage::SearchAll(5);
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{1u, 0u, 2u};
-  Range res = storage.OrderedIndexSearch(
+  Range res = chain->OrderedIndexSearch(
       FilterOp::kGe, SqlValue::Long(0u),
       Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
               Indices::State::kNonmonotonic});
@@ -92,17 +117,51 @@ TEST(SelectorOverlay, OrderedIndexSearchTrivial) {
 
 TEST(SelectorOverlay, OrderedIndexSearchNone) {
   BitVector selector{1, 0, 1, 0, 1};
-  SelectorOverlay storage(FakeStorage::SearchNone(5), &selector);
+  auto fake = FakeStorage::SearchNone(5);
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{1u, 0u, 2u};
-  Range res = storage.OrderedIndexSearch(
+  Range res = chain->OrderedIndexSearch(
       FilterOp::kGe, SqlValue::Long(0u),
       Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
               Indices::State::kNonmonotonic});
   ASSERT_EQ(res.size(), 0u);
 }
 
+TEST(SelectorOverlay, StableSort) {
+  std::vector<uint32_t> numeric_data{3, 1, 0, 0, 2, 4, 3, 4};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
+  BitVector selector{0, 1, 0, 1, 1, 1, 1, 1};
+  SelectorOverlay overlay(&selector);
+  auto chain = overlay.MakeChain(numeric.MakeChain());
+
+  auto make_tokens = []() {
+    return std::vector{
+        column::DataLayerChain::SortToken{0, 0},
+        column::DataLayerChain::SortToken{1, 1},
+        column::DataLayerChain::SortToken{2, 2},
+        column::DataLayerChain::SortToken{3, 3},
+        column::DataLayerChain::SortToken{4, 4},
+        column::DataLayerChain::SortToken{5, 5},
+    };
+  };
+  {
+    auto tokens = make_tokens();
+    chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                      column::DataLayerChain::SortDirection::kAscending);
+    ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+                ElementsAre(1, 0, 2, 4, 3, 5));
+  }
+  {
+    auto tokens = make_tokens();
+    chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                      column::DataLayerChain::SortDirection::kDescending);
+    ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+                ElementsAre(3, 5, 4, 2, 0, 1));
+  }
+}
+
 }  // namespace
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column

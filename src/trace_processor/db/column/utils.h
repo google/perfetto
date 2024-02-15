@@ -16,17 +16,18 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_UTILS_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_UTILS_H_
 
+#include <cstdint>
+#include <functional>
 #include <optional>
+#include <vector>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
-namespace utils {
+namespace perfetto::trace_processor::column::utils {
 
 template <typename Comparator, typename ValType, typename DataType>
 void LinearSearchWithComparator(ValType val,
@@ -88,11 +89,43 @@ void IndexSearchWithComparator(ValType val,
   }
 }
 
+template <typename T>
+SingleSearchResult SingleSearchNumeric(FilterOp op, T left, T right) {
+  switch (op) {
+    case FilterOp::kEq:
+      return std::equal_to<T>()(left, right) ? SingleSearchResult::kMatch
+                                             : SingleSearchResult::kNoMatch;
+    case FilterOp::kNe:
+      return std::not_equal_to<T>()(left, right) ? SingleSearchResult::kMatch
+                                                 : SingleSearchResult::kNoMatch;
+    case FilterOp::kGe:
+      return std::greater_equal<T>()(left, right)
+                 ? SingleSearchResult::kMatch
+                 : SingleSearchResult::kNoMatch;
+    case FilterOp::kGt:
+      return std::greater<T>()(left, right) ? SingleSearchResult::kMatch
+                                            : SingleSearchResult::kNoMatch;
+    case FilterOp::kLe:
+      return std::less_equal<T>()(left, right) ? SingleSearchResult::kMatch
+                                               : SingleSearchResult::kNoMatch;
+    case FilterOp::kLt:
+      return std::less<T>()(left, right) ? SingleSearchResult::kMatch
+                                         : SingleSearchResult::kNoMatch;
+    case FilterOp::kIsNotNull:
+      return SingleSearchResult::kMatch;
+    case FilterOp::kGlob:
+    case FilterOp::kRegex:
+    case FilterOp::kIsNull:
+      return SingleSearchResult::kNoMatch;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 // Used for comparing the integer column ({u|}int{32|64}) with a double value.
 // If further search is required it would return kOk and change the SqlValue to
 // a `SqlLong` which would return real results.
-SearchValidationResult CompareIntColumnWithDouble(SqlValue* sql_val,
-                                                  FilterOp op);
+SearchValidationResult CompareIntColumnWithDouble(FilterOp op,
+                                                  SqlValue* sql_val);
 
 // If the validation result doesn't require further search, it will return a
 // Range that can be passed further. Else it returns nullopt.
@@ -103,10 +136,11 @@ std::optional<Range> CanReturnEarly(SearchValidationResult, Range);
 std::optional<Range> CanReturnEarly(SearchValidationResult,
                                     uint32_t indices_size);
 
-std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector&);
-}  // namespace utils
+std::vector<uint32_t> ExtractPayloadForTesting(
+    std::vector<column::DataLayerChain::SortToken>&);
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector&);
+
+}  // namespace perfetto::trace_processor::column::utils
+
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_UTILS_H_

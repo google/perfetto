@@ -17,50 +17,67 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_SET_ID_STORAGE_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Storage for SetId columns.
-class SetIdStorage final : public Column {
+class SetIdStorage final : public DataLayer {
  public:
   using SetId = uint32_t;
 
-  explicit SetIdStorage(const std::vector<uint32_t>* data) : values_(data) {}
+  explicit SetIdStorage(const std::vector<uint32_t>*);
 
-  SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                   FilterOp) const override;
-
-  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
-
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
-
-  void StableSort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Sort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Serialize(StorageProto*) const override;
-
-  uint32_t size() const override {
-    return static_cast<uint32_t>(values_->size());
-  }
-
-  std::string DebugString() const override { return "SetIdStorage"; }
+  std::unique_ptr<DataLayerChain> MakeChain() override;
 
  private:
-  BitVector IndexSearch(FilterOp, SetId, uint32_t*, uint32_t) const;
-  Range BinarySearchIntrinsic(FilterOp, SetId, Range search_range) const;
+  class ChainImpl : public DataLayerChain {
+   public:
+    explicit ChainImpl(const std::vector<uint32_t>*);
 
-  // TODO(b/307482437): After the migration vectors should be owned by storage,
-  // so change from pointer to value.
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
+    SearchValidationResult ValidateSearchConstraints(FilterOp,
+                                                     SqlValue) const override;
+
+    RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
+
+    RangeOrBitVector IndexSearchValidated(FilterOp,
+                                          SqlValue,
+                                          Indices) const override;
+
+    Range OrderedIndexSearchValidated(FilterOp,
+                                      SqlValue,
+                                      Indices) const override;
+
+    void StableSort(SortToken* start,
+                    SortToken* end,
+                    SortDirection direction) const override;
+
+    void Serialize(StorageProto*) const override;
+
+    uint32_t size() const override {
+      return static_cast<uint32_t>(values_->size());
+    }
+
+    std::string DebugString() const override { return "SetIdStorage"; }
+
+   private:
+    BitVector IndexSearch(FilterOp, SetId, uint32_t*, uint32_t) const;
+    Range BinarySearchIntrinsic(FilterOp, SetId, Range search_range) const;
+
+    const std::vector<SetId>* values_ = nullptr;
+  };
+
   const std::vector<SetId>* values_ = nullptr;
 };
 

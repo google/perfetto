@@ -16,64 +16,89 @@
 
 #include "src/trace_processor/db/column/arrangement_overlay.h"
 
+#include <array>
+#include <cstdint>
+#include <vector>
+
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/fake_storage.h"
+#include "src/trace_processor/db/column/numeric_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 namespace {
 
 using testing::ElementsAre;
 using testing::IsEmpty;
 
+TEST(ArrangementOverlay, SingleSearch) {
+  std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
+  auto fake = FakeStorage::SearchSubset(5, std::vector<uint32_t>{1, 2});
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto chain = storage.MakeChain(fake->MakeChain());
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 8),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 4),
+            SingleSearchResult::kNoMatch);
+}
+
 TEST(ArrangementOverlay, SearchAll) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(FakeStorage::SearchAll(5), &arrangement, false);
+  auto fake = FakeStorage::SearchAll(5);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2u, 3u));
 }
 
 TEST(ArrangementOverlay, SearchNone) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(FakeStorage::SearchNone(5), &arrangement, false);
+  auto fake = FakeStorage::SearchNone(5);
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 }
 
 TEST(ArrangementOverlay, DISABLED_SearchLimited) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(FakeStorage::SearchSubset(5, Range(4, 5)),
-                             &arrangement, false);
+  auto fake = FakeStorage::SearchSubset(5, Range(4, 5));
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 7));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 7));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(6u));
 }
 
 TEST(ArrangementOverlay, SearchBitVector) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(
-      FakeStorage::SearchSubset(5, BitVector({0, 1, 0, 1, 0})), &arrangement,
-      false);
+  auto fake = FakeStorage::SearchSubset(
+      5, BitVector({false, true, false, true, false}));
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   // Table bv:
   // 1, 1, 0, 0, 1, 1, 0, 0, 1, 1
-  auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 10));
+  auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 10));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 4, 5, 8, 9));
 }
 
 TEST(ArrangementOverlay, IndexSearch) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
-  ArrangementOverlay storage(
-      FakeStorage::SearchSubset(5, BitVector({0, 1, 0, 1, 0})), &arrangement,
-      false);
+  auto fake = FakeStorage::SearchSubset(
+      5, BitVector({false, true, false, true, false}));
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{7u, 1u, 3u};
-  RangeOrBitVector res = storage.IndexSearch(
+  RangeOrBitVector res = chain->IndexSearch(
       FilterOp::kGe, SqlValue::Long(0u),
       Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
               Indices::State::kNonmonotonic});
@@ -83,17 +108,38 @@ TEST(ArrangementOverlay, IndexSearch) {
 
 TEST(ArrangementOverlay, OrderingSearch) {
   std::vector<uint32_t> arrangement{0, 2, 4, 1, 3};
-  ArrangementOverlay storage(
-      FakeStorage::SearchSubset(5, BitVector({0, 1, 0, 1, 0})), &arrangement,
-      true);
+  auto fake = FakeStorage::SearchSubset(
+      5, BitVector({false, true, false, true, false}));
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto chain =
+      storage.MakeChain(fake->MakeChain(), DataLayer::ChainCreationArgs(true));
 
   RangeOrBitVector res =
-      storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));
+      chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));
 
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
+TEST(ArrangementOverlay, StableSort) {
+  std::vector<uint32_t> numeric_data{0, 1, 2, 3, 4};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
+  std::vector<uint32_t> arrangement{0, 2, 4, 1, 3};
+  ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
+  auto chain = storage.MakeChain(numeric.MakeChain());
+
+  std::vector tokens{
+      column::DataLayerChain::SortToken{0, 0},
+      column::DataLayerChain::SortToken{1, 1},
+      column::DataLayerChain::SortToken{2, 2},
+      column::DataLayerChain::SortToken{3, 3},
+      column::DataLayerChain::SortToken{4, 4},
+  };
+  chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                    column::DataLayerChain::SortDirection::kAscending);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+              ElementsAre(0, 3, 1, 4, 2));
+}
+
 }  // namespace
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column

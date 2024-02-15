@@ -28,14 +28,11 @@ namespace perfetto {
 
 SyscallTable::SyscallTable(Architecture arch) {
   switch (arch) {
-    case Architecture::kArmEabi:
-      *this = SyscallTable::Load<SyscallTable_armeabi>();
+    case Architecture::kArm64:
+      *this = SyscallTable::Load<SyscallTable_arm64>();
       break;
-    case Architecture::kAarch32:
-      *this = SyscallTable::Load<SyscallTable_aarch32>();
-      break;
-    case Architecture::kAarch64:
-      *this = SyscallTable::Load<SyscallTable_aarch64>();
+    case Architecture::kArm32:
+      *this = SyscallTable::Load<SyscallTable_arm32>();
       break;
     case Architecture::kX86_64:
       *this = SyscallTable::Load<SyscallTable_x86_64>();
@@ -51,11 +48,10 @@ SyscallTable::SyscallTable(Architecture arch) {
 
 Architecture SyscallTable::ArchFromString(base::StringView machine) {
   if (machine == "aarch64") {
-    return Architecture::kAarch64;
-  } else if (machine == "armv8l") {
-    return Architecture::kArmEabi;
-  } else if (machine == "armv7l") {
-    return Architecture::kAarch32;
+    return Architecture::kArm64;
+  } else if (machine == "armv8l" || machine == "armv7l") {
+    // armv8l is a 32 bit userspace process on a 64 bit kernel
+    return Architecture::kArm32;
   } else if (machine == "x86_64") {
     return Architecture::kX86_64;
   } else if (machine == "i686") {

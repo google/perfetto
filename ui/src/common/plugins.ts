@@ -33,6 +33,7 @@ import {
   TabDescriptor,
   TrackDescriptor,
   TrackPredicate,
+  GroupPredicate,
   TrackRef,
 } from '../public';
 import {Engine} from '../trace_processor/engine';
@@ -41,6 +42,10 @@ import {Actions} from './actions';
 import {Registry} from './registry';
 import {SCROLLING_TRACK_GROUP} from './state';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
+import {Flag, featureFlags} from '../core/feature_flags';
+import {assertExists} from '../base/logging';
+import {raf} from '../core/raf_scheduler';
+import {defaultPlugins} from './default_plugins';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -136,6 +141,11 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
     const unregister = globals.tabManager.registerTab(desc);
     this.trash.add(unregister);
+  }
+
+  addDefaultTab(uri: string): void {
+    const remove = globals.tabManager.addDefaultTab(uri);
+    this.trash.add(remove);
   }
 
   registerDetailsPanel(section: DetailsPanel): void {
@@ -243,6 +253,42 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
       globals.dispatch(Actions.removeTracks({trackKeys: trackKeysToRemove}));
     },
 
+    expandGroupsByPredicate(predicate: GroupPredicate) {
+      const groups = globals.state.trackGroups;
+      const groupsToExpand = Object.values(groups)
+        .filter((group) => group.collapsed)
+        .filter((group) => {
+          const ref = {
+            displayName: group.name,
+            collapsed: group.collapsed,
+          };
+          return predicate(ref);
+        })
+        .map((group) => group.id);
+
+      for (const trackGroupId of groupsToExpand) {
+        globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+      }
+    },
+
+    collapseGroupsByPredicate(predicate: GroupPredicate) {
+      const groups = globals.state.trackGroups;
+      const groupsToCollapse = Object.values(groups)
+        .filter((group) => !group.collapsed)
+        .filter((group) => {
+          const ref = {
+            displayName: group.name,
+            collapsed: group.collapsed,
+          };
+          return predicate(ref);
+        })
+        .map((group) => group.id);
+
+      for (const trackGroupId of groupsToCollapse) {
+        globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+      }
+    },
+
     get tracks():
         TrackRef[] {
       return Object.values(globals.state.tracks).map((trackState) => {
@@ -281,10 +327,11 @@ export class PluginRegistry extends Registry<PluginDescriptor> {
   }
 }
 
-interface PluginDetails {
+export interface PluginDetails {
   plugin: Plugin;
   context: PluginContext&Disposable;
   traceContext?: PluginContextTraceImpl;
+  previousOnTraceLoadTimeMillis?: number;
 }
 
 function isPluginClass(v: unknown): v is PluginClass {
@@ -308,15 +355,68 @@ function makePlugin(info: PluginDescriptor): Plugin {
 
 export class PluginManager {
   private registry: PluginRegistry;
-  private plugins: Map<string, PluginDetails>;
+  private _plugins: Map<string, PluginDetails>;
   private engine?: Engine;
+  private flags = new Map<string, Flag>();
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
-    this.plugins = new Map();
+    this._plugins = new Map();
   }
 
-  activatePlugin(id: string): void {
+  get plugins(): Map<string, PluginDetails> {
+    return this._plugins;
+  }
+
+  // Must only be called once on startup
+  async initialize(): Promise<void> {
+    for (const plugin of pluginRegistry.values()) {
+      const id = `plugin_${plugin.pluginId}`;
+      const name = `Plugin: ${plugin.pluginId}`;
+      const flag = featureFlags.register({
+        id,
+        name,
+        description: `Overrides '${id}' plugin.`,
+        defaultValue: defaultPlugins.includes(plugin.pluginId),
+      });
+      this.flags.set(plugin.pluginId, flag);
+      if (flag.get()) {
+        await this.activatePlugin(plugin.pluginId);
+      }
+    }
+  }
+
+  /**
+   * Enable plugin flag - i.e. configure a plugin to start on boot.
+   * @param id The ID of the plugin.
+   * @param now Optional: If true, also activate the plugin now.
+   */
+  async enablePlugin(id: string, now?: boolean): Promise<void> {
+    const flag = this.flags.get(id);
+    if (flag) {
+      flag.set(true);
+    }
+    now && await this.activatePlugin(id);
+  }
+
+  /**
+   * Disable plugin flag - i.e. configure a plugin not to start on boot.
+   * @param id The ID of the plugin.
+   * @param now Optional: If true, also deactivate the plugin now.
+   */
+  async disablePlugin(id: string, now?: boolean): Promise<void> {
+    const flag = this.flags.get(id);
+    if (flag) {
+      flag.set(false);
+    }
+    now && await this.deactivatePlugin(id);
+  }
+
+  /**
+   * Start a plugin just for this session. This setting is not persisted.
+   * @param id The ID of the plugin to start.
+   */
+  async activatePlugin(id: string): Promise<void> {
     if (this.isActive(id)) {
       return;
     }
@@ -336,53 +436,89 @@ export class PluginManager {
     // If a trace is already loaded when plugin is activated, make sure to
     // call onTraceLoad().
     if (this.engine) {
-      this.doPluginTraceLoad(pluginDetails, this.engine, id);
+      await doPluginTraceLoad(pluginDetails, this.engine, id);
     }
 
-    this.plugins.set(id, pluginDetails);
+    this._plugins.set(id, pluginDetails);
+
+    raf.scheduleFullRedraw();
   }
 
-  deactivatePlugin(id: string): void {
+  /**
+   * Stop a plugin just for this session. This setting is not persisted.
+   * @param id The ID of the plugin to stop.
+   */
+  async deactivatePlugin(id: string): Promise<void> {
     const pluginDetails = this.getPluginContext(id);
     if (pluginDetails === undefined) {
       return;
     }
     const {context, plugin} = pluginDetails;
 
-    maybeDoPluginTraceUnload(pluginDetails);
+    await doPluginTraceUnload(pluginDetails);
 
     plugin.onDeactivate && plugin.onDeactivate(context);
     context.dispose();
 
-    this.plugins.delete(id);
+    this._plugins.delete(id);
+
+    raf.scheduleFullRedraw();
+  }
+
+  /**
+   * Restore all plugins enable/disabled flags to their default values.
+   * @param now Optional: Also activates/deactivates plugins to match flag
+   * settings.
+   */
+  async restoreDefaults(now?: boolean): Promise<void> {
+    for (const plugin of pluginRegistry.values()) {
+      const pluginId = plugin.pluginId;
+      const flag = assertExists(this.flags.get(pluginId));
+      flag.reset();
+      if (now) {
+        if (flag.get()) {
+          await this.activatePlugin(plugin.pluginId);
+        } else {
+          await this.deactivatePlugin(plugin.pluginId);
+        }
+      }
+    }
   }
 
   isActive(pluginId: string): boolean {
     return this.getPluginContext(pluginId) !== undefined;
   }
 
+  isEnabled(pluginId: string): boolean {
+    return Boolean(this.flags.get(pluginId)?.get());
+  }
+
   getPluginContext(pluginId: string): PluginDetails|undefined {
-    return this.plugins.get(pluginId);
+    return this._plugins.get(pluginId);
   }
 
   async onTraceLoad(engine: Engine): Promise<void> {
     this.engine = engine;
-    const plugins = Array.from(this.plugins.entries());
-    const promises = plugins.map(([id, pluginDetails]) => {
-      return this.doPluginTraceLoad(pluginDetails, engine, id);
-    });
-    await Promise.all(promises);
+    const plugins = Array.from(this._plugins.entries());
+    // Awaiting all plugins in parallel will skew timing data as later plugins
+    // will spend most of their time waiting for earlier plugins to load.
+    // Running in parallel will have very little performance benefit assuming
+    // most plugins use the same engine, which can only process one query at a
+    // time.
+    for (const [id, pluginDetails] of plugins) {
+      await doPluginTraceLoad(pluginDetails, engine, id);
+    }
   }
 
   onTraceClose() {
-    for (const pluginDetails of this.plugins.values()) {
-      maybeDoPluginTraceUnload(pluginDetails);
+    for (const pluginDetails of this._plugins.values()) {
+      doPluginTraceUnload(pluginDetails);
     }
     this.engine = undefined;
   }
 
   metricVisualisations(): MetricVisualisation[] {
-    return Array.from(this.plugins.values()).flatMap((ctx) => {
+    return Array.from(this._plugins.values()).flatMap((ctx) => {
       const tracePlugin = ctx.plugin;
       if (tracePlugin.metricVisualisations) {
         return tracePlugin.metricVisualisations(ctx.context);
@@ -391,28 +527,35 @@ export class PluginManager {
       }
     });
   }
-
-  private async doPluginTraceLoad(
-    pluginDetails: PluginDetails, engine: Engine,
-    pluginId: string): Promise<void> {
-    const {plugin, context} = pluginDetails;
-
-    const engineProxy = engine.getProxy(pluginId);
-
-    const traceCtx = new PluginContextTraceImpl(context, engineProxy);
-    pluginDetails.traceContext = traceCtx;
-
-    const result = plugin.onTraceLoad?.(traceCtx);
-    return Promise.resolve(result);
-  }
 }
 
-function maybeDoPluginTraceUnload(pluginDetails: PluginDetails): void {
+async function doPluginTraceLoad(
+  pluginDetails: PluginDetails,
+  engine: Engine,
+  pluginId: string): Promise<void> {
+  const {plugin, context} = pluginDetails;
+
+  const engineProxy = engine.getProxy(pluginId);
+
+  const traceCtx = new PluginContextTraceImpl(context, engineProxy);
+  pluginDetails.traceContext = traceCtx;
+
+  const startTime = performance.now();
+  const result = await Promise.resolve(plugin.onTraceLoad?.(traceCtx));
+  const loadTime = performance.now() - startTime;
+  pluginDetails.previousOnTraceLoadTimeMillis = loadTime;
+
+  raf.scheduleFullRedraw();
+
+  return result;
+}
+
+async function doPluginTraceUnload(
+  pluginDetails: PluginDetails): Promise<void> {
   const {traceContext, plugin} = pluginDetails;
 
   if (traceContext) {
-    // TODO(stevegolton): Await onTraceUnload.
-    plugin.onTraceUnload && plugin.onTraceUnload(traceContext);
+    plugin.onTraceUnload && await plugin.onTraceUnload(traceContext);
     traceContext.dispose();
     pluginDetails.traceContext = undefined;
   }

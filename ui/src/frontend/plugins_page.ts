@@ -16,10 +16,12 @@ import m from 'mithril';
 
 import {pluginManager, pluginRegistry} from '../common/plugins';
 import {raf} from '../core/raf_scheduler';
-import {PluginDescriptor} from '../public';
 import {Button} from '../widgets/button';
 
+import {exists} from '../base/utils';
+import {PluginDescriptor} from '../public';
 import {createPage} from './pages';
+import {defaultPlugins} from '../common/default_plugins';
 
 export const PluginsPage = createPage({
   view() {
@@ -30,27 +32,43 @@ export const PluginsPage = createPage({
         '.pf-plugins-topbar',
         m(Button, {
           minimal: false,
-          label: 'Deactivate All',
-          onclick: () => {
+          label: 'Disable All',
+          onclick: async () => {
             for (const plugin of pluginRegistry.values()) {
-              pluginManager.deactivatePlugin(plugin.pluginId);
+              await pluginManager.disablePlugin(plugin.pluginId, true);
+              raf.scheduleFullRedraw();
             }
-            raf.scheduleFullRedraw();
           },
         }),
         m(Button, {
           minimal: false,
-          label: 'Activate All',
-          onclick: () => {
+          label: 'Enable All',
+          onclick: async () => {
             for (const plugin of pluginRegistry.values()) {
-              pluginManager.activatePlugin(plugin.pluginId);
+              await pluginManager.enablePlugin(plugin.pluginId, true);
+              raf.scheduleFullRedraw();
             }
+          },
+        }),
+        m(Button, {
+          minimal: false,
+          label: 'Restore Defaults',
+          onclick: async () => {
+            await pluginManager.restoreDefaults(true);
             raf.scheduleFullRedraw();
           },
         }),
       ),
       m(
         '.pf-plugins-grid',
+        [
+          m('span', 'Plugin'),
+          m('span', 'Default?'),
+          m('span', 'Enabled?'),
+          m('span', 'Active?'),
+          m('span', 'Control'),
+          m('span', 'Load Time'),
+        ],
         Array.from(pluginRegistry.values()).map((plugin) => {
           return renderPluginRow(plugin);
         }),
@@ -59,21 +77,32 @@ export const PluginsPage = createPage({
 });
 
 function renderPluginRow(plugin: PluginDescriptor): m.Children {
-  const isActive = pluginManager.isActive(plugin.pluginId);
+  const pluginId = plugin.pluginId;
+  const isDefault = defaultPlugins.includes(pluginId);
+  const pluginDetails = pluginManager.plugins.get(pluginId);
+  const isActive = pluginManager.isActive(pluginId);
+  const isEnabled = pluginManager.isEnabled(pluginId);
+  const loadTime = pluginDetails?.previousOnTraceLoadTimeMillis;
   return [
-    plugin.pluginId,
+    m('span', pluginId),
+    m('span', isDefault ? 'Yes' : 'No'),
+    isEnabled ? m('.pf-tag.pf-active', 'Enabled') :
+      m('.pf-tag.pf-inactive', 'Disabled'),
     isActive ? m('.pf-tag.pf-active', 'Active') :
       m('.pf-tag.pf-inactive', 'Inactive'),
     m(Button, {
-      label: isActive ? 'Deactivate' : 'Activate',
-      onclick: () => {
+      label: isActive ? 'Disable' : 'Enable',
+      onclick: async () => {
         if (isActive) {
-          pluginManager.deactivatePlugin(plugin.pluginId);
+          await pluginManager.disablePlugin(pluginId, true);
         } else {
-          pluginManager.activatePlugin(plugin.pluginId);
+          await pluginManager.enablePlugin(pluginId, true);
         }
         raf.scheduleFullRedraw();
       },
     }),
+    exists(loadTime) ?
+      m('span', `${loadTime.toFixed(1)} ms`) :
+      m('span', `-`),
   ];
 }

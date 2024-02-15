@@ -16,15 +16,42 @@
 
 #include "src/trace_processor/db/table.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column/arrangement_overlay.h"
+#include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/range_overlay.h"
+#include "src/trace_processor/db/column/selector_overlay.h"
+#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/db/column_storage_overlay.h"
+#include "src/trace_processor/db/query_executor.h"
+
+namespace perfetto::trace_processor {
 
 bool Table::kUseFilterV2 = true;
+bool Table::kUseSortV2 = true;
 
-Table::Table() = default;
+Table::Table(StringPool* pool,
+             uint32_t row_count,
+             std::vector<ColumnLegacy> columns,
+             std::vector<ColumnStorageOverlay> overlays)
+    : string_pool_(pool),
+      row_count_(row_count),
+      overlays_(std::move(overlays)),
+      columns_(std::move(columns)) {
+  PERFETTO_DCHECK(string_pool_);
+}
+
 Table::~Table() = default;
-
-Table::Table(StringPool* pool) : string_pool_(pool) {}
 
 Table& Table::operator=(Table&& other) noexcept {
   row_count_ = other.row_count_;
@@ -32,6 +59,12 @@ Table& Table::operator=(Table&& other) noexcept {
 
   overlays_ = std::move(other.overlays_);
   columns_ = std::move(other.columns_);
+
+  storage_layers_ = std::move(other.storage_layers_);
+  null_layers_ = std::move(other.null_layers_);
+  overlay_layers_ = std::move(other.overlay_layers_);
+  chains_ = std::move(other.chains_);
+
   for (ColumnLegacy& col : columns_) {
     col.table_ = this;
   }
@@ -43,39 +76,41 @@ Table Table::Copy() const {
   for (const ColumnStorageOverlay& overlay : overlays_) {
     table.overlays_.emplace_back(overlay.Copy());
   }
+  table.OnConstructionCompleted(storage_layers_, null_layers_, overlay_layers_);
   return table;
 }
 
 Table Table::CopyExceptOverlays() const {
-  Table table(string_pool_);
-  table.row_count_ = row_count_;
+  std::vector<ColumnLegacy> cols;
+  cols.reserve(columns_.size());
   for (const ColumnLegacy& col : columns_) {
-    table.columns_.emplace_back(col, &table, col.index_in_table(),
-                                col.overlay_index());
+    cols.emplace_back(col, col.index_in_table(), col.overlay_index());
   }
-  return table;
+  return {string_pool_, row_count_, std::move(cols), {}};
 }
 
-Table Table::Sort(const std::vector<Order>& od) const {
-  if (od.empty())
-    return Copy();
+RowMap Table::QueryToRowMap(const std::vector<Constraint>& cs,
+                            const std::vector<Order>& ob,
+                            RowMap::OptimizeFor optimize_for) const {
+  RowMap rm = FilterToRowMap(cs, optimize_for);
+  if (ob.empty())
+    return rm;
 
-  // Return a copy if there is a single constraint to sort the table
-  // by a column which is already sorted.
-  const auto& first_col = GetColumn(od.front().col_idx);
-  if (od.size() == 1 && first_col.IsSorted() && !od.front().desc)
-    return Copy();
+  // Return the RowMap directly if there is a single constraint to sort the
+  // table by a column which is already sorted.
+  const auto& first_col = columns_[ob.front().col_idx];
+  if (ob.size() == 1 && first_col.IsSorted() && !ob.front().desc)
+    return rm;
 
   // Build an index vector with all the indices for the first |size_| rows.
-  std::vector<uint32_t> idx(row_count_);
-
-  if (od.size() == 1 && first_col.IsSorted()) {
+  std::vector<uint32_t> idx = std::move(rm).TakeAsIndexVector();
+  if (ob.size() == 1 && first_col.IsSorted()) {
     // We special case a single constraint in descending order as this
     // happens any time the |max| function is used in SQLite. We can be
     // more efficient as this column is already sorted so we simply need
     // to reverse the order of this column.
-    PERFETTO_DCHECK(od.front().desc);
-    std::iota(idx.rbegin(), idx.rend(), 0);
+    PERFETTO_DCHECK(ob.front().desc);
+    std::reverse(idx.begin(), idx.end());
   } else {
     // As our data is columnar, it's always more efficient to sort one column
     // at a time rather than try and sort lexiographically all at once.
@@ -107,16 +142,26 @@ Table Table::Sort(const std::vector<Order>& od) const {
     // worthwhile. This also needs changes to the constraint modification logic
     // in DbSqliteTable which currently eliminates constraints on sorted
     // columns.
-    std::iota(idx.begin(), idx.end(), 0);
-    for (auto it = od.rbegin(); it != od.rend(); ++it) {
-      columns_[it->col_idx].StableSort(it->desc, &idx);
+    if (Table::kUseSortV2) {
+      QueryExecutor::SortLegacy(this, ob, idx);
+    } else {
+      for (auto it = ob.rbegin(); it != ob.rend(); ++it) {
+        columns_[it->col_idx].StableSort(it->desc, &idx);
+      }
     }
+  }
+  return RowMap(std::move(idx));
+}
+
+Table Table::Sort(const std::vector<Order>& ob) const {
+  if (ob.empty()) {
+    return Copy();
   }
 
   // Return a copy of this table with the RowMaps using the computed ordered
   // RowMap.
   Table table = CopyExceptOverlays();
-  RowMap rm(std::move(idx));
+  RowMap rm = QueryToRowMap({}, ob);
   for (const ColumnStorageOverlay& overlay : overlays_) {
     table.overlays_.emplace_back(overlay.SelectRows(rm));
     PERFETTO_DCHECK(table.overlays_.back().size() == table.row_count());
@@ -130,12 +175,56 @@ Table Table::Sort(const std::vector<Order>& od) const {
 
   // For the first order by, make the column flag itself as sorted but
   // only if the sort was in ascending order.
-  if (!od.front().desc) {
-    table.columns_[od.front().col_idx].flags_ |= ColumnLegacy::Flag::kSorted;
+  if (!ob.front().desc) {
+    table.columns_[ob.front().col_idx].flags_ |= ColumnLegacy::Flag::kSorted;
   }
 
+  std::vector<RefPtr<column::DataLayer>> overlay_layers(table.overlays_.size());
+  for (uint32_t i = 0; i < table.overlays_.size(); ++i) {
+    if (table.overlays_[i].row_map().IsIndexVector()) {
+      overlay_layers[i].reset(new column::ArrangementOverlay(
+          table.overlays_[i].row_map().GetIfIndexVector(),
+          Indices::State::kNonmonotonic));
+    } else if (table.overlays_[i].row_map().IsBitVector()) {
+      overlay_layers[i].reset(new column::SelectorOverlay(
+          table.overlays_[i].row_map().GetIfBitVector()));
+    } else if (table.overlays_[i].row_map().IsRange()) {
+      overlay_layers[i].reset(
+          new column::RangeOverlay(table.overlays_[i].row_map().GetIfIRange()));
+    }
+  }
+  table.OnConstructionCompleted(storage_layers_, null_layers_,
+                                std::move(overlay_layers));
   return table;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+void Table::OnConstructionCompleted(
+    std::vector<RefPtr<column::DataLayer>> storage_layers,
+    std::vector<RefPtr<column::DataLayer>> null_layers,
+    std::vector<RefPtr<column::DataLayer>> overlay_layers) {
+  for (ColumnLegacy& col : columns_) {
+    col.BindToTable(this, string_pool_);
+  }
+  PERFETTO_CHECK(storage_layers.size() == columns_.size());
+  PERFETTO_CHECK(null_layers.size() == columns_.size());
+  PERFETTO_CHECK(overlay_layers.size() == overlays_.size());
+  storage_layers_ = std::move(storage_layers);
+  null_layers_ = std::move(null_layers);
+  overlay_layers_ = std::move(overlay_layers);
+
+  for (uint32_t i = 0; i < columns_.size(); ++i) {
+    auto chain = storage_layers_[i]->MakeChain();
+    if (const auto& null_overlay = null_layers_[i]; null_overlay.get()) {
+      chain = null_overlay->MakeChain(std::move(chain));
+    }
+    const auto& oly_idx = columns_[i].overlay_index();
+    if (const auto& overlay = overlay_layers_[oly_idx]; overlay.get()) {
+      chain = overlay->MakeChain(
+          std::move(chain),
+          column::DataLayer::ChainCreationArgs{columns_[i].IsSorted()});
+    }
+    chains_.emplace_back(std::move(chain));
+  }
+}
+
+}  // namespace perfetto::trace_processor

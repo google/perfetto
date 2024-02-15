@@ -28,12 +28,12 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
-#include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -55,6 +55,7 @@
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/sys_stats/sys_stats.pbzero.h"
@@ -251,8 +252,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
-    context_.global_stack_profile_tracker.reset(
-        new GlobalStackProfileTracker());
+    context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker.reset(
@@ -296,7 +296,7 @@ class ProtoTraceParserTest : public ::testing::Test {
 
   bool HasArg(ArgSetId set_id, StringId key_id, Variadic value) {
     const auto& args = storage_->arg_table();
-    RowMap rm = args.FilterToRowMap({args.arg_set_id().eq(set_id)});
+    RowMap rm = args.QueryToRowMap({args.arg_set_id().eq(set_id)}, {});
     bool found = false;
     for (auto it = rm.IterateRows(); it; it.Next()) {
       if (args.key()[it.index()] == key_id) {
@@ -446,7 +446,7 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
   auto set_id = raw.arg_set_id()[raw.row_count() - 1];
 
   const auto& args = storage_->arg_table();
-  RowMap rm = args.FilterToRowMap({args.arg_set_id().eq(set_id)});
+  RowMap rm = args.QueryToRowMap({args.arg_set_id().eq(set_id)}, {});
 
   auto row = rm.Get(0);
 

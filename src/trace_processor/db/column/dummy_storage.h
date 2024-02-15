@@ -17,38 +17,51 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_DUMMY_STORAGE_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column {
 
 // Dummy storage. Used for columns that are not supposed to have operations done
 // on them.
-class DummyStorage final : public Column {
+class DummyStorage final : public DataLayer {
  public:
-  DummyStorage() = default;
+  class ChainImpl : public DataLayerChain {
+   public:
+    ChainImpl() = default;
 
-  RangeOrBitVector Search(FilterOp, SqlValue, Range) const override;
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
 
-  SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                   FilterOp) const override;
+    SearchValidationResult ValidateSearchConstraints(FilterOp,
+                                                     SqlValue) const override;
 
-  RangeOrBitVector IndexSearch(FilterOp, SqlValue, Indices) const override;
+    RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-  Range OrderedIndexSearch(FilterOp, SqlValue, Indices) const override;
+    RangeOrBitVector IndexSearchValidated(FilterOp,
+                                          SqlValue,
+                                          Indices) const override;
 
-  void StableSort(uint32_t*, uint32_t) const override;
+    Range OrderedIndexSearchValidated(FilterOp,
+                                      SqlValue,
+                                      Indices) const override;
 
-  void Sort(uint32_t*, uint32_t) const override;
+    void StableSort(SortToken* start,
+                    SortToken* end,
+                    SortDirection) const override;
 
-  void Serialize(StorageProto*) const override;
+    void Serialize(StorageProto*) const override;
 
-  uint32_t size() const override;
+    uint32_t size() const override;
 
-  std::string DebugString() const override { return "DummyStorage"; }
+    std::string DebugString() const override { return "DummyStorage"; }
+  };
+  std::unique_ptr<DataLayerChain> MakeChain() override;
 };
 
 }  // namespace perfetto::trace_processor::column

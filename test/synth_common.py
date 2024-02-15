@@ -23,6 +23,14 @@ CLONE_VFORK = 0x00004000
 CLONE_VM = 0x00000100
 
 
+# For compatibility with older pb module versions.
+def get_message_class(pool, msg):
+  if hasattr(message_factory, "GetMessageClass"):
+    return message_factory.GetMessageClass(msg)
+  else:
+    return message_factory.MessageFactory(pool).GetPrototype(msg)
+
+
 def ms_to_ns(time_in_ms):
   return int(time_in_ms * 1000000)
 
@@ -831,9 +839,8 @@ def create_trace():
   args = parser.parse_args()
 
   pool = create_pool(args)
-  factory = message_factory.MessageFactory(pool)
-  ProtoTrace = factory.GetPrototype(
-      pool.FindMessageTypeByName('perfetto.protos.Trace'))
+  ProtoTrace = get_message_class(
+      pool, pool.FindMessageTypeByName('perfetto.protos.Trace'))
 
   class EnumPrototype(object):
 
@@ -866,17 +873,19 @@ def create_trace():
   )
 
   prototypes = Prototypes(
-      TrackEvent=factory.GetPrototype(
-          pool.FindMessageTypeByName('perfetto.protos.TrackEvent')),
+      TrackEvent=get_message_class(
+          pool, pool.FindMessageTypeByName('perfetto.protos.TrackEvent')),
       ChromeRAILMode=EnumPrototype.from_descriptor(
           pool.FindEnumTypeByName('perfetto.protos.ChromeRAILMode')),
       ChromeLatencyInfo=chrome_latency_info_prototypes,
-      ChromeProcessDescriptor=factory.GetPrototype(
+      ChromeProcessDescriptor=get_message_class(
+          pool,
           pool.FindMessageTypeByName(
               'perfetto.protos.ChromeProcessDescriptor')),
-      CounterDescriptor=factory.GetPrototype(
+      CounterDescriptor=get_message_class(
+          pool,
           pool.FindMessageTypeByName('perfetto.protos.CounterDescriptor')),
-      ThreadDescriptor=factory.GetPrototype(
-          pool.FindMessageTypeByName('perfetto.protos.ThreadDescriptor')),
+      ThreadDescriptor=get_message_class(
+          pool, pool.FindMessageTypeByName('perfetto.protos.ThreadDescriptor')),
   )
   return Trace(ProtoTrace(), prototypes)

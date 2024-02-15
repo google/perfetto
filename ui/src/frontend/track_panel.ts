@@ -33,6 +33,9 @@ import {verticalScrollToTrack} from './scroll_helper';
 import {
   drawVerticalLineAtTime,
 } from './vertical_line_helper';
+import {classNames} from '../base/classnames';
+import {Button} from '../widgets/button';
+import {Popup} from '../widgets/popup';
 
 function getTitleSize(title: string): string|undefined {
   const length = title.length;
@@ -82,11 +85,44 @@ export function renderChips(tags?: TrackTags) {
   ];
 }
 
+export interface CrashButtonAttrs {
+  error: Error;
+}
+
+export class CrashButton implements m.ClassComponent<CrashButtonAttrs> {
+  view({attrs}: m.Vnode<CrashButtonAttrs>): m.Children {
+    return m(
+      Popup,
+      {
+        trigger: m(Button, {
+          icon: Icons.Crashed,
+          minimal: true,
+        }),
+      },
+      this.renderErrorMessage(attrs.error),
+    );
+  }
+
+  private renderErrorMessage(error: Error): m.Children {
+    return m('',
+      'This track has crashed',
+      m(Button, {
+        label: 'Re-raise exception',
+        className: Popup.DISMISS_POPUP_GROUP_CLASS,
+        onclick: () => {
+          throw error;
+        }},
+      ),
+    );
+  }
+}
+
 interface TrackShellAttrs {
   trackKey: string;
   title: string;
   buttons: m.Children;
   tags?: TrackTags;
+  button?: string;
 }
 
 class TrackShell implements m.ClassComponent<TrackShellAttrs> {
@@ -211,6 +247,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
 
 export interface TrackContentAttrs {
   track: Track;
+  hasError?: boolean;
 }
 export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
   private mouseDownX?: number;
@@ -222,6 +259,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
     return m(
       '.track-content',
       {
+        className: classNames(attrs.hasError && 'pf-track-content-error'),
         onmousemove: (e: MouseEvent) => {
           attrs.track.onMouseMove?.(currentTargetOffset(e));
           raf.scheduleRedraw();
@@ -274,6 +312,10 @@ interface TrackComponentAttrs {
   buttons?: m.Children;
   tags?: TrackTags;
   track?: Track;
+  error?: Error | undefined;
+
+  // Issues a scrollTo() on this DOM element at creation time. Default: false.
+  revealOnCreate?: boolean;
 }
 
 class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
@@ -281,22 +323,35 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
     // TODO(hjd): The min height below must match the track_shell_title
     // max height in common.scss so we should read it from CSS to avoid
     // them going out of sync.
+    const TRACK_HEIGHT_MIN_PX = 18;
+    const TRACK_HEIGHT_DEFAULT_PX = 24;
+    const trackHeightRaw = attrs.heightPx ?? TRACK_HEIGHT_DEFAULT_PX;
+    const trackHeight = Math.max(trackHeightRaw, TRACK_HEIGHT_MIN_PX);
+
     return m(
       '.track',
       {
         style: {
-          height: `${Math.max(18, attrs.heightPx ?? 0)}px`,
+          // Note: Sub-pixel track heights can mess with sticky elements.
+          // Round up to the nearest integer number of pixels.
+          height: `${Math.ceil(trackHeight)}px`,
         },
         id: 'track_' + attrs.trackKey,
       },
       [
         m(TrackShell, {
-          buttons: attrs.buttons,
+          buttons: [
+            attrs.error && m(CrashButton, {error: attrs.error}),
+            attrs.buttons,
+          ],
           title: attrs.title,
           trackKey: attrs.trackKey,
           tags: attrs.tags,
         }),
-        attrs.track && m(TrackContent, {track: attrs.track}),
+        attrs.track && m(TrackContent, {
+          track: attrs.track,
+          hasError: Boolean(attrs.error),
+        }),
       ]);
   }
 
@@ -307,6 +362,10 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
       globals.scrollToTrackKey = undefined;
     }
     this.onupdate(vnode);
+
+    if (attrs.revealOnCreate) {
+      vnode.dom.scrollIntoView();
+    }
   }
 
   onupdate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
@@ -346,6 +405,7 @@ interface TrackPanelAttrs {
   title: string;
   tags?: TrackTags;
   trackFSM?: TrackCacheEntry;
+  revealOnCreate?: boolean;
 }
 
 export class TrackPanel implements Panel {
@@ -366,6 +426,14 @@ export class TrackPanel implements Panel {
     const attrs = this.attrs;
 
     if (attrs.trackFSM) {
+      if (attrs.trackFSM.getError()) {
+        return m(TrackComponent, {
+          title: attrs.title,
+          trackKey: attrs.trackKey,
+          error: attrs.trackFSM.getError(),
+          track: attrs.trackFSM.track,
+        });
+      }
       return m(TrackComponent, {
         key: attrs.key,
         trackKey: attrs.trackKey,
@@ -374,12 +442,15 @@ export class TrackPanel implements Panel {
         buttons: attrs.trackFSM.track.getTrackShellButtons?.(),
         tags: attrs.tags,
         track: attrs.trackFSM.track,
+        error: attrs.trackFSM.getError(),
+        revealOnCreate: attrs.revealOnCreate,
       });
     } else {
       return m(TrackComponent, {
         key: attrs.key,
         trackKey: attrs.trackKey,
         title: attrs.title,
+        revealOnCreate: attrs.revealOnCreate,
       });
     }
   }
@@ -410,11 +481,15 @@ export class TrackPanel implements Panel {
       size.width,
       size.height);
 
+    const track = this.attrs.trackFSM;
+
     ctx.translate(TRACK_SHELL_WIDTH, 0);
-    if (this.attrs.trackFSM !== undefined) {
+    if (track !== undefined) {
       const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
-      this.attrs.trackFSM.update();
-      this.attrs.trackFSM.track.render(ctx, trackSize);
+      if (!track.getError()) {
+        track.update();
+        track.track.render(ctx, trackSize);
+      }
     } else {
       checkerboard(ctx, size.height, 0, size.width - TRACK_SHELL_WIDTH);
     }

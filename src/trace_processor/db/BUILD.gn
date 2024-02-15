@@ -15,7 +15,7 @@
 import("../../../gn/perfetto_tp_tables.gni")
 import("../../../gn/test.gni")
 
-source_set("db") {
+source_set("minimal") {
   sources = [
     "base_id.h",
     "column.cc",
@@ -26,8 +26,6 @@ source_set("db") {
     "compare.h",
     "query_executor.cc",
     "query_executor.h",
-    "runtime_table.cc",
-    "runtime_table.h",
     "table.cc",
     "table.h",
     "typed_column.h",
@@ -35,15 +33,29 @@ source_set("db") {
   ]
   deps = [
     "../../../gn:default_deps",
-    "../../../include/perfetto/base",
-    "../../../include/perfetto/ext/base",
     "../../../include/perfetto/trace_processor",
+    "../../base",
     "../containers",
     "../util:glob",
     "../util:regex",
     "../util:util",
     "column",
   ]
+}
+
+source_set("db") {
+  sources = [
+    "runtime_table.cc",
+    "runtime_table.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/trace_processor",
+    "../../base",
+    "../containers",
+    "column",
+  ]
+  public_deps = [ ":minimal" ]
 }
 
 source_set("compare") {
@@ -87,7 +99,9 @@ if (enable_perfetto_benchmarks) {
       "../../../include/perfetto/ext/base",
       "../../../include/perfetto/trace_processor:basic_types",
       "../../base:test_support",
+      "../containers",
       "../tables:tables_python",
+      "column",
     ]
     sources = [
       "column_storage_overlay_benchmark.cc",

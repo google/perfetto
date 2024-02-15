@@ -29,9 +29,8 @@ static constexpr size_t kMaxSyscalls = 550;
 
 enum class Architecture {
   kUnknown = 0,
-  kArmEabi,  // 32-bit kernel running a 32-bit process (most old devices).
-  kAarch32,  // 64-bit kernel running a 32-bit process (should be rare).
-  kAarch64,  // 64-bit kernel running a 64-bit process (most new devices).
+  kArm64,
+  kArm32,
   kX86_64,
   kX86,
 };

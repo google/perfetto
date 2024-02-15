@@ -43,6 +43,18 @@ if (enable_perfetto_ui) {
   }
 }
 
+# Depended upon by Chrome to do proto -> JSON conversion of traces.
+# Must be small binary size as all code here needs to be shipped in
+# Chrome.
+static_library("export_json") {
+  deps = [
+    ":export_json_sources",
+    "../../gn:default_deps",
+    "db/column:make_chain_minimal",
+  ]
+  public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
+}
+
 source_set("metatrace") {
   sources = [
     "tp_metatrace.cc",
@@ -117,7 +129,7 @@ source_set("storage_minimal") {
   public_deps = [ "../../include/perfetto/trace_processor:storage" ]
 }
 
-source_set("export_json") {
+source_set("export_json_sources") {
   sources = [
     "export_json.cc",
     "export_json.h",
@@ -125,12 +137,12 @@ source_set("export_json") {
   deps = [
     ":storage_minimal",
     "../../gn:default_deps",
+    "../../include/perfetto/ext/trace_processor:export_json",
     "../base",
     "importers/json:minimal",
     "storage",
     "types",
   ]
-  public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
 }
 
 if (enable_perfetto_trace_processor_sqlite) {
@@ -156,6 +168,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base",
       "../protozero",
       "db",
+      "db/column:make_chain",
       "importers/android_bugreport",
       "importers/common",
       "importers/etw:full",
@@ -249,8 +262,9 @@ perfetto_unittest_source_set("top_level_unittests") {
     # windows.
     sources += [ "export_json_unittest.cc" ]
     deps += [
-      ":export_json",
+      ":export_json_sources",
       "../../gn:jsoncpp",
+      "../../include/perfetto/ext/trace_processor:export_json",
       "containers",
       "importers/common",
       "importers/proto:minimal",
@@ -350,5 +364,6 @@ perfetto_fuzzer_test("trace_processor_fuzzer") {
     ":storage_minimal",
     "../../gn:default_deps",
     "../base",
+    "db/column:make_chain_minimal",
   ]
 }

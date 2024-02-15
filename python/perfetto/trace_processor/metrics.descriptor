@@ -1019,8 +1019,8 @@ m
 build_id (	RbuildId
 address (Raddress(
 google_lookup_id (	RgoogleLookupId
-Ä
-3protos/perfetto/metrics/android/binder_metric.protoperfetto.protos"û
+¨
+3protos/perfetto/metrics/android/binder_metric.protoperfetto.protos"ß
 AndroidBinderMetrice
 process_breakdown (28.perfetto.protos.AndroidBinderMetric.PerProcessBreakdownRprocessBreakdown{
 unaggregated_txn_breakdown (2=.perfetto.protos.AndroidBinderMetric.UnaggregatedTxnBreakdownRunaggregatedTxnBreakdown
@@ -1029,7 +1029,7 @@ m
 pid (Rpid
 
 slice_name (	R	sliceName
-count (Rcountâ
+count (RcountÆ	
 UnaggregatedTxnBreakdown
 	aidl_name (	RaidlName
 aidl_ts (RaidlTs
@@ -1040,15 +1040,21 @@ slice_name (	R	sliceName
 is_main_thread (RisMainThread
 	client_ts (RclientTs
 
-client_dur (R	clientDur(
-client_oom_score (RclientOomScore%
+client_dur (R	clientDur0
+client_monotonic_dur (RclientMonotonicDur(
+client_oom_score (RclientOomScore=
+client_package_version_code (RclientPackageVersionCode?
+is_client_package_debuggable (RisClientPackageDebuggable%
 server_process	 (	RserverProcess#
 server_thread
  (	RserverThread
 	server_ts (RserverTs
 
-server_dur (R	serverDur(
-server_oom_score (RserverOomScore^
+server_dur (R	serverDur0
+server_monotonic_dur (RserverMonotonicDur(
+server_oom_score (RserverOomScore=
+server_package_version_code (RserverPackageVersionCode?
+is_server_package_debuggable (RisServerPackageDebuggable^
 thread_states (29.perfetto.protos.AndroidBinderMetric.ThreadStateBreakdownRthreadStatesj
 blocked_functions (2=.perfetto.protos.AndroidBinderMetric.BlockedFunctionBreakdownRblockedFunctions
 
@@ -1069,16 +1075,17 @@ server_pid (R	serverPidJJ	½
 blocked_function (	RblockedFunction0
 blocked_function_dur (RblockedFunctionDur4
 blocked_function_count (RblockedFunctionCount
-Ã
-?protos/perfetto/metrics/android/monitor_contention_metric.protoperfetto.protos"î
+è
+?protos/perfetto/metrics/android/monitor_contention_metric.protoperfetto.protos"“
 AndroidMonitorContentionMetricH
-node (24.perfetto.protos.AndroidMonitorContentionMetric.NodeRnode½
+node (24.perfetto.protos.AndroidMonitorContentionMetric.NodeRnodeâ
 Node$
 node_parent_id (RnodeParentId"
 node_child_id (RnodeChildId
 node_id (RnodeId
 ts (Rts
-dur (Rdur!
+dur (Rdur#
+monotonic_dur (RmonotonicDur!
 process_name (	RprocessName
 pid (Rpid!
 waiter_count (RwaiterCounti

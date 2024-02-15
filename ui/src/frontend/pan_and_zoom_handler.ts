@@ -258,50 +258,58 @@ export class PanAndZoomHandler implements Disposable {
     }
   }
 
-  private onKeyDown(e: KeyboardEvent) {
-    if (elementIsEditable(e.target)) return;
+  // Due to a bug in chrome, we get onKeyDown events fired where the payload is
+  // not a KeyboardEvent when selecting an item from an autocomplete suggestion.
+  // See https://issues.chromium.org/issues/41425904
+  // Thus, we can't assume we get an KeyboardEvent and must check manually.
+  private onKeyDown(e: Event) {
+    if (e instanceof KeyboardEvent) {
+      if (elementIsEditable(e.target)) return;
 
-    this.updateShift(e.shiftKey);
+      this.updateShift(e.shiftKey);
 
-    // Handle key events that are not pan or zoom.
-    if (handleKey(e, true)) return;
+      // Handle key events that are not pan or zoom.
+      if (handleKey(e, true)) return;
 
-    if (e.ctrlKey || e.metaKey) return;
+      if (e.ctrlKey || e.metaKey) return;
 
-    if (keyToPan(e) !== Pan.None) {
-      if (this.panning !== keyToPan(e)) {
-        this.panAnimation.stop();
-        this.panOffsetPx = 0;
-        this.targetPanOffsetPx = keyToPan(e) * INITIAL_PAN_STEP_PX;
+      if (keyToPan(e) !== Pan.None) {
+        if (this.panning !== keyToPan(e)) {
+          this.panAnimation.stop();
+          this.panOffsetPx = 0;
+          this.targetPanOffsetPx = keyToPan(e) * INITIAL_PAN_STEP_PX;
+        }
+        this.panning = keyToPan(e);
+        this.panAnimation.start(DEFAULT_ANIMATION_DURATION);
       }
-      this.panning = keyToPan(e);
-      this.panAnimation.start(DEFAULT_ANIMATION_DURATION);
-    }
 
-    if (keyToZoom(e) !== Zoom.None) {
-      if (this.zooming !== keyToZoom(e)) {
-        this.zoomAnimation.stop();
-        this.zoomRatio = 0;
-        this.targetZoomRatio = keyToZoom(e) * INITIAL_ZOOM_STEP;
+      if (keyToZoom(e) !== Zoom.None) {
+        if (this.zooming !== keyToZoom(e)) {
+          this.zoomAnimation.stop();
+          this.zoomRatio = 0;
+          this.targetZoomRatio = keyToZoom(e) * INITIAL_ZOOM_STEP;
+        }
+        this.zooming = keyToZoom(e);
+        this.zoomAnimation.start(DEFAULT_ANIMATION_DURATION);
       }
-      this.zooming = keyToZoom(e);
-      this.zoomAnimation.start(DEFAULT_ANIMATION_DURATION);
     }
   }
 
-  private onKeyUp(e: KeyboardEvent) {
-    this.updateShift(e.shiftKey);
+  private onKeyUp(e: Event) {
+    if (e instanceof KeyboardEvent) {
+      this.updateShift(e.shiftKey);
 
-    // Handle key events that are not pan or zoom.
-    if (handleKey(e, false)) return;
+      // Handle key events that are not pan or zoom.
+      if (handleKey(e, false)) return;
 
-    if (e.ctrlKey || e.metaKey) return;
+      if (e.ctrlKey || e.metaKey) return;
 
-    if (keyToPan(e) === this.panning) {
-      this.panning = Pan.None;
-    }
-    if (keyToZoom(e) === this.zooming) {
-      this.zooming = Zoom.None;
+      if (keyToPan(e) === this.panning) {
+        this.panning = Pan.None;
+      }
+      if (keyToZoom(e) === this.zooming) {
+        this.zooming = Zoom.None;
+      }
     }
   }
 

@@ -628,8 +628,8 @@ export abstract class BaseSliceTrack<
               id
               ${extraCols ? ',' + extraCols : ''}
             from (${this.getSqlSource()})
-            where dur = -1
-            group by 1;
+            group by 1
+            having dur = -1;
           `);
         }
         const incomplete =
@@ -689,7 +689,6 @@ export abstract class BaseSliceTrack<
       filters: [
         `ts >= ${slicesKey.start - this.maxDurNs}`,
         `ts <= ${slicesKey.end}`,
-        `dur != -1`,
       ],
       groupBy: [
         maybeDepth,
@@ -718,17 +717,21 @@ export abstract class BaseSliceTrack<
     // Here convert each row to a Slice. We do what we can do
     // generically in the base class, and delegate the rest to the impl
     // via that rowToSlice() abstract call.
-    const slices = new Array<CastInternal<T['slice']>>(queryRes.numRows());
+    const slices = new Array<CastInternal<T['slice']>>();
     const it = queryRes.iter(this.getRowSpec());
 
     let maxDataDepth = this.maxDataDepth;
     this.slicesKey = slicesKey;
     for (let i = 0; it.valid(); it.next(), ++i) {
+      if (it.dur === -1n) {
+        continue;
+      }
+
       maxDataDepth = Math.max(maxDataDepth, it.depth);
       // Construct the base slice. The Impl will construct and return
       // the full derived T["slice"] (e.g. CpuSlice) in the
       // rowToSlice() method.
-      slices[i] = this.rowToSliceInternal(it);
+      slices.push(this.rowToSliceInternal(it));
     }
     this.maxDataDepth = maxDataDepth;
     this.onUpdatedSlices(slices);

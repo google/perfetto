@@ -313,7 +313,8 @@ class TracingServiceImpl : public TracingService {
   void FlushAndDisableTracing(TracingSessionID);
   void FlushAndCloneSession(ConsumerEndpointImpl*,
                             TracingSessionID,
-                            bool skip_filter);
+                            bool skip_filter,
+                            bool for_bugreport);
 
   // Starts reading the internal tracing buffers from the tracing session `tsid`
   // and sends them to `*consumer` (which must be != nullptr).
@@ -733,6 +734,12 @@ class TracingServiceImpl : public TracingService {
   void ScrapeSharedMemoryBuffers(TracingSession*, ProducerEndpointImpl*);
   void PeriodicClearIncrementalStateTask(TracingSessionID, bool post_next_only);
   TraceBuffer* GetBufferByID(BufferID);
+  void FlushDataSourceInstances(
+      TracingSession*,
+      uint32_t timeout_ms,
+      std::map<ProducerID, std::vector<DataSourceInstanceID>>,
+      ConsumerEndpoint::FlushCallback,
+      FlushFlags);
   base::Status DoCloneSession(ConsumerEndpointImpl*,
                               TracingSessionID,
                               bool skip_filter,

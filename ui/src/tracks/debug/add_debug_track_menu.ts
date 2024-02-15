@@ -169,7 +169,9 @@ export class AddDebugTrackMenu implements
             break;
           case 'counter':
             addDebugCounterTrack(
-              vnode.attrs.engine, vnode.attrs.dataSource, this.name, {
+              vnode.attrs.dataSource,
+              this.name,
+              {
                 ts: this.renderParams.ts,
                 value: this.renderParams.value,
               });

@@ -19,25 +19,28 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
+#include <memory>
+#include <optional>
 #include <string>
+#include <utility>
+#include <variant>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
+
+namespace perfetto::trace_processor::column {
 namespace {
 
 using NumericValue = std::variant<uint32_t, int32_t, int64_t, double>;
@@ -99,29 +102,33 @@ inline FilterOpVariant<T> GetFilterOpVariant(FilterOp op) {
   PERFETTO_FATAL("For GCC");
 }
 
-uint32_t LowerBoundIntrinsic(const void* data,
+uint32_t LowerBoundIntrinsic(const void* vector_ptr,
                              NumericValue val,
                              Range search_range) {
   return std::visit(
-      [data, search_range](auto val_data) {
+      [vector_ptr, search_range](auto val_data) {
         using T = decltype(val_data);
-        const T* typed_start = static_cast<const T*>(data);
-        auto lower = std::lower_bound(typed_start + search_range.start,
-                                      typed_start + search_range.end, val_data);
+        const T* typed_start =
+            static_cast<const std::vector<T>*>(vector_ptr)->data();
+        const auto* lower =
+            std::lower_bound(typed_start + search_range.start,
+                             typed_start + search_range.end, val_data);
         return static_cast<uint32_t>(std::distance(typed_start, lower));
       },
       val);
 }
 
-uint32_t UpperBoundIntrinsic(const void* data,
+uint32_t UpperBoundIntrinsic(const void* vector_ptr,
                              NumericValue val,
                              Range search_range) {
   return std::visit(
-      [data, search_range](auto val_data) {
+      [vector_ptr, search_range](auto val_data) {
         using T = decltype(val_data);
-        const T* typed_start = static_cast<const T*>(data);
-        auto upper = std::upper_bound(typed_start + search_range.start,
-                                      typed_start + search_range.end, val_data);
+        const T* typed_start =
+            static_cast<const std::vector<T>*>(vector_ptr)->data();
+        const auto* upper =
+            std::upper_bound(typed_start + search_range.start,
+                             typed_start + search_range.end, val_data);
         return static_cast<uint32_t>(std::distance(typed_start, upper));
       },
       val);
@@ -129,42 +136,47 @@ uint32_t UpperBoundIntrinsic(const void* data,
 
 template <typename T>
 uint32_t TypedLowerBoundExtrinsic(T val, const T* data, Indices indices) {
-  auto lower = std::lower_bound(
+  const auto* lower = std::lower_bound(
       indices.data, indices.data + indices.size, val,
       [data](uint32_t index, T value) { return data[index] < value; });
   return static_cast<uint32_t>(std::distance(indices.data, lower));
 }
 
-uint32_t LowerBoundExtrinsic(const void* data,
+uint32_t LowerBoundExtrinsic(const void* vector_ptr,
                              NumericValue val,
                              Indices indices) {
   if (const auto* u32 = std::get_if<uint32_t>(&val)) {
-    auto* start = static_cast<const uint32_t*>(data);
+    const auto* start =
+        static_cast<const std::vector<uint32_t>*>(vector_ptr)->data();
     return TypedLowerBoundExtrinsic(*u32, start, indices);
   }
   if (const auto* i64 = std::get_if<int64_t>(&val)) {
-    auto* start = static_cast<const int64_t*>(data);
+    const auto* start =
+        static_cast<const std::vector<int64_t>*>(vector_ptr)->data();
     return TypedLowerBoundExtrinsic(*i64, start, indices);
   }
   if (const auto* i32 = std::get_if<int32_t>(&val)) {
-    auto* start = static_cast<const int32_t*>(data);
+    const auto* start =
+        static_cast<const std::vector<int32_t>*>(vector_ptr)->data();
     return TypedLowerBoundExtrinsic(*i32, start, indices);
   }
   if (const auto* db = std::get_if<double>(&val)) {
-    auto* start = static_cast<const double*>(data);
+    const auto* start =
+        static_cast<const std::vector<double>*>(vector_ptr)->data();
     return TypedLowerBoundExtrinsic(*db, start, indices);
   }
   PERFETTO_FATAL("Type not handled");
 }
 
-uint32_t UpperBoundExtrinsic(const void* data,
+uint32_t UpperBoundExtrinsic(const void* vector_ptr,
                              NumericValue val,
                              Indices indices) {
   return std::visit(
-      [data, indices](auto val_data) {
+      [vector_ptr, indices](auto val_data) {
         using T = decltype(val_data);
-        const T* typed_start = static_cast<const T*>(data);
-        auto upper =
+        const T* typed_start =
+            static_cast<const std::vector<T>*>(vector_ptr)->data();
+        const auto* upper =
             std::upper_bound(indices.data, indices.data + indices.size,
                              val_data, [typed_start](T value, uint32_t index) {
                                return value < typed_start[index];
@@ -206,16 +218,15 @@ void TypedLinearSearch(T typed_val,
   }
 }
 
-SearchValidationResult IntColumnWithDouble(SqlValue* sql_val, FilterOp op) {
+SearchValidationResult IntColumnWithDouble(FilterOp op, SqlValue* sql_val) {
   double double_val = sql_val->AsDouble();
 
   // Case when |sql_val| can be interpreted as a SqlValue::Double.
-  if (std::equal_to<double>()(
-          static_cast<double>(static_cast<int64_t>(double_val)), double_val)) {
+  if (std::equal_to<>()(static_cast<double>(static_cast<int64_t>(double_val)),
+                        double_val)) {
     *sql_val = SqlValue::Long(static_cast<int64_t>(double_val));
     return SearchValidationResult::kOk;
   }
-
   // Logic for when the value is a real double.
   switch (op) {
     case FilterOp::kEq:
@@ -242,9 +253,9 @@ SearchValidationResult IntColumnWithDouble(SqlValue* sql_val, FilterOp op) {
   PERFETTO_FATAL("For GCC");
 }
 
-SearchValidationResult DoubleColumnWithInt(SqlValue* sql_val, FilterOp op) {
+SearchValidationResult DoubleColumnWithInt(FilterOp op, SqlValue* sql_val) {
   int64_t i = sql_val->AsLong();
-  double i_as_d = static_cast<double>(i);
+  auto i_as_d = static_cast<double>(i);
 
   // Case when |sql_val| can be interpreted as a SqlValue::Long.
   if (std::equal_to<int64_t>()(i, static_cast<int64_t>(i_as_d))) {
@@ -282,9 +293,19 @@ SearchValidationResult DoubleColumnWithInt(SqlValue* sql_val, FilterOp op) {
 
 }  // namespace
 
-SearchValidationResult NumericStorageBase::ValidateSearchConstraints(
-    SqlValue val,
-    FilterOp op) const {
+NumericStorageBase::NumericStorageBase(ColumnType type, bool is_sorted)
+    : storage_type_(type), is_sorted_(is_sorted) {}
+
+NumericStorageBase::~NumericStorageBase() = default;
+
+NumericStorageBase::ChainImpl::ChainImpl(const void* vector_ptr,
+                                         ColumnType type,
+                                         bool is_sorted)
+    : vector_ptr_(vector_ptr), storage_type_(type), is_sorted_(is_sorted) {}
+
+SearchValidationResult NumericStorageBase::ChainImpl::ValidateSearchConstraints(
+    FilterOp op,
+    SqlValue val) const {
   // NULL checks.
   if (PERFETTO_UNLIKELY(val.is_null())) {
     if (op == FilterOp::kIsNotNull) {
@@ -336,9 +357,9 @@ SearchValidationResult NumericStorageBase::ValidateSearchConstraints(
   enum ExtremeVal { kTooBig, kTooSmall, kOk };
   ExtremeVal extreme_validator = kOk;
 
-  double_t num_val = val.type == SqlValue::kLong
-                         ? static_cast<double_t>(val.AsLong())
-                         : val.AsDouble();
+  double num_val = val.type == SqlValue::kLong
+                       ? static_cast<double>(val.AsLong())
+                       : val.AsDouble();
 
   switch (storage_type_) {
     case ColumnType::kDouble:
@@ -391,24 +412,25 @@ SearchValidationResult NumericStorageBase::ValidateSearchConstraints(
   PERFETTO_FATAL("For GCC");
 }
 
-RangeOrBitVector NumericStorageBase::Search(FilterOp op,
-                                            SqlValue sql_val,
-                                            Range search_range) const {
-  PERFETTO_DCHECK(search_range.end <= size_);
+RangeOrBitVector NumericStorageBase::ChainImpl::SearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Range search_range) const {
+  PERFETTO_DCHECK(search_range.end <= size());
 
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::Search",
-                    [&search_range, op](metatrace::Record* r) {
-                      r->AddArg("Start", std::to_string(search_range.start));
-                      r->AddArg("End", std::to_string(search_range.end));
-                      r->AddArg("Op",
-                                std::to_string(static_cast<uint32_t>(op)));
-                    });
+  PERFETTO_TP_TRACE(
+      metatrace::Category::DB, "NumericStorage::ChainImpl::Search",
+      [&search_range, op](metatrace::Record* r) {
+        r->AddArg("Start", std::to_string(search_range.start));
+        r->AddArg("End", std::to_string(search_range.end));
+        r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
+      });
 
   // Mismatched types - value is double and column is int.
   if (sql_val.type == SqlValue::kDouble &&
       storage_type_ != ColumnType::kDouble) {
     auto ret_opt =
-        utils::CanReturnEarly(IntColumnWithDouble(&sql_val, op), search_range);
+        utils::CanReturnEarly(IntColumnWithDouble(op, &sql_val), search_range);
     if (ret_opt) {
       return RangeOrBitVector(*ret_opt);
     }
@@ -418,7 +440,7 @@ RangeOrBitVector NumericStorageBase::Search(FilterOp op,
   if (sql_val.type != SqlValue::kDouble &&
       storage_type_ == ColumnType::kDouble) {
     auto ret_opt =
-        utils::CanReturnEarly(DoubleColumnWithInt(&sql_val, op), search_range);
+        utils::CanReturnEarly(DoubleColumnWithInt(op, &sql_val), search_range);
     if (ret_opt) {
       return RangeOrBitVector(*ret_opt);
     }
@@ -438,28 +460,28 @@ RangeOrBitVector NumericStorageBase::Search(FilterOp op,
     bv.Resize(search_range.end, true);
     return RangeOrBitVector(std::move(bv));
   }
-
   return RangeOrBitVector(LinearSearchInternal(op, val, search_range));
 }
 
-RangeOrBitVector NumericStorageBase::IndexSearch(FilterOp op,
-                                                 SqlValue sql_val,
-                                                 Indices indices) const {
+RangeOrBitVector NumericStorageBase::ChainImpl::IndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
   PERFETTO_DCHECK(*std::max_element(indices.data, indices.data + indices.size) <
-                  size_);
+                  size());
 
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::IndexSearch",
-                    [indices, op](metatrace::Record* r) {
-                      r->AddArg("Count", std::to_string(indices.size));
-                      r->AddArg("Op",
-                                std::to_string(static_cast<uint32_t>(op)));
-                    });
+  PERFETTO_TP_TRACE(
+      metatrace::Category::DB, "NumericStorage::ChainImpl::IndexSearch",
+      [indices, op](metatrace::Record* r) {
+        r->AddArg("Count", std::to_string(indices.size));
+        r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
+      });
 
   // Mismatched types - value is double and column is int.
   if (sql_val.type == SqlValue::kDouble &&
       storage_type_ != ColumnType::kDouble) {
     auto ret_opt =
-        utils::CanReturnEarly(IntColumnWithDouble(&sql_val, op), indices.size);
+        utils::CanReturnEarly(IntColumnWithDouble(op, &sql_val), indices.size);
     if (ret_opt) {
       return RangeOrBitVector(*ret_opt);
     }
@@ -469,26 +491,26 @@ RangeOrBitVector NumericStorageBase::IndexSearch(FilterOp op,
   if (sql_val.type != SqlValue::kDouble &&
       storage_type_ == ColumnType::kDouble) {
     auto ret_opt =
-        utils::CanReturnEarly(DoubleColumnWithInt(&sql_val, op), indices.size);
+        utils::CanReturnEarly(DoubleColumnWithInt(op, &sql_val), indices.size);
     if (ret_opt) {
       return RangeOrBitVector(*ret_opt);
     }
   }
 
   NumericValue val = GetNumericTypeVariant(storage_type_, sql_val);
-
   return RangeOrBitVector(
       IndexSearchInternal(op, val, indices.data, indices.size));
 }
 
-Range NumericStorageBase::OrderedIndexSearch(FilterOp op,
-                                             SqlValue sql_val,
-                                             Indices indices) const {
+Range NumericStorageBase::ChainImpl::OrderedIndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    Indices indices) const {
   PERFETTO_DCHECK(*std::max_element(indices.data, indices.data + indices.size) <
-                  size_);
+                  size());
 
   PERFETTO_TP_TRACE(
-      metatrace::Category::DB, "NumericStorage::OrderedIndexSearch",
+      metatrace::Category::DB, "NumericStorage::ChainImpl::OrderedIndexSearch",
       [indices, op](metatrace::Record* r) {
         r->AddArg("Count", std::to_string(indices.size));
         r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
@@ -497,7 +519,7 @@ Range NumericStorageBase::OrderedIndexSearch(FilterOp op,
   // Mismatched types - value is double and column is int.
   if (sql_val.type == SqlValue::kDouble &&
       storage_type_ != ColumnType::kDouble) {
-    if (auto ret = utils::CanReturnEarly(IntColumnWithDouble(&sql_val, op),
+    if (auto ret = utils::CanReturnEarly(IntColumnWithDouble(op, &sql_val),
                                          indices.size);
         ret) {
       return *ret;
@@ -507,7 +529,7 @@ Range NumericStorageBase::OrderedIndexSearch(FilterOp op,
   // Mismatched types - column is double and value is int.
   if (sql_val.type != SqlValue::kDouble &&
       storage_type_ == ColumnType::kDouble) {
-    if (auto ret = utils::CanReturnEarly(DoubleColumnWithInt(&sql_val, op),
+    if (auto ret = utils::CanReturnEarly(DoubleColumnWithInt(op, &sql_val),
                                          indices.size);
         ret) {
       return *ret;
@@ -536,16 +558,16 @@ Range NumericStorageBase::OrderedIndexSearch(FilterOp op,
 
   switch (op) {
     case FilterOp::kEq:
-      return Range(LowerBoundExtrinsic(data_, val, indices),
-                   UpperBoundExtrinsic(data_, val, indices));
+      return {LowerBoundExtrinsic(vector_ptr_, val, indices),
+              UpperBoundExtrinsic(vector_ptr_, val, indices)};
     case FilterOp::kLe:
-      return Range(0, UpperBoundExtrinsic(data_, val, indices));
+      return {0, UpperBoundExtrinsic(vector_ptr_, val, indices)};
     case FilterOp::kLt:
-      return Range(0, LowerBoundExtrinsic(data_, val, indices));
+      return {0, LowerBoundExtrinsic(vector_ptr_, val, indices)};
     case FilterOp::kGe:
-      return Range(LowerBoundExtrinsic(data_, val, indices), indices.size);
+      return {LowerBoundExtrinsic(vector_ptr_, val, indices), indices.size};
     case FilterOp::kGt:
-      return Range(UpperBoundExtrinsic(data_, val, indices), indices.size);
+      return {UpperBoundExtrinsic(vector_ptr_, val, indices), indices.size};
     case FilterOp::kNe:
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
@@ -556,21 +578,30 @@ Range NumericStorageBase::OrderedIndexSearch(FilterOp op,
   PERFETTO_FATAL("For GCC");
 }
 
-BitVector NumericStorageBase::LinearSearchInternal(FilterOp op,
-                                                   NumericValue val,
-                                                   Range range) const {
+BitVector NumericStorageBase::ChainImpl::LinearSearchInternal(
+    FilterOp op,
+    NumericValue val,
+    Range range) const {
   BitVector::Builder builder(range.end, range.start);
   if (const auto* u32 = std::get_if<uint32_t>(&val)) {
-    auto* start = static_cast<const uint32_t*>(data_) + range.start;
+    const auto* start =
+        static_cast<const std::vector<uint32_t>*>(vector_ptr_)->data() +
+        range.start;
     TypedLinearSearch(*u32, start, op, builder);
   } else if (const auto* i64 = std::get_if<int64_t>(&val)) {
-    auto* start = static_cast<const int64_t*>(data_) + range.start;
+    const auto* start =
+        static_cast<const std::vector<int64_t>*>(vector_ptr_)->data() +
+        range.start;
     TypedLinearSearch(*i64, start, op, builder);
   } else if (const auto* i32 = std::get_if<int32_t>(&val)) {
-    auto* start = static_cast<const int32_t*>(data_) + range.start;
+    const auto* start =
+        static_cast<const std::vector<int32_t>*>(vector_ptr_)->data() +
+        range.start;
     TypedLinearSearch(*i32, start, op, builder);
   } else if (const auto* db = std::get_if<double>(&val)) {
-    auto* start = static_cast<const double*>(data_) + range.start;
+    const auto* start =
+        static_cast<const std::vector<double>*>(vector_ptr_)->data() +
+        range.start;
     TypedLinearSearch(*db, start, op, builder);
   } else {
     PERFETTO_DFATAL("Invalid");
@@ -578,7 +609,7 @@ BitVector NumericStorageBase::LinearSearchInternal(FilterOp op,
   return std::move(builder).Build();
 }
 
-BitVector NumericStorageBase::IndexSearchInternal(
+BitVector NumericStorageBase::ChainImpl::IndexSearchInternal(
     FilterOp op,
     NumericValue val,
     const uint32_t* indices,
@@ -587,7 +618,7 @@ BitVector NumericStorageBase::IndexSearchInternal(
   std::visit(
       [this, indices, op, &builder](auto val) {
         using T = decltype(val);
-        auto* start = static_cast<const T*>(data_);
+        auto* start = static_cast<const std::vector<T>*>(vector_ptr_)->data();
         std::visit(
             [start, indices, val, &builder](auto comparator) {
               utils::IndexSearchWithComparator(val, start, indices, comparator,
@@ -599,84 +630,82 @@ BitVector NumericStorageBase::IndexSearchInternal(
   return std::move(builder).Build();
 }
 
-Range NumericStorageBase::BinarySearchIntrinsic(FilterOp op,
-                                                NumericValue val,
-                                                Range search_range) const {
+Range NumericStorageBase::ChainImpl::BinarySearchIntrinsic(
+    FilterOp op,
+    NumericValue val,
+    Range search_range) const {
   switch (op) {
     case FilterOp::kEq:
-      return Range(LowerBoundIntrinsic(data_, val, search_range),
-                   UpperBoundIntrinsic(data_, val, search_range));
-    case FilterOp::kLe: {
-      return Range(search_range.start,
-                   UpperBoundIntrinsic(data_, val, search_range));
-    }
+      return {LowerBoundIntrinsic(vector_ptr_, val, search_range),
+              UpperBoundIntrinsic(vector_ptr_, val, search_range)};
+    case FilterOp::kLe:
+      return {search_range.start,
+              UpperBoundIntrinsic(vector_ptr_, val, search_range)};
     case FilterOp::kLt:
-      return Range(search_range.start,
-                   LowerBoundIntrinsic(data_, val, search_range));
+      return {search_range.start,
+              LowerBoundIntrinsic(vector_ptr_, val, search_range)};
     case FilterOp::kGe:
-      return Range(LowerBoundIntrinsic(data_, val, search_range),
-                   search_range.end);
+      return {LowerBoundIntrinsic(vector_ptr_, val, search_range),
+              search_range.end};
     case FilterOp::kGt:
-      return Range(UpperBoundIntrinsic(data_, val, search_range),
-                   search_range.end);
+      return {UpperBoundIntrinsic(vector_ptr_, val, search_range),
+              search_range.end};
     case FilterOp::kNe:
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
     case FilterOp::kGlob:
     case FilterOp::kRegex:
-      return Range();
+      return {};
   }
-  return Range();
+  return {};
 }
 
-void NumericStorageBase::StableSort(uint32_t* rows, uint32_t rows_size) const {
-  std::visit(
-      [this, &rows, rows_size](auto val_data) {
-        using T = decltype(val_data);
-        const T* typed_start = static_cast<const T*>(data_);
-        std::stable_sort(rows, rows + rows_size,
-                         [typed_start](uint32_t a_idx, uint32_t b_idx) {
-                           T first_val = typed_start[a_idx];
-                           T second_val = typed_start[b_idx];
-                           return first_val < second_val;
-                         });
-      },
-      GetNumericTypeVariant(storage_type_, SqlValue::Long(0)));
-}
-
-void NumericStorageBase::Sort(uint32_t*, uint32_t) const {
-  // TODO(b/307482437): Implement.
-  PERFETTO_ELOG("Not implemented");
-}
-
-void NumericStorageBase::Serialize(StorageProto* msg) const {
+void NumericStorageBase::ChainImpl::Serialize(StorageProto* msg) const {
   auto* numeric_storage_msg = msg->set_numeric_storage();
   numeric_storage_msg->set_is_sorted(is_sorted_);
   numeric_storage_msg->set_column_type(static_cast<uint32_t>(storage_type_));
 
-  uint32_t type_size;
   switch (storage_type_) {
-    case ColumnType::kInt64:
-      type_size = sizeof(int64_t);
+    case ColumnType::kInt64: {
+      const auto* ptr = static_cast<const std::vector<int64_t>*>(vector_ptr_);
+      numeric_storage_msg->set_values(
+          reinterpret_cast<const uint8_t*>(ptr->data()),
+          sizeof(int64_t) * ptr->size());
       break;
-    case ColumnType::kInt32:
-      type_size = sizeof(int32_t);
+    }
+    case ColumnType::kInt32: {
+      const auto* ptr = static_cast<const std::vector<int64_t>*>(vector_ptr_);
+      numeric_storage_msg->set_values(
+          reinterpret_cast<const uint8_t*>(ptr->data()),
+          sizeof(int32_t) * ptr->size());
       break;
-    case ColumnType::kUint32:
-      type_size = sizeof(uint32_t);
+    }
+    case ColumnType::kUint32: {
+      const auto* ptr = static_cast<const std::vector<int64_t>*>(vector_ptr_);
+      numeric_storage_msg->set_values(
+          reinterpret_cast<const uint8_t*>(ptr->data()),
+          sizeof(uint32_t) * ptr->size());
       break;
-    case ColumnType::kDouble:
-      type_size = sizeof(double_t);
+    }
+    case ColumnType::kDouble: {
+      const auto* ptr = static_cast<const std::vector<int64_t>*>(vector_ptr_);
+      numeric_storage_msg->set_values(
+          reinterpret_cast<const uint8_t*>(ptr->data()),
+          sizeof(double_t) * ptr->size());
       break;
+    }
     case ColumnType::kDummy:
     case ColumnType::kId:
     case ColumnType::kString:
       PERFETTO_FATAL("Invalid column type for NumericStorage");
   }
-  numeric_storage_msg->set_values(static_cast<const uint8_t*>(data_),
-                                  static_cast<size_t>(type_size) * size_);
 }
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+// Define explicit instantiation of the necessary templates here to reduce
+// binary size bloat.
+template class NumericStorage<double>;
+template class NumericStorage<uint32_t>;
+template class NumericStorage<int32_t>;
+template class NumericStorage<int64_t>;
+
+}  // namespace perfetto::trace_processor::column
