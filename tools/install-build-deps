@@ -165,13 +165,13 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
     # tools/clang/scripts/update.py.
     Dependency(
         'buildtools/linux64/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-16-init-8697-g60809cd2-1.tgz',
-        '5ae35f85e0d32136795c6b223bf64263d46678dd4a24fea4e9039e58a32670de',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Linux_x64/clang-llvmorg-18-init-17730-gf670112a-5.tgz',
+        'ce6201b728ea485d4b116aa3b5e8ae3b34ee2775f25924c5714fdbe42fb2b787',
         'linux', 'x64'),
     Dependency(
         'buildtools/win/clang.tgz',
-        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-16-init-8697-g60809cd2-1.tgz',
-        '086faec822acba5b9c0308c6a8be34424031027d757efa2b81805aed18ffc521',
+        'https://commondatastorage.googleapis.com/chromium-browser-clang/Win/clang-llvmorg-18-init-17730-gf670112a-5.tgz',
+        '972011cc8a5bc5d5fbe08773089058a264ee0e19af019df28f0972ee9bd0493f',
         'windows', 'x64'),
 ]
 
