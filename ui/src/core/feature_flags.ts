@@ -249,5 +249,5 @@ export const TABS_V2_FLAG = featureFlags.register({
   id: 'tabsv2',
   name: 'Tabs V2',
   description: 'Use Tabs V2',
-  defaultValue: false,
+  defaultValue: true,
 });
