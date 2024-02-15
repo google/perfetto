@@ -14,4 +14,4 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE common.slices;
+INCLUDE PERFETTO MODULE deprecated.v42.common.slices;

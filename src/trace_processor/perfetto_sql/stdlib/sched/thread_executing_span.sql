@@ -14,7 +14,6 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE common.slices;
 INCLUDE PERFETTO MODULE slices.flat_slices;
 
 -- A 'thread_executing_span' is thread_state span starting with a runnable slice

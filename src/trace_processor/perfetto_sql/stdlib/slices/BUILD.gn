@@ -18,5 +18,6 @@ perfetto_sql_source_set("slices") {
   sources = [
     "flat_slices.sql",
     "slices.sql",
+    "with_context.sql",
   ]
 }

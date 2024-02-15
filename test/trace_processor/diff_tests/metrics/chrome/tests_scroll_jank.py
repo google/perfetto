@@ -459,3 +459,75 @@ class ChromeScrollJankMetrics(TestSuite):
           }
         }
         """))
+
+  def test_has_descendant_slice_with_name_true(self):
+    return DiffTestBlueprint(
+        # We need a trace with a large number of non-chrome slices, so that the
+        # reliable range is affected by their filtering.
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
+
+        SELECT
+          _HAS_DESCENDANT_SLICE_WITH_NAME(
+            (SELECT id from slice where dur = 46046000),
+            'SwapEndToPresentationCompositorFrame') AS has_descendant;
+        """,
+        out=Csv("""
+        "has_descendant"
+        1
+        """))
+
+  def test_has_descendant_slice_with_name_false(self):
+    return DiffTestBlueprint(
+        # We need a trace with a large number of non-chrome slices, so that the
+        # reliable range is affected by their filtering.
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
+
+        SELECT
+          _HAS_DESCENDANT_SLICE_WITH_NAME(
+            (SELECT id from slice where dur = 11666000),
+            'SwapEndToPresentationCompositorFrame') AS has_descendant;
+        """,
+        out=Csv("""
+        "has_descendant"
+        0
+        """))
+
+  def test_descendant_slice_null(self):
+    return DiffTestBlueprint(
+        # We need a trace with a large number of non-chrome slices, so that the
+        # reliable range is affected by their filtering.
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
+
+        SELECT
+          _DESCENDANT_SLICE_END(
+            (SELECT id from slice where dur = 11666000),
+            'SwapEndToPresentationCompositorFrame') AS end_ts;
+        """,
+        out=Csv("""
+        "end_ts"
+        "[NULL]"
+        """))
+
+  def test_descendant_slice(self):
+    return DiffTestBlueprint(
+        # We need a trace with a large number of non-chrome slices, so that the
+        # reliable range is affected by their filtering.
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
+
+        SELECT
+          _DESCENDANT_SLICE_END(
+            (SELECT id from slice where dur = 46046000),
+            'SwapEndToPresentationCompositorFrame') AS end_ts;
+        """,
+        out=Csv("""
+        "end_ts"
+        174797566610797
+        """))

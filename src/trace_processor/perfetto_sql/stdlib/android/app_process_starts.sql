@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-INCLUDE PERFETTO MODULE common.slices;
+INCLUDE PERFETTO MODULE slices.with_context;
 
 -- All process starts.
 CREATE PERFETTO VIEW _proc_start
