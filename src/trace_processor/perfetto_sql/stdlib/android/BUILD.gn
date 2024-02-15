@@ -31,6 +31,7 @@ perfetto_sql_source_set("android") {
     "job_scheduler.sql",
     "monitor_contention.sql",
     "network_packets.sql",
+    "oom_adjuster.sql",
     "process_metadata.sql",
     "screenshots.sql",
     "services.sql",
