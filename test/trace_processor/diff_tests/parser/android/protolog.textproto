@@ -20,6 +20,17 @@ packet {
 packet {
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
+  interned_data {
+    protolog_stacktrace {
+      iid: 1
+      str: "A STACK TRACE"
+    }
+  }
+  trusted_pid: 1716
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
   sequence_flags: 2
   trusted_pid: 1716
   timestamp: 857384100
@@ -29,6 +40,7 @@ packet {
     sint64_params: 888
     double_params: 8.88
     boolean_params: 1
+    stacktrace_iid: 1
   }
 }
 packet {

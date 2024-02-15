@@ -299,7 +299,10 @@ namespace stats {
       "ProtoLog message string has invalid interplation parameter."),          \
   F(winscope_protolog_missing_interned_arg_parse_errors,                       \
                                           kSingle,  kInfo,     kAnalysis,      \
-      "Failed to find interned ProtoLog argument."),          \
+      "Failed to find interned ProtoLog argument."),                           \
+  F(winscope_protolog_missing_interned_stacktrace_parse_errors,                \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "Failed to find interned ProtoLog stacktrace."),                         \
   F(ftrace_missing_event_id,              kSingle,  kInfo,    kAnalysis,       \
       "Indicates that the ftrace event was dropped because the event id was "  \
       "missing. This is an 'info' stat rather than an error stat because "     \

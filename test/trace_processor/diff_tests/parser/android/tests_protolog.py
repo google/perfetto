@@ -24,10 +24,10 @@ class ProtoLog(TestSuite):
   def test_has_expected_protolog_rows(self):
     return DiffTestBlueprint(
         trace=Path('protolog.textproto'),
-        query="SELECT id, ts, level, tag, message FROM protolog;",
+        query="SELECT id, ts, level, tag, message, stacktrace FROM protolog;",
         out=Csv("""
-        "id","ts","level","tag","message"
-        0,857384100,"DEBUG","MyFirstGroup","Test message with a string (MyTestString), an int (1776), a double 8.88, and a boolean true."
-        1,857384110,"WARN","MySecondGroup","Test message with different int formats: 1776, 0o3360, 0x6f0, 888.000000, 8.880000e+02."
-        2,857384130,"ERROR","MyThirdGroup","Message re-using interned string 'MyOtherTestString' == 'MyOtherTestString', but 'SomeOtherTestString' != 'MyOtherTestString'"
+        "id","ts","level","tag","message","stacktrace"
+        0,857384100,"DEBUG","MyFirstGroup","Test message with a string (MyTestString), an int (1776), a double 8.88, and a boolean true.","A STACK TRACE"
+        1,857384110,"WARN","MySecondGroup","Test message with different int formats: 1776, 0o3360, 0x6f0, 888.000000, 8.880000e+02.","[NULL]"
+        2,857384130,"ERROR","MyThirdGroup","Message re-using interned string 'MyOtherTestString' == 'MyOtherTestString', but 'SomeOtherTestString' != 'MyOtherTestString'","[NULL]"
         """))
