@@ -409,6 +409,11 @@ base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
 
 base::Status PerfettoSqlEngine::ExecuteCreateTable(
     const PerfettoSqlParser::CreateTable& create_table) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
+                    "CREATE_PERFETTO_TABLE",
+                    [&create_table](metatrace::Record* record) {
+                      record->AddArg("Table", create_table.name);
+                    });
   auto stmt_or = engine_->PrepareStatement(create_table.sql);
   RETURN_IF_ERROR(stmt_or.status());
   SqliteEngine::PreparedStatement stmt = std::move(stmt_or);
