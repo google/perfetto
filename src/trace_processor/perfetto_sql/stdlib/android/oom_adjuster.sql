@@ -30,8 +30,8 @@ SELECT
   CASE
     WHEN $value = -1000 THEN 'native'
     WHEN $value = -900 THEN 'system'
-    WHEN $value = -800 THEN 'persistent'
-    WHEN $value = -700 THEN 'persistent'
+    WHEN $value = -800 THEN 'persistent_proc'
+    WHEN $value = -700 THEN 'persistent_service'
     WHEN $value = -600 THEN 'logcat'
     WHEN $value = 0 THEN 'foreground_app'
     WHEN $value = 50 THEN 'perceptible_foreground_app'
