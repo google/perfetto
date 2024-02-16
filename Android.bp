@@ -2325,7 +2325,7 @@ cc_test {
         ":perfetto_src_trace_processor_db_column_column",
         ":perfetto_src_trace_processor_db_db",
         ":perfetto_src_trace_processor_db_minimal",
-        ":perfetto_src_trace_processor_export_json_sources",
+        ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
@@ -11022,9 +11022,9 @@ cc_library_static {
     ],
 }
 
-// GN: //src/trace_processor:export_json_sources
+// GN: //src/trace_processor:export_json
 filegroup {
-    name: "perfetto_src_trace_processor_export_json_sources",
+    name: "perfetto_src_trace_processor_export_json",
     srcs: [
         "src/trace_processor/export_json.cc",
     ],
@@ -13800,7 +13800,7 @@ cc_test {
         ":perfetto_src_trace_processor_db_db",
         ":perfetto_src_trace_processor_db_minimal",
         ":perfetto_src_trace_processor_db_unittests",
-        ":perfetto_src_trace_processor_export_json_sources",
+        ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_android_bugreport_unittests",
         ":perfetto_src_trace_processor_importers_common_common",
@@ -14516,7 +14516,7 @@ cc_binary {
         ":perfetto_src_trace_processor_db_column_column",
         ":perfetto_src_trace_processor_db_db",
         ":perfetto_src_trace_processor_db_minimal",
-        ":perfetto_src_trace_processor_export_json_sources",
+        ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
@@ -14751,7 +14751,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_db_column_column",
         ":perfetto_src_trace_processor_db_db",
         ":perfetto_src_trace_processor_db_minimal",
-        ":perfetto_src_trace_processor_export_json_sources",
+        ":perfetto_src_trace_processor_export_json",
         ":perfetto_src_trace_processor_importers_android_bugreport_android_bugreport",
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
