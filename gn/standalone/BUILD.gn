@@ -89,6 +89,10 @@ config("extra_warnings") {
       "-Wno-unknown-sanitizers",
       "-Wno-unknown-warning-option",
       "-Wno-unsafe-buffer-usage",
+
+      # TODO(primiano): -Wswitch-default could be useful but will require a mass
+      # codebase cleanup.
+      "-Wno-switch-default",
     ]
   } else if (!is_clang && !is_win) {
     # Use return std::move(...) for compatibility with old GCC compilers.
