@@ -197,11 +197,6 @@ uint32_t UpperBoundExtrinsic(StringPool* pool,
 
 }  // namespace
 
-StringStorage::StringStorage(StringPool* string_pool,
-                             const std::vector<StringPool::Id>* data,
-                             bool is_sorted)
-    : data_(data), string_pool_(string_pool), is_sorted_(is_sorted) {}
-
 StringStorage::ChainImpl::ChainImpl(StringPool* string_pool,
                                     const std::vector<StringPool::Id>* data,
                                     bool is_sorted)

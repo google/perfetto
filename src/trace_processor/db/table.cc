@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -92,6 +93,18 @@ Table Table::CopyExceptOverlays() const {
 RowMap Table::QueryToRowMap(const std::vector<Constraint>& cs,
                             const std::vector<Order>& ob,
                             RowMap::OptimizeFor optimize_for) const {
+  // We need to delay creation of the chains to this point because of Chrome
+  // does not want the binary size overhead of including the chain
+  // implementations. As they also don't query tables (instead just iterating)
+  // over them), using a combination of dead code elimination and linker
+  // stripping all chain related code be removed.
+  //
+  // From rough benchmarking, this has a negligible impact on peformance as this
+  // branch is almost never taken.
+  if (PERFETTO_UNLIKELY(chains_.size() != columns_.size())) {
+    CreateChains();
+  }
+
   RowMap rm = FilterToRowMap(cs, optimize_for);
   if (ob.empty())
     return rm;
@@ -211,19 +224,21 @@ void Table::OnConstructionCompleted(
   storage_layers_ = std::move(storage_layers);
   null_layers_ = std::move(null_layers);
   overlay_layers_ = std::move(overlay_layers);
+}
 
+void Table::CreateChains() const {
+  chains_.resize(columns_.size());
   for (uint32_t i = 0; i < columns_.size(); ++i) {
-    auto chain = storage_layers_[i]->MakeChain();
+    chains_[i] = storage_layers_[i]->MakeChain();
     if (const auto& null_overlay = null_layers_[i]; null_overlay.get()) {
-      chain = null_overlay->MakeChain(std::move(chain));
+      chains_[i] = null_overlay->MakeChain(std::move(chains_[i]));
     }
     const auto& oly_idx = columns_[i].overlay_index();
     if (const auto& overlay = overlay_layers_[oly_idx]; overlay.get()) {
-      chain = overlay->MakeChain(
-          std::move(chain),
+      chains_[i] = overlay->MakeChain(
+          std::move(chains_[i]),
           column::DataLayer::ChainCreationArgs{columns_[i].IsSorted()});
     }
-    chains_.emplace_back(std::move(chain));
   }
 }
 

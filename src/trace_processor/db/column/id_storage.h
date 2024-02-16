@@ -36,7 +36,10 @@ namespace perfetto::trace_processor::column {
 // included in the column.
 class IdStorage final : public DataLayer {
  public:
-  std::unique_ptr<DataLayerChain> MakeChain() override;
+  IdStorage();
+  ~IdStorage() override;
+
+  std::unique_ptr<DataLayerChain> MakeChain();
 
  private:
   class ChainImpl : public DataLayerChain {

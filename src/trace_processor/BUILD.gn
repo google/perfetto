@@ -50,7 +50,6 @@ static_library("export_json") {
   deps = [
     ":export_json_sources",
     "../../gn:default_deps",
-    "db/column:make_chain_minimal",
   ]
   public_deps = [ "../../include/perfetto/ext/trace_processor:export_json" ]
 }
@@ -168,7 +167,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base",
       "../protozero",
       "db",
-      "db/column:make_chain",
       "importers/android_bugreport",
       "importers/common",
       "importers/etw:full",
@@ -364,6 +362,5 @@ perfetto_fuzzer_test("trace_processor_fuzzer") {
     ":storage_minimal",
     "../../gn:default_deps",
     "../base",
-    "db/column:make_chain_minimal",
   ]
 }
