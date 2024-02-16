@@ -30,14 +30,15 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
-#include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
+#include "src/trace_processor/importers/proto/heap_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
+#include "src/trace_processor/importers/proto/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -62,8 +63,9 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
   context_.clock_converter.reset(new ClockConverter(&context_));
+  context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
   context_.perf_sample_tracker.reset(new PerfSampleTracker(&context_));
-  context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
+  context_.global_stack_profile_tracker.reset(new GlobalStackProfileTracker());
   context_.metadata_tracker.reset(new MetadataTracker(context_.storage.get()));
   context_.global_args_tracker.reset(
       new GlobalArgsTracker(context_.storage.get()));
@@ -141,6 +143,7 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
   }
   context_.event_tracker->FlushPendingEvents();
   context_.slice_tracker->FlushPendingSlices();
+  context_.heap_profile_tracker->NotifyEndOfFile();
   context_.args_tracker->Flush();
   context_.process_tracker->NotifyEndOfFile();
 }

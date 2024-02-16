@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/profiler_util.h"
+#include "src/trace_processor/importers/proto/profiler_util.h"
 #include <optional>
 
 #include "perfetto/ext/base/string_utils.h"

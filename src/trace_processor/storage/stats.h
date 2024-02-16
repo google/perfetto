@@ -115,8 +115,6 @@ namespace stats {
   F(flow_end_without_start,               kSingle,  kInfo,     kTrace,    ""), \
   F(flow_invalid_id,                      kSingle,  kError,    kTrace,    ""), \
   F(flow_without_direction,               kSingle,  kError,    kTrace,    ""), \
-  F(stackprofile_empty_callstack,         kSingle,  kError,    kTrace,         \
-      "Callstack had no frames. Ignored"),                                     \
   F(stackprofile_invalid_string_id,       kSingle,  kError,    kTrace,    ""), \
   F(stackprofile_invalid_mapping_id,      kSingle,  kError,    kTrace,    ""), \
   F(stackprofile_invalid_frame_id,        kSingle,  kError,    kTrace,    ""), \
