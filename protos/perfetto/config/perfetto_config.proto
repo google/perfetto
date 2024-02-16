@@ -600,6 +600,9 @@ message ProtoLogGroup {
   // e.g. if ProtoLogLevel.WARN is specified only warning, errors and fatal log
   // message will be traced.
   optional ProtoLogLevel log_from = 2;
+  // When set to true we will collect the stacktrace for each protolog message
+  // in this group that we are tracing.
+  optional bool collect_stacktrace = 3;
 }
 
 // End of protos/perfetto/config/android/protolog_config.proto

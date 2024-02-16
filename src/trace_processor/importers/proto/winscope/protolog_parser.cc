@@ -30,7 +30,6 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 
 #include <sstream>
-
 namespace perfetto {
 namespace trace_processor {
 
@@ -79,9 +78,9 @@ void ProtoLogParser::ParseProtoLogMessage(
   }
 
   std::vector<std::string> string_params;
-  if (protolog_message.has_interned_str_params()) {
+  if (protolog_message.has_str_param_iids()) {
     if (sequence_state->state()->IsIncrementalStateValid()) {
-      for (auto it = protolog_message.interned_str_params(); it; ++it) {
+      for (auto it = protolog_message.str_param_iids(); it; ++it) {
         auto decoder =
             sequence_state->state()
                 ->current_generation()
@@ -109,6 +108,28 @@ void ProtoLogParser::ParseProtoLogMessage(
     }
   }
 
+  std::optional<StringId> stacktrace = std::nullopt;
+  if (protolog_message.has_stacktrace_iid()) {
+    auto stacktrace_decoder =
+        sequence_state->state()
+            ->current_generation()
+            ->LookupInternedMessage<
+                protos::pbzero::InternedData::kProtologStacktraceFieldNumber,
+                protos::pbzero::InternedString>(
+                protolog_message.stacktrace_iid());
+
+    if (!stacktrace_decoder) {
+      // This shouldn't happen since we already checked the incremental
+      // state is valid.
+      string_params.emplace_back("<ERROR>");
+      context_->storage->IncrementStats(
+          stats::winscope_protolog_missing_interned_stacktrace_parse_errors);
+    } else {
+      stacktrace = context_->storage->InternString(
+          base::StringView(stacktrace_decoder->str().ToStdString()));
+    }
+  }
+
   auto* protolog_table = context_->storage->mutable_protolog_table();
 
   tables::ProtoLogTable::Row row;
@@ -122,6 +143,7 @@ void ProtoLogParser::ParseProtoLogMessage(
       std::move(double_params),
       std::move(boolean_params),
       std::move(string_params),
+      stacktrace,
       row_id,
       timestamp};
   protolog_message_tracker->TrackMessage(std::move(tracked_message));
@@ -195,6 +217,10 @@ void ProtoLogParser::ParseProtoLogViewerConfig(protozero::ConstBytes blob) {
         auto message = context_->storage->InternString(
             base::StringView(formatted_message));
         row.set_message(message);
+
+        if (tracked_message.stacktrace.has_value()) {
+          row.set_stacktrace(tracked_message.stacktrace.value());
+        }
       }
     }
   }
