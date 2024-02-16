@@ -18,7 +18,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/util/profiler_util.h"
+#include "src/trace_processor/importers/proto/profiler_util.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

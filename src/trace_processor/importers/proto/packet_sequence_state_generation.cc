@@ -15,37 +15,11 @@
  */
 
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
-#include <cstddef>
 
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
-#include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
-
-PacketSequenceStateGeneration::PacketSequenceStateGeneration(
-    PacketSequenceState* state,
-    size_t generation_index,
-    PacketSequenceStateGeneration* prev_gen,
-    TraceBlobView defaults)
-    : state_(state),
-      generation_index_(generation_index),
-      interned_data_(prev_gen->interned_data_),
-      trace_packet_defaults_(InternedMessageView(std::move(defaults))),
-      trackers_(prev_gen->trackers_) {
-  for (auto& t : trackers_) {
-    if (t.get() != nullptr) {
-      t->set_generation(this);
-    }
-  }
-}
-
-PacketSequenceStateGeneration::InternedDataTracker::~InternedDataTracker() =
-    default;
-
-TraceProcessorContext* PacketSequenceStateGeneration::GetContext() const {
-  return state_->context();
-}
 
 void PacketSequenceStateGeneration::InternMessage(uint32_t field_id,
                                                   TraceBlobView message) {

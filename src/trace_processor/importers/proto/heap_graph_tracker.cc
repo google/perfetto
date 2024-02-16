@@ -22,8 +22,8 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
+#include "src/trace_processor/importers/proto/profiler_util.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
-#include "src/trace_processor/util/profiler_util.h"
 
 namespace perfetto {
 namespace trace_processor {
