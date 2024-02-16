@@ -222,6 +222,8 @@ class Table {
     return rm;
   }
 
+  void CreateChains() const;
+
   Table CopyExceptOverlays() const;
 
   StringPool* string_pool_ = nullptr;
@@ -232,7 +234,7 @@ class Table {
   std::vector<RefPtr<column::DataLayer>> storage_layers_;
   std::vector<RefPtr<column::DataLayer>> null_layers_;
   std::vector<RefPtr<column::DataLayer>> overlay_layers_;
-  std::vector<std::unique_ptr<column::DataLayerChain>> chains_;
+  mutable std::vector<std::unique_ptr<column::DataLayerChain>> chains_;
 };
 
 }  // namespace perfetto::trace_processor

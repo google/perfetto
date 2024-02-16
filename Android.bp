@@ -2323,7 +2323,6 @@ cc_test {
         ":perfetto_src_shared_lib_test_utils",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_column_column",
-        ":perfetto_src_trace_processor_db_column_make_chain",
         ":perfetto_src_trace_processor_db_db",
         ":perfetto_src_trace_processor_db_minimal",
         ":perfetto_src_trace_processor_export_json_sources",
@@ -10956,14 +10955,6 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/db/column:make_chain
-filegroup {
-    name: "perfetto_src_trace_processor_db_column_make_chain",
-    srcs: [
-        "src/trace_processor/db/column/make_chain.cc",
-    ],
-}
-
 // GN: //src/trace_processor/db/column:unittests
 filegroup {
     name: "perfetto_src_trace_processor_db_column_unittests",
@@ -13813,7 +13804,6 @@ cc_test {
         ":perfetto_src_trace_processor_containers_unittests",
         ":perfetto_src_trace_processor_db_column_column",
         ":perfetto_src_trace_processor_db_column_fake_storage",
-        ":perfetto_src_trace_processor_db_column_make_chain",
         ":perfetto_src_trace_processor_db_column_unittests",
         ":perfetto_src_trace_processor_db_compare",
         ":perfetto_src_trace_processor_db_db",
@@ -14534,7 +14524,6 @@ cc_binary {
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_column_column",
-        ":perfetto_src_trace_processor_db_column_make_chain",
         ":perfetto_src_trace_processor_db_db",
         ":perfetto_src_trace_processor_db_minimal",
         ":perfetto_src_trace_processor_export_json_sources",
@@ -14771,7 +14760,6 @@ cc_binary_host {
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_column_column",
-        ":perfetto_src_trace_processor_db_column_make_chain",
         ":perfetto_src_trace_processor_db_db",
         ":perfetto_src_trace_processor_db_minimal",
         ":perfetto_src_trace_processor_export_json_sources",

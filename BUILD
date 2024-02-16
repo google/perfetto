@@ -217,7 +217,6 @@ perfetto_cc_library(
         ":src_kernel_utils_syscall_table",
         ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_column_make_chain",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json_sources",
@@ -1400,14 +1399,6 @@ perfetto_filegroup(
         "src/trace_processor/db/column/types.h",
         "src/trace_processor/db/column/utils.cc",
         "src/trace_processor/db/column/utils.h",
-    ],
-)
-
-# GN target: //src/trace_processor/db/column:make_chain
-perfetto_filegroup(
-    name = "src_trace_processor_db_column_make_chain",
-    srcs = [
-        "src/trace_processor/db/column/make_chain.cc",
     ],
 )
 
@@ -5555,7 +5546,6 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_syscall_table",
         ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_column_make_chain",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json_sources",
@@ -5723,7 +5713,6 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_column_make_chain",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json_sources",
@@ -5949,7 +5938,6 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_db_column_column",
-        ":src_trace_processor_db_column_make_chain",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
         ":src_trace_processor_export_json_sources",

@@ -36,9 +36,9 @@ using testing::IsEmpty;
 
 TEST(SelectorOverlay, SingleSearch) {
   BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
-  auto fake = FakeStorage::SearchSubset(8, Range(2, 5));
+  auto fake = FakeStorageChain::SearchSubset(8, Range(2, 5));
   SelectorOverlay storage(&selector);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 1),
             SingleSearchResult::kMatch);
@@ -48,9 +48,9 @@ TEST(SelectorOverlay, SingleSearch) {
 
 TEST(SelectorOverlay, SearchAll) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
-  auto fake = FakeStorage::SearchAll(10);
+  auto fake = FakeStorageChain::SearchAll(10);
   SelectorOverlay storage(&selector);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u, 2u, 3u));
@@ -58,9 +58,9 @@ TEST(SelectorOverlay, SearchAll) {
 
 TEST(SelectorOverlay, SearchNone) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
-  auto fake = FakeStorage::SearchNone(10);
+  auto fake = FakeStorageChain::SearchNone(10);
   SelectorOverlay storage(&selector);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
@@ -68,9 +68,9 @@ TEST(SelectorOverlay, SearchNone) {
 
 TEST(SelectorOverlay, SearchLimited) {
   BitVector selector{0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1};
-  auto fake = FakeStorage::SearchSubset(10, Range(4, 5));
+  auto fake = FakeStorageChain::SearchSubset(10, Range(4, 5));
   SelectorOverlay storage(&selector);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(1, 5));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2u));
@@ -78,9 +78,10 @@ TEST(SelectorOverlay, SearchLimited) {
 
 TEST(SelectorOverlay, SearchBitVector) {
   BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
-  auto fake = FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0}));
+  auto fake =
+      FakeStorageChain::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0}));
   SelectorOverlay storage(&selector);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2));
@@ -88,9 +89,10 @@ TEST(SelectorOverlay, SearchBitVector) {
 
 TEST(SelectorOverlay, IndexSearch) {
   BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
-  auto fake = FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0}));
+  auto fake =
+      FakeStorageChain::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0}));
   SelectorOverlay storage(&selector);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   std::vector<uint32_t> table_idx{1u, 0u, 3u};
   RangeOrBitVector res = chain->IndexSearch(
@@ -102,9 +104,9 @@ TEST(SelectorOverlay, IndexSearch) {
 
 TEST(SelectorOverlay, OrderedIndexSearchTrivial) {
   BitVector selector{1, 0, 1, 0, 1};
-  auto fake = FakeStorage::SearchAll(5);
+  auto fake = FakeStorageChain::SearchAll(5);
   SelectorOverlay storage(&selector);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   std::vector<uint32_t> table_idx{1u, 0u, 2u};
   Range res = chain->OrderedIndexSearch(
@@ -117,9 +119,9 @@ TEST(SelectorOverlay, OrderedIndexSearchTrivial) {
 
 TEST(SelectorOverlay, OrderedIndexSearchNone) {
   BitVector selector{1, 0, 1, 0, 1};
-  auto fake = FakeStorage::SearchNone(5);
+  auto fake = FakeStorageChain::SearchNone(5);
   SelectorOverlay storage(&selector);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   std::vector<uint32_t> table_idx{1u, 0u, 2u};
   Range res = chain->OrderedIndexSearch(

@@ -44,9 +44,6 @@ source_set("tables") {
     "../../../include/perfetto/trace_processor",
     "../containers",
     "../db:minimal",
-
-    # TODO(lalitm): change this to minimal to reduce binary size
-    # impact on Chrome.
     "../db/column",
   ]
   public_deps = [ ":tables_python" ]
