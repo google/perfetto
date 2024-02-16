@@ -38,7 +38,7 @@
 namespace perfetto::trace_processor {
 
 bool Table::kUseFilterV2 = true;
-bool Table::kUseSortV2 = true;
+bool Table::kUseSortV2 = false;
 
 Table::Table(StringPool* pool,
              uint32_t row_count,
