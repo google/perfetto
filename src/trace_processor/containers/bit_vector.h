@@ -299,11 +299,10 @@ class BitVector {
   // Creates a BitVector of size |end| with the bits between |start| and |end|
   // filled by calling the filler function |f(index of bit)|.
   //
-  // As an example, suppose Range(3, 7, [](x) { return x < 5 }). This would
-  // result in the following BitVector:
-  // [0 0 0 1 1 0 0]
+  // As an example, suppose RangeForTesting(3, 7, [](x) { return x < 5 }). This
+  // would result in the following BitVector: [0 0 0 1 1 0 0]
   template <typename Filler = bool(uint32_t)>
-  static BitVector Range(uint32_t start, uint32_t end, Filler f) {
+  static BitVector RangeForTesting(uint32_t start, uint32_t end, Filler f) {
     // Compute the block index and BitVector index where we start and end
     // working one block at a time.
     uint32_t start_fast_block = BlockCount(start);

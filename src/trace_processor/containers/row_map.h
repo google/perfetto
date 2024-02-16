@@ -174,22 +174,13 @@ class RowMap {
     const RowMap* rm_ = nullptr;
   };
 
-  // Enum to allow users of RowMap to decide whether they want to optimize for
-  // memory usage or for speed of lookups.
-  enum class OptimizeFor {
-    kMemory,
-    kLookupSpeed,
-  };
-
   // Creates an empty RowMap.
   // By default this will be implemented using a range.
   RowMap();
 
   // Creates a RowMap containing the range of indices between |start| and |end|
   // i.e. all indices between |start| (inclusive) and |end| (exclusive).
-  RowMap(OutputIndex start,
-         OutputIndex end,
-         OptimizeFor optimize_for = OptimizeFor::kMemory);
+  RowMap(OutputIndex start, OutputIndex end);
 
   // Creates a RowMap backed by a BitVector.
   explicit RowMap(BitVector);
@@ -514,58 +505,6 @@ class RowMap {
 
   explicit RowMap(Variant);
 
-  // TODO(lalitm): remove this when the coupling between RowMap and
-  // ColumnStorage Selector is broken (after filtering is moved out of here).
-  friend class ColumnStorageOverlay;
-
-  template <typename Predicate>
-  Variant FilterRange(Predicate p, Range r) {
-    uint32_t count = r.size();
-
-    // Optimization: if we are only going to scan a few indices, it's not
-    // worth the haslle of working with a BitVector.
-    constexpr uint32_t kSmallRangeLimit = 2048;
-    bool is_small_range = count < kSmallRangeLimit;
-
-    // Optimization: weif the cost of a BitVector is more than the highest
-    // possible cost an index vector could have, use the index vector.
-    uint32_t bit_vector_cost = BitVector::ApproxBytesCost(r.end);
-    uint32_t index_vector_cost_ub = sizeof(uint32_t) * count;
-
-    // If either of the conditions hold which make it better to use an
-    // index vector, use it instead. Alternatively, if we are optimizing for
-    // lookup speed, we also want to use an index vector.
-    if (is_small_range || index_vector_cost_ub <= bit_vector_cost ||
-        optimize_for_ == OptimizeFor::kLookupSpeed) {
-      // Try and strike a good balance between not making the vector too
-      // big and good performance.
-      IndexVector iv(std::min(kSmallRangeLimit, count));
-
-      uint32_t out_i = 0;
-      for (uint32_t i = 0; i < count; ++i) {
-        // If we reach the capacity add another small set of indices.
-        if (PERFETTO_UNLIKELY(out_i == iv.size()))
-          iv.resize(iv.size() + kSmallRangeLimit);
-
-        // We keep this branch free by always writing the index but only
-        // incrementing the out index if the return value is true.
-        bool value = p(i + r.start);
-        iv[out_i] = i + r.start;
-        out_i += value;
-      }
-
-      // Make the vector the correct size and as small as possible.
-      iv.resize(out_i);
-      iv.shrink_to_fit();
-
-      return std::move(iv);
-    }
-
-    // Otherwise, create a bitvector which spans the full range using
-    // |p| as the filler for the bits between start and end.
-    return BitVector::Range(r.start, r.end, p);
-  }
-
   PERFETTO_ALWAYS_INLINE static OutputIndex GetRange(Range r, InputRow row) {
     return r.start + row;
   }
@@ -596,7 +535,6 @@ class RowMap {
   }
 
   Variant data_;
-  OptimizeFor optimize_for_ = OptimizeFor::kMemory;
 };
 
 }  // namespace trace_processor
