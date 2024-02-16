@@ -17,17 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PACKET_SEQUENCE_STATE_GENERATION_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PACKET_SEQUENCE_STATE_GENERATION_H_
 
-#include <array>
-#include <cstddef>
-#include <memory>
 #include <optional>
-#include <tuple>
-#include <type_traits>
 #include <unordered_map>
 
-#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/util/interned_message_view.h"
 
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
@@ -42,65 +35,9 @@ using InternedFieldMap =
     std::unordered_map<uint32_t /*field_id*/, InternedMessageMap>;
 
 class PacketSequenceState;
-class TraceProcessorContext;
-
-class StackProfileSequenceState;
-class ProfilePacketSequenceState;
-class V8SequenceState;
-
-using InternedDataTrackers = std::tuple<StackProfileSequenceState,
-                                        ProfilePacketSequenceState,
-                                        V8SequenceState>;
 
 class PacketSequenceStateGeneration : public RefCounted {
  public:
-  // Base class to add custom sequence state. This state is keep per sequence
-  // and per incremental state interval, that is, each time incremental state is
-  // reset a new instance is created but not each time `TracePacketDefaults` are
-  // updated. Note that this means that different
-  // `PacketSequenceStateGeneration` instances might point to the same
-  // `InternedDataTracker` (because they only differ in their
-  // `TracePacketDefaults`).
-  //
-  // ATTENTION: You should not create instances of these classes yourself but
-  // use the `PacketSequenceStateGeneration::GetOrCreate<>' method instead.
-  class InternedDataTracker : public RefCounted {
-   public:
-    virtual ~InternedDataTracker();
-
-   protected:
-    template <uint32_t FieldId, typename MessageType>
-    typename MessageType::Decoder* LookupInternedMessage(uint64_t iid) {
-      return generation_->LookupInternedMessage<FieldId, MessageType>(iid);
-    }
-
-    InternedMessageView* GetInternedMessageView(uint32_t field_id,
-                                                uint64_t iid) {
-      return generation_->GetInternedMessageView(field_id, iid);
-    }
-
-    template <typename T>
-    std::remove_cv_t<T>* GetOrCreate() {
-      return generation_->GetOrCreate<T>();
-    }
-
-   private:
-    friend PacketSequenceStateGeneration;
-    // Called when the a new generation is created as a result of
-    // `TracePacketDefaults` being updated.
-    void set_generation(PacketSequenceStateGeneration* generation) {
-      generation_ = generation;
-    }
-
-    // Note: A `InternedDataTracker` instance can be linked to multiple
-    // `PacketSequenceStateGeneration` instances (when there are multiple
-    // `TracePacketDefaults` in the same interning context). `generation_` will
-    // point to the latest one. We keep this member private to prevent misuse /
-    // confusion around this fact. Instead subclasses should access the public
-    // methods of this class to get any interned data.
-    PacketSequenceStateGeneration* generation_ = nullptr;
-  };
-
   // Returns |nullptr| if the message with the given |iid| was not found (also
   // records a stat in this case).
   template <uint32_t FieldId, typename MessageType>
@@ -142,36 +79,8 @@ class PacketSequenceStateGeneration : public RefCounted {
   PacketSequenceState* state() const { return state_; }
   size_t generation_index() const { return generation_index_; }
 
-  // Extension point for custom sequence state. To add new per sequence state
-  // just subclass ´PacketSequenceStateGeneration´ and get your sequence bound
-  // instance by calling this method.
-  template <typename T>
-  std::remove_cv_t<T>* GetOrCreate();
-
  private:
   friend class PacketSequenceState;
-
-  // Helper to find the index in a tuple of a given type. Lookups are done
-  // ignoring cv qualifiers. If no index is found size of the tuple is returned.
-  //
-  // ATTENTION: Duplicate types in the tuple will trigger a compiler error.
-  template <typename Tuple, typename Type, size_t index = 0>
-  static constexpr size_t FindUniqueType() {
-    constexpr size_t kSize = std::tuple_size_v<Tuple>;
-    if constexpr (index < kSize) {
-      using TypeAtIndex = typename std::tuple_element<index, Tuple>::type;
-      if constexpr (std::is_same_v<std::remove_cv_t<Type>,
-                                   std::remove_cv_t<TypeAtIndex>>) {
-        static_assert(FindUniqueType<Tuple, Type, index + 1>() == kSize,
-                      "Duplicate types.");
-        return index;
-      } else {
-        return FindUniqueType<Tuple, Type, index + 1>();
-      }
-    } else {
-      return kSize;
-    }
-  }
 
   PacketSequenceStateGeneration(PacketSequenceState* state,
                                 size_t generation_index)
@@ -179,10 +88,12 @@ class PacketSequenceStateGeneration : public RefCounted {
 
   PacketSequenceStateGeneration(PacketSequenceState* state,
                                 size_t generation_index,
-                                PacketSequenceStateGeneration* prev_gen,
-                                TraceBlobView defaults);
-
-  TraceProcessorContext* GetContext() const;
+                                InternedFieldMap interned_data,
+                                TraceBlobView defaults)
+      : state_(state),
+        generation_index_(generation_index),
+        interned_data_(interned_data),
+        trace_packet_defaults_(InternedMessageView(std::move(defaults))) {}
 
   void InternMessage(uint32_t field_id, TraceBlobView message);
 
@@ -196,33 +107,7 @@ class PacketSequenceStateGeneration : public RefCounted {
   size_t generation_index_;
   InternedFieldMap interned_data_;
   std::optional<InternedMessageView> trace_packet_defaults_;
-  std::array<RefPtr<InternedDataTracker>,
-             std::tuple_size_v<InternedDataTrackers>>
-      trackers_;
 };
-
-template <typename T>
-std::remove_cv_t<T>* PacketSequenceStateGeneration::GetOrCreate() {
-  constexpr size_t index = FindUniqueType<InternedDataTrackers, T>();
-  static_assert(index < std::tuple_size_v<InternedDataTrackers>, "Not found");
-  auto& ptr = trackers_[index];
-  if (PERFETTO_UNLIKELY(ptr.get() == nullptr)) {
-    ptr.reset(new T(GetContext()));
-    ptr->set_generation(this);
-  }
-
-  return static_cast<std::remove_cv_t<T>*>(ptr.get());
-}
-
-template <uint32_t FieldId, typename MessageType>
-typename MessageType::Decoder*
-PacketSequenceStateGeneration::LookupInternedMessage(uint64_t iid) {
-  auto* interned_message_view = GetInternedMessageView(FieldId, iid);
-  if (!interned_message_view)
-    return nullptr;
-
-  return interned_message_view->template GetOrCreateDecoder<MessageType>();
-}
 
 }  // namespace trace_processor
 }  // namespace perfetto

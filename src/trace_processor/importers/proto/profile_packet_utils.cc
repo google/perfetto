@@ -15,27 +15,11 @@
  */
 
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
-#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-// static
-std::string ProfilePacketUtils::MakeMappingName(
-    const std::vector<base::StringView>& path_components) {
-  std::string name;
-  for (base::StringView p : path_components) {
-    name.push_back('/');
-    name.append(p.data(), p.size());
-  }
-
-  // When path strings just have single full path(like Chrome does), the mapping
-  // path gets an extra '/' prepended, strip the extra '/'.
-  if (base::StartsWith(name, "//")) {
-    name = name.substr(1);
-  }
-  return name;
-}
+ProfilePacketInternLookup::~ProfilePacketInternLookup() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto

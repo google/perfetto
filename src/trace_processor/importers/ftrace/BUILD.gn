@@ -68,7 +68,6 @@ source_set("full") {
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/ftrace:zero",
     "../../../../protos/perfetto/trace/interned_data:zero",
-    "../../../../protos/perfetto/trace/profiling:zero",
     "../../../protozero",
     "../../sorter",
     "../../storage",
@@ -77,7 +76,6 @@ source_set("full") {
     "../common:parser_types",
     "../i2c:full",
     "../proto:minimal",
-    "../proto:packet_sequence_state_generation_hdr",
     "../syscalls:full",
     "../systrace:systrace_parser",
   ]
