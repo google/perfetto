@@ -39,6 +39,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <mutex>
 #include <random>
 #include <sstream>
 #include <thread>
@@ -50,6 +51,7 @@
 #include "perfetto/ext/base/ctrl_c_handler.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
+#include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/temp_file.h"
@@ -356,6 +358,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
 
+  // getopt is not thread safe and cmdline parsing requires a mutex for the case
+  // of concurrent cmdline parsing for bugreport snapshots.
+  static base::NoDestructor<std::mutex> getopt_mutex;
+  std::unique_lock<std::mutex> getopt_lock(getopt_mutex.ref());
+
   optind = 1;  // Reset getopt state. It's reused by the snapshot thread.
   for (;;) {
     int option =
@@ -565,6 +572,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     has_config_options = true;
     config_options.categories.push_back(argv[i]);
   }
+  getopt_lock.unlock();
 
   if (query_service_ && (is_detach() || is_attach() || background_)) {
     PERFETTO_ELOG("--query cannot be combined with any other argument");

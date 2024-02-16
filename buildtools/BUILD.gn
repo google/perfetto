@@ -1421,7 +1421,10 @@ source_set("libunwindstack") {
   ]
   cflags = [ "-DFAKE_LOG_DEVICE=1" ]
   if (!is_win) {
-    cflags += [ "-Wno-deprecated-declarations" ]
+    cflags += [
+      "-Wno-deprecated-declarations",
+      "-Wno-vla-cxx-extension",
+    ]
   }
   public_configs = [ ":libunwindstack_config" ]
 }
