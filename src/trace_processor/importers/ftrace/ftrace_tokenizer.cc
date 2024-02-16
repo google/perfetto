@@ -120,6 +120,13 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
         cpu, kMaxCpuCount);
   }
 
+  if (PERFETTO_UNLIKELY(decoder.lost_events())) {
+    // If set, it means that the kernel overwrote an unspecified number of
+    // events since our last read from the per-cpu buffer.
+    context_->storage->SetIndexedStats(stats::ftrace_cpu_has_data_loss,
+                                       static_cast<int>(cpu), 1);
+  }
+
   ClockTracker::ClockId clock_id;
   switch (decoder.ftrace_clock()) {
     case FtraceClock::FTRACE_CLOCK_UNSPECIFIED:
