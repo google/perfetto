@@ -37,6 +37,10 @@ class NumericStorageBase : public DataLayer {
  protected:
   class ChainImpl : public DataLayerChain {
    public:
+    UniqueSearchResult UniqueSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t*) const override;
+
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 

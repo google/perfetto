@@ -113,10 +113,26 @@ class DataLayerChain {
 
   // Checks whether element at the the provided index match |op| and |value|.
   //
-  // Returns true if the element matches, false otherwise.
+  // Returns one of the following:
+  //  * kMatch if the element matches.
+  //  * kNoMatch if the element does not match.
+  //  * kNeedsFullSearch if one of the "full" search algorithms need to be
+  //    run to determine if the element matches.
   virtual SingleSearchResult SingleSearch(FilterOp op,
                                           SqlValue value,
                                           uint32_t row) const = 0;
+
+  // Searches for a *unique* element in chain which matches |op| and |value|.
+  //
+  // The return value is one of the following:
+  //  * kMatch if an element matches. |row| should be set to the index of
+  //    the element.
+  //  * kNoMatch if no element matches.
+  //  * kNeedsFullSearch if one of the "full" search algorithms need to be
+  //    run for this constraint.
+  virtual UniqueSearchResult UniqueSearch(FilterOp op,
+                                          SqlValue value,
+                                          uint32_t* row) const = 0;
 
   // Searches for elements which match |op| and |value| between |range.start|
   // and |range.end|.

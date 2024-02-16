@@ -27,6 +27,7 @@
 #include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
@@ -258,7 +259,7 @@ SearchValidationResult DoubleColumnWithInt(FilterOp op, SqlValue* sql_val) {
   auto i_as_d = static_cast<double>(i);
 
   // Case when |sql_val| can be interpreted as a SqlValue::Long.
-  if (std::equal_to<int64_t>()(i, static_cast<int64_t>(i_as_d))) {
+  if (std::equal_to<>()(i, static_cast<int64_t>(i_as_d))) {
     *sql_val = SqlValue::Double(i_as_d);
     return SearchValidationResult::kOk;
   }
@@ -297,6 +298,13 @@ NumericStorageBase::ChainImpl::ChainImpl(const void* vector_ptr,
                                          ColumnType type,
                                          bool is_sorted)
     : vector_ptr_(vector_ptr), storage_type_(type), is_sorted_(is_sorted) {}
+
+UniqueSearchResult NumericStorageBase::ChainImpl::UniqueSearch(
+    FilterOp,
+    SqlValue,
+    uint32_t*) const {
+  return UniqueSearchResult::kNeedsFullSearch;
+}
 
 SearchValidationResult NumericStorageBase::ChainImpl::ValidateSearchConstraints(
     FilterOp op,

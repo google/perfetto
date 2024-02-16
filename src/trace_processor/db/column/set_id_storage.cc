@@ -83,6 +83,12 @@ SingleSearchResult SetIdStorage::ChainImpl::SingleSearch(FilterOp op,
                                     static_cast<uint32_t>(sql_val.long_value));
 }
 
+UniqueSearchResult SetIdStorage::ChainImpl::UniqueSearch(FilterOp,
+                                                         SqlValue,
+                                                         uint32_t*) const {
+  return UniqueSearchResult::kNeedsFullSearch;
+}
+
 SearchValidationResult SetIdStorage::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue val) const {
