@@ -219,7 +219,7 @@ perfetto_cc_library(
         ":src_trace_processor_db_column_column",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
-        ":src_trace_processor_export_json_sources",
+        ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
@@ -2822,9 +2822,9 @@ perfetto_cc_library(
     linkstatic = True,
 )
 
-# GN target: //src/trace_processor:export_json_sources
+# GN target: //src/trace_processor:export_json
 perfetto_filegroup(
-    name = "src_trace_processor_export_json_sources",
+    name = "src_trace_processor_export_json",
     srcs = [
         "src/trace_processor/export_json.cc",
         "src/trace_processor/export_json.h",
@@ -5538,7 +5538,7 @@ perfetto_cc_library(
         ":src_trace_processor_db_column_column",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
-        ":src_trace_processor_export_json_sources",
+        ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
@@ -5704,7 +5704,7 @@ perfetto_cc_binary(
         ":src_trace_processor_db_column_column",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
-        ":src_trace_processor_export_json_sources",
+        ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
@@ -5928,7 +5928,7 @@ perfetto_cc_binary(
         ":src_trace_processor_db_column_column",
         ":src_trace_processor_db_db",
         ":src_trace_processor_db_minimal",
-        ":src_trace_processor_export_json_sources",
+        ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
         ":src_trace_processor_importers_common_parser_types",
