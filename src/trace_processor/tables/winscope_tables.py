@@ -112,6 +112,7 @@ PROTOLOG_TABLE = Table(
         C('level', CppString()),
         C('tag', CppString()),
         C('message', CppString()),
+        C('stacktrace', CppString()),
     ],
     tabledoc=TableDoc(
         doc='Protolog',
@@ -121,6 +122,7 @@ PROTOLOG_TABLE = Table(
             'level': 'The log level of the protolog message',
             'tag': 'The log tag of the protolog message',
             'message': 'The protolog message',
+            'stacktrace': 'Stacktrace captured at the message\'s logpoint',
         }))
 
 # Keep this list sorted.
