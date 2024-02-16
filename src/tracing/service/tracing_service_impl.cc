@@ -1797,7 +1797,7 @@ void TracingServiceImpl::FlushDataSourceInstances(
   }
 
   if (tracing_session->state != TracingSession::STARTED) {
-    PERFETTO_ELOG("Flush() called, but tracing has not been started");
+    PERFETTO_LOG("Flush() called, but tracing has not been started");
     callback(false);
     return;
   }

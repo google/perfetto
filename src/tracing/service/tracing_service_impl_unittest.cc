@@ -5080,7 +5080,7 @@ TEST_F(TracingServiceImplTest, TransferOnClone) {
 }
 
 TEST_F(TracingServiceImplTest, ClearBeforeClone) {
-  // The consumer the creates the initial tracing session.
+  // The consumer that creates the initial tracing session.
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -5148,6 +5148,53 @@ TEST_F(TracingServiceImplTest, ClearBeforeClone) {
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
                                                   HasSubstr("after_clone")))));
+}
+
+TEST_F(TracingServiceImplTest, CloneMainSessionStopped) {
+  // The consumer that creates the initial tracing session.
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer1");
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);  // Buf 0.
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+  {
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str("before_clone");
+  }
+  writer->Flush();
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  consumer->WaitForTracingDisabled();
+
+  // The tracing session is disabled, but it's still there. We can still clone
+  // it.
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
+      .WillOnce(InvokeWithoutArgs(clone_done));
+  clone_consumer->CloneSession(1);
+
+  auto packets = clone_consumer->ReadBuffers();
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  HasSubstr("before_clone")))));
 }
 
 TEST_F(TracingServiceImplTest, CloneTransferFlush) {
