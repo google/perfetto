@@ -55,22 +55,6 @@ source_set("column") {
   ]
 }
 
-source_set("make_chain_minimal") {
-  sources = [ "make_chain_minimal.cc" ]
-  deps = [
-    ":column",
-    "../../../../gn:default_deps",
-  ]
-}
-
-source_set("make_chain") {
-  sources = [ "make_chain.cc" ]
-  deps = [
-    ":column",
-    "../../../../gn:default_deps",
-  ]
-}
-
 perfetto_unittest_source_set("fake_storage") {
   testonly = true
   sources = [

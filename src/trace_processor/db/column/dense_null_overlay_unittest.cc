@@ -62,33 +62,33 @@ TEST(DenseNullOverlay, RestrictInputSearch) {
 }
 
 TEST(DenseNullOverlay, RangeFilterSearch) {
-  auto fake = FakeStorage::SearchSubset(5, Range(1, 3));
+  auto fake = FakeStorageChain::SearchSubset(5, Range(1, 3));
 
   BitVector bv{0, 1, 0, 1, 0};
   DenseNullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0), Range(0, 5));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 }
 
 TEST(DenseNullOverlay, BitvectorFilterSearch) {
-  auto fake = FakeStorage::SearchSubset(5, BitVector({0, 1, 1, 0, 0}));
+  auto fake = FakeStorageChain::SearchSubset(5, BitVector({0, 1, 1, 0, 0}));
 
   BitVector bv{0, 1, 0, 1, 0};
   DenseNullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kGe, SqlValue::Long(0), Range(0, 5));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 }
 
 TEST(DenseNullOverlay, IsNullSearch) {
-  auto fake = FakeStorage::SearchSubset(5, BitVector({1, 1, 0, 0, 1}));
+  auto fake = FakeStorageChain::SearchSubset(5, BitVector({1, 1, 0, 0, 1}));
 
   BitVector bv{1, 0, 0, 1, 1};
   DenseNullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kIsNull, SqlValue(), Range(0, 5));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 4));
@@ -112,11 +112,11 @@ TEST(DenseNullOverlay, IndexSearch) {
 }
 
 TEST(DenseNullOverlay, IsNullIndexSearch) {
-  auto fake = FakeStorage::SearchSubset(6, BitVector({0, 0, 0, 1, 1, 1}));
+  auto fake = FakeStorageChain::SearchSubset(6, BitVector({0, 0, 0, 1, 1, 1}));
 
   BitVector bv{0, 1, 0, 1, 1, 1};
   DenseNullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   std::vector<uint32_t> index({5, 2, 3, 4, 1});
   auto res = chain->IndexSearch(
@@ -127,11 +127,11 @@ TEST(DenseNullOverlay, IsNullIndexSearch) {
 }
 
 TEST(DenseNullOverlay, OrderedIndexSearch) {
-  auto fake = FakeStorage::SearchSubset(6, BitVector({0, 1, 0, 1, 0, 1}));
+  auto fake = FakeStorageChain::SearchSubset(6, BitVector({0, 1, 0, 1, 0, 1}));
 
   BitVector bv{0, 1, 0, 1, 0, 1};
   DenseNullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   std::vector<uint32_t> indices_vec({0, 2, 4, 1, 3, 5});
   Indices indices{indices_vec.data(), 6, Indices::State::kNonmonotonic};
@@ -168,8 +168,8 @@ TEST(DenseNullOverlay, OrderedIndexSearch) {
 TEST(DenseNullOverlay, SingleSearch) {
   BitVector bv{0, 1, 0, 1, 1, 1};
   DenseNullOverlay storage(&bv);
-  auto fake = FakeStorage::SearchSubset(5, std::vector<uint32_t>{1, 2});
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto fake = FakeStorageChain::SearchSubset(5, std::vector<uint32_t>{1, 2});
+  auto chain = storage.MakeChain(std::move(fake));
 
   ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 1),
             SingleSearchResult::kMatch);
@@ -180,8 +180,8 @@ TEST(DenseNullOverlay, SingleSearch) {
 TEST(DenseNullOverlay, SingleSearchIsNull) {
   BitVector bv{0, 1, 0, 1, 1, 1};
   DenseNullOverlay storage(&bv);
-  auto fake = FakeStorage::SearchNone(5);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto fake = FakeStorageChain::SearchNone(5);
+  auto chain = storage.MakeChain(std::move(fake));
 
   ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNull, SqlValue(), 0),
             SingleSearchResult::kMatch);
@@ -192,8 +192,8 @@ TEST(DenseNullOverlay, SingleSearchIsNull) {
 TEST(DenseNullOverlay, SingleSearchIsNotNull) {
   BitVector bv{0, 1, 0, 1, 1, 1};
   DenseNullOverlay storage(&bv);
-  auto fake = FakeStorage::SearchAll(5);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto fake = FakeStorageChain::SearchAll(5);
+  auto chain = storage.MakeChain(std::move(fake));
 
   ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNotNull, SqlValue(), 0),
             SingleSearchResult::kNoMatch);
