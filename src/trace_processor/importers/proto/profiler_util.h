@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_UTIL_PROFILER_UTIL_H_
-#define SRC_TRACE_PROCESSOR_UTIL_PROFILER_UTIL_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILER_UTIL_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILER_UTIL_H_
 
 #include <optional>
 #include <string>
@@ -38,4 +38,4 @@ std::optional<std::string> PackageFromLocation(TraceStorage* storage,
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_UTIL_PROFILER_UTIL_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILER_UTIL_H_

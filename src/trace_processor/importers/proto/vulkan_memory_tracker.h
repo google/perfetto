@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_VULKAN_MEMORY_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_VULKAN_MEMORY_TRACKER_H_
 
-#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
 

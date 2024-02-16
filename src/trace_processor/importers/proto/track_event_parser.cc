@@ -34,7 +34,6 @@
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
-#include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/util/debug_annotation_parser.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
@@ -196,9 +195,12 @@ std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   }
   // Interned mapping_id loses it's meaning when the sequence ends. So we need
   // to get an id from stack_profile_mapping table.
-  auto mapping_id = delegate.seq_state()
-                        ->GetOrCreate<StackProfileSequenceState>()
-                        ->FindOrInsertMapping(decoder->mapping_id());
+  ProfilePacketInternLookup intern_lookup(delegate.seq_state());
+  auto mapping_id =
+      delegate.seq_state()
+          ->state()
+          ->sequence_stack_profile_tracker()
+          .FindOrInsertMapping(decoder->mapping_id(), &intern_lookup);
   if (!mapping_id) {
     return std::nullopt;
   }

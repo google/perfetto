@@ -17,10 +17,10 @@
 #include "src/trace_processor/importers/proto/v8_sequence_state.h"
 #include <optional>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/trace/chrome/v8.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/string_encoding_utils.h"
 #include "src/trace_processor/importers/proto/v8_tracker.h"
 #include "src/trace_processor/storage/stats.h"
@@ -41,8 +41,9 @@ protozero::ConstBytes ToConstBytes(const TraceBlobView& view) {
 
 }  // namespace
 
-V8SequenceState::V8SequenceState(TraceProcessorContext* context)
-    : context_(context), v8_tracker_(V8Tracker::GetOrCreate(context_)) {}
+V8SequenceState::V8SequenceState(PacketSequenceState* sequence_state)
+    : sequence_state_(sequence_state),
+      v8_tracker_(V8Tracker::GetOrCreate(sequence_state->context())) {}
 
 V8SequenceState::~V8SequenceState() = default;
 
@@ -52,9 +53,11 @@ std::optional<tables::V8IsolateTable::Id> V8SequenceState::GetOrInsertIsolate(
     return *id;
   }
 
-  auto* view = GetInternedMessageView(InternedData::kV8IsolateFieldNumber, iid);
+  auto* view = sequence_state_->current_generation()->GetInternedMessageView(
+      InternedData::kV8IsolateFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    sequence_state_->context()->storage->IncrementStats(
+        stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -70,10 +73,11 @@ V8SequenceState::GetOrInsertJsFunction(uint64_t iid,
     return *id;
   }
 
-  auto* view =
-      GetInternedMessageView(InternedData::kV8JsFunctionFieldNumber, iid);
+  auto* view = sequence_state_->current_generation()->GetInternedMessageView(
+      InternedData::kV8JsFunctionFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    sequence_state_->context()->storage->IncrementStats(
+        stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -103,10 +107,11 @@ V8SequenceState::GetOrInsertWasmScript(uint64_t iid,
   if (auto* id = wasm_scripts_.Find(iid); id != nullptr) {
     return *id;
   }
-  auto* view =
-      GetInternedMessageView(InternedData::kV8WasmScriptFieldNumber, iid);
+  auto* view = sequence_state_->current_generation()->GetInternedMessageView(
+      InternedData::kV8WasmScriptFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    sequence_state_->context()->storage->IncrementStats(
+        stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -122,10 +127,11 @@ std::optional<tables::V8JsScriptTable::Id> V8SequenceState::GetOrInsertJsScript(
   if (auto* id = js_scripts_.Find(iid); id != nullptr) {
     return *id;
   }
-  auto* view =
-      GetInternedMessageView(InternedData::kV8JsScriptFieldNumber, iid);
+  auto* view = sequence_state_->current_generation()->GetInternedMessageView(
+      InternedData::kV8JsScriptFieldNumber, iid);
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    sequence_state_->context()->storage->IncrementStats(
+        stats::v8_intern_errors);
     return std::nullopt;
   }
 
@@ -141,16 +147,17 @@ std::optional<StringId> V8SequenceState::GetOrInsertJsFunctionName(
     return *id;
   }
 
-  auto* view =
-      GetInternedMessageView(InternedData::kV8JsFunctionNameFieldNumber, iid);
+  auto* view = sequence_state_->current_generation()->GetInternedMessageView(
+      InternedData::kV8JsFunctionNameFieldNumber, iid);
 
   if (!view) {
-    context_->storage->IncrementStats(stats::v8_intern_errors);
+    sequence_state_->context()->storage->IncrementStats(
+        stats::v8_intern_errors);
     return std::nullopt;
   }
 
   InternedV8String::Decoder function_name(ToConstBytes(view->message()));
-  auto& storage = *context_->storage;
+  auto& storage = *sequence_state_->context()->storage;
   StringId id;
   if (function_name.has_latin1()) {
     id = storage.InternString(
