@@ -38,9 +38,6 @@
 
 namespace perfetto::trace_processor {
 
-bool Table::kUseFilterV2 = true;
-bool Table::kUseSortV2 = false;
-
 Table::Table(StringPool* pool,
              uint32_t row_count,
              std::vector<ColumnLegacy> columns,
@@ -91,8 +88,7 @@ Table Table::CopyExceptOverlays() const {
 }
 
 RowMap Table::QueryToRowMap(const std::vector<Constraint>& cs,
-                            const std::vector<Order>& ob,
-                            RowMap::OptimizeFor optimize_for) const {
+                            const std::vector<Order>& ob) const {
   // We need to delay creation of the chains to this point because of Chrome
   // does not want the binary size overhead of including the chain
   // implementations. As they also don't query tables (instead just iterating)
@@ -105,7 +101,7 @@ RowMap Table::QueryToRowMap(const std::vector<Constraint>& cs,
     CreateChains();
   }
 
-  RowMap rm = FilterToRowMap(cs, optimize_for);
+  RowMap rm = QueryExecutor::FilterLegacy(this, cs);
   if (ob.empty())
     return rm;
 
@@ -125,43 +121,7 @@ RowMap Table::QueryToRowMap(const std::vector<Constraint>& cs,
     PERFETTO_DCHECK(ob.front().desc);
     std::reverse(idx.begin(), idx.end());
   } else {
-    // As our data is columnar, it's always more efficient to sort one column
-    // at a time rather than try and sort lexiographically all at once.
-    // To preserve correctness, we need to stably sort the index vector once
-    // for each order by in *reverse* order. Reverse order is important as it
-    // preserves the lexiographical property.
-    //
-    // For example, suppose we have the following:
-    // Table {
-    //   Column x;
-    //   Column y
-    //   Column z;
-    // }
-    //
-    // Then, to sort "y asc, x desc", we could do one of two things:
-    //  1) sort the index vector all at once and on each index, we compare
-    //     y then z. This is slow as the data is columnar and we need to
-    //     repeatedly branch inside each column.
-    //  2) we can stably sort first on x desc and then sort on y asc. This will
-    //     first put all the x in the correct order such that when we sort on
-    //     y asc, we will have the correct order of x where y is the same (since
-    //     the sort is stable).
-    //
-    // TODO(lalitm): it is possible that we could sort the last constraint (i.e.
-    // the first constraint in the below loop) in a non-stable way. However,
-    // this is more subtle than it appears as we would then need special
-    // handling where there are order bys on a column which is already sorted
-    // (e.g. ts, id). Investigate whether the performance gains from this are
-    // worthwhile. This also needs changes to the constraint modification logic
-    // in DbSqliteTable which currently eliminates constraints on sorted
-    // columns.
-    if (Table::kUseSortV2) {
-      QueryExecutor::SortLegacy(this, ob, idx);
-    } else {
-      for (auto it = ob.rbegin(); it != ob.rend(); ++it) {
-        columns_[it->col_idx].StableSort(it->desc, &idx);
-      }
-    }
+    QueryExecutor::SortLegacy(this, ob, idx);
   }
   return RowMap(std::move(idx));
 }

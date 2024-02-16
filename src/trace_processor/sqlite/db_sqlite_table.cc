@@ -646,15 +646,7 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
         }
       });
 
-  // Attempt to filter into a RowMap first - weall figure out whether to apply
-  // this to the table or we should use the RowMap directly. Also, if we are
-  // going to sort on the RowMap, it makes sense that we optimize for lookup
-  // speed so our sorting is not super slow.
-  RowMap::OptimizeFor optimize_for = orders_.empty()
-                                         ? RowMap::OptimizeFor::kMemory
-                                         : RowMap::OptimizeFor::kLookupSpeed;
-  RowMap filter_map =
-      SourceTable()->QueryToRowMap(constraints_, orders_, optimize_for);
+  RowMap filter_map = SourceTable()->QueryToRowMap(constraints_, orders_);
   if (filter_map.IsRange() && filter_map.size() <= 1) {
     // Currently, our criteria where we have a special fast path is if it's
     // a single ranged row. We have this fast path for joins on id columns
