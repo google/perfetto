@@ -78,9 +78,9 @@ void ProtoLogParser::ParseProtoLogMessage(
   }
 
   std::vector<std::string> string_params;
-  if (protolog_message.has_interned_str_params()) {
+  if (protolog_message.has_str_param_iids()) {
     if (sequence_state->state()->IsIncrementalStateValid()) {
-      for (auto it = protolog_message.interned_str_params(); it; ++it) {
+      for (auto it = protolog_message.str_param_iids(); it; ++it) {
         auto decoder =
             sequence_state->state()
                 ->current_generation()

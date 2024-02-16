@@ -36,7 +36,7 @@ packet {
   timestamp: 857384100
   protolog_message {
     message_id: 6924537961316301726
-    interned_str_params: 1
+    str_param_iids: 1
     sint64_params: 888
     double_params: 8.88
     boolean_params: 1
@@ -95,10 +95,10 @@ packet {
   timestamp: 857384130
   protolog_message {
     message_id: 9274895847396301003
-    interned_str_params: 1
-    interned_str_params: 1
-    interned_str_params: 2
-    interned_str_params: 1
+    str_param_iids: 1
+    str_param_iids: 1
+    str_param_iids: 2
+    str_param_iids: 1
   }
 }
 packet {
