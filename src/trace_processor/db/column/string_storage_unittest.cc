@@ -53,6 +53,8 @@ TEST(StringStorage, SearchOneElement) {
   ASSERT_EQ(chain->SingleSearch(FilterOp::kEq, SqlValue::String("pierogi"), 3),
             SingleSearchResult::kNoMatch);
 
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kNe, SqlValue::String("foo"), 0),
+            SingleSearchResult::kMatch);
   ASSERT_EQ(chain->SingleSearch(FilterOp::kNe, SqlValue::String("pierogi"), 0),
             SingleSearchResult::kMatch);
   ASSERT_EQ(chain->SingleSearch(FilterOp::kNe, SqlValue::String("pierogi"), 4),
