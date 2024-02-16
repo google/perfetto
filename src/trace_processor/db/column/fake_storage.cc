@@ -56,6 +56,34 @@ SingleSearchResult FakeStorageChain::SingleSearch(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
+UniqueSearchResult FakeStorageChain::UniqueSearch(FilterOp,
+                                                  SqlValue,
+                                                  uint32_t* i) const {
+  switch (strategy_) {
+    case kAll:
+      if (size_ != 1) {
+        return UniqueSearchResult::kNeedsFullSearch;
+      }
+      *i = 0;
+      return UniqueSearchResult::kMatch;
+    case kNone:
+      return UniqueSearchResult::kNoMatch;
+    case kBitVector:
+      if (bit_vector_.CountSetBits() != 1) {
+        return UniqueSearchResult::kNeedsFullSearch;
+      }
+      *i = bit_vector_.IndexOfNthSet(0);
+      return UniqueSearchResult::kMatch;
+    case kRange:
+      if (range_.size() != 1) {
+        return UniqueSearchResult::kNeedsFullSearch;
+      }
+      *i = range_.start;
+      return UniqueSearchResult::kMatch;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 SearchValidationResult FakeStorageChain::ValidateSearchConstraints(
     FilterOp,
     SqlValue) const {

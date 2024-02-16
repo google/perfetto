@@ -37,6 +37,17 @@ enum class SingleSearchResult {
                      // the crtiteria, a call to *Search is required.
 };
 
+// Result of calling Storage::UniqueSearch function.
+enum class UniqueSearchResult {
+  kMatch,            // The returned row matches the constraint.
+  kNoMatch,          // The returned row does not matches the constraint.
+  kNeedsFullSearch,  // UniqueSearch was unable to determine if a row meets
+                     // the crtiteria, a call to *Search is required. This
+                     // does not mean there >1 row necessarily, just that
+                     // UniqueSearch was unable to quickly identify a single
+                     // row.
+};
+
 // Result of calling Storage::ValidateSearchResult function.
 enum class SearchValidationResult {
   kOk,       // It makes sense to run search

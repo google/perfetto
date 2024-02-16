@@ -47,6 +47,25 @@ SingleSearchResult RangeOverlay::ChainImpl::SingleSearch(FilterOp op,
   return inner_->SingleSearch(op, sql_val, i + range_->start);
 }
 
+UniqueSearchResult RangeOverlay::ChainImpl::UniqueSearch(
+    FilterOp op,
+    SqlValue sql_val,
+    uint32_t* index) const {
+  switch (inner_->UniqueSearch(op, sql_val, index)) {
+    case UniqueSearchResult::kMatch:
+      if (!range_->Contains(*index)) {
+        return UniqueSearchResult::kNoMatch;
+      }
+      *index -= range_->start;
+      return UniqueSearchResult::kMatch;
+    case UniqueSearchResult::kNoMatch:
+      return UniqueSearchResult::kNoMatch;
+    case UniqueSearchResult::kNeedsFullSearch:
+      return UniqueSearchResult::kNeedsFullSearch;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 SearchValidationResult RangeOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue sql_val) const {

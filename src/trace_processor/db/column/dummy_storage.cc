@@ -31,6 +31,12 @@ SingleSearchResult DummyStorage::ChainImpl::SingleSearch(FilterOp,
   PERFETTO_FATAL("Shouldn't be called");
 }
 
+UniqueSearchResult DummyStorage::ChainImpl::UniqueSearch(FilterOp,
+                                                         SqlValue,
+                                                         uint32_t*) const {
+  PERFETTO_FATAL("Shouldn't be called");
+}
+
 SearchValidationResult DummyStorage::ChainImpl::ValidateSearchConstraints(
     FilterOp,
     SqlValue) const {

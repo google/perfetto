@@ -280,6 +280,12 @@ SingleSearchResult StringStorage::ChainImpl::SingleSearch(FilterOp op,
   PERFETTO_FATAL("For GCC");
 }
 
+UniqueSearchResult StringStorage::ChainImpl::UniqueSearch(FilterOp,
+                                                          SqlValue,
+                                                          uint32_t*) const {
+  return UniqueSearchResult::kNeedsFullSearch;
+}
+
 SearchValidationResult StringStorage::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue val) const {

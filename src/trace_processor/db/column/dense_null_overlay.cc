@@ -61,6 +61,27 @@ SingleSearchResult DenseNullOverlay::ChainImpl::SingleSearch(
   PERFETTO_FATAL("For GCC");
 }
 
+UniqueSearchResult DenseNullOverlay::ChainImpl::UniqueSearch(
+    FilterOp op,
+    SqlValue sql_val,
+    uint32_t* index) const {
+  switch (inner_->UniqueSearch(op, sql_val, index)) {
+    case UniqueSearchResult::kMatch:
+      if (*index >= non_null_->size()) {
+        return UniqueSearchResult::kNoMatch;
+      }
+      // If non_null_[index] is not set, then any result returned by |inner_| is
+      // meaningless as the value in |inner_| is not a "real" value.
+      return non_null_->IsSet(*index) ? UniqueSearchResult::kMatch
+                                      : UniqueSearchResult::kNeedsFullSearch;
+    case UniqueSearchResult::kNoMatch:
+      return UniqueSearchResult::kNoMatch;
+    case UniqueSearchResult::kNeedsFullSearch:
+      return UniqueSearchResult::kNeedsFullSearch;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 SearchValidationResult DenseNullOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue sql_val) const {
