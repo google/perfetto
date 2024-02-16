@@ -93,7 +93,7 @@ WITH
       slice.name AS oom_adj_trigger,
       LEAD(thread_slice.ts) OVER (ORDER BY thread_slice.ts) AS oom_adj_next_ts
     FROM thread_slice
-    JOIN slice ON slice.id = thread_slice.parent_id
+    LEFT JOIN slice ON slice.id = thread_slice.parent_id AND slice.dur != -1
     WHERE thread_slice.name GLOB 'updateOomAdj_*' AND process_name = 'system_server'
   )
 SELECT
