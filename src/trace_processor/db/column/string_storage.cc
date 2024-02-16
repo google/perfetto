@@ -239,8 +239,8 @@ SingleSearchResult StringStorage::ChainImpl::SingleSearch(FilterOp op,
     case FilterOp::kNe: {
       std::optional<StringPool::Id> id =
           string_pool_->GetId(base::StringView(sql_val.string_value));
-      return id && NotEqual()((*data_)[i], *id) ? SingleSearchResult::kMatch
-                                                : SingleSearchResult::kNoMatch;
+      return !id || NotEqual()((*data_)[i], *id) ? SingleSearchResult::kMatch
+                                                 : SingleSearchResult::kNoMatch;
     }
     case FilterOp::kGe:
       return GreaterEqual{string_pool_}(
