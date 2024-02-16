@@ -47,6 +47,7 @@ if (enable_perfetto_ui) {
 # Must be small binary size as all code here needs to be shipped in
 # Chrome.
 static_library("export_json") {
+  complete_static_lib = true
   deps = [
     ":export_json_sources",
     "../../gn:default_deps",
