@@ -17,6 +17,7 @@
 #include "src/trace_processor/db/column/null_overlay.h"
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -71,6 +72,29 @@ TEST(NullOverlay, SingleSearchIsNotNull) {
             SingleSearchResult::kMatch);
   ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNotNull, SqlValue(), 0),
             SingleSearchResult::kNoMatch);
+}
+
+TEST(NullOverlay, UniqueSearch) {
+  BitVector bv{0, 0, 0, 1, 1};
+  NullOverlay storage(&bv);
+  auto fake = FakeStorageChain::SearchSubset(5, Range(1, 2));
+  auto chain = storage.MakeChain(std::move(fake));
+
+  uint32_t row = std::numeric_limits<uint32_t>::max();
+  ASSERT_EQ(chain->UniqueSearch(FilterOp::kIsNotNull, SqlValue(), &row),
+            UniqueSearchResult::kMatch);
+  ASSERT_EQ(row, 4u);
+}
+
+TEST(NullOverlay, UniqueSearchOutOfBounds) {
+  BitVector bv{0, 0, 0, 1, 1};
+  NullOverlay storage(&bv);
+  auto fake = FakeStorageChain::SearchSubset(5, Range(4, 5));
+  auto chain = storage.MakeChain(std::move(fake));
+
+  uint32_t row = std::numeric_limits<uint32_t>::max();
+  ASSERT_EQ(chain->UniqueSearch(FilterOp::kIsNotNull, SqlValue(), &row),
+            UniqueSearchResult::kNoMatch);
 }
 
 TEST(NullOverlay, SearchInputInsideBoundary) {

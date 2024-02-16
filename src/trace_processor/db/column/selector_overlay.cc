@@ -44,6 +44,25 @@ SingleSearchResult SelectorOverlay::ChainImpl::SingleSearch(FilterOp op,
   return inner_->SingleSearch(op, sql_val, selector_->IndexOfNthSet(i));
 }
 
+UniqueSearchResult SelectorOverlay::ChainImpl::UniqueSearch(
+    FilterOp op,
+    SqlValue sql_val,
+    uint32_t* index) const {
+  switch (inner_->UniqueSearch(op, sql_val, index)) {
+    case UniqueSearchResult::kMatch:
+      if (*index >= selector_->size() || !selector_->IsSet(*index)) {
+        return UniqueSearchResult::kNoMatch;
+      }
+      *index = selector_->CountSetBits(*index);
+      return UniqueSearchResult::kMatch;
+    case UniqueSearchResult::kNoMatch:
+      return UniqueSearchResult::kNoMatch;
+    case UniqueSearchResult::kNeedsFullSearch:
+      return UniqueSearchResult::kNeedsFullSearch;
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 SearchValidationResult SelectorOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue sql_val) const {
