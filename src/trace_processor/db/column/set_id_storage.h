@@ -34,8 +34,9 @@ class SetIdStorage final : public DataLayer {
   using SetId = uint32_t;
 
   explicit SetIdStorage(const std::vector<uint32_t>*);
+  ~SetIdStorage() override;
 
-  std::unique_ptr<DataLayerChain> MakeChain() override;
+  std::unique_ptr<DataLayerChain> MakeChain();
 
  private:
   class ChainImpl : public DataLayerChain {

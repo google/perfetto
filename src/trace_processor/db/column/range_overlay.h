@@ -30,10 +30,11 @@ namespace perfetto::trace_processor::column {
 class RangeOverlay final : public DataLayer {
  public:
   explicit RangeOverlay(const Range*);
+  ~RangeOverlay() override;
 
   std::unique_ptr<DataLayerChain> MakeChain(
       std::unique_ptr<DataLayerChain>,
-      ChainCreationArgs = ChainCreationArgs()) override;
+      ChainCreationArgs = ChainCreationArgs());
 
  private:
   class ChainImpl : public DataLayerChain {

@@ -66,9 +66,6 @@ uint32_t LowerBoundIntrinsic(const SetId* data, SetId id, Range range) {
 
 }  // namespace
 
-SetIdStorage::SetIdStorage(const std::vector<uint32_t>* values)
-    : values_(values) {}
-
 SetIdStorage::ChainImpl::ChainImpl(const std::vector<uint32_t>* values)
     : values_(values) {}
 

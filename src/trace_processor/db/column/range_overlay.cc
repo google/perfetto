@@ -34,8 +34,6 @@ namespace perfetto::trace_processor::column {
 
 using Range = Range;
 
-RangeOverlay::RangeOverlay(const Range* range) : range_(range) {}
-
 RangeOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                    const Range* range)
     : inner_(std::move(inner)), range_(range) {

@@ -34,10 +34,11 @@ namespace perfetto::trace_processor::column {
 class DenseNullOverlay final : public DataLayer {
  public:
   explicit DenseNullOverlay(const BitVector* non_null);
+  ~DenseNullOverlay() override;
 
   std::unique_ptr<DataLayerChain> MakeChain(
       std::unique_ptr<DataLayerChain>,
-      ChainCreationArgs = ChainCreationArgs()) override;
+      ChainCreationArgs = ChainCreationArgs());
 
  private:
   class ChainImpl : public DataLayerChain {

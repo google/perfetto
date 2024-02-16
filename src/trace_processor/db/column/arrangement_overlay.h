@@ -36,10 +36,11 @@ class ArrangementOverlay final : public DataLayer {
  public:
   ArrangementOverlay(const std::vector<uint32_t>* arrangement,
                      Indices::State arrangement_state);
+  ~ArrangementOverlay() override;
 
   std::unique_ptr<DataLayerChain> MakeChain(
       std::unique_ptr<DataLayerChain>,
-      ChainCreationArgs = ChainCreationArgs()) override;
+      ChainCreationArgs = ChainCreationArgs());
 
  private:
   class ChainImpl : public DataLayerChain {

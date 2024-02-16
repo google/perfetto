@@ -78,8 +78,6 @@ BitVector ReconcileStorageResult(FilterOp op,
 
 }  // namespace
 
-NullOverlay::NullOverlay(const BitVector* non_null) : non_null_(non_null) {}
-
 SingleSearchResult NullOverlay::ChainImpl::SingleSearch(FilterOp op,
                                                         SqlValue sql_val,
                                                         uint32_t index) const {
