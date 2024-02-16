@@ -2375,7 +2375,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
         ":perfetto_src_trace_processor_util_profile_builder",
-        ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
@@ -12322,14 +12321,6 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/util:profiler_util
-filegroup {
-    name: "perfetto_src_trace_processor_util_profiler_util",
-    srcs: [
-        "src/trace_processor/util/profiler_util.cc",
-    ],
-}
-
 // GN: //src/trace_processor/util:proto_profiler
 filegroup {
     name: "perfetto_src_trace_processor_util_proto_profiler",
@@ -12380,6 +12371,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_util_stack_traces_util",
     srcs: [
+        "src/trace_processor/util/profiler_util.cc",
         "src/trace_processor/util/stack_traces_util.cc",
     ],
 }
@@ -13881,7 +13873,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
         ":perfetto_src_trace_processor_util_profile_builder",
-        ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
@@ -14579,7 +14570,6 @@ cc_binary {
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
         ":perfetto_src_trace_processor_util_profile_builder",
-        ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",
@@ -14812,7 +14802,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_gzip",
         ":perfetto_src_trace_processor_util_interned_message_view",
         ":perfetto_src_trace_processor_util_profile_builder",
-        ":perfetto_src_trace_processor_util_profiler_util",
         ":perfetto_src_trace_processor_util_proto_profiler",
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_json",

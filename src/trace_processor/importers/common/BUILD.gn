@@ -70,7 +70,6 @@ source_set("common") {
     "../../storage",
     "../../tables:tables",
     "../../types",
-    "../../util:profiler_util",
     "../../util:stack_traces_util",
     "../fuchsia:fuchsia_record",
     "../systrace:systrace_line",
