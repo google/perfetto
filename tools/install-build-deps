@@ -221,8 +221,8 @@ BUILD_DEPS_HOST = [
     # From https://github.com/ianlancetaylor/libbacktrace/archive/177940370e4a6b2509e92a0aaa9749184e64af43.zip
     Dependency(
         'buildtools/libbacktrace.zip',
-        'https://storage.googleapis.com/perfetto/libbacktrace-177940370e4a6b2509e92a0aaa9749184e64af43.zip',
-        '21ac9a4209f7aeef766c482be53a7fa365063c031c7077e2070b491202983b31',
+        'https://storage.googleapis.com/perfetto/libbacktrace-14818b7783eeb9a56c3f0fca78cefd3143f8c5f6.zip',
+        '0d09295938155aa84d9a6049f63df8cd2def3a28302b3550ea3ead9100b3d086',
         'all', 'all'),
 
     # Sqlite for the trace processing library.
