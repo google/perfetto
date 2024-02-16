@@ -95,29 +95,6 @@ static void BM_TableIteratorChild(benchmark::State& state) {
 }
 BENCHMARK(BM_TableIteratorChild)->Apply(TableFilterArgs);
 
-static void BM_TableFilterAndSortRoot(benchmark::State& state) {
-  StringPool pool;
-  RootTestTable root(&pool);
-
-  auto size = static_cast<uint32_t>(state.range(0));
-  uint32_t partitions = 8;
-
-  std::minstd_rand0 rnd_engine(45);
-  for (uint32_t i = 0; i < size; ++i) {
-    RootTestTable::Row row;
-    row.root_non_null = rnd_engine() % partitions;
-    row.root_non_null_2 = static_cast<uint32_t>(rnd_engine());
-    root.Insert(row);
-  }
-
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(root.ApplyAndIterateRows(root.QueryToRowMap(
-        {root.root_non_null().eq(5)}, {root.root_non_null_2().ascending()},
-        RowMap::OptimizeFor::kLookupSpeed)));
-  }
-}
-BENCHMARK(BM_TableFilterAndSortRoot)->Apply(TableFilterArgs);
-
 static void BM_TableFilterRootId(benchmark::State& state) {
   StringPool pool;
   RootTestTable root(&pool);

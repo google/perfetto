@@ -217,8 +217,7 @@ Variant IntersectInternal(const std::vector<OutputIndex>& index_vec,
 
 RowMap::RowMap() : RowMap(Range()) {}
 
-RowMap::RowMap(uint32_t start, uint32_t end, OptimizeFor optimize_for)
-    : data_(Range{start, end}), optimize_for_(optimize_for) {}
+RowMap::RowMap(uint32_t start, uint32_t end) : data_(Range{start, end}) {}
 
 RowMap::RowMap(Variant def) : data_(std::move(def)) {}
 
