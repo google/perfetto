@@ -31,10 +31,6 @@ message FtraceEventBundle {
   // Set to true if there was data loss between the last time we've read from
   // the corresponding per-cpu kernel buffer, and the earliest event recorded
   // in this bundle.
-  // TODO(rsavitski): consider replicating in the newer FtraceError. This field
-  // has been set since the original implementation, but used only for manual
-  // debugging. Trace processor instead looks at the FtraceStats totals for the
-  // tracing session.
   optional bool lost_events = 3;
 
   // Optionally-enabled compact encoding of a batch of scheduling events. Only

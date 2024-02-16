@@ -60,12 +60,15 @@ namespace stats {
   F(ftrace_cpu_oldest_event_ts_end,       kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_overrun_begin,             kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_overrun_end,               kIndexed, kInfo,     kTrace,    ""), \
-  F(ftrace_cpu_overrun_delta,             kIndexed, kDataLoss, kTrace,         \
-       "The kernel ftrace buffer cannot keep up with the rate of events "      \
-       "produced. Indexed by CPU. This is likely a misconfiguration."),        \
+  F(ftrace_cpu_overrun_delta,             kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_read_events_begin,         kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_read_events_end,           kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_read_events_delta,         kIndexed, kInfo,     kTrace,    ""), \
+  F(ftrace_cpu_has_data_loss,             kIndexed, kDataLoss, kTrace,         \
+       "Ftrace data for the given cpu has data losses and is therefore "       \
+       "unreliable. The kernel buffer overwrote events between our reads "     \
+       "in userspace. Try re-recording the trace with a bigger buffer "        \
+       "(ftrace_config.buffer_size_kb), or with fewer enabled ftrace events."),\
   F(ftrace_setup_errors,                  kSingle,  kInfo,     kTrace,         \
        "One or more atrace/ftrace categories were not found or failed to "     \
        "enable. See ftrace_setup_errors in the metadata table for details."),  \
@@ -140,7 +143,11 @@ namespace stats {
                                           kIndexed, kInfo,     kTrace,    ""), \
   F(traced_buf_padding_bytes_cleared,     kIndexed, kInfo,     kTrace,    ""), \
   F(traced_buf_padding_bytes_written,     kIndexed, kInfo,     kTrace,    ""), \
-  F(traced_buf_patches_failed,            kIndexed, kDataLoss, kTrace,    ""), \
+  F(traced_buf_patches_failed,            kIndexed, kDataLoss, kTrace,         \
+      "The tracing service potentially lost data from one of the data sources "\
+      "writing into the given target_buffer. This entry can be ignored"        \
+      "if you're using DISCARD buffers and traced_buf_chunks_discarded is      \
+      nonzero, meaning that the buffer was filled."),                          \
   F(traced_buf_patches_succeeded,         kIndexed, kInfo,     kTrace,    ""), \
   F(traced_buf_readaheads_failed,         kIndexed, kInfo,     kTrace,    ""), \
   F(traced_buf_readaheads_succeeded,      kIndexed, kInfo,     kTrace,    ""), \
