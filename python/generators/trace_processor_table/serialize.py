@@ -675,16 +675,14 @@ class {self.table_name} : public macros_internal::MacroTable {{
   Iterator IterateRows() {{ return Iterator(this, Table::IterateRows()); }}
 
   ConstIterator FilterToIterator(
-      const std::vector<Constraint>& cs,
-      RowMap::OptimizeFor opt = RowMap::OptimizeFor::kMemory) const {{
+      const std::vector<Constraint>& cs) const {{
     return ConstIterator(
-      this, ApplyAndIterateRows(QueryToRowMap(cs, {{}}, opt)));
+      this, ApplyAndIterateRows(QueryToRowMap(cs, {{}})));
   }}
 
   Iterator FilterToIterator(
-      const std::vector<Constraint>& cs,
-      RowMap::OptimizeFor opt = RowMap::OptimizeFor::kMemory) {{
-    return Iterator(this, ApplyAndIterateRows(QueryToRowMap(cs, {{}}, opt)));
+      const std::vector<Constraint>& cs) {{
+    return Iterator(this, ApplyAndIterateRows(QueryToRowMap(cs, {{}})));
   }}
 
   void ShrinkToFit() {{

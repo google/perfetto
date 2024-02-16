@@ -455,7 +455,8 @@ TEST(BitVectorUnittest, IterateSetBitsStartsCorrectly) {
 }
 
 TEST(BitVectorUnittest, IntersectRange) {
-  BitVector bv = BitVector::Range(1, 20, [](uint32_t t) { return t % 2 == 0; });
+  BitVector bv =
+      BitVector::RangeForTesting(1, 20, [](uint32_t t) { return t % 2 == 0; });
   BitVector intersected = bv.IntersectRange(3, 10);
 
   ASSERT_EQ(intersected.IndexOfNthSet(0), 4u);
@@ -463,7 +464,8 @@ TEST(BitVectorUnittest, IntersectRange) {
 }
 
 TEST(BitVectorUnittest, IntersectRangeFromStart) {
-  BitVector bv = BitVector::Range(1, 20, [](uint32_t t) { return t % 2 == 0; });
+  BitVector bv =
+      BitVector::RangeForTesting(1, 20, [](uint32_t t) { return t % 2 == 0; });
   BitVector intersected = bv.IntersectRange(0, 10);
 
   ASSERT_EQ(intersected.IndexOfNthSet(0), 2u);
@@ -478,8 +480,8 @@ TEST(BitVectorUnittest, IntersectRange2) {
 }
 
 TEST(BitVectorUnittest, IntersectRangeAfterWord) {
-  BitVector bv =
-      BitVector::Range(64 + 1, 64 + 20, [](uint32_t t) { return t % 2 == 0; });
+  BitVector bv = BitVector::RangeForTesting(
+      64 + 1, 64 + 20, [](uint32_t t) { return t % 2 == 0; });
   BitVector intersected = bv.IntersectRange(64 + 3, 64 + 10);
 
   ASSERT_EQ(intersected.IndexOfNthSet(0), 64 + 4u);
@@ -487,7 +489,8 @@ TEST(BitVectorUnittest, IntersectRangeAfterWord) {
 }
 
 TEST(BitVectorUnittest, IntersectRangeSetBitsBeforeRange) {
-  BitVector bv = BitVector::Range(10, 30, [](uint32_t t) { return t < 15; });
+  BitVector bv =
+      BitVector::RangeForTesting(10, 30, [](uint32_t t) { return t < 15; });
   BitVector intersected = bv.IntersectRange(16, 50);
 
   ASSERT_FALSE(intersected.CountSetBits());
@@ -503,8 +506,8 @@ TEST(BitVectorUnittest, IntersectRangeSetBitOnBoundary) {
 }
 
 TEST(BitVectorUnittest, IntersectRangeStressTest) {
-  BitVector bv =
-      BitVector::Range(65, 1024 + 1, [](uint32_t t) { return t % 2 == 0; });
+  BitVector bv = BitVector::RangeForTesting(
+      65, 1024 + 1, [](uint32_t t) { return t % 2 == 0; });
   BitVector intersected = bv.IntersectRange(30, 500);
 
   ASSERT_EQ(intersected.IndexOfNthSet(0), 66u);
@@ -512,7 +515,8 @@ TEST(BitVectorUnittest, IntersectRangeStressTest) {
 }
 
 TEST(BitVectorUnittest, Range) {
-  BitVector bv = BitVector::Range(1, 9, [](uint32_t t) { return t % 3 == 0; });
+  BitVector bv =
+      BitVector::RangeForTesting(1, 9, [](uint32_t t) { return t % 3 == 0; });
   ASSERT_EQ(bv.size(), 9u);
 
   ASSERT_FALSE(bv.IsSet(0));
@@ -523,8 +527,8 @@ TEST(BitVectorUnittest, Range) {
 }
 
 TEST(BitVectorUnittest, RangeStressTest) {
-  BitVector bv =
-      BitVector::Range(1, 1025, [](uint32_t t) { return t % 3 == 0; });
+  BitVector bv = BitVector::RangeForTesting(
+      1, 1025, [](uint32_t t) { return t % 3 == 0; });
   ASSERT_EQ(bv.size(), 1025u);
   ASSERT_FALSE(bv.IsSet(0));
   for (uint32_t i = 1; i < 1025; ++i) {
@@ -654,8 +658,8 @@ TEST(BitVectorUnittest, Not) {
 }
 
 TEST(BitVectorUnittest, NotBig) {
-  BitVector bv =
-      BitVector::Range(0, 1026, [](uint32_t i) { return i % 5 == 0; });
+  BitVector bv = BitVector::RangeForTesting(
+      0, 1026, [](uint32_t i) { return i % 5 == 0; });
   bv.Not();
 
   EXPECT_EQ(bv.CountSetBits(), 820u);
@@ -673,13 +677,13 @@ TEST(BitVectorUnittest, Or) {
 }
 
 TEST(BitVectorUnittest, OrBig) {
-  BitVector bv =
-      BitVector::Range(0, 1025, [](uint32_t i) { return i % 5 == 0; });
-  BitVector bv_sec =
-      BitVector::Range(0, 1025, [](uint32_t i) { return i % 3 == 0; });
+  BitVector bv = BitVector::RangeForTesting(
+      0, 1025, [](uint32_t i) { return i % 5 == 0; });
+  BitVector bv_sec = BitVector::RangeForTesting(
+      0, 1025, [](uint32_t i) { return i % 3 == 0; });
   bv.Or(bv_sec);
 
-  BitVector bv_or = BitVector::Range(
+  BitVector bv_or = BitVector::RangeForTesting(
       0, 1025, [](uint32_t i) { return i % 5 == 0 || i % 3 == 0; });
 
   ASSERT_EQ(bv.CountSetBits(), bv_or.CountSetBits());

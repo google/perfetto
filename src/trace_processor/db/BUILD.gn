@@ -69,7 +69,6 @@ source_set("compare") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
-    "column_storage_overlay_unittest.cc",
     "compare_unittest.cc",
     "query_executor_unittest.cc",
     "runtime_table_unittest.cc",
@@ -103,9 +102,6 @@ if (enable_perfetto_benchmarks) {
       "../tables:tables_python",
       "column",
     ]
-    sources = [
-      "column_storage_overlay_benchmark.cc",
-      "query_executor_benchmark.cc",
-    ]
+    sources = [ "query_executor_benchmark.cc" ]
   }
 }
