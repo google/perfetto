@@ -57,6 +57,21 @@ void QueryExecutor::FilterColumn(const Constraint& c,
     }
   }
 
+  // Given the chain a chance to return a single row which uniquely matches
+  // this constraint. This is a relatively frequent occurence e.g. id equality
+  // constraints so it is valuable to have an explicit fastpath.
+  uint32_t unique_row;
+  switch (chain.UniqueSearch(c.op, c.value, &unique_row)) {
+    case UniqueSearchResult::kMatch:
+      rm->IntersectExact(unique_row);
+      return;
+    case UniqueSearchResult::kNoMatch:
+      rm->Clear();
+      return;
+    case UniqueSearchResult::kNeedsFullSearch:
+      break;
+  }
+
   // Comparison of NULL with any operation apart from |IS_NULL| and
   // |IS_NOT_NULL| should return no rows.
   if (c.value.is_null() && c.op != FilterOp::kIsNull &&

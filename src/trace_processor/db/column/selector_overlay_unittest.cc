@@ -17,11 +17,12 @@
 #include "src/trace_processor/db/column/selector_overlay.h"
 
 #include <cstdint>
+#include <limits>
 #include <vector>
 
-#include "data_layer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/fake_storage.h"
 #include "src/trace_processor/db/column/numeric_storage.h"
 #include "src/trace_processor/db/column/types.h"
@@ -43,6 +44,38 @@ TEST(SelectorOverlay, SingleSearch) {
   ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 1),
             SingleSearchResult::kMatch);
   ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 0),
+            SingleSearchResult::kNoMatch);
+}
+
+TEST(SelectorOverlay, UniqueSearch) {
+  BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
+  auto fake = FakeStorageChain::SearchSubset(8, Range(2, 3));
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(std::move(fake));
+
+  uint32_t row = std::numeric_limits<uint32_t>::max();
+  ASSERT_EQ(chain->UniqueSearch(FilterOp::kGe, SqlValue::Long(0u), &row),
+            UniqueSearchResult::kMatch);
+  ASSERT_EQ(row, 1u);
+}
+
+TEST(SelectorOverlay, UniqueSearchNotSet) {
+  BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
+  auto fake = FakeStorageChain::SearchSubset(8, Range(4, 5));
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(std::move(fake));
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 1),
+            SingleSearchResult::kNoMatch);
+}
+
+TEST(SelectorOverlay, UniqueSearchOutOfBounds) {
+  BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
+  auto fake = FakeStorageChain::SearchSubset(9, Range(8, 9));
+  SelectorOverlay storage(&selector);
+  auto chain = storage.MakeChain(std::move(fake));
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 1),
             SingleSearchResult::kNoMatch);
 }
 

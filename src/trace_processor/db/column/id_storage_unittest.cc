@@ -145,6 +145,25 @@ TEST(IdStorage, SinglSearch) {
             SingleSearchResult::kNoMatch);
 }
 
+TEST(IdStorage, UniqueSearch) {
+  IdStorage storage;
+  auto chain = storage.MakeChain();
+
+  uint32_t row = std::numeric_limits<uint32_t>::max();
+  ASSERT_EQ(chain->UniqueSearch(FilterOp::kEq, SqlValue::Long(5), &row),
+            UniqueSearchResult::kMatch);
+  ASSERT_EQ(row, 5u);
+
+  row = std::numeric_limits<uint32_t>::max();
+  ASSERT_EQ(
+      chain->UniqueSearch(
+          FilterOp::kEq,
+          SqlValue::Long(std::numeric_limits<uint32_t>::max() + 1ll), &row),
+      UniqueSearchResult::kNeedsFullSearch);
+  ASSERT_EQ(chain->UniqueSearch(FilterOp::kEq, SqlValue::Double(0), &row),
+            UniqueSearchResult::kNeedsFullSearch);
+}
+
 TEST(IdStorage, SearchEqSimple) {
   IdStorage storage;
   auto chain = storage.MakeChain();

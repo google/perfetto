@@ -77,6 +77,8 @@ class FakeStorageChain : public DataLayerChain {
   // Implementation of DataLayerChain.
   SingleSearchResult SingleSearch(FilterOp, SqlValue, uint32_t) const override;
 
+  UniqueSearchResult UniqueSearch(FilterOp, SqlValue, uint32_t*) const override;
+
   SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                    SqlValue) const override;
 
