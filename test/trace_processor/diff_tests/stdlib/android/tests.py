@@ -1255,3 +1255,25 @@ class AndroidStdlib(TestSuite):
         1737069091010,3467799559,975,"cached_app_lmk_first","com.android.packageinstaller",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
         1737069240534,3467650035,985,"cached_app_lmk_first","com.android.managedprovisioning",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
       """))
+
+  def test_broadcast_minsdk_u(self):
+    return DiffTestBlueprint(
+        trace=DataPath('freezer_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE android.broadcasts;
+        SELECT intent_action, process_name, pid, queue_id, ts, dur FROM _android_broadcasts_minsdk_u
+        ORDER BY ts LIMIT 10
+      """,
+        out=Csv("""
+        "intent_action","process_name","pid","queue_id","ts","dur"
+        "android.os.action.POWER_SAVE_TEMP_WHITELIST_CHANGED","system",2519,0,91286297271477,221619
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91295942589896,469216
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91295943366025,313104
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91295943943713,356194
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91355941417856,444189
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91355942543001,405369
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91355943262781,339640
+        "android.intent.action.PACKAGE_NEEDS_INTEGRITY_VERIFICATION","system",2519,0,91359865607938,862534
+        "android.content.pm.action.SESSION_COMMITTED","com.android.launcher3",3219,0,91360380556725,15221753
+        "android.intent.action.PACKAGE_ADDED","system",2519,0,91360396877398,107502
+        """))
