@@ -2918,6 +2918,8 @@ perfetto_filegroup(
         "src/traceconv/trace_to_systrace.h",
         "src/traceconv/trace_to_text.cc",
         "src/traceconv/trace_to_text.h",
+        "src/traceconv/trace_unpack.cc",
+        "src/traceconv/trace_unpack.h",
     ],
 )
 

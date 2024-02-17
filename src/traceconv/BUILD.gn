@@ -108,6 +108,8 @@ source_set("lib") {
     "trace_to_text.cc",
     "trace_to_text.h",
     "trace_to_text.h",
+    "trace_unpack.cc",
+    "trace_unpack.h",
   ]
 }
 
