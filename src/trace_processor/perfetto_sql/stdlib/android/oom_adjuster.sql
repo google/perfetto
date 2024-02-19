@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE common.slices;
+INCLUDE PERFETTO MODULE slices.with_context;
 INCLUDE PERFETTO MODULE counters.intervals;
 
 -- Converts an oom_adj score Integer to String bucket name.
