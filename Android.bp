@@ -12437,6 +12437,7 @@ filegroup {
         "src/traceconv/trace_to_profile.cc",
         "src/traceconv/trace_to_systrace.cc",
         "src/traceconv/trace_to_text.cc",
+        "src/traceconv/trace_unpack.cc",
     ],
 }
 
