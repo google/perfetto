@@ -17,8 +17,8 @@
 -- including how many threads were runnable at a given time and how many threads
 -- where running at a given point in time.
 
-INCLUDE PERFETTO MODULE common.cpus;
 INCLUDE PERFETTO MODULE intervals.overlap;
+INCLUDE PERFETTO MODULE cpu.cpus;
 
 -- The count of runnable threads over time.
 CREATE PERFETTO TABLE sched_runnable_thread_count(
@@ -74,7 +74,7 @@ WITH
 -- Materialise the relevant cores to avoid calling a function for each row of the sched table.
 cores AS MATERIALIZED (
   SELECT cpu_index
-  FROM cpus
+  FROM cpu_core_types
   WHERE size = $core_type
 ),
 -- Filter sched events corresponding to running tasks.
