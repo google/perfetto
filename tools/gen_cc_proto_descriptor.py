@@ -68,7 +68,7 @@ def write_cpp_header(gendir, target, descriptor_bytes):
 
 namespace perfetto {{
 
-constexpr inline std::array<uint8_t, {size}> k{proto_name}Descriptor{{
+constexpr std::array<uint8_t, {size}> k{proto_name}Descriptor{{
 {binary}}};
 
 }}  // namespace perfetto
