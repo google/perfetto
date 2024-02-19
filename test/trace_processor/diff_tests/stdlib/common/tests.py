@@ -25,7 +25,7 @@ class StdlibCommon(TestSuite):
     return DiffTestBlueprint(
         trace=Path('../../common/synth_1.py'),
         query="""
-        INCLUDE PERFETTO MODULE common.thread_states;
+        INCLUDE PERFETTO MODULE deprecated.v42.common.thread_states;
 
         SELECT
           state,

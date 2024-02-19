@@ -72,7 +72,7 @@ export async function breakDownIntervalByThreadState(
   // TODO(altimin): this probably should share some code with pivot tables when
   // we actually get some pivot tables we like.
   const query = await engine.query(`
-    INCLUDE PERFETTO MODULE common.thread_states;
+    INCLUDE PERFETTO MODULE deprecated.v42.common.thread_states;
 
     SELECT
       state,

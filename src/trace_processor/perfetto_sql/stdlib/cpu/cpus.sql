@@ -14,13 +14,15 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE cpu.size;
-INCLUDE PERFETTO MODULE cpu.cpus;
 
-CREATE PERFETTO TABLE cpus(cpu_index INT, size STRING)
-AS
-SELECT * FROM cpu_core_types;
-
-
-CREATE PERFETTO FUNCTION guess_cpu_size(cpu_index INT)
-RETURNS STRING AS
-SELECT cpu_guess_core_type($cpu_index);
+-- All of the CPUs with their core type as a descriptive size ('little', 'mid', 'big', etc).
+CREATE PERFETTO TABLE cpu_core_types(
+  -- Index of the CPU.
+  cpu_index INT,
+  -- A descriptive size ('little', 'mid', 'big', etc) or NULL if we have insufficient information.
+  size STRING
+) AS
+SELECT
+  cpu as cpu_index,
+  cpu_guess_core_type(cpu) AS size
+FROM _ranked_cpus;
