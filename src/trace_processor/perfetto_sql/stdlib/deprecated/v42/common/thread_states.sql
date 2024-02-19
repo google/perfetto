@@ -14,33 +14,13 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE deprecated.v42.common.timestamps;
-INCLUDE PERFETTO MODULE deprecated.v42.common.cpus;
+INCLUDE PERFETTO MODULE sched.states;
+INCLUDE PERFETTO MODULE cpu.size;
 
--- TODO(altimin): this doesn't handle some corner cases which thread_state.ts
--- handles (as complex strings manipulations in SQL are pretty painful),
--- but they are pretty niche.
--- Translates the thread state name from a single-letter shorthard to
--- a human-readable name.
 CREATE PERFETTO FUNCTION _translate_thread_state_name(name STRING)
 RETURNS STRING AS
-SELECT CASE $name
-WHEN 'Running' THEN 'Running'
-WHEN 'R' THEN 'Runnable'
-WHEN 'R+' THEN 'Runnable (Preempted)'
-WHEN 'S' THEN 'Sleeping'
-WHEN 'D' THEN 'Uninterruptible Sleep'
-WHEN 'T' THEN 'Stopped'
-WHEN 't' THEN 'Traced'
-WHEN 'X' THEN 'Exit (Dead)'
-WHEN 'Z' THEN 'Exit (Zombie)'
-WHEN 'x' THEN 'Task Dead'
-WHEN 'I' THEN 'Idle'
-WHEN 'K' THEN 'Wakekill'
-WHEN 'W' THEN 'Waking'
-WHEN 'P' THEN 'Parked'
-WHEN 'N' THEN 'No Load'
-ELSE $name
-END;
+SELECT sched_state_to_human_readable_string($name);
+
 
 -- Returns a human-readable name for a thread state.
 CREATE PERFETTO FUNCTION human_readable_thread_state_name(
@@ -107,13 +87,14 @@ relevant_states AS (
   SELECT * FROM first_state_starting_before
 )
 SELECT
-  human_readable_thread_state_name(id) as state,
+  full_name.sched_state_full_name as state,
   state as raw_state,
-  guess_cpu_size(cpu) as cpu_type,
+  cpu_guess_core_type(cpu) as cpu_type,
   cpu,
   blocked_function,
   sum(spans_overlapping_dur($ts, $dur, ts, dur)) as dur
 FROM thread_state
+JOIN sched_state_full_name!(thread_state, state, io_wait) full_name USING (id)
 JOIN relevant_states USING (id)
 GROUP BY state, raw_state, cpu_type, cpu, blocked_function
 ORDER BY dur desc;
