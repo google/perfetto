@@ -432,6 +432,18 @@ class TracingServiceImpl : public TracingService {
     explicit PendingFlush(decltype(callback) cb) : callback(std::move(cb)) {}
   };
 
+  using PendingCloneID = uint64_t;
+
+  struct PendingClone {
+    size_t pending_flush_cnt = 0;
+    // This vector might not be populated all at once. Some buffers might be
+    // nullptr while flushing is not done.
+    std::vector<std::unique_ptr<TraceBuffer>> buffers;
+    bool flush_failed = false;
+    base::WeakPtr<ConsumerEndpointImpl> weak_consumer;
+    bool skip_trace_filter = false;
+  };
+
   // Holds the state of a tracing session. A tracing session is uniquely bound
   // a specific Consumer. Each Consumer can own one or more sessions.
   struct TracingSession {
@@ -550,6 +562,12 @@ class TracingServiceImpl : public TracingService {
     // For each Flush(N) request, keeps track of the set of producers for which
     // we are still awaiting a NotifyFlushComplete(N) ack.
     std::map<FlushRequestID, PendingFlush> pending_flushes;
+
+    // For each Clone request, keeps track of the flushes acknowledgement that
+    // we are still waiting for.
+    std::map<PendingCloneID, PendingClone> pending_clones;
+
+    PendingCloneID last_pending_clone_id_ = 0;
 
     // Maps a per-trace-session buffer index into the corresponding global
     // BufferID (shared namespace amongst all consumers). This vector has as
@@ -740,11 +758,22 @@ class TracingServiceImpl : public TracingService {
       std::map<ProducerID, std::vector<DataSourceInstanceID>>,
       ConsumerEndpoint::FlushCallback,
       FlushFlags);
-  base::Status DoCloneSession(ConsumerEndpointImpl*,
-                              TracingSessionID,
-                              bool skip_filter,
-                              bool final_flush_outcome,
-                              base::Uuid*);
+  std::map<ProducerID, std::vector<DataSourceInstanceID>>
+  GetFlushableDataSourceInstancesForBuffers(TracingSession*,
+                                            std::set<BufferID>);
+  bool DoCloneBuffers(TracingSession*,
+                      std::set<BufferID>,
+                      std::vector<std::unique_ptr<TraceBuffer>>*);
+  base::Status FinishCloneSession(ConsumerEndpointImpl*,
+                                  TracingSessionID,
+                                  std::vector<std::unique_ptr<TraceBuffer>>,
+                                  bool skip_filter,
+                                  bool final_flush_outcome,
+                                  base::Uuid*);
+  void OnFlushDoneForClone(TracingSessionID src_tsid,
+                           PendingCloneID clone_id,
+                           std::set<BufferID> buf_ids,
+                           bool final_flush_outcome);
 
   // Returns true if `*tracing_session` is waiting for a trigger that hasn't
   // happened.

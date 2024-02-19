@@ -73,6 +73,7 @@ using ::testing::IsEmpty;
 using ::testing::Mock;
 using ::testing::Ne;
 using ::testing::Not;
+using ::testing::Pointee;
 using ::testing::Property;
 using ::testing::SaveArg;
 using ::testing::StrictMock;
@@ -5040,7 +5041,22 @@ TEST_F(TracingServiceImplTest, TransferOnClone) {
     clone_consumer->CloneSession(1);
 
     // CloneSession() will implicitly issue a flush. Linearize with that.
-    producer->ExpectFlush({writers[0].get(), writers[1].get()});
+    EXPECT_CALL(
+        *producer,
+        Flush(_, Pointee(producer->GetDataSourceInstanceId("ds_1")), 1, _))
+        .WillOnce(Invoke([&](FlushRequestID flush_req_id,
+                             const DataSourceInstanceID*, size_t, FlushFlags) {
+          writers[0]->Flush();
+          producer->endpoint()->NotifyFlushComplete(flush_req_id);
+        }));
+    EXPECT_CALL(
+        *producer,
+        Flush(_, Pointee(producer->GetDataSourceInstanceId("ds_2")), 1, _))
+        .WillOnce(Invoke([&](FlushRequestID flush_req_id,
+                             const DataSourceInstanceID*, size_t, FlushFlags) {
+          writers[1]->Flush();
+          producer->endpoint()->NotifyFlushComplete(flush_req_id);
+        }));
     task_runner.RunUntilCheckpoint(clone_checkpoint_name);
 
     auto packets = clone_consumer->ReadBuffers();
@@ -5197,6 +5213,62 @@ TEST_F(TracingServiceImplTest, CloneMainSessionStopped) {
                                                   HasSubstr("before_clone")))));
 }
 
+TEST_F(TracingServiceImplTest, CloneConsumerDisconnect) {
+  // The consumer the creates the initial tracing session.
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer1");
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);  // Buf 0.
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer1 = producer->CreateTraceWriter("ds_1");
+
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+
+  // CloneSession() will issue a flush.
+  std::string producer1_flush_checkpoint_name = "producer1_flush_requested";
+  FlushRequestID flush1_req_id;
+  auto flush1_requested =
+      task_runner.CreateCheckpoint(producer1_flush_checkpoint_name);
+  EXPECT_CALL(*producer, Flush(_, _, _, _))
+      .WillOnce([&](FlushRequestID req_id, const DataSourceInstanceID*, size_t,
+                    FlushFlags) {
+        flush1_req_id = req_id;
+        flush1_requested();
+      });
+  clone_consumer->CloneSession(1);
+
+  task_runner.RunUntilCheckpoint(producer1_flush_checkpoint_name);
+
+  // producer hasn't replied to the flush yet, so the clone operation is still
+  // pending.
+
+  // The clone_consumer disconnect and goes away.
+  clone_consumer.reset();
+
+  // producer replies to the flush request now.
+  writer1->Flush();
+  producer->endpoint()->NotifyFlushComplete(flush1_req_id);
+  task_runner.RunUntilIdle();
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  consumer->WaitForTracingDisabled();
+}
+
 TEST_F(TracingServiceImplTest, CloneTransferFlush) {
   // The consumer the creates the initial tracing session.
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
@@ -5313,10 +5385,9 @@ TEST_F(TracingServiceImplTest, CloneTransferFlush) {
     }
     EXPECT_THAT(actual_payloads, Contains("buf1_beforeflush"));
     EXPECT_THAT(actual_payloads, Contains("buf2_beforeflush"));
-    // Even though this packet was sent after producer1 acked the flush,
-    // producer2 had not acked the flush yet, so the buffer was still not
-    // cloned.
-    EXPECT_THAT(actual_payloads, Contains("buf1_afterflush"));
+    // This packet was sent after producer1 acked the flush. producer2 hadn't
+    // acked the flush yet, but producer2's buffer is on a separate flush group.
+    EXPECT_THAT(actual_payloads, Not(Contains("buf1_afterflush")));
     EXPECT_THAT(actual_payloads, Contains("buf2_afterflush"));
   }
 
