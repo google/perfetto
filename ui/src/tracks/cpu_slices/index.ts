@@ -61,7 +61,7 @@ const RECT_HEIGHT = 24;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
 class CpuSliceTrack implements Track {
-  private mousePos?: {x: number, y: number};
+  private mousePos?: { x: number, y: number };
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
@@ -140,7 +140,7 @@ class CpuSliceTrack implements Track {
   }
 
   async onBoundsChange(start: time, end: time, resolution: duration):
-      Promise<Data> {
+    Promise<Data> {
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
     const isCached = this.cachedBucketSize <= resolution;
@@ -148,7 +148,7 @@ class CpuSliceTrack implements Track {
       `cached_tsq / ${resolution} * ${resolution}` :
       `(ts + ${resolution / 2n}) / ${resolution} * ${resolution}`;
     const queryTable =
-        isCached ? this.tableName('sched_cached') : this.tableName('sched');
+      isCached ? this.tableName('sched_cached') : this.tableName('sched');
     const constraintColumn = isCached ? 'cached_tsq' : 'ts';
 
     const queryRes = await this.engine.query(`
@@ -411,7 +411,7 @@ class CpuSliceTrack implements Track {
       // Draw diamond if the track being drawn is the cpu of the waker.
       if (this.cpu === details.wakerCpu && details.wakeupTs) {
         const wakeupPos =
-            Math.floor(visibleTimeScale.timeToPx(details.wakeupTs));
+          Math.floor(visibleTimeScale.timeToPx(details.wakeupTs));
         ctx.beginPath();
         ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);
         ctx.fillStyle = 'black';
@@ -439,7 +439,7 @@ class CpuSliceTrack implements Track {
     }
   }
 
-  onMouseMove(pos: {x: number, y: number}) {
+  onMouseMove(pos: { x: number, y: number }) {
     const data = this.fetcher.data;
     this.mousePos = pos;
     if (data === undefined) return;
@@ -475,7 +475,7 @@ class CpuSliceTrack implements Track {
     this.mousePos = undefined;
   }
 
-  onMouseClick({x}: {x: number}) {
+  onMouseClick({x}: { x: number }) {
     const data = this.fetcher.data;
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.timeline;
@@ -525,10 +525,11 @@ class CpuSlices implements Plugin {
   async guessCpuSizes(engine: EngineProxy): Promise<Map<number, string>> {
     const cpuToSize = new Map<number, string>();
     await engine.query(`
-      INCLUDE PERFETTO MODULE common.cpus;
+      INCLUDE PERFETTO MODULE cpu.size;
     `);
     const result = await engine.query(`
-      SELECT cpu, GUESS_CPU_SIZE(cpu) as size FROM cpu_counter_track;
+      SELECT cpu, cpu_guess_core_type(cpu) as size
+      FROM cpu_counter_track;
     `);
 
     const it = result.iter({

@@ -108,10 +108,10 @@ class TrackDecider {
   async guessCpuSizes(): Promise<Map<number, string>> {
     const cpuToSize = new Map<number, string>();
     await this.engine.query(`
-      INCLUDE PERFETTO MODULE common.cpus;
+      INCLUDE PERFETTO MODULE cpu.size;
     `);
     const result = await this.engine.query(`
-      SELECT cpu, GUESS_CPU_SIZE(cpu) as size FROM cpu_counter_track;
+      SELECT cpu, cpu_guess_core_type(cpu) as size FROM cpu_counter_track;
     `);
 
     const it = result.iter({
@@ -371,7 +371,7 @@ class TrackDecider {
 
     for (const track of ionTracks) {
       if (!foundSummary &&
-          [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.name)) {
+        [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.name)) {
         foundSummary = true;
         track.key = summaryTrackKey;
         track.trackGroup = undefined;
@@ -491,9 +491,9 @@ class TrackDecider {
       // Group all the frequency tracks together (except the CPU and GPU
       // frequency ones).
       if (track.name.endsWith('Frequency') && !track.name.startsWith('Cpu') &&
-          !track.name.startsWith('Gpu')) {
+        !track.name.startsWith('Gpu')) {
         if (track.trackGroup !== undefined &&
-            track.trackGroup !== SCROLLING_TRACK_GROUP) {
+          track.trackGroup !== SCROLLING_TRACK_GROUP) {
           continue;
         }
         if (track.uri === NULL_TRACK_URI) {
@@ -539,7 +539,7 @@ class TrackDecider {
     let groupUuid = undefined;
     for (const track of this.tracksToAdd) {
       if (track.trackGroup !== undefined &&
-          track.trackGroup !== SCROLLING_TRACK_GROUP) {
+        track.trackGroup !== SCROLLING_TRACK_GROUP) {
         continue;
       }
       if (track.uri === NULL_TRACK_URI) {
@@ -584,7 +584,7 @@ class TrackDecider {
     for (const track of this.tracksToAdd) {
       if (regex.test(track.name)) {
         if (track.trackGroup !== undefined &&
-            track.trackGroup !== SCROLLING_TRACK_GROUP) {
+          track.trackGroup !== SCROLLING_TRACK_GROUP) {
           continue;
         }
         if (track.uri === NULL_TRACK_URI) {
@@ -619,7 +619,7 @@ class TrackDecider {
 
   async addLogsTrack(engine: EngineProxy): Promise<void> {
     const result =
-        await engine.query(`select count(1) as cnt from android_logs`);
+      await engine.query(`select count(1) as cnt from android_logs`);
     const count = result.firstRow({cnt: NUM}).cnt;
 
     if (count > 0) {
@@ -702,7 +702,7 @@ class TrackDecider {
 
       let summaryTrackKey = undefined;
       let trackGroupId =
-          upid === 0 ? SCROLLING_TRACK_GROUP : this.upidToUuid.get(upid);
+        upid === 0 ? SCROLLING_TRACK_GROUP : this.upidToUuid.get(upid);
 
       if (groupName) {
         // If this is the first track encountered for a certain group,
@@ -801,7 +801,7 @@ class TrackDecider {
 
       const priority = InThreadTrackSortKey.THREAD_SCHEDULING_STATE_TRACK;
       const name =
-          getTrackName({utid, tid, threadName, kind: THREAD_STATE_TRACK_KIND});
+        getTrackName({utid, tid, threadName, kind: THREAD_STATE_TRACK_KIND});
 
       this.tracksToAdd.push({
         uri: `perfetto.ThreadState#${utid}`,
@@ -1014,7 +1014,7 @@ class TrackDecider {
       const rawName = it.name;
       const uid = it.uid === null ? undefined : it.uid;
       const userName =
-          it.package_name === null ? `UID: ${uid}` : it.package_name;
+        it.package_name === null ? `UID: ${uid}` : it.package_name;
 
       const groupUuid = `uid-track-group${rawName}`;
       if (groupMap.get(rawName) === undefined) {
@@ -1095,7 +1095,7 @@ class TrackDecider {
 
       const kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
       const name =
-          getTrackName({name: trackName, upid, pid, processName, kind});
+        getTrackName({name: trackName, upid, pid, processName, kind});
 
       this.tracksToAdd.push({
         uri: `perfetto.ActualFrames#${upid}`,
@@ -1153,7 +1153,7 @@ class TrackDecider {
 
       const kind = EXPECTED_FRAMES_SLICE_TRACK_KIND;
       const name =
-          getTrackName({name: trackName, upid, pid, processName, kind});
+        getTrackName({name: trackName, upid, pid, processName, kind});
 
       this.tracksToAdd.push({
         uri: `perfetto.ExpectedFrames#${upid}`,
@@ -1295,16 +1295,16 @@ class TrackDecider {
     }
   }
 
-  getUuidUnchecked(utid: number, upid: number|null) {
+  getUuidUnchecked(utid: number, upid: number | null) {
     return upid === null ? this.utidToUuid.get(utid) :
       this.upidToUuid.get(upid);
   }
 
-  getUuid(utid: number, upid: number|null) {
+  getUuid(utid: number, upid: number | null) {
     return assertExists(this.getUuidUnchecked(utid, upid));
   }
 
-  getOrCreateUuid(utid: number, upid: number|null) {
+  getOrCreateUuid(utid: number, upid: number | null) {
     let uuid = this.getUuidUnchecked(utid, upid);
     if (uuid === undefined) {
       uuid = uuidv4();
@@ -1531,7 +1531,7 @@ class TrackDecider {
 
       // Group by upid if present else by utid.
       let pUuid =
-          upid === null ? this.utidToUuid.get(utid) : this.upidToUuid.get(upid);
+        upid === null ? this.utidToUuid.get(utid) : this.upidToUuid.get(upid);
       // These should only happen once for each track group.
       if (pUuid === undefined) {
         pUuid = this.getOrCreateUuid(utid, upid);
@@ -1550,7 +1550,7 @@ class TrackDecider {
         });
 
         const name =
-            getTrackName({utid, processName, pid, threadName, tid, upid});
+          getTrackName({utid, processName, pid, threadName, tid, upid});
         const addTrackGroup = Actions.addTrackGroup({
           summaryTrackKey,
           name,
@@ -1793,8 +1793,8 @@ class TrackDecider {
   }
 
   private static getThreadSortKey(
-    threadName?: string|null, tid?: number|null,
-    pid?: number|null): PrimaryTrackSortKey {
+    threadName?: string | null, tid?: number | null,
+    pid?: number | null): PrimaryTrackSortKey {
     if (pid !== undefined && pid !== null && pid === tid) {
       return PrimaryTrackSortKey.MAIN_THREAD;
     }
@@ -1804,13 +1804,13 @@ class TrackDecider {
 
     // Chrome main threads should always come first within their process.
     if (threadName === 'CrBrowserMain' || threadName === 'CrRendererMain' ||
-        threadName === 'CrGpuMain') {
+      threadName === 'CrGpuMain') {
       return PrimaryTrackSortKey.MAIN_THREAD;
     }
 
     // Chrome IO threads should always come immediately after the main thread.
     if (threadName === 'Chrome_ChildIOThread' ||
-        threadName === 'Chrome_IOThread') {
+      threadName === 'Chrome_IOThread') {
       return PrimaryTrackSortKey.CHROME_IO_THREAD;
     }
 

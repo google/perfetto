@@ -24,6 +24,57 @@ WITH nums AS
     WHERE num < $upper_limit)
 SELECT num FROM nums;
 
+CREATE PERFETTO FUNCTION _earliest_timestamp_for_counter_track(
+  -- Id of a counter track with a counter.
+  counter_track_id INT)
+-- Timestamp of first counter value. Null if doesn't exist.
+RETURNS LONG AS
+SELECT MIN(ts) FROM counter WHERE counter.track_id = $counter_track_id;
+
+-- COUNTER_WITH_DUR_FOR_TRACK but in a specified time.
+-- Does calculation over the table ends - creates an artificial counter value at
+-- the start if needed and chops the duration of the last timestamps in range.
+CREATE PERFETTO FUNCTION _counter_for_time_range(
+  -- Id of track counter track.
+  counter_track_id INT,
+  -- Timestamp of the timerange start.
+  -- Can be earlier than the first counter value.
+  start_ts LONG,
+  -- Timestamp of the timerange end.
+  end_ts LONG)
+RETURNS TABLE(
+  -- Timestamp of the counter value.
+  ts LONG,
+  -- Duration of the counter value.
+  dur LONG,
+  -- Counter value.
+  value DOUBLE,
+  -- If of the counter track.
+  track_id INT,
+  -- Name of the counter track.
+  track_name STRING,
+  -- Counter track set id.
+  track_arg_set_id INT,
+  -- Counter arg set id.
+  arg_set_id INT
+) AS
+SELECT
+  IIF(ts < $start_ts, $start_ts, ts) AS ts,
+  IIF(
+    ts < $start_ts,
+    dur - ($start_ts - ts),
+    IIF(ts + dur > $end_ts, $end_ts - ts, dur)) AS dur,
+  value,
+  track_id,
+  track_name,
+  track_arg_set_id,
+  arg_set_id
+FROM counter_with_dur_for_track($counter_track_id)
+WHERE TRUE
+  AND ts + dur >= $start_ts
+  AND ts < $end_ts
+ORDER BY ts ASC;
+
 --
 -- Get durations for percentile
 --
@@ -55,9 +106,9 @@ WITH percentiles_for_value AS (
     SELECT
         value,
         (CAST(SUM(dur) OVER(ORDER BY value ASC) AS DOUBLE) /
-            ($end_ts - MAX($start_ts, earliest_timestamp_for_counter_track($counter_track_id)))) * 100
+            ($end_ts - MAX($start_ts, _earliest_timestamp_for_counter_track($counter_track_id)))) * 100
         AS percentile_for_value
-    FROM COUNTER_FOR_TIME_RANGE($counter_track_id, $start_ts, $end_ts)
+    FROM _COUNTER_FOR_TIME_RANGE($counter_track_id, $start_ts, $end_ts)
     ORDER BY value ASC
 ),
 with_gaps AS (

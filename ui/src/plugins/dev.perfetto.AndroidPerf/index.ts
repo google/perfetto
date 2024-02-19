@@ -21,7 +21,7 @@ class AndroidPerf implements Plugin {
   async addAppProcessStartsDebugTrack(
     engine: EngineProxy, reason: string, sliceName: string): Promise<void> {
     const sliceColumns =
-        ['id', 'ts', 'dur', 'reason', 'process_name', 'intent', 'table_name'];
+      ['id', 'ts', 'dur', 'reason', 'process_name', 'intent', 'table_name'];
     await addDebugSliceTrack(
       engine,
       {
@@ -91,7 +91,7 @@ class AndroidPerf implements Plugin {
           if (tid === null) return;
         }
         ctx.tabs.openQuery(`
-          INCLUDE PERFETTO MODULE common.cpus;
+          INCLUDE PERFETTO MODULE cpu.cpus;
           WITH
             total_runtime AS (
               SELECT sum(dur) AS total_runtime
@@ -107,7 +107,7 @@ class AndroidPerf implements Plugin {
             FROM sched s
             LEFT JOIN thread t
               USING (utid)
-            LEFT JOIN cpus c
+            LEFT JOIN cpu_core_types c
               ON s.cpu = c.cpu_index
             WHERE t.tid = ${tid}
             GROUP BY 1`, `runtime cluster distrubtion for tid ${tid}`);
