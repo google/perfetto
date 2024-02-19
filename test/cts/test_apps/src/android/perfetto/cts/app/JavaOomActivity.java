@@ -18,22 +18,23 @@ package android.perfetto.cts.app;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.util.Log;
 
 public class JavaOomActivity extends Activity {
+    public static final String TAG = "JavaOomActivity";
+
     @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
         new Thread(() -> {
             try {
+                Log.i(TAG, "Before the allocation");
+                // Try to allocate a big array: it should cause ART to run out of memory.
                 byte[] alloc = new byte[Integer.MAX_VALUE];
-                // The return statement below is required to keep the allocation
-                // above when generating DEX. Without the return statement there is
-                // no way for a debugger to break where `alloc` is in scope and
-                // therefore javac will not generate local variable information for it.
-                // Without local variable information dexers (both D8 and R8) will
-                // remove the dead allocation as without local variable information it
-                // is dead even in debug mode. See b/322478366#comment3.
-                return;
+                // Use the array, otherwise R8 might optimize the allocation away. (b/322478366,
+                // b/325467497).
+                alloc[5] = 42;
+                Log.i(TAG, "After the allocation " + alloc[5]);
             } catch (OutOfMemoryError e) {
             }
         }).start();
