@@ -400,7 +400,6 @@ export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
 }
 
 interface TrackPanelAttrs {
-  key: string;
   trackKey: string;
   title: string;
   tags?: TrackTags;
@@ -415,7 +414,7 @@ export class TrackPanel implements Panel {
   constructor(private readonly attrs: TrackPanelAttrs) {}
 
   get key(): string {
-    return this.attrs.key;
+    return this.attrs.trackKey;
   }
 
   get trackKey(): string {
@@ -435,7 +434,6 @@ export class TrackPanel implements Panel {
         });
       }
       return m(TrackComponent, {
-        key: attrs.key,
         trackKey: attrs.trackKey,
         title: attrs.title,
         heightPx: attrs.trackFSM.track.getHeight(),
@@ -447,7 +445,6 @@ export class TrackPanel implements Panel {
       });
     } else {
       return m(TrackComponent, {
-        key: attrs.key,
         trackKey: attrs.trackKey,
         title: attrs.title,
         revealOnCreate: attrs.revealOnCreate,
