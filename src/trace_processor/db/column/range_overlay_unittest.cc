@@ -37,7 +37,7 @@ using testing::ElementsAre;
 using testing::IsEmpty;
 using Range = Range;
 
-TEST(SelectorOverlay, SingleSearch) {
+TEST(RangeOverlay, SingleSearch) {
   Range range(3, 8);
   RangeOverlay storage(&range);
   auto fake = FakeStorageChain::SearchSubset(
@@ -50,7 +50,7 @@ TEST(SelectorOverlay, SingleSearch) {
             SingleSearchResult::kNoMatch);
 }
 
-TEST(SelectorOverlay, UniqueSearch) {
+TEST(RangeOverlay, UniqueSearch) {
   Range range(1, 3);
   RangeOverlay storage(&range);
   auto fake = FakeStorageChain::SearchSubset(5, Range(2, 3));
@@ -62,7 +62,7 @@ TEST(SelectorOverlay, UniqueSearch) {
   ASSERT_EQ(row, 1u);
 }
 
-TEST(SelectorOverlay, UniqueSearchLowOutOfBounds) {
+TEST(RangeOverlay, UniqueSearchLowOutOfBounds) {
   Range range(3, 8);
   RangeOverlay storage(&range);
   auto fake = FakeStorageChain::SearchSubset(8, Range(1, 2));
@@ -73,7 +73,7 @@ TEST(SelectorOverlay, UniqueSearchLowOutOfBounds) {
             UniqueSearchResult::kNoMatch);
 }
 
-TEST(SelectorOverlay, UniqueSearchHighOutOfBounds) {
+TEST(RangeOverlay, UniqueSearchHighOutOfBounds) {
   Range range(3, 8);
   RangeOverlay storage(&range);
   auto fake = FakeStorageChain::SearchSubset(9, Range(8, 9));
