@@ -41,7 +41,7 @@ import {PanelSize} from './panel';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {constraintsToQuerySuffix} from './sql_utils';
 import {NewTrackArgs} from './track';
-import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
+import {BUCKETS_PER_PIXEL, CacheKey, TimelineCache} from '../core/timeline_cache';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -184,8 +184,8 @@ export abstract class BaseSliceTrack<
   private slices = new Array<CastInternal<T['slice']>>();
 
   // This is the slices cache:
-  private cache: TrackCache<Array<CastInternal<T['slice']>>> =
-    new TrackCache(5);
+  private cache: TimelineCache<Array<CastInternal<T['slice']>>> =
+    new TimelineCache(5);
 
   // Incomplete slices (dur = -1). Rather than adding a lot of logic to
   // the SQL queries to handle this case we materialise them one off

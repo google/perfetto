@@ -127,10 +127,10 @@ interface CacheItem<T> {
 }
 
 
-// LRU cache for the tracks.
+// LRU cache for the timeline.
 // T is all the data needed for a displaying the track in a given
 // CacheKey area - generally an array of slices.
-export class TrackCache<T> {
+export class TimelineCache<T> {
   private cacheSize: number;
   private cache: Map<string, CacheItem<T>>;
   private lastAccessId: number;

@@ -14,7 +14,7 @@
 
 import {Time} from '../base/time';
 
-import {CacheKey, TrackCache} from './track_cache';
+import {CacheKey, TimelineCache} from './timeline_cache';
 
 test('cacheKeys', () => {
   const k = CacheKey.create(Time.fromRaw(201n), Time.fromRaw(302n), 123);
@@ -45,7 +45,7 @@ test('cache', () => {
     .normalize();
   const key7 = (CacheKey.create(Time.fromRaw(7000n), Time.fromRaw(7100n), 100))
     .normalize();
-  const cache = new TrackCache<string>(5);
+  const cache = new TimelineCache<string>(5);
 
   cache.insert(key1, 'v1');
   expect(cache.lookup(key1)).toEqual('v1');
