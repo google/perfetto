@@ -90,19 +90,6 @@ class ScopedFileRemove {
 
 class PerfettoCmdlineTest : public ::testing::Test {
  public:
-  void SetUp() override {
-#if defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER) || \
-    defined(MEMORY_SANITIZER) || defined(LEAK_SANITIZER)
-    // Disable cmdline tests on sanitizets because they use fork() and that
-    // messes up leak / races detections, which has been fixed only recently
-    // (see https://github.com/google/sanitizers/issues/836 ).
-    PERFETTO_LOG("Skipping cmdline integration tests on sanitizers");
-    GTEST_SKIP();
-#endif
-  }
-
-  void TearDown() override {}
-
   void StartServiceIfRequiredNoNewExecsAfterThis() {
     exec_allowed_ = false;
     test_helper_.StartServiceIfRequired();
