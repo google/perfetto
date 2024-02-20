@@ -111,6 +111,10 @@ def main():
       if 'RUN_METRIC' in line:
         errors.append(f"RUN_METRIC is banned in standard library.\n"
                       f"Offending file: {path}\n")
+      if 'include perfetto module common.' in line.casefold():
+        errors.append(
+            f"Common module has been deprecated in the standard library.\n"
+            f"Offending file: {path}\n")
       if 'insert into' in line.casefold():
         errors.append(f"INSERT INTO table is not allowed in standard library.\n"
                       f"Offending file: {path}\n")
