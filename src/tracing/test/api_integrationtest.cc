@@ -16,9 +16,6 @@
 
 #include <fcntl.h>
 
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
 #include <chrono>
 #include <condition_variable>
 #include <fstream>
@@ -39,6 +36,10 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <Windows.h>  // For CreateFile().
+#else
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/un.h>
 #endif
 
 // Deliberately not pulling any non-public perfetto header to spot accidental
