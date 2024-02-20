@@ -14,8 +14,6 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE common.timestamps;
-
 -- Table of suspended and awake slices.
 --
 -- Selects either the minimal or full ftrace source depending on what's
