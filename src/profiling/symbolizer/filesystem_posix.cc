@@ -51,24 +51,9 @@ bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn) {
   return true;
 }
 
-size_t GetFileSize(const std::string& file_path) {
-  base::ScopedFile fd(base::OpenFile(file_path, O_RDONLY | O_CLOEXEC));
-  if (!fd) {
-    PERFETTO_PLOG("Failed to get file size %s", file_path.c_str());
-    return 0;
-  }
-  struct stat buf;
-  if (fstat(*fd, &buf) == -1) {
-    return 0;
-  }
-  return static_cast<size_t>(buf.st_size);
-}
 #else
 bool WalkDirectories(std::vector<std::string>, FileCallback) {
   return false;
-}
-size_t GetFileSize(const std::string&) {
-  return 0;
 }
 #endif
 
