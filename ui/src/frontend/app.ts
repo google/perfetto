@@ -839,7 +839,7 @@ export class App implements m.ClassComponent {
 
     // Register each command with the command manager
     this.cmds.forEach((cmd) => {
-      const dispose = globals.commandManager.registry.register(cmd);
+      const dispose = globals.commandManager.registerCommand(cmd);
       this.trash.add(dispose);
     });
   }

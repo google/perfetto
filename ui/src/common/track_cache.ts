@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Disposable, DisposableCallback} from '../base/disposable';
 import {PanelSize} from '../frontend/panel';
 import {Store} from '../frontend/store';
 import {
@@ -21,6 +22,7 @@ import {
   TrackDescriptor,
   TrackRef,
 } from '../public';
+import {Registry} from './registry';
 
 import {State} from './state';
 
@@ -55,44 +57,39 @@ export interface TrackCacheEntry {
 // Third cycle
 //   flushTracks() <-- 'foo' is destroyed.
 export class TrackManager {
+  private readonly registry = new Registry<TrackDescriptor>(({uri}) => uri);
+  private readonly potentialTracks = new Set<TrackRef>();
   private safeCache = new Map<string, TrackCacheEntry>();
   private recycleBin = new Map<string, TrackCacheEntry>();
-  private trackRegistry = new Map<string, TrackDescriptor>();
-  private defaultTracks = new Set<TrackRef>();
   private store: Store<State>;
 
   constructor(store: Store<State>) {
     this.store = store;
   }
 
-  registerTrack(trackDesc: TrackDescriptor): void {
-    this.trackRegistry.set(trackDesc.uri, trackDesc);
+  registerTrack(trackDesc: TrackDescriptor): Disposable {
+    return this.registry.register(trackDesc);
   }
 
-  unregisterTrack(uri: string): void {
-    this.trackRegistry.delete(uri);
-  }
-
-  addDefaultTrack(track: TrackRef): void {
-    this.defaultTracks.add(track);
-  }
-
-  removeDefaultTrack(track: TrackRef): void {
-    this.defaultTracks.delete(track);
+  addPotentialTrack(track: TrackRef): Disposable {
+    this.potentialTracks.add(track);
+    return new DisposableCallback(() => {
+      this.potentialTracks.delete(track);
+    });
   }
 
   findPotentialTracks(): TrackRef[] {
-    return Array.from(this.defaultTracks);
+    return Array.from(this.potentialTracks);
   }
 
   getAllTracks(): TrackDescriptor[] {
-    return Array.from(this.trackRegistry.values());
+    return Array.from(this.registry.values());
   }
 
   // Look up track into for a given track's URI.
   // Returns |undefined| if no track can be found.
   resolveTrackInfo(uri: string): TrackDescriptor|undefined {
-    return this.trackRegistry.get(uri);
+    return this.registry.get(uri);
   }
 
   // Creates a new track using |uri| and |params| or retrieves a cached track if
