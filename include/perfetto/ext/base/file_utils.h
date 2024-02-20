@@ -20,7 +20,6 @@
 #include <fcntl.h>  // For mode_t & O_RDONLY/RDWR. Exists also on Windows.
 #include <stddef.h>
 
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -101,9 +100,6 @@ base::Status ListFilesRecursive(const std::string& dir_path,
 base::Status SetFilePermissions(const std::string& path,
                                 const std::string& group_name,
                                 const std::string& mode_bits);
-
-std::optional<size_t> GetFileSize(const std::string& path);
-
 }  // namespace base
 }  // namespace perfetto
 
