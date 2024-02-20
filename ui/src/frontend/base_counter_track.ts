@@ -32,7 +32,7 @@ import {globals} from './globals';
 import {PanelSize} from './panel';
 import {constraintsToQuerySuffix} from './sql_utils';
 import {NewTrackArgs} from './track';
-import {CacheKey, TrackCache} from './track_cache';
+import {CacheKey, TimelineCache} from '../core/timeline_cache';
 
 interface CounterData {
   timestamps: BigInt64Array;
@@ -85,7 +85,7 @@ export abstract class BaseCounterTrack implements Track {
     minimumRate: 0,
   };
 
-  private cache: TrackCache<CounterData> = new TrackCache(5);
+  private cache: TimelineCache<CounterData> = new TimelineCache(5);
 
   private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
       'QUERY_DONE' = 'UNINITIALIZED';
