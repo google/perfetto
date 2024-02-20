@@ -754,8 +754,7 @@ const SidebarFooter: m.Component = {
             href: `${GITILES_URL}/+/${SCM_REVISION}/ui`,
             title: `Channel: ${getCurrentChannel()}`,
             target: '_blank',
-          },
-          `${VERSION.substr(0, 11)}`),
+          }, VERSION),
       ),
     );
   },
