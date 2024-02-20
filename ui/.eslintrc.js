@@ -28,7 +28,7 @@ module.exports = {
     }],
 
     // Max line length is 80 with 2 space tabs.
-    // This matches the the old clang-format definition for consistency.
+    // This matches the old clang-format definition for consistency.
     'max-len': [
       'error',
       {
