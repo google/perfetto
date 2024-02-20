@@ -227,7 +227,6 @@ class TraceViewer implements m.ClassComponent {
         globals.state.scrollingTracks.map((key) => {
           const trackBundle = this.resolveTrack(key);
           return new TrackPanel({
-            key,
             trackKey: key,
             title: trackBundle.title,
             tags: trackBundle.tags,
@@ -256,7 +255,6 @@ class TraceViewer implements m.ClassComponent {
           const key = group.tracks[i];
           const trackBundle = this.resolveTrack(key);
           const panel = new TrackPanel({
-            key: `track-${group.id}-${key}`,
             trackKey: key,
             title: trackBundle.title,
             tags: trackBundle.tags,
@@ -312,7 +310,6 @@ class TraceViewer implements m.ClassComponent {
             panels: globals.state.pinnedTracks.map((key) => {
               const trackBundle = this.resolveTrack(key);
               return new TrackPanel({
-                key,
                 trackKey: key,
                 title: trackBundle.title,
                 tags: trackBundle.tags,
