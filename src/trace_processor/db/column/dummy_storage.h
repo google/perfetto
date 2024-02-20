@@ -38,10 +38,6 @@ class DummyStorage final : public DataLayer {
                                     SqlValue,
                                     uint32_t) const override;
 
-    UniqueSearchResult UniqueSearch(FilterOp,
-                                    SqlValue,
-                                    uint32_t*) const override;
-
     SearchValidationResult ValidateSearchConstraints(FilterOp,
                                                      SqlValue) const override;
 
