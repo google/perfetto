@@ -29,13 +29,17 @@ const TIMESTAMP_FORMAT_KEY = 'timestampFormat';
 const DEFAULT_TIMESTAMP_FORMAT = TimestampFormat.Timecode;
 
 export function timestampFormat(): TimestampFormat {
-  const storedFormat = localStorage.getItem(TIMESTAMP_FORMAT_KEY);
-  if (storedFormat && isEnumValue(TimestampFormat, storedFormat)) {
-    timestampFormatCached = storedFormat;
+  if (timestampFormatCached !== undefined) {
+    return timestampFormatCached;
   } else {
-    timestampFormatCached = DEFAULT_TIMESTAMP_FORMAT;
+    const storedFormat = localStorage.getItem(TIMESTAMP_FORMAT_KEY);
+    if (storedFormat && isEnumValue(TimestampFormat, storedFormat)) {
+      timestampFormatCached = storedFormat;
+    } else {
+      timestampFormatCached = DEFAULT_TIMESTAMP_FORMAT;
+    }
+    return timestampFormatCached;
   }
-  return timestampFormatCached;
 }
 
 export function setTimestampFormat(format: TimestampFormat) {
@@ -54,13 +58,17 @@ const DURATION_FORMAT_KEY = 'durationFormat';
 const DEFAULT_DURATION_FORMAT = DurationPrecision.Full;
 
 export function durationPrecision(): DurationPrecision {
-  const storedFormat = localStorage.getItem(DURATION_FORMAT_KEY);
-  if (storedFormat && isEnumValue(DurationPrecision, storedFormat)) {
-    durationFormatCached = storedFormat;
+  if (durationFormatCached !== undefined) {
+    return durationFormatCached;
   } else {
-    durationFormatCached = DEFAULT_DURATION_FORMAT;
+    const storedFormat = localStorage.getItem(DURATION_FORMAT_KEY);
+    if (storedFormat && isEnumValue(DurationPrecision, storedFormat)) {
+      durationFormatCached = storedFormat;
+    } else {
+      durationFormatCached = DEFAULT_DURATION_FORMAT;
+    }
+    return durationFormatCached;
   }
-  return durationFormatCached;
 }
 
 export function setDurationPrecision(format: DurationPrecision) {
