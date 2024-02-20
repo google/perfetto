@@ -54,13 +54,6 @@ SingleSearchResult ArrangementOverlay::ChainImpl::SingleSearch(
   return inner_->SingleSearch(op, sql_val, (*arrangement_)[index]);
 }
 
-UniqueSearchResult ArrangementOverlay::ChainImpl::UniqueSearch(
-    FilterOp,
-    SqlValue,
-    uint32_t*) const {
-  return UniqueSearchResult::kNeedsFullSearch;
-}
-
 SearchValidationResult ArrangementOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue value) const {
