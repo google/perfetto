@@ -254,11 +254,9 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     this.panelByKey.set(key, node);
     const mithril = node.mithril;
 
-    return m(
-      `.panel${extraClass}`,
-      {key, 'data-key': key},
+    return m(`.panel${extraClass}`, {key, 'data-key': key},
       perfDebug() ?
-        [mithril, m('.debug-panel-border', {key: 'debug-panel-border'})] :
+        [mithril, m('.debug-panel-border')] :
         mithril);
   }
 
