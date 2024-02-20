@@ -75,7 +75,7 @@ export class PluginContextImpl implements PluginContext, Disposable {
     // Silently ignore if context is dead.
     if (!this.alive) return;
 
-    const disposable = globals.commandManager.registry.register(cmd);
+    const disposable = globals.commandManager.registerCommand(cmd);
     this.trash.add(disposable);
   };
 
@@ -108,22 +108,24 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     // Silently ignore if context is dead.
     if (!this.alive) return;
 
-    const disposable = globals.commandManager.registry.register(cmd);
-    this.trash.add(disposable);
+    const dispose = globals.commandManager.registerCommand(cmd);
+    this.trash.add(dispose);
   }
 
   registerTrack(trackDesc: TrackDescriptor): void {
     // Silently ignore if context is dead.
     if (!this.alive) return;
-    globals.trackManager.registerTrack(trackDesc);
-    this.trash.addCallback(
-      () => globals.trackManager.unregisterTrack(trackDesc.uri));
+
+    const dispose = globals.trackManager.registerTrack(trackDesc);
+    this.trash.add(dispose);
   }
 
   addDefaultTrack(track: TrackRef): void {
-    globals.trackManager.addDefaultTrack(track);
-    this.trash.addCallback(
-      () => globals.trackManager.removeDefaultTrack(track));
+    // Silently ignore if context is dead.
+    if (!this.alive) return;
+
+    const dispose = globals.trackManager.addPotentialTrack(track);
+    this.trash.add(dispose);
   }
 
   registerStaticTrack(track: TrackDescriptor&TrackRef): void {

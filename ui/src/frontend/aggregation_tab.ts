@@ -178,7 +178,7 @@ export class AggregationsTabs implements Disposable {
       });
       this.trash.add(unregister);
 
-      const unregisterCmd = globals.commandManager.registry.register({
+      const unregisterCmd = globals.commandManager.registerCommand({
         id: uri,
         name: `Show ${title} Aggregation Tab`,
         callback: () => {
