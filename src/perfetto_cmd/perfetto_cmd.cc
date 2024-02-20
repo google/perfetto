@@ -35,6 +35,7 @@
 #include <unistd.h>
 #endif
 
+#include <atomic>
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -82,7 +83,7 @@
 namespace perfetto {
 namespace {
 
-perfetto::PerfettoCmd* g_perfetto_cmd;
+std::atomic<perfetto::PerfettoCmd*> g_perfetto_cmd;
 
 const uint32_t kOnTraceDataTimeoutMs = 3000;
 const uint32_t kCloneTimeoutMs = 10000;
@@ -209,13 +210,13 @@ const char* kStateDir = "/data/misc/perfetto-traces";
 
 PerfettoCmd::PerfettoCmd() {
   // Only the main thread instance on the main thread will receive ctrl-c.
-  if (!g_perfetto_cmd)
-    g_perfetto_cmd = this;
+  PerfettoCmd* set_if_null = nullptr;
+  g_perfetto_cmd.compare_exchange_strong(set_if_null, this);
 }
 
 PerfettoCmd::~PerfettoCmd() {
-  if (g_perfetto_cmd == this) {
-    g_perfetto_cmd = nullptr;
+  PerfettoCmd* self = this;
+  if (g_perfetto_cmd.compare_exchange_strong(self, nullptr)) {
     if (ctrl_c_handler_installed_) {
       task_runner_.RemoveFileDescriptorWatch(ctrl_c_evt_.fd());
     }
@@ -1297,9 +1298,8 @@ void PerfettoCmd::SetupCtrlCSignalHandler() {
     return;
   ctrl_c_handler_installed_ = true;
   base::InstallCtrlCHandler([] {
-    if (!g_perfetto_cmd)
-      return;
-    g_perfetto_cmd->SignalCtrlC();
+    if (PerfettoCmd* main_thread = g_perfetto_cmd.load())
+      main_thread->SignalCtrlC();
   });
   auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_.AddFileDescriptorWatch(ctrl_c_evt_.fd(), [weak_this] {
