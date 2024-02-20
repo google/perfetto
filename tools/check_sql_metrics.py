@@ -72,6 +72,24 @@ def check(path: str, metrics_sources: str) -> List[str]:
   with open(path) as f:
     sql = f.read()
 
+  # Check that each function/macro is using "CREATE OR REPLACE"
+  lines = [l.strip() for l in sql.split('\n')]
+  for line in lines:
+    if line.startswith('--'):
+      continue
+    if 'create perfetto function' in line.casefold():
+      errors.append(
+          f'Use "CREATE OR REPLACE PERFETTO FUNCTION" in Perfetto metrics, '
+          f'to prevent the file from crashing if the metric is rerun.\n'
+          f'Offending file: {path}\n')
+    if 'create perfetto macro' in line.casefold():
+      errors.append(
+          f'Use "CREATE OR REPLACE PERFETTO MACRO" in Perfetto metrics, to '
+          f'prevent the file from crashing if the metric is rerun.\n'
+          f'Offending file: {path}\n')
+
+
+
   # Check that CREATE VIEW/TABLE has a matching DROP VIEW/TABLE before it.
   create_table_view_dir = match_create_table_pattern_to_dict(
       sql, CREATE_TABLE_VIEW_PATTERN)
