@@ -233,7 +233,7 @@ class FtraceParser {
   void ParseWakeSourceDeactivate(int64_t timestamp, protozero::ConstBytes);
   void ParseSuspendResume(int64_t timestamp, protozero::ConstBytes);
   void ParseSuspendResumeMinimal(int64_t timestamp, protozero::ConstBytes);
-  void ParseSchedCpuUtilCfs(int64_t timestap, protozero::ConstBytes);
+  void ParseSchedCpuUtilCfs(int64_t timestamp, protozero::ConstBytes);
 
   void ParseFuncgraphEntry(int64_t timestamp,
                            uint32_t pid,

@@ -111,7 +111,7 @@ class DataLayerChain {
 
   // Start of public API.
 
-  // Checks whether element at the the provided index match |op| and |value|.
+  // Checks whether element at the provided index match |op| and |value|.
   //
   // Returns true if the element matches, false otherwise.
   virtual SingleSearchResult SingleSearch(FilterOp op,

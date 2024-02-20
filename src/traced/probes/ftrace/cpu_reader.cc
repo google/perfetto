@@ -596,7 +596,7 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
       }
       // Data record:
       default: {
-        // If type_or_length <=28, the the record length is 4x that value.
+        // If type_or_length <=28, the record length is 4x that value.
         // If type_or_length == 0, the length of the record is stored in the
         // first uint32_t word of the payload.
         uint32_t event_size = 0;

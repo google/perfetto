@@ -479,7 +479,7 @@ export class ConcreteEventSet<P extends KeySet> extends
   constructor(keys: P, events: Event<P>[]) {
     super();
     // TODO(hjd): Add some paranoid mode where we crash here if
-    // `events` and `keys` missmatch?
+    // `events` and `keys` mismatch?
     this.events = events;
     this.keys = keys;
   }
