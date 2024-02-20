@@ -23,7 +23,7 @@
 -- from track_event's.
 
 -- Extracts an int value with the given name from the metadata table.
-CREATE PERFETTO FUNCTION _extract_int_metadata(
+CREATE OR REPLACE PERFETTO FUNCTION _extract_int_metadata(
   -- The name of the metadata entry.
   name STRING)
 -- int_value for the given name. NULL if there's no such entry.
