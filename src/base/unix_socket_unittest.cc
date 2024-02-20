@@ -1166,6 +1166,9 @@ TEST_F(UnixSocketTest, GetSockFamily) {
 }
 
 TEST_F(UnixSocketTest, ShmemSupported) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  ASSERT_EQ(SockShmemSupported(""), true);
+#else  // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   ASSERT_EQ(SockShmemSupported(""), false);
   ASSERT_EQ(SockShmemSupported("/path/to/sock"), true);
   ASSERT_EQ(SockShmemSupported("local_dir_sock"), true);
@@ -1178,6 +1181,7 @@ TEST_F(UnixSocketTest, ShmemSupported) {
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   ASSERT_EQ(SockShmemSupported("vsock://-1:10000"), false);
 #endif
+#endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 }
 
 }  // namespace

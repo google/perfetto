@@ -15,7 +15,7 @@
  */
 
 #include "src/ipc/host_impl.h"
-#include <sys/socket.h>
+
 #include <memory>
 
 #include "perfetto/ext/base/file_utils.h"
@@ -33,6 +33,11 @@
 
 #include "protos/perfetto/ipc/wire_protocol.gen.h"
 #include "src/ipc/test/client_unittest_messages.gen.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+#include <sys/socket.h>
+#endif
 
 namespace perfetto {
 namespace ipc {
@@ -644,7 +649,8 @@ TEST(HostImpl, SetPeerIdentityTcpSocket) {
   EXPECT_CALL(*cli, OnInvokeMethodReply(_)).WillOnce(Return());
   task_runner->RunUntilIdle();
 }
-#endif  // OS_WIN
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||
+        // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 // TODO(primiano): add the tests below in next CLs.
 // TEST(HostImplTest, ManyClients) {}
