@@ -92,8 +92,7 @@ function filterVisibleSlices<S extends Slice>(
 
   // We do not need to handle non-ending slices (where dur = -1
   // but the slice is drawn as 'infinite' length) as this is handled
-  // by a special code path. See 'incomplete' in the INITIALIZING
-  // code of maybeRequestData.
+  // by a special code path. See 'incomplete' in maybeRequestData.
 
   // While the slices are guaranteed to be ordered by timestamp we must
   // consider async slices (which are not perfectly nested). This is to
@@ -187,21 +186,20 @@ export abstract class BaseSliceTrack<
   private cache: TimelineCache<Array<CastInternal<T['slice']>>> =
     new TimelineCache(5);
 
+  private hasOneOffData: boolean = false;
   // Incomplete slices (dur = -1). Rather than adding a lot of logic to
   // the SQL queries to handle this case we materialise them one off
   // then unconditionally render them. This should be efficient since
   // there are at most |depth| slices.
   private incomplete = new Array<CastInternal<T['slice']>>();
+  private maxDurNs: duration = 0n;
 
   // The currently selected slice.
   // TODO(hjd): We should fetch this from the underlying data rather
   // than just remembering it when we see it.
   private selectedSlice?: CastInternal<T['slice']>;
 
-  private maxDurNs: duration = 0n;
 
-  private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
-      'QUERY_DONE' = 'UNINITIALIZED';
   private extraSqlColumns: string[];
 
   private charWidth = -1;
@@ -228,7 +226,7 @@ export abstract class BaseSliceTrack<
   // queries using the result of getSqlSource(). All persistent
   // state in trace_processor should be cleaned up when dispose is
   // called on the returned hook. In the common case of where
-  // the data for this track is d
+  // the data for this track is a SQL fragment this does nothing.
   async onInit(): Promise<Disposable> {
     return new NullDisposable();
   }
@@ -578,11 +576,8 @@ export abstract class BaseSliceTrack<
   // the cached data and if so issues new queries (i.e. sorta subsumes the
   // onBoundsChange).
   private async maybeRequestData(rawSlicesKey: CacheKey) {
-    // Important: this method is async and is invoked on every frame. Care
-    // must be taken to avoid piling up queries on every frame, hence the FSM.
-    if (this.sqlState === 'UNINITIALIZED') {
-      this.sqlState = 'INITIALIZING';
-
+    if (!this.hasOneOffData) {
+      // TODO(hjd): This could be done in onInit maybe?
       const queryRes = await this.engine.query(`select
           ifnull(max(dur), 0) as maxDur, count(1) as rowCount
           from (${this.getSqlSource()})`);
@@ -642,10 +637,7 @@ export abstract class BaseSliceTrack<
         this.incomplete = incomplete;
       }
 
-      this.sqlState = 'QUERY_DONE';
-    } else if (
-      this.sqlState === 'INITIALIZING' || this.sqlState === 'QUERY_PENDING') {
-      return;
+      this.hasOneOffData = true;
     }
 
     if (rawSlicesKey.isCoveredBy(this.slicesKey)) {
@@ -667,7 +659,6 @@ export abstract class BaseSliceTrack<
       return;
     }
 
-    this.sqlState = 'QUERY_PENDING';
     const bucketNs = slicesKey.bucketSize;
     let queryTsq;
     let queryTsqEnd;
@@ -738,7 +729,6 @@ export abstract class BaseSliceTrack<
     this.cache.insert(slicesKey, slices);
     this.slices = slices;
 
-    this.sqlState = 'QUERY_DONE';
     raf.scheduleRedraw();
   }
 
