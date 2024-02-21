@@ -21,7 +21,7 @@
 #include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
@@ -29,19 +29,14 @@
 namespace perfetto {
 namespace trace_processor {
 
+class TraceProcessorContext;
 class V8Tracker;
 
 // Helper class to deal with V8 related interned data.
-class V8SequenceState : public Destructible {
+class V8SequenceState final
+    : public PacketSequenceStateGeneration::InternedDataTracker {
  public:
-  static V8SequenceState* GetOrCreate(PacketSequenceState* sequence_state) {
-    auto& v8_sequence_state =
-        sequence_state->extensible_sequence_state().v8_sequence_state;
-    if (!v8_sequence_state) {
-      v8_sequence_state.reset(new V8SequenceState(sequence_state));
-    }
-    return static_cast<V8SequenceState*>(v8_sequence_state.get());
-  }
+  explicit V8SequenceState(TraceProcessorContext* context);
 
   ~V8SequenceState() override;
 
@@ -54,13 +49,12 @@ class V8SequenceState : public Destructible {
       tables::V8IsolateTable::Id isolate_id);
 
  private:
-  explicit V8SequenceState(PacketSequenceState* sequence_state);
   std::optional<tables::V8JsScriptTable::Id> GetOrInsertJsScript(
       uint64_t iid,
       tables::V8IsolateTable::Id isolate_id);
   std::optional<StringId> GetOrInsertJsFunctionName(uint64_t iid);
 
-  PacketSequenceState* const sequence_state_;
+  TraceProcessorContext* const context_;
   V8Tracker* const v8_tracker_;
 
   using InterningId = uint64_t;
