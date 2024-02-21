@@ -187,10 +187,23 @@ base::Status TraceRedactor::Transform(
     auto packet = packet_it->as_std_string();
 
     for (const auto& transformer : transformers_) {
+      // If the packet has been cleared, it means a tranformation has removed it
+      // from the trace. Stop processing it. This saves transforms from having
+      // to check and handle empty packets.
+      if (packet.empty()) {
+        break;
+      }
+
       if (auto status = transformer->Transform(context, &packet);
           !status.ok()) {
         return status;
       }
+    }
+
+    // The packet has been removed from the trace. Don't write an empty packet
+    // to disk.
+    if (packet.empty()) {
+      continue;
     }
 
     protozero::HeapBuffered<> serializer;
