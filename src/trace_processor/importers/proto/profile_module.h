@@ -65,8 +65,7 @@ class ProfileModule : public ProtoImporterModule {
 
   // heap profiling:
   void ParseProfilePacket(int64_t ts,
-                          PacketSequenceStateGeneration*,
-                          uint32_t seq_id,
+                          PacketSequenceState*,
                           protozero::ConstBytes);
   void ParseDeobfuscationMapping(int64_t ts,
                                  PacketSequenceStateGeneration*,
