@@ -886,6 +886,7 @@ perfetto_filegroup(
     name = "include_perfetto_tracing_core_core",
     srcs = [
         "include/perfetto/tracing/core/chrome_config.h",
+        "include/perfetto/tracing/core/clock_snapshots.h",
         "include/perfetto/tracing/core/data_source_config.h",
         "include/perfetto/tracing/core/data_source_descriptor.h",
         "include/perfetto/tracing/core/flush_flags.h",
@@ -3190,6 +3191,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_tracing_core_core",
     srcs = [
+        "src/tracing/core/clock_snapshots.cc",
         "src/tracing/core/id_allocator.cc",
         "src/tracing/core/id_allocator.h",
         "src/tracing/core/in_process_shared_memory.cc",
@@ -3233,6 +3235,8 @@ perfetto_filegroup(
         "src/tracing/ipc/service/consumer_ipc_service.h",
         "src/tracing/ipc/service/producer_ipc_service.cc",
         "src/tracing/ipc/service/producer_ipc_service.h",
+        "src/tracing/ipc/service/relay_ipc_service.cc",
+        "src/tracing/ipc/service/relay_ipc_service.h",
         "src/tracing/ipc/service/service_ipc_host_impl.cc",
         "src/tracing/ipc/service/service_ipc_host_impl.h",
     ],
@@ -4229,6 +4233,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/ipc/consumer_port.proto",
         "protos/perfetto/ipc/producer_port.proto",
+        "protos/perfetto/ipc/relay_port.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
@@ -4783,6 +4788,7 @@ perfetto_proto_library(
     srcs = [
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/memory_graph.proto",
+        "protos/perfetto/trace/remote_clock_sync.proto",
         "protos/perfetto/trace/test_event.proto",
         "protos/perfetto/trace/test_extensions.proto",
         "protos/perfetto/trace/trace.proto",

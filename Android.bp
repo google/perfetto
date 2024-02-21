@@ -2419,6 +2419,7 @@ cc_test {
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
+        ":perfetto_src_tracing_ipc_producer_relay",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_platform_impl",
         ":perfetto_src_tracing_service_service",
@@ -4920,6 +4921,7 @@ filegroup {
     srcs: [
         "protos/perfetto/ipc/consumer_port.proto",
         "protos/perfetto/ipc/producer_port.proto",
+        "protos/perfetto/ipc/relay_port.proto",
     ],
 }
 
@@ -4951,6 +4953,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/ipc/consumer_port.gen.cc",
         "external/perfetto/protos/perfetto/ipc/producer_port.gen.cc",
+        "external/perfetto/protos/perfetto/ipc/relay_port.gen.cc",
     ],
 }
 
@@ -4982,6 +4985,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/ipc/consumer_port.gen.h",
         "external/perfetto/protos/perfetto/ipc/producer_port.gen.h",
+        "external/perfetto/protos/perfetto/ipc/relay_port.gen.h",
     ],
     export_include_dirs: [
         ".",
@@ -4995,6 +4999,7 @@ filegroup {
     srcs: [
         "protos/perfetto/ipc/consumer_port.proto",
         "protos/perfetto/ipc/producer_port.proto",
+        "protos/perfetto/ipc/relay_port.proto",
     ],
 }
 
@@ -5028,6 +5033,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/ipc/consumer_port.ipc.cc",
         "external/perfetto/protos/perfetto/ipc/producer_port.ipc.cc",
+        "external/perfetto/protos/perfetto/ipc/relay_port.ipc.cc",
     ],
 }
 
@@ -5061,6 +5067,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/ipc/consumer_port.ipc.h",
         "external/perfetto/protos/perfetto/ipc/producer_port.ipc.h",
+        "external/perfetto/protos/perfetto/ipc/relay_port.ipc.h",
     ],
     export_include_dirs: [
         ".",
@@ -5969,6 +5976,7 @@ genrule {
         "protos/perfetto/trace/profiling/smaps.proto",
         "protos/perfetto/trace/ps/process_stats.proto",
         "protos/perfetto/trace/ps/process_tree.proto",
+        "protos/perfetto/trace/remote_clock_sync.proto",
         "protos/perfetto/trace/statsd/statsd_atom.proto",
         "protos/perfetto/trace/sys_stats/sys_stats.proto",
         "protos/perfetto/trace/system_info.proto",
@@ -7606,6 +7614,7 @@ filegroup {
     srcs: [
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/memory_graph.proto",
+        "protos/perfetto/trace/remote_clock_sync.proto",
         "protos/perfetto/trace/test_event.proto",
         "protos/perfetto/trace/test_extensions.proto",
         "protos/perfetto/trace/trace.proto",
@@ -7660,6 +7669,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/extension_descriptor.gen.cc",
         "external/perfetto/protos/perfetto/trace/memory_graph.gen.cc",
+        "external/perfetto/protos/perfetto/trace/remote_clock_sync.gen.cc",
         "external/perfetto/protos/perfetto/trace/test_event.gen.cc",
         "external/perfetto/protos/perfetto/trace/test_extensions.gen.cc",
         "external/perfetto/protos/perfetto/trace/trace.gen.cc",
@@ -7714,6 +7724,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/extension_descriptor.gen.h",
         "external/perfetto/protos/perfetto/trace/memory_graph.gen.h",
+        "external/perfetto/protos/perfetto/trace/remote_clock_sync.gen.h",
         "external/perfetto/protos/perfetto/trace/test_event.gen.h",
         "external/perfetto/protos/perfetto/trace/test_extensions.gen.h",
         "external/perfetto/protos/perfetto/trace/trace.gen.h",
@@ -7733,6 +7744,7 @@ filegroup {
     srcs: [
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/memory_graph.proto",
+        "protos/perfetto/trace/remote_clock_sync.proto",
         "protos/perfetto/trace/test_event.proto",
         "protos/perfetto/trace/test_extensions.proto",
         "protos/perfetto/trace/trace.proto",
@@ -7786,6 +7798,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/extension_descriptor.pb.cc",
         "external/perfetto/protos/perfetto/trace/memory_graph.pb.cc",
+        "external/perfetto/protos/perfetto/trace/remote_clock_sync.pb.cc",
         "external/perfetto/protos/perfetto/trace/test_event.pb.cc",
         "external/perfetto/protos/perfetto/trace/test_extensions.pb.cc",
         "external/perfetto/protos/perfetto/trace/trace.pb.cc",
@@ -7839,6 +7852,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/extension_descriptor.pb.h",
         "external/perfetto/protos/perfetto/trace/memory_graph.pb.h",
+        "external/perfetto/protos/perfetto/trace/remote_clock_sync.pb.h",
         "external/perfetto/protos/perfetto/trace/test_event.pb.h",
         "external/perfetto/protos/perfetto/trace/test_extensions.pb.h",
         "external/perfetto/protos/perfetto/trace/trace.pb.h",
@@ -7858,6 +7872,7 @@ filegroup {
     srcs: [
         "protos/perfetto/trace/extension_descriptor.proto",
         "protos/perfetto/trace/memory_graph.proto",
+        "protos/perfetto/trace/remote_clock_sync.proto",
         "protos/perfetto/trace/test_event.proto",
         "protos/perfetto/trace/test_extensions.proto",
         "protos/perfetto/trace/trace.proto",
@@ -7912,6 +7927,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/extension_descriptor.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/memory_graph.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/remote_clock_sync.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/test_event.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/test_extensions.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/trace.pbzero.cc",
@@ -7966,6 +7982,7 @@ genrule {
     out: [
         "external/perfetto/protos/perfetto/trace/extension_descriptor.pbzero.h",
         "external/perfetto/protos/perfetto/trace/memory_graph.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/remote_clock_sync.pbzero.h",
         "external/perfetto/protos/perfetto/trace/test_event.pbzero.h",
         "external/perfetto/protos/perfetto/trace/test_extensions.pbzero.h",
         "external/perfetto/protos/perfetto/trace/trace.pbzero.h",
@@ -13037,6 +13054,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_core_core",
     srcs: [
+        "src/tracing/core/clock_snapshots.cc",
         "src/tracing/core/id_allocator.cc",
         "src/tracing/core/in_process_shared_memory.cc",
         "src/tracing/core/null_trace_writer.cc",
@@ -13120,12 +13138,21 @@ filegroup {
     ],
 }
 
+// GN: //src/tracing/ipc/producer:relay
+filegroup {
+    name: "perfetto_src_tracing_ipc_producer_relay",
+    srcs: [
+        "src/tracing/ipc/producer/relay_ipc_client.cc",
+    ],
+}
+
 // GN: //src/tracing/ipc/service:service
 filegroup {
     name: "perfetto_src_tracing_ipc_service_service",
     srcs: [
         "src/tracing/ipc/service/consumer_ipc_service.cc",
         "src/tracing/ipc/service/producer_ipc_service.cc",
+        "src/tracing/ipc/service/relay_ipc_service.cc",
         "src/tracing/ipc/service/service_ipc_host_impl.cc",
     ],
 }
@@ -13423,6 +13450,7 @@ java_library {
         "protos/perfetto/trace/profiling/smaps.proto",
         "protos/perfetto/trace/ps/process_stats.proto",
         "protos/perfetto/trace/ps/process_tree.proto",
+        "protos/perfetto/trace/remote_clock_sync.proto",
         "protos/perfetto/trace/statsd/statsd_atom.proto",
         "protos/perfetto/trace/sys_stats/sys_stats.proto",
         "protos/perfetto/trace/system_info.proto",
@@ -13952,6 +13980,7 @@ cc_test {
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
+        ":perfetto_src_tracing_ipc_producer_relay",
         ":perfetto_src_tracing_ipc_service_service",
         ":perfetto_src_tracing_ipc_unittests",
         ":perfetto_src_tracing_platform_impl",

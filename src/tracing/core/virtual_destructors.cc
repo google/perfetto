@@ -34,6 +34,7 @@ Producer::~Producer() = default;
 TracingService::~TracingService() = default;
 ConsumerEndpoint::~ConsumerEndpoint() = default;
 ProducerEndpoint::~ProducerEndpoint() = default;
+RelayEndpoint::~RelayEndpoint() = default;
 SharedMemory::~SharedMemory() = default;
 SharedMemory::Factory::~Factory() = default;
 SharedMemoryArbiter::~SharedMemoryArbiter() = default;
