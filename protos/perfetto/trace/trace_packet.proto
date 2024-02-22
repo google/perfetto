@@ -64,6 +64,7 @@ import "protos/perfetto/trace/profiling/profile_packet.proto";
 import "protos/perfetto/trace/profiling/smaps.proto";
 import "protos/perfetto/trace/ps/process_stats.proto";
 import "protos/perfetto/trace/ps/process_tree.proto";
+import "protos/perfetto/trace/remote_clock_sync.proto";
 import "protos/perfetto/trace/sys_stats/sys_stats.proto";
 import "protos/perfetto/trace/system_info.proto";
 import "protos/perfetto/trace/system_info/cpu_info.proto";
@@ -101,7 +102,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 107.
+// Next id: 108.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -236,6 +237,9 @@ message TracePacket {
 
     // InputFlinger traces
     AndroidInputEvent android_input_event = 106;
+
+    // Clock synchronization with remote machines.
+    RemoteClockSync remote_clock_sync = 107;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

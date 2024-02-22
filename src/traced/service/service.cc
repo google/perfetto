@@ -26,6 +26,7 @@
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/base/watchdog.h"
 #include "perfetto/ext/traced/traced.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "perfetto/tracing/default_socket.h"
 #include "src/traced/service/builtin_producer.h"
@@ -53,6 +54,9 @@ Options and arguments
         <prod_mode> is the mode bits (e.g. 0660) for chmod the produce socket,
         <cons_group> is the group name for chgrp the consumer socket, and
         <cons_mode> is the mode bits (e.g. 0660) for chmod the consumer socket.
+    --enable-relay-endpoint : enables the relay endpoint on producer socket(s)
+        for traced_relay to communicate with traced in a multiple-machine
+        tracing session.
 
 Example:
     %s --set-socket-permissions traced-producer:0660:traced-consumer:0660
@@ -69,15 +73,19 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     OPT_VERSION = 1000,
     OPT_SET_SOCKET_PERMISSIONS = 1001,
     OPT_BACKGROUND,
+    OPT_ENABLE_RELAY_ENDPOINT
   };
 
   bool background = false;
+  bool enable_relay_endpoint = false;
 
   static const option long_options[] = {
       {"background", no_argument, nullptr, OPT_BACKGROUND},
       {"version", no_argument, nullptr, OPT_VERSION},
       {"set-socket-permissions", required_argument, nullptr,
        OPT_SET_SOCKET_PERMISSIONS},
+      {"enable-relay-endpoint", no_argument, nullptr,
+       OPT_ENABLE_RELAY_ENDPOINT},
       {nullptr, 0, nullptr, 0}};
 
   std::string producer_socket_group, consumer_socket_group,
@@ -107,6 +115,9 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
         consumer_socket_mode = parts[3];
         break;
       }
+      case OPT_ENABLE_RELAY_ENDPOINT:
+        enable_relay_endpoint = true;
+        break;
       default:
         PrintUsage(argv[0]);
         return 1;
@@ -123,6 +134,8 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
   init_opts.compressor_fn = &ZlibCompressFn;
 #endif
+  if (enable_relay_endpoint)
+    init_opts.enable_relay_endpoint = true;
   svc = ServiceIPCHost::CreateInstance(&task_runner, init_opts);
 
   // When built as part of the Android tree, the two socket are created and

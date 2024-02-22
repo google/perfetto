@@ -59,6 +59,8 @@ class TraceConfig;
 class TraceStats;
 class TracingServiceCapabilities;
 class TracingServiceState;
+class SyncClockRequest;
+class SyncClockResponse;
 
 }  // namespace gen
 }  // namespace protos
@@ -73,6 +75,8 @@ using TraceStats = ::perfetto::protos::gen::TraceStats;
 using TracingServiceCapabilities =
     ::perfetto::protos::gen::TracingServiceCapabilities;
 using TracingServiceState = ::perfetto::protos::gen::TracingServiceState;
+using SyncClockRequest = ::perfetto::protos::gen::SyncClockRequest;
+using SyncClockResponse = ::perfetto::protos::gen::SyncClockResponse;
 
 }  // namespace perfetto
 

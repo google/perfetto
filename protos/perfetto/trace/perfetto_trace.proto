@@ -13535,6 +13535,24 @@ message ProcessTree {
 
 // End of protos/perfetto/trace/ps/process_tree.proto
 
+// Begin of protos/perfetto/trace/remote_clock_sync.proto
+
+// Records the parameters for aligning clock readings between machines.
+message RemoteClockSync {
+  // Synchronized clock snapshots taken on both sides of the relay port (the
+  // tracing service and the relay service). A round of clock synchronization
+  // IPC takes emits 2 SyncedClocks messages, i.e., client snapshot -> host
+  // snapshot -> client snapshot -> host snapshot.
+  message SyncedClocks {
+    optional ClockSnapshot client_clocks = 2;
+    optional ClockSnapshot host_clocks = 3;
+  }
+
+  repeated SyncedClocks synced_clocks = 1;
+}
+
+// End of protos/perfetto/trace/remote_clock_sync.proto
+
 // Begin of protos/perfetto/trace/statsd/statsd_atom.proto
 
 // Deliberate empty message. See comment on StatsdAtom#atom below.
@@ -14367,7 +14385,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 107.
+// Next id: 108.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -14502,6 +14520,9 @@ message TracePacket {
 
     // InputFlinger traces
     AndroidInputEvent android_input_event = 106;
+
+    // Clock synchronization with remote machines.
+    RemoteClockSync remote_clock_sync = 107;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
