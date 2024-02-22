@@ -1057,7 +1057,7 @@ class AndroidStdlib(TestSuite):
         intent_ts,
         intent_dur,
         total_dur
-        FROM _android_app_process_starts
+        FROM android_app_process_starts
         ORDER BY proc_start_ts
       """,
         out=Csv("""

@@ -147,7 +147,8 @@ message AndroidBlockingCallsCujMetric {
 
 // Begin of protos/perfetto/metrics/android/android_boot.proto
 
-// This metric computes how much time processes spend in UNINTERRUPTIBLE_SLEEP state
+// This metric computes how much time processes spend in UNINTERRUPTIBLE_SLEEP
+// state
 message ProcessStateDurations {
   optional int64 total_dur = 2;
   optional int64 uninterruptible_sleep_dur = 3;
@@ -164,9 +165,52 @@ message AndroidBootMetric {
     optional int64 cold_start_dur = 1;
   }
   optional LauncherBreakdown launcher_breakdown = 5;
+
+  message ProcessStartAggregation {
+    optional int64 total_start_sum = 1;
+    optional int64 num_of_processes = 2;
+    optional double average_start_time = 3;
+  }
+  optional ProcessStartAggregation full_trace_process_start_aggregation = 6;
+  optional ProcessStartAggregation post_boot_process_start_aggregation = 7;
 }
 
 // End of protos/perfetto/metrics/android/android_boot.proto
+
+// Begin of protos/perfetto/metrics/android/app_process_starts_metric.proto
+
+// Looks at all apps started after boot complete broadcast.
+message AndroidAppProcessStartsMetric {
+  // Next id : 4
+  message ProcessStart {
+    optional string process_name = 1;
+    optional string intent = 2;
+    optional string reason = 3;
+    optional int64 proc_start_dur = 4;
+    optional int64 bind_app_dur = 5;
+    optional int64 intent_dur = 6;
+    optional int64 total_dur = 7;
+  }
+  // Provides java process startup information for
+  // all processes starting after Boot completed broadcast in a trace.
+  repeated ProcessStart all_apps = 1;
+  // Provides java process startup information for all
+  // processes started from a broadcast after Boot Complete broadcasts.
+  repeated ProcessStart started_by_broadcast = 2;
+  // Provides java process startup information for all
+  // processes started from a service after Boot Complete broadcasts.
+  repeated ProcessStart started_by_service = 3;
+}
+
+// End of protos/perfetto/metrics/android/app_process_starts_metric.proto
+
+// Begin of protos/perfetto/metrics/android/android_boot_unagg.proto
+
+message AndroidBootUnagg {
+  optional AndroidAppProcessStartsMetric android_app_process_start_metric = 1;
+}
+
+// End of protos/perfetto/metrics/android/android_boot_unagg.proto
 
 // Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
 
@@ -2411,7 +2455,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 61
+// Next id: 63
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2575,6 +2619,13 @@ message TraceMetrics {
   optional SysuiNotifShadeListBuilderMetric sysui_notif_shade_list_builder_metric = 59;
 
   optional SysuiUpdateNotifOnUiModeChangedMetric sysui_update_notif_on_ui_mode_changed_metric = 60;
+
+  // Metrics for Process starts.
+  optional AndroidAppProcessStartsMetric android_app_process_starts = 61;
+
+  // Android boot unaggregated metrics.
+  optional AndroidBootUnagg android_boot_unagg = 62;
+
   // Demo extensions.
   extensions 450 to 499;
 

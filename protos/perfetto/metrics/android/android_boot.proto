@@ -18,7 +18,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// This metric computes how much time processes spend in UNINTERRUPTIBLE_SLEEP state
+// This metric computes how much time processes spend in UNINTERRUPTIBLE_SLEEP
+// state
 message ProcessStateDurations {
   optional int64 total_dur = 2;
   optional int64 uninterruptible_sleep_dur = 3;
@@ -35,4 +36,12 @@ message AndroidBootMetric {
     optional int64 cold_start_dur = 1;
   }
   optional LauncherBreakdown launcher_breakdown = 5;
+
+  message ProcessStartAggregation {
+    optional int64 total_start_sum = 1;
+    optional int64 num_of_processes = 2;
+    optional double average_start_time = 3;
+  }
+  optional ProcessStartAggregation full_trace_process_start_aggregation = 6;
+  optional ProcessStartAggregation post_boot_process_start_aggregation = 7;
 }
