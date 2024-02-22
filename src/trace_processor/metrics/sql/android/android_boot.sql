@@ -15,6 +15,7 @@
 --
 
 INCLUDE PERFETTO MODULE android.process_metadata;
+INCLUDE PERFETTO MODULE android.app_process_starts;
 
 CREATE OR REPLACE PERFETTO FUNCTION get_durations(process_name STRING)
 RETURNS TABLE(uint_sleep_dur LONG, total_dur LONG) AS
@@ -51,5 +52,31 @@ SELECT AndroidBootMetric(
     'launcher_breakdown', (
         SELECT NULL_IF_EMPTY(AndroidBootMetric_LauncherBreakdown(
             'cold_start_dur', dur))
-        FROM slice where name="LauncherColdStartup")
+        FROM slice where name="LauncherColdStartup"),
+    'full_trace_process_start_aggregation', (
+        SELECT NULL_IF_EMPTY(AndroidBootMetric_ProcessStartAggregation(
+            'total_start_sum', (SELECT SUM(total_dur) FROM android_app_process_starts),
+            'num_of_processes', (SELECT COUNT(process_name) FROM android_app_process_starts GROUP BY process_name),
+            'average_start_time', (SELECT AVG(total_dur) FROM android_app_process_starts)))
+            FROM android_app_process_starts),
+    'post_boot_process_start_aggregation', (
+        SELECT NULL_IF_EMPTY(AndroidBootMetric_ProcessStartAggregation(
+            'total_start_sum', (SELECT SUM(total_dur) FROM android_app_process_starts
+              WHERE proc_start_ts > (SELECT COALESCE(MIN(ts), 0)
+                FROM thread_slice WHERE name GLOB "*android.intent.action.USER_UNLOCKED*"
+                ORDER BY ts ASC LIMIT 1 )
+            ),
+            'num_of_processes', (SELECT COUNT(process_name) FROM android_app_process_starts
+              WHERE proc_start_ts > (SELECT COALESCE(MIN(ts), 0) FROM thread_slice
+                WHERE name GLOB "*android.intent.action.USER_UNLOCKED*" ORDER BY ts
+                ASC LIMIT 1 )
+              GROUP BY process_name
+            ),
+            'average_start_time', (SELECT AVG(total_dur) FROM android_app_process_starts
+              WHERE proc_start_ts > (SELECT COALESCE(MIN(ts), 0) FROM thread_slice
+                WHERE name GLOB "*android.intent.action.USER_UNLOCKED*" ORDER BY ts
+                ASC LIMIT 1 )
+            )
+        ))
+    )
 );
