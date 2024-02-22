@@ -620,6 +620,8 @@ TEST_F(FtraceConfigMuxerTest, TurnFtraceOnOff) {
 
   ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&ftrace));
   EXPECT_CALL(ftrace, NumberOfCpus()).Times(AnyNumber());
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
 
   EXPECT_CALL(ftrace,
               WriteToFile("/root/events/sched/sched_switch/enable", "0"));
@@ -1090,6 +1092,8 @@ TEST_F(FtraceConfigMuxerTest, FallbackOnSetEvent) {
   FtraceConfig config =
       CreateFtraceConfig({"sched/sched_switch", "cgroup/cgroup_mkdir"});
   FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
 
   EXPECT_CALL(ftrace, ReadFileIntoString("/root/current_tracer"))
       .WillOnce(Return("nop"));

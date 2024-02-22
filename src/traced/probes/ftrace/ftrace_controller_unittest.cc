@@ -150,6 +150,11 @@ class MockFtraceProcfs : public FtraceProcfs {
         .WillByDefault(Invoke(this, &MockFtraceProcfs::ReadCurrentTracer));
     EXPECT_CALL(*this, ReadFileIntoString(root + "current_tracer"))
         .Times(AnyNumber());
+
+    ON_CALL(*this, ReadFileIntoString(root + "buffer_percent"))
+        .WillByDefault(Return("50\n"));
+    EXPECT_CALL(*this, ReadFileIntoString(root + "buffer_percent"))
+        .Times(AnyNumber());
   }
 
   bool WriteTracingOn(const std::string& /*path*/, const std::string& value) {
@@ -216,7 +221,7 @@ class TestFtraceController : public FtraceController,
 
   MockTaskRunner* runner() { return runner_.get(); }
   MockFtraceProcfs* procfs() { return primary_procfs_; }
-  uint32_t drain_period_ms() { return GetDrainPeriodMs(); }
+  uint32_t tick_period_ms() { return GetTickPeriodMs(); }
 
   std::unique_ptr<FtraceDataSource> AddFakeDataSource(const FtraceConfig& cfg) {
     std::unique_ptr<FtraceDataSource> data_source(new FtraceDataSource(
@@ -339,8 +344,10 @@ TEST(FtraceControllerTest, OneSink) {
   // a single recurring read task will be posted as part of starting the data
   // source.
   Mock::VerifyAndClearExpectations(controller->runner());
-  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(1);
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
 
+  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(1);
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   ASSERT_TRUE(controller->StartDataSource(data_source.get()));
 
@@ -390,8 +397,10 @@ TEST(FtraceControllerTest, MultipleSinks) {
   // a single recurring read task will be posted as part of starting the data
   // sources.
   Mock::VerifyAndClearExpectations(controller->runner());
-  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(1);
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
 
+  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(1);
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   ASSERT_TRUE(controller->StartDataSource(data_sourceA.get()));
   ASSERT_TRUE(controller->StartDataSource(data_sourceB.get()));
@@ -433,6 +442,8 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
       .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "1"));
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
   auto data_source = controller->AddFakeDataSource(config);
 
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
@@ -539,7 +550,8 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
     // No period -> good default.
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     auto data_source = controller->AddFakeDataSource(config);
-    EXPECT_EQ(100u, controller->drain_period_ms());
+    controller->StartDataSource(data_source.get());
+    EXPECT_EQ(100u, controller->tick_period_ms());
   }
 
   {
@@ -547,7 +559,8 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_drain_period_ms(0);
     auto data_source = controller->AddFakeDataSource(config);
-    EXPECT_EQ(100u, controller->drain_period_ms());
+    controller->StartDataSource(data_source.get());
+    EXPECT_EQ(100u, controller->tick_period_ms());
   }
 
   {
@@ -555,7 +568,8 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_drain_period_ms(1000 * 60 * 60);
     auto data_source = controller->AddFakeDataSource(config);
-    EXPECT_EQ(100u, controller->drain_period_ms());
+    controller->StartDataSource(data_source.get());
+    EXPECT_EQ(100u, controller->tick_period_ms());
   }
 
   {
@@ -563,7 +577,8 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_drain_period_ms(200);
     auto data_source = controller->AddFakeDataSource(config);
-    EXPECT_EQ(200u, controller->drain_period_ms());
+    controller->StartDataSource(data_source.get());
+    EXPECT_EQ(200u, controller->tick_period_ms());
   }
 }
 
@@ -644,8 +659,12 @@ TEST(FtraceControllerTest, OnlySecondaryInstance) {
   config.set_instance_name("secondary");
 
   // Primary instance won't be touched throughout the entire test.
-  EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(0);
+  // Exception: allow testing for kernel support of buffer_percent.
   EXPECT_CALL(*controller->procfs(), ClearFile(_)).Times(0);
+  EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(0);
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_percent", _))
+      .Times(AnyNumber())
+      .WillRepeatedly(Return(true));
 
   // AddDataSource will initialise the tracefs instance, enable the event
   // through the muxer, but not yet enable tracing_on.
@@ -746,6 +765,8 @@ TEST(FtraceControllerTest, DefaultAndSecondaryInstance) {
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(*controller->GetInstanceMockProcfs("secondary"),
               WriteToFile("/root/instances/secondary/tracing_on", "1"));
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(2);
 
   ASSERT_TRUE(controller->StartDataSource(primary_ds.get()));
