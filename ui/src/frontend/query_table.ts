@@ -144,7 +144,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     const sliceStart = Time.fromRaw(BigInt(row.ts));
     // row.dur can be negative. Clamp to 1ns.
     const sliceDur = BigintMath.max(BigInt(row.dur), 1n);
-    const trackKey = globals.state.trackKeyByTrackId[trackId];
+    const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);
     if (trackKey !== undefined) {
       reveal(trackKey, sliceStart, Time.add(sliceStart, sliceDur), true);
       const sliceId = getSliceId(row);
