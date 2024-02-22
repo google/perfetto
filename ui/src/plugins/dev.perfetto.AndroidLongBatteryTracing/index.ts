@@ -249,6 +249,37 @@ const MODEM_RIL_CHANNELS = `
   SELECT ts, dur, slot_name || "-" || attrib_name || "=" || name AS name
   FROM Stage3`;
 
+const MODEM_CELL_RESELECTION = `
+  with base as (
+    select
+        ts,
+        s.name as raw_ril,
+        ifnull(str_split(str_split(s.name, 'CellIdentityLte{', 1), ', operatorNames', 0),
+            str_split(str_split(s.name, 'CellIdentityNr{', 1), ', operatorNames', 0)) as cell_id
+    from track t join slice s on t.id = s.track_id
+    where t.name = 'RIL' and s.name like '%DATA_REGISTRATION_STATE%'
+  ),
+  base2 as (
+    select
+        ts,
+        raw_ril,
+        case
+            when cell_id like '%earfcn%' then 'LTE ' || cell_id
+            when cell_id like '%nrarfcn%' then 'NR ' || cell_id
+            when cell_id is null then 'Unknown'
+            else cell_id
+        end as cell_id
+    from base
+  ),
+  base3 as (
+    select ts, cell_id , lag(cell_id) over (order by ts) as lag_cell_id, raw_ril
+    from base2
+  )
+  select ts, 0 as dur, cell_id as name, raw_ril
+  from base3
+  where cell_id != lag_cell_id
+  order by ts`;
+
 const SUSPEND_RESUME = `
   SELECT
     ts,
@@ -956,6 +987,92 @@ const BT_HAL_CRASHES = `
 
 const BT_HAL_CRASHES_COLUMNS = ['metric_id', 'error_code', 'vendor_error_code'];
 
+const BT_BYTES = `
+  with step1 as (
+    select
+        ts,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_bytes_transfer.uid') as uid,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_bytes_transfer.tx_bytes') as tx_bytes,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_bytes_transfer.rx_bytes') as rx_bytes
+    from track t join slice s on t.id = s.track_id
+    where t.name = 'Statsd Atoms'
+    and s.name = 'bluetooth_bytes_transfer'
+  ),
+  step2 as (
+    select
+        ts,
+        lead(ts) over (partition by uid order by ts) - ts as dur,
+        uid,
+        lead(tx_bytes) over (partition by uid order by ts) - tx_bytes as tx_bytes,
+        lead(rx_bytes) over (partition by uid order by ts) - rx_bytes as rx_bytes
+    from step1
+  ),
+  step3 as (
+    select
+        ts,
+        dur,
+        uid % 100000 as uid,
+        sum(tx_bytes) as tx_bytes,
+        sum(rx_bytes) as rx_bytes
+    from step2
+    where tx_bytes >=0 and rx_bytes >=0
+    group by 1,2,3
+    having tx_bytes > 0 or rx_bytes > 0
+  ),
+  app_package_list as (
+  select
+    uid,
+    group_concat(package_name) as package_name
+  from package_list
+  where uid >= 10000
+  group by 1
+  )
+    select
+        ts,
+        dur,
+        case
+            when pl.package_name is null then 'uid=' || uid
+            else pl.package_name
+        end || ' TX ' || tx_bytes || ' bytes / RX ' || rx_bytes || ' bytes' as name
+    from step3 left join app_package_list pl using(uid)
+`;
+
+const BT_ACTIVITY = `
+  with step1 as (
+    select
+        EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.timestamp_millis') * 1000000 as ts,
+        case EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.bluetooth_stack_state')
+        when 1 then 'active'
+        when 2 then 'scanning'
+        when 3 then 'idle'
+        else 'invalid'
+        end as bluetooth_stack_state,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.controller_idle_time_millis') * 1000000 as controller_idle_dur,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.controller_tx_time_millis') * 1000000 as controller_tx_dur,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.controller_rx_time_millis') * 1000000 as controller_rx_dur
+    from track t join slice s on t.id = s.track_id
+    where t.name = 'Statsd Atoms'
+    and s.name = 'bluetooth_activity_info'
+  ),
+  step2 as (
+    select
+        ts,
+        lead(ts) over (order by ts) - ts as dur,
+        bluetooth_stack_state,
+        lead(controller_idle_dur) over (order by ts) - controller_idle_dur as controller_idle_dur,
+        lead(controller_tx_dur) over (order by ts) - controller_tx_dur as controller_tx_dur,
+        lead(controller_rx_dur) over (order by ts) - controller_rx_dur as controller_rx_dur
+    from step1
+  )
+  select
+    ts,
+    dur * controller_rx_dur / dur as dur,
+    cast(100.0 * controller_rx_dur / dur as int) || '% RX, ' ||
+        cast(100.0 * controller_tx_dur / dur as int) || '% TX, ' || bluetooth_stack_state as name
+  from step2
+  where controller_rx_dur > 0
+`;
+
 class AndroidLongBatteryTracing implements Plugin {
   onActivate(_: PluginContext): void {}
 
@@ -1188,11 +1305,15 @@ class AndroidLongBatteryTracing implements Plugin {
 
     rilStrength('LTE', 'rsrp');
     rilStrength('LTE', 'rssi');
-    rilStrength('NR', 'rssi');
+    rilStrength('NR', 'rsrp');
     rilStrength('NR', 'rssi');
 
     this.addSliceTrack(
       ctx, 'Modem channel config', MODEM_RIL_CHANNELS, groupName);
+
+    this.addSliceTrack(
+      ctx, 'Modem cell reselection', MODEM_CELL_RESELECTION, groupName,
+      ['raw_ril']);
   }
 
   async addKernelWakelocks(ctx: PluginContextTrace, features: Set<string>):
@@ -1316,6 +1437,9 @@ class AndroidLongBatteryTracing implements Plugin {
       ctx, 'Link-level Events', BT_LINK_LEVEL_EVENTS, groupName,
       BT_LINK_LEVEL_EVENTS_COLUMNS);
     this.addSliceTrack(ctx, 'A2DP Audio', BT_A2DP_AUDIO, groupName);
+    this.addSliceTrack(
+      ctx, 'Bytes Transferred (L2CAP/RFCOMM)', BT_BYTES, groupName);
+    this.addSliceTrack(ctx, 'Activity info', BT_ACTIVITY, groupName);
     this.addSliceTrack(
       ctx, 'Quality reports', BT_QUALITY_REPORTS, groupName,
       BT_QUALITY_REPORTS_COLUMNS);
