@@ -37,6 +37,7 @@ source_set("base") {
     "pipe.h",
     "platform.h",
     "scoped_file.h",
+    "scoped_mmap.h",
     "small_set.h",
     "small_vector.h",
     "status_or.h",
