@@ -209,7 +209,7 @@ export class Duration {
   //           123,123,123,123,123 -> 34h 12m
   //           1,000,000,023 -> 1 s
   //           1,230,000,023 -> 1.2 s
-  static humanise(dur: duration) {
+  static humanise(dur: duration): string {
     const sec = Duration.toSeconds(dur);
     const units = ['s', 'ms', 'us', 'ns'];
     const sign = Math.sign(sec);
