@@ -5148,8 +5148,10 @@ enum HwcCompositionType {
   // Similar to DEVICE, but the layer position may have been asynchronously set
   // through setCursorPosition
   HWC_TYPE_CURSOR = 4;
-  // Layer was composited by the device via a sideband stream.
+  // Layer was composited by the device via a sideband stream
   HWC_TYPE_SIDEBAND = 5;
+   // Layer was composited by hardware optimized for display decoration
+  HWC_TYPE_DISPLAY_DECORATION = 6;
 }
 
 // Information about each layer.
