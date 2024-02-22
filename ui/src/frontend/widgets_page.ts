@@ -30,11 +30,7 @@ import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {Icon} from '../widgets/icon';
 import {Menu, MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
 import {showModal} from '../widgets/modal';
-import {
-  MultiSelect,
-  MultiSelectDiff,
-  PopupMultiSelect,
-} from '../widgets/multiselect';
+import {MultiSelect, MultiSelectDiff, PopupMultiSelect} from '../widgets/multiselect';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {Portal} from '../widgets/portal';
 import {FilterableSelect, Select} from '../widgets/select';
@@ -48,6 +44,7 @@ import {VegaView} from '../widgets/vega_view';
 import {createPage} from './pages';
 import {PopupMenuButton} from './popup_menu';
 import {TableShowcase} from './tables/table_showcase';
+import {TreeTable, TreeTableAttrs} from './widgets/treetable';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -480,6 +477,72 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
   }
 }
 
+interface File {
+  name: string;
+  size: string;
+  date: string;
+  children?: File[];
+}
+
+const files: File[] = [
+  {
+    name: 'foo',
+    size: '10MB',
+    date: '2023-04-02',
+  },
+  {
+    name: 'bar',
+    size: '123KB',
+    date: '2023-04-08',
+    children: [
+      {
+        name: 'baz',
+        size: '4KB',
+        date: '2023-05-07',
+      },
+      {
+        name: 'qux',
+        size: '18KB',
+        date: '2023-05-28',
+        children: [
+          {
+            name: 'quux',
+            size: '4KB',
+            date: '2023-05-07',
+          },
+          {
+            name: 'corge',
+            size: '18KB',
+            date: '2023-05-28',
+            children: [
+              {
+                name: 'grault',
+                size: '4KB',
+                date: '2023-05-07',
+              },
+              {
+                name: 'garply',
+                size: '18KB',
+                date: '2023-05-28',
+              },
+              {
+                name: 'waldo',
+                size: '87KB',
+                date: '2023-05-02',
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'fred',
+    size: '8KB',
+    date: '2022-12-27',
+  },
+];
+
 export const WidgetsPage = createPage({
   view() {
     return m(
@@ -534,8 +597,7 @@ export const WidgetsPage = createPage({
       m(WidgetShowcase, {
         label: 'Select',
         renderWidget: (opts) =>
-          m(Select,
-            opts,
+          m(Select, opts,
             [
               m('option', {value: 'foo', label: 'Foo'}),
               m('option', {value: 'bar', label: 'Bar'}),
@@ -547,25 +609,24 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'Filterable Select',
-        renderWidget: () =>
-          m(FilterableSelect, {
-            values: ['foo', 'bar', 'baz'],
-            onSelected: () => {},
-          }),
+        renderWidget: () => m(FilterableSelect, {
+          values: ['foo', 'bar', 'baz'],
+          onSelected: () => {},
+        }),
       }),
-      m(WidgetShowcase, {
-        label: 'Empty State',
-        renderWidget: ({header, content}) =>
-          m(EmptyState,
-            {
+      m(WidgetShowcase,
+        {
+          label: 'Empty State',
+          renderWidget: ({header, content}) =>
+            m(EmptyState, {
               title: header && 'No search results found...',
             },
             content && m(Button, {label: 'Try again'})),
-        initialOpts: {
-          header: true,
-          content: true,
-        },
-      }),
+          initialOpts: {
+            header: true,
+            content: true,
+          },
+        }),
       m(WidgetShowcase, {
         label: 'Anchor',
         renderWidget: ({icon}) => m(
@@ -581,11 +642,12 @@ export const WidgetsPage = createPage({
           icon: true,
         },
       }),
-      m(WidgetShowcase,
-        {
-          label: 'Table',
-          renderWidget: () => m(TableShowcase), initialOpts: {}, wide: true,
-        }),
+      m(WidgetShowcase, {
+        label: 'Table',
+        renderWidget: () => m(TableShowcase),
+        initialOpts: {},
+        wide: true,
+      }),
       m(WidgetShowcase, {
         label: 'Portal',
         description: `A portal is a div rendered out of normal flow
@@ -599,7 +661,8 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'Popup',
-        description: `A popup is a nicely styled portal element whose position is
+        description:
+              `A popup is a nicely styled portal element whose position is
         dynamically updated to appear to float alongside a specific element on
         the page, even as the element is moved and scrolled around.`,
         renderWidget: (opts) => m(
@@ -621,7 +684,8 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'Controlled Popup',
-        description: `The open/close state of a controlled popup is passed in via
+        description:
+              `The open/close state of a controlled popup is passed in via
         the 'isOpen' attribute. This means we can get open or close the popup
         from wherever we like. E.g. from a button inside the popup.
         Keeping this state external also means we can modify other parts of the
@@ -803,85 +867,91 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'Tree',
-        renderWidget: (opts) => m(
-          Tree,
-          opts,
-          m(TreeNode, {left: 'Name', right: 'my_event', icon: 'badge'}),
-          m(TreeNode, {left: 'CPU', right: '2', icon: 'memory'}),
-          m(TreeNode,
-            {left: 'Start time', right: '1s 435ms', icon: 'schedule'}),
-          m(TreeNode, {left: 'Duration', right: '86ms', icon: 'timer'}),
-          m(TreeNode, {
-            left: 'SQL',
-            right: m(
-              PopupMenu2,
-              {
-                popupPosition: PopupPosition.RightStart,
-                trigger: m(Anchor, {
-                  icon: Icons.ContextMenu,
-                }, 'SELECT * FROM raw WHERE id = 123'),
-              },
-              m(MenuItem, {
-                label: 'Copy SQL Query',
-                icon: 'content_copy',
-              }),
-              m(MenuItem, {
-                label: 'Execute Query in new tab',
-                icon: 'open_in_new',
-              }),
-            ),
-          }),
-          m(TreeNode, {
-            icon: 'account_tree',
-            left: 'Process',
-            right: m(Anchor, {icon: 'open_in_new'}, '/bin/foo[789]'),
-          }),
-          m(TreeNode, {
-            left: 'Thread',
-            right: m(Anchor, {icon: 'open_in_new'}, 'my_thread[456]'),
-          }),
+        description: `Hierarchical tree with left and right values aligned to
+        a grid.`,
+        renderWidget: (opts) =>
           m(
-            TreeNode,
-            {
-              left: 'Args',
-              summary: 'foo: string, baz: string, quux: string[4]',
-            },
-            m(TreeNode, {left: 'foo', right: 'bar'}),
-            m(TreeNode, {left: 'baz', right: 'qux'}),
+            Tree,
+            opts,
+            m(TreeNode, {left: 'Name', right: 'my_event', icon: 'badge'}),
+            m(TreeNode, {left: 'CPU', right: '2', icon: 'memory'}),
+            m(TreeNode,
+              {left: 'Start time', right: '1s 435ms', icon: 'schedule'}),
+            m(TreeNode, {left: 'Duration', right: '86ms', icon: 'timer'}),
+            m(TreeNode,
+              {
+                left: 'SQL',
+                right:
+                          m(
+                            PopupMenu2,
+                            {
+                              popupPosition: PopupPosition.RightStart,
+                              trigger:
+                                    m(Anchor, {
+                                      icon: Icons.ContextMenu,
+                                    },
+                                    'SELECT * FROM raw WHERE id = 123'),
+                            },
+                            m(MenuItem, {
+                              label: 'Copy SQL Query',
+                              icon: 'content_copy',
+                            }),
+                            m(MenuItem, {
+                              label: 'Execute Query in new tab',
+                              icon: 'open_in_new',
+                            }),
+                          ),
+              }),
+            m(TreeNode, {
+              icon: 'account_tree',
+              left: 'Process',
+              right: m(Anchor, {icon: 'open_in_new'}, '/bin/foo[789]'),
+            }),
+            m(TreeNode, {
+              left: 'Thread',
+              right: m(Anchor, {icon: 'open_in_new'}, 'my_thread[456]'),
+            }),
             m(
               TreeNode,
-              {left: 'quux', summary: 'string[4]'},
-              m(TreeNode, {left: '[0]', right: 'corge'}),
-              m(TreeNode, {left: '[1]', right: 'grault'}),
-              m(TreeNode, {left: '[2]', right: 'garply'}),
-              m(TreeNode, {left: '[3]', right: 'waldo'}),
+              {
+                left: 'Args',
+                summary: 'foo: string, baz: string, quux: string[4]',
+              },
+              m(TreeNode, {left: 'foo', right: 'bar'}),
+              m(TreeNode, {left: 'baz', right: 'qux'}),
+              m(
+                TreeNode,
+                {left: 'quux', summary: 'string[4]'},
+                m(TreeNode, {left: '[0]', right: 'corge'}),
+                m(TreeNode, {left: '[1]', right: 'grault'}),
+                m(TreeNode, {left: '[2]', right: 'garply'}),
+                m(TreeNode, {left: '[3]', right: 'waldo'}),
+              ),
             ),
+            m(LazyTreeNode, {
+              left: 'Lazy',
+              icon: 'bedtime',
+              fetchData: async () => {
+                await new Promise((r) => setTimeout(r, 1000));
+                return () => m(TreeNode, {left: 'foo'});
+              },
+            }),
+            m(LazyTreeNode, {
+              left: 'Dynamic',
+              unloadOnCollapse: true,
+              icon: 'bedtime',
+              fetchData: async () => {
+                await new Promise((r) => setTimeout(r, 1000));
+                return () => m(TreeNode, {left: 'foo'});
+              },
+            }),
           ),
-          m(LazyTreeNode, {
-            left: 'Lazy',
-            icon: 'bedtime',
-            fetchData: async () => {
-              await new Promise((r) => setTimeout(r, 1000));
-              return () => m(TreeNode, {left: 'foo'});
-            },
-          }),
-          m(LazyTreeNode, {
-            left: 'Dynamic',
-            unloadOnCollapse: true,
-            icon: 'bedtime',
-            fetchData: async () => {
-              await new Promise((r) => setTimeout(r, 1000));
-              return () => m(TreeNode, {left: 'foo'});
-            },
-          }),
-        ),
         wide: true,
       }),
-      m(
-        WidgetShowcase, {
-          label: 'Form',
-          renderWidget: () => renderForm('form'),
-        }),
+      m(WidgetShowcase, {
+        label: 'Form',
+        renderWidget: () => renderForm('form'),
+      }),
       m(WidgetShowcase, {
         label: 'Nested Popups',
         renderWidget: () => m(
@@ -889,7 +959,8 @@ export const WidgetsPage = createPage({
           {
             trigger: m(Button, {label: 'Open the popup'}),
           },
-          m(PopupMenu2,
+          m(
+            PopupMenu2,
             {
               trigger: m(Button, {label: 'Select an option'}),
             },
@@ -902,20 +973,19 @@ export const WidgetsPage = createPage({
           }),
         ),
       }),
-      m(
-        WidgetShowcase, {
-          label: 'Callout',
-          renderWidget: () => m(
-            Callout,
-            {
-              icon: 'info',
-            },
-            'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
-                'Nulla rhoncus tempor neque, sed malesuada eros dapibus vel. ' +
-                'Aliquam in ligula vitae tortor porttitor laoreet iaculis ' +
-                'finibus est.',
-          ),
-        }),
+      m(WidgetShowcase, {
+        label: 'Callout',
+        renderWidget: () => m(
+          Callout,
+          {
+            icon: 'info',
+          },
+          'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
+                  'Nulla rhoncus tempor neque, sed malesuada eros dapibus vel. ' +
+                  'Aliquam in ligula vitae tortor porttitor laoreet iaculis ' +
+                  'finibus est.',
+        ),
+      }),
       m(WidgetShowcase, {
         label: 'Editor',
         renderWidget: () => m(Editor),
@@ -938,94 +1008,108 @@ export const WidgetsPage = createPage({
 
         },
       }),
-      m(
-        WidgetShowcase, {
-          label: 'Form within PopupMenu2',
-          description: `A form placed inside a popup menu works just fine,
+      m(WidgetShowcase, {
+        label: 'Form within PopupMenu2',
+        description: `A form placed inside a popup menu works just fine,
               and the cancel/submit buttons also dismiss the popup. A bit more
               margin is added around it too, which improves the look and feel.`,
-          renderWidget: () => m(
-            PopupMenu2,
+        renderWidget: () => m(
+          PopupMenu2,
+          {
+            trigger: m(Button, {label: 'Popup!'}),
+          },
+          m(
+            MenuItem,
             {
-              trigger: m(Button, {label: 'Popup!'}),
+              label: 'Open form...',
             },
-            m(MenuItem,
-              {
-                label: 'Open form...',
-              },
-              renderForm('popup-form'),
-            ),
+            renderForm('popup-form'),
           ),
-        }),
-      m(
-        WidgetShowcase, {
-          label: 'Hotkey',
-          renderWidget: (opts) => {
-            if (opts.platform === 'auto') {
-              return m(HotkeyGlyphs, {hotkey: opts.hotkey as Hotkey});
-            } else {
-              const platform = opts.platform as Platform;
-              return m(HotkeyGlyphs, {
-                hotkey: opts.hotkey as Hotkey,
-                spoof: platform,
-              });
-            }
-          },
-          initialOpts: {
-            hotkey: 'Mod+Shift+P',
-            platform: new EnumOption('auto', ['auto', 'Mac', 'PC']),
-          },
-        }),
-      m(
-        WidgetShowcase, {
-          label: 'Text Paragraph',
-          description: `A basic formatted text paragraph with wrapping. If
+        ),
+      }),
+      m(WidgetShowcase, {
+        label: 'Hotkey',
+        renderWidget: (opts) => {
+          if (opts.platform === 'auto') {
+            return m(HotkeyGlyphs, {hotkey: opts.hotkey as Hotkey});
+          } else {
+            const platform = opts.platform as Platform;
+            return m(HotkeyGlyphs, {
+              hotkey: opts.hotkey as Hotkey,
+              spoof: platform,
+            });
+          }
+        },
+        initialOpts: {
+          hotkey: 'Mod+Shift+P',
+          platform: new EnumOption('auto', ['auto', 'Mac', 'PC']),
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'Text Paragraph',
+        description: `A basic formatted text paragraph with wrapping. If
               it is desirable to preserve the original text format/line breaks,
               set the compressSpace attribute to false.`,
-          renderWidget: (opts) => {
-            return m(TextParagraph, {
+        renderWidget: (opts) => {
+          return m(TextParagraph, {
+            text: `Lorem ipsum dolor sit amet, consectetur adipiscing
+                         elit. Nulla rhoncus tempor neque, sed malesuada eros
+                         dapibus vel. Aliquam in ligula vitae tortor porttitor
+                         laoreet iaculis finibus est.`,
+            compressSpace: opts.compressSpace,
+          });
+        },
+        initialOpts: {
+          compressSpace: true,
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'Multi Paragraph Text',
+        description: `A wrapper for multiple paragraph widgets.`,
+        renderWidget: () => {
+          return m(
+            MultiParagraphText,
+            m(TextParagraph, {
               text: `Lorem ipsum dolor sit amet, consectetur adipiscing
                          elit. Nulla rhoncus tempor neque, sed malesuada eros
                          dapibus vel. Aliquam in ligula vitae tortor porttitor
                          laoreet iaculis finibus est.`,
-              compressSpace: opts.compressSpace,
-            });
-          },
-          initialOpts: {
-            compressSpace: true,
-          },
-        }),
-      m(
-        WidgetShowcase, {
-          label: 'Multi Paragraph Text',
-          description: `A wrapper for multiple paragraph widgets.`,
-          renderWidget: () => {
-            return m(MultiParagraphText,
-              m(TextParagraph, {
-                text: `Lorem ipsum dolor sit amet, consectetur adipiscing
-                         elit. Nulla rhoncus tempor neque, sed malesuada eros
-                         dapibus vel. Aliquam in ligula vitae tortor porttitor
-                         laoreet iaculis finibus est.`,
-                compressSpace: true,
-              }), m(TextParagraph, {
-                text: `Sed ut perspiciatis unde omnis iste natus error sit
+              compressSpace: true,
+            }),
+            m(TextParagraph, {
+              text: `Sed ut perspiciatis unde omnis iste natus error sit
                          voluptatem accusantium doloremque laudantium, totam rem
                          aperiam, eaque ipsa quae ab illo inventore veritatis et
                          quasi architecto beatae vitae dicta sunt explicabo.
                          Nemo enim ipsam voluptatem quia voluptas sit aspernatur
                          aut odit aut fugit, sed quia consequuntur magni dolores
                          eos qui ratione voluptatem sequi nesciunt.`,
-                compressSpace: true,
-              }),
-            );
-          },
-        }),
-      m(
-        WidgetShowcase, {
-          label: 'Modal',
-          description: `A helper for modal dialog.`,
-          renderWidget: () => m(ModalShowcase),
-        }),
+              compressSpace: true,
+            }),
+          );
+        },
+      }),
+      m(WidgetShowcase, {
+        label: 'Modal',
+        description: `A helper for modal dialog.`,
+        renderWidget: () => m(ModalShowcase),
+      }),
+      m(WidgetShowcase, {
+        label: 'TreeTable',
+        description: `Hierarchical tree with multiple columns`,
+        renderWidget: () => {
+          const attrs: TreeTableAttrs<File> = {
+            rows: files,
+            getChildren: (file) => file.children,
+            columns: [
+              {name: 'Name', getData: (file) => file.name},
+              {name: 'Size', getData: (file) => file.size},
+              {name: 'Date', getData: (file) => file.date},
+            ],
+          };
+          return m(TreeTable<File>, attrs);
+        },
+      }),
     );
   },
 });

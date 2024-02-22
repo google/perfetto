@@ -20,13 +20,7 @@ import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../trace_processor/engine';
-import {
-  LONG,
-  LONG_NULL,
-  NUM,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
+import {LONG, LONG_NULL, NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {globals} from '../globals';
 import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';
@@ -49,13 +43,16 @@ import {
 
 import {Arg, getArgs} from './args';
 
+// Basic information about a slice.
 export interface SliceDetails {
   id: SliceSqlId;
   name: string;
   ts: time;
   absTime?: string;
   dur: duration;
+  parentId?: SliceSqlId;
   trackId: number;
+  depth: number;
   thread?: ThreadInfo;
   process?: ProcessInfo;
   threadTs?: time;
@@ -106,7 +103,7 @@ async function getUtidAndUpid(engine: EngineProxy, sqlTrackId: number):
   return result;
 }
 
-async function getSliceFromConstraints(
+export async function getSliceFromConstraints(
   engine: EngineProxy, constraints: SQLConstraints): Promise<SliceDetails[]> {
   const query = await engine.query(`
     SELECT
@@ -115,6 +112,8 @@ async function getSliceFromConstraints(
       ts,
       dur,
       track_id as trackId,
+      depth,
+      parent_id as parentId,
       thread_dur as threadDur,
       thread_ts as threadTs,
       category,
@@ -128,6 +127,8 @@ async function getSliceFromConstraints(
     ts: LONG,
     dur: LONG,
     trackId: NUM,
+    depth: NUM,
+    parentId: NUM_NULL,
     threadDur: LONG_NULL,
     threadTs: LONG_NULL,
     category: STR_NULL,
@@ -151,6 +152,8 @@ async function getSliceFromConstraints(
       ts: Time.fromRaw(it.ts),
       dur: it.dur,
       trackId: it.trackId,
+      depth: it.depth,
+      parentId: asSliceSqlId(it.parentId ?? undefined),
       thread,
       process,
       threadDur: it.threadDur ?? undefined,
@@ -224,4 +227,47 @@ export function sliceRef(slice: SliceDetails, name?: string): m.Child {
     dur: slice.dur,
     sqlTrackId: slice.trackId,
   });
+}
+
+// A slice tree node, combining the information about the given slice with
+// information about its descendants.
+export interface SliceTreeNode extends SliceDetails {
+  children: SliceTreeNode[];
+  parent?: SliceTreeNode;
+}
+
+// Get all descendants for a given slice in a tree form.
+export async function getDescendantSliceTree(
+  engine: EngineProxy, id: SliceSqlId): Promise<SliceTreeNode|undefined> {
+  const slice = await getSlice(engine, id);
+  if (slice === undefined) {
+    return undefined;
+  }
+  const descendants = await getSliceFromConstraints(engine, {
+    filters: [
+      `track_id=${slice.trackId}`,
+      `depth >= ${slice.depth}`,
+      `ts >= ${slice.ts}`,
+      // TODO(altimin): consider making `dur` undefined here instead of -1.
+      slice.dur >= 0 ? `ts <= (${slice.ts} + ${slice.dur})` : undefined,
+    ],
+    orderBy: ['ts', 'depth'],
+  });
+  const slices: {[key: SliceSqlId]: SliceTreeNode} =
+      Object.fromEntries(descendants.map(
+        (slice) =>
+          [slice.id,
+            {
+              children: [],
+              ...slice,
+            },
+          ]));
+  for (const [_, slice] of Object.entries(slices)) {
+    if (slice.parentId !== undefined) {
+      const parent = slices[slice.parentId];
+      slice.parent = parent;
+      parent.children.push(slice);
+    }
+  }
+  return slices[id];
 }
