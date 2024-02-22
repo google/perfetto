@@ -1,0 +1,64 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "theme";
+
+$chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' height='8' width='8'%3E%3Cline x1='2' y1='0' x2='6' y2='4' stroke='black'/%3E%3Cline x1='6' y1='4' x2='2' y2='8' stroke='black'/%3E%3C/svg%3E");
+
+.pf-treetable {
+  font-family: $pf-font;
+  border-collapse: collapse;
+  text-align: left;
+  th {
+    text-align: left;
+    padding: 2px 8px;
+    border-bottom: solid 1px grey;
+    font-weight: bolder;
+  }
+  td {
+    padding: 2px 8px;
+    text-align: left;
+    padding-left: calc(var(--indentation-level) * 12px + 4px);
+    .pf-treetable-gutter {
+      display: inline;
+      &::before {
+        content: " ";
+        display: inline-block;
+        position: relative;
+        width: 12px;
+      }
+    }
+  }
+  td.pf-treetable-maincol {
+    font-weight: bolder;
+  }
+  td.pf-treetable-node {
+    .pf-treetable-gutter {
+      &::before {
+        content: $chevron-svg;
+        display: inline-block;
+        cursor: pointer;
+        width: 12px;
+        rotate: 90deg;
+      }
+    }
+    &.pf-collapsed {
+      .pf-treetable-gutter {
+        &::before {
+          rotate: 0deg;
+        }
+      }
+    }
+  }
+}
