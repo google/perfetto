@@ -1,0 +1,315 @@
+android_app_process_starts {
+  all_apps {
+    process_name: "com.google.android.providers.media.module"
+    intent: "com.android.providers.media.fuse.ExternalStorageServiceImpl"
+    reason: "service"
+    proc_start_dur: 11229493
+    bind_app_dur: 517852702
+    intent_dur: 10584229
+    total_dur: 582811036
+  }
+  all_apps {
+    process_name: "com.google.android.googlequicksearchbox:interactor"
+    intent: "com.google.android.voiceinteraction.GsaVoiceInteractionService"
+    reason: "service"
+    proc_start_dur: 9032552
+    bind_app_dur: 977818441
+    intent_dur: 201066650
+    total_dur: 1224463420
+  }
+  all_apps {
+    process_name: "com.google.android.apps.messaging:rcs"
+    intent: "com.google.android.ims.binding.SystemBindingService"
+    reason: "service"
+    proc_start_dur: 16897502
+    bind_app_dur: 822825195
+    intent_dur: 53585938
+    total_dur: 935336101
+  }
+  all_apps {
+    process_name: "com.google.android.connectivitythermalpowermanager"
+    intent: "com.google.android.connectivitythermalpowermanager.ConnectivityThermalPowerManagerService"
+    reason: "service"
+    proc_start_dur: 32508748
+    bind_app_dur: 82229981
+    intent_dur: 391083293
+    total_dur: 552657145
+  }
+  all_apps {
+    process_name: "com.google.android.calendar"
+    intent: " android.appwidget.action.APPWIDGET_ENABLED"
+    reason: "broadcast"
+    proc_start_dur: 12347046
+    bind_app_dur: 793497640
+    intent_dur: 51051310
+    total_dur: 1012425578
+  }
+  all_apps {
+    process_name: "com.google.android.googlequicksearchbox:search"
+    intent: "com.google.android.apps.search.podcasts.browser.PodcastBrowserService"
+    reason: "service"
+    proc_start_dur: 52551066
+    bind_app_dur: 673431316
+    intent_dur: 12822713
+    total_dur: 905843466
+  }
+  all_apps {
+    process_name: "com.google.android.apps.dreamliner"
+    intent: "com.google.android.apps.dreamliner.notification.DreamlinerNotificationService"
+    reason: "service"
+    proc_start_dur: 13374675
+    bind_app_dur: 205802776
+    intent_dur: 143158203
+    total_dur: 439490479
+  }
+  all_apps {
+    process_name: "com.google.android.as.oss"
+    intent: "com.google.android.gms.learning.internal.training.InAppJobService"
+    reason: "service"
+    proc_start_dur: 87438151
+    bind_app_dur: 208729451
+    intent_dur: 459920
+    total_dur: 479233521
+  }
+  all_apps {
+    process_name: "com.google.ar.core"
+    intent: "com.google.ar.core.services.profiles.ProfileDownloadJobService"
+    reason: "service"
+    proc_start_dur: 22607056
+    bind_app_dur: 651136923
+    intent_dur: 18350912
+    total_dur: 803594402
+  }
+  all_apps {
+    process_name: "com.android.keychain"
+    intent: "com.android.keychain.KeyChainService"
+    reason: "service"
+    proc_start_dur: 143594686
+    bind_app_dur: 124117351
+    intent_dur: -1
+    total_dur: 583162190
+  }
+  all_apps {
+    process_name: "com.google.android.as"
+    reason: "provider"
+    proc_start_dur: 7981446
+    bind_app_dur: -1
+    total_dur: 60545572
+  }
+  all_apps {
+    process_name: "com.android.nfc"
+    reason: "provider"
+    proc_start_dur: 12938395
+    bind_app_dur: 706180624
+    total_dur: 785690837
+  }
+  all_apps {
+    process_name: "com.google.SSRestartDetector"
+    reason: "provider"
+    proc_start_dur: 12119792
+    bind_app_dur: 133668783
+    total_dur: 195917888
+  }
+  all_apps {
+    process_name: "com.android.pixellogger"
+    reason: "provider"
+    proc_start_dur: 19349406
+    bind_app_dur: 182837565
+    total_dur: 227891032
+  }
+  all_apps {
+    process_name: "com.google.android.apps.youtube.music"
+    reason: "provider"
+    proc_start_dur: 34101441
+    bind_app_dur: -1
+    total_dur: 135004394
+  }
+  all_apps {
+    process_name: "com.google.android.youtube"
+    reason: "provider"
+    proc_start_dur: 73083374
+    bind_app_dur: -1
+    total_dur: 121121785
+  }
+  all_apps {
+    process_name: "com.amazon.mp3"
+    reason: "provider"
+    proc_start_dur: 127611247
+    bind_app_dur: -1
+    total_dur: 173187580
+  }
+  all_apps {
+    process_name: "com.apple.android.music"
+    reason: "provider"
+    proc_start_dur: 29364055
+    bind_app_dur: -1
+    total_dur: 91992879
+  }
+  all_apps {
+    process_name: "com.blinkslabs.blinkist.android"
+    reason: "provider"
+    proc_start_dur: 57628744
+    bind_app_dur: -1
+    total_dur: 78990559
+  }
+  all_apps {
+    process_name: "com.google.android.apps.books"
+    reason: "provider"
+    proc_start_dur: 142572509
+    bind_app_dur: -1
+    total_dur: 193448851
+  }
+  all_apps {
+    process_name: "com.overdrive.mobile.android.libby"
+    reason: "provider"
+    proc_start_dur: 20993978
+    bind_app_dur: -1
+    total_dur: 130225300
+  }
+  all_apps {
+    process_name: "org.thoughtcrime.securesms"
+    reason: "provider"
+    proc_start_dur: 299099894
+    bind_app_dur: -1
+    total_dur: 299780394
+  }
+  all_apps {
+    process_name: "com.patreon.android"
+    reason: "provider"
+    proc_start_dur: 30774414
+    bind_app_dur: -1
+    total_dur: 86755370
+  }
+  all_apps {
+    process_name: "com.spotify.music"
+    reason: "provider"
+    proc_start_dur: 24248860
+    bind_app_dur: -1
+    total_dur: 97743773
+  }
+  all_apps {
+    process_name: "com.google.android.keep"
+    reason: "provider"
+    proc_start_dur: 24017578
+    bind_app_dur: -1
+    total_dur: 67608316
+  }
+  all_apps {
+    process_name: "org.videolan.vlc"
+    reason: "provider"
+    proc_start_dur: 59140991
+    bind_app_dur: -1
+    total_dur: 108707193
+  }
+  all_apps {
+    process_name: "com.android.printspooler"
+    reason: "provider"
+    proc_start_dur: 20540893
+    bind_app_dur: -1
+    total_dur: 66699706
+  }
+  all_apps {
+    process_name: "com.android.providers.calendar"
+    reason: "provider"
+    proc_start_dur: 67028117
+    bind_app_dur: -1
+    total_dur: 101619669
+  }
+  all_apps {
+    process_name: "com.google.android.apps.wallpaper"
+    reason: "provider"
+    proc_start_dur: 50665365
+    bind_app_dur: -1
+    total_dur: 136349243
+  }
+  started_by_broadcast {
+    process_name: "com.google.android.calendar"
+    intent: " android.appwidget.action.APPWIDGET_ENABLED"
+    reason: "broadcast"
+    proc_start_dur: 12347046
+    bind_app_dur: 793497640
+    intent_dur: 51051310
+    total_dur: 1012425578
+  }
+  started_by_service {
+    process_name: "com.google.android.providers.media.module"
+    intent: "com.android.providers.media.fuse.ExternalStorageServiceImpl"
+    reason: "service"
+    proc_start_dur: 11229493
+    bind_app_dur: 517852702
+    intent_dur: 10584229
+    total_dur: 582811036
+  }
+  started_by_service {
+    process_name: "com.google.android.googlequicksearchbox:interactor"
+    intent: "com.google.android.voiceinteraction.GsaVoiceInteractionService"
+    reason: "service"
+    proc_start_dur: 9032552
+    bind_app_dur: 977818441
+    intent_dur: 201066650
+    total_dur: 1224463420
+  }
+  started_by_service {
+    process_name: "com.google.android.apps.messaging:rcs"
+    intent: "com.google.android.ims.binding.SystemBindingService"
+    reason: "service"
+    proc_start_dur: 16897502
+    bind_app_dur: 822825195
+    intent_dur: 53585938
+    total_dur: 935336101
+  }
+  started_by_service {
+    process_name: "com.google.android.connectivitythermalpowermanager"
+    intent: "com.google.android.connectivitythermalpowermanager.ConnectivityThermalPowerManagerService"
+    reason: "service"
+    proc_start_dur: 32508748
+    bind_app_dur: 82229981
+    intent_dur: 391083293
+    total_dur: 552657145
+  }
+  started_by_service {
+    process_name: "com.google.android.googlequicksearchbox:search"
+    intent: "com.google.android.apps.search.podcasts.browser.PodcastBrowserService"
+    reason: "service"
+    proc_start_dur: 52551066
+    bind_app_dur: 673431316
+    intent_dur: 12822713
+    total_dur: 905843466
+  }
+  started_by_service {
+    process_name: "com.google.android.apps.dreamliner"
+    intent: "com.google.android.apps.dreamliner.notification.DreamlinerNotificationService"
+    reason: "service"
+    proc_start_dur: 13374675
+    bind_app_dur: 205802776
+    intent_dur: 143158203
+    total_dur: 439490479
+  }
+  started_by_service {
+    process_name: "com.google.android.as.oss"
+    intent: "com.google.android.gms.learning.internal.training.InAppJobService"
+    reason: "service"
+    proc_start_dur: 87438151
+    bind_app_dur: 208729451
+    intent_dur: 459920
+    total_dur: 479233521
+  }
+  started_by_service {
+    process_name: "com.google.ar.core"
+    intent: "com.google.ar.core.services.profiles.ProfileDownloadJobService"
+    reason: "service"
+    proc_start_dur: 22607056
+    bind_app_dur: 651136923
+    intent_dur: 18350912
+    total_dur: 803594402
+  }
+  started_by_service {
+    process_name: "com.android.keychain"
+    intent: "com.android.keychain.KeyChainService"
+    reason: "service"
+    proc_start_dur: 143594686
+    bind_app_dur: 124117351
+    intent_dur: -1
+    total_dur: 583162190
+  }
+}
