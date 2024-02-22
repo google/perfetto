@@ -16,13 +16,11 @@ import {Draft} from 'immer';
 
 import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
 import {duration, time} from '../base/time';
-import {exists} from '../base/utils';
 import {RecordConfig} from '../controller/record_config_types';
 import {
   GenericSliceDetailsTabConfig,
   GenericSliceDetailsTabConfigBase,
 } from '../frontend/generic_slice_details_tab';
-import {globals} from '../frontend/globals';
 import {
   Aggregation,
   AggregationFunction,
@@ -70,7 +68,6 @@ import {
   ThreadTrackSortKey,
   TraceTime,
   TrackSortKey,
-  TrackState,
   UtidToTrackSortKey,
   VisibleState,
 } from './state';
@@ -204,30 +201,6 @@ export const StateActions = {
     state.traceUuid = args.traceUuid;
   },
 
-  fillUiTrackIdByTraceTrackId(
-    state: StateDraft, trackState: TrackState, trackKey: string) {
-    const setTrackKey = (trackId: number, trackKey: string) => {
-      if (state.trackKeyByTrackId[trackId] !== undefined &&
-          state.trackKeyByTrackId[trackId] !== trackKey) {
-        throw new Error(`Trying to map track id ${trackId} to UI track ${
-          trackKey}, already mapped to ${state.trackKeyByTrackId[trackId]}`);
-      }
-      state.trackKeyByTrackId[trackId] = trackKey;
-    };
-
-    const {uri} = trackState;
-    if (exists(uri)) {
-      // If track is a new "plugin" type track (i.e. it has a uri), resolve the
-      // track ids from through the pluginManager.
-      const trackInfo = globals.trackManager.resolveTrackInfo(uri);
-      if (trackInfo?.trackIds) {
-        for (const trackId of trackInfo.trackIds) {
-          setTrackKey(trackId, trackKey);
-        }
-      }
-    }
-  },
-
   addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {
     args.tracks.forEach((track) => {
       const trackKey =
@@ -242,7 +215,6 @@ export const StateActions = {
         uri: track.uri,
         params: track.params,
       };
-      this.fillUiTrackIdByTraceTrackId(state, track as TrackState, trackKey);
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
         state.scrollingTracks.push(trackKey);
       } else if (track.trackGroup !== undefined) {
