@@ -20,8 +20,6 @@ source_set("trace_redaction") {
     "find_package_uid.h",
     "prune_package_list.cc",
     "prune_package_list.h",
-    "scrub_trace_packet.cc",
-    "scrub_trace_packet.h",
     "trace_redaction_framework.cc",
     "trace_redaction_framework.h",
     "trace_redactor.cc",
@@ -60,7 +58,6 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "find_package_uid_unittest.cc",
     "prune_package_list_unittest.cc",
-    "scrub_trace_packet_unittest.cc",
   ]
   deps = [
     ":trace_redaction",
