@@ -31,6 +31,10 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/tracing/core/forward_decls.h"
+#include "protos/perfetto/common/builtin_clock.gen.h"
+#include "protos/perfetto/trace/clock_snapshot.gen.h"
+#include "protos/perfetto/trace/remote_clock_sync.gen.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
@@ -5622,6 +5626,132 @@ TEST_F(TracingServiceImplTest, ConsumerDisconnectionRacesFlushAndDisable) {
   producer->WaitForDataSourceStop("ds");
 
   task_runner.RunUntilIdle();
+}
+
+TEST_F(TracingServiceImplTest, RelayEndpointClockSync) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  auto relay_client = svc->ConnectRelayClient(
+      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/0x103, 1));
+
+  uint32_t clock_id =
+      static_cast<uint32_t>(protos::gen::BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
+
+  relay_client->SyncClocks(RelayEndpoint::SyncMode::PING,
+                           /*client_clocks=*/{{clock_id, 100}},
+                           /*host_clocks=*/{{clock_id, 1000}});
+  relay_client->SyncClocks(RelayEndpoint::SyncMode::UPDATE,
+                           /*client_clocks=*/{{clock_id, 300}},
+                           /*host_clocks=*/{{clock_id, 1200}});
+
+  producer->RegisterDataSource("ds");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds");
+  producer->WaitForDataSourceStart("ds");
+
+  auto writer1 = producer->CreateTraceWriter("ds");
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds");
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+
+  auto trace_packets = consumer->ReadBuffers();
+  bool clock_sync_packet_seen = false;
+  for (auto& packet : trace_packets) {
+    if (!packet.has_remote_clock_sync())
+      continue;
+    clock_sync_packet_seen = true;
+
+    auto& remote_clock_sync = packet.remote_clock_sync();
+    ASSERT_EQ(remote_clock_sync.synced_clocks_size(), 2);
+
+    auto& snapshots = remote_clock_sync.synced_clocks();
+    ASSERT_TRUE(snapshots[0].has_client_clocks());
+    auto* snapshot = &snapshots[0].client_clocks();
+    ASSERT_EQ(snapshot->clocks_size(), 1);
+    ASSERT_EQ(snapshot->clocks()[0].clock_id(), clock_id);
+    ASSERT_EQ(snapshot->clocks()[0].timestamp(), 100u);
+
+    snapshot = &snapshots[0].host_clocks();
+    ASSERT_EQ(snapshot->clocks_size(), 1);
+    ASSERT_EQ(snapshot->clocks()[0].clock_id(), clock_id);
+    ASSERT_EQ(snapshot->clocks()[0].timestamp(), 1000u);
+
+    snapshot = &snapshots[1].client_clocks();
+    ASSERT_EQ(snapshot->clocks_size(), 1);
+    ASSERT_EQ(snapshot->clocks()[0].clock_id(), clock_id);
+    ASSERT_EQ(snapshot->clocks()[0].timestamp(), 300u);
+
+    snapshot = &snapshots[1].host_clocks();
+    ASSERT_EQ(snapshot->clocks_size(), 1);
+    ASSERT_EQ(snapshot->clocks()[0].clock_id(), clock_id);
+    ASSERT_EQ(snapshot->clocks()[0].timestamp(), 1200u);
+  }
+  ASSERT_TRUE(clock_sync_packet_seen);
+}
+
+TEST_F(TracingServiceImplTest, RelayEndpointDisconnect) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  auto relay_client = svc->ConnectRelayClient(
+      std::make_pair<uint32_t, uint64_t>(/*base::MachineID=*/0x103, 1));
+  uint32_t clock_id =
+      static_cast<uint32_t>(protos::gen::BuiltinClock::BUILTIN_CLOCK_BOOTTIME);
+
+  relay_client->SyncClocks(RelayEndpoint::SyncMode::PING,
+                           /*client_clocks=*/{{clock_id, 100}},
+                           /*host_clocks=*/{{clock_id, 1000}});
+  relay_client->SyncClocks(RelayEndpoint::SyncMode::UPDATE,
+                           /*client_clocks=*/{{clock_id, 300}},
+                           /*host_clocks=*/{{clock_id, 1200}});
+
+  relay_client->Disconnect();
+
+  producer->RegisterDataSource("ds");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds");
+  producer->WaitForDataSourceStart("ds");
+
+  auto writer1 = producer->CreateTraceWriter("ds");
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds");
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+
+  auto trace_packets = consumer->ReadBuffers();
+  bool clock_sync_packet_seen = false;
+  for (auto& packet : trace_packets) {
+    if (!packet.has_remote_clock_sync())
+      continue;
+    clock_sync_packet_seen = true;
+  }
+  ASSERT_FALSE(clock_sync_packet_seen);
 }
 
 }  // namespace perfetto

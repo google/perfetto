@@ -43,3 +43,21 @@ source_set("producer") {
     deps += [ "../../../ipc:client" ]
   }
 }
+
+# Relay port client implementation, used by the relay service.
+source_set("relay") {
+  public_deps = [ "../../../../protos/perfetto/ipc" ]
+  sources = [
+    "relay_ipc_client.cc",
+    "relay_ipc_client.h",
+  ]
+  deps = [
+    "..:common",
+    "../../../../gn:default_deps",
+  ]
+  if (perfetto_component_type == "static_library") {
+    deps += [ "../../../ipc:perfetto_ipc" ]
+  } else {
+    deps += [ "../../../ipc:client" ]
+  }
+}

@@ -30,6 +30,7 @@
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/clock_snapshots.h"
 #include "perfetto/tracing/core/flush_flags.h"
 #include "perfetto/tracing/core/forward_decls.h"
 
@@ -283,6 +284,29 @@ struct PERFETTO_EXPORT_COMPONENT TracingServiceInitOpts {
   // compressed ones.
   using CompressorFn = void (*)(std::vector<TracePacket>*);
   CompressorFn compressor_fn = nullptr;
+
+  // Whether the relay endpoint is enabled on producer transport(s).
+  bool enable_relay_endpoint = false;
+};
+
+// The API for the Relay port of the Service. Subclassed by the
+// tracing_service_impl.cc business logic when returning it in response to the
+// ConnectRelayClient() method.
+class PERFETTO_EXPORT_COMPONENT RelayEndpoint {
+ public:
+  virtual ~RelayEndpoint();
+
+  // A snapshot of client and host clocks.
+  struct SyncClockSnapshot {
+    ClockSnapshotVector client_clock_snapshots;
+    ClockSnapshotVector host_clock_snapshots;
+  };
+
+  enum class SyncMode : uint32_t { PING = 1, UPDATE = 2 };
+  virtual void SyncClocks(SyncMode sync_mode,
+                          ClockSnapshotVector client_clocks,
+                          ClockSnapshotVector host_clocks) = 0;
+  virtual void Disconnect() = 0;
 };
 
 // The public API of the tracing Service business logic.
@@ -299,6 +323,7 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
  public:
   using ProducerEndpoint = perfetto::ProducerEndpoint;
   using ConsumerEndpoint = perfetto::ConsumerEndpoint;
+  using RelayEndpoint = perfetto::RelayEndpoint;
   using InitOpts = TracingServiceInitOpts;
 
   // Default sizes used by the service implementation and client library.
@@ -398,6 +423,18 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
   //
   // This feature is currently used by Chrome.
   virtual void SetSMBScrapingEnabled(bool enabled) = 0;
+
+  using RelayClientID = std::pair<base::MachineID, /*client ID*/ uint64_t>;
+  // Connects a remote RelayClient instance and obtains a RelayEndpoint, which
+  // is a 1:1 channel between one RelayClient and the Service. To disconnect
+  // just call Disconnect() of the RelayEndpoint instance. The relay client is
+  // connected using an identifier of MachineID and client ID. The service
+  // doesn't hold an object that represents the client because the relay port
+  // only has a client-to-host SyncClock() method.
+  //
+  // TODO(chinglinyu): connect the relay client using a RelayClient* object when
+  // we need host-to-client RPC method.
+  virtual std::unique_ptr<RelayEndpoint> ConnectRelayClient(RelayClientID) = 0;
 };
 
 }  // namespace perfetto
