@@ -60,9 +60,9 @@ ClockSnapshotVector CaptureClockSnapshots() {
   // The default trace clock is boot time, so we always need to emit a path to
   // it. However since we don't actually have a boot time source on these
   // platforms, pretend that wall time equals boot time.
-  new_snapshot_data.push_back(
+  snapshot_data.push_back(
       ClockReading(protos::pbzero::BUILTIN_CLOCK_BOOTTIME, wall_time_ns));
-  new_snapshot_data.push_back(
+  snapshot_data.push_back(
       ClockReading(protos::pbzero::BUILTIN_CLOCK_MONOTONIC, wall_time_ns));
 #endif
 
