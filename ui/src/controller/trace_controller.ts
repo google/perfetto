@@ -739,7 +739,7 @@ export class TraceController extends Controller<States> {
       });
 
       const id = row.traceProcessorTrackId;
-      const trackKey = globals.state.trackKeyByTrackId[id];
+      const trackKey = globals.trackManager.trackKeyByTrackId.get(id);
       if (trackKey === undefined) {
         return;
       }

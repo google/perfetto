@@ -198,8 +198,8 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
       {
         icon: Icons.UpdateSelection,
         onclick: () => {
-          const trackKey =
-                globals.state.trackKeyByTrackId[vnode.attrs.sqlTrackId];
+          const trackKeyByTrackId = globals.trackManager.trackKeyByTrackId;
+          const trackKey = trackKeyByTrackId.get(vnode.attrs.sqlTrackId);
           if (trackKey === undefined) return;
           verticalScrollToTrack(trackKey, true);
           // Clamp duration to 1 - i.e. for instant events

@@ -278,7 +278,7 @@ export class SearchController extends Controller<'main'> {
       if (it.source === 'cpu') {
         trackId = cpuToTrackId.get(it.sourceId);
       } else if (it.source === 'track') {
-        trackId = globals.state.trackKeyByTrackId[it.sourceId];
+        trackId = globals.trackManager.trackKeyByTrackId.get(it.sourceId);
       } else if (it.source === 'log') {
         const logTracks =
             Object.values(globals.state.tracks).filter((track) => {

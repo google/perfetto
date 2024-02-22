@@ -178,7 +178,7 @@ export function getCauseLink(
   dur: duration|undefined): m.Child {
   const trackKeys: string[] = [];
   for (const trackId of threadTracks.trackIds) {
-    const trackKey = globals.state.trackKeyByTrackId[trackId];
+    const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);
     if (trackKey === undefined) {
       return `Could not locate track ${trackId} for thread ${
         threadTracks.thread} in the global state`;
