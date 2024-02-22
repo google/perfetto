@@ -166,7 +166,7 @@ class TraceViewer implements m.ClassComponent {
                   Time.max(newTime, visibleTimeScale.timeSpan.start.toTime());
             } else {
               newTime =
-                  Time.max(newTime, visibleTimeScale.timeSpan.end.toTime());
+                  Time.min(newTime, visibleTimeScale.timeSpan.end.toTime());
             }
             // When editing the time range we always use the saved tracks,
             // since these will not change.
