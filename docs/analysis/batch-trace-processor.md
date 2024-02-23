@@ -127,7 +127,7 @@ to lookup the traces to be parsed.
 By default, batch trace processor only ships with a single resolver which knows
 how to lookup filesystem paths: however, custom resolvers can be easily
 created and registered. See the documentation on the
-[TraceUriResolver class](https://cs.android.com/android/platform/superproject/+/master:external/perfetto/python/perfetto/trace_uri_resolver/resolver.py;l=56?q=resolver.py)
+[TraceUriResolver class](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/python/perfetto/trace_uri_resolver/resolver.py;l=56?q=resolver.py)
 for information on how to do this.
 
 ## Memory usage
