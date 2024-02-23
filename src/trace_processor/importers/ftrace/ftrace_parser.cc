@@ -26,9 +26,9 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
-#include "src/trace_processor/importers/ftrace/thread_state_tracker.h"
 #include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
 #include "src/trace_processor/importers/i2c/i2c_tracker.h"
@@ -1119,10 +1119,11 @@ base::Status FtraceParser::ParseInlineSchedSwitch(
   }
 
   using protos::pbzero::FtraceEvent;
-  SchedEventTracker* sched_tracker = SchedEventTracker::GetOrCreate(context_);
-  sched_tracker->PushSchedSwitchCompact(cpu, ts, data.prev_state,
-                                        static_cast<uint32_t>(data.next_pid),
-                                        data.next_prio, data.next_comm);
+  FtraceSchedEventTracker* ftrace_sched_tracker =
+      FtraceSchedEventTracker::GetOrCreate(context_);
+  ftrace_sched_tracker->PushSchedSwitchCompact(
+      cpu, ts, data.prev_state, static_cast<uint32_t>(data.next_pid),
+      data.next_prio, data.next_comm);
   return util::OkStatus();
 }
 
@@ -1137,8 +1138,9 @@ base::Status FtraceParser::ParseInlineSchedWaking(
     return util::OkStatus();
   }
   using protos::pbzero::FtraceEvent;
-  SchedEventTracker* sched_tracker = SchedEventTracker::GetOrCreate(context_);
-  sched_tracker->PushSchedWakingCompact(
+  FtraceSchedEventTracker* ftrace_sched_tracker =
+      FtraceSchedEventTracker::GetOrCreate(context_);
+  ftrace_sched_tracker->PushSchedWakingCompact(
       cpu, ts, static_cast<uint32_t>(data.pid), data.target_cpu, data.prio,
       data.comm, data.common_flags);
   return util::OkStatus();
@@ -1320,7 +1322,7 @@ void FtraceParser::ParseSchedSwitch(uint32_t cpu,
   protos::pbzero::SchedSwitchFtraceEvent::Decoder ss(blob.data, blob.size);
   uint32_t prev_pid = static_cast<uint32_t>(ss.prev_pid());
   uint32_t next_pid = static_cast<uint32_t>(ss.next_pid());
-  SchedEventTracker::GetOrCreate(context_)->PushSchedSwitch(
+  FtraceSchedEventTracker::GetOrCreate(context_)->PushSchedSwitch(
       cpu, timestamp, prev_pid, ss.prev_comm(), ss.prev_prio(), ss.prev_state(),
       next_pid, ss.next_comm(), ss.next_prio());
 }
