@@ -87,9 +87,6 @@ class CpuReader {
     // of this many pages. In other words, we'll read up to
     // |kFtraceDataBufSizePages| into memory, parse them, and then repeat if we
     // still haven't caught up to the writer.
-    // TODO(rsavitski): consider making buffering & parsing page counts
-    // independent, should be a single counter in the cpu_reader, similar to
-    // lost_events case.
     static constexpr size_t kFtraceDataBufSizePages = 32;
 
     uint8_t* ftrace_data_buf() const {
@@ -180,6 +177,12 @@ class CpuReader {
             protos::pbzero::FtraceClock ftrace_clock,
             const FtraceClockSnapshot* ftrace_clock_snapshot);
   ~CpuReader();
+
+  // move-only
+  CpuReader(const CpuReader&) = delete;
+  CpuReader& operator=(const CpuReader&) = delete;
+  CpuReader(CpuReader&&) = default;
+  CpuReader& operator=(CpuReader&&) = default;
 
   // Reads and parses all ftrace data for this cpu (in batches), until we catch
   // up to the writer, or hit |max_pages|. Returns number of pages read.
@@ -375,10 +378,10 @@ class CpuReader {
       const FtraceClockSnapshot* ftrace_clock_snapshot,
       protos::pbzero::FtraceClock ftrace_clock);
 
- private:
-  CpuReader(const CpuReader&) = delete;
-  CpuReader& operator=(const CpuReader&) = delete;
+  // For FtraceController, which manages poll callbacks on per-cpu buffer fds.
+  int RawBufferFd() const { return trace_fd_.get(); }
 
+ private:
   // Reads at most |max_pages| of ftrace data, parses it, and writes it
   // into |started_data_sources|. Returns number of pages read.
   // See comment on ftrace_controller.cc:kMaxParsingWorkingSetPages for
@@ -390,12 +393,12 @@ class CpuReader {
       CompactSchedBuffer* compact_sched_buf,
       const std::set<FtraceDataSource*>& started_data_sources);
 
-  const size_t cpu_;
-  const ProtoTranslationTable* const table_;
-  LazyKernelSymbolizer* const symbolizer_;
+  size_t cpu_;
+  const ProtoTranslationTable* table_;
+  LazyKernelSymbolizer* symbolizer_;
   base::ScopedFile trace_fd_;
   protos::pbzero::FtraceClock ftrace_clock_{};
-  const FtraceClockSnapshot* const ftrace_clock_snapshot_;
+  const FtraceClockSnapshot* ftrace_clock_snapshot_;
 };
 
 }  // namespace perfetto

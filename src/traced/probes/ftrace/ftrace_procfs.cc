@@ -21,8 +21,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <fstream>
-#include <sstream>
 #include <string>
 
 #include "perfetto/base/logging.h"
@@ -513,6 +511,19 @@ std::set<std::string> FtraceProcfs::AvailableClocks() {
   }
 
   return names;
+}
+
+uint32_t FtraceProcfs::ReadBufferPercent() {
+  std::string path = root_ + "buffer_percent";
+  std::string raw = ReadFileIntoString(path);
+  std::optional<uint32_t> percent =
+      base::StringToUInt32(base::StripSuffix(raw, "\n"));
+  return percent.has_value() ? *percent : 0;
+}
+
+bool FtraceProcfs::SetBufferPercent(uint32_t percent) {
+  std::string path = root_ + "buffer_percent";
+  return WriteNumberToFile(path, percent);
 }
 
 bool FtraceProcfs::WriteNumberToFile(const std::string& path, size_t value) {

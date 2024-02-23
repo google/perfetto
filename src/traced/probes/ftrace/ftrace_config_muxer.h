@@ -41,24 +41,24 @@ struct FtraceSetupErrors;
 // State held by the muxer per data source, used to parse ftrace according to
 // that data source's config.
 struct FtraceDataSourceConfig {
-  FtraceDataSourceConfig(EventFilter _event_filter,
-                         EventFilter _syscall_filter,
-                         CompactSchedConfig _compact_sched,
-                         std::optional<FtracePrintFilterConfig> _print_filter,
-                         std::vector<std::string> _atrace_apps,
-                         std::vector<std::string> _atrace_categories,
-                         bool _symbolize_ksyms,
-                         bool _preserve_ftrace_buffer,
-                         base::FlatSet<int64_t> _syscalls_returning_fd)
-      : event_filter(std::move(_event_filter)),
-        syscall_filter(std::move(_syscall_filter)),
-        compact_sched(_compact_sched),
-        print_filter(std::move(_print_filter)),
-        atrace_apps(std::move(_atrace_apps)),
-        atrace_categories(std::move(_atrace_categories)),
-        symbolize_ksyms(_symbolize_ksyms),
-        preserve_ftrace_buffer(_preserve_ftrace_buffer),
-        syscalls_returning_fd(std::move(_syscalls_returning_fd)) {}
+  FtraceDataSourceConfig(EventFilter event_filter_in,
+                         EventFilter syscall_filter_in,
+                         CompactSchedConfig compact_sched_in,
+                         std::optional<FtracePrintFilterConfig> print_filter_in,
+                         std::vector<std::string> atrace_apps_in,
+                         std::vector<std::string> atrace_categories_in,
+                         bool symbolize_ksyms_in,
+                         uint32_t buffer_percent_in,
+                         base::FlatSet<int64_t> syscalls_returning_fd_in)
+      : event_filter(std::move(event_filter_in)),
+        syscall_filter(std::move(syscall_filter_in)),
+        compact_sched(compact_sched_in),
+        print_filter(std::move(print_filter_in)),
+        atrace_apps(std::move(atrace_apps_in)),
+        atrace_categories(std::move(atrace_categories_in)),
+        symbolize_ksyms(symbolize_ksyms_in),
+        buffer_percent(buffer_percent_in),
+        syscalls_returning_fd(std::move(syscalls_returning_fd_in)) {}
   // The event filter allows to quickly check if a certain ftrace event with id
   // x is enabled for this data source.
   EventFilter event_filter;
@@ -81,8 +81,8 @@ struct FtraceDataSourceConfig {
   // When enabled will turn on the kallsyms symbolizer in CpuReader.
   const bool symbolize_ksyms;
 
-  // Does not clear previous traces.
-  const bool preserve_ftrace_buffer;
+  // FtraceConfig.drain_buffer_percent for poll-based reads. Zero if unset.
+  const uint32_t buffer_percent;
 
   // List of syscalls monitored to return a new filedescriptor upon success
   base::FlatSet<int64_t> syscalls_returning_fd;
@@ -196,6 +196,7 @@ class FtraceConfigMuxer {
 
   void SetupClock(const FtraceConfig& request);
   void SetupBufferSize(const FtraceConfig& request);
+  bool UpdateBufferPercent();
   void UpdateAtrace(const FtraceConfig& request, std::string* atrace_errors);
   void DisableAtrace();
 
