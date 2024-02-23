@@ -22,7 +22,6 @@
 #include <unistd.h>
 
 #include <bitset>
-#include <unordered_map>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"

@@ -81,7 +81,7 @@ FtraceDataSourceConfig EmptyConfig() {
                                 {},
                                 {},
                                 false /*symbolize_ksyms*/,
-                                false /*preserve_ftrace_buffer*/,
+                                50u,
                                 {}};
 }
 
