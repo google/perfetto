@@ -375,6 +375,7 @@ export const StateActions = {
         `${track.name}\n\n${track.description}` :
         track.name;
       state.tracks[id] = track as TrackState;
+      state.tracks[id].scaleFactor=1;
       this.fillUiTrackIdByTraceTrackId(state, track as TrackState, id);
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
         state.scrollingTracks.push(id);
@@ -408,6 +409,7 @@ export const StateActions = {
       title: args.title,
       description,
       trackSortKey: args.trackSortKey,
+      scaleFactor: 1,
       trackGroup: args.trackGroup,
       config: args.config,
     };

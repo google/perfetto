@@ -160,7 +160,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
 }
 
 const MARGIN_TOP = 3;
-const RECT_HEIGHT = 12;
+const RECT_HEIGHT = 18;
 const EXCESS_WIDTH = 10;
 
 class ThreadStateTrack extends Track<Config, Data> {
@@ -171,10 +171,11 @@ class ThreadStateTrack extends Track<Config, Data> {
 
   constructor(args: NewTrackArgs) {
     super(args);
+    this.supportsResizing = true;
   }
 
   getHeight(): number {
-    return 2 * MARGIN_TOP + RECT_HEIGHT;
+    return 2 * MARGIN_TOP + RECT_HEIGHT * this.trackState.scaleFactor;
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
@@ -184,6 +185,9 @@ class ThreadStateTrack extends Track<Config, Data> {
       windowSpan,
     } = globals.frontendLocalState;
     const data = this.data();
+    ctx.font =
+      Math.floor(RECT_HEIGHT * this.trackState.scaleFactor * 2 / 3) +
+      'px Roboto Condensed';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     if (data === undefined) return;  // Can't possibly draw anything.
@@ -202,7 +206,6 @@ class ThreadStateTrack extends Track<Config, Data> {
     );
 
     ctx.textAlign = 'center';
-    ctx.font = '10px Roboto Condensed';
 
     for (let i = 0; i < data.starts.length; i++) {
       // NOTE: Unlike userspace and scheduling slices, thread state slices are
@@ -240,14 +243,22 @@ class ThreadStateTrack extends Track<Config, Data> {
       }
       ctx.fillStyle = colorStr;
 
-      ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+      ctx.fillRect(
+        rectStart,
+        MARGIN_TOP,
+        rectWidth,
+        RECT_HEIGHT * this.trackState.scaleFactor,
+        );
 
       // Don't render text when we have less than 10px to play with.
       if (rectWidth < 10 || state === 'Sleeping') continue;
       const title = cropText(state, charWidth, rectWidth);
       const rectXCenter = rectStart + rectWidth / 2;
       ctx.fillStyle = color.l > 80 ? '#404040' : '#fff';
-      ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
+      ctx.fillText(
+        title,
+        rectXCenter,
+        MARGIN_TOP + RECT_HEIGHT * this.trackState.scaleFactor * 2 / 3);
 
       if (isSelected) {
         drawRectOnSelected = () => {
@@ -263,7 +274,7 @@ class ThreadStateTrack extends Track<Config, Data> {
               rectStart,
               MARGIN_TOP - 1.5,
               rectEnd - rectStart,
-              RECT_HEIGHT + 3);
+              RECT_HEIGHT * this.trackState.scaleFactor + 3);
           ctx.closePath();
         };
       }

@@ -222,7 +222,7 @@ class CounterTrackController extends TrackController<Config, Data> {
 
 // 0.5 Makes the horizontal lines sharp.
 const MARGIN_TOP = 3.5;
-const RECT_HEIGHT = 24.5;
+const RECT_HEIGHT = 25.5;
 
 class CounterTrack extends Track<Config, Data> {
   static readonly kind = COUNTER_TRACK_KIND;
@@ -237,10 +237,11 @@ class CounterTrack extends Track<Config, Data> {
 
   constructor(args: NewTrackArgs) {
     super(args);
+    this.supportsResizing = true;
   }
 
   getHeight() {
-    return MARGIN_TOP + RECT_HEIGHT;
+    return MARGIN_TOP + (RECT_HEIGHT * this.trackState.scaleFactor);
   }
 
   getContextMenu(): m.Vnode<any> {
@@ -324,7 +325,8 @@ class CounterTrack extends Track<Config, Data> {
     }
 
     const endPx = windowSpan.end;
-    const zeroY = MARGIN_TOP + RECT_HEIGHT / (minimumValue < 0 ? 2 : 1);
+    const zeroY = MARGIN_TOP + (RECT_HEIGHT * this.trackState.scaleFactor) /
+     (minimumValue < 0 ? 2 : 1);
 
     // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
     const maxValue = Math.max(maximumValue, 0);
@@ -371,8 +373,9 @@ class CounterTrack extends Track<Config, Data> {
       return Math.floor(timeScale.tpTimeToPx(ts));
     };
     const calculateY = (value: number) => {
-      return MARGIN_TOP + RECT_HEIGHT -
-          Math.round(((value - yMin) / yRange) * RECT_HEIGHT);
+      return MARGIN_TOP + (RECT_HEIGHT * this.trackState.scaleFactor) -
+          Math.round(((value - yMin) / yRange) *
+            RECT_HEIGHT * this.trackState.scaleFactor);
     };
 
     ctx.beginPath();
@@ -433,8 +436,9 @@ class CounterTrack extends Track<Config, Data> {
       const xEnd = this.hoveredTsEnd === undefined ?
           endPx :
           Math.floor(timeScale.tpTimeToPx(this.hoveredTsEnd));
-      const y = MARGIN_TOP + RECT_HEIGHT -
-          Math.round(((this.hoveredValue - yMin) / yRange) * RECT_HEIGHT);
+      const y = MARGIN_TOP + (RECT_HEIGHT * this.trackState.scaleFactor) -
+          Math.round(((this.hoveredValue - yMin) / yRange) * RECT_HEIGHT *
+          this.trackState.scaleFactor);
 
       // Highlight line.
       ctx.beginPath();

@@ -76,8 +76,13 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
   private dropping: 'before'|'after'|undefined = undefined;
   private attrs?: TrackShellAttrs;
 
+  private initialHeight?: number;
+
   oninit(vnode: m.Vnode<TrackShellAttrs>) {
     this.attrs = vnode.attrs;
+    if (this.attrs) {
+      this.initialHeight = this.attrs.track.getHeight();
+    }
   }
 
   view({attrs}: m.CVnode<TrackShellAttrs>) {
@@ -105,6 +110,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
 
     const dragClass = this.dragging ? `drag` : '';
     const dropClass = this.dropping ? `drop-${this.dropping}` : '';
+
+
     return m(
         `.track-shell[draggable=true]`,
         {
@@ -118,6 +125,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           ondragover: this.ondragover.bind(this),
           ondragleave: this.ondragleave.bind(this),
           ondrop: this.ondrop.bind(this),
+          onmousemove: this.onmousemove.bind(this),
+          onmouseleave: this.onmouseleave.bind(this),
         },
         m(
             'h1',
@@ -160,15 +169,61 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               ''));
   }
 
+  onmousemove(e: MouseEvent) {
+    if (this.attrs?.track.supportsResizing) {
+      if (e.currentTarget instanceof HTMLElement &&
+        e.offsetY >= e.currentTarget.scrollHeight - 5) {
+          e.currentTarget.style.cursor = 'row-resize';
+      } else if (e.currentTarget instanceof HTMLElement) {
+        e.currentTarget.style.cursor = 'unset';
+      }
+    }
+  }
+  onmouseleave(e: MouseEvent) {
+    if (this.attrs?.track.supportsResizing &&
+        e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.cursor = 'unset';
+    }
+  }
+
   ondragstart(e: DragEvent) {
-    const dataTransfer = e.dataTransfer;
-    if (dataTransfer === null) return;
-    this.dragging = true;
-    e.stopPropagation();
-    globals.rafScheduler.scheduleFullRedraw();
-    dataTransfer.effectAllowed = 'move';
-    dataTransfer.setData('perfetto/track/' + this.attrs!.trackState.id, `${this.attrs!.trackState.id}`);
-    dataTransfer.setDragImage(new Image(), 0, 0);
+    if (this.attrs?.track.supportsResizing &&
+      e.target instanceof HTMLElement &&
+      e.offsetY >= e.target.scrollHeight - 5) {
+        e.stopPropagation();
+        e.preventDefault();
+        let y = e.offsetY;
+        let previousClientY = e.clientY;
+        const mouseMoveEvent = (evMove: MouseEvent): void => {
+            evMove.preventDefault();
+            y += (evMove.clientY -previousClientY);
+            previousClientY = evMove.clientY;
+            if (this.attrs && this.initialHeight) {
+              const newMultiplier = y / this.initialHeight;
+              if (newMultiplier < 1) {
+                this.attrs.trackState.scaleFactor = 1;
+              } else {
+                this.attrs.trackState.scaleFactor = newMultiplier;
+              }
+              globals.rafScheduler.scheduleFullRedraw();
+            }
+        };
+        const mouseUpEvent = (): void => {
+            document.removeEventListener('mousemove', mouseMoveEvent);
+            document.removeEventListener('mouseup', mouseUpEvent);
+        };
+        document.addEventListener('mousemove', mouseMoveEvent);
+        document.addEventListener('mouseup', mouseUpEvent);
+    } else {
+      const dataTransfer = e.dataTransfer;
+      if (dataTransfer === null) return;
+      this.dragging = true;
+      e.stopPropagation();
+      globals.rafScheduler.scheduleFullRedraw();
+        dataTransfer.effectAllowed = 'move';
+        dataTransfer.setData('perfetto/track/' + this.attrs!.trackState.id, `${this.attrs!.trackState.id}`);
+        dataTransfer.setDragImage(new Image(), 0, 0);
+    }
   }
 
   ondragend() {

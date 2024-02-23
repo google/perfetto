@@ -21,6 +21,7 @@ export class NullTrack extends Track {
   static readonly kind = NULL_TRACK_KIND;
   constructor(args: NewTrackArgs) {
     super(args);
+    this.supportsResizing = true;
     this.frontendOnly = true;
   }
 
@@ -29,7 +30,7 @@ export class NullTrack extends Track {
   }
 
   getHeight(): number {
-    return 30;
+    return 30 * this.trackState.scaleFactor;
   }
 
   renderCanvas(_: CanvasRenderingContext2D): void {}

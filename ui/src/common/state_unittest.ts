@@ -30,6 +30,7 @@ test('getContainingTrackId', () => {
     name: 'a track',
     description: 'this is a track',
     trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
+    scaleFactor: 1,
     config: {},
   };
 
@@ -40,6 +41,7 @@ test('getContainingTrackId', () => {
     name: 'b track',
     description: 'this is another track',
     trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
+    scaleFactor: 1,
     config: {},
     trackGroup: 'containsB',
   };
