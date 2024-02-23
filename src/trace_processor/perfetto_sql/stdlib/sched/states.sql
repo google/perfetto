@@ -17,8 +17,7 @@
 -- cases which thread_state.ts handles (as complex strings manipulations in
 -- SQL are pretty painful), but they are pretty niche.
 
--- Translates the thread state name from a single-letter shorthard to
--- a human-readable name.
+-- Translates a single-letter scheduling state to a human-readable string.
 CREATE PERFETTO FUNCTION sched_state_to_human_readable_string(
   -- An individual character string representing the scheduling state of the
   -- kernel thread at the end of the slice.
@@ -50,41 +49,24 @@ WHEN 'N' THEN 'No Load'
 ELSE $short_name
 END;
 
--- Creates a table with humanly readable sched state names with IO waits.
--- Translates the individual characters in the string to the following: R
--- (runnable), S (awaiting a wakeup), D (in an uninterruptible sleep), T
--- (suspended), t (being traced), X (exiting), P (parked), W (waking), I
--- (idle), N (not contributing to the load average), K (wakeable on fatal
--- signals) and Z (zombie, awaiting cleanup). Adds the IO wait (IO/non
--- IO/nothing) based on the value in the `io_wait_column`.
-CREATE PERFETTO MACRO sched_state_full_name(
-  -- Table with columns required for translation and `id` column for joins.
-  states_table TableOrSubquery,
-  -- Column in `states_table` with single character version of sched state
-  -- string.
-  sched_name_column ColumnName,
-  -- Column in `states_table` with 0 for IO and 1 for non-IO states. Can be
-  -- a dummy (no real values), and no value from there would be added to the
-  -- resulting strings.
-  io_wait_column ColumnName
+-- Translates a single-letter scheduling state and IO wait information to
+-- a human-readable string.
+CREATE PERFETTO FUNCTION sched_state_io_to_human_readable_string(
+  -- An individual character string representing the scheduling state of the
+  -- kernel thread at the end of the slice.
+  sched_state STRING,
+  -- A (posssibly NULL) boolean indicating, if the device was in uninterruptible
+  -- sleep, if it was an IO sleep.
+  io_wait BOOL
 )
--- Table with the schema (id UINT32, ts UINT64, sched_state_full_name STRING).
-RETURNS TableOrSubquery AS
-(
-  WITH data AS
-  (
-    SELECT
-      id,
-      sched_state_to_human_readable_string($sched_name_column) AS sched_state_name,
-      (CASE $io_wait_column
-        WHEN 1 THEN ' (IO)'
-        WHEN 0 THEN ' (non-IO)'
-        ELSE ''
-      END) AS io_wait
-    FROM $states_table
-  )
-  SELECT
-    id,
-    printf('%s%s', sched_state_name, io_wait) AS sched_state_full_name
-  FROM data
+-- A human readable string with information about the scheduling state and IO wait.
+RETURNS STRING AS
+SELECT printf(
+  '%s%s',
+  sched_state_to_human_readable_string($sched_state),
+  CASE $io_wait
+    WHEN 1 THEN ' (IO)'
+    WHEN 0 THEN ' (non-IO)'
+    ELSE ''
+  END
 );
