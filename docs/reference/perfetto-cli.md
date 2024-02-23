@@ -100,7 +100,7 @@ This is followed by a list of event specifiers:
 :    Specifies the atrace categories you want to record a trace for.
      For example, the following command traces Window Manager using atrace:
      `adb shell perfetto --out FILE wm`. To record other categories, see the
-     [list of atrace categories](https://cs.android.com/android/platform/superproject/+/main:frameworks/native/cmds/atrace/atrace.cpp).
+     [list of atrace categories](https://cs.android.com/android/platform/superproject/main/+/main:frameworks/native/cmds/atrace/atrace.cpp).
      Note: Available categories are Android version dependent.
 
 `FTRACE_GROUP/FTRACE_NAME`
