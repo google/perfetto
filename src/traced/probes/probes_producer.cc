@@ -18,8 +18,6 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
-#include <algorithm>
-#include <queue>
 #include <string>
 
 #include "perfetto/base/logging.h"
@@ -50,12 +48,6 @@
 #include "src/traced/probes/statsd_client/statsd_binder_data_source.h"
 #include "src/traced/probes/sys_stats/sys_stats_data_source.h"
 #include "src/traced/probes/system_info/system_info_data_source.h"
-
-#include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
-#include "protos/perfetto/trace/filesystem/inode_file_map.pbzero.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
-#include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace {

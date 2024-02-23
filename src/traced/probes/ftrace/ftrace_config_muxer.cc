@@ -23,11 +23,13 @@
 
 #include <algorithm>
 #include <iterator>
+#include <limits>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
+#include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -765,12 +767,11 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   std::vector<std::string> categories(request.atrace_categories());
   ds_configs_.emplace(
       std::piecewise_construct, std::forward_as_tuple(id),
-      std::forward_as_tuple(std::move(filter), std::move(syscall_filter),
-                            compact_sched, std::move(ftrace_print_filter),
-                            std::move(apps), std::move(categories),
-                            request.symbolize_ksyms(),
-                            request.preserve_ftrace_buffer(),
-                            GetSyscallsReturningFds(syscalls_)));
+      std::forward_as_tuple(
+          std::move(filter), std::move(syscall_filter), compact_sched,
+          std::move(ftrace_print_filter), std::move(apps),
+          std::move(categories), request.symbolize_ksyms(),
+          request.drain_buffer_percent(), GetSyscallsReturningFds(syscalls_)));
   return true;
 }
 
@@ -780,16 +781,25 @@ bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
     return false;
   }
 
-  // Enable tracing_on to activate ftrace ring buffer before activate the first
-  // config.
-  if (active_configs_.empty()) {
+  bool first_config = active_configs_.empty();
+  active_configs_.insert(id);
+
+  // Pick the lowest buffer_percent across the new set of active configs.
+  if (!UpdateBufferPercent()) {
+    PERFETTO_ELOG(
+        "Invalid FtraceConfig.drain_buffer_percent or "
+        "/sys/kernel/tracing/buffer_percent file permissions.");
+    // carry on, non-critical error
+  }
+
+  // Enable kernel event writer.
+  if (first_config) {
     if (!ftrace_->SetTracingOn(true)) {
       PERFETTO_ELOG("Failed to enable ftrace.");
+      active_configs_.erase(id);
       return false;
     }
   }
-
-  active_configs_.insert(id);
   return true;
 }
 
@@ -849,12 +859,16 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
     }
   }
 
+  // Update buffer_percent to the minimum of the remaining configs.
+  UpdateBufferPercent();
+
   // Even if we don't have any other active configs, we might still have idle
   // configs around. Tear down the rest of the ftrace config only if all
   // configs are removed.
   if (ds_configs_.empty()) {
     if (ftrace_->SetCpuBufferSizeInPages(1))
       current_state_.cpu_buffer_size_pages = 1;
+    ftrace_->SetBufferPercent(50);
     ftrace_->DisableAllEvents();
     ftrace_->ClearTrace();
     ftrace_->SetTracingOn(current_state_.saved_tracing_on);
@@ -952,6 +966,23 @@ void FtraceConfigMuxer::SetupBufferSize(const FtraceConfig& request) {
 
 size_t FtraceConfigMuxer::GetPerCpuBufferSizePages() {
   return current_state_.cpu_buffer_size_pages;
+}
+
+// If new_cfg_id is set, consider it in addition to already active configs
+// as we're trying to activate it.
+bool FtraceConfigMuxer::UpdateBufferPercent() {
+  uint32_t kUnsetPercent = std::numeric_limits<uint32_t>::max();
+  uint32_t min_percent = kUnsetPercent;
+  for (auto cfg_id : active_configs_) {
+    auto ds_it = ds_configs_.find(cfg_id);
+    if (ds_it != ds_configs_.end() && ds_it->second.buffer_percent > 0) {
+      min_percent = std::min(min_percent, ds_it->second.buffer_percent);
+    }
+  }
+  if (min_percent == kUnsetPercent)
+    return true;
+  // Let the kernel ignore values >100.
+  return ftrace_->SetBufferPercent(min_percent);
 }
 
 void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request,
