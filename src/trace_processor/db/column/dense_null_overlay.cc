@@ -64,7 +64,7 @@ SingleSearchResult DenseNullOverlay::ChainImpl::SingleSearch(
 SearchValidationResult DenseNullOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue sql_val) const {
-  if (op == FilterOp::kIsNull) {
+  if (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull) {
     return SearchValidationResult::kOk;
   }
   return inner_->ValidateSearchConstraints(op, sql_val);
@@ -88,6 +88,15 @@ RangeOrBitVector DenseNullOverlay::ChainImpl::SearchValidated(FilterOp op,
       }
       case SearchValidationResult::kAllData:
         return RangeOrBitVector(in);
+      case SearchValidationResult::kOk:
+        break;
+    }
+  } else if (op == FilterOp::kIsNotNull) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
+      case SearchValidationResult::kNoData:
+        return RangeOrBitVector(Range());
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(non_null_->IntersectRange(in.start, in.end));
       case SearchValidationResult::kOk:
         break;
     }
