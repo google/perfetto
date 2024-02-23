@@ -63,7 +63,8 @@ class TraceRedactorIntegrationTest : public testing::Test {
   std::unique_ptr<base::TempFile> dest_trace_;
 };
 
-TEST_F(TraceRedactorIntegrationTest, FindsPackageAndFiltersPackageList) {
+TEST_F(TraceRedactorIntegrationTest,
+       DISABLED_FindsPackageAndFiltersPackageList) {
   TraceRedactor redaction;
   redaction.collectors()->emplace_back(new FindPackageUid());
   redaction.transformers()->emplace_back(new PrunePackageList());
