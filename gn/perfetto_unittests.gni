@@ -86,4 +86,6 @@ if (enable_perfetto_traced_relay) {
   perfetto_unittests_targets += [ "src/traced_relay:unittests" ]
 }
 
-perfetto_unittests_targets += [ "src/trace_redaction:unittests" ]
+if (!is_win) {
+  perfetto_unittests_targets += [ "src/trace_redaction:unittests" ]
+}
