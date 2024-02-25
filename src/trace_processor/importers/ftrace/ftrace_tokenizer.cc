@@ -133,7 +133,7 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
       clock_id = BuiltinClock::BUILTIN_CLOCK_BOOTTIME;
       break;
     case FtraceClock::FTRACE_CLOCK_GLOBAL:
-      clock_id = ClockTracker::SeqenceToGlobalClock(
+      clock_id = ClockTracker::SequenceToGlobalClock(
           packet_sequence_id, kFtraceGlobalClockIdForOldKernels);
       break;
     case FtraceClock::FTRACE_CLOCK_MONO_RAW:
@@ -376,7 +376,7 @@ void FtraceTokenizer::HandleFtraceClockSnapshot(int64_t ftrace_ts,
     return;
   latest_ftrace_clock_snapshot_ts_ = ftrace_ts;
 
-  ClockTracker::ClockId global_id = ClockTracker::SeqenceToGlobalClock(
+  ClockTracker::ClockId global_id = ClockTracker::SequenceToGlobalClock(
       packet_sequence_id, kFtraceGlobalClockIdForOldKernels);
   context_->clock_tracker->AddSnapshot(
       {ClockTracker::ClockTimestamp(global_id, ftrace_ts),
