@@ -350,6 +350,14 @@ class BitVector {
     return bv;
   }
 
+  // Creates BitVector from a vector of sorted indices. Set bits in the
+  // resulting BitVector are values from the index vector.
+  // Note for callers - the passed index vector has to:
+  // - be sorted
+  // - have first element >= 0
+  // - last value smaller than numeric limit of uint32_t.
+  static BitVector FromSortedIndexVector(const std::vector<int64_t>&);
+
   // Creates a BitVector of size `min(range_end, size())` with bits between
   // |start| and |end| filled with corresponding bits from |this| BitVector.
   BitVector IntersectRange(uint32_t range_start, uint32_t range_end) const;

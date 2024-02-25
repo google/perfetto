@@ -297,6 +297,37 @@ void BitVector::UpdateSetBits(const BitVector& update) {
   PERFETTO_DCHECK(update.CountSetBits() == CountSetBits());
 }
 
+BitVector BitVector::FromSortedIndexVector(
+    const std::vector<int64_t>& indices) {
+  // The rest of the algorithm depends on |indices| being non empty.
+  if (indices.empty()) {
+    return BitVector();
+  }
+
+  // We are creating the smallest BitVector that can have all of the values from
+  // |indices| set. As we assume that |indices| is sorted, the size would be the
+  // last element + 1 and the last bit of the final BitVector will be set.
+  uint32_t size = static_cast<uint32_t>(indices.back() + 1);
+
+  uint32_t block_count = BlockCount(size);
+  std::vector<uint64_t> words(block_count * Block::kWords);
+  for (const int64_t i : indices) {
+    auto word_idx = static_cast<uint32_t>(i / kBitsInWord);
+    auto in_word_idx = static_cast<uint32_t>(i % kBitsInWord);
+    BitVector::BitWord(&words[word_idx]).Set(in_word_idx);
+  }
+
+  std::vector<uint32_t> counts(block_count);
+  for (uint32_t i = 1; i < counts.size(); ++i) {
+    // The number of set bits in each block is the number of set bits before and
+    // in the previous block.
+    counts[i] = counts[i - 1] +
+                ConstBlock(&words[Block::kWords * (i - 1)]).CountSetBits();
+  }
+
+  return BitVector(words, counts, size);
+}
+
 BitVector BitVector::IntersectRange(uint32_t range_start,
                                     uint32_t range_end) const {
   // We should skip all bits until the index of first set bit bigger than
