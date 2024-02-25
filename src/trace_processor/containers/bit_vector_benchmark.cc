@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <limits>
 #include <random>
 
 #include <benchmark/benchmark.h>
@@ -278,3 +279,17 @@ static void BM_BitVectorSetBitsIterator(benchmark::State& state) {
   }
 }
 BENCHMARK(BM_BitVectorSetBitsIterator)->Apply(BitVectorArgs);
+
+static void BM_BitVectorFromIndexVector(benchmark::State& state) {
+  std::vector<int64_t> indices;
+  for (int64_t i = 0; i < 1024l * 1024l; i++) {
+    indices.push_back(i);
+  }
+
+  indices.push_back(std::numeric_limits<uint32_t>::max() >> 5);
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(BitVector::FromSortedIndexVector(indices));
+  }
+}
+BENCHMARK(BM_BitVectorFromIndexVector);
