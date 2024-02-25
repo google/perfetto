@@ -145,9 +145,9 @@ namespace stats {
   F(traced_buf_padding_bytes_written,     kIndexed, kInfo,     kTrace,    ""), \
   F(traced_buf_patches_failed,            kIndexed, kDataLoss, kTrace,         \
       "The tracing service potentially lost data from one of the data sources "\
-      "writing into the given target_buffer. This entry can be ignored"        \
-      "if you're using DISCARD buffers and traced_buf_chunks_discarded is      \
-      nonzero, meaning that the buffer was filled."),                          \
+      "writing into the given target_buffer. This entry can be ignored "       \
+      "if you're using DISCARD buffers and traced_buf_chunks_discarded is "    \
+      "nonzero, meaning that the buffer was filled."),                         \
   F(traced_buf_patches_succeeded,         kIndexed, kInfo,     kTrace,    ""), \
   F(traced_buf_readaheads_failed,         kIndexed, kInfo,     kTrace,    ""), \
   F(traced_buf_readaheads_succeeded,      kIndexed, kInfo,     kTrace,    ""), \
