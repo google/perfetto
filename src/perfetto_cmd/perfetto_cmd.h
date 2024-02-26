@@ -82,6 +82,7 @@ class PerfettoCmd : public Consumer {
   void FinalizeTraceAndExit();
   void PrintUsage(const char* argv0);
   void PrintServiceState(bool success, const TracingServiceState&);
+  void CloneAllBugreportTraces(bool success, const TracingServiceState&);
   void CloneSessionOnThread(TracingSessionID,
                             const std::string& cmdline,  // \0 separated.
                             CloneThreadMode,
@@ -162,6 +163,7 @@ class PerfettoCmd : public Consumer {
   bool query_service_ = false;
   bool query_service_output_raw_ = false;
   bool query_service_long_ = false;
+  bool clone_all_bugreport_traces_ = false;
   bool bugreport_ = false;
   bool background_ = false;
   bool background_wait_ = false;

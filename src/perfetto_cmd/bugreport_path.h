@@ -25,14 +25,19 @@
 namespace perfetto {
 
 // Expose for testing
-inline std::string GetBugreportTracePath() {
+
+inline std::string GetBugreportTraceDir() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
     PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-  return "/data/misc/perfetto-traces/bugreport/systrace.pftrace";
+  return "/data/misc/perfetto-traces/bugreport";
 #else
   // Only for tests, SaveTraceForBugreport is not used on other OSes.
-  return base::GetSysTempDir() + "/bugreport.pftrace";
+  return base::GetSysTempDir();
 #endif
+}
+
+inline std::string GetBugreportTracePath() {
+  return GetBugreportTraceDir() + "/systrace.pftrace";
 }
 
 }  // namespace perfetto

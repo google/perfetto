@@ -60,6 +60,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/version.h"
+#include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
@@ -86,7 +87,7 @@ namespace {
 std::atomic<perfetto::PerfettoCmd*> g_perfetto_cmd;
 
 const uint32_t kOnTraceDataTimeoutMs = 3000;
-const uint32_t kCloneTimeoutMs = 10000;
+const uint32_t kCloneTimeoutMs = 30000;
 
 class LoggingErrorReporter : public ErrorReporter {
  public:
@@ -294,6 +295,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   enum LongOption {
     OPT_ALERT_ID = 1000,
     OPT_BUGREPORT,
+    OPT_BUGREPORT_ALL,
     OPT_CLONE,
     OPT_CLONE_SKIP_FILTER,
     OPT_CONFIG_ID,
@@ -343,6 +345,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"query-raw", no_argument, nullptr, OPT_QUERY_RAW},
       {"version", no_argument, nullptr, OPT_VERSION},
       {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
+      {"save-all-for-bugreport", no_argument, nullptr, OPT_BUGREPORT_ALL},
       {nullptr, 0, nullptr, 0}};
 
   std::string config_file_name;
@@ -565,6 +568,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       continue;
     }
 
+    if (option == OPT_BUGREPORT_ALL) {
+      clone_all_bugreport_traces_ = true;
+      continue;
+    }
+
     PrintUsage(argv[0]);
     return 1;
   }
@@ -600,8 +608,9 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
 
-  if (bugreport_ && (is_attach() || is_detach() || query_service_ ||
-                     has_config_options || background_wait_)) {
+  if ((bugreport_ || clone_all_bugreport_traces_) &&
+      (is_attach() || is_detach() || query_service_ || has_config_options ||
+       background_wait_)) {
     PERFETTO_ELOG("--save-for-bugreport cannot take any other argument");
     return 1;
   }
@@ -630,7 +639,8 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
   bool parsed = false;
   bool cfg_could_be_txt = false;
-  const bool will_trace_or_trigger = !is_attach() && !query_service_;
+  const bool will_trace_or_trigger =
+      !is_attach() && !query_service_ && !clone_all_bugreport_traces_;
   if (!will_trace_or_trigger) {
     if ((!trace_config_raw.empty() || has_config_options)) {
       PERFETTO_ELOG("Cannot specify a trace config with this option");
@@ -1074,6 +1084,19 @@ void PerfettoCmd::OnConnect() {
     return;
   }
 
+  if (clone_all_bugreport_traces_) {
+    ConsumerEndpoint::QueryServiceStateArgs args;
+    // Reduces the size of the IPC reply skipping data sources and producers.
+    args.sessions_only = true;
+    auto weak_this = weak_factory_.GetWeakPtr();
+    consumer_endpoint_->QueryServiceState(
+        args, [weak_this](bool success, const TracingServiceState& svc_state) {
+          if (weak_this)
+            weak_this->CloneAllBugreportTraces(success, svc_state);
+        });
+    return;
+  }
+
   if (is_attach()) {
     consumer_endpoint_->Attach(attach_key_);
     return;
@@ -1382,7 +1405,7 @@ void PerfettoCmd::OnSessionCloned(const OnSessionClonedArgs& args) {
 
   // This is used with --save-all-for-bugreport, to pause all cloning threads
   // so that they first issue the clone and then proceed only after the service
-  // have seen all the clone requests.
+  // has seen all the clone requests.
   if (on_session_cloned_) {
     std::function<void()> on_session_cloned(nullptr);
     std::swap(on_session_cloned, on_session_cloned_);
@@ -1591,6 +1614,115 @@ void PerfettoCmd::CloneSessionOnThread(
         if (res)
           PERFETTO_ELOG("Cloning session %" PRIu64 " failed (%d)", tsid, res);
       });
+}
+
+void PerfettoCmd::CloneAllBugreportTraces(
+    bool success,
+    const TracingServiceState& service_state) {
+  if (!success)
+    PERFETTO_FATAL("Failed to list active tracing sessions");
+
+  struct SessionToClone {
+    int32_t bugreport_score;
+    TracingSessionID tsid;
+    std::string fname;  // Before deduping logic.
+    bool operator<(const SessionToClone& other) const {
+      return bugreport_score > other.bugreport_score;  // High score first.
+    }
+  };
+  std::vector<SessionToClone> sessions;
+  for (const auto& session : service_state.tracing_sessions()) {
+    if (session.bugreport_score() <= 0 || !session.is_started())
+      continue;
+    std::string fname;
+    if (!session.bugreport_filename().empty()) {
+      fname = session.bugreport_filename();
+    } else {
+      fname = "systrace.pftrace";
+    }
+    sessions.emplace_back(
+        SessionToClone{session.bugreport_score(), session.id(), fname});
+  }  // for(session)
+
+  if (sessions.empty()) {
+    PERFETTO_LOG("No tracing sessions eligible for bugreport were found.");
+    exit(0);
+  }
+
+  // First clone all sessions, synchronize, then read them back into files.
+  // The `sync_fn` below will be executed on each thread inside OnSessionCloned
+  // before proceeding with the readback. The logic below delays the readback
+  // of all threads, until the service has acked all the clone requests.
+  // The tracing service is single-threaded and data readbacks can take several
+  // seconds. This is to minimize the global clone time and avoid that that
+  // several sessions stomp on each other.
+  const size_t num_sessions = sessions.size();
+
+  // sync_point needs to be a shared_ptr to deal with the case where the main
+  // thread runs in the middle of the Notify() and the Wait() and destroys the
+  // WaitableEvent before some thread gets to the Wait().
+  auto sync_point = std::make_shared<base::WaitableEvent>();
+
+  std::function<void()> sync_fn = [sync_point, num_sessions] {
+    sync_point->Notify();
+    sync_point->Wait(num_sessions);
+  };
+
+  // Clone the sessions in order, starting with the highest score first.
+  std::sort(sessions.begin(), sessions.end());
+  for (auto it = sessions.begin(); it != sessions.end(); ++it) {
+    std::string actual_fname = it->fname;
+    size_t dupes = static_cast<size_t>(std::count_if(
+        sessions.begin(), it,
+        [&](const SessionToClone& o) { return o.fname == it->fname; }));
+    if (dupes > 0) {
+      std::string suffix = "_" + std::to_string(dupes);
+      const size_t last_dot = actual_fname.find_last_of('.');
+      if (last_dot != std::string::npos) {
+        actual_fname.replace(last_dot, 1, suffix + ".");
+      } else {
+        actual_fname.append(suffix);
+      }
+    }  // if (dupes > 0)
+
+    // Clone the tracing session into the bugreport file.
+    std::string out_path = GetBugreportTraceDir() + "/" + actual_fname;
+    remove(out_path.c_str());
+    PERFETTO_LOG("Cloning tracing session %" PRIu64 " with score %d into %s",
+                 it->tsid, it->bugreport_score, out_path.c_str());
+    std::string cmdline;
+    cmdline.reserve(128);
+    ArgsAppend(&cmdline, "perfetto");
+    ArgsAppend(&cmdline, "--clone");
+    ArgsAppend(&cmdline, std::to_string(it->tsid));
+    ArgsAppend(&cmdline, "--clone-for-bugreport");
+    ArgsAppend(&cmdline, "--out");
+    ArgsAppend(&cmdline, out_path);
+    CloneSessionOnThread(it->tsid, cmdline, kNewThreadPerRequest, sync_fn);
+  }  // for(sessions)
+
+  PERFETTO_DLOG("Issuing %zu CloneSession requests", num_sessions);
+  sync_point->Wait(num_sessions);
+  PERFETTO_DLOG("All %zu sessions have acked the clone request", num_sessions);
+
+  // After all sessions are done, quit.
+  // Note that there is no risk that thd.PostTask() will interleave with the
+  // sequence of tasks that PerfettoCmd involves, there is no race here.
+  // There are two TaskRunners here, nested into each other:
+  // 1) The "outer" ThreadTaskRunner, created by `thd`. This will see only one
+  //    task ever, which is "run perfetto_cmd until completion".
+  // 2) Internally PerfettoCmd creates its own UnixTaskRunner, which creates
+  //    a nested TaskRunner that takes control of the execution. This returns
+  //    only once TaskRunner::Quit() is called, in its epilogue.
+  auto done_count = std::make_shared<std::atomic<size_t>>(num_sessions);
+  for (auto& thd : snapshot_threads_) {
+    thd.PostTask([done_count] {
+      if (done_count->fetch_sub(1) == 1) {
+        PERFETTO_DLOG("All sessions cloned. quitting");
+        exit(0);
+      }
+    });
+  }
 }
 
 void PerfettoCmd::LogUploadEvent(PerfettoStatsdAtom atom) {
