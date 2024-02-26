@@ -185,11 +185,11 @@ declare_args() {
   } else {
     target_ar = "ar"
     if (is_android) {
-      target_ar = "$android_toolchain_root/bin/$android_abi_target-ar"
+      target_ar = "$android_llvm_dir/bin/llvm-ar"
       target_cc = "$android_llvm_dir/bin/clang"
       target_cxx = "$android_llvm_dir/bin/clang++"
       target_linker = "$android_llvm_dir/bin/ld.lld"
-      target_strip = "$android_toolchain_root/bin/$android_abi_target-strip"
+      target_strip = "$android_llvm_dir/bin/llvm-strip"
     } else {
       assert(_target_triplet != "",
              "target_triplet must be non-empty when cross-compiling")
