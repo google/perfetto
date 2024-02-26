@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 The Android Open Source Project
+ * Copyright (C) 2020 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
+#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "test/gtest_and_gmock.h"
 
@@ -40,13 +39,12 @@ class SchedEventTrackerTest : public ::testing::Test {
     context.args_tracker.reset(new ArgsTracker(&context));
     context.event_tracker.reset(new EventTracker(&context));
     context.process_tracker.reset(new ProcessTracker(&context));
-    context.sched_event_tracker.reset(new SchedEventTracker(&context));
-    sched_tracker = FtraceSchedEventTracker::GetOrCreate(&context);
+    sched_tracker = SchedEventTracker::GetOrCreate(&context);
   }
 
  protected:
   TraceProcessorContext context;
-  FtraceSchedEventTracker* sched_tracker;
+  SchedEventTracker* sched_tracker;
 };
 
 TEST_F(SchedEventTrackerTest, InsertSecondSched) {
