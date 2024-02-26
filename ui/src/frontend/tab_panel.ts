@@ -44,13 +44,10 @@ export class TabPanel implements m.ClassComponent {
     const resolvedTabs = tabMan.resolveTabs(tabList);
     const tabs = resolvedTabs.map(({uri, tab: tabDesc}): TabWithContent => {
       if (tabDesc) {
-        const titleStr = tabDesc.content.getTitle();
         return {
           key: uri,
           hasCloseButton: true,
-          title: (tabDesc.content.hasContent?.() ?? true) ?
-            titleStr :
-            m('.pf-nocontent', titleStr),
+          title: tabDesc.content.getTitle(),
           content: tabDesc.content.render(),
         };
       } else {
@@ -140,10 +137,8 @@ export class TabPanel implements m.ClassComponent {
       };
     }
 
-    const detailsPanels = globals.tabManager.detailsPanels;
-
     // Get the first "truthy" details panel
-    const panel = detailsPanels
+    const panel = globals.tabManager.detailsPanels
       .map((dp) => {
         return {
           content: dp.render(cs),
