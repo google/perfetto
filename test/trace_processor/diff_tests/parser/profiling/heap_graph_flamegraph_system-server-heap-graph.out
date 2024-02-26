@@ -1,5 +1,5 @@
 "id","depth","name","map_name","count","cumulative_count","size","cumulative_size","parent_id"
-0,0,"java.lang.Class<java.lang.Object[]> [ROOT_JNI_GLOBAL]","JAVA",1,3,224,292,"[NULL]"
+0,0,"java.lang.Class<java.lang.Object[]> [ROOT_STICKY_CLASS]","JAVA",1,3,224,292,"[NULL]"
 1,1,"java.lang.Object[]","JAVA",1,1,28,28,0
 2,1,"java.lang.String","JAVA",1,1,40,40,0
 3,0,"java.lang.String [ROOT_INTERNED_STRING]","JAVA",41197,41197,1845640,1845640,"[NULL]"
