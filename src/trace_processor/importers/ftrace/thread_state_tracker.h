@@ -13,9 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_THREAD_STATE_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_THREAD_STATE_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_THREAD_STATE_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_THREAD_STATE_TRACKER_H_
 
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
@@ -105,4 +104,4 @@ class ThreadStateTracker : public Destructible {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_THREAD_STATE_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_THREAD_STATE_TRACKER_H_
