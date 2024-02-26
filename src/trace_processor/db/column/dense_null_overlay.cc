@@ -159,6 +159,23 @@ RangeOrBitVector DenseNullOverlay::ChainImpl::IndexSearchValidated(
       case SearchValidationResult::kOk:
         break;
     }
+  } else if (op == FilterOp::kIsNotNull) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
+      case SearchValidationResult::kNoData: {
+        BitVector::Builder non_null_indices(indices.size);
+        for (const uint32_t* it = indices.data;
+             it != indices.data + indices.size; it++) {
+          non_null_indices.Append(non_null_->IsSet(*it));
+        }
+        // There is no need to search in underlying storage. We should just
+        // check if the index is set in |non_null_|.
+        return RangeOrBitVector(std::move(non_null_indices).Build());
+      }
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(Range(0, indices.size));
+      case SearchValidationResult::kOk:
+        break;
+    }
   }
 
   RangeOrBitVector inner_res =
