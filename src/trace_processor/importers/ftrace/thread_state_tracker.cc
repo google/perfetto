@@ -13,8 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#include "src/trace_processor/importers/common/thread_state_tracker.h"
+#include "src/trace_processor/importers/ftrace/thread_state_tracker.h"
 #include <optional>
 
 namespace perfetto {
