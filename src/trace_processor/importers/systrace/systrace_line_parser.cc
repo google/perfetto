@@ -23,10 +23,10 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
+#include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
-#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
-#include "src/trace_processor/importers/ftrace/thread_state_tracker.h"
+#include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
 #include "src/trace_processor/types/task_state.h"
 
@@ -107,7 +107,7 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
       return util::Status("Could not parse sched_switch");
     }
 
-    SchedEventTracker::GetOrCreate(context_)->PushSchedSwitch(
+    FtraceSchedEventTracker::GetOrCreate(context_)->PushSchedSwitch(
         line.cpu, line.ts, prev_pid.value(), prev_comm, prev_prio.value(),
         prev_state, next_pid.value(), next_comm, next_prio.value());
   } else if (line.event_name == "tracing_mark_write" ||
