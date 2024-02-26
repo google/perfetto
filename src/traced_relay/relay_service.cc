@@ -61,7 +61,7 @@ std::string GenerateSetPeerIdentityRequest(int32_t pid,
     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   set_peer_identity->set_pid(pid);
 #else
-  base::IgnoreResult(pid);
+  base::ignore_result(pid);
 #endif
   set_peer_identity->set_uid(uid);
   set_peer_identity->set_machine_id_hint(machine_id_hint);
