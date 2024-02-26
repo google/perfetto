@@ -40,6 +40,9 @@ source_set("common") {
     "metadata_tracker.h",
     "process_tracker.cc",
     "process_tracker.h",
+    "sched_event_state.h",
+    "sched_event_tracker.cc",
+    "sched_event_tracker.h",
     "slice_tracker.cc",
     "slice_tracker.h",
     "slice_translation_table.cc",
@@ -48,6 +51,8 @@ source_set("common") {
     "stack_profile_tracker.h",
     "system_info_tracker.cc",
     "system_info_tracker.h",
+    "thread_state_tracker.cc",
+    "thread_state_tracker.h",
     "trace_parser.cc",
     "track_tracker.cc",
     "track_tracker.h",
@@ -105,6 +110,7 @@ source_set("unittests") {
     "process_tracker_unittest.cc",
     "slice_tracker_unittest.cc",
     "slice_translation_table_unittest.cc",
+    "thread_state_tracker_unittest.cc",
   ]
   testonly = true
   deps = [

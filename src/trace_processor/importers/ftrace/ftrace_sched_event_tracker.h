@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_SCHED_EVENT_TRACKER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_SCHED_EVENT_TRACKER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_SCHED_EVENT_TRACKER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_SCHED_EVENT_TRACKER_H_
 
 #include <array>
 #include <limits>
 
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
+#include "src/trace_processor/importers/common/sched_event_tracker.h"
+#include "src/trace_processor/importers/common/sched_event_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -32,18 +34,22 @@ namespace trace_processor {
 class EventTracker;
 
 // Tracks sched events and stores them into the storage as sched slices.
-class SchedEventTracker : public Destructible {
+class FtraceSchedEventTracker : public Destructible {
  public:
-  // Declared public for testing only.
-  explicit SchedEventTracker(TraceProcessorContext*);
-  SchedEventTracker(const SchedEventTracker&) = delete;
-  SchedEventTracker& operator=(const SchedEventTracker&) = delete;
-  ~SchedEventTracker() override;
-  static SchedEventTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->sched_tracker) {
-      context->sched_tracker.reset(new SchedEventTracker(context));
+  explicit FtraceSchedEventTracker(TraceProcessorContext*);
+  ~FtraceSchedEventTracker() override;
+
+  FtraceSchedEventTracker(
+      const FtraceSchedEventTracker& ftrace_sched_event_tracker) = delete;
+  FtraceSchedEventTracker& operator=(
+      const FtraceSchedEventTracker& ftrace_sched_event_tracker) = delete;
+
+  static FtraceSchedEventTracker* GetOrCreate(TraceProcessorContext* context) {
+    if (!context->ftrace_sched_tracker) {
+      context->ftrace_sched_tracker.reset(new FtraceSchedEventTracker(context));
     }
-    return static_cast<SchedEventTracker*>(context->sched_tracker.get());
+    return static_cast<FtraceSchedEventTracker*>(
+        context->ftrace_sched_tracker.get());
   }
 
   // This method is called when a sched_switch event is seen in the trace.
@@ -57,6 +63,17 @@ class SchedEventTracker : public Destructible {
                                uint32_t next_pid,
                                base::StringView next_comm,
                                int32_t next_prio);
+
+  void AddRawSchedSwitchEvent(uint32_t cpu,
+                              int64_t ts,
+                              UniqueTid prev_utid,
+                              uint32_t prev_pid,
+                              StringId prev_comm_id,
+                              int32_t prev_prio,
+                              int64_t prev_state,
+                              uint32_t next_pid,
+                              StringId next_comm_id,
+                              int32_t next_prio);
 
   // This method is called when parsing a sched_switch encoded in the compact
   // format.
@@ -79,47 +96,6 @@ class SchedEventTracker : public Destructible {
                               uint16_t common_flags);
 
  private:
-  // Information retained from the preceding sched_switch seen on a given cpu.
-  struct PendingSchedInfo {
-    // The pending scheduling slice that the next event will complete.
-    uint32_t pending_slice_storage_idx = std::numeric_limits<uint32_t>::max();
-
-    // pid/utid/prio corresponding to the last sched_switch seen on this cpu
-    // (its "next_*" fields). There is some duplication with respect to the
-    // slices storage, but we don't always have a slice when decoding events in
-    // the compact format.
-    uint32_t last_pid = std::numeric_limits<uint32_t>::max();
-    UniqueTid last_utid = std::numeric_limits<UniqueTid>::max();
-    int32_t last_prio = std::numeric_limits<int32_t>::max();
-  };
-
-  uint32_t AddRawEventAndStartSlice(uint32_t cpu,
-                                    int64_t ts,
-                                    UniqueTid prev_utid,
-                                    uint32_t prev_pid,
-                                    StringId prev_comm_id,
-                                    int32_t prev_prio,
-                                    int64_t prev_state,
-                                    UniqueTid next_utid,
-                                    uint32_t next_pid,
-                                    StringId next_comm_id,
-                                    int32_t next_prio);
-
-  StringId TaskStateToStringId(int64_t task_state);
-
-  void ClosePendingSlice(uint32_t slice_idx, int64_t ts, StringId prev_state);
-
-  // Information retained from the preceding sched_switch seen on a given cpu.
-  std::vector<PendingSchedInfo> pending_sched_per_cpu_;
-
-  // Get the sched info for the given CPU, resizing the vector if necessary.
-  PendingSchedInfo* PendingSchedByCPU(uint32_t cpu) {
-    if (PERFETTO_UNLIKELY(cpu >= pending_sched_per_cpu_.size())) {
-      pending_sched_per_cpu_.resize(cpu + 1);
-    }
-    return &pending_sched_per_cpu_[cpu];
-  }
-
   static constexpr uint8_t kSchedSwitchMaxFieldId = 7;
   std::array<StringId, kSchedSwitchMaxFieldId + 1> sched_switch_field_ids_;
   StringId sched_switch_id_;
@@ -128,12 +104,12 @@ class SchedEventTracker : public Destructible {
   std::array<StringId, kSchedWakingMaxFieldId + 1> sched_waking_field_ids_;
   StringId sched_waking_id_;
 
-  StringId waker_utid_id_;
-
   TraceProcessorContext* const context_;
+
+  SchedEventState sched_event_state_;
 };
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_SCHED_EVENT_TRACKER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_SCHED_EVENT_TRACKER_H_
