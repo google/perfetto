@@ -37,8 +37,6 @@ source_set("full") {
     "ftrace_module_impl.h",
     "ftrace_parser.cc",
     "ftrace_parser.h",
-    "ftrace_sched_event_tracker.cc",
-    "ftrace_sched_event_tracker.h",
     "ftrace_tokenizer.cc",
     "ftrace_tokenizer.h",
     "gpu_work_period_tracker.cc",
@@ -51,6 +49,10 @@ source_set("full") {
     "pkvm_hyp_cpu_tracker.h",
     "rss_stat_tracker.cc",
     "rss_stat_tracker.h",
+    "sched_event_tracker.cc",
+    "sched_event_tracker.h",
+    "thread_state_tracker.cc",
+    "thread_state_tracker.h",
     "v4l2_tracker.cc",
     "v4l2_tracker.h",
     "virtio_gpu_tracker.cc",
@@ -97,7 +99,8 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "binder_tracker_unittest.cc",
-    "ftrace_sched_event_tracker_unittest.cc",
+    "sched_event_tracker_unittest.cc",
+    "thread_state_tracker_unittest.cc",
   ]
   deps = [
     "../../../../gn:default_deps",

@@ -60,7 +60,6 @@ class PacketAnalyzer;
 class ProtoImporterModule;
 class TrackEventModule;
 class ProcessTracker;
-class SchedEventTracker;
 class SliceTracker;
 class SliceTranslationTable;
 class FlowTracker;
@@ -99,7 +98,6 @@ class TraceProcessorContext {
   std::unique_ptr<FlowTracker> flow_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;
   std::unique_ptr<EventTracker> event_tracker;
-  std::unique_ptr<SchedEventTracker> sched_event_tracker;
   std::unique_ptr<ClockTracker> clock_tracker;
   std::unique_ptr<ClockConverter> clock_converter;
   std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
@@ -114,6 +112,7 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> android_probes_tracker;  // AndroidProbesTracker
   std::unique_ptr<Destructible> binder_tracker;          // BinderTracker
   std::unique_ptr<Destructible> heap_graph_tracker;      // HeapGraphTracker
+  std::unique_ptr<Destructible> sched_tracker;           // SchedEventTracker
   std::unique_ptr<Destructible> syscall_tracker;         // SyscallTracker
   std::unique_ptr<Destructible> system_info_tracker;     // SystemInfoTracker
   std::unique_ptr<Destructible> v4l2_tracker;            // V4l2Tracker
@@ -126,8 +125,6 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible>
       shell_transitions_tracker;             // ShellTransitionsTracker
   std::unique_ptr<Destructible> v8_tracker;  // V8Tracker
-  std::unique_ptr<Destructible>
-      ftrace_sched_tracker;  // FtraceSchedEventTracker
 
   // These fields are trace readers which will be called by |forwarding_parser|
   // once the format of the trace is discovered. They are placed here as they
