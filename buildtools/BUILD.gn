@@ -1424,6 +1424,7 @@ source_set("libunwindstack") {
     cflags += [
       "-Wno-deprecated-declarations",
       "-Wno-vla-cxx-extension",
+      "-Wno-c99-designator",
     ]
   }
   public_configs = [ ":libunwindstack_config" ]
