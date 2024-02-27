@@ -213,12 +213,12 @@ class AndroidMetrics(TestSuite):
           }
           full_trace_process_start_aggregation {
             total_start_sum: 10678297679
-            num_of_processes: 1
+            num_of_processes: 29
             average_start_time: 368217161.3448276
           }
           post_boot_process_start_aggregation {
             total_start_sum: 6112984648
-            num_of_processes: 1
+            num_of_processes: 21
             average_start_time: 291094507.04761904
           }
         }
