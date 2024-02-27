@@ -31,7 +31,7 @@ stop:
 		--project ${PROJECT} -v ${GAE_VERSION} -s default -q
 
 lib/.stamp:
-	echo "If this fails run `sudo apt install python-pip`"
+	echo "If this fails run sudo apt install python-pip"
 	python2.7 -m pip install -t lib/ rsa==4.0 oauth2client==4.1.3 httplib2==0.20.4
 	touch $@
 
