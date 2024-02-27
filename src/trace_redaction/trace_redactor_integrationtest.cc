@@ -34,14 +34,12 @@ using Trace = protos::pbzero::Trace;
 using TracePacket = protos::pbzero::TracePacket;
 
 constexpr std::string_view kTracePath =
-    "test/data/trace_redaction_jank_high_cpu.pftrace";
+    "test/data/trace-redaction-general.pftrace";
 
-// "com.google.android.settings.intelligence" will have one package, but two
-// processes will reference it. When doing so, they will use two different
-// uids (multiples of 1,000,000).
 constexpr std::string_view kPackageName =
-    "com.google.android.settings.intelligence";
-constexpr uint64_t kPackageUid = 10118;
+    "com.Unity.com.unity.multiplayer.samples.coop";
+
+constexpr uint64_t kPackageUid = 10252;
 
 class TraceRedactorIntegrationTest : public testing::Test {
  public:
@@ -58,13 +56,30 @@ class TraceRedactorIntegrationTest : public testing::Test {
 
   const std::string& dest_trace() const { return dest_trace_->path(); }
 
+  std::vector<protozero::ConstBytes> GetPackageInfos(
+      const Trace::Decoder& trace) const {
+    std::vector<protozero::ConstBytes> infos;
+
+    for (auto packet_it = trace.packet(); packet_it; ++packet_it) {
+      TracePacket::Decoder packet_decoder(*packet_it);
+      if (packet_decoder.has_packages_list()) {
+        PackagesList::Decoder list_it(packet_decoder.packages_list());
+        for (auto info_it = list_it.packages(); info_it; ++info_it) {
+          PackageInfo::Decoder info(*info_it);
+          infos.push_back(*info_it);
+        }
+      }
+    }
+
+    return infos;
+  }
+
  private:
   std::string src_trace_;
   std::unique_ptr<base::TempFile> dest_trace_;
 };
 
-TEST_F(TraceRedactorIntegrationTest,
-       DISABLED_FindsPackageAndFiltersPackageList) {
+TEST_F(TraceRedactorIntegrationTest, FindsPackageAndFiltersPackageList) {
   TraceRedactor redaction;
   redaction.collectors()->emplace_back(new FindPackageUid());
   redaction.transformers()->emplace_back(new PrunePackageList());
@@ -79,32 +94,26 @@ TEST_F(TraceRedactorIntegrationTest,
   std::string redacted_buffer;
   ASSERT_TRUE(base::ReadFile(dest_trace(), &redacted_buffer));
 
-  // Collect package info from the trace.
-  std::vector<protozero::ConstBytes> infos;
+  Trace::Decoder redacted_trace(redacted_buffer);
+  std::vector<protozero::ConstBytes> infos = GetPackageInfos(redacted_trace);
 
-  Trace::Decoder trace_decoder(redacted_buffer);
+  // It is possible for two packages_list to appear in the trace. The
+  // find_package_uid will stop after the first one is found. Package uids are
+  // appear as n * 1,000,000 where n is some integer. It is also possible for
+  // two packages_list to contain copies of each other - for example
+  // "com.Unity.com.unity.multiplayer.samples.coop" appears in both
+  // packages_list.
+  ASSERT_GE(infos.size(), 1u);
 
-  for (auto packet_it = trace_decoder.packet(); packet_it; ++packet_it) {
-    TracePacket::Decoder packet_decoder(*packet_it);
+  for (const auto& info_buffer : infos) {
+    PackageInfo::Decoder info(info_buffer);
 
-    if (packet_decoder.has_packages_list()) {
-      PackagesList::Decoder list_it(packet_decoder.packages_list());
+    ASSERT_TRUE(info.has_name());
+    ASSERT_EQ(info.name().ToStdString(), kPackageName);
 
-      for (auto info_it = list_it.packages(); info_it; ++info_it) {
-        infos.push_back(*info_it);
-      }
-    }
+    ASSERT_TRUE(info.has_uid());
+    ASSERT_EQ(NormalizeUid(info.uid()), NormalizeUid(kPackageUid));
   }
-
-  ASSERT_EQ(infos.size(), 1u);
-
-  PackageInfo::Decoder info(infos[0]);
-
-  ASSERT_TRUE(info.has_name());
-  ASSERT_EQ(info.name().ToStdString(), kPackageName);
-
-  ASSERT_TRUE(info.has_uid());
-  ASSERT_EQ(NormalizeUid(info.uid()), NormalizeUid(kPackageUid));
 
   ASSERT_TRUE(context.package_uid.has_value());
   ASSERT_EQ(NormalizeUid(context.package_uid.value()),
