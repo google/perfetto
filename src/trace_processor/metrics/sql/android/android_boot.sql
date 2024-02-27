@@ -56,7 +56,7 @@ SELECT AndroidBootMetric(
     'full_trace_process_start_aggregation', (
         SELECT NULL_IF_EMPTY(AndroidBootMetric_ProcessStartAggregation(
             'total_start_sum', (SELECT SUM(total_dur) FROM android_app_process_starts),
-            'num_of_processes', (SELECT COUNT(process_name) FROM android_app_process_starts GROUP BY process_name),
+            'num_of_processes', (SELECT COUNT(*) FROM android_app_process_starts),
             'average_start_time', (SELECT AVG(total_dur) FROM android_app_process_starts)))
             FROM android_app_process_starts),
     'post_boot_process_start_aggregation', (
@@ -66,11 +66,10 @@ SELECT AndroidBootMetric(
                 FROM thread_slice WHERE name GLOB "*android.intent.action.USER_UNLOCKED*"
                 ORDER BY ts ASC LIMIT 1 )
             ),
-            'num_of_processes', (SELECT COUNT(process_name) FROM android_app_process_starts
+            'num_of_processes', (SELECT COUNT(*) FROM android_app_process_starts
               WHERE proc_start_ts > (SELECT COALESCE(MIN(ts), 0) FROM thread_slice
                 WHERE name GLOB "*android.intent.action.USER_UNLOCKED*" ORDER BY ts
                 ASC LIMIT 1 )
-              GROUP BY process_name
             ),
             'average_start_time', (SELECT AVG(total_dur) FROM android_app_process_starts
               WHERE proc_start_ts > (SELECT COALESCE(MIN(ts), 0) FROM thread_slice
