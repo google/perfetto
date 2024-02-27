@@ -128,8 +128,8 @@ def main():
   print('Uploading to gs://%s' % BUCKET_NAME)
   print('===================================================================')
   cp_cmd = [
-      'gsutil', '-m', '-h', 'Cache-Control:public, max-age=3600', 'cp', '-j',
-      'html,js,css,wasm'
+      'gsutil', '-m', '-h', 'Cache-Control:public, max-age=3600', 'cp', '-z',
+      'html,js,css,wasm,map'
   ]
   for name in os.listdir(merged_dist_dir):
     path = pjoin(merged_dist_dir, name)
