@@ -110,7 +110,7 @@ class AndroidPerfTraceCounters implements Plugin {
               sum(stall_backend_mem) as total_stall_backend_mem,
               sum(l3_cache_miss) as total_l3_cache_miss
             FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
-          'target thread ipc statistic'
+          'target thread ipc statistic',
         );
       },
     });
