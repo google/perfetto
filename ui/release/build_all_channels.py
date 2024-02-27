@@ -128,7 +128,7 @@ def main():
   print('Uploading to gs://%s' % BUCKET_NAME)
   print('===================================================================')
   cp_cmd = [
-      'gsutil', '-m', '-h', 'Cache-Control:public, max-age=3600', 'cp', '-z',
+      'gsutil', '-m', '-h', 'Cache-Control:public, max-age=3600', 'cp', '-j',
       'html,js,css,wasm,map'
   ]
   for name in os.listdir(merged_dist_dir):
