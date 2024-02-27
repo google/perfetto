@@ -19,24 +19,30 @@
 
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
+#include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
-#include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/util/sql_argument.h"
 #include "src/trace_processor/util/sql_modules.h"
 
 namespace perfetto::trace_processor {
@@ -111,7 +117,7 @@ class PerfettoSqlEngine {
   // of |return_type| and is implemented by executing the SQL statement |sql|.
   base::Status RegisterRuntimeFunction(bool replace,
                                        const FunctionPrototype& prototype,
-                                       std::string return_type,
+                                       const std::string& return_type,
                                        SqlSource sql);
 
   // Enables memoization for the given SQL function.
@@ -176,9 +182,7 @@ class PerfettoSqlEngine {
   const Table* GetStaticTableOrNull(std::string_view) const;
 
  private:
-  base::StatusOr<SqlSource> ExecuteCreateFunction(
-      const PerfettoSqlParser::CreateFunction&,
-      const PerfettoSqlParser& parser);
+  base::Status ExecuteCreateFunction(const PerfettoSqlParser::CreateFunction&);
 
   base::Status ExecuteInclude(const PerfettoSqlParser::Include&,
                               const PerfettoSqlParser& parser);
@@ -200,16 +204,16 @@ class PerfettoSqlEngine {
 
   // Get the column names from a statement.
   // |operator_name| is used in the error message if the statement is invalid.
-  base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
-      const SqliteEngine::PreparedStatement& stmt,
-      const char* tag) const;
+  static base::StatusOr<std::vector<std::string>>
+  GetColumnNamesFromSelectStatement(const SqliteEngine::PreparedStatement& stmt,
+                                    const char* tag);
 
   // Validates that the column names in |column_names| match the |schema|.
   // |operator_name| is used in the error message if the statement is invalid.
-  base::Status ValidateColumnNames(
+  static base::Status ValidateColumnNames(
       const std::vector<std::string>& column_names,
       const std::vector<sql_argument::ArgumentDefinition>& schema,
-      const char* operator_name) const;
+      const char* operator_name);
 
   // Given a module and a key, include the correct file(s) from the module.
   // The key can contain a wildcard to include all files in the module with the
@@ -255,7 +259,7 @@ struct ScopedCleanup {
 template <typename Function>
 void WrapSqlFunction(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   using Context = typename Function::Context;
-  Context* ud = static_cast<Context*>(sqlite3_user_data(ctx));
+  auto* ud = static_cast<Context*>(sqlite3_user_data(ctx));
 
   ScopedCleanup<Function> scoped_cleanup{ud};
   SqlValue value{};
@@ -314,14 +318,14 @@ template <typename Function>
 base::Status PerfettoSqlEngine::RegisterStaticFunction(
     const char* name,
     int argc,
-    std::unique_ptr<typename Function::Context> user_data,
+    std::unique_ptr<typename Function::Context> ctx,
     bool deterministic) {
   // Metric proto builder functions can be reregistered: don't double count when
   // this happens.
   if (!engine_->GetFunctionContext(name, argc)) {
     static_function_count_++;
   }
-  return RegisterFunctionWithSqlite<Function>(name, argc, std::move(user_data),
+  return RegisterFunctionWithSqlite<Function>(name, argc, std::move(ctx),
                                               deterministic);
 }
 
@@ -329,14 +333,14 @@ template <typename Function>
 base::Status PerfettoSqlEngine::RegisterFunctionWithSqlite(
     const char* name,
     int argc,
-    std::unique_ptr<typename Function::Context> user_data,
+    std::unique_ptr<typename Function::Context> ctx,
     bool deterministic) {
   auto ctx_destructor = [](void* ptr) {
     delete static_cast<typename Function::Context*>(ptr);
   };
   return engine_->RegisterFunction(
       name, argc, perfetto_sql_internal::WrapSqlFunction<Function>,
-      user_data.release(), ctx_destructor, deterministic);
+      ctx.release(), ctx_destructor, deterministic);
 }
 
 }  // namespace perfetto::trace_processor
