@@ -26,6 +26,7 @@ import subprocess
 import sys
 
 from os.path import dirname
+
 pjoin = os.path.join
 
 BUCKET_NAME = 'ui.perfetto.dev'
@@ -127,10 +128,10 @@ def main():
   print('===================================================================')
   print('Uploading to gs://%s' % BUCKET_NAME)
   print('===================================================================')
-  cp_cmd = [
-      'gsutil', '-m', '-h', 'Cache-Control:public, max-age=3600', 'cp', '-j',
-      'html,js,css,wasm,map'
-  ]
+  # TODO(primiano): re-enable caching once the gzip-related outage is restored.
+  # cache_hdr = 'Cache-Control:public, max-age=3600'
+  cache_hdr = 'Cache-Control:no-cache'
+  cp_cmd = ['gsutil', '-m', '-h', cache_hdr, 'cp', '-j', 'html,js,css,wasm,map']
   for name in os.listdir(merged_dist_dir):
     path = pjoin(merged_dist_dir, name)
     if os.path.isdir(path):

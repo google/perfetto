@@ -19,8 +19,9 @@ BUCKET_NAME = 'ui.perfetto.dev'
 
 REQ_HEADERS = [
     'Accept',
-    'Accept-Encoding',
-    'Cache-Control',
+    # TODO(primiano): re-enable once the gzip handling outage fixed.
+    # 'Accept-Encoding',
+    # 'Cache-Control',
 ]
 
 RESP_HEADERS = [
