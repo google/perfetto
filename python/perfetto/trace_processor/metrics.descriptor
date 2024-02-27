@@ -25,11 +25,11 @@ adIdMetricT
 app_set_id_metric (2).perfetto.protos.AdServicesAppSetIdMetricRappSetIdMetricM
 
 odp_metric (2..perfetto.protos.OnDevicePersonalizationMetricR	odpMetric
-ü
+ß
 2protos/perfetto/metrics/android/android_boot.protoperfetto.protos"p
 ProcessStateDurations
 	total_dur (RtotalDur:
-uninterruptible_sleep_dur (RuninterruptibleSleepDur"Â
+uninterruptible_sleep_dur (RuninterruptibleSleepDur"¥
 AndroidBootMetric^
 system_server_durations (2&.perfetto.protos.ProcessStateDurationsRsystemServerDurationsU
 systemui_durations (2&.perfetto.protos.ProcessStateDurationsRsystemuiDurationsU
@@ -37,13 +37,27 @@ odp_metric (2..perfetto.protos.OnDevicePersonalizationMetricR	odpMetric
 gms_durations (2&.perfetto.protos.ProcessStateDurationsRgmsDurationsc
 launcher_breakdown (24.perfetto.protos.AndroidBootMetric.LauncherBreakdownRlauncherBreakdownŠ
 $full_trace_process_start_aggregation (2:.perfetto.protos.AndroidBootMetric.ProcessStartAggregationR fullTraceProcessStartAggregationˆ
-#post_boot_process_start_aggregation (2:.perfetto.protos.AndroidBootMetric.ProcessStartAggregationRpostBootProcessStartAggregation9
+#post_boot_process_start_aggregation (2:.perfetto.protos.AndroidBootMetric.ProcessStartAggregationRpostBootProcessStartAggregationz
+full_trace_gc_aggregation (2?.perfetto.protos.AndroidBootMetric.GarbageCollectionAggregationRfullTraceGcAggregationx
+post_boot_gc_aggregation	 (2?.perfetto.protos.AndroidBootMetric.GarbageCollectionAggregationRpostBootGcAggregation9
 LauncherBreakdown$
 cold_start_dur (RcoldStartDur™
 ProcessStartAggregation&
 total_start_sum (RtotalStartSum(
 num_of_processes (RnumOfProcesses,
-average_start_time (RaverageStartTime
+average_start_time (RaverageStartTimeê
+GarbageCollectionAggregation$
+total_gc_count (RtotalGcCount6
+num_of_processes_with_gc (RnumOfProcessesWithGc2
+num_of_threads_with_gc (RnumOfThreadsWithGc&
+avg_gc_duration (RavgGcDuration"
+full_gc_count (RfullGcCountA
+collector_transition_gc_count (RcollectorTransitionGcCount$
+young_gc_count (RyoungGcCount1
+native_alloc_gc_count (RnativeAllocGcCount*
+explicit_gc_count	 (RexplicitGcCount$
+alloc_gc_count
+ (RallocGcCount
 Ž
 ?protos/perfetto/metrics/android/app_process_starts_metric.protoperfetto.protos"¹
 AndroidAppProcessStartsMetricV

@@ -16,6 +16,7 @@
 
 INCLUDE PERFETTO MODULE android.process_metadata;
 INCLUDE PERFETTO MODULE android.app_process_starts;
+INCLUDE PERFETTO MODULE android.garbage_collection;
 
 CREATE OR REPLACE PERFETTO FUNCTION get_durations(process_name STRING)
 RETURNS TABLE(uint_sleep_dur LONG, total_dur LONG) AS
@@ -73,6 +74,108 @@ SELECT AndroidBootMetric(
             ),
             'average_start_time', (SELECT AVG(total_dur) FROM android_app_process_starts
               WHERE proc_start_ts > (SELECT COALESCE(MIN(ts), 0) FROM thread_slice
+                WHERE name GLOB "*android.intent.action.USER_UNLOCKED*" ORDER BY ts
+                ASC LIMIT 1 )
+            )
+        ))
+    ),
+    'full_trace_gc_aggregation', (
+        SELECT NULL_IF_EMPTY(AndroidBootMetric_GarbageCollectionAggregation(
+            'total_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+            ),
+            'num_of_processes_with_gc', (SELECT COUNT(process_name) FROM android_garbage_collection_events
+            ),
+            'num_of_threads_with_gc', (SELECT SUM(cnt) FROM (SELECT COUNT(*) AS cnt
+              FROM android_garbage_collection_events
+              GROUP by thread_name, process_name)
+            ),
+            'avg_gc_duration', (SELECT AVG(gc_dur) FROM android_garbage_collection_events),
+            'avg_running_gc_duration', (SELECT AVG(gc_running_dur) FROM android_garbage_collection_events),
+            'full_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "full"
+            ),
+            'collector_transition_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "collector_transition"
+            ),
+            'young_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "young"
+            ),
+            'native_alloc_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "native_alloc"
+            ),
+            'explicit_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "explicit_gc"
+            ),
+            'alloc_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "alloc_gc"
+            ),
+            'mb_per_ms_of_gc', (SELECT SUM(reclaimed_mb)/SUM(gc_running_dur/1e6) AS mb_per_ms_dur
+              FROM android_garbage_collection_events
+            )
+        ))
+    ),
+    'post_boot_gc_aggregation', (
+        SELECT NULL_IF_EMPTY(AndroidBootMetric_GarbageCollectionAggregation(
+            'total_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_ts > (SELECT COALESCE(MIN(ts), 0)
+                FROM thread_slice WHERE name GLOB "*android.intent.action.USER_UNLOCKED*"
+                ORDER BY ts ASC LIMIT 1 )
+            ),
+            'num_of_processes_with_gc', (SELECT COUNT(process_name) FROM android_garbage_collection_events
+              WHERE gc_ts > (SELECT COALESCE(MIN(ts), 0)
+                FROM thread_slice WHERE name GLOB "*android.intent.action.USER_UNLOCKED*"
+                ORDER BY ts ASC LIMIT 1 )
+            ),
+            'num_of_threads_with_gc', (SELECT SUM(cnt) FROM (SELECT COUNT(*) AS cnt
+              FROM android_garbage_collection_events
+              WHERE gc_ts > (SELECT COALESCE(MIN(ts), 0) FROM thread_slice
+                WHERE name GLOB "*android.intent.action.USER_UNLOCKED*" ORDER BY ts
+                ASC LIMIT 1 )
+              GROUP by thread_name, process_name)
+            ),
+            'avg_gc_duration', (SELECT AVG(gc_dur) FROM android_garbage_collection_events
+              WHERE gc_ts > (SELECT COALESCE(MIN(ts), 0) FROM thread_slice
+                WHERE name GLOB "*android.intent.action.USER_UNLOCKED*" ORDER BY ts
+                ASC LIMIT 1 )
+            ),
+            'avg_running_gc_duration', (SELECT AVG(gc_running_dur) FROM android_garbage_collection_events
+              WHERE gc_ts > (SELECT COALESCE(MIN(ts), 0) FROM thread_slice
+                WHERE name GLOB "*android.intent.action.USER_UNLOCKED*" ORDER BY ts
+                ASC LIMIT 1 )
+            ),
+            'full_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "full" AND gc_ts > (SELECT COALESCE(MIN(ts), 0)
+                FROM thread_slice WHERE name GLOB "*android.intent.action.USER_UNLOCKED*"
+                ORDER BY ts ASC LIMIT 1 )
+            ),
+            'collector_transition_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "collector_transition" AND gc_ts > (SELECT COALESCE(MIN(ts), 0)
+                FROM thread_slice WHERE name GLOB "*android.intent.action.USER_UNLOCKED*"
+                ORDER BY ts ASC LIMIT 1 )
+            ),
+            'young_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "young" AND gc_ts > (SELECT COALESCE(MIN(ts), 0)
+                FROM thread_slice WHERE name GLOB "*android.intent.action.USER_UNLOCKED*"
+                ORDER BY ts ASC LIMIT 1 )
+            ),
+            'native_alloc_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "native_alloc" AND gc_ts > (SELECT COALESCE(MIN(ts), 0)
+                FROM thread_slice WHERE name GLOB "*android.intent.action.USER_UNLOCKED*"
+                ORDER BY ts ASC LIMIT 1 )
+            ),
+            'explicit_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "explicit_gc" AND gc_ts > (SELECT COALESCE(MIN(ts), 0)
+                FROM thread_slice WHERE name GLOB "*android.intent.action.USER_UNLOCKED*"
+                ORDER BY ts ASC LIMIT 1 )
+            ),
+            'alloc_gc_count', (SELECT COUNT(*) FROM android_garbage_collection_events
+              WHERE gc_type = "alloc_gc" AND gc_ts > (SELECT COALESCE(MIN(ts), 0)
+                FROM thread_slice WHERE name GLOB "*android.intent.action.USER_UNLOCKED*"
+                ORDER BY ts ASC LIMIT 1 )
+            ),
+            'mb_per_ms_of_gc', (SELECT SUM(reclaimed_mb)/SUM(gc_running_dur/1e6) AS mb_per_ms_dur
+              FROM android_garbage_collection_events
+              WHERE gc_ts > (SELECT COALESCE(MIN(ts), 0) FROM thread_slice
                 WHERE name GLOB "*android.intent.action.USER_UNLOCKED*" ORDER BY ts
                 ASC LIMIT 1 )
             )
