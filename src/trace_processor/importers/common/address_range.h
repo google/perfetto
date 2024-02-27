@@ -18,8 +18,10 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_ADDRESS_RANGE_H_
 
 #include <algorithm>
+
 #include <cstdint>
 #include <map>
+#include <set>
 #include <tuple>
 #include <utility>
 
@@ -33,6 +35,29 @@ namespace trace_processor {
 // Note: This means that you can not have a range containing int64_max
 class AddressRange {
  public:
+  struct CompareByEnd {
+    // Allow heterogeneous lookups (https://abseil.io/tips/144)
+    using is_transparent = void;
+    // Keeps ranges sorted by end address
+    bool operator()(const AddressRange& lhs, const AddressRange& rhs) const {
+      return lhs.end() < rhs.end();
+    }
+
+    // Overload to implement PC lookup via upper_bound.
+    bool operator()(const AddressRange& lhs, uint64_t pc) const {
+      return lhs.end() < pc;
+    }
+
+    // Overload to implement PC lookup via upper_bound.
+    bool operator()(uint64_t pc, const AddressRange& rhs) const {
+      return pc < rhs.end();
+    }
+  };
+
+  static constexpr AddressRange FromStartAndSize(uint64_t start,
+                                                 uint64_t size) {
+    return AddressRange(start, start + size);
+  }
   constexpr AddressRange() : AddressRange(0, 0) {}
 
   constexpr AddressRange(uint64_t start, uint64_t end)
@@ -62,7 +87,8 @@ class AddressRange {
   // there exists a point such that Contains(point) would return true for both
   // ranges.
   constexpr bool Overlaps(const AddressRange& other) const {
-    return start_ < other.end_ && other.start_ < end_;
+    return !empty() && !other.empty() && start_ < other.end_ &&
+           other.start_ < end_;
   }
 
   // Two ranges are the same is their respective limits are the same, that is A
@@ -91,49 +117,119 @@ class AddressRange {
   uint64_t end_;
 };
 
+// Contains unique collection of addresses. These addresses are kept as
+// sorted collection of non contiguous and non overlapping AddressRange
+// instances. As addresses are added or removed these AddressRange might be
+// merged or spliced as needed to keep the ranges non contiguous and non
+// overlapping.
+class AddressSet {
+ public:
+  // TODO(carlscab): Consider using base::FlatSet. As of now this class is used
+  // so little that it does not really matter.
+  using Impl = std::set<AddressRange, AddressRange::CompareByEnd>;
+
+  using value_type = typename Impl::value_type;
+  using const_iterator = typename Impl::const_iterator;
+  using size_type = typename Impl::size_type;
+
+  const_iterator begin() const { return ranges_.begin(); }
+  const_iterator end() const { return ranges_.end(); }
+
+  // Adds all the addresses in the given range to the set.
+  void Add(AddressRange range) {
+    if (range.empty()) {
+      return;
+    }
+    uint64_t start = range.start();
+    uint64_t end = range.end();
+    // Note lower_bound here as we might need to merge with the range just
+    // before.
+    auto it = ranges_.lower_bound(start);
+
+    PERFETTO_DCHECK(it == ranges_.end() || range.start() <= it->end());
+
+    while (it != ranges_.end() && range.end() >= it->start()) {
+      start = std::min(start, it->start());
+      end = std::max(end, it->end());
+      it = ranges_.erase(it);
+    }
+    ranges_.emplace_hint(it, AddressRange(start, end));
+  }
+
+  // Removes all the addresses in the given range from the set.
+  void Remove(AddressRange range) {
+    if (range.empty()) {
+      return;
+    }
+    auto it = ranges_.upper_bound(range.start());
+    PERFETTO_DCHECK(it == ranges_.end() || range.start() < it->end());
+
+    while (it != ranges_.end() && range.end() > it->start()) {
+      if (range.start() > it->start()) {
+        // range.start() is contained in *it. Split *it at range.start() into
+        // two ranges. Continue the loop at the second of them.
+        PERFETTO_DCHECK(it->Contains(range.start()));
+        auto old = *it;
+        it = ranges_.erase(it);
+        ranges_.emplace_hint(it, old.start(), range.start());
+        it = ranges_.emplace_hint(it, range.start(), old.end());
+      } else if (range.end() < it->end()) {
+        // range.end() is contained in *it. Split *it at range.end() into two
+        // ranges. The first of them needs to be deleted.
+        PERFETTO_DCHECK(it->Contains(range.end()));
+        auto old_end = it->end();
+        it = ranges_.erase(it);
+        ranges_.emplace_hint(it, range.end(), old_end);
+      } else {
+        // range fully contains *it, so it can be removed
+        PERFETTO_DCHECK(range.Contains(*it));
+        it = ranges_.erase(it);
+      }
+    }
+  }
+
+  bool operator==(const AddressSet& o) const { return ranges_ == o.ranges_; }
+  bool operator!=(const AddressSet& o) const { return ranges_ != o.ranges_; }
+
+ private:
+  // Invariants:
+  //   * There are no overlapping ranges.
+  //   * There are no empty ranges.
+  //   * There are no two ranges a, b where a.end == b.start, that is there are
+  //     no contiguous mappings.
+  //   * Ranges are sorted by end
+  // Thus lookups are O(log N) and point lookups are trivial using upper_bound()
+  Impl ranges_;
+};
+
 // Maps AddressRange instances to a given value. These AddressRange instances
 // (basically the keys of the map)  will never overlap, as insertions of
 // overlapping ranges will always fail.
 template <typename Value>
 class AddressRangeMap {
  public:
-  struct CompareByEnd {
-    // Allow heterogeneous lookups (https://abseil.io/tips/144)
-    using is_transparent = void;
-    // Keeps ranges sorted by end address
-    bool operator()(const AddressRange& lhs, const AddressRange& rhs) const {
-      return lhs.end() < rhs.end();
-    }
-
-    // Overload to implement PC lookup via upper_bound.
-    bool operator()(const AddressRange& lhs, uint64_t pc) const {
-      return lhs.end() < pc;
-    }
-
-    // Overload to implement PC lookup via upper_bound.
-    bool operator()(uint64_t pc, const AddressRange& rhs) const {
-      return pc < rhs.end();
-    }
-  };
-
-  using Impl = std::map<AddressRange, Value, CompareByEnd>;
+  using Impl = std::map<AddressRange, Value, AddressRange::CompareByEnd>;
 
   using value_type = typename Impl::value_type;
   using iterator = typename Impl::iterator;
   using const_iterator = typename Impl::const_iterator;
   using size_type = typename Impl::size_type;
 
-  // Fails if the new range overlaps with any existing one.
+  // Fails if the new range overlaps with any existing one or when inserting an
+  // empty range (as there is effectively no key to map from).
   template <typename... Args>
-  std::pair<iterator, bool> Emplace(AddressRange range, Args&&... args) {
+  bool Emplace(AddressRange range, Args&&... args) {
+    if (range.empty()) {
+      return false;
+    }
     auto it = ranges_.upper_bound(range.start());
     if (it != ranges_.end() && range.end() > it->first.start()) {
-      return {it, false};
+      return false;
     }
-    return {ranges_.emplace_hint(
-                it, std::piecewise_construct, std::forward_as_tuple(range),
-                std::forward_as_tuple(std::forward<Args>(args)...)),
-            true};
+    ranges_.emplace_hint(it, std::piecewise_construct,
+                         std::forward_as_tuple(range),
+                         std::forward_as_tuple(std::forward<Args>(args)...));
+    return true;
   }
 
   // Finds the map entry that fully contains the given `range` or `end()` if not
@@ -181,13 +277,15 @@ class AddressRangeMap {
   // Emplaces a new value into the map by first deleting all overlapping
   // intervals. It takes an optional (set to nullptr to ignore) callback `cb`
   // that will be called for each deleted map entry.
-  // ATTENTION: `range` can not be empty. Supporting it would complicate things
-  // too much for a not needed use case.
+  // Returns true on success, fails if the new range is empty (as there is
+  // effectively no key to map from).
   template <typename Callback, typename... Args>
-  void DeleteOverlapsAndEmplace(Callback cb,
+  bool DeleteOverlapsAndEmplace(Callback cb,
                                 AddressRange range,
                                 Args&&... args) {
-    PERFETTO_CHECK(!range.empty());
+    if (range.empty()) {
+      return false;
+    }
     auto it = ranges_.upper_bound(range.start());
     PERFETTO_DCHECK(it == ranges_.end() || range.start() < it->first.end());
 
@@ -199,21 +297,38 @@ class AddressRangeMap {
     ranges_.emplace_hint(it, std::piecewise_construct,
                          std::forward_as_tuple(range),
                          std::forward_as_tuple(std::forward<Args>(args)...));
+    return true;
   }
 
   // Same as above but without a callback.
-  template <typename Callback, typename... Args>
-  void DeleteOverlapsAndEmplace(AddressRange range, Args&&... args) {
+  template <typename... Args>
+  bool DeleteOverlapsAndEmplace(AddressRange range, Args&&... args) {
     struct NoOp {
       void operator()(std::pair<const AddressRange, Value>&) {}
     };
-    DeleteOverlapsAndEmplace(NoOp(), range, std::forward<Args>(args)...);
+    return DeleteOverlapsAndEmplace(NoOp(), range, std::forward<Args>(args)...);
+  }
+
+  // Calls `cb` for each entry in the map that overlaps the given `range`. That
+  // is, there is a point so for which `AddressRange::Contains` returns true for
+  // both the entry and the given `range'
+  template <typename Callback>
+  void ForOverlaps(AddressRange range, Callback cb) {
+    if (range.empty()) {
+      return;
+    }
+    for (auto it = ranges_.upper_bound(range.start());
+         it != ranges_.end() && range.end() > it->first.start(); ++it) {
+      cb(*it);
+    }
   }
 
  private:
-  // Invariant: There are no overlapping ranges.
-  // Which makes lookups O(log N). Also, ranges are sorted by end which makes
-  // point lookups trivial using upper_bound()
+  // Invariants:
+  //   * There are no overlapping ranges.
+  //   * There are no empty ranges.
+  //   * Ranges are sorted by end
+  // Thus lookups are O(log N) and point lookups are trivial using upper_bound()
   Impl ranges_;
 };
 
