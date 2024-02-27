@@ -71,14 +71,23 @@ def Main():
 
   # Look for the GIT commitish appended in crash reports. This is not required
   # for resolving the sourcemaps but helps generating better links.
-  matches = re.findall(r'([a-f0-9]{40})\sUA', txt)
-  git_rev = matches[0] if matches else 'HEAD'
+  matches = re.findall(r'https://ui.perfetto.dev/(.*-)([a-f0-9]{6,})\n', txt)
+  if not matches:
+    logging.fatal('Could not determine the version.'
+                  'The crash report should have a line like: '
+                  '"UI: https://ui.perfetto.dev/v12.3-abcdef"')
+    return 1
 
-  matches = re.findall(r'((\bhttp.+?\.js):(\d+):(\d+))', txt)
+  dir_name = matches[0][0] + matches[0][1]
+  git_rev = matches[0][1]
+  base_url = 'https://commondatastorage.googleapis.com/ui.perfetto.dev/' + dir_name + '/'
+  matches = re.findall(r'(\((.+[.]js):(\d+):(\d+)\))', txt)
   maps_by_url = {}
   sym_lines = ''
   for entry in matches:
     whole_token, script_url, line, col = entry
+    if '/' not in script_url:
+      script_url = base_url + script_url
     map_url = script_url + '.map'
     if map_url in maps_by_url:
       srcmap = maps_by_url[map_url]
