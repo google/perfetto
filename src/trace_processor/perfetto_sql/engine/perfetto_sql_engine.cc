@@ -270,10 +270,9 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     std::optional<SqlSource> source;
     if (auto* cf = std::get_if<PerfettoSqlParser::CreateFunction>(
             &parser.statement())) {
-      auto source_or = ExecuteCreateFunction(*cf, parser);
-      RETURN_IF_ERROR(
-          AddTracebackIfNeeded(source_or.status(), parser.statement_sql()));
-      source = std::move(source_or.value());
+      RETURN_IF_ERROR(AddTracebackIfNeeded(ExecuteCreateFunction(*cf),
+                                           parser.statement_sql()));
+      source = RewriteToDummySql(parser.statement_sql());
     } else if (auto* cst = std::get_if<PerfettoSqlParser::CreateTable>(
                    &parser.statement())) {
       RETURN_IF_ERROR(AddTracebackIfNeeded(ExecuteCreateTable(*cst),
@@ -483,9 +482,16 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
   runtime_tables_.Insert(create_table.name, std::move(table));
   base::StackString<1024> create("CREATE VIRTUAL TABLE %s USING runtime_table",
                                  create_table.name.c_str());
-  return Execute(
-             SqlSource::FromTraceProcessorImplementation(create.ToStdString()))
-      .status();
+
+  auto status =
+      Execute(SqlSource::FromTraceProcessorImplementation(create.ToStdString()))
+          .status();
+  if (!status.ok()) {
+    // If the registration of the table with SQLite failed, erase the copy
+    // we hold.
+    PERFETTO_CHECK(runtime_tables_.Erase(create_table.name));
+  }
+  return status;
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateView(
@@ -600,25 +606,25 @@ base::Status PerfettoSqlEngine::IncludeFileImpl(
   return base::OkStatus();
 }
 
-base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
-    const PerfettoSqlParser::CreateFunction& cf,
-    const PerfettoSqlParser& parser) {
+base::Status PerfettoSqlEngine::ExecuteCreateFunction(
+    const PerfettoSqlParser::CreateFunction& cf) {
   if (!cf.is_table) {
-    RETURN_IF_ERROR(
-        RegisterRuntimeFunction(cf.replace, cf.prototype, cf.returns, cf.sql));
-    return RewriteToDummySql(parser.statement_sql());
+    return RegisterRuntimeFunction(cf.replace, cf.prototype, cf.returns,
+                                   cf.sql);
   }
 
   RuntimeTableFunction::State state{cf.sql, cf.prototype, {}, std::nullopt};
 
   // Parse the return type into a enum format.
-  base::Status status =
-      sql_argument::ParseArgumentDefinitions(cf.returns, state.return_values);
-  if (!status.ok()) {
-    return base::ErrStatus(
-        "CREATE PERFETTO FUNCTION[prototype=%s, return=%s]: unknown return "
-        "type specified",
-        state.prototype.ToString().c_str(), cf.returns.c_str());
+  {
+    base::Status status =
+        sql_argument::ParseArgumentDefinitions(cf.returns, state.return_values);
+    if (!status.ok()) {
+      return base::ErrStatus(
+          "CREATE PERFETTO FUNCTION[prototype=%s, return=%s]: unknown return "
+          "type specified",
+          state.prototype.ToString().c_str(), cf.returns.c_str());
+    }
   }
 
   // Verify that the provided SQL prepares to a statement correctly.
@@ -709,8 +715,16 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
 
   base::StackString<1024> create(
       "CREATE VIRTUAL TABLE %s USING runtime_table_function", fn_name.c_str());
-  return cf.sql.RewriteAllIgnoreExisting(
-      SqlSource::FromTraceProcessorImplementation(create.ToStdString()));
+  auto status = Execute(cf.sql.RewriteAllIgnoreExisting(
+                            SqlSource::FromTraceProcessorImplementation(
+                                create.ToStdString())))
+                    .status();
+  if (!status.ok()) {
+    // If the registration of the table with SQLite failed, erase the state
+    // we hold.
+    PERFETTO_CHECK(runtime_table_fn_states_.Erase(lower_name));
+  }
+  return status;
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateMacro(

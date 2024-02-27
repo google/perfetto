@@ -176,9 +176,7 @@ class PerfettoSqlEngine {
   const Table* GetStaticTableOrNull(std::string_view) const;
 
  private:
-  base::StatusOr<SqlSource> ExecuteCreateFunction(
-      const PerfettoSqlParser::CreateFunction&,
-      const PerfettoSqlParser& parser);
+  base::Status ExecuteCreateFunction(const PerfettoSqlParser::CreateFunction&);
 
   base::Status ExecuteInclude(const PerfettoSqlParser::Include&,
                               const PerfettoSqlParser& parser);
