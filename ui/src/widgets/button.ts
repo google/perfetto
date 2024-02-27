@@ -92,3 +92,12 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
     );
   }
 }
+
+/**
+ * Space buttons out with a little gap between each one.
+ */
+export class ButtonBar implements m.ClassComponent {
+  view({children}: m.CVnode): m.Children {
+    return m('.pf-button-bar', children);
+  }
+}
