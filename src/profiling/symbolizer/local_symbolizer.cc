@@ -30,10 +30,10 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/profiling/symbolizer/elf.h"
 #include "src/profiling/symbolizer/filesystem.h"
-#include "src/profiling/symbolizer/scoped_read_mmap.h"
 
 namespace perfetto {
 namespace profiling {
@@ -222,12 +222,12 @@ std::optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(const char* fname,
   static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
   if (size <= EI_CLASS)
     return std::nullopt;
-  ScopedReadMmap map(fname, size);
+  base::ScopedMmap map = base::ReadMmapFilePart(fname, size);
   if (!map.IsValid()) {
-    PERFETTO_PLOG("mmap");
+    PERFETTO_PLOG("Failed to mmap %s", fname);
     return std::nullopt;
   }
-  char* mem = static_cast<char*>(*map);
+  char* mem = static_cast<char*>(map.data());
 
   if (!IsElf(mem, size))
     return std::nullopt;
