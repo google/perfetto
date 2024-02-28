@@ -18,22 +18,27 @@
 
 #include <fcntl.h>
 #include <poll.h>
-#include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <cstdint>
 
 #include <limits>
+#include <memory>
+#include <optional>
 #include <string>
+#include <tuple>
+#include <utility>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
+#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/kallsyms/kernel_symbol_map.h"
@@ -42,7 +47,9 @@
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/event_info.h"
+#include "src/traced/probes/ftrace/event_info_constants.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
+#include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
@@ -112,6 +119,26 @@ std::map<std::string, std::vector<GroupAndName>> GetAtraceVendorEvents(
   base::ignore_result(tracefs);
   return {};
 #endif
+}
+
+struct AndroidGkiVersion {
+  uint64_t version = 0;
+  uint64_t patch_level = 0;
+  uint64_t sub_level = 0;
+  uint64_t release = 0;
+  uint64_t kmi_gen = 0;
+};
+
+#define ANDROID_GKI_UNAME_FMT \
+  "%" PRIu64 ".%" PRIu64 ".%" PRIu64 "-android%" PRIu64 "-%" PRIu64
+
+std::optional<AndroidGkiVersion> ParseAndroidGkiVersion(const char* s) {
+  AndroidGkiVersion v = {};
+  if (sscanf(s, ANDROID_GKI_UNAME_FMT, &v.version, &v.patch_level, &v.sub_level,
+             &v.release, &v.kmi_gen) != 5) {
+    return std::nullopt;
+  }
+  return v;
 }
 
 }  // namespace
@@ -634,21 +661,14 @@ void FtraceController::MaybeSnapshotFtraceClock() {
 
 FtraceController::PollSupport
 FtraceController::VerifyKernelSupportForBufferWatermark() {
-  auto* tracefs = primary_.ftrace_procfs.get();
-  // Very conservative kernel version check for the following bugfix, prior to
-  // which poll returned as soon as the buffer was non-empty:
-  //   42fb0a1e84ff tracing/ring-buffer: Have polling block on watermark
   struct utsname uts = {};
-  int major, minor;
-  if (uname(&uts) != 0 || strcmp(uts.sysname, "Linux") != 0 ||
-      sscanf(uts.release, "%d.%d", &major, &minor) != 2 ||
-      (major < kPollRequiredMajorVersion ||
-       (major == kPollRequiredMajorVersion &&
-        minor < kPollRequiredMinorVersion))) {
+  if (uname(&uts) < 0 || strcmp(uts.sysname, "Linux") != 0)
     return PollSupport::kUnsupported;
-  }
+  if (!PollSupportedOnKernelVersion(uts.release))
+    return PollSupport::kUnsupported;
 
   // buffer_percent exists and is writable
+  auto* tracefs = primary_.ftrace_procfs.get();
   uint32_t current = tracefs->ReadBufferPercent();
   if (!tracefs->SetBufferPercent(current ? current : 50)) {
     return PollSupport::kUnsupported;
@@ -664,6 +684,45 @@ FtraceController::VerifyKernelSupportForBufferWatermark() {
     return PollSupport::kUnsupported;
   }
   return PollSupport::kSupported;
+}
+
+// Check kernel version since the poll implementation has historical bugs.
+// We're looking for at least 6.1 for the following:
+//   42fb0a1e84ff tracing/ring-buffer: Have polling block on watermark
+// Otherwise the poll will wake us up as soon as a single byte is in the
+// buffer. A more conservative check would look for 6.6 for an extra fix that
+// reduces excessive kernel-space wakeups:
+//   1e0cb399c765 ring-buffer: Update "shortest_full" in polling
+// However that doesn't break functionality, so we'll still use poll if
+// requested by the config.
+// static
+bool FtraceController::PollSupportedOnKernelVersion(const char* uts_release) {
+  int major = 0, minor = 0;
+  if (sscanf(uts_release, "%d.%d", &major, &minor) != 2) {
+    return false;
+  }
+  if (major < kPollRequiredMajorVersion ||
+      (major == kPollRequiredMajorVersion &&
+       minor < kPollRequiredMinorVersion)) {
+    // Android: opportunistically detect a few select GKI kernels that are known
+    // to have the fixes. Note: 6.1 and 6.6 GKIs are already covered by the
+    // outer check.
+    std::optional<AndroidGkiVersion> gki = ParseAndroidGkiVersion(uts_release);
+    if (!gki.has_value())
+      return false;
+    // android13-5.10.197 or higher sublevel:
+    //   ef47f25e98de ring-buffer: Update "shortest_full" in polling
+    // android13-5.15.133 and
+    // android14-5.15.133 or higher sublevel:
+    //   b5d00cd7db66 ring-buffer: Update "shortest_full" in polling
+    bool gki_patched =
+        (gki->release == 13 && gki->version == 5 && gki->patch_level == 10 &&
+         gki->sub_level >= 197) ||
+        ((gki->release == 13 || gki->release == 14) && gki->version == 5 &&
+         gki->patch_level == 15 && gki->sub_level >= 133);
+    return gki_patched;
+  }
+  return true;
 }
 
 size_t FtraceController::GetStartedDataSourcesCount() {
