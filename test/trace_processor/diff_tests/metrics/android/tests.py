@@ -190,39 +190,7 @@ class AndroidMetrics(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_postboot_unlock.pftrace'),
         query=Metric('android_boot'),
-        out=TextProto(r"""
-        android_boot {
-          system_server_durations {
-            total_dur: 90219646678
-            uninterruptible_sleep_dur: 618417159
-          }
-          systemui_durations {
-            total_dur: 48481027953
-            uninterruptible_sleep_dur: 796263
-          }
-          launcher_durations {
-            total_dur: 23595248987
-            uninterruptible_sleep_dur: 257290255
-          }
-          gms_durations {
-            total_dur: 27804143410
-            uninterruptible_sleep_dur: 101685087
-          }
-          launcher_breakdown {
-            cold_start_dur: 403543498
-          }
-          full_trace_process_start_aggregation {
-            total_start_sum: 10678297679
-            num_of_processes: 29
-            average_start_time: 368217161.3448276
-          }
-          post_boot_process_start_aggregation {
-            total_start_sum: 6112984648
-            num_of_processes: 21
-            average_start_time: 291094507.04761904
-          }
-        }
-        """))
+        out=Path('android_boot.out'))
 
   def test_ad_services_metric(self):
     return DiffTestBlueprint(
