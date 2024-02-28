@@ -410,8 +410,7 @@ base::Status SetFilePermissions(const std::string& file_path,
 
 std::optional<size_t> GetFileSize(const std::string& file_path) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  // This does not use base::OpenFile because to avoid getting an exclusive
-  // lock.
+  // This does not use base::OpenFile to avoid getting an exclusive lock.
   HANDLE file =
       CreateFileA(file_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
                   OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
