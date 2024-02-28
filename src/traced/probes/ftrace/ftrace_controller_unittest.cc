@@ -479,9 +479,11 @@ TEST(FtraceControllerTest, BufferSize) {
       .Times(AnyNumber());
 
   {
-    // No buffer size -> good default.
-    EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "2048"));
+    // No buffer size -> good default (exact value depends on the ram size of
+    // the machine running this test).
+    EXPECT_CALL(
+        *controller->procfs(),
+        WriteToFile("/root/buffer_size_kb", testing::AnyOf("2048", "8192")));
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
@@ -534,6 +536,18 @@ TEST(FtraceControllerTest, BufferSize) {
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     ON_CALL(*controller->procfs(), NumberOfCpus()).WillByDefault(Return(2));
     config.set_buffer_size_kb(65);
+    auto data_source = controller->AddFakeDataSource(config);
+    ASSERT_TRUE(controller->StartDataSource(data_source.get()));
+  }
+
+  {
+    // buffer_size_lower_bound -> default size no less than given.
+    EXPECT_CALL(
+        *controller->procfs(),
+        WriteToFile("/root/buffer_size_kb", testing::AnyOf("4096", "8192")));
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
+    config.set_buffer_size_kb(4096);
+    config.set_buffer_size_lower_bound(true);
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }
@@ -810,6 +824,33 @@ TEST(FtraceControllerTest, TracefsInstanceFilepaths) {
   // special-cased pkvm path
   path = FtraceController::AbsolutePathForInstance("/root/", "hyp");
   EXPECT_EQ(*path, "/root/hyp/");
+}
+
+TEST(FtraceControllerTest, PollSupportedOnKernelVersion) {
+  auto test = [](auto s) {
+    return FtraceController::PollSupportedOnKernelVersion(s);
+  };
+  // Linux 6.1 or above are ok
+  EXPECT_TRUE(test("6.5.13-1-amd64"));
+  EXPECT_TRUE(test("6.1.0-1-amd64"));
+  EXPECT_TRUE(test("6.1.25-android14-11-g"));
+  // before 6.1
+  EXPECT_FALSE(test("5.15.200-1-amd"));
+
+  // Android: check allowlisted GKI versions
+
+  // sublevel matters:
+  EXPECT_TRUE(test("5.10.198-android13-4-0"));
+  EXPECT_FALSE(test("5.10.189-android13-4-0"));
+  // sublevel matters:
+  EXPECT_TRUE(test("5.15.137-android14-8-suffix"));
+  EXPECT_FALSE(test("5.15.130-android14-8-suffix"));
+  // sublevel matters:
+  EXPECT_TRUE(test("5.15.137-android13-8-0"));
+  EXPECT_FALSE(test("5.15.129-android13-8-0"));
+  // android12 instead of android13 (clarification: this is part of the kernel
+  // version, and is unrelated to the system image version).
+  EXPECT_FALSE(test("5.10.198-android12-4-0"));
 }
 
 }  // namespace perfetto

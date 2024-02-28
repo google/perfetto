@@ -250,7 +250,9 @@ class FtraceConfigMuxer {
   bool secondary_instance_;
 };
 
-size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb);
+size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb,
+                                   bool buffer_size_lower_bound,
+                                   int64_t sysconf_phys_pages);
 
 }  // namespace perfetto
 
