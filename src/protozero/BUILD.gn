@@ -45,15 +45,13 @@ perfetto_component("protozero") {
 }
 
 source_set("proto_ring_buffer") {
+  public_deps = [ "../../include/perfetto/ext/protozero" ]
   deps = [
     ":protozero",
     "../../gn:default_deps",
     "../base",
   ]
-  sources = [
-    "proto_ring_buffer.cc",
-    "proto_ring_buffer.h",
-  ]
+  sources = [ "proto_ring_buffer.cc" ]
 }
 
 perfetto_unittest_source_set("unittests") {

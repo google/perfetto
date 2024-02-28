@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_PROTOZERO_PROTO_RING_BUFFER_H_
-#define SRC_PROTOZERO_PROTO_RING_BUFFER_H_
+#ifndef INCLUDE_PERFETTO_EXT_PROTOZERO_PROTO_RING_BUFFER_H_
+#define INCLUDE_PERFETTO_EXT_PROTOZERO_PROTO_RING_BUFFER_H_
 
 #include <stdint.h>
 
@@ -150,4 +150,4 @@ class ProtoRingBuffer final : public RingBufferMessageReader {
 
 }  // namespace protozero
 
-#endif  // SRC_PROTOZERO_PROTO_RING_BUFFER_H_
+#endif  // INCLUDE_PERFETTO_EXT_PROTOZERO_PROTO_RING_BUFFER_H_

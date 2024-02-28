@@ -24,9 +24,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
-#include "src/protozero/proto_ring_buffer.h"
 
 namespace perfetto {
 
