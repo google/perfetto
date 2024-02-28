@@ -18,8 +18,8 @@
 #include <string>
 
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "src/base/test/utils.h"
-#include "src/protozero/proto_ring_buffer.h"
 
 static void BM_ProtoRingBufferReadLargeChunks(benchmark::State& state) {
   std::string trace_data;
