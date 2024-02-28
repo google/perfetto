@@ -20,8 +20,26 @@
 namespace perfetto {
 namespace base {
 
-// The returned pointer is a static string is safe to pass around.
+// The returned pointer is a static string and safe to pass around.
+// Returns a human readable string currently of the approximate form:
+// Perfetto v42.1-deadbeef0 (deadbeef03c641e4b4ea9cf38e9b5696670175a9)
+// However you should not depend on the format of this string.
+// It maybe not be possible to determine the version. In which case the
+// string will be of the approximate form:
+// Perfetto v0.0 (unknown)
 const char* GetVersionString();
+
+// The returned pointer is a static string and safe to pass around.
+// Returns the short code used to identity the version:
+// v42.1-deadbeef0
+// It maybe not be possible to determine the version. In which case
+// this returns nullptr.
+// This can be compared with equality to other
+// version codes to detect matched builds (for example to see if
+// trace_processor_shell and the UI were built at the same revision)
+// but you should not attempt to parse it as the format may change
+// without warning.
+const char* GetVersionCode();
 
 }  // namespace base
 }  // namespace perfetto
