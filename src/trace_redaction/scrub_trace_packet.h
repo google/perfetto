@@ -19,8 +19,6 @@
 
 #include "src/trace_redaction/trace_redaction_framework.h"
 
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
-
 namespace perfetto::trace_redaction {
 
 // Drops whole trace packets based on an allow-list (e.g. retain ProcessTree
