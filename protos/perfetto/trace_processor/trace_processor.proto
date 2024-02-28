@@ -38,9 +38,18 @@ import "protos/perfetto/trace_processor/metatrace_categories.proto";
 
 enum TraceProcessorApiVersion {
   // This variable has been introduced in v15 and is used to deal with API
-  // mismatches between UI and trace_processor_shell --httpd. Increment this
-  // every time a new feature that the UI depends on is being introduced (e.g.
-  // new tables, new SQL operators, metrics that are required by the UI).
+  // mismatches between UI and trace_processor_shell --httpd.
+  //
+  // Prior to API version 11 this was incremented every time a new
+  // feature that the UI depended on was introduced (e.g. new tables,
+  // new SQL operators, metrics that are required by the UI, etc).
+  // This:
+  // a. Tended to be forgotten
+  // b. Still led to issues when the TP dropped *backwards*
+  //    compatibility of a feature (since we checked TP >= UI
+  //    TRACE_PROCESSOR_CURRENT_API_VERSION).
+  // Now the UI attempts to redirect the user to the matched version
+  // of the UI if one exists.
   // See also StatusResult.api_version (below).
   // Changes:
   // 7. Introduce GUESS_CPU_SIZE
@@ -48,10 +57,12 @@ enum TraceProcessorApiVersion {
   // 9. Add get_thread_state_summary_for_interval.
   // 10. Add 'slice_is_ancestor' to stdlib.
   // 11. Removal of experimental module from stdlib.
-  TRACE_PROCESSOR_CURRENT_API_VERSION = 11;
+  // 12. Changed UI to be more aggresive about version matching.
+  //     Added version_code.
+  TRACE_PROCESSOR_CURRENT_API_VERSION = 12;
 }
 
-// At lowest level, the wire-format of the RPC procol is a linear sequence of
+// At lowest level, the wire-format of the RPC protocol is a linear sequence of
 // TraceProcessorRpc messages on each side of the byte pipe
 // Each message is prefixed by a tag (field = 1, type = length delimited) and a
 // varint encoding its size (this is so the whole stream can also be read /
@@ -236,6 +247,15 @@ message StatusResult {
   // The API version is incremented every time a change that the UI depends
   // on is introduced (e.g. adding a new table that the UI queries).
   optional int32 api_version = 3;
+
+  // Typically something like "v42.1-deadbeef0", but could be just
+  // "v42", "v0.0", or unset for binaries built from Bazel or other
+  // build configurations. This can be compared with equality to other
+  // version codes to detect matched builds (for example to see if
+  // trace_processor_shell and the UI were built at the same revision)
+  // but you should not attempt to parse it as the format may change
+  // without warning.
+  optional string version_code = 4;
 }
 
 // Input for the /compute_metric endpoint.
