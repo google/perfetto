@@ -479,9 +479,11 @@ TEST(FtraceControllerTest, BufferSize) {
       .Times(AnyNumber());
 
   {
-    // No buffer size -> good default.
-    EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "2048"));
+    // No buffer size -> good default (exact value depends on the ram size of
+    // the machine running this test).
+    EXPECT_CALL(
+        *controller->procfs(),
+        WriteToFile("/root/buffer_size_kb", testing::AnyOf("2048", "8192")));
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
@@ -534,6 +536,18 @@ TEST(FtraceControllerTest, BufferSize) {
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     ON_CALL(*controller->procfs(), NumberOfCpus()).WillByDefault(Return(2));
     config.set_buffer_size_kb(65);
+    auto data_source = controller->AddFakeDataSource(config);
+    ASSERT_TRUE(controller->StartDataSource(data_source.get()));
+  }
+
+  {
+    // buffer_size_lower_bound -> default size no less than given.
+    EXPECT_CALL(
+        *controller->procfs(),
+        WriteToFile("/root/buffer_size_kb", testing::AnyOf("4096", "8192")));
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
+    config.set_buffer_size_kb(4096);
+    config.set_buffer_size_lower_bound(true);
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }

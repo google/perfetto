@@ -139,7 +139,7 @@ std::optional<AndroidGkiVersion> ParseAndroidGkiVersion(const char* s) {
     return std::nullopt;
   }
   return v;
-};
+}
 
 }  // namespace
 

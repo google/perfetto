@@ -413,10 +413,6 @@ bool FtraceProcfs::WriteTraceMarker(const std::string& str) {
 }
 
 bool FtraceProcfs::SetCpuBufferSizeInPages(size_t pages) {
-  if (pages * base::GetSysPageSize() > 1 * 1024 * 1024 * 1024) {
-    PERFETTO_ELOG("Tried to set the per CPU buffer size to more than 1gb.");
-    return false;
-  }
   std::string path = root_ + "buffer_size_kb";
   return WriteNumberToFile(path, pages * (base::GetSysPageSize() / 1024ul));
 }

@@ -16,10 +16,10 @@
 
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 
-#include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <cstdint>
 
 #include <algorithm>
 #include <iterator>
@@ -37,8 +37,14 @@
 namespace perfetto {
 namespace {
 
-constexpr int kDefaultPerCpuBufferSizeKb = 2 * 1024;  // 2mb
-constexpr int kMaxPerCpuBufferSizeKb = 64 * 1024;     // 64mb
+constexpr uint64_t kDefaultLowRamPerCpuBufferSizeKb = 2 * (1ULL << 10);   // 2mb
+constexpr uint64_t kDefaultHighRamPerCpuBufferSizeKb = 8 * (1ULL << 10);  // 8mb
+constexpr uint64_t kMaxPerCpuBufferSizeKb = 64 * (1ULL << 10);  // 64mb
+
+// Threshold for physical ram size used when deciding on default kernel buffer
+// sizes. We want to detect 8 GB, but the size reported through sysconf is
+// usually lower.
+constexpr uint64_t kHighMemBytes = 7 * (1ULL << 30);  // 7gb
 
 // A fake "syscall id" that indicates all syscalls should be recorded. This
 // allows us to distinguish between the case where `syscall_events` is empty
@@ -562,27 +568,6 @@ bool FtraceConfigMuxer::SetSyscallEventFilter(
   return true;
 }
 
-// Post-conditions:
-// 1. result >= 1 (should have at least one page per CPU)
-// 2. result * 4 < kMaxTotalBufferSizeKb
-// 3. If input is 0 output is a good default number.
-size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb) {
-  if (requested_buffer_size_kb == 0)
-    requested_buffer_size_kb = kDefaultPerCpuBufferSizeKb;
-  if (requested_buffer_size_kb > kMaxPerCpuBufferSizeKb) {
-    PERFETTO_ELOG(
-        "The requested ftrace buf size (%zu KB) is too big, capping to %d KB",
-        requested_buffer_size_kb, kMaxPerCpuBufferSizeKb);
-    requested_buffer_size_kb = kMaxPerCpuBufferSizeKb;
-  }
-
-  size_t pages = requested_buffer_size_kb / (base::GetSysPageSize() / 1024);
-  if (pages == 0)
-    return 1;
-
-  return pages;
-}
-
 FtraceConfigMuxer::FtraceConfigMuxer(
     FtraceProcfs* ftrace,
     ProtoTranslationTable* table,
@@ -594,7 +579,7 @@ FtraceConfigMuxer::FtraceConfigMuxer(
       syscalls_(std::move(syscalls)),
       current_state_(),
       ds_configs_(),
-      vendor_events_(vendor_events),
+      vendor_events_(std::move(vendor_events)),
       secondary_instance_(secondary_instance) {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 
@@ -747,7 +732,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       request, filter.IsEventEnabled(compact_format.sched_switch.event_id),
       compact_format);
   if (errors && !compact_format.format_valid) {
-    errors->failed_ftrace_events.push_back(
+    errors->failed_ftrace_events.emplace_back(
         "perfetto/compact_sched (unexpected sched event format)");
   }
 
@@ -757,7 +742,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
         FtracePrintFilterConfig::Create(request.print_filter(), table_);
     if (!ftrace_print_filter.has_value()) {
       if (errors) {
-        errors->failed_ftrace_events.push_back(
+        errors->failed_ftrace_events.emplace_back(
             "ftrace/print (unexpected format for filtering)");
       }
     }
@@ -959,9 +944,44 @@ void FtraceConfigMuxer::SetupClock(const FtraceConfig& config) {
 }
 
 void FtraceConfigMuxer::SetupBufferSize(const FtraceConfig& request) {
-  size_t pages = ComputeCpuBufferSizeInPages(request.buffer_size_kb());
+  int64_t phys_ram_pages = sysconf(_SC_PHYS_PAGES);
+  size_t pages = ComputeCpuBufferSizeInPages(request.buffer_size_kb(),
+                                             request.buffer_size_lower_bound(),
+                                             phys_ram_pages);
   ftrace_->SetCpuBufferSizeInPages(pages);
   current_state_.cpu_buffer_size_pages = pages;
+}
+
+// Post-conditions:
+// 1. result >= 1 (should have at least one page per CPU)
+// 2. result < kMaxTotalBufferSizeKb / (page_size / 1024)
+// 3. If input is 0 output is a good default number
+size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb,
+                                   bool buffer_size_lower_bound,
+                                   int64_t sysconf_phys_pages) {
+  uint32_t page_sz = base::GetSysPageSize();
+  uint64_t default_size_kb =
+      (sysconf_phys_pages > 0 &&
+       (static_cast<uint64_t>(sysconf_phys_pages) >= (kHighMemBytes / page_sz)))
+          ? kDefaultHighRamPerCpuBufferSizeKb
+          : kDefaultLowRamPerCpuBufferSizeKb;
+
+  size_t actual_size_kb = requested_buffer_size_kb;
+  if ((requested_buffer_size_kb == 0) ||
+      (buffer_size_lower_bound && default_size_kb > requested_buffer_size_kb)) {
+    actual_size_kb = default_size_kb;
+  }
+
+  if (actual_size_kb > kMaxPerCpuBufferSizeKb) {
+    PERFETTO_ELOG(
+        "The requested ftrace buf size (%zu KB) is too big, capping to %" PRIu64
+        " KB",
+        actual_size_kb, kMaxPerCpuBufferSizeKb);
+    actual_size_kb = kMaxPerCpuBufferSizeKb;
+  }
+
+  size_t pages = actual_size_kb / (page_sz / 1024);
+  return pages ? pages : 1;
 }
 
 size_t FtraceConfigMuxer::GetPerCpuBufferSizePages() {
