@@ -17,10 +17,14 @@
 #ifndef SRC_TRACE_REDACTION_TRACE_REDACTION_FRAMEWORK_H_
 #define SRC_TRACE_REDACTION_TRACE_REDACTION_FRAMEWORK_H_
 
+#include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/status_or.h"
+
 #include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -89,6 +93,31 @@ class Context {
   //      uid: 1010113
   //    }
   std::optional<uint64_t> package_uid;
+
+  // Trace packets contain a "one of" entry called "data". This field can be
+  // thought of as the message. A track packet with have other fields along
+  // side "data" (e.g. "timestamp"). These fields can be thought of as metadata.
+  //
+  // A message should be removed if:
+  //
+  //  ...we know it contains too much sensitive information
+  //
+  //  ...we know it contains sensitive information and we know how to remove
+  //        the sensitive information, but don't have the resources to do it
+  //        right now
+  //
+  //  ...we know it provide little value
+  //
+  // "trace_packet_allow_list" contains the field ids of trace packets we want
+  // to pass onto later transformations. Examples are:
+  //
+  //    - protos::pbzero::TracePacket::kProcessTreeFieldNumber
+  //    - protos::pbzero::TracePacket::kProcessStatsFieldNumber
+  //    - protos::pbzero::TracePacket::kClockSnapshotFieldNumber
+  //
+  // Because "data" is a "one of", if no field in "trace_packet_allow_list" can
+  // be found, it packet should be removed.
+  base::FlatSet<uint32_t> trace_packet_allow_list;
 };
 
 // Responsible for extracting low-level data from the trace and storing it in
