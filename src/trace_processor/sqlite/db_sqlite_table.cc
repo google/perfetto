@@ -434,7 +434,19 @@ std::unique_ptr<SqliteTable::BaseCursor> DbSqliteTable::CreateCursor() {
 DbSqliteTable::Cursor::Cursor(DbSqliteTable* sqlite_table, QueryCache* cache)
     : SqliteTable::BaseCursor(sqlite_table),
       db_sqlite_table_(sqlite_table),
-      cache_(cache) {}
+      cache_(cache) {
+  switch (db_sqlite_table_->context_->computation) {
+    case TableComputation::kStatic:
+      upstream_table_ = db_sqlite_table_->context_->static_table;
+      break;
+    case TableComputation::kRuntime:
+      upstream_table_ = db_sqlite_table_->runtime_table_;
+      break;
+    case TableComputation::kTableFunction: {
+      break;
+    }
+  }
+}
 DbSqliteTable::Cursor::~Cursor() = default;
 
 void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
@@ -535,17 +547,7 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   // Setup the upstream table based on the computation state.
   switch (db_sqlite_table_->context_->computation) {
     case TableComputation::kStatic:
-      // If we have a static table, just set the upstream table to be the static
-      // table.
-      upstream_table_ = db_sqlite_table_->context_->static_table;
-
-      // Tries to create a sorted cached table which can be used to speed up
-      // filters below.
-      TryCacheCreateSortedTable(qc, history);
-      break;
     case TableComputation::kRuntime:
-      upstream_table_ = db_sqlite_table_->runtime_table_;
-
       // Tries to create a sorted cached table which can be used to speed up
       // filters below.
       TryCacheCreateSortedTable(qc, history);
