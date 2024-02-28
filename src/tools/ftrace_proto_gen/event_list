@@ -483,3 +483,4 @@ binder/binder_command
 binder/binder_return
 perf_trace_counters/sched_switch_with_ctrs
 power/gpu_work_period
+rpm/rpm_status
