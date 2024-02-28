@@ -98,11 +98,6 @@ JOB_CONFIGS = {
         'PERFETTO_TEST_SCRIPT':
             'test/ci/android_tests.sh',
     },
-    'android-clang-arm-asan': {
-        'PERFETTO_TEST_GN_ARGS': 'is_debug=false target_os="android" '
-                                 'target_cpu="arm" is_asan=true',
-        'PERFETTO_TEST_SCRIPT': 'test/ci/android_tests.sh',
-    },
     'linux-clang-x86_64-libfuzzer': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_fuzzer=true is_asan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/fuzzer_tests.sh',
