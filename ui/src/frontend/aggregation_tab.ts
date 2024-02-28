@@ -21,14 +21,21 @@ import {DetailsShell} from '../widgets/details_shell';
 import {Button, ButtonBar} from '../widgets/button';
 import {raf} from '../core/raf_scheduler';
 import {EmptyState} from '../widgets/empty_state';
+import {FlowEventsAreaSelectedPanel} from './flow_events_panel';
+import {PivotTable} from './pivot_table';
+
+interface View {
+  key: string;
+  name: string;
+  content: m.Children;
+};
 
 class AreaDetailsPanel implements m.ClassComponent {
   private currentTab: string|undefined = undefined;
 
-  private getCurrentAggType(): string|undefined {
-    const types = Array.from(globals.aggregateDataStore.entries())
-      .filter(([_, value]) => !isEmptyData(value))
-      .map(([type, _]) => type);
+  private getCurrentView(): string|undefined {
+    const types = this.getViews()
+      .map(({key}) => key);
 
     if (types.length === 0) {
       return undefined;
@@ -45,45 +52,78 @@ class AreaDetailsPanel implements m.ClassComponent {
     return this.currentTab;
   }
 
-  view(_: m.Vnode): m.Children {
-    const aggregationButtons = Array.from(globals.aggregateDataStore.entries())
-      .filter(([_, value]) => !isEmptyData(value))
-      .map(([type, value]) => {
-        return m(Button,
-          {
-            onclick: () => {
-              this.currentTab = type;
-              raf.scheduleFullRedraw();
-            },
-            key: type,
-            label: value.tabName,
-            active: this.getCurrentAggType() === type,
-            minimal: true,
-          },
-        );
+  private getViews(): View[] {
+    const views = [];
+
+    for (const [key, value] of globals.aggregateDataStore.entries()) {
+      if (!isEmptyData(value)) {
+        views.push({
+          key: value.tabName,
+          name: value.tabName,
+          content: m(AggregationPanel, {kind: key, key, data: value}),
+        });
+      }
+    }
+
+    // Add this after all aggregation panels, to make it appear after 'Slices'
+    if (globals.selectedFlows.length > 0) {
+      views.push({
+        key: 'selected_flows',
+        name: 'Flow Events',
+        content: m(FlowEventsAreaSelectedPanel),
       });
+    }
 
-    const content = this.renderAggregationContent();
+    const pivotTableState = globals.state.nonSerializableState.pivotTable;
+    if (pivotTableState.selectionArea !== undefined) {
+      views.push({
+        key: 'pivot_table',
+        name: 'Pivot Table',
+        content: m(PivotTable, {
+          selectionArea:
+              pivotTableState.selectionArea,
+        }),
+      });
+    }
 
+    return views;
+  }
+
+  view(_: m.Vnode): m.Children {
+    const views = this.getViews();
+    const currentViewKey = this.getCurrentView();
+
+    const aggregationButtons = views.map(({key, name}) => {
+      return m(Button,
+        {
+          onclick: () => {
+            this.currentTab = key;
+            raf.scheduleFullRedraw();
+          },
+          key,
+          label: name,
+          active: currentViewKey === key,
+          minimal: true,
+        },
+      );
+    });
+
+    if (currentViewKey === undefined) {
+      return this.renderEmptyState();
+    }
+
+    const content = views.find(({key}) => key === currentViewKey)?.content;
     if (content === undefined) {
       return this.renderEmptyState();
     }
 
     return m(DetailsShell,
       {
-        title: 'Aggregate',
+        title: 'Area Selection',
         description: m(ButtonBar, aggregationButtons),
       },
       content,
     );
-  }
-
-  private renderAggregationContent(): m.Children {
-    const currentTab = this.getCurrentAggType();
-    if (currentTab === undefined) return undefined;
-
-    const data = globals.aggregateDataStore.get(currentTab);
-    return m(AggregationPanel, {kind: currentTab, data});
   }
 
   private renderEmptyState(): m.Children {
