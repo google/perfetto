@@ -82,7 +82,7 @@ SPURIOUS_SCHED_WAKEUP_TABLE = Table(
         C('thread_state_id', CppInt64()),
         C('irq_context', CppOptional(CppUint32())),
         C('utid', CppUint32()),
-        C('waker_utid', CppUint32()),
+        C('waker_utid', CppUint32())
     ],
     tabledoc=TableDoc(
         doc='''
@@ -104,7 +104,7 @@ SPURIOUS_SCHED_WAKEUP_TABLE = Table(
                 '''
                   The unique thread id of the thread which caused a wakeup of
                   this thread.
-                '''
+                ''',
         }))
 
 THREAD_STATE_TABLE = Table(
@@ -120,6 +120,7 @@ THREAD_STATE_TABLE = Table(
         C('io_wait', CppOptional(CppUint32())),
         C('blocked_function', CppOptional(CppString())),
         C('waker_utid', CppOptional(CppUint32())),
+        C('waker_id', CppOptional(CppSelfTableId())),
         C('irq_context', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
@@ -155,6 +156,10 @@ THREAD_STATE_TABLE = Table(
                 '''
                   The unique thread id of the thread which caused a wakeup of
                   this thread.
+                ''',
+            'waker_id':
+                '''
+                  The unique thread state id which caused a wakeup of this thread.
                 '''
         }))
 

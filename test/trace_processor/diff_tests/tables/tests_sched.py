@@ -102,6 +102,24 @@ class TablesSched(TestSuite):
         9,"spurious_sched_wakeup",1737211563344,8999,0,178,1195
         """))
 
+  def test_sched_waker_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT parent.id
+        FROM thread_state parent
+        JOIN thread_state child
+          ON parent.utid = child.waker_utid AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur
+        WHERE child.id = 15750
+        UNION ALL
+        SELECT waker_id AS id FROM thread_state WHERE id = 15750
+        """,
+        out=Csv("""
+        "id"
+        15748
+        15748
+        """))
+
   def test_raw_common_flags(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
