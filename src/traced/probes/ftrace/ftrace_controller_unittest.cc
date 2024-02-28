@@ -812,4 +812,31 @@ TEST(FtraceControllerTest, TracefsInstanceFilepaths) {
   EXPECT_EQ(*path, "/root/hyp/");
 }
 
+TEST(FtraceControllerTest, PollSupportedOnKernelVersion) {
+  auto test = [](auto s) {
+    return FtraceController::PollSupportedOnKernelVersion(s);
+  };
+  // Linux 6.1 or above are ok
+  EXPECT_TRUE(test("6.5.13-1-amd64"));
+  EXPECT_TRUE(test("6.1.0-1-amd64"));
+  EXPECT_TRUE(test("6.1.25-android14-11-g"));
+  // before 6.1
+  EXPECT_FALSE(test("5.15.200-1-amd"));
+
+  // Android: check allowlisted GKI versions
+
+  // sublevel matters:
+  EXPECT_TRUE(test("5.10.198-android13-4-0"));
+  EXPECT_FALSE(test("5.10.189-android13-4-0"));
+  // sublevel matters:
+  EXPECT_TRUE(test("5.15.137-android14-8-suffix"));
+  EXPECT_FALSE(test("5.15.130-android14-8-suffix"));
+  // sublevel matters:
+  EXPECT_TRUE(test("5.15.137-android13-8-0"));
+  EXPECT_FALSE(test("5.15.129-android13-8-0"));
+  // android12 instead of android13 (clarification: this is part of the kernel
+  // version, and is unrelated to the system image version).
+  EXPECT_FALSE(test("5.10.198-android12-4-0"));
+}
+
 }  // namespace perfetto
