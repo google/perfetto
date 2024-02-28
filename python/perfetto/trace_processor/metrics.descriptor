@@ -25,11 +25,11 @@ adIdMetricT
 app_set_id_metric (2).perfetto.protos.AdServicesAppSetIdMetricRappSetIdMetricM
 
 odp_metric (2..perfetto.protos.OnDevicePersonalizationMetricR	odpMetric
-ß
+¼
 2protos/perfetto/metrics/android/android_boot.protoperfetto.protos"p
 ProcessStateDurations
 	total_dur (RtotalDur:
-uninterruptible_sleep_dur (RuninterruptibleSleepDur"¥
+uninterruptible_sleep_dur (RuninterruptibleSleepDur"‚
 AndroidBootMetric^
 system_server_durations (2&.perfetto.protos.ProcessStateDurationsRsystemServerDurationsU
 systemui_durations (2&.perfetto.protos.ProcessStateDurationsRsystemuiDurationsU
@@ -45,19 +45,21 @@ $full_trace_process_start_aggregation (2:.perfetto.protos.AndroidBootMetric.
 ProcessStartAggregation&
 total_start_sum (RtotalStartSum(
 num_of_processes (RnumOfProcesses,
-average_start_time (RaverageStartTimeê
+average_start_time (RaverageStartTimeÇ
 GarbageCollectionAggregation$
 total_gc_count (RtotalGcCount6
 num_of_processes_with_gc (RnumOfProcessesWithGc2
 num_of_threads_with_gc (RnumOfThreadsWithGc&
-avg_gc_duration (RavgGcDuration"
-full_gc_count (RfullGcCountA
-collector_transition_gc_count (RcollectorTransitionGcCount$
-young_gc_count (RyoungGcCount1
-native_alloc_gc_count (RnativeAllocGcCount*
-explicit_gc_count	 (RexplicitGcCount$
-alloc_gc_count
- (RallocGcCount
+avg_gc_duration (RavgGcDuration5
+avg_running_gc_duration (RavgRunningGcDuration"
+full_gc_count (RfullGcCountA
+collector_transition_gc_count (RcollectorTransitionGcCount$
+young_gc_count (RyoungGcCount1
+native_alloc_gc_count	 (RnativeAllocGcCount*
+explicit_gc_count
+ (RexplicitGcCount$
+alloc_gc_count (RallocGcCount$
+mb_per_ms_of_gc (RmbPerMsOfGc
 Ž
 ?protos/perfetto/metrics/android/app_process_starts_metric.protoperfetto.protos"¹
 AndroidAppProcessStartsMetricV
