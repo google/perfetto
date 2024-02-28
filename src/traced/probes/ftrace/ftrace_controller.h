@@ -91,6 +91,9 @@ class FtraceController {
       const std::string& tracefs_root,
       const std::string& raw_cfg_name);
 
+  // public for testing
+  static bool PollSupportedOnKernelVersion(const char* uts_release);
+
  protected:
   // Everything protected/virtual for testing:
 

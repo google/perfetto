@@ -745,14 +745,17 @@ message EtwConfig {
 
 // Begin of protos/perfetto/config/ftrace/ftrace_config.proto
 
-// Next id: 27.
+// Next id: 28
 message FtraceConfig {
+  // Ftrace events to record, example: "sched/sched_switch".
   repeated string ftrace_events = 1;
+  // Android-specific event categories:
   repeated string atrace_categories = 2;
   repeated string atrace_apps = 3;
 
   // Size of each per-cpu kernel ftrace ring buffer.
-  // Not guaranteed if there are multiple concurrent tracing sessions.
+  // Not guaranteed if there are multiple concurrent tracing sessions, as the
+  // buffers cannot be resized without pausing recording in the kernel.
   optional uint32 buffer_size_kb = 10;
 
   // If set, specifies how often the tracing daemon reads from the kernel ring
@@ -762,9 +765,9 @@ message FtraceConfig {
 
   // If set, the tracing daemon will read kernel ring buffers as soon as
   // they're filled past this percentage of occupancy. In other words, a value
-  // of 50 will mean that a read pass is triggered as soon as any per-cpu
-  // buffer is half-full. Not guaranteed if there are multiple concurrent
-  // tracing sessions.
+  // of 50 means that a read pass is triggered as soon as any per-cpu buffer is
+  // half-full. Not guaranteed if there are multiple concurrent tracing
+  // sessions.
   // Currently does nothing on Linux kernels below v6.1.
   // Introduced in: perfetto v43.
   optional uint32 drain_buffer_percent = 26;
@@ -936,6 +939,24 @@ message FtraceConfig {
   //  * ftrace_events
   //  * buffer_size_kb
   optional string instance_name = 25;
+
+  // If true, |buffer_size_kb| is interpreted as a lower bound, allowing the
+  // implementation to choose a bigger buffer size.
+  //
+  // Most configs for perfetto v43+ should simply leave both fields unset.
+  //
+  // If you need a config compatible with a range of perfetto builds and you
+  // used to set a non-default buffer_size_kb, consider setting both fields.
+  // Example:
+  //   buffer_size_kb: 4096
+  //   buffer_size_lower_bound: true
+  // On older builds, the per-cpu buffers will be exactly 4 MB.
+  // On v43+, buffers will be at least 4 MB.
+  // In both cases, neither is guaranteed if there are other concurrent
+  // perfetto ftrace sessions, as the buffers cannot be resized without pausing
+  // the recording in the kernel.
+  // Introduced in: perfetto v43.
+  optional bool buffer_size_lower_bound = 27;
 }
 
 // End of protos/perfetto/config/ftrace/ftrace_config.proto
