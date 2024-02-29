@@ -785,6 +785,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->gpu_counter_group_table());
   RegisterStaticTable(storage->perf_counter_track_table());
   RegisterStaticTable(storage->energy_counter_track_table());
+  RegisterStaticTable(storage->linux_device_track_table());
   RegisterStaticTable(storage->uid_counter_track_table());
   RegisterStaticTable(storage->energy_per_uid_counter_track_table());
 
