@@ -28,8 +28,7 @@
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-
-#include "src/trace_processor/util/stack_traces_util.h"
+#include "src/trace_processor/util/build_id.h"
 
 namespace perfetto {
 namespace profiling {
@@ -56,32 +55,6 @@ struct UnsymbolizedMapping {
   }
 };
 
-std::string FromHex(const char* str, size_t size) {
-  if (size % 2) {
-    PERFETTO_DFATAL_OR_ELOG("Failed to parse hex %s", str);
-    return "";
-  }
-  std::string result(size / 2, '\0');
-  for (size_t i = 0; i < size; i += 2) {
-    char hex_byte[3];
-    hex_byte[0] = str[i];
-    hex_byte[1] = str[i + 1];
-    hex_byte[2] = '\0';
-    char* end;
-    long int byte = strtol(hex_byte, &end, 16);
-    if (*end != '\0') {
-      PERFETTO_DFATAL_OR_ELOG("Failed to parse hex %s", str);
-      return "";
-    }
-    result[i / 2] = static_cast<char>(byte);
-  }
-  return result;
-}
-
-std::string FromHex(const std::string& str) {
-  return FromHex(str.c_str(), str.size());
-}
-
 std::map<UnsymbolizedMapping, std::vector<uint64_t>> GetUnsymbolizedFrames(
     trace_processor::TraceProcessor* tp) {
   std::map<UnsymbolizedMapping, std::vector<uint64_t>> res;
@@ -89,17 +62,10 @@ std::map<UnsymbolizedMapping, std::vector<uint64_t>> GetUnsymbolizedFrames(
   while (it.Next()) {
     int64_t load_bias = it.Get(3).AsLong();
     PERFETTO_CHECK(load_bias >= 0);
-    std::string build_id;
-    // TODO(b/148109467): Remove workaround once all active Chrome versions
-    // write raw bytes instead of a string as build_id.
-    std::string raw_build_id = it.Get(1).AsString();
-    if (!trace_processor::util::IsHexModuleId(base::StringView(raw_build_id))) {
-      build_id = FromHex(raw_build_id);
-    } else {
-      build_id = raw_build_id;
-    }
-    UnsymbolizedMapping unsymbolized_mapping{it.Get(0).AsString(), build_id,
-                                             static_cast<uint64_t>(load_bias)};
+    trace_processor::BuildId build_id =
+        trace_processor::BuildId::FromHex(it.Get(1).AsString());
+    UnsymbolizedMapping unsymbolized_mapping{
+        it.Get(0).AsString(), build_id.raw(), static_cast<uint64_t>(load_bias)};
     int64_t rel_pc = it.Get(2).AsLong();
     res[unsymbolized_mapping].emplace_back(rel_pc);
   }
