@@ -31,7 +31,7 @@ export function findRef(root: Element, ref: string): Element|null {
 // Throws if the element is not an HTMLElement.
 export function toHTMLElement(el: Element): HTMLElement {
   if (!(el instanceof HTMLElement)) {
-    throw new Error('Element is not an HTLMElement');
+    throw new Error('Element is not an HTMLElement');
   }
   return el as HTMLElement;
 }

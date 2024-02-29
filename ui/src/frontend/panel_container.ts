@@ -116,6 +116,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
 
   private readonly SCROLL_LIMITER_REF = 'scroll-limiter';
   private readonly PANELS_REF = 'panels';
+  private readonly OVERLAY_CANVAS_REF = 'canvas';
 
   get canvasOverdrawFactor() {
     return this.attrs.doesScroll ? SCROLLING_CANVAS_OVERDRAW_FACTOR : 1;
@@ -207,7 +208,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
 
   oncreate({dom}: m.CVnodeDOM<Attrs>) {
     // Save the canvas context in the state.
-    const canvas = dom.querySelector('.main-canvas') as HTMLCanvasElement;
+    const canvas = findRef(dom, this.OVERLAY_CANVAS_REF) as HTMLCanvasElement;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       throw Error('Cannot create canvas context');
@@ -254,9 +255,9 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     this.panelByKey.set(key, node);
     const mithril = node.mithril;
 
-    return m(`.panel${extraClass}`, {key, 'data-key': key},
+    return m(`.pf-panel${extraClass}`, {key, 'data-key': key},
       perfDebug() ?
-        [mithril, m('.debug-panel-border')] :
+        [mithril, m('.pf-debug-panel-border')] :
         mithril);
   }
 
@@ -269,7 +270,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
         'div',
         {key: path},
         this.renderPanel(
-          node.header, `${path}-header`, node.collapsed ? '' : '.sticky'),
+          node.header, `${path}-header`, node.collapsed ? '' : '.pf-sticky'),
         ...node.childTracks.map(
           (child, index) => this.renderTree(child, `${path}-${index}`)));
     }
@@ -282,10 +283,10 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     const children = attrs.panels.map(
       (panel, index) => this.renderTree(panel, `track-tree-${index}`));
 
-    return m('.panel-container', {className: attrs.className},
-      m('.panels', {ref: this.PANELS_REF},
-        m('.scroll-limiter', {ref: this.SCROLL_LIMITER_REF},
-          m('canvas.main-canvas'),
+    return m('.pf-panel-container', {className: attrs.className},
+      m('.pf-panels', {ref: this.PANELS_REF},
+        m('.pf-scroll-limiter', {ref: this.SCROLL_LIMITER_REF},
+          m('canvas.pf-overlay-canvas', {ref: this.OVERLAY_CANVAS_REF}),
         ),
         children,
       ),
@@ -364,7 +365,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     this.panelContainerTop = domRect.y;
     this.panelContainerHeight = domRect.height;
 
-    dom.querySelectorAll('.panel').forEach((panelElement) => {
+    dom.querySelectorAll('.pf-panel').forEach((panelElement) => {
       const key = assertExists(panelElement.getAttribute('data-key'));
       const panel = assertExists(this.panelByKey.get(key));
 

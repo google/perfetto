@@ -18,8 +18,14 @@
 type ArgType = string|false|undefined|ArgType[];
 
 // Join class names together into valid HTML class attributes
-// Falsey elements are ignored
+// Falsy elements are ignored
 // Nested arrays are flattened
-export function classNames(...args: ArgType[]): string {
-  return args.flat().filter((x) => x).join(' ');
+// If all elements are falsy, returns undefined
+export function classNames(...args: ArgType[]): string|undefined {
+  const filtered = args.flat().filter((x) => x);
+  if (filtered.length === 0) {
+    return undefined;
+  } else {
+    return filtered.join(' ');
+  }
 }

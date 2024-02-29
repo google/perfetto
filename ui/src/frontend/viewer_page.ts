@@ -279,53 +279,51 @@ class TraceViewer implements m.ClassComponent {
     }
 
     const result = m(
-      '.page',
-      m('.split-panel',
-        m('.pan-and-zoom-content',
-          {
-            onclick: () => {
-              // We don't want to deselect when panning/drag selecting.
-              if (this.keepCurrentSelection) {
-                this.keepCurrentSelection = false;
-                return;
-              }
-              globals.makeSelection(Actions.deselect({}));
-            },
+      '.page.viewer-page',
+      m('.pan-and-zoom-content',
+        {
+          onclick: () => {
+            // We don't want to deselect when panning/drag selecting.
+            if (this.keepCurrentSelection) {
+              this.keepCurrentSelection = false;
+              return;
+            }
+            globals.makeSelection(Actions.deselect({}));
           },
-          m(PanelContainer, {
-            className: 'header-panel-container',
-            doesScroll: false,
-            panels: [
-              ...overviewPanel,
-              this.timeAxisPanel,
-              this.timeSelectionPanel,
-              this.notesPanel,
-              this.tickmarkPanel,
-            ],
-            kind: 'OVERVIEW',
+        },
+        m(PanelContainer, {
+          className: 'header-panel-container',
+          doesScroll: false,
+          panels: [
+            ...overviewPanel,
+            this.timeAxisPanel,
+            this.timeSelectionPanel,
+            this.notesPanel,
+            this.tickmarkPanel,
+          ],
+          kind: 'OVERVIEW',
+        }),
+        m(PanelContainer, {
+          className: 'pinned-panel-container',
+          doesScroll: true,
+          panels: globals.state.pinnedTracks.map((key) => {
+            const trackBundle = this.resolveTrack(key);
+            return new TrackPanel({
+              trackKey: key,
+              title: trackBundle.title,
+              tags: trackBundle.tags,
+              trackFSM: trackBundle.trackFSM,
+              revealOnCreate: true,
+            });
           }),
-          m(PanelContainer, {
-            className: 'pinned-panel-container',
-            doesScroll: true,
-            panels: globals.state.pinnedTracks.map((key) => {
-              const trackBundle = this.resolveTrack(key);
-              return new TrackPanel({
-                trackKey: key,
-                title: trackBundle.title,
-                tags: trackBundle.tags,
-                trackFSM: trackBundle.trackFSM,
-                revealOnCreate: true,
-              });
-            }),
-            kind: 'TRACKS',
-          }),
-          m(PanelContainer, {
-            className: 'scrolling-panel-container',
-            doesScroll: true,
-            panels: scrollingPanels,
-            kind: 'TRACKS',
-          }),
-        ),
+          kind: 'TRACKS',
+        }),
+        m(PanelContainer, {
+          className: 'scrolling-panel-container',
+          doesScroll: true,
+          panels: scrollingPanels,
+          kind: 'TRACKS',
+        }),
       ),
       this.renderTabPanel());
 
