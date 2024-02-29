@@ -19,7 +19,11 @@ syntax = "proto2";
 package perfetto.protos;
 
 import "protos/perfetto/metrics/android/app_process_starts_metric.proto";
+import "protos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto";
 
 message AndroidBootUnagg {
+  // Looks at all apps started after boot complete broadcast.
   optional AndroidAppProcessStartsMetric android_app_process_start_metric = 1;
+  // Looks at all GC that occurs after boot complete broadcast.
+  optional AndroidGarbageCollectionUnaggMetric android_post_boot_gc_metric = 2;
 }

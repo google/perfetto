@@ -21,6 +21,7 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/ad_services_metric.proto";
 import "protos/perfetto/metrics/android/android_boot.proto";
 import "protos/perfetto/metrics/android/android_boot_unagg.proto";
+import "protos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto";
 import "protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto";
 import "protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto";
 import "protos/perfetto/metrics/android/android_frame_timeline_metric.proto";
@@ -285,6 +286,9 @@ message TraceMetrics {
 
   // Android boot unaggregated metrics.
   optional AndroidBootUnagg android_boot_unagg = 62;
+
+  // Android garbage collection metrics
+  optional AndroidGarbageCollectionUnaggMetric android_garbage_collection_unagg = 63;
 
   // Demo extensions.
   extensions 450 to 499;
