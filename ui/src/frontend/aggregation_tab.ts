@@ -65,15 +65,6 @@ class AreaDetailsPanel implements m.ClassComponent {
       }
     }
 
-    // Add this after all aggregation panels, to make it appear after 'Slices'
-    if (globals.selectedFlows.length > 0) {
-      views.push({
-        key: 'selected_flows',
-        name: 'Flow Events',
-        content: m(FlowEventsAreaSelectedPanel),
-      });
-    }
-
     const pivotTableState = globals.state.nonSerializableState.pivotTable;
     if (pivotTableState.selectionArea !== undefined) {
       views.push({
@@ -83,6 +74,15 @@ class AreaDetailsPanel implements m.ClassComponent {
           selectionArea:
               pivotTableState.selectionArea,
         }),
+      });
+    }
+
+    // Add this after all aggregation panels, to make it appear after 'Slices'
+    if (globals.selectedFlows.length > 0) {
+      views.push({
+        key: 'selected_flows',
+        name: 'Flow Events',
+        content: m(FlowEventsAreaSelectedPanel),
       });
     }
 
