@@ -18,8 +18,9 @@
 #define SRC_TRACE_REDACTION_FIND_PACKAGE_UID_H_
 
 #include "perfetto/ext/base/status_or.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
+
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
 

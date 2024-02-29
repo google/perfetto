@@ -16,13 +16,15 @@
  */
 
 #include <cstdint>
+#include <memory>
 #include <string>
+
+#include "src/trace_redaction/prune_package_list.h"
+#include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/android/packages_list.gen.h"
 #include "protos/perfetto/trace/ps/process_tree.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
-#include "src/trace_redaction/prune_package_list.h"
-#include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_redaction {
 

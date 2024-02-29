@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
+#include <string>
+
 #include "src/trace_redaction/scrub_trace_packet.h"
+
+#include "perfetto/base/status.h"
 
 namespace perfetto::trace_redaction {
 // The TracePacket message has a simple structure. At its core its one sub

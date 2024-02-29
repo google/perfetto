@@ -19,6 +19,7 @@
 
 #include <string>
 
+#include "perfetto/base/status.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {

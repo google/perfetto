@@ -16,7 +16,12 @@
 
 #include "src/trace_redaction/prune_package_list.h"
 
+#include <string>
+
+#include "perfetto/base/status.h"
+
 #include "protos/perfetto/trace/android/packages_list.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto::trace_redaction {
 
