@@ -82,7 +82,9 @@ class RowMap {
 
   struct Range {
     Range(OutputIndex start_index, OutputIndex end_index)
-        : start(start_index), end(end_index) {}
+        : start(start_index), end(end_index) {
+      PERFETTO_DCHECK(start_index <= end_index);
+    }
     Range() : start(0), end(0) {}
 
     OutputIndex start = 0;  // This is an inclusive index.
