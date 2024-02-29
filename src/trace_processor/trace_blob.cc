@@ -25,6 +25,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/ref_counted.h"
 
 #if TRACE_PROCESSOR_HAS_MMAP()
 #include <sys/mman.h>
@@ -89,20 +90,25 @@ TraceBlob::~TraceBlob() {
   size_ = 0;
 }
 
-TraceBlob& TraceBlob::operator=(TraceBlob&& other) noexcept {
-  if (this == &other)
-    return *this;
+TraceBlob::TraceBlob(TraceBlob&& other) noexcept
+    : RefCounted(std::move(other)) {
   static_assert(sizeof(*this) == base::AlignUp<sizeof(void*)>(
                                      sizeof(data_) + sizeof(size_) +
                                      sizeof(ownership_) + sizeof(RefCounted)),
-                "TraceBlob move operator needs updating");
+                "TraceBlob move constructor needs updating");
   data_ = other.data_;
   size_ = other.size_;
   ownership_ = other.ownership_;
   other.data_ = nullptr;
   other.size_ = 0;
   other.ownership_ = Ownership::kNull;
-  RefCounted::operator=(std::move(other));
+}
+
+TraceBlob& TraceBlob::operator=(TraceBlob&& other) noexcept {
+  if (this == &other)
+    return *this;
+  this->~TraceBlob();
+  new (this) TraceBlob(std::move(other));
   return *this;
 }
 

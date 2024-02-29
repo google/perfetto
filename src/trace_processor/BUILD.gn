@@ -240,6 +240,7 @@ perfetto_unittest_source_set("top_level_unittests") {
   sources = [
     "forwarding_trace_parser_unittest.cc",
     "ref_counted_unittest.cc",
+    "trace_blob_unittest.cc",
   ]
   deps = [
     ":storage_minimal",
