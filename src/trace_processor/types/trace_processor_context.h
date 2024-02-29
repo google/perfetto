@@ -55,6 +55,7 @@ class GlobalArgsTracker;
 class StackProfileTracker;
 class HeapGraphTracker;
 class PerfSampleTracker;
+class MappingTracker;
 class MetadataTracker;
 class PacketAnalyzer;
 class ProtoImporterModule;
@@ -100,6 +101,7 @@ class TraceProcessorContext {
   std::unique_ptr<EventTracker> event_tracker;
   std::unique_ptr<ClockTracker> clock_tracker;
   std::unique_ptr<ClockConverter> clock_converter;
+  std::unique_ptr<MappingTracker> mapping_tracker;
   std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
   std::unique_ptr<StackProfileTracker> stack_profile_tracker;
   std::unique_ptr<MetadataTracker> metadata_tracker;
