@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
+
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -31,9 +32,29 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/util/status_macros.h"
 
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
+
 namespace perfetto {
 namespace trace_processor {
 namespace perf_importer {
+namespace {
+protos::pbzero::Profiling::CpuMode GetCpuMode(const perf_event_header& header) {
+  switch (header.misc & kPerfRecordMiscCpumodeMask) {
+    case PERF_RECORD_MISC_KERNEL:
+      return protos::pbzero::Profiling::MODE_KERNEL;
+    case PERF_RECORD_MISC_USER:
+      return protos::pbzero::Profiling::MODE_USER;
+    case PERF_RECORD_MISC_HYPERVISOR:
+      return protos::pbzero::Profiling::MODE_HYPERVISOR;
+    case PERF_RECORD_MISC_GUEST_KERNEL:
+      return protos::pbzero::Profiling::MODE_GUEST_KERNEL;
+    case PERF_RECORD_MISC_GUEST_USER:
+      return protos::pbzero::Profiling::MODE_GUEST_USER;
+    default:
+      return protos::pbzero::Profiling::MODE_UNKNOWN;
+  }
+}
+}  // namespace
 
 PerfDataTokenizer::PerfDataTokenizer(TraceProcessorContext* ctx)
     : context_(ctx),
@@ -124,6 +145,7 @@ base::Status PerfDataTokenizer::Parse(TraceBlobView blob) {
                        sizeof(PerfDataTracker::Mmap2Record::Numeric));
         auto record = ParseMmap2Record(record_size);
         RETURN_IF_ERROR(record.status());
+        record->cpu_mode = GetCpuMode(ev_header);
         tracker_->PushMmap2Record(*record);
         break;
       }
