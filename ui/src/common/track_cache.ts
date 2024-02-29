@@ -98,7 +98,7 @@ export class TrackManager {
   // Look up track into for a given track's URI.
   // Returns |undefined| if no track can be found.
   resolveTrackInfo(uri: string): TrackDescriptor|undefined {
-    return this.trackRegistry.get(uri);
+    return this.trackRegistry.tryGet(uri);
   }
 
   // Creates a new track using |uri| and |params| or retrieves a cached track if
