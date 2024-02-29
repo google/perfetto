@@ -61,6 +61,10 @@ export class Registry<T> {
     return registrant;
   }
 
+  tryGet(kind: string): T|undefined {
+    return this.registry.get(kind);
+  }
+
   // Support iteration: for (const foo of fooRegistry.values()) { ... }
   * values() {
     yield* this.registry.values();
