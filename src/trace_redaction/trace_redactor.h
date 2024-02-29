@@ -17,8 +17,12 @@
 #ifndef SRC_TRACE_REDACTION_TRACE_REDACTOR_H_
 #define SRC_TRACE_REDACTION_TRACE_REDACTOR_H_
 
+#include <memory>
+#include <string>
 #include <string_view>
+#include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 

@@ -20,12 +20,11 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <vector>
 
 #include "perfetto/base/flat_set.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 
-#include "protos/perfetto/trace/trace_packet.gen.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {

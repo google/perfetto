@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/base/test/utils.h"

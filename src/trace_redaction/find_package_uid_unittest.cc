@@ -15,17 +15,17 @@
  * limitations under the License.
  */
 
-#include "find_package_uid.h"
+#include "src/trace_redaction/find_package_uid.h"
 
 #include <cstdint>
 #include <string>
 
-#include "protos/perfetto/trace/android/packages_list.gen.h"
-#include "protos/perfetto/trace/ps/process_tree.gen.h"
-#include "protos/perfetto/trace/ps/process_tree.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.gen.h"
 #include "src/base/test/status_matchers.h"
 #include "test/gtest_and_gmock.h"
+
+#include "protos/perfetto/trace/android/packages_list.gen.h"
+#include "protos/perfetto/trace/ps/process_tree.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto::trace_redaction {
 
