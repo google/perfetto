@@ -1672,7 +1672,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     RETURN_IF_ERROR(ExportTraceToDatabase(options.sqlite_file_path));
   }
 
-  if (options.enable_httpd || options.enable_stdiod) {
+  if (options.enable_httpd) {
 #if PERFETTO_HAS_SIGNAL_H()
     if (options.metatrace_path.empty()) {
       // Restore the default signal handler to allow the user to terminate
@@ -1688,18 +1688,16 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     }
 #endif
 
-    if (options.enable_httpd) {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-      RunHttpRPCServer(std::move(tp), options.port_number);
-      PERFETTO_FATAL("Should never return");
+    RunHttpRPCServer(std::move(tp), options.port_number);
+    PERFETTO_FATAL("Should never return");
 #else
-      PERFETTO_FATAL("HTTP not available");
+    PERFETTO_FATAL("HTTP not available");
 #endif
-    }
+  }
 
-    if (options.enable_stdiod) {
-      return RunStdioRpcServer(std::move(tp));
-    }
+  if (options.enable_stdiod) {
+    return RunStdioRpcServer(std::move(tp));
   }
 
   if (options.launch_shell) {
