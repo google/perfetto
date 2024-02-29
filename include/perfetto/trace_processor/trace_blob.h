@@ -65,7 +65,7 @@ class PERFETTO_EXPORT_COMPONENT TraceBlob : public RefCounted {
   ~TraceBlob();
 
   // Allow move.
-  TraceBlob(TraceBlob&& other) noexcept { *this = std::move(other); }
+  TraceBlob(TraceBlob&& other) noexcept;
   TraceBlob& operator=(TraceBlob&&) noexcept;
 
   // Disallow copy.
