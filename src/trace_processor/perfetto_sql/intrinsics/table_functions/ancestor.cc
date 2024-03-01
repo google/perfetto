@@ -70,6 +70,10 @@ base::Status GetAncestors(
     // Update the loop variable by looking up the next parent_id.
     maybe_parent_id = ref.parent_id();
   }
+  // We traverse the tree in reverse id order. To ensure we meet the
+  // requirements of the extension vectors being sorted, ensure that we reverse
+  // the row numbers to be in id order.
+  std::reverse(row_numbers_accumulator.begin(), row_numbers_accumulator.end());
   return base::OkStatus();
 }
 
