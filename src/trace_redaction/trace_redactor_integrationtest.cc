@@ -87,7 +87,7 @@ class TraceRedactorIntegrationTest : public testing::Test {
 TEST_F(TraceRedactorIntegrationTest, FindsPackageAndFiltersPackageList) {
   TraceRedactor redaction;
   redaction.collectors()->emplace_back(new FindPackageUid());
-  redaction.transforms()->emplace_back(new PrunePackageList());
+  redaction.transformers()->emplace_back(new PrunePackageList());
 
   Context context;
   context.package_name = "com.Unity.com.unity.multiplayer.samples.coop";
@@ -134,7 +134,7 @@ TEST_F(TraceRedactorIntegrationTest, FindsPackageAndFiltersPackageList) {
 TEST_F(TraceRedactorIntegrationTest, RetainsAllInstancesOfUid) {
   TraceRedactor redaction;
   redaction.collectors()->emplace_back(new FindPackageUid());
-  redaction.transforms()->emplace_back(new PrunePackageList());
+  redaction.transformers()->emplace_back(new PrunePackageList());
 
   Context context;
   context.package_name = "com.google.android.networkstack.tethering";
