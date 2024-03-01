@@ -17,6 +17,7 @@
 #include "src/trace_processor/containers/row_map.h"
 #include <unordered_set>
 
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map_algorithms.h"
 
 namespace perfetto {
@@ -69,20 +70,16 @@ RowMap Select(Range range, const std::vector<OutputIndex>& selector) {
 
 RowMap Select(const BitVector& bv, Range selector) {
   PERFETTO_DCHECK(selector.end <= bv.CountSetBits());
-
+  if (selector.size() == 0) {
+    return {};
+  }
   // If we're simply selecting every element in the bitvector, just
   // return a copy of the BitVector without iterating.
-  BitVector ret = bv.Copy();
   if (selector.start == 0 && selector.end == bv.CountSetBits()) {
-    return RowMap(std::move(ret));
+    return RowMap(bv.Copy());
   }
-
-  for (auto it = ret.IterateSetBits(); it; it.Next()) {
-    auto set_idx = it.ordinal();
-    if (set_idx < selector.start || set_idx >= selector.end)
-      it.Clear();
-  }
-  return RowMap(std::move(ret));
+  return RowMap(bv.IntersectRange(bv.IndexOfNthSet(selector.start),
+                                  bv.IndexOfNthSet(selector.end - 1) + 1));
 }
 
 RowMap Select(const BitVector& bv, const BitVector& selector) {
