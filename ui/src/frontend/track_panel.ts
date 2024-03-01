@@ -133,7 +133,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
   view({attrs}: m.CVnode<TrackShellAttrs>) {
     // The shell should be highlighted if the current search result is inside
     // this track.
-    let highlightClass = '';
+    let highlightClass = undefined;
     const searchIndex = globals.state.searchIndex;
     if (searchIndex !== -1) {
       const trackKey = globals.currentSearchResults.trackKeys[searchIndex];
@@ -142,12 +142,14 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       }
     }
 
-    const dragClass = this.dragging ? `drag` : '';
-    const dropClass = this.dropping ? `drop-${this.dropping}` : '';
     return m(
       `.track-shell[draggable=true]`,
       {
-        class: `${highlightClass} ${dragClass} ${dropClass}`,
+        className: classNames(
+          highlightClass,
+          this.dragging && 'drag',
+          this.dropping && `drop-${this.dropping}`,
+        ),
         ondragstart: (e: DragEvent) => this.ondragstart(e, attrs.trackKey),
         ondragend: this.ondragend.bind(this),
         ondragover: this.ondragover.bind(this),

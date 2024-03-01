@@ -12,42 +12,47 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.panel-container {
+.pf-panel-container {
   position: relative;
-  // display: grid;
-  // grid-template-columns: 1fr;
-  // grid-template-rows: 1fr;
-  // grid-template-areas: "space";
-}
 
-// In the scrolling case, since the canvas is overdrawn and continuously
-// repositioned, we need the canvas to be in a div with overflow hidden and
-// height equaling the total height of the content to prevent scrolling
-// height from growing.
-.scroll-limiter {
-  position: absolute;
-  top: 0;
-  left: 0;
-  overflow: hidden;
-  height: 100%;
-}
-
-canvas.main-canvas {
-  z-index: -1;
-}
-
-.panels {
-  position: relative;
-  user-select: none;
-}
-
-.panel {
-  position: relative; // Otherwise canvas covers panel dom.
-
-  &.sticky {
-    position: sticky;
-    z-index: 3;
+  // In the scrolling case, since the canvas is overdrawn and continuously
+  // repositioned, we need the canvas to be in a div with overflow hidden and
+  // height equalling the total height of the content to prevent scrolling
+  // height from growing.
+  .pf-scroll-limiter {
+    position: absolute;
     top: 0;
-    background-color: hsl(215, 22%, 19%);
+    left: 0;
+    overflow: hidden;
+    height: 100%;
+
+    .pf-overlay-canvas {
+      z-index: -1;
+    }
+  }
+
+  .pf-panels {
+    position: relative;
+    user-select: none;
+
+    .pf-panel {
+      position: relative; // Otherwise canvas covers panel dom.
+
+      &.pf-sticky {
+        position: sticky;
+        z-index: 3;
+        top: 0;
+        background-color: hsl(215, 22%, 19%);
+      }
+
+      .pf-debug-panel-border {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        width: 100%;
+        border: 1px solid rgba(69, 187, 73, 0.5);
+        pointer-events: none;
+      }
+    }
   }
 }
