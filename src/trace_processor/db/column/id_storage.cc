@@ -327,13 +327,13 @@ Range IdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
     case FilterOp::kEq:
       return {val, val + (range.start <= val && val < range.end)};
     case FilterOp::kLe:
-      return {range.start, std::min(val + 1, range.end)};
+      return {range.start, std::clamp(val + 1, range.start, range.end)};
     case FilterOp::kLt:
-      return {range.start, std::min(val, range.end)};
+      return {range.start, std::clamp(val, range.start, range.end)};
     case FilterOp::kGe:
-      return {std::max(val, range.start), range.end};
+      return {std::clamp(val, range.start, range.end), range.end};
     case FilterOp::kGt:
-      return {std::max(val + 1, range.start), range.end};
+      return {std::clamp(val + 1, range.start, range.end), range.end};
     case FilterOp::kIsNotNull:
     case FilterOp::kNe:
     case FilterOp::kIsNull:
