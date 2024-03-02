@@ -130,9 +130,9 @@ class DataLayerChain {
   //    to positions in the storage.
   //
   // Notes for implementors:
-  //  * Implementations should ensure that the return value *only* includes
-  //    positions in |range| as callers will expect this to be true and can
-  //    optimize based on this.
+  //  * Implementations should ensure that the return value is empty or *only*
+  //    includes positions in |range|. Callers are free to assume this and can
+  //    optimize based on it.
   //  * Implementations should ensure that, if they return a BitVector, it is
   //    precisely of size |range.end|.
   PERFETTO_ALWAYS_INLINE RangeOrBitVector Search(FilterOp op,

@@ -109,8 +109,8 @@ RangeOrBitVector DenseNullOverlay::ChainImpl::SearchValidated(FilterOp op,
     // |non_null_| which matches the range. Then, resize to |in.end| as this
     // is mandated by the API contract of |Storage::Search|.
     Range inner_range = std::move(inner_res).TakeIfRange();
-    PERFETTO_DCHECK(inner_range.end <= in.end);
-    PERFETTO_DCHECK(inner_range.start >= in.start);
+    PERFETTO_DCHECK(inner_range.empty() || inner_range.end <= in.end);
+    PERFETTO_DCHECK(inner_range.empty() || inner_range.start >= in.start);
     res = non_null_->IntersectRange(inner_range.start, inner_range.end);
     res.Resize(in.end, false);
   } else {

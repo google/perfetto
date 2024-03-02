@@ -22,11 +22,11 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
