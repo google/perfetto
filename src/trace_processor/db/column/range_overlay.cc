@@ -65,6 +65,9 @@ RangeOrBitVector RangeOverlay::ChainImpl::SearchValidated(
   auto inner_res = inner_->SearchValidated(op, sql_val, inner_search_range);
   if (inner_res.IsRange()) {
     Range inner_res_range = std::move(inner_res).TakeIfRange();
+    if (inner_res_range.empty()) {
+      return RangeOrBitVector(Range());
+    }
     return RangeOrBitVector(Range(inner_res_range.start - range_->start,
                                   inner_res_range.end - range_->start));
   }

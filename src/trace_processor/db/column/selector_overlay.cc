@@ -65,6 +65,9 @@ RangeOrBitVector SelectorOverlay::ChainImpl::SearchValidated(FilterOp op,
       inner_->SearchValidated(op, sql_val, Range(start_idx, end_idx));
   if (storage_result.IsRange()) {
     Range storage_range = std::move(storage_result).TakeIfRange();
+    if (storage_range.empty()) {
+      return RangeOrBitVector(Range());
+    }
     uint32_t out_start = selector_->CountSetBits(storage_range.start);
     uint32_t out_end = selector_->CountSetBits(storage_range.end);
     return RangeOrBitVector(Range(out_start, out_end));
