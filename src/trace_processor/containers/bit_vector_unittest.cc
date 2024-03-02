@@ -309,87 +309,6 @@ TEST(BitVectorUnittest, UpdateSetBitsStress) {
   }
 }
 
-TEST(BitVectorUnittest, IterateAllBitsConst) {
-  BitVector bv;
-  for (uint32_t i = 0; i < 12345; ++i) {
-    if (i % 7 == 0 || i % 13 == 0) {
-      bv.AppendTrue();
-    } else {
-      bv.AppendFalse();
-    }
-  }
-
-  uint32_t i = 0;
-  for (auto it = bv.IterateAllBits(); it; it.Next(), ++i) {
-    ASSERT_EQ(it.IsSet(), i % 7 == 0 || i % 13 == 0);
-    ASSERT_EQ(it.index(), i);
-  }
-}
-
-TEST(BitVectorUnittest, IterateAllBitsSet) {
-  BitVector bv;
-  for (uint32_t i = 0; i < 12345; ++i) {
-    if (i % 7 == 0 || i % 13 == 0) {
-      bv.AppendTrue();
-    } else {
-      bv.AppendFalse();
-    }
-  }
-
-  // Unset every 15th bit.
-  for (auto it = bv.IterateAllBits(); it; it.Next()) {
-    if (it.index() % 15 == 0) {
-      it.Set();
-    }
-  }
-
-  // Go through the iterator manually and check it has updated
-  // to not have every 15th bit set.
-  uint32_t count = 0;
-  for (uint32_t i = 0; i < 12345; ++i) {
-    bool is_set = i % 15 == 0 || i % 7 == 0 || i % 13 == 0;
-
-    ASSERT_EQ(bv.IsSet(i), is_set);
-    ASSERT_EQ(bv.CountSetBits(i), count);
-
-    if (is_set) {
-      ASSERT_EQ(bv.IndexOfNthSet(count++), i);
-    }
-  }
-}
-
-TEST(BitVectorUnittest, IterateAllBitsClear) {
-  BitVector bv;
-  for (uint32_t i = 0; i < 12345; ++i) {
-    if (i % 7 == 0 || i % 13 == 0) {
-      bv.AppendTrue();
-    } else {
-      bv.AppendFalse();
-    }
-  }
-
-  // Unset every 15th bit.
-  for (auto it = bv.IterateAllBits(); it; it.Next()) {
-    if (it.index() % 15 == 0) {
-      it.Clear();
-    }
-  }
-
-  // Go through the iterator manually and check it has updated
-  // to not have every 15th bit set.
-  uint32_t count = 0;
-  for (uint32_t i = 0; i < 12345; ++i) {
-    bool is_set = i % 15 != 0 && (i % 7 == 0 || i % 13 == 0);
-
-    ASSERT_EQ(bv.IsSet(i), is_set);
-    ASSERT_EQ(bv.CountSetBits(i), count);
-
-    if (is_set) {
-      ASSERT_EQ(bv.IndexOfNthSet(count++), i);
-    }
-  }
-}
-
 TEST(BitVectorUnittest, IterateSetBitsConst) {
   BitVector bv;
   std::vector<uint32_t> set_indices;
@@ -408,37 +327,6 @@ TEST(BitVectorUnittest, IterateSetBitsConst) {
     ASSERT_EQ(it.index(), set_indices[i]);
   }
   ASSERT_EQ(i, set_indices.size());
-}
-
-TEST(BitVectorUnittest, IterateSetBitsClear) {
-  BitVector bv;
-  for (uint32_t i = 0; i < 12345; ++i) {
-    if (i % 7 == 0 || i % 13 == 0) {
-      bv.AppendTrue();
-    } else {
-      bv.AppendFalse();
-    }
-  }
-
-  for (auto it = bv.IterateSetBits(); it; it.Next()) {
-    if (it.index() % 15 == 0) {
-      it.Clear();
-    }
-  }
-
-  // Go through the iterator manually and check it has updated
-  // to not have every 15th bit set.
-  uint32_t count = 0;
-  for (uint32_t i = 0; i < 12345; ++i) {
-    bool is_set = i % 15 != 0 && (i % 7 == 0 || i % 13 == 0);
-
-    ASSERT_EQ(bv.IsSet(i), is_set);
-    ASSERT_EQ(bv.CountSetBits(i), count);
-
-    if (is_set) {
-      ASSERT_EQ(bv.IndexOfNthSet(count++), i);
-    }
-  }
 }
 
 TEST(BitVectorUnittest, IterateSetBitsStartsCorrectly) {
@@ -740,20 +628,6 @@ TEST(BitVectorUnittest, QueryStressTest) {
     if (res)
       int_vec.emplace_back(i);
   }
-
-  auto all_it = bv.IterateAllBits();
-  for (uint32_t i = 0; i < kCount; ++i) {
-    uint32_t count = static_cast<uint32_t>(std::count(
-        bool_vec.begin(), bool_vec.begin() + static_cast<int32_t>(i), true));
-    ASSERT_EQ(bv.IsSet(i), bool_vec[i]);
-    ASSERT_EQ(bv.CountSetBits(i), count);
-
-    ASSERT_TRUE(all_it);
-    ASSERT_EQ(all_it.IsSet(), bool_vec[i]);
-    ASSERT_EQ(all_it.index(), i);
-    all_it.Next();
-  }
-  ASSERT_FALSE(all_it);
 
   auto set_it = bv.IterateSetBits();
   for (uint32_t i = 0; i < int_vec.size(); ++i) {

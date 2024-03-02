@@ -16,49 +16,12 @@
 
 #include "src/trace_processor/containers/bit_vector_iterators.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace internal {
+namespace perfetto::trace_processor::internal {
 
 BaseIterator::BaseIterator(BitVector* bv)
     : size_(bv->size()), bv_(bv), block_(bv_->words_.data()) {}
 
-BaseIterator::~BaseIterator() {
-  if (size_ > 0) {
-    uint32_t block_idx = bv_->IndexToAddress(index_).block_idx;
-    uint32_t last_block_idx = bv_->BlockCount() - 1;
-
-    // If |index_| == |size_| and the last index was on a block boundary, we
-    // can end up one block past the end of the bitvector. Take the
-    // min of the block index and the last block
-    OnBlockChange(std::min(block_idx, last_block_idx), last_block_idx);
-  }
-}
-
-void BaseIterator::OnBlockChange(uint32_t old_block_idx,
-                                 uint32_t new_block_idx) {
-  if (set_bit_count_diff_ != 0) {
-    // If the count of set bits has changed, go through all the counts between
-    // the old and new blocks and modify them.
-    // We only need to go to new_block and not to the end of the bitvector as
-    // the blocks after new_block will either be updated in a future call to
-    // OnBlockChange or in the destructor.
-    for (uint32_t i = old_block_idx + 1; i <= new_block_idx; ++i) {
-      int32_t new_count =
-          static_cast<int32_t>(bv_->counts_[i]) + set_bit_count_diff_;
-      PERFETTO_DCHECK(new_count >= 0);
-
-      bv_->counts_[i] = static_cast<uint32_t>(new_count);
-    }
-  }
-
-  // Reset the changed flag and cache the new block.
-  is_block_changed_ = false;
-  block_ = bv_->BlockFromIndex(new_block_idx);
-}
-
-AllBitsIterator::AllBitsIterator(const BitVector* bv)
-    : BaseIterator(const_cast<BitVector*>(bv)) {}
+BaseIterator::~BaseIterator() = default;
 
 SetBitsIterator::SetBitsIterator(const BitVector* bv)
     : BaseIterator(const_cast<BitVector*>(bv)) {
@@ -121,6 +84,4 @@ void SetBitsIterator::ReadSetBitBatch(uint32_t start_idx) {
   PERFETTO_DCHECK(set_bit_count_until_i == set_bit_count_);
 }
 
-}  // namespace internal
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::internal
