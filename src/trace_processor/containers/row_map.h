@@ -400,55 +400,6 @@ class RowMap {
   // Clears this RowMap by resetting it to a newly constructed state.
   void Clear() { *this = RowMap(); }
 
-  template <typename Comparator = bool(uint32_t, uint32_t)>
-  void StableSort(IndexVector* out, Comparator c) const {
-    if (auto* range = std::get_if<Range>(&data_)) {
-      std::stable_sort(out->begin(), out->end(),
-                       [range, c](uint32_t a, uint32_t b) {
-                         return c(GetRange(*range, a), GetRange(*range, b));
-                       });
-      return;
-    }
-    if (auto* bv = std::get_if<BitVector>(&data_)) {
-      std::stable_sort(out->begin(), out->end(),
-                       [&bv, c](uint32_t a, uint32_t b) {
-                         return c(GetBitVector(*bv, a), GetBitVector(*bv, b));
-                       });
-      return;
-    }
-    if (auto* vec = std::get_if<IndexVector>(&data_)) {
-      std::stable_sort(
-          out->begin(), out->end(), [vec, c](uint32_t a, uint32_t b) {
-            return c(GetIndexVector(*vec, a), GetIndexVector(*vec, b));
-          });
-      return;
-    }
-    NoVariantMatched();
-  }
-
-  // Filters the indices in |out| by keeping those which meet |p|.
-  template <typename Predicate = bool(OutputIndex)>
-  void Filter(Predicate p) {
-    if (auto* range = std::get_if<Range>(&data_)) {
-      data_ = FilterRange(p, *range);
-      return;
-    }
-    if (auto* bv = std::get_if<BitVector>(&data_)) {
-      for (auto it = bv->IterateSetBits(); it; it.Next()) {
-        if (!p(it.index()))
-          it.Clear();
-      }
-      return;
-    }
-    if (auto* vec = std::get_if<IndexVector>(&data_)) {
-      auto ret = std::remove_if(vec->begin(), vec->end(),
-                                [p](uint32_t i) { return !p(i); });
-      vec->erase(ret, vec->end());
-      return;
-    }
-    NoVariantMatched();
-  }
-
   // Converts this RowMap to an index vector in the most efficient way
   // possible.
   std::vector<uint32_t> TakeAsIndexVector() const&& {
