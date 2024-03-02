@@ -87,13 +87,11 @@ class RowMap {
     }
     Range() : start(0), end(0) {}
 
-    OutputIndex start = 0;  // This is an inclusive index.
-    OutputIndex end = 0;    // This is an exclusive index.
+    OutputIndex start;  // This is an inclusive index.
+    OutputIndex end;    // This is an exclusive index.
 
-    uint32_t size() const {
-      PERFETTO_DCHECK(end >= start);
-      return end - start;
-    }
+    bool empty() const { return size() == 0; }
+    uint32_t size() const { return end - start; }
     inline bool Contains(uint32_t val) const {
       return val >= start && val < end;
     }
