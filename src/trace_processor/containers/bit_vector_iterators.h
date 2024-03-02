@@ -30,31 +30,14 @@ namespace internal {
 // block.
 class BaseIterator {
  public:
-  BaseIterator(BitVector* bv);
+  explicit BaseIterator(BitVector* bv);
   ~BaseIterator();
+
+  BaseIterator(const BaseIterator&) = delete;
+  BaseIterator& operator=(const BaseIterator&) = delete;
 
   BaseIterator(BaseIterator&&) noexcept = default;
   BaseIterator& operator=(BaseIterator&&) = default;
-
-  // Sets the current bit the iterator points to.
-  void Set() {
-    if (!IsSet()) {
-      block_.Set(block_offset());
-
-      is_block_changed_ = true;
-      ++set_bit_count_diff_;
-    }
-  }
-
-  // Clears the current bit the iterator points to.
-  void Clear() {
-    if (IsSet()) {
-      block_.Clear(block_offset());
-
-      is_block_changed_ = true;
-      --set_bit_count_diff_;
-    }
-  }
 
   // Returns whether the current bit the iterator points to is set.
   bool IsSet() { return BitVector::ConstBlock(block_).IsSet(block_offset()); }
@@ -87,22 +70,14 @@ class BaseIterator {
     if (PERFETTO_LIKELY(old_block == new_block))
       return;
 
-    // Slow path: we have to change block so this will involve flushing the old
-    // block and counts (if necessary).
-    OnBlockChange(old_block, new_block);
+    block_ = bv_->BlockFromIndex(new_block);
   }
-
-  // Handles flushing count changes and caches a new block.
-  void OnBlockChange(uint32_t old_block, uint32_t new_block);
 
   uint32_t size() const { return size_; }
 
   const BitVector& bv() const { return *bv_; }
 
  private:
-  BaseIterator(const BaseIterator&) = delete;
-  BaseIterator& operator=(const BaseIterator&) = delete;
-
   BitVector::BlockOffset block_offset() const {
     uint16_t bit_idx_inside_block = index_ % BitVector::Block::kBits;
 
@@ -115,33 +90,8 @@ class BaseIterator {
   uint32_t index_ = 0;
   uint32_t size_ = 0;
 
-  bool is_block_changed_ = false;
-  int32_t set_bit_count_diff_ = 0;
-
   BitVector* bv_;
   BitVector::Block block_{bv_->words_.data()};
-};
-
-// Iterator over all the bits in a bitvector.
-class AllBitsIterator : public BaseIterator {
- public:
-  AllBitsIterator(const BitVector*);
-
-  // Increments the iterator to point to the next bit.
-  void Next() { SetIndex(index() + 1); }
-
-  // Increments the iterator to skip the next |n| bits and point to the
-  // following one.
-  // Precondition: n >= 1 & index() + n <= size().
-  void Skip(uint32_t n) {
-    PERFETTO_DCHECK(n >= 1);
-    PERFETTO_DCHECK(index() + n <= size());
-
-    SetIndex(index() + n);
-  }
-
-  // Returns whether the iterator is valid.
-  operator bool() const { return index() < size(); }
 };
 
 // Iterator over all the set bits in a bitvector.

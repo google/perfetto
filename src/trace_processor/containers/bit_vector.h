@@ -384,14 +384,6 @@ class BitVector {
   // TODO(lalitm): investigate whether we should just change this to And.
   void UpdateSetBits(const BitVector& other);
 
-  // Iterate all the bits in the BitVector.
-  //
-  // Usage:
-  // for (auto it = bv.IterateAllBits(); it; it.Next()) {
-  //   ...
-  // }
-  AllBitsIterator IterateAllBits() const;
-
   // Iterate all the set bits in the BitVector.
   //
   // Usage:

@@ -161,10 +161,6 @@ BitVector BitVector::Copy() const {
   return BitVector(words_, counts_, size_);
 }
 
-BitVector::AllBitsIterator BitVector::IterateAllBits() const {
-  return AllBitsIterator(this);
-}
-
 BitVector::SetBitsIterator BitVector::IterateSetBits() const {
   return SetBitsIterator(this);
 }
