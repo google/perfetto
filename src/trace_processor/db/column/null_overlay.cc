@@ -48,16 +48,14 @@ BitVector ReconcileStorageResult(FilterOp op,
   BitVector res;
   if (storage_result.IsRange()) {
     Range range = std::move(storage_result).TakeIfRange();
-    if (range.empty()) {
-      return res;
+    if (!range.empty()) {
+      res = non_null.IntersectRange(non_null.IndexOfNthSet(range.start),
+                                    non_null.IndexOfNthSet(range.end - 1) + 1);
+
+      // We should always have at least as many elements as the input range
+      // itself.
+      PERFETTO_CHECK(res.size() <= in_range.end);
     }
-
-    res = non_null.IntersectRange(non_null.IndexOfNthSet(range.start),
-                                  non_null.IndexOfNthSet(range.end - 1) + 1);
-
-    // We should always have at least as many elements as the input range
-    // itself.
-    PERFETTO_CHECK(res.size() <= in_range.end);
   } else {
     res = non_null.Copy();
     res.UpdateSetBits(std::move(storage_result).TakeIfBitVector());
