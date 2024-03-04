@@ -130,3 +130,19 @@ class PerfettoTable(TestSuite):
         "sorted"
         1
         """))
+
+  def test_create_perfetto_table_id_column(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        SELECT dur FROM slice WHERE dur != -1
+        GROUP BY 1 ORDER BY 1;
+
+        SELECT col_type FROM perfetto_table_info('foo')
+        WHERE name = 'dur';
+        """,
+        out=Csv("""
+        "col_type"
+        "id"
+        """))

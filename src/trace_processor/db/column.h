@@ -207,7 +207,7 @@ class ColumnLegacy {
 
   // Creates a Column which returns the index as the value of the row.
   static ColumnLegacy IdColumn(uint32_t col_idx_in_table,
-                               uint32_t row_map_idx,
+                               uint32_t overlay_idx,
                                const char* name = "id",
                                uint32_t flags = kIdFlags);
 
