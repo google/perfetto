@@ -24,7 +24,6 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
@@ -37,8 +36,8 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/profiler_util.h"
+#include "src/trace_processor/util/stack_traces_util.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/common/perf_events.pbzero.h"
@@ -429,11 +428,19 @@ void ProfileModule::ParseProfilePacket(int64_t ts,
 
 void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
   protos::pbzero::ModuleSymbols::Decoder module_symbols(blob.data, blob.size);
-  BuildId build_id = BuildId::FromRaw(module_symbols.build_id());
+  StringId build_id;
+  // TODO(b/148109467): Remove workaround once all active Chrome versions
+  // write raw bytes instead of a string as build_id.
+  if (util::IsHexModuleId(module_symbols.build_id())) {
+    build_id = context_->storage->InternString(module_symbols.build_id());
+  } else {
+    build_id = context_->storage->InternString(base::StringView(base::ToHex(
+        module_symbols.build_id().data, module_symbols.build_id().size)));
+  }
 
-  auto mappings =
-      context_->mapping_tracker->FindMappings(module_symbols.path(), build_id);
-  if (mappings.empty()) {
+  auto mapping_ids = context_->stack_profile_tracker->FindMappingRow(
+      context_->storage->InternString(module_symbols.path()), build_id);
+  if (mapping_ids.empty()) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
     return;
   }
@@ -460,11 +467,12 @@ void ProfileModule::ParseModuleSymbols(ConstBytes blob) {
       continue;
     }
     bool frame_found = false;
-    for (VirtualMemoryMapping* mapping : mappings) {
+    for (MappingId mapping_id : mapping_ids) {
       context_->args_translation_table->AddNativeSymbolTranslationRule(
-          mapping->mapping_id(), address_symbols.address(), last_location);
+          mapping_id, address_symbols.address(), last_location);
       std::vector<FrameId> frame_ids =
-          mapping->FindFrameIds(address_symbols.address());
+          context_->stack_profile_tracker->FindFrameIds(
+              mapping_id, address_symbols.address());
 
       for (const FrameId frame_id : frame_ids) {
         auto* frames = context_->storage->mutable_stack_profile_frame_table();

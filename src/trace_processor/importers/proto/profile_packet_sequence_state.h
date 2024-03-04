@@ -23,14 +23,13 @@
 
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
+#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
-
-class VirtualMemoryMapping;
 
 // Keeps sequence specific state for profile packets.
 class ProfilePacketSequenceState final
@@ -127,7 +126,7 @@ class ProfilePacketSequenceState final
   TraceProcessorContext* const context_;
 
   base::FlatHashMap<SourceStringId, std::string> strings_;
-  base::FlatHashMap<SourceMappingId, VirtualMemoryMapping*> mappings_;
+  base::FlatHashMap<SourceMappingId, MappingId> mappings_;
   base::FlatHashMap<SourceFrameId, FrameId> frames_;
   base::FlatHashMap<SourceCallstackId, CallsiteId> callstacks_;
 
