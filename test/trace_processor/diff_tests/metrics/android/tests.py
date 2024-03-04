@@ -230,3 +230,9 @@ class AndroidMetrics(TestSuite):
       query=Metric("android_app_process_starts"),
       out=Path('android_app_process_starts.out')
     )
+
+  def test_android_garbage_collection(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric('android_garbage_collection_unagg'),
+        out=Path('android_garbage_collection_unagg.out'))

@@ -18,7 +18,6 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Looks at all apps started after boot complete broadcast.
 message AndroidAppProcessStartsMetric {
   // Next id : 4
   message ProcessStart {
