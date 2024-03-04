@@ -35,7 +35,7 @@ export class TickmarkPanel implements Panel {
 
   constructor(readonly key: string) {}
 
-  get mithril(): m.Children {
+  render(): m.Children {
     return m('.tickbar');
   }
 
