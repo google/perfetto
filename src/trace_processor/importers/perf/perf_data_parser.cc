@@ -22,7 +22,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/perf/perf_data_reader.h"
 #include "src/trace_processor/importers/perf/perf_data_tracker.h"
@@ -59,8 +58,7 @@ void PerfDataParser::ParseTraceBlobView(int64_t ts, TraceBlobView tbv) {
 
   // First instruction pointer in the callchain should be from kernel space, so
   // it shouldn't be available in mappings.
-  if (context_->mapping_tracker->FindUserMappingForAddress(
-          *sample.pid, sample.callchain.front())) {
+  if (tracker_->FindMapping(*sample.pid, sample.callchain.front()).ok()) {
     context_->storage->IncrementStats(stats::perf_samples_skipped);
     return;
   }
@@ -72,22 +70,19 @@ void PerfDataParser::ParseTraceBlobView(int64_t ts, TraceBlobView tbv) {
 
   std::vector<FramesTable::Row> frame_rows;
   for (uint32_t i = 1; i < sample.callchain.size(); i++) {
-    UserMemoryMapping* mapping =
-        context_->mapping_tracker->FindUserMappingForAddress(
-            *sample.pid, sample.callchain[i]);
-    if (!mapping) {
+    auto mapping = tracker_->FindMapping(*sample.pid, sample.callchain[i]);
+    if (!mapping.ok()) {
       context_->storage->IncrementStats(stats::perf_samples_skipped);
       return;
     }
     FramesTable::Row new_row;
     std::string mock_name =
-        base::StackString<1024>(
-            "%" PRIu64, sample.callchain[i] - mapping->memory_range().start())
+        base::StackString<1024>("%" PRIu64,
+                                sample.callchain[i] - mapping->start)
             .ToStdString();
     new_row.name = context_->storage->InternString(mock_name.c_str());
-    new_row.mapping = mapping->mapping_id();
-    new_row.rel_pc =
-        static_cast<int64_t>(mapping->ToRelativePc(sample.callchain[i]));
+    new_row.mapping = mapping->id;
+    new_row.rel_pc = static_cast<int64_t>(sample.callchain[i] - mapping->start);
     frame_rows.push_back(new_row);
   }
 

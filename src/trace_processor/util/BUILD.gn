@@ -61,17 +61,6 @@ source_set("gzip") {
   }
 }
 
-source_set("build_id") {
-  sources = [
-    "build_id.cc",
-    "build_id.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../include/perfetto/ext/base:base",
-  ]
-}
-
 source_set("profiler_util") {
   sources = [
     "profiler_util.cc",
@@ -82,6 +71,18 @@ source_set("profiler_util") {
     "../../../include/perfetto/ext/base:base",
     "../../../protos/perfetto/trace/profiling:zero",
     "../storage:storage",
+  ]
+}
+
+source_set("stack_traces_util") {
+  sources = [
+    "stack_traces_util.cc",
+    "stack_traces_util.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base:base",
+    "../../../protos/perfetto/trace/profiling:zero",
   ]
 }
 

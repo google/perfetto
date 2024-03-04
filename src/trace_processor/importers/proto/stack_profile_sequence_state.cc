@@ -23,8 +23,6 @@
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
-#include "src/trace_processor/importers/common/address_range.h"
-#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
@@ -32,7 +30,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/build_id.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -51,23 +48,21 @@ StackProfileSequenceState::~StackProfileSequenceState() = default;
 
 std::optional<MappingId> StackProfileSequenceState::FindOrInsertMapping(
     uint64_t iid) {
-  if (VirtualMemoryMapping* mapping = FindOrInsertMappingImpl(iid); mapping) {
-    return mapping->mapping_id();
-  }
-  return std::nullopt;
-}
-
-VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
-    uint64_t iid) {
-  if (auto ptr = cached_mappings_.Find(iid); ptr) {
-    return *ptr;
+  if (MappingId* id = cached_mappings_.Find(iid); id) {
+    return *id;
   }
   auto* decoder =
       LookupInternedMessage<protos::pbzero::InternedData::kMappingsFieldNumber,
                             protos::pbzero::Mapping>(iid);
   if (!decoder) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
-    return nullptr;
+    return std::nullopt;
+  }
+
+  std::optional<base::StringView> build_id =
+      LookupInternedBuildId(decoder->build_id());
+  if (!build_id) {
+    return std::nullopt;
   }
 
   std::vector<base::StringView> path_components;
@@ -80,26 +75,19 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
     }
     path_components.push_back(*str);
   }
+  std::string path = ProfilePacketUtils::MakeMappingName(path_components);
 
-  CreateMappingParams params;
-  std::optional<base::StringView> build_id =
-      LookupInternedBuildId(decoder->build_id());
-  if (!build_id) {
-    return nullptr;
-  }
-  params.build_id = BuildId::FromRaw(*build_id);
-
-  params.memory_range = AddressRange(decoder->start(), decoder->end());
+  StackProfileTracker::CreateMappingParams params;
+  params.build_id = *build_id;
   params.exact_offset = decoder->exact_offset();
   params.start_offset = decoder->start_offset();
+  params.start = decoder->start();
+  params.end = decoder->end();
   params.load_bias = decoder->load_bias();
-  params.name = ProfilePacketUtils::MakeMappingName(path_components);
-
-  VirtualMemoryMapping& mapping =
-      context_->mapping_tracker->InternMemoryMapping(std::move(params));
-
-  cached_mappings_.Insert(iid, &mapping);
-  return &mapping;
+  params.name = base::StringView(path);
+  MappingId mapping_id = context_->stack_profile_tracker->InternMapping(params);
+  cached_mappings_.Insert(iid, mapping_id);
+  return mapping_id;
 }
 
 std::optional<base::StringView>
@@ -122,6 +110,11 @@ StackProfileSequenceState::LookupInternedBuildId(uint64_t iid) {
 
 std::optional<base::StringView>
 StackProfileSequenceState::LookupInternedMappingPath(uint64_t iid) {
+  // This should really be an error (value not set) or at the very least return
+  // a null string, but for backward compatibility use an empty string instead.
+  if (iid == 0) {
+    return "";
+  }
   auto* decoder = LookupInternedMessage<
       protos::pbzero::InternedData::kMappingPathsFieldNumber,
       protos::pbzero::InternedString>(iid);
@@ -165,7 +158,7 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
 
   cached_callstacks_.Insert(iid, *parent_callsite_id);
 
-  return parent_callsite_id;
+  return *parent_callsite_id;
 }
 
 std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
@@ -181,9 +174,9 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
     return std::nullopt;
   }
 
-  VirtualMemoryMapping* mapping =
-      FindOrInsertMappingImpl(decoder->mapping_id());
-  if (!mapping) {
+  std::optional<MappingId> mapping_id =
+      FindOrInsertMapping(decoder->mapping_id());
+  if (!mapping_id) {
     return std::nullopt;
   }
 
@@ -197,7 +190,9 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
     function_name = *func;
   }
 
-  FrameId frame_id = mapping->InternFrame(decoder->rel_pc(), function_name);
+  FrameId frame_id = context_->stack_profile_tracker->InternFrame(
+      *mapping_id, decoder->rel_pc(), function_name);
+
   cached_frames_.Insert(iid, frame_id);
 
   return frame_id;

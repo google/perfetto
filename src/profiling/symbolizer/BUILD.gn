@@ -52,7 +52,7 @@ if (enable_perfetto_trace_processor) {
       "../../../include/perfetto/trace_processor:trace_processor",
       "../../../protos/perfetto/trace:zero",
       "../../../protos/perfetto/trace/profiling:zero",
-      "../../trace_processor/util:build_id",
+      "../../trace_processor/util:stack_traces_util",
     ]
     sources = [
       "symbolize_database.cc",

@@ -132,6 +132,7 @@ source_set("storage_minimal") {
     "util:descriptors",
     "util:gzip",
     "util:proto_to_args_parser",
+    "util:stack_traces_util",
   ]
   public_deps = [ "../../include/perfetto/trace_processor:storage" ]
 }
