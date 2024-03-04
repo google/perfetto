@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_CONTAINERS_BIT_VECTOR_ITERATORS_H_
 #define SRC_TRACE_PROCESSOR_CONTAINERS_BIT_VECTOR_ITERATORS_H_
 
+#include <array>
+
 #include "src/trace_processor/containers/bit_vector.h"
 
 namespace perfetto {

@@ -75,15 +75,12 @@ RangeOrBitVector SelectorOverlay::ChainImpl::SearchValidated(FilterOp op,
 
   BitVector storage_bitvector = std::move(storage_result).TakeIfBitVector();
   PERFETTO_DCHECK(storage_bitvector.size() <= selector_->size());
-
-  // TODO(b/283763282): implement ParallelExtractBits to optimize this
-  // operation.
-  BitVector::Builder res(in.end);
-  for (auto it = selector_->IterateSetBits();
-       it && it.index() < storage_bitvector.size(); it.Next()) {
-    res.Append(storage_bitvector.IsSet(it.index()));
+  storage_bitvector.SelectBits(*selector_);
+  if (storage_bitvector.size() == 0) {
+    return RangeOrBitVector(std::move(storage_bitvector));
   }
-  return RangeOrBitVector(std::move(res).Build());
+  PERFETTO_DCHECK(storage_bitvector.size() == in.end);
+  return RangeOrBitVector(std::move(storage_bitvector));
 }
 
 RangeOrBitVector SelectorOverlay::ChainImpl::IndexSearchValidated(

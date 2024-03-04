@@ -66,6 +66,7 @@ if (enable_perfetto_benchmarks) {
       ":containers",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
+      "../../base",
     ]
     sources = [
       "bit_vector_benchmark.cc",
