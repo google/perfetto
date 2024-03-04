@@ -116,7 +116,8 @@ ALLOWED_PREFIXES = {
 
 # Allows for nonstandard object names.
 OBJECT_NAME_ALLOWLIST = {
-    'slices/with_context.sql': ['process_slice', 'thread_slice']
+    'slices/with_context.sql': ['process_slice', 'thread_slice'],
+    'slices/cpu_time.sql': ['thread_slice_cpu_time']
 }
 
 # Given a regex pattern and a string to match against, returns all the
