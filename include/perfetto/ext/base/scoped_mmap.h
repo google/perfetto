@@ -22,6 +22,15 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/scoped_file.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#define PERFETTO_HAS_MMAP() 1
+#else
+#define PERFETTO_HAS_MMAP() 0
+#endif
+
 namespace perfetto::base {
 
 // RAII wrapper that holds ownership of an mmap()d area and of a file. Calls
@@ -51,6 +60,14 @@ class ScopedMmap {
   // area and unmapping failed. In any case, after this method, `IsValid()` will
   // return false.
   bool reset() noexcept;
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  // Takes ownership of an mmap()d area that starts at `data`, `size` bytes
+  // long. `data` should not be MAP_FAILED.
+  static ScopedMmap InheritMmappedRange(void* data, size_t size);
+#endif
 
  private:
   ScopedMmap(const ScopedMmap&) = delete;
