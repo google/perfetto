@@ -19,8 +19,6 @@
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/importers/common/address_range.h"
-#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
@@ -30,7 +28,6 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/util/build_id.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -71,16 +68,17 @@ void ProfilePacketSequenceState::AddString(SourceStringId id,
 
 void ProfilePacketSequenceState::AddMapping(SourceMappingId id,
                                             const SourceMapping& mapping) {
-  CreateMappingParams params;
+  StackProfileTracker::CreateMappingParams params;
   if (std::string* str = strings_.Find(mapping.build_id); str) {
-    params.build_id = BuildId::FromRaw(*str);
+    params.build_id = base::StringView(*str);
   } else {
     context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
     return;
   }
   params.exact_offset = mapping.exact_offset;
   params.start_offset = mapping.start_offset;
-  params.memory_range = AddressRange(mapping.start, mapping.end);
+  params.start = mapping.start;
+  params.end = mapping.end;
   params.load_bias = mapping.load_bias;
 
   std::vector<base::StringView> path_components;
@@ -95,16 +93,16 @@ void ProfilePacketSequenceState::AddMapping(SourceMappingId id,
       break;
     }
   }
-
-  params.name = ProfilePacketUtils::MakeMappingName(path_components);
-  mappings_.Insert(
-      id, &context_->mapping_tracker->InternMemoryMapping(std::move(params)));
+  std::string path = ProfilePacketUtils::MakeMappingName(path_components);
+  params.name = base::StringView(path);
+  MappingId mapping_id = context_->stack_profile_tracker->InternMapping(params);
+  mappings_.Insert(id, mapping_id);
 }
 
 void ProfilePacketSequenceState::AddFrame(SourceFrameId id,
                                           const SourceFrame& frame) {
-  VirtualMemoryMapping** mapping = mappings_.Find(frame.mapping_id);
-  if (!mapping) {
+  MappingId* mapping_id = mappings_.Find(frame.mapping_id);
+  if (!mapping_id) {
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
     return;
   }
@@ -115,8 +113,9 @@ void ProfilePacketSequenceState::AddFrame(SourceFrameId id,
     return;
   }
 
-  FrameId frame_id =
-      (*mapping)->InternFrame(frame.rel_pc, base::StringView(*function_name));
+  FrameId frame_id = context_->stack_profile_tracker->InternFrame(
+      *mapping_id, frame.rel_pc, base::StringView(*function_name));
+
   frames_.Insert(id, frame_id);
 }
 

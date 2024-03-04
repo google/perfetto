@@ -20,11 +20,12 @@
 #include <cstdint>
 #include <optional>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
-
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 
@@ -51,39 +52,64 @@ class TraceProcessorContext;
 
 class StackProfileTracker {
  public:
+  struct CreateMappingParams {
+    base::StringView build_id;
+    uint64_t exact_offset;
+    uint64_t start_offset;
+    uint64_t start;
+    uint64_t end;
+    uint64_t load_bias;
+    base::StringView name;
+  };
+
   explicit StackProfileTracker(TraceProcessorContext* context)
       : context_(context) {}
 
   std::vector<FrameId> JavaFramesForName(NameInPackage name) const;
+  std::vector<MappingId> FindMappingRow(StringId name, StringId build_id) const;
+  std::vector<FrameId> FindFrameIds(MappingId mapping_id,
+                                    uint64_t rel_pc) const;
 
+  MappingId InternMapping(const CreateMappingParams& params);
   CallsiteId InternCallsite(std::optional<CallsiteId> parent_callsite_id,
                             FrameId frame_id,
                             uint32_t depth);
-
-  void OnFrameCreated(FrameId frame_id);
+  FrameId InternFrame(MappingId mapping_id,
+                      uint64_t rel_pc,
+                      base::StringView function_name);
 
  private:
+  StringId InternBuildId(base::StringView build_id);
+
   TraceProcessorContext* const context_;
+  base::FlatHashMap<tables::StackProfileMappingTable::Row, MappingId>
+      mapping_unique_row_index_;
   base::FlatHashMap<tables::StackProfileCallsiteTable::Row, CallsiteId>
       callsite_unique_row_index_;
+  base::FlatHashMap<tables::StackProfileFrameTable::Row, FrameId>
+      frame_unique_row_index_;
 
-  struct FrameKey {
-    MappingId mapping_id;
-    uint64_t rel_pc;
-
-    bool operator==(const FrameKey& o) const {
-      return mapping_id == o.mapping_id && rel_pc == o.rel_pc;
+  struct MappingHasher {
+    size_t operator()(const std::pair<StringId, StringId>& o) const {
+      return static_cast<size_t>(
+          base::Hasher::Combine(o.first.raw_id(), o.second.raw_id()));
     }
-
-    bool operator!=(const FrameKey& o) const { return !(*this == o); }
-
-    struct Hasher {
-      size_t operator()(const FrameKey& o) const {
-        return static_cast<size_t>(
-            base::Hasher::Combine(o.mapping_id.value, o.rel_pc));
-      }
-    };
   };
+  base::FlatHashMap<std::pair<StringId, StringId>,
+                    std::vector<MappingId>,
+                    MappingHasher>
+      mappings_by_name_and_build_id_;
+
+  struct FrameHasher {
+    size_t operator()(const std::pair<MappingId, uint64_t>& o) const {
+      return static_cast<size_t>(
+          base::Hasher::Combine(o.first.value, o.second));
+    }
+  };
+  base::FlatHashMap<std::pair<MappingId, uint64_t>,
+                    std::vector<FrameId>,
+                    FrameHasher>
+      frame_by_mapping_and_rel_pc_;
 
   base::FlatHashMap<NameInPackage, std::vector<FrameId>, NameInPackage::Hasher>
       java_frames_for_name_;
