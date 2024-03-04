@@ -16,6 +16,14 @@
 
 #include "perfetto/ext/base/scoped_mmap.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
+
+#include "perfetto/ext/base/file_utils.h"
 #include "src/base/test/tmp_dir_tree.h"
 #include "test/gtest_and_gmock.h"
 
@@ -82,6 +90,26 @@ TEST_F(ScopedMmapTest, Reset) {
 
   EXPECT_FALSE(mapped.IsValid());
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+TEST_F(ScopedMmapTest, InheritMmappedRange) {
+  base::TmpDirTree tmp;
+  tmp.AddFile("f1.txt", "ccccc");
+  ScopedPlatformHandle file(
+      base::OpenFile(tmp.AbsolutePath("f1.txt").c_str(), O_RDONLY));
+  void* ptr = mmap(nullptr, 5, PROT_READ, MAP_PRIVATE, *file, 0);
+  ASSERT_NE(ptr, MAP_FAILED);
+
+  ScopedMmap mapped = ScopedMmap::InheritMmappedRange(ptr, 5);
+  file.reset();
+
+  ASSERT_TRUE(mapped.IsValid());
+  ASSERT_EQ(mapped.length(), 5u);
+  EXPECT_EQ(*static_cast<char*>(mapped.data()), 'c');
+}
+#endif
 
 }  // namespace
 }  // namespace perfetto::base

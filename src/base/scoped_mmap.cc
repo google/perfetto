@@ -161,6 +161,18 @@ bool ScopedMmap::reset() noexcept {
   return ret;
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+// static
+ScopedMmap ScopedMmap::InheritMmappedRange(void* data, size_t size) {
+  ScopedMmap ret;
+  ret.ptr_ = data;
+  ret.length_ = size;
+  return ret;
+}
+#endif
+
 ScopedMmap ReadMmapFilePart(const char* fname, size_t length) {
   return ScopedMmap::FromHandle(OpenFileForMmap(fname), length);
 }
