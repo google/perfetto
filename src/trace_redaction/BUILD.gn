@@ -14,6 +14,18 @@
 
 import("../../gn/test.gni")
 
+# The main entry point for external processes. This is separate from
+# "trace_redaction" because tests also depend on "trace_redaction".
+executable("trace_redactor") {
+  sources = [ "main.cc" ]
+  deps = [
+    ":trace_redaction",
+    "../../gn:default_deps",
+    "../../include/perfetto/base",
+    "../../include/perfetto/ext/base",
+  ]
+}
+
 source_set("trace_redaction") {
   sources = [
     "find_package_uid.cc",

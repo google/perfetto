@@ -48,6 +48,10 @@ if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
   all_targets += [ "src/trace_processor:trace_processor_shell" ]
 }
 
+if (enable_perfetto_trace_processor) {
+  all_targets += [ "src/trace_redaction:trace_redactor" ]
+}
+
 if (enable_perfetto_traceconv) {
   all_targets += [ "src/traceconv" ]
   if (is_cross_compiling) {
