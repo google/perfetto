@@ -40,7 +40,7 @@ export class TimeAxisPanel implements Panel {
 
   constructor(readonly key: string) {}
 
-  get mithril() {
+  render(): m.Children {
     return m('.time-axis-panel');
   }
 

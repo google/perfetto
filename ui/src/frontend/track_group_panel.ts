@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {hex} from 'color-convert';
 import m from 'mithril';
 
 import {Icons} from '../base/semantic_icons';
@@ -24,18 +23,14 @@ import {TrackCacheEntry} from '../common/track_cache';
 import {TrackTags} from '../public';
 
 import {
-  COLLAPSED_BACKGROUND,
-  EXPANDED_BACKGROUND,
   TRACK_SHELL_WIDTH,
 } from './css_constants';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {PanelSize} from './panel';
 import {Panel} from './panel_container';
-import {CrashButton, renderChips, TrackContent} from './track_panel';
-import {
-  drawVerticalLineAtTime,
-} from './vertical_line_helper';
+import {CrashButton, renderChips, renderHoveredCursorVertical, renderHoveredNoteVertical, renderNoteVerticals, renderWakeupVertical, TrackContent} from './track_panel';
+import {canvasClip} from '../common/canvas_utils';
 
 interface Attrs {
   trackGroupId: string;
@@ -58,7 +53,7 @@ export class TrackGroupPanel implements Panel {
     this.key = attrs.key;
   }
 
-  get mithril(): m.Children {
+  render(): m.Children {
     const {
       trackGroupId,
       title,
@@ -187,86 +182,37 @@ export class TrackGroupPanel implements Panel {
       trackFSM: track,
     } = this.attrs;
 
-    ctx.fillStyle = collapsed ? COLLAPSED_BACKGROUND : EXPANDED_BACKGROUND;
-    ctx.fillRect(0, 0, size.width, size.height);
-
     if (!collapsed) return;
 
-    this.highlightIfTrackSelected(ctx, size);
-
+    ctx.save();
+    canvasClip(
+      ctx, TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
     drawGridLines(
       ctx,
       size.width,
       size.height);
 
-    ctx.save();
-    ctx.translate(TRACK_SHELL_WIDTH, 0);
     if (track) {
+      ctx.save();
+      ctx.translate(TRACK_SHELL_WIDTH, 0);
       const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
       if (!track.getError()) {
         track.update();
         track.track.render(ctx, trackSize);
       }
+      ctx.restore();
     }
-    ctx.restore();
 
     this.highlightIfTrackSelected(ctx, size);
 
     const {visibleTimeScale} = globals.timeline;
     // Draw vertical line when hovering on the notes panel.
-    if (globals.state.hoveredNoteTimestamp !== -1n) {
-      drawVerticalLineAtTime(
-        ctx,
-        visibleTimeScale,
-        globals.state.hoveredNoteTimestamp,
-        size.height,
-        `#aaa`);
-    }
-    if (globals.state.hoverCursorTimestamp !== -1n) {
-      drawVerticalLineAtTime(
-        ctx,
-        visibleTimeScale,
-        globals.state.hoverCursorTimestamp,
-        size.height,
-        `#344596`);
-    }
+    renderHoveredNoteVertical(ctx, visibleTimeScale, size);
+    renderHoveredCursorVertical(ctx, visibleTimeScale, size);
+    renderWakeupVertical(ctx, visibleTimeScale, size);
+    renderNoteVerticals(ctx, visibleTimeScale, size);
 
-    if (globals.state.currentSelection !== null) {
-      if (globals.state.currentSelection.kind === 'SLICE' &&
-          globals.sliceDetails.wakeupTs !== undefined) {
-        drawVerticalLineAtTime(
-          ctx,
-          visibleTimeScale,
-          globals.sliceDetails.wakeupTs,
-          size.height,
-          `black`);
-      }
-    }
-    // All marked areas should have semi-transparent vertical lines
-    // marking the start and end.
-    for (const note of Object.values(globals.state.notes)) {
-      if (note.noteType === 'AREA') {
-        const transparentNoteColor =
-            'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
-        drawVerticalLineAtTime(
-          ctx,
-          visibleTimeScale,
-          globals.state.areas[note.areaId].start,
-          size.height,
-          transparentNoteColor,
-          1);
-        drawVerticalLineAtTime(
-          ctx,
-          visibleTimeScale,
-          globals.state.areas[note.areaId].end,
-          size.height,
-          transparentNoteColor,
-          1);
-      } else if (note.noteType === 'DEFAULT') {
-        drawVerticalLineAtTime(
-          ctx, visibleTimeScale, note.timestamp, size.height, note.color);
-      }
-    }
+    ctx.restore();
   }
 }
 
