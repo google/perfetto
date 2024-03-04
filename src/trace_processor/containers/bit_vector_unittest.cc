@@ -17,6 +17,7 @@
 #include "src/trace_processor/containers/bit_vector.h"
 
 #include <bitset>
+#include <cstdint>
 #include <limits>
 #include <random>
 
@@ -403,6 +404,18 @@ TEST(BitVectorUnittest, IntersectRangeStressTest) {
   ASSERT_EQ(intersected.CountSetBits(), 217u);
 }
 
+TEST(BitVectorUnittest, IntersectRangeAppendFalse) {
+  BitVector bv(70u, true);
+  BitVector out = bv.IntersectRange(10, 12u);
+  out.Resize(70u);
+
+  ASSERT_TRUE(out.IsSet(10u));
+  ASSERT_TRUE(out.IsSet(11u));
+  ASSERT_FALSE(out.IsSet(12u));
+  ASSERT_FALSE(out.IsSet(60u));
+  ASSERT_FALSE(out.IsSet(69u));
+}
+
 TEST(BitVectorUnittest, Range) {
   BitVector bv =
       BitVector::RangeForTesting(1, 9, [](uint32_t t) { return t % 3 == 0; });
@@ -584,6 +597,14 @@ TEST(BitVectorUnittest, NotBig) {
   bv.Not();
 
   EXPECT_EQ(bv.CountSetBits(), 820u);
+}
+
+TEST(BitVectorUnittest, NotAppendAfter) {
+  BitVector bv(30);
+  bv.Not();
+  bv.AppendFalse();
+
+  ASSERT_FALSE(bv.IsSet(30));
 }
 
 TEST(BitVectorUnittest, Or) {
