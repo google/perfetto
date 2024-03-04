@@ -29,7 +29,6 @@ message ProcessStatsConfig {
 
     DISABLE_ON_DEMAND = 2;
   }
-
   repeated Quirks quirks = 1;
 
   // If enabled all processes will be scanned and dumped when the trace starts.
@@ -43,14 +42,9 @@ message ProcessStatsConfig {
   // /proc/pid/status and oom_score_adj every X ms.
   // It will also sample /proc/pid/smaps_rollup if scan_smaps_rollup = true.
   // This is required to be > 100ms to avoid excessive CPU usage.
-  // TODO(primiano): add CPU cost for change this value.
   optional uint32 proc_stats_poll_ms = 4;
 
-  // If empty samples stats for all processes. If non empty samples stats only
-  // for processes matching the given string in their argv0 (i.e. the first
-  // entry of /proc/pid/cmdline).
-  // TODO(primiano): implement this feature.
-  // repeated string proc_stats_filter = 5;
+  // id 5 never used
 
   // This is required to be either = 0 or a multiple of |proc_stats_poll_ms|
   // (default: |proc_stats_poll_ms|). If = 0, will be set to
@@ -58,20 +52,28 @@ message ProcessStatsConfig {
   // multiple.
   optional uint32 proc_stats_cache_ttl_ms = 6;
 
-  // DEPRECATED record_thread_time_in_state
-  reserved 7;
-
-  // DEPRECATED thread_time_in_state_cache_size
-  reserved 8;
-
-  // If true this will resolve filedescriptors for each process so these
-  // can be mapped to their actual device or file.
-  // Requires raw_syscalls/sys_exit ftrace events to be enabled or
+  // Niche feature: If true this will resolve file descriptors for each process
+  // so these can be mapped to their actual device or file.
+  // Requires raw_syscalls/sys_{enter,exit} ftrace events to be enabled or
   // new fds opened after initially scanning a process will not be
   // recognized.
   optional bool resolve_process_fds = 9;
 
-  // If enabled memory stats from /proc/pid/smaps_rollup will be included
-  // in process stats.
+  // If true, output will include memory stats from /proc/pid/smaps_rollup.
   optional bool scan_smaps_rollup = 10;
+
+  // If true: process descriptions will include process age (starttime in
+  // /proc/pid/stat).
+  // Introduced in: perfetto v44.
+  optional bool record_process_age = 11;
+
+  // If true and |proc_stats_poll_ms| is true, process stats will include time
+  // spent running in user/kernel mode (utime/stime in /proc/pid/stat).
+  // Introduced in: perfetto v44.
+  optional bool record_process_runtime = 12;
+
+  // record_thread_time_in_state
+  reserved 7;
+  // thread_time_in_state_cache_size
+  reserved 8;
 }

@@ -21,7 +21,7 @@ package perfetto.protos;
 // dedicated message (as opposite to be fields in process_tree.proto) because
 // they are dumped at a different rate than cmdline and thread list.
 // Note: not all of these stats will be present in every ProcessStats message
-// and sometimes processes may be missing . This is because counters are
+// and sometimes processes may be missing. This is because counters are
 // cached to reduce emission of counters which do not change.
 message ProcessStats {
   // Per-thread periodically sampled stats.
@@ -48,6 +48,8 @@ message ProcessStats {
   message Process {
     optional int32 pid = 1;
 
+    repeated Thread threads = 11;
+
     // See /proc/[pid]/status in `man 5 proc` for a description of these fields.
     optional uint64 vm_size_kb = 2;
     optional uint64 vm_rss_kb = 3;
@@ -61,8 +63,6 @@ message ProcessStats {
     // the trace processor.
 
     optional int64 oom_score_adj = 10;
-
-    repeated Thread threads = 11;
 
     // The peak resident set size is resettable in newer Posix kernels.
     // This field specifies if reset is supported and if the writer had reset
@@ -83,6 +83,16 @@ message ProcessStats {
     optional uint64 smr_pss_anon_kb = 18;
     optional uint64 smr_pss_file_kb = 19;
     optional uint64 smr_pss_shmem_kb = 20;
+
+    // Time spent scheduled in user mode in nanoseconds. Parsed from utime in
+    // /proc/pid/stat. Recorded if record_process_runtime config option is set.
+    // Resolution of "clock ticks", usually 10ms.
+    optional uint64 runtime_user_mode = 21;
+
+    // Time spent scheduled in kernel mode in nanoseconds. Parsed from stime in
+    // /proc/pid/stat. Recorded if record_process_runtime config option is set.
+    // Resolution of "clock ticks", usually 10ms.
+    optional uint64 runtime_kernel_mode = 22;
   }
   repeated Process processes = 1;
 
