@@ -23,7 +23,6 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/ref_counted.h"
@@ -33,7 +32,6 @@
 #include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
-#include "src/trace_processor/db/query_executor.h"
 
 namespace perfetto::trace_processor {
 
@@ -77,7 +75,7 @@ class Table {
     }
 
     // Returns whether the row the iterator is pointing at is valid.
-    explicit operator bool() const { return its_[0]; }
+    explicit operator bool() const { return bool(its_[0]); }
 
     // Returns the value at the current row for column |col_idx|.
     SqlValue Get(uint32_t col_idx) const {

@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "src/trace_processor/containers/bit_vector.h"
@@ -41,7 +42,7 @@ class ColumnStorageOverlay {
   // Allows efficient iteration over the rows of a ColumnStorageOverlay.
   class Iterator {
    public:
-    Iterator(RowMap::Iterator it) : it_(std::move(it)) {}
+    explicit Iterator(RowMap::Iterator it) : it_(std::move(it)) {}
 
     Iterator(Iterator&&) noexcept = default;
     Iterator& operator=(Iterator&&) = default;
@@ -50,7 +51,7 @@ class ColumnStorageOverlay {
     void Next() { return it_.Next(); }
 
     // Returns if the iterator is still valid.
-    operator bool() const { return it_; }
+    explicit operator bool() const { return bool(it_); }
 
     // Returns the index pointed to by this iterator.
     OutputIndex index() const { return it_.index(); }

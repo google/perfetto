@@ -16,18 +16,28 @@
 
 #include "src/trace_processor/containers/bit_vector.h"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <cstring>
+#include <initializer_list>
 #include <limits>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/bit_vector_iterators.h"
 
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
-#include "src/trace_processor/containers/bit_vector_iterators.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
 #include <immintrin.h>
 #endif
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 // This function implements the PDEP instruction in x64 as a loop.
@@ -104,7 +114,7 @@ void BitVector::Resize(uint32_t new_size, bool filler) {
 
   // Compute the address of the new last bit in the bitvector.
   Address last_addr = IndexToAddress(new_size - 1);
-  uint32_t old_blocks_size = static_cast<uint32_t>(counts_.size());
+  auto old_blocks_size = static_cast<uint32_t>(counts_.size());
   uint32_t new_blocks_size = last_addr.block_idx + 1;
 
   // Resize the block and count vectors to have the correct number of entries.
@@ -159,11 +169,11 @@ void BitVector::Resize(uint32_t new_size, bool filler) {
 }
 
 BitVector BitVector::Copy() const {
-  return BitVector(words_, counts_, size_);
+  return {words_, counts_, size_};
 }
 
 BitVector::SetBitsIterator BitVector::IterateSetBits() const {
-  return SetBitsIterator(this);
+  return {this};
 }
 
 void BitVector::Not() {
@@ -244,7 +254,7 @@ void BitVector::UpdateSetBits(const BitVector& update) {
     if (PERFETTO_UNLIKELY(current == 0))
       continue;
 
-    uint8_t popcount = static_cast<uint8_t>(PERFETTO_POPCOUNT(current));
+    auto popcount = static_cast<uint8_t>(PERFETTO_POPCOUNT(current));
     PERFETTO_DCHECK(popcount >= 1);
 
     // Check if we have enough unused bits from the previous iteration - if so,
@@ -303,17 +313,27 @@ void BitVector::UpdateSetBits(const BitVector& update) {
   PERFETTO_DCHECK(update.CountSetBits() == CountSetBits());
 }
 
+void BitVector::SelectBits(const BitVector& mask_bv) {
+  BitVector::Builder res(mask_bv.CountSetBits(size_));
+  for (auto it = mask_bv.IterateSetBits(); it && it.index() < size();
+       it.Next()) {
+    res.Append(IsSet(it.index()));
+  }
+  *this = std::move(res).Build();
+}
+
 BitVector BitVector::FromSortedIndexVector(
     const std::vector<int64_t>& indices) {
   // The rest of the algorithm depends on |indices| being non empty.
   if (indices.empty()) {
-    return BitVector();
+    return {};
   }
 
-  // We are creating the smallest BitVector that can have all of the values from
-  // |indices| set. As we assume that |indices| is sorted, the size would be the
-  // last element + 1 and the last bit of the final BitVector will be set.
-  uint32_t size = static_cast<uint32_t>(indices.back() + 1);
+  // We are creating the smallest BitVector that can have all of the values
+  // from |indices| set. As we assume that |indices| is sorted, the size would
+  // be the last element + 1 and the last bit of the final BitVector will be
+  // set.
+  auto size = static_cast<uint32_t>(indices.back() + 1);
 
   uint32_t block_count = BlockCount(size);
   std::vector<uint64_t> words(block_count * Block::kWords);
@@ -325,13 +345,13 @@ BitVector BitVector::FromSortedIndexVector(
 
   std::vector<uint32_t> counts(block_count);
   for (uint32_t i = 1; i < counts.size(); ++i) {
-    // The number of set bits in each block is the number of set bits before and
-    // in the previous block.
+    // The number of set bits in each block is the number of set bits before
+    // and in the previous block.
     counts[i] = counts[i - 1] +
                 ConstBlock(&words[Block::kWords * (i - 1)]).CountSetBits();
   }
 
-  return BitVector(words, counts, size);
+  return {words, counts, size};
 }
 
 BitVector BitVector::IntersectRange(uint32_t range_start,
@@ -341,7 +361,7 @@ BitVector BitVector::IntersectRange(uint32_t range_start,
   uint32_t end_idx = std::min(range_end, size());
 
   if (range_start >= end_idx)
-    return BitVector();
+    return {};
 
   Builder builder(end_idx, range_start);
   uint32_t front_bits = builder.BitsUntilWordBoundaryOrFull();
@@ -365,6 +385,15 @@ BitVector BitVector::IntersectRange(uint32_t range_start,
   }
 
   return std::move(builder).Build();
+}
+
+std::vector<uint32_t> BitVector::GetSetBitIndices() const {
+  std::vector<uint32_t> res;
+  res.reserve(CountSetBits());
+  for (auto it = IterateSetBits(); it; it.Next()) {
+    res.push_back(it.index());
+  }
+  return res;
 }
 
 void BitVector::Serialize(
@@ -400,5 +429,4 @@ void BitVector::Deserialize(
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
