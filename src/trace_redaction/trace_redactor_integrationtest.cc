@@ -23,6 +23,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/temp_file.h"
+#include "src/base/test/tmp_dir_tree.h"
 #include "src/base/test/utils.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/prune_package_list.h"
@@ -54,12 +55,9 @@ class TraceRedactorIntegrationTest : public testing::Test {
  protected:
   void SetUp() override {
     src_trace_ = base::GetTestDataPath(std::string(kTracePath));
-    dest_trace_ = std::make_unique<base::TempFile>(base::TempFile::Create());
   }
 
   const std::string& src_trace() const { return src_trace_; }
-
-  const std::string& dest_trace() const { return dest_trace_->path(); }
 
   std::vector<protozero::ConstBytes> GetPackageInfos(
       const Trace::Decoder& trace) const {
@@ -79,9 +77,8 @@ class TraceRedactorIntegrationTest : public testing::Test {
     return infos;
   }
 
- private:
   std::string src_trace_;
-  std::unique_ptr<base::TempFile> dest_trace_;
+  base::TmpDirTree tmp_dir_;
 };
 
 TEST_F(TraceRedactorIntegrationTest, FindsPackageAndFiltersPackageList) {
@@ -92,12 +89,15 @@ TEST_F(TraceRedactorIntegrationTest, FindsPackageAndFiltersPackageList) {
   Context context;
   context.package_name = "com.Unity.com.unity.multiplayer.samples.coop";
 
-  auto result = redaction.Redact(src_trace(), dest_trace(), &context);
+  auto result = redaction.Redact(
+      src_trace(), tmp_dir_.AbsolutePath("dst.pftrace"), &context);
+  tmp_dir_.TrackFile("dst.pftrace");
 
   ASSERT_TRUE(result.ok()) << result.message();
 
   std::string redacted_buffer;
-  ASSERT_TRUE(base::ReadFile(dest_trace(), &redacted_buffer));
+  ASSERT_TRUE(
+      base::ReadFile(tmp_dir_.AbsolutePath("dst.pftrace"), &redacted_buffer));
 
   Trace::Decoder redacted_trace(redacted_buffer);
   std::vector<protozero::ConstBytes> infos = GetPackageInfos(redacted_trace);
@@ -139,11 +139,14 @@ TEST_F(TraceRedactorIntegrationTest, RetainsAllInstancesOfUid) {
   Context context;
   context.package_name = "com.google.android.networkstack.tethering";
 
-  auto result = redaction.Redact(src_trace(), dest_trace(), &context);
+  auto result = redaction.Redact(
+      src_trace(), tmp_dir_.AbsolutePath("dst.pftrace"), &context);
+  tmp_dir_.TrackFile("dst.pftrace");
   ASSERT_TRUE(result.ok()) << result.message();
 
   std::string redacted_buffer;
-  ASSERT_TRUE(base::ReadFile(dest_trace(), &redacted_buffer));
+  ASSERT_TRUE(
+      base::ReadFile(tmp_dir_.AbsolutePath("dst.pftrace"), &redacted_buffer));
 
   Trace::Decoder redacted_trace(redacted_buffer);
   std::vector<protozero::ConstBytes> infos = GetPackageInfos(redacted_trace);
