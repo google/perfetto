@@ -16,10 +16,7 @@
 
 #include "src/trace_redaction/trace_redactor.h"
 
-#include <sys/mman.h>
-#include <unistd.h>
 #include <cstddef>
-#include <cstdio>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -27,6 +24,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -35,32 +33,9 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 
 namespace perfetto::trace_redaction {
-namespace {
 
 using Trace = protos::pbzero::Trace;
 using TracePacket = protos::pbzero::TracePacket;
-
-// Basic scoped objects (similar to base::ScopedResource) to make sure page
-// resources are cleaned-up.
-struct MappedFile {
-  void* start_address;
-  size_t size;
-
-  MappedFile() : start_address(MAP_FAILED), size(0) {}
-
-  ~MappedFile() {
-    if (start_address != MAP_FAILED) {
-      munmap(start_address, size);
-    }
-  }
-
-  MappedFile(const MappedFile&) = delete;
-  MappedFile& operator=(const MappedFile&) = delete;
-  MappedFile(MappedFile&&) = delete;
-  MappedFile& operator=(MappedFile&&) = delete;
-};
-
-}  // namespace
 
 TraceRedactor::TraceRedactor() = default;
 
@@ -70,35 +45,15 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
                                    std::string_view dest_filename,
                                    Context* context) const {
   const std::string source_filename_str(source_filename);
-
-  base::ScopedFile file_handle(base::OpenFile(source_filename_str, O_RDONLY));
-
-  if (!file_handle) {
-    return base::ErrStatus("Failed to read trace from disk: %s",
+  base::ScopedMmap mapped =
+      base::ReadMmapWholeFile(source_filename_str.c_str());
+  if (!mapped.IsValid()) {
+    return base::ErrStatus("Failed to map pages for trace (%s)",
                            source_filename_str.c_str());
-  }
-
-  auto file_size_offset = lseek(*file_handle, 0, SEEK_END);
-
-  if (file_size_offset <= 0) {
-    return base::ErrStatus("Could not determine trace size (%s)",
-                           source_filename_str.c_str());
-  }
-
-  lseek(*file_handle, 0, SEEK_SET);
-
-  MappedFile page;
-  page.size = static_cast<size_t>(file_size_offset);
-  page.start_address =
-      mmap(nullptr, page.size, PROT_READ, MAP_PRIVATE, *file_handle, 0);
-
-  if (page.start_address == MAP_FAILED) {
-    return base::ErrStatus("Failed to map pages for trace (%zu bytes)",
-                           page.size);
   }
 
   trace_processor::TraceBlobView whole_view(
-      trace_processor::TraceBlob::FromMmap(page.start_address, page.size));
+      trace_processor::TraceBlob::FromMmap(std::move(mapped)));
 
   if (auto status = Collect(context, whole_view); !status.ok()) {
     return status;
