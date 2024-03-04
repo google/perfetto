@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/containers/bit_vector.h"
 
+#include <cstdint>
 #include <limits>
 
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
@@ -166,9 +167,18 @@ BitVector::SetBitsIterator BitVector::IterateSetBits() const {
 }
 
 void BitVector::Not() {
-  for (uint32_t i = 0; i < words_.size(); ++i) {
-    BitWord(&words_[i]).Not();
+  if (size_ == 0) {
+    return;
   }
+
+  for (uint64_t& word : words_) {
+    BitWord(&word).Not();
+  }
+
+  // Make sure to reset the last block's trailing bits to zero to preserve the
+  // invariant of BitVector.
+  Address last_addr = IndexToAddress(size_ - 1);
+  BlockFromIndex(last_addr.block_idx).ClearAfter(last_addr.block_offset);
 
   for (uint32_t i = 1; i < counts_.size(); ++i) {
     counts_[i] = kBitsInBlock * i - counts_[i];
