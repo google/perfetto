@@ -28,6 +28,7 @@ source_set("perf") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace/profiling:zero",
     "../../importers/common",
     "../../importers/common:parser_types",
     "../../sorter",
@@ -47,6 +48,8 @@ perfetto_unittest_source_set("unittests") {
     ":perf",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
+    "../../importers/common",
   ]
 }

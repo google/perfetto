@@ -30,6 +30,7 @@ namespace perfetto {
 namespace trace_processor {
 
 class TraceProcessorContext;
+class VirtualMemoryMapping;
 
 class StackProfileSequenceState final
     : public PacketSequenceStateGeneration::InternedDataTracker {
@@ -44,13 +45,15 @@ class StackProfileSequenceState final
   std::optional<CallsiteId> FindOrInsertCallstack(uint64_t iid);
 
  private:
+  // Returns `nullptr`if non could be found.
+  VirtualMemoryMapping* FindOrInsertMappingImpl(uint64_t iid);
   std::optional<base::StringView> LookupInternedBuildId(uint64_t iid);
   std::optional<base::StringView> LookupInternedMappingPath(uint64_t iid);
   std::optional<base::StringView> LookupInternedFunctionName(uint64_t iid);
   std::optional<FrameId> FindOrInsertFrame(uint64_t iid);
 
   TraceProcessorContext* const context_;
-  base::FlatHashMap<uint64_t, MappingId> cached_mappings_;
+  base::FlatHashMap<uint64_t, VirtualMemoryMapping*> cached_mappings_;
   base::FlatHashMap<uint64_t, CallsiteId> cached_callstacks_;
   base::FlatHashMap<uint64_t, FrameId> cached_frames_;
 };
