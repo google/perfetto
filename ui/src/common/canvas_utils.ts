@@ -175,3 +175,14 @@ export function drawTrackHoverTooltip(
     ctx.fillText(text2, x + paddingPx, y + paddingPx + yOffsetPx);
   }
 }
+
+export function canvasClip(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number): void {
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+}

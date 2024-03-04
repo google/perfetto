@@ -63,7 +63,6 @@
     grid-template-columns: 1fr auto;
     align-items: center;
     width: var(--track-shell-width);
-    background: #fff;
     border-right: 1px solid #c7d0db;
     overflow: hidden;
 
@@ -80,10 +79,6 @@
 
     &.selected {
       background-color: #ebeef9;
-    }
-
-    &.alternating-thread-track {
-      background: hsl(214, 22%, 95%);
     }
 
     .chip {
@@ -138,12 +133,9 @@
 }
 
 .track-group-panel {
-  --collapsed-transparent: hsla(190, 49%, 97%, 0);
-  --expanded-transparent: hsl(215, 22%, 19%, 0);
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
-  transition: background-color 0.4s, color 0.4s;
   height: 40px;
   &::after {
     display: block;
@@ -153,17 +145,16 @@
     margin-top: -1px;
   }
   &[collapsed="true"] {
-    background-color: var(--collapsed-transparent);
+    background-color: var(--collapsed-background);
     .shell {
       border-right: 1px solid #c7d0db;
-      background-color: var(--collapsed-background);
     }
     .track-button {
       color: rgb(60, 86, 136);
     }
   }
   &[collapsed="false"] {
-    background-color: var(--expanded-transparent);
+    background-color: var(--expanded-background);
     color: white;
     font-weight: bold;
     .shell.flash {
@@ -185,7 +176,6 @@
     line-height: 1;
     width: var(--track-shell-width);
     min-height: 40px;
-    transition: background-color 0.4s;
 
     .track-title {
       user-select: text;
