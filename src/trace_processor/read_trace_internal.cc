@@ -76,10 +76,7 @@ util::Status ReadTraceUnfinalized(
     const std::function<void(uint64_t parsed_size)>& progress_callback) {
   uint64_t bytes_read = 0;
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#if PERFETTO_HAS_MMAP()
   char* no_mmap = getenv("TRACE_PROCESSOR_NO_MMAP");
   bool use_mmap = !no_mmap || *no_mmap != '1';
 
@@ -102,10 +99,7 @@ util::Status ReadTraceUnfinalized(
   }  // if (use_mmap)
   if (bytes_read == 0)
     PERFETTO_LOG("Cannot use mmap on this system. Falling back on read()");
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||
-        // PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE) ||
-        // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) ||
-        // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#endif  // PERFETTO_HAS_MMAP()
   if (bytes_read == 0) {
     base::ScopedFile fd(base::OpenFile(filename, O_RDONLY));
     if (!fd)
