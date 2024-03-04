@@ -143,9 +143,10 @@ message FtraceConfig {
   // Introduced in: Android T.
   optional bool disable_generic_events = 16;
 
-  // The list of syscalls that should be recorded by sys_{enter,exit} ftrace
-  // events. When empty, all syscalls are recorded. If neither sys_{enter,exit}
-  // are enabled, this setting has no effect. Example: ["sys_read", "sys_open"].
+  // The subset of syscalls to record. Enables raw_syscalls/sys_{enter,exit}.
+  // To record all syscalls, leave this unset and add raw_syscalls to
+  // |ftrace_events|.
+  // Example: ["sys_read", "sys_open"].
   // Introduced in: Android U.
   repeated string syscall_events = 18;
 
