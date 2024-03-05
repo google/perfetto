@@ -21,11 +21,11 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 
 #include "perfetto/base/task_runner.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -105,6 +105,41 @@ bool ParseNamespacedTids(const std::string& proc_status, Callback callback) {
   return namespaced;
 }
 
+struct ProcessRuntimes {
+  uint64_t utime = 0;
+  uint64_t stime = 0;
+  uint64_t starttime = 0;
+};
+
+std::optional<ProcessRuntimes> ParseProcessRuntimes(
+    const std::string& proc_stat) {
+  // /proc/pid/stat fields of interest, counting from 1:
+  //  utime = 14
+  //  stime = 15
+  //  starttime = 22
+  // sscanf format string below is formatted to 10 values per line.
+  // clang-format off
+  ProcessRuntimes ret = {};
+  if (sscanf(proc_stat.c_str(),
+             "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u "
+             "%*u %*u %*u %" SCNu64 " %" SCNu64 " %*d %*d %*d %*d %*d "
+             "%*d %" SCNu64 "",
+             &ret.utime, &ret.stime, &ret.starttime) != 3) {
+     PERFETTO_DLOG("empty or unexpected /proc/pid/stat contents");
+     return std::nullopt;
+   }
+  // clang-format on
+  int64_t tickrate = sysconf(_SC_CLK_TCK);
+  if (tickrate <= 0)
+    return std::nullopt;
+  uint64_t ns_per_tick = 1'000'000'000ULL / static_cast<uint64_t>(tickrate);
+
+  ret.utime *= ns_per_tick;
+  ret.stime *= ns_per_tick;
+  ret.starttime *= ns_per_tick;
+  return ret;
+}
+
 // Note: conversions intentionally not checking that the full string was
 // numerical as calling code depends on discarding suffixes in cases such as:
 // * "92 kB" -> 92
@@ -141,6 +176,8 @@ ProcessStatsDataSource::ProcessStatsDataSource(
   dump_all_procs_on_start_ = cfg.scan_all_processes_on_start();
   resolve_process_fds_ = cfg.resolve_process_fds();
   scan_smaps_rollup_ = cfg.scan_smaps_rollup();
+  record_process_age_ = cfg.record_process_age();
+  record_process_runtime_ = cfg.record_process_runtime();
 
   enable_on_demand_dumps_ = true;
   for (auto quirk = cfg.quirks(); quirk; ++quirk) {
@@ -193,7 +230,9 @@ void ProcessStatsDataSource::WriteAllProcesses() {
   base::FlatSet<int32_t> pids;
   while (int32_t pid = ReadNextNumericDir(*proc_dir)) {
     std::string pid_status = ReadProcPidFile(pid, "status");
-    bool namespaced_process = WriteProcess(pid, pid_status);
+    std::string pid_stat =
+        record_process_age_ ? ReadProcPidFile(pid, "stat") : "";
+    bool namespaced_process = WriteProcess(pid, pid_status, pid_stat);
 
     base::StackString<128> task_path("/proc/%d/task", pid);
     base::ScopedDir task_dir(opendir(task_path.c_str()));
@@ -305,7 +344,9 @@ void ProcessStatsDataSource::WriteProcessOrThread(int32_t pid) {
     // We need to read the status file if |pid| is non-main thread.
     const std::string& proc_status_tgid =
         (tgid == tid ? proc_status : ReadProcPidFile(tgid, "status"));
-    WriteProcess(tgid, proc_status_tgid);
+    const std::string& proc_stat =
+        record_process_age_ ? ReadProcPidFile(tgid, "stat") : "";
+    WriteProcess(tgid, proc_status_tgid, proc_stat);
   }
   if (pid != tgid) {
     PERFETTO_DCHECK(!seen_pids_.count(pid));
@@ -315,14 +356,16 @@ void ProcessStatsDataSource::WriteProcessOrThread(int32_t pid) {
 
 // Returns true if the process is within a PID namespace.
 bool ProcessStatsDataSource::WriteProcess(int32_t pid,
-                                          const std::string& proc_status) {
+                                          const std::string& proc_status,
+                                          const std::string& proc_stat) {
   PERFETTO_DCHECK(ToInt32(ProcStatusEntry(proc_status, "Pid:")) == pid);
 
   // pid might've been reused for a non-main thread before our procfs read
   if (PERFETTO_UNLIKELY(pid != ToInt32(ProcStatusEntry(proc_status, "Tgid:"))))
     return false;
 
-  auto* proc = GetOrCreatePsTree()->add_processes();
+  protos::pbzero::ProcessTree::Process* proc =
+      GetOrCreatePsTree()->add_processes();
   proc->set_pid(pid);
   proc->set_ppid(ToInt32(ProcStatusEntry(proc_status, "PPid:")));
   // Uid will have multiple entries, only return first (real uid).
@@ -336,14 +379,22 @@ bool ProcessStatsDataSource::WriteProcess(int32_t pid,
       // Some kernels can miss the NUL terminator due to a bug. b/147438623.
       cmdline.push_back('\0');
     }
-    for (base::StringSplitter ss(&cmdline[0], cmdline.size(), '\0');
+    for (base::StringSplitter ss(cmdline.data(), cmdline.size(), '\0');
          ss.Next();) {
       proc->add_cmdline(ss.cur_token());
     }
   } else {
     // Nothing in cmdline so use the thread name instead (which is == "comm").
-    proc->add_cmdline(ProcStatusEntry(proc_status, "Name:").c_str());
+    proc->add_cmdline(ProcStatusEntry(proc_status, "Name:"));
   }
+
+  if (record_process_age_ && !proc_stat.empty()) {
+    std::optional<ProcessRuntimes> times = ParseProcessRuntimes(proc_stat);
+    if (times.has_value()) {
+      proc->set_process_start_from_boot(times->starttime);
+    }
+  }
+
   seen_pids_.insert({pid, pid});
   return namespaced;
 }
@@ -371,7 +422,7 @@ void ProcessStatsDataSource::WriteDetailedThread(
 
   if (record_thread_names_) {
     std::string thread_name = ProcStatusEntry(proc_status, "Name:");
-    thread->set_name(thread_name.c_str());
+    thread->set_name(thread_name);
   }
   seen_pids_.insert({tid, tgid});
 }
@@ -484,9 +535,18 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
   base::FlatSet<int32_t> pids;
   while (int32_t pid = ReadNextNumericDir(*proc_dir)) {
     cur_ps_stats_process_ = nullptr;
-
     uint32_t pid_u = static_cast<uint32_t>(pid);
-    if (skip_stats_for_pids_.size() > pid_u && skip_stats_for_pids_[pid_u])
+
+    // optional /proc/pid/stat fields
+    if (record_process_runtime_) {
+      std::string proc_stat = ReadProcPidFile(pid, "stat");
+      if (WriteProcessRuntimes(pid, proc_stat)) {
+        pids.insert(pid);
+      }
+    }
+
+    // memory counters
+    if (skip_mem_for_pids_.size() > pid_u && skip_mem_for_pids_[pid_u])
       continue;
 
     std::string proc_status = ReadProcPidFile(pid, "status");
@@ -502,9 +562,9 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
       // If WriteMemCounters() fails the pid is very likely a kernel thread
       // that has a valid /proc/[pid]/status but no memory values. In this
       // case avoid keep polling it over and over.
-      if (skip_stats_for_pids_.size() <= pid_u)
-        skip_stats_for_pids_.resize(pid_u + 1);
-      skip_stats_for_pids_[pid_u] = true;
+      if (skip_mem_for_pids_.size() <= pid_u)
+        skip_mem_for_pids_.resize(pid_u + 1);
+      skip_mem_for_pids_[pid_u] = true;
       continue;
     }
 
@@ -528,6 +588,25 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
   // Ensure that we write once long-term process info (e.g., name) for new pids
   // that we haven't seen before.
   WriteProcessTree(pids);
+}
+
+bool ProcessStatsDataSource::WriteProcessRuntimes(
+    int32_t pid,
+    const std::string& proc_stat) {
+  std::optional<ProcessRuntimes> times = ParseProcessRuntimes(proc_stat);
+  if (!times.has_value())
+    return false;
+
+  CachedProcessStats& cached = process_stats_cache_[pid];
+  if (times->utime != cached.runtime_user_mode_ns) {
+    GetOrCreateStatsProcess(pid)->set_runtime_user_mode(times->utime);
+    cached.runtime_user_mode_ns = times->utime;
+  }
+  if (times->stime != cached.runtime_kernel_mode_ns) {
+    GetOrCreateStatsProcess(pid)->set_runtime_kernel_mode(times->stime);
+    cached.runtime_kernel_mode_ns = times->stime;
+  }
+  return true;
 }
 
 // Returns true if the stats for the given |pid| have been written, false it
@@ -723,7 +802,7 @@ uint64_t ProcessStatsDataSource::CacheProcFsScanStartTimestamp() {
 void ProcessStatsDataSource::ClearIncrementalState() {
   PERFETTO_DLOG("ProcessStatsDataSource clearing incremental state.");
   seen_pids_.clear();
-  skip_stats_for_pids_.clear();
+  skip_mem_for_pids_.clear();
 
   cache_ticks_ = 0;
   process_stats_cache_.clear();

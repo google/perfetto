@@ -72,7 +72,7 @@ class SystemProbesParser {
   // their StringId. Keep kProcStatsProcessSize equal to 1 + max proto field
   // id of ProcessStats::Process. Also update the value in
   // ChromeSystemProbesParser.
-  static constexpr size_t kProcStatsProcessSize = 21;
+  static constexpr size_t kProcStatsProcessSize = 23;
   std::array<StringId, kProcStatsProcessSize> proc_stats_process_names_{};
 
   // Maps a SysStats::PsiSample::PsiResource type to its StringId.
