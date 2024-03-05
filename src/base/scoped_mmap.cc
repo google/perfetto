@@ -50,41 +50,6 @@ ScopedPlatformHandle OpenFileForMmap(const char* fname) {
 #endif
 }
 
-std::optional<size_t> GetPlatformHandleFileSize(PlatformHandle file) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||   \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-  off_t file_size_offset = lseek(file, 0, SEEK_END);
-  if (file_size_offset <= 0) {
-    return std::nullopt;
-  }
-
-  lseek(file, 0, SEEK_SET);
-
-  size_t file_size = static_cast<size_t>(file_size_offset);
-  if (static_cast<off_t>(file_size) != file_size_offset) {
-    return std::nullopt;
-  }
-  return file_size;
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  LARGE_INTEGER fs;
-  fs.QuadPart = 0;
-  if (!GetFileSizeEx(file, &fs)) {
-    return std::nullopt;
-  }
-
-  size_t file_size = static_cast<size_t>(fs.QuadPart);
-  if (static_cast<decltype(fs.QuadPart)>(file_size) != fs.QuadPart) {
-    return std::nullopt;
-  }
-  return file_size;
-#else
-  // mmap is not supported. This does not matter.
-  base::ignore_result(file);
-  return std::nullopt;
-#endif
-}
-
 }  // namespace
 
 ScopedMmap::ScopedMmap(ScopedMmap&& other) noexcept {
@@ -185,11 +150,15 @@ ScopedMmap ReadMmapWholeFile(const char* fname) {
   if (!file) {
     return ScopedMmap();
   }
-  std::optional<size_t> file_size = GetPlatformHandleFileSize(file.get());
+  std::optional<uint64_t> file_size = GetFileSize(file.get());
   if (!file_size.has_value()) {
     return ScopedMmap();
   }
-  return ScopedMmap::FromHandle(std::move(file), *file_size);
+  size_t size = static_cast<size_t>(*file_size);
+  if (static_cast<uint64_t>(size) != *file_size) {
+    return ScopedMmap();
+  }
+  return ScopedMmap::FromHandle(std::move(file), size);
 }
 
 }  // namespace perfetto::base
