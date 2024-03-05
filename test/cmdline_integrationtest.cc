@@ -961,13 +961,24 @@ TEST_F(PerfettoCmdlineTest, Clone) {
                    /*use_explicit_clone=*/true);
 }
 
-// Regression test for b/279753347 .
+// Regression test for b/279753347: --save-for-bugreport would create an empty
+// file if no session with bugreport_score was active.
 TEST_F(PerfettoCmdlineTest, UnavailableBugreportLeavesNoEmptyFiles) {
   ScopedFileRemove remove_on_test_exit(GetBugreportTracePath());
   Exec perfetto_br_proc = ExecPerfetto({"--save-for-bugreport"});
   StartServiceIfRequiredNoNewExecsAfterThis();
   perfetto_br_proc.Run(&stderr_);
-  ASSERT_FALSE(base::FileExists(GetBugreportTracePath()));
+  // No file exists. Great.
+  if (!base::FileExists(GetBugreportTracePath())) {
+    return;
+  }
+  // A file exists. There are two possiblilities:
+  // 1. There was a bugreport_score session.
+  // 2. There was no bugreport_score session and we're hitting b/279753347.
+  //
+  // Let's check that we're not hitting b/279753347, by checking that the file
+  // is not empty.
+  EXPECT_NE(base::GetFileSize(GetBugreportTracePath()), 0);
 }
 
 // Tests that SaveTraceForBugreport() works also if the trace has triggers
