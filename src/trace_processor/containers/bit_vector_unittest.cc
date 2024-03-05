@@ -18,17 +18,20 @@
 
 #include <bitset>
 #include <cstdint>
-#include <limits>
 #include <random>
 #include <utility>
 #include <vector>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "test/gtest_and_gmock.h"
+
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
+using testing::ElementsAre;
+using testing::IsEmpty;
+using testing::UnorderedElementsAre;
 
 TEST(BitVectorUnittest, CreateAllTrue) {
   BitVector bv(2049, true);
@@ -652,6 +655,8 @@ TEST(BitVectorUnittest, Not) {
 
   EXPECT_FALSE(bv.IsSet(2));
   EXPECT_EQ(bv.CountSetBits(), 9u);
+  EXPECT_THAT(bv.GetSetBitIndices(),
+              UnorderedElementsAre(0u, 1u, 3u, 4u, 5u, 6u, 7u, 8u, 9u));
 }
 
 TEST(BitVectorUnittest, NotBig) {
@@ -716,7 +721,19 @@ TEST(BitVectorUnittest, QueryStressTest) {
 
 TEST(BitVectorUnittest, GetSetBitIndices) {
   BitVector bv = {true, false, true, false, true, true, false, false};
-  ASSERT_THAT(bv.GetSetBitIndices(), testing::ElementsAre(0u, 2u, 4u, 5u));
+  ASSERT_THAT(bv.GetSetBitIndices(), ElementsAre(0u, 2u, 4u, 5u));
+}
+
+TEST(BitVectorUnittest, GetSetBitIndicesIntersectRange) {
+  BitVector bv(130u, true);
+  BitVector out = bv.IntersectRange(10, 12);
+  ASSERT_THAT(out.GetSetBitIndices(), ElementsAre(10, 11));
+}
+
+TEST(BitVectorUnittest, UpdateSetBitsGetSetBitIndices) {
+  BitVector bv(130u, true);
+  bv.UpdateSetBits(BitVector(60u));
+  ASSERT_THAT(bv.GetSetBitIndices(), IsEmpty());
 }
 
 TEST(BitVectorUnittest, SerializeSimple) {

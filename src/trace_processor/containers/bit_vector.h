@@ -296,7 +296,9 @@ class BitVector {
   // As an example, suppose RangeForTesting(3, 7, [](x) { return x < 5 }). This
   // would result in the following BitVector: [0 0 0 1 1 0 0]
   template <typename Filler = bool(uint32_t)>
-  static BitVector RangeForTesting(uint32_t start, uint32_t end, Filler f) {
+  PERFETTO_WARN_UNUSED_RESULT static BitVector RangeForTesting(uint32_t start,
+                                                               uint32_t end,
+                                                               Filler f) {
     // Compute the block index and BitVector index where we start and end
     // working one block at a time.
     uint32_t start_fast_block = BlockCount(start);
@@ -348,11 +350,13 @@ class BitVector {
   // - be sorted
   // - have first element >= 0
   // - last value smaller than numeric limit of uint32_t.
-  static BitVector FromSortedIndexVector(const std::vector<int64_t>&);
+  PERFETTO_WARN_UNUSED_RESULT static BitVector FromSortedIndexVector(
+      const std::vector<int64_t>&);
 
   // Creates a BitVector of size `min(range_end, size())` with bits between
   // |start| and |end| filled with corresponding bits from |this| BitVector.
-  BitVector IntersectRange(uint32_t range_start, uint32_t range_end) const;
+  PERFETTO_WARN_UNUSED_RESULT BitVector
+  IntersectRange(uint32_t range_start, uint32_t range_end) const;
 
   // Requests the removal of unused capacity.
   // Matches the semantics of std::vector::shrink_to_fit.
