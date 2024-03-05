@@ -22,16 +22,35 @@
 #include <vector>
 
 #include "perfetto/base/build_config.h"
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
+#include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace perf_importer {
+namespace {
 
-TEST(PerfDataTrackerUnittest, ComputeCommonSampleType) {
-  TraceProcessorContext context;
-  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context);
+class PerfDataTrackerUnittest : public testing::Test {
+ public:
+  PerfDataTrackerUnittest() {
+    context_.storage = std::make_unique<TraceStorage>();
+    context_.process_tracker = std::make_unique<ProcessTracker>(&context_);
+    context_.stack_profile_tracker =
+        std::make_unique<StackProfileTracker>(&context_);
+    context_.mapping_tracker = std::make_unique<MappingTracker>(&context_);
+  }
+
+ protected:
+  TraceProcessorContext context_;
+};
+
+TEST_F(PerfDataTrackerUnittest, ComputeCommonSampleType) {
+  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
   PerfDataTracker::AttrAndIds attr_and_ids;
   attr_and_ids.attr.sample_type =
@@ -46,16 +65,15 @@ TEST(PerfDataTrackerUnittest, ComputeCommonSampleType) {
   EXPECT_FALSE(tracker->common_sample_type() & PERF_SAMPLE_CALLCHAIN);
 }
 
-TEST(PerfDataTrackerUnittest, FindMapping) {
-  TraceProcessorContext context;
-  context.storage = std::make_unique<TraceStorage>();
-  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context);
+TEST_F(PerfDataTrackerUnittest, FindMapping) {
+  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
   PerfDataTracker::Mmap2Record rec;
   rec.filename = "file1";
   rec.num.addr = 1000;
   rec.num.len = 100;
   rec.num.pid = 1;
+  rec.cpu_mode = protos::pbzero::Profiling::MODE_USER;
   tracker->PushMmap2Record(rec);
 
   rec.num.addr = 2000;
@@ -64,32 +82,33 @@ TEST(PerfDataTrackerUnittest, FindMapping) {
   rec.num.addr = 3000;
   tracker->PushMmap2Record(rec);
 
-  auto res_status = tracker->FindMapping(1, 2050);
-  EXPECT_TRUE(res_status.ok());
-  EXPECT_EQ(res_status->start, 2000u);
-  EXPECT_EQ(res_status->end, 2100u);
+  UserMemoryMapping* mapping =
+      context_.mapping_tracker->FindUserMappingForAddress(
+          context_.process_tracker->GetOrCreateProcess(1), 2050);
+  ASSERT_NE(mapping, nullptr);
+  EXPECT_EQ(mapping->memory_range().start(), 2000u);
+  EXPECT_EQ(mapping->memory_range().end(), 2100u);
 }
 
-TEST(PerfDataTrackerUnittest, FindMappingFalse) {
-  TraceProcessorContext context;
-  context.storage = std::make_unique<TraceStorage>();
-  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context);
+TEST_F(PerfDataTrackerUnittest, FindMappingFalse) {
+  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
   PerfDataTracker::Mmap2Record rec;
   rec.filename = "file1";
   rec.num.addr = 1000;
   rec.num.len = 100;
   rec.num.pid = 1;
+  rec.cpu_mode = protos::pbzero::Profiling::MODE_USER;
   tracker->PushMmap2Record(rec);
 
-  auto res_status = tracker->FindMapping(2, 2050);
-  EXPECT_FALSE(res_status.ok());
+  UserMemoryMapping* mapping =
+      context_.mapping_tracker->FindUserMappingForAddress(
+          context_.process_tracker->GetOrCreateProcess(2), 2050);
+  EXPECT_EQ(mapping, nullptr);
 }
 
-TEST(PerfDataTrackerUnittest, ParseSampleTrivial) {
-  TraceProcessorContext context;
-  context.storage = std::make_unique<TraceStorage>();
-  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context);
+TEST_F(PerfDataTrackerUnittest, ParseSampleTrivial) {
+  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
   PerfDataTracker::AttrAndIds attr_and_ids;
   attr_and_ids.attr.sample_type = PERF_SAMPLE_TIME;
@@ -107,10 +126,8 @@ TEST(PerfDataTrackerUnittest, ParseSampleTrivial) {
   EXPECT_EQ(parsed_sample->ts, 100u);
 }
 
-TEST(PerfDataTrackerUnittest, ParseSampleCallchain) {
-  TraceProcessorContext context;
-  context.storage = std::make_unique<TraceStorage>();
-  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context);
+TEST_F(PerfDataTrackerUnittest, ParseSampleCallchain) {
+  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
   PerfDataTracker::AttrAndIds attr_and_ids;
   attr_and_ids.attr.sample_type = PERF_SAMPLE_CALLCHAIN;
@@ -137,10 +154,8 @@ TEST(PerfDataTrackerUnittest, ParseSampleCallchain) {
   EXPECT_EQ(parsed_sample->callchain.size(), 3u);
 }
 
-TEST(PerfDataTrackerUnittest, ParseSampleWithoutId) {
-  TraceProcessorContext context;
-  context.storage = std::make_unique<TraceStorage>();
-  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context);
+TEST_F(PerfDataTrackerUnittest, ParseSampleWithoutId) {
+  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
   PerfDataTracker::AttrAndIds attr_and_ids;
   attr_and_ids.attr.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME |
@@ -177,10 +192,8 @@ TEST(PerfDataTrackerUnittest, ParseSampleWithoutId) {
   EXPECT_EQ(sample.ts, parsed_sample->ts);
 }
 
-TEST(PerfDataTrackerUnittest, ParseSampleWithId) {
-  TraceProcessorContext context;
-  context.storage = std::make_unique<TraceStorage>();
-  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context);
+TEST_F(PerfDataTrackerUnittest, ParseSampleWithId) {
+  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
   PerfDataTracker::AttrAndIds attr_and_ids;
   attr_and_ids.attr.sample_type = PERF_SAMPLE_CPU | PERF_SAMPLE_TID |
@@ -222,6 +235,7 @@ TEST(PerfDataTrackerUnittest, ParseSampleWithId) {
   EXPECT_EQ(100u, parsed_sample->ts);
 }
 
+}  // namespace
 }  // namespace perf_importer
 }  // namespace trace_processor
 }  // namespace perfetto
