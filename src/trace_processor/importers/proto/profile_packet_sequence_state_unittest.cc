@@ -18,8 +18,9 @@
 
 #include <memory>
 
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
@@ -58,6 +59,7 @@ class HeapProfileTrackerDupTest : public ::testing::Test {
  public:
   HeapProfileTrackerDupTest() {
     context.storage.reset(new TraceStorage());
+    context.mapping_tracker.reset(new MappingTracker(&context));
     context.stack_profile_tracker.reset(new StackProfileTracker(&context));
     packet_sequence_state.reset(new PacketSequenceState(&context));
 
@@ -196,6 +198,7 @@ std::optional<CallsiteId> FindCallstack(const TraceStorage& storage,
 TEST(HeapProfileTrackerTest, SourceMappingPath) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.mapping_tracker.reset(new MappingTracker(&context));
   context.stack_profile_tracker.reset(new StackProfileTracker(&context));
   PacketSequenceState pss(&context);
   ProfilePacketSequenceState& ppss =
@@ -229,6 +232,7 @@ TEST(HeapProfileTrackerTest, SourceMappingPath) {
 TEST(HeapProfileTrackerTest, Functional) {
   TraceProcessorContext context;
   context.storage.reset(new TraceStorage());
+  context.mapping_tracker.reset(new MappingTracker(&context));
   context.stack_profile_tracker.reset(new StackProfileTracker(&context));
 
   PacketSequenceState pss(&context);

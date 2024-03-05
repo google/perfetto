@@ -25,6 +25,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -252,6 +253,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
+    context_.mapping_tracker.reset(new MappingTracker(&context_));
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));

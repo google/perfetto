@@ -223,4 +223,15 @@ enum perf_event_sample_format {
   PERF_SAMPLE_MAX = 1U << 25, /* non-ABI */
 };
 
+constexpr auto kPerfRecordMiscCpumodeMask = 0x7;
+
+enum perf_record_misc {
+  PERF_RECORD_MISC_CPUMODE_UNKNOWN = 0,
+  PERF_RECORD_MISC_KERNEL = 1,
+  PERF_RECORD_MISC_USER = 2,
+  PERF_RECORD_MISC_HYPERVISOR = 3,
+  PERF_RECORD_MISC_GUEST_KERNEL = 4,
+  PERF_RECORD_MISC_GUEST_USER = 5,
+};
+
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_EVENT_H_
