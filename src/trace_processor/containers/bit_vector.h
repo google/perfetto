@@ -918,6 +918,16 @@ class BitVector {
     return block_idx * Block::kBits;
   }
 
+  // Updates the counts in |counts| by counting the set bits in |words|.
+  static void UpdateCounts(const std::vector<uint64_t>& words,
+                           std::vector<uint32_t>& counts) {
+    PERFETTO_CHECK(words.size() == counts.size() * Block::kWords);
+    for (uint32_t i = 1; i < counts.size(); ++i) {
+      counts[i] = counts[i - 1] +
+                  ConstBlock(&words[Block::kWords * (i - 1)]).CountSetBits();
+    }
+  }
+
   uint32_t size_ = 0;
   // See class documentation for how these constants are chosen.
   static constexpr uint16_t kWordsInBlock = Block::kWords;
