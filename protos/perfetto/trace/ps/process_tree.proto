@@ -54,17 +54,22 @@ message ProcessTree {
     // and it will contain /proc/pid/comm.
     repeated string cmdline = 3;
 
-    // No longer used as of Apr 2018, when the dedicated |threads| field was
-    // introduced in ProcessTree.
-    repeated Thread threads_deprecated = 4 [deprecated = true];
-
     // The uid for the process, as per /proc/pid/status.
     optional int32 uid = 5;
 
     // The non-root-level process IDs if the process runs in a PID namespace.
-    // Read from the NSpid entry of /proc/<pid>/status, with the first element (
-    // root-level process ID) omitted.
+    // Read from the NSpid entry of /proc/<pid>/status, with the first element
+    // (root-level process ID) omitted.
     repeated int32 nspid = 6;
+
+    // Timestamp of when the process was created, in nanoseconds
+    // from boot. Parsed from starttime in /proc/pid/stat.
+    // Recorded if record_process_age config option is set.
+    // Resolution of "clock ticks", usually 10ms.
+    optional uint64 process_start_from_boot = 7;
+
+    // threads_deprecated
+    reserved 4;
   }
 
   // List of processes and threads in the client. These lists are incremental

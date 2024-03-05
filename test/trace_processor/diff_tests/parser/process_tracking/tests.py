@@ -226,3 +226,91 @@ class ProcessTracking(TestSuite):
         "tid","pid","pname","tname"
         19999,"[NULL]","[NULL]","real_name"
         """))
+
+  def test_process_stats_process_runtime(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          first_packet_on_sequence: true
+          timestamp: 1088821452006028
+          incremental_state_cleared: true
+          process_tree {
+            processes {
+              pid: 9301
+              ppid: 9251
+              uid: 304336
+              nspid: 4
+              nspid: 1
+              cmdline: "/bin/command"
+              process_start_from_boot: 157620000000
+            }
+            collection_end_timestamp: 1088821520810204
+          }
+          trusted_uid: 304336
+          trusted_packet_sequence_id: 3
+          trusted_pid: 1137063
+          previous_packet_dropped: true
+        }
+        packet {
+          timestamp: 1088821520899054
+          process_stats {
+            processes {
+              pid: 9301
+              runtime_user_mode: 16637390000000
+              runtime_kernel_mode: 1327800000000
+              vm_size_kb: 1188971644
+              vm_locked_kb: 0
+              vm_hwm_kb: 1180568
+              vm_rss_kb: 1100672
+              rss_anon_kb: 1045332
+              rss_file_kb: 46848
+              rss_shmem_kb: 8492
+              vm_swap_kb: 163936
+              oom_score_adj: 300
+            }
+            collection_end_timestamp: 1088821539659978
+          }
+          trusted_uid: 304336
+          trusted_packet_sequence_id: 3
+          trusted_pid: 1137063
+        }
+        packet {
+          timestamp: 1088821786436938
+          process_stats {
+            processes {
+              pid: 9301
+              runtime_user_mode: 16638280000000
+              runtime_kernel_mode: 1327860000000
+              vm_size_kb: 1188979836
+              vm_locked_kb: 0
+              vm_hwm_kb: 1180568
+              vm_rss_kb: 895428
+              rss_anon_kb: 832028
+              rss_file_kb: 46848
+              rss_shmem_kb: 16552
+              vm_swap_kb: 163936
+              oom_score_adj: 300
+            }
+            collection_end_timestamp: 1088821817629747
+          }
+          trusted_uid: 304336
+          trusted_packet_sequence_id: 3
+          trusted_pid: 1137063
+        }
+        """),
+        query="""
+        select c.ts, c.value, pct.name, p.pid, p.start_ts, p.cmdline
+        from counter c
+          join process_counter_track pct on (c.track_id = pct.id)
+          join process p using (upid)
+        where pct.name in ("runtime.user_ns", "runtime.kernel_ns")
+          and p.pid = 9301
+        order by ts asc, pct.name asc
+        """,
+        out=Csv("""
+        "ts","value","name","pid","start_ts","cmdline"
+        1088821520899054,1327800000000.000000,"runtime.kernel_ns",9301,157620000000,"/bin/command"
+        1088821520899054,16637390000000.000000,"runtime.user_ns",9301,157620000000,"/bin/command"
+        1088821786436938,1327860000000.000000,"runtime.kernel_ns",9301,157620000000,"/bin/command"
+        1088821786436938,16638280000000.000000,"runtime.user_ns",9301,157620000000,"/bin/command"
+        """))

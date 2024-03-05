@@ -16,13 +16,12 @@
 
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
 
-#include <set>
-
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/protozero/proto_decoder.h"
+#include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -31,6 +30,7 @@
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/ps/process_stats.pbzero.h"
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 #include "protos/perfetto/trace/system_info.pbzero.h"
@@ -164,6 +164,12 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       context->storage->InternString("mem.smaps.pss.file");
   proc_stats_process_names_[ProcessStats::Process::kSmrPssShmemKbFieldNumber] =
       context->storage->InternString("mem.smaps.pss.shmem");
+  proc_stats_process_names_
+      [ProcessStats::Process::kRuntimeUserModeFieldNumber] =
+          context->storage->InternString("runtime.user_ns");
+  proc_stats_process_names_
+      [ProcessStats::Process::kRuntimeKernelModeFieldNumber] =
+          context->storage->InternString("runtime.kernel_ns");
 
   using PsiResource = protos::pbzero::SysStats::PsiSample::PsiResource;
   sys_stats_psi_resource_names_[PsiResource::PSI_RESOURCE_UNSPECIFIED] =
@@ -517,6 +523,15 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
       context_->process_tracker->SetProcessUid(
           upid, static_cast<uint32_t>(proc.uid()));
     }
+
+    if (proc.process_start_from_boot() > 0) {
+      base::StatusOr<int64_t> start_ts = context_->clock_tracker->ToTraceTime(
+          protos::pbzero::BUILTIN_CLOCK_BOOTTIME,
+          static_cast<int64_t>(proc.process_start_from_boot()));
+      if (start_ts.ok()) {
+        context_->process_tracker->SetStartTsIfUnset(upid, *start_ts);
+      }
+    }
   }
 
   for (auto it = ps.threads(); it; ++it) {
@@ -545,8 +560,6 @@ void SystemProbesParser::ParseProcessTree(ConstBytes blob) {
 void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
   using Process = protos::pbzero::ProcessStats::Process;
   protos::pbzero::ProcessStats::Decoder stats(blob.data, blob.size);
-  const auto kOomScoreAdjFieldNumber =
-      protos::pbzero::ProcessStats::Process::kOomScoreAdjFieldNumber;
   for (auto it = stats.processes(); it; ++it) {
     // Maps a process counter field it to its value.
     // E.g., 4 := 1024 -> "mem.rss.anon" := 1024.
@@ -574,9 +587,13 @@ void SystemProbesParser::ParseProcessStats(int64_t ts, ConstBytes blob) {
       if (is_counter_field) {
         // Memory counters are in KB, keep values in bytes in the trace
         // processor.
-        counter_values[fld.id()] = fld.id() == kOomScoreAdjFieldNumber
-                                       ? fld.as_int64()
-                                       : fld.as_int64() * 1024;
+        int64_t value = fld.as_int64();
+        if (fld.id() != Process::kOomScoreAdjFieldNumber &&
+            fld.id() != Process::kRuntimeUserModeFieldNumber &&
+            fld.id() != Process::kRuntimeKernelModeFieldNumber) {
+          value = value * 1024;  // KB -> B
+        }
+        counter_values[fld.id()] = value;
         has_counter[fld.id()] = true;
       } else {
         // Chrome fields are processed by ChromeSystemProbesParser.
