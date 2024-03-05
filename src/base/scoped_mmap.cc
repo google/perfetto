@@ -92,6 +92,9 @@ ScopedMmap::ScopedMmap(ScopedMmap&& other) noexcept {
 }
 
 ScopedMmap& ScopedMmap::operator=(ScopedMmap&& other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
   reset();
   std::swap(ptr_, other.ptr_);
   std::swap(length_, other.length_);
