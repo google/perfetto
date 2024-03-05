@@ -408,7 +408,7 @@ base::Status SetFilePermissions(const std::string& file_path,
 #endif
 }
 
-std::optional<size_t> GetFileSize(const std::string& file_path) {
+std::optional<uint64_t> GetFileSize(const std::string& file_path) {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   // This does not use base::OpenFile to avoid getting an exclusive lock.
   HANDLE file =
@@ -419,9 +419,10 @@ std::optional<size_t> GetFileSize(const std::string& file_path) {
   }
   LARGE_INTEGER file_size;
   file_size.QuadPart = 0;
-  std::optional<size_t> res;
+  std::optional<uint64_t> res;
   if (GetFileSizeEx(file, &file_size)) {
-    res = static_cast<size_t>(file_size.QuadPart);
+    static_assert(sizeof(decltype(file_size.QuadPart)) <= sizeof(uint64_t));
+    res = static_cast<uint64_t>(file_size.QuadPart);
   }
   CloseHandle(file);
   return res;
@@ -434,7 +435,8 @@ std::optional<size_t> GetFileSize(const std::string& file_path) {
   if (fstat(*fd, &buf) == -1) {
     return std::nullopt;
   }
-  return static_cast<size_t>(buf.st_size);
+  static_assert(sizeof(decltype(buf.st_size)) <= sizeof(uint64_t));
+  return static_cast<uint64_t>(buf.st_size);
 #endif
 }
 
