@@ -460,6 +460,12 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
     }
   }
 
+  // recording a subset of syscalls -> enable the backing events
+  if (request.syscall_events_size() > 0) {
+    InsertEvent("raw_syscalls", "sys_enter", &events);
+    InsertEvent("raw_syscalls", "sys_exit", &events);
+  }
+
   // function_graph tracer emits two builtin ftrace events
   if (request.enable_function_graph()) {
     InsertEvent("ftrace", "funcgraph_entry", &events);

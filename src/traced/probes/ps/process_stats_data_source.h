@@ -90,6 +90,8 @@ class ProcessStatsDataSource : public ProbesDataSource {
     uint32_t smr_pss_anon_kb = std::numeric_limits<uint32_t>::max();
     uint32_t smr_pss_file_kb = std::numeric_limits<uint32_t>::max();
     uint32_t smr_pss_shmem_kb = std::numeric_limits<uint32_t>::max();
+    uint64_t runtime_user_mode_ns = std::numeric_limits<uint64_t>::max();
+    uint64_t runtime_kernel_mode_ns = std::numeric_limits<uint64_t>::max();
     // file descriptors
     base::FlatSet<uint64_t> seen_fds;
   };
@@ -105,7 +107,9 @@ class ProcessStatsDataSource : public ProbesDataSource {
   protos::pbzero::ProcessStats_Process* GetOrCreateStatsProcess(int32_t pid);
 
   // Functions for snapshotting process/thread long-term info and relationships.
-  bool WriteProcess(int32_t pid, const std::string& proc_status);
+  bool WriteProcess(int32_t pid,
+                    const std::string& proc_status,
+                    const std::string& proc_stat);
   void WriteThread(int32_t tid, int32_t tgid);
   void WriteDetailedThread(int32_t tid,
                            int32_t tgid,
@@ -115,11 +119,10 @@ class ProcessStatsDataSource : public ProbesDataSource {
   // Functions for periodically sampling process stats/counters.
   static void Tick(base::WeakPtr<ProcessStatsDataSource>);
   void WriteAllProcessStats();
+  bool WriteProcessRuntimes(int32_t pid, const std::string& proc_stat);
   bool WriteMemCounters(int32_t pid, const std::string& proc_status);
   void WriteFds(int32_t pid);
   void WriteSingleFd(int32_t pid, uint64_t fd);
-  bool ShouldWriteThreadStats(int32_t pid);
-  void WriteThreadStats(int32_t pid, int32_t tid);
 
   // Scans /proc/pid/status and writes the ProcessTree packet for input pids.
   void WriteProcessTree(const base::FlatSet<int32_t>&);
@@ -151,6 +154,8 @@ class ProcessStatsDataSource : public ProbesDataSource {
   bool dump_all_procs_on_start_ = false;
   bool resolve_process_fds_ = false;
   bool scan_smaps_rollup_ = false;
+  bool record_process_age_ = false;
+  bool record_process_runtime_ = false;
 
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes
@@ -159,14 +164,10 @@ class ProcessStatsDataSource : public ProbesDataSource {
     int32_t pid;
     int32_t tgid;
 
-    inline SeenPid(int32_t _pid, int32_t _tgid = 0) : pid(_pid), tgid(_tgid) {}
+    SeenPid(int32_t _pid, int32_t _tgid = 0) : pid(_pid), tgid(_tgid) {}
     // TODO(rsavitski): add comparator support to FlatSet
-    inline bool operator==(const SeenPid& other) const {
-      return pid == other.pid;
-    }
-    inline bool operator<(const SeenPid& other) const {
-      return pid < other.pid;
-    }
+    bool operator==(const SeenPid& other) const { return pid == other.pid; }
+    bool operator<(const SeenPid& other) const { return pid < other.pid; }
   };
   base::FlatSet<SeenPid> seen_pids_;
 
@@ -175,7 +176,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   uint64_t cache_ticks_ = 0;
   protos::pbzero::ProcessStats* cur_ps_stats_ = nullptr;
   protos::pbzero::ProcessStats_Process* cur_ps_stats_process_ = nullptr;
-  std::vector<bool> skip_stats_for_pids_;
+  std::vector<bool> skip_mem_for_pids_;
 
   // Cached process stats per process. Cleared every |cache_ttl_ticks_| *
   // |poll_period_ms_| ms.
