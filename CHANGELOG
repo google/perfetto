@@ -9,6 +9,12 @@ Unreleased:
     *
 
 
+v43.1 - 2024-03-05:
+  Tracing service and probes:
+    * Cherry-pick of https://r.android.com/2988674, which fixes the android x86
+      standalone build.
+
+
 v43.0 - 2024-03-05:
   Tracing service and probes:
     * Buffers marked as `transfer_on_clone` will be flushed independently when
