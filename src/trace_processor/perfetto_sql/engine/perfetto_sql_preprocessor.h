@@ -19,10 +19,8 @@
 
 #include <optional>
 #include <string>
-#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
-#include <variant>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"

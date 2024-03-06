@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {Trash} from '../base/disposable';
-import {getScrollbarWidth} from '../base/dom_utils';
+import {findRef, getScrollbarWidth} from '../base/dom_utils';
 import {assertExists, assertFalse} from '../base/logging';
 import {SimpleResizeObserver} from '../base/resize_observer';
 import {time} from '../base/time';
@@ -71,6 +71,7 @@ export interface Attrs {
   panels: PanelOrGroup[];
   doesScroll: boolean;
   kind: 'TRACKS'|'OVERVIEW';
+  className?: string;
 }
 
 interface PanelInfo {
@@ -112,6 +113,9 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   private ctx?: CanvasRenderingContext2D;
 
   private trash: Trash;
+
+  private readonly SCROLL_LIMITER_REF = 'scroll-limiter';
+  private readonly PANELS_REF = 'panels';
 
   get canvasOverdrawFactor() {
     return this.attrs.doesScroll ? SCROLLING_CANVAS_OVERDRAW_FACTOR : 1;
@@ -159,10 +163,10 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     // The Y value is given from the top of the pan and zoom region, we want it
     // from the top of the panel container. The parent offset corrects that.
     const panels = this.getPanelsInRegion(
-        visibleTimeScale.timeToPx(area.start),
-        visibleTimeScale.timeToPx(area.end),
-        globals.timeline.areaY.start + TOPBAR_HEIGHT,
-        globals.timeline.areaY.end + TOPBAR_HEIGHT);
+      visibleTimeScale.timeToPx(area.start),
+      visibleTimeScale.timeToPx(area.end),
+      globals.timeline.areaY.start + TOPBAR_HEIGHT,
+      globals.timeline.areaY.end + TOPBAR_HEIGHT);
     // Get the track ids from the panels.
     const tracks = [];
     for (const panel of panels) {
@@ -216,7 +220,8 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     this.updateCanvasDimensions();
     this.repositionCanvas();
 
-    this.trash.add(new SimpleResizeObserver(dom, () => {
+    const scrollLimiter = assertExists(findRef(dom, this.SCROLL_LIMITER_REF));
+    this.trash.add(new SimpleResizeObserver(scrollLimiter, () => {
       const parentSizeChanged = this.readParentSizeFromDom(dom);
       if (parentSizeChanged) {
         this.updateCanvasDimensions();
@@ -228,14 +233,14 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     // TODO(dproy): Handle change in doesScroll attribute.
     if (this.attrs.doesScroll) {
       const parentOnScroll = () => {
-        this.scrollTop = dom.parentElement!.scrollTop;
+        this.scrollTop = dom.scrollTop;
         this.repositionCanvas();
         raf.scheduleRedraw();
       };
-      dom.parentElement!.addEventListener(
-          'scroll', parentOnScroll, {passive: true});
+      dom.addEventListener(
+        'scroll', parentOnScroll, {passive: true});
       this.trash.addCallback(() => {
-        dom.parentElement!.removeEventListener('scroll', parentOnScroll);
+        dom.removeEventListener('scroll', parentOnScroll);
       });
     }
   }
@@ -250,11 +255,11 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     const mithril = node.mithril;
 
     return m(
-        `.panel${extraClass}`,
-        {key, 'data-key': key},
-        perfDebug() ?
-            [mithril, m('.debug-panel-border', {key: 'debug-panel-border'})] :
-            mithril);
+      `.panel${extraClass}`,
+      {key, 'data-key': key},
+      perfDebug() ?
+        [mithril, m('.debug-panel-border', {key: 'debug-panel-border'})] :
+        mithril);
   }
 
   // Render a tree of panels into one vnode. Argument `path` is used to build
@@ -263,12 +268,12 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   renderTree(node: PanelOrGroup, path: string): m.Vnode {
     if (node.kind === 'group') {
       return m(
-          'div',
-          {key: path},
-          this.renderPanel(
-              node.header, `${path}-header`, node.collapsed ? '' : '.sticky'),
-          ...node.childTracks.map(
-              (child, index) => this.renderTree(child, `${path}-${index}`)));
+        'div',
+        {key: path},
+        this.renderPanel(
+          node.header, `${path}-header`, node.collapsed ? '' : '.sticky'),
+        ...node.childTracks.map(
+          (child, index) => this.renderTree(child, `${path}-${index}`)));
     }
     return this.renderPanel(node, assertExists(node.key));
   }
@@ -277,15 +282,16 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     this.attrs = attrs;
     this.panelByKey.clear();
     const children = attrs.panels.map(
-        (panel, index) => this.renderTree(panel, `track-tree-${index}`));
+      (panel, index) => this.renderTree(panel, `track-tree-${index}`));
 
-    return [
-      m(
-          '.scroll-limiter',
+    return m('.panel-container', {className: attrs.className},
+      m('.panels', {ref: this.PANELS_REF},
+        m('.scroll-limiter', {ref: this.SCROLL_LIMITER_REF},
           m('canvas.main-canvas'),
-          ),
-      m('.panels', children),
-    ];
+        ),
+        children,
+      ),
+    );
   }
 
   onupdate({dom}: m.CVnodeDOM<Attrs>) {
@@ -298,7 +304,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       this.repositionCanvas();
       if (this.attrs.kind === 'TRACKS') {
         globals.timeline.updateLocalLimits(
-            0, this.parentWidth - TRACK_SHELL_WIDTH);
+          0, this.parentWidth - TRACK_SHELL_WIDTH);
       }
       this.redrawCanvas();
     }
@@ -306,8 +312,8 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
 
   private updateCanvasDimensions() {
     this.canvasHeight = Math.floor(
-        this.attrs.doesScroll ? this.parentHeight * this.canvasOverdrawFactor :
-                                this.totalPanelHeight);
+      this.attrs.doesScroll ? this.parentHeight * this.canvasOverdrawFactor :
+        this.totalPanelHeight);
     const ctx = assertExists(this.ctx);
     const canvas = assertExists(ctx.canvas);
     canvas.style.height = `${this.canvasHeight}px`;
@@ -339,7 +345,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   private readParentSizeFromDom(dom: Element): boolean {
     const oldWidth = this.parentWidth;
     const oldHeight = this.parentHeight;
-    const clientRect = assertExists(dom.parentElement).getBoundingClientRect();
+    const clientRect = dom.getBoundingClientRect();
     // On non-MacOS if there is a solid scroll bar it can cover important
     // pixels, reduce the size of the canvas so it doesn't overlap with
     // the scroll bar.
@@ -354,11 +360,13 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     const prevHeight = this.totalPanelHeight;
     this.panelInfos = [];
     this.totalPanelHeight = 0;
-    const domRect = dom.getBoundingClientRect();
+
+    const panels = assertExists(findRef(dom, this.PANELS_REF));
+    const domRect = panels.getBoundingClientRect();
     this.panelContainerTop = domRect.y;
     this.panelContainerHeight = domRect.height;
 
-    dom.parentElement!.querySelectorAll('.panel').forEach((panelElement) => {
+    dom.querySelectorAll('.panel').forEach((panelElement) => {
       const key = assertExists(panelElement.getAttribute('data-key'));
       const panel = assertExists(this.panelByKey.get(key));
 
@@ -419,7 +427,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       const beforeRender = debugNow();
       panel.renderCanvas(this.ctx, size);
       this.updatePanelStats(
-          i, panel, debugNow() - beforeRender, this.ctx, size);
+        i, panel, debugNow() - beforeRender, this.ctx, size);
       this.ctx.restore();
       panelYStart += panelHeight;
     }
@@ -451,8 +459,8 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
         trackFromCurrentContainerSelected = true;
         selectedTracksMinY = Math.min(selectedTracksMinY, this.panelInfos[i].y);
         selectedTracksMaxY = Math.max(
-            selectedTracksMaxY,
-            this.panelInfos[i].y + this.panelInfos[i].height);
+          selectedTracksMaxY,
+          this.panelInfos[i].y + this.panelInfos[i].height);
       }
     }
 
@@ -475,16 +483,16 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
         Math.floor(this.scrollTop - this.getCanvasOverdrawHeightPerSide());
     this.ctx.translate(TRACK_SHELL_WIDTH, -canvasYStart);
     this.ctx.strokeRect(
-        startX,
-        selectedTracksMaxY,
-        endX - startX,
-        selectedTracksMinY - selectedTracksMaxY);
+      startX,
+      selectedTracksMaxY,
+      endX - startX,
+      selectedTracksMinY - selectedTracksMaxY);
     this.ctx.restore();
   }
 
   private updatePanelStats(
-      panelIndex: number, panel: Panel, renderTime: number,
-      ctx: CanvasRenderingContext2D, size: PanelSize) {
+    panelIndex: number, panel: Panel, renderTime: number,
+    ctx: CanvasRenderingContext2D, size: PanelSize) {
     if (!perfDebug()) return;
     let renderStats = this.panelPerfStats.get(panel);
     if (renderStats === undefined) {
@@ -502,7 +510,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   }
 
   private updatePerfStats(
-      renderTime: number, totalPanels: number, panelsOnCanvas: number) {
+    renderTime: number, totalPanels: number, panelsOnCanvas: number) {
     if (!perfDebug()) return;
     this.perfStats.renderStats.addValue(renderTime);
     this.perfStats.totalPanels = totalPanels;

@@ -74,6 +74,7 @@ export abstract class AggregationController extends Controller<'main'> {
     const aggregatePreferences =
         globals.state.aggregatePreferences[this.args.kind];
 
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const sortingChanged = aggregatePreferences &&
         this.previousSorting !== aggregatePreferences.sorting;
     const [hasAreaChanged, area] = this.areaSelectionHandler.getAreaChange();
@@ -85,14 +86,14 @@ export abstract class AggregationController extends Controller<'main'> {
       this.requestingData = true;
       if (sortingChanged) this.previousSorting = aggregatePreferences.sorting;
       this.getAggregateData(area, hasAreaChanged)
-          .then((data) => publishAggregateData({data, kind: this.args.kind}))
-          .finally(() => {
-            this.requestingData = false;
-            if (this.queuedRequest) {
-              this.queuedRequest = false;
-              this.run();
-            }
-          });
+        .then((data) => publishAggregateData({data, kind: this.args.kind}))
+        .finally(() => {
+          this.requestingData = false;
+          if (this.queuedRequest) {
+            this.queuedRequest = false;
+            this.run();
+          }
+        });
     }
   }
 
@@ -114,7 +115,8 @@ export abstract class AggregationController extends Controller<'main'> {
     const colIds = defs.map((col) => col.columnId);
     const pref = globals.state.aggregatePreferences[this.kind];
     let sorting = `${this.getDefaultSorting().column} ${
-        this.getDefaultSorting().direction}`;
+      this.getDefaultSorting().direction}`;
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (pref && pref.sorting) {
       sorting = `${pref.sorting.column} ${pref.sorting.direction}`;
     }
@@ -169,7 +171,7 @@ export abstract class AggregationController extends Controller<'main'> {
   async getSum(def: ColumnDef): Promise<string> {
     if (!def.sum) return '';
     const result = await this.args.engine.query(
-        `select ifnull(sum(${def.columnId}), 0) as s from ${this.kind}`);
+      `select ifnull(sum(${def.columnId}), 0) as s from ${this.kind}`);
     let sum = result.firstRow({s: NUM}).s;
     if (def.kind === 'TIMESTAMP_NS') {
       sum = sum / 1e6;

@@ -12,14 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../frontend/globals';
-import {Migrate, Track, TrackContext, TrackDescriptor} from '../public';
+import {PanelSize} from '../frontend/panel';
+import {Store} from '../frontend/store';
+import {
+  Migrate,
+  Track,
+  TrackContext,
+  TrackDescriptor,
+  TrackRef,
+} from '../public';
+
+import {State} from './state';
 
 export interface TrackCacheEntry {
   track: Track;
   desc: TrackDescriptor;
   update(): void;
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void;
   destroy(): void;
+  getError(): Error | undefined;
 }
 
 // This class is responsible for managing the lifecycle of tracks over render
@@ -43,9 +54,46 @@ export interface TrackCacheEntry {
 //   flushTracks() <-- 'bar' is destroyed, as it was not resolved this cycle
 // Third cycle
 //   flushTracks() <-- 'foo' is destroyed.
-export class TrackCache {
+export class TrackManager {
   private safeCache = new Map<string, TrackCacheEntry>();
   private recycleBin = new Map<string, TrackCacheEntry>();
+  private trackRegistry = new Map<string, TrackDescriptor>();
+  private defaultTracks = new Set<TrackRef>();
+  private store: Store<State>;
+
+  constructor(store: Store<State>) {
+    this.store = store;
+  }
+
+  registerTrack(trackDesc: TrackDescriptor): void {
+    this.trackRegistry.set(trackDesc.uri, trackDesc);
+  }
+
+  unregisterTrack(uri: string): void {
+    this.trackRegistry.delete(uri);
+  }
+
+  addDefaultTrack(track: TrackRef): void {
+    this.defaultTracks.add(track);
+  }
+
+  removeDefaultTrack(track: TrackRef): void {
+    this.defaultTracks.delete(track);
+  }
+
+  findPotentialTracks(): TrackRef[] {
+    return Array.from(this.defaultTracks);
+  }
+
+  getAllTracks(): TrackDescriptor[] {
+    return Array.from(this.trackRegistry.values());
+  }
+
+  // Look up track into for a given track's URI.
+  // Returns |undefined| if no track can be found.
+  resolveTrackInfo(uri: string): TrackDescriptor|undefined {
+    return this.trackRegistry.get(uri);
+  }
 
   // Creates a new track using |uri| and |params| or retrieves a cached track if
   // |key| exists in the cache.
@@ -56,7 +104,7 @@ export class TrackCache {
 
     // Ensure the cached track has the same factory type as the resolved track.
     // If this has changed, the track should be re-created.
-    if (cached && trackDesc.track === cached.desc.track) {
+    if (cached && trackDesc.trackFactory === cached.desc.trackFactory) {
       // Keep our cached track descriptor up to date, if anything's changed.
       cached.desc = trackDesc;
 
@@ -72,11 +120,11 @@ export class TrackCache {
         trackKey: key,
         mountStore: <T>(migrate: Migrate<T>) => {
           const path = ['tracks', key, 'state'];
-          return globals.store.createSubStore(path, migrate);
+          return this.store.createSubStore(path, migrate);
         },
         params,
       };
-      const track = trackDesc.track(trackContext);
+      const track = trackDesc.trackFactory(trackContext);
       const entry = new TrackFSM(track, trackDesc, trackContext);
 
       // Push track into the safe cache.
@@ -104,6 +152,7 @@ enum TrackState {
   Updating = 'updating',
   DestroyPending = 'destroy_pending',
   Destroyed = 'destroyed',  // <- Final state, cannot escape.
+  Error = 'error',
 }
 
 /**
@@ -112,87 +161,136 @@ enum TrackState {
  */
 class TrackFSM implements TrackCacheEntry {
   private state: TrackState;
+  private error?: Error;
 
   constructor(
       public track: Track, public desc: TrackDescriptor, ctx: TrackContext) {
     this.state = TrackState.Creating;
     const result = this.track.onCreate?.(ctx);
-    Promise.resolve(result).then(() => this.onTrackCreated());
+    Promise.resolve(result)
+      .then(() => this.onTrackCreated())
+      .catch((e) => {
+        this.error = e;
+        this.state = TrackState.Error;
+      });
   }
 
   update(): void {
     switch (this.state) {
-      case TrackState.Creating:
-      case TrackState.Updating:
-        this.state = TrackState.UpdatePending;
-        break;
-      case TrackState.Ready:
-        const result = this.track.onUpdate?.();
-        Promise.resolve(result).then(() => this.onTrackUpdated());
-        this.state = TrackState.Updating;
-        break;
-      case TrackState.UpdatePending:
-        // Update already pending... do nothing!
-        break;
-      default:
-        throw new Error('Invalid state transition');
+    case TrackState.Creating:
+    case TrackState.Updating:
+      this.state = TrackState.UpdatePending;
+      break;
+    case TrackState.Ready:
+      const result = this.track.onUpdate?.();
+      Promise.resolve(result)
+        .then(() => this.onTrackUpdated())
+        .catch((e) => {
+          this.error = e;
+          this.state = TrackState.Error;
+        });
+      this.state = TrackState.Updating;
+      break;
+    case TrackState.UpdatePending:
+      // Update already pending... do nothing!
+      break;
+    case TrackState.Error:
+      break;
+    default:
+      throw new Error('Invalid state transition');
     }
   }
 
   destroy(): void {
     switch (this.state) {
-      case TrackState.Ready:
-        // Don't bother awaiting this as the track can no longer be used.
-        this.track.onDestroy?.();
-        this.state = TrackState.Destroyed;
-        break;
-      case TrackState.Creating:
-      case TrackState.Updating:
-      case TrackState.UpdatePending:
-        this.state = TrackState.DestroyPending;
-        break;
-      default:
-        throw new Error('Invalid state transition');
+    case TrackState.Ready:
+      // Don't bother awaiting this as the track can no longer be used.
+      Promise.resolve(this.track.onDestroy?.())
+        .catch(() => {
+          // Track crashed while being destroyed
+          // There's not a lot we can do here - just swallow the error
+        });
+      this.state = TrackState.Destroyed;
+      break;
+    case TrackState.Creating:
+    case TrackState.Updating:
+    case TrackState.UpdatePending:
+      this.state = TrackState.DestroyPending;
+      break;
+    case TrackState.Error:
+      break;
+    default:
+      throw new Error('Invalid state transition');
     }
   }
 
   private onTrackCreated() {
     switch (this.state) {
-      case TrackState.DestroyPending:
-        // Don't bother awaiting this as the track can no longer be used.
-        this.track.onDestroy?.();
-        this.state = TrackState.Destroyed;
-        break;
-      case TrackState.UpdatePending:
-        const result = this.track.onUpdate?.();
-        Promise.resolve(result).then(() => this.onTrackUpdated());
-        this.state = TrackState.Updating;
-        break;
-      case TrackState.Creating:
-        this.state = TrackState.Ready;
-        break;
-      default:
-        throw new Error('Invalid state transition');
+    case TrackState.DestroyPending:
+      // Don't bother awaiting this as the track can no longer be used.
+      this.track.onDestroy?.();
+      this.state = TrackState.Destroyed;
+      break;
+    case TrackState.UpdatePending:
+      const result = this.track.onUpdate?.();
+      Promise.resolve(result)
+        .then(() => this.onTrackUpdated())
+        .catch((e) => {
+          this.error = e;
+          this.state = TrackState.Error;
+        });
+      this.state = TrackState.Updating;
+      break;
+    case TrackState.Creating:
+      this.state = TrackState.Ready;
+      break;
+    case TrackState.Error:
+      break;
+    default:
+      throw new Error('Invalid state transition');
     }
   }
 
   private onTrackUpdated() {
     switch (this.state) {
-      case TrackState.DestroyPending:
-        // Don't bother awaiting this as the track can no longer be used.
-        this.track.onDestroy?.();
-        this.state = TrackState.Destroyed;
-        break;
-      case TrackState.UpdatePending:
-        const result = this.track.onUpdate?.();
-        Promise.resolve(result).then(() => this.onTrackUpdated());
-        this.state = TrackState.Updating;
-        break;
-      case TrackState.Updating:
-        this.state = TrackState.Ready;
-        break;
-      default:
-        throw new Error('Invalid state transition');
+    case TrackState.DestroyPending:
+      // Don't bother awaiting this as the track can no longer be used.
+      this.track.onDestroy?.();
+      this.state = TrackState.Destroyed;
+      break;
+    case TrackState.UpdatePending:
+      const result = this.track.onUpdate?.();
+      Promise.resolve(result)
+        .then(() => this.onTrackUpdated())
+        .catch((e) => {
+          this.error = e;
+          this.state = TrackState.Error;
+        });
+      this.state = TrackState.Updating;
+      break;
+    case TrackState.Updating:
+      this.state = TrackState.Ready;
+      break;
+    case TrackState.Error:
+      break;
+    default:
+      throw new Error('Invalid state transition');
+    }
+  }
+
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+    try {
+      this.track.render(ctx, size);
+    } catch {
+      this.state = TrackState.Error;
+    }
+  }
+
+  getError(): Error | undefined {
+    if (this.state === TrackState.Error) {
+      return this.error;
+    } else {
+      return undefined;
     }
   }
 }

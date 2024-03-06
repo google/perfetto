@@ -18,8 +18,12 @@ export interface EmptyStateAttrs {
   // Which material icon to show.
   // Defaults to 'search'.
   icon?: string;
+
   // Some text to show under the icon. No text shown if omitted.
-  header?: string;
+  title?: string;
+
+  // Additional class name applied to our container.
+  className?: string;
 }
 
 // Something to show when there's nothing else to show!
@@ -30,13 +34,15 @@ export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
   view({attrs, children}: m.Vnode<EmptyStateAttrs, this>): void|m.Children {
     const {
       icon = 'search',  // Icon defaults to the search symbol
-      header,
+      title,
+      className,
     } = attrs;
     return m(
-        '.pf-empty-state',
-        m('i.material-icons', icon),
-        header && m('span.pf-empty-state-header', header),
-        m('div.pf-empty-state-content', children),
+      '.pf-empty-state',
+      {className},
+      m('i.material-icons', icon),
+      title && m('.pf-empty-state-title', title),
+      m('.pf-empty-state-content', children),
     );
   }
 }

@@ -17,48 +17,68 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_SELECTOR_OVERLAY_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_SELECTOR_OVERLAY_H_
 
-#include "src/trace_processor/db/column/column.h"
+#include <cstdint>
+#include <memory>
+#include <string>
+
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 // Storage which "selects" specific rows from an underlying storage using a
 // BitVector. See ArrangementOverlay for a more generic class which allows
 // duplication and rearragement but is less performant.
-class SelectorOverlay : public Column {
+class SelectorOverlay final : public DataLayer {
  public:
-  SelectorOverlay(std::unique_ptr<Column> storage, const BitVector* non_null);
+  explicit SelectorOverlay(const BitVector*);
 
-  SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                   FilterOp) const override;
-
-  RangeOrBitVector Search(FilterOp op,
-                          SqlValue value,
-                          Range range) const override;
-
-  RangeOrBitVector IndexSearch(FilterOp op,
-                               SqlValue value,
-                               uint32_t* indices,
-                               uint32_t indices_count,
-                               bool sorted) const override;
-
-  void StableSort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Sort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Serialize(StorageProto*) const override;
-
-  uint32_t size() const override { return selector_->size(); }
+  std::unique_ptr<DataLayerChain> MakeChain(
+      std::unique_ptr<DataLayerChain>,
+      ChainCreationArgs = ChainCreationArgs()) override;
 
  private:
-  std::unique_ptr<Column> inner_ = nullptr;
+  class ChainImpl : public DataLayerChain {
+   public:
+    ChainImpl(std::unique_ptr<DataLayerChain>, const BitVector*);
+
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
+    SearchValidationResult ValidateSearchConstraints(FilterOp,
+                                                     SqlValue) const override;
+
+    RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
+
+    RangeOrBitVector IndexSearchValidated(FilterOp p,
+                                          SqlValue,
+                                          Indices) const override;
+
+    Range OrderedIndexSearchValidated(FilterOp,
+                                      SqlValue,
+                                      Indices) const override;
+
+    void StableSort(SortToken* start,
+                    SortToken* end,
+                    SortDirection) const override;
+
+    void Serialize(StorageProto*) const override;
+
+    uint32_t size() const override { return selector_->size(); }
+
+    std::string DebugString() const override { return "SelectorOverlay"; }
+
+   private:
+    std::unique_ptr<DataLayerChain> inner_ = nullptr;
+    const BitVector* selector_ = nullptr;
+  };
+
   const BitVector* selector_ = nullptr;
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
 
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_SELECTOR_OVERLAY_H_

@@ -18,7 +18,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/proto/profiler_util.h"
+#include "src/trace_processor/util/profiler_util.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -294,7 +294,7 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   tracker.AddRoot(kSeqId, kPid, kTimestamp, root);
 
   tracker.FinalizeProfile(kSeqId);
-  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> flame =
+  std::unique_ptr<tables::ExperimentalFlamegraphTable> flame =
       tracker.BuildFlamegraph(kPid, kTimestamp);
   ASSERT_NE(flame, nullptr);
 
@@ -407,7 +407,7 @@ TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
   tracker.AddRoot(kSeqId, kPid, kTimestamp, root);
 
   tracker.FinalizeProfile(kSeqId);
-  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> flame =
+  std::unique_ptr<tables::ExperimentalFlamegraphTable> flame =
       tracker.BuildFlamegraph(kPid, kTimestamp);
   ASSERT_NE(flame, nullptr);
 

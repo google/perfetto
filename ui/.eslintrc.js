@@ -11,6 +11,7 @@ module.exports = {
   'parserOptions': {
     'ecmaVersion': 'latest',
     'sourceType': 'module',
+    'project': './tsconfig.json',
   },
   'plugins': [
     '@typescript-eslint',
@@ -19,8 +20,15 @@ module.exports = {
     // We don't want to enforce jsdoc everywhere:
     'require-jsdoc': 'off',
 
-    // Max line length is 80 with 2 space tabs. This must match the
-    // ui/.clang-format definition:
+    // Relax jsdoc requirements
+    'valid-jsdoc': ['error', {
+      'requireParamType': false,
+      'requireReturnType': false,
+      'requireReturn': false,
+    }],
+
+    // Max line length is 80 with 2 space tabs.
+    // This matches the the old clang-format definition for consistency.
     'max-len': [
       'error',
       {
@@ -32,10 +40,9 @@ module.exports = {
       },
     ],
 
-    // Indentation handled by clang-format --js:
-    'indent': 'off',
+    "indent": ["error", 2],
 
-    // clang-format --js formats EOL comments after (e.g.) an if like:
+    // clang-format --js used to format EOL comments after (e.g.) an if like:
     // if (foo) {  // insightful comment
     // with two spaces between the slash and the brace. Turn
     // ignoreEOLComments on to allow that. We still want
@@ -70,5 +77,19 @@ module.exports = {
 
     // Don't allow new introduction of any it is most always a mistake.
     '@typescript-eslint/no-explicit-any': 'error',
+
+    // Prohibit numbers and strings from being used in boolean expressions.
+    '@typescript-eslint/strict-boolean-expressions': [
+      'error',
+      {
+        // Eventually we probably want to enable all of these, for now this
+        // tackles numbers and keeps the error count manageable.
+        allowAny: true,
+        allowNullableBoolean: true,
+        allowNullableString: true,
+        allowNumber: true,
+        allowString: true,
+      },
+    ],
   },
 };

@@ -51,20 +51,26 @@ export class TimeAxisPanel implements Panel {
 
     const offset = globals.timestampOffset();
     switch (timestampFormat()) {
-      case TimestampFormat.Raw:
-      case TimestampFormat.RawLocale:
-        break;
-      case TimestampFormat.Seconds:
-      case TimestampFormat.Timecode:
-        const width = renderTimestamp(ctx, offset, 6, 10, MIN_PX_PER_STEP);
-        ctx.fillText('+', 6 + width + 2, 10, 6);
-        break;
-      case TimestampFormat.UTC:
-        const offsetDate =
+    case TimestampFormat.Raw:
+    case TimestampFormat.RawLocale:
+      break;
+    case TimestampFormat.Seconds:
+    case TimestampFormat.Timecode:
+      const width = renderTimestamp(ctx, offset, 6, 10, MIN_PX_PER_STEP);
+      ctx.fillText('+', 6 + width + 2, 10, 6);
+      break;
+    case TimestampFormat.UTC:
+      const offsetDate =
             Time.toDate(globals.utcOffset, globals.realtimeOffset);
-        const dateStr = toISODateOnly(offsetDate);
-        ctx.fillText(`UTC ${dateStr}`, 6, 10);
-        break;
+      const dateStr = toISODateOnly(offsetDate);
+      ctx.fillText(`UTC ${dateStr}`, 6, 10);
+      break;
+    case TimestampFormat.TraceTz:
+      const offsetTzDate =
+            Time.toDate(globals.traceTzOffset, globals.realtimeOffset);
+      const dateTzStr = toISODateOnly(offsetTzDate);
+      ctx.fillText(dateTzStr, 6, 10);
+      break;
     }
 
     ctx.save();
@@ -94,36 +100,37 @@ export class TimeAxisPanel implements Panel {
 }
 
 function renderTimestamp(
-    ctx: CanvasRenderingContext2D,
-    time: time,
-    x: number,
-    y: number,
-    minWidth: number,
+  ctx: CanvasRenderingContext2D,
+  time: time,
+  x: number,
+  y: number,
+  minWidth: number,
 ) {
   const fmt = timestampFormat();
   switch (fmt) {
-    case TimestampFormat.UTC:
-    case TimestampFormat.Timecode:
-      return renderTimecode(ctx, time, x, y, minWidth);
-    case TimestampFormat.Raw:
-      return renderRawTimestamp(ctx, time.toString(), x, y, minWidth);
-    case TimestampFormat.RawLocale:
-      return renderRawTimestamp(ctx, time.toLocaleString(), x, y, minWidth);
-    case TimestampFormat.Seconds:
-      return renderRawTimestamp(ctx, Time.formatSeconds(time), x, y, minWidth);
-    default:
-      const z: never = fmt;
-      throw new Error(`Invalid timestamp ${z}`);
+  case TimestampFormat.UTC:
+  case TimestampFormat.TraceTz:
+  case TimestampFormat.Timecode:
+    return renderTimecode(ctx, time, x, y, minWidth);
+  case TimestampFormat.Raw:
+    return renderRawTimestamp(ctx, time.toString(), x, y, minWidth);
+  case TimestampFormat.RawLocale:
+    return renderRawTimestamp(ctx, time.toLocaleString(), x, y, minWidth);
+  case TimestampFormat.Seconds:
+    return renderRawTimestamp(ctx, Time.formatSeconds(time), x, y, minWidth);
+  default:
+    const z: never = fmt;
+    throw new Error(`Invalid timestamp ${z}`);
   }
 }
 
 // Print a time on the canvas in raw format.
 function renderRawTimestamp(
-    ctx: CanvasRenderingContext2D,
-    time: string,
-    x: number,
-    y: number,
-    minWidth: number,
+  ctx: CanvasRenderingContext2D,
+  time: string,
+  x: number,
+  y: number,
+  minWidth: number,
 ) {
   ctx.font = '11px Roboto Condensed';
   ctx.fillText(time, x, y, minWidth);
@@ -135,12 +142,12 @@ function renderRawTimestamp(
 // mmm uuu nnn
 // Returns the resultant width of the timecode.
 function renderTimecode(
-    ctx: CanvasRenderingContext2D,
-    time: time,
-    x: number,
-    y: number,
-    minWidth: number,
-    ): number {
+  ctx: CanvasRenderingContext2D,
+  time: time,
+  x: number,
+  y: number,
+  minWidth: number,
+): number {
   const timecode = Time.toTimecode(time);
   ctx.font = '11px Roboto Condensed';
 

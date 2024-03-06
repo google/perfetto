@@ -93,8 +93,8 @@ export class SqlTableState {
   private rowCount?: RowCount;
 
   constructor(
-      engine: EngineProxy, table: SqlTableDescription, filters?: Filter[],
-      imports?: string[]) {
+    engine: EngineProxy, table: SqlTableDescription, filters?: Filter[],
+    imports?: string[]) {
     this.engine_ = engine;
     this.table_ = table;
     this.additionalImports = imports || [];
@@ -146,7 +146,7 @@ export class SqlTableState {
             AND display_value ${filter.op}
         `;
         result.joins!.push(`JOIN ${cteName} ON ${cteName}.arg_set_id = ${
-            this.table.name}.${filter.argSetIdColumn}`);
+          this.table.name}.${filter.argSetIdColumn}`);
       }
     }
     return result;
@@ -155,8 +155,8 @@ export class SqlTableState {
   private getSQLImports() {
     const tableImports = this.table.imports || [];
     return [...tableImports, ...this.additionalImports]
-        .map((i) => `INCLUDE PERFETTO MODULE ${i};`)
-        .join('\n');
+      .map((i) => `INCLUDE PERFETTO MODULE ${i};`)
+      .join('\n');
   }
 
   private getCountRowsSQLQuery(): string {
@@ -175,12 +175,12 @@ export class SqlTableState {
   buildSqlSelectStatement(): {
     selectStatement: string,
     columns: string[],
-  } {
+    } {
     const projections = this.getSQLProjections();
     const orderBy = this.orderBy.map((c) => ({
-                                       fieldName: c.column.alias,
-                                       direction: c.direction,
-                                     }));
+      fieldName: c.column.alias,
+      direction: c.direction,
+    }));
     const constraints = this.getQueryConstraints();
     constraints.orderBy = orderBy;
     const statement = `
@@ -327,7 +327,6 @@ export class SqlTableState {
   }
 
   sortBy(clause: ColumnOrderClause) {
-    this.orderBy = this.orderBy || [];
     // Remove previous sort by the same column.
     this.orderBy = this.orderBy.filter((c) => c.column !== clause.column);
     // Add the new sort clause to the front, so we effectively stable-sort the
@@ -342,7 +341,6 @@ export class SqlTableState {
   }
 
   isSortedBy(column: Column): SortDirection|undefined {
-    if (!this.orderBy) return undefined;
     if (this.orderBy.length === 0) return undefined;
     if (this.orderBy[0].column !== column) return undefined;
     return this.orderBy[0].direction;

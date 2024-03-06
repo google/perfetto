@@ -164,7 +164,7 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     postedTrace = {title: 'External trace', buffer: messageEvent.data};
   } else {
     console.warn(
-        'Unknown postMessage() event received. If you are trying to open a ' +
+      'Unknown postMessage() event received. If you are trying to open a ' +
         'trace via postMessage(), this is a bug in your code. If not, this ' +
         'could be due to some Chrome extension.');
     console.log('origin:', messageEvent.origin, 'data:', messageEvent.data);
@@ -240,7 +240,7 @@ function isTraceViewerReady(): boolean {
 
 const _maxScrollToRangeAttempts = 20;
 async function scrollToTimeRange(
-    postedScrollToRange: PostedScrollToRange, maxAttempts?: number) {
+  postedScrollToRange: PostedScrollToRange, maxAttempts?: number) {
   const ready = isTraceViewerReady();
   if (!ready) {
     if (maxAttempts === undefined) {
@@ -253,9 +253,9 @@ async function scrollToTimeRange(
     setTimeout(scrollToTimeRange, 200, postedScrollToRange, maxAttempts + 1);
   } else {
     focusHorizontalRange(
-        postedScrollToRange.timeStart,
-        postedScrollToRange.timeEnd,
-        postedScrollToRange.viewPercentage);
+      postedScrollToRange.timeStart,
+      postedScrollToRange.timeEnd,
+      postedScrollToRange.viewPercentage);
   }
 }
 

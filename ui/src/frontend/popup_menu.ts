@@ -27,7 +27,7 @@ export interface RegularPopupMenuItem {
 
 // Helper function for simplifying defining menus.
 export function menuItem(
-    text: string, action: () => void): RegularPopupMenuItem {
+  text: string, action: () => void): RegularPopupMenuItem {
   return {
     itemType: 'regular',
     text,
@@ -108,12 +108,12 @@ const popupHolder = new PopupHolder();
 // sorted. (Optional because column might be unsorted)
 export function popupMenuIcon(sortDirection?: SortDirection) {
   switch (sortDirection) {
-    case undefined:
-      return 'more_horiz';
-    case 'DESC':
-      return 'arrow_drop_down';
-    case 'ASC':
-      return 'arrow_drop_up';
+  case undefined:
+    return 'more_horiz';
+  case 'DESC':
+    return 'arrow_drop_down';
+  case 'ASC':
+    return 'arrow_drop_up';
   }
 }
 
@@ -134,54 +134,54 @@ export class PopupMenuButton implements m.ClassComponent<PopupMenuButtonAttrs> {
 
   renderItem(item: PopupMenuItem): m.Child {
     switch (item.itemType) {
-      case 'regular':
-        return m(
-            'button.open-menu',
-            {
-              onclick: () => {
-                item.callback();
-                // Hide the menu item after the action has been invoked
-                this.setVisible(false);
-              },
+    case 'regular':
+      return m(
+        'button.open-menu',
+        {
+          onclick: () => {
+            item.callback();
+            // Hide the menu item after the action has been invoked
+            this.setVisible(false);
+          },
+        },
+        item.text);
+    case 'group':
+      const isExpanded = this.expandedGroups.has(item.itemId);
+      return m(
+        'div',
+        m('button.open-menu.disallow-selection',
+          {
+            onclick: () => {
+              if (this.expandedGroups.has(item.itemId)) {
+                this.expandedGroups.delete(item.itemId);
+              } else {
+                this.expandedGroups.add(item.itemId);
+              }
+              raf.scheduleFullRedraw();
             },
-            item.text);
-      case 'group':
-        const isExpanded = this.expandedGroups.has(item.itemId);
-        return m(
-            'div',
-            m('button.open-menu.disallow-selection',
-              {
-                onclick: () => {
-                  if (this.expandedGroups.has(item.itemId)) {
-                    this.expandedGroups.delete(item.itemId);
-                  } else {
-                    this.expandedGroups.add(item.itemId);
-                  }
-                  raf.scheduleFullRedraw();
-                },
-              },
-              // Show text with up/down arrow, depending on expanded state.
-              item.text + (isExpanded ? ' \u25B2' : ' \u25BC')),
-            isExpanded ? m('div.nested-menu',
-                           item.children.map((item) => this.renderItem(item))) :
-                         null);
+          },
+          // Show text with up/down arrow, depending on expanded state.
+          item.text + (isExpanded ? ' \u25B2' : ' \u25BC')),
+        isExpanded ? m('div.nested-menu',
+          item.children.map((item) => this.renderItem(item))) :
+          null);
     }
   }
 
   view(vnode: m.Vnode<PopupMenuButtonAttrs, this>) {
     return m(
-        '.dropdown',
-        m(
-            '.dropdown-button',
-            {
-              onclick: () => {
-                this.setVisible(!this.popupShown);
-              },
-            },
-            vnode.children,
-            m('i.material-icons', vnode.attrs.icon),
-            ),
-        m(this.popupShown ? '.popup-menu.opened' : '.popup-menu.closed',
-          vnode.attrs.items.map((item) => this.renderItem(item))));
+      '.dropdown',
+      m(
+        '.dropdown-button',
+        {
+          onclick: () => {
+            this.setVisible(!this.popupShown);
+          },
+        },
+        vnode.children,
+        m('i.material-icons', vnode.attrs.icon),
+      ),
+      m(this.popupShown ? '.popup-menu.opened' : '.popup-menu.closed',
+        vnode.attrs.items.map((item) => this.renderItem(item))));
   }
 }

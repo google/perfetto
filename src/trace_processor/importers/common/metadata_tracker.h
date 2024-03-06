@@ -17,15 +17,20 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_METADATA_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_METADATA_TRACKER_H_
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
+
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Tracks information in the metadata table.
 class MetadataTracker {
  public:
-  MetadataTracker(TraceStorage* storage);
+  explicit MetadataTracker(TraceStorage* storage);
 
   // Example usage:
   // SetMetadata(metadata::benchmark_name,
@@ -67,7 +72,6 @@ class MetadataTracker {
   TraceStorage* storage_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_METADATA_TRACKER_H_

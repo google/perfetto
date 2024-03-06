@@ -21,14 +21,14 @@ trace = synth_common.create_trace()
 
 trace.add_packet(ts=1)
 pid_a = 10
-trace.add_process(pid_a, 1, "process A")
-trace.add_thread(100, pid_a, "cmdA1", "thread A1")
-trace.add_thread(101, pid_a, "cmdA2", "thread A2")
+trace.add_process(pid_a, 1, "process_a")
+trace.add_thread(100, pid_a, "thread_a1", "thread_a1")
+trace.add_thread(101, pid_a, "thread_a2", "thread_a2")
 
 pid_b = 11
-trace.add_process(pid_b, 10, "process B")
-trace.add_thread(110, pid_b, "cmdB1", "thread B1")
-trace.add_thread(111, pid_b, "cmdB2", "thread B2")
+trace.add_process(pid_b, 10, "process_b")
+trace.add_thread(110, pid_b, "thread_b1", "thread_b1")
+trace.add_thread(111, pid_b, "thread_b2", "thread_b2")
 
 pid_sp = 90
 trace.add_process(pid_sp, 1, "simpleperf")

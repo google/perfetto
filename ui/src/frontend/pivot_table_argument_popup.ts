@@ -64,16 +64,16 @@ export class ArgumentPopup implements m.ClassComponent<ArgumentPopupArgs> {
       }
 
       result.push(
-          m('div',
-            {
-              onclick: () => {
-                this.setArgument(attrs, option);
-              },
+        m('div',
+          {
+            onclick: () => {
+              this.setArgument(attrs, option);
             },
-            option.substring(0, index),
-            // Highlight the matching part with bold font
-            m('strong', this.argument),
-            option.substring(index + this.argument.length)));
+          },
+          option.substring(0, index),
+          // Highlight the matching part with bold font
+          m('strong', this.argument),
+          option.substring(index + this.argument.length)));
     }
 
     return result;
@@ -81,17 +81,17 @@ export class ArgumentPopup implements m.ClassComponent<ArgumentPopupArgs> {
 
   view({attrs}: m.Vnode<ArgumentPopupArgs>): m.Child {
     return m(
-        '.name-completion',
-        m('input', {
-          oncreate: (vnode: m.VnodeDOM) =>
-              (vnode.dom as HTMLInputElement).focus(),
-          oninput: (e: Event) => {
-            const input = e.target as HTMLInputElement;
-            this.setArgument(attrs, input.value);
-          },
-          value: this.argument,
-        }),
-        m('.arguments-popup-sizer', longestString(attrs.knownArguments)),
-        this.renderMatches(attrs));
+      '.name-completion',
+      m('input', {
+        oncreate: (vnode: m.VnodeDOM) =>
+          (vnode.dom as HTMLInputElement).focus(),
+        oninput: (e: Event) => {
+          const input = e.target as HTMLInputElement;
+          this.setArgument(attrs, input.value);
+        },
+        value: this.argument,
+      }),
+      m('.arguments-popup-sizer', longestString(attrs.knownArguments)),
+      this.renderMatches(attrs));
   }
 }

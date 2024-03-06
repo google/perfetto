@@ -17,27 +17,25 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_TABLE_H_
 #define SRC_TRACE_PROCESSOR_DB_TABLE_H_
 
-#include <stdint.h>
-
-#include <limits>
+#include <cstdint>
 #include <memory>
-#include <numeric>
-#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/query_executor.h"
-#include "src/trace_processor/db/typed_column.h"
-#include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Represents a table of data with named, strongly typed columns.
 class Table {
@@ -52,6 +50,18 @@ class Table {
       }
     }
 
+    // Creates an iterator which iterates over |table| by first creating
+    // overlays by Applying |apply| to the existing overlays and using the
+    // indices there for iteration.
+    explicit Iterator(const Table* table, RowMap apply) : table_(table) {
+      overlays_.reserve(table->overlays().size());
+      its_.reserve(table->overlays().size());
+      for (const auto& rm : table->overlays()) {
+        overlays_.emplace_back(rm.SelectRows(apply));
+        its_.emplace_back(overlays_.back().IterateRows());
+      }
+    }
+
     Iterator(Iterator&&) noexcept = default;
     Iterator& operator=(Iterator&&) = default;
 
@@ -59,10 +69,11 @@ class Table {
     Iterator& operator=(const Iterator&) = delete;
 
     // Advances the iterator to the next row of the table.
-    void Next() {
+    Iterator& operator++() {
       for (auto& it : its_) {
         it.Next();
       }
+      return *this;
     }
 
     // Returns whether the row the iterator is pointing at is valid.
@@ -74,8 +85,18 @@ class Table {
       return col.GetAtIdx(its_[col.overlay_index()].index());
     }
 
+    // Returns the storage index for the current row for column |col_idx|.
+    uint32_t StorageIndexForColumn(uint32_t col_idx) const {
+      const auto& col = table_->columns_[col_idx];
+      return its_[col.overlay_index()].index();
+    }
+
+    // Returns the storage index for the last overlay.
+    uint32_t StorageIndexForLastOverlay() const { return its_.back().index(); }
+
    private:
     const Table* table_ = nullptr;
+    std::vector<ColumnStorageOverlay> overlays_;
     std::vector<ColumnStorageOverlay::Iterator> its_;
   };
 
@@ -98,8 +119,8 @@ class Table {
   };
 
   static bool kUseFilterV2;
+  static bool kUseSortV2;
 
-  Table();
   virtual ~Table();
 
   // We explicitly define the move constructor here because we need to update
@@ -107,29 +128,93 @@ class Table {
   Table(Table&& other) noexcept { *this = std::move(other); }
   Table& operator=(Table&& other) noexcept;
 
-  // Filters the Table using the specified filter constraints.
-  Table Filter(
-      const std::vector<Constraint>& cs,
-      RowMap::OptimizeFor optimize_for = RowMap::OptimizeFor::kMemory) const {
-    if (cs.empty())
-      return Copy();
-    return Apply(FilterToRowMap(cs, optimize_for));
+  // Return a chain corresponding to a given column.
+  const column::DataLayerChain& ChainForColumn(uint32_t col_idx) const {
+    return *chains_[col_idx];
   }
 
-  // Filters the Table using the specified filter constraints optionally
-  // specifying what the returned RowMap should optimize for.
-  // Returns a RowMap which, if applied to the table, would contain the rows
-  // post filter.
-  RowMap FilterToRowMap(
+  // Filters and sorts the tables with the arguments specified, returning the
+  // result as a RowMap.
+  RowMap QueryToRowMap(
+      const std::vector<Constraint>&,
+      const std::vector<Order>&,
+      RowMap::OptimizeFor = RowMap::OptimizeFor::kMemory) const;
+
+  // Applies the RowMap |rm| onto this table and returns an iterator over the
+  // resulting rows.
+  Iterator ApplyAndIterateRows(RowMap rm) const {
+    return Iterator(this, std::move(rm));
+  }
+
+  // Sorts the table using the specified order by constraints.
+  Table Sort(const std::vector<Order>&) const;
+
+  // Returns an iterator over the rows in this table.
+  Iterator IterateRows() const { return Iterator(this); }
+
+  // Creates a copy of this table.
+  Table Copy() const;
+
+  uint32_t row_count() const { return row_count_; }
+  StringPool* string_pool() const { return string_pool_; }
+  const std::vector<ColumnLegacy>& columns() const { return columns_; }
+  const std::vector<RefPtr<column::DataLayer>>& storage_layers() const {
+    return storage_layers_;
+  }
+  const std::vector<RefPtr<column::DataLayer>>& null_layers() const {
+    return null_layers_;
+  }
+
+ protected:
+  Table(StringPool*,
+        uint32_t row_count,
+        std::vector<ColumnLegacy>,
+        std::vector<ColumnStorageOverlay>);
+
+  void CopyLastInsertFrom(const std::vector<ColumnStorageOverlay>& overlays) {
+    PERFETTO_DCHECK(overlays.size() <= overlays_.size());
+
+    // Add the last inserted row in each of the parent row maps to the
+    // corresponding row map in the child.
+    for (uint32_t i = 0; i < overlays.size(); ++i) {
+      const ColumnStorageOverlay& other = overlays[i];
+      overlays_[i].Insert(other.Get(other.size() - 1));
+    }
+  }
+
+  void IncrementRowCountAndAddToLastOverlay() {
+    // Also add the index of the new row to the identity row map and increment
+    // the size.
+    overlays_.back().Insert(row_count_++);
+  }
+
+  void OnConstructionCompleted(
+      std::vector<RefPtr<column::DataLayer>> storage_layers,
+      std::vector<RefPtr<column::DataLayer>> null_layers,
+      std::vector<RefPtr<column::DataLayer>> overlay_layers);
+
+  ColumnLegacy* GetColumn(uint32_t index) { return &columns_[index]; }
+
+  const std::vector<ColumnStorageOverlay>& overlays() const {
+    return overlays_;
+  }
+
+ private:
+  friend class ColumnLegacy;
+
+  PERFETTO_ALWAYS_INLINE RowMap FilterToRowMap(
       const std::vector<Constraint>& cs,
       RowMap::OptimizeFor optimize_for = RowMap::OptimizeFor::kMemory) const {
+    if (cs.empty()) {
+      return {0, row_count_, optimize_for};
+    }
+
     if (kUseFilterV2) {
       if (optimize_for == RowMap::OptimizeFor::kMemory) {
         return QueryExecutor::FilterLegacy(this, cs);
       }
       return RowMap(QueryExecutor::FilterLegacy(this, cs).TakeAsIndexVector());
     }
-
     RowMap rm(0, row_count_, optimize_for);
     for (const Constraint& c : cs) {
       columns_[c.col_idx].FilterInto(c.op, c.value, &rm);
@@ -137,116 +222,19 @@ class Table {
     return rm;
   }
 
-  // Applies the given RowMap to the current table by picking out the rows
-  // specified in the RowMap to be present in the output table.
-  // Note: the RowMap should not reorder this table; this is guaranteed if the
-  // passed RowMap is generated using |FilterToRowMap|.
-  Table Apply(RowMap rm) const {
-    Table table = CopyExceptOverlays();
-    table.row_count_ = rm.size();
-    table.overlays_.reserve(overlays_.size());
-    for (const ColumnStorageOverlay& map : overlays_) {
-      table.overlays_.emplace_back(map.SelectRows(rm));
-      PERFETTO_DCHECK(table.overlays_.back().size() == table.row_count());
-    }
-    // Pretty much any application of a RowMap will break the requirements on
-    // kSetId so remove it.
-    for (auto& col : table.columns_) {
-      col.flags_ &= ~ColumnLegacy::Flag::kSetId;
-    }
-    return table;
-  }
-
-  // Sorts the Table using the specified order by constraints.
-  Table Sort(const std::vector<Order>& od) const;
-
-  // Returns the column at index |idx| in the Table.
-  const ColumnLegacy& GetColumn(uint32_t idx) const { return columns_[idx]; }
-
-  // Returns the column index with the given name or std::nullopt otherwise.
-  std::optional<uint32_t> GetColumnIndexByName(const char* name) const {
-    auto it = std::find_if(columns_.begin(), columns_.end(),
-                           [name](const ColumnLegacy& col) {
-                             return strcmp(col.name(), name) == 0;
-                           });
-    if (it == columns_.end())
-      return std::nullopt;
-    return static_cast<uint32_t>(std::distance(columns_.begin(), it));
-  }
-
-  // Returns the column with the given name or nullptr otherwise.
-  const ColumnLegacy* GetColumnByName(const char* name) const {
-    std::optional<uint32_t> opt_idx = GetColumnIndexByName(name);
-    if (!opt_idx)
-      return nullptr;
-    return &columns_[*opt_idx];
-  }
-
-  template <typename T>
-  const TypedColumn<T>& GetTypedColumnByName(const char* name) const {
-    return *TypedColumn<T>::FromColumn(GetColumnByName(name));
-  }
-
-  template <typename T>
-  const IdColumn<T>& GetIdColumnByName(const char* name) const {
-    return *IdColumn<T>::FromColumn(GetColumnByName(name));
-  }
-
-  // Returns the number of columns in the Table.
-  uint32_t GetColumnCount() const {
-    return static_cast<uint32_t>(columns_.size());
-  }
-
-  // Returns an iterator into the Table.
-  Iterator IterateRows() const { return Iterator(this); }
-
-  // Creates a copy of this table.
-  Table Copy() const;
-
-  // Computes the schema of this table and returns it.
-  Schema ComputeSchema() const {
-    Schema schema;
-    schema.columns.reserve(columns_.size());
-    for (const auto& col : columns_) {
-      schema.columns.emplace_back(
-          Schema::Column{col.name(), col.type(), col.IsId(), col.IsSorted(),
-                         col.IsHidden(), col.IsSetId()});
-    }
-    return schema;
-  }
-
-  uint32_t row_count() const { return row_count_; }
-  StringPool* string_pool() const { return string_pool_; }
-  const std::vector<ColumnStorageOverlay>& overlays() const {
-    return overlays_;
-  }
-  const std::vector<ColumnLegacy>& columns() const { return columns_; }
-
- protected:
-  explicit Table(StringPool* pool);
-
-  std::vector<ColumnStorageOverlay> CopyOverlays() const {
-    std::vector<ColumnStorageOverlay> rm(overlays_.size());
-    for (uint32_t i = 0; i < overlays_.size(); ++i) {
-      rm[i] = overlays_[i].Copy();
-    }
-    return rm;
-  }
-
-  std::vector<ColumnStorageOverlay> overlays_;
-  std::vector<ColumnLegacy> columns_;
-  uint32_t row_count_ = 0;
+  Table CopyExceptOverlays() const;
 
   StringPool* string_pool_ = nullptr;
+  uint32_t row_count_ = 0;
+  std::vector<ColumnStorageOverlay> overlays_;
+  std::vector<ColumnLegacy> columns_;
 
- private:
-  friend class ColumnLegacy;
-  friend class View;
-
-  Table CopyExceptOverlays() const;
+  std::vector<RefPtr<column::DataLayer>> storage_layers_;
+  std::vector<RefPtr<column::DataLayer>> null_layers_;
+  std::vector<RefPtr<column::DataLayer>> overlay_layers_;
+  std::vector<std::unique_ptr<column::DataLayerChain>> chains_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_DB_TABLE_H_

@@ -15,7 +15,6 @@
 import {assertTrue} from '../base/logging';
 import {Time, time} from '../base/time';
 import {Args, ArgValue} from '../common/arg_types';
-import {pluginManager} from '../common/plugins';
 import {ChromeSliceSelection} from '../common/state';
 import {
   CounterDetails,
@@ -89,13 +88,12 @@ export class SelectionController extends Controller<'main'> {
 
     if (selection.kind === 'COUNTER') {
       this.counterDetails(selection.leftTs, selection.rightTs, selection.id)
-          .then((results) => {
-            if (results !== undefined && selection &&
-                selection.kind === selectedKind &&
+        .then((results) => {
+          if (results !== undefined && selection.kind === selectedKind &&
                 selection.id === selectedId) {
-              publishCounterDetails(results);
-            }
-          });
+            publishCounterDetails(results);
+          }
+        });
     } else if (selection.kind === 'SLICE') {
       this.sliceDetails(selectedId as number);
     } else if (selection.kind === 'THREAD_STATE') {
@@ -139,7 +137,7 @@ export class SelectionController extends Controller<'main'> {
 
     const promisedDetails = this.args.engine.query(`
       SELECT *, ABS_TIME_STR(ts) as absTime FROM ${leafTable} WHERE id = ${
-        selectedId};
+  selectedId};
     `);
 
     const [details, args] = await Promise.all([promisedDetails, promisedArgs]);
@@ -180,35 +178,37 @@ export class SelectionController extends Controller<'main'> {
     for (const k of details.columns()) {
       const v = rowIter.get(k);
       switch (k) {
-        case 'id':
-          break;
-        case 'ts':
-          ts = timeFromSql(v);
-          break;
-        case 'thread_ts':
-          threadTs = timeFromSql(v);
-          break;
-        case 'absTime':
-          if (v) absTime = `${v}`;
-          break;
-        case 'name':
-          name = `${v}`;
-          break;
-        case 'dur':
-          dur = durationFromSql(v);
-          break;
-        case 'thread_dur':
-          threadDur = durationFromSql(v);
-          break;
-        case 'category':
-        case 'cat':
-          category = `${v}`;
-          break;
-        case 'track_id':
-          trackId = Number(v);
-          break;
-        default:
-          if (!ignoredColumns.includes(k)) args.set(k, `${v}`);
+      case 'id':
+        break;
+      case 'ts':
+        ts = timeFromSql(v);
+        break;
+      case 'thread_ts':
+        threadTs = timeFromSql(v);
+        break;
+      case 'absTime':
+        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
+        if (v) absTime = `${v}`;
+        /* eslint-enable */
+        break;
+      case 'name':
+        name = `${v}`;
+        break;
+      case 'dur':
+        dur = durationFromSql(v);
+        break;
+      case 'thread_dur':
+        threadDur = durationFromSql(v);
+        break;
+      case 'category':
+      case 'cat':
+        category = `${v}`;
+        break;
+      case 'track_id':
+        trackId = Number(v);
+        break;
+      default:
+        if (!ignoredColumns.includes(k)) args.set(k, `${v}`);
       }
     }
 
@@ -247,8 +247,8 @@ export class SelectionController extends Controller<'main'> {
             FROM ${columnInfo.leafTrackTable}
             WHERE id = ${trackId};
         `)).firstRow({
-             utid: NUM,
-           }).utid;
+          utid: NUM,
+        }).utid;
         Object.assign(selected, await this.computeThreadDetails(utid));
       } else if (hasUpid) {
         const upid = (await this.args.engine.query(`
@@ -256,8 +256,8 @@ export class SelectionController extends Controller<'main'> {
             FROM ${columnInfo.leafTrackTable}
             WHERE id = ${trackId};
         `)).firstRow({
-             upid: NUM,
-           }).upid;
+          upid: NUM,
+        }).upid;
         Object.assign(selected, await this.computeProcessDetails(upid));
       }
     }
@@ -309,7 +309,7 @@ export class SelectionController extends Controller<'main'> {
     // UI track id for slice tracks this would be unnecessary.
     let trackKey = '';
     for (const track of Object.values(globals.state.tracks)) {
-      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
       if (trackInfo?.kind === SLICE_TRACK_KIND) {
         const trackIds = trackInfo?.trackIds;
         if (trackIds && trackIds.length > 0 && trackIds[0] === trackId) {
@@ -378,6 +378,7 @@ export class SelectionController extends Controller<'main'> {
       const endState = row.endState;
       const utid = row.utid;
       const cpu = row.cpu;
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const threadStateId = row.threadStateId || undefined;
       const selected: SliceDetails = {
         ts,
@@ -392,19 +393,19 @@ export class SelectionController extends Controller<'main'> {
       Object.assign(selected, await this.computeThreadDetails(utid));
 
       this.schedulingDetails(ts, utid)
-          .then((wakeResult) => {
-            Object.assign(selected, wakeResult);
-          })
-          .finally(() => {
-            publishSliceDetails(selected);
-          });
+        .then((wakeResult) => {
+          Object.assign(selected, wakeResult);
+        })
+        .finally(() => {
+          publishSliceDetails(selected);
+        });
     }
   }
 
   async counterDetails(ts: time, rightTs: time, id: number):
       Promise<CounterDetails> {
     const counter = await this.args.engine.query(
-        `SELECT value, track_id as trackId FROM counter WHERE id = ${id}`);
+      `SELECT value, track_id as trackId FROM counter WHERE id = ${id}`);
     const row = counter.iter({
       value: NUM,
       trackId: NUM,
@@ -491,9 +492,10 @@ export class SelectionController extends Controller<'main'> {
       tid: threadInfo.tid,
       threadName: threadInfo.name || undefined,
     };
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (threadInfo.upid) {
       return Object.assign(
-          {}, threadDetails, await this.computeProcessDetails(threadInfo.upid));
+        {}, threadDetails, await this.computeProcessDetails(threadInfo.upid));
     }
     return threadDetails;
   }

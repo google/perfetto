@@ -32,7 +32,7 @@ SELECT
   ROW_NUMBER()
   OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS id,
   ts,
-  LEAD(ts, 1, (SELECT end_ts FROM trace_bounds)) OVER(ORDER BY ts) - ts AS dur
+  LEAD(ts, 1, trace_end()) OVER(ORDER BY ts) - ts AS dur
 FROM activity_intent_received
 ORDER BY ts;
 

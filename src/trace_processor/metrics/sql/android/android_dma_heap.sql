@@ -18,7 +18,7 @@ DROP VIEW IF EXISTS dma_heap_timeline;
 CREATE PERFETTO VIEW dma_heap_timeline AS
 SELECT
   ts,
-  LEAD(ts, 1, (SELECT end_ts FROM trace_bounds))
+  LEAD(ts, 1, trace_end())
   OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
   track_id,
   value

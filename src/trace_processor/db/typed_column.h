@@ -67,6 +67,8 @@ class TypedColumn : public ColumnLegacy {
   // (handling ids would add an extra type to consider when filtering for no
   // benefit.
   using stored_type = typename TH::stored_type;
+  using non_optional_stored_type =
+      typename tc_internal::TypeHandler<non_optional_type>::stored_type;
 
  private:
   using Serializer = tc_internal::Serializer<non_optional_type>;
@@ -123,7 +125,7 @@ class TypedColumn : public ColumnLegacy {
   }
 
   // Converts the static type T into the dynamic SqlValue type of this column.
-  static SqlValue::Type SqlValueType() {
+  static constexpr SqlValue::Type SqlValueType() {
     return ColumnLegacy::ToSqlValueType<stored_type>();
   }
 

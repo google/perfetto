@@ -16,10 +16,24 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <limits>
 #include <memory>
-#include <set>
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
-#include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -28,44 +42,19 @@ namespace trace_processor {
 ExperimentalFlatSlice::ExperimentalFlatSlice(TraceProcessorContext* context)
     : context_(context) {}
 
-base::Status ExperimentalFlatSlice::ValidateConstraints(
-    const QueryConstraints& qc) {
-  using CI = tables::ExperimentalFlatSliceTable::ColumnIndex;
-  bool has_start_bound = false;
-  bool has_end_bound = false;
-  for (const auto& c : qc.constraints()) {
-    has_start_bound |= c.column == static_cast<int>(CI::start_bound) &&
-                       sqlite_utils::IsOpEq(c.op);
-    has_end_bound |= c.column == static_cast<int>(CI::end_bound) &&
-                     sqlite_utils::IsOpEq(c.op);
+base::StatusOr<std::unique_ptr<Table>> ExperimentalFlatSlice::ComputeTable(
+    const std::vector<SqlValue>& arguments) {
+  PERFETTO_CHECK(arguments.size() == 2);
+  if (arguments[0].type != SqlValue::kLong) {
+    return base::ErrStatus("start timestamp must be an integer");
   }
-  return has_start_bound && has_end_bound
-             ? base::OkStatus()
-             : base::ErrStatus("Failed to find required constraints");
-}
-
-base::Status ExperimentalFlatSlice::ComputeTable(
-    const std::vector<Constraint>& cs,
-    const std::vector<Order>&,
-    const BitVector&,
-    std::unique_ptr<Table>& table_return) {
-  using CI = tables::ExperimentalFlatSliceTable::ColumnIndex;
-  auto start_it = std::find_if(cs.begin(), cs.end(), [](const Constraint& c) {
-    return c.col_idx == static_cast<uint32_t>(CI::start_bound) &&
-           c.op == FilterOp::kEq;
-  });
-  auto end_it = std::find_if(cs.begin(), cs.end(), [](const Constraint& c) {
-    return c.col_idx == static_cast<uint32_t>(CI::end_bound) &&
-           c.op == FilterOp::kEq;
-  });
-  // TODO(rsavitski): consider checking the values' types (in case of erroneous
-  // queries passing e.g. null).
-  int64_t start_bound = start_it->value.AsLong();
-  int64_t end_bound = end_it->value.AsLong();
-  table_return = ComputeFlatSliceTable(context_->storage->slice_table(),
-                                       context_->storage->mutable_string_pool(),
-                                       start_bound, end_bound);
-  return base::OkStatus();
+  if (arguments[1].type != SqlValue::kLong) {
+    return base::ErrStatus("end timestamp must be an integer");
+  }
+  return std::unique_ptr<Table>(
+      ComputeFlatSliceTable(context_->storage->slice_table(),
+                            context_->storage->mutable_string_pool(),
+                            arguments[0].AsLong(), arguments[1].AsLong()));
 }
 
 std::unique_ptr<tables::ExperimentalFlatSliceTable>

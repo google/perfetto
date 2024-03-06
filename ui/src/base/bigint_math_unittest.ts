@@ -121,6 +121,12 @@ describe('BigIntMath', () => {
       expect(BIM.quantFloor(13n, 4n)).toEqual(12n);
     });
 
+    it('should handle negative numbers', () => {
+      expect(BIM.quantFloor(-4n, 10n)).toEqual(-10n);
+      expect(BIM.quantFloor(-10n, 10n)).toEqual(-10n);
+      expect(BIM.quantFloor(-11n, 10n)).toEqual(-20n);
+    });
+
     it('should return value if stepsize is smaller than 1', () => {
       expect(BIM.quantFloor(123n, 0n)).toEqual(123n);
       expect(BIM.quantFloor(123n, -10n)).toEqual(123n);
@@ -139,6 +145,12 @@ describe('BigIntMath', () => {
       expect(BIM.quantCeil(11n, 4n)).toEqual(12n);
       expect(BIM.quantCeil(12n, 4n)).toEqual(12n);
       expect(BIM.quantCeil(13n, 4n)).toEqual(16n);
+    });
+
+    it('should handle negative numbers', () => {
+      expect(BIM.quantCeil(-4n, 10n)).toEqual(0n);
+      expect(BIM.quantCeil(-10n, 10n)).toEqual(-10n);
+      expect(BIM.quantCeil(-11n, 10n)).toEqual(-10n);
     });
 
     it('should return value if stepsize is smaller than 1', () => {
@@ -201,7 +213,7 @@ describe('BigIntMath', () => {
 
     it('should throw when presented with a negative integer', () => {
       expect(() => BIM.popcount(-1n))
-          .toThrowError('Can\'t get popcount of negative number -1');
+        .toThrowError('Can\'t get popcount of negative number -1');
     });
   });
 
@@ -212,13 +224,13 @@ describe('BigIntMath', () => {
       expect(BIM.ratio(1n, 2n)).toBeCloseTo(0.5);
       expect(BIM.ratio(1n, 100n)).toBeCloseTo(0.01);
       expect(
-          BIM.ratio(
-              987654321098765432109876543210n, 123456789012345678901234567890n))
-          .toBeCloseTo(8);
+        BIM.ratio(
+          987654321098765432109876543210n, 123456789012345678901234567890n))
+        .toBeCloseTo(8);
       expect(
-          BIM.ratio(
-              123456789012345678901234567890n, 987654321098765432109876543210n))
-          .toBeCloseTo(0.125, 3);
+        BIM.ratio(
+          123456789012345678901234567890n, 987654321098765432109876543210n))
+        .toBeCloseTo(0.125, 3);
     });
   });
 

@@ -33,6 +33,10 @@ message FtraceConfig {
   message CompactSchedConfig {
     // If true, and sched_switch or sched_waking ftrace events are enabled,
     // record those events in the compact format.
+    //
+    // If the field is unset, the default is:
+    // * perfetto v42.0+: enabled
+    // * before: disabled
     optional bool enabled = 1;
   }
   optional CompactSchedConfig compact_sched = 12;
@@ -177,7 +181,6 @@ message FtraceConfig {
   // * Introduced in: Android U.
   optional bool use_monotonic_raw_clock = 24;
 
-  // Caution: under development as of 2023/03/01.
   // If |instance_name| is not empty, then attempt to use that tracefs instance
   // for event recording. Normally, this means
   // `/sys/kernel/tracing/instances/$instance_name`.
@@ -190,6 +193,5 @@ message FtraceConfig {
   // at the time of writing:
   //  * ftrace_events
   //  * buffer_size_kb
-  // TODO(b/249050813): reword comment once instance support is stable.
   optional string instance_name = 25;
 }

@@ -25,6 +25,7 @@ export class DevToolsSocket implements LikeSocket {
   constructor() {
     chrome.debugger.onDetach.addListener(this.onDetach.bind(this));
     chrome.debugger.onEvent.addListener((_source, method, params) => {
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (this.messageCallback) {
         const msg: JsonRpc2.Notification = {method, params};
         this.messageCallback(JSON.stringify(msg));
@@ -37,11 +38,11 @@ export class DevToolsSocket implements LikeSocket {
 
     const msg: JsonRpc2.Request = JSON.parse(message);
     chrome.debugger.sendCommand(
-        this.target, msg.method, msg.params, (result) => {
-          if (result === undefined) result = {};
-          const response: JsonRpc2.Response = {id: msg.id, result};
-          this.messageCallback(JSON.stringify(response));
-        });
+      this.target, msg.method, msg.params, (result) => {
+        if (result === undefined) result = {};
+        const response: JsonRpc2.Response = {id: msg.id, result};
+        this.messageCallback(JSON.stringify(response));
+      });
   }
 
   // This method will be called once for each event soon after the creation of
@@ -69,7 +70,7 @@ export class DevToolsSocket implements LikeSocket {
   }
 
   private attachToTarget(
-      target: chrome.debugger.Debuggee, then: (error?: string) => void) {
+    target: chrome.debugger.Debuggee, then: (error?: string) => void) {
     chrome.debugger.attach(target, /* requiredVersion=*/ '1.3', () => {
       if (chrome.runtime.lastError) {
         then(chrome.runtime.lastError.message);

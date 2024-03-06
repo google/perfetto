@@ -30,7 +30,7 @@ class Camera(TestSuite):
           gc_rss_and_dma {
             min: 47779840.0
             max: 2536079360.0
-            avg: 1464706457.7379363
+            avg: 1464706457.7348418
           }
         }
         """))

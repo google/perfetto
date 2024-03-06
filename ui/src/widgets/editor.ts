@@ -94,7 +94,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     if (editorView && this.generation !== generation) {
       const state = editorView.state;
       editorView.dispatch(state.update(
-          {changes: {from: 0, to: state.doc.length, insert: initialText}}));
+        {changes: {from: 0, to: state.doc.length, insert: initialText}}));
       this.generation = generation;
     }
   }

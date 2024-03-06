@@ -19,6 +19,7 @@ import {featureFlags, Flag, OverrideState} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 
 import {createPage} from './pages';
+import {Router} from './router';
 
 const RELEASE_PROCESS_URL =
     'https://perfetto.dev/docs/visualization/perfetto-ui-release-process';
@@ -29,6 +30,7 @@ interface FlagOption {
 }
 
 interface SelectWidgetAttrs {
+  id: string,
   label: string;
   description: m.Children;
   options: FlagOption[];
@@ -38,25 +40,28 @@ interface SelectWidgetAttrs {
 
 class SelectWidget implements m.ClassComponent<SelectWidgetAttrs> {
   view(vnode: m.Vnode<SelectWidgetAttrs>) {
+    const route = Router.parseUrl(window.location.href);
     const attrs = vnode.attrs;
+    const cssClass = route.subpage === `/${attrs.id}` ? '.focused' : '';
     return m(
-        '.flag-widget',
-        m('label', attrs.label),
-        m(
-            'select',
-            {
-              onchange: (e: InputEvent) => {
-                const value = (e.target as HTMLSelectElement).value;
-                attrs.onSelect(value);
-                raf.scheduleFullRedraw();
-              },
-            },
-            attrs.options.map((o) => {
-              const selected = o.id === attrs.selected;
-              return m('option', {value: o.id, selected}, o.name);
-            }),
-            ),
-        m('.description', attrs.description),
+      '.flag-widget' + cssClass,
+      {id: attrs.id},
+      m('label', attrs.label),
+      m(
+        'select',
+        {
+          onchange: (e: InputEvent) => {
+            const value = (e.target as HTMLSelectElement).value;
+            attrs.onSelect(value);
+            raf.scheduleFullRedraw();
+          },
+        },
+        attrs.options.map((o) => {
+          const selected = o.id === attrs.selected;
+          return m('option', {value: o.id, selected}, o.name);
+        }),
+      ),
+      m('.description', attrs.description),
     );
   }
 }
@@ -71,6 +76,7 @@ class FlagWidget implements m.ClassComponent<FlagWidgetAttrs> {
     const defaultState = flag.defaultValue ? 'Enabled' : 'Disabled';
     return m(SelectWidget, {
       label: flag.name,
+      id: flag.id,
       description: flag.description,
       options: [
         {id: OverrideState.DEFAULT, name: `Default (${defaultState})`},
@@ -80,16 +86,16 @@ class FlagWidget implements m.ClassComponent<FlagWidgetAttrs> {
       selected: flag.overriddenState(),
       onSelect: (value: string) => {
         switch (value) {
-          case OverrideState.TRUE:
-            flag.set(true);
-            break;
-          case OverrideState.FALSE:
-            flag.set(false);
-            break;
-          default:
-          case OverrideState.DEFAULT:
-            flag.reset();
-            break;
+        case OverrideState.TRUE:
+          flag.set(true);
+          break;
+        case OverrideState.FALSE:
+          flag.set(false);
+          break;
+        default:
+        case OverrideState.DEFAULT:
+          flag.reset();
+          break;
         }
       },
     });
@@ -100,43 +106,55 @@ export const FlagsPage = createPage({
   view() {
     const needsReload = channelChanged();
     return m(
-        '.flags-page',
-        m(
-            '.flags-content',
-            m('h1', 'Feature flags'),
-            needsReload &&
+      '.flags-page',
+      m(
+        '.flags-content',
+        m('h1', 'Feature flags'),
+        needsReload &&
                 [
                   m('h2', 'Please reload for your changes to take effect'),
                 ],
-            m(SelectWidget, {
-              label: 'Release channel',
-              description: [
-                'Which release channel of the UI to use. See ',
-                m('a',
-                  {
-                    href: RELEASE_PROCESS_URL,
-                  },
-                  'Release Process'),
-                ' for more information.',
-              ],
-              options: [
-                {id: 'stable', name: 'Stable (default)'},
-                {id: 'canary', name: 'Canary'},
-                {id: 'autopush', name: 'Autopush'},
-              ],
-              selected: getNextChannel(),
-              onSelect: (id) => setChannel(id),
-            }),
-            m('button',
+        m(SelectWidget, {
+          label: 'Release channel',
+          id: 'releaseChannel',
+          description: [
+            'Which release channel of the UI to use. See ',
+            m('a',
               {
-                onclick: () => {
-                  featureFlags.resetAll();
-                  raf.scheduleFullRedraw();
-                },
+                href: RELEASE_PROCESS_URL,
               },
-              'Reset all below'),
+              'Release Process'),
+            ' for more information.',
+          ],
+          options: [
+            {id: 'stable', name: 'Stable (default)'},
+            {id: 'canary', name: 'Canary'},
+            {id: 'autopush', name: 'Autopush'},
+          ],
+          selected: getNextChannel(),
+          onSelect: (id) => setChannel(id),
+        }),
+        m('button',
+          {
+            onclick: () => {
+              featureFlags.resetAll();
+              raf.scheduleFullRedraw();
+            },
+          },
+          'Reset all below'),
 
-            featureFlags.allFlags().map((flag) => m(FlagWidget, {flag})),
-            ));
+        featureFlags.allFlags().map((flag) => m(FlagWidget, {flag})),
+      ));
+  },
+
+  oncreate(vnode: m.VnodeDOM) {
+    const route = Router.parseUrl(window.location.href);
+    const flagId = /[/](\w+)/.exec(route.subpage)?.slice(1, 2)[0];
+    if (flagId) {
+      const flag = vnode.dom.querySelector(`#${flagId}`);
+      if (flag) {
+        flag.scrollIntoView({block: 'center'});
+      }
+    }
   },
 });

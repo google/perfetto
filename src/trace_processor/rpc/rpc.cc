@@ -491,6 +491,10 @@ std::vector<uint8_t> Rpc::GetStatus() {
   protozero::HeapBuffered<protos::pbzero::StatusResult> status;
   status->set_loaded_trace_name(trace_processor_->GetCurrentTraceName());
   status->set_human_readable_version(base::GetVersionString());
+  const char* version_code = base::GetVersionCode();
+  if (version_code) {
+    status->set_version_code(version_code);
+  }
   status->set_api_version(protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
   return status.SerializeAsArray();
 }

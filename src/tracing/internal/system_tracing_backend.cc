@@ -19,8 +19,8 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
-#include "perfetto/ext/tracing/ipc/default_socket.h"
 #include "perfetto/ext/tracing/ipc/producer_ipc_client.h"
+#include "perfetto/tracing/default_socket.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_SYSTEM_CONSUMER)
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"

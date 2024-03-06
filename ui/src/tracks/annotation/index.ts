@@ -63,13 +63,13 @@ class AnnotationPlugin implements Plugin {
         tags: {
           metric: true,
         },
-        track: (({trackKey}) => {
+        trackFactory: (({trackKey}) => {
           return new ChromeSliceTrack(
-              engine,
-              0,
-              trackKey,
-              id,
-              'annotation',
+            engine,
+            0,
+            trackKey,
+            id,
+            'annotation',
           );
         }),
       });
@@ -116,7 +116,7 @@ class AnnotationPlugin implements Plugin {
         tags: {
           metric: true,
         },
-        track: (trackCtx) => {
+        trackFactory: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });

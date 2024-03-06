@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/importers/proto/additional_modules.h"
+#include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
@@ -25,6 +26,7 @@
 #include "src/trace_processor/importers/proto/statsd_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "src/trace_processor/importers/proto/translation_table_module.h"
+#include "src/trace_processor/importers/proto/v8_module.h"
 #include "src/trace_processor/importers/proto/winscope/winscope_module.h"
 
 namespace perfetto {
@@ -40,7 +42,9 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new StatsdModule(context));
   context->modules.emplace_back(new AndroidCameraEventModule(context));
   context->modules.emplace_back(new MetadataModule(context));
+  context->modules.emplace_back(new V8Module(context));
   context->modules.emplace_back(new WinscopeModule(context));
+  context->modules.emplace_back(new EtwModule(context));
 
   // Ftrace module is special, because it has one extra method for parsing
   // ftrace packets. So we need to store a pointer to it separately.

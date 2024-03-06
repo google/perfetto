@@ -23,7 +23,7 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 -- Define the helper functions which will be used throught the remainder
 -- of the metric.
 SELECT RUN_METRIC('android/startup/slice_functions.sql');
-INCLUDE PERFETTO MODULE common.timestamps;
+INCLUDE PERFETTO MODULE intervals.overlap;
 
 -- Define helper functions related to slow start reasons
 SELECT RUN_METRIC('android/startup/slow_start_reasons.sql');
@@ -44,6 +44,15 @@ SELECT RUN_METRIC('android/startup/gc_slices.sql');
 
 -- Define helper functions for system state.
 SELECT RUN_METRIC('android/startup/system_state.sql');
+
+CREATE OR REPLACE PERFETTO FUNCTION _is_spans_overlapping(
+  ts1 LONG,
+  ts_end1 LONG,
+  ts2 LONG,
+  ts_end2 LONG)
+RETURNS BOOL AS
+SELECT (IIF($ts1 < $ts2, $ts2, $ts1)
+      < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2));
 
 -- Returns the slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
@@ -194,7 +203,7 @@ SELECT
       launch_to_main_thread_slice_proto(launches.startup_id, 'bindApplication'),
       'time_activity_manager', (
         SELECT startup_slice_proto(l.ts - launches.ts)
-        FROM internal_startup_events l
+        FROM _startup_events l
         WHERE l.ts BETWEEN launches.ts AND launches.ts + launches.dur
       ),
       'time_post_fork',
@@ -318,7 +327,7 @@ SELECT
       SELECT RepeatedField(package)
       FROM android_startups l
       WHERE l.startup_id != launches.startup_id
-        AND is_spans_overlapping(l.ts, l.ts_end, launches.ts, launches.ts_end)
+        AND _is_spans_overlapping(l.ts, l.ts_end, launches.ts, launches.ts_end)
     ),
     'dlopen_file', (
       SELECT RepeatedField(STR_SPLIT(slice_name, "dlopen: ", 1))
@@ -479,7 +488,7 @@ SELECT
           SELECT package
           FROM android_startups l
           WHERE l.startup_id != launches.startup_id
-            AND is_spans_overlapping(l.ts, l.ts_end, launches.ts, launches.ts_end)
+            AND _is_spans_overlapping(l.ts, l.ts_end, launches.ts, launches.ts_end)
         )
 
         UNION ALL

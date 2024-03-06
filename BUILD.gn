@@ -98,7 +98,7 @@ if (enable_perfetto_unittests) {
   test("perfetto_unittests") {
     if (is_fuchsia) {
       additional_manifest_fragments =
-          [ "//build/config/fuchsia/test/network.shard.test-cml" ]
+          [ "//build/config/fuchsia/test/network.shard.test-cml" ]  # nogncheck
     }
     deps = perfetto_unittests_targets
   }
@@ -266,7 +266,7 @@ if (!build_with_chromium) {
       "src/tracing:platform_impl",
     ]
     sources = [ "include/perfetto/tracing.h" ]
-    assert_no_deps = [ "//gn:protobuf_lite" ]
+    assert_no_deps = [ "gn:protobuf_lite" ]
   }
 }
 
@@ -283,8 +283,8 @@ if (build_with_chromium) {
       "src/tracing:platform_impl",
       "src/tracing/core",
     ]
-    configs -= [ "//build/config/compiler:chromium_code" ]
-    configs += [ "//build/config/compiler:no_chromium_code" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]  # nogncheck
+    configs += [ "//build/config/compiler:no_chromium_code" ]  # nogncheck
     public_deps = [
       "include/perfetto/ext/trace_processor/importers/memory_tracker",
       "include/perfetto/ext/tracing/core",
@@ -292,6 +292,7 @@ if (build_with_chromium) {
       "protos/perfetto/common:zero",
       "protos/perfetto/trace:zero",
       "protos/perfetto/trace/chrome:zero",
+      "protos/perfetto/trace/etw:zero",
       "protos/perfetto/trace/interned_data:zero",
       "protos/perfetto/trace/profiling:zero",
       "protos/perfetto/trace/ps:zero",
@@ -331,15 +332,15 @@ if (build_with_chromium) {
   target(libtrace_processor_target_type, "libtrace_processor") {
     public_configs = [ "gn:public_config" ]
     deps = [ "src/trace_processor:lib" ]
-    configs -= [ "//build/config/compiler:chromium_code" ]
-    configs += [ "//build/config/compiler:no_chromium_code" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]  # nogncheck
+    configs += [ "//build/config/compiler:no_chromium_code" ]  # nogncheck
     public_deps = [ "include/perfetto/trace_processor" ]
   }
   component("perfetto_test_support") {
     testonly = true
     public_configs = [ "gn:public_config" ]
-    configs -= [ "//build/config/compiler:chromium_code" ]
-    configs += [ "//build/config/compiler:no_chromium_code" ]
+    configs -= [ "//build/config/compiler:chromium_code" ]  # nogncheck
+    configs += [ "//build/config/compiler:no_chromium_code" ]  # nogncheck
     public_deps = [ "include/perfetto/test:test_support" ]
     deps = [ "src/tracing/test:test_support" ]
   }

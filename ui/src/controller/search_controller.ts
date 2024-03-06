@@ -22,7 +22,6 @@ import {
   TimeSpan,
 } from '../base/time';
 import {exists} from '../base/utils';
-import {pluginManager} from '../common/plugins';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {OmniboxState} from '../common/state';
 import {globals} from '../frontend/globals';
@@ -117,26 +116,26 @@ export class SearchController extends Controller<'main'> {
     this.updateInProgress = true;
     const computeSummary =
         this.update(search, newSpan.start, newSpan.end, newResolution)
-            .then((summary) => {
-              publishSearch(summary);
-            });
+          .then((summary) => {
+            publishSearch(summary);
+          });
 
     const computeResults = this.specificSearch(search).then((searchResults) => {
       publishSearchResult(searchResults);
     });
 
     Promise.all([computeSummary, computeResults])
-        .finally(() => {
-          this.updateInProgress = false;
-          this.run();
-        });
+      .finally(() => {
+        this.updateInProgress = false;
+        this.run();
+      });
   }
 
   onDestroy() {}
 
   private async update(
-      search: string, start: time, end: time,
-      resolution: duration): Promise<SearchSummary> {
+    search: string, start: time, end: time,
+    resolution: duration): Promise<SearchSummary> {
     const searchLiteral = escapeSearchQuery(search);
 
     const quantum = resolution * 10n;
@@ -203,7 +202,7 @@ export class SearchController extends Controller<'main'> {
     const cpuToTrackId = new Map();
     for (const track of Object.values(globals.state.tracks)) {
       if (exists(track?.uri)) {
-        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+        const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
         if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
           exists(trackInfo.cpu) && cpuToTrackId.set(trackInfo.cpu, track.key);
         }
@@ -273,7 +272,7 @@ export class SearchController extends Controller<'main'> {
     };
 
     const it = queryRes.iter(
-        {sliceId: NUM, ts: LONG, source: STR, sourceId: NUM, utid: NUM});
+      {sliceId: NUM, ts: LONG, source: STR, sourceId: NUM, utid: NUM});
     for (; it.valid(); it.next()) {
       let trackId = undefined;
       if (it.source === 'cpu') {
@@ -283,7 +282,8 @@ export class SearchController extends Controller<'main'> {
       } else if (it.source === 'log') {
         const logTracks =
             Object.values(globals.state.tracks).filter((track) => {
-              const trackDesc = pluginManager.resolveTrackInfo(track.uri);
+              const trackDesc =
+                  globals.trackManager.resolveTrackInfo(track.uri);
               return (trackDesc && trackDesc.kind === 'AndroidLogTrack');
             });
         if (logTracks.length > 0) {

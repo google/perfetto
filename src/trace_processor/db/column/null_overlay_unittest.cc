@@ -16,131 +16,270 @@
 
 #include "src/trace_processor/db/column/null_overlay.h"
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/fake_storage.h"
 #include "src/trace_processor/db/column/numeric_storage.h"
 #include "src/trace_processor/db/column/types.h"
 #include "src/trace_processor/db/column/utils.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 namespace {
 
 using testing::ElementsAre;
 using testing::IsEmpty;
 
+TEST(NullOverlay, SingleSearch) {
+  BitVector bv{0, 1, 0, 1, 1, 1};
+  auto fake = FakeStorage::SearchSubset(4, std::vector<uint32_t>{1, 2});
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 3),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 1),
+            SingleSearchResult::kNoMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 2),
+            SingleSearchResult::kNoMatch);
+}
+
+TEST(NullOverlay, SingleSearchIsNull) {
+  BitVector bv{0, 1, 0, 1, 1, 1};
+  auto fake = FakeStorage::SearchNone(4);
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNull, SqlValue(), 0),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNull, SqlValue(), 1),
+            SingleSearchResult::kNoMatch);
+}
+
+TEST(NullOverlay, SingleSearchIsNotNull) {
+  BitVector bv{0, 1, 0, 1, 1, 1};
+  auto fake = FakeStorage::SearchAll(4);
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNotNull, SqlValue(), 1),
+            SingleSearchResult::kMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNotNull, SqlValue(), 0),
+            SingleSearchResult::kNoMatch);
+}
+
 TEST(NullOverlay, SearchInputInsideBoundary) {
   BitVector bv{0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  NullOverlay storage(FakeStorage::SearchAll(4u), &bv);
+  auto fake = FakeStorage::SearchAll(4u);
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(1, 6));
+  auto res = chain->Search(FilterOp::kGt, SqlValue::Long(0), Range(1, 6));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
 TEST(NullOverlay, SearchInputOutsideBoundary) {
   BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  NullOverlay storage(FakeStorage::SearchAll(5u), &bv);
+  auto fake = FakeStorage::SearchAll(5u);
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(3, 8));
+  auto res = chain->Search(FilterOp::kGt, SqlValue::Long(0), Range(3, 8));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 7));
 }
 
 TEST(NullOverlay, SubsetResultOutsideBoundary) {
   BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  NullOverlay storage(FakeStorage::SearchSubset(5u, Range(1, 3)), &bv);
+  auto fake = FakeStorage::SearchSubset(5u, Range(1, 3));
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
+  auto res = chain->Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
 TEST(NullOverlay, SubsetResultOnBoundary) {
   BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  NullOverlay storage(FakeStorage::SearchAll(5u), &bv);
+  auto fake = FakeStorage::SearchAll(5u);
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
+  auto res = chain->Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3, 4, 7, 8));
 }
 
 TEST(NullOverlay, BitVectorSubset) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullOverlay storage(FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1}),
-                      &bv);
+  auto fake = FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1});
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 8));
+  auto res = chain->Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 8));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 6));
 }
 
 TEST(NullOverlay, BitVectorSubsetIsNull) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullOverlay storage(FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1}),
-                      &bv);
+  auto fake = FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1});
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
-  auto res = storage.Search(FilterOp::kIsNull, SqlValue(), Range(0, 8));
+  auto res = chain->Search(FilterOp::kIsNull, SqlValue(), Range(0, 8));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2, 3, 4, 6, 7));
 }
 
 TEST(NullOverlay, IndexSearchAllElements) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullOverlay storage(FakeStorage::SearchAll(4u), &bv);
+  auto fake = FakeStorage::SearchAll(4u);
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{1, 5, 2};
   auto res =
-      storage.IndexSearch(FilterOp::kGt, SqlValue::Long(0), table_idx.data(),
-                          uint32_t(table_idx.size()), false);
+      chain->IndexSearch(FilterOp::kGt, SqlValue::Long(0),
+                         Indices{table_idx.data(), uint32_t(table_idx.size()),
+                                 Indices::State::kNonmonotonic});
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
 }
 
 TEST(NullOverlay, IndexSearchPartialElements) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullOverlay storage(FakeStorage::SearchAll(4u), &bv);
+  auto fake = FakeStorage::SearchAll(4u);
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{1, 4, 2};
   auto res =
-      storage.IndexSearch(FilterOp::kGt, SqlValue::Long(0), table_idx.data(),
-                          uint32_t(table_idx.size()), false);
+      chain->IndexSearch(FilterOp::kGt, SqlValue::Long(0),
+                         Indices{table_idx.data(), uint32_t(table_idx.size()),
+                                 Indices::State::kNonmonotonic});
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2));
 }
 
 TEST(NullOverlay, IndexSearchIsNullOpEmptyRes) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullOverlay storage(FakeStorage::SearchNone(4u), &bv);
+  auto fake = FakeStorage::SearchNone(4u);
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{0, 3, 5, 4, 2};
   auto res =
-      storage.IndexSearch(FilterOp::kIsNull, SqlValue(), table_idx.data(),
-                          uint32_t(table_idx.size()), false);
+      chain->IndexSearch(FilterOp::kIsNull, SqlValue(),
+                         Indices{table_idx.data(), uint32_t(table_idx.size()),
+                                 Indices::State::kNonmonotonic});
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 3));
 }
 
 TEST(NullOverlay, IndexSearchIsNullOp) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullOverlay storage(FakeStorage::SearchSubset(4u, Range(2, 3)), &bv);
+  auto fake = FakeStorage::SearchSubset(4u, Range(2, 3));
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{0, 3, 2, 4, 5};
   auto res =
-      storage.IndexSearch(FilterOp::kIsNull, SqlValue(), table_idx.data(),
-                          uint32_t(table_idx.size()), false);
+      chain->IndexSearch(FilterOp::kIsNull, SqlValue(),
+                         Indices{table_idx.data(), uint32_t(table_idx.size()),
+                                 Indices::State::kNonmonotonic});
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 3, 4));
 }
 
 TEST(NullOverlay, IndexSearchIsNotNullOp) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullOverlay storage(FakeStorage::SearchAll(4u), &bv);
+  auto fake = FakeStorage::SearchAll(4u);
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
 
   std::vector<uint32_t> table_idx{0, 3, 4};
   auto res =
-      storage.IndexSearch(FilterOp::kIsNotNull, SqlValue(), table_idx.data(),
-                          uint32_t(table_idx.size()), false);
+      chain->IndexSearch(FilterOp::kIsNotNull, SqlValue(),
+                         Indices{table_idx.data(), uint32_t(table_idx.size()),
+                                 Indices::State::kNonmonotonic});
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 }
 
+TEST(NullOverlay, OrderedIndexSearch) {
+  BitVector bv{0, 1, 1, 1, 0, 1};
+  // Passing values in final storage (on normal operations)
+  // 0, 1, 0, 1, 0, 0
+  auto fake = FakeStorage::SearchSubset(4, BitVector{1, 0, 1, 0});
+  NullOverlay storage(&bv);
+  auto chain = storage.MakeChain(fake->MakeChain());
+
+  // Passing values on final data
+  // NULL, NULL, 0, 1, 1
+  std::vector<uint32_t> table_idx{0, 4, 5, 1, 3};
+  Indices indices{table_idx.data(), uint32_t(table_idx.size()),
+                  Indices::State::kNonmonotonic};
+
+  Range res = chain->OrderedIndexSearch(FilterOp::kIsNull, SqlValue(), indices);
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 2u);
+
+  res = chain->OrderedIndexSearch(FilterOp::kIsNotNull, SqlValue(), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 5u);
+
+  res = chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(3), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 5u);
+
+  res = chain->OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(3), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 5u);
+
+  res = chain->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(3), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 5u);
+
+  res = chain->OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(3), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 5u);
+
+  res = chain->OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(3), indices);
+  ASSERT_EQ(res.start, 3u);
+  ASSERT_EQ(res.end, 5u);
+}
+
+TEST(NullOverlay, StableSort) {
+  std::vector<uint32_t> numeric_data{3, 1, 0, 2, 4};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
+  BitVector null{0, 1, 0, 1, 1, 1, 1};
+  NullOverlay overlay(&null);
+  auto chain = overlay.MakeChain(numeric.MakeChain());
+
+  auto make_tokens = []() {
+    return std::vector{
+        column::DataLayerChain::SortToken{0, 0},
+        column::DataLayerChain::SortToken{1, 1},
+        column::DataLayerChain::SortToken{2, 2},
+        column::DataLayerChain::SortToken{3, 3},
+        column::DataLayerChain::SortToken{4, 4},
+        column::DataLayerChain::SortToken{5, 5},
+        column::DataLayerChain::SortToken{6, 6},
+    };
+  };
+  {
+    auto tokens = make_tokens();
+    chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                      column::DataLayerChain::SortDirection::kAscending);
+    ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+                ElementsAre(0, 2, 4, 3, 5, 1, 6));
+  }
+  {
+    auto tokens = make_tokens();
+    chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
+                      column::DataLayerChain::SortDirection::kDescending);
+    ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
+                ElementsAre(6, 1, 5, 3, 4, 0, 2));
+  }
+}
+
 }  // namespace
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column

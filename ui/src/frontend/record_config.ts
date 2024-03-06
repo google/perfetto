@@ -38,8 +38,8 @@ export class RecordConfigStore {
 
   private _save() {
     window.localStorage.setItem(
-        LOCAL_STORAGE_RECORD_CONFIGS_KEY,
-        JSON.stringify(this.recordConfigs.map((x) => x.result)));
+      LOCAL_STORAGE_RECORD_CONFIGS_KEY,
+      JSON.stringify(this.recordConfigs.map((x) => x.result)));
   }
 
   save(recordConfig: RecordConfig, title?: string): void {
@@ -125,12 +125,12 @@ export class RecordConfigStore {
         for (let i = 0; i < parsedConfigsLocalStorage.length; ++i) {
           try {
             validConfigLocalStorage.push(runValidator(
-                namedRecordConfigValidator, parsedConfigsLocalStorage[i]));
+              namedRecordConfigValidator, parsedConfigsLocalStorage[i]));
           } catch {
             // Parsing failed with unrecoverable error (e.g. title or key are
             // missing), ignore the result.
             console.log(
-                'Validation of saved record config has failed: ' +
+              'Validation of saved record config has failed: ' +
                 JSON.stringify(parsedConfigsLocalStorage[i]));
           }
         }
@@ -183,7 +183,7 @@ export class AutosaveConfigStore {
 
   save(newConfig: RecordConfig) {
     window.localStorage.setItem(
-        LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY, JSON.stringify(newConfig));
+      LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY, JSON.stringify(newConfig));
     this.config = newConfig;
     this.hasSavedConfig = true;
   }
@@ -213,7 +213,7 @@ export class RecordTargetStore {
 
   save(newTargetOS: string) {
     window.localStorage.setItem(
-        LOCAL_STORAGE_RECORD_TARGET_OS_KEY, newTargetOS);
+      LOCAL_STORAGE_RECORD_TARGET_OS_KEY, newTargetOS);
     this.recordTargetOS = newTargetOS;
   }
 }

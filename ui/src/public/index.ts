@@ -17,6 +17,7 @@ import m from 'mithril';
 import {Hotkey} from '../base/hotkeys';
 import {duration, time} from '../base/time';
 import {ColorScheme} from '../common/colorizer';
+import {Selection} from '../common/state';
 import {PanelSize} from '../frontend/panel';
 import {Migrate, Store} from '../frontend/store';
 import {EngineProxy} from '../trace_processor/engine';
@@ -31,6 +32,13 @@ export {
   STR,
   STR_NULL,
 } from '../trace_processor/query_result';
+export {BottomTabToSCSAdapter} from './utils';
+
+// This is a temporary fix until this is available in the plugin API.
+export {
+  createDebugSliceTrackActions,
+  addDebugSliceTrack,
+} from '../frontend/debug_tracks';
 
 export interface Slice {
   // These properties are updated only once per query result when the Slice
@@ -123,9 +131,6 @@ export interface PluginContext {
   // Register command against this plugin context.
   registerCommand(command: Command): void;
 
-  // Retrieve a list of all commands.
-  commands: Command[];
-
   // Run a command, optionally passing some args.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   runCommand(id: string, ...args: any[]): any;
@@ -196,13 +201,13 @@ export interface Track {
   onDestroy?(): Promise<void>|void;
 
   render(ctx: CanvasRenderingContext2D, size: PanelSize): void;
-  onFullRedraw(): void;
-  getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect|undefined;
+  onFullRedraw?(): void;
+  getSliceRect?(tStart: time, tEnd: time, depth: number): SliceRect|undefined;
   getHeight(): number;
-  getTrackShellButtons(): m.Children;
-  onMouseMove(position: {x: number, y: number}): void;
-  onMouseClick(position: {x: number, y: number}): boolean;
-  onMouseOut(): void;
+  getTrackShellButtons?(): m.Children;
+  onMouseMove?(position: {x: number, y: number}): void;
+  onMouseClick?(position: {x: number, y: number}): boolean;
+  onMouseOut?(): void;
 }
 
 // A definition of a track, including a renderer implementation and metadata.
@@ -210,8 +215,8 @@ export interface TrackDescriptor {
   // A unique identifier for this track.
   uri: string;
 
-  // A factory function returning the track object.
-  track: (ctx: TrackContext) => Track;
+  // A factory function returning a new track instance.
+  trackFactory: (ctx: TrackContext) => Track;
 
   // The track "kind", used by various subsystems e.g. aggregation controllers.
   // This is where "XXX_TRACK_KIND" values should be placed.
@@ -306,6 +311,25 @@ export interface DebugCounterTrackArgs {
   columnMapping?: Partial<CounterTrackColNames>;
 }
 
+export interface Tab {
+  hasContent?(): boolean;
+  render(): m.Children;
+  getTitle(): string;
+}
+
+export interface TabDescriptor {
+  uri: string;  // TODO(stevegolton): Maybe optional for ephemeral tabs.
+  content: Tab;
+  isEphemeral?: boolean;  // Defaults false
+  onHide?(): void;
+  onShow?(): void;
+}
+
+export interface DetailsPanel {
+  render(selection: Selection): m.Children;
+  isLoading?(): boolean;
+}
+
 // Similar to PluginContext but with additional methods to operate on the
 // currently loaded trace. Passed to trace-relevant hooks on a plugin instead of
 // PluginContext.
@@ -336,6 +360,12 @@ export interface PluginContextTrace extends PluginContext {
     // Remove all tracks that match a predicate.
     removeTracksByPredicate(predicate: TrackPredicate): void;
 
+    // Expand all groups that match a predicate.
+    expandGroupsByPredicate(predicate: GroupPredicate): void;
+
+    // Collapse all groups that match a predicate.
+    collapseGroupsByPredicate(predicate: GroupPredicate): void;
+
     // Retrieve a list of tracks on the timeline.
     tracks: TrackRef[];
 
@@ -347,6 +377,12 @@ export interface PluginContextTrace extends PluginContext {
   tabs: {
     // Creates a new tab running the provided query.
     openQuery(query: string, title: string): void;
+
+    // Add a tab to the tab bar (if not already) and focus it.
+    showTab(uri: string): void;
+
+    // Remove a tab from the tab bar.
+    hideTab(uri: string): void;
   }
 
   // Register a new track against a unique key known as a URI.
@@ -366,6 +402,17 @@ export interface PluginContextTrace extends PluginContext {
   // This is simply a helper which calls registerTrack() and addDefaultTrack()
   // with the same URI.
   registerStaticTrack(track: TrackDescriptor&TrackRef): void;
+
+  // Register a new tab for this plugin. Will be unregistered when the plugin
+  // is deactivated or when the trace is unloaded.
+  registerTab(tab: TabDescriptor): void;
+
+  // Suggest that a tab should be shown immediately.
+  addDefaultTab(uri: string): void;
+
+  // Register a hook into the current selection tab rendering logic that allows
+  // customization of the current selection tab content.
+  registerDetailsPanel(sel: DetailsPanel): void;
 
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;
@@ -411,10 +458,25 @@ export interface TrackRef {
   // Optional: Used to define default sort order for new traces.
   // Note: This will be deprecated soon in favour of tags & sort rules.
   sortKey?: PrimaryTrackSortKey;
+
+  // Optional: Add tracks to a group with this name.
+  groupName?: string;
 }
 
-// A predicate for selecting a groups of tracks.
+// A predicate for selecting a subset of tracks.
 export type TrackPredicate = (info: TrackTags) => boolean;
+
+// Describes a reference to a group of tracks.
+export interface GroupRef {
+  // A human readable name for this track group.
+  displayName: string;
+
+  // True if the track is open else false.
+  collapsed: boolean;
+}
+
+// A predicate for selecting a subset of groups.
+export type GroupPredicate = (info: GroupRef) => boolean;
 
 interface WellKnownTrackTags {
   // A human readable name for this specific track.

@@ -21,88 +21,88 @@ interface ViewingOption {
 
 export function viewingOptions(profileType: ProfileType): Array<ViewingOption> {
   switch (profileType) {
-    case ProfileType.PERF_SAMPLE:
-      return [{
-        option: FlamegraphStateViewingOption.PERF_SAMPLES_KEY,
-        name: 'Samples',
-      }];
-    case ProfileType.JAVA_HEAP_GRAPH:
-      return [
-        {
-          option:
+  case ProfileType.PERF_SAMPLE:
+    return [{
+      option: FlamegraphStateViewingOption.PERF_SAMPLES_KEY,
+      name: 'Samples',
+    }];
+  case ProfileType.JAVA_HEAP_GRAPH:
+    return [
+      {
+        option:
               FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
-          name: 'Size',
-        },
-        {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
-          name: 'Objects',
-        },
-      ];
-    case ProfileType.HEAP_PROFILE:
-      return [
-        {
-          option:
+        name: 'Size',
+      },
+      {
+        option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
+        name: 'Objects',
+      },
+    ];
+  case ProfileType.HEAP_PROFILE:
+    return [
+      {
+        option:
               FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
-          name: 'Unreleased size',
-        },
-        {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
-          name: 'Unreleased count',
-        },
-        {
-          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
-          name: 'Total size',
-        },
-        {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
-          name: 'Total count',
-        },
-      ];
-    case ProfileType.NATIVE_HEAP_PROFILE:
-      return [
-        {
-          option:
+        name: 'Unreleased size',
+      },
+      {
+        option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
+        name: 'Unreleased count',
+      },
+      {
+        option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+        name: 'Total size',
+      },
+      {
+        option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+        name: 'Total count',
+      },
+    ];
+  case ProfileType.NATIVE_HEAP_PROFILE:
+    return [
+      {
+        option:
               FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
-          name: 'Unreleased malloc size',
-        },
-        {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
-          name: 'Unreleased malloc count',
-        },
-        {
-          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
-          name: 'Total malloc size',
-        },
-        {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
-          name: 'Total malloc count',
-        },
-      ];
-    case ProfileType.JAVA_HEAP_SAMPLES:
-      return [
-        {
-          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
-          name: 'Total allocation size',
-        },
-        {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
-          name: 'Total allocation count',
-        },
-      ];
-    case ProfileType.MIXED_HEAP_PROFILE:
-      return [
-        {
-          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
-          name: 'Total allocation size (malloc + java)',
-        },
-        {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
-          name: 'Total allocation count (malloc + java)',
-        },
-      ];
-    default:
-      const exhaustiveCheck: never = profileType;
-      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
+        name: 'Unreleased malloc size',
+      },
+      {
+        option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
+        name: 'Unreleased malloc count',
+      },
+      {
+        option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+        name: 'Total malloc size',
+      },
+      {
+        option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+        name: 'Total malloc count',
+      },
+    ];
+  case ProfileType.JAVA_HEAP_SAMPLES:
+    return [
+      {
+        option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+        name: 'Total allocation size',
+      },
+      {
+        option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+        name: 'Total allocation count',
+      },
+    ];
+  case ProfileType.MIXED_HEAP_PROFILE:
+    return [
+      {
+        option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+        name: 'Total allocation size (malloc + java)',
+      },
+      {
+        option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+        name: 'Total allocation count (malloc + java)',
+      },
+    ];
+  default:
+    const exhaustiveCheck: never = profileType;
+    throw new Error(`Unhandled case: ${exhaustiveCheck}`);
   }
 }
 
@@ -112,7 +112,7 @@ export function defaultViewingOption(profileType: ProfileType):
 }
 
 export function expandCallsites(
-    data: CallsiteInfo[], clickedCallsiteIndex: number): CallsiteInfo[] {
+  data: CallsiteInfo[], clickedCallsiteIndex: number): CallsiteInfo[] {
   if (clickedCallsiteIndex === -1) return data;
   const expandedCallsites: CallsiteInfo[] = [];
   if (clickedCallsiteIndex >= data.length || clickedCallsiteIndex < -1) {
@@ -199,9 +199,9 @@ function copyCallsite(callsite: CallsiteInfo): CallsiteInfo {
 }
 
 function getCallsitesParentHash(
-    callsite: CallsiteInfo, map: Map<number, number>): number {
+  callsite: CallsiteInfo, map: Map<number, number>): number {
   return map.has(callsite.parentId) ? +map.get(callsite.parentId)! :
-                                      callsite.parentId;
+    callsite.parentId;
 }
 export function findRootSize(data: CallsiteInfo[]) {
   let totalSize = 0;

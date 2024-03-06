@@ -16,15 +16,34 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <map>
+#include <memory>
 #include <optional>
+#include <set>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/column_storage.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/slice_tables_py.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace tables {
 
 ExperimentalSliceLayoutTable::~ExperimentalSliceLayoutTable() = default;
@@ -34,15 +53,12 @@ namespace {
 
 struct GroupInfo {
   GroupInfo(int64_t _start, int64_t _end, uint32_t _max_depth)
-      : start(_start), end(_end), layout_depth(0), max_depth(_max_depth) {}
+      : start(_start), end(_end), max_depth(_max_depth) {}
   int64_t start;
   int64_t end;
-  uint32_t layout_depth;
+  uint32_t layout_depth = 0;
   uint32_t max_depth;
 };
-
-static constexpr uint32_t kFilterTrackIdsColumnIndex =
-    tables::ExperimentalSliceLayoutTable::ColumnIndex::filter_track_ids;
 
 }  // namespace
 
@@ -66,36 +82,20 @@ uint32_t ExperimentalSliceLayout::EstimateRowCount() {
   return slice_table_->row_count();
 }
 
-base::Status ExperimentalSliceLayout::ValidateConstraints(
-    const QueryConstraints& cs) {
-  for (const auto& c : cs.constraints()) {
-    if (c.column == kFilterTrackIdsColumnIndex && sqlite_utils::IsOpEq(c.op)) {
-      return base::OkStatus();
-    }
-  }
-  return base::ErrStatus(
-      "experimental_slice_layout must have filter_track_ids constraint");
-}
+base::StatusOr<std::unique_ptr<Table>> ExperimentalSliceLayout::ComputeTable(
+    const std::vector<SqlValue>& arguments) {
+  PERFETTO_CHECK(arguments.size() == 1);
 
-base::Status ExperimentalSliceLayout::ComputeTable(
-    const std::vector<Constraint>& cs,
-    const std::vector<Order>&,
-    const BitVector&,
-    std::unique_ptr<Table>& table_return) {
+  if (arguments[0].type != SqlValue::Type::kString) {
+    return base::ErrStatus("invalid input track id list");
+  }
+
+  std::string filter_string = arguments[0].AsString();
   std::set<TrackId> selected_tracks;
-  std::string filter_string = "";
-  for (const auto& c : cs) {
-    bool is_filter_track_ids = c.col_idx == kFilterTrackIdsColumnIndex;
-    bool is_equal = c.op == FilterOp::kEq;
-    bool is_string = c.value.type == SqlValue::kString;
-    if (is_filter_track_ids && is_equal && is_string) {
-      filter_string = c.value.AsString();
-      for (base::StringSplitter sp(filter_string, ','); sp.Next();) {
-        std::optional<uint32_t> maybe = base::CStringToUInt32(sp.cur_token());
-        if (maybe) {
-          selected_tracks.insert(TrackId{maybe.value()});
-        }
-      }
+  for (base::StringSplitter sp(filter_string, ','); sp.Next();) {
+    std::optional<uint32_t> maybe = base::CStringToUInt32(sp.cur_token());
+    if (maybe) {
+      selected_tracks.insert(TrackId{maybe.value()});
     }
   }
 
@@ -105,8 +105,7 @@ base::Status ExperimentalSliceLayout::ComputeTable(
   // Try and find the table in the cache.
   auto cache_it = layout_table_cache_.find(filter_id);
   if (cache_it != layout_table_cache_.end()) {
-    table_return.reset(new Table(cache_it->second->Copy()));
-    return base::OkStatus();
+    return std::make_unique<Table>(cache_it->second->Copy());
   }
 
   // Find all the slices for the tracks we want to filter and create a vector of
@@ -123,8 +122,7 @@ base::Status ExperimentalSliceLayout::ComputeTable(
       ComputeLayoutTable(std::move(rows), filter_id);
   auto res = layout_table_cache_.emplace(filter_id, std::move(layout_table));
 
-  table_return.reset(new Table(res.first->second->Copy()));
-  return base::OkStatus();
+  return std::make_unique<Table>(res.first->second->Copy());
 }
 
 // Build up a table of slice id -> root slice id by observing each
@@ -137,10 +135,9 @@ tables::SliceTable::Id ExperimentalSliceLayout::InsertSlice(
     tables::SliceTable::Id root_id = id_map[parent_id.value()];
     id_map[id] = root_id;
     return root_id;
-  } else {
-    id_map[id] = id;
-    return id;
   }
+  id_map[id] = id;
+  return id;
 }
 
 // The problem we're trying to solve is this: given a number of tracks each of
@@ -236,10 +233,24 @@ std::unique_ptr<Table> ExperimentalSliceLayout::ComputeLayoutTable(
       }
     }
 
+    uint32_t layout_depth = 0;
+
+    // In a pathological case you can end up stacking up slices forever
+    // triggering n^2 behaviour below. In those cases we want to give
+    // up on trying to find a pretty (height minimizing ) layout and
+    // just find *some* layout. To do that we start looking for
+    // a layout depth below the maximum open group which should
+    // immediately succeed.
+    if (still_open.size() > 500) {
+      for (const auto& open : still_open) {
+        layout_depth =
+            std::max(layout_depth, open->layout_depth + open->max_depth);
+      }
+    }
+
     // Find a start layout depth for this group s.t. our start depth +
     // our max depth will not intersect with the start depth + max depth for
     // any of the open groups:
-    uint32_t layout_depth = 0;
     bool done = false;
     while (!done) {
       done = true;
@@ -288,5 +299,4 @@ std::unique_ptr<Table> ExperimentalSliceLayout::ComputeLayoutTable(
       std::move(filter_column));
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

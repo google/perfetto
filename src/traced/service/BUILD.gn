@@ -28,24 +28,27 @@ executable("traced") {
     "../../../include/perfetto/ext/traced",
   ]
   sources = [ "main.cc" ]
-  assert_no_deps = [ "//gn:protobuf_lite" ]
+  assert_no_deps = [ "../../../gn:protobuf_lite" ]
 }
 
 # Contains all the implementation but not the main() entry point. This target
 # is shared both by the executable and tests.
 source_set("service") {
-  public_deps = [ "../../../include/perfetto/ext/traced" ]
+  public_deps = [
+    "../../../include/perfetto/ext/traced",
+    "../../../include/perfetto/tracing",
+  ]
   deps = [
     "../../../gn:default_deps",
     "../../../protos/perfetto/config/android:zero",
     "../../base",
     "../../base:version",
     "../../tracing/core",
-    "../../tracing/core:service",
     "../../tracing/ipc/service",
+    "../../tracing/service:service",
   ]
   if (enable_perfetto_zlib) {
-    deps += [ "../../tracing/core:zlib_compressor" ]
+    deps += [ "../../tracing/service:zlib_compressor" ]
   }
 
   sources = [

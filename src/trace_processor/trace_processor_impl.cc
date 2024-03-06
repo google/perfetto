@@ -21,22 +21,19 @@
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <type_traits>
 #include <unordered_map>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_parser.h"
-#include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
-#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
@@ -46,21 +43,23 @@
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/perf/perf_data_parser.h"
 #include "src/trace_processor/importers/perf/perf_data_tokenizer.h"
-#include "src/trace_processor/importers/perf/perf_data_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
+#include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
+#include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
+#include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/import.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.h"
@@ -71,22 +70,21 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dominator_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/view.h"
 #include "src/trace_processor/perfetto_sql/prelude/tables_views.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -104,12 +102,7 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-#include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
-#include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
-#include "src/trace_processor/metrics/metrics.descriptor.h"
-
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 template <typename SqlFunction, typename Ptr = typename SqlFunction::Context*>
@@ -832,6 +825,11 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->expected_frame_timeline_slice_table());
   RegisterStaticTable(storage->actual_frame_timeline_slice_table());
 
+  RegisterStaticTable(storage->v8_isolate_table());
+  RegisterStaticTable(storage->v8_js_script_table());
+  RegisterStaticTable(storage->v8_wasm_script_table());
+  RegisterStaticTable(storage->v8_js_function_table());
+
   RegisterStaticTable(storage->surfaceflinger_layers_snapshot_table());
   RegisterStaticTable(storage->surfaceflinger_layer_table());
   RegisterStaticTable(storage->surfaceflinger_transactions_table());
@@ -839,6 +837,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->window_manager_shell_transitions_table());
   RegisterStaticTable(
       storage->window_manager_shell_transition_handlers_table());
+
+  RegisterStaticTable(storage->protolog_table());
 
   RegisterStaticTable(storage->metadata_table());
   RegisterStaticTable(storage->cpu_table());
@@ -892,11 +892,10 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
           new ExperimentalAnnotatedStack(&context_)));
   engine_->RegisterStaticTableFunction(std::unique_ptr<ExperimentalFlatSlice>(
       new ExperimentalFlatSlice(&context_)));
-
-  // Views.
   engine_->RegisterStaticTableFunction(
-      std::unique_ptr<StaticTableFunction>(new ViewStaticTableFunction(
-          &storage->thread_slice_view(), views::ThreadSliceView::Name())));
+      std::make_unique<DominatorTree>(context_.storage->mutable_string_pool()));
+  engine_->RegisterStaticTableFunction(
+      std::make_unique<Dfs>(context_.storage->mutable_string_pool()));
 
   // Metrics.
   RegisterAllProtoBuilderFunctions(&pool_, engine_.get(), this);
@@ -1011,5 +1010,4 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
   return base::OkStatus();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

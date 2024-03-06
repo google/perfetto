@@ -17,6 +17,7 @@
 syntax = "proto2";
 
 import "protos/perfetto/trace/ftrace/ftrace_event.proto";
+import "protos/perfetto/trace/ftrace/ftrace_stats.proto";
 
 package perfetto.protos;
 
@@ -30,6 +31,10 @@ message FtraceEventBundle {
   // Set to true if there was data loss between the last time we've read from
   // the corresponding per-cpu kernel buffer, and the earliest event recorded
   // in this bundle.
+  // TODO(rsavitski): consider replicating in the newer FtraceError. This field
+  // has been set since the original implementation, but used only for manual
+  // debugging. Trace processor instead looks at the FtraceStats totals for the
+  // tracing session.
   optional bool lost_events = 3;
 
   // Optionally-enabled compact encoding of a batch of scheduling events. Only
@@ -96,6 +101,21 @@ message FtraceEventBundle {
   //
   // Only set when |ftrace_clock| != FTRACE_CLOCK_UNSPECIFIED.
   optional int64 boot_timestamp = 7;
+
+  // Errors encountered during parsing of the raw ftrace data. In case of ring
+  // buffer layout errors, the parser skips the rest of the offending kernel
+  // buffer page and continues from the next page.
+  // See also FtraceStats.ftrace_parse_errors, which collates all unique errors
+  // seen within the duration of the trace (even if the affected bundles get
+  // overwritten in ring buffer mode).
+  message FtraceError {
+    // Timestamp of the data that we're unable to parse, in the ftrace clock
+    // domain. Currently, we use the base timestamp of the tracing page
+    // containing the bad record rather than the time of the record itself.
+    optional uint64 timestamp = 1;
+    optional FtraceParseStatus status = 2;
+  }
+  repeated FtraceError error = 8;
 }
 
 enum FtraceClock {

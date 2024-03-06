@@ -35,10 +35,14 @@ class ProfilingHeapGraph(TestSuite):
           size,
           cumulative_size,
           parent_id
-        FROM experimental_flamegraph
-        WHERE upid = (SELECT max(upid) FROM heap_graph_object)
-          AND profile_type = 'graph'
-          AND ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
+        FROM experimental_flamegraph(
+          'graph',
+          (SELECT max(graph_sample_ts) FROM heap_graph_object),
+          NULL,
+          (SELECT max(upid) FROM heap_graph_object),
+          NULL,
+          NULL
+        )
         LIMIT 10;
         """,
         out=Path('heap_graph_flamegraph.out'))
@@ -147,10 +151,14 @@ class ProfilingHeapGraph(TestSuite):
           size,
           cumulative_size,
           parent_id
-        FROM experimental_flamegraph
-        WHERE upid = (SELECT max(upid) FROM heap_graph_object)
-          AND profile_type = 'graph'
-          AND ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
+        FROM experimental_flamegraph(
+          'graph',
+          (SELECT max(graph_sample_ts) FROM heap_graph_object),
+          NULL,
+          (SELECT max(upid) FROM heap_graph_object),
+          NULL,
+          NULL
+        )
         LIMIT 10;
         """,
         out=Path('heap_graph_duplicate_flamegraph.out'))
@@ -169,10 +177,14 @@ class ProfilingHeapGraph(TestSuite):
           size,
           cumulative_size,
           parent_id
-        FROM experimental_flamegraph
-        WHERE upid = (SELECT max(upid) FROM heap_graph_object)
-          AND profile_type = 'graph'
-          AND ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
+        FROM experimental_flamegraph(
+          'graph',
+          (SELECT max(graph_sample_ts) FROM heap_graph_object),
+          NULL,
+          (SELECT max(upid) FROM heap_graph_object),
+          NULL,
+          NULL
+        )
         LIMIT 10;
         """,
         out=Path('heap_graph_flamegraph.out'))
@@ -194,6 +206,19 @@ class ProfilingHeapGraph(TestSuite):
         FROM heap_graph_object o JOIN heap_graph_class c ON o.type_id = c.id;
         """,
         out=Path('heap_graph_object.out'))
+
+  def test_heap_graph_object_reference_set_id(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph.textproto'),
+        query="""
+        SELECT o.reference_set_id
+        FROM heap_graph_object o
+        WHERE o.reference_set_id = 3
+        """,
+        out=Csv('''
+          "reference_set_id"
+          3
+        '''))
 
   def test_heap_graph_reference_2(self):
     return DiffTestBlueprint(
@@ -287,10 +312,14 @@ class ProfilingHeapGraph(TestSuite):
           size,
           cumulative_size,
           parent_id
-        FROM experimental_flamegraph
-        WHERE upid = (SELECT max(upid) FROM heap_graph_object)
-          AND profile_type = 'graph'
-          AND ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
+        FROM experimental_flamegraph(
+          'graph',
+          (SELECT max(graph_sample_ts) FROM heap_graph_object),
+          NULL,
+          (SELECT max(upid) FROM heap_graph_object),
+          NULL,
+          NULL
+        )
         LIMIT 10;
         """,
         out=Path('heap_graph_flamegraph_system-server-heap-graph.out'))
@@ -299,13 +328,30 @@ class ProfilingHeapGraph(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('system-server-native-profile'),
         query="""
-        SELECT * FROM experimental_flamegraph
-        WHERE ts = 605908369259172
-          AND upid = 1
-          AND profile_type = 'native'
+        SELECT *
+        FROM experimental_flamegraph(
+          'native',
+          605908369259172,
+          NULL,
+          1,
+          NULL,
+          NULL
+        )
         LIMIT 10;
         """,
-        out=Path('heap_profile_flamegraph_system-server-native-profile.out'))
+        out=Csv('''
+          "id","type","ts","depth","name","map_name","count","cumulative_count","size","cumulative_size","alloc_count","cumulative_alloc_count","alloc_size","cumulative_alloc_size","parent_id","source_file","line_number"
+          0,"experimental_flamegraph",605908369259172,0,"__start_thread","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,"[NULL]","[NULL]","[NULL]"
+          1,"experimental_flamegraph",605908369259172,1,"_ZL15__pthread_startPv","/apex/com.android.runtime/lib64/bionic/libc.so",0,8,0,84848,0,210,0,1084996,0,"[NULL]","[NULL]"
+          2,"experimental_flamegraph",605908369259172,2,"_ZN7android14AndroidRuntime15javaThreadShellEPv","/system/lib64/libandroid_runtime.so",0,5,0,27704,0,77,0,348050,1,"[NULL]","[NULL]"
+          3,"experimental_flamegraph",605908369259172,3,"_ZN7android6Thread11_threadLoopEPv","/system/lib64/libutils.so",0,5,0,27704,0,77,0,348050,2,"[NULL]","[NULL]"
+          4,"experimental_flamegraph",605908369259172,4,"_ZN7android10PoolThread10threadLoopEv","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,3,"[NULL]","[NULL]"
+          5,"experimental_flamegraph",605908369259172,5,"_ZN7android14IPCThreadState14joinThreadPoolEb","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,4,"[NULL]","[NULL]"
+          6,"experimental_flamegraph",605908369259172,6,"_ZN7android14IPCThreadState20getAndExecuteCommandEv","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,5,"[NULL]","[NULL]"
+          7,"experimental_flamegraph",605908369259172,7,"_ZN7android14IPCThreadState14executeCommandEi","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,6,"[NULL]","[NULL]"
+          8,"experimental_flamegraph",605908369259172,8,"_ZN7android7BBinder8transactEjRKNS_6ParcelEPS1_j","/system/lib64/libbinder.so",0,1,0,4096,0,64,0,279182,7,"[NULL]","[NULL]"
+          9,"experimental_flamegraph",605908369259172,9,"_ZN11JavaBBinder10onTransactEjRKN7android6ParcelEPS1_j","/system/lib64/libandroid_runtime.so",0,0,0,0,0,60,0,262730,8,"[NULL]","[NULL]"
+        '''))
 
   def test_heap_profile_tracker_new_stack(self):
     return DiffTestBlueprint(
@@ -348,11 +394,14 @@ class ProfilingHeapGraph(TestSuite):
           size,
           cumulative_size,
           parent_id
-        FROM experimental_flamegraph
-        WHERE upid = (SELECT max(upid) FROM heap_graph_object)
-          AND profile_type = 'graph'
-          AND ts = (SELECT max(graph_sample_ts) FROM heap_graph_object)
-          AND focus_str = 'left'
+        FROM experimental_flamegraph(
+          'graph',
+          (SELECT max(graph_sample_ts) FROM heap_graph_object),
+          NULL,
+          (SELECT max(upid) FROM heap_graph_object),
+          NULL,
+          'left'
+        )
         LIMIT 10;
         """,
         out=Path('heap_graph_flamegraph_focused.out'))

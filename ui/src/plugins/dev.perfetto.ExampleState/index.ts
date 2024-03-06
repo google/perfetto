@@ -52,7 +52,7 @@ class ExampleState implements Plugin {
       callback: () => {
         const counter = this.store.state.counter;
         ctx.tabs.openQuery(
-            `SELECT ${counter} as counter;`, `Show counter ${counter}`);
+          `SELECT ${counter} as counter;`, `Show counter ${counter}`);
         this.store.edit((draft) => {
           ++draft.counter;
         });

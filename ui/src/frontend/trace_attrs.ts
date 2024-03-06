@@ -48,7 +48,7 @@ export function shareTrace() {
   if (!isShareable()) {
     const msg =
         [m('p',
-           'This trace was opened by an external site and as such cannot ' +
+          'This trace was opened by an external site and as such cannot ' +
                'be re-shared preserving the UI state.')];
     if (traceUrl) {
       msg.push(m('p', 'By using the URL below you can open this trace again.'));
@@ -66,7 +66,7 @@ export function shareTrace() {
   if (!isShareable() || !isTraceLoaded()) return;
 
   const result = confirm(
-      `Upload UI state and generate a permalink. ` +
+    `Upload UI state and generate a permalink. ` +
       `The trace will be accessible by anybody with the permalink.`);
   if (result) {
     globals.logging.logEvent('Trace Actions', 'Create permalink');

@@ -42,7 +42,7 @@ export function initLiveReloadIfLocalhost(embeddedMode: boolean) {
 }
 
 function reloadCSS() {
-  const css = document.querySelector('link[rel=stylesheet]') as HTMLLinkElement;
+  const css = document.querySelector('link[rel=stylesheet]');
   if (!css) return;
   const parent = css.parentElement!;
   parent.removeChild(css);

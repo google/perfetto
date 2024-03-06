@@ -20,7 +20,7 @@ export type SelectionChangedObserver =
 const selectionObservers: SelectionChangedObserver[] = [];
 
 export function onSelectionChanged(
-    selection: Selection|undefined, openCurrentSelectionTab: boolean) {
+  selection: Selection|undefined, openCurrentSelectionTab: boolean) {
   for (const observer of selectionObservers) {
     observer(selection, openCurrentSelectionTab);
   }

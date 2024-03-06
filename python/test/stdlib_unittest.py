@@ -39,7 +39,7 @@ SELECT 1;
 
     table = res.table_views[0]
     self.assertEqual(table.name, 'foo_table')
-    self.assertEqual(table.desc, 'First line. Second line.')
+    self.assertEqual(table.desc, 'First line.\n Second line.')
     self.assertEqual(table.type, 'TABLE')
     self.assertEqual(
         table.cols, {
@@ -64,7 +64,7 @@ SELECT 1;
 
     fn = res.functions[0]
     self.assertEqual(fn.name, 'foo_fn')
-    self.assertEqual(fn.desc, 'First line. Second line.')
+    self.assertEqual(fn.desc, 'First line.\n Second line.')
     self.assertEqual(
         fn.args, {
             'utid': Arg('INT', 'Utid of thread.'),
@@ -292,7 +292,7 @@ SELECT 1;
     self.assertListEqual(res.errors, [])
 
     fn = res.functions[0]
-    self.assertEqual(fn.desc, 'This is a very long description.')
+    self.assertEqual(fn.desc, 'This\n is\n\n a\n      very\n\n long\n\n description.')
 
   def test_multiline_arg_desc(self):
     res = parse_file(
@@ -317,7 +317,7 @@ SELECT 1;
     self.assertEqual(
         fn.args, {
             'utid':
-                Arg('INT', 'Uint spread across lines.'),
+                Arg('INT', 'Uint spread  across lines.'),
             'name':
                 Arg(
                     'STRING', 'String name which spans across multiple lines '
@@ -551,3 +551,56 @@ SELECT 1;
     })
     self.assertEqual(fn.return_type, 'BOOL')
     self.assertEqual(fn.return_desc, 'Exists.')
+
+  def test_macro(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Macro
+CREATE OR REPLACE PERFETTO FUNCTION foo_fn()
+-- Exists.
+RETURNS BOOL
+AS
+SELECT 1;
+    '''.strip())
+    # Expecting an error: CREATE OR REPLACE is not allowed in stdlib.
+    self.assertEqual(len(res.errors), 1)
+
+  def test_create_or_replace_macro_smoke(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Macro
+CREATE PERFETTO MACRO foo_macro(
+  -- x Arg.
+  x TableOrSubquery
+)
+-- Exists.
+RETURNS TableOrSubquery
+AS
+SELECT 1;
+    '''.strip())
+
+    macro = res.macros[0]
+    self.assertEqual(macro.name, 'foo_macro')
+    self.assertEqual(macro.desc, 'Macro')
+    self.assertEqual(macro.args, {
+        'x': Arg('TableOrSubquery', 'x Arg.'),
+    })
+    self.assertEqual(macro.return_type, 'TableOrSubquery')
+    self.assertEqual(macro.return_desc, 'Exists.')
+
+
+  def test_create_or_replace_macro_banned(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Macro
+CREATE OR REPLACE PERFETTO MACRO foo_macro(
+  -- x Arg.
+  x TableOrSubquery
+)
+-- Exists.
+RETURNS TableOrSubquery
+AS
+SELECT 1;
+    '''.strip())
+    # Expecting an error: CREATE OR REPLACE is not allowed in stdlib.
+    self.assertEqual(len(res.errors), 1)

@@ -55,7 +55,7 @@ source_set("heapprofd_main") {
 # This builds only in the Android tree, when using the generated Android.bp.
 if (perfetto_build_with_android) {
   shared_library("heapprofd_client") {
-    configs -= [ "//gn/standalone:android_liblog" ]
+    configs -= [ "//gn/standalone:android_liblog" ]  # nogncheck
     cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
     deps = [
       ":heapprofd_client_api",
@@ -94,7 +94,7 @@ source_set("client_api_standalone") {
     ":client_api",
     ":daemon",
     "../../../gn:default_deps",
-    "../../../include/perfetto/ext/tracing/ipc",
+    "../../../include/perfetto/tracing",
     "../../base",
     "../common:proc_utils",
   ]
@@ -125,12 +125,12 @@ shared_library("heapprofd_api_noop") {
 
   # This target does absolutely nothing, so we do not want to depend on
   # liblog.
-  configs -= [ "//gn/standalone:android_liblog" ]
+  configs -= [ "//gn/standalone:android_liblog" ]  # nogncheck
   sources = [ "client_api_noop.cc" ]
 }
 
 shared_library("heapprofd_client_api") {
-  configs -= [ "//gn/standalone:android_liblog" ]
+  configs -= [ "//gn/standalone:android_liblog" ]  # nogncheck
   if (perfetto_build_with_android) {
     cflags = [ "-DPERFETTO_ANDROID_ASYNC_SAFE_LOG" ]
   } else {

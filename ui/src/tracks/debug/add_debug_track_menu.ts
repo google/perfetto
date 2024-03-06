@@ -21,8 +21,11 @@ import {Form, FormLabel} from '../../widgets/form';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';
 
-import {addDebugCounterTrack} from './counter_track';
-import {addDebugSliceTrack, SqlDataSource} from './slice_track';
+import {
+  SqlDataSource,
+  addDebugCounterTrack,
+  addDebugSliceTrack,
+} from '../../frontend/debug_tracks';
 
 export const ARG_PREFIX = 'arg_';
 
@@ -93,25 +96,25 @@ export class AddDebugTrackMenu implements
     const options = [];
     for (const type of ['slice', 'counter']) {
       options.push(
-          m('option',
-            {
-              value: type,
-              selected: this.trackType === type ? true : undefined,
-            },
-            type));
+        m('option',
+          {
+            value: type,
+            selected: this.trackType === type ? true : undefined,
+          },
+          type));
     }
     return m(
-        Select,
-        {
-          id: 'track_type',
-          oninput: (e: Event) => {
-            if (!e.target) return;
-            this.trackType =
+      Select,
+      {
+        id: 'track_type',
+        oninput: (e: Event) => {
+          if (!e.target) return;
+          this.trackType =
                 (e.target as HTMLSelectElement).value as 'slice' | 'counter';
-            raf.scheduleFullRedraw();
-          },
+          raf.scheduleFullRedraw();
         },
-        options);
+      },
+      options);
   }
 
   view(vnode: m.Vnode<AddDebugTrackMenuAttrs>) {
@@ -119,17 +122,17 @@ export class AddDebugTrackMenu implements
       const options = [];
       for (const column of this.columns) {
         options.push(
-            m('option',
-              {
-                selected: this.renderParams[name] === column ? true : undefined,
-              },
-              column));
+          m('option',
+            {
+              selected: this.renderParams[name] === column ? true : undefined,
+            },
+            column));
       }
       if (name === 'dur') {
         options.push(
-            m('option',
-              {selected: this.renderParams[name] === '0' ? true : undefined},
-              m('i', '0')));
+          m('option',
+            {selected: this.renderParams[name] === '0' ? true : undefined},
+            m('i', '0')));
       }
       return [
         m(FormLabel,
@@ -148,58 +151,60 @@ export class AddDebugTrackMenu implements
       ];
     };
     return m(
-        Form,
-        {
-          onSubmit: () => {
-            switch (this.trackType) {
-              case 'slice':
-                addDebugSliceTrack(
-                    vnode.attrs.engine,
-                    vnode.attrs.dataSource,
-                    this.name,
-                    {
-                      ts: this.renderParams.ts,
-                      dur: this.renderParams.dur,
-                      name: this.renderParams.name,
-                    },
-                    this.columns);
-                break;
-              case 'counter':
-                addDebugCounterTrack(
-                    vnode.attrs.engine, vnode.attrs.dataSource, this.name, {
-                      ts: this.renderParams.ts,
-                      value: this.renderParams.value,
-                    });
-                break;
-            }
-          },
-          submitLabel: 'Show',
+      Form,
+      {
+        onSubmit: () => {
+          switch (this.trackType) {
+          case 'slice':
+            addDebugSliceTrack(
+              vnode.attrs.engine,
+              vnode.attrs.dataSource,
+              this.name,
+              {
+                ts: this.renderParams.ts,
+                dur: this.renderParams.dur,
+                name: this.renderParams.name,
+              },
+              this.columns);
+            break;
+          case 'counter':
+            addDebugCounterTrack(
+              vnode.attrs.dataSource,
+              this.name,
+              {
+                ts: this.renderParams.ts,
+                value: this.renderParams.value,
+              });
+            break;
+          }
         },
-        m(FormLabel,
-          {for: 'track_name',
-          },
-          'Track name'),
-        m(TextInput, {
-          id: 'track_name',
-          ref: TRACK_NAME_FIELD_REF,
-          onkeydown: (e: KeyboardEvent) => {
-            // Allow Esc to close popup.
-            if (e.key === 'Escape') return;
-          },
-          oninput: (e: KeyboardEvent) => {
-            if (!e.target) return;
-            this.name = (e.target as HTMLInputElement).value;
-          },
-        }),
-        m(FormLabel,
-          {for: 'track_type',
-          },
-          'Track type'),
-        this.renderTrackTypeSelect(),
-        renderSelect('ts'),
-        this.trackType === 'slice' && renderSelect('dur'),
-        this.trackType === 'slice' && renderSelect('name'),
-        this.trackType === 'counter' && renderSelect('value'),
+        submitLabel: 'Show',
+      },
+      m(FormLabel,
+        {for: 'track_name',
+        },
+        'Track name'),
+      m(TextInput, {
+        id: 'track_name',
+        ref: TRACK_NAME_FIELD_REF,
+        onkeydown: (e: KeyboardEvent) => {
+          // Allow Esc to close popup.
+          if (e.key === 'Escape') return;
+        },
+        oninput: (e: KeyboardEvent) => {
+          if (!e.target) return;
+          this.name = (e.target as HTMLInputElement).value;
+        },
+      }),
+      m(FormLabel,
+        {for: 'track_type',
+        },
+        'Track type'),
+      this.renderTrackTypeSelect(),
+      renderSelect('ts'),
+      this.trackType === 'slice' && renderSelect('dur'),
+      this.trackType === 'slice' && renderSelect('name'),
+      this.trackType === 'counter' && renderSelect('value'),
     );
   }
 }

@@ -39,7 +39,7 @@ export interface Arg {
 }
 
 export async function getArgs(
-    engine: EngineProxy, argSetId: ArgSetId): Promise<Arg[]> {
+  engine: EngineProxy, argSetId: ArgSetId): Promise<Arg[]> {
   const query = await engine.query(`
     SELECT
       id,
@@ -88,22 +88,23 @@ function parseValue(valueType: ArgValueType, value: {
   realValue: number|null
 }): ArgValue {
   switch (valueType) {
-    case 'int':
-    case 'uint':
-      return value.intValue;
-    case 'pointer':
-      return value.intValue === null ? null :
-                                       `0x${value.intValue.toString(16)}`;
-    case 'string':
-      return value.stringValue;
-    case 'bool':
-      return !!value.intValue;
-    case 'real':
-      return value.realValue;
-    case 'null':
-      return null;
-    default:
-      const x: number = valueType;
-      throw new Error(`Unable to process arg of type ${x}`);
+  case 'int':
+  case 'uint':
+    return value.intValue;
+  case 'pointer':
+    return value.intValue === null ? null :
+      `0x${value.intValue.toString(16)}`;
+  case 'string':
+    return value.stringValue;
+  case 'bool':
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    return !!value.intValue;
+  case 'real':
+    return value.realValue;
+  case 'null':
+    return null;
+  default:
+    const x: number = valueType;
+    throw new Error(`Unable to process arg of type ${x}`);
   }
 }

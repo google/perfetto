@@ -32,8 +32,8 @@ class WaitableEvent {
   WaitableEvent(const WaitableEvent&) = delete;
   WaitableEvent operator=(const WaitableEvent&) = delete;
 
-  // Synchronously block until the event is notified.
-  void Wait();
+  // Synchronously block until the event is notified `notification` times.
+  void Wait(uint64_t notifications = 1);
 
   // Signal the event, waking up blocked waiters.
   void Notify();
@@ -41,7 +41,7 @@ class WaitableEvent {
  private:
   std::mutex mutex_;
   std::condition_variable event_;
-  bool notified_ = false;
+  uint64_t notifications_ = 0;
 };
 
 }  // namespace base

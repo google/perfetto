@@ -68,6 +68,7 @@ class PERFETTO_EXPORT_COMPONENT TracingMuxer {
   virtual bool RegisterDataSource(const DataSourceDescriptor&,
                                   DataSourceFactory,
                                   DataSourceParams,
+                                  bool no_flush,
                                   DataSourceStaticState*) = 0;
 
   // Updates the DataSourceDescriptor for the DataSource.

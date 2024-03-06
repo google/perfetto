@@ -269,7 +269,7 @@ describe('HighPrecisionTimeSpan', () => {
   it('throws when start is later than end', () => {
     expect(() => new HPTimeInterval(mkTime('0.1'), mkTime('0'))).toThrow();
     expect(() => new HPTimeInterval(mkTime('1124.0001'), mkTime('1124')))
-        .toThrow();
+      .toThrow();
   });
 
   it('can calc duration', () => {

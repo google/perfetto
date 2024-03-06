@@ -111,7 +111,7 @@ class AndroidMetrics(TestSuite):
 
   def test_binder_metric(self):
     return DiffTestBlueprint(
-        trace=DataPath('android_binder_metric_trace.atr'),
+        trace=DataPath('sched_wakeup_trace.atr'),
         query=Metric('android_binder'),
         out=Path('android_binder_metric.out'))
 
@@ -213,7 +213,13 @@ class AndroidMetrics(TestSuite):
              latency: 0.0001
            }
            ad_id_metric {
-             latency:0.0003
+             latency: 0.0003
+           }
+           odp_metric {
+             managing_service_initialization_latency: 0.00005
+             service_delegate_execute_flow_latency: 0.0001
+             service_delegate_request_surface_package_latency: 0.00015
+             service_delegate_register_web_trigger_latency: 0.0002
            }
          }
         """))

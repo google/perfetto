@@ -16,24 +16,34 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.h"
 
-#include <unordered_set>
+#include <cstdint>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/string_splitter.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
-
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
-#include "src/trace_processor/importers/proto/heap_profile_tracker.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
-ExperimentalFlamegraph::ProfileType extractProfileType(
-    std::string& profile_name) {
+base::StatusOr<ExperimentalFlamegraph::ProfileType> ExtractProfileType(
+    const std::string& profile_name) {
   if (profile_name == "graph") {
     return ExperimentalFlamegraph::ProfileType::kGraph;
   }
@@ -43,96 +53,120 @@ ExperimentalFlamegraph::ProfileType extractProfileType(
   if (profile_name == "perf") {
     return ExperimentalFlamegraph::ProfileType::kPerf;
   }
-  PERFETTO_FATAL("Could not recognize profile type: %s.", profile_name.c_str());
+  return base::ErrStatus(
+      "experimental_flamegraph: Could not recognize profile type: %s.",
+      profile_name.c_str());
 }
 
-bool IsValidTimestampOp(int op) {
-  return sqlite_utils::IsOpEq(op) || sqlite_utils::IsOpGt(op) ||
-         sqlite_utils::IsOpLe(op) || sqlite_utils::IsOpLt(op) ||
-         sqlite_utils::IsOpGe(op);
+base::StatusOr<int64_t> ParseTimeConstraintTs(const std::string& c,
+                                              uint32_t offset) {
+  std::optional<int64_t> ts = base::CStringToInt64(&c[offset]);
+  if (!ts) {
+    return base::ErrStatus(
+        "experimental_flamegraph: Unable to parse timestamp");
+  }
+  return *ts;
 }
 
-bool IsValidFilterOp(FilterOp filterOp) {
-  return filterOp == FilterOp::kEq || filterOp == FilterOp::kGt ||
-         filterOp == FilterOp::kLe || filterOp == FilterOp::kLt ||
-         filterOp == FilterOp::kGe;
+base::StatusOr<TimeConstraints> ParseTimeConstraint(const std::string& c) {
+  if (base::StartsWith(c, "=")) {
+    ASSIGN_OR_RETURN(int64_t ts, ParseTimeConstraintTs(c, 1));
+    return TimeConstraints{FilterOp::kEq, ts};
+  }
+  if (base::StartsWith(c, ">=")) {
+    ASSIGN_OR_RETURN(int64_t ts, ParseTimeConstraintTs(c, 2));
+    return TimeConstraints{FilterOp::kGe, ts};
+  }
+  if (base::StartsWith(c, ">")) {
+    ASSIGN_OR_RETURN(int64_t ts, ParseTimeConstraintTs(c, 1));
+    return TimeConstraints{FilterOp::kGt, ts};
+  }
+  if (base::StartsWith(c, "<=")) {
+    ASSIGN_OR_RETURN(int64_t ts, ParseTimeConstraintTs(c, 2));
+    return TimeConstraints{FilterOp::kLe, ts};
+  }
+  if (base::StartsWith(c, ">=")) {
+    ASSIGN_OR_RETURN(int64_t ts, ParseTimeConstraintTs(c, 2));
+    return TimeConstraints{FilterOp::kLt, ts};
+  }
+  return base::ErrStatus("experimental_flamegraph: Unknown time constraint");
+}
+
+base::StatusOr<std::vector<TimeConstraints>> ExtractTimeConstraints(
+    const SqlValue& value) {
+  PERFETTO_DCHECK(value.is_null() || value.type == SqlValue::kString);
+  std::vector<TimeConstraints> constraints;
+  if (value.is_null()) {
+    return constraints;
+  }
+  std::vector<std::string> raw_cs = base::SplitString(value.AsString(), ",");
+  for (const std::string& c : raw_cs) {
+    ASSIGN_OR_RETURN(TimeConstraints tc, ParseTimeConstraint(c));
+    constraints.push_back(tc);
+  }
+  return constraints;
 }
 
 // For filtering, this method uses the same constraints as
 // ExperimentalFlamegraph::ValidateConstraints and should therefore
 // be kept in sync.
-ExperimentalFlamegraph::InputValues GetFlamegraphInputValues(
-    const std::vector<Constraint>& cs) {
-  using T = tables::ExperimentalFlamegraphNodesTable;
+base::StatusOr<ExperimentalFlamegraph::InputValues> GetFlamegraphInputValues(
+    const std::vector<SqlValue>& arguments) {
+  PERFETTO_CHECK(arguments.size() == 6);
 
-  auto ts_fn = [](const Constraint& c) {
-    return c.col_idx == static_cast<uint32_t>(T::ColumnIndex::ts) &&
-           IsValidFilterOp(c.op);
-  };
-  auto upid_fn = [](const Constraint& c) {
-    return c.col_idx == static_cast<uint32_t>(T::ColumnIndex::upid) &&
-           c.op == FilterOp::kEq;
-  };
-  auto upid_group_fn = [](const Constraint& c) {
-    return c.col_idx == static_cast<uint32_t>(T::ColumnIndex::upid_group) &&
-           c.op == FilterOp::kEq;
-  };
-  auto profile_type_fn = [](const Constraint& c) {
-    return c.col_idx == static_cast<uint32_t>(T::ColumnIndex::profile_type) &&
-           c.op == FilterOp::kEq;
-  };
-  auto focus_str_fn = [](const Constraint& c) {
-    return c.col_idx == static_cast<uint32_t>(T::ColumnIndex::focus_str) &&
-           c.op == FilterOp::kEq;
-  };
-
-  auto ts_it = std::find_if(cs.begin(), cs.end(), ts_fn);
-  auto upid_it = std::find_if(cs.begin(), cs.end(), upid_fn);
-  auto upid_group_it = std::find_if(cs.begin(), cs.end(), upid_group_fn);
-  auto profile_type_it = std::find_if(cs.begin(), cs.end(), profile_type_fn);
-  auto focus_str_it = std::find_if(cs.begin(), cs.end(), focus_str_fn);
-
-  // We should always have valid iterators here because BestIndex should only
-  // allow the constraint set to be chosen when we have an equality constraint
-  // on upid and a constraint on ts.
-  PERFETTO_CHECK(ts_it != cs.end());
-  PERFETTO_CHECK(upid_it != cs.end() || upid_group_it != cs.end());
-  PERFETTO_CHECK(profile_type_it != cs.end());
-
-  std::string profile_name(profile_type_it->value.AsString());
-  ExperimentalFlamegraph::ProfileType profile_type =
-      extractProfileType(profile_name);
-  int64_t ts = -1;
-  std::vector<TimeConstraints> time_constraints = {};
-
-  for (; ts_it != cs.end(); ts_it++) {
-    if (ts_it->col_idx != static_cast<uint32_t>(T::ColumnIndex::ts)) {
-      continue;
-    }
-
-    if (profile_type == ExperimentalFlamegraph::ProfileType::kPerf) {
-      PERFETTO_CHECK(ts_it->op != FilterOp::kEq);
-      time_constraints.push_back(
-          TimeConstraints{ts_it->op, ts_it->value.AsLong()});
-    } else {
-      PERFETTO_CHECK(ts_it->op == FilterOp::kEq);
-      ts = ts_it->value.AsLong();
-    }
+  const SqlValue& raw_profile_type = arguments[0];
+  if (raw_profile_type.type != SqlValue::kString) {
+    return base::ErrStatus(
+        "experimental_flamegraph: profile_type must be an string");
+  }
+  const SqlValue& ts = arguments[1];
+  if (ts.type != SqlValue::kLong && !ts.is_null()) {
+    return base::ErrStatus("experimental_flamegraph: ts must be an integer");
+  }
+  const SqlValue& ts_constraints = arguments[2];
+  if (ts_constraints.type != SqlValue::kString && !ts_constraints.is_null()) {
+    return base::ErrStatus(
+        "experimental_flamegraph: ts constraint must be an string");
+  }
+  const SqlValue& upid = arguments[3];
+  if (upid.type != SqlValue::kLong && !upid.is_null()) {
+    return base::ErrStatus("experimental_flamegraph: upid must be an integer");
+  }
+  const SqlValue& upid_group = arguments[4];
+  if (upid_group.type != SqlValue::kString && !upid_group.is_null()) {
+    return base::ErrStatus(
+        "experimental_flamegraph: upid_group must be an string");
+  }
+  const SqlValue& focus_str = arguments[5];
+  if (focus_str.type != SqlValue::kString && !focus_str.is_null()) {
+    return base::ErrStatus(
+        "experimental_flamegraph: focus_str must be an string");
   }
 
-  std::optional<UniquePid> upid;
-  std::optional<std::string> upid_group;
-  if (upid_it != cs.end()) {
-    upid = static_cast<UniquePid>(upid_it->value.AsLong());
-  } else {
-    upid_group = upid_group_it->value.AsString();
+  if (ts.is_null() && ts_constraints.is_null()) {
+    return base::ErrStatus(
+        "experimental_flamegraph: one of ts and ts_constraints must not be "
+        "null");
   }
-
-  std::string focus_str =
-      focus_str_it != cs.end() ? focus_str_it->value.AsString() : "";
+  if (upid.is_null() && upid_group.is_null()) {
+    return base::ErrStatus(
+        "experimental_flamegraph: one of upid or upid_group must not be null");
+  }
+  ASSIGN_OR_RETURN(std::vector<TimeConstraints> time_constraints,
+                   ExtractTimeConstraints(ts_constraints));
+  ASSIGN_OR_RETURN(ExperimentalFlamegraph::ProfileType profile_type,
+                   ExtractProfileType(raw_profile_type.AsString()));
   return ExperimentalFlamegraph::InputValues{
-      profile_type, ts,         std::move(time_constraints),
-      upid,         upid_group, focus_str};
+      profile_type,
+      ts.is_null() ? std::nullopt : std::make_optional(ts.AsLong()),
+      std::move(time_constraints),
+      upid.is_null() ? std::nullopt
+                     : std::make_optional(static_cast<uint32_t>(upid.AsLong())),
+      upid_group.is_null() ? std::nullopt
+                           : std::make_optional(upid_group.AsString()),
+      focus_str.is_null() ? std::nullopt
+                          : std::make_optional(focus_str.AsString()),
+  };
 }
 
 class Matcher {
@@ -158,9 +192,9 @@ enum class FocusedState {
   kFocusedNotPropagating,
 };
 
-using tables::ExperimentalFlamegraphNodesTable;
+using tables::ExperimentalFlamegraphTable;
 std::vector<FocusedState> ComputeFocusedState(
-    const ExperimentalFlamegraphNodesTable& table,
+    const ExperimentalFlamegraphTable& table,
     const Matcher& focus_matcher) {
   // Each row corresponds to a node in the flame chart tree with its parent
   // ptr. Root trees (no parents) will have a null parent ptr.
@@ -203,18 +237,17 @@ struct CumulativeCounts {
   int64_t alloc_size;
   int64_t alloc_count;
 };
-std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> FocusTable(
+std::unique_ptr<tables::ExperimentalFlamegraphTable> FocusTable(
     TraceStorage* storage,
-    std::unique_ptr<ExperimentalFlamegraphNodesTable> in,
+    std::unique_ptr<ExperimentalFlamegraphTable> in,
     const std::string& focus_str) {
   if (in->row_count() == 0 || focus_str.empty()) {
     return in;
   }
   std::vector<FocusedState> focused_state =
       ComputeFocusedState(*in, Matcher(focus_str));
-  std::unique_ptr<ExperimentalFlamegraphNodesTable> tbl(
-      new tables::ExperimentalFlamegraphNodesTable(
-          storage->mutable_string_pool()));
+  std::unique_ptr<ExperimentalFlamegraphTable> tbl(
+      new tables::ExperimentalFlamegraphTable(storage->mutable_string_pool()));
 
   // Recompute cumulative counts
   std::vector<CumulativeCounts> node_to_cumulatives(in->row_count());
@@ -241,13 +274,13 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> FocusTable(
   }
 
   // Mapping between the old rows ('node') to the new identifiers.
-  std::vector<ExperimentalFlamegraphNodesTable::Id> node_to_id(in->row_count());
+  std::vector<ExperimentalFlamegraphTable::Id> node_to_id(in->row_count());
   for (uint32_t i = 0; i < in->row_count(); ++i) {
     if (focused_state[i] == FocusedState::kNotFocused) {
       continue;
     }
 
-    tables::ExperimentalFlamegraphNodesTable::Row alloc_row{};
+    tables::ExperimentalFlamegraphTable::Row alloc_row{};
     // We must reparent the rows as every insertion will get its own
     // identifier.
     auto original_parent_id = in->parent_id()[i];
@@ -283,90 +316,55 @@ ExperimentalFlamegraph::ExperimentalFlamegraph(TraceProcessorContext* context)
 
 ExperimentalFlamegraph::~ExperimentalFlamegraph() = default;
 
-// For filtering, this method uses the same constraints as
-// ExperimentalFlamegraph::GetFlamegraphInputValues and should
-// therefore be kept in sync.
-base::Status ExperimentalFlamegraph::ValidateConstraints(
-    const QueryConstraints& qc) {
-  using T = tables::ExperimentalFlamegraphNodesTable;
+base::StatusOr<std::unique_ptr<Table>> ExperimentalFlamegraph::ComputeTable(
+    const std::vector<SqlValue>& arguments) {
+  ASSIGN_OR_RETURN(auto values, GetFlamegraphInputValues(arguments));
 
-  const auto& cs = qc.constraints();
-
-  auto ts_fn = [](const QueryConstraints::Constraint& c) {
-    return c.column == static_cast<int>(T::ColumnIndex::ts) &&
-           IsValidTimestampOp(c.op);
-  };
-  bool has_ts_cs = std::find_if(cs.begin(), cs.end(), ts_fn) != cs.end();
-
-  auto upid_fn = [](const QueryConstraints::Constraint& c) {
-    return c.column == static_cast<int>(T::ColumnIndex::upid) &&
-           c.op == SQLITE_INDEX_CONSTRAINT_EQ;
-  };
-  bool has_upid_cs = std::find_if(cs.begin(), cs.end(), upid_fn) != cs.end();
-
-  auto upid_group_fn = [](const QueryConstraints::Constraint& c) {
-    return c.column == static_cast<int>(T::ColumnIndex::upid_group) &&
-           c.op == SQLITE_INDEX_CONSTRAINT_EQ;
-  };
-  bool has_upid_group_cs =
-      std::find_if(cs.begin(), cs.end(), upid_group_fn) != cs.end();
-
-  auto profile_type_fn = [](const QueryConstraints::Constraint& c) {
-    return c.column == static_cast<int>(T::ColumnIndex::profile_type) &&
-           c.op == SQLITE_INDEX_CONSTRAINT_EQ;
-  };
-  bool has_profile_type_cs =
-      std::find_if(cs.begin(), cs.end(), profile_type_fn) != cs.end();
-
-  return has_ts_cs && (has_upid_cs || has_upid_group_cs) && has_profile_type_cs
-             ? base::OkStatus()
-             : base::ErrStatus("Failed to find required constraints");
-}
-
-base::Status ExperimentalFlamegraph::ComputeTable(
-    const std::vector<Constraint>& cs,
-    const std::vector<Order>&,
-    const BitVector&,
-    std::unique_ptr<Table>& table_return) {
-  // Get the input column values and compute the flamegraph using them.
-  auto values = GetFlamegraphInputValues(cs);
-
-  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> table;
-  if (values.profile_type == ProfileType::kGraph) {
-    auto* tracker = HeapGraphTracker::GetOrCreate(context_);
-    table = tracker->BuildFlamegraph(values.ts, *values.upid);
-  } else if (values.profile_type == ProfileType::kHeapProfile) {
-    table = BuildHeapProfileFlamegraph(context_->storage.get(), *values.upid,
-                                       values.ts);
-  } else if (values.profile_type == ProfileType::kPerf) {
-    table = BuildNativeCallStackSamplingFlamegraph(
-        context_->storage.get(), values.upid, values.upid_group,
-        values.time_constraints);
+  std::unique_ptr<tables::ExperimentalFlamegraphTable> table;
+  switch (values.profile_type) {
+    case ProfileType::kGraph: {
+      if (!values.ts || !values.upid) {
+        return base::ErrStatus(
+            "experimental_flamegraph: ts and upid must be present for heap "
+            "graph");
+      }
+      table = HeapGraphTracker::GetOrCreate(context_)->BuildFlamegraph(
+          *values.ts, *values.upid);
+      break;
+    }
+    case ProfileType::kHeapProfile: {
+      if (!values.ts || !values.upid) {
+        return base::ErrStatus(
+            "experimental_flamegraph: ts and upid must be present for heap "
+            "profile");
+      }
+      table = BuildHeapProfileFlamegraph(context_->storage.get(), *values.upid,
+                                         *values.ts);
+      break;
+    }
+    case ProfileType::kPerf: {
+      table = BuildNativeCallStackSamplingFlamegraph(
+          context_->storage.get(), values.upid, values.upid_group,
+          values.time_constraints);
+      break;
+    }
   }
   if (!table) {
     return base::ErrStatus("Failed to build flamegraph");
   }
-  if (!values.focus_str.empty()) {
-    table =
-        FocusTable(context_->storage.get(), std::move(table), values.focus_str);
-    // The pseudocolumns must be populated because as far as SQLite is
-    // concerned these are equality constraints.
-    auto focus_id =
-        context_->storage->InternString(base::StringView(values.focus_str));
-    for (uint32_t i = 0; i < table->row_count(); ++i) {
-      table->mutable_focus_str()->Set(i, focus_id);
-    }
+  if (values.focus_str) {
+    table = FocusTable(context_->storage.get(), std::move(table),
+                       *values.focus_str);
   }
-  table_return = std::move(table);
-  return base::OkStatus();
+  return std::unique_ptr<Table>(std::move(table));
 }
 
 Table::Schema ExperimentalFlamegraph::CreateSchema() {
-  return tables::ExperimentalFlamegraphNodesTable::ComputeStaticSchema();
+  return tables::ExperimentalFlamegraphTable::ComputeStaticSchema();
 }
 
 std::string ExperimentalFlamegraph::TableName() {
-  return "experimental_flamegraph";
+  return tables::ExperimentalFlamegraphTable::Name();
 }
 
 uint32_t ExperimentalFlamegraph::EstimateRowCount() {
@@ -374,5 +372,4 @@ uint32_t ExperimentalFlamegraph::EstimateRowCount() {
   return 1024;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

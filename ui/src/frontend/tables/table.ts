@@ -54,8 +54,8 @@ export class ColumnDescriptor<T> {
   ordering?: ComparisonFn<T>;
 
   constructor(
-      name: string, render: (row: T) => m.Child,
-      attrs?: ColumnDescriptorAttrs<T>) {
+    name: string, render: (row: T) => m.Child,
+    attrs?: ColumnDescriptorAttrs<T>) {
     this.name = name;
     this.render = render;
     this.id = attrs?.columnId === undefined ? name : attrs.columnId;
@@ -78,19 +78,19 @@ export class ColumnDescriptor<T> {
 }
 
 export function numberColumn<T>(
-    name: string, getter: (t: T) => number, contextMenu?: PopupMenuItem[]):
+  name: string, getter: (t: T) => number, contextMenu?: PopupMenuItem[]):
     ColumnDescriptor<T> {
   return new ColumnDescriptor<T>(name, getter, {contextMenu, sortKey: getter});
 }
 
 export function stringColumn<T>(
-    name: string, getter: (t: T) => string, contextMenu?: PopupMenuItem[]):
+  name: string, getter: (t: T) => string, contextMenu?: PopupMenuItem[]):
     ColumnDescriptor<T> {
   return new ColumnDescriptor<T>(name, getter, {contextMenu, sortKey: getter});
 }
 
 export function widgetColumn<T>(
-    name: string, getter: (t: T) => m.Child): ColumnDescriptor<T> {
+  name: string, getter: (t: T) => m.Child): ColumnDescriptor<T> {
   return new ColumnDescriptor<T>(name, getter);
 }
 
@@ -145,8 +145,8 @@ export class TableData<T> {
   reorder(info: SortingInfo<T>) {
     this._sortingInfo = info;
     this.permutation.sort(withDirection(
-        comparingBy((index: number) => this.data[index], info.ordering),
-        info.direction));
+      comparingBy((index: number) => this.data[index], info.ordering),
+      info.direction));
     raf.scheduleFullRedraw();
   }
 }
@@ -157,9 +157,9 @@ export interface TableAttrs<T> {
 }
 
 function directionOnIndex(
-    columnId: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    info?: SortingInfo<any>): SortDirection|undefined {
+  columnId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  info?: SortingInfo<any>): SortDirection|undefined {
   if (info === undefined) {
     return undefined;
   }
@@ -169,8 +169,8 @@ function directionOnIndex(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class Table implements m.ClassComponent<TableAttrs<any>> {
   renderColumnHeader(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      vnode: m.Vnode<TableAttrs<any>>, column: ColumnDescriptor<any>): m.Child {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vnode: m.Vnode<TableAttrs<any>>, column: ColumnDescriptor<any>): m.Child {
     let currDirection: SortDirection|undefined = undefined;
 
     let items = column.contextMenu;
@@ -181,7 +181,7 @@ export class Table implements m.ClassComponent<TableAttrs<any>> {
       if (currDirection !== 'ASC') {
         newItems.push(menuItem('Sort ascending', () => {
           vnode.attrs.data.reorder(
-              {columnId: column.id, direction: 'ASC', ordering});
+            {columnId: column.id, direction: 'ASC', ordering});
         }));
       }
       if (currDirection !== 'DESC') {
@@ -205,10 +205,10 @@ export class Table implements m.ClassComponent<TableAttrs<any>> {
     }
 
     return m(
-        'td', column.name, items === undefined ? null : m(PopupMenuButton, {
-          icon: popupMenuIcon(currDirection),
-          items,
-        }));
+      'td', column.name, items === undefined ? null : m(PopupMenuButton, {
+        icon: popupMenuIcon(currDirection),
+        items,
+      }));
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -233,14 +233,14 @@ export class Table implements m.ClassComponent<TableAttrs<any>> {
     const attrs = vnode.attrs;
 
     return m(
-        'table.generic-table',
-        m('thead',
-          m('tr.header',
-            attrs.columns.map(
-                (column) => this.renderColumnHeader(vnode, column)))),
-        attrs.data.items().map(
-            (row) =>
-                m('tr',
-                  attrs.columns.map((column) => m('td', column.render(row))))));
+      'table.generic-table',
+      m('thead',
+        m('tr.header',
+          attrs.columns.map(
+            (column) => this.renderColumnHeader(vnode, column)))),
+      attrs.data.items().map(
+        (row) =>
+          m('tr',
+            attrs.columns.map((column) => m('td', column.render(row))))));
   }
 }

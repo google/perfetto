@@ -67,7 +67,7 @@ export class CacheKey {
   }
 
   private constructor(
-      startNs: time, endNs: time, bucketNs: duration, windowSizePx: number) {
+    startNs: time, endNs: time, bucketNs: duration, windowSizePx: number) {
     this.start = startNs;
     this.end = endNs;
     this.bucketSize = bucketNs;

@@ -20,12 +20,14 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/db/runtime_table.h"
+#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
@@ -37,8 +39,7 @@
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/util/sql_modules.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Intermediary class which translates high-level concepts and algorithms used
 // in trace processor into lower-level concepts and functions can be understood
@@ -118,7 +119,9 @@ class PerfettoSqlEngine {
 
   // Registers a trace processor C++ table with SQLite with an SQL name of
   // |name|.
-  void RegisterStaticTable(const Table&, const std::string& name);
+  void RegisterStaticTable(const Table&,
+                           const std::string& name,
+                           Table::Schema schema);
 
   // Registers a trace processor C++ table function with SQLite.
   void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);
@@ -236,15 +239,10 @@ class PerfettoSqlEngine {
   std::unique_ptr<SqliteEngine> engine_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
-
 // The rest of this file is just implementation details which we need
 // in the header file because it is templated code. We separate it out
 // like this to keep the API people actually care about easy to read.
 
-namespace perfetto {
-namespace trace_processor {
 namespace perfetto_sql_internal {
 
 // RAII type to call Function::Cleanup when destroyed.
@@ -341,7 +339,6 @@ base::Status PerfettoSqlEngine::RegisterFunctionWithSqlite(
       user_data.release(), ctx_destructor, deterministic);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_

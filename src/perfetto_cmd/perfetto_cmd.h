@@ -17,12 +17,14 @@
 #ifndef SRC_PERFETTO_CMD_PERFETTO_CMD_H_
 #define SRC_PERFETTO_CMD_PERFETTO_CMD_H_
 
+#include <time.h>
+
+#include <functional>
+#include <list>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
-
-#include <time.h>
-#include <optional>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/event_fd.h"
@@ -34,10 +36,10 @@
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "src/android_stats/perfetto_atoms.h"
+#include "src/perfetto_cmd/packet_writer.h"
 
 namespace perfetto {
 
-class PacketWriter;
 class RateLimiter;
 
 // Directory for local state and temporary files. This is automatically
@@ -73,11 +75,17 @@ class PerfettoCmd : public Consumer {
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
  private:
+  enum CloneThreadMode { kSingleExtraThread, kNewThreadPerRequest };
+
   bool OpenOutputFile();
   void SetupCtrlCSignalHandler();
   void FinalizeTraceAndExit();
   void PrintUsage(const char* argv0);
   void PrintServiceState(bool success, const TracingServiceState&);
+  void CloneSessionOnThread(TracingSessionID,
+                            const std::string& cmdline,  // \0 separated.
+                            CloneThreadMode,
+                            std::function<void()> on_clone_callback);
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
   bool is_attach() const { return !attach_key_.empty(); }
@@ -135,7 +143,7 @@ class PerfettoCmd : public Consumer {
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
       consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
-  std::unique_ptr<PacketWriter> packet_writer_;
+  std::optional<PacketWriter> packet_writer_;
   base::ScopedFstream trace_out_stream_;
   std::vector<std::string> triggers_to_activate_;
   std::string trace_out_path_;
@@ -162,15 +170,17 @@ class PerfettoCmd : public Consumer {
   bool connected_ = false;
   std::string uuid_;
   std::optional<TracingSessionID> clone_tsid_{};
+  bool clone_for_bugreport_ = false;
+  std::function<void()> on_session_cloned_;
 
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;
   bool trace_data_timeout_armed_ = false;
 
-  // The aux thread that is used to invoke secondary instances of PerfettoCmd
-  // to create snapshots. This is used only when the trace config involves a
-  // CLONE_SNAPSHOT trigger.
-  std::unique_ptr<base::ThreadTaskRunner> snapshot_thread_;
+  // The aux threads used to invoke secondary instances of PerfettoCmd to create
+  // snapshots. This is used only when the trace config involves a
+  // CLONE_SNAPSHOT trigger or when using --save-all-for-bugreport.
+  std::list<base::ThreadTaskRunner> snapshot_threads_;
   int snapshot_count_ = 0;
   std::string snapshot_config_;
 

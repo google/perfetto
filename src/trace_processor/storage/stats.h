@@ -42,9 +42,9 @@ namespace stats {
   F(frame_timeline_event_parser_errors,   kSingle,  kInfo,     kAnalysis, ""), \
   F(frame_timeline_unpaired_end_event,    kSingle,  kInfo,     kAnalysis, ""), \
   F(ftrace_bundle_tokenizer_errors,       kSingle,  kError,    kAnalysis, ""), \
-  F(ftrace_cpu_bytes_read_begin,          kIndexed, kInfo,     kTrace,    ""), \
-  F(ftrace_cpu_bytes_read_end,            kIndexed, kInfo,     kTrace,    ""), \
-  F(ftrace_cpu_bytes_read_delta,          kIndexed, kInfo,     kTrace,    ""), \
+  F(ftrace_cpu_bytes_begin,               kIndexed, kInfo,     kTrace,    ""), \
+  F(ftrace_cpu_bytes_end,                 kIndexed, kInfo,     kTrace,    ""), \
+  F(ftrace_cpu_bytes_delta,               kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_commit_overrun_begin,      kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_commit_overrun_end,        kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_commit_overrun_delta,      kIndexed, kError,    kTrace,    ""), \
@@ -61,14 +61,14 @@ namespace stats {
   F(ftrace_cpu_overrun_begin,             kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_overrun_end,               kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_overrun_delta,             kIndexed, kDataLoss, kTrace,         \
-      "The kernel ftrace buffer cannot keep up with the rate of events "       \
-      "produced. Indexed by CPU. This is likely a misconfiguration."),         \
+       "The kernel ftrace buffer cannot keep up with the rate of events "      \
+       "produced. Indexed by CPU. This is likely a misconfiguration."),        \
   F(ftrace_cpu_read_events_begin,         kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_read_events_end,           kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_cpu_read_events_delta,         kIndexed, kInfo,     kTrace,    ""), \
   F(ftrace_setup_errors,                  kSingle,  kInfo,     kTrace,         \
-  "One or more atrace/ftrace categories were not found or failed to enable. "  \
-  "See ftrace_setup_errors in the metadata table for more details."),          \
+       "One or more atrace/ftrace categories were not found or failed to "     \
+       "enable. See ftrace_setup_errors in the metadata table for details."),  \
   F(fuchsia_non_numeric_counters,         kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_timestamp_overflow,           kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_invalid_event,                kSingle,  kError,    kAnalysis, ""), \
@@ -91,12 +91,29 @@ namespace stats {
   F(rss_stat_unknown_thread_for_mm_id,    kSingle,  kInfo,     kAnalysis, ""), \
   F(sched_switch_out_of_order,            kSingle,  kError,    kAnalysis, ""), \
   F(slice_out_of_order,                   kSingle,  kError,    kAnalysis, ""), \
+  F(filter_input_bytes,                   kSingle,  kInfo,     kTrace,         \
+       "Number of bytes pre-TraceFilter. The trace file would have been this " \
+       "many bytes big if the TraceConfig didn't specify any TraceFilter. "    \
+       "This affects the actual buffer usage, as filtering happens only "      \
+       "when writing into the trace file (or over IPC)."),                     \
+  F(filter_input_packets,                 kSingle,  kInfo,     kTrace,         \
+       "Number of packets pre-TraceFilter. The trace file would have had so "  \
+       "many packets if the TraceConfig didn't specify any TraceFilter."),     \
+  F(filter_output_bytes,                  kSingle,  kInfo,     kTrace,         \
+       "Number of bytes that made it through the TraceFilter, before the "     \
+       "(optional) Zlib compression stage."),                                  \
+  F(filter_time_taken_ns,                 kSingle,  kInfo,     kTrace,         \
+       "Time cumulatively spent running the TraceFilter throughout the "       \
+       "tracing session by MaybeFilterPackets()."),                            \
+  F(filter_errors,                        kSingle,  kError,    kTrace,    ""), \
   F(flow_duplicate_id,                    kSingle,  kError,    kTrace,    ""), \
   F(flow_no_enclosing_slice,              kSingle,  kError,    kTrace,    ""), \
   F(flow_step_without_start,              kSingle,  kInfo,     kTrace,    ""), \
   F(flow_end_without_start,               kSingle,  kInfo,     kTrace,    ""), \
   F(flow_invalid_id,                      kSingle,  kError,    kTrace,    ""), \
   F(flow_without_direction,               kSingle,  kError,    kTrace,    ""), \
+  F(stackprofile_empty_callstack,         kSingle,  kError,    kTrace,         \
+      "Callstack had no frames. Ignored"),                                     \
   F(stackprofile_invalid_string_id,       kSingle,  kError,    kTrace,    ""), \
   F(stackprofile_invalid_mapping_id,      kSingle,  kError,    kTrace,    ""), \
   F(stackprofile_invalid_frame_id,        kSingle,  kError,    kTrace,    ""), \
@@ -108,6 +125,11 @@ namespace stats {
   F(traced_buf_buffer_size,               kIndexed, kInfo,     kTrace,    ""), \
   F(traced_buf_bytes_overwritten,         kIndexed, kInfo,     kTrace,    ""), \
   F(traced_buf_bytes_read,                kIndexed, kInfo,     kTrace,    ""), \
+  F(traced_buf_bytes_filtered_out,        kIndexed, kInfo,     kTrace,         \
+       "Number of bytes discarded (input - output) by the TraceFilter for "    \
+       "each buffer. It is a subset of, but does not add up perfectly to, "    \
+       "(filter_input_bytes - filter_output_bytes) because of the synthetic "  \
+       "metadata and stats packets generated by the tracing service itself."), \
   F(traced_buf_bytes_written,             kIndexed, kInfo,     kTrace,    ""), \
   F(traced_buf_chunks_discarded,          kIndexed, kInfo,     kTrace,    ""), \
   F(traced_buf_chunks_overwritten,        kIndexed, kInfo,     kTrace,    ""), \
@@ -255,6 +277,9 @@ namespace stats {
       "missing. Defaulted to inaccurate packet timestamp."),                   \
   F(atom_unknown,                         kSingle,  kInfo,     kAnalysis,      \
       "Unknown statsd atom. Atom descriptor may need to be updated"),          \
+  F(v8_intern_errors,                                                          \
+                                          kSingle,  kDataLoss, kAnalysis,      \
+      "Failed to resolve V8 interned data."),                                  \
   F(winscope_sf_layers_parse_errors,      kSingle,  kInfo,     kAnalysis,      \
       "SurfaceFlinger layers snapshot has unknown fields, which results in "   \
       "some arguments missing. You may need a newer version of trace "         \
@@ -269,6 +294,12 @@ namespace stats {
       "Shell transition packet has unknown fields, which results "             \
       "in some arguments missing. You may need a newer version of trace "      \
       "processor to parse them."),                                             \
+  F(winscope_protolog_invalid_interpolation_parse_errors,                      \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "ProtoLog message string has invalid interplation parameter."),          \
+  F(winscope_protolog_missing_interned_arg_parse_errors,                       \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "Failed to find interned ProtoLog argument."),          \
   F(ftrace_missing_event_id,              kSingle,  kInfo,    kAnalysis,       \
       "Indicates that the ftrace event was dropped because the event id was "  \
       "missing. This is an 'info' stat rather than an error stat because "     \

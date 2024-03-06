@@ -36,8 +36,8 @@ test('constraintsToQueryPrefix: one CTE', () => {
       'foo2': 'select * from bar2',
     },
   })))
-      .toEqual(
-          'WITH foo1 AS (select * from bar1), foo2 AS (select * from bar2)');
+    .toEqual(
+      'WITH foo1 AS (select * from bar1), foo2 AS (select * from bar2)');
 });
 
 test('constraintsToQuerySuffix: where', () => {

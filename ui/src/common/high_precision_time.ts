@@ -70,15 +70,15 @@ export class HighPrecisionTime {
 
   toTime(roundMode: RoundMode = 'floor'): time {
     switch (roundMode) {
-      case 'round':
-        return Time.fromRaw(this.base + BigInt(Math.round(this.offset)));
-      case 'floor':
-        return Time.fromRaw(this.base);
-      case 'ceil':
-        return Time.fromRaw(this.base + BigInt(Math.ceil(this.offset)));
-      default:
-        const exhaustiveCheck: never = roundMode;
-        throw new Error(`Unhandled roundMode case: ${exhaustiveCheck}`);
+    case 'round':
+      return Time.fromRaw(this.base + BigInt(Math.round(this.offset)));
+    case 'floor':
+      return Time.fromRaw(this.base);
+    case 'ceil':
+      return Time.fromRaw(this.base + BigInt(Math.ceil(this.offset)));
+    default:
+      const exhaustiveCheck: never = roundMode;
+      throw new Error(`Unhandled roundMode case: ${exhaustiveCheck}`);
     }
   }
 
@@ -96,7 +96,7 @@ export class HighPrecisionTime {
 
   add(other: HighPrecisionTime): HighPrecisionTime {
     return new HighPrecisionTime(
-        this.base + other.base, this.offset + other.offset);
+      this.base + other.base, this.offset + other.offset);
   }
 
   addNanos(nanos: number|bigint): HighPrecisionTime {
@@ -113,7 +113,7 @@ export class HighPrecisionTime {
 
   sub(other: HighPrecisionTime): HighPrecisionTime {
     return new HighPrecisionTime(
-        this.base - other.base, this.offset - other.offset);
+      this.base - other.base, this.offset - other.offset);
   }
 
   subTime(ts: time): HighPrecisionTime {
@@ -215,27 +215,27 @@ export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
   readonly end: HighPrecisionTime;
 
   static readonly ZERO = new HighPrecisionTimeSpan(
-      HighPrecisionTime.ZERO,
-      HighPrecisionTime.ZERO,
+    HighPrecisionTime.ZERO,
+    HighPrecisionTime.ZERO,
   );
 
   constructor(start: time|HighPrecisionTime, end: time|HighPrecisionTime) {
     this.start = (start instanceof HighPrecisionTime) ?
-        start :
-        HighPrecisionTime.fromTime(start);
+      start :
+      HighPrecisionTime.fromTime(start);
     this.end = (end instanceof HighPrecisionTime) ?
-        end :
-        HighPrecisionTime.fromTime(end);
+      end :
+      HighPrecisionTime.fromTime(end);
     assertTrue(
-        this.start.lte(this.end),
-        `TimeSpan start [${this.start}] cannot be greater than end [${
-            this.end}]`);
+      this.start.lte(this.end),
+      `TimeSpan start [${this.start}] cannot be greater than end [${
+        this.end}]`);
   }
 
   static fromTime(start: time, end: time): HighPrecisionTimeSpan {
     return new HighPrecisionTimeSpan(
-        HighPrecisionTime.fromTime(start),
-        HighPrecisionTime.fromTime(end),
+      HighPrecisionTime.fromTime(start),
+      HighPrecisionTime.fromTime(end),
     );
   }
 
@@ -274,8 +274,8 @@ export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
   // Move the start and end away from each other a certain amount
   pad(time: HighPrecisionTime): Span<HighPrecisionTime> {
     return new HighPrecisionTimeSpan(
-        this.start.sub(time),
-        this.end.add(time),
+      this.start.sub(time),
+      this.end.add(time),
     );
   }
 }

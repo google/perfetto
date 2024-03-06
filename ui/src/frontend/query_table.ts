@@ -105,16 +105,16 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     if (Router.parseUrl(window.location.href).page === '/viewer' &&
         isSliceish(row)) {
       return m(
-          'tr',
-          {
-            onclick: () => this.highlightSlice(row, globals.state.currentTab),
-            // TODO(altimin): Consider improving the logic here (e.g. delay?) to
-            // account for cases when dblclick fires late.
-            ondblclick: () => this.highlightSlice(row),
-            clickable: true,
-            title: 'Go to slice',
-          },
-          cells);
+        'tr',
+        {
+          onclick: () => this.selectAndRevealSlice(row, false),
+          // TODO(altimin): Consider improving the logic here (e.g. delay?) to
+          // account for cases when dblclick fires late.
+          ondblclick: () => this.selectAndRevealSlice(row, true),
+          clickable: true,
+          title: 'Go to slice',
+        },
+        cells);
     } else {
       return m('tr', cells);
     }
@@ -130,14 +130,16 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
 
   private renderBlob(name: string, value: Uint8Array) {
     return m(
-        Anchor,
-        {
-          onclick: () => downloadData(`${name}.blob`, value),
-        },
-        `Blob (${value.length} bytes)`);
+      Anchor,
+      {
+        onclick: () => downloadData(`${name}.blob`, value),
+      },
+      `Blob (${value.length} bytes)`);
   }
 
-  private highlightSlice(row: Row&Sliceish, nextTab?: string) {
+  private selectAndRevealSlice(
+    row: Row&Sliceish,
+    switchToCurrentSelectionTab: boolean) {
     const trackId = Number(row.track_id);
     const sliceStart = Time.fromRaw(BigInt(row.ts));
     // row.dur can be negative. Clamp to 1ns.
@@ -147,18 +149,21 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
       reveal(trackKey, sliceStart, Time.add(sliceStart, sliceDur), true);
       const sliceId = getSliceId(row);
       if (sliceId !== undefined) {
-        this.selectSlice(sliceId, trackKey, nextTab);
+        this.selectSlice(sliceId, trackKey, switchToCurrentSelectionTab);
       }
     }
   }
 
-  private selectSlice(sliceId: number, trackKey: string, nextTab?: string) {
+  private selectSlice(
+    sliceId: number,
+    trackKey: string,
+    switchToCurrentSelectionTab: boolean) {
     const action = Actions.selectChromeSlice({
       id: sliceId,
       trackKey,
       table: 'slice',
     });
-    globals.makeSelection(action, {tab: nextTab});
+    globals.makeSelection(action, {switchToCurrentSelectionTab});
   }
 }
 
@@ -189,7 +194,7 @@ class QueryTableContent implements m.ClassComponent<QueryTableContentAttrs> {
       return m('.query-error', `SQL error: ${resp.error}`);
     } else {
       return m(
-          'table.pf-query-table', m('thead', tableHeader), m('tbody', rows));
+        'table.pf-query-table', m('thead', tableHeader), m('tbody', rows));
     }
   }
 }
@@ -213,14 +218,14 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     } = attrs;
 
     return m(
-        DetailsShell,
-        {
-          title: this.renderTitle(resp),
-          description: query,
-          buttons: this.renderButtons(query, onClose, contextButtons, resp),
-          fillParent,
-        },
-        resp && this.renderTableContent(resp),
+      DetailsShell,
+      {
+        title: this.renderTitle(resp),
+        description: query,
+        buttons: this.renderButtons(query, onClose, contextButtons, resp),
+        fillParent,
+      },
+      resp && this.renderTableContent(resp),
     );
   }
 
@@ -233,8 +238,8 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   }
 
   renderButtons(
-      query: string, onClose: () => void, contextButtons: m.Child[],
-      resp?: QueryResponse) {
+    query: string, onClose: () => void, contextButtons: m.Child[],
+    resp?: QueryResponse) {
     return [
       contextButtons,
       m(Button, {
@@ -261,18 +266,18 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
 
   renderTableContent(resp: QueryResponse) {
     return m(
-        '.pf-query-panel',
-        resp.statementWithOutputCount > 1 &&
+      '.pf-query-panel',
+      resp.statementWithOutputCount > 1 &&
             m('.pf-query-warning',
               m(
-                  Callout,
-                  {icon: 'warning'},
-                  `${resp.statementWithOutputCount} out of ${
-                      resp.statementCount} `,
-                  'statements returned a result. ',
-                  'Only the results for the last statement are displayed.',
-                  )),
-        m(QueryTableContent, {resp}),
+                Callout,
+                {icon: 'warning'},
+                `${resp.statementWithOutputCount} out of ${
+                  resp.statementCount} `,
+                'statements returned a result. ',
+                'Only the results for the last statement are displayed.',
+              )),
+      m(QueryTableContent, {resp}),
     );
   }
 }

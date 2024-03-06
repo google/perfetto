@@ -19,6 +19,7 @@ import {
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
+  addDebugSliceTrack,
 } from '../../public';
 
 const SQL_STATS = `
@@ -88,9 +89,7 @@ order by total_self_size desc
 limit 100;`;
 
 const coreCommands: Plugin = {
-  onActivate(_ctx: PluginContext) {},
-
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+  onActivate(ctx: PluginContext) {
     ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#ToggleLeftSidebar',
       name: 'Toggle left sidebar',
@@ -103,7 +102,9 @@ const coreCommands: Plugin = {
       },
       defaultHotkey: '!Mod+B',
     });
+  },
 
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#RunQueryAllProcesses',
       name: 'Run query: all processes',
@@ -125,7 +126,7 @@ const coreCommands: Plugin = {
       name: 'Run query: cycles by p-state by CPU',
       callback: () => {
         ctx.tabs.openQuery(
-            CYCLES_PER_P_STATE_PER_CPU, 'Cycles by p-state by CPU');
+          CYCLES_PER_P_STATE_PER_CPU, 'Cycles by p-state by CPU');
       },
     });
 
@@ -134,7 +135,7 @@ const coreCommands: Plugin = {
       name: 'Run query: CPU Time by CPU by process',
       callback: () => {
         ctx.tabs.openQuery(
-            CPU_TIME_BY_CPU_BY_PROCESS, 'CPU Time by CPU by process');
+          CPU_TIME_BY_CPU_BY_PROCESS, 'CPU Time by CPU by process');
       },
     });
 
@@ -143,7 +144,7 @@ const coreCommands: Plugin = {
       name: 'Run query: heap graph bytes per type',
       callback: () => {
         ctx.tabs.openQuery(
-            HEAP_GRAPH_BYTES_PER_TYPE, 'Heap graph bytes per type');
+          HEAP_GRAPH_BYTES_PER_TYPE, 'Heap graph bytes per type');
       },
     });
 
@@ -176,6 +177,26 @@ const coreCommands: Plugin = {
     });
 
     ctx.registerCommand({
+      id: 'dev.perfetto.CoreCommands#ExpandAllGroups',
+      name: 'Expand all groups',
+      callback: () => {
+        ctx.timeline.expandGroupsByPredicate((_) => {
+          return true;
+        });
+      },
+    });
+
+    ctx.registerCommand({
+      id: 'dev.perfetto.CoreCommands#CollapseAllGroups',
+      name: 'Collapse all groups',
+      callback: () => {
+        ctx.timeline.collapseGroupsByPredicate((_) => {
+          return true;
+        });
+      },
+    });
+
+    ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#PanToTimestamp',
       name: 'Pan To Timestamp',
       callback: (tsRaw: unknown) => {
@@ -191,6 +212,35 @@ const coreCommands: Plugin = {
             ctx.timeline.panToTimestamp(Time.fromRaw(ts));
           }
         }
+      },
+    });
+
+    ctx.registerCommand({
+      id: 'test',
+      name: 'Make Test Debug Track',
+      callback: () => {
+        addDebugSliceTrack(
+          ctx.engine,
+          {
+            sqlSource: `
+              SELECT *
+              FROM slice
+              WHERE name like 'a%'
+              LIMIT 10000
+            `,
+          },
+          'Track Name',
+          {ts: 'ts', dur: 'dur', name: 'name'},
+          [],
+        );
+      },
+    });
+
+    ctx.registerCommand({
+      id: 'dev.perfetto.CoreCommands#ShowCurrentSelectionTab',
+      name: 'Show Current Selection Tab',
+      callback: () => {
+        ctx.tabs.showTab('current_selection');
       },
     });
   },

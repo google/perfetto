@@ -17,13 +17,13 @@ import("../gn/perfetto.gni")
 # Prevent that this file is accidentally included in embedder builds.
 assert(enable_perfetto_ui)
 
-nodejs_bin = rebase_path("//tools/node", root_build_dir)
+nodejs_bin = rebase_path("../tools/node", root_build_dir)
 
 group("ui") {
   deps = [
     ":ui_build($host_toolchain)",
-    "//src/trace_processor:trace_processor.wasm($wasm_toolchain)",
-    "//src/traceconv:traceconv.wasm($wasm_toolchain)",
+    "../src/trace_processor:trace_processor.wasm($wasm_toolchain)",
+    "../src/traceconv:traceconv.wasm($wasm_toolchain)",
   ]
 }
 
@@ -42,7 +42,7 @@ action("ui_build") {
   script = "../gn/standalone/build_tool_wrapper.py"
   outputs = [ "$target_out_dir/never_written_always_execute_rule.stamp" ]
   inputs = [
-    "//tools/node",
+    "../tools/node",
     "build.js",
   ]
   args = [

@@ -17,11 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_EXPERIMENTAL_COUNTER_DUR_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_EXPERIMENTAL_COUNTER_DUR_H_
 
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
-#include "src/trace_processor/storage/trace_storage.h"
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
 
-namespace perfetto {
-namespace trace_processor {
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/db/column_storage.h"
+#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/tables/counter_tables_py.h"
+
+namespace perfetto::trace_processor {
 
 class ExperimentalCounterDur : public StaticTableFunction {
  public:
@@ -33,11 +41,8 @@ class ExperimentalCounterDur : public StaticTableFunction {
   Table::Schema CreateSchema() override;
   std::string TableName() override;
   uint32_t EstimateRowCount() override;
-  base::Status ValidateConstraints(const QueryConstraints&) override;
-  base::Status ComputeTable(const std::vector<Constraint>& cs,
-                            const std::vector<Order>& ob,
-                            const BitVector& cols_used,
-                            std::unique_ptr<Table>& table_return) override;
+  base::StatusOr<std::unique_ptr<Table>> ComputeTable(
+      const std::vector<SqlValue>& arguments) override;
 
   // public + static for testing
   static ColumnStorage<int64_t> ComputeDurColumn(const CounterTable& table);
@@ -48,7 +53,6 @@ class ExperimentalCounterDur : public StaticTableFunction {
   std::unique_ptr<Table> counter_dur_table_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_EXPERIMENTAL_COUNTER_DUR_H_

@@ -46,15 +46,21 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
     this.hotkeys = undefined;
   }
 
-  private onKeyDown = (e: KeyboardEvent) => {
+  // Due to a bug in chrome, we get onKeyDown events fired where the payload is
+  // not a KeyboardEvent when selecting an item from an autocomplete suggestion.
+  // See https://issues.chromium.org/issues/41425904
+  // Thus, we can't assume we get an KeyboardEvent and must check manually.
+  private onKeyDown = (e: Event) => {
     // Find out whether the event has already been handled further up the chain.
     if (e.defaultPrevented) return;
 
-    this.hotkeys?.forEach(({callback, hotkey}) => {
-      if (checkHotkey(hotkey, e)) {
-        e.preventDefault();
-        callback();
-      }
-    });
+    if (e instanceof KeyboardEvent) {
+      this.hotkeys?.forEach(({callback, hotkey}) => {
+        if (checkHotkey(hotkey, e)) {
+          e.preventDefault();
+          callback();
+        }
+      });
+    }
   };
 }

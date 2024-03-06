@@ -18,8 +18,9 @@ import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {VERSION} from '../gen/perfetto_version';
 import {StatusResult, TraceProcessorApiVersion} from '../protos';
-import {HttpRpcEngine, RPC_URL} from '../trace_processor/http_rpc_engine';
+import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {showModal} from '../widgets/modal';
+import {Router} from './router';
 
 import {globals} from './globals';
 import {publishHttpRpcState} from './publish';
@@ -27,8 +28,9 @@ import {publishHttpRpcState} from './publish';
 const CURRENT_API_VERSION =
     TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
 
-const PROMPT = `Trace Processor Native Accelerator detected on ${RPC_URL} with:
-$loadedTraceName
+function getPromptMessage(tpStatus: StatusResult): string {
+  return `Trace Processor Native Accelerator detected on ${HttpRpcEngine.hostAndPort} with:
+${tpStatus.loadedTraceName}
 
 YES, use loaded trace:
 Will load from the current state of Trace Processor. If you did run
@@ -45,12 +47,11 @@ Will not use the accelerator in this tab.
 Using the native accelerator has some minor caveats:
 - Only one tab can be using the accelerator.
 - Sharing, downloading and conversion-to-legacy aren't supported.
-- You may encounter UI errors if the Trace Processor version you are using is
-too old. Get the latest version from get.perfetto.dev/trace_processor.
 `;
+}
 
-
-const MSG_TOO_OLD = `The Trace Processor instance on ${RPC_URL} is too old.
+function getIncompatibleRpcMessage(tpStatus: StatusResult): string {
+  return `The Trace Processor instance on ${HttpRpcEngine.hostAndPort} is too old.
 
 This UI requires TraceProcessor features that are not present in the
 Trace Processor native accelerator you are currently running.
@@ -62,14 +63,88 @@ curl -LO https://get.perfetto.dev/trace_processor
 chmod +x ./trace_processor
 ./trace_processor --httpd
 
-UI version: ${VERSION}
-TraceProcessor RPC API required: ${CURRENT_API_VERSION} or higher
+UI version code: ${VERSION}
+UI RPC API: ${CURRENT_API_VERSION}
 
-TraceProcessor version: $tpVersion
-RPC API: $tpApi
+Trace processor version: ${tpStatus.humanReadableVersion}
+Trace processor version code: ${tpStatus.versionCode}
+Trace processor RPC API: ${tpStatus.apiVersion}
 `;
+}
 
-let forceUseOldVersion = false;
+function getVersionMismatchMessage(tpStatus: StatusResult): string {
+  return `The trace processor instance on ${HttpRpcEngine.hostAndPort} is a different build from the UI.
+
+This may cause problems. Where possible it is better to use the matched version of the UI.
+You can do this by clicking the button below.
+
+UI version code: ${VERSION}
+UI RPC API: ${CURRENT_API_VERSION}
+
+Trace processor version: ${tpStatus.humanReadableVersion}
+Trace processor version code: ${tpStatus.versionCode}
+Trace processor RPC API: ${tpStatus.apiVersion}
+`;
+}
+
+// The flow is fairly complicated:
+// +-----------------------------------+
+// |        User loads the UI          |
+// +-----------------+-----------------+
+//                   |
+// +-----------------+-----------------+
+// |   Is trace_processor present at   |
+// |   HttpRpcEngine.hostAndPort?      |
+// +--------------------------+--------+
+//    |No                     |Yes
+//    |        +--------------+-------------------------------+
+//    |        |  Does version code of UI and TP match?       |
+//    |        +--------------+----------------------------+--+
+//    |                       |No                          |Yes
+//    |                       |                            |
+//    |                       |                            |
+//    |         +-------------+-------------+              |
+//    |         |Is a build of the UI at the|              |
+//    |         |TP version code existant   |              |
+//    |         |and reachable?             |              |
+//    |         +---+----------------+------+              |
+//    |             | No             | Yes                 |
+//    |             |                |                     |
+//    |             |       +--------+-------+             |
+//    |             |       |Dialog: Mismatch|             |
+//    |             |       |Load matched UI +-------------------------------+
+//    |             |       |Continue        +-+           |                 |
+//    |             |       +----------------+ |           |                 |
+//    |             |                          |           |                 |
+//    |      +------+--------------------------+----+      |                 |
+//    |      |TP RPC version >= UI RPC version      |      |                 |
+//    |      +----+-------------------+-------------+      |                 |
+//    |           | No                |Yes                 |                 |
+//    |      +----+--------------+    |                    |                 |
+//    |      |Dialog: Bad RPC    |    |                    |                 |
+//    |  +---+Use built-in WASM  |    |                    |                 |
+//    |  |   |Continue anyway    +----|                    |                 |
+//    |  |   +-------------------+    |        +-----------+-----------+     |
+//    |  |                            +--------+TP has preloaded trace?|     |
+//    |  |                                     +-+---------------+-----+     |
+//    |  |                                       |No             |Yes        |
+//    |  |                                       |  +---------------------+  |
+//    |  |                                       |  | Dialog: Preloaded?  |  |
+//    |  |                                       +--+ YES, use loaded trace  |
+//    |  |                                 +--------| YES, but reset state|  |
+//    |  |  +---------------------------------------| NO, Use builtin Wasm|  |
+//    |  |  |                              |     |  +---------------------+  |
+//    |  |  |                              |     |                           |
+//    |  |  |                           Reset TP |                           |
+//    |  |  |                              |     |                           |
+//    |  |  |                              |     |                           |
+//  Show the UI                         Show the UI                  Link to
+//  (WASM mode)                         (RPC mode)                   matched UI
+
+// There are three options in the end:
+// - Show the UI (WASM mode)
+// - Show the UI (RPC mode)
+// - Redirect to a matched version of the UI
 
 // Try to connect to the external Trace Processor HTTP RPC accelerator (if
 // available, often it isn't). If connected it will populate the
@@ -81,73 +156,184 @@ let forceUseOldVersion = false;
 export async function CheckHttpRpcConnection(): Promise<void> {
   const state = await HttpRpcEngine.checkConnection();
   publishHttpRpcState(state);
-  if (!state.connected) return;
+  if (!state.connected) {
+    // No RPC = exit immediately to the WASM UI.
+    return;
+  }
   const tpStatus = assertExists(state.status);
 
-  if (tpStatus.apiVersion < CURRENT_API_VERSION) {
-    await showDialogTraceProcessorTooOld(tpStatus);
-    if (!forceUseOldVersion) return;
+  function forceWasm() {
+    globals.dispatch(Actions.setNewEngineMode({mode: 'FORCE_BUILTIN_WASM'}));
   }
 
+  // Check short version:
+  if (tpStatus.versionCode !== '' && tpStatus.versionCode !== VERSION) {
+    const url = await Router.isVersionAvailable(tpStatus.versionCode);
+    if (url !== undefined) {
+      // If matched UI available show a dialog asking the user to
+      // switch.
+      const result = await showDialogVersionMismatch(tpStatus, url);
+      switch (result) {
+      case MismatchedVersionDialog.Dismissed:
+      case MismatchedVersionDialog.UseMatchingUi:
+        Router.navigateToVersion(tpStatus.versionCode);
+        return;
+      case MismatchedVersionDialog.UseMismatchedRpc:
+        break;
+      case MismatchedVersionDialog.UseWasm:
+        forceWasm();
+        return;
+      default:
+        const x: never = result;
+        throw new Error(`Unsupported result ${x}`);
+      }
+    }
+  }
+
+  // Check the RPC version:
+  if (tpStatus.apiVersion < CURRENT_API_VERSION) {
+    const result = await showDialogIncompatibleRPC(tpStatus);
+    switch (result) {
+    case IncompatibleRpcDialogResult.Dismissed:
+    case IncompatibleRpcDialogResult.UseWasm:
+      forceWasm();
+      return;
+    case IncompatibleRpcDialogResult.UseIncompatibleRpc:
+      break;
+    default:
+      const x: never = result;
+      throw new Error(`Unsupported result ${x}`);
+    }
+  }
+
+  // Check if pre-loaded:
   if (tpStatus.loadedTraceName) {
     // If a trace is already loaded in the trace processor (e.g., the user
     // launched trace_processor_shell -D trace_file.pftrace), prompt the user to
     // initialize the UI with the already-loaded trace.
-    return showDialogToUsePreloadedTrace(tpStatus);
+    const result = await showDialogToUsePreloadedTrace(tpStatus);
+    switch (result) {
+    case PreloadedDialogResult.Dismissed:
+    case PreloadedDialogResult.UseRpcWithPreloadedTrace:
+      globals.dispatch(Actions.openTraceFromHttpRpc({}));
+      return;
+    case PreloadedDialogResult.UseRpc:
+      // Resetting state is the default.
+      return;
+    case PreloadedDialogResult.UseWasm:
+      forceWasm();
+      return;
+    default:
+      const x: never = result;
+      throw new Error(`Unsupported result ${x}`);
+    }
   }
 }
 
-async function showDialogTraceProcessorTooOld(tpStatus: StatusResult) {
-  return showModal({
-    title: 'Your Trace Processor binary is outdated',
-    content:
-        m('.modal-pre',
-          MSG_TOO_OLD.replace('$tpVersion', tpStatus.humanReadableVersion)
-              .replace('$tpApi', `${tpStatus.apiVersion}`)),
+enum MismatchedVersionDialog {
+  UseMatchingUi = 'useMatchingUi',
+  UseWasm = 'useWasm',
+  UseMismatchedRpc = 'useMismatchedRpc',
+  Dismissed = 'dismissed',
+}
+
+async function showDialogVersionMismatch(tpStatus: StatusResult,
+  url: string):
+            Promise<MismatchedVersionDialog> {
+  let result = MismatchedVersionDialog.Dismissed;
+  await showModal({
+    title: 'Version mismatch',
+    content: m('.modal-pre', getVersionMismatchMessage(tpStatus)),
+    buttons: [
+      {
+        primary: true,
+        text: `Open ${url}`,
+        action: () => {
+          result = MismatchedVersionDialog.UseMatchingUi;
+        },
+      },
+      {
+        text: 'Use builtin Wasm',
+        action: () => {
+          result = MismatchedVersionDialog.UseWasm;
+        },
+      },
+      {
+        text: 'Use mismatched version regardless (might crash)',
+        action: () => {
+          result = MismatchedVersionDialog.UseMismatchedRpc;
+        },
+      },
+    ],
+  });
+  return result;
+}
+
+enum IncompatibleRpcDialogResult {
+  UseWasm = 'useWasm',
+  UseIncompatibleRpc = 'useIncompatibleRpc',
+  Dismissed = 'dismissed',
+}
+
+async function showDialogIncompatibleRPC(tpStatus: StatusResult):
+      Promise<IncompatibleRpcDialogResult> {
+  let result = IncompatibleRpcDialogResult.Dismissed;
+  await showModal({
+    title: 'Incompatible RPC version',
+    content: m('.modal-pre', getIncompatibleRpcMessage(tpStatus)),
     buttons: [
       {
         text: 'Use builtin Wasm',
         primary: true,
         action: () => {
-          globals.dispatch(
-              Actions.setNewEngineMode({mode: 'FORCE_BUILTIN_WASM'}));
+          result = IncompatibleRpcDialogResult.UseWasm;
         },
       },
       {
-        text: 'Use old version regardless (might crash)',
-        primary: false,
+        text: 'Use old version regardless (will crash)',
         action: () => {
-          forceUseOldVersion = true;
+          result = IncompatibleRpcDialogResult.UseIncompatibleRpc;
         },
       },
     ],
   });
+  return result;
 }
 
-async function showDialogToUsePreloadedTrace(tpStatus: StatusResult) {
-  return showModal({
-    title: 'Use Trace Processor Native Acceleration?',
-    content:
-        m('.modal-pre',
-          PROMPT.replace('$loadedTraceName', tpStatus.loadedTraceName)),
+enum PreloadedDialogResult {
+  UseRpcWithPreloadedTrace = 'useRpcWithPreloadedTrace',
+  UseRpc = 'useRpc',
+  UseWasm = 'useWasm',
+  Dismissed = 'dismissed',
+}
+
+async function showDialogToUsePreloadedTrace(tpStatus: StatusResult):
+    Promise<PreloadedDialogResult> {
+  let result = PreloadedDialogResult.Dismissed;
+  await showModal({
+    title: 'Use trace processor native acceleration?',
+    content: m('.modal-pre', getPromptMessage(tpStatus)),
     buttons: [
       {
         text: 'YES, use loaded trace',
         primary: true,
         action: () => {
-          globals.dispatch(Actions.openTraceFromHttpRpc({}));
+          result = PreloadedDialogResult.UseRpcWithPreloadedTrace;
         },
       },
       {
         text: 'YES, but reset state',
+        action: () => {
+          result = PreloadedDialogResult.UseRpc;
+        },
       },
       {
-        text: 'NO, Use builtin Wasm',
+        text: 'NO, Use builtin WASM',
         action: () => {
-          globals.dispatch(
-              Actions.setNewEngineMode({mode: 'FORCE_BUILTIN_WASM'}));
+          result = PreloadedDialogResult.UseWasm;
         },
       },
     ],
   });
+  return result;
 }

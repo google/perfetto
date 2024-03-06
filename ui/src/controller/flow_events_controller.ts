@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {pluginManager} from '../common/plugins';
 import {Area} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {Flow, globals} from '../frontend/globals';
@@ -233,7 +232,7 @@ export class FlowEventsController extends Controller<'main'> {
       // anything if there is only one TP track in this async track. In
       // that case experimental_slice_layout is just an expensive way
       // to find out depth === layout_depth.
-      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
       const trackIds = trackInfo?.trackIds;
       if (trackIds === undefined || trackIds.length <= 1) {
         uiTrackIdToInfo.set(uiTrackId, null);
@@ -314,12 +313,12 @@ export class FlowEventsController extends Controller<'main'> {
     this.lastSelectedKind = 'CHROME_SLICE';
 
     const connectedFlows = SHOW_INDIRECT_PRECEDING_FLOWS_FLAG.get() ?
-        `(
+      `(
            select * from directly_connected_flow(${sliceId})
            union
            select * from preceding_flow(${sliceId})
          )` :
-        `directly_connected_flow(${sliceId})`;
+      `directly_connected_flow(${sliceId})`;
 
     const query = `
     select
@@ -358,7 +357,7 @@ export class FlowEventsController extends Controller<'main'> {
     left join process process_in on process_in.upid = thread_in.upid
     `;
     this.queryFlowEvents(
-        query, (flows: Flow[]) => publishConnectedFlows(flows));
+      query, (flows: Flow[]) => publishConnectedFlows(flows));
   }
 
   areaSelected(areaId: string) {
@@ -378,7 +377,7 @@ export class FlowEventsController extends Controller<'main'> {
     for (const uiTrackId of area.tracks) {
       const track = globals.state.tracks[uiTrackId];
       if (track?.uri !== undefined) {
-        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+        const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
         const kind = trackInfo?.kind;
         if (kind === SLICE_TRACK_KIND ||
             kind === ACTUAL_FRAMES_SLICE_TRACK_KIND) {
@@ -446,14 +445,13 @@ export class FlowEventsController extends Controller<'main'> {
 
     // TODO(b/155483804): This is a hack as annotation slices don't contain
     // flows. We should tidy this up when fixing this bug.
-    if (selection && selection.kind === 'CHROME_SLICE' &&
-        selection.table !== 'annotation') {
+    if (selection.kind === 'CHROME_SLICE' && selection.table !== 'annotation') {
       this.sliceSelected(selection.id);
     } else {
       publishConnectedFlows([]);
     }
 
-    if (selection && selection.kind === 'AREA') {
+    if (selection.kind === 'AREA') {
       this.areaSelected(selection.areaId);
     } else {
       publishSelectedFlows([]);

@@ -28,8 +28,8 @@ export class Icon implements m.ClassComponent<IconAttrs> {
   view({attrs}: m.Vnode<IconAttrs>): m.Child {
     const {icon, filled, ...htmlAttrs} = attrs;
     return m(
-        filled ? 'i.material-icons-filled' : 'i.material-icons',
-        htmlAttrs,
-        icon);
+      filled ? 'i.material-icons-filled' : 'i.material-icons',
+      htmlAttrs,
+      icon);
   }
 }

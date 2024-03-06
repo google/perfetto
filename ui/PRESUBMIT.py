@@ -65,7 +65,9 @@ def CheckEslint(input_api, output_api):
 
   def file_filter(x):
     return input_api.FilterSourceFile(
-        x, files_to_check=[r'.*\.ts$', r'.*\.js$'])
+        x,
+        files_to_check=[r'.*\.ts$', r'.*\.js$'],
+        files_to_skip=[r'.*\.eslintrc\.js'])
 
   files = input_api.AffectedSourceFiles(file_filter)
 

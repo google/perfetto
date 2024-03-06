@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE PERFETTO FUNCTION internal_thread_prefix(thread_name STRING)
+CREATE PERFETTO FUNCTION _thread_prefix(thread_name STRING)
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT(STR_SPLIT(STR_SPLIT($thread_name, "-", 0), "[", 0), ":", 0), " ", 0);
 
@@ -40,7 +40,7 @@ x AS (
   SELECT
     pid,
     upid,
-    INTERNAL_THREAD_PREFIX(thread.name) AS thread_name_prefix,
+    _THREAD_PREFIX(thread.name) AS thread_name_prefix,
     process.name AS process_name,
     COUNT(thread.start_ts)
       OVER (

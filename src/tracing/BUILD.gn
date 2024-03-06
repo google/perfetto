@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("//build_overrides/build.gni")
 import("../../gn/fuzzer.gni")
 import("../../gn/perfetto.gni")
 import("../../gn/test.gni")
@@ -126,7 +125,7 @@ source_set("client_api_without_backends") {
     "track_event_state_tracker.cc",
     "virtual_destructors.cc",
   ]
-  assert_no_deps = [ "core:service" ]
+  assert_no_deps = [ "service" ]
   if (enable_perfetto_ipc) {
     assert_no_deps += [
       "../ipc:common",
@@ -226,7 +225,7 @@ source_set("in_process_backend") {
     "../../include/perfetto/tracing/core",
     "../base",
     "core",
-    "core:service",
+    "service",
   ]
   sources = [ "internal/in_process_tracing_backend.cc" ]
 }

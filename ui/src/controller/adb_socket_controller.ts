@@ -124,7 +124,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
     const frame = new IPCFrame({
       requestId,
       msgInvokeMethod: new IPCFrame.InvokeMethod(
-          {serviceId: this.serviceId, methodId, argsProto}),
+        {serviceId: this.serviceId, methodId, argsProto}),
     });
     this.requestMethods.set(requestId, method);
     this.sendFrame(frame);
@@ -210,6 +210,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
     }
 
     // Parse all complete messages in incomingBuffer and newData.
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     while (this.canParseFullMessage(newData)) {
       // All the message is in the newData buffer.
       if (this.incomingBufferLen === 0) {
@@ -220,9 +221,9 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
         const bytesToCompleteMessage =
             this.frameToParseLen - this.incomingBufferLen;
         this.appendToIncomingBuffer(
-            newData.subarray(0, bytesToCompleteMessage));
+          newData.subarray(0, bytesToCompleteMessage));
         this.parseMessage(
-            this.incomingBuffer.subarray(0, this.frameToParseLen));
+          this.incomingBuffer.subarray(0, this.frameToParseLen));
         this.incomingBufferLen = 0;
         // Remove the data just parsed.
         newData = newData.subarray(bytesToCompleteMessage);
@@ -239,7 +240,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   }
 
   decodeResponse(
-      requestId: number, responseProto: Uint8Array, hasMore = false) {
+    requestId: number, responseProto: Uint8Array, hasMore = false) {
     const method = this.requestMethods.get(requestId);
     if (!method) {
       console.error(`Unknown request id: ${requestId}`);
@@ -295,7 +296,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
 
   sendReadBufferResponse() {
     this.sendMessage(this.generateChunkReadResponse(
-        this.traceProtoWriter.finish(), /* last */ true));
+      this.traceProtoWriter.finish(), /* last */ true));
     this.traceProtoWriter = protobuf.Writer.create();
   }
 
@@ -314,8 +315,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
 
   findMethodId(method: string): number|undefined {
     const methodObject = this.availableMethods.find((m) => m.name === method);
-    if (methodObject && methodObject.id) return methodObject.id;
-    return undefined;
+    return methodObject?.id ?? undefined;
   }
 
   static async hasSocketAccess(device: USBDevice, adb: Adb): Promise<boolean> {
@@ -332,42 +332,44 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   handleIncomingFrame(frame: IPCFrame) {
     const requestId = frame.requestId;
     switch (frame.msg) {
-      case 'msgBindServiceReply': {
-        const msgBindServiceReply = frame.msgBindServiceReply;
-        if (msgBindServiceReply && msgBindServiceReply.methods &&
+    case 'msgBindServiceReply': {
+      const msgBindServiceReply = frame.msgBindServiceReply;
+      if (msgBindServiceReply && msgBindServiceReply.methods &&
+            /* eslint-disable @typescript-eslint/strict-boolean-expressions */
             msgBindServiceReply.serviceId) {
-          console.assert(msgBindServiceReply.success);
-          this.availableMethods = msgBindServiceReply.methods;
-          this.serviceId = msgBindServiceReply.serviceId;
-          this.resolveBindingPromise();
-          this.resolveBindingPromise = () => {};
-        }
-        return;
+        /* eslint-enable */
+        console.assert(msgBindServiceReply.success);
+        this.availableMethods = msgBindServiceReply.methods;
+        this.serviceId = msgBindServiceReply.serviceId;
+        this.resolveBindingPromise();
+        this.resolveBindingPromise = () => {};
       }
-      case 'msgInvokeMethodReply': {
-        const msgInvokeMethodReply = frame.msgInvokeMethodReply;
-        if (msgInvokeMethodReply && msgInvokeMethodReply.replyProto) {
-          if (!msgInvokeMethodReply.success) {
-            console.error(
-                'Unsuccessful method invocation: ', msgInvokeMethodReply);
-            return;
-          }
-          this.decodeResponse(
-              requestId,
-              msgInvokeMethodReply.replyProto,
-              msgInvokeMethodReply.hasMore === true);
+      return;
+    }
+    case 'msgInvokeMethodReply': {
+      const msgInvokeMethodReply = frame.msgInvokeMethodReply;
+      if (msgInvokeMethodReply && msgInvokeMethodReply.replyProto) {
+        if (!msgInvokeMethodReply.success) {
+          console.error(
+            'Unsuccessful method invocation: ', msgInvokeMethodReply);
+          return;
         }
-        return;
+        this.decodeResponse(
+          requestId,
+          msgInvokeMethodReply.replyProto,
+          msgInvokeMethodReply.hasMore === true);
       }
-      default:
-        console.error(`not recognized frame message: ${frame.msg}`);
+      return;
+    }
+    default:
+      console.error(`not recognized frame message: ${frame.msg}`);
     }
   }
 }
 
 const decoders = new Map<string, Function>()
-                     .set('EnableTracing', EnableTracingResponse.decode)
-                     .set('FreeBuffers', FreeBuffersResponse.decode)
-                     .set('ReadBuffers', ReadBuffersResponse.decode)
-                     .set('DisableTracing', DisableTracingResponse.decode)
-                     .set('GetTraceStats', GetTraceStatsResponse.decode);
+  .set('EnableTracing', EnableTracingResponse.decode)
+  .set('FreeBuffers', FreeBuffersResponse.decode)
+  .set('ReadBuffers', ReadBuffersResponse.decode)
+  .set('DisableTracing', DisableTracingResponse.decode)
+  .set('GetTraceStats', GetTraceStatsResponse.decode);

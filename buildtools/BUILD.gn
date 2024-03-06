@@ -77,7 +77,13 @@ config("libunwindstack_config") {
     perfetto_isystem_cflag,
     rebase_path("rustc-demangle-capi", root_build_dir),
   ]
-  defines = [ "NO_LIBDEXFILE_SUPPORT" ]
+
+  # TODO(rsavitski): figure out how to cleanly depend on bionic's uapi headers
+  defines = [
+    "NO_LIBDEXFILE_SUPPORT",
+    "NT_RISCV_VECTOR=0x901",
+    "ELFCOMPRESS_ZSTD=2",
+  ]
 }
 
 # Config to include gtest.h in test targets.
@@ -1248,12 +1254,99 @@ config("zlib_config") {
   }
 }
 
-# Here be dragons. Used only by standalone profiler builds, which are
-# considered best effort. Since the headers use c++17 features, this source_set
-# pushes -std=c++17 flags up the dependency tree, whereas the rest of the
-# project continues to build under c++11. So the profilers end up linking
-# together code built under different standards, and rely on that to be ABI
-# compatible.
+source_set("zstd") {
+  visibility = _buildtools_visibility
+  sources = [
+    "zstd/lib/common/allocations.h",
+    "zstd/lib/common/bits.h",
+    "zstd/lib/common/bitstream.h",
+    "zstd/lib/common/compiler.h",
+    "zstd/lib/common/cpu.h",
+    "zstd/lib/common/debug.c",
+    "zstd/lib/common/debug.h",
+    "zstd/lib/common/entropy_common.c",
+    "zstd/lib/common/error_private.c",
+    "zstd/lib/common/error_private.h",
+    "zstd/lib/common/fse.h",
+    "zstd/lib/common/fse_decompress.c",
+    "zstd/lib/common/huf.h",
+    "zstd/lib/common/mem.h",
+    "zstd/lib/common/pool.c",
+    "zstd/lib/common/pool.h",
+    "zstd/lib/common/portability_macros.h",
+    "zstd/lib/common/threading.c",
+    "zstd/lib/common/threading.h",
+    "zstd/lib/common/xxhash.c",
+    "zstd/lib/common/xxhash.h",
+    "zstd/lib/common/zstd_common.c",
+    "zstd/lib/common/zstd_deps.h",
+    "zstd/lib/common/zstd_internal.h",
+    "zstd/lib/common/zstd_trace.h",
+    "zstd/lib/compress/clevels.h",
+    "zstd/lib/compress/fse_compress.c",
+    "zstd/lib/compress/hist.c",
+    "zstd/lib/compress/hist.h",
+    "zstd/lib/compress/huf_compress.c",
+    "zstd/lib/compress/zstd_compress.c",
+    "zstd/lib/compress/zstd_compress_internal.h",
+    "zstd/lib/compress/zstd_compress_literals.c",
+    "zstd/lib/compress/zstd_compress_literals.h",
+    "zstd/lib/compress/zstd_compress_sequences.c",
+    "zstd/lib/compress/zstd_compress_sequences.h",
+    "zstd/lib/compress/zstd_compress_superblock.c",
+    "zstd/lib/compress/zstd_compress_superblock.h",
+    "zstd/lib/compress/zstd_cwksp.h",
+    "zstd/lib/compress/zstd_double_fast.c",
+    "zstd/lib/compress/zstd_double_fast.h",
+    "zstd/lib/compress/zstd_fast.c",
+    "zstd/lib/compress/zstd_fast.h",
+    "zstd/lib/compress/zstd_lazy.c",
+    "zstd/lib/compress/zstd_lazy.h",
+    "zstd/lib/compress/zstd_ldm.c",
+    "zstd/lib/compress/zstd_ldm.h",
+    "zstd/lib/compress/zstd_ldm_geartab.h",
+    "zstd/lib/compress/zstd_opt.c",
+    "zstd/lib/compress/zstd_opt.h",
+    "zstd/lib/compress/zstdmt_compress.c",
+    "zstd/lib/compress/zstdmt_compress.h",
+    "zstd/lib/decompress/huf_decompress.c",
+    "zstd/lib/decompress/zstd_ddict.c",
+    "zstd/lib/decompress/zstd_ddict.h",
+    "zstd/lib/decompress/zstd_decompress.c",
+    "zstd/lib/decompress/zstd_decompress_block.c",
+    "zstd/lib/decompress/zstd_decompress_block.h",
+    "zstd/lib/decompress/zstd_decompress_internal.h",
+    "zstd/lib/deprecated/zbuff.h",
+    "zstd/lib/deprecated/zbuff_common.c",
+    "zstd/lib/deprecated/zbuff_compress.c",
+    "zstd/lib/deprecated/zbuff_decompress.c",
+    "zstd/lib/dictBuilder/cover.c",
+    "zstd/lib/dictBuilder/cover.h",
+    "zstd/lib/dictBuilder/divsufsort.c",
+    "zstd/lib/dictBuilder/divsufsort.h",
+    "zstd/lib/dictBuilder/fastcover.c",
+    "zstd/lib/dictBuilder/zdict.c",
+    "zstd/lib/zdict.h",
+    "zstd/lib/zstd.h",
+    "zstd/lib/zstd_errors.h",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  public_configs = [ ":zstd_config" ]
+  deps = [ "//gn:default_deps" ]
+}
+
+config("zstd_config") {
+  visibility = _buildtools_visibility
+  cflags = [
+    perfetto_isystem_cflag,
+    rebase_path("zstd", root_build_dir),
+  ]
+  if (current_cpu == "x64") {
+    defines = [ "ZSTD_DISABLE_ASM" ]
+  }
+}
+
+# For standalone profiler builds.
 source_set("libunwindstack") {
   visibility = _buildtools_visibility
   include_dirs = [
@@ -1267,9 +1360,12 @@ source_set("libunwindstack") {
     "bionic/libc/async_safe/include",
     "bionic/libc/platform/",
     "lzma/C",
+    "zstd/lib",
   ]
   deps = [
     ":lzma",
+    ":zlib",
+    ":zstd",
     "//gn:default_deps",
   ]
   sources = [

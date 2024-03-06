@@ -192,6 +192,8 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
     first_packet_on_sequence_ = false;
   }
 
+  handle.set_finalization_listener(this);
+
   return handle;
 }
 
@@ -464,6 +466,10 @@ uint8_t* TraceWriterImpl::AnnotatePatch(uint8_t* to_patch) {
     cur_chunk_.SetFlag(ChunkHeader::kChunkNeedsPatching);
   }
   return &patch->size_field[0];
+}
+
+void TraceWriterImpl::OnMessageFinalized(protozero::Message*) {
+  TraceWriterImpl::FinishTracePacket();
 }
 
 WriterID TraceWriterImpl::writer_id() const {

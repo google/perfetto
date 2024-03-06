@@ -131,7 +131,9 @@ export const MAX_TIME = 180;
 // 41. Ported all remaining tracks.
 // 42. Rename trackId -> trackKey.
 // 43. Remove visibleTracks.
-export const STATE_VERSION = 43;
+// 44. Add TabsV2 state.
+// 45. Remove v1 tracks.
+export const STATE_VERSION = 45;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -521,6 +523,11 @@ export interface PendingDeeplinkState {
   visEnd?: string;
 }
 
+export interface TabsV2State {
+  openTabs: string[];
+  currentTab: string;
+}
+
 export interface State {
   version: number;
   nextId: string;
@@ -585,7 +592,10 @@ export interface State {
   pendingScrollId?: number;
 
   searchIndex: number;
+
   currentTab?: string;
+
+  tabs: TabsV2State;
 
   /**
    * Trace recording
@@ -660,7 +670,7 @@ export function isAdbTarget(target: RecordingTarget):
 
 export function hasActiveProbes(config: RecordConfig) {
   const fieldsWithEmptyResult = new Set<string>(
-      ['hpBlockClient', 'allAtraceApps', 'chromePrivacyFiltering']);
+    ['hpBlockClient', 'allAtraceApps', 'chromePrivacyFiltering']);
   let key: keyof RecordConfig;
   for (key in config) {
     if (typeof (config[key]) === 'boolean' && config[key] === true &&
@@ -953,6 +963,7 @@ export function getBuiltinChromeCategoryList(): string[] {
 export function getContainingTrackId(state: State, trackKey: string): null|
     string {
   const track = state.tracks[trackKey];
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
   if (!track) {
     return null;
   }

@@ -48,11 +48,11 @@ export class QueryHistoryComponent implements
       arr.push({index: i, entry, runQuery, setQuery});
     }
     return m(
-        '.query-history',
-        m('header.overview',
-          `Query history (${queryHistoryStorage.data.length} queries)`),
-        starred.map((attrs) => m(HistoryItemComponent, attrs)),
-        unstarred.map((attrs) => m(HistoryItemComponent, attrs)));
+      '.query-history',
+      m('header.overview',
+        `Query history (${queryHistoryStorage.data.length} queries)`),
+      starred.map((attrs) => m(HistoryItemComponent, attrs)),
+      unstarred.map((attrs) => m(HistoryItemComponent, attrs)));
   }
 }
 
@@ -68,38 +68,38 @@ export class HistoryItemComponent implements
   view(vnode: m.Vnode<HistoryItemComponentAttrs>): m.Child {
     const query = vnode.attrs.entry.query;
     return m(
-        '.history-item',
-        m('.history-item-buttons',
-          m(
-              'button',
-              {
-                onclick: () => {
-                  queryHistoryStorage.setStarred(
-                      vnode.attrs.index, !vnode.attrs.entry.starred);
-                  raf.scheduleFullRedraw();
-                },
-              },
-              m(Icon, {icon: Icons.Star, filled: vnode.attrs.entry.starred}),
-              ),
-          m('button',
-            {
-              onclick: () => vnode.attrs.setQuery(query),
+      '.history-item',
+      m('.history-item-buttons',
+        m(
+          'button',
+          {
+            onclick: () => {
+              queryHistoryStorage.setStarred(
+                vnode.attrs.index, !vnode.attrs.entry.starred);
+              raf.scheduleFullRedraw();
             },
-            m(Icon, {icon: 'edit'})),
-          m('button',
-            {
-              onclick: () => vnode.attrs.runQuery(query),
+          },
+          m(Icon, {icon: Icons.Star, filled: vnode.attrs.entry.starred}),
+        ),
+        m('button',
+          {
+            onclick: () => vnode.attrs.setQuery(query),
+          },
+          m(Icon, {icon: 'edit'})),
+        m('button',
+          {
+            onclick: () => vnode.attrs.runQuery(query),
+          },
+          m(Icon, {icon: 'play_arrow'})),
+        m('button',
+          {
+            onclick: () => {
+              queryHistoryStorage.remove(vnode.attrs.index);
+              raf.scheduleFullRedraw();
             },
-            m(Icon, {icon: 'play_arrow'})),
-          m('button',
-            {
-              onclick: () => {
-                queryHistoryStorage.remove(vnode.attrs.index);
-                raf.scheduleFullRedraw();
-              },
-            },
-            m(Icon, {icon: 'delete'}))),
-        m('pre', query));
+          },
+          m(Icon, {icon: 'delete'}))),
+      m('pre', query));
   }
 }
 

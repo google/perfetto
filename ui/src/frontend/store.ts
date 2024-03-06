@@ -211,8 +211,8 @@ class SubStore<T, ParentT> implements Store<T> {
     } else {
       this.parentState = parentState;
       return this.cachedState = produce(this.cachedState, () => {
-               return this.migrate(parentState);
-             });
+        return this.migrate(parentState);
+      });
     }
   }
 

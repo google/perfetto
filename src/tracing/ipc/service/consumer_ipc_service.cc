@@ -186,7 +186,7 @@ void ConsumerIPCService::ObserveEvents(
 
 // Called by the IPC layer.
 void ConsumerIPCService::QueryServiceState(
-    const protos::gen::QueryServiceStateRequest&,
+    const protos::gen::QueryServiceStateRequest& req,
     DeferredQueryServiceStateResponse resp) {
   RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
   auto it = pending_query_service_responses_.insert(
@@ -197,7 +197,9 @@ void ConsumerIPCService::QueryServiceState(
     if (weak_this)
       weak_this->OnQueryServiceCallback(success, svc_state, std::move(it));
   };
-  remote_consumer->service_endpoint->QueryServiceState(callback);
+  ConsumerEndpoint::QueryServiceStateArgs args;
+  args.sessions_only = req.sessions_only();
+  remote_consumer->service_endpoint->QueryServiceState(args, callback);
 }
 
 // Called by the service in response to service_endpoint->QueryServiceState().
@@ -328,7 +330,11 @@ void ConsumerIPCService::CloneSession(
     DeferredCloneSessionResponse resp) {
   RemoteConsumer* remote_consumer = GetConsumerForCurrentRequest();
   remote_consumer->clone_session_response = std::move(resp);
-  remote_consumer->service_endpoint->CloneSession(req.session_id());
+  ConsumerEndpoint::CloneSessionArgs args;
+  args.skip_trace_filter = req.skip_trace_filter();
+  args.for_bugreport = req.for_bugreport();
+  remote_consumer->service_endpoint->CloneSession(req.session_id(),
+                                                  std::move(args));
 }
 
 // Called by the service in response to

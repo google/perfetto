@@ -20,6 +20,7 @@ let chromeTraceController: ChromeTracingController|undefined = undefined;
 enableOnlyOnPerfettoHost();
 
 // Listen for messages from the perfetto ui.
+// eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
 if (window.chrome) {
   chrome.runtime.onConnectExternal.addListener((port) => {
     chromeTraceController = new ChromeTracingController(port);
@@ -28,7 +29,7 @@ if (window.chrome) {
 }
 
 function onUIMessage(
-    message: {method: string, requestData: string}, port: chrome.runtime.Port) {
+  message: {method: string, requestData: string}, port: chrome.runtime.Port) {
   if (message.method === 'ExtensionVersion') {
     port.postMessage({version: chrome.runtime.getManifest().version});
     return;
@@ -38,8 +39,8 @@ function onUIMessage(
   // ChromeExtensionConsumerPort sends the request data as string because
   // chrome.runtime.port doesn't support ArrayBuffers.
   const requestDataArray: Uint8Array = message.requestData ?
-      binaryDecode(message.requestData) :
-      new Uint8Array();
+    binaryDecode(message.requestData) :
+    new Uint8Array();
   chromeTraceController.handleCommand(message.method, requestDataArray);
 }
 

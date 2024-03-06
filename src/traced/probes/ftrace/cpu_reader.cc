@@ -32,7 +32,6 @@
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/kallsyms/kernel_symbol_map.h"
 #include "src/kallsyms/lazy_kernel_symbolizer.h"
-#include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/ftrace_controller.h"  // FtraceClockSnapshot
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
@@ -41,6 +40,7 @@
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"  // FtraceParseStatus
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
@@ -48,6 +48,8 @@
 
 namespace perfetto {
 namespace {
+
+using FtraceParseStatus = protos::pbzero::FtraceParseStatus;
 
 // If the compact_sched buffer accumulates more unique strings, the reader will
 // flush it to reset the interning state (and make it cheap again).
@@ -58,7 +60,6 @@ constexpr size_t kCompactSchedInternerThreshold = 64;
 //   linux/include/linux/ring_buffer.h
 // Some of this is also available to userspace at runtime via:
 //   /sys/kernel/tracing/events/header_event
-constexpr uint32_t kTypeDataTypeLengthMax = 28;
 constexpr uint32_t kTypePadding = 29;
 constexpr uint32_t kTypeTimeExtend = 30;
 constexpr uint32_t kTypeTimeStamp = 31;
@@ -137,22 +138,27 @@ bool SetBlocking(int fd, bool is_blocking) {
   return fcntl(fd, F_SETFL, flags) == 0;
 }
 
-bool ZeroPaddedPageTail(const uint8_t* start, const uint8_t* end) {
-  for (auto p = start; p < end; p++) {
-    if (*p != 0)
-      return false;
+void SetParseError(const std::set<FtraceDataSource*>& started_data_sources,
+                   size_t cpu,
+                   FtraceParseStatus status) {
+  PERFETTO_DPLOG("[cpu%zu]: unexpected ftrace read error: %s", cpu,
+                 protos::pbzero::FtraceParseStatus_Name(status));
+  for (FtraceDataSource* data_source : started_data_sources) {
+    data_source->mutable_parse_errors()->insert(status);
   }
-  return true;
 }
 
-void LogInvalidPage(const void* start, size_t size) {
-  PERFETTO_ELOG("Invalid ftrace page");
-  std::string hexdump = base::HexDump(start, size);
-  // Only a single line per log message, because log message size might be
-  // limited.
-  for (base::StringSplitter ss(std::move(hexdump), '\n'); ss.Next();) {
-    PERFETTO_ELOG("%s", ss.cur_token());
-  }
+void WriteAndSetParseError(CpuReader::Bundler* bundler,
+                           base::FlatSet<FtraceParseStatus>* stat,
+                           uint64_t timestamp,
+                           FtraceParseStatus status) {
+  PERFETTO_DLOG("Error parsing ftrace page: %s",
+                protos::pbzero::FtraceParseStatus_Name(status));
+  stat->insert(status);
+  auto* proto = bundler->GetOrCreateBundle()->add_error();
+  if (timestamp)
+    proto->set_timestamp(timestamp);
+  proto->set_status(status);
 }
 
 }  // namespace
@@ -220,7 +226,7 @@ size_t CpuReader::ReadAndProcessBatch(
     bool first_batch_in_cycle,
     CompactSchedBuffer* compact_sched_buf,
     const std::set<FtraceDataSource*>& started_data_sources) {
-  const auto sys_page_size = base::GetSysPageSize();
+  const uint32_t sys_page_size = base::GetSysPageSize();
   size_t pages_read = 0;
   {
     metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
@@ -231,11 +237,12 @@ size_t CpuReader::ReadAndProcessBatch(
       if (res < 0) {
         // Expected errors:
         // EAGAIN: no data (since we're in non-blocking mode).
-        // ENONMEM, EBUSY: temporary ftrace failures (they happen).
+        // ENOMEM, EBUSY: temporary ftrace failures (they happen).
         // ENODEV: the cpu is offline (b/145583318).
         if (errno != EAGAIN && errno != ENOMEM && errno != EBUSY &&
             errno != ENODEV) {
-          PERFETTO_PLOG("Unexpected error on raw ftrace read");
+          SetParseError(started_data_sources, cpu_,
+                        FtraceParseStatus::FTRACE_STATUS_UNEXPECTED_READ_ERROR);
         }
         break;  // stop reading regardless of errno
       }
@@ -244,16 +251,18 @@ size_t CpuReader::ReadAndProcessBatch(
       // return exactly a well-formed raw ftrace page (if not in the steady
       // state of reading out fully-written pages, the kernel will construct
       // pages as necessary, copying over events and zero-filling at the end).
-      // A sub-page read() is therefore not expected in practice (unless
-      // there's a concurrent reader requesting less than a page?). Crash if
-      // encountering this situation. Kernel source pointer: see usage of
-      // |info->read| within |tracing_buffers_read|.
+      // A sub-page read() is therefore not expected in practice. Kernel source
+      // pointer: see usage of |info->read| within |tracing_buffers_read|.
       if (res == 0) {
         // Very rare, but possible. Stop for now, should recover.
         PERFETTO_DLOG("[cpu%zu]: 0-sized read from ftrace pipe.", cpu_);
         break;
       }
-      PERFETTO_CHECK(res == static_cast<ssize_t>(sys_page_size));
+      if (res != static_cast<ssize_t>(sys_page_size)) {
+        SetParseError(started_data_sources, cpu_,
+                      FtraceParseStatus::FTRACE_STATUS_PARTIAL_PAGE_READ);
+        break;
+      }
 
       pages_read += 1;
 
@@ -273,7 +282,7 @@ size_t CpuReader::ReadAndProcessBatch(
           ParsePageHeader(&scratch_ptr, table_->page_header_size_len());
       PERFETTO_DCHECK(hdr && hdr->size > 0 && hdr->size <= sys_page_size);
       if (!hdr.has_value()) {
-        PERFETTO_ELOG("[cpu%zu]: can't parse page header", cpu_);
+        // The header error will be logged by ProcessPagesForDataSource.
         break;
       }
       // Note that the first read after starting the read cycle being small is
@@ -293,22 +302,11 @@ size_t CpuReader::ReadAndProcessBatch(
     return pages_read;
 
   for (FtraceDataSource* data_source : started_data_sources) {
-    size_t pages_parsed_ok = ProcessPagesForDataSource(
+    ProcessPagesForDataSource(
         data_source->trace_writer(), data_source->mutable_metadata(), cpu_,
-        data_source->parsing_config(), parsing_buf, pages_read,
-        compact_sched_buf, table_, symbolizer_, ftrace_clock_snapshot_,
-        ftrace_clock_);
-    // If this happens, it means that we did not know how to parse the kernel
-    // binary format. This is a bug in either perfetto or the kernel, and must
-    // be investigated. Hence we abort instead of recording a bit in the ftrace
-    // stats proto, which is easier to overlook.
-    if (pages_parsed_ok != pages_read) {
-      const size_t first_bad_page_idx = pages_parsed_ok;
-      const uint8_t* curr_page =
-          parsing_buf + (first_bad_page_idx * sys_page_size);
-      LogInvalidPage(curr_page, sys_page_size);
-      PERFETTO_FATAL("Failed to parse ftrace page");
-    }
+        data_source->parsing_config(), data_source->mutable_parse_errors(),
+        parsing_buf, pages_read, compact_sched_buf, table_, symbolizer_,
+        ftrace_clock_snapshot_, ftrace_clock_);
   }
 
   return pages_read;
@@ -402,12 +400,18 @@ void CpuReader::Bundler::FinalizeAndRunSymbolizer() {
   packet_ = TraceWriter::TracePacketHandle(nullptr);
 }
 
+// Error handling: will attempt parsing all pages even if there are errors in
+// parsing the binary layout of the data. The error will be recorded in the
+// event bundle proto with a timestamp, letting the trace processor decide
+// whether to discard or keep the post-error data. Previously, we crashed as
+// soon as we encountered such an error.
 // static
-size_t CpuReader::ProcessPagesForDataSource(
+bool CpuReader::ProcessPagesForDataSource(
     TraceWriter* trace_writer,
     FtraceMetadata* metadata,
     size_t cpu,
     const FtraceDataSourceConfig* ds_config,
+    base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
     const uint8_t* parsing_buf,
     const size_t pages_read,
     CompactSchedBuffer* compact_sched_buf,
@@ -415,17 +419,18 @@ size_t CpuReader::ProcessPagesForDataSource(
     LazyKernelSymbolizer* symbolizer,
     const FtraceClockSnapshot* ftrace_clock_snapshot,
     protos::pbzero::FtraceClock ftrace_clock) {
+  const uint32_t sys_page_size = base::GetSysPageSize();
   Bundler bundler(trace_writer, metadata,
                   ds_config->symbolize_ksyms ? symbolizer : nullptr, cpu,
                   ftrace_clock_snapshot, ftrace_clock, compact_sched_buf,
                   ds_config->compact_sched.enabled);
 
+  bool success = true;
   size_t pages_parsed = 0;
   bool compact_sched_enabled = ds_config->compact_sched.enabled;
   for (; pages_parsed < pages_read; pages_parsed++) {
-    const uint8_t* curr_page =
-        parsing_buf + (pages_parsed * base::GetSysPageSize());
-    const uint8_t* curr_page_end = curr_page + base::GetSysPageSize();
+    const uint8_t* curr_page = parsing_buf + (pages_parsed * sys_page_size);
+    const uint8_t* curr_page_end = curr_page + sys_page_size;
     const uint8_t* parse_pos = curr_page;
     std::optional<PageHeader> page_header =
         ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -433,7 +438,12 @@ size_t CpuReader::ProcessPagesForDataSource(
     if (!page_header.has_value() || page_header->size == 0 ||
         parse_pos >= curr_page_end ||
         parse_pos + page_header->size > curr_page_end) {
-      break;
+      WriteAndSetParseError(
+          &bundler, parse_errors,
+          page_header.has_value() ? page_header->timestamp : 0,
+          FtraceParseStatus::FTRACE_STATUS_ABI_INVALID_PAGE_HEADER);
+      success = false;
+      continue;
     }
 
     // Start a new bundle if either:
@@ -452,16 +462,18 @@ size_t CpuReader::ProcessPagesForDataSource(
       bundler.StartNewPacket(page_header->lost_events);
     }
 
-    size_t evt_size = ParsePagePayload(parse_pos, &page_header.value(), table,
-                                       ds_config, &bundler, metadata);
+    FtraceParseStatus status = ParsePagePayload(
+        parse_pos, &page_header.value(), table, ds_config, &bundler, metadata);
 
-    if (evt_size != page_header->size) {
-      break;
+    if (status != FtraceParseStatus::FTRACE_STATUS_OK) {
+      WriteAndSetParseError(&bundler, parse_errors, page_header->timestamp,
+                            status);
+      success = false;
+      continue;
     }
   }
   // bundler->FinalizeAndRunSymbolizer() will run as part of the destructor.
-
-  return pages_parsed;
+  return success;
 }
 
 // A page header consists of:
@@ -520,13 +532,18 @@ std::optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
 // A raw ftrace buffer page consists of a header followed by a sequence of
 // binary ftrace events. See |ParsePageHeader| for the format of the earlier.
 //
+// Error handling: if the binary data disagrees with our understanding of the
+// ring buffer layout, returns an error and skips the rest of the page (but some
+// events may have already been parsed and serialised).
+//
 // This method is deliberately static so it can be tested independently.
-size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
-                                   const PageHeader* page_header,
-                                   const ProtoTranslationTable* table,
-                                   const FtraceDataSourceConfig* ds_config,
-                                   Bundler* bundler,
-                                   FtraceMetadata* metadata) {
+protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
+    const uint8_t* start_of_payload,
+    const PageHeader* page_header,
+    const ProtoTranslationTable* table,
+    const FtraceDataSourceConfig* ds_config,
+    Bundler* bundler,
+    FtraceMetadata* metadata) {
   const uint8_t* ptr = start_of_payload;
   const uint8_t* const end = ptr + page_header->size;
 
@@ -535,7 +552,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
   while (ptr < end) {
     EventHeader event_header;
     if (!ReadAndAdvance(&ptr, end, &event_header))
-      return 0;
+      return FtraceParseStatus::FTRACE_STATUS_ABI_SHORT_EVENT_HEADER;
 
     timestamp += event_header.time_delta;
 
@@ -543,16 +560,16 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
       case kTypePadding: {
         // Left over page padding or discarded event.
         if (event_header.time_delta == 0) {
-          // Not clear what the correct behaviour is in this case.
-          PERFETTO_DFATAL("Empty padding event.");
-          return 0;
+          // Should never happen: null padding event with unspecified size.
+          // Only written beyond page_header->size.
+          return FtraceParseStatus::FTRACE_STATUS_ABI_NULL_PADDING;
         }
         uint32_t length = 0;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &length))
-          return 0;
-        // length includes itself (4 bytes)
+          return FtraceParseStatus::FTRACE_STATUS_ABI_SHORT_PADDING_LENGTH;
+        // Length includes itself (4 bytes).
         if (length < 4)
-          return 0;
+          return FtraceParseStatus::FTRACE_STATUS_ABI_INVALID_PADDING_LENGTH;
         ptr += length - 4;
         break;
       }
@@ -560,7 +577,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
         // Extend the time delta.
         uint32_t time_delta_ext = 0;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &time_delta_ext))
-          return 0;
+          return FtraceParseStatus::FTRACE_STATUS_ABI_SHORT_TIME_EXTEND;
         timestamp += (static_cast<uint64_t>(time_delta_ext)) << 27;
         break;
       }
@@ -572,35 +589,28 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
         // absolute, instead of a delta on top of the previous state.
         uint32_t time_delta_ext = 0;
         if (!ReadAndAdvance<uint32_t>(&ptr, end, &time_delta_ext))
-          return 0;
+          return FtraceParseStatus::FTRACE_STATUS_ABI_SHORT_TIME_STAMP;
         timestamp = event_header.time_delta +
                     (static_cast<uint64_t>(time_delta_ext) << 27);
         break;
       }
       // Data record:
       default: {
-        PERFETTO_CHECK(event_header.type_or_length <= kTypeDataTypeLengthMax);
-        // type_or_length is <=28 so it represents the length of a data
-        // record. if == 0, this is an extended record and the size of the
-        // record is stored in the first uint32_t word in the payload. See
-        // Kernel's include/linux/ring_buffer.h
+        // If type_or_length <=28, the the record length is 4x that value.
+        // If type_or_length == 0, the length of the record is stored in the
+        // first uint32_t word of the payload.
         uint32_t event_size = 0;
         if (event_header.type_or_length == 0) {
-          if (!ReadAndAdvance<uint32_t>(&ptr, end, &event_size)) {
-            return 0;
-          }
-          // Size includes the size field itself. Special case for invalid
-          // tracing pages seen on select Android 4.19 kernels: the page header
+          if (!ReadAndAdvance<uint32_t>(&ptr, end, &event_size))
+            return FtraceParseStatus::FTRACE_STATUS_ABI_SHORT_DATA_LENGTH;
+          // Size includes itself (4 bytes). However we've seen rare
+          // contradictions on select Android 4.19+ kernels: the page header
           // says there's still valid data, but the rest of the page is full of
-          // zeroes (which would not decode to a valid event). We pretend that
-          // such pages have been fully parsed. b/204564312.
-          if (PERFETTO_UNLIKELY(event_size == 0 &&
-                                event_header.time_delta == 0 &&
-                                ZeroPaddedPageTail(ptr, end))) {
-            return static_cast<size_t>(page_header->size);
-          } else if (PERFETTO_UNLIKELY(event_size < 4)) {
-            return 0;
-          }
+          // zeroes (which would not decode to a valid event). b/204564312.
+          if (event_size == 0)
+            return FtraceParseStatus::FTRACE_STATUS_ABI_ZERO_DATA_LENGTH;
+          else if (event_size < 4)
+            return FtraceParseStatus::FTRACE_STATUS_ABI_INVALID_DATA_LENGTH;
           event_size -= 4;
         } else {
           event_size = 4 * event_header.type_or_length;
@@ -609,11 +619,11 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
         const uint8_t* next = ptr + event_size;
 
         if (next > end)
-          return 0;
+          return FtraceParseStatus::FTRACE_STATUS_ABI_END_OVERFLOW;
 
-        uint16_t ftrace_event_id;
+        uint16_t ftrace_event_id = 0;
         if (!ReadAndAdvance<uint16_t>(&ptr, end, &ftrace_event_id))
-          return 0;
+          return FtraceParseStatus::FTRACE_STATUS_ABI_SHORT_EVENT_ID;
 
         if (ds_config->event_filter.IsEventEnabled(ftrace_event_id)) {
           // Special-cased handling of some scheduler events when compact format
@@ -631,7 +641,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
           if (compact_sched_enabled &&
               ftrace_event_id == sched_switch_format.event_id) {
             if (event_size < sched_switch_format.size)
-              return 0;
+              return FtraceParseStatus::FTRACE_STATUS_SHORT_COMPACT_EVENT;
 
             ParseSchedSwitchCompact(start, timestamp, &sched_switch_format,
                                     bundler->compact_sched_buf(), metadata);
@@ -640,7 +650,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
           } else if (compact_sched_enabled &&
                      ftrace_event_id == sched_waking_format.event_id) {
             if (event_size < sched_waking_format.size)
-              return 0;
+              return FtraceParseStatus::FTRACE_STATUS_SHORT_COMPACT_EVENT;
 
             ParseSchedWakingCompact(start, timestamp, &sched_waking_format,
                                     bundler->compact_sched_buf(), metadata);
@@ -652,8 +662,9 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
                   bundler->GetOrCreateBundle()->add_event();
               event->set_timestamp(timestamp);
               if (!ParseEvent(ftrace_event_id, start, next, table, ds_config,
-                              event, metadata))
-                return 0;
+                              event, metadata)) {
+                return FtraceParseStatus::FTRACE_STATUS_INVALID_EVENT;
+              }
             }
           } else {
             // Common case: parse all other types of enabled events.
@@ -661,17 +672,17 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
                 bundler->GetOrCreateBundle()->add_event();
             event->set_timestamp(timestamp);
             if (!ParseEvent(ftrace_event_id, start, next, table, ds_config,
-                            event, metadata))
-              return 0;
+                            event, metadata)) {
+              return FtraceParseStatus::FTRACE_STATUS_INVALID_EVENT;
+            }
           }
         }
-
         // Jump to next event.
         ptr = next;
-      }
-    }
-  }
-  return static_cast<size_t>(ptr - start_of_payload);
+      }  // default case
+    }    // switch (event_header.type_or_length)
+  }      // while (ptr < end)
+  return FtraceParseStatus::FTRACE_STATUS_OK;
 }
 
 // |start| is the start of the current event.
@@ -684,15 +695,12 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
                            protozero::Message* message,
                            FtraceMetadata* metadata) {
   PERFETTO_DCHECK(start < end);
-  const size_t length = static_cast<size_t>(end - start);
 
-  // TODO(hjd): Rework to work even if the event is unknown.
+  // The event must be enabled and known to reach here.
   const Event& info = *table->GetEventById(ftrace_event_id);
 
-  // TODO(hjd): Test truncated events.
-  // If the end of the buffer is before the end of the event give up.
-  if (info.size > length) {
-    PERFETTO_DFATAL("Buffer overflowed.");
+  if (info.size > static_cast<size_t>(end - start)) {
+    PERFETTO_DLOG("Expected event length is beyond end of buffer.");
     return false;
   }
 
@@ -705,7 +713,7 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
   protozero::Message* nested =
       message->BeginNestedMessage<protozero::Message>(info.proto_field_id);
 
-  // Parse generic event.
+  // Parse generic (not known at compile time) event.
   if (PERFETTO_UNLIKELY(info.proto_field_id ==
                         protos::pbzero::FtraceEvent::kGenericFieldNumber)) {
     nested->AppendString(GenericFtraceEvent::kEventNameFieldNumber, info.name);
@@ -847,7 +855,9 @@ bool CpuReader::ParseField(const Field& field,
     case kInvalidTranslationStrategy:
       break;
   }
-  PERFETTO_FATAL("Unexpected translation strategy");
+  // Shouldn't reach this since we only attempt to parse fields that were
+  // validated by the proto translation table earlier.
+  return false;
 }
 
 bool CpuReader::ParseSysEnter(const Event& info,

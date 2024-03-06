@@ -111,7 +111,7 @@ export class TracedTracingSession implements TracingSession {
       private byteStream: ByteStream,
       private tracingSessionListener: TracingSessionListener) {
     this.byteStream.addOnStreamDataCallback(
-        (data) => this.handleReceivedData(data));
+      (data) => this.handleReceivedData(data));
     this.byteStream.addOnStreamCloseCallback(() => this.clearState());
   }
 
@@ -122,7 +122,7 @@ export class TracedTracingSession implements TracingSession {
 
     const requestProto =
         QueryServiceStateRequest.encode(new QueryServiceStateRequest())
-            .finish();
+          .finish();
     this.rpcInvoke('QueryServiceState', requestProto);
 
     return this.pendingQssMessage = defer<DataSource[]>();
@@ -131,7 +131,7 @@ export class TracedTracingSession implements TracingSession {
   start(config: TraceConfig): void {
     const duration = config.durationMs;
     this.tracingSessionListener.onStatus(`${RECORDING_IN_PROGRESS}${
-        duration ? ' for ' + duration.toString() + ' ms' : ''}...`);
+      duration ? ' for ' + duration.toString() + ' ms' : ''}...`);
 
     const enableTracingRequest = new EnableTracingRequest();
     enableTracingRequest.traceConfig = config;
@@ -187,6 +187,7 @@ export class TracedTracingSession implements TracingSession {
 
     // We shouldn't bind multiple times to the service in the same tracing
     // session.
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     assertFalse(!!this.resolveBindingPromise);
     this.resolveBindingPromise = defer<void>();
     return this.resolveBindingPromise;
@@ -229,15 +230,16 @@ export class TracedTracingSession implements TracingSession {
       return;
     }
     const method = this.availableMethods.find((m) => m.name === methodName);
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!method || !method.id) {
       throw new RecordingError(
-          `Method ${methodName} not supported by the target`);
+        `Method ${methodName} not supported by the target`);
     }
     const requestId = this.requestId++;
     const frame = new IPCFrame({
       requestId,
       msgInvokeMethod: new IPCFrame.InvokeMethod(
-          {serviceId: this.serviceId, methodId: method.id, argsProto}),
+        {serviceId: this.serviceId, methodId: method.id, argsProto}),
     });
     this.requestMethods.set(requestId, methodName);
     this.writeFrame(frame);
@@ -308,8 +310,10 @@ export class TracedTracingSession implements TracingSession {
     const frame = IPCFrame.decode(frameBuffer.slice());
     if (frame.msg === 'msgBindServiceReply') {
       const msgBindServiceReply = frame.msgBindServiceReply;
+      /* eslint-disable @typescript-eslint/strict-boolean-expressions */
       if (msgBindServiceReply && msgBindServiceReply.methods &&
           msgBindServiceReply.serviceId) {
+        /* eslint-enable */
         assertTrue(msgBindServiceReply.success === true);
         this.availableMethods = msgBindServiceReply.methods;
         this.serviceId = msgBindServiceReply.serviceId;
@@ -360,7 +364,7 @@ export class TracedTracingSession implements TracingSession {
         }
         if (msgInvokeMethodReply.hasMore === false) {
           this.tracingSessionListener.onTraceData(
-              this.traceProtoWriter.finish());
+            this.traceProtoWriter.finish());
           this.terminateConnection();
         }
       } else if (method === 'EnableTracing') {
@@ -387,7 +391,7 @@ export class TracedTracingSession implements TracingSession {
           const name = dataSource?.dsDescriptor?.name;
           if (name) {
             this.pendingDataSources.push(
-                {name, descriptor: dataSource.dsDescriptor});
+              {name, descriptor: dataSource.dsDescriptor});
           }
         }
         if (msgInvokeMethodReply.hasMore === false) {
@@ -411,9 +415,9 @@ export class TracedTracingSession implements TracingSession {
 
 const decoders =
     new Map<string, Function>()
-        .set('EnableTracing', EnableTracingResponse.decode)
-        .set('FreeBuffers', FreeBuffersResponse.decode)
-        .set('ReadBuffers', ReadBuffersResponse.decode)
-        .set('DisableTracing', DisableTracingResponse.decode)
-        .set('GetTraceStats', GetTraceStatsResponse.decode)
-        .set('QueryServiceState', QueryServiceStateResponse.decode);
+      .set('EnableTracing', EnableTracingResponse.decode)
+      .set('FreeBuffers', FreeBuffersResponse.decode)
+      .set('ReadBuffers', ReadBuffersResponse.decode)
+      .set('DisableTracing', DisableTracingResponse.decode)
+      .set('GetTraceStats', GetTraceStatsResponse.decode)
+      .set('QueryServiceState', QueryServiceStateResponse.decode);

@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE android.suspend;
+
 -- Extracts the blocking thread from a slice name
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_thread(
   -- Name of slice
@@ -105,7 +107,7 @@ CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocked_src(
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 2), ")", 0);
 
-CREATE PERFETTO TABLE internal_valid_android_monitor_contention AS
+CREATE PERFETTO TABLE _valid_android_monitor_contention AS
 SELECT slice.id AS id
 FROM slice
 LEFT JOIN slice child
@@ -133,7 +135,8 @@ GROUP BY slice.id;
 -- @column process_name Process name of process experiencing lock contention.
 -- @column id Slice id of lock contention.
 -- @column ts Timestamp of lock contention start.
--- @column dur Duration of lock contention.
+-- @column dur Wall clock duration of lock contention.
+-- @column monotonic_dur Monotonic clock duration of lock contention.
 -- @column track_id Thread track id of blocked thread.
 -- @column is_blocked_main_thread Whether the blocked thread is the main thread.
 -- @column is_blocking_main_thread Whether the blocking thread is the main thread.
@@ -159,6 +162,7 @@ SELECT
   slice.id,
   slice.ts,
   slice.dur,
+  _extract_duration_without_suspend(slice.ts, slice.dur) AS monotonic_dur,
   slice.track_id,
   thread.is_main_thread AS is_blocked_thread_main,
   thread.tid AS blocked_thread_tid,
@@ -178,7 +182,7 @@ LEFT JOIN process
 LEFT JOIN ANCESTOR_SLICE(slice.id) binder_reply ON binder_reply.name = 'binder reply'
 LEFT JOIN thread_track binder_reply_thread_track ON binder_reply.track_id = binder_reply_thread_track.id
 LEFT JOIN thread binder_reply_thread ON binder_reply_thread_track.utid = binder_reply_thread.utid
-JOIN internal_valid_android_monitor_contention ON internal_valid_android_monitor_contention.id = slice.id
+JOIN _valid_android_monitor_contention ON _valid_android_monitor_contention.id = slice.id
 JOIN thread blocking_thread ON blocking_thread.tid = blocking_tid AND blocking_thread.upid = thread.upid
 WHERE slice.name GLOB 'monitor contention*'
   AND slice.dur != -1
@@ -186,30 +190,33 @@ WHERE slice.name GLOB 'monitor contention*'
   AND short_blocked_method IS NOT NULL
 GROUP BY slice.id;
 
-CREATE INDEX internal_android_monitor_contention_idx
+CREATE INDEX _android_monitor_contention_blocking_utid_idx
   ON android_monitor_contention (blocking_utid, ts);
+
+CREATE INDEX _android_monitor_contention_id_idx
+  ON android_monitor_contention (id);
 
 -- Monitor contention slices that are blocked by another monitor contention slice.
 -- They will have a |parent_id| field which is the id of the slice they are blocked by.
-CREATE PERFETTO TABLE internal_children AS
+CREATE PERFETTO TABLE _children AS
 SELECT parent.id AS parent_id, child.* FROM android_monitor_contention child
 JOIN android_monitor_contention parent ON parent.blocked_utid = child.blocking_utid
 AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur;
 
 -- Monitor contention slices that are blocking another monitor contention slice.
 -- They will have a |child_id| field which is the id of the slice they are blocking.
-CREATE PERFETTO TABLE internal_parents AS
+CREATE PERFETTO TABLE _parents AS
 SELECT parent.*, child.id AS child_id FROM android_monitor_contention parent
 JOIN android_monitor_contention child ON parent.blocked_utid = child.blocking_utid
 AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur;
 
 -- Monitor contention slices that are neither blocking nor blocked by another monitor contention
 -- slice. They neither have |parent_id| nor |child_id| fields.
-CREATE TABLE internal_isolated AS
+CREATE TABLE _isolated AS
 WITH parents_and_children AS (
- SELECT id FROM internal_children
+ SELECT id FROM _children
  UNION ALL
- SELECT id FROM internal_parents
+ SELECT id FROM _parents
 ), isolated AS (
     SELECT id FROM android_monitor_contention
     EXCEPT
@@ -233,7 +240,8 @@ SELECT * FROM android_monitor_contention JOIN isolated USING (id);
 -- @column process_name Process name of process experiencing lock contention.
 -- @column id Slice id of lock contention.
 -- @column ts Timestamp of lock contention start.
--- @column dur Duration of lock contention.
+-- @column dur Wall clock duration of lock contention.
+-- @column monotonic_dur Monotonic clock duration of lock contention.
 -- @column track_id Thread track id of blocked thread.
 -- @column is_blocked_main_thread Whether the blocked thread is the main thread.
 -- @column is_blocking_main_thread Whether the blocking thread is the main thread.
@@ -242,15 +250,15 @@ SELECT * FROM android_monitor_contention JOIN isolated USING (id);
 -- @column binder_reply_tid Tid of binder reply slice if lock contention was part of a binder txn.
 -- @column child_id Id of monitor contention slice blocked by this contention.
 CREATE TABLE android_monitor_contention_chain AS
-SELECT NULL AS parent_id, *, NULL AS child_id FROM internal_isolated
+SELECT NULL AS parent_id, *, NULL AS child_id FROM _isolated
 UNION ALL
-SELECT c.*, p.child_id FROM internal_children c
-LEFT JOIN internal_parents p USING(id)
+SELECT c.*, p.child_id FROM _children c
+LEFT JOIN _parents p USING(id)
 UNION
-SELECT c.parent_id, p.* FROM internal_parents p
-LEFT JOIN internal_children c USING(id);
+SELECT c.parent_id, p.* FROM _parents p
+LEFT JOIN _children c USING(id);
 
-CREATE INDEX internal_android_monitor_contention_chain_idx
+CREATE INDEX _android_monitor_contention_chain_idx
   ON android_monitor_contention_chain (blocking_method, blocking_utid, ts);
 
 -- First blocked node on a lock, i.e nodes with |waiter_count| = 0. The |dur| here is adjusted
@@ -258,7 +266,7 @@ CREATE INDEX internal_android_monitor_contention_chain_idx
 -- the lock. That way, the thread state span joins below only compute the thread states where
 -- the blocking thread is actually holding the lock. This avoids counting the time when another
 -- waiter acquired the lock before the first waiter.
-CREATE PERFETTO VIEW internal_first_blocked_contention
+CREATE PERFETTO VIEW _first_blocked_contention
   AS
 SELECT start.id, start.blocking_utid, start.ts, MIN(end.ts + end.dur) - start.ts AS dur
 FROM android_monitor_contention_chain start
@@ -270,7 +278,7 @@ JOIN android_monitor_contention_chain end
 WHERE start.waiter_count = 0
 GROUP BY start.id;
 
-CREATE PERFETTO VIEW internal_blocking_thread_state
+CREATE PERFETTO VIEW _blocking_thread_state
 AS
 SELECT utid AS blocking_utid, ts, dur, state, blocked_function
 FROM thread_state;
@@ -296,7 +304,8 @@ FROM thread_state;
 -- @column process_name Process name of process experiencing lock contention.
 -- @column id Slice id of lock contention.
 -- @column ts Timestamp of lock contention start.
--- @column dur Duration of lock contention.
+-- @column dur Wall clock duration of lock contention.
+-- @column monotonic_dur Monotonic clock duration of lock contention.
 -- @column track_id Thread track id of blocked thread.
 -- @column is_blocked_main_thread Whether the blocked thread is the main thread.
 -- @column is_blocking_main_thread Whether the blocking thread is the main thread.
@@ -309,8 +318,8 @@ FROM thread_state;
 -- @column blocked_function Blocked kernel function of the blocking thread.
 CREATE VIRTUAL TABLE android_monitor_contention_chain_thread_state
 USING
-  SPAN_JOIN(internal_first_blocked_contention PARTITIONED blocking_utid,
-            internal_blocking_thread_state PARTITIONED blocking_utid);
+  SPAN_JOIN(_first_blocked_contention PARTITIONED blocking_utid,
+            _blocking_thread_state PARTITIONED blocking_utid);
 
 -- Aggregated thread_states on the 'blocking thread', the thread holding the lock.
 -- This builds on the data from |android_monitor_contention_chain| and

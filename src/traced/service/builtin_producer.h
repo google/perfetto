@@ -26,7 +26,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
-#include "src/tracing/core/metatrace_writer.h"
+#include "src/tracing/service/metatrace_writer.h"
 
 namespace perfetto {
 

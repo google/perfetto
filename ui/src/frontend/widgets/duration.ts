@@ -39,48 +39,49 @@ export class DurationWidget implements m.ClassComponent<DurationWidgetAttrs> {
   view({attrs}: m.Vnode<DurationWidgetAttrs>) {
     const {dur} = attrs;
     return m(
-        PopupMenu2,
-        {
-          trigger: m(Anchor, renderDuration(dur)),
+      PopupMenu2,
+      {
+        trigger: m(Anchor, renderDuration(dur)),
+      },
+      m(MenuItem, {
+        icon: Icons.Copy,
+        label: `Copy raw value`,
+        onclick: () => {
+          copyToClipboard(dur.toString());
         },
-        m(MenuItem, {
-          icon: Icons.Copy,
-          label: `Copy raw value`,
-          onclick: () => {
-            copyToClipboard(dur.toString());
-          },
-        }),
-        m(
-            MenuItem,
-            {
-              label: 'Set time format',
-            },
-            menuItemForFormat(TimestampFormat.Timecode, 'Timecode'),
-            menuItemForFormat(TimestampFormat.UTC, 'Realtime (UTC)'),
-            menuItemForFormat(TimestampFormat.Seconds, 'Seconds'),
-            menuItemForFormat(TimestampFormat.Raw, 'Raw'),
-            menuItemForFormat(
-                TimestampFormat.RawLocale,
-                'Raw (with locale-specific formatting)'),
-            ),
-        m(
-            MenuItem,
-            {
-              label: 'Duration precision',
-              disabled: !durationPrecisionHasEffect(),
-              title: 'Not configurable with current time format',
-            },
-            menuItemForPrecision(DurationPrecision.Full, 'Full'),
-            menuItemForPrecision(
-                DurationPrecision.HumanReadable, 'Human readable'),
-            ),
-        attrs.extraMenuItems ? [m(MenuDivider), attrs.extraMenuItems] : null,
+      }),
+      m(
+        MenuItem,
+        {
+          label: 'Set time format',
+        },
+        menuItemForFormat(TimestampFormat.Timecode, 'Timecode'),
+        menuItemForFormat(TimestampFormat.UTC, 'Realtime (UTC)'),
+        menuItemForFormat(TimestampFormat.TraceTz, 'Realtime (Trace TZ)'),
+        menuItemForFormat(TimestampFormat.Seconds, 'Seconds'),
+        menuItemForFormat(TimestampFormat.Raw, 'Raw'),
+        menuItemForFormat(
+          TimestampFormat.RawLocale,
+          'Raw (with locale-specific formatting)'),
+      ),
+      m(
+        MenuItem,
+        {
+          label: 'Duration precision',
+          disabled: !durationPrecisionHasEffect(),
+          title: 'Not configurable with current time format',
+        },
+        menuItemForPrecision(DurationPrecision.Full, 'Full'),
+        menuItemForPrecision(
+          DurationPrecision.HumanReadable, 'Human readable'),
+      ),
+      attrs.extraMenuItems ? [m(MenuDivider), attrs.extraMenuItems] : null,
     );
   }
 }
 
 function menuItemForPrecision(
-    value: DurationPrecision, label: string): m.Children {
+  value: DurationPrecision, label: string): m.Children {
   return m(MenuItem, {
     label,
     active: value === durationPrecision(),
@@ -93,11 +94,12 @@ function menuItemForPrecision(
 
 function durationPrecisionHasEffect(): boolean {
   switch (timestampFormat()) {
-    case TimestampFormat.Timecode:
-    case TimestampFormat.UTC:
-      return true;
-    default:
-      return false;
+  case TimestampFormat.Timecode:
+  case TimestampFormat.UTC:
+  case TimestampFormat.TraceTz:
+    return true;
+  default:
+    return false;
   }
 }
 
@@ -105,30 +107,31 @@ function durationPrecisionHasEffect(): boolean {
 export function renderDuration(dur: duration): string {
   const fmt = timestampFormat();
   switch (fmt) {
-    case TimestampFormat.UTC:
-    case TimestampFormat.Timecode:
-      return renderFormattedDuration(dur);
-    case TimestampFormat.Raw:
-      return dur.toString();
-    case TimestampFormat.RawLocale:
-      return dur.toLocaleString();
-    case TimestampFormat.Seconds:
-      return Duration.formatSeconds(dur);
-    default:
-      const x: never = fmt;
-      throw new Error(`Invalid format ${x}`);
+  case TimestampFormat.UTC:
+  case TimestampFormat.TraceTz:
+  case TimestampFormat.Timecode:
+    return renderFormattedDuration(dur);
+  case TimestampFormat.Raw:
+    return dur.toString();
+  case TimestampFormat.RawLocale:
+    return dur.toLocaleString();
+  case TimestampFormat.Seconds:
+    return Duration.formatSeconds(dur);
+  default:
+    const x: never = fmt;
+    throw new Error(`Invalid format ${x}`);
   }
 }
 
 function renderFormattedDuration(dur: duration): string {
   const fmt = durationPrecision();
   switch (fmt) {
-    case DurationPrecision.HumanReadable:
-      return Duration.humanise(dur);
-    case DurationPrecision.Full:
-      return Duration.format(dur);
-    default:
-      const x: never = fmt;
-      throw new Error(`Invalid format ${x}`);
+  case DurationPrecision.HumanReadable:
+    return Duration.humanise(dur);
+  case DurationPrecision.Full:
+    return Duration.format(dur);
+  default:
+    const x: never = fmt;
+    throw new Error(`Invalid format ${x}`);
   }
 }

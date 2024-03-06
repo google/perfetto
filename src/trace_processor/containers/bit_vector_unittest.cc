@@ -545,6 +545,14 @@ TEST(BitVectorUnittest, BuilderSkip) {
   ASSERT_TRUE(bv.IsSet(127));
 }
 
+TEST(BitVectorUnittest, BuilderSkipAll) {
+  BitVector::Builder builder(128, 128);
+  BitVector bv = std::move(builder).Build();
+
+  ASSERT_EQ(bv.size(), 128u);
+  ASSERT_EQ(bv.CountSetBits(), 0u);
+}
+
 TEST(BitVectorUnittest, BuilderBitsInCompleteWordsUntilFull) {
   BitVector::Builder builder(128 + 1);
 

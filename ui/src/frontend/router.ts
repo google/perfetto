@@ -67,6 +67,11 @@ const routeArgs = record({
   // as with record_android_trace.
   url: optStr,
 
+  // For connecting to a trace_processor_shell --httpd instance running on a
+  // non-standard port. This requires the CSP_WS_PERMISSIVE_PORT flag to relax
+  // the Content Security Policy.
+  rpc_port: optStr,
+
   // Override the referrer. Useful for scripts such as
   // record_android_trace to record where the trace is coming from.
   referrer: optStr,
@@ -302,5 +307,41 @@ export class Router {
     if (this.recentChanges.length > EVENT_LIMIT) {
       throw new Error('History rewriting livelock');
     }
+  }
+
+  static getUrlForVersion(versionCode: string): string {
+    const url = `${window.location.origin}/${versionCode}/`;
+    return url;
+  }
+
+  static async isVersionAvailable(versionCode: string):
+        Promise<string|undefined> {
+    if (versionCode === '') {
+      return undefined;
+    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1000);
+    const url = Router.getUrlForVersion(versionCode);
+    let r;
+    try {
+      r = await fetch(url, {signal: controller.signal});
+    } catch (e) {
+      console.error(`No UI version for ${versionCode} at ${url}. This is an error if ${versionCode} is a released Perfetto version`);
+      return undefined;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (!r.ok) {
+      return undefined;
+    }
+    return url;
+  }
+
+  static navigateToVersion(versionCode: string): void {
+    const url = Router.getUrlForVersion(versionCode);
+    if (url === undefined) {
+      throw new Error(`No URL known for UI version ${versionCode}.`);
+    }
+    window.location.replace(url);
   }
 }

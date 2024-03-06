@@ -49,7 +49,7 @@ def get_latest_release(changelog_path):
       changelog_path = os.path.join(PROJECT_ROOT, 'CHANGELOG')
   with open(changelog_path) as f:
     for line in f.readlines():
-      m = re.match('^(v\d+[.]\d+)\s.*$', line)
+      m = re.match(r'^(v\d+[.]\d+)\s.*$', line)
       if m is not None:
         return m.group(1)
   raise Exception('Failed to fetch Perfetto version from %s' % changelog_path)

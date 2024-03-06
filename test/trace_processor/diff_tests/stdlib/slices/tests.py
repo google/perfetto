@@ -54,10 +54,10 @@ class Slices(TestSuite):
     return DiffTestBlueprint(
         trace=Path('trace.py'),
         query="""
-        INCLUDE PERFETTO MODULE experimental.slices;
+        INCLUDE PERFETTO MODULE slices.slices;
 
         SELECT name, ts, dur, depth, thread_name, tid, process_name, pid
-        FROM experimental_slice_with_thread_and_process_info;
+        FROM _slice_with_thread_and_process_info;
       """,
         out=Csv("""
         "name","ts","dur","depth","thread_name","tid","process_name","pid"
@@ -143,10 +143,10 @@ class Slices(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
         query="""
-        INCLUDE PERFETTO MODULE experimental.flat_slices;
+        INCLUDE PERFETTO MODULE slices.flat_slices;
 
         SELECT e.name, e.ts, e.dur, e.depth
-        FROM experimental_slice_flattened e
+        FROM _slice_flattened e
         JOIN thread_track ON e.track_id = thread_track.id
         JOIN thread USING(utid)
         WHERE thread.tid = 30944;

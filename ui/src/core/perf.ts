@@ -123,11 +123,11 @@ class PerfDisplay {
         },
         m('i.material-icons', 'close')),
       this.containers.map(
-          (c, i) => m(
-              'section',
-              m('div', `Panel Container ${i + 1}`),
-              c.renderPerfStats(),
-              )),
+        (c, i) => m(
+          'section',
+          m('div', `Panel Container ${i + 1}`),
+          c.renderPerfStats(),
+        )),
     ]);
   }
 }

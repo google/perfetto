@@ -19,7 +19,7 @@ import {Slice} from '../../public';
 
 export class AsyncSliceTrackV2 extends NamedSliceTrack {
   constructor(
-      args: NewTrackArgs, maxDepth: number, private trackIds: number[]) {
+    args: NewTrackArgs, maxDepth: number, private trackIds: number[]) {
     super(args);
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,

@@ -27,70 +27,70 @@ const args = [
 describe('convertArgsToTree', () => {
   test('converts example arg set', () => {
     expect(convertArgsToTree(args))
-        .toEqual(
-            [
+      .toEqual(
+        [
+          {
+            key: 'simple_key',
+            value: {key: 'simple_key', value: 'simple_value'},
+          },
+          {
+            key: 'thing',
+            children: [
+              {key: 'key', value: {key: 'thing.key', value: 'value'}},
               {
-                key: 'simple_key',
-                value: {key: 'simple_key', value: 'simple_value'},
-              },
-              {
-                key: 'thing',
+                key: 'point',
                 children: [
-                  {key: 'key', value: {key: 'thing.key', value: 'value'}},
                   {
-                    key: 'point',
+                    key: 0,
                     children: [
                       {
-                        key: 0,
-                        children: [
-                          {
-                            key: 'x',
-                            value: {key: 'thing.point[0].x', value: 10},
-                          },
-                          {
-                            key: 'y',
-                            value: {key: 'thing.point[0].y', value: 20},
-                          },
-                        ],
+                        key: 'x',
+                        value: {key: 'thing.point[0].x', value: 10},
                       },
                       {
-                        key: 1,
-                        children: [
-                          {
-                            key: 'x',
-                            value: {key: 'thing.point[1].x', value: 0},
-                          },
-                          {
-                            key: 'y',
-                            value: {key: 'thing.point[1].y', value: -10},
-                          },
-                        ],
+                        key: 'y',
+                        value: {key: 'thing.point[0].y', value: 20},
                       },
                     ],
                   },
-                ],
-              },
-              {
-                key: 'foo',
-                children: [
                   {
-                    key: 'bar',
+                    key: 1,
                     children: [
                       {
-                        key: 'foo',
-                        children: [
-                          {
-                            key: 'bar',
-                            value: {key: 'foo.bar.foo.bar', value: 'baz'},
-                          },
-                        ],
+                        key: 'x',
+                        value: {key: 'thing.point[1].x', value: 0},
+                      },
+                      {
+                        key: 'y',
+                        value: {key: 'thing.point[1].y', value: -10},
                       },
                     ],
                   },
                 ],
               },
             ],
-        );
+          },
+          {
+            key: 'foo',
+            children: [
+              {
+                key: 'bar',
+                children: [
+                  {
+                    key: 'foo',
+                    children: [
+                      {
+                        key: 'bar',
+                        value: {key: 'foo.bar.foo.bar', value: 'baz'},
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      );
   });
 
   test('handles value and children in same node', () => {

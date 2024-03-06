@@ -63,35 +63,35 @@ export class Form implements m.ClassComponent<FormAttrs> {
     } = attrs;
 
     return m(
-        'form.pf-form',
-        htmlAttrs,
-        children,
-        m(
-            '.pf-form-button-bar',
-            m(Button, {
-              type: 'submit',
-              label: submitLabel,
-              rightIcon: submitIcon,
-              className: Popup.DISMISS_POPUP_GROUP_CLASS,
-              onclick: (e: Event) => {
-                preventDefault && e.preventDefault();
-                onSubmit();
-              },
-            }),
-            // This cancel button just closes the popup if we are inside one.
-            cancelLabel && m(Button, {
-              type: 'button',
-              label: cancelLabel,
-              className: Popup.DISMISS_POPUP_GROUP_CLASS,
-              minimal: true,
-            }),
-            // This reset button just clears the form.
-            resetLabel && m(Button, {
-              label: resetLabel,
-              minimal: true,
-              type: 'reset',
-            }),
-            ),
+      'form.pf-form',
+      htmlAttrs,
+      children,
+      m(
+        '.pf-form-button-bar',
+        m(Button, {
+          type: 'submit',
+          label: submitLabel,
+          rightIcon: submitIcon,
+          className: Popup.DISMISS_POPUP_GROUP_CLASS,
+          onclick: (e: Event) => {
+            preventDefault && e.preventDefault();
+            onSubmit();
+          },
+        }),
+        // This cancel button just closes the popup if we are inside one.
+        cancelLabel && m(Button, {
+          type: 'button',
+          label: cancelLabel,
+          className: Popup.DISMISS_POPUP_GROUP_CLASS,
+          minimal: true,
+        }),
+        // This reset button just clears the form.
+        resetLabel && m(Button, {
+          label: resetLabel,
+          minimal: true,
+          type: 'reset',
+        }),
+      ),
     );
   }
 }

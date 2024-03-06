@@ -42,6 +42,7 @@ export interface CustomSqlTableDefConfig {
   // Table columns
   columns?: string[];
   whereClause?: string;
+  dispose?: Disposable;
 }
 
 export interface CustomSqlDetailsPanelConfig {
@@ -61,7 +62,9 @@ export abstract class CustomSqlTableSliceTrack<
         `customsqltableslicetrack_${uuidv4().split('-').join('_')}`;
   }
 
-  abstract getSqlDataSource(): CustomSqlTableDefConfig;
+  abstract getSqlDataSource():
+    CustomSqlTableDefConfig |
+    Promise<CustomSqlTableDefConfig>;
 
   // Override by subclasses.
   abstract getDetailsPanel(args:
@@ -76,7 +79,7 @@ export abstract class CustomSqlTableSliceTrack<
 
   async onInit(): Promise<Disposable> {
     await this.loadImports();
-    const config = this.getSqlDataSource();
+    const config = await Promise.resolve(this.getSqlDataSource());
     let columns = ['*'];
     if (config.columns !== undefined) {
       columns = config.columns;
@@ -94,6 +97,7 @@ export abstract class CustomSqlTableSliceTrack<
     return DisposableCallback.from(() => {
       if (this.engine.isAlive) {
         this.engine.query(`DROP VIEW ${this.tableName}`);
+        config.dispose?.dispose();
       }
     });
   }
@@ -136,12 +140,7 @@ export abstract class CustomSqlTableSliceTrack<
 }
 
 class CustomSqlTrackPlugin implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    // noop to allow directory to compile.
-    if (ctx) {
-      return;
-    }
-  }
+  onActivate(_ctx: PluginContext): void {}
 }
 
 export const plugin: PluginDescriptor = {

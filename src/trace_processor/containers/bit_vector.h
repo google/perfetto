@@ -98,7 +98,7 @@ class BitVector {
         return BitVector();
 
       std::vector<uint32_t> counts(BlockCount(size_));
-      PERFETTO_CHECK(skipped_blocks_ < counts.size());
+      PERFETTO_CHECK(skipped_blocks_ <= counts.size());
       for (uint32_t i = skipped_blocks_ + 1; i < counts.size(); ++i) {
         counts[i] = counts[i - 1] +
                     ConstBlock(&words_[Block::kWords * (i - 1)]).CountSetBits();

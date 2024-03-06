@@ -60,7 +60,7 @@ export abstract class AdbConnectionImpl implements AdbConnection {
     });
     adbStream.addOnStreamCloseCallback(() => {
       onStreamingEnded.resolve(
-          textDecoder.decode(commandOutput.toArrayBuffer()));
+        textDecoder.decode(commandOutput.toArrayBuffer()));
     });
     return onStreamingEnded;
   }

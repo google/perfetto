@@ -19,6 +19,7 @@ perfetto_proto_library("@TYPE@") {
     "chrome_benchmark_metadata.proto",
     "chrome_metadata.proto",
     "chrome_trace_event.proto",
+    "v8.proto",
   ]
 }
 

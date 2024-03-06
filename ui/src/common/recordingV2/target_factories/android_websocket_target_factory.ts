@@ -86,14 +86,14 @@ export function parseWebsocketResponse(message: string): ParsingResult {
       if (listedDevice) {
         // We overwrite previous states for the same serial number.
         latestStatusByDevice.set(
-            listedDevice.serialNumber, listedDevice.connectionState);
+          listedDevice.serialNumber, listedDevice.connectionState);
       }
     }
     message = message.substring(prefixAndPayloadLength);
   }
   const listedDevices: ListedDevice[] = [];
   for (const [serialNumber, connectionState] of latestStatusByDevice
-           .entries()) {
+    .entries()) {
     listedDevices.push({serialNumber, connectionState});
   }
   return {listedDevices, messageRemainder: message};
@@ -101,7 +101,7 @@ export function parseWebsocketResponse(message: string): ParsingResult {
 
 export class WebsocketConnection {
   private targets: Map<string, AndroidWebsocketTarget> =
-      new Map<string, AndroidWebsocketTarget>();
+    new Map<string, AndroidWebsocketTarget>();
   private pendingData: string = '';
 
   constructor(
@@ -120,8 +120,8 @@ export class WebsocketConnection {
     this.websocket.onclose = (ev: CloseEvent) => {
       if (ev.code === WEBSOCKET_CLOSED_ABNORMALLY_CODE) {
         console.info(
-            `It's safe to ignore the 'WebSocket connection to ${
-                this.websocket.url} error above, if present. It occurs when ` +
+          `It's safe to ignore the 'WebSocket connection to ${
+            this.websocket.url} error above, if present. It occurs when ` +
             'checking the connection to the local Websocket server.');
       }
       this.maybeClearConnection(this);
@@ -156,6 +156,8 @@ export class WebsocketConnection {
       target.disconnect();
     }
     this.targets.clear();
+
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (this.onTargetChange) {
       this.onTargetChange();
     }
@@ -183,11 +185,11 @@ export class WebsocketConnection {
         targetsUpdated = true;
       } else if (!this.targets.has(listedDevice.serialNumber)) {
         this.targets.set(
+          listedDevice.serialNumber,
+          new AndroidWebsocketTarget(
             listedDevice.serialNumber,
-            new AndroidWebsocketTarget(
-                listedDevice.serialNumber,
-                this.websocket.url,
-                this.onTargetChange));
+            this.websocket.url,
+            this.onTargetChange));
         targetsUpdated = true;
       }
     }
@@ -210,7 +212,7 @@ export class AndroidWebsocketTargetFactory implements TargetFactory {
 
   listTargets(): RecordingTargetV2[] {
     return this.websocketConnection ? this.websocketConnection.listTargets() :
-                                      [];
+      [];
   }
 
   listRecordingProblems(): string[] {
@@ -222,7 +224,7 @@ export class AndroidWebsocketTargetFactory implements TargetFactory {
   // server detects a new target.
   connectNewTarget(): Promise<RecordingTargetV2> {
     return Promise.reject(new Error(
-        'The websocket can only automatically connect targets ' +
+      'The websocket can only automatically connect targets ' +
         'when they become available.'));
   }
 
@@ -237,7 +239,7 @@ export class AndroidWebsocketTargetFactory implements TargetFactory {
 
     const websocket = new WebSocket(websocketUrl);
     this.websocketConnection = new WebsocketConnection(
-        websocket, this.maybeClearConnection, this.onTargetChange);
+      websocket, this.maybeClearConnection, this.onTargetChange);
   }
 
   maybeClearConnection(connection: WebsocketConnection): void {

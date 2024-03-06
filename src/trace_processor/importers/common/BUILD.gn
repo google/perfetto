@@ -16,6 +16,7 @@ import("../../../../gn/perfetto.gni")
 
 source_set("common") {
   sources = [
+    "address_range.h",
     "args_tracker.cc",
     "args_tracker.h",
     "args_translation_table.cc",
@@ -43,6 +44,8 @@ source_set("common") {
     "slice_tracker.h",
     "slice_translation_table.cc",
     "slice_translation_table.h",
+    "stack_profile_tracker.cc",
+    "stack_profile_tracker.h",
     "system_info_tracker.cc",
     "system_info_tracker.h",
     "trace_parser.cc",
@@ -63,8 +66,12 @@ source_set("common") {
     "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
+    "../../db:minimal",
     "../../storage",
+    "../../tables:tables",
     "../../types",
+    "../../util:profiler_util",
+    "../../util:stack_traces_util",
     "../fuchsia:fuchsia_record",
     "../systrace:systrace_line",
   ]
@@ -87,6 +94,7 @@ source_set("parser_types") {
 
 source_set("unittests") {
   sources = [
+    "address_range_unittest.cc",
     "args_translation_table_unittest.cc",
     "async_track_set_tracker_unittest.cc",
     "clock_converter_unittest.cc",

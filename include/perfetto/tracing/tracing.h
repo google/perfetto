@@ -153,10 +153,11 @@ struct TracingInitArgs {
   bool disallow_merging_with_system_tracks = false;
 
   // If set, this function will be called by the producer client to create a
-  // socket for connection to the system service. The function takes two
-  // arguments: a name of the socket, and a callback that takes an open file
-  // descriptor. It should create a socket with the given name, connect to it,
-  // and return the corresponding descriptor via the callback.
+  // socket for connection to the system service. The function takes one
+  // argument: a callback that takes an open file descriptor. The function
+  // should create a socket with the name defined by
+  // perfetto::GetProducerSocket(), connect to it, and return the corresponding
+  // descriptor via the callback.
   // This is intended for the use-case where a process being traced is run
   // inside a sandbox and can't create sockets directly.
   // Not yet supported for consumer connections currently.
@@ -348,7 +349,7 @@ class PERFETTO_EXPORT_COMPONENT TracingSession {
   // thread.
   virtual void SetOnStartCallback(std::function<void()>) = 0;
 
-  // This callback can be used to get a notification when some error occured
+  // This callback can be used to get a notification when some error occurred
   // (e.g., peer disconnection). Error type will be passed as an argument. This
   // callback will be invoked on an internal perfetto thread.
   virtual void SetOnErrorCallback(std::function<void(TracingError)>) = 0;

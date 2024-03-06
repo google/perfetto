@@ -17,13 +17,17 @@ import {v4 as uuidv4} from 'uuid';
 import {Actions} from '../../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
-import {GenericSliceDetailsTab} from '../../frontend/generic_slice_details_tab';
+import {
+  GenericSliceDetailsTab,
+  GenericSliceDetailsTabConfig,
+} from '../../frontend/generic_slice_details_tab';
 import {globals} from '../../frontend/globals';
 import {
   NAMED_ROW,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {
+  BottomTabToSCSAdapter,
   NUM,
   Plugin,
   PluginContext,
@@ -77,19 +81,19 @@ enum CriticalUserInteractionType {
 function convertToCriticalUserInteractionType(cujType: string):
     CriticalUserInteractionType {
   switch (cujType) {
-    case CriticalUserInteractionType.PAGE_LOAD:
-      return CriticalUserInteractionType.PAGE_LOAD;
-    case CriticalUserInteractionType.STARTUP:
-      return CriticalUserInteractionType.STARTUP;
-    case CriticalUserInteractionType.WEB_CONTENT_INTERACTION:
-      return CriticalUserInteractionType.WEB_CONTENT_INTERACTION;
-    default:
-      return CriticalUserInteractionType.UNKNOWN;
+  case CriticalUserInteractionType.PAGE_LOAD:
+    return CriticalUserInteractionType.PAGE_LOAD;
+  case CriticalUserInteractionType.STARTUP:
+    return CriticalUserInteractionType.STARTUP;
+  case CriticalUserInteractionType.WEB_CONTENT_INTERACTION:
+    return CriticalUserInteractionType.WEB_CONTENT_INTERACTION;
+  default:
+    return CriticalUserInteractionType.UNKNOWN;
   }
 }
 
 export class CriticalUserInteractionTrack extends
-    CustomSqlTableSliceTrack<CriticalUserInteractionSliceTrackTypes> {
+  CustomSqlTableSliceTrack<CriticalUserInteractionSliceTrackTypes> {
   static readonly kind = CRITICAL_USER_INTERACTIONS_KIND;
 
   getSqlDataSource(): CustomSqlTableDefConfig {
@@ -110,7 +114,7 @@ export class CriticalUserInteractionTrack extends
   }
 
   getDetailsPanel(
-      args: OnSliceClickArgs<CriticalUserInteractionSliceTrackTypes['slice']>):
+    args: OnSliceClickArgs<CriticalUserInteractionSliceTrackTypes['slice']>):
       CustomSqlDetailsPanelConfig {
     let detailsPanel = {
       kind: GenericSliceDetailsTab.kind,
@@ -121,41 +125,41 @@ export class CriticalUserInteractionTrack extends
     };
 
     switch (convertToCriticalUserInteractionType(args.slice.type)) {
-      case CriticalUserInteractionType.PAGE_LOAD:
-        detailsPanel = {
-          kind: PageLoadDetailsPanel.kind,
-          config: {
-            sqlTableName: this.tableName,
-            title: 'Chrome Page Load',
-          },
-        };
-        break;
-      case CriticalUserInteractionType.STARTUP:
-        detailsPanel = {
-          kind: StartupDetailsPanel.kind,
-          config: {
-            sqlTableName: this.tableName,
-            title: 'Chrome Startup',
-          },
-        };
-        break;
-      case CriticalUserInteractionType.WEB_CONTENT_INTERACTION:
-        detailsPanel = {
-          kind: WebContentInteractionPanel.kind,
-          config: {
-            sqlTableName: this.tableName,
-            title: 'Chrome Web Content Interaction',
-          },
-        };
-        break;
-      default:
-        break;
+    case CriticalUserInteractionType.PAGE_LOAD:
+      detailsPanel = {
+        kind: PageLoadDetailsPanel.kind,
+        config: {
+          sqlTableName: this.tableName,
+          title: 'Chrome Page Load',
+        },
+      };
+      break;
+    case CriticalUserInteractionType.STARTUP:
+      detailsPanel = {
+        kind: StartupDetailsPanel.kind,
+        config: {
+          sqlTableName: this.tableName,
+          title: 'Chrome Startup',
+        },
+      };
+      break;
+    case CriticalUserInteractionType.WEB_CONTENT_INTERACTION:
+      detailsPanel = {
+        kind: WebContentInteractionPanel.kind,
+        config: {
+          sqlTableName: this.tableName,
+          title: 'Chrome Web Content Interaction',
+        },
+      };
+      break;
+    default:
+      break;
     }
     return detailsPanel;
   }
 
   onSliceClick(
-      args: OnSliceClickArgs<CriticalUserInteractionSliceTrackTypes['slice']>) {
+    args: OnSliceClickArgs<CriticalUserInteractionSliceTrackTypes['slice']>) {
     const detailsPanelConfig = this.getDetailsPanel(args);
     globals.makeSelection(Actions.selectGenericSlice({
       id: args.slice.scopedId,
@@ -209,9 +213,55 @@ class CriticalUserInteractionPlugin implements Plugin {
       uri: CriticalUserInteractionTrack.kind,
       kind: CriticalUserInteractionTrack.kind,
       displayName: 'Chrome Interactions',
-      track: (trackCtx) => new CriticalUserInteractionTrack(
-          {engine: ctx.engine, trackKey: trackCtx.trackKey}),
+      trackFactory: (trackCtx) => new CriticalUserInteractionTrack(
+        {engine: ctx.engine, trackKey: trackCtx.trackKey}),
     });
+
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
+      tabFactory: (selection) => {
+        if (selection.kind === 'GENERIC_SLICE' &&
+            selection.detailsPanelConfig.kind === PageLoadDetailsPanel.kind) {
+          const config = selection.detailsPanelConfig.config;
+          return new PageLoadDetailsPanel({
+            config: config as GenericSliceDetailsTabConfig,
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        }
+        return undefined;
+      },
+    }));
+
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
+      tabFactory: (selection) => {
+        if (selection.kind === 'GENERIC_SLICE' &&
+            selection.detailsPanelConfig.kind === StartupDetailsPanel.kind) {
+          const config = selection.detailsPanelConfig.config;
+          return new StartupDetailsPanel({
+            config: config as GenericSliceDetailsTabConfig,
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        }
+        return undefined;
+      },
+    }));
+
+    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
+      tabFactory: (selection) => {
+        if (selection.kind === 'GENERIC_SLICE' &&
+            selection.detailsPanelConfig.kind ===
+                WebContentInteractionPanel.kind) {
+          const config = selection.detailsPanelConfig.config;
+          return new WebContentInteractionPanel({
+            config: config as GenericSliceDetailsTabConfig,
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        }
+        return undefined;
+      },
+    }));
   }
 
   onActivate(ctx: PluginContext): void {

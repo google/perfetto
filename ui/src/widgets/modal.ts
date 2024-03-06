@@ -124,42 +124,42 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
     const buttons: m.Children = [];
     for (const button of attrs.buttons || []) {
       buttons.push(
-          m('button.modal-btn',
-            {
-              class: button.primary ? 'modal-btn-primary' : '',
-              id: button.id,
-              onclick: () => {
-                closeModal(attrs.key);
-                if (button.action !== undefined) button.action();
-              },
+        m('button.modal-btn',
+          {
+            class: button.primary ? 'modal-btn-primary' : '',
+            id: button.id,
+            onclick: () => {
+              closeModal(attrs.key);
+              if (button.action !== undefined) button.action();
             },
-            button.text));
+          },
+          button.text));
     }
 
     const aria = '[aria-labelledby=mm-title][aria-model][role=dialog]';
     const align = attrs.vAlign === 'TOP' ? '.modal-dialog-valign-top' : '';
     return m(
-        '.modal-backdrop',
-        {
-          onclick: this.onBackdropClick.bind(this, attrs),
-          onkeyup: this.onBackdropKeyupdown.bind(this, attrs),
-          onkeydown: this.onBackdropKeyupdown.bind(this, attrs),
-          tabIndex: 0,
-        },
+      '.modal-backdrop',
+      {
+        onclick: this.onBackdropClick.bind(this, attrs),
+        onkeyup: this.onBackdropKeyupdown.bind(this, attrs),
+        onkeydown: this.onBackdropKeyupdown.bind(this, attrs),
+        tabIndex: 0,
+      },
+      m(
+        `.modal-dialog${align}${aria}`,
         m(
-            `.modal-dialog${align}${aria}`,
-            m(
-                'header',
-                m('h2', {id: 'mm-title'}, attrs.title),
-                m(
-                    'button[aria-label=Close Modal]',
-                    {onclick: () => closeModal(attrs.key)},
-                    m.trust('&#x2715'),
-                    ),
-                ),
-            m('main', vnode.children),
-            buttons.length > 0 ? m('footer', buttons) : null,
-            ));
+          'header',
+          m('h2', {id: 'mm-title'}, attrs.title),
+          m(
+            'button[aria-label=Close Modal]',
+            {onclick: () => closeModal(attrs.key)},
+            m.trust('&#x2715'),
+          ),
+        ),
+        m('main', vnode.children),
+        buttons.length > 0 ? m('footer', buttons) : null,
+      ));
   }
 
   onBackdropClick(attrs: ModalAttrs, e: MouseEvent) {

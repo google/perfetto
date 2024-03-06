@@ -169,7 +169,8 @@ unevictable_pgs_rescued 14640
 unevictable_pgs_mlocked 52520
 unevictable_pgs_munlocked 14640
 unevictable_pgs_cleared 2342
-unevictable_pgs_stranded 2342)";
+unevictable_pgs_stranded 2342
+vma_lock_abort 1173728)";
 
 const char kMockStat[] = R"(
 cpu  2655987 822682 2352153 8801203 41917 322733 175055 0 0 0
@@ -348,6 +349,7 @@ TEST_F(SysStatsDataSourceTest, Vmstat) {
   sys_cfg.add_vmstat_counters(C::VMSTAT_PGACTIVATE);
   sys_cfg.add_vmstat_counters(C::VMSTAT_PGMIGRATE_FAIL);
   sys_cfg.add_vmstat_counters(C::VMSTAT_PGSTEAL_DIRECT);
+  sys_cfg.add_vmstat_counters(C::VMSTAT_VMA_LOCK_ABORT);
   config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
   auto data_source = GetSysStatsDataSource(config);
 
@@ -365,11 +367,13 @@ TEST_F(SysStatsDataSourceTest, Vmstat) {
   for (const auto& kv : sys_stats.vmstat())
     kvs.push_back({kv.key(), kv.value()});
 
-  EXPECT_THAT(kvs, UnorderedElementsAre(KV{C::VMSTAT_NR_FREE_PAGES, 16449},  //
-                                        KV{C::VMSTAT_PGACTIVATE, 11897892},  //
-                                        KV{C::VMSTAT_PGMIGRATE_FAIL, 3439},  //
-                                        KV{C::VMSTAT_PGSTEAL_DIRECT, 91537}  //
-                                        ));
+  EXPECT_THAT(kvs,
+              UnorderedElementsAre(KV{C::VMSTAT_NR_FREE_PAGES, 16449},    //
+                                   KV{C::VMSTAT_PGACTIVATE, 11897892},    //
+                                   KV{C::VMSTAT_PGMIGRATE_FAIL, 3439},    //
+                                   KV{C::VMSTAT_PGSTEAL_DIRECT, 91537},   //
+                                   KV{C::VMSTAT_VMA_LOCK_ABORT, 1173728}  //
+                                   ));
 }
 
 TEST_F(SysStatsDataSourceTest, VmstatAll) {

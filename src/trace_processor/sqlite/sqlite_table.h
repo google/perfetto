@@ -18,24 +18,16 @@
 #define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_TABLE_H_
 
 #include <sqlite3.h>
-
-#include <functional>
-#include <limits>
 #include <memory>
-#include <optional>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
-#include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/utils.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/db/table.h"
 #include "src/trace_processor/sqlite/query_constraints.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class SqliteEngine;
 class TypedSqliteTableBase;
@@ -104,14 +96,14 @@ class SqliteTable : public sqlite3_vtab {
                         FilterHistory);
 
     // Called to forward the cursor to the next row in the table.
-    base::Status Next();
+    void Next();
 
     // Called to check if the cursor has reached eof. Column will be called iff
     // this method returns true.
     bool Eof();
 
     // Used to extract the value from the column at index |N|.
-    base::Status Column(sqlite3_context* context, int N);
+    void Column(sqlite3_context* context, int N);
 
     SqliteTable* table() const { return table_; }
 
@@ -397,16 +389,33 @@ class TypedSqliteTable : public TypedSqliteTableBase {
   }
   static int xNext(sqlite3_vtab_cursor* c) {
     auto* cursor = static_cast<typename SubTable::Cursor*>(c);
-    auto* table = static_cast<SubTable*>(cursor->table());
-    return table->SetStatusAndReturn(cursor->Next());
+    using NextType = decltype(&SubTable::Cursor::Next);
+    using ReturnType =
+        std::invoke_result_t<NextType, typename SubTable::Cursor*>;
+    if constexpr (std::is_same_v<ReturnType, void>) {
+      cursor->Next();
+      return SQLITE_OK;
+    } else {
+      auto* table = static_cast<SubTable*>(cursor->table());
+      return table->SetStatusAndReturn(cursor->Next());
+    }
   }
   static int xEof(sqlite3_vtab_cursor* c) {
     return static_cast<int>(static_cast<typename SubTable::Cursor*>(c)->Eof());
   }
   static int xColumn(sqlite3_vtab_cursor* c, sqlite3_context* a, int b) {
     auto* cursor = static_cast<typename SubTable::Cursor*>(c);
-    auto* table = static_cast<SubTable*>(cursor->table());
-    return table->SetStatusAndReturn(cursor->Column(a, b));
+    using ColumnType = decltype(&SubTable::Cursor::Column);
+    using ReturnType =
+        std::invoke_result_t<ColumnType, typename SubTable::Cursor*,
+                             sqlite3_context*, int>;
+    if constexpr (std::is_same_v<ReturnType, void>) {
+      cursor->Column(a, b);
+      return SQLITE_OK;
+    } else {
+      auto* table = static_cast<SubTable*>(cursor->table());
+      return table->SetStatusAndReturn(cursor->Column(a, b));
+    }
   }
   static int xRowid(sqlite3_vtab_cursor*, sqlite3_int64*) {
     return SQLITE_ERROR;
@@ -420,7 +429,6 @@ class TypedSqliteTable : public TypedSqliteTableBase {
   }
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE_TABLE_H_

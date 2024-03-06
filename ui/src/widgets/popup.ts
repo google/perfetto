@@ -144,8 +144,9 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     trigger.attrs = {
       ...trigger.attrs,
       ref: Popup.TRIGGER_REF,
-      onclick: () => {
+      onclick: (e: MouseEvent) => {
         this.togglePopup();
+        e.preventDefault();
       },
       active: this.isOpen,
     };
@@ -202,16 +203,16 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     };
 
     return m(
-        Portal,
-        portalAttrs,
-        m('.pf-popup',
-          {
-            class: classNames(
-                className, createNewGroup && Popup.POPUP_GROUP_CLASS),
-            ref: Popup.POPUP_REF,
-          },
-          showArrow && m('.pf-popup-arrow[data-popper-arrow]'),
-          m('.pf-popup-content', children)),
+      Portal,
+      portalAttrs,
+      m('.pf-popup',
+        {
+          class: classNames(
+            className, createNewGroup && Popup.POPUP_GROUP_CLASS),
+          ref: Popup.POPUP_REF,
+        },
+        showArrow && m('.pf-popup-arrow[data-popper-arrow]'),
+        m('.pf-popup-content', children)),
     );
   }
 
@@ -289,7 +290,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     } else {
       if (this.popupElement && this.triggerElement) {
         this.popper = createPopper<ExtendedModifiers>(
-            this.triggerElement, this.popupElement, options);
+          this.triggerElement, this.popupElement, options);
       }
     }
   }

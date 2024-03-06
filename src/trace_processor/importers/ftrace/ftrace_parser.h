@@ -44,15 +44,16 @@ class FtraceParser {
  public:
   explicit FtraceParser(TraceProcessorContext* context);
 
-  void ParseFtraceStats(protozero::ConstBytes, uint32_t packet_sequence_id);
+  base::Status ParseFtraceStats(protozero::ConstBytes,
+                                uint32_t packet_sequence_id);
 
-  util::Status ParseFtraceEvent(uint32_t cpu,
+  base::Status ParseFtraceEvent(uint32_t cpu,
                                 int64_t ts,
                                 const TracePacketData& data);
-  util::Status ParseInlineSchedSwitch(uint32_t cpu,
+  base::Status ParseInlineSchedSwitch(uint32_t cpu,
                                       int64_t ts,
                                       const InlineSchedSwitch& data);
-  util::Status ParseInlineSchedWaking(uint32_t cpu,
+  base::Status ParseInlineSchedWaking(uint32_t cpu,
                                       int64_t ts,
                                       const InlineSchedWaking& data);
 

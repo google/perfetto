@@ -156,6 +156,7 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
           context_->sorter.reset(
               new TraceSorter(context_, std::move(context_->perf_data_parser),
                               TraceSorter::SortingMode::kDefault));
+          break;
         }
         return base::ErrStatus("perf.data parsing support is disabled.");
       case kUnknownTraceType:

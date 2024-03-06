@@ -20,7 +20,7 @@ message AdServicesUiMetric {
   optional double common_service_initialization_latency = 1;
   optional double common_service_permission_check_latency = 2;
   optional double common_service_ux_engine_flow_latency = 3;
-  optional double main_actitivity_creation_latency = 4;
+  optional double main_activity_creation_latency = 4;
   optional double consent_manager_initialization_latency = 5;
   optional double consent_manager_read_latency = 6;
   optional double consent_manager_write_latency = 7;
@@ -36,11 +36,20 @@ message AdServicesAppSetIdMetric {
   optional double latency = 1;
 }
 
-// Next: 4
+// Next: 5
+message OnDevicePersonalizationMetric {
+  optional double managing_service_initialization_latency = 1;
+  optional double service_delegate_execute_flow_latency = 2;
+  optional double service_delegate_request_surface_package_latency = 3;
+  optional double service_delegate_register_web_trigger_latency = 4;
+}
+
+// Next: 5
 message AdServicesMetric {
   repeated AdServicesUiMetric ui_metric = 1;
   repeated AdServicesAdIdMetric ad_id_metric = 2;
   repeated AdServicesAppSetIdMetric app_set_id_metric = 3;
+  repeated OnDevicePersonalizationMetric odp_metric = 4;
 }
 // End of protos/perfetto/metrics/android/ad_services_metric.proto
 
@@ -331,7 +340,7 @@ message AndroidBinderMetric {
     optional uint32 count = 4;
   }
 
-  // Next field id: 24
+  // Next field id: 30
   message UnaggregatedTxnBreakdown {
     // General
     optional string aidl_name = 1;
@@ -346,7 +355,10 @@ message AndroidBinderMetric {
     optional bool is_main_thread = 5;
     optional int64 client_ts = 6;
     optional int64 client_dur = 7;
+    optional int64 client_monotonic_dur = 28;
     optional int64 client_oom_score = 19;
+    optional int64 client_package_version_code = 24;
+    optional bool is_client_package_debuggable = 25;
     // Server
     // Removed: was binder_reply_id
     reserved 8;
@@ -354,7 +366,10 @@ message AndroidBinderMetric {
     optional string server_thread = 10;
     optional int64 server_ts = 11;
     optional int64 server_dur = 12;
+    optional int64 server_monotonic_dur = 29;
     optional int64 server_oom_score = 20;
+    optional int64 server_package_version_code = 26;
+    optional bool is_server_package_debuggable = 27;
     // Aggregations
     repeated ThreadStateBreakdown thread_states = 13;
     repeated BlockedFunctionBreakdown blocked_functions = 14;
@@ -1462,7 +1477,7 @@ message AndroidMonitorContentionAggMetric {
 // This metric provides information about the monitor contention graph in a
 // trace
 message AndroidMonitorContentionMetric {
-  // Next field id: 25
+  // Next field id: 26
   message Node {
     // Global context
     optional int64 node_parent_id = 1;
@@ -1470,6 +1485,7 @@ message AndroidMonitorContentionMetric {
     optional int64 node_id = 2;
     optional int64 ts = 3;
     optional int64 dur = 4;
+    optional int64 monotonic_dur = 25;
     optional string process_name = 14;
     optional uint32 pid = 23;
     optional uint32 waiter_count = 11;

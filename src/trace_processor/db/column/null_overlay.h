@@ -17,51 +17,67 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_NULL_OVERLAY_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_NULL_OVERLAY_H_
 
+#include <cstdint>
 #include <memory>
-#include <variant>
+#include <string>
 
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/db/column/column.h"
+#include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace column {
+namespace perfetto::trace_processor::column {
 
 // Overlay which introduces the layer of nullability. Specifically, spreads out
 // the storage with nulls using a BitVector.
-class NullOverlay : public Column {
+class NullOverlay final : public DataLayer {
  public:
-  NullOverlay(std::unique_ptr<Column> storage, const BitVector* non_null);
+  explicit NullOverlay(const BitVector* non_null);
 
-  SearchValidationResult ValidateSearchConstraints(SqlValue,
-                                                   FilterOp) const override;
-
-  RangeOrBitVector Search(FilterOp op,
-                          SqlValue value,
-                          Range range) const override;
-
-  RangeOrBitVector IndexSearch(FilterOp op,
-                               SqlValue value,
-                               uint32_t* indices,
-                               uint32_t indices_count,
-                               bool sorted) const override;
-
-  void StableSort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Sort(uint32_t* rows, uint32_t rows_size) const override;
-
-  void Serialize(StorageProto*) const override;
-
-  uint32_t size() const override { return non_null_->size(); }
+  std::unique_ptr<DataLayerChain> MakeChain(
+      std::unique_ptr<DataLayerChain>,
+      ChainCreationArgs = ChainCreationArgs()) override;
 
  private:
-  std::unique_ptr<Column> storage_ = nullptr;
+  class ChainImpl : public DataLayerChain {
+   public:
+    ChainImpl(std::unique_ptr<DataLayerChain>, const BitVector* non_null);
+
+    SingleSearchResult SingleSearch(FilterOp,
+                                    SqlValue,
+                                    uint32_t) const override;
+
+    SearchValidationResult ValidateSearchConstraints(FilterOp,
+                                                     SqlValue) const override;
+
+    RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
+
+    RangeOrBitVector IndexSearchValidated(FilterOp,
+                                          SqlValue,
+                                          Indices) const override;
+
+    Range OrderedIndexSearchValidated(FilterOp,
+                                      SqlValue,
+                                      Indices) const override;
+
+    void StableSort(SortToken* start,
+                    SortToken* end,
+                    SortDirection) const override;
+
+    void Serialize(StorageProto*) const override;
+
+    uint32_t size() const override { return non_null_->size(); }
+
+    std::string DebugString() const override { return "NullOverlay"; }
+
+   private:
+    std::unique_ptr<DataLayerChain> inner_ = nullptr;
+    const BitVector* non_null_ = nullptr;
+  };
+
   const BitVector* non_null_ = nullptr;
 };
 
-}  // namespace column
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::column
 
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_NULL_OVERLAY_H_

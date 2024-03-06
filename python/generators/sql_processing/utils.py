@@ -20,7 +20,7 @@ from typing import Dict, List
 NAME = r'[a-zA-Z_\d\{\}]+'
 ANY_WORDS = r'[^\s].*'
 ANY_NON_QUOTE = r'[^\']*.*'
-TYPE = r'[A-Z]+'
+TYPE = r'[a-zA-Z]+'
 SQL = r'[\s\S]*?'
 WS = r'\s*'
 COMMENT = r' --[^\n]*\n'
@@ -78,7 +78,7 @@ CREATE_MACRO_PATTERN = update_pattern(
     fr" \( ({ARGS}) \) "
     # Type: word after RETURNS.
     fr"({COMMENTS})"
-    fr" RETURNS")
+    fr" RETURNS ({TYPE})")
 
 COLUMN_ANNOTATION_PATTERN = update_pattern(fr'^ ({NAME}) ({ANY_WORDS})')
 
@@ -97,16 +97,20 @@ class ObjKind(str, Enum):
   table_view = 'table_view'
   function = 'function'
   table_function = 'table_function'
+  macro = 'macro'
 
 
 PATTERN_BY_KIND = {
     ObjKind.table_view: CREATE_TABLE_VIEW_PATTERN,
     ObjKind.function: CREATE_FUNCTION_PATTERN,
     ObjKind.table_function: CREATE_TABLE_FUNCTION_PATTERN,
+    ObjKind.macro: CREATE_MACRO_PATTERN
 }
 
 ALLOWED_PREFIXES = {
+    'counters': 'counter',
     'chrome/util': 'cr',
+    'graphs': 'graph',
 }
 
 # Given a regex pattern and a string to match against, returns all the

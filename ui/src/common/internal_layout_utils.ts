@@ -36,7 +36,7 @@ export function generateSqlWithInternalLayout(sqlArgs: GenerateSqlArgs):
     string {
   let sql = `SELECT ` + sqlArgs.columns.toString() +
       `, internal_layout(${sqlArgs.ts}, ${sqlArgs.dur}) OVER (ORDER BY ${
-                sqlArgs.ts}` +
+        sqlArgs.ts}` +
       ' ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS depth' +
       ' FROM ' + sqlArgs.sourceTable;
   if (sqlArgs.whereClause !== undefined) {

@@ -206,10 +206,10 @@ DROP VIEW IF EXISTS {{prefix}}_jank_maybe_null_prev_and_next;
 CREATE PERFETTO VIEW {{prefix}}_jank_maybe_null_prev_and_next AS
 SELECT
   *,
-  internal_is_janky_frame({{id_field}}, prev_{{id_field}},
+    _is_janky_frame({{id_field}}, prev_{{id_field}},
     prev_ts, begin_ts, maybe_gesture_end,
     gesture_frames_exact, prev_gesture_frames_exact) AS prev_jank,
-  internal_is_janky_frame({{id_field}}, next_{{id_field}},
+    _is_janky_frame({{id_field}}, next_{{id_field}},
     next_ts, begin_ts, maybe_gesture_end,
     gesture_frames_exact, next_gesture_frames_exact) AS next_jank
 FROM {{prefix}}_jank_maybe_null_prev_and_next_without_precompute
@@ -233,7 +233,7 @@ SELECT
   (next_jank IS NOT NULL AND next_jank)
   OR (prev_jank IS NOT NULL AND prev_jank)
   AS jank,
-  internal_jank_budget(gesture_frames_exact, prev_gesture_frames_exact,
+  _jank_budget(gesture_frames_exact, prev_gesture_frames_exact,
     next_gesture_frames_exact) * avg_vsync_interval AS jank_budget,
   *
 FROM {{prefix}}_jank_maybe_null_prev_and_next

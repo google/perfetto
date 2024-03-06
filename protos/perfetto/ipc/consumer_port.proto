@@ -250,7 +250,11 @@ message ObserveEventsResponse {
 }
 
 // Arguments for rpc QueryServiceState.
-message QueryServiceStateRequest {}
+message QueryServiceStateRequest {
+  // If set, only the TracingServiceState.tracing_sessions is filled. Producers
+  // and data sources are omitted.
+  optional bool sessions_only = 1;
+}
 
 message QueryServiceStateResponse {
   // In order to avoid hitting IPC message size limitations, the service will
@@ -286,6 +290,14 @@ message CloneSessionRequest {
   // The session ID to clone. If session_id == kBugreportSessionId (0xff...ff)
   // the session with the highest bugreport score is cloned (if any exists).
   optional uint64 session_id = 1;
+
+  // If set, the trace filter will not have effect on the cloned session.
+  // Used for bugreports.
+  optional bool skip_trace_filter = 2;
+
+  // If set, affects the generation of the FlushFlags::CloneTarget to be set
+  // to kBugreport when requesting the flush to the producers.
+  optional bool for_bugreport = 3;
 }
 
 message CloneSessionResponse {

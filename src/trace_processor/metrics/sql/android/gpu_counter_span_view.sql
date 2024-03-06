@@ -18,8 +18,7 @@ DROP VIEW IF EXISTS {{table_name}}_span;
 CREATE PERFETTO VIEW {{table_name}}_span AS
 SELECT
   ts,
-  LEAD(ts, 1, (SELECT end_ts + 1 FROM trace_bounds))
-  OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
+  LEAD(ts, 1, trace_end()) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
   gpu_id,
   value AS {{table_name}}_val
 FROM counter c JOIN gpu_counter_track t

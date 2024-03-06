@@ -17,15 +17,30 @@
 #include "src/trace_processor/db/runtime_table.h"
 
 #include <algorithm>
+#include <cinttypes>
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column/data_layer.h"
+#include "src/trace_processor/db/column/id_storage.h"
+#include "src/trace_processor/db/column/null_overlay.h"
+#include "src/trace_processor/db/column/numeric_storage.h"
+#include "src/trace_processor/db/column/string_storage.h"
+#include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/db/column_storage_overlay.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 template <typename T, typename U>
@@ -49,15 +64,30 @@ bool IsStorageNotIntNorDouble(const RuntimeTable::VariantStorage& col) {
 
 }  // namespace
 
-RuntimeTable::RuntimeTable(StringPool* pool, std::vector<std::string> col_names)
-    : Table(pool), col_names_(col_names), storage_(col_names_.size()) {
-  for (uint32_t i = 0; i < col_names.size(); i++)
-    storage_[i] = std::make_unique<VariantStorage>();
+RuntimeTable::RuntimeTable(
+    StringPool* pool,
+    uint32_t row_count,
+    std::vector<ColumnLegacy> columns,
+    std::vector<ColumnStorageOverlay> overlays,
+    std::vector<RefPtr<column::DataLayer>> storage_layers,
+    std::vector<RefPtr<column::DataLayer>> null_layers,
+    std::vector<RefPtr<column::DataLayer>> overlay_layers)
+    : Table(pool, row_count, std::move(columns), std::move(overlays)) {
+  OnConstructionCompleted(std::move(storage_layers), std::move(null_layers),
+                          std::move(overlay_layers));
 }
 
 RuntimeTable::~RuntimeTable() = default;
 
-base::Status RuntimeTable::AddNull(uint32_t idx) {
+RuntimeTable::Builder::Builder(StringPool* pool,
+                               std::vector<std::string> col_names)
+    : string_pool_(pool), col_names_(std::move(col_names)) {
+  for (uint32_t i = 0; i < col_names_.size(); i++) {
+    storage_.emplace_back(std::make_unique<VariantStorage>());
+  }
+}
+
+base::Status RuntimeTable::Builder::AddNull(uint32_t idx) {
   auto* col = storage_[idx].get();
   PERFETTO_DCHECK(IsStorageNotIntNorDouble(*col));
   if (auto* leading_nulls = std::get_if<uint32_t>(col)) {
@@ -74,7 +104,7 @@ base::Status RuntimeTable::AddNull(uint32_t idx) {
   return base::OkStatus();
 }
 
-base::Status RuntimeTable::AddInteger(uint32_t idx, int64_t res) {
+base::Status RuntimeTable::Builder::AddInteger(uint32_t idx, int64_t res) {
   auto* col = storage_[idx].get();
   PERFETTO_DCHECK(IsStorageNotIntNorDouble(*col));
   if (auto* leading_nulls_ptr = std::get_if<uint32_t>(col)) {
@@ -98,7 +128,7 @@ base::Status RuntimeTable::AddInteger(uint32_t idx, int64_t res) {
   return base::OkStatus();
 }
 
-base::Status RuntimeTable::AddFloat(uint32_t idx, double res) {
+base::Status RuntimeTable::Builder::AddFloat(uint32_t idx, double res) {
   auto* col = storage_[idx].get();
   PERFETTO_DCHECK(IsStorageNotIntNorDouble(*col));
   if (auto* leading_nulls_ptr = std::get_if<uint32_t>(col)) {
@@ -130,7 +160,7 @@ base::Status RuntimeTable::AddFloat(uint32_t idx, double res) {
   return base::OkStatus();
 }
 
-base::Status RuntimeTable::AddText(uint32_t idx, const char* ptr) {
+base::Status RuntimeTable::Builder::AddText(uint32_t idx, const char* ptr) {
   auto* col = storage_[idx].get();
   PERFETTO_DCHECK(IsStorageNotIntNorDouble(*col));
   if (auto* leading_nulls_ptr = std::get_if<uint32_t>(col)) {
@@ -145,10 +175,14 @@ base::Status RuntimeTable::AddText(uint32_t idx, const char* ptr) {
   return base::OkStatus();
 }
 
-base::Status RuntimeTable::AddColumnsAndOverlays(uint32_t rows) {
-  overlays_.push_back(ColumnStorageOverlay(rows));
+base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
+    uint32_t rows) && {
+  std::vector<RefPtr<column::DataLayer>> storage_layers(col_names_.size() + 1);
+  std::vector<RefPtr<column::DataLayer>> null_layers(col_names_.size() + 1);
+  std::vector<ColumnLegacy> columns;
   for (uint32_t i = 0; i < col_names_.size(); ++i) {
     auto* col = storage_[i].get();
+    std::unique_ptr<column::DataLayerChain> chain;
     PERFETTO_DCHECK(IsStorageNotIntNorDouble(*col));
     if (auto* leading_nulls = std::get_if<uint32_t>(col)) {
       PERFETTO_CHECK(*leading_nulls == rows);
@@ -165,19 +199,23 @@ base::Status RuntimeTable::AddColumnsAndOverlays(uint32_t rows) {
         uint32_t flags = is_sorted ? ColumnLegacy::Flag::kNonNull |
                                          ColumnLegacy::Flag::kSorted
                                    : ColumnLegacy::Flag::kNonNull;
-        columns_.push_back(ColumnLegacy(col_names_[i].c_str(), non_null_ints,
-                                        flags, this, i, 0));
+        columns.emplace_back(col_names_[i].c_str(), non_null_ints, flags, i, 0);
+        storage_layers[i].reset(new column::NumericStorage<int64_t>(
+            &non_null_ints->vector(), ColumnType::kInt64, is_sorted));
       } else {
-        columns_.push_back(ColumnLegacy(col_names_[i].c_str(), ints,
-                                        ColumnLegacy::Flag::kNoFlag, this, i,
-                                        0));
+        columns.emplace_back(col_names_[i].c_str(), ints,
+                             ColumnLegacy::Flag::kNoFlag, i, 0);
+        storage_layers[i].reset(new column::NumericStorage<int64_t>(
+            &ints->non_null_vector(), ColumnType::kInt64, false));
+        null_layers[i].reset(
+            new column::NullOverlay(&ints->non_null_bit_vector()));
       }
-
     } else if (auto* strings = std::get_if<StringStorage>(col)) {
       PERFETTO_CHECK(strings->size() == rows);
-      columns_.push_back(ColumnLegacy(col_names_[i].c_str(), strings,
-                                      ColumnLegacy::Flag::kNonNull, this, i,
-                                      0));
+      columns.emplace_back(col_names_[i].c_str(), strings,
+                           ColumnLegacy::Flag::kNonNull, i, 0);
+      storage_layers[i].reset(
+          new column::StringStorage(string_pool_, &strings->vector()));
     } else if (auto* doubles = std::get_if<NullDoubleStorage>(col)) {
       PERFETTO_CHECK(doubles->size() == rows);
       // Check if the column is nullable.
@@ -190,24 +228,46 @@ base::Status RuntimeTable::AddColumnsAndOverlays(uint32_t rows) {
         uint32_t flags = is_sorted ? ColumnLegacy::Flag::kNonNull |
                                          ColumnLegacy::Flag::kSorted
                                    : ColumnLegacy::Flag::kNonNull;
-
-        columns_.push_back(ColumnLegacy(col_names_[i].c_str(), non_null_doubles,
-                                        flags, this, i, 0));
+        columns.emplace_back(col_names_[i].c_str(), non_null_doubles, flags, i,
+                             0);
+        storage_layers[i].reset(new column::NumericStorage<double>(
+            &non_null_doubles->vector(), ColumnType::kDouble, is_sorted));
       } else {
-        columns_.push_back(ColumnLegacy(col_names_[i].c_str(), doubles,
-                                        ColumnLegacy::Flag::kNoFlag, this, i,
-                                        0));
+        columns.emplace_back(col_names_[i].c_str(), doubles,
+                             ColumnLegacy::Flag::kNoFlag, i, 0);
+        storage_layers[i].reset(new column::NumericStorage<double>(
+            &doubles->non_null_vector(), ColumnType::kDouble, false));
+        null_layers[i].reset(
+            new column::NullOverlay(&doubles->non_null_bit_vector()));
       }
     } else {
       PERFETTO_FATAL("Unexpected column type");
     }
   }
-  columns_.push_back(ColumnLegacy::IdColumn(
-      this, static_cast<uint32_t>(col_names_.size()), 0, "_auto_id",
+  columns.push_back(ColumnLegacy::IdColumn(
+      static_cast<uint32_t>(columns.size()), 0, "_auto_id",
       ColumnLegacy::kIdFlags | ColumnLegacy::Flag::kHidden));
-  row_count_ = rows;
-  return base::OkStatus();
+  storage_layers.back().reset(new column::IdStorage());
+
+  std::vector<ColumnStorageOverlay> overlays;
+  overlays.emplace_back(rows);
+
+  std::vector<RefPtr<column::DataLayer>> overlay_layers(1);
+
+  auto table = std::make_unique<RuntimeTable>(
+      string_pool_, rows, std::move(columns), std::move(overlays),
+      std::move(storage_layers), std::move(null_layers),
+      std::move(overlay_layers));
+  table->storage_ = std::move(storage_);
+  table->col_names_ = std::move(col_names_);
+
+  table->schema_.columns.reserve(table->columns().size());
+  for (const auto& col : table->columns()) {
+    table->schema_.columns.emplace_back(
+        Schema::Column{col.name(), col.type(), col.IsId(), col.IsSorted(),
+                       col.IsHidden(), col.IsSetId()});
+  }
+  return {std::move(table)};
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
