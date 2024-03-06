@@ -55,13 +55,11 @@ class StringStorage final : public DataLayer {
 
     RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-    RangeOrBitVector IndexSearchValidated(FilterOp,
-                                          SqlValue,
-                                          Indices) const override;
+    void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
     Range OrderedIndexSearchValidated(FilterOp,
                                       SqlValue,
-                                      Indices) const override;
+                                      const OrderedIndices&) const override;
 
     void StableSort(SortToken* start,
                     SortToken* end,

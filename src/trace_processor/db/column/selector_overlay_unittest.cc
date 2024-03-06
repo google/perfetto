@@ -34,6 +34,9 @@ namespace {
 using testing::ElementsAre;
 using testing::IsEmpty;
 
+using Indices = DataLayerChain::Indices;
+using OrderedIndices = DataLayerChain::OrderedIndices;
+
 TEST(SelectorOverlay, SingleSearch) {
   BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
   auto fake = FakeStorageChain::SearchSubset(8, Range(2, 5));
@@ -94,12 +97,10 @@ TEST(SelectorOverlay, IndexSearch) {
   SelectorOverlay storage(&selector);
   auto chain = storage.MakeChain(std::move(fake));
 
-  std::vector<uint32_t> table_idx{1u, 0u, 3u};
-  RangeOrBitVector res = chain->IndexSearch(
-      FilterOp::kGe, SqlValue::Long(0u),
-      Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
-              Indices::State::kNonmonotonic});
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u));
+  auto indices = Indices::CreateWithIndexPayloadForTesting(
+      {1u, 0u, 3u}, Indices::State::kNonmonotonic);
+  chain->IndexSearch(FilterOp::kGe, SqlValue::Long(0u), indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(1u));
 }
 
 TEST(SelectorOverlay, OrderedIndexSearchTrivial) {
@@ -111,8 +112,8 @@ TEST(SelectorOverlay, OrderedIndexSearchTrivial) {
   std::vector<uint32_t> table_idx{1u, 0u, 2u};
   Range res = chain->OrderedIndexSearch(
       FilterOp::kGe, SqlValue::Long(0u),
-      Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
-              Indices::State::kNonmonotonic});
+      OrderedIndices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
+                     Indices::State::kNonmonotonic});
   ASSERT_EQ(res.start, 0u);
   ASSERT_EQ(res.end, 3u);
 }
@@ -126,8 +127,8 @@ TEST(SelectorOverlay, OrderedIndexSearchNone) {
   std::vector<uint32_t> table_idx{1u, 0u, 2u};
   Range res = chain->OrderedIndexSearch(
       FilterOp::kGe, SqlValue::Long(0u),
-      Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
-              Indices::State::kNonmonotonic});
+      OrderedIndices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
+                     Indices::State::kNonmonotonic});
   ASSERT_EQ(res.size(), 0u);
 }
 

@@ -42,6 +42,9 @@ namespace {
 using testing::ElementsAre;
 using testing::IsEmpty;
 
+using Indices = DataLayerChain::Indices;
+using OrderedIndices = DataLayerChain::OrderedIndices;
+
 TEST(IdStorage, InvalidSearchConstraints) {
   IdStorage storage;
   auto chain = storage.MakeChain();
@@ -214,32 +217,35 @@ TEST(IdStorage, IndexSearchSimple) {
   IdStorage storage;
   auto chain = storage.MakeChain();
   SqlValue val = SqlValue::Long(5);
-  std::vector<uint32_t> indices_vec{5, 4, 3, 9, 8, 7};
-  Indices indices{indices_vec.data(), 6, Indices::State::kNonmonotonic};
 
-  FilterOp op = FilterOp::kEq;
-  auto res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
+  auto common_indices = Indices::CreateWithIndexPayloadForTesting(
+      {5, 4, 3, 9, 8, 7}, Indices::State::kNonmonotonic);
 
-  op = FilterOp::kNe;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4, 5));
+  auto indices = common_indices;
+  chain->IndexSearch(FilterOp::kEq, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0));
 
-  op = FilterOp::kLe;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kNe, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices),
+              ElementsAre(1, 2, 3, 4, 5));
 
-  op = FilterOp::kLt;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kLe, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 1, 2));
 
-  op = FilterOp::kGe;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 3, 4, 5));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kLt, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(1, 2));
 
-  op = FilterOp::kGt;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 5));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kGe, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices),
+              ElementsAre(0, 3, 4, 5));
+
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kGt, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(3, 4, 5));
 }
 
 TEST(IdStorage, OrderedIndexSearch) {
@@ -247,7 +253,7 @@ TEST(IdStorage, OrderedIndexSearch) {
   auto chain = storage.MakeChain();
 
   std::vector<uint32_t> indices_vec{0, 1, 2, 4, 4};
-  Indices indices{indices_vec.data(), 5, Indices::State::kMonotonic};
+  OrderedIndices indices{indices_vec.data(), 5, Indices::State::kMonotonic};
 
   Range range =
       chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(2), indices);
@@ -274,17 +280,11 @@ TEST(IdStorage, OrderedIndexSearch) {
 TEST(IdStorage, IndexSearchEqTooBig) {
   IdStorage storage;
   auto chain = storage.MakeChain();
-  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
 
-  BitVector bv =
-      chain
-          ->IndexSearch(
-              FilterOp::kEq, SqlValue::Long(20),
-              Indices{indices.data(), static_cast<uint32_t>(indices.size()),
-                      Indices::State::kMonotonic})
-          .TakeIfBitVector();
-
-  ASSERT_EQ(bv.CountSetBits(), 0u);
+  auto indices = Indices::CreateWithIndexPayloadForTesting(
+      {1, 3, 5, 7, 9, 11, 2, 4}, Indices::State::kNonmonotonic);
+  chain->IndexSearch(FilterOp::kEq, SqlValue::Long(20), indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), IsEmpty());
 }
 
 TEST(IdStorage, SearchWithIdAsDoubleSimple) {

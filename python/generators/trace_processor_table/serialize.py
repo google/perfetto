@@ -591,7 +591,7 @@ class TableSerializer(object):
       if (overlays()[i].row_map().IsIndexVector()) {{
         overlay_layers[i].reset(new column::ArrangementOverlay(
             overlays()[i].row_map().GetIfIndexVector(),
-            Indices::State::kNonmonotonic));
+            column::DataLayerChain::Indices::State::kNonmonotonic));
       }} else if (overlays()[i].row_map().IsBitVector()) {{
         overlay_layers[i].reset(new column::SelectorOverlay(
             overlays()[i].row_map().GetIfBitVector()));

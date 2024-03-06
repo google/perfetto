@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
@@ -34,6 +35,9 @@ namespace {
 
 using testing::ElementsAre;
 using testing::IsEmpty;
+
+using Indices = DataLayerChain::Indices;
+using OrderedIndices = DataLayerChain::OrderedIndices;
 
 TEST(DenseNullOverlay, NoFilteringSearch) {
   std::vector<uint32_t> data{0, 1, 0, 1, 0};
@@ -103,12 +107,10 @@ TEST(DenseNullOverlay, IndexSearch) {
   DenseNullOverlay storage(&bv);
   auto chain = storage.MakeChain(numeric->MakeChain());
 
-  std::vector<uint32_t> index({5, 2, 3, 4, 1});
-  auto res = chain->IndexSearch(
-      FilterOp::kGe, SqlValue::Long(0),
-      Indices{index.data(), static_cast<uint32_t>(index.size()),
-              Indices::State::kNonmonotonic});
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2, 3));
+  Indices indices = Indices::CreateWithIndexPayloadForTesting(
+      {5, 2, 3, 4, 1}, Indices::State::kNonmonotonic);
+  chain->IndexSearch(FilterOp::kGe, SqlValue::Long(0), indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 2, 3));
 }
 
 TEST(DenseNullOverlay, IsNullIndexSearch) {
@@ -118,12 +120,11 @@ TEST(DenseNullOverlay, IsNullIndexSearch) {
   DenseNullOverlay storage(&bv);
   auto chain = storage.MakeChain(std::move(fake));
 
-  std::vector<uint32_t> index({5, 2, 3, 4, 1});
-  auto res = chain->IndexSearch(
-      FilterOp::kIsNull, SqlValue(),
-      Indices{index.data(), static_cast<uint32_t>(index.size()),
-              Indices::State::kMonotonic});
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3));
+  Indices indices = Indices::CreateWithIndexPayloadForTesting(
+      {5, 2, 3, 4, 1}, Indices::State::kNonmonotonic);
+  chain->IndexSearch(FilterOp::kIsNull, SqlValue(), indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices),
+              ElementsAre(0, 1, 2, 3));
 }
 
 TEST(DenseNullOverlay, OrderedIndexSearch) {
@@ -134,7 +135,7 @@ TEST(DenseNullOverlay, OrderedIndexSearch) {
   auto chain = storage.MakeChain(std::move(fake));
 
   std::vector<uint32_t> indices_vec({0, 2, 4, 1, 3, 5});
-  Indices indices{indices_vec.data(), 6, Indices::State::kNonmonotonic};
+  OrderedIndices indices{indices_vec.data(), 6, Indices::State::kNonmonotonic};
 
   Range res = chain->OrderedIndexSearch(FilterOp::kIsNull, SqlValue(), indices);
   ASSERT_EQ(res.start, 0u);

@@ -82,32 +82,39 @@ RangeOrBitVector FakeStorageChain::SearchValidated(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
-RangeOrBitVector FakeStorageChain::IndexSearchValidated(FilterOp,
-                                                        SqlValue,
-                                                        Indices indices) const {
+void FakeStorageChain::IndexSearchValidated(FilterOp,
+                                            SqlValue,
+                                            Indices& indices) const {
   switch (strategy_) {
     case kAll:
-      return RangeOrBitVector(Range(0, indices.size));
+      return;
     case kNone:
-      return RangeOrBitVector(Range());
+      indices.tokens.clear();
+      return;
     case kRange:
-    case kBitVector: {
-      BitVector::Builder builder(indices.size);
-      for (const uint32_t* it = indices.data; it != indices.data + indices.size;
-           ++it) {
-        bool in_range = strategy_ == kRange && range_.Contains(*it);
-        bool in_bv = strategy_ == kBitVector && bit_vector_.IsSet(*it);
-        builder.Append(in_range || in_bv);
-      }
-      return RangeOrBitVector(std::move(builder).Build());
-    }
+      indices.tokens.erase(
+          std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                         [this](const Indices::Token& token) {
+                           return !range_.Contains(token.index);
+                         }),
+          indices.tokens.end());
+      return;
+    case kBitVector:
+      indices.tokens.erase(
+          std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                         [this](const Indices::Token& token) {
+                           return !bit_vector_.IsSet(token.index);
+                         }),
+          indices.tokens.end());
+      return;
   }
   PERFETTO_FATAL("For GCC");
 }
 
-Range FakeStorageChain::OrderedIndexSearchValidated(FilterOp,
-                                                    SqlValue,
-                                                    Indices indices) const {
+Range FakeStorageChain::OrderedIndexSearchValidated(
+    FilterOp,
+    SqlValue,
+    const OrderedIndices& indices) const {
   if (strategy_ == kAll) {
     return {0, indices.size};
   }

@@ -157,7 +157,7 @@ Table Table::Sort(const std::vector<Order>& ob) const {
     if (table.overlays_[i].row_map().IsIndexVector()) {
       overlay_layers[i].reset(new column::ArrangementOverlay(
           table.overlays_[i].row_map().GetIfIndexVector(),
-          Indices::State::kNonmonotonic));
+          column::DataLayerChain::Indices::State::kNonmonotonic));
     } else if (table.overlays_[i].row_map().IsBitVector()) {
       overlay_layers[i].reset(new column::SelectorOverlay(
           table.overlays_[i].row_map().GetIfBitVector()));
