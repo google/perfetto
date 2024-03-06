@@ -90,15 +90,16 @@ SELECT * FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
         );
         ctx.tabs.openQuery(
           sqlPrefix + `
-SELECT
-  (sum(instruction) * 1.0 / sum(cycle)*1.0) AS avg_ipc,
-  sum(dur)/1e6 as total_runtime_ms,
-  sum(instruction) AS total_instructions,
-  sum(cycle) AS total_cycles,
-  sum(stall_backend_mem) as total_stall_backend_mem,
-  sum(l3_cache_miss) as total_l3_cache_miss
-FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
-          'target thread ipc statistic');
+            SELECT
+              (sum(instruction) * 1.0 / sum(cycle)*1.0) AS avg_ipc,
+              sum(dur)/1e6 as total_runtime_ms,
+              sum(instruction) AS total_instructions,
+              sum(cycle) AS total_cycles,
+              sum(stall_backend_mem) as total_stall_backend_mem,
+              sum(l3_cache_miss) as total_l3_cache_miss
+            FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
+          'target thread ipc statistic',
+        );
       },
     });
   }
