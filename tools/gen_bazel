@@ -150,6 +150,7 @@ external_deps = {
 public_python_targets = [
     '//python:batch_trace_processor',
     '//python:trace_processor_py',
+    '//python:trace_processor_py_no_resolvers',
 ]
 
 # These are Python targets which are exposed by default.
@@ -165,6 +166,7 @@ external_python_deps: Dict[str, List[str]] = {
     '//gn:pandas_py': ['PERFETTO_CONFIG.deps.pandas_py'],
     '//gn:protobuf_py': ['PERFETTO_CONFIG.deps.protobuf_py'],
     '//gn:tp_vendor_py': ['PERFETTO_CONFIG.deps.tp_vendor_py'],
+    '//gn:tp_resolvers_py': ['PERFETTO_CONFIG.deps.tp_resolvers_py'],
 }
 
 # Additional arguments
