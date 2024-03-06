@@ -78,7 +78,7 @@ GlobMatcher::GlobMatcher(base::StringView pattern_str)
   trailing_star_ = !pattern.empty() && empty_segment;
 }
 
-bool GlobMatcher::Matches(base::StringView in) {
+bool GlobMatcher::Matches(base::StringView in) const {
   // If there are no segments, that means the pattern is either '' or '*'
   // (or '**', '***' etc which is really the same as '*'). This means
   // we are match if either a) there is a leading star (== trailing star) or
@@ -115,10 +115,10 @@ bool GlobMatcher::Matches(base::StringView in) {
   // sequentially with possibly some characters separating them. To handle
   // this, we just need to iteratively find each segment, starting from the
   // previous segment.
-  Segment* segment_start = segments_.begin() + (leading_star_ ? 0 : 1);
-  Segment* segment_end = segments_.end() - (trailing_star_ ? 0 : 1);
+  const Segment* segment_start = segments_.begin() + (leading_star_ ? 0 : 1);
+  const Segment* segment_end = segments_.end() - (trailing_star_ ? 0 : 1);
   size_t find_idx = leading_star_ ? 0 : segments_.front().matched_chars;
-  for (Segment* segment = segment_start; segment < segment_end; ++segment) {
+  for (const auto* segment = segment_start; segment < segment_end; ++segment) {
     size_t pos = Find(in, *segment, find_idx);
     if (pos == base::StringView::npos) {
       return false;
@@ -131,7 +131,8 @@ bool GlobMatcher::Matches(base::StringView in) {
   return true;
 }
 
-bool GlobMatcher::StartsWithSlow(base::StringView in, const Segment& segment) {
+bool GlobMatcher::StartsWithSlow(base::StringView in,
+                                 const Segment& segment) const {
   base::StringView pattern = segment.pattern;
   for (uint32_t i = 0, p = 0; p < pattern.size(); ++i, ++p) {
     // We've run out of characters to consume in the input but still have more

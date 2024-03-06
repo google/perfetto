@@ -162,76 +162,74 @@ RangeOrBitVector NullOverlay::ChainImpl::SearchValidated(FilterOp op,
   return RangeOrBitVector(std::move(res));
 }
 
-RangeOrBitVector NullOverlay::ChainImpl::IndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    Indices indices) const {
+void NullOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
+                                                  SqlValue sql_val,
+                                                  Indices& indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "NullOverlay::ChainImpl::IndexSearch");
 
   if (op == FilterOp::kIsNull) {
-    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
-      case SearchValidationResult::kNoData: {
-        BitVector::Builder null_indices(indices.size);
-        for (const uint32_t* it = indices.data;
-             it != indices.data + indices.size; it++) {
-          null_indices.Append(!non_null_->IsSet(*it));
-        }
-        // There is no need to search in underlying storage. We should just
-        // check if the index is set in |non_null_|.
-        return RangeOrBitVector(std::move(null_indices).Build());
-      }
-      case SearchValidationResult::kAllData:
-        return RangeOrBitVector(Range(0, indices.size));
-      case SearchValidationResult::kOk:
-        break;
+    // Partition the vector into all the null indices followed by all the
+    // non-null indices.
+    auto non_null_it = std::stable_partition(
+        indices.tokens.begin(), indices.tokens.end(),
+        [this](const Indices::Token& t) { return !non_null_->IsSet(t.index); });
+
+    // IndexSearch |inner_| with a vector containing a copy of the (translated)
+    // non-null indices.
+    Indices non_null{{non_null_it, indices.tokens.end()}, indices.state};
+    for (auto& token : non_null.tokens) {
+      token.index = non_null_->CountSetBits(token.index);
     }
-  } else if (op == FilterOp::kIsNotNull) {
+    inner_->IndexSearch(op, sql_val, non_null);
+
+    // Replace all the original non-null positions with the result from calling
+    // IndexSearch.
+    auto new_non_null_it =
+        indices.tokens.erase(non_null_it, indices.tokens.end());
+    indices.tokens.insert(new_non_null_it, non_null.tokens.begin(),
+                          non_null.tokens.end());
+
+    // Merge the two sorted index ranges together using the payload as the
+    // comparator. This is a required post-condition of IndexSearch.
+    std::inplace_merge(indices.tokens.begin(), new_non_null_it,
+                       indices.tokens.end(),
+                       Indices::Token::PayloadComparator());
+    return;
+  }
+
+  auto keep_only_non_null = [this, &indices]() {
+    indices.tokens.erase(
+        std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                       [this](const Indices::Token& idx) {
+                         return !non_null_->IsSet(idx.index);
+                       }),
+        indices.tokens.end());
+    return;
+  };
+  if (op == FilterOp::kIsNotNull) {
     switch (inner_->ValidateSearchConstraints(op, sql_val)) {
-      case SearchValidationResult::kNoData: {
-        BitVector::Builder non_null_indices(indices.size);
-        for (const uint32_t* it = indices.data;
-             it != indices.data + indices.size; it++) {
-          non_null_indices.Append(non_null_->IsSet(*it));
-        }
-        // There is no need to search in underlying storage. We should just
-        // check if the index is set in |non_null_|.
-        return RangeOrBitVector(std::move(non_null_indices).Build());
-      }
+      case SearchValidationResult::kNoData:
+        indices.tokens.clear();
+        return;
       case SearchValidationResult::kAllData:
-        return RangeOrBitVector(Range(0, indices.size));
+        keep_only_non_null();
+        return;
       case SearchValidationResult::kOk:
         break;
     }
   }
-
-  BitVector::Builder storage_non_null(indices.size);
-  std::vector<uint32_t> storage_iv;
-  storage_iv.reserve(indices.size);
-  for (const uint32_t* it = indices.data; it != indices.data + indices.size;
-       it++) {
-    bool is_non_null = non_null_->IsSet(*it);
-    if (is_non_null) {
-      storage_iv.push_back(non_null_->CountSetBits(*it));
-    }
-    storage_non_null.Append(is_non_null);
+  keep_only_non_null();
+  for (auto& token : indices.tokens) {
+    token.index = non_null_->CountSetBits(token.index);
   }
-  RangeOrBitVector range_or_bv = inner_->IndexSearchValidated(
-      op, sql_val,
-      Indices{storage_iv.data(), static_cast<uint32_t>(storage_iv.size()),
-              indices.state});
-  BitVector res =
-      ReconcileStorageResult(op, std::move(storage_non_null).Build(),
-                             std::move(range_or_bv), Range(0, indices.size));
-
-  PERFETTO_DCHECK(res.size() == indices.size);
-  return RangeOrBitVector(std::move(res));
+  inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
 Range NullOverlay::ChainImpl::OrderedIndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
-    Indices indices) const {
+    const OrderedIndices& indices) const {
   // For NOT EQUAL the translation or results from EQUAL needs to be done by the
   // caller.
   PERFETTO_CHECK(op != FilterOp::kNe);
@@ -272,7 +270,8 @@ Range NullOverlay::ChainImpl::OrderedIndexSearchValidated(
   }
 
   Range inner_range = inner_->OrderedIndexSearchValidated(
-      op, sql_val, Indices{storage_iv.data(), non_null_size, indices.state});
+      op, sql_val,
+      OrderedIndices{storage_iv.data(), non_null_size, indices.state});
   return {inner_range.start + non_null_offset,
           inner_range.end + non_null_offset};
 }

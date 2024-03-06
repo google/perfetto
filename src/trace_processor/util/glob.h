@@ -80,7 +80,7 @@ class GlobMatcher {
 
   // Checks the provided string against the pattern and returns whether it
   // matches.
-  bool Matches(base::StringView input);
+  bool Matches(base::StringView input) const;
 
   // Returns whether the comparison should really be an equality comparison.
   bool IsEquality() {
@@ -110,7 +110,7 @@ class GlobMatcher {
 
   // Returns whether |input| starts with the pattern in |segment| following
   // glob matching rules.
-  bool StartsWith(base::StringView input, const Segment& segment) {
+  bool StartsWith(base::StringView input, const Segment& segment) const {
     if (!contains_char_class_or_question_) {
       return input.StartsWith(segment.pattern);
     }
@@ -119,7 +119,7 @@ class GlobMatcher {
 
   // Returns whether |input| ends with the pattern in |segment| following
   // glob matching rules.
-  bool EndsWith(base::StringView input, const Segment& segment) {
+  bool EndsWith(base::StringView input, const Segment& segment) const {
     if (!contains_char_class_or_question_) {
       return input.EndsWith(segment.pattern);
     }
@@ -131,7 +131,9 @@ class GlobMatcher {
   // Returns the index where |input| matches the pattern in |segment|
   // following glob matching rules or base::StringView::npos, if no such index
   // exists.
-  size_t Find(base::StringView input, const Segment& segment, size_t start) {
+  size_t Find(base::StringView input,
+              const Segment& segment,
+              size_t start) const {
     if (!contains_char_class_or_question_) {
       return input.find(segment.pattern, start);
     }
@@ -151,7 +153,7 @@ class GlobMatcher {
   // Matches |in| against the given character class.
   static bool MatchesCharacterClass(char input, base::StringView char_class);
 
-  bool StartsWithSlow(base::StringView input, const Segment& segment);
+  bool StartsWithSlow(base::StringView input, const Segment& segment) const;
 
   // IMPORTANT: this should *not* be modified after the constructor as we store
   // pointers to the data inside here.
