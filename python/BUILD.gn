@@ -47,7 +47,7 @@ perfetto_py_binary("trace_processor_py_example") {
   main = "example.py"
 }
 
-perfetto_py_library("trace_processor_py") {
+perfetto_py_library("trace_processor_py_no_resolvers") {
   sources = [
     "perfetto/trace_processor/__init__.py",
     "perfetto/trace_processor/api.py",
@@ -66,6 +66,13 @@ perfetto_py_library("trace_processor_py") {
     "../gn:pandas_py",
     "../gn:protobuf_py",
     "../gn:tp_vendor_py",
+  ]
+}
+
+perfetto_py_library("trace_processor_py") {
+  deps = [
+    ":trace_processor_py_no_resolvers",
+    "../gn:tp_resolvers_py",
   ]
 }
 
