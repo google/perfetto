@@ -31,11 +31,11 @@ mount
 
 cd /workspace/
 
+# infra/ui.perfetto.dev/cloudbuild_release.yaml sets $1 to the branch
+# name.
 EXTRA_ARGS=""
-IS_RELEASE=0
-RELEASE=$(git describe --all --exact --match 'origin/releases/v*' HEAD) || IS_RELEASE=$?
-if [[ $IS_RELEASE -eq 0 ]]; then
-  EXTRA_ARGS="--branch_only=$RELEASE"
+if [[ ! -z $1 ]]; then
+  EXTRA_ARGS="--branch_only=$1"
 fi
 
 ls -A1 | xargs rm -rf
