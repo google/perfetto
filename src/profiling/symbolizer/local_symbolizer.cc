@@ -19,6 +19,7 @@
 #include <fcntl.h>
 
 #include <cinttypes>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -352,18 +353,22 @@ std::optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
     return std::nullopt;
   }
   // Openfile opens the file with an exclusive lock on windows.
-  std::optional<size_t> size = base::GetFileSize(symbol_file);
-  if (!size.has_value()) {
+  std::optional<uint64_t> file_size = base::GetFileSize(symbol_file);
+  if (!file_size.has_value()) {
     PERFETTO_PLOG("Failed to get file size %s", symbol_file.c_str());
     return std::nullopt;
   }
 
-  if (*size == 0) {
+  static_assert(sizeof(size_t) <= sizeof(uint64_t));
+  size_t size = static_cast<size_t>(
+      std::min<uint64_t>(std::numeric_limits<size_t>::max(), *file_size));
+
+  if (size == 0) {
     return std::nullopt;
   }
 
   std::optional<BuildIdAndLoadBias> build_id_and_load_bias =
-      GetBuildIdAndLoadBias(symbol_file.c_str(), *size);
+      GetBuildIdAndLoadBias(symbol_file.c_str(), size);
   if (!build_id_and_load_bias)
     return std::nullopt;
   if (build_id_and_load_bias->build_id != build_id) {

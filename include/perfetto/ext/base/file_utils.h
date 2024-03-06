@@ -102,7 +102,8 @@ base::Status SetFilePermissions(const std::string& path,
                                 const std::string& group_name,
                                 const std::string& mode_bits);
 
-std::optional<size_t> GetFileSize(const std::string& path);
+// Returns the size of the file located at |path|, or nullopt in case of error.
+std::optional<uint64_t> GetFileSize(const std::string& path);
 
 }  // namespace base
 }  // namespace perfetto
