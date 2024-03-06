@@ -17,11 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_CONTAINERS_ROW_MAP_ALGORITHMS_H_
 #define SRC_TRACE_PROCESSOR_CONTAINERS_ROW_MAP_ALGORITHMS_H_
 
+#include <cstdint>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/bit_vector_iterators.h"
 
 // This file contains fundamental algorithms used by RowMap.
 //
