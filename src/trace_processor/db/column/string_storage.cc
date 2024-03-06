@@ -76,20 +76,20 @@ struct LessEqual {
 };
 
 struct NotEqual {
-  bool operator()(StringPool::Id lhs, StringPool::Id rhs) {
+  bool operator()(StringPool::Id lhs, StringPool::Id rhs) const {
     return lhs != StringPool::Id::Null() && lhs != rhs;
   }
 };
 
 struct Glob {
-  bool operator()(StringPool::Id lhs, util::GlobMatcher& matcher) const {
+  bool operator()(StringPool::Id lhs, const util::GlobMatcher& matcher) const {
     return lhs != StringPool::Id::Null() && matcher.Matches(pool_->Get(lhs));
   }
   const StringPool* pool_;
 };
 
 struct GlobFullStringPool {
-  GlobFullStringPool(StringPool* pool, util::GlobMatcher& matcher)
+  GlobFullStringPool(StringPool* pool, const util::GlobMatcher& matcher)
       : pool_(pool), matches_(pool->MaxSmallStringId().raw_id()) {
     PERFETTO_DCHECK(!pool->HasLargeString());
     for (auto it = pool->CreateIterator(); it; ++it) {
@@ -97,7 +97,7 @@ struct GlobFullStringPool {
       matches_[id.raw_id()] = matcher.Matches(pool->Get(id));
     }
   }
-  bool operator()(StringPool::Id lhs, StringPool::Id) {
+  bool operator()(StringPool::Id lhs, StringPool::Id) const {
     return lhs != StringPool::Id::Null() && matches_[lhs.raw_id()];
   }
   StringPool* pool_;
@@ -105,7 +105,7 @@ struct GlobFullStringPool {
 };
 
 struct Regex {
-  bool operator()(StringPool::Id lhs, regex::Regex& pattern) const {
+  bool operator()(StringPool::Id lhs, const regex::Regex& pattern) const {
     return lhs != StringPool::Id::Null() &&
            pattern.Search(pool_->Get(lhs).c_str());
   }
@@ -122,7 +122,7 @@ struct RegexFullStringPool {
           id != StringPool::Id::Null() && regex.Search(pool_->Get(id).c_str());
     }
   }
-  bool operator()(StringPool::Id lhs, StringPool::Id) {
+  bool operator()(StringPool::Id lhs, StringPool::Id) const {
     return matches_[lhs.raw_id()];
   }
   StringPool* pool_;
@@ -345,19 +345,71 @@ RangeOrBitVector StringStorage::ChainImpl::SearchValidated(
   return RangeOrBitVector(LinearSearch(op, sql_val, search_range));
 }
 
-RangeOrBitVector StringStorage::ChainImpl::IndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    Indices indices) const {
-  PERFETTO_DCHECK(indices.size <= size());
+void StringStorage::ChainImpl::IndexSearchValidated(FilterOp op,
+                                                    SqlValue sql_val,
+                                                    Indices& indices) const {
+  PERFETTO_DCHECK(indices.tokens.size() <= size());
   PERFETTO_TP_TRACE(
       metatrace::Category::DB, "StringStorage::ChainImpl::IndexSearch",
-      [indices, op](metatrace::Record* r) {
-        r->AddArg("Count", std::to_string(indices.size));
+      [&indices, op](metatrace::Record* r) {
+        r->AddArg("Count", std::to_string(indices.tokens.size()));
         r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
       });
-  return RangeOrBitVector(
-      IndexSearchInternal(op, sql_val, indices.data, indices.size));
+
+  StringPool::Id val =
+      (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull)
+          ? StringPool::Id::Null()
+          : string_pool_->InternString(base::StringView(sql_val.AsString()));
+  const StringPool::Id* start = data_->data();
+  switch (op) {
+    case FilterOp::kEq:
+      utils::IndexSearchWithComparator(val, start, indices, std::equal_to<>());
+      break;
+    case FilterOp::kNe:
+      utils::IndexSearchWithComparator(val, start, indices, NotEqual());
+      break;
+    case FilterOp::kLe:
+      utils::IndexSearchWithComparator(string_pool_->Get(val), start, indices,
+                                       LessEqual{string_pool_});
+      break;
+    case FilterOp::kLt:
+      utils::IndexSearchWithComparator(string_pool_->Get(val), start, indices,
+                                       Less{string_pool_});
+      break;
+    case FilterOp::kGt:
+      utils::IndexSearchWithComparator(string_pool_->Get(val), start, indices,
+                                       Greater{string_pool_});
+      break;
+    case FilterOp::kGe:
+      utils::IndexSearchWithComparator(string_pool_->Get(val), start, indices,
+                                       GreaterEqual{string_pool_});
+      break;
+    case FilterOp::kGlob: {
+      util::GlobMatcher matcher =
+          util::GlobMatcher::FromPattern(sql_val.AsString());
+      if (matcher.IsEquality()) {
+        utils::IndexSearchWithComparator(val, start, indices,
+                                         std::equal_to<>());
+        break;
+      }
+      utils::IndexSearchWithComparator(std::move(matcher), start, indices,
+                                       Glob{string_pool_});
+      break;
+    }
+    case FilterOp::kRegex: {
+      base::StatusOr<regex::Regex> regex =
+          regex::Regex::Create(sql_val.AsString());
+      utils::IndexSearchWithComparator(std::move(regex.value()), start, indices,
+                                       Regex{string_pool_});
+      break;
+    }
+    case FilterOp::kIsNull:
+      utils::IndexSearchWithComparator(val, start, indices, IsNull());
+      break;
+    case FilterOp::kIsNotNull:
+      utils::IndexSearchWithComparator(val, start, indices, IsNotNull());
+      break;
+  }
 }
 
 BitVector StringStorage::ChainImpl::LinearSearch(FilterOp op,
@@ -452,7 +504,7 @@ BitVector StringStorage::ChainImpl::LinearSearch(FilterOp op,
 Range StringStorage::ChainImpl::OrderedIndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
-    Indices indices) const {
+    const OrderedIndices& indices) const {
   StringPool::Id val =
       (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull)
           ? StringPool::Id::Null()
@@ -507,75 +559,6 @@ Range StringStorage::ChainImpl::OrderedIndexSearchValidated(
       PERFETTO_FATAL("Not supported for OrderedIndexSearch");
   }
   PERFETTO_FATAL("For GCC");
-}
-
-RangeOrBitVector StringStorage::ChainImpl::IndexSearchInternal(
-    FilterOp op,
-    SqlValue sql_val,
-    const uint32_t* indices,
-    uint32_t indices_size) const {
-  StringPool::Id val =
-      (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull)
-          ? StringPool::Id::Null()
-          : string_pool_->InternString(base::StringView(sql_val.AsString()));
-  const StringPool::Id* start = data_->data();
-
-  BitVector::Builder builder(indices_size);
-
-  switch (op) {
-    case FilterOp::kEq:
-      utils::IndexSearchWithComparator(val, start, indices, std::equal_to<>(),
-                                       builder);
-      break;
-    case FilterOp::kNe:
-      utils::IndexSearchWithComparator(val, start, indices, NotEqual(),
-                                       builder);
-      break;
-    case FilterOp::kLe:
-      utils::IndexSearchWithComparator(string_pool_->Get(val), start, indices,
-                                       LessEqual{string_pool_}, builder);
-      break;
-    case FilterOp::kLt:
-      utils::IndexSearchWithComparator(string_pool_->Get(val), start, indices,
-                                       Less{string_pool_}, builder);
-      break;
-    case FilterOp::kGt:
-      utils::IndexSearchWithComparator(string_pool_->Get(val), start, indices,
-                                       Greater{string_pool_}, builder);
-      break;
-    case FilterOp::kGe:
-      utils::IndexSearchWithComparator(string_pool_->Get(val), start, indices,
-                                       GreaterEqual{string_pool_}, builder);
-      break;
-    case FilterOp::kGlob: {
-      util::GlobMatcher matcher =
-          util::GlobMatcher::FromPattern(sql_val.AsString());
-      if (matcher.IsEquality()) {
-        utils::IndexSearchWithComparator(val, start, indices, std::equal_to<>(),
-                                         builder);
-        break;
-      }
-      utils::IndexSearchWithComparator(std::move(matcher), start, indices,
-                                       Glob{string_pool_}, builder);
-      break;
-    }
-    case FilterOp::kRegex: {
-      base::StatusOr<regex::Regex> regex =
-          regex::Regex::Create(sql_val.AsString());
-      utils::IndexSearchWithComparator(std::move(regex.value()), start, indices,
-                                       Regex{string_pool_}, builder);
-      break;
-    }
-    case FilterOp::kIsNull:
-      utils::IndexSearchWithComparator(val, start, indices, IsNull(), builder);
-      break;
-    case FilterOp::kIsNotNull:
-      utils::IndexSearchWithComparator(val, start, indices, IsNotNull(),
-                                       builder);
-      break;
-  }
-
-  return RangeOrBitVector(std::move(builder).Build());
 }
 
 Range StringStorage::ChainImpl::BinarySearchIntrinsic(
