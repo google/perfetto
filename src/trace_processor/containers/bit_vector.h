@@ -309,8 +309,6 @@ class BitVector {
       for (uint32_t i = start; i < end; ++i) {
         bv.Append(f(i));
       }
-      bv.counts_.emplace_back(bv.CountSetBits());
-      bv.size_ = end;
       return bv;
     }
 
