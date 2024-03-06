@@ -13,11 +13,17 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE common.slices;
 INCLUDE PERFETTO MODULE android.process_metadata;
 INCLUDE PERFETTO MODULE android.startup.startups_maxsdk28;
 INCLUDE PERFETTO MODULE android.startup.startups_minsdk29;
 INCLUDE PERFETTO MODULE android.startup.startups_minsdk33;
+
+CREATE PERFETTO FUNCTION _slice_count(
+  -- Name of the slices to counted.
+  slice_glob STRING)
+-- Number of slices with the name.
+RETURNS INT AS
+SELECT COUNT(1) FROM slice WHERE name GLOB $slice_glob;
 
 -- Gather all startup data. Populate by different sdks.
 CREATE PERFETTO TABLE _all_startups AS
@@ -45,9 +51,9 @@ CREATE PERFETTO TABLE android_startups(
 ) AS
 SELECT startup_id, ts, ts_end, dur, package, startup_type FROM
 _all_startups WHERE ( CASE
-  WHEN slice_count('launchingActivity#*:*') > 0
+  WHEN _slice_count('launchingActivity#*:*') > 0
     THEN sdk = "minsdk33"
-  WHEN slice_count('MetricsLogger:*') > 0
+  WHEN _slice_count('MetricsLogger:*') > 0
     THEN sdk = "minsdk29"
   ELSE sdk = "maxsdk28"
   END);

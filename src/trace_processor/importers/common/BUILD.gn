@@ -28,6 +28,7 @@ source_set("common") {
     "clock_converter.h",
     "clock_tracker.cc",
     "clock_tracker.h",
+    "create_mapping_params.h",
     "deobfuscation_mapping_table.cc",
     "deobfuscation_mapping_table.h",
     "event_tracker.cc",
@@ -36,10 +37,15 @@ source_set("common") {
     "flow_tracker.h",
     "global_args_tracker.cc",
     "global_args_tracker.h",
+    "mapping_tracker.cc",
+    "mapping_tracker.h",
     "metadata_tracker.cc",
     "metadata_tracker.h",
     "process_tracker.cc",
     "process_tracker.h",
+    "sched_event_state.h",
+    "sched_event_tracker.cc",
+    "sched_event_tracker.h",
     "slice_tracker.cc",
     "slice_tracker.h",
     "slice_translation_table.cc",
@@ -48,9 +54,13 @@ source_set("common") {
     "stack_profile_tracker.h",
     "system_info_tracker.cc",
     "system_info_tracker.h",
+    "thread_state_tracker.cc",
+    "thread_state_tracker.h",
     "trace_parser.cc",
     "track_tracker.cc",
     "track_tracker.h",
+    "virtual_memory_mapping.cc",
+    "virtual_memory_mapping.h",
   ]
   public_deps = [
     ":trace_parser_hdr",
@@ -70,8 +80,8 @@ source_set("common") {
     "../../storage",
     "../../tables:tables",
     "../../types",
+    "../../util:build_id",
     "../../util:profiler_util",
-    "../../util:stack_traces_util",
     "../fuchsia:fuchsia_record",
     "../systrace:systrace_line",
   ]
@@ -105,6 +115,7 @@ source_set("unittests") {
     "process_tracker_unittest.cc",
     "slice_tracker_unittest.cc",
     "slice_translation_table_unittest.cc",
+    "thread_state_tracker_unittest.cc",
   ]
   testonly = true
   deps = [

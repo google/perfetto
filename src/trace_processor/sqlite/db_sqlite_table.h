@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -37,6 +38,7 @@
 #include "src/trace_processor/sqlite/query_constraints.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -92,8 +94,11 @@ class DbSqliteTable final
     Cursor(DbSqliteTable*, QueryCache*);
     ~Cursor() final;
 
-    Cursor(Cursor&&) noexcept = default;
-    Cursor& operator=(Cursor&&) = default;
+    Cursor(const Cursor&) = delete;
+    Cursor& operator=(const Cursor&) = delete;
+
+    Cursor(Cursor&&) noexcept = delete;
+    Cursor& operator=(Cursor&&) = delete;
 
     // Implementation of SqliteTable::Cursor.
     base::Status Filter(const QueryConstraints& qc,
@@ -143,16 +148,16 @@ class DbSqliteTable final
       return sorted_cache_table_ ? &*sorted_cache_table_ : upstream_table_;
     }
 
-    static base::Status ExtractTableFunctionArguments(
-        const Table::Schema&,
-        std::vector<Constraint>& constraints,
-        std::vector<SqlValue>& function_arguments);
+    base::Status PopulateConstraintsAndArguments(const QueryConstraints& qc,
+                                                 sqlite3_value** argv);
 
-    Cursor(const Cursor&) = delete;
-    Cursor& operator=(const Cursor&) = delete;
+    void PopulateOrderBys(const QueryConstraints& qc);
+
+    void FilterAndSortMetatrace(metatrace::Record* record);
 
     DbSqliteTable* db_sqlite_table_ = nullptr;
     QueryCache* cache_ = nullptr;
+    std::vector<uint32_t> argument_index_per_column_;
 
     const Table* upstream_table_ = nullptr;
 
@@ -213,9 +218,6 @@ class DbSqliteTable final
                                 const QueryConstraints& qc);
 
  private:
-  static base::Status ValidateTableFunctionArguments(const Table::Schema&,
-                                                     const QueryConstraints&);
-
   Context* context_ = nullptr;
 
   // Only valid after Init has completed.

@@ -26,7 +26,7 @@ class Slices(TestSuite):
     return DiffTestBlueprint(
         trace=Path('trace.py'),
         query="""
-        INCLUDE PERFETTO MODULE common.slices;
+        INCLUDE PERFETTO MODULE slices.with_context;
 
         SELECT name, ts, dur, depth, thread_name, tid, process_name, pid
         FROM thread_slice;
@@ -40,7 +40,7 @@ class Slices(TestSuite):
     return DiffTestBlueprint(
         trace=Path('trace.py'),
         query="""
-        INCLUDE PERFETTO MODULE common.slices;
+        INCLUDE PERFETTO MODULE slices.with_context;
 
         SELECT name, ts, dur, depth, process_name, pid
         FROM process_slice;
@@ -67,77 +67,6 @@ class Slices(TestSuite):
       """))
 
   # Common functions
-  def test_has_descendant_slice_with_name_true(self):
-    return DiffTestBlueprint(
-        # We need a trace with a large number of non-chrome slices, so that the
-        # reliable range is affected by their filtering.
-        trace=DataPath('chrome_input_with_frame_view.pftrace'),
-        query="""
-        INCLUDE PERFETTO MODULE common.slices;
-
-        SELECT
-          HAS_DESCENDANT_SLICE_WITH_NAME(
-            (SELECT id from slice where dur = 46046000),
-            'SwapEndToPresentationCompositorFrame') AS has_descendant;
-        """,
-        out=Csv("""
-        "has_descendant"
-        1
-        """))
-
-  def test_has_descendant_slice_with_name_false(self):
-    return DiffTestBlueprint(
-        # We need a trace with a large number of non-chrome slices, so that the
-        # reliable range is affected by their filtering.
-        trace=DataPath('chrome_input_with_frame_view.pftrace'),
-        query="""
-        INCLUDE PERFETTO MODULE common.slices;
-
-        SELECT
-          HAS_DESCENDANT_SLICE_WITH_NAME(
-            (SELECT id from slice where dur = 11666000),
-            'SwapEndToPresentationCompositorFrame') AS has_descendant;
-        """,
-        out=Csv("""
-        "has_descendant"
-        0
-        """))
-
-  def test_descendant_slice_null(self):
-    return DiffTestBlueprint(
-        # We need a trace with a large number of non-chrome slices, so that the
-        # reliable range is affected by their filtering.
-        trace=DataPath('chrome_input_with_frame_view.pftrace'),
-        query="""
-        INCLUDE PERFETTO MODULE common.slices;
-
-        SELECT
-          DESCENDANT_SLICE_END(
-            (SELECT id from slice where dur = 11666000),
-            'SwapEndToPresentationCompositorFrame') AS end_ts;
-        """,
-        out=Csv("""
-        "end_ts"
-        "[NULL]"
-        """))
-
-  def test_descendant_slice(self):
-    return DiffTestBlueprint(
-        # We need a trace with a large number of non-chrome slices, so that the
-        # reliable range is affected by their filtering.
-        trace=DataPath('chrome_input_with_frame_view.pftrace'),
-        query="""
-        INCLUDE PERFETTO MODULE common.slices;
-
-        SELECT
-          DESCENDANT_SLICE_END(
-            (SELECT id from slice where dur = 46046000),
-            'SwapEndToPresentationCompositorFrame') AS end_ts;
-        """,
-        out=Csv("""
-        "end_ts"
-        174797566610797
-        """))
 
   def test_slice_flattened(self):
     return DiffTestBlueprint(
@@ -163,3 +92,27 @@ class Slices(TestSuite):
         "Looper.dispatch: jy3(null)",174800056530797,1368000,0
         "ThreadControllerImpl::RunTask",174800107962797,132000,0
       """))
+
+  def test_thread_slice_cpu_time(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE slices.cpu_time;
+
+        SELECT *
+        FROM thread_slice_cpu_time
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "id","cpu_time"
+        0,178646
+        1,119740
+        2,58073
+        3,98698
+        4,121979
+        5,45000
+        6,35104
+        7,33333
+        8,46926
+        9,17865
+        """))

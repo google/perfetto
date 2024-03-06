@@ -67,7 +67,7 @@ export class NotesPanel implements Panel {
 
   constructor(readonly key: string) {}
 
-  get mithril(): m.Children {
+  render(): m.Children {
     const allCollapsed = Object.values(globals.state.trackGroups)
       .every((group) => group.collapsed);
 

@@ -21,7 +21,14 @@
 --   b. The event rate for the thread is at or above 75p.
 -- Note: this metric considers only chrome processes and their threads, i.e. the ones coming
 -- from track_event's.
-INCLUDE PERFETTO MODULE common.metadata;
+
+-- Extracts an int value with the given name from the metadata table.
+CREATE OR REPLACE PERFETTO FUNCTION _extract_int_metadata(
+  -- The name of the metadata entry.
+  name STRING)
+-- int_value for the given name. NULL if there's no such entry.
+RETURNS LONG AS
+SELECT int_value FROM metadata WHERE name = ($name);
 
 DROP VIEW IF EXISTS chrome_event_stats_per_thread;
 
@@ -153,9 +160,9 @@ AS
 SELECT
   -- If the trace has a cropping packet, we don't want to recompute the reliable
   -- based on cropped track events - the result might be incorrect.
-  IFNULL(extract_int_metadata('range_of_interest_start_us') * 1000,
+  IFNULL(_extract_int_metadata('range_of_interest_start_us') * 1000,
          MAX(thread_start, data_loss_free_start)) AS start,
-  IIF(extract_int_metadata('range_of_interest_start_us') IS NOT NULL,
+  IIF(_extract_int_metadata('range_of_interest_start_us') IS NOT NULL,
       'Range of interest packet',
       IIF(limiting_upid IN (SELECT upid FROM chrome_processes_with_missing_main),
           'Missing main thread for upid=' || limiting_upid,

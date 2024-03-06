@@ -36,6 +36,8 @@ import {
 import {classNames} from '../base/classnames';
 import {Button} from '../widgets/button';
 import {Popup} from '../widgets/popup';
+import {canvasClip} from '../common/canvas_utils';
+import {TimeScale} from './time_scale';
 
 function getTitleSize(title: string): string|undefined {
   const length = title.length;
@@ -133,7 +135,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
   view({attrs}: m.CVnode<TrackShellAttrs>) {
     // The shell should be highlighted if the current search result is inside
     // this track.
-    let highlightClass = '';
+    let highlightClass = undefined;
     const searchIndex = globals.state.searchIndex;
     if (searchIndex !== -1) {
       const trackKey = globals.currentSearchResults.trackKeys[searchIndex];
@@ -142,12 +144,14 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       }
     }
 
-    const dragClass = this.dragging ? `drag` : '';
-    const dropClass = this.dropping ? `drop-${this.dropping}` : '';
     return m(
       `.track-shell[draggable=true]`,
       {
-        class: `${highlightClass} ${dragClass} ${dropClass}`,
+        className: classNames(
+          highlightClass,
+          this.dragging && 'drag',
+          this.dropping && `drop-${this.dropping}`,
+        ),
         ondragstart: (e: DragEvent) => this.ondragstart(e, attrs.trackKey),
         ondragend: this.ondragend.bind(this),
         ondragover: this.ondragover.bind(this),
@@ -400,7 +404,6 @@ export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
 }
 
 interface TrackPanelAttrs {
-  key: string;
   trackKey: string;
   title: string;
   tags?: TrackTags;
@@ -415,14 +418,14 @@ export class TrackPanel implements Panel {
   constructor(private readonly attrs: TrackPanelAttrs) {}
 
   get key(): string {
-    return this.attrs.key;
+    return this.attrs.trackKey;
   }
 
   get trackKey(): string {
     return this.attrs.trackKey;
   }
 
-  get mithril(): m.Children {
+  render(): m.Children {
     const attrs = this.attrs;
 
     if (attrs.trackFSM) {
@@ -435,7 +438,6 @@ export class TrackPanel implements Panel {
         });
       }
       return m(TrackComponent, {
-        key: attrs.key,
         trackKey: attrs.trackKey,
         title: attrs.title,
         heightPx: attrs.trackFSM.track.getHeight(),
@@ -447,7 +449,6 @@ export class TrackPanel implements Panel {
       });
     } else {
       return m(TrackComponent, {
-        key: attrs.key,
         trackKey: attrs.trackKey,
         title: attrs.title,
         revealOnCreate: attrs.revealOnCreate,
@@ -475,6 +476,8 @@ export class TrackPanel implements Panel {
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     ctx.save();
+    canvasClip(
+      ctx, TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
 
     drawGridLines(
       ctx,
@@ -483,6 +486,7 @@ export class TrackPanel implements Panel {
 
     const track = this.attrs.trackFSM;
 
+    ctx.save();
     ctx.translate(TRACK_SHELL_WIDTH, 0);
     if (track !== undefined) {
       const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
@@ -499,59 +503,12 @@ export class TrackPanel implements Panel {
 
     const {visibleTimeScale} = globals.timeline;
     // Draw vertical line when hovering on the notes panel.
-    if (globals.state.hoveredNoteTimestamp !== -1n) {
-      drawVerticalLineAtTime(
-        ctx,
-        visibleTimeScale,
-        globals.state.hoveredNoteTimestamp,
-        size.height,
-        `#aaa`);
-    }
-    if (globals.state.hoverCursorTimestamp !== -1n) {
-      drawVerticalLineAtTime(
-        ctx,
-        visibleTimeScale,
-        globals.state.hoverCursorTimestamp,
-        size.height,
-        `#344596`);
-    }
+    renderHoveredNoteVertical(ctx, visibleTimeScale, size);
+    renderHoveredCursorVertical(ctx, visibleTimeScale, size);
+    renderWakeupVertical(ctx, visibleTimeScale, size);
+    renderNoteVerticals(ctx, visibleTimeScale, size);
 
-    if (globals.state.currentSelection !== null) {
-      if (globals.state.currentSelection.kind === 'SLICE' &&
-          globals.sliceDetails.wakeupTs !== undefined) {
-        drawVerticalLineAtTime(
-          ctx,
-          visibleTimeScale,
-          globals.sliceDetails.wakeupTs,
-          size.height,
-          `black`);
-      }
-    }
-    // All marked areas should have semi-transparent vertical lines
-    // marking the start and end.
-    for (const note of Object.values(globals.state.notes)) {
-      if (note.noteType === 'AREA') {
-        const transparentNoteColor =
-            'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
-        drawVerticalLineAtTime(
-          ctx,
-          visibleTimeScale,
-          globals.state.areas[note.areaId].start,
-          size.height,
-          transparentNoteColor,
-          1);
-        drawVerticalLineAtTime(
-          ctx,
-          visibleTimeScale,
-          globals.state.areas[note.areaId].end,
-          size.height,
-          transparentNoteColor,
-          1);
-      } else if (note.noteType === 'DEFAULT') {
-        drawVerticalLineAtTime(
-          ctx, visibleTimeScale, note.timestamp, size.height, note.color);
-      }
-    }
+    ctx.restore();
   }
 
   getSliceRect(tStart: time, tDur: time, depth: number): SliceRect|undefined {
@@ -561,3 +518,71 @@ export class TrackPanel implements Panel {
     return this.attrs.trackFSM.track.getSliceRect?.(tStart, tDur, depth);
   }
 }
+
+export function renderHoveredCursorVertical(
+  ctx: CanvasRenderingContext2D, visibleTimeScale: TimeScale, size: PanelSize) {
+  if (globals.state.hoverCursorTimestamp !== -1n) {
+    drawVerticalLineAtTime(
+      ctx,
+      visibleTimeScale,
+      globals.state.hoverCursorTimestamp,
+      size.height,
+      `#344596`);
+  }
+}
+
+export function renderHoveredNoteVertical(
+  ctx: CanvasRenderingContext2D, visibleTimeScale: TimeScale, size: PanelSize) {
+  if (globals.state.hoveredNoteTimestamp !== -1n) {
+    drawVerticalLineAtTime(
+      ctx,
+      visibleTimeScale,
+      globals.state.hoveredNoteTimestamp,
+      size.height,
+      `#aaa`);
+  }
+}
+
+export function renderWakeupVertical(
+  ctx: CanvasRenderingContext2D, visibleTimeScale: TimeScale, size: PanelSize) {
+  if (globals.state.currentSelection !== null) {
+    if (globals.state.currentSelection.kind === 'SLICE' &&
+      globals.sliceDetails.wakeupTs !== undefined) {
+      drawVerticalLineAtTime(
+        ctx,
+        visibleTimeScale,
+        globals.sliceDetails.wakeupTs,
+        size.height,
+        `black`);
+    }
+  }
+}
+
+export function renderNoteVerticals(
+  ctx: CanvasRenderingContext2D, visibleTimeScale: TimeScale, size: PanelSize) {
+  // All marked areas should have semi-transparent vertical lines
+  // marking the start and end.
+  for (const note of Object.values(globals.state.notes)) {
+    if (note.noteType === 'AREA') {
+      const transparentNoteColor = 'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
+      drawVerticalLineAtTime(
+        ctx,
+        visibleTimeScale,
+        globals.state.areas[note.areaId].start,
+        size.height,
+        transparentNoteColor,
+        1);
+      drawVerticalLineAtTime(
+        ctx,
+        visibleTimeScale,
+        globals.state.areas[note.areaId].end,
+        size.height,
+        transparentNoteColor,
+        1);
+    } else if (note.noteType === 'DEFAULT') {
+      drawVerticalLineAtTime(
+        ctx, visibleTimeScale, note.timestamp, size.height, note.color);
+    }
+  }
+}
+

@@ -37,6 +37,7 @@ import {Router} from '../frontend/router';
 
 import {Controller} from './controller';
 import {RecordConfig, recordConfigValidator} from './record_config_types';
+import {showModal} from '../widgets/modal';
 
 interface MultiEngineState {
   currentEngineId?: string;
@@ -108,6 +109,20 @@ export class PermalinkController extends Controller<'main'> {
   }
 
   private static upgradeState(state: State): State {
+    if (state.engine !== undefined && state.engine.source.type !== 'URL') {
+      // All permalink traces should be modified to have a source.type=URL
+      // pointing to the uploaded trace. Due to a bug in some older version
+      // of the UI (b/327049372), an upload failure can end up with a state that
+      // has type=FILE but a null file object. If this happens, invalidate the
+      // trace and show a message.
+      showModal({
+        title: 'Cannot load trace permalink',
+        content: m('div', 'The permalink stored on the server is corrupted ' +
+                   'and cannot be loaded.'),
+      });
+      return createEmptyState();
+    }
+
     if (state.version !== STATE_VERSION) {
       const newState = createEmptyState();
       // Old permalinks from state versions prior to version 24
@@ -125,7 +140,6 @@ export class PermalinkController extends Controller<'main'> {
       if (newState.engine !== undefined) {
         newState.engine.ready = false;
       }
-
       const message = `Unable to parse old state version. Discarding state ` +
           `and loading trace.`;
       console.warn(message);

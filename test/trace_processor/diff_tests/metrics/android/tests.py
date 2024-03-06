@@ -188,16 +188,9 @@ class AndroidMetrics(TestSuite):
 
   def test_android_boot(self):
     return DiffTestBlueprint(
-        trace=DataPath('android_boot.pftrace'),
+        trace=DataPath('android_postboot_unlock.pftrace'),
         query=Metric('android_boot'),
-        out=TextProto(r"""
-        android_boot {
-          system_server_durations {
-            total_dur: 267193980530
-            uninterruptible_sleep_dur: 3843119529
-          }
-        }
-        """))
+        out=Path('android_boot.out'))
 
   def test_ad_services_metric(self):
     return DiffTestBlueprint(
@@ -223,3 +216,23 @@ class AndroidMetrics(TestSuite):
            }
          }
         """))
+
+  def test_android_boot_unagg(self):
+    return DiffTestBlueprint(
+      trace=DataPath('android_postboot_unlock.pftrace'),
+      query=Metric("android_boot_unagg"),
+      out=Path('android_boot_unagg.out')
+    )
+
+  def test_android_app_process_starts(self):
+    return DiffTestBlueprint(
+      trace=DataPath('android_postboot_unlock.pftrace'),
+      query=Metric("android_app_process_starts"),
+      out=Path('android_app_process_starts.out')
+    )
+
+  def test_android_garbage_collection(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric('android_garbage_collection_unagg'),
+        out=Path('android_garbage_collection_unagg.out'))

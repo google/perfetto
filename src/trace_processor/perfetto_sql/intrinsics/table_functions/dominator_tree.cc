@@ -287,13 +287,10 @@ void Graph::ComputeSemiDominatorAndPartialDominator(Forest& forest) {
 
     NodeState& w_parent_state = GetStateForNode(w_parent);
     for (Node v : w_parent_state.self_as_semi_dominator) {
-      NodeState& v_state = GetStateForNode(v);
-
       Node u = forest.GetMinSemiDominatorToAncestor(v, *this);
-      NodeState& u_state = GetStateForNode(u);
-
-      u_state.dominator =
-          u_state.semi_dominator < v_state.semi_dominator ? u : w_parent;
+      NodeState& v_state = GetStateForNode(v);
+      v_state.dominator =
+          GetSemiDominator(u) < v_state.semi_dominator ? u : w_parent;
     }
     w_parent_state.self_as_semi_dominator.clear();
   }

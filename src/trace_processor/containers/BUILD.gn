@@ -22,7 +22,6 @@ import("../../../gn/test.gni")
 perfetto_component("containers") {
   public = [
     "bit_vector.h",
-    "bit_vector_iterators.h",
     "null_term_string_view.h",
     "row_map.h",
     "row_map_algorithms.h",
@@ -30,7 +29,6 @@ perfetto_component("containers") {
   ]
   sources = [
     "bit_vector.cc",
-    "bit_vector_iterators.cc",
     "row_map.cc",
     "string_pool.cc",
   ]
@@ -66,6 +64,7 @@ if (enable_perfetto_benchmarks) {
       ":containers",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
+      "../../base",
     ]
     sources = [
       "bit_vector_benchmark.cc",

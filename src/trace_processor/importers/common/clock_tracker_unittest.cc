@@ -208,10 +208,10 @@ TEST_F(ClockTrackerTest, NonStrictlyMonotonic) {
 TEST_F(ClockTrackerTest, SequenceScopedClocks) {
   ct_.AddSnapshot({{MONOTONIC, 1000}, {BOOTTIME, 100000}});
 
-  ClockTracker::ClockId c64_1 = ct_.SeqenceToGlobalClock(1, 64);
-  ClockTracker::ClockId c65_1 = ct_.SeqenceToGlobalClock(1, 65);
-  ClockTracker::ClockId c66_1 = ct_.SeqenceToGlobalClock(1, 66);
-  ClockTracker::ClockId c66_2 = ct_.SeqenceToGlobalClock(2, 64);
+  ClockTracker::ClockId c64_1 = ct_.SequenceToGlobalClock(1, 64);
+  ClockTracker::ClockId c65_1 = ct_.SequenceToGlobalClock(1, 65);
+  ClockTracker::ClockId c66_1 = ct_.SequenceToGlobalClock(1, 66);
+  ClockTracker::ClockId c66_2 = ct_.SequenceToGlobalClock(2, 64);
 
   ct_.AddSnapshot(
       {{MONOTONIC, 10000},

@@ -282,6 +282,7 @@ additional_args = {
         ('min_sdk_version', 'S'),
     ],
     'libperfetto': [('export_include_dirs', {'include', buildflags_dir}),],
+    'perfetto': [('required', {'perfetto_persistent_cfg.pbtxt'}),],
 }
 
 

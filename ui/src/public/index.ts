@@ -312,7 +312,6 @@ export interface DebugCounterTrackArgs {
 }
 
 export interface Tab {
-  hasContent?(): boolean;
   render(): m.Children;
   getTitle(): string;
 }

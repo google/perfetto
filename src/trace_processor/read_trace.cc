@@ -35,12 +35,6 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-#if TRACE_PROCESSOR_HAS_MMAP()
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#endif
-
 namespace perfetto {
 namespace trace_processor {
 namespace {

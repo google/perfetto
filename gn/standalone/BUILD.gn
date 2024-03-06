@@ -89,6 +89,10 @@ config("extra_warnings") {
       "-Wno-unknown-sanitizers",
       "-Wno-unknown-warning-option",
       "-Wno-unsafe-buffer-usage",
+
+      # TODO(primiano): -Wswitch-default could be useful but will require a mass
+      # codebase cleanup.
+      "-Wno-switch-default",
     ]
   } else if (!is_clang && !is_win) {
     # Use return std::move(...) for compatibility with old GCC compilers.
@@ -276,10 +280,7 @@ config("default") {
       "-msse2",
       "-mfpmath=sse",
     ]
-    ldflags += [
-      "-m32",
-      "-lgcc",
-    ]
+    ldflags += [ "-m32" ]
   } else if (current_cpu == "arm64") {
     cflags += [ "-fno-omit-frame-pointer" ]
   } else if (current_cpu == "x64") {
@@ -348,33 +349,14 @@ config("default") {
       "-D__ANDROID_API__=${android_api_level}",
       "--target=$android_abi_target",
     ]
-    cflags_cc += [
-      "-isystem$android_ndk_root/sources/cxx-stl/llvm-libc++/include",
-      "-isystem$android_ndk_root/sources/android/support/include",
-      "-isystem$android_ndk_root/sources/cxx-stl/llvm-libc++abi/include",
-    ]
+    cflags_cc += [ "-isystem$android_compile_sysroot/c++/v1" ]
 
-    # Keep these include paths *after* the above to prevent the wrong include
-    # being used for some headers (e.g. math.h).
-    # We need to add to each language (cflags_c, cflags_cc etc.) separately as
-    # we added to cflags directly, these inludes would end up before the
-    # languge and thus the above includes.
-    sysroot_cflags = [
-      "-isystem$android_compile_sysroot/$android_compile_sysroot_subdir",
-      "-isystem$android_compile_sysroot",
-    ]
-    cflags_c += sysroot_cflags
-    cflags_cc += sysroot_cflags
-
+    android_lib_dir = "$android_compile_sysroot/usr/lib/$android_abi_target/$android_api_level"
     ldflags += [
       "-Wl,-z,nocopyreloc",
-      "-gcc-toolchain",
-      "$android_toolchain_root",
-      "--sysroot=$android_ndk_root/$android_link_sysroot_subdir",
+      "--sysroot=$android_compile_sysroot",
+      "-B${android_lib_dir}",
       "--target=$android_abi_target",
-      "-Wl,--exclude-libs,libunwind.a",
-      "-Wl,--exclude-libs,libgcc.a",
-      "-Wl,--exclude-libs,libc++_static.a",
       "-Wl,--no-undefined",
       "-Wl,-z,noexecstack",
       "-Wl,-z,relro",
@@ -382,23 +364,11 @@ config("default") {
       "-Wl,--warn-shared-textrel",
       "-Wl,--fatal-warnings",
 
-      # New NDKs need setting this to not give "unable to find library -lc++".
-      # See https://github.com/android/ndk/issues/951#issuecomment-501017894.
-      "-nostdlib++",
+      # From NDK docs: "although the option uses the name "libstdc++" for
+      # historical reasons, this is correct for libc++ as well.
+      "-static-libstdc++",
     ]
-    lib_dirs = [
-      "$android_ndk_root/sources/cxx-stl/llvm-libc++/libs/$android_app_abi",
-    ]
-    libs += [
-      "gcc",
-      "c++_static",
-      "c++abi",
-    ]
-
-    if (current_cpu == "arm") {
-      # New NDKs don't have libandroid_support for arm64.
-      libs += [ "android_support" ]
-    }
+    lib_dirs = [ android_lib_dir ]
   }
 }
 

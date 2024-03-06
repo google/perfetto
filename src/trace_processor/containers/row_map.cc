@@ -15,8 +15,16 @@
  */
 
 #include "src/trace_processor/containers/row_map.h"
-#include <unordered_set>
 
+#include <algorithm>
+#include <cstdint>
+#include <unordered_set>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map_algorithms.h"
 
 namespace perfetto {
@@ -69,20 +77,16 @@ RowMap Select(Range range, const std::vector<OutputIndex>& selector) {
 
 RowMap Select(const BitVector& bv, Range selector) {
   PERFETTO_DCHECK(selector.end <= bv.CountSetBits());
-
+  if (selector.empty()) {
+    return {};
+  }
   // If we're simply selecting every element in the bitvector, just
   // return a copy of the BitVector without iterating.
-  BitVector ret = bv.Copy();
   if (selector.start == 0 && selector.end == bv.CountSetBits()) {
-    return RowMap(std::move(ret));
+    return RowMap(bv.Copy());
   }
-
-  for (auto it = ret.IterateSetBits(); it; it.Next()) {
-    auto set_idx = it.ordinal();
-    if (set_idx < selector.start || set_idx >= selector.end)
-      it.Clear();
-  }
-  return RowMap(std::move(ret));
+  return RowMap(bv.IntersectRange(bv.IndexOfNthSet(selector.start),
+                                  bv.IndexOfNthSet(selector.end - 1) + 1));
 }
 
 RowMap Select(const BitVector& bv, const BitVector& selector) {
@@ -217,8 +221,7 @@ Variant IntersectInternal(const std::vector<OutputIndex>& index_vec,
 
 RowMap::RowMap() : RowMap(Range()) {}
 
-RowMap::RowMap(uint32_t start, uint32_t end, OptimizeFor optimize_for)
-    : data_(Range{start, end}), optimize_for_(optimize_for) {}
+RowMap::RowMap(uint32_t start, uint32_t end) : data_(Range{start, end}) {}
 
 RowMap::RowMap(Variant def) : data_(std::move(def)) {}
 
@@ -231,26 +234,26 @@ RowMap::RowMap(BitVector bit_vector) : data_(std::move(bit_vector)) {}
 RowMap::RowMap(IndexVector vec) : data_(vec) {}
 
 RowMap RowMap::Copy() const {
-  if (auto* range = std::get_if<Range>(&data_)) {
+  if (const auto* range = std::get_if<Range>(&data_)) {
     return RowMap(*range);
   }
-  if (auto* bv = std::get_if<BitVector>(&data_)) {
+  if (const auto* bv = std::get_if<BitVector>(&data_)) {
     return RowMap(bv->Copy());
   }
-  if (auto* vec = std::get_if<IndexVector>(&data_)) {
+  if (const auto* vec = std::get_if<IndexVector>(&data_)) {
     return RowMap(*vec);
   }
   NoVariantMatched();
 }
 
 OutputIndex RowMap::Max() const {
-  if (auto* range = std::get_if<Range>(&data_)) {
+  if (const auto* range = std::get_if<Range>(&data_)) {
     return range->end;
   }
-  if (auto* bv = std::get_if<BitVector>(&data_)) {
+  if (const auto* bv = std::get_if<BitVector>(&data_)) {
     return bv->size();
   }
-  if (auto* vec = std::get_if<IndexVector>(&data_)) {
+  if (const auto* vec = std::get_if<IndexVector>(&data_)) {
     return vec->empty() ? 0 : *std::max_element(vec->begin(), vec->end()) + 1;
   }
   NoVariantMatched();
@@ -273,14 +276,15 @@ void RowMap::Intersect(const RowMap& second) {
 }
 
 RowMap::Iterator::Iterator(const RowMap* rm) : rm_(rm) {
-  if (auto* range = std::get_if<Range>(&rm_->data_)) {
+  if (const auto* range = std::get_if<Range>(&rm_->data_)) {
     ordinal_ = range->start;
     return;
   }
-  if (auto* bv = std::get_if<BitVector>(&rm_->data_)) {
-    set_bits_it_.reset(new BitVector::SetBitsIterator(bv->IterateSetBits()));
+  if (const auto* bv = std::get_if<BitVector>(&rm_->data_)) {
+    results_ = bv->GetSetBitIndices();
     return;
   }
 }
+
 }  // namespace trace_processor
 }  // namespace perfetto

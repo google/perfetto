@@ -139,13 +139,13 @@ SqliteEngine::~SqliteEngine() {
     }
   }
 
-  // Reset the database itself.
-  db_.reset();
-
-  // SQLite is not guaranteed to pick saved tables back up when destroyed as
-  // from it's perspective, it has called xDisconnect. Make sure to do that
-  // ourselves.
+  // SQLite will not pick saved tables back up when destroyed as, from it's
+  // perspective, it has called xDisconnect. Make sure to do that ourselves.
   saved_tables_.Clear();
+
+  // Reset the database itself. We need to do this after clearing the saved
+  // tables as the saved tables could hold onto prepared statements.
+  db_.reset();
 
   // The above operations should have cleared all the tables.
   if (PERFETTO_UNLIKELY(sqlite_tables_.size() != 0)) {

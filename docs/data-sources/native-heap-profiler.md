@@ -225,7 +225,7 @@ empty profile.
 On userdebug builds, all processes except for a small set of critical
 services can be profiled (to find the set of disallowed targets, look for
 `never_profile_heap` in [heapprofd.te](
-https://cs.android.com/android/platform/superproject/+/main:system/sepolicy/private/heapprofd.te?q=never_profile_heap).
+https://cs.android.com/android/platform/superproject/main/+/main:system/sepolicy/private/heapprofd.te?q=never_profile_heap).
 This restriction can be lifted by disabling SELinux by running
 `adb shell su root setenforce 0` or by passing `--disable-selinux` to the
 `heap_profile` script.

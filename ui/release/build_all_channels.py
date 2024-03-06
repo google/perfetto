@@ -26,6 +26,7 @@ import subprocess
 import sys
 
 from os.path import dirname
+
 pjoin = os.path.join
 
 BUCKET_NAME = 'ui.perfetto.dev'
@@ -98,6 +99,8 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--upload', action='store_true')
   parser.add_argument('--tmp', default='/tmp/perfetto_ui')
+  parser.add_argument('--branch_only')
+
   args = parser.parse_args()
 
   # Read the releases.json, which maps channel names to git refs, e.g.:
@@ -106,20 +109,24 @@ def main():
   with open(pjoin(CUR_DIR, 'channels.json')) as f:
     channels = json.load(f)['channels']
 
+  if args.branch_only:
+    channels = [{'name': 'branch', 'rev': args.branch_only}]
+
   merged_dist_dir = pjoin(args.tmp, 'dist')
   check_call_and_log(['rm', '-rf', merged_dist_dir])
   shutil.os.makedirs(merged_dist_dir)
   channel_map = build_all_channels(channels, args.tmp, merged_dist_dir)
 
-  print('Updating index in ' + merged_dist_dir)
-  with open(pjoin(merged_dist_dir, 'index.html'), 'r+') as f:
-    index_html = f.read()
-    f.seek(0, 0)
-    f.truncate()
-    index_html = re.sub(r"data-perfetto_version='[^']*'",
-                        "data-perfetto_version='%s'" % json.dumps(channel_map),
-                        index_html)
-    f.write(index_html)
+  if not args.branch_only:
+    print('Updating index in ' + merged_dist_dir)
+    with open(pjoin(merged_dist_dir, 'index.html'), 'r+') as f:
+      index_html = f.read()
+      f.seek(0, 0)
+      f.truncate()
+      index_html = re.sub(
+          r"data-perfetto_version='[^']*'",
+          "data-perfetto_version='%s'" % json.dumps(channel_map), index_html)
+      f.write(index_html)
 
   if not args.upload:
     return
@@ -127,10 +134,10 @@ def main():
   print('===================================================================')
   print('Uploading to gs://%s' % BUCKET_NAME)
   print('===================================================================')
-  cp_cmd = [
-      'gsutil', '-m', '-h', 'Cache-Control:public, max-age=3600', 'cp', '-j',
-      'html,js,css,wasm'
-  ]
+  # TODO(primiano): re-enable caching once the gzip-related outage is restored.
+  # cache_hdr = 'Cache-Control:public, max-age=3600'
+  cache_hdr = 'Cache-Control:no-cache'
+  cp_cmd = ['gsutil', '-m', '-h', cache_hdr, 'cp', '-j', 'html,js,css,wasm,map']
   for name in os.listdir(merged_dist_dir):
     path = pjoin(merged_dist_dir, name)
     if os.path.isdir(path):

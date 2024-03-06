@@ -61,6 +61,8 @@ class TestEventListener : public base::UnixSocket::EventListener {
 TEST(RelayServiceTest, SetPeerIdentity) {
   base::TestTaskRunner task_runner;
   auto relay_service = std::make_unique<RelayService>(&task_runner);
+  // Disable the extra socket connection created by RelayClient.
+  relay_service->SetRelayClientDisabledForTesting(true);
 
   // Set up a server UnixSocket to find an unused TCP port.
   // The TCP connection emulates the socket to the host traced.
@@ -158,6 +160,105 @@ TEST(RelayServiceTest, MachineIDHint) {
 
   EXPECT_EQ(hint1, hint3);
   EXPECT_EQ(hint2, hint4);
+}
+
+// Test that the RelayClient notifies its usr with the callback on
+// connection errors.
+TEST(RelayClientTest, OnErrorCallback) {
+  base::TestTaskRunner task_runner;
+
+  // Set up a server UnixSocket to find an unused TCP port.
+  // The TCP connection emulates the socket to the host traced.
+  TestEventListener tcp_listener;
+  auto tcp_server = base::UnixSocket::Listen(
+      "127.0.0.1:0", &tcp_listener, &task_runner, base::SockFamily::kInet,
+      base::SockType::kStream);
+  ASSERT_TRUE(tcp_server->is_listening());
+  auto tcp_sock_name = tcp_server->GetSockAddr();
+
+  auto on_relay_client_error =
+      task_runner.CreateCheckpoint("on_relay_client_error");
+  auto on_error_callback = [&]() { on_relay_client_error(); };
+  auto relay_client = std::make_unique<RelayClient>(
+      tcp_sock_name, "fake_machine_id_hint", &task_runner, on_error_callback);
+
+  base::UnixSocket* tcp_client_connection = nullptr;
+  auto tcp_client_connected =
+      task_runner.CreateCheckpoint("tcp_client_connected");
+  EXPECT_CALL(tcp_listener, OnNewIncomingConnection(_))
+      .WillOnce(Invoke([&](base::UnixSocket* client) {
+        tcp_client_connection = client;
+        tcp_client_connected();
+      }));
+  task_runner.RunUntilCheckpoint("tcp_client_connected");
+
+  // Just drain the data passed over the socket.
+  EXPECT_CALL(tcp_listener, OnDataAvailable(_))
+      .WillRepeatedly(Invoke([&](base::UnixSocket* tcp_conn) {
+        ::testing::IgnoreResult(tcp_conn->ReceiveString());
+      }));
+
+  EXPECT_FALSE(relay_client->clock_synced_with_service_for_testing());
+  // Shutdown the connected connection. The RelayClient should notice this
+  // error.
+  tcp_client_connection->Shutdown(true);
+  task_runner.RunUntilCheckpoint("on_relay_client_error");
+
+  // Shutdown the server. The RelayClient should notice that the connection is
+  // refused.
+  tcp_server->Shutdown(true);
+  on_relay_client_error =
+      task_runner.CreateCheckpoint("on_relay_client_error_2");
+  relay_client = std::make_unique<RelayClient>(
+      tcp_sock_name, "fake_machine_id_hint", &task_runner,
+      [&]() { on_relay_client_error(); });
+  task_runner.RunUntilCheckpoint("on_relay_client_error_2");
+}
+
+TEST(RelayClientTest, SetPeerIdentity) {
+  base::TestTaskRunner task_runner;
+  // Set up a server UnixSocket to find an unused TCP port.
+  // The TCP connection emulates the socket to the host traced.
+  TestEventListener tcp_listener;
+  auto tcp_server = base::UnixSocket::Listen(
+      "127.0.0.1:0", &tcp_listener, &task_runner, base::SockFamily::kInet,
+      base::SockType::kStream);
+  ASSERT_TRUE(tcp_server->is_listening());
+  auto tcp_sock_name = tcp_server->GetSockAddr();
+  auto on_error_callback = [&]() { FAIL() << "Should not be called"; };
+  auto relay_service = std::make_unique<RelayClient>(
+      tcp_sock_name, "fake_machine_id_hint", &task_runner, on_error_callback);
+
+  base::UnixSocket* tcp_client_connection = nullptr;
+  auto tcp_client_connected =
+      task_runner.CreateCheckpoint("tcp_client_connected");
+  EXPECT_CALL(tcp_listener, OnNewIncomingConnection(_))
+      .WillOnce(Invoke([&](base::UnixSocket* client) {
+        tcp_client_connection = client;
+        tcp_client_connected();
+      }));
+  task_runner.RunUntilCheckpoint("tcp_client_connected");
+
+  // Asserts that we can receive the SetPeerIdentity message.
+  auto peer_identity_recv = task_runner.CreateCheckpoint("peer_identity_recv");
+  ipc::BufferedFrameDeserializer deserializer;
+  EXPECT_CALL(tcp_listener, OnDataAvailable(_))
+      .WillRepeatedly(Invoke([&](base::UnixSocket* tcp_conn) {
+        auto buf = deserializer.BeginReceive();
+        auto rsize = tcp_conn->Receive(buf.data, buf.size);
+        EXPECT_TRUE(deserializer.EndReceive(rsize));
+
+        auto frame = deserializer.PopNextFrame();
+        EXPECT_TRUE(frame->has_set_peer_identity());
+
+        const auto& set_peer_identity = frame->set_peer_identity();
+        EXPECT_EQ(set_peer_identity.pid(), getpid());
+        EXPECT_EQ(set_peer_identity.uid(), static_cast<int32_t>(geteuid()));
+        EXPECT_EQ(set_peer_identity.machine_id_hint(), "fake_machine_id_hint");
+
+        peer_identity_recv();
+      }));
+  task_runner.RunUntilCheckpoint("peer_identity_recv");
 }
 
 }  // namespace

@@ -26,12 +26,12 @@
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
+#include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/ftrace/gpu_work_period_tracker.h"
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
 #include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
 #include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
-#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -233,7 +233,7 @@ class FtraceParser {
   void ParseWakeSourceDeactivate(int64_t timestamp, protozero::ConstBytes);
   void ParseSuspendResume(int64_t timestamp, protozero::ConstBytes);
   void ParseSuspendResumeMinimal(int64_t timestamp, protozero::ConstBytes);
-  void ParseSchedCpuUtilCfs(int64_t timestap, protozero::ConstBytes);
+  void ParseSchedCpuUtilCfs(int64_t timestamp, protozero::ConstBytes);
 
   void ParseFuncgraphEntry(int64_t timestamp,
                            uint32_t pid,

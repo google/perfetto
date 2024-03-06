@@ -16,9 +16,11 @@
 
 #include "perfetto/ext/base/uuid.h"
 
+#include <mutex>
 #include <random>
 
 #include "perfetto/base/time.h"
+#include "perfetto/ext/base/no_destructor.h"
 
 namespace perfetto {
 namespace base {
@@ -50,6 +52,12 @@ Uuid Uuidv4() {
                             (reinterpret_cast<uintptr_t>(&kHexmap) >> 14)));
   Uuid uuid;
   auto& data = *uuid.data();
+
+  // std::random is not thread safe and users of this class might mistakenly
+  // assume Uuidv4() is thread_safe because from the outside looks like a
+  // local object.
+  static base::NoDestructor<std::mutex> rand_mutex;
+  std::unique_lock<std::mutex> rand_lock(rand_mutex.ref());
 
   for (size_t i = 0; i < sizeof(data);) {
     // Note: the 32-th bit of rng() is always 0 as minstd_rand operates modulo

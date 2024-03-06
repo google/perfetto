@@ -27,6 +27,7 @@ import("../../../gn/proto_library.gni")
 
 # By default add new protos here.
 proto_sources_non_minimal = [
+  "remote_clock_sync.proto",
   "trace_packet_defaults.proto",
   "test_event.proto",
   "test_extensions.proto",

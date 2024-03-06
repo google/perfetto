@@ -42,8 +42,11 @@ struct PerfettoDs {
   { &perfetto_atomic_false, PERFETTO_NULL }
 
 // All the callbacks are optional and can be NULL if not needed.
+//
 struct PerfettoDsParams {
-  // Instance lifecycle callbacks:
+  // Instance lifecycle callbacks.
+  //
+  // Can be called from any thread.
   PerfettoDsOnSetupCb on_setup_cb;
   PerfettoDsOnStartCb on_start_cb;
   PerfettoDsOnStopCb on_stop_cb;
@@ -52,12 +55,18 @@ struct PerfettoDsParams {
 
   // These are called to create/delete custom thread-local instance state, which
   // can be accessed with PerfettoDsTracerImplGetCustomTls().
+  //
+  // Called from inside a trace point. Trace points inside these will be
+  // ignored.
   PerfettoDsOnCreateCustomState on_create_tls_cb;
   PerfettoDsOnDeleteCustomState on_delete_tls_cb;
 
   // These are called to create/delete custom thread-local instance incremental
   // state. Incremental state may be cleared periodically by the tracing service
   // and can be accessed with PerfettoDsTracerImplGetIncrementalState().
+  //
+  // Called from inside a trace point. Trace points inside these will be
+  // ignored.
   PerfettoDsOnCreateCustomState on_create_incr_cb;
   PerfettoDsOnDeleteCustomState on_delete_incr_cb;
 

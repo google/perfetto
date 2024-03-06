@@ -25,9 +25,11 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/traced/traced.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/base/test/utils.h"
 #include "src/perfetto_cmd/bugreport_path.h"
+#include "src/protozero/filtering/filter_bytecode_generator.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
@@ -69,15 +71,31 @@ std::string RandomTraceFileName() {
 }
 
 // For the SaveForBugreport* tests.
-TraceConfig CreateTraceConfigForBugreportTest() {
+TraceConfig CreateTraceConfigForBugreportTest(int score = 1,
+                                              bool add_filter = false,
+                                              uint32_t msg_count = 3,
+                                              uint32_t msg_size = 10) {
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(4096);
+  trace_config.add_buffers()->set_size_kb(32768);
   trace_config.set_duration_ms(60000);  // Will never hit this.
-  trace_config.set_bugreport_score(10);
+  trace_config.set_bugreport_score(score);
+
+  if (add_filter) {
+    // Add a trace filter which disallows the trace config echo-back.
+    protozero::FilterBytecodeGenerator filt;
+    filt.AddNestedField(1 /* root trace.packet*/, 1);
+    filt.EndMessage();
+    // Add a random unrelated field to keep the generator happy.
+    filt.AddSimpleField(protos::pbzero::TracePacket::kTraceUuidFieldNumber);
+    filt.EndMessage();
+    trace_config.mutable_trace_filter()->set_bytecode_v2(filt.Serialize());
+  }
+
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
-  ds_config->mutable_for_testing()->set_message_count(3);
-  ds_config->mutable_for_testing()->set_message_size(10);
+
+  ds_config->mutable_for_testing()->set_message_count(msg_count);
+  ds_config->mutable_for_testing()->set_message_size(msg_size);
   return trace_config;
 }
 
@@ -90,35 +108,12 @@ class ScopedFileRemove {
 
 class PerfettoCmdlineTest : public ::testing::Test {
  public:
-  void SetUp() override {
-#if defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER) || \
-    defined(MEMORY_SANITIZER) || defined(LEAK_SANITIZER)
-    // Disable cmdline tests on sanitizets because they use fork() and that
-    // messes up leak / races detections, which has been fixed only recently
-    // (see https://github.com/google/sanitizers/issues/836 ).
-    PERFETTO_LOG("Skipping cmdline integration tests on sanitizers");
-    GTEST_SKIP();
-#endif
-  }
-
-  void TearDown() override {}
-
   void StartServiceIfRequiredNoNewExecsAfterThis() {
     exec_allowed_ = false;
     test_helper_.StartServiceIfRequired();
   }
 
-  FakeProducer* ConnectFakeProducer() {
-    return test_helper_.ConnectFakeProducer();
-  }
-
-  std::function<void()> WrapTask(const std::function<void()>& function) {
-    return test_helper_.WrapTask(function);
-  }
-
-  void WaitForProducerSetup() { test_helper_.WaitForProducerSetup(); }
-
-  void WaitForProducerEnabled() { test_helper_.WaitForProducerEnabled(); }
+  TestHelper& test_helper() { return test_helper_; }
 
   // Creates a process that represents the perfetto binary that will
   // start when Run() is called. |args| will be passed as part of
@@ -167,7 +162,7 @@ class PerfettoCmdlineTest : public ::testing::Test {
     // Start the service and connect a simple fake producer.
     StartServiceIfRequiredNoNewExecsAfterThis();
 
-    auto* fake_producer = ConnectFakeProducer();
+    auto* fake_producer = test_helper().ConnectFakeProducer();
     ASSERT_TRUE(fake_producer);
 
     std::thread background_trace([&perfetto_proc]() {
@@ -176,16 +171,22 @@ class PerfettoCmdlineTest : public ::testing::Test {
     });
 
     // Wait for the producer to start, and then write out packets.
-    WaitForProducerEnabled();
+    test_helper().WaitForProducerEnabled();
     auto on_data_written = task_runner_.CreateCheckpoint("data_written");
-    fake_producer->ProduceEventBatch(WrapTask(on_data_written));
+    fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
     task_runner_.RunUntilCheckpoint("data_written");
 
     ASSERT_EQ(0, perfetto_br_proc.Run(&stderr_)) << "stderr: " << stderr_;
     perfetto_proc.SendSigterm();
     background_trace.join();
 
-    auto check_trace_contents = [](std::string trace_path) {
+    uint32_t expected_packets = 0;
+    for (auto& ds : trace_config.data_sources()) {
+      if (ds.config().has_for_testing())
+        expected_packets = ds.config().for_testing().message_count();
+    }
+
+    auto check_trace_contents = [expected_packets](std::string trace_path) {
       // Read the trace written in the fixed location
       // (/data/misc/perfetto-traces/ on Android, /tmp/ on Linux/Mac) and make
       // sure it has the right contents.
@@ -194,10 +195,10 @@ class PerfettoCmdlineTest : public ::testing::Test {
       ASSERT_FALSE(trace_str.empty());
       protos::gen::Trace trace;
       ASSERT_TRUE(trace.ParseFromString(trace_str));
-      int test_packets = 0;
+      uint32_t test_packets = 0;
       for (const auto& p : trace.packet())
         test_packets += p.has_for_testing() ? 1 : 0;
-      ASSERT_EQ(test_packets, 3) << trace_path;
+      ASSERT_EQ(test_packets, expected_packets) << trace_path;
     };
 
     // Verify that both the original trace and the cloned bugreport contain
@@ -390,7 +391,7 @@ TEST_F(PerfettoCmdlineTest, StartTracingTrigger) {
   // Start the service and connect a simple fake producer.
   StartServiceIfRequiredNoNewExecsAfterThis();
 
-  auto* fake_producer = ConnectFakeProducer();
+  auto* fake_producer = test_helper().ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
   // Start a background thread that will deliver the config now that we've
@@ -400,13 +401,13 @@ TEST_F(PerfettoCmdlineTest, StartTracingTrigger) {
     EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
   });
 
-  WaitForProducerSetup();
+  test_helper().WaitForProducerSetup();
   EXPECT_EQ(0, trigger_proc.Run(&stderr_));
 
   // Wait for the producer to start, and then write out 11 packets.
-  WaitForProducerEnabled();
+  test_helper().WaitForProducerEnabled();
   auto on_data_written = task_runner_.CreateCheckpoint("data_written");
-  fake_producer->ProduceEventBatch(WrapTask(on_data_written));
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written");
   background_trace.join();
 
@@ -485,7 +486,7 @@ TEST_F(PerfettoCmdlineTest, StopTracingTrigger) {
 
   // Start the service and connect a simple fake producer.
   StartServiceIfRequiredNoNewExecsAfterThis();
-  auto* fake_producer = ConnectFakeProducer();
+  auto* fake_producer = test_helper().ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
   // Start a background thread that will deliver the config now that we've
@@ -495,11 +496,11 @@ TEST_F(PerfettoCmdlineTest, StopTracingTrigger) {
     EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
   });
 
-  WaitForProducerEnabled();
+  test_helper().WaitForProducerEnabled();
   // Wait for the producer to start, and then write out 11 packets, before the
   // trace actually starts (the trigger is seen).
   auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
-  fake_producer->ProduceEventBatch(WrapTask(on_data_written));
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written_1");
 
   EXPECT_EQ(0, trigger_proc.Run(&stderr_)) << "stderr: " << stderr_;
@@ -587,7 +588,7 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(NoDataNoFileWithoutTrigger)) {
       trace_config.SerializeAsString());
 
   StartServiceIfRequiredNoNewExecsAfterThis();
-  auto* fake_producer = ConnectFakeProducer();
+  auto* fake_producer = test_helper().ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
   std::string stderr_str;
@@ -657,7 +658,7 @@ TEST_F(PerfettoCmdlineTest, StopTracingTriggerFromConfig) {
 
   // Start the service and connect a simple fake producer.
   StartServiceIfRequiredNoNewExecsAfterThis();
-  auto* fake_producer = ConnectFakeProducer();
+  auto* fake_producer = test_helper().ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
   std::thread background_trace([&perfetto_proc]() {
@@ -665,11 +666,11 @@ TEST_F(PerfettoCmdlineTest, StopTracingTriggerFromConfig) {
     EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
   });
 
-  WaitForProducerEnabled();
+  test_helper().WaitForProducerEnabled();
   // Wait for the producer to start, and then write out 11 packets, before the
   // trace actually starts (the trigger is seen).
   auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
-  fake_producer->ProduceEventBatch(WrapTask(on_data_written));
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written_1");
 
   EXPECT_EQ(0, perfetto_proc_2.Run(&stderr_)) << "stderr: " << stderr_;
@@ -752,7 +753,7 @@ TEST_F(PerfettoCmdlineTest, TriggerFromConfigStopsFileOpening) {
 
   // Start the service and connect a simple fake producer.
   StartServiceIfRequiredNoNewExecsAfterThis();
-  auto* fake_producer = ConnectFakeProducer();
+  auto* fake_producer = test_helper().ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
   std::string trace_str;
@@ -822,7 +823,7 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(CmdTriggerWithUploadFlag)) {
 
   // Start the service and connect a simple fake producer.
   StartServiceIfRequiredNoNewExecsAfterThis();
-  auto* fake_producer = ConnectFakeProducer();
+  auto* fake_producer = test_helper().ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
   std::thread background_trace([&perfetto_proc]() {
@@ -830,11 +831,11 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(CmdTriggerWithUploadFlag)) {
     EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
   });
 
-  WaitForProducerEnabled();
+  test_helper().WaitForProducerEnabled();
   // Wait for the producer to start, and then write out 11 packets, before the
   // trace actually starts (the trigger is seen).
   auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
-  fake_producer->ProduceEventBatch(WrapTask(on_data_written));
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written_1");
 
   EXPECT_EQ(0, perfetto_proc_2.Run(&stderr_)) << "stderr: " << stderr_;
@@ -901,7 +902,7 @@ TEST_F(PerfettoCmdlineTest, TriggerCloneSnapshot) {
 
   // Start the service and connect a simple fake producer.
   StartServiceIfRequiredNoNewExecsAfterThis();
-  auto* fake_producer = ConnectFakeProducer();
+  auto* fake_producer = test_helper().ConnectFakeProducer();
   EXPECT_TRUE(fake_producer);
 
   std::thread background_trace([&perfetto_proc]() {
@@ -909,11 +910,11 @@ TEST_F(PerfettoCmdlineTest, TriggerCloneSnapshot) {
     EXPECT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
   });
 
-  WaitForProducerEnabled();
+  test_helper().WaitForProducerEnabled();
   // Wait for the producer to start, and then write out 11 packets, before the
   // trace actually starts (the trigger is seen).
   auto on_data_written = task_runner_.CreateCheckpoint("data_written_1");
-  fake_producer->ProduceEventBatch(WrapTask(on_data_written));
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
   task_runner_.RunUntilCheckpoint("data_written_1");
 
   EXPECT_EQ(0, trigger_proc.Run(&stderr_)) << "stderr: " << stderr_;
@@ -960,13 +961,24 @@ TEST_F(PerfettoCmdlineTest, Clone) {
                    /*use_explicit_clone=*/true);
 }
 
-// Regression test for b/279753347 .
+// Regression test for b/279753347: --save-for-bugreport would create an empty
+// file if no session with bugreport_score was active.
 TEST_F(PerfettoCmdlineTest, UnavailableBugreportLeavesNoEmptyFiles) {
   ScopedFileRemove remove_on_test_exit(GetBugreportTracePath());
   Exec perfetto_br_proc = ExecPerfetto({"--save-for-bugreport"});
   StartServiceIfRequiredNoNewExecsAfterThis();
   perfetto_br_proc.Run(&stderr_);
-  ASSERT_FALSE(base::FileExists(GetBugreportTracePath()));
+  // No file exists. Great.
+  if (!base::FileExists(GetBugreportTracePath())) {
+    return;
+  }
+  // A file exists. There are two possiblilities:
+  // 1. There was a bugreport_score session.
+  // 2. There was no bugreport_score session and we're hitting b/279753347.
+  //
+  // Let's check that we're not hitting b/279753347, by checking that the file
+  // is not empty.
+  EXPECT_NE(base::GetFileSize(GetBugreportTracePath()), 0);
 }
 
 // Tests that SaveTraceForBugreport() works also if the trace has triggers
@@ -988,6 +1000,177 @@ TEST_F(PerfettoCmdlineTest, MAYBE_SaveForBugreport_Triggers) {
   trigger->set_name("trigger_name");
   trigger->set_stop_delay_ms(1);
   RunBugreportTest(std::move(trace_config), /*check_original_trace=*/false);
+}
+
+TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_NoTraces) {
+  auto save_all_cmd = ExecPerfetto({"--save-all-for-bugreport"});
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  EXPECT_EQ(0, save_all_cmd.Run(&stderr_));
+  EXPECT_THAT(stderr_, HasSubstr("No tracing sessions eligible"));
+}
+
+TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_FourTraces) {
+  struct TraceProc {
+    explicit TraceProc(TraceConfig c) : cfg(std::move(c)) {}
+
+    TraceConfig cfg;
+    std::optional<Exec> proc;
+    std::thread thd;
+  };
+
+  auto remove_br_files = [] {
+    remove((GetBugreportTraceDir() + "/systrace.pftrace").c_str());
+    remove((GetBugreportTraceDir() + "/custom_name.pftrace").c_str());
+    remove((GetBugreportTraceDir() + "/custom_name_1.pftrace").c_str());
+    remove((GetBugreportTraceDir() + "/systrace_1.pftrace").c_str());
+  };
+
+  remove_br_files();  // Remove both before and after ending the test.
+  auto remove_on_exit = base::OnScopeExit(remove_br_files);
+
+  auto session_prefix = "bugreport_test_" +
+                        std::to_string(base::GetWallTimeNs().count() % 1000000);
+
+  // Create four tracing sessions with different bugreport scores.
+  // Two of them will have the default "systrace.pftrace" name.
+  std::vector<TraceProc> traces;
+  const bool add_filt = true;
+  traces.emplace_back(CreateTraceConfigForBugreportTest(/*score=*/1, add_filt));
+  traces.back().cfg.set_unique_session_name(session_prefix + "_1");
+
+  traces.emplace_back(CreateTraceConfigForBugreportTest(/*score=*/2, add_filt));
+  traces.back().cfg.set_bugreport_filename("custom_name.pftrace");
+  traces.back().cfg.set_unique_session_name(session_prefix + "_2");
+
+  traces.emplace_back(CreateTraceConfigForBugreportTest(/*score=*/3, add_filt));
+  traces.back().cfg.set_bugreport_filename("custom_name.pftrace");
+  traces.back().cfg.set_unique_session_name(session_prefix + "_3");
+
+  traces.emplace_back(CreateTraceConfigForBugreportTest(/*score=*/4, add_filt));
+  traces.back().cfg.set_unique_session_name(session_prefix + "_4");
+
+  for (auto& trace : traces) {
+    std::string cfg = trace.cfg.SerializeAsString();
+    trace.proc = ExecPerfetto({"-o", base::kDevNull, "-c", "-"}, cfg);
+  }
+
+  Exec perfetto_br_proc = ExecPerfetto({"--save-all-for-bugreport"});
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  for (auto& trace : traces) {
+    trace.thd = std::thread([&trace] {
+      std::string stderr_str;
+      ASSERT_EQ(0, trace.proc->Run(&stderr_str)) << stderr_str;
+      PERFETTO_DLOG("perfetto-cmd output:\n%s", stderr_str.c_str());
+    });
+  }
+
+  // Wait that all tracing sessions are started.
+  // Note that in CTS mode, the Android test infra will start other tracing
+  // sessions for performance reasons. We can't just wait to see 4 sessions,
+  // we need to actually check the unique session name.
+  test_helper().ConnectConsumer();
+  test_helper().WaitForConsumerConnect();
+  for (;;) {
+    auto state = test_helper().QueryServiceStateAndWait();
+    const auto& sessions = state.tracing_sessions();
+    if (std::count_if(sessions.begin(), sessions.end(),
+                      [&](const TracingServiceState::TracingSession& s) {
+                        return base::StartsWith(s.unique_session_name(),
+                                                session_prefix);
+                      }) >= 4) {
+      break;
+    }
+    base::SleepMicroseconds(100 * 1000);
+  }
+
+  EXPECT_EQ(0, perfetto_br_proc.Run(&stderr_)) << stderr_;
+  PERFETTO_DLOG("perfetto --save-all-for-bugreport output:\n-----\n%s\n-----\n",
+                stderr_.c_str());
+
+  // Stop all the four ongoing traces, which by now got cloned.
+  for (auto& trace : traces) {
+    trace.proc->SendSigterm();
+    trace.thd.join();
+  }
+
+  auto check_trace = [&](std::string fname, int expected_score) {
+    std::string fpath = GetBugreportTraceDir() + "/" + fname;
+    ASSERT_TRUE(base::FileExists(fpath)) << fpath;
+    std::string trace_str;
+    base::ReadFile(fpath, &trace_str);
+    protos::gen::Trace trace;
+    ASSERT_TRUE(trace.ParseFromString(trace_str)) << fpath;
+    EXPECT_THAT(
+        trace.packet(),
+        Contains(Property(&protos::gen::TracePacket::trace_config,
+                          Property(&protos::gen::TraceConfig::bugreport_score,
+                                   Eq(expected_score)))));
+  };
+
+  check_trace("systrace.pftrace", /*expected_score=*/4);
+  check_trace("custom_name.pftrace", /*expected_score=*/3);
+  check_trace("custom_name_1.pftrace", /*expected_score=*/2);
+  check_trace("systrace_1.pftrace", /*expected_score=*/1);
+}
+
+TEST_F(PerfettoCmdlineTest, SaveAllForBugreport_LargeTrace) {
+  auto remove_br_files = [] {
+    remove((GetBugreportTraceDir() + "/systrace.pftrace").c_str());
+  };
+
+  remove_br_files();  // Remove both before and after ending the test.
+  auto remove_on_exit = base::OnScopeExit(remove_br_files);
+
+  const uint32_t kMsgCount = 10000;
+  TraceConfig cfg = CreateTraceConfigForBugreportTest(
+      /*score=*/1, /*add_filter=*/false, kMsgCount, /*msg_size=*/1024);
+  std::string cfg_str = cfg.SerializeAsString();
+  Exec trace_proc = ExecPerfetto({"-o", base::kDevNull, "-c", "-"}, cfg_str);
+  Exec perfetto_br_proc = ExecPerfetto({"--save-all-for-bugreport"});
+
+  StartServiceIfRequiredNoNewExecsAfterThis();
+
+  auto* fake_producer = test_helper().ConnectFakeProducer();
+  EXPECT_TRUE(fake_producer);
+
+  std::thread thd([&trace_proc] {
+    std::string stderr_str;
+    ASSERT_EQ(0, trace_proc.Run(&stderr_str)) << stderr_str;
+    PERFETTO_DLOG("perfetto-cmd output:\n%s", stderr_str.c_str());
+  });
+
+  // Wait that the tracing session is started.
+  test_helper().ConnectConsumer();
+  test_helper().WaitForConsumerConnect();
+  while (test_helper().QueryServiceStateAndWait().num_sessions_started() == 0) {
+    base::SleepMicroseconds(100 * 1000);
+  }
+  test_helper().SyncAndWaitProducer();
+
+  auto on_data_written = task_runner_.CreateCheckpoint("data_written");
+  fake_producer->ProduceEventBatch(test_helper().WrapTask(on_data_written));
+  task_runner_.RunUntilCheckpoint("data_written");
+
+  EXPECT_EQ(0, perfetto_br_proc.Run(&stderr_)) << stderr_;
+  PERFETTO_DLOG("perfetto --save-all-for-bugreport output:\n-----\n%s\n-----\n",
+                stderr_.c_str());
+
+  // Stop the ongoing trace, which by now got cloned.
+  trace_proc.SendSigterm();
+  thd.join();
+
+  std::string fpath = GetBugreportTraceDir() + "/systrace.pftrace";
+  ASSERT_TRUE(base::FileExists(fpath)) << fpath;
+  std::string trace_str;
+  base::ReadFile(fpath, &trace_str);
+  protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromString(trace_str)) << fpath;
+  ssize_t num_test_packets = std::count_if(
+      trace.packet().begin(), trace.packet().end(),
+      [](const protos::gen::TracePacket& tp) { return tp.has_for_testing(); });
+  EXPECT_EQ(num_test_packets, static_cast<ssize_t>(kMsgCount));
 }
 
 }  // namespace perfetto

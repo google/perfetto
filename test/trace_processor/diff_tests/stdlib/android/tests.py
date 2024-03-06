@@ -1057,7 +1057,7 @@ class AndroidStdlib(TestSuite):
         intent_ts,
         intent_dur,
         total_dur
-        FROM _android_app_process_starts
+        FROM android_app_process_starts
         ORDER BY proc_start_ts
       """,
         out=Csv("""
@@ -1161,14 +1161,21 @@ class AndroidStdlib(TestSuite):
 
   def test_freezer_events(self):
     return DiffTestBlueprint(
-        trace=DataPath('post_boot_trace.atr'),
+        trace=DataPath('freezer_trace.atr'),
         query="""
         INCLUDE PERFETTO MODULE android.freezer;
-        SELECT pid, ts, dur FROM android_freezer_events ORDER BY ts
+        SELECT pid, ts, dur, unfreeze_reason_int, unfreeze_reason_str FROM android_freezer_events ORDER BY ts
       """,
         out=Csv("""
-        "pid","ts","dur"
-        8361,588092720937,576298685
+        "pid","ts","dur","unfreeze_reason_int","unfreeze_reason_str"
+        6506,91266310231819,94699935803,"[NULL]","[NULL]"
+        3804,91266322277324,94687890298,"[NULL]","[NULL]"
+        3299,91281767065245,78699885147,6,"start_service"
+        5782,91296291190245,64718977377,"[NULL]","[NULL]"
+        6533,91296292403211,64717764411,"[NULL]","[NULL]"
+        4044,91296293188372,64716979250,"[NULL]","[NULL]"
+        4002,91296294215356,64715952266,"[NULL]","[NULL]"
+        3981,91296294804650,64715362972,"[NULL]","[NULL]"
         """))
 
   def test_service_bindings(self):
@@ -1213,3 +1220,60 @@ class AndroidStdlib(TestSuite):
         0,"com.android.bluetooth","droid.bluetooth",7639,7639,571248973750,9874358,-700,"com.android.bluetooth","binder:7639_2",7672,7639,571871169647,6460322,"android.os.BinderProxy@7482132","android.bluetooth.IBluetooth","com.android.bluetooth/.btservice.AdapterService","[NULL]",4
         -700,"com.android.bluetooth","droid.bluetooth",7639,7639,572342110044,4874276,-700,"com.android.bluetooth","binder:7639_2",7672,7639,572466393291,1404185,"android.os.BinderProxy@ce5a6fc","android.media.browse.MediaBrowserService","com.android.bluetooth/.avrcpcontroller.BluetoothMediaBrowserService","[NULL]",10
       """))
+
+  def test_oom_adjuster_transitions(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE android.oom_adjuster;
+        SELECT
+        ts,
+        dur,
+        score,
+        bucket,
+        process_name,
+        oom_adj_ts,
+        oom_adj_dur,
+        oom_adj_thread_name,
+        oom_adj_reason,
+        oom_adj_trigger
+        FROM android_oom_adj_intervals
+        WHERE oom_adj_reason IS NOT NULL
+        ORDER BY ts
+        LIMIT 10
+      """,
+        out=Csv("""
+        "ts","dur","score","bucket","process_name","oom_adj_ts","oom_adj_dur","oom_adj_thread_name","oom_adj_reason","oom_adj_trigger"
+        1737065264829,701108081,925,"cached_app","com.android.providers.calendar",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+        1737066678827,3470211742,935,"cached_app","com.android.imsserviceentitlement",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+        1737066873002,3470017567,945,"cached_app","com.android.carrierconfig",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+        1737067058812,3469831757,955,"cached_app_lmk_first","com.android.messaging",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+        1737067246975,699224817,955,"cached_app_lmk_first","android.process.acore",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+        1737068421919,3468468650,965,"cached_app_lmk_first","com.android.shell",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+        1737068599673,697908135,965,"cached_app_lmk_first","android.process.media",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+        1737068933602,3467956967,975,"cached_app_lmk_first","com.android.gallery3d",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+        1737069091010,3467799559,975,"cached_app_lmk_first","com.android.packageinstaller",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+        1737069240534,3467650035,985,"cached_app_lmk_first","com.android.managedprovisioning",1737064421516,29484835,"binder:642_1","processEnd","IActivityManager#1598246212"
+      """))
+
+  def test_broadcast_minsdk_u(self):
+    return DiffTestBlueprint(
+        trace=DataPath('freezer_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE android.broadcasts;
+        SELECT intent_action, process_name, pid, queue_id, ts, dur FROM _android_broadcasts_minsdk_u
+        ORDER BY ts LIMIT 10
+      """,
+        out=Csv("""
+        "intent_action","process_name","pid","queue_id","ts","dur"
+        "android.os.action.POWER_SAVE_TEMP_WHITELIST_CHANGED","system",2519,0,91286297271477,221619
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91295942589896,469216
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91295943366025,313104
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91295943943713,356194
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91355941417856,444189
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91355942543001,405369
+        "android.intent.action.TIME_TICK","com.android.systemui",2762,0,91355943262781,339640
+        "android.intent.action.PACKAGE_NEEDS_INTEGRITY_VERIFICATION","system",2519,0,91359865607938,862534
+        "android.content.pm.action.SESSION_COMMITTED","com.android.launcher3",3219,0,91360380556725,15221753
+        "android.intent.action.PACKAGE_ADDED","system",2519,0,91360396877398,107502
+        """))

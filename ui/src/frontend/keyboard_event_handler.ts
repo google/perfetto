@@ -172,7 +172,8 @@ function moveByFocusedFlow(direction: Direction): void {
   for (const flow of globals.connectedFlows) {
     if (flow.id === flowId) {
       const flowPoint = (direction === 'Backward' ? flow.begin : flow.end);
-      const trackKey = globals.state.trackKeyByTrackId[flowPoint.trackId];
+      const trackKeyByTrackId = globals.trackManager.trackKeyByTrackId;
+      const trackKey = trackKeyByTrackId.get(flowPoint.trackId);
       if (trackKey) {
         globals.makeSelection(Actions.selectChromeSlice({
           id: flowPoint.sliceId,

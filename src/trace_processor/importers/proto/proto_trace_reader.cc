@@ -191,7 +191,7 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
               timestamp_clock_id);
         }
         converted_clock_id =
-            ClockTracker::SeqenceToGlobalClock(seq_id, timestamp_clock_id);
+            ClockTracker::SequenceToGlobalClock(seq_id, timestamp_clock_id);
       }
       auto trace_ts =
           context_->clock_tracker->ToTraceTime(converted_clock_id, timestamp);
@@ -352,7 +352,7 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
             "(%" PRIu64 ") but the TracePacket sequence_id is zero",
             clock_id);
       }
-      clock_id = ClockTracker::SeqenceToGlobalClock(seq_id, clk.clock_id());
+      clock_id = ClockTracker::SequenceToGlobalClock(seq_id, clk.clock_id());
     }
     int64_t unit_multiplier_ns =
         clk.unit_multiplier_ns()

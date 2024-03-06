@@ -1,0 +1,59 @@
+# Persistent tracing configuration. Only enabled on some devices for debugging
+# purposes when the property persist.debug.perfetto.persistent is set to 1.
+
+bugreport_score: 5
+bugreport_filename: "sysui.pftrace"
+unique_session_name: "sysui_persistent"
+flush_timeout_ms: 10000
+compression_type: COMPRESSION_TYPE_DEFLATE
+
+# Buffer 0: for android.surfaceflinger.transactions
+buffers {
+  size_kb: 1024
+  fill_policy: RING_BUFFER
+}
+
+# Buffer 1: for android.surfaceflinger.layers
+buffers {
+  size_kb: 409600
+  fill_policy: RING_BUFFER
+  transfer_on_clone: true
+  clear_before_clone: true
+}
+
+# Buffer 2: for com.android.wm.shell.transition
+buffers {
+  size_kb: 32
+  fill_policy: RING_BUFFER
+}
+
+
+data_sources: {
+  config {
+    name: "android.surfaceflinger.transactions"
+    target_buffer: 0
+    surfaceflinger_transactions_config: {
+      mode: MODE_ACTIVE
+    }
+  }
+}
+
+data_sources: {
+  config {
+    name: "android.surfaceflinger.layers"
+    target_buffer: 1
+    surfaceflinger_layers_config: {
+        mode: MODE_GENERATED_BUGREPORT_ONLY
+        trace_flags: TRACE_FLAG_INPUT
+        trace_flags: TRACE_FLAG_BUFFERS
+    }
+  }
+}
+
+data_sources: {
+  config {
+    name: "com.android.wm.shell.transition"
+    target_buffer: 2
+  }
+}
+

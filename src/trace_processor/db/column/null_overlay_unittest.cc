@@ -37,9 +37,9 @@ using testing::IsEmpty;
 
 TEST(NullOverlay, SingleSearch) {
   BitVector bv{0, 1, 0, 1, 1, 1};
-  auto fake = FakeStorage::SearchSubset(4, std::vector<uint32_t>{1, 2});
+  auto fake = FakeStorageChain::SearchSubset(4, std::vector<uint32_t>{1, 2});
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0u), 3),
             SingleSearchResult::kMatch);
@@ -51,9 +51,9 @@ TEST(NullOverlay, SingleSearch) {
 
 TEST(NullOverlay, SingleSearchIsNull) {
   BitVector bv{0, 1, 0, 1, 1, 1};
-  auto fake = FakeStorage::SearchNone(4);
+  auto fake = FakeStorageChain::SearchNone(4);
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNull, SqlValue(), 0),
             SingleSearchResult::kMatch);
@@ -63,9 +63,9 @@ TEST(NullOverlay, SingleSearchIsNull) {
 
 TEST(NullOverlay, SingleSearchIsNotNull) {
   BitVector bv{0, 1, 0, 1, 1, 1};
-  auto fake = FakeStorage::SearchAll(4);
+  auto fake = FakeStorageChain::SearchAll(4);
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNotNull, SqlValue(), 1),
             SingleSearchResult::kMatch);
@@ -75,9 +75,9 @@ TEST(NullOverlay, SingleSearchIsNotNull) {
 
 TEST(NullOverlay, SearchInputInsideBoundary) {
   BitVector bv{0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  auto fake = FakeStorage::SearchAll(4u);
+  auto fake = FakeStorageChain::SearchAll(4u);
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kGt, SqlValue::Long(0), Range(1, 6));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
@@ -85,9 +85,9 @@ TEST(NullOverlay, SearchInputInsideBoundary) {
 
 TEST(NullOverlay, SearchInputOutsideBoundary) {
   BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  auto fake = FakeStorage::SearchAll(5u);
+  auto fake = FakeStorageChain::SearchAll(5u);
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kGt, SqlValue::Long(0), Range(3, 8));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 7));
@@ -95,9 +95,9 @@ TEST(NullOverlay, SearchInputOutsideBoundary) {
 
 TEST(NullOverlay, SubsetResultOutsideBoundary) {
   BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  auto fake = FakeStorage::SearchSubset(5u, Range(1, 3));
+  auto fake = FakeStorageChain::SearchSubset(5u, Range(1, 3));
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
@@ -105,9 +105,9 @@ TEST(NullOverlay, SubsetResultOutsideBoundary) {
 
 TEST(NullOverlay, SubsetResultOnBoundary) {
   BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  auto fake = FakeStorage::SearchAll(5u);
+  auto fake = FakeStorageChain::SearchAll(5u);
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3, 4, 7, 8));
@@ -115,9 +115,9 @@ TEST(NullOverlay, SubsetResultOnBoundary) {
 
 TEST(NullOverlay, BitVectorSubset) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  auto fake = FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1});
+  auto fake = FakeStorageChain::SearchSubset(4u, BitVector{0, 1, 0, 1});
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 8));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 6));
@@ -125,9 +125,9 @@ TEST(NullOverlay, BitVectorSubset) {
 
 TEST(NullOverlay, BitVectorSubsetIsNull) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  auto fake = FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1});
+  auto fake = FakeStorageChain::SearchSubset(4u, BitVector{0, 1, 0, 1});
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   auto res = chain->Search(FilterOp::kIsNull, SqlValue(), Range(0, 8));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2, 3, 4, 6, 7));
@@ -135,9 +135,9 @@ TEST(NullOverlay, BitVectorSubsetIsNull) {
 
 TEST(NullOverlay, IndexSearchAllElements) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  auto fake = FakeStorage::SearchAll(4u);
+  auto fake = FakeStorageChain::SearchAll(4u);
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   std::vector<uint32_t> table_idx{1, 5, 2};
   auto res =
@@ -149,9 +149,9 @@ TEST(NullOverlay, IndexSearchAllElements) {
 
 TEST(NullOverlay, IndexSearchPartialElements) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  auto fake = FakeStorage::SearchAll(4u);
+  auto fake = FakeStorageChain::SearchAll(4u);
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   std::vector<uint32_t> table_idx{1, 4, 2};
   auto res =
@@ -163,9 +163,9 @@ TEST(NullOverlay, IndexSearchPartialElements) {
 
 TEST(NullOverlay, IndexSearchIsNullOpEmptyRes) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  auto fake = FakeStorage::SearchNone(4u);
+  auto fake = FakeStorageChain::SearchNone(4u);
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   std::vector<uint32_t> table_idx{0, 3, 5, 4, 2};
   auto res =
@@ -177,9 +177,9 @@ TEST(NullOverlay, IndexSearchIsNullOpEmptyRes) {
 
 TEST(NullOverlay, IndexSearchIsNullOp) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  auto fake = FakeStorage::SearchSubset(4u, Range(2, 3));
+  auto fake = FakeStorageChain::SearchSubset(4u, Range(2, 3));
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   std::vector<uint32_t> table_idx{0, 3, 2, 4, 5};
   auto res =
@@ -191,9 +191,9 @@ TEST(NullOverlay, IndexSearchIsNullOp) {
 
 TEST(NullOverlay, IndexSearchIsNotNullOp) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  auto fake = FakeStorage::SearchAll(4u);
+  auto fake = FakeStorageChain::SearchAll(4u);
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   std::vector<uint32_t> table_idx{0, 3, 4};
   auto res =
@@ -207,9 +207,9 @@ TEST(NullOverlay, OrderedIndexSearch) {
   BitVector bv{0, 1, 1, 1, 0, 1};
   // Passing values in final storage (on normal operations)
   // 0, 1, 0, 1, 0, 0
-  auto fake = FakeStorage::SearchSubset(4, BitVector{1, 0, 1, 0});
+  auto fake = FakeStorageChain::SearchSubset(4, BitVector{1, 0, 1, 0});
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   // Passing values on final data
   // NULL, NULL, 0, 1, 1

@@ -22,11 +22,11 @@
 #include <cstdint>
 #include <functional>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
@@ -292,11 +292,6 @@ SearchValidationResult DoubleColumnWithInt(FilterOp op, SqlValue* sql_val) {
 }
 
 }  // namespace
-
-NumericStorageBase::NumericStorageBase(ColumnType type, bool is_sorted)
-    : storage_type_(type), is_sorted_(is_sorted) {}
-
-NumericStorageBase::~NumericStorageBase() = default;
 
 NumericStorageBase::ChainImpl::ChainImpl(const void* vector_ptr,
                                          ColumnType type,
@@ -700,12 +695,5 @@ void NumericStorageBase::ChainImpl::Serialize(StorageProto* msg) const {
       PERFETTO_FATAL("Invalid column type for NumericStorage");
   }
 }
-
-// Define explicit instantiation of the necessary templates here to reduce
-// binary size bloat.
-template class NumericStorage<double>;
-template class NumericStorage<uint32_t>;
-template class NumericStorage<int32_t>;
-template class NumericStorage<int64_t>;
 
 }  // namespace perfetto::trace_processor::column

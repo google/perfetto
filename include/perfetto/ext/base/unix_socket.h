@@ -25,6 +25,7 @@
 #include <utility>
 
 #include "perfetto/base/build_config.h"
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/platform_handle.h"
@@ -87,6 +88,7 @@ inline bool SockShmemSupported(SockFamily sock_family) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   return sock_family == SockFamily::kUnix;
 #else
+  base::ignore_result(sock_family);
   // On Windows shm is negotiated by sharing an unguessable token
   // over TCP sockets. In theory works on any socket type, in practice
   // we need to tell the difference between a local and a remote

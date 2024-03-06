@@ -35,6 +35,7 @@ class ProtoLogMessagesTracker : public Destructible {
     std::vector<double> double_params;
     std::vector<bool> boolean_params;
     std::vector<std::string> string_params;
+    std::optional<StringId> stacktrace;
     tables::ProtoLogTable::Id table_row_id;
     int64_t timestamp;
   };

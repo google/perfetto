@@ -50,6 +50,12 @@ if (enable_perfetto_trace_processor && perfetto_build_standalone &&
       [ "src/trace_processor:integrationtests" ]
 }
 
+# This test requires traces that are not available on Android builds.
+if (perfetto_build_standalone && !is_android) {
+  perfetto_integrationtests_targets +=
+      [ "src/trace_redaction:integrationtests" ]
+}
+
 if (enable_perfetto_traced_relay) {
   perfetto_integrationtests_targets += [ "src/traced_relay:integrationtests" ]
 }

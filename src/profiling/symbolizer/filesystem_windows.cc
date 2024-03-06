@@ -52,23 +52,6 @@ bool WalkDirectories(std::vector<std::string> dirs, FileCallback fn) {
   return true;
 }
 
-size_t GetFileSize(const std::string& file_path) {
-  HANDLE file =
-      CreateFileA(file_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
-                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (file == INVALID_HANDLE_VALUE) {
-    PERFETTO_PLOG("Failed to get file size %s", file_path.c_str());
-    return 0;
-  }
-  LARGE_INTEGER file_size;
-  file_size.QuadPart = 0;
-  if (!GetFileSizeEx(file, &file_size)) {
-    PERFETTO_PLOG("Failed to get file size %s", file_path.c_str());
-  }
-  CloseHandle(file);
-  return static_cast<size_t>(file_size.QuadPart);
-}
-
 }  // namespace profiling
 }  // namespace perfetto
 

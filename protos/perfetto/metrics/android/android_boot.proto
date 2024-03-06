@@ -18,7 +18,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// This metric computes how much time processes spend in UNINTERRUPTIBLE_SLEEP state
+// This metric computes how much time processes spend in UNINTERRUPTIBLE_SLEEP
+// state
 message ProcessStateDurations {
   optional int64 total_dur = 2;
   optional int64 uninterruptible_sleep_dur = 3;
@@ -35,4 +36,28 @@ message AndroidBootMetric {
     optional int64 cold_start_dur = 1;
   }
   optional LauncherBreakdown launcher_breakdown = 5;
+
+  message ProcessStartAggregation {
+    optional int64 total_start_sum = 1;
+    optional int64 num_of_processes = 2;
+    optional double average_start_time = 3;
+  }
+  message GarbageCollectionAggregation {
+    optional int64 total_gc_count = 1;
+    optional int64 num_of_processes_with_gc = 2;
+    optional int64 num_of_threads_with_gc = 3;
+    optional double avg_gc_duration = 4;
+    optional double avg_running_gc_duration = 5;
+    optional int64 full_gc_count = 6;
+    optional int64 collector_transition_gc_count = 7;
+    optional int64 young_gc_count = 8;
+    optional int64 native_alloc_gc_count = 9;
+    optional int64 explicit_gc_count = 10;
+    optional int64 alloc_gc_count = 11;
+    optional double mb_per_ms_of_gc = 12;
+  }
+  optional ProcessStartAggregation full_trace_process_start_aggregation = 6;
+  optional ProcessStartAggregation post_boot_process_start_aggregation = 7;
+  optional GarbageCollectionAggregation full_trace_gc_aggregation = 8;
+  optional GarbageCollectionAggregation post_boot_gc_aggregation = 9;
 }

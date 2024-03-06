@@ -31,7 +31,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
+#include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
@@ -91,10 +91,10 @@ using ::testing::Pointwise;
 using ::testing::Return;
 using ::testing::ReturnRef;
 using ::testing::UnorderedElementsAreArray;
-class MockSchedEventTracker : public SchedEventTracker {
+class MockSchedEventTracker : public FtraceSchedEventTracker {
  public:
   explicit MockSchedEventTracker(TraceProcessorContext* context)
-      : SchedEventTracker(context) {}
+      : FtraceSchedEventTracker(context) {}
 
   MOCK_METHOD(void,
               PushSchedSwitch,
@@ -244,7 +244,7 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
-    context_.sched_tracker.reset(sched_);
+    context_.ftrace_sched_tracker.reset(sched_);
     process_ = new NiceMock<MockProcessTracker>(&context_);
     context_.process_tracker.reset(process_);
     slice_ = new NiceMock<MockSliceTracker>(&context_);

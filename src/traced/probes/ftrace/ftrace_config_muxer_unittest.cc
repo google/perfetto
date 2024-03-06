@@ -235,22 +235,48 @@ class FtraceConfigMuxerTest : public ::testing::Test {
 };
 
 TEST_F(FtraceConfigMuxerTest, ComputeCpuBufferSizeInPages) {
-  auto Pages = [](uint32_t kb) { return kb * 1024 / base::GetSysPageSize(); };
-  const size_t kMaxBufSizeInPages = Pages(64 * 1024);
+  constexpr auto test = ComputeCpuBufferSizeInPages;
+  auto KbToPages = [](uint64_t kb) {
+    return kb * 1024 / base::GetSysPageSize();
+  };
+  auto kMaxBufSizePages = KbToPages(64 * 1024);
+  int64_t kNoRamInfo = 0;
+  bool kExactSize = false;
+  bool kLowerBoundSize = true;
+  int64_t kLowRamPages =
+      static_cast<int64_t>(KbToPages(3 * (1ULL << 20) + 512 * (1ULL << 10)));
+  int64_t kHighRamPages =
+      static_cast<int64_t>(KbToPages(7 * (1ULL << 20) + 512 * (1ULL << 10)));
 
-  // No buffer size given: good default (2mb).
-  EXPECT_EQ(ComputeCpuBufferSizeInPages(0), Pages(2048));
+  // No buffer size given: good default.
+  EXPECT_EQ(test(0, kExactSize, kNoRamInfo), KbToPages(2048));
+  // Default depends on device ram size.
+  EXPECT_EQ(test(0, kExactSize, kLowRamPages), KbToPages(2048));
+  EXPECT_EQ(test(0, kExactSize, kHighRamPages), KbToPages(8192));
+
+  // buffer_size_lower_bound lets us choose a higher default than given.
+  // default > requested:
+  EXPECT_EQ(test(4096, kExactSize, kHighRamPages), KbToPages(4096));
+  EXPECT_EQ(test(4096, kLowerBoundSize, kHighRamPages), KbToPages(8192));
+  // requested > default:
+  EXPECT_EQ(test(4096, kExactSize, kLowRamPages), KbToPages(4096));
+  EXPECT_EQ(test(4096, kLowerBoundSize, kLowRamPages), KbToPages(4096));
+  // requested > default:
+  EXPECT_EQ(test(16384, kExactSize, kHighRamPages), KbToPages(16384));
+  EXPECT_EQ(test(16384, kLowerBoundSize, kHighRamPages), KbToPages(16384));
 
   // Buffer size given way too big: good default.
-  EXPECT_EQ(ComputeCpuBufferSizeInPages(10 * 1024 * 1024), kMaxBufSizeInPages);
-  EXPECT_EQ(ComputeCpuBufferSizeInPages(512 * 1024), kMaxBufSizeInPages);
+  EXPECT_EQ(test(10 * (1ULL << 20), kExactSize, kNoRamInfo), kMaxBufSizePages);
+  EXPECT_EQ(test(512 * 1024, kExactSize, kNoRamInfo), kMaxBufSizePages);
 
   // Your size ends up with less than 1 page per cpu -> 1 page.
-  EXPECT_EQ(ComputeCpuBufferSizeInPages(3), 1u);
-
+  EXPECT_EQ(test(3, kExactSize, kNoRamInfo), 1u);
   // You picked a good size -> your size rounded to nearest page.
-  EXPECT_EQ(ComputeCpuBufferSizeInPages(42),
-            42 * 1024 / base::GetSysPageSize());
+  EXPECT_EQ(test(42, kExactSize, kNoRamInfo), KbToPages(42));
+
+  // Sysconf returning an error is ok.
+  EXPECT_EQ(test(0, kExactSize, -1), KbToPages(2048));
+  EXPECT_EQ(test(4096, kExactSize, -1), KbToPages(4096));
 }
 
 TEST_F(FtraceConfigMuxerTest, GenericSyscallFiltering) {
@@ -620,6 +646,8 @@ TEST_F(FtraceConfigMuxerTest, TurnFtraceOnOff) {
 
   ASSERT_TRUE(testing::Mock::VerifyAndClearExpectations(&ftrace));
   EXPECT_CALL(ftrace, NumberOfCpus()).Times(AnyNumber());
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
 
   EXPECT_CALL(ftrace,
               WriteToFile("/root/events/sched/sched_switch/enable", "0"));
@@ -1090,6 +1118,8 @@ TEST_F(FtraceConfigMuxerTest, FallbackOnSetEvent) {
   FtraceConfig config =
       CreateFtraceConfig({"sched/sched_switch", "cgroup/cgroup_mkdir"});
   FtraceConfigMuxer model(&ftrace, table_.get(), GetSyscallTable(), {});
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
 
   EXPECT_CALL(ftrace, ReadFileIntoString("/root/current_tracer"))
       .WillOnce(Return("nop"));

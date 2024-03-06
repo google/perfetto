@@ -133,7 +133,8 @@ export const MAX_TIME = 180;
 // 43. Remove visibleTracks.
 // 44. Add TabsV2 state.
 // 45. Remove v1 tracks.
-export const STATE_VERSION = 45;
+// 46. Remove trackKeyByTrackId.
+export const STATE_VERSION = 46;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -548,7 +549,6 @@ export interface State {
   traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectByKey<TrackState>;
-  trackKeyByTrackId: {[key: number]: string;};
   utidToThreadSortKey: UtidToTrackSortKey;
   areas: ObjectById<AreaById>;
   aggregatePreferences: ObjectById<AggregationState>;

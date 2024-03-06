@@ -48,7 +48,7 @@ BitVector ReconcileStorageResult(FilterOp op,
   BitVector res;
   if (storage_result.IsRange()) {
     Range range = std::move(storage_result).TakeIfRange();
-    if (range.size() > 0) {
+    if (!range.empty()) {
       res = non_null.IntersectRange(non_null.IndexOfNthSet(range.start),
                                     non_null.IndexOfNthSet(range.end - 1) + 1);
 
@@ -77,8 +77,6 @@ BitVector ReconcileStorageResult(FilterOp op,
 }
 
 }  // namespace
-
-NullOverlay::NullOverlay(const BitVector* non_null) : non_null_(non_null) {}
 
 SingleSearchResult NullOverlay::ChainImpl::SingleSearch(FilterOp op,
                                                         SqlValue sql_val,
@@ -115,7 +113,7 @@ NullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> innner,
 SearchValidationResult NullOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue sql_val) const {
-  if (op == FilterOp::kIsNull) {
+  if (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull) {
     return SearchValidationResult::kOk;
   }
   return inner_->ValidateSearchConstraints(op, sql_val);
@@ -138,6 +136,15 @@ RangeOrBitVector NullOverlay::ChainImpl::SearchValidated(FilterOp op,
       }
       case SearchValidationResult::kAllData:
         return RangeOrBitVector(in);
+      case SearchValidationResult::kOk:
+        break;
+    }
+  } else if (op == FilterOp::kIsNotNull) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
+      case SearchValidationResult::kNoData:
+        return RangeOrBitVector(Range());
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(non_null_->IntersectRange(in.start, in.end));
       case SearchValidationResult::kOk:
         break;
     }
@@ -173,6 +180,23 @@ RangeOrBitVector NullOverlay::ChainImpl::IndexSearchValidated(
         // There is no need to search in underlying storage. We should just
         // check if the index is set in |non_null_|.
         return RangeOrBitVector(std::move(null_indices).Build());
+      }
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(Range(0, indices.size));
+      case SearchValidationResult::kOk:
+        break;
+    }
+  } else if (op == FilterOp::kIsNotNull) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
+      case SearchValidationResult::kNoData: {
+        BitVector::Builder non_null_indices(indices.size);
+        for (const uint32_t* it = indices.data;
+             it != indices.data + indices.size; it++) {
+          non_null_indices.Append(non_null_->IsSet(*it));
+        }
+        // There is no need to search in underlying storage. We should just
+        // check if the index is set in |non_null_|.
+        return RangeOrBitVector(std::move(non_null_indices).Build());
       }
       case SearchValidationResult::kAllData:
         return RangeOrBitVector(Range(0, indices.size));

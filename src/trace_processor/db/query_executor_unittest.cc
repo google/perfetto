@@ -252,11 +252,11 @@ TEST(QueryExecutor, ArrangementOverlayBounds) {
 }
 
 TEST(QueryExecutor, ArrangementOverlaySubsetInputRange) {
-  auto fake = column::FakeStorage::SearchSubset(5u, RowMap::Range(2u, 4u));
+  auto fake = column::FakeStorageChain::SearchSubset(5u, RowMap::Range(2u, 4u));
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(0u)};
   RowMap rm(1, 3);
@@ -266,11 +266,12 @@ TEST(QueryExecutor, ArrangementOverlaySubsetInputRange) {
 }
 
 TEST(QueryExecutor, ArrangementOverlaySubsetInputBitvector) {
-  auto fake = column::FakeStorage::SearchSubset(5u, BitVector({0, 0, 1, 1, 0}));
+  auto fake =
+      column::FakeStorageChain::SearchSubset(5u, BitVector({0, 0, 1, 1, 0}));
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
-  auto chain = storage.MakeChain(fake->MakeChain());
+  auto chain = storage.MakeChain(std::move(fake));
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(0u)};
   RowMap rm(1, 3);

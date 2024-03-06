@@ -23,11 +23,8 @@
 #include <optional>
 #include <utility>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/metatrace.h"
-#include "perfetto/ext/base/string_splitter.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/kallsyms/kernel_symbol_map.h"
@@ -596,7 +593,7 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
       }
       // Data record:
       default: {
-        // If type_or_length <=28, the the record length is 4x that value.
+        // If type_or_length <=28, the record length is 4x that value.
         // If type_or_length == 0, the length of the record is stored in the
         // first uint32_t word of the payload.
         uint32_t event_size = 0;

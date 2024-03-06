@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
-#include <memory>
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -30,26 +29,18 @@
 
 namespace perfetto::trace_processor::column {
 
-FakeStorage::FakeStorage(uint32_t size, SearchStrategy strategy)
-    : size_(size), strategy_(strategy) {}
-
-std::unique_ptr<DataLayerChain> FakeStorage::MakeChain() {
-  return std::make_unique<ChainImpl>(size_, strategy_, range_,
-                                     bit_vector_.Copy());
-}
-
-FakeStorage::ChainImpl::ChainImpl(uint32_t size,
-                                  SearchStrategy strategy,
-                                  Range range,
-                                  BitVector bv)
+FakeStorageChain::FakeStorageChain(uint32_t size,
+                                   SearchStrategy strategy,
+                                   Range range,
+                                   BitVector bv)
     : size_(size),
       strategy_(strategy),
       range_(range),
       bit_vector_(std::move(bv)) {}
 
-SingleSearchResult FakeStorage::ChainImpl::SingleSearch(FilterOp,
-                                                        SqlValue,
-                                                        uint32_t i) const {
+SingleSearchResult FakeStorageChain::SingleSearch(FilterOp,
+                                                  SqlValue,
+                                                  uint32_t i) const {
   switch (strategy_) {
     case kAll:
       return SingleSearchResult::kMatch;
@@ -65,15 +56,15 @@ SingleSearchResult FakeStorage::ChainImpl::SingleSearch(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
-SearchValidationResult FakeStorage::ChainImpl::ValidateSearchConstraints(
+SearchValidationResult FakeStorageChain::ValidateSearchConstraints(
     FilterOp,
     SqlValue) const {
   return SearchValidationResult::kOk;
 }
 
-RangeOrBitVector FakeStorage::ChainImpl::SearchValidated(FilterOp,
-                                                         SqlValue,
-                                                         Range in) const {
+RangeOrBitVector FakeStorageChain::SearchValidated(FilterOp,
+                                                   SqlValue,
+                                                   Range in) const {
   switch (strategy_) {
     case kAll:
       return RangeOrBitVector(in);
@@ -91,10 +82,9 @@ RangeOrBitVector FakeStorage::ChainImpl::SearchValidated(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
-RangeOrBitVector FakeStorage::ChainImpl::IndexSearchValidated(
-    FilterOp,
-    SqlValue,
-    Indices indices) const {
+RangeOrBitVector FakeStorageChain::IndexSearchValidated(FilterOp,
+                                                        SqlValue,
+                                                        Indices indices) const {
   switch (strategy_) {
     case kAll:
       return RangeOrBitVector(Range(0, indices.size));
@@ -115,10 +105,9 @@ RangeOrBitVector FakeStorage::ChainImpl::IndexSearchValidated(
   PERFETTO_FATAL("For GCC");
 }
 
-Range FakeStorage::ChainImpl::OrderedIndexSearchValidated(
-    FilterOp,
-    SqlValue,
-    Indices indices) const {
+Range FakeStorageChain::OrderedIndexSearchValidated(FilterOp,
+                                                    SqlValue,
+                                                    Indices indices) const {
   if (strategy_ == kAll) {
     return {0, indices.size};
   }
@@ -152,13 +141,11 @@ Range FakeStorage::ChainImpl::OrderedIndexSearchValidated(
           static_cast<uint32_t>(std::distance(indices.data, first_non_set))};
 }
 
-void FakeStorage::ChainImpl::StableSort(SortToken*,
-                                        SortToken*,
-                                        SortDirection) const {
+void FakeStorageChain::StableSort(SortToken*, SortToken*, SortDirection) const {
   PERFETTO_FATAL("Not implemented");
 }
 
-void FakeStorage::ChainImpl::Serialize(StorageProto*) const {
+void FakeStorageChain::Serialize(StorageProto*) const {
   // FakeStorage doesn't really make sense to serialize.
   PERFETTO_FATAL("Not implemented");
 }

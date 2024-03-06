@@ -29,9 +29,6 @@ source_set("symbolizer") {
     "filesystem_windows.cc",
     "local_symbolizer.cc",
     "local_symbolizer.h",
-    "scoped_read_mmap.h",
-    "scoped_read_mmap_posix.cc",
-    "scoped_read_mmap_windows.cc",
     "subprocess.h",
     "subprocess_posix.cc",
     "subprocess_windows.cc",
@@ -52,7 +49,7 @@ if (enable_perfetto_trace_processor) {
       "../../../include/perfetto/trace_processor:trace_processor",
       "../../../protos/perfetto/trace:zero",
       "../../../protos/perfetto/trace/profiling:zero",
-      "../../trace_processor/util:stack_traces_util",
+      "../../trace_processor/util:build_id",
     ]
     sources = [
       "symbolize_database.cc",

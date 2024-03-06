@@ -50,22 +50,39 @@ class DataLayer : public RefCounted {
     // orders a given chain.
     bool does_layer_order_chain_contents;
   };
-
   virtual ~DataLayer();
 
   // Creates a DataLayerChain for a terminal DataLayer. This means the
   // DataLayer directly should return the data it contains inside.
-  virtual std::unique_ptr<DataLayerChain> MakeChain() {
-    PERFETTO_FATAL("Unimplemented");
-  }
+  std::unique_ptr<DataLayerChain> MakeChain();
 
   // Creates a DataLayerChain for a non-terminal DataLayer. This means
   // the DataLayer should transform the contents of the inner chain.
-  virtual std::unique_ptr<DataLayerChain> MakeChain(
+  std::unique_ptr<DataLayerChain> MakeChain(
       std::unique_ptr<DataLayerChain>,
-      ChainCreationArgs = ChainCreationArgs()) {
-    PERFETTO_FATAL("Unimplemented");
-  }
+      ChainCreationArgs = ChainCreationArgs());
+
+ protected:
+  // TODO(b/325583551): remove this when possible.
+  enum class Impl {
+    kArrangement,
+    kDenseNull,
+    kDummy,
+    kId,
+    kNull,
+    kNumericDouble,
+    kNumericUint32,
+    kNumericInt32,
+    kNumericInt64,
+    kRange,
+    kSelector,
+    kSetId,
+    kString,
+  };
+  explicit DataLayer(Impl impl) : impl_(impl) {}
+
+ private:
+  Impl impl_;
 };
 
 // Corresponds to a series of DataLayer chained together. Provides
@@ -94,7 +111,7 @@ class DataLayerChain {
 
   // Start of public API.
 
-  // Checks whether element at the the provided index match |op| and |value|.
+  // Checks whether element at the provided index match |op| and |value|.
   //
   // Returns true if the element matches, false otherwise.
   virtual SingleSearchResult SingleSearch(FilterOp op,
@@ -113,9 +130,9 @@ class DataLayerChain {
   //    to positions in the storage.
   //
   // Notes for implementors:
-  //  * Implementations should ensure that the return value *only* includes
-  //    positions in |range| as callers will expect this to be true and can
-  //    optimize based on this.
+  //  * Implementations should ensure that the return value is empty or *only*
+  //    includes positions in |range|. Callers are free to assume this and can
+  //    optimize based on it.
   //  * Implementations should ensure that, if they return a BitVector, it is
   //    precisely of size |range.end|.
   PERFETTO_ALWAYS_INLINE RangeOrBitVector Search(FilterOp op,

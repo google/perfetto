@@ -39,10 +39,10 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
       "../src/base:base",
       "../src/base:test_support",
       "../src/perfetto_cmd:bugreport_path",
+      "../src/protozero/filtering:bytecode_generator",
     ]
     if (enable_perfetto_traced_probes) {
       deps += [
-        "../src/protozero/filtering:bytecode_generator",
         "../src/traced/probes/ftrace",
         "../src/traced/probes/ftrace:ftrace_procfs",
       ]

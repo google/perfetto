@@ -41,6 +41,7 @@ import {
 } from './flow_events_renderer';
 import {globals} from './globals';
 import {PanelSize} from './panel';
+import {canvasClip} from '../common/canvas_utils';
 
 // If the panel container scrolls, the backing canvas height is
 // SCROLLING_CANVAS_OVERDRAW_FACTOR * parent container height.
@@ -48,7 +49,7 @@ const SCROLLING_CANVAS_OVERDRAW_FACTOR = 1.2;
 
 export interface Panel {
   kind: 'panel';
-  mithril: m.Children;
+  render(): m.Children;
   selectable: boolean;
   key: string;
   trackKey?: string;
@@ -67,7 +68,7 @@ export interface PanelGroup {
 
 export type PanelOrGroup = Panel|PanelGroup;
 
-export interface Attrs {
+export interface PanelContainerAttrs {
   panels: PanelOrGroup[];
   doesScroll: boolean;
   kind: 'TRACKS'|'OVERVIEW';
@@ -83,7 +84,7 @@ interface PanelInfo {
   y: number;
 }
 
-export class PanelContainer implements m.ClassComponent<Attrs>,
+export class PanelContainer implements m.ClassComponent<PanelContainerAttrs>,
                                        PerfStatsSource {
   // These values are updated with proper values in oncreate.
   private parentWidth = 0;
@@ -108,7 +109,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   // Attrs received in the most recent mithril redraw. We receive a new vnode
   // with new attrs on every redraw, and we cache it here so that resize
   // listeners and canvas redraw callbacks can access it.
-  private attrs: Attrs;
+  private attrs: PanelContainerAttrs;
 
   private ctx?: CanvasRenderingContext2D;
 
@@ -116,6 +117,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
 
   private readonly SCROLL_LIMITER_REF = 'scroll-limiter';
   private readonly PANELS_REF = 'panels';
+  private readonly OVERLAY_CANVAS_REF = 'canvas';
 
   get canvasOverdrawFactor() {
     return this.attrs.doesScroll ? SCROLLING_CANVAS_OVERDRAW_FACTOR : 1;
@@ -188,12 +190,12 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     globals.timeline.selectArea(area.start, area.end, tracks);
   }
 
-  constructor(vnode: m.CVnode<Attrs>) {
+  constructor(vnode: m.CVnode<PanelContainerAttrs>) {
     this.attrs = vnode.attrs;
     this.flowEventsRenderer = new FlowEventsRenderer();
     this.trash = new Trash();
 
-    const onRedraw = () => this.redrawCanvas();
+    const onRedraw = () => this.renderCanvas();
     raf.addRedrawCallback(onRedraw);
     this.trash.addCallback(() => {
       raf.removeRedrawCallback(onRedraw);
@@ -205,9 +207,9 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     });
   }
 
-  oncreate({dom}: m.CVnodeDOM<Attrs>) {
+  oncreate({dom}: m.CVnodeDOM<PanelContainerAttrs>) {
     // Save the canvas context in the state.
-    const canvas = dom.querySelector('.main-canvas') as HTMLCanvasElement;
+    const canvas = findRef(dom, this.OVERLAY_CANVAS_REF) as HTMLCanvasElement;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       throw Error('Cannot create canvas context');
@@ -226,7 +228,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       if (parentSizeChanged) {
         this.updateCanvasDimensions();
         this.repositionCanvas();
-        this.redrawCanvas();
+        this.renderCanvas();
       }
     }));
 
@@ -252,14 +254,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   renderPanel(node: Panel, key: string, extraClass = ''): m.Vnode {
     assertFalse(this.panelByKey.has(key));
     this.panelByKey.set(key, node);
-    const mithril = node.mithril;
-
-    return m(
-      `.panel${extraClass}`,
-      {key, 'data-key': key},
-      perfDebug() ?
-        [mithril, m('.debug-panel-border', {key: 'debug-panel-border'})] :
-        mithril);
+    return m(`.pf-panel${extraClass}`, {key, 'data-key': key}, node.render());
   }
 
   // Render a tree of panels into one vnode. Argument `path` is used to build
@@ -271,30 +266,30 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
         'div',
         {key: path},
         this.renderPanel(
-          node.header, `${path}-header`, node.collapsed ? '' : '.sticky'),
+          node.header, `${path}-header`, node.collapsed ? '' : '.pf-sticky'),
         ...node.childTracks.map(
           (child, index) => this.renderTree(child, `${path}-${index}`)));
     }
     return this.renderPanel(node, assertExists(node.key));
   }
 
-  view({attrs}: m.CVnode<Attrs>) {
+  view({attrs}: m.CVnode<PanelContainerAttrs>) {
     this.attrs = attrs;
     this.panelByKey.clear();
     const children = attrs.panels.map(
       (panel, index) => this.renderTree(panel, `track-tree-${index}`));
 
-    return m('.panel-container', {className: attrs.className},
-      m('.panels', {ref: this.PANELS_REF},
-        m('.scroll-limiter', {ref: this.SCROLL_LIMITER_REF},
-          m('canvas.main-canvas'),
+    return m('.pf-panel-container', {className: attrs.className},
+      m('.pf-panels', {ref: this.PANELS_REF},
+        m('.pf-scroll-limiter', {ref: this.SCROLL_LIMITER_REF},
+          m('canvas.pf-overlay-canvas', {ref: this.OVERLAY_CANVAS_REF}),
         ),
         children,
       ),
     );
   }
 
-  onupdate({dom}: m.CVnodeDOM<Attrs>) {
+  onupdate({dom}: m.CVnodeDOM<PanelContainerAttrs>) {
     const totalPanelHeightChanged = this.readPanelHeightsFromDom(dom);
     const parentSizeChanged = this.readParentSizeFromDom(dom);
     const canvasSizeShouldChange =
@@ -306,7 +301,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
         globals.timeline.updateLocalLimits(
           0, this.parentWidth - TRACK_SHELL_WIDTH);
       }
-      this.redrawCanvas();
+      this.renderCanvas();
     }
   }
 
@@ -366,7 +361,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     this.panelContainerTop = domRect.y;
     this.panelContainerHeight = domRect.height;
 
-    dom.querySelectorAll('.panel').forEach((panelElement) => {
+    dom.querySelectorAll('.pf-panel').forEach((panelElement) => {
       const key = assertExists(panelElement.getAttribute('data-key'));
       const panel = assertExists(this.panelByKey.get(key));
 
@@ -391,7 +386,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     return yEnd > 0 && yStart < this.canvasHeight;
   }
 
-  private redrawCanvas() {
+  private renderCanvas() {
     const redrawStart = debugNow();
     if (!this.ctx) return;
     this.ctx.clearRect(0, 0, this.parentWidth, this.canvasHeight);
@@ -482,6 +477,12 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     const canvasYStart =
         Math.floor(this.scrollTop - this.getCanvasOverdrawHeightPerSide());
     this.ctx.translate(TRACK_SHELL_WIDTH, -canvasYStart);
+
+    // Clip off any drawing happening outside the bounds of the timeline area
+    canvasClip(
+      this.ctx,
+      0, 0, this.parentWidth - TRACK_SHELL_WIDTH, this.totalPanelHeight);
+
     this.ctx.strokeRect(
       startX,
       selectedTracksMaxY,
@@ -500,6 +501,16 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       this.panelPerfStats.set(panel, renderStats);
     }
     renderStats.addValue(renderTime);
+
+    // Draw a green box around the whole panel
+    ctx.strokeStyle = 'rgba(69, 187, 73, 0.5)';
+    const lineWidth = 1;
+    ctx.lineWidth = lineWidth;
+    ctx.strokeRect(
+      lineWidth/2,
+      lineWidth/2,
+      size.width - lineWidth,
+      size.height - lineWidth);
 
     const statW = 300;
     ctx.fillStyle = 'hsl(97, 100%, 96%)';

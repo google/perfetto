@@ -19,12 +19,15 @@ import {hasChildren} from '../base/mithril_utils';
 
 import {scheduleFullRedraw} from './raf';
 
-// Heirachical tree layout but right values are horizontally aligned.
+// Heirachical tree layout with left and right values.
+// Right and left values of the same indentation level are horizontally aligned.
 // Example:
-// foo     bar
+// foo    bar
 //  ├ baz  qux
 //  └ quux corge
-// grault  garply
+//    ├ looong_left aaa
+//    └ a           bbb
+// grault garply
 
 interface TreeAttrs {
   // Space delimited class list applied to our tree element.

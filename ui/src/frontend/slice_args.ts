@@ -36,6 +36,7 @@ import {globals} from './globals';
 import {Arg} from './sql/args';
 import {addSqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
+import {assertExists} from '../base/logging';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(engine: EngineProxy, args: Arg[]): m.Children {
@@ -158,8 +159,8 @@ async function addVisualisedArg(engine: EngineProxy, argName: string) {
   const it = result.iter({'trackId': NUM, 'maxDepth': NUM});
   const addedTrackKeys: string[] = [];
   for (; it.valid(); it.next()) {
-    const track =
-        globals.state.tracks[globals.state.trackKeyByTrackId[it.trackId]];
+    const trackKey = globals.trackManager.trackKeyByTrackId.get(it.trackId);
+    const track = globals.state.tracks[assertExists(trackKey)];
     const utid = (track.trackSortKey as {utid?: number}).utid;
     const key = uuidv4();
     addedTrackKeys.push(key);

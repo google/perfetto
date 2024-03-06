@@ -94,7 +94,7 @@ export class OverviewTimelinePanel implements Panel {
       .removeEventListener('mousemove', this.boundOnMouseMove);
   }
 
-  get mithril(): m.Children {
+  render(): m.Children {
     return m('.overview-timeline', {
       oncreate: (vnode) => this.oncreate(vnode),
       onupdate: (vnode) => this.onupdate(vnode),

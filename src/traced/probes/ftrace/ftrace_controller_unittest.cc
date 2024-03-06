@@ -150,6 +150,11 @@ class MockFtraceProcfs : public FtraceProcfs {
         .WillByDefault(Invoke(this, &MockFtraceProcfs::ReadCurrentTracer));
     EXPECT_CALL(*this, ReadFileIntoString(root + "current_tracer"))
         .Times(AnyNumber());
+
+    ON_CALL(*this, ReadFileIntoString(root + "buffer_percent"))
+        .WillByDefault(Return("50\n"));
+    EXPECT_CALL(*this, ReadFileIntoString(root + "buffer_percent"))
+        .Times(AnyNumber());
   }
 
   bool WriteTracingOn(const std::string& /*path*/, const std::string& value) {
@@ -216,7 +221,7 @@ class TestFtraceController : public FtraceController,
 
   MockTaskRunner* runner() { return runner_.get(); }
   MockFtraceProcfs* procfs() { return primary_procfs_; }
-  uint32_t drain_period_ms() { return GetDrainPeriodMs(); }
+  uint32_t tick_period_ms() { return GetTickPeriodMs(); }
 
   std::unique_ptr<FtraceDataSource> AddFakeDataSource(const FtraceConfig& cfg) {
     std::unique_ptr<FtraceDataSource> data_source(new FtraceDataSource(
@@ -339,8 +344,10 @@ TEST(FtraceControllerTest, OneSink) {
   // a single recurring read task will be posted as part of starting the data
   // source.
   Mock::VerifyAndClearExpectations(controller->runner());
-  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(1);
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
 
+  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(1);
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   ASSERT_TRUE(controller->StartDataSource(data_source.get()));
 
@@ -390,8 +397,10 @@ TEST(FtraceControllerTest, MultipleSinks) {
   // a single recurring read task will be posted as part of starting the data
   // sources.
   Mock::VerifyAndClearExpectations(controller->runner());
-  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(1);
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
 
+  EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(1);
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   ASSERT_TRUE(controller->StartDataSource(data_sourceA.get()));
   ASSERT_TRUE(controller->StartDataSource(data_sourceB.get()));
@@ -433,6 +442,8 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
       .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", _));
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "1"));
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
   auto data_source = controller->AddFakeDataSource(config);
 
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
@@ -468,9 +479,11 @@ TEST(FtraceControllerTest, BufferSize) {
       .Times(AnyNumber());
 
   {
-    // No buffer size -> good default.
-    EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "2048"));
+    // No buffer size -> good default (exact value depends on the ram size of
+    // the machine running this test).
+    EXPECT_CALL(
+        *controller->procfs(),
+        WriteToFile("/root/buffer_size_kb", testing::AnyOf("2048", "8192")));
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
@@ -526,6 +539,18 @@ TEST(FtraceControllerTest, BufferSize) {
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }
+
+  {
+    // buffer_size_lower_bound -> default size no less than given.
+    EXPECT_CALL(
+        *controller->procfs(),
+        WriteToFile("/root/buffer_size_kb", testing::AnyOf("4096", "8192")));
+    FtraceConfig config = CreateFtraceConfig({"group/foo"});
+    config.set_buffer_size_kb(4096);
+    config.set_buffer_size_lower_bound(true);
+    auto data_source = controller->AddFakeDataSource(config);
+    ASSERT_TRUE(controller->StartDataSource(data_source.get()));
+  }
 }
 
 TEST(FtraceControllerTest, PeriodicDrainConfig) {
@@ -539,7 +564,8 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
     // No period -> good default.
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     auto data_source = controller->AddFakeDataSource(config);
-    EXPECT_EQ(100u, controller->drain_period_ms());
+    controller->StartDataSource(data_source.get());
+    EXPECT_EQ(100u, controller->tick_period_ms());
   }
 
   {
@@ -547,7 +573,8 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_drain_period_ms(0);
     auto data_source = controller->AddFakeDataSource(config);
-    EXPECT_EQ(100u, controller->drain_period_ms());
+    controller->StartDataSource(data_source.get());
+    EXPECT_EQ(100u, controller->tick_period_ms());
   }
 
   {
@@ -555,7 +582,8 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_drain_period_ms(1000 * 60 * 60);
     auto data_source = controller->AddFakeDataSource(config);
-    EXPECT_EQ(100u, controller->drain_period_ms());
+    controller->StartDataSource(data_source.get());
+    EXPECT_EQ(100u, controller->tick_period_ms());
   }
 
   {
@@ -563,7 +591,8 @@ TEST(FtraceControllerTest, PeriodicDrainConfig) {
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     config.set_drain_period_ms(200);
     auto data_source = controller->AddFakeDataSource(config);
-    EXPECT_EQ(200u, controller->drain_period_ms());
+    controller->StartDataSource(data_source.get());
+    EXPECT_EQ(200u, controller->tick_period_ms());
   }
 }
 
@@ -644,8 +673,12 @@ TEST(FtraceControllerTest, OnlySecondaryInstance) {
   config.set_instance_name("secondary");
 
   // Primary instance won't be touched throughout the entire test.
-  EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(0);
+  // Exception: allow testing for kernel support of buffer_percent.
   EXPECT_CALL(*controller->procfs(), ClearFile(_)).Times(0);
+  EXPECT_CALL(*controller->procfs(), WriteToFile(_, _)).Times(0);
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_percent", _))
+      .Times(AnyNumber())
+      .WillRepeatedly(Return(true));
 
   // AddDataSource will initialise the tracefs instance, enable the event
   // through the muxer, but not yet enable tracing_on.
@@ -746,6 +779,8 @@ TEST(FtraceControllerTest, DefaultAndSecondaryInstance) {
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "1"));
   EXPECT_CALL(*controller->GetInstanceMockProcfs("secondary"),
               WriteToFile("/root/instances/secondary/tracing_on", "1"));
+  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_percent", _))
+      .WillRepeatedly(Return(true));
   EXPECT_CALL(*controller->runner(), PostDelayedTask(_, _)).Times(2);
 
   ASSERT_TRUE(controller->StartDataSource(primary_ds.get()));
@@ -789,6 +824,33 @@ TEST(FtraceControllerTest, TracefsInstanceFilepaths) {
   // special-cased pkvm path
   path = FtraceController::AbsolutePathForInstance("/root/", "hyp");
   EXPECT_EQ(*path, "/root/hyp/");
+}
+
+TEST(FtraceControllerTest, PollSupportedOnKernelVersion) {
+  auto test = [](auto s) {
+    return FtraceController::PollSupportedOnKernelVersion(s);
+  };
+  // Linux 6.1 or above are ok
+  EXPECT_TRUE(test("6.5.13-1-amd64"));
+  EXPECT_TRUE(test("6.1.0-1-amd64"));
+  EXPECT_TRUE(test("6.1.25-android14-11-g"));
+  // before 6.1
+  EXPECT_FALSE(test("5.15.200-1-amd"));
+
+  // Android: check allowlisted GKI versions
+
+  // sublevel matters:
+  EXPECT_TRUE(test("5.10.198-android13-4-0"));
+  EXPECT_FALSE(test("5.10.189-android13-4-0"));
+  // sublevel matters:
+  EXPECT_TRUE(test("5.15.137-android14-8-suffix"));
+  EXPECT_FALSE(test("5.15.130-android14-8-suffix"));
+  // sublevel matters:
+  EXPECT_TRUE(test("5.15.137-android13-8-0"));
+  EXPECT_FALSE(test("5.15.129-android13-8-0"));
+  // android12 instead of android13 (clarification: this is part of the kernel
+  // version, and is unrelated to the system image version).
+  EXPECT_FALSE(test("5.10.198-android12-4-0"));
 }
 
 }  // namespace perfetto

@@ -17,7 +17,6 @@
 #include "src/trace_processor/db/column/dummy_storage.h"
 
 #include <cstdint>
-#include <memory>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"

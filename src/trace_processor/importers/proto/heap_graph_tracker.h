@@ -229,6 +229,7 @@ class HeapGraphTracker : public Destructible {
   base::FlatSet<tables::HeapGraphObjectTable::Id> GetChildren(
       tables::HeapGraphObjectTable::RowReference);
   void MarkRoot(tables::HeapGraphObjectTable::RowReference, StringId type);
+  size_t RankRoot(StringId type);
   void UpdateShortestPaths(tables::HeapGraphObjectTable::RowReference row_ref);
   void FindPathFromRoot(tables::HeapGraphObjectTable::RowReference,
                         PathFromRoot* path);

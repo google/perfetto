@@ -116,7 +116,7 @@ export class CpuProfileController extends Controller<'main'> {
             WHERE symbol.symbol_set_id = spf.symbol_set_id
             LIMIT 1
           ),
-          COALESCE(spf.deobfuscated_name, spf.name)
+          COALESCE(spf.deobfuscated_name, spf.name, "")
         ) AS name,
         spm.name AS mapping
       FROM cpu_profile_stack_sample AS samples

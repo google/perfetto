@@ -34,9 +34,6 @@
 
 namespace perfetto::trace_processor::column {
 
-DenseNullOverlay::DenseNullOverlay(const BitVector* non_null)
-    : non_null_(non_null) {}
-
 DenseNullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                        const BitVector* non_null)
     : inner_(std::move(inner)), non_null_(non_null) {}
@@ -67,7 +64,7 @@ SingleSearchResult DenseNullOverlay::ChainImpl::SingleSearch(
 SearchValidationResult DenseNullOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue sql_val) const {
-  if (op == FilterOp::kIsNull) {
+  if (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull) {
     return SearchValidationResult::kOk;
   }
   return inner_->ValidateSearchConstraints(op, sql_val);
@@ -94,6 +91,15 @@ RangeOrBitVector DenseNullOverlay::ChainImpl::SearchValidated(FilterOp op,
       case SearchValidationResult::kOk:
         break;
     }
+  } else if (op == FilterOp::kIsNotNull) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
+      case SearchValidationResult::kNoData:
+        return RangeOrBitVector(Range());
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(non_null_->IntersectRange(in.start, in.end));
+      case SearchValidationResult::kOk:
+        break;
+    }
   }
 
   RangeOrBitVector inner_res = inner_->SearchValidated(op, sql_val, in);
@@ -103,8 +109,8 @@ RangeOrBitVector DenseNullOverlay::ChainImpl::SearchValidated(FilterOp op,
     // |non_null_| which matches the range. Then, resize to |in.end| as this
     // is mandated by the API contract of |Storage::Search|.
     Range inner_range = std::move(inner_res).TakeIfRange();
-    PERFETTO_DCHECK(inner_range.end <= in.end);
-    PERFETTO_DCHECK(inner_range.start >= in.start);
+    PERFETTO_DCHECK(inner_range.empty() || inner_range.end <= in.end);
+    PERFETTO_DCHECK(inner_range.empty() || inner_range.start >= in.start);
     res = non_null_->IntersectRange(inner_range.start, inner_range.end);
     res.Resize(in.end, false);
   } else {
@@ -147,6 +153,23 @@ RangeOrBitVector DenseNullOverlay::ChainImpl::IndexSearchValidated(
         // There is no need to search in underlying storage. We should just
         // check if the index is set in |non_null_|.
         return RangeOrBitVector(std::move(null_indices).Build());
+      }
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(Range(0, indices.size));
+      case SearchValidationResult::kOk:
+        break;
+    }
+  } else if (op == FilterOp::kIsNotNull) {
+    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
+      case SearchValidationResult::kNoData: {
+        BitVector::Builder non_null_indices(indices.size);
+        for (const uint32_t* it = indices.data;
+             it != indices.data + indices.size; it++) {
+          non_null_indices.Append(non_null_->IsSet(*it));
+        }
+        // There is no need to search in underlying storage. We should just
+        // check if the index is set in |non_null_|.
+        return RangeOrBitVector(std::move(non_null_indices).Build());
       }
       case SearchValidationResult::kAllData:
         return RangeOrBitVector(Range(0, indices.size));

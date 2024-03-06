@@ -72,6 +72,7 @@ def CheckChange(input, output):
                                 output)
   results += RunAndReportIfLong(CheckIncludeGuards, input, output)
   results += RunAndReportIfLong(CheckIncludeViolations, input, output)
+  results += RunAndReportIfLong(CheckIncludePaths, input, output)
   results += RunAndReportIfLong(CheckProtoComments, input, output)
   results += RunAndReportIfLong(CheckBuild, input, output)
   results += RunAndReportIfLong(CheckAndroidBlueprint, input, output)
@@ -249,6 +250,31 @@ def CheckIncludeViolations(input_api, output_api):
   if subprocess.call([tool]):
     return [output_api.PresubmitError(tool + ' failed.')]
   return []
+
+
+def CheckIncludePaths(input_api, output_api):
+
+  def file_filter(x):
+    return input_api.FilterSourceFile(x, files_to_check=[r'.*\.h$', r'.*\.cc$'])
+
+  error_lines = []
+  for f in input_api.AffectedSourceFiles(file_filter):
+    for line_num, line in f.ChangedContents():
+      m = input_api.re.search(r'^#include "(.*\.h)"', line)
+      if not m:
+        continue
+      inc_hdr = m.group(1)
+      if inc_hdr.startswith('include/perfetto'):
+        error_lines.append('  %s:%s: Redundant "include/" in #include path"' %
+                           (f.LocalPath(), line_num))
+      if '/' not in inc_hdr:
+        error_lines.append(
+            '  %s:%s: relative #include not allowed, use full path' %
+            (f.LocalPath(), line_num))
+  return [] if len(error_lines) == 0 else [
+      output_api.PresubmitError('Invalid #include paths detected:\n' +
+                                '\n'.join(error_lines))
+  ]
 
 
 def CheckBinaryDescriptors(input_api, output_api):

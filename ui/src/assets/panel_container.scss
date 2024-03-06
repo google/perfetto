@@ -12,42 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.panel-container {
-  position: relative;
-  // display: grid;
-  // grid-template-columns: 1fr;
-  // grid-template-rows: 1fr;
-  // grid-template-areas: "space";
-}
-
-// In the scrolling case, since the canvas is overdrawn and continuously
-// repositioned, we need the canvas to be in a div with overflow hidden and
-// height equaling the total height of the content to prevent scrolling
-// height from growing.
-.scroll-limiter {
-  position: absolute;
-  top: 0;
-  left: 0;
-  overflow: hidden;
-  height: 100%;
-}
-
-canvas.main-canvas {
-  z-index: -1;
-}
-
-.panels {
-  position: relative;
+.pf-panel-container {
+  // We need to drag over this element for various reasons, so just disable
+  // selection over the entire thing.
+  // TODO(stevegolton): If we enable this, we can get scrolling while dragging,
+  // so we might want to enable this here and disable selection in titles
+  // instead.
   user-select: none;
-}
 
-.panel {
-  position: relative; // Otherwise canvas covers panel dom.
+  .pf-panels {
+    // Make this a positioned element so .pf-scroll-limiter is positioned
+    // relative to this element.
+    position: relative;
 
-  &.sticky {
-    position: sticky;
-    z-index: 3;
-    top: 0;
-    background-color: hsl(215, 22%, 19%);
+    // In the scrolling case, since the canvas is overdrawn and continuously
+    // repositioned, we need the canvas to be in a div with overflow hidden and
+    // height equalling the total height of the content to prevent scrolling
+    // height from growing.
+    .pf-scroll-limiter {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      overflow: hidden;
+
+      // Make this overlay invisible to pointer events.
+      pointer-events: none;
+    }
+
+    .pf-panel {
+      &.pf-sticky {
+        position: sticky;
+        top: 0;
+      }
+    }
   }
 }

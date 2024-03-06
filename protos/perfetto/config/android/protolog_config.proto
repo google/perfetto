@@ -41,10 +41,13 @@ message ProtoLogConfig {
 }
 
 message ProtoLogGroup {
-  // The ProtoLog tag this configuration entry applies to.
-  optional string tag = 1;
+  // The ProtoLog group name this configuration entry applies to.
+  optional string group_name = 1;
   // Specify the level from which to start capturing protologs.
   // e.g. if ProtoLogLevel.WARN is specified only warning, errors and fatal log
   // message will be traced.
   optional ProtoLogLevel log_from = 2;
+  // When set to true we will collect the stacktrace for each protolog message
+  // in this group that we are tracing.
+  optional bool collect_stacktrace = 3;
 }

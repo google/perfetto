@@ -1,0 +1,76 @@
+android_garbage_collection_unagg {
+  gc_events {
+    thread_name: "HeapTaskDaemon"
+    process_name: "com.google.android.deskclock"
+    gc_type: "full"
+    is_mark_compact: 1
+    reclaimed_mb: 3.1430000000000002
+    min_heap_mb: 2.754000
+    max_heap_mb: 5.897000
+    mb_per_ms_of_running_gc: 0.3262420579054222
+    mb_per_ms_of_wall_gc: 0.004718018639325977
+    gc_dur: 666169475
+    gc_running_dur: 9633951
+    gc_runnable_dur: 44371461
+    gc_unint_io_dur: 0
+    gc_unint_non_io_dur: 0
+    gc_int_dur: 0
+    gc_ts: 39041818011
+    tid: 3185
+    pid: 3162
+    gc_monotonic_dur: 666169475
+  }
+  gc_events {
+    thread_name: "HeapTaskDaemon"
+    process_name: "com.google.android.apps.nexuslauncher"
+    gc_type: "full"
+    is_mark_compact: 1
+    reclaimed_mb: 10.640000
+    min_heap_mb: 6.861000
+    max_heap_mb: 17.501000
+    mb_per_ms_of_running_gc: 93.68918788028213
+    mb_per_ms_of_wall_gc: 0.18073523433053545
+    gc_dur: 58870646
+    gc_running_dur: 113567
+    gc_runnable_dur: 0
+    gc_unint_io_dur: 0
+    gc_unint_non_io_dur: 0
+    gc_int_dur: 0
+    gc_ts: 39849615741
+    tid: 2534
+    pid: 2523
+    gc_monotonic_dur: 58870646
+  }
+  gc_events {
+    thread_name: "HeapTaskDaemon"
+    process_name: "com.google.android.apps.wellbeing"
+    gc_type: "full"
+    is_mark_compact: 1
+    gc_dur: 168393585
+    gc_running_dur: 1714233
+    gc_runnable_dur: 28482219
+    gc_unint_io_dur: 0
+    gc_unint_non_io_dur: 0
+    gc_int_dur: -1
+    gc_ts: 40022150450
+    tid: 2917
+    pid: 2909
+    gc_monotonic_dur: 168393585
+  }
+  gc_events {
+    thread_name: "HeapTaskDaemon"
+    process_name: "com.google.android.euicc"
+    gc_type: "full"
+    is_mark_compact: 1
+    gc_dur: 148630605
+    gc_running_dur: 4148763
+    gc_runnable_dur: -1
+    gc_unint_io_dur: 0
+    gc_unint_non_io_dur: 0
+    gc_int_dur: 0
+    gc_ts: 40041913430
+    tid: 2865
+    pid: 2855
+    gc_monotonic_dur: 148630605
+  }
+}

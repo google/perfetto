@@ -139,6 +139,14 @@ int64_t GetSizeFromNativeAllocationRegistry(int64_t nar_size) {
   return static_cast<int64_t>(static_cast<uint64_t>(nar_size) & ~kIsMalloced);
 }
 
+// A given object can be a heap root in different ways. Ensure analysis is
+// consistent.
+constexpr std::array<protos::pbzero::HeapGraphRoot::Type, 3>
+    kRootTypePrecedence = {
+        protos::pbzero::HeapGraphRoot::ROOT_STICKY_CLASS,
+        protos::pbzero::HeapGraphRoot::ROOT_JNI_GLOBAL,
+        protos::pbzero::HeapGraphRoot::ROOT_JNI_LOCAL,
+};
 }  // namespace
 
 std::optional<base::StringView> GetStaticClassTypeName(base::StringView type) {
@@ -595,12 +603,10 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
 
       ObjectTable::RowReference row_ref =
           ptr->ToRowReference(storage_->mutable_heap_graph_object_table());
-      auto it_and_success = roots_[std::make_pair(sequence_state.current_upid,
-                                                  sequence_state.current_ts)]
-                                .emplace(*ptr);
-      if (it_and_success.second) {
-        MarkRoot(row_ref, InternRootTypeString(root.root_type));
-      }
+      roots_[std::make_pair(sequence_state.current_upid,
+                            sequence_state.current_ts)]
+          .emplace(*ptr);
+      MarkRoot(row_ref, InternRootTypeString(root.root_type));
     }
   }
 
@@ -786,8 +792,25 @@ base::FlatSet<ObjectTable::Id> HeapGraphTracker::GetChildren(
   return children;
 }
 
+size_t HeapGraphTracker::RankRoot(StringId type) {
+  size_t idx = 0;
+  for (; idx < kRootTypePrecedence.size(); ++idx) {
+    if (type == InternRootTypeString(kRootTypePrecedence[idx])) {
+      break;
+    }
+  }
+  return idx;
+}
+
 void HeapGraphTracker::MarkRoot(ObjectTable::RowReference row_ref,
                                 StringId type) {
+  // Already marked as a root
+  if (row_ref.root_type()) {
+    if (RankRoot(type) < RankRoot(*row_ref.root_type())) {
+      row_ref.set_root_type(type);
+    }
+    return;
+  }
   row_ref.set_root_type(type);
 
   // DFS to mark reachability for all children

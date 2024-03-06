@@ -25,12 +25,13 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
+#include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
@@ -106,10 +107,10 @@ MATCHER_P(DoubleEq, exp, "Double matcher that satisfies -Wfloat-equal") {
 }
 }  // namespace
 
-class MockSchedEventTracker : public SchedEventTracker {
+class MockSchedEventTracker : public FtraceSchedEventTracker {
  public:
   explicit MockSchedEventTracker(TraceProcessorContext* context)
-      : SchedEventTracker(context) {}
+      : FtraceSchedEventTracker(context) {}
 
   MOCK_METHOD(void,
               PushSchedSwitch,
@@ -252,6 +253,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
+    context_.mapping_tracker.reset(new MappingTracker(&context_));
     context_.stack_profile_tracker.reset(new StackProfileTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
@@ -260,7 +262,7 @@ class ProtoTraceParserTest : public ::testing::Test {
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
-    context_.sched_tracker.reset(sched_);
+    context_.ftrace_sched_tracker.reset(sched_);
     process_ = new NiceMock<MockProcessTracker>(&context_);
     context_.process_tracker.reset(process_);
     slice_ = new NiceMock<MockSliceTracker>(&context_);

@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE common.slices;
+INCLUDE PERFETTO MODULE slices.with_context;
 
 -- Collect all GC slices. There's typically one enclosing slice but sometimes the
 -- CompactionPhase is outside the nesting and we need to include that.
@@ -43,8 +43,14 @@ WHERE depth = 0
   gc_name,
   ts AS gc_ts,
   ts,
-  gc_dur + IIF(compact_name = 'CompactionPhase', compact_dur, 0) AS gc_dur,
-  gc_dur + IIF(compact_name = 'CompactionPhase', compact_dur, 0) AS dur,
+  gc_dur + IIF(
+    compact_name = 'CompactionPhase' OR compact_name = 'Background concurrent copying GC',
+    compact_dur,
+    0) AS gc_dur,
+  gc_dur + IIF(
+    compact_name = 'CompactionPhase' OR compact_name = 'Background concurrent copying GC',
+    compact_dur,
+    0) AS dur,
   utid,
   tid,
   upid,
