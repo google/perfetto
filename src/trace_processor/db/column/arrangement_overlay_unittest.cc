@@ -18,6 +18,7 @@
 
 #include <array>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
@@ -34,6 +35,9 @@ namespace {
 
 using testing::ElementsAre;
 using testing::IsEmpty;
+
+using Indices = DataLayerChain::Indices;
+using OrderedIndices = DataLayerChain::OrderedIndices;
 
 TEST(ArrangementOverlay, SingleSearch) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
@@ -97,13 +101,10 @@ TEST(ArrangementOverlay, IndexSearch) {
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
   auto chain = storage.MakeChain(std::move(fake));
 
-  std::vector<uint32_t> table_idx{7u, 1u, 3u};
-  RangeOrBitVector res = chain->IndexSearch(
-      FilterOp::kGe, SqlValue::Long(0u),
-      Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
-              Indices::State::kNonmonotonic});
-
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u));
+  Indices indices = Indices::CreateWithIndexPayloadForTesting(
+      {7u, 1u, 3u}, Indices::State::kNonmonotonic);
+  chain->IndexSearch(FilterOp::kGe, SqlValue::Long(0u), indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(1u));
 }
 
 TEST(ArrangementOverlay, OrderingSearch) {
@@ -116,7 +117,6 @@ TEST(ArrangementOverlay, OrderingSearch) {
 
   RangeOrBitVector res =
       chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));
-
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 

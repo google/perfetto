@@ -56,8 +56,8 @@ RangeOrBitVector SelectorOverlay::ChainImpl::SearchValidated(FilterOp op,
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "SelectorOverlay::ChainImpl::Search");
 
-  // Figure out the bounds of the indices in the underlying storage and search
-  // it.
+  // Figure out the bounds of the OrderedIndices in the underlying storage and
+  // search it.
   uint32_t start_idx = selector_->IndexOfNthSet(in.start);
   uint32_t end_idx = selector_->IndexOfNthSet(in.end - 1) + 1;
 
@@ -83,35 +83,24 @@ RangeOrBitVector SelectorOverlay::ChainImpl::SearchValidated(FilterOp op,
   return RangeOrBitVector(std::move(storage_bitvector));
 }
 
-RangeOrBitVector SelectorOverlay::ChainImpl::IndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    Indices indices) const {
-  PERFETTO_DCHECK(
-      indices.size == 0 ||
-      *std::max_element(indices.data, indices.data + indices.size) <=
-          selector_->size());
-  // TODO(b/307482437): Use OrderedIndexSearch if arrangement orders storage.
-
+void SelectorOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
+                                                      SqlValue sql_val,
+                                                      Indices& indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "SelectorOverlay::ChainImpl::IndexSearch");
 
   // To go from TableIndexVector to StorageIndexVector we need to find index in
   // |selector_| by looking only into set bits.
-  std::vector<uint32_t> storage_iv(indices.size);
-  for (uint32_t i = 0; i < indices.size; ++i) {
-    storage_iv[i] = selector_->IndexOfNthSet(indices.data[i]);
+  for (auto& token : indices.tokens) {
+    token.index = selector_->IndexOfNthSet(token.index);
   }
-  return inner_->IndexSearchValidated(
-      op, sql_val,
-      Indices{storage_iv.data(), static_cast<uint32_t>(storage_iv.size()),
-              indices.state});
+  return inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
 Range SelectorOverlay::ChainImpl::OrderedIndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
-    Indices indices) const {
+    const OrderedIndices& indices) const {
   // To go from TableIndexVector to StorageIndexVector we need to find index in
   // |selector_| by looking only into set bits.
   std::vector<uint32_t> inner_indices(indices.size);
@@ -120,8 +109,9 @@ Range SelectorOverlay::ChainImpl::OrderedIndexSearchValidated(
   }
   return inner_->OrderedIndexSearchValidated(
       op, sql_val,
-      Indices{inner_indices.data(), static_cast<uint32_t>(inner_indices.size()),
-              indices.state});
+      OrderedIndices{inner_indices.data(),
+                     static_cast<uint32_t>(inner_indices.size()),
+                     indices.state});
 }
 
 void SelectorOverlay::ChainImpl::StableSort(SortToken* start,

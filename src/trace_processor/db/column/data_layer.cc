@@ -113,8 +113,9 @@ std::unique_ptr<DataLayerChain> DataLayer::MakeChain(
   PERFETTO_FATAL("For GCC");
 }
 
-ArrangementOverlay::ArrangementOverlay(const std::vector<uint32_t>* arrangement,
-                                       Indices::State arrangement_state)
+ArrangementOverlay::ArrangementOverlay(
+    const std::vector<uint32_t>* arrangement,
+    DataLayerChain::Indices::State arrangement_state)
     : DataLayer(Impl::kArrangement),
       arrangement_(arrangement),
       arrangement_state_(arrangement_state) {}

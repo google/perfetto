@@ -79,6 +79,16 @@ std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector& r_or_bv) {
 }
 
 std::vector<uint32_t> ExtractPayloadForTesting(
+    const DataLayerChain::Indices& indices) {
+  std::vector<uint32_t> payload;
+  payload.reserve(indices.tokens.size());
+  for (const auto& token : indices.tokens) {
+    payload.push_back(token.payload);
+  }
+  return payload;
+}
+
+std::vector<uint32_t> ExtractPayloadForTesting(
     std::vector<column::DataLayerChain::SortToken>& tokens) {
   std::vector<uint32_t> payload;
   payload.reserve(tokens.size());
@@ -109,6 +119,20 @@ std::optional<Range> CanReturnEarly(SearchValidationResult res,
       return Range(0, indices_size);
     case SearchValidationResult::kNoData:
       return Range();
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+bool CanReturnEarly(SearchValidationResult res,
+                    DataLayerChain::Indices& indices) {
+  switch (res) {
+    case SearchValidationResult::kOk:
+      return false;
+    case SearchValidationResult::kAllData:
+      return true;
+    case SearchValidationResult::kNoData:
+      indices.tokens.clear();
+      return true;
   }
   PERFETTO_FATAL("For GCC");
 }

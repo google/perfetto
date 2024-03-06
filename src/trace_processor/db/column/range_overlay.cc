@@ -108,34 +108,30 @@ RangeOrBitVector RangeOverlay::ChainImpl::SearchValidated(
   return RangeOrBitVector(std::move(builder).Build());
 }
 
-RangeOrBitVector RangeOverlay::ChainImpl::IndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    Indices indices) const {
+void RangeOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
+                                                   SqlValue sql_val,
+                                                   Indices& indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "RangeOverlay::IndexSearch");
-
-  std::vector<uint32_t> storage_iv(indices.size);
-  // Should be SIMD optimized.
-  for (uint32_t i = 0; i < indices.size; ++i) {
-    storage_iv[i] = indices.data[i] + range_->start;
+  for (auto& token : indices.tokens) {
+    token.index += range_->start;
   }
-  return inner_->IndexSearchValidated(
-      op, sql_val, Indices{storage_iv.data(), indices.size, indices.state});
+  inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
 Range RangeOverlay::ChainImpl::OrderedIndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
-    Indices indices) const {
+    const OrderedIndices& indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "RangeOverlay::IndexSearch");
 
-  std::vector<uint32_t> storage_iv(indices.size);
   // Should be SIMD optimized.
+  std::vector<uint32_t> storage_iv(indices.size);
   for (uint32_t i = 0; i < indices.size; ++i) {
     storage_iv[i] = indices.data[i] + range_->start;
   }
   return inner_->OrderedIndexSearchValidated(
-      op, sql_val, Indices{storage_iv.data(), indices.size, indices.state});
+      op, sql_val,
+      OrderedIndices{storage_iv.data(), indices.size, indices.state});
 }
 
 void RangeOverlay::ChainImpl::StableSort(SortToken* start,

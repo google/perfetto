@@ -35,6 +35,9 @@ using testing::ElementsAre;
 using testing::IsEmpty;
 using Range = Range;
 
+using Indices = DataLayerChain::Indices;
+using OrderedIndices = DataLayerChain::OrderedIndices;
+
 TEST(RangeOverlay, SearchSingle) {
   Range range(3, 8);
   RangeOverlay storage(&range);
@@ -96,12 +99,10 @@ TEST(RangeOverlay, IndexSearch) {
   RangeOverlay storage(&range);
   auto chain = storage.MakeChain(std::move(fake));
 
-  std::vector<uint32_t> table_idx{1u, 0u, 3u};
-  RangeOrBitVector res = chain->IndexSearch(
-      FilterOp::kGe, SqlValue::Long(0u),
-      Indices{table_idx.data(), static_cast<uint32_t>(table_idx.size()),
-              Indices::State::kNonmonotonic});
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u));
+  Indices indices = Indices::CreateWithIndexPayloadForTesting(
+      {1u, 0u, 3u}, Indices::State::kNonmonotonic);
+  chain->IndexSearch(FilterOp::kGe, SqlValue::Long(0u), indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(1u));
 }
 
 TEST(RangeOverlay, StableSort) {
