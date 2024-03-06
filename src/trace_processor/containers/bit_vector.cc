@@ -73,6 +73,39 @@ uint64_t Pdep(uint64_t word, uint64_t mask) {
 #endif
 }
 
+// This function implements the PEXT instruction in x64 as a loop.
+// See https://www.felixcloutier.com/x86/pext for details on what PEXT does.
+//
+// Unfortunately, as we're emulating this in software, it scales with the number
+// of set bits in |mask| rather than being a constant time instruction:
+// therefore, this should be avoided where real instructions are available.
+uint64_t PextSlow(uint64_t word, uint64_t mask) {
+  if (word == 0 || mask == std::numeric_limits<uint64_t>::max())
+    return word;
+
+  // This algorithm is for calculating PEXT was found to be the fastest "simple"
+  // one among those tested when writing this function.
+  uint64_t result = 0;
+  for (uint64_t bb = 1; mask; bb += bb) {
+    // MSVC doesn't like -mask so work around this by doing 0 - mask.
+    if (word & mask & (0ull - mask)) {
+      result |= bb;
+    }
+    mask &= mask - 1;
+  }
+  return result;
+}
+
+// See |PextSlow| for information on PEXT.
+uint64_t Pext(uint64_t word, uint64_t mask) {
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
+  base::ignore_result(PextSlow);
+  return _pext_u64(word, mask);
+#else
+  return PextSlow(word, mask);
+#endif
+}
+
 }  // namespace
 
 BitVector::BitVector() = default;
@@ -200,11 +233,7 @@ void BitVector::Or(const BitVector& sec) {
   for (uint32_t i = 0; i < words_.size(); ++i) {
     BitWord(&words_[i]).Or(sec.words_[i]);
   }
-
-  for (uint32_t i = 1; i < counts_.size(); ++i) {
-    counts_[i] = counts_[i - 1] +
-                 ConstBlock(&words_[Block::kWords * (i - 1)]).CountSetBits();
-  }
+  UpdateCounts(words_, counts_);
 }
 
 void BitVector::And(const BitVector& sec) {
@@ -212,11 +241,7 @@ void BitVector::And(const BitVector& sec) {
   for (uint32_t i = 0; i < words_.size(); ++i) {
     BitWord(&words_[i]).And(sec.words_[i]);
   }
-
-  for (uint32_t i = 1; i < counts_.size(); ++i) {
-    counts_[i] = counts_[i - 1] +
-                 ConstBlock(&words_[Block::kWords * (i - 1)]).CountSetBits();
-  }
+  UpdateCounts(words_, counts_);
 }
 
 void BitVector::UpdateSetBits(const BitVector& update) {
@@ -304,9 +329,7 @@ void BitVector::UpdateSetBits(const BitVector& update) {
   PERFETTO_DCHECK(update_unused_bits == 0);
   PERFETTO_DCHECK(update_ptr == update_ptr_end);
 
-  for (uint32_t i = 0; i < counts_.size() - 1; ++i) {
-    counts_[i + 1] = counts_[i] + ConstBlockFromIndex(i).CountSetBits();
-  }
+  UpdateCounts(words_, counts_);
 
   // After the loop, we should have precisely the same number of bits
   // set as |update|.
@@ -314,12 +337,67 @@ void BitVector::UpdateSetBits(const BitVector& update) {
 }
 
 void BitVector::SelectBits(const BitVector& mask_bv) {
-  BitVector::Builder res(mask_bv.CountSetBits(size_));
-  for (auto it = mask_bv.IterateSetBits(); it && it.index() < size();
-       it.Next()) {
-    res.Append(IsSet(it.index()));
+  // Verify the precondition on the function: the algorithm relies on this
+  // being the case.
+  PERFETTO_DCHECK(size() <= mask_bv.size());
+
+  // Get the set bits in the mask up to the end of |this|: this will precisely
+  // equal the number of bits in |this| at the end of this function.
+  uint32_t set_bits_in_mask = mask_bv.CountSetBits(size());
+
+  const uint64_t* cur_word = words_.data();
+  const uint64_t* end_word = words_.data() + WordCount(size());
+  const uint64_t* cur_mask = mask_bv.words_.data();
+
+  // Used to track the number of bits already set (i.e. by a previous loop
+  // iteration) in |out_word|.
+  uint32_t out_word_bits = 0;
+  uint64_t* out_word = words_.data();
+  for (; cur_word != end_word; ++cur_word, ++cur_mask) {
+    // Loop invariant: we should always have out_word and out_word_bits set
+    // such that there is room for at least one more bit.
+    PERFETTO_DCHECK(out_word_bits < 64);
+
+    // The crux of this function: efficient parallel extract all bits in |this|
+    // which correspond to set bit positions in |this|.
+    uint64_t ext = Pext(*cur_word, *cur_mask);
+
+    // If there are no bits in |out_word| from a previous iteration, set it to
+    // |ext|. Otherwise, concat the newly added bits to the top of the existing
+    // bits.
+    *out_word = out_word_bits == 0 ? ext : *out_word | (ext << out_word_bits);
+
+    // Update the number of bits used in |out_word| by adding the number of set
+    // bit positions in |mask|.
+    auto popcount = static_cast<uint32_t>(PERFETTO_POPCOUNT(*cur_mask));
+    out_word_bits += popcount;
+
+    // The below is a branch-free way to increment |out_word| pointer when we've
+    // packed 64 bits into it.
+    bool spillover = out_word_bits > 64;
+    out_word += out_word_bits >= 64;
+    out_word_bits %= 64;
+
+    // If there was any "spillover" bits (i.e. bits which did not fit in the
+    // previous word), add them into the new out_word. Important: we *must* not
+    // change out_word if there was no spillover as |out_word| could be pointing
+    // to |data + 1| which needs to be preserved for the next loop iteration.
+    *out_word = spillover ? ext >> (popcount - out_word_bits) : *out_word;
   }
-  *this = std::move(res).Build();
+
+  // Loop post-condition: we must have written as many words as is required
+  // to store |set_bits_in_mask|.
+  PERFETTO_DCHECK(out_word - words_.data() <= WordCount(set_bits_in_mask));
+
+  // Resize the BitVector to equal to the number of elements in the  mask we
+  // calculated at the start of the loop.
+  Resize(set_bits_in_mask);
+
+  // Fix up the counts to match the new values. The Resize above should ensure
+  // that a) the counts vector is correctly sized, b) the bits after
+  // |set_bits_in_mask| are cleared (allowing this count algortihm to be
+  // accurate).
+  UpdateCounts(words_, counts_);
 }
 
 BitVector BitVector::FromSortedIndexVector(
@@ -344,13 +422,7 @@ BitVector BitVector::FromSortedIndexVector(
   }
 
   std::vector<uint32_t> counts(block_count);
-  for (uint32_t i = 1; i < counts.size(); ++i) {
-    // The number of set bits in each block is the number of set bits before
-    // and in the previous block.
-    counts[i] = counts[i - 1] +
-                ConstBlock(&words[Block::kWords * (i - 1)]).CountSetBits();
-  }
-
+  UpdateCounts(words, counts);
   return {words, counts, size};
 }
 
