@@ -83,7 +83,7 @@ export class NotesPanel implements Panel {
           this.hoveredX = currentTargetOffset(e).x - TRACK_SHELL_WIDTH;
           raf.scheduleRedraw();
         },
-        mouseenter: (e: MouseEvent) => {
+        onmouseenter: (e: MouseEvent) => {
           this.hoveredX = currentTargetOffset(e).x - TRACK_SHELL_WIDTH;
           raf.scheduleRedraw();
         },
