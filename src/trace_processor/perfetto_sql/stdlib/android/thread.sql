@@ -18,7 +18,7 @@ RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT(STR_SPLIT(STR_SPLIT($thread_name, "-", 0), "[", 0), ":", 0), " ", 0);
 
 -- Per process stats of threads created in a process
-CREATE PERFETTO FUNCTION android_thread_creation_spam(
+CREATE PERFETTO FUNCTION _android_thread_creation_spam(
   -- Minimum duration between creating and destroying a thread before their the
   -- thread creation event is considered. If NULL, considers all thread creations.
   min_thread_dur FLOAT,
