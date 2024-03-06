@@ -29,7 +29,6 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/public/compiler.h"
-#include "src/trace_processor/containers/bit_vector_iterators.h"
 
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
@@ -46,7 +45,7 @@ namespace {
 // Unfortunately, as we're emulating this in software, it scales with the number
 // of set bits in |mask| rather than being a constant time instruction:
 // therefore, this should be avoided where real instructions are available.
-uint64_t PdepSlow(uint64_t word, uint64_t mask) {
+PERFETTO_ALWAYS_INLINE uint64_t PdepSlow(uint64_t word, uint64_t mask) {
   if (word == 0 || mask == std::numeric_limits<uint64_t>::max())
     return word;
 
@@ -64,7 +63,7 @@ uint64_t PdepSlow(uint64_t word, uint64_t mask) {
 }
 
 // See |PdepSlow| for information on PDEP.
-uint64_t Pdep(uint64_t word, uint64_t mask) {
+PERFETTO_ALWAYS_INLINE uint64_t Pdep(uint64_t word, uint64_t mask) {
 #if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
   base::ignore_result(PdepSlow);
   return _pdep_u64(word, mask);
@@ -79,7 +78,7 @@ uint64_t Pdep(uint64_t word, uint64_t mask) {
 // Unfortunately, as we're emulating this in software, it scales with the number
 // of set bits in |mask| rather than being a constant time instruction:
 // therefore, this should be avoided where real instructions are available.
-uint64_t PextSlow(uint64_t word, uint64_t mask) {
+PERFETTO_ALWAYS_INLINE uint64_t PextSlow(uint64_t word, uint64_t mask) {
   if (word == 0 || mask == std::numeric_limits<uint64_t>::max())
     return word;
 
@@ -97,12 +96,25 @@ uint64_t PextSlow(uint64_t word, uint64_t mask) {
 }
 
 // See |PextSlow| for information on PEXT.
-uint64_t Pext(uint64_t word, uint64_t mask) {
+PERFETTO_ALWAYS_INLINE uint64_t Pext(uint64_t word, uint64_t mask) {
 #if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
   base::ignore_result(PextSlow);
   return _pext_u64(word, mask);
 #else
   return PextSlow(word, mask);
+#endif
+}
+
+// This function implements the tzcnt instruction.
+// See https://www.felixcloutier.com/x86/tzcnt for details on what tzcnt does.
+PERFETTO_ALWAYS_INLINE uint32_t Tzcnt(uint64_t value) {
+#if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
+  return static_cast<uint32_t>(_tzcnt_u64(value));
+#elif defined(__GNUC__) || defined(__clang__)
+  return value ? static_cast<uint32_t>(__builtin_ctzll(value)) : 64u;
+#else
+  unsigned long out;
+  return _BitScanForward64(&out, value) ? static_cast<uint32_t>(out) : 64u;
 #endif
 }
 
@@ -203,10 +215,6 @@ void BitVector::Resize(uint32_t new_size, bool filler) {
 
 BitVector BitVector::Copy() const {
   return {words_, counts_, size_};
-}
-
-BitVector::SetBitsIterator BitVector::IterateSetBits() const {
-  return {this};
 }
 
 void BitVector::Not() {
@@ -460,10 +468,16 @@ BitVector BitVector::IntersectRange(uint32_t range_start,
 }
 
 std::vector<uint32_t> BitVector::GetSetBitIndices() const {
+  uint32_t set_bits = CountSetBits();
+  if (set_bits == 0) {
+    return {};
+  }
   std::vector<uint32_t> res;
-  res.reserve(CountSetBits());
-  for (auto it = IterateSetBits(); it; it.Next()) {
-    res.push_back(it.index());
+  res.reserve(set_bits);
+  for (uint32_t i = 0; i < size_; i += BitWord::kBits) {
+    for (uint64_t word = words_[i / BitWord::kBits]; word; word &= word - 1) {
+      res.push_back(i + Tzcnt(word));
+    }
   }
   return res;
 }
