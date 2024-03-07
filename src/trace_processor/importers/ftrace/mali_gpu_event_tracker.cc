@@ -126,11 +126,12 @@ void MaliGpuEventTracker::ParseMaliKcpuCqsSet(int64_t timestamp,
                                   mali_KCPU_CQS_SET_id_, 0);
 }
 
-PERFETTO_NORETURN void MaliGpuEventTracker::ParseMaliKcpuCqsWaitStart(
-    int64_t timestamp,
-    TrackId track_id) {
+void MaliGpuEventTracker::ParseMaliKcpuCqsWaitStart(int64_t timestamp,
+                                                    TrackId track_id) {
   // TODO(b/294866695): Remove
-  PERFETTO_FATAL("This causes incorrectly nested slices at present.");
+  if (base::GetSysPageSize()) {
+    PERFETTO_FATAL("This causes incorrectly nested slices at present.");
+  }
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
                                  mali_KCPU_CQS_WAIT_id_);
 }
