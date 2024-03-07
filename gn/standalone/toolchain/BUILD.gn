@@ -417,6 +417,11 @@ toolchain("msvc") {
   lib_switch = ""
   lib_dir_switch = "/LIBPATH:"
   sys_lib_flags = string_join(" ", win_msvc_sys_lib_flags)
+  external_cflags = string_join(" ",
+                                [
+                                  extra_cflags,
+                                  extra_host_cflags,
+                                ])
 
   # Note: /showIncludes below is required for ninja, to build a complete
   # dependency graph for headers. Removing it breaks incremental builds.
@@ -424,7 +429,7 @@ toolchain("msvc") {
   tool("cc") {
     precompiled_header_type = "msvc"
     pdbname = "{{target_out_dir}}/{{label_name}}_c.pdb"
-    command = "$cc_wrapper $cc /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256"
+    command = "$cc_wrapper $cc /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} ${external_cflags} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256"
     depsformat = "msvc"
     outputs =
         [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.obj" ]
@@ -434,7 +439,7 @@ toolchain("msvc") {
   tool("cxx") {
     precompiled_header_type = "msvc"
     pdbname = "{{target_out_dir}}/{{label_name}}_c.pdb"
-    command = "$cc_wrapper $cxx /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256"
+    command = "$cc_wrapper $cxx /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} ${external_cflags} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256"
     depsformat = "msvc"
     outputs =
         [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.obj" ]
