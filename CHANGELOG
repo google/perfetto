@@ -9,6 +9,12 @@ Unreleased:
     *
 
 
+v43.2 - 2024-03-07:
+  UI:
+    * Added redirection to pinned UI version when using
+      `trace_processor_shell --httpd` and pinned version is available.
+
+
 v43.1 - 2024-03-05:
   Tracing service and probes:
     * Cherry-pick of https://r.android.com/2988674, which fixes the android x86
