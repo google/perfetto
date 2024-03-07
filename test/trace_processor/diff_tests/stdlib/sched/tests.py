@@ -45,7 +45,7 @@ class StdlibSched(TestSuite):
         trace=Path('../../common/synth_1.py'),
         query="""
       INCLUDE PERFETTO MODULE sched.thread_level_parallelism;
-      
+
       SELECT * FROM sched_active_cpu_count;
       """,
         out=Csv("""
@@ -109,7 +109,7 @@ class StdlibSched(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE sched.utilization.process;
 
-        SELECT * 
+        SELECT *
         FROM sched_process_utilization_per_second(10);
         """,
         out=Csv("""
@@ -133,7 +133,7 @@ class StdlibSched(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE sched.utilization.thread;
 
-        SELECT * 
+        SELECT *
         FROM sched_thread_utilization_per_second(10);
         """,
         out=Csv("""
@@ -160,4 +160,54 @@ class StdlibSched(TestSuite):
         90000000000,0.000050,0.000401
         91000000000,0.000025,0.000201
         92000000000,0.000009,0.000071
+        """))
+
+  def test_sched_thread_time_in_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.states;
+
+        SELECT *
+        FROM sched_thread_time_in_state
+        ORDER BY utid, state
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "utid","total_runtime","state","time_in_state","percentage_in_state"
+        1,27540674878,"D",596720,0
+        1,27540674878,"R",1988438,0
+        1,27540674878,"R+",2435415,0
+        1,27540674878,"Running",23098223,0
+        1,27540674878,"S",27512556082,99
+        2,27761417087,"D",833039830,3
+        2,27761417087,"R+",2931096,0
+        2,27761417087,"Running",92350845,0
+        2,27761417087,"S",26833095316,96
+        3,29374171050,"R",140800325,0
+        """))
+
+  def test_sched_percentage_of_time_in_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.states;
+
+        SELECT *
+        FROM sched_percentage_of_time_in_state
+        ORDER BY utid
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "utid","running","runnable","runnable_preempted","sleeping","uninterruptible_sleep","other"
+        1,0,0,0,99,0,"[NULL]"
+        2,0,"[NULL]",0,96,3,"[NULL]"
+        3,5,0,0,93,"[NULL]","[NULL]"
+        4,100,"[NULL]","[NULL]","[NULL]","[NULL]",0
+        5,0,0,0,99,0,"[NULL]"
+        6,0,"[NULL]",0,99,"[NULL]","[NULL]"
+        7,0,0,0,99,"[NULL]","[NULL]"
+        8,0,0,0,98,0,"[NULL]"
+        9,0,"[NULL]","[NULL]",99,"[NULL]","[NULL]"
+        10,0,"[NULL]",0,99,"[NULL]","[NULL]"
         """))
