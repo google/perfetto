@@ -16,19 +16,14 @@
 
 syntax = "proto2";
 
+import "protos/perfetto/trace/android/graphics/rect.proto";
+
 package perfetto.protos;
 
 message RegionProto {
   // Previously: uint64 id
   reserved 1;
   repeated RectProto rect = 2;
-}
-
-message RectProto {
-  optional int32 left = 1;
-  optional int32 top = 2;
-  optional int32 right = 3;
-  optional int32 bottom = 4;
 }
 
 message SizeProto {
