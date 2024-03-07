@@ -145,11 +145,12 @@ uint32_t LowerBoundIntrinsic(StringPool* pool,
                              const StringPool::Id* data,
                              NullTermStringView val,
                              Range search_range) {
-  Less comp{pool};
   const auto* lower =
       std::lower_bound(data + search_range.start, data + search_range.end, val,
-                       [comp](StringPool::Id id, NullTermStringView val) {
-                         return comp(id, val);
+                       [pool](StringPool::Id id, NullTermStringView val) {
+                         // TODO(b/328408877): Remove this hack after the
+                         // migration.
+                         return pool->Get(id) < val;
                        });
   return static_cast<uint32_t>(std::distance(data, lower));
 }
@@ -158,11 +159,12 @@ uint32_t UpperBoundIntrinsic(StringPool* pool,
                              const StringPool::Id* data,
                              NullTermStringView val,
                              Range search_range) {
-  Greater comp{pool};
   const auto* upper =
       std::upper_bound(data + search_range.start, data + search_range.end, val,
-                       [comp](NullTermStringView val, StringPool::Id id) {
-                         return comp(id, val);
+                       [pool](NullTermStringView val, StringPool::Id id) {
+                         // TODO(b/328408877): Remove this hack after the
+                         // migration.
+                         return val < pool->Get(id);
                        });
   return static_cast<uint32_t>(std::distance(data, upper));
 }
@@ -172,11 +174,12 @@ uint32_t LowerBoundExtrinsic(StringPool* pool,
                              NullTermStringView val,
                              const uint32_t* indices,
                              uint32_t indices_count) {
-  Less comp{pool};
   const auto* lower =
       std::lower_bound(indices, indices + indices_count, val,
-                       [comp, data](uint32_t index, NullTermStringView val) {
-                         return comp(data[index], val);
+                       [pool, data](uint32_t index, NullTermStringView val) {
+                         // TODO(b/328408877): Remove this hack after the
+                         // migration.
+                         return pool->Get(data[index]) < val;
                        });
   return static_cast<uint32_t>(std::distance(indices, lower));
 }
@@ -186,11 +189,12 @@ uint32_t UpperBoundExtrinsic(StringPool* pool,
                              NullTermStringView val,
                              const uint32_t* indices,
                              uint32_t indices_count) {
-  Greater comp{pool};
   const auto* upper =
       std::upper_bound(indices, indices + indices_count, val,
-                       [comp, data](NullTermStringView val, uint32_t index) {
-                         return comp(data[index], val);
+                       [pool, data](NullTermStringView val, uint32_t index) {
+                         // TODO(b/328408877): Remove this hack after the
+                         // migration.
+                         return val < pool->Get(data[index]);
                        });
   return static_cast<uint32_t>(std::distance(indices, upper));
 }
@@ -320,16 +324,35 @@ RangeOrBitVector StringStorage::ChainImpl::SearchValidated(
       case FilterOp::kGe:
       case FilterOp::kGt:
       case FilterOp::kLe:
-      case FilterOp::kLt:
-        return RangeOrBitVector(
-            BinarySearchIntrinsic(op, sql_val, search_range));
+      case FilterOp::kLt: {
+        auto first_non_null = static_cast<uint32_t>(std::distance(
+            data_->begin(),
+            std::partition_point(data_->begin() + search_range.start,
+                                 data_->begin() + search_range.end,
+                                 [](StringPool::Id id) {
+                                   return id == StringPool::Id::Null();
+                                 })));
+        return RangeOrBitVector(BinarySearchIntrinsic(
+            op, sql_val,
+            {std::max(search_range.start, first_non_null), search_range.end}));
+      }
       case FilterOp::kNe: {
         // Not equal is a special operation on binary search, as it doesn't
         // define a range, and rather just `not` range returned with `equal`
-        // operation.
-        Range r = BinarySearchIntrinsic(FilterOp::kEq, sql_val, search_range);
-        BitVector bv(r.start, true);
-        bv.Resize(r.end);
+        // operation on non null values.
+        auto first_non_null = static_cast<uint32_t>(std::distance(
+            data_->begin(),
+            std::partition_point(data_->begin() + search_range.start,
+                                 data_->begin() + search_range.end,
+                                 [](StringPool::Id id) {
+                                   return id == StringPool::Id::Null();
+                                 })));
+        Range ret = BinarySearchIntrinsic(
+            FilterOp::kEq, sql_val,
+            {std::max(search_range.start, first_non_null), search_range.end});
+        BitVector bv(first_non_null, false);
+        bv.Resize(ret.start, true);
+        bv.Resize(ret.end, false);
         bv.Resize(search_range.end, true);
         return RangeOrBitVector(std::move(bv));
       }
