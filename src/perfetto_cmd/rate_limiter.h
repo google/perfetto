@@ -17,9 +17,6 @@
 #ifndef SRC_PERFETTO_CMD_RATE_LIMITER_H_
 #define SRC_PERFETTO_CMD_RATE_LIMITER_H_
 
-#include "perfetto/base/time.h"
-#include "src/perfetto_cmd/perfetto_cmd_state.gen.h"
-
 namespace perfetto {
 
 class RateLimiter {
@@ -27,39 +24,17 @@ class RateLimiter {
   struct Args {
     bool is_user_build = false;
     bool is_uploading = false;
-    bool ignore_guardrails = false;
     bool allow_user_build_tracing = false;
-    base::TimeSeconds current_time = base::TimeSeconds(0);
-    uint64_t max_upload_bytes_override = 0;
-    std::string unique_session_name = "";
   };
   enum ShouldTraceResponse {
     kOkToTrace,
     kNotAllowedOnUserBuild,
-    kFailedToInitState,
-    kInvalidState,
-    kHitUploadLimit,
   };
 
   RateLimiter();
   virtual ~RateLimiter();
 
   ShouldTraceResponse ShouldTrace(const Args& args);
-  bool OnTraceDone(const Args& args, bool success, uint64_t bytes);
-
-  bool ClearState();
-
-  // virtual for testing.
-  virtual bool LoadState(gen::PerfettoCmdState* state);
-
-  // virtual for testing.
-  virtual bool SaveState(const gen::PerfettoCmdState& state);
-
-  bool StateFileExists();
-  virtual std::string GetStateFilePath() const;
-
- private:
-  gen::PerfettoCmdState state_{};
 };
 
 }  // namespace perfetto
