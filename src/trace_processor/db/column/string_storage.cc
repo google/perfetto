@@ -145,13 +145,8 @@ uint32_t LowerBoundIntrinsic(StringPool* pool,
                              const StringPool::Id* data,
                              NullTermStringView val,
                              Range search_range) {
-  const auto* lower =
-      std::lower_bound(data + search_range.start, data + search_range.end, val,
-                       [pool](StringPool::Id id, NullTermStringView val) {
-                         // TODO(b/328408877): Remove this hack after the
-                         // migration.
-                         return pool->Get(id) < val;
-                       });
+  const auto* lower = std::lower_bound(
+      data + search_range.start, data + search_range.end, val, Less{pool});
   return static_cast<uint32_t>(std::distance(data, lower));
 }
 
@@ -159,12 +154,11 @@ uint32_t UpperBoundIntrinsic(StringPool* pool,
                              const StringPool::Id* data,
                              NullTermStringView val,
                              Range search_range) {
+  Greater comp{pool};
   const auto* upper =
       std::upper_bound(data + search_range.start, data + search_range.end, val,
-                       [pool](NullTermStringView val, StringPool::Id id) {
-                         // TODO(b/328408877): Remove this hack after the
-                         // migration.
-                         return val < pool->Get(id);
+                       [comp](NullTermStringView val, StringPool::Id id) {
+                         return comp(id, val);
                        });
   return static_cast<uint32_t>(std::distance(data, upper));
 }
@@ -173,13 +167,13 @@ uint32_t LowerBoundExtrinsic(StringPool* pool,
                              const StringPool::Id* data,
                              NullTermStringView val,
                              const uint32_t* indices,
-                             uint32_t indices_count) {
+                             uint32_t indices_count,
+                             uint32_t offset) {
+  Less comp{pool};
   const auto* lower =
-      std::lower_bound(indices, indices + indices_count, val,
-                       [pool, data](uint32_t index, NullTermStringView val) {
-                         // TODO(b/328408877): Remove this hack after the
-                         // migration.
-                         return pool->Get(data[index]) < val;
+      std::lower_bound(indices + offset, indices + indices_count, val,
+                       [comp, data](uint32_t index, NullTermStringView val) {
+                         return comp(data[index], val);
                        });
   return static_cast<uint32_t>(std::distance(indices, lower));
 }
@@ -188,13 +182,13 @@ uint32_t UpperBoundExtrinsic(StringPool* pool,
                              const StringPool::Id* data,
                              NullTermStringView val,
                              const uint32_t* indices,
-                             uint32_t indices_count) {
+                             uint32_t indices_count,
+                             uint32_t offset) {
+  Greater comp{pool};
   const auto* upper =
-      std::upper_bound(indices, indices + indices_count, val,
-                       [pool, data](NullTermStringView val, uint32_t index) {
-                         // TODO(b/328408877): Remove this hack after the
-                         // migration.
-                         return val < pool->Get(data[index]);
+      std::upper_bound(indices + offset, indices + indices_count, val,
+                       [comp, data](NullTermStringView val, uint32_t index) {
+                         return comp(data[index], val);
                        });
   return static_cast<uint32_t>(std::distance(indices, upper));
 }
@@ -534,46 +528,42 @@ Range StringStorage::ChainImpl::OrderedIndexSearchValidated(
           : string_pool_->InternString(base::StringView(sql_val.AsString()));
   NullTermStringView val_str = string_pool_->Get(val);
 
+  auto first_non_null = static_cast<uint32_t>(std::distance(
+      indices.data,
+      std::partition_point(indices.data, indices.data + indices.size,
+                           [this](uint32_t i) {
+                             return (*data_)[i] == StringPool::Id::Null();
+                           })));
+
   switch (op) {
     case FilterOp::kEq:
       return {LowerBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                  indices.data, indices.size),
+                                  indices.data, indices.size, first_non_null),
               UpperBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                  indices.data, indices.size)};
+                                  indices.data, indices.size, first_non_null)};
     case FilterOp::kLe:
-      return {0, UpperBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                     indices.data, indices.size)};
+      return {first_non_null,
+              UpperBoundExtrinsic(string_pool_, data_->data(), val_str,
+                                  indices.data, indices.size, first_non_null)};
     case FilterOp::kLt:
-      return {0, LowerBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                     indices.data, indices.size)};
+      return {first_non_null,
+              LowerBoundExtrinsic(string_pool_, data_->data(), val_str,
+                                  indices.data, indices.size, first_non_null)};
     case FilterOp::kGe:
       return {LowerBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                  indices.data, indices.size),
+                                  indices.data, indices.size, first_non_null),
               indices.size};
     case FilterOp::kGt:
       return {UpperBoundExtrinsic(string_pool_, data_->data(), val_str,
-                                  indices.data, indices.size),
+                                  indices.data, indices.size, first_non_null),
               indices.size};
     case FilterOp::kIsNull: {
       // Assuming nulls are at the front.
-      IsNull comp;
-      const auto* first_non_null = std::partition_point(
-          indices.data, indices.data + indices.size, [comp, this](uint32_t i) {
-            return comp((*data_)[i], StringPool::Id::Null());
-          });
-      return Range(0, static_cast<uint32_t>(
-                          std::distance(indices.data, first_non_null)));
+      return Range(0, first_non_null);
     }
     case FilterOp::kIsNotNull: {
       // Assuming nulls are at the front.
-      IsNull comp;
-      const auto* first_non_null = std::partition_point(
-          indices.data, indices.data + indices.size, [comp, this](uint32_t i) {
-            return comp((*data_)[i], StringPool::Id::Null());
-          });
-      return Range(
-          static_cast<uint32_t>(std::distance(indices.data, first_non_null)),
-          indices.size);
+      return Range(first_non_null, indices.size);
     }
 
     case FilterOp::kNe:

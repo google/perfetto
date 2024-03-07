@@ -383,12 +383,12 @@ TEST(StringStorage, OrderedIndexSearch) {
 
   op = FilterOp::kLt;
   res = chain->OrderedIndexSearch(op, val, indices);
-  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.start, 1u);
   ASSERT_EQ(res.end, 4u);
 
   op = FilterOp::kLe;
   res = chain->OrderedIndexSearch(op, val, indices);
-  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.start, 1u);
   ASSERT_EQ(res.end, 5u);
 
   op = FilterOp::kGt;
