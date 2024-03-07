@@ -22,6 +22,7 @@
 #include <random>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
 #include "test/android_test_utils.h"
@@ -46,6 +47,11 @@ constexpr uint64_t kExpectedIndividualAllocSz = 4153;
 static_assert(kExpectedIndividualAllocSz > kTestSamplingInterval,
               "kTestSamplingInterval invalid");
 
+// Path in the app external directory where the app writes an interation
+// counter. It is used to wait for the test apps to actually perform
+// allocations.
+constexpr std::string_view kReportCyclePath = "report_cycle.txt";
+
 // Activity that runs a JNI thread that repeatedly calls
 // malloc(kExpectedIndividualAllocSz).
 static char kMallocActivity[] = "MainActivity";
@@ -63,6 +69,48 @@ std::string RandomSessionName() {
   for (size_t i = 0; i < kSessionNameLen; ++i)
     result[i] = static_cast<char>(distribution(generator));
   return result;
+}
+
+std::optional<int64_t> ReadInt64FromFile(const std::string& path) {
+  std::string contents;
+  if (!base::ReadFile(path, &contents)) {
+    return std::nullopt;
+  }
+  return base::StringToInt64(contents);
+}
+
+bool WaitForAppAllocationCycle(const std::string& app_name, size_t timeout_ms) {
+  const size_t sleep_per_attempt_us = 100 * 1000;
+  const size_t max_attempts = timeout_ms * 1000 / sleep_per_attempt_us;
+
+  std::string path = std::string("/sdcard/Android/data/") + app_name +
+                     std::string("/files/") + std::string(kReportCyclePath);
+
+  for (size_t attempts = 0; attempts < max_attempts;) {
+    int64_t first_value;
+    for (; attempts < max_attempts; attempts++) {
+      std::optional<int64_t> val = ReadInt64FromFile(path);
+      if (val) {
+        first_value = *val;
+        break;
+      }
+      base::SleepMicroseconds(sleep_per_attempt_us);
+    }
+
+    for (; attempts < max_attempts; attempts++) {
+      std::optional<int64_t> val = ReadInt64FromFile(path);
+      if (!val || *val < first_value) {
+        break;
+      }
+      if (*val >= first_value + 2) {
+        // We've observed the counter being incremented twice. We can be sure
+        // that the app has gone through a full allocation cycle.
+        return true;
+      }
+      base::SleepMicroseconds(sleep_per_attempt_us);
+    }
+  }
+  return false;
 }
 
 // Starts the activity `activity` of the app `app_name` and later starts
@@ -95,7 +143,6 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(8000);
   trace_config.set_unique_session_name(RandomSessionName().c_str());
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -114,6 +161,10 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(
 
   // start tracing
   helper.StartTracing(trace_config);
+
+  EXPECT_TRUE(WaitForAppAllocationCycle(app_name, /*timeout_ms=*/10000));
+
+  helper.DisableTracing();
   helper.WaitForTracingDisabled();
   helper.ReadData();
   helper.WaitForReadData();
@@ -148,7 +199,6 @@ std::vector<protos::gen::TracePacket> ProfileStartup(
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(8000);
   trace_config.set_enable_extra_guardrails(enable_extra_guardrails);
   trace_config.set_unique_session_name(RandomSessionName().c_str());
 
@@ -174,6 +224,9 @@ std::vector<protos::gen::TracePacket> ProfileStartup(
                    /*delay_ms=*/100);
   task_runner.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
 
+  EXPECT_TRUE(WaitForAppAllocationCycle(app_name, /*timeout_ms=*/10000));
+
+  helper.DisableTracing();
   helper.WaitForTracingDisabled();
   helper.ReadData();
   helper.WaitForReadData();
