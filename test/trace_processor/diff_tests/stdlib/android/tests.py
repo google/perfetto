@@ -357,7 +357,7 @@ class AndroidStdlib(TestSuite):
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
       INCLUDE PERFETTO MODULE android.thread;
-      SELECT * FROM ANDROID_THREAD_CREATION_SPAM(1e9, 1e9);
+      SELECT * FROM _android_thread_creation_spam(1e9, 1e9);
       """,
         out=Csv("""
       "process_name","pid","thread_name_prefix","max_count_per_sec"
