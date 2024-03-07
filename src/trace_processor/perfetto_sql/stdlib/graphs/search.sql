@@ -23,7 +23,7 @@
 -- level functions/macros in the standard library can be built.
 --
 -- Example usage on traces containing heap graphs:
---
+-- ```
 -- -- Compute the reachable nodes from the first heap root.
 -- SELECT *
 -- FROM graph_reachable_dfs!(
