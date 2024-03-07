@@ -154,7 +154,7 @@ class PerfettoCmd : public Consumer {
   bool save_to_incidentd_ = false;
   bool report_to_android_framework_ = false;
   bool statsd_logging_ = false;
-  bool update_guardrail_state_ = false;
+  bool tracing_succeeded_ = false;
   uint64_t bytes_written_ = 0;
   std::string detach_key_;
   std::string attach_key_;
