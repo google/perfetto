@@ -44,6 +44,10 @@ base::Status PopulateAllowlists::Build(Context* context) const {
       protos::pbzero::TracePacket::kAndroidSystemPropertyFieldNumber,
       protos::pbzero::TracePacket::kSynchronizationMarkerFieldNumber,
       protos::pbzero::TracePacket::kFtraceEventsFieldNumber,
+
+      // Keep the package list. There are some metrics and stdlib queries that
+      // depend on the package list.
+      protos::pbzero::TracePacket::kPackagesListFieldNumber,
   };
 
   return base::OkStatus();
