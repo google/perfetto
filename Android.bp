@@ -12480,6 +12480,7 @@ filegroup {
         "src/trace_redaction/find_package_uid.cc",
         "src/trace_redaction/populate_allow_lists.cc",
         "src/trace_redaction/prune_package_list.cc",
+        "src/trace_redaction/scrub_ftrace_events.cc",
         "src/trace_redaction/scrub_trace_packet.cc",
         "src/trace_redaction/trace_redaction_framework.cc",
         "src/trace_redaction/trace_redactor.cc",
@@ -12492,6 +12493,7 @@ filegroup {
     srcs: [
         "src/trace_redaction/find_package_uid_unittest.cc",
         "src/trace_redaction/prune_package_list_unittest.cc",
+        "src/trace_redaction/scrub_ftrace_events_unittest.cc",
         "src/trace_redaction/scrub_trace_packet_unittest.cc",
     ],
 }
