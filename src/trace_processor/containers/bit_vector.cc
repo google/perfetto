@@ -390,7 +390,9 @@ void BitVector::SelectBits(const BitVector& mask_bv) {
     // previous word), add them into the new out_word. Important: we *must* not
     // change out_word if there was no spillover as |out_word| could be pointing
     // to |data + 1| which needs to be preserved for the next loop iteration.
-    *out_word = spillover ? ext >> (popcount - out_word_bits) : *out_word;
+    if (spillover) {
+      *out_word = ext >> (popcount - out_word_bits);
+    }
   }
 
   // Loop post-condition: we must have written as many words as is required
