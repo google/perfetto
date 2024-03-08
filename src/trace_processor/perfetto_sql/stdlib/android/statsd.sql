@@ -73,4 +73,20 @@ JOIN track ON slice.track_id = track.id
 WHERE
   track.name = 'Statsd Atoms';
 
-
+-- Information about Perfetto triggers, extracted from statsd atoms, which
+-- happened during the trace.
+--
+-- This requires the `android.statsd` data-source to be enabled and the
+-- `ATOM_PERFETTO_TRIGGER` push atom to be configured.
+CREATE PERFETTO TABLE _android_statsd_perfetto_triggers(
+  -- Timestamp of the trigger.
+  ts INT,
+  -- The name of the trigger.
+  trigger_name STRING
+)
+AS
+SELECT
+  ts,
+  extract_arg(arg_set_id, 'perfetto_trigger.trigger_name') AS trigger_name
+FROM android_statsd_atoms
+WHERE name = 'perfetto_trigger';
