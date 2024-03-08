@@ -94,13 +94,20 @@ void CreateNonNullableIntsColumn(
   // The special treatement for Id columns makes no sense for empty or
   // single element indices. Those should be treated as standard int
   // column.
-  // We are checking if the first value is not too big - we will later
-  // create a BitVector which will skip all of the bits until the front
-  // of the index vector, so we are creating a cutoff to prevent
-  // unreasonable memory usage.
-  bool is_id = is_monotonic && values.size() > 1 && values.front() < 1 << 20 &&
-               values.front() >= std::numeric_limits<uint32_t>::min() &&
-               values.back() < std::numeric_limits<uint32_t>::max();
+
+  // We expect id column to:
+  // - be strictly monotonic.
+  bool is_id = is_monotonic;
+  // - have more than 1 element.
+  is_id = is_id && values.size() > 1;
+  // - have first elements smaller then 2^20, mostly to prevent timestamps
+  // columns from becoming Id columns.
+  is_id = is_id && values.front() < 1 << 20;
+  // - have `uint32_t` values.
+  is_id = is_id && values.front() >= std::numeric_limits<uint32_t>::min() &&
+          values.back() < std::numeric_limits<uint32_t>::max();
+  // - have on average more than 1 set bit per int64_t (over 1/64 density)
+  is_id = is_id && static_cast<uint32_t>(values.back()) < 64 * values.size();
 
   if (is_id) {
     // The column is an Id column.
