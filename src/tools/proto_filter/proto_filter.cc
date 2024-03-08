@@ -77,6 +77,7 @@ Example usage:
 # Show which fields are allowed by a filter bytecode
 
   proto_filter -r perfetto.protos.Trace -s protos/perfetto/trace/trace.proto \
+               [-g logs.proto.wireless.android.stats.platform.perfetto.PrintFtraceEvent:buf] \
                -f /tmp/bytecode
 )";
 
