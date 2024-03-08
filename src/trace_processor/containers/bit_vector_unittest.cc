@@ -410,6 +410,23 @@ TEST(BitVectorUnittest, SelectBitsEnd) {
   ASSERT_EQ(expected.CountSetBits(), bv.CountSetBits());
 }
 
+TEST(BitVectorUnittest, SelectBitsOob) {
+  BitVector bv = BitVector::RangeForTesting(
+      0, 512, [](uint32_t idx) { return idx % 7 == 0; });
+  BitVector mask = BitVector(512, true);
+  bv.SelectBits(mask);
+
+  BitVector expected = BitVector::RangeForTesting(
+      0, 512, [](uint32_t idx) { return idx % 7 == 0; });
+
+  ASSERT_EQ(bv.size(), 512u);
+  for (uint32_t i = 0; i < expected.size(); ++i) {
+    ASSERT_EQ(expected.IsSet(i), bv.IsSet(i)) << "Index " << i;
+    ASSERT_EQ(expected.CountSetBits(i), bv.CountSetBits(i)) << "Index " << i;
+  }
+  ASSERT_EQ(expected.CountSetBits(), bv.CountSetBits());
+}
+
 TEST(BitVectorUnittest, IntersectRange) {
   BitVector bv =
       BitVector::RangeForTesting(1, 20, [](uint32_t t) { return t % 2 == 0; });
