@@ -19,7 +19,12 @@ package android.perfetto.cts.app;
 import android.app.Activity;
 import android.os.Bundle;
 
+import java.io.File;
+
 public class MainActivity extends Activity {
+    // Keep in sync with heapprofd_test_cts.cc
+    private static final String CYCLE_REPORT_PATH = "report_cycle.txt";
+
     static {
         System.loadLibrary("perfettocts_native");
     }
@@ -31,7 +36,8 @@ public class MainActivity extends Activity {
         new Thread(new Runnable() {
             public void run() {
                 try {
-                    runNative();
+                    File running = new File(getExternalFilesDir(null), CYCLE_REPORT_PATH);
+                    runNative(running.getPath());
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 }
@@ -39,5 +45,5 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private static native void runNative();
+    private static native void runNative(String running);
 }
