@@ -166,7 +166,7 @@ class StdlibSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        INCLUDE PERFETTO MODULE sched.states;
+        INCLUDE PERFETTO MODULE sched.time_in_state;
 
         SELECT *
         FROM sched_thread_time_in_state
@@ -191,7 +191,7 @@ class StdlibSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        INCLUDE PERFETTO MODULE sched.states;
+        INCLUDE PERFETTO MODULE sched.time_in_state;
 
         SELECT *
         FROM sched_percentage_of_time_in_state
