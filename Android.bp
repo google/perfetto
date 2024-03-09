@@ -12064,6 +12064,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_executing_span.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_level_parallelism.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/thread_state_flattened.sql",
+        "src/trace_processor/perfetto_sql/stdlib/sched/time_in_state.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/utilization/general.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/utilization/process.sql",
         "src/trace_processor/perfetto_sql/stdlib/sched/utilization/system.sql",
