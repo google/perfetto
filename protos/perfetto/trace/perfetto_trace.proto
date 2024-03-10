@@ -9280,6 +9280,15 @@ message RegulatorSetVoltageCompleteFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/regulator.proto
 
+// Begin of protos/perfetto/trace/ftrace/rpm.proto
+
+message RpmStatusFtraceEvent {
+  optional string name = 1;
+  optional int32 status = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/rpm.proto
+
 // Begin of protos/perfetto/trace/ftrace/samsung.proto
 
 message SamsungTracingMarkWriteFtraceEvent {
@@ -10464,6 +10473,7 @@ message FtraceEvent {
     BinderReturnFtraceEvent binder_return = 486;
     SchedSwitchWithCtrsFtraceEvent sched_switch_with_ctrs = 487;
     GpuWorkPeriodFtraceEvent gpu_work_period = 488;
+    RpmStatusFtraceEvent rpm_status = 489;
   }
 }
 

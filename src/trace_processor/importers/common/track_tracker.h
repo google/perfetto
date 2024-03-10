@@ -129,6 +129,10 @@ class TrackTracker {
                                          int32_t consumer_id,
                                          int32_t uid);
 
+  // Interns a track associated with a Linux device (where a Linux device
+  // implies a kernel-level device managed by a Linux driver).
+  TrackId InternLinuxDeviceTrack(StringId name);
+
   // Creates a counter track associated with a GPU into the storage.
   TrackId CreateGpuCounterTrack(StringId name,
                                 uint32_t gpu_id,
@@ -216,6 +220,7 @@ class TrackTracker {
   std::map<std::pair<StringId, int32_t>, TrackId> uid_counter_tracks_;
   std::map<std::pair<StringId, int32_t>, TrackId>
       energy_per_uid_counter_tracks_;
+  std::map<StringId, TrackId> linux_device_tracks_;
 
   std::optional<TrackId> chrome_global_instant_track_id_;
   std::optional<TrackId> trigger_track_id_;

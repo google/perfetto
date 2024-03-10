@@ -113,6 +113,8 @@ export const recordConfigValidator = record({
   tracePerf: bool(),
   timebaseFrequency: num(100),
   targetCmdLine: arrayOf(str()),
+
+  linuxDeviceRpm: bool(),
 });
 export const namedRecordConfigValidator = record(
   {title: requiredStr, key: requiredStr, config: recordConfigValidator});

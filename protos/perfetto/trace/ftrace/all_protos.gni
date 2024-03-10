@@ -62,6 +62,7 @@ ftrace_proto_names = [
   "printk.proto",
   "raw_syscalls.proto",
   "regulator.proto",
+  "rpm.proto",
   "samsung.proto",
   "sched.proto",
   "scm.proto",

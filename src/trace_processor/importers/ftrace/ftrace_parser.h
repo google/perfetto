@@ -293,6 +293,8 @@ class FtraceParser {
   void ParseAndroidFsDatareadStart(int64_t ts,
                                    uint32_t pid,
                                    protozero::ConstBytes);
+  StringId GetRpmStatusStringId(int32_t rpm_status_val);
+  void ParseRpmStatus(int64_t ts, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -382,6 +384,10 @@ class FtraceParser {
   const StringId bytes_read_id_end_;
   const StringId android_fs_category_id_;
   const StringId android_fs_data_read_id_;
+  const StringId runtime_status_invalid_id_;
+  const StringId runtime_status_active_id_;
+  const StringId runtime_status_suspending_id_;
+  const StringId runtime_status_resuming_id_;
   std::vector<StringId> syscall_arg_name_ids_;
 
   struct FtraceMessageStrings {
@@ -444,6 +450,10 @@ class FtraceParser {
   // putting them in the metadata multiple times (the ftrace data sources
   // re-emits begin stats on every flush).
   std::unordered_set<uint32_t> seen_errors_for_sequence_id_;
+
+  // Tracks Linux devices with active runtime power management (RPM) status
+  // slices.
+  std::unordered_set<std::string> devices_with_active_rpm_slice_;
 
   struct PairHash {
     std::size_t operator()(const std::pair<uint64_t, int64_t>& p) const {
