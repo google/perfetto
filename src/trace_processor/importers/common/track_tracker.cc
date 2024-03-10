@@ -390,6 +390,19 @@ TrackId TrackTracker::InternEnergyPerUidCounterTrack(StringId name,
   return track;
 }
 
+TrackId TrackTracker::InternLinuxDeviceTrack(StringId name) {
+  if (auto it = linux_device_tracks_.find(name);
+      it != linux_device_tracks_.end()) {
+    return it->second;
+  }
+
+  tables::LinuxDeviceTrackTable::Row row(name);
+  TrackId track =
+      context_->storage->mutable_linux_device_track_table()->Insert(row).id;
+  linux_device_tracks_[name] = track;
+  return track;
+}
+
 TrackId TrackTracker::CreateGpuCounterTrack(StringId name,
                                             uint32_t gpu_id,
                                             StringId description,

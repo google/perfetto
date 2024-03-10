@@ -265,6 +265,10 @@ export function genTraceConfig(
     ftraceEvents.add('task/task_rename');
   }
 
+  if (uiCfg.linuxDeviceRpm) {
+    ftraceEvents.add('rpm/rpm_status');
+  }
+
   if (uiCfg.meminfo) {
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.meminfoPeriodMs = uiCfg.meminfoPeriodMs;
