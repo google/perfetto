@@ -381,6 +381,13 @@ class TraceStorage {
     return &energy_counter_track_table_;
   }
 
+  const tables::LinuxDeviceTrackTable& linux_device_track_table() const {
+    return linux_device_track_table_;
+  }
+  tables::LinuxDeviceTrackTable* mutable_linux_device_track_table() {
+    return &linux_device_track_table_;
+  }
+
   const tables::UidCounterTrackTable& uid_counter_track_table() const {
     return uid_counter_track_table_;
   }
@@ -943,6 +950,8 @@ class TraceStorage {
       &string_pool_, &uid_track_table_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
   tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
+  tables::LinuxDeviceTrackTable linux_device_track_table_{
+      &string_pool_, &track_table_};
 
   // Track tables for counter events.
   tables::CounterTrackTable counter_track_table_{&string_pool_, &track_table_};
