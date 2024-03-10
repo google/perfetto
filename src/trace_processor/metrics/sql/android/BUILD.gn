@@ -109,6 +109,7 @@ perfetto_sql_source_set("android") {
     "power_profile_data/raven.sql",
     "power_profile_data/redfin.sql",
     "power_profile_data/sargo.sql",
+    "power_profile_data/shusky.sql",
     "power_profile_data/sunfish.sql",
     "power_profile_data/taimen.sql",
     "power_profile_data/walleye.sql",

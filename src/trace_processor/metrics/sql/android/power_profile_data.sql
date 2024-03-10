@@ -29,3 +29,5 @@ SELECT RUN_METRIC('android/power_profile_data/barbet.sql');
 SELECT RUN_METRIC('android/power_profile_data/oriole.sql');
 SELECT RUN_METRIC('android/power_profile_data/raven.sql');
 SELECT RUN_METRIC('android/power_profile_data/bluejay.sql');
+SELECT RUN_METRIC('android/power_profile_data/shusky.sql');
+
