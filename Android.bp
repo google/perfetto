@@ -12067,6 +12067,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/graphs/search.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/overlap.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu_idle.sql",
+        "src/trace_processor/perfetto_sql/stdlib/memory/heap_graph_dominator_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/pkvm/hypervisor.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/casts.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/slices.sql",

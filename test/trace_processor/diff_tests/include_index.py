@@ -102,6 +102,7 @@ from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
 from diff_tests.stdlib.linux.tests import LinuxStdlib
+from diff_tests.stdlib.memory.heap_graph_dominator_tree_tests import HeapGraphDominatorTree
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
@@ -247,12 +248,14 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *GraphSearchTests(index_path, 'stdlib/graphs',
                         'GraphSearchTests').fetch(),
       *StdlibCounterIntervals(index_path, 'stdlib/counters',
-                       'StdlibCounterIntervals').fetch(),
+                              'StdlibCounterIntervals').fetch(),
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
       *LinuxStdlib(index_path, 'stdlib/linux', 'LinuxStdlib').fetch(),
       *PreludeMathFunctions(index_path, 'stdlib/prelude',
                             'PreludeMathFunctions').fetch(),
+      *HeapGraphDominatorTree(index_path, 'stdlib/memory',
+                              'HeapGraphDominatorTree').fetch(),
       *PreludePprofFunctions(index_path, 'stdlib/prelude',
                              'PreludePprofFunctions').fetch(),
       *PreludeWindowFunctions(index_path, 'stdlib/prelude',
