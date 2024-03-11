@@ -652,6 +652,8 @@ void SystemProbesParser::ParseProcessFds(int64_t ts,
 
 void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
   protos::pbzero::SystemInfo::Decoder packet(blob.data, blob.size);
+  SystemInfoTracker* system_info_tracker =
+      SystemInfoTracker::GetOrCreate(context_);
   if (packet.has_utsname()) {
     ConstBytes utsname_blob = packet.utsname();
     protos::pbzero::Utsname::Decoder utsname(utsname_blob.data,
@@ -666,8 +668,6 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
                     machine.ToStdString().c_str());
     }
 
-    SystemInfoTracker* system_info_tracker =
-        SystemInfoTracker::GetOrCreate(context_);
     system_info_tracker->SetKernelVersion(utsname.sysname(), utsname.release());
 
     StringPool::Id sysname_id =
@@ -717,13 +717,14 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
         metadata::android_sdk_version, Variadic::Integer(*opt_sdk_version));
   }
 
-  int64_t hz = packet.hz();
-  if (hz > 0)
-    ms_per_tick_ = 1000u / static_cast<uint64_t>(hz);
-
   page_size_ = packet.page_size();
-  if (!page_size_)
+  if (!page_size_) {
     page_size_ = 4096;
+  }
+
+  if (packet.has_num_cpus()) {
+    system_info_tracker->SetNumCpus(packet.num_cpus());
+  }
 }
 
 void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {

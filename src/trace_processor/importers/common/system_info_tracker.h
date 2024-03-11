@@ -42,13 +42,16 @@ class SystemInfoTracker : public Destructible {
   }
 
   void SetKernelVersion(base::StringView name, base::StringView release);
+  void SetNumCpus(uint32_t num_cpus) { num_cpus_ = num_cpus; }
 
-  std::optional<VersionNumber> GetKernelVersion() { return version_; }
+  std::optional<VersionNumber> GetKernelVersion() const { return version_; }
+  std::optional<uint32_t> GetNumCpus() const { return num_cpus_; }
 
  private:
   explicit SystemInfoTracker();
 
   std::optional<VersionNumber> version_;
+  std::optional<uint32_t> num_cpus_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto
