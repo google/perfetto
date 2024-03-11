@@ -620,20 +620,51 @@ void StringStorage::ChainImpl::StableSort(SortToken* start,
                                           SortToken* end,
                                           SortDirection direction) const {
   switch (direction) {
-    case SortDirection::kAscending:
+    case SortDirection::kAscending: {
       std::stable_sort(start, end,
-                       [this](const SortToken& a, const SortToken& b) {
-                         return string_pool_->Get((*data_)[a.index]) <
-                                string_pool_->Get((*data_)[b.index]);
+                       [this](const SortToken& lhs, const SortToken& rhs) {
+                         // If RHS is NULL, we know that LHS is not less than
+                         // NULL, as nothing is less then null. This check is
+                         // only required to keep the stability of the sort.
+                         if ((*data_)[rhs.index] == StringPool::Id::Null()) {
+                           return false;
+                         }
+
+                         // If LHS is NULL, it will always be smaller than any
+                         // RHS value.
+                         if ((*data_)[lhs.index] == StringPool::Id::Null()) {
+                           return true;
+                         }
+
+                         // If neither LHS or RHS are NULL, we have to simply
+                         // check which string is smaller.
+                         return string_pool_->Get((*data_)[lhs.index]) <
+                                string_pool_->Get((*data_)[rhs.index]);
                        });
       return;
-    case SortDirection::kDescending:
+    }
+    case SortDirection::kDescending: {
       std::stable_sort(start, end,
-                       [this](const SortToken& a, const SortToken& b) {
-                         return string_pool_->Get((*data_)[a.index]) >
-                                string_pool_->Get((*data_)[b.index]);
+                       [this](const SortToken& lhs, const SortToken& rhs) {
+                         // If LHS is NULL, we know that it's not greater than
+                         // any RHS. This check is only required to keep the
+                         // stability of the sort.
+                         if ((*data_)[lhs.index] == StringPool::Id::Null()) {
+                           return false;
+                         }
+
+                         // If RHS is NULL, everything will be greater from it.
+                         if ((*data_)[rhs.index] == StringPool::Id::Null()) {
+                           return true;
+                         }
+
+                         // If neither LHS or RHS are NULL, we have to simply
+                         // check which string is smaller.
+                         return string_pool_->Get((*data_)[lhs.index]) >
+                                string_pool_->Get((*data_)[rhs.index]);
                        });
       return;
+    }
   }
   PERFETTO_FATAL("For GCC");
 }
