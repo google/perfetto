@@ -32,6 +32,7 @@ class HeapGraphDominatorTree(TestSuite):
             node.idom_id,
             node.dominated_obj_count,
             node.dominated_size_bytes,
+            node.depth,
             cls.name AS type_name
           FROM memory_heap_graph_dominator_tree node
           JOIN heap_graph_object obj USING(id)
@@ -40,29 +41,42 @@ class HeapGraphDominatorTree(TestSuite):
         """,
         out=Csv("""
           "id","idom_id","dominated_obj_count","dominated_size_bytes",\
-"type_name"
-          0,12,1,3,"A"
-          2,12,1,3,"B"
-          4,12,4,12,"C"
-          1,12,2,6,"D"
-          3,12,1,3,"E"
-          5,4,1,3,"F"
-          6,4,2,6,"G"
-          8,12,1,3,"H"
-          9,12,1,3,"I"
-          10,6,1,3,"J"
-          11,12,1,3,"K"
-          7,1,1,3,"L"
-          13,22,6,922,"M"
-          16,22,3,100,"N"
-          14,13,4,904,"O"
-          15,13,1,16,"P"
-          17,16,1,32,"Q"
-          12,25,13,39,"R"
-          22,25,10,1023,"S"
-          18,16,1,64,"T"
-          19,14,1,128,"U"
-          20,14,1,256,"V"
-          21,14,1,512,"W"
-          23,25,1,1024,"java.lang.ref.FinalizerReference"
+"depth","type_name"
+          0,12,1,3,2,"A"
+          2,12,1,3,2,"B"
+          4,12,4,12,2,"C"
+          1,12,2,6,2,"D"
+          3,12,1,3,2,"E"
+          5,4,1,3,3,"F"
+          6,4,2,6,3,"G"
+          8,12,1,3,2,"H"
+          9,12,1,3,2,"I"
+          10,6,1,3,4,"J"
+          11,12,1,3,2,"K"
+          7,1,1,3,3,"L"
+          13,22,6,922,2,"M"
+          16,22,3,100,2,"N"
+          14,13,4,904,3,"O"
+          15,13,1,16,3,"P"
+          17,16,1,32,3,"Q"
+          12,25,13,39,1,"R"
+          22,25,10,1023,1,"S"
+          18,16,1,64,3,"T"
+          19,14,1,128,4,"U"
+          20,14,1,256,4,"V"
+          21,14,1,512,4,"W"
+          23,25,1,1024,1,"java.lang.ref.FinalizerReference"
+        """))
+
+  def test_heap_graph_super_root_fn(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph_for_dominator_tree.textproto'),
+        query="""
+          INCLUDE PERFETTO MODULE memory.heap_graph_dominator_tree;
+
+          SELECT memory_heap_graph_super_root_fn();
+        """,
+        out=Csv("""
+          "memory_heap_graph_super_root_fn()"
+          25
         """))
