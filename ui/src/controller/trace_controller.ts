@@ -1159,9 +1159,11 @@ async function computeVisibleTime(
     visibleStart = Time.max(visibleStart, reliableRangeStart);
   }
 
+  // Move start of visible window to the first ftrace event
   const ftraceBounds = await computeFtraceBounds(engine);
   if (ftraceBounds !== null) {
-    visibleStart = ftraceBounds.start;
+    // Avoid moving start of visible window past its end!
+    visibleStart = Time.min(ftraceBounds.start, visibleEnd);
   }
   return HighPrecisionTimeSpan.fromTime(visibleStart, visibleEnd);
 }
