@@ -161,17 +161,12 @@ base::Status TraceRedactor::Transform(
       continue;
     }
 
-    protozero::HeapBuffered<> serializer;
-    auto* packet_message =
-        serializer->BeginNestedMessage<TracePacket>(Trace::kPacketFieldNumber);
-    packet_message->AppendRawProtoBytes(packet.data(), packet.size());
-    packet_message->Finalize();
-    serializer->Finalize();
+    protozero::HeapBuffered<protos::pbzero::Trace> serializer;
+    serializer->add_packet()->AppendRawProtoBytes(packet.data(), packet.size());
+    packet.assign(serializer.SerializeAsString());
 
-    auto encoded_packet = serializer.SerializeAsString();
-
-    if (const auto exported_data = base::WriteAll(
-            dest_fd.get(), encoded_packet.data(), encoded_packet.size());
+    if (const auto exported_data =
+            base::WriteAll(dest_fd.get(), packet.data(), packet.size());
         exported_data <= 0) {
       return base::ErrStatus("Failed to write redacted trace to disk");
     }
