@@ -1293,8 +1293,6 @@ void FtraceParser::ParseTypedFtraceToRaw(
       case ProtoSchemaType::kInt64:
       case ProtoSchemaType::kSfixed32:
       case ProtoSchemaType::kSfixed64:
-      case ProtoSchemaType::kSint32:
-      case ProtoSchemaType::kSint64:
       case ProtoSchemaType::kBool:
       case ProtoSchemaType::kEnum: {
         inserter.AddArg(name_id, Variadic::Integer(fld.as_int64()));
@@ -1308,6 +1306,11 @@ void FtraceParser::ParseTypedFtraceToRaw(
         // as a signed 64 bit integers (but the translation back to ftrace
         // refers to this storage directly).
         inserter.AddArg(name_id, Variadic::UnsignedInteger(fld.as_uint64()));
+        break;
+      }
+      case ProtoSchemaType::kSint32:
+      case ProtoSchemaType::kSint64: {
+        inserter.AddArg(name_id, Variadic::Integer(fld.as_sint64()));
         break;
       }
       case ProtoSchemaType::kString:
