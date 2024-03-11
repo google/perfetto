@@ -21,7 +21,6 @@
 #include <functional>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <random>
 #include <set>
@@ -332,8 +331,8 @@ class TracingServiceImpl : public TracingService {
   void ApplyChunkPatches(ProducerID,
                          const std::vector<CommitDataRequest::ChunkToPatch>&);
   void NotifyFlushDoneForProducer(ProducerID, FlushRequestID);
-  void NotifyDataSourceStarted(ProducerID, const DataSourceInstanceID);
-  void NotifyDataSourceStopped(ProducerID, const DataSourceInstanceID);
+  void NotifyDataSourceStarted(ProducerID, DataSourceInstanceID);
+  void NotifyDataSourceStopped(ProducerID, DataSourceInstanceID);
   void ActivateTriggers(ProducerID, const std::vector<std::string>& triggers);
 
   // Called by ConsumerEndpointImpl.
@@ -804,14 +803,14 @@ class TracingServiceImpl : public TracingService {
   void FlushDataSourceInstances(
       TracingSession*,
       uint32_t timeout_ms,
-      std::map<ProducerID, std::vector<DataSourceInstanceID>>,
+      const std::map<ProducerID, std::vector<DataSourceInstanceID>>&,
       ConsumerEndpoint::FlushCallback,
       FlushFlags);
   std::map<ProducerID, std::vector<DataSourceInstanceID>>
   GetFlushableDataSourceInstancesForBuffers(TracingSession*,
-                                            std::set<BufferID>);
+                                            const std::set<BufferID>&);
   bool DoCloneBuffers(TracingSession*,
-                      std::set<BufferID>,
+                      const std::set<BufferID>&,
                       std::vector<std::unique_ptr<TraceBuffer>>*);
   base::Status FinishCloneSession(ConsumerEndpointImpl*,
                                   TracingSessionID,
@@ -821,7 +820,7 @@ class TracingServiceImpl : public TracingService {
                                   base::Uuid*);
   void OnFlushDoneForClone(TracingSessionID src_tsid,
                            PendingCloneID clone_id,
-                           std::set<BufferID> buf_ids,
+                           const std::set<BufferID>& buf_ids,
                            bool final_flush_outcome);
 
   // Returns true if `*tracing_session` is waiting for a trigger that hasn't
