@@ -3518,6 +3518,8 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
     utsname_info->set_machine(uname_info.machine);
     utsname_info->set_release(uname_info.release);
   }
+  info->set_page_size(static_cast<uint32_t>(sysconf(_SC_PAGESIZE)));
+  info->set_num_cpus(static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF)));
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   std::string fingerprint_value = base::GetAndroidProp("ro.build.fingerprint");
@@ -3534,8 +3536,6 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
   } else {
     PERFETTO_ELOG("Unable to read ro.build.version.sdk");
   }
-  info->set_hz(sysconf(_SC_CLK_TCK));
-  info->set_page_size(static_cast<uint32_t>(sysconf(_SC_PAGESIZE)));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);

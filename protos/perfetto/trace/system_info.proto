@@ -29,9 +29,6 @@ message SystemInfo {
   optional Utsname utsname = 1;
   optional string android_build_fingerprint = 2;
 
-  // Ticks per second - sysconf(_SC_CLK_TCK).
-  optional int64 hz = 3;
-
   // The version of traced (the same returned by `traced --version`).
   // This is a human readable string with and its format varies depending on
   // the build system and the repo (standalone vs AOSP).
@@ -45,7 +42,16 @@ message SystemInfo {
   // Kernel page size - sysconf(_SC_PAGESIZE).
   optional uint32 page_size = 6;
 
+  // Number of cpus - sysconf(_SC_NPROCESSORS_CONF).
+  // Might be different to the number of online cpus.
+  // Introduced in perfetto v44.
+  optional uint32 num_cpus = 8;
+
   // The timezone offset from UTC, as per strftime("%z"), in minutes.
   // Introduced in v38 / Android V.
   optional int32 timezone_off_mins = 7;
+
+  // Ticks per second - sysconf(_SC_CLK_TCK).
+  // Not serialised as of perfetto v44.
+  optional int64 hz = 3;
 }
