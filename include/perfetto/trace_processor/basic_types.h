@@ -20,14 +20,13 @@
 #include <assert.h>
 #include <math.h>
 #include <stdarg.h>
-#include <stdint.h>
-#include <functional>
+#include <cstdint>
+
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 
@@ -126,7 +125,7 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   bool ingest_ftrace_in_raw_table = true;
 
   // Indicates the event which should be used as a marker to drop ftrace data in
-  // the trace before that event. See the ennu documenetation for more details.
+  // the trace before that event. See the enum documentation for more details.
   DropFtraceDataBefore drop_ftrace_data_before =
       DropFtraceDataBefore::kTracingStarted;
 
@@ -248,8 +247,8 @@ struct SqlModule {
   //
   // It is encouraged that import key should be the path to the SQL file being
   // run, with slashes replaced by dots and without the SQL extension. For
-  // example, 'android/camera/junk.sql' would be imported by
-  // 'android.camera.junk'.
+  // example, 'android/camera/jank.sql' would be imported by
+  // 'android.camera.jank'.
   std::vector<std::pair<std::string, std::string>> files;
 
   // If true, SqlModule will override registered module with the same name. Can
