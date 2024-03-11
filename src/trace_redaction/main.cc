@@ -18,6 +18,8 @@
 #include "perfetto/base/status.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/prune_package_list.h"
+#include "src/trace_redaction/scrub_ftrace_events.h"
+#include "src/trace_redaction/scrub_trace_packet.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redactor.h"
 
@@ -36,6 +38,8 @@ static base::Status Main(std::string_view input,
 
   // Add all transforms.
   redactor.transformers()->emplace_back(new PrunePackageList());
+  redactor.transformers()->emplace_back(new ScrubTracePacket());
+  redactor.transformers()->emplace_back(new ScrubFtraceEvents());
 
   Context context;
   context.package_name = package_name;
