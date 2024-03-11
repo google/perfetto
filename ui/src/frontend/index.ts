@@ -153,7 +153,8 @@ function initGlobalsFromQueryString() {
   const endTs = queryString.get('endTs');
   if (startTs && endTs) {
     try {
-      globals.timelineSubsetRange = new TPTimeSpan(tpTimeFromSql(startTs), tpTimeFromSql(endTs));
+      const span = new TPTimeSpan(tpTimeFromSql(startTs), tpTimeFromSql(endTs));
+      globals.timelineSubsetRange = () => Promise.resolve(span);
     } catch (error) {
       console.error('Invalid timeline subset range.', error);
     }

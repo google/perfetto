@@ -205,6 +205,12 @@ export interface VsyncData {
   toggleTs: bigint[];
 }
 
+/**
+ * An asynchronous function that provides a timespan.
+ */
+export type TimespanProvider =
+  (engine: Engine) => Promise<Span<TPTime, TPDuration>> | undefined;
+
 function getRoot() {
   // Works out the root directory where the content should be served from
   // e.g. `http://origin/v1.2.3/`.
@@ -287,7 +293,7 @@ class Globals {
   private _promptToLoadFromTraceProcessorShell = true;
   private _trackFilteringEnabled = false;
   private _engineReadyObservers: ((engine: EngineConfig) => void)[] = [];
-  private _timelineSubsetRange?: Span<TPTime, TPDuration> = undefined;
+  private _timelineSubsetRange?: TimespanProvider = undefined;
 
 
   // Init from session storage since correct value may be required very early on
@@ -740,16 +746,20 @@ class Globals {
   }
 
   /**
-   * Obtain a range of timestamps to which the entire timeline is restricted.
+   * Obtain a provider of the range of timestamps to which the entire timeline
+   * is restricted.
    */
-  get timelineSubsetRange(): Span<TPTime, TPDuration> | undefined {
+  get timelineSubsetRange(): TimespanProvider | undefined {
     return this._timelineSubsetRange;
   }
 
   /**
-   * Set or clear the range of timestamps to which the entire timeline is restricted.
+   * Set or clear the provider of the range of timestamps to which the entire
+   * timeline is restricted.
+   * @param {TimespanProvider} timeSpan the timespan provider,
+   *   or none to clear it
    */
-  set timelineSubsetRange(timeSpan: Span<TPTime, TPDuration> | undefined) {
+  set timelineSubsetRange(timeSpan: TimespanProvider | undefined) {
     this._timelineSubsetRange = timeSpan;
   }
 

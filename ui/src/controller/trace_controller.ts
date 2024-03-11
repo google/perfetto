@@ -365,7 +365,6 @@ export class TraceController extends Controller<States> {
             Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
         throw err;
       };
-      engine.timelineConstraint = globals.timelineSubsetRange;
       globals.httpRpcEngineCustomizer?.(engine);
     } else {
       console.log('Opening trace using built-in WASM engine');
@@ -378,7 +377,6 @@ export class TraceController extends Controller<States> {
         ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
         analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
       });
-      engine.timelineConstraint = globals.timelineSubsetRange;
     }
     this.engine = engine;
 
@@ -442,6 +440,8 @@ export class TraceController extends Controller<States> {
     // traceUuid will be '' if the trace is not cacheable (URL or RPC).
     const traceUuid = await this.cacheCurrentTrace();
 
+    const clamp = await globals.timelineSubsetRange?.(this.engine);
+    this.engine.timelineConstraint = clamp;
     const traceTime = await this.engine.getTraceTimeBounds();
     const start = traceTime.start;
     const end = traceTime.end;
