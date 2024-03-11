@@ -73,7 +73,7 @@ RETURNS TableOrSubquery AS
 -- The order of the next sibling is undefined if the |sort_key| is not unique.
 --
 -- Example usage:
---
+-- ```
 -- -- Compute the next sibling:
 -- SELECT *
 -- FROM graph_next_sibling!(
