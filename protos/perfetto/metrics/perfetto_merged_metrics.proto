@@ -145,6 +145,24 @@ message AndroidBlockingCallsCujMetric {
 
 // End of protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto
 
+// Begin of protos/perfetto/metrics/android/android_blocking_calls_unagg.proto
+
+// All blocking calls for a trace. Shows count and total duration for each.
+message AndroidBlockingCallsUnagg {
+
+    repeated ProcessWithBlockingCalls process_with_blocking_calls = 1;
+
+    message ProcessWithBlockingCalls {
+        // Details about the process (uid, version, etc)
+        optional AndroidProcessMetadata process = 1;
+
+        // List of blocking calls on the process main thread.
+        repeated AndroidBlockingCall blocking_calls = 2;
+    }
+}
+
+// End of protos/perfetto/metrics/android/android_blocking_calls_unagg.proto
+
 // Begin of protos/perfetto/metrics/android/android_boot.proto
 
 // This metric computes how much time processes spend in UNINTERRUPTIBLE_SLEEP
@@ -2520,7 +2538,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 64
+// Next id: 66
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2697,6 +2715,9 @@ message TraceMetrics {
   // Multiuser - metrics for switching users.
   // Specific for Android Auto
   optional AndroidMultiuserMetric android_auto_multiuser = 64;
+
+  // All blocking calls (e.g. binder calls) for a trace.
+  optional AndroidBlockingCallsUnagg android_blocking_calls_unagg = 65;
 
   // Demo extensions.
   extensions 450 to 499;

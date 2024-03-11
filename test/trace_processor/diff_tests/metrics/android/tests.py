@@ -121,6 +121,12 @@ class AndroidMetrics(TestSuite):
         query=Metric('android_blocking_calls_cuj_metric'),
         out=Path('android_blocking_calls_cuj_metric.out'))
 
+  def test_android_blocking_calls_unagg(self):
+    return DiffTestBlueprint(
+        trace=Path('android_blocking_calls_cuj_metric.py'),
+        query=Metric('android_blocking_calls_unagg'),
+        out=Path('android_blocking_calls_unagg.out'))
+
   def test_android_blocking_calls_on_jank_cujs(self):
     return DiffTestBlueprint(
         trace=Path('../graphics/android_jank_cuj.py'),
