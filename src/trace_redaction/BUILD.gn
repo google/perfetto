@@ -53,6 +53,7 @@ source_set("trace_redaction") {
     "../../protos/perfetto/trace:non_minimal_zero",
     "../../protos/perfetto/trace/android:cpp",
     "../../protos/perfetto/trace/android:zero",
+    "../../protos/perfetto/trace/ftrace:zero",
     "../trace_processor:storage_minimal",
   ]
 }
@@ -67,6 +68,7 @@ source_set("integrationtests") {
     "../../include/perfetto/ext/base",
     "../../protos/perfetto/trace:non_minimal_zero",
     "../../protos/perfetto/trace/android:zero",
+    "../../protos/perfetto/trace/ftrace:zero",
     "../base:test_support",
   ]
 }
@@ -83,9 +85,12 @@ perfetto_unittest_source_set("unittests") {
     ":trace_redaction",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
+    "../../include/perfetto/protozero:protozero",
     "../../protos/perfetto/trace:non_minimal_cpp",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/android:cpp",
+    "../../protos/perfetto/trace/ftrace:cpp",
+    "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/ps:cpp",
     "../../protos/perfetto/trace/ps:zero",
     "../base:test_support",
