@@ -4,7 +4,8 @@ Unreleased:
   Trace Processor:
     *
   UI:
-    *
+    * Per-cpu scheduling tracks now distinguish real-time priority threads with
+      a hatched pattern and name prefix. Based on priority during switch-in.
   SDK:
     *
 
