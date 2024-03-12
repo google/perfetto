@@ -43,7 +43,8 @@ TracingBackend* InProcessTracingBackend::GetInstance() {
   return instance;
 }
 
-InProcessTracingBackend::InProcessTracingBackend() {}
+InProcessTracingBackend::InProcessTracingBackend() = default;
+InProcessTracingBackend::~InProcessTracingBackend() = default;
 
 std::unique_ptr<ProducerEndpoint> InProcessTracingBackend::ConnectProducer(
     const ConnectProducerArgs& args) {
