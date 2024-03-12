@@ -16,7 +16,7 @@ import {v4 as uuidv4} from 'uuid';
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
-import {assertTrue} from '../../base/logging';
+import {assertExists, assertTrue} from '../../base/logging';
 import {Duration, duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {calcCachedBucketSize} from '../../common/cache_utils';
@@ -52,13 +52,17 @@ export interface Data extends TrackData {
   starts: BigInt64Array;
   ends: BigInt64Array;
   utids: Uint32Array;
-  isIncomplete: Uint8Array;
+  flags: Uint8Array;
   lastRowId: number;
 }
 
 const MARGIN_TOP = 3;
 const RECT_HEIGHT = 24;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
+
+const CPU_SLICE_FLAGS_INCOMPLETE = 1;
+const CPU_SLICE_FLAGS_REALTIME = 2;
+
 
 class CpuSliceTrack implements Track {
   private mousePos?: { x: number, y: number };
@@ -96,7 +100,8 @@ class CpuSliceTrack implements Track {
         dur,
         utid,
         id,
-        dur = -1 as isIncomplete
+        dur = -1 as isIncomplete,
+        (case when priority < 100 then 1 else 0 end) as isRealtime
       from sched
       where cpu = ${this.cpu} and utid != 0
     `);
@@ -107,7 +112,7 @@ class CpuSliceTrack implements Track {
     `);
 
     const queryLastSlice = await this.engine.query(`
-    select ifnull(max(id), -1) as lastSliceId from ${this.tableName('sched')}
+      select ifnull(max(id), -1) as lastSliceId from ${this.tableName('sched')}
     `);
     this.lastRowId = queryLastSlice.firstRow({lastSliceId: NUM}).lastSliceId;
 
@@ -127,7 +132,8 @@ class CpuSliceTrack implements Track {
         max(dur) as dur,
         utid,
         id,
-        isIncomplete
+        isIncomplete,
+        isRealtime
       from ${this.tableName('sched')}
       group by cached_tsq, isIncomplete
       order by cached_tsq
@@ -158,7 +164,8 @@ class CpuSliceTrack implements Track {
         max(dur) as dur,
         utid,
         id,
-        isIncomplete
+        isIncomplete,
+        isRealtime
       from ${queryTable}
       where
         ${constraintColumn} >= ${start - this.maxDur} and
@@ -178,7 +185,7 @@ class CpuSliceTrack implements Track {
       starts: new BigInt64Array(numRows),
       ends: new BigInt64Array(numRows),
       utids: new Uint32Array(numRows),
-      isIncomplete: new Uint8Array(numRows),
+      flags: new Uint8Array(numRows),
     };
 
     const it = queryRes.iter({
@@ -188,6 +195,7 @@ class CpuSliceTrack implements Track {
       utid: NUM,
       id: NUM,
       isIncomplete: NUM,
+      isRealtime: NUM,
     });
     for (let row = 0; it.valid(); it.next(), row++) {
       const startQ = it.tsq;
@@ -205,14 +213,21 @@ class CpuSliceTrack implements Track {
       slices.starts[row] = startQ;
       slices.utids[row] = it.utid;
       slices.ids[row] = it.id;
-      slices.isIncomplete[row] = it.isIncomplete;
+
+      slices.flags[row] = 0;
+      if (it.isIncomplete) {
+        slices.flags[row] |= CPU_SLICE_FLAGS_INCOMPLETE;
+      }
+      if (it.isRealtime) {
+        slices.flags[row] |= CPU_SLICE_FLAGS_REALTIME;
+      }
     }
 
     // If the slice is incomplete and it is the last slice in the track, the end
     // of the slice would be the end of the visible window. Otherwise we end the
     // slice with the beginning the next one.
     for (let row = 0; row < slices.length; row++) {
-      if (!slices.isIncomplete[row]) {
+      if (!(slices.flags[row] & CPU_SLICE_FLAGS_INCOMPLETE)) {
         continue;
       }
       const endTime = row === slices.length - 1 ? end : slices.starts[row + 1];
@@ -287,7 +302,8 @@ class CpuSliceTrack implements Track {
       // If the last slice is incomplete, it should end with the end of the
       // window, else it might spill over the window and the end would not be
       // visible as a zigzag line.
-      if (data.ids[i] === data.lastRowId && data.isIncomplete[i]) {
+      if (data.ids[i] === data.lastRowId &&
+          (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE)) {
         tEnd = endTime;
       }
       const rectStart = visibleTimeScale.timeToPx(tStart);
@@ -317,9 +333,15 @@ class CpuSliceTrack implements Track {
         textColor = colorScheme.textBase;
       }
       ctx.fillStyle = color.cssString;
-      if (data.isIncomplete[i]) {
+
+      if (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE) {
         drawIncompleteSlice(ctx, rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
       } else {
+        ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
+      }
+
+      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
+        ctx.fillStyle = getHatchedPattern(ctx);
         ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
       }
 
@@ -344,6 +366,11 @@ class CpuSliceTrack implements Track {
           title = `${threadInfo.threadName} [${threadInfo.tid}]`;
         }
       }
+
+      if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
+        subTitle = subTitle + ' (RT)';
+      }
+
       const right = Math.min(visWindowEndPx, rectEnd);
       const left = Math.max(rectStart, 0);
       const visibleWidth = Math.max(right - left, 1);
@@ -547,6 +574,30 @@ class CpuSlices implements Plugin {
     return cpuToSize;
   }
 }
+
+// Creates a diagonal hatched pattern to be used for distinguishing slices with
+// real-time priorities. The pattern is created once as an offscreen canvas and
+// is kept cached inside the Context2D of the main canvas, without making
+// assumptions on the lifetime of the main canvas.
+function getHatchedPattern(mainCtx: CanvasRenderingContext2D) : CanvasPattern {
+  const mctx = mainCtx as CanvasRenderingContext2D & {
+    sliceHatchedPattern ?: CanvasPattern;
+  };
+  if (mctx.sliceHatchedPattern !== undefined) return mctx.sliceHatchedPattern;
+  const canvas = document.createElement('canvas');
+  const SIZE = 8;
+  canvas.width = canvas.height = SIZE;
+  const ctx = assertExists(canvas.getContext('2d'));
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath();
+  ctx.lineWidth = 1;
+  ctx.moveTo(0, SIZE);
+  ctx.lineTo(SIZE, 0);
+  ctx.stroke();
+  mctx.sliceHatchedPattern = assertExists(mctx.createPattern(canvas, 'repeat'));
+  return mctx.sliceHatchedPattern;
+}
+
 
 export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.CpuSlices',

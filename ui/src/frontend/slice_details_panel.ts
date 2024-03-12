@@ -30,6 +30,8 @@ import {SlicePanel} from './slice_panel';
 import {DurationWidget} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
 
+const MIN_NORMAL_SCHED_PRIORITY = 100;
+
 export class SliceDetailsPanel extends SlicePanel {
   view() {
     const sliceInfo = globals.sliceDetails;
@@ -127,6 +129,15 @@ export class SliceDetailsPanel extends SlicePanel {
     }
   }
 
+  private renderPriorityText(priority?: number) {
+    if (priority === undefined) {
+      return undefined;
+    }
+    return priority < MIN_NORMAL_SCHED_PRIORITY ?
+      `${priority} (real-time)` :
+      `${priority}`;
+  }
+
   private renderDetails(sliceInfo: SliceDetails, threadInfo?: ThreadDesc):
       m.Children {
     if (!threadInfo || sliceInfo.ts === undefined ||
@@ -172,8 +183,8 @@ export class SliceDetailsPanel extends SlicePanel {
         }),
         this.renderThreadDuration(sliceInfo),
         m(TreeNode, {
-          left: 'Prio',
-          right: sliceInfo.priority,
+          left: 'Priority',
+          right: this.renderPriorityText(sliceInfo.priority),
         }),
         m(TreeNode, {
           left: 'End State',
