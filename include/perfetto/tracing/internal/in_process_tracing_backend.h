@@ -40,6 +40,8 @@ class PERFETTO_EXPORT_COMPONENT InProcessTracingBackend
  public:
   static TracingBackend* GetInstance();
 
+  ~InProcessTracingBackend() override;
+
   // TracingBackend implementation.
   std::unique_ptr<ProducerEndpoint> ConnectProducer(
       const ConnectProducerArgs&) override;
