@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE graphs.dominator_tree;
 
 -- Excluding following types from the graph as they share objects' ownership
 -- with their real (more interesting) owners and will mask their idom to be the
--- imaginary "root".
+-- "super root".
 CREATE PERFETTO TABLE _excluded_type_ids AS
 WITH RECURSIVE class_visitor(type_id) AS (
   SELECT id AS type_id
@@ -33,6 +33,15 @@ WITH RECURSIVE class_visitor(type_id) AS (
 )
 SELECT * FROM class_visitor;
 
+-- The assigned id of the "super root".
+-- Since a Java heap graph is a "forest" structure, we need to add a imaginary
+-- "super root" node which connects all the roots of the forest into a single
+-- connected component, so that the dominator tree algorithm can be performed.
+CREATE PERFETTO FUNCTION memory_heap_graph_super_root_fn()
+-- The assigned id of the "super root".
+RETURNS INT AS
+SELECT max(id) + 1 FROM heap_graph_object;
+
 CREATE PERFETTO VIEW _dominator_compatible_heap_graph AS
 SELECT
   ref.owner_id AS source_node_id,
@@ -42,11 +51,8 @@ JOIN heap_graph_object source_node ON ref.owner_id = source_node.id
 WHERE source_node.reachable AND source_node.type_id NOT IN _excluded_type_ids
   AND ref.owned_id IS NOT NULL
 UNION ALL
--- Since a Java heap graph is a "forest" structure, we need to add a imaginary
--- "root" node which connects all the roots of the forest into a single
--- connected component.
 SELECT
-  (SELECT max(id) + 1 FROM heap_graph_object) as source_node_id,
+  (SELECT memory_heap_graph_super_root_fn()) as source_node_id,
   id AS dest_node_id
 FROM heap_graph_object
 WHERE root_type IS NOT NULL;
@@ -57,13 +63,27 @@ SELECT
   dominator_node_id AS idom_id
 FROM graph_dominator_tree!(
   _dominator_compatible_heap_graph,
-  (SELECT max(id) + 1 FROM heap_graph_object)
+  (SELECT memory_heap_graph_super_root_fn())
 )
 -- Excluding the imaginary root.
 WHERE dominator_node_id IS NOT NULL
 -- Ordering by idom_id so queries below are faster when joining on idom_id.
 -- TODO(lalitm): support create index for Perfetto tables.
 ORDER BY idom_id;
+
+CREATE PERFETTO TABLE _heap_graph_dominator_tree_depth AS
+WITH RECURSIVE _tree_visitor(id, depth) AS (
+  -- Let the super root have depth 0.
+  SELECT id, 1 AS depth
+  FROM _heap_graph_dominator_tree
+  WHERE idom_id IN (SELECT memory_heap_graph_super_root_fn())
+  UNION ALL
+  SELECT child.id, parent.depth + 1
+  FROM _heap_graph_dominator_tree child
+  JOIN _tree_visitor parent ON child.idom_id = parent.id
+)
+SELECT * FROM _tree_visitor
+ORDER BY id;
 
 -- A performance note: we need 3 memoize functions because EXPERIMENTAL_MEMOIZE
 -- limits the function to return only 1 int.
@@ -128,12 +148,16 @@ CREATE PERFETTO TABLE memory_heap_graph_dominator_tree (
   -- Total self_size of all objects dominated by this object, self inclusive.
   dominated_size_bytes INT,
   -- Total native_size of all objects dominated by this object, self inclusive.
-  dominated_native_size_bytes INT
+  dominated_native_size_bytes INT,
+  -- Depth of the object in the dominator tree. Depth of root objects are 1.
+  depth INT
 ) AS
 SELECT
-  id,
-  idom_id,
-  _subtree_obj_count(id) AS dominated_obj_count,
-  _subtree_size_bytes(id) AS dominated_size_bytes,
-  _subtree_native_size_bytes(id) AS dominated_native_size_bytes
-FROM _heap_graph_dominator_tree;
+  t.id,
+  t.idom_id,
+  _subtree_obj_count(t.id) AS dominated_obj_count,
+  _subtree_size_bytes(t.id) AS dominated_size_bytes,
+  _subtree_native_size_bytes(t.id) AS dominated_native_size_bytes,
+  d.depth
+FROM _heap_graph_dominator_tree t
+JOIN _heap_graph_dominator_tree_depth d USING(id);
