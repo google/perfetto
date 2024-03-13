@@ -1318,3 +1318,39 @@ class Parsing(TestSuite):
         "all_data_source_flushed_ns",12344
         "all_data_source_flushed_ns",12345
         """))
+
+  def test_ftrace_abi_errors_skipped_zero_data_length(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_stats {
+            phase: END_OF_TRACE
+            cpu_stats {
+              cpu: 0
+              entries: 14
+              overrun: 0
+              commit_overrun: 0
+              bytes_read: 840
+              oldest_event_ts: 86557.552705
+              now_ts: 86557.574310
+              dropped_events: 0
+              read_events: 199966062
+            }
+            kernel_symbols_parsed: 128611
+            kernel_symbols_mem_kb: 1322
+            ftrace_parse_errors: FTRACE_STATUS_ABI_ZERO_DATA_LENGTH
+          }
+          trusted_uid: 9999
+          trusted_packet_sequence_id: 2
+          trusted_pid: 1069
+        }
+        """),
+        query="""
+        select name, severity, value
+        from stats
+        where name = "ftrace_abi_errors_skipped_zero_data_length"
+        """,
+        out=Csv("""
+        "name","severity","value"
+        "ftrace_abi_errors_skipped_zero_data_length","info",1
+        """))

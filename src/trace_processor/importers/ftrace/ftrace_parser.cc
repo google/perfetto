@@ -571,6 +571,7 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
   // buffer ABI not matching the data read out of the kernel (while the trace
   // was being recorded). Reject such traces altogether as we need to make such
   // errors hard to ignore (most likely it's a bug in perfetto or the kernel).
+  using protos::pbzero::FtraceParseStatus;
   auto error_it = evt.ftrace_parse_errors();
   if (error_it) {
     auto dev_flag =
@@ -585,13 +586,26 @@ base::Status FtraceParser::ParseFtraceStats(ConstBytes blob,
           "native trace_processor_shell as an accelerator with these flags: "
           "\"trace_processor_shell --httpd --dev --dev-flag "
           "ignore-ftrace-parse-errors=true <trace_file.pb>\". Errors: ";
+      size_t error_count = 0;
       for (; error_it; ++error_it) {
-        msg += protos::pbzero::FtraceParseStatus_Name(
-            static_cast<protos::pbzero::FtraceParseStatus>(*error_it));
+        auto error_code = static_cast<FtraceParseStatus>(*error_it);
+        // Relax the strictness of zero-padded page errors, they're prevalent
+        // but also do not affect the actual ftrace payload.
+        // See b/329396486#comment6, b/204564312#comment20.
+        if (error_code ==
+            FtraceParseStatus::FTRACE_STATUS_ABI_ZERO_DATA_LENGTH) {
+          context_->storage->IncrementStats(
+              stats::ftrace_abi_errors_skipped_zero_data_length);
+          continue;
+        }
+        error_count += 1;
+        msg += protos::pbzero::FtraceParseStatus_Name(error_code);
         msg += ", ";
       }
       msg += "(ERR:ftrace_parse)";  // special marker for UI
-      return base::Status(msg);
+      if (error_count > 0) {
+        return base::Status(msg);
+      }
     }
   }
 
