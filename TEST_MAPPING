@@ -23,5 +23,10 @@
     {
       "name": "CtsPerfettoTestCases"
     }
+  ],
+  "postsubmit": [
+    {
+      "name": "libtracing_perfetto_tests"
+    }
   ]
 }
