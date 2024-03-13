@@ -433,7 +433,7 @@ std::optional<uint64_t> GetFileSize(PlatformHandle fd) {
   static_assert(sizeof(decltype(file_size.QuadPart)) <= sizeof(uint64_t));
   return static_cast<uint64_t>(file_size.QuadPart);
 #else
-  struct stat buf;
+  struct stat buf {};
   if (fstat(fd, &buf) == -1) {
     return std::nullopt;
   }
