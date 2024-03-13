@@ -43,13 +43,13 @@ namespace {
 
 using SetId = SetIdStorage::SetId;
 
-uint32_t UpperBoundIntrinsic(const SetId* data, SetId id, Range range) {
-  if (id >= range.end) {
-    return range.end;
+uint32_t UpperBoundIntrinsic(const SetId* data, SetId val, Range range) {
+  for (uint32_t i = std::max(range.start, val); i < range.end; i++) {
+    if (data[i] > val) {
+      return i;
+    }
   }
-  const auto* upper =
-      std::upper_bound(data + std::max(range.start, id), data + range.end, id);
-  return static_cast<uint32_t>(std::distance(data, upper));
+  return range.end;
 }
 
 uint32_t LowerBoundIntrinsic(const SetId* data, SetId id, Range range) {
@@ -117,6 +117,10 @@ SearchValidationResult SetIdStorage::ChainImpl::ValidateSearchConstraints(
       return SearchValidationResult::kNoData;
   }
 
+  if (PERFETTO_UNLIKELY(values_->empty())) {
+    return SearchValidationResult::kNoData;
+  }
+
   // Type checks.
   switch (val.type) {
     case SqlValue::kNull:
@@ -137,13 +141,16 @@ SearchValidationResult SetIdStorage::ChainImpl::ValidateSearchConstraints(
   double num_val = val.type == SqlValue::kLong
                        ? static_cast<double>(val.AsLong())
                        : val.AsDouble();
-  if (PERFETTO_UNLIKELY(num_val > std::numeric_limits<uint32_t>::max())) {
+
+  // As values are sorted, we can cover special cases for when |num_val| is
+  // bigger than the last value and smaller than the first one.
+  if (PERFETTO_UNLIKELY(num_val > values_->back())) {
     if (op == FilterOp::kLe || op == FilterOp::kLt || op == FilterOp::kNe) {
       return SearchValidationResult::kAllData;
     }
     return SearchValidationResult::kNoData;
   }
-  if (PERFETTO_UNLIKELY(num_val < std::numeric_limits<uint32_t>::min())) {
+  if (PERFETTO_UNLIKELY(num_val < values_->front())) {
     if (op == FilterOp::kGe || op == FilterOp::kGt || op == FilterOp::kNe) {
       return SearchValidationResult::kAllData;
     }
@@ -272,9 +279,14 @@ Range SetIdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
                                                      SetId val,
                                                      Range range) const {
   switch (op) {
-    case FilterOp::kEq:
-      return {LowerBoundIntrinsic(values_->data(), val, range),
-              UpperBoundIntrinsic(values_->data(), val, range)};
+    case FilterOp::kEq: {
+      if (values_->data()[val] != val) {
+        return Range();
+      }
+      uint32_t start = std::max(val, range.start);
+      uint32_t end = UpperBoundIntrinsic(values_->data(), val, range);
+      return Range(std::min(start, end), end);
+    }
     case FilterOp::kLe: {
       return {range.start, UpperBoundIntrinsic(values_->data(), val, range)};
     }
