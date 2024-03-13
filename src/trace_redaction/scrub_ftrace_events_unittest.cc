@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "src/trace_redaction/scrub_ftrace_events.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/ftrace/power.pbzero.h"
+#include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "src/base/test/status_matchers.h"
 #include "test/gtest_and_gmock.h"
 
@@ -23,123 +23,42 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
-#include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "protos/perfetto/trace/ftrace/task.gen.h"
 #include "protos/perfetto/trace/ps/process_tree.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto::trace_redaction {
 
-namespace {
-// task_rename should be in the allow-list.
-void AddTaskRename(protos::gen::FtraceEventBundle* bundle,
-                   int32_t pid,
-                   const std::string& old_comm,
-                   const std::string& new_comm) {
-  auto* e = bundle->add_event();
-  e->mutable_task_rename()->set_pid(pid);
-  e->mutable_task_rename()->set_oldcomm(old_comm);
-  e->mutable_task_rename()->set_newcomm(new_comm);
-}
-
-void AddClockSetRate(protos::gen::FtraceEventBundle* bundle,
-                     uint64_t cpu,
-                     const std::string& name,
-                     uint64_t state) {
-  auto* e = bundle->add_event();
-  e->mutable_clock_set_rate()->set_cpu_id(cpu);
-  e->mutable_clock_set_rate()->set_name(name);
-  e->mutable_clock_set_rate()->set_state(state);
-}
-
-}  // namespace
-
-class ScrubFtraceEventsSerializationTest : public testing::Test {
+// Tests which nested messages and fields are removed.
+class ScrubFtraceEventsTest : public testing::Test {
  public:
-  ScrubFtraceEventsSerializationTest() = default;
-  ~ScrubFtraceEventsSerializationTest() override = default;
+  ScrubFtraceEventsTest() = default;
+  ~ScrubFtraceEventsTest() override = default;
 
  protected:
-  void SetUp() override {
-    std::array bytes = {
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-        0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-    };
-
-    protozero::HeapBuffered<protozero::Message> msg;
-    msg->AppendFixed<uint32_t>(field_id_fixed_32, 7);
-    msg->AppendFixed<uint64_t>(field_id_fixed_64, 9);
-    msg->AppendVarInt(field_id_var_int, 723);
-    msg->AppendBytes(field_id_bytes, bytes.data(), bytes.size());
-
-    message_.assign(msg.SerializeAsString());
+  // task_rename should be in the allow-list.
+  static void AddTaskRename(protos::gen::FtraceEventBundle* bundle,
+                            int32_t pid,
+                            const std::string& old_comm,
+                            const std::string& new_comm) {
+    auto* e = bundle->add_event();
+    e->mutable_task_rename()->set_pid(pid);
+    e->mutable_task_rename()->set_oldcomm(old_comm);
+    e->mutable_task_rename()->set_newcomm(new_comm);
   }
 
-  std::string message_;
-
-  static constexpr uint32_t field_id_fixed_32 = 0;
-  static constexpr uint32_t field_id_fixed_64 = 1;
-  static constexpr uint32_t field_id_var_int = 2;
-  static constexpr uint32_t field_id_bytes = 3;
+  static void AddClockSetRate(protos::gen::FtraceEventBundle* bundle,
+                              uint64_t cpu,
+                              const std::string& name,
+                              uint64_t state) {
+    auto* e = bundle->add_event();
+    e->mutable_clock_set_rate()->set_cpu_id(cpu);
+    e->mutable_clock_set_rate()->set_name(name);
+    e->mutable_clock_set_rate()->set_state(state);
+  }
 };
 
-TEST_F(ScrubFtraceEventsSerializationTest, AppendFixedUint32) {
-  protozero::ProtoDecoder decoder(message_);
-
-  const auto& field = decoder.FindField(field_id_fixed_32);
-
-  std::string expected = "";
-  field.SerializeAndAppendTo(&expected);
-
-  protozero::HeapBuffered<protozero::Message> actual;
-  ScrubFtraceEvents::AppendField(field, actual.get());
-
-  ASSERT_EQ(actual.SerializeAsString(), expected);
-}
-
-TEST_F(ScrubFtraceEventsSerializationTest, AppendFixedUint64) {
-  protozero::ProtoDecoder decoder(message_);
-
-  const auto& field = decoder.FindField(field_id_fixed_64);
-
-  std::string expected = "";
-  field.SerializeAndAppendTo(&expected);
-
-  protozero::HeapBuffered<protozero::Message> actual;
-  ScrubFtraceEvents::AppendField(field, actual.get());
-
-  ASSERT_EQ(actual.SerializeAsString(), expected);
-}
-
-TEST_F(ScrubFtraceEventsSerializationTest, AppendBytes) {
-  protozero::ProtoDecoder decoder(message_);
-
-  const auto& field = decoder.FindField(field_id_bytes);
-
-  std::string expected = "";
-  field.SerializeAndAppendTo(&expected);
-
-  protozero::HeapBuffered<protozero::Message> actual;
-  ScrubFtraceEvents::AppendField(field, actual.get());
-
-  ASSERT_EQ(actual.SerializeAsString(), expected);
-}
-
-TEST_F(ScrubFtraceEventsSerializationTest, AppendVarInt) {
-  protozero::ProtoDecoder decoder(message_);
-
-  const auto& field = decoder.FindField(field_id_var_int);
-
-  std::string expected = "";
-  field.SerializeAndAppendTo(&expected);
-
-  protozero::HeapBuffered<protozero::Message> actual;
-  ScrubFtraceEvents::AppendField(field, actual.get());
-
-  ASSERT_EQ(actual.SerializeAsString(), expected);
-}
-
-TEST(ScrubFtraceEventsTest, ReturnErrorForNullPacket) {
+TEST_F(ScrubFtraceEventsTest, ReturnErrorForNullPacket) {
   // Have something in the allow-list to avoid that error.
   Context context;
   context.ftrace_packet_allow_list = {
@@ -149,7 +68,7 @@ TEST(ScrubFtraceEventsTest, ReturnErrorForNullPacket) {
   ASSERT_FALSE(scrub.Transform(context, nullptr).ok());
 }
 
-TEST(ScrubFtraceEventsTest, ReturnErrorForEmptyPacket) {
+TEST_F(ScrubFtraceEventsTest, ReturnErrorForEmptyPacket) {
   // Have something in the allow-list to avoid that error.
   Context context;
   context.ftrace_packet_allow_list = {
@@ -161,7 +80,7 @@ TEST(ScrubFtraceEventsTest, ReturnErrorForEmptyPacket) {
   ASSERT_FALSE(scrub.Transform(context, &packet_str).ok());
 }
 
-TEST(ScrubFtraceEventsTest, ReturnErrorForEmptyAllowList) {
+TEST_F(ScrubFtraceEventsTest, ReturnErrorForEmptyAllowList) {
   // The context will have no allow-list entries. ScrubFtraceEvents should fail.
   Context context;
 
@@ -172,7 +91,7 @@ TEST(ScrubFtraceEventsTest, ReturnErrorForEmptyAllowList) {
   ASSERT_FALSE(scrub.Transform(context, &packet_str).ok());
 }
 
-TEST(ScrubFtraceEventsTest, IgnorePacketWithNoFtraceEvents) {
+TEST_F(ScrubFtraceEventsTest, IgnorePacketWithNoFtraceEvents) {
   protos::gen::TracePacket trace_packet;
   auto* tree = trace_packet.mutable_process_tree();
 
@@ -203,7 +122,7 @@ TEST(ScrubFtraceEventsTest, IgnorePacketWithNoFtraceEvents) {
 
 // There are some values in a ftrace event that sits behind the ftrace bundle.
 // These values should be retained.
-TEST(ScrubFtraceEventsTest, KeepsFtraceBundleSiblingValues) {
+TEST_F(ScrubFtraceEventsTest, KeepsFtraceBundleSiblingValues) {
   protos::gen::TracePacket trace_packet;
   auto* ftrace_events = trace_packet.mutable_ftrace_events();
 
@@ -238,7 +157,7 @@ TEST(ScrubFtraceEventsTest, KeepsFtraceBundleSiblingValues) {
   ASSERT_TRUE(gen_events.event().front().has_task_rename());
 }
 
-TEST(ScrubFtraceEventsTest, KeepsAllowedEvents) {
+TEST_F(ScrubFtraceEventsTest, KeepsAllowedEvents) {
   Context context;
   context.ftrace_packet_allow_list = {
       protos::pbzero::FtraceEvent::kTaskRenameFieldNumber,
@@ -284,7 +203,7 @@ TEST(ScrubFtraceEventsTest, KeepsAllowedEvents) {
 }
 
 // Only the specific non-allowed events should be removed from the event list.
-TEST(ScrubFtraceEventsTest, OnlyDropsNotAllowedEvents) {
+TEST_F(ScrubFtraceEventsTest, OnlyDropsNotAllowedEvents) {
   // AddTaskRename >> Keep
   // AddClockSetRate >> Drop
   protos::gen::TracePacket original_packet;

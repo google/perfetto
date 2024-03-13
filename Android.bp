@@ -12492,6 +12492,7 @@ filegroup {
     srcs: [
         "src/trace_redaction/find_package_uid.cc",
         "src/trace_redaction/populate_allow_lists.cc",
+        "src/trace_redaction/proto_util.cc",
         "src/trace_redaction/prune_package_list.cc",
         "src/trace_redaction/scrub_ftrace_events.cc",
         "src/trace_redaction/scrub_trace_packet.cc",
@@ -12505,6 +12506,7 @@ filegroup {
     name: "perfetto_src_trace_redaction_unittests",
     srcs: [
         "src/trace_redaction/find_package_uid_unittest.cc",
+        "src/trace_redaction/proto_util_unittest.cc",
         "src/trace_redaction/prune_package_list_unittest.cc",
         "src/trace_redaction/scrub_ftrace_events_unittest.cc",
         "src/trace_redaction/scrub_trace_packet_unittest.cc",
