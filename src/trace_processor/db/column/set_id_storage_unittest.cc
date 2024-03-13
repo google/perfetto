@@ -251,6 +251,17 @@ TEST(SetIdStorage, SearchEqSimple) {
   ASSERT_EQ(range.end, 6u);
 }
 
+TEST(SetIdStorageUnittest, SearchEqFalse) {
+  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
+  SetIdStorage storage(&storage_data);
+  auto chain = storage.MakeChain();
+
+  Range range = chain->Search(FilterOp::kEq, SqlValue::Long(5), Range(4, 10))
+                    .TakeIfRange();
+
+  ASSERT_TRUE(range.empty());
+}
+
 TEST(SetIdStorage, SearchEqOnRangeBoundary) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
 
@@ -290,6 +301,19 @@ TEST(SetIdStorage, IndexSearchEqTooBig) {
   auto indices = Indices::CreateWithIndexPayloadForTesting(
       {1, 3, 5, 7, 9, 11, 2, 4}, Indices::State::kNonmonotonic);
   chain->IndexSearch(FilterOp::kEq, SqlValue::Long(10), indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), IsEmpty());
+}
+
+TEST(SetIdStorageUnittest, IndexSearchEqFalse) {
+  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
+  SetIdStorage storage(&storage_data);
+  auto chain = storage.MakeChain();
+
+  // {0, 3, 3, 6, 9, 9, 0, 3}
+  auto indices = Indices::CreateWithIndexPayloadForTesting(
+      {1, 3, 5, 7, 9, 11, 2, 4}, Indices::State::kNonmonotonic);
+  chain->IndexSearch(FilterOp::kEq, SqlValue::Long(5), indices);
+
   ASSERT_THAT(utils::ExtractPayloadForTesting(indices), IsEmpty());
 }
 
