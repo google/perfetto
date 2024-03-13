@@ -182,8 +182,10 @@ LEFT JOIN process
 LEFT JOIN ANCESTOR_SLICE(slice.id) binder_reply ON binder_reply.name = 'binder reply'
 LEFT JOIN thread_track binder_reply_thread_track ON binder_reply.track_id = binder_reply_thread_track.id
 LEFT JOIN thread binder_reply_thread ON binder_reply_thread_track.utid = binder_reply_thread.utid
+-- Before Android U, we didn't have blocking_thread tid (aosp/3000578). We do a LEFT JOIN instead
+-- of JOIN so that on older devices we can at least capture the list of contentions without edges.
+LEFT JOIN thread blocking_thread ON blocking_thread.tid = blocking_tid AND blocking_thread.upid = thread.upid
 JOIN _valid_android_monitor_contention ON _valid_android_monitor_contention.id = slice.id
-JOIN thread blocking_thread ON blocking_thread.tid = blocking_tid AND blocking_thread.upid = thread.upid
 WHERE slice.name GLOB 'monitor contention*'
   AND slice.dur != -1
   AND short_blocking_method IS NOT NULL
