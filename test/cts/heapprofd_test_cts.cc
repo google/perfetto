@@ -94,7 +94,7 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(4000);
+  trace_config.set_duration_ms(8000);
   trace_config.set_unique_session_name(RandomSessionName().c_str());
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -147,7 +147,7 @@ std::vector<protos::gen::TracePacket> ProfileStartup(
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_duration_ms(4000);
+  trace_config.set_duration_ms(8000);
   trace_config.set_enable_extra_guardrails(enable_extra_guardrails);
   trace_config.set_unique_session_name(RandomSessionName().c_str());
 
