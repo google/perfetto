@@ -122,7 +122,7 @@ class ProfilePacketSequenceState final
   // via the Add* methods), and then, if this lookup fails, in the InternedData
   // instead.
   std::optional<MappingId> FindOrInsertMapping(uint64_t iid);
-  std::optional<CallsiteId> FindOrInsertCallstack(uint64_t iid);
+  std::optional<CallsiteId> FindOrInsertCallstack(UniquePid upid, uint64_t iid);
 
   TraceProcessorContext* const context_;
 

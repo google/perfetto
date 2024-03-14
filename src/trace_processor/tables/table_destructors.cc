@@ -17,6 +17,7 @@
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -42,6 +43,10 @@ AndroidLogTable::~AndroidLogTable() = default;
 
 // counter_tables_py.h
 CounterTable::~CounterTable() = default;
+
+// jit_tables.py
+JitCodeTable::~JitCodeTable() = default;
+JitFrameTable::~JitFrameTable() = default;
 
 // metadata_tables_py.h
 RawTable::~RawTable() = default;

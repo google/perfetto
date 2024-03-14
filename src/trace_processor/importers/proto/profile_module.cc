@@ -158,7 +158,8 @@ void ProfileModule::ParseStreamingProfilePacket(
 
   uint32_t pid = static_cast<uint32_t>(sequence_state->state()->pid());
   uint32_t tid = static_cast<uint32_t>(sequence_state->state()->tid());
-  UniqueTid utid = procs->UpdateThread(tid, pid);
+  const UniqueTid utid = procs->UpdateThread(tid, pid);
+  const UniquePid upid = procs->GetOrCreateProcess(pid);
 
   // Iterate through timestamps and callstacks simultaneously.
   auto timestamp_it = packet.timestamp_delta_us();
@@ -172,7 +173,7 @@ void ProfileModule::ParseStreamingProfilePacket(
     }
 
     auto opt_cs_id =
-        stack_profile_sequence_state.FindOrInsertCallstack(*callstack_it);
+        stack_profile_sequence_state.FindOrInsertCallstack(upid, *callstack_it);
     if (!opt_cs_id) {
       context_->storage->IncrementStats(stats::stackprofile_parser_error);
       continue;
@@ -247,11 +248,16 @@ void ProfileModule::ParsePerfSample(
       ts, static_cast<double>(sample.timebase_count()),
       sampling_stream.timebase_track_id);
 
+  const UniqueTid utid =
+      context_->process_tracker->UpdateThread(sample.tid(), sample.pid());
+  const UniquePid upid =
+      context_->process_tracker->GetOrCreateProcess(sample.pid());
+
   StackProfileSequenceState& stack_profile_sequence_state =
       *sequence_state->GetOrCreate<StackProfileSequenceState>();
   uint64_t callstack_iid = sample.callstack_iid();
   std::optional<CallsiteId> cs_id =
-      stack_profile_sequence_state.FindOrInsertCallstack(callstack_iid);
+      stack_profile_sequence_state.FindOrInsertCallstack(upid, callstack_iid);
 
   // A failed lookup of the interned callstack can mean either:
   // (a) This is a counter-only profile without callstacks. Due to an
@@ -273,9 +279,6 @@ void ProfileModule::ParsePerfSample(
                   callstack_iid);
     return;
   }
-
-  UniqueTid utid =
-      context_->process_tracker->UpdateThread(sample.tid(), sample.pid());
 
   using protos::pbzero::Profiling;
   TraceStorage* storage = context_->storage.get();

@@ -16,17 +16,20 @@
 
 #include "src/trace_processor/importers/proto/stack_profile_sequence_state.h"
 
+#include <cstdint>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/storage/stats.h"
@@ -41,6 +44,15 @@ base::StringView ToStringView(protozero::ConstBytes bytes) {
   return base::StringView(reinterpret_cast<const char*>(bytes.data),
                           bytes.size);
 }
+
+// Determine wether this is the magical kernel mapping created in
+// `perfetto::::profiling::Unwinder::SymbolizeKernelCallchain`
+bool IsMagicalKernelMapping(const CreateMappingParams& params) {
+  return params.memory_range.start() == 0 &&
+         params.memory_range.length() == 0 && params.exact_offset == 0 &&
+         !params.build_id.has_value() && (params.name == "/kernel");
+}
+
 }  // namespace
 
 StackProfileSequenceState::StackProfileSequenceState(
@@ -49,17 +61,22 @@ StackProfileSequenceState::StackProfileSequenceState(
 
 StackProfileSequenceState::~StackProfileSequenceState() = default;
 
-std::optional<MappingId> StackProfileSequenceState::FindOrInsertMapping(
+VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMapping(
     uint64_t iid) {
-  if (VirtualMemoryMapping* mapping = FindOrInsertMappingImpl(iid); mapping) {
-    return mapping->mapping_id();
+  if (state()->pid_and_tid_valid()) {
+    return FindOrInsertMappingImpl(
+        context_->process_tracker->GetOrCreateProcess(
+            static_cast<uint32_t>(state()->pid())),
+        iid);
   }
-  return std::nullopt;
+
+  return FindOrInsertMappingImpl(std::nullopt, iid);
 }
 
 VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
+    std::optional<UniquePid> upid,
     uint64_t iid) {
-  if (auto ptr = cached_mappings_.Find(iid); ptr) {
+  if (auto ptr = cached_mappings_.Find({upid, iid}); ptr) {
     return *ptr;
   }
   auto* decoder =
@@ -87,7 +104,9 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
   if (!build_id) {
     return nullptr;
   }
-  params.build_id = BuildId::FromRaw(*build_id);
+  if (!build_id->empty()) {
+    params.build_id = BuildId::FromRaw(*build_id);
+  }
 
   params.memory_range = AddressRange(decoder->start(), decoder->end());
   params.exact_offset = decoder->exact_offset();
@@ -95,11 +114,26 @@ VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMappingImpl(
   params.load_bias = decoder->load_bias();
   params.name = ProfilePacketUtils::MakeMappingName(path_components);
 
-  VirtualMemoryMapping& mapping =
-      context_->mapping_tracker->InternMemoryMapping(std::move(params));
+  VirtualMemoryMapping* mapping;
 
-  cached_mappings_.Insert(iid, &mapping);
-  return &mapping;
+  if (IsMagicalKernelMapping(params)) {
+    mapping = &context_->mapping_tracker->CreateKernelMemoryMapping(
+        std::move(params));
+    // A lot of tests to not set a proper mapping range
+    // Dummy mappings can also be emitted (e.g. for errors during unwinding)
+  } else if (params.memory_range.empty()) {
+    mapping =
+        &context_->mapping_tracker->InternMemoryMapping(std::move(params));
+  } else if (upid.has_value()) {
+    mapping = &context_->mapping_tracker->CreateUserMemoryMapping(
+        *upid, std::move(params));
+  } else {
+    mapping =
+        &context_->mapping_tracker->InternMemoryMapping(std::move(params));
+  }
+
+  cached_mappings_.Insert({upid, iid}, mapping);
+  return mapping;
 }
 
 std::optional<base::StringView>
@@ -134,8 +168,9 @@ StackProfileSequenceState::LookupInternedMappingPath(uint64_t iid) {
 }
 
 std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
+    UniquePid upid,
     uint64_t iid) {
-  if (CallsiteId* id = cached_callstacks_.Find(iid); id) {
+  if (CallsiteId* id = cached_callstacks_.Find({upid, iid}); id) {
     return *id;
   }
   auto* decoder = LookupInternedMessage<
@@ -149,7 +184,7 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
   std::optional<CallsiteId> parent_callsite_id;
   uint32_t depth = 0;
   for (auto it = decoder->frame_ids(); it; ++it) {
-    std::optional<FrameId> frame_id = FindOrInsertFrame(*it);
+    std::optional<FrameId> frame_id = FindOrInsertFrame(upid, *it);
     if (!frame_id) {
       return std::nullopt;
     }
@@ -163,14 +198,15 @@ std::optional<CallsiteId> StackProfileSequenceState::FindOrInsertCallstack(
     return std::nullopt;
   }
 
-  cached_callstacks_.Insert(iid, *parent_callsite_id);
+  cached_callstacks_.Insert({upid, iid}, *parent_callsite_id);
 
   return parent_callsite_id;
 }
 
 std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
+    UniquePid upid,
     uint64_t iid) {
-  if (FrameId* id = cached_frames_.Find(iid); id) {
+  if (FrameId* id = cached_frames_.Find({upid, iid}); id) {
     return *id;
   }
   auto* decoder =
@@ -182,7 +218,7 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
   }
 
   VirtualMemoryMapping* mapping =
-      FindOrInsertMappingImpl(decoder->mapping_id());
+      FindOrInsertMappingImpl(upid, decoder->mapping_id());
   if (!mapping) {
     return std::nullopt;
   }
@@ -198,7 +234,9 @@ std::optional<FrameId> StackProfileSequenceState::FindOrInsertFrame(
   }
 
   FrameId frame_id = mapping->InternFrame(decoder->rel_pc(), function_name);
-  cached_frames_.Insert(iid, frame_id);
+  if (!mapping->is_jitted()) {
+    cached_frames_.Insert({upid, iid}, frame_id);
+  }
 
   return frame_id;
 }

@@ -84,6 +84,8 @@ class PacketSequenceStateGeneration : public RefCounted {
       return generation_->GetOrCreate<T>();
     }
 
+    PacketSequenceState* state() const { return generation_->state(); }
+
    private:
     friend PacketSequenceStateGeneration;
     // Called when the a new generation is created as a result of

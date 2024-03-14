@@ -103,8 +103,10 @@ void ProfilePacketSequenceState::AddMapping(SourceMappingId id,
 
 void ProfilePacketSequenceState::AddFrame(SourceFrameId id,
                                           const SourceFrame& frame) {
-  VirtualMemoryMapping** mapping = mappings_.Find(frame.mapping_id);
-  if (!mapping) {
+  VirtualMemoryMapping* mapping;
+  if (auto* ptr = mappings_.Find(frame.mapping_id); ptr) {
+    mapping = *ptr;
+  } else {
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
     return;
   }
@@ -116,7 +118,8 @@ void ProfilePacketSequenceState::AddFrame(SourceFrameId id,
   }
 
   FrameId frame_id =
-      (*mapping)->InternFrame(frame.rel_pc, base::StringView(*function_name));
+      mapping->InternFrame(frame.rel_pc, base::StringView(*function_name));
+  PERFETTO_CHECK(!mapping->is_jitted());
   frames_.Insert(id, frame_id);
 }
 
@@ -174,14 +177,13 @@ FrameId ProfilePacketSequenceState::GetDatabaseFrameIdForTesting(
 }
 
 void ProfilePacketSequenceState::AddAllocation(const SourceAllocation& alloc) {
-  auto opt_callstack_id = FindOrInsertCallstack(alloc.callstack_id);
+  const UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+      static_cast<uint32_t>(alloc.pid));
+  auto opt_callstack_id = FindOrInsertCallstack(upid, alloc.callstack_id);
   if (!opt_callstack_id)
     return;
 
   CallsiteId callstack_id = *opt_callstack_id;
-
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-      static_cast<uint32_t>(alloc.pid));
 
   tables::HeapProfileAllocationTable::Row alloc_row{
       alloc.timestamp,
@@ -277,11 +279,13 @@ void ProfilePacketSequenceState::AddAllocation(const SourceAllocation& alloc) {
 }
 
 std::optional<CallsiteId> ProfilePacketSequenceState::FindOrInsertCallstack(
+    UniquePid upid,
     uint64_t iid) {
   if (CallsiteId* id = callstacks_.Find(iid); id) {
     return *id;
   }
-  return GetOrCreate<StackProfileSequenceState>()->FindOrInsertCallstack(iid);
+  return GetOrCreate<StackProfileSequenceState>()->FindOrInsertCallstack(upid,
+                                                                         iid);
 }
 
 }  // namespace trace_processor
