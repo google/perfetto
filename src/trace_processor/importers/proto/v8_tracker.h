@@ -111,7 +111,7 @@ class V8Tracker : public Destructible {
     size_t operator()(const tables::V8JsFunctionTable::Row& v) const {
       return static_cast<size_t>(base::Hasher::Combine(
           v.name.raw_id(), v.v8_js_script_id.value, v.is_toplevel,
-          v.kind.raw_id(), v.line.value_or(0), v.column.value_or(0)));
+          v.kind.raw_id(), v.line.value_or(0), v.col.value_or(0)));
     }
   };
   base::FlatHashMap<tables::V8JsFunctionTable::Row,
