@@ -13,8 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE intervals.intersect;
+
 -- The time a thread spent in each scheduling state during it's lifetime.
-CREATE PERFETTO TABLE sched_thread_time_in_state(
+CREATE PERFETTO TABLE sched_time_in_state_for_thread(
   -- Utid of the thread.
   utid INT,
   -- Total runtime of thread.
@@ -87,5 +89,80 @@ SELECT
     CASE WHEN state IN ('T', 't', 'X', 'Z', 'x', 'I', 'K', 'W', 'P', 'N')
     THEN time_in_state END
   ) * 100/total_runtime AS other
-FROM sched_thread_time_in_state
+FROM sched_time_in_state_for_thread
 GROUP BY utid;
+
+-- Time the thread spent each state in a given interval.
+CREATE PERFETTO FUNCTION sched_time_in_state_for_thread_in_interval(
+  -- The start of the interval.
+  ts INT,
+  -- The duration of the interval.
+  dur INT,
+  -- The utid of the thread.
+  utid INT)
+RETURNS TABLE(
+  -- Thread state (from the `thread_state` table).
+  -- Use `sched_state_to_human_readable_string` function to get full name.
+  state INT,
+  -- A (posssibly NULL) boolean indicating, if the device was in uninterruptible
+  -- sleep, if it was an IO sleep.
+  io_wait BOOL,
+  -- Some states can specify the blocked function. Usually NULL.
+  blocked_function INT,
+  -- Total time spent with this state, cpu and blocked function.
+  dur INT) AS
+SELECT
+  state,
+  io_wait,
+  blocked_function,
+  sum(ii.dur) as dur
+FROM thread_state
+JOIN
+  (SELECT * FROM _interval_intersect_single!(
+    $ts, $dur,
+    (SELECT id, ts, dur
+    FROM thread_state
+    WHERE utid = $utid))) ii USING (id)
+GROUP BY 1, 2, 3
+ORDER BY 4 DESC;
+
+-- Time the thread spent each state and cpu in a given interval.
+CREATE PERFETTO FUNCTION sched_time_in_state_and_cpu_for_thread_in_interval(
+  -- The start of the interval.
+  ts INT,
+  -- The duration of the interval.
+  dur INT,
+  -- The utid of the thread.
+  utid INT)
+RETURNS TABLE(
+  -- Thread state (from the `thread_state` table).
+  -- Use `sched_state_to_human_readable_string` function to get full name.
+  state INT,
+  -- A (posssibly NULL) boolean indicating, if the device was in uninterruptible
+  -- sleep, if it was an IO sleep.
+  io_wait BOOL,
+  -- Id of the CPU.
+  -- Use `cpu_guess_core_type` to get the CPU size (little/mid/big).
+  cpu INT,
+  -- Some states can specify the blocked function. Usually NULL.
+  blocked_function INT,
+  -- Total time spent with this state, cpu and blocked function.
+  dur INT) AS
+SELECT
+  state,
+  io_wait,
+  cpu,
+  blocked_function,
+  sum(ii.dur) as dur
+FROM thread_state
+JOIN
+  (SELECT * FROM _interval_intersect_single!(
+    $ts, $dur,
+    (SELECT id, ts, dur
+    FROM thread_state
+    WHERE utid = $utid))) ii USING (id)
+GROUP BY 1, 2, 3, 4
+ORDER BY 5 DESC;
+
+
+
