@@ -84,7 +84,7 @@ curl -O https://raw.githubusercontent.com/google/perfetto/master/tools/record_an
 chmod u+x record_android_trace
 
 # See ./record_android_trace --help for more
-./record_android_trace -o trace_file.perfetto-trace -t 10s -b 32mb \
+./record_android_trace -o trace_file.perfetto-trace -t 30s -b 64mb \
 sched freq idle am wm gfx view binder_driver hal dalvik camera input res memory
 ```
 
@@ -92,7 +92,7 @@ On Windows:
 
 ```bash
 curl -O https://raw.githubusercontent.com/google/perfetto/master/tools/record_android_trace
-python3 record_android_trace -o trace_file.perfetto-trace -t 10s -b 32mb \
+python3 record_android_trace -o trace_file.perfetto-trace -t 30s -b 64mb \
 sched freq idle am wm gfx view binder_driver hal dalvik camera input res memory
 ```
 
