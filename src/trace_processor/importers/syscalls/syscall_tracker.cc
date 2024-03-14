@@ -24,8 +24,7 @@
 #include "src/kernel_utils/syscall_table.h"
 #include "src/trace_processor/storage/stats.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // TODO(primiano): The current design is broken in case of 32-bit processes
 // running on 64-bit kernel. At least on ARM, the syscal numbers don't match
@@ -48,8 +47,11 @@ void SyscallTracker::SetArchitecture(Architecture arch) {
     const char* name = syscalls.GetById(i);
     if (name && *name) {
       id = context_->storage->InternString(name);
-      if (!strcmp(name, "sys_write"))
+      if (!strcmp(name, "sys_write")) {
         sys_write_string_id_ = id;
+      } else if (!strcmp(name, "sys_rt_sigreturn")) {
+        sys_rt_sigreturn_string_id_ = id;
+      }
     } else {
       base::StackString<64> unknown_str("sys_%zu", i);
       id = context_->storage->InternString(unknown_str.string_view());
@@ -58,5 +60,4 @@ void SyscallTracker::SetArchitecture(Architecture arch) {
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
