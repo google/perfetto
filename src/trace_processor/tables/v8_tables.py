@@ -35,7 +35,7 @@ from .profiler_tables import STACK_PROFILE_FRAME_TABLE
 V8_ISOLATE = Table(
     python_module=__file__,
     class_name='V8IsolateTable',
-    sql_name='v8_isolate',
+    sql_name='__intrinsic_v8_isolate',
     columns=[
         C('upid', CppUint32()),
         C('internal_isolate_id', CppInt32()),
@@ -45,7 +45,6 @@ V8_ISOLATE = Table(
         C('code_range_size', CppOptional(CppInt64())),
         C('shared_code_range', CppOptional(CppBool())),
         C('embedded_blob_code_copy_start_address', CppOptional(CppInt64())),
-        C('v8_isolate_id', Alias('id')),
     ],
     tabledoc=TableDoc(
         doc='Represents one Isolate instance',
@@ -72,8 +71,6 @@ V8_ISOLATE = Table(
                 'Used when short builtin calls are enabled, where embedded'
                 ' builtins are copied into the CodeRange so calls can be'
                 ' nearer.',
-            'v8_isolate_id':
-                'Alias for id. Makes joins easier',
         },
     ),
 )
@@ -81,14 +78,13 @@ V8_ISOLATE = Table(
 V8_JS_SCRIPT = Table(
     python_module=__file__,
     class_name='V8JsScriptTable',
-    sql_name='v8_js_script',
+    sql_name='__intrinsic_v8_js_script',
     columns=[
         C('v8_isolate_id', CppTableId(V8_ISOLATE)),
         C('internal_script_id', CppInt32()),
         C('script_type', CppString()),
         C('name', CppString()),
         C('source', CppOptional(CppString())),
-        C('v8_js_script_id', Alias('id')),
     ],
     tabledoc=TableDoc(
         doc='Represents one Javascript script',
@@ -99,7 +95,6 @@ V8_JS_SCRIPT = Table(
             'script_type': '',
             'name': '',
             'source': 'Actual contents of the script.',
-            'v8_js_script_id': 'Alias for id. Makes joins easier',
         },
     ),
 )
@@ -107,13 +102,12 @@ V8_JS_SCRIPT = Table(
 V8_WASM_SCRIPT = Table(
     python_module=__file__,
     class_name='V8WasmScriptTable',
-    sql_name='v8_wasm_script',
+    sql_name='__intrinsic_v8_wasm_script',
     columns=[
         C('v8_isolate_id', CppTableId(V8_ISOLATE)),
         C('internal_script_id', CppInt32()),
         C('url', CppString()),
         C('source', CppOptional(CppString())),
-        C('v8_wasm_script_id', Alias('id')),
     ],
     tabledoc=TableDoc(
         doc='Represents one WASM script',
@@ -123,7 +117,6 @@ V8_WASM_SCRIPT = Table(
             'internal_script_id': 'Script id used by the V8 engine',
             'url': 'URL of the source',
             'source': 'Actual contents of the script.',
-            'v8_wasm_script_id': 'Alias for id. Makes joins easier',
         },
     ),
 )
@@ -131,15 +124,14 @@ V8_WASM_SCRIPT = Table(
 V8_JS_FUNCTION = Table(
     python_module=__file__,
     class_name='V8JsFunctionTable',
-    sql_name='v8_js_function',
+    sql_name='__intrinsic_v8_js_function',
     columns=[
         C('name', CppString()),
         C('v8_js_script_id', CppTableId(V8_JS_SCRIPT)),
         C('is_toplevel', CppBool()),
         C('kind', CppString()),
         C('line', CppOptional(CppUint32())),
-        C('column', CppOptional(CppUint32())),
-        C('v8_js_function_id', Alias('id')),
+        C('col', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='Represents a v8 Javascript function',
@@ -158,10 +150,8 @@ V8_JS_FUNCTION = Table(
                 'Function kind (e.g. regular function or constructor)',
             'line':
                 'Line in script where function is defined. Starts at 1',
-            'column':
+            'col':
                 'Column in script where function is defined. Starts at 1',
-            'v8_js_function_id':
-                'Alias for id. Makes joins easier',
         },
     ),
 )
