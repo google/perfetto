@@ -157,6 +157,60 @@ class IntervalsIntersect(TestSuite):
         "ts","dur","left_id","right_id"
         """))
 
+  def test_no_empty(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        # A:   __-
+        # B:   -__
+        # res: ___
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 2, 1)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+        SELECT * FROM A LIMIT 0;
+
+        SELECT ts, dur, left_id, right_id
+        FROM _interval_intersect!(A, B)
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","left_id","right_id"
+        """))
+
+  def test_no_empty_rev(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        # A:   __-
+        # B:   -__
+        # res: ___
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 2, 1)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+        SELECT * FROM A LIMIT 0;
+
+        SELECT ts, dur, left_id, right_id
+        FROM _interval_intersect!(B, A)
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","left_id","right_id"
+        """))
+
   def test_single_point_overlap(self):
     return DiffTestBlueprint(
         trace=TextProto(""),
