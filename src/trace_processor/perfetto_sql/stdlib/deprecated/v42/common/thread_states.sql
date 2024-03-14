@@ -14,6 +14,7 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE deprecated.v42.common.timestamps;
+INCLUDE PERFETTO MODULE sched.time_in_state;
 INCLUDE PERFETTO MODULE sched.states;
 INCLUDE PERFETTO MODULE cpu.size;
 
@@ -55,34 +56,11 @@ RETURNS TABLE(
   -- The total duration.
   dur INT
 ) AS
-WITH
-states_starting_inside AS (
-  SELECT id
-  FROM thread_state
-  WHERE $ts <= ts
-    AND ts <= $ts + $dur
-    AND utid = $utid
-),
-first_state_starting_before AS (
-  SELECT id
-  FROM thread_state
-  WHERE ts < $ts AND utid = $utid
-  ORDER BY ts DESC
-  LIMIT 1
-),
-relevant_states AS (
-  SELECT * FROM states_starting_inside
-  UNION ALL
-  SELECT * FROM first_state_starting_before
-)
 SELECT
   sched_state_io_to_human_readable_string(state, io_wait) as state,
-  state as raw_state,
+  state AS raw_state,
   cpu_guess_core_type(cpu) as cpu_type,
   cpu,
   blocked_function,
-  sum(spans_overlapping_dur($ts, $dur, ts, dur)) as dur
-FROM thread_state
-JOIN relevant_states USING (id)
-GROUP BY state, raw_state, cpu_type, cpu, blocked_function
-ORDER BY dur desc;
+  dur
+FROM sched_time_in_state_and_cpu_for_thread_in_interval($ts, $dur, $utid);

@@ -72,17 +72,18 @@ export async function breakDownIntervalByThreadState(
   // TODO(altimin): this probably should share some code with pivot tables when
   // we actually get some pivot tables we like.
   const query = await engine.query(`
-    INCLUDE PERFETTO MODULE deprecated.v42.common.thread_states;
+    INCLUDE PERFETTO MODULE sched.time_in_state;
+    INCLUDE PERFETTO MODULE sched.states;
+    INCLUDE PERFETTO MODULE cpu.size;
 
     SELECT
-      state,
-      raw_state as rawState,
-      cpu_type as cpuType,
+      sched_state_io_to_human_readable_string(state, io_wait) as state,
+      state AS rawState,
+      cpu_guess_core_type(cpu) AS cpuType,
       cpu,
-      blocked_function as blockedFunction,
+      blocked_function AS blockedFunction,
       dur
-    FROM thread_state_summary_for_interval(${range.start}, ${range.duration}, ${
-  utid});
+    FROM sched_time_in_state_and_cpu_for_thread_in_interval(${range.start}, ${range.duration}, ${utid});
   `);
   const it = query.iter({
     state: STR,
