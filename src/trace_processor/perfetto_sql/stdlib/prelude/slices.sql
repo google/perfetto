@@ -30,38 +30,3 @@ FROM slice ancestor
 JOIN slice descendant
 WHERE ancestor.id = $ancestor_id
   AND descendant.id = $descendant_id;
-
-CREATE PERFETTO MACRO _interval_intersect(
-  left_table TableOrSubquery,
-  right_table TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
-  WITH on_left AS (
-    SELECT
-      B.ts,
-      IIF(
-        A.ts + A.dur <= B.ts + B.dur,
-        A.ts + A.dur - B.ts, B.dur) AS dur,
-      A.id AS left_id,
-      B.id as right_id
-    FROM $left_table A
-    JOIN $right_table B ON (A.ts <= B.ts AND A.ts + A.dur > B.ts)
-  ), on_right AS (
-    SELECT
-      B.ts,
-      IIF(
-        A.ts + A.dur <= B.ts + B.dur,
-        A.ts + A.dur - B.ts, B.dur) AS dur,
-      B.id as left_id,
-      A.id AS right_id
-    FROM $right_table A
-    -- The difference between this table and on_left is the lack of equality on
-    -- A.ts <= B.ts. This is to remove the issue of double accounting
-    -- timestamps that start at the same time.
-    JOIN $left_table B ON (A.ts < B.ts AND A.ts + A.dur > B.ts)
-  )
-  SELECT * FROM on_left
-  UNION ALL
-  SELECT * FROM on_right
-);

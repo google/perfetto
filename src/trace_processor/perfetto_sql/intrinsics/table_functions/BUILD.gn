@@ -43,6 +43,8 @@ source_set("table_functions") {
     "experimental_slice_layout.h",
     "flamegraph_construction_algorithms.cc",
     "flamegraph_construction_algorithms.h",
+    "interval_intersect.cc",
+    "interval_intersect.h",
     "table_info.cc",
     "table_info.h",
   ]

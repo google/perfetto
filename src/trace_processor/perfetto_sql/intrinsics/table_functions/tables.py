@@ -170,6 +170,23 @@ DFS_TABLE = Table(
           flags=ColumnFlag.HIDDEN),
     ])
 
+INTERVAL_INTERSECT_TABLE = Table(
+    python_module=__file__,
+    class_name="IntervalIntersectTable",
+    sql_name="__intrinsic_interval_intersect",
+    columns=[
+        C("ts", CppInt64()),
+        C("dur", CppInt64()),
+        C("left_id", CppUint32()),
+        C("right_id", CppUint32()),
+        C("in_left_ids", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C("in_left_tses", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C("in_left_durs", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C("in_right_ids", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C("in_right_tses", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C("in_right_durs", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+    ])
+
 # Keep this list sorted.
 ALL_TABLES = [
     ANCESTOR_SLICE_BY_STACK_TABLE,
@@ -184,5 +201,6 @@ ALL_TABLES = [
     EXPERIMENTAL_COUNTER_DUR_TABLE,
     EXPERIMENTAL_SCHED_UPID_TABLE,
     EXPERIMENTAL_SLICE_LAYOUT_TABLE,
+    INTERVAL_INTERSECT_TABLE,
     TABLE_INFO_TABLE,
 ]
