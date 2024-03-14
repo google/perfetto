@@ -72,6 +72,8 @@ namespace stats {
   F(ftrace_setup_errors,                  kSingle,  kInfo,     kTrace,         \
        "One or more atrace/ftrace categories were not found or failed to "     \
        "enable. See ftrace_setup_errors in the metadata table for details."),  \
+  F(ftrace_abi_errors_skipped_zero_data_length,                                \
+                                          kSingle,  kInfo,     kAnalysis, ""), \
   F(fuchsia_non_numeric_counters,         kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_timestamp_overflow,           kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_invalid_event,                kSingle,  kError,    kAnalysis, ""), \
