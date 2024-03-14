@@ -11939,6 +11939,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/interval_intersect.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.cc",
     ],
 }
@@ -12065,6 +12066,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/timestamps.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/dominator_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/search.sql",
+        "src/trace_processor/perfetto_sql/stdlib/intervals/intersect.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/overlap.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/cpu_idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/memory/heap_graph_dominator_tree.sql",
