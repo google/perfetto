@@ -162,14 +162,14 @@ class StdlibSched(TestSuite):
         92000000000,0.000009,0.000071
         """))
 
-  def test_sched_thread_time_in_state(self):
+  def test_sched_time_in_state_for_thread(self):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
         INCLUDE PERFETTO MODULE sched.time_in_state;
 
         SELECT *
-        FROM sched_thread_time_in_state
+        FROM sched_time_in_state_for_thread
         ORDER BY utid, state
         LIMIT 10;
         """,
@@ -210,4 +210,38 @@ class StdlibSched(TestSuite):
         8,0,0,0,98,0,"[NULL]"
         9,0,"[NULL]","[NULL]",99,"[NULL]","[NULL]"
         10,0,"[NULL]",0,99,"[NULL]","[NULL]"
+        """))
+
+  def test_sched_time_in_state_for_thread_in_interval(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.time_in_state;
+
+        SELECT *
+        FROM sched_time_in_state_for_thread_in_interval(71039311397, 10000000000, 44);
+        """,
+        out=Csv("""
+        "state","io_wait","blocked_function","dur"
+        "S","[NULL]","[NULL]",1404466083
+        "Running","[NULL]","[NULL]",4655524
+        "D","[NULL]","[NULL]",563645
+        "R+","[NULL]","[NULL]",380156
+        """))
+
+  def test_sched_time_in_state_and_cpu_for_thread_in_interval(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.time_in_state;
+
+        SELECT *
+        FROM sched_time_in_state_and_cpu_for_thread_in_interval(71039311397, 10000000000, 44);
+        """,
+        out=Csv("""
+        "state","io_wait","cpu","blocked_function","dur"
+        "S","[NULL]","[NULL]","[NULL]",1404466083
+        "Running","[NULL]",2,"[NULL]",4655524
+        "D","[NULL]","[NULL]","[NULL]",563645
+        "R+","[NULL]","[NULL]","[NULL]",380156
         """))
