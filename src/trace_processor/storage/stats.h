@@ -312,6 +312,9 @@ namespace stats {
   F(winscope_protolog_missing_interned_stacktrace_parse_errors,                \
                                           kSingle,  kInfo,     kAnalysis,      \
       "Failed to find interned ProtoLog stacktrace."),                         \
+  F(jit_unknown_frame,                    kSingle,  kDataLoss, kTrace,         \
+      "Indicates that we were unable to determine the function for a frame in "\
+      "a jitted memory region"),                                               \
   F(ftrace_missing_event_id,              kSingle,  kInfo,    kAnalysis,       \
       "Indicates that the ftrace event was dropped because the event id was "  \
       "missing. This is an 'info' stat rather than an error stat because "     \
