@@ -19,7 +19,7 @@ CREATE PERFETTO MACRO _interval_intersect(
 )
 RETURNS TableOrSubquery AS
 (
-  WITH 
+  WITH
     __temp_left_table AS (SELECT * FROM $left_table ORDER BY ts),
     __temp_right_table AS (SELECT * FROM $right_table ORDER BY ts)
   SELECT ii.ts, ii.dur, ii.left_id, ii.right_id
@@ -32,3 +32,22 @@ RETURNS TableOrSubquery AS
     (SELECT RepeatedField(dur) FROM __temp_right_table)
   ) ii
 );
+
+CREATE PERFETTO MACRO _interval_intersect_single(
+  ts Expr,
+  dur Expr,
+  intervals_table TableOrSubquery
+) RETURNS TableOrSubquery AS(
+  SELECT
+    left_id AS id,
+    ts,
+    dur
+  FROM _interval_intersect!(
+    $intervals_table,
+    (SELECT
+        0 AS id,
+        $ts AS ts,
+        $dur AS dur
+    )
+  )
+)
