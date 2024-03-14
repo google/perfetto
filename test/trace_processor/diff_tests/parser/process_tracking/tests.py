@@ -314,3 +314,54 @@ class ProcessTracking(TestSuite):
         1088821786436938,1327860000000.000000,"runtime.kernel_ns",9301,157620000000,"/bin/command"
         1088821786436938,16638280000000.000000,"runtime.user_ns",9301,157620000000,"/bin/command"
         """))
+
+  # Distinguish set-to-zero process age (can happen for kthreads) from unset
+  # process age.
+  def test_process_age_optionality(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          first_packet_on_sequence: true
+          timestamp: 1088821452006028
+          incremental_state_cleared: true
+          process_tree {
+            processes {
+              pid: 2
+              ppid: 0
+              uid: 0
+              cmdline: "kthreadd"
+              process_start_from_boot: 0
+            }
+            processes {
+              pid: 68
+              ppid: 2
+              uid: 0
+              cmdline: "ksoftirqd/7"
+              process_start_from_boot: 10000000
+            }
+            processes {
+              pid: 9301
+              ppid: 9251
+              uid: 304336
+              cmdline: "no_age_field"
+            }
+            collection_end_timestamp: 1088821520810204
+          }
+          trusted_uid: 304336
+          trusted_packet_sequence_id: 3
+          trusted_pid: 1137063
+          previous_packet_dropped: true
+        }
+        """),
+        query="""
+        select p.pid, p.start_ts, p.cmdline
+        from process p
+        where pid in (2, 68, 9301)
+        order by pid asc;
+        """,
+        out=Csv("""
+        "pid","start_ts","cmdline"
+        2,0,"kthreadd"
+        68,10000000,"ksoftirqd/7"
+        9301,"[NULL]","no_age_field"
+        """))
