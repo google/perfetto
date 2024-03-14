@@ -196,14 +196,15 @@ std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   }
   // Interned mapping_id loses it's meaning when the sequence ends. So we need
   // to get an id from stack_profile_mapping table.
-  auto mapping_id = delegate.seq_state()
-                        ->GetOrCreate<StackProfileSequenceState>()
-                        ->FindOrInsertMapping(decoder->mapping_id());
-  if (!mapping_id) {
+  auto mapping = delegate.seq_state()
+                     ->GetOrCreate<StackProfileSequenceState>()
+                     ->FindOrInsertMapping(decoder->mapping_id());
+  if (!mapping) {
     return std::nullopt;
   }
   delegate.AddUnsignedInteger(
-      util::ProtoToArgsParser::Key(prefix + ".mapping_id"), mapping_id->value);
+      util::ProtoToArgsParser::Key(prefix + ".mapping_id"),
+      mapping->mapping_id().value);
   delegate.AddUnsignedInteger(util::ProtoToArgsParser::Key(prefix + ".rel_pc"),
                               decoder->rel_pc());
   return base::OkStatus();

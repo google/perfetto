@@ -35,31 +35,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-// Api used to forward frame interning requests for frames that fall in a
-// jitted memory region.
-// MappingTracker allows other trackers to register ranges of memory for
-// which they need to control when a new frame is created. Jitted code can
-// move in memory over time, so the same program counter might refer to
-// different functions at different point in time. MappingTracker does
-// not keep track of such moves but instead delegates the creation of jitted
-// frames to a delegate.
-class JitDelegate {
- public:
-  virtual ~JitDelegate();
-  // Forward frame interning request.
-  // Implementations are free to intern the frame as needed.
-  // Returns frame_id, and whether a new row as created or not.
-  virtual std::pair<FrameId, bool> InternFrame(
-      VirtualMemoryMapping* mapping,
-      uint64_t rel_pc,
-      base::StringView function_name) = 0;
-
-  // Simpleperf does not emit mmap events for jitted ranges (actually for non
-  // file backed executable mappings). So have a way to generate a mapping on
-  // the fly for FindMapping requests in a jitted region with no associated
-  // mapping.
-  virtual UserMemoryMapping* CreateMapping() = 0;
-};
+class JitCache;
 
 // Keeps track of all aspects relative to memory mappings.
 // This class keeps track of 3 types of mappings: UserMemoryMapping,
@@ -113,7 +89,7 @@ class MappingTracker {
   // If the added region overlaps with other existing ranges the latter are all
   // deleted.
   // Jitted ranges will only be applied to UserMemoryMappings
-  void AddJitRange(UniquePid upid, AddressRange range, JitDelegate* delegate);
+  void AddJitRange(UniquePid upid, AddressRange range, JitCache* jit_cache);
 
  private:
   template <typename MappingImpl>
@@ -159,7 +135,7 @@ class MappingTracker {
   AddressRangeMap<KernelMemoryMapping*> kernel_modules_;
   KernelMemoryMapping* kernel_ = nullptr;
 
-  base::FlatHashMap<UniquePid, AddressRangeMap<JitDelegate*>> jit_delegates_;
+  base::FlatHashMap<UniquePid, AddressRangeMap<JitCache*>> jit_caches_;
 };
 
 }  // namespace trace_processor

@@ -25,7 +25,7 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/address_range.h"
-#include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/jit_cache.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -84,8 +84,8 @@ UserMemoryMapping::~UserMemoryMapping() = default;
 FrameId VirtualMemoryMapping::InternFrame(uint64_t rel_pc,
                                           base::StringView function_name) {
   auto [frame_id, was_inserted] =
-      jit_delegate_ ? jit_delegate_->InternFrame(this, rel_pc, function_name)
-                    : InternFrameImpl(rel_pc, function_name);
+      jit_cache_ ? jit_cache_->InternFrame(this, rel_pc, function_name)
+                 : InternFrameImpl(rel_pc, function_name);
   if (was_inserted) {
     frames_by_rel_pc_[rel_pc].push_back(frame_id);
     context_->stack_profile_tracker->OnFrameCreated(frame_id);
