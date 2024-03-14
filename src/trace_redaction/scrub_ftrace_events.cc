@@ -18,9 +18,8 @@
 
 #include <string>
 
-#include "perfetto/protozero/message.h"
-#include "perfetto/protozero/message_arena.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_redaction/proto_util.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -117,7 +116,7 @@ base::Status ScrubFtraceEvents::Transform(const Context& context,
        packet_child_it = d_packet.ReadField()) {
     // packet.child_not<ftrace_events>( ).do ( ... )
     if (packet_child_it.id() != kFtraceEventsFieldNumber) {
-      AppendField(packet_child_it, packet_msg.get());
+      proto_util::AppendField(packet_child_it, packet_msg.get());
       continue;
     }
 
@@ -132,13 +131,13 @@ base::Status ScrubFtraceEvents::Transform(const Context& context,
          ftrace_events_it = ftrace_events.ReadField()) {
       // packet.child<ftrace_events>( ).child_not<event>( ).do ( ... )
       if (ftrace_events_it.id() != kEventFieldNumber) {
-        AppendField(ftrace_events_it, ftrace_events_msg);
+        proto_util::AppendField(ftrace_events_it, ftrace_events_msg);
         continue;
       }
 
       // packet.child<ftrace_events>( ).child_is<event>( ).do ( ... )
       if (ProbeEvent(context, ftrace_events_it) == Redact::kNothing) {
-        AppendField(ftrace_events_it, ftrace_events_msg);
+        proto_util::AppendField(ftrace_events_it, ftrace_events_msg);
         continue;
       }
 
@@ -148,40 +147,6 @@ base::Status ScrubFtraceEvents::Transform(const Context& context,
 
   packet->assign(packet_msg.SerializeAsString());
   return base::OkStatus();
-}
-
-// This is copied from "src/protozero/field.cc", but was modified to use the
-// serialization methods provided in "perfetto/protozero/message.h".
-void ScrubFtraceEvents::AppendField(const protozero::Field& field,
-                                    protozero::Message* message) {
-  auto id = field.id();
-  auto type = field.type();
-
-  switch (type) {
-    case protozero::proto_utils::ProtoWireType::kVarInt: {
-      message->AppendVarInt(id, field.raw_int_value());
-      return;
-    }
-
-    case protozero::proto_utils::ProtoWireType::kFixed32: {
-      message->AppendFixed(id, field.as_uint32());
-      return;
-    }
-
-    case protozero::proto_utils::ProtoWireType::kFixed64: {
-      message->AppendFixed(id, field.as_uint64());
-      return;
-    }
-
-    case protozero::proto_utils::ProtoWireType::kLengthDelimited: {
-      message->AppendBytes(id, field.data(), field.size());
-      return;
-    }
-  }
-
-  // A switch-statement would be preferred, but when using a switch statement,
-  // it complains that about case coverage.
-  PERFETTO_FATAL("Unknown field type %u", static_cast<uint8_t>(type));
 }
 
 }  // namespace perfetto::trace_redaction

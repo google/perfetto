@@ -17,8 +17,8 @@
 #ifndef SRC_TRACE_REDACTION_SCRUB_FTRACE_EVENTS_H_
 #define SRC_TRACE_REDACTION_SCRUB_FTRACE_EVENTS_H_
 
-#include "perfetto/protozero/field.h"
-#include "perfetto/protozero/message.h"
+#include <string>
+
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
@@ -51,10 +51,6 @@ class ScrubFtraceEvents final : public TransformPrimitive {
  public:
   base::Status Transform(const Context& context,
                          std::string* packet) const override;
-
-  // Used by `Transform()`. Only exposed for conformance testing.
-  static void AppendField(const protozero::Field& field,
-                          protozero::Message* message);
 };
 
 }  // namespace perfetto::trace_redaction
