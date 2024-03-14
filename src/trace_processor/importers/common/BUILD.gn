@@ -37,6 +37,8 @@ source_set("common") {
     "flow_tracker.h",
     "global_args_tracker.cc",
     "global_args_tracker.h",
+    "jit_cache.cc",
+    "jit_cache.h",
     "mapping_tracker.cc",
     "mapping_tracker.h",
     "metadata_tracker.cc",

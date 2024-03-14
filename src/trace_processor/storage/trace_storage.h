@@ -43,6 +43,7 @@
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -761,6 +762,14 @@ class TraceStorage {
     return &v8_js_function_table_;
   }
 
+  const tables::JitCodeTable& jit_code_table() const { return jit_code_table_; }
+  tables::JitCodeTable* mutable_jit_code_table() { return &jit_code_table_; }
+
+  const tables::JitFrameTable& jit_frame_table() const {
+    return jit_frame_table_;
+  }
+  tables::JitFrameTable* mutable_jit_frame_table() { return &jit_frame_table_; }
+
   const tables::SurfaceFlingerLayersSnapshotTable&
   surfaceflinger_layers_snapshot_table() const {
     return surfaceflinger_layers_snapshot_table_;
@@ -950,8 +959,8 @@ class TraceStorage {
       &string_pool_, &uid_track_table_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
   tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
-  tables::LinuxDeviceTrackTable linux_device_track_table_{
-      &string_pool_, &track_table_};
+  tables::LinuxDeviceTrackTable linux_device_track_table_{&string_pool_,
+                                                          &track_table_};
 
   // Track tables for counter events.
   tables::CounterTrackTable counter_track_table_{&string_pool_, &track_table_};
@@ -1067,6 +1076,10 @@ class TraceStorage {
   tables::V8WasmScriptTable v8_wasm_script_table_{&string_pool_};
   tables::V8JsFunctionTable v8_js_function_table_{&string_pool_};
 
+  // Jit tables
+  tables::JitCodeTable jit_code_table_{&string_pool_};
+  tables::JitFrameTable jit_frame_table_{&string_pool_};
+
   // Winscope tables
   tables::SurfaceFlingerLayersSnapshotTable
       surfaceflinger_layers_snapshot_table_{&string_pool_};
@@ -1119,6 +1132,9 @@ struct std::hash<::perfetto::trace_processor::FrameId>
     : std::hash<::perfetto::trace_processor::BaseId> {};
 template <>
 struct std::hash<::perfetto::trace_processor::tables::HeapGraphObjectTable::Id>
+    : std::hash<::perfetto::trace_processor::BaseId> {};
+template <>
+struct std::hash<::perfetto::trace_processor::tables::JitCodeTable::Id>
     : std::hash<::perfetto::trace_processor::BaseId> {};
 
 template <>

@@ -19,6 +19,7 @@ perfetto_sql_source_set("common") {
     "args.sql",
     "counters.sql",
     "cpus.sql",
+    "jit.sql",
     "metadata.sql",
     "percentiles.sql",
     "slices.sql",
