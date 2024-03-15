@@ -63,7 +63,6 @@ const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 const CPU_SLICE_FLAGS_INCOMPLETE = 1;
 const CPU_SLICE_FLAGS_REALTIME = 2;
 
-
 class CpuSliceTrack implements Track {
   private mousePos?: { x: number, y: number };
   private utidHoveredInThisTrack = -1;
@@ -340,13 +339,15 @@ class CpuSliceTrack implements Track {
         ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
       }
 
+      // Don't render text when we have less than 5px to play with.
+      if (rectWidth < 5) continue;
+
+      // Stylize real-time threads. We don't do it when zoomed out as the
+      // fillRect is expensive.
       if (data.flags[i] & CPU_SLICE_FLAGS_REALTIME) {
         ctx.fillStyle = getHatchedPattern(ctx);
         ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
       }
-
-      // Don't render text when we have less than 5px to play with.
-      if (rectWidth < 5) continue;
 
       // TODO: consider de-duplicating this code with the copied one from
       // chrome_slices/frontend.ts.
@@ -597,7 +598,6 @@ function getHatchedPattern(mainCtx: CanvasRenderingContext2D) : CanvasPattern {
   mctx.sliceHatchedPattern = assertExists(mctx.createPattern(canvas, 'repeat'));
   return mctx.sliceHatchedPattern;
 }
-
 
 export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.CpuSlices',
