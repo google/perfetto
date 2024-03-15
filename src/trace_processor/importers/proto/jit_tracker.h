@@ -27,8 +27,7 @@
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class JitCache;
 
@@ -52,7 +51,7 @@ class JitTracker : public Destructible {
                            AddressRange range);
 
  private:
-  explicit JitTracker(TraceProcessorContext* context) : context_(context) {}
+  explicit JitTracker(TraceProcessorContext* context);
 
   FrameId InternUnknownFrame(MappingId mapping_id, uint64_t rel_pc);
 
@@ -62,7 +61,6 @@ class JitTracker : public Destructible {
       caches_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_JIT_TRACKER_H_

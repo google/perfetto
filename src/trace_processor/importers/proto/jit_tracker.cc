@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/importers/proto/jit_tracker.h"
 
-#include <cstddef>
-#include <cstring>
 #include <memory>
 #include <string>
 #include <utility>
@@ -30,8 +28,9 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+
+JitTracker::JitTracker(TraceProcessorContext* context) : context_(context) {}
 
 JitTracker::~JitTracker() = default;
 
@@ -51,5 +50,4 @@ JitCache* JitTracker::CreateJitCache(std::string name,
   return cache_ptr;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
