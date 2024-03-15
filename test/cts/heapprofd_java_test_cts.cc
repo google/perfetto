@@ -133,7 +133,7 @@ std::vector<protos::gen::TracePacket> TriggerOomHeapDump(std::string app_name,
   trigger_config->set_trigger_timeout_ms(60000);
   auto* oom_trigger = trigger_config->add_triggers();
   oom_trigger->set_name("com.android.telemetry.art-outofmemory");
-  oom_trigger->set_stop_delay_ms(10000);
+  oom_trigger->set_stop_delay_ms(1000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.java_hprof.oom");
