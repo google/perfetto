@@ -137,16 +137,31 @@ uint32_t IntervalIntersect::EstimateRowCount() {
 }
 
 base::StatusOr<std::unique_ptr<Table>> IntervalIntersect::ComputeTable(
-    const std::vector<SqlValue>& arguments) {
-  PERFETTO_DCHECK(arguments.size() == 6);
+    const std::vector<SqlValue>& args) {
+  PERFETTO_DCHECK(args.size() == 6);
+
+  // If either of the provided sets of columns is empty return.
+  auto pred = [](const SqlValue& val) { return val.is_null(); };
+  if (std::any_of(args.begin(), args.end(), pred)) {
+    // We expect that either all left table values are empty or all right table
+    // values are empty.
+    if (std::all_of(args.begin(), args.begin() + 3, pred) ||
+        std::all_of(args.begin() + 3, args.begin() + 6, pred)) {
+      return std::unique_ptr<Table>(
+          std::make_unique<tables::IntervalIntersectTable>(pool_));
+    }
+    return base::ErrStatus(
+        "interval_intersect: not all of the arguments of one of the tables are "
+        "null");
+  }
 
   bool parse_error = false;
-  ASSIGN_OR_RETURN(IntervalsIterator l_it,
-                   IntervalsIterator::Create(arguments[0], arguments[1],
-                                             arguments[2], parse_error));
-  ASSIGN_OR_RETURN(IntervalsIterator r_it,
-                   IntervalsIterator::Create(arguments[3], arguments[4],
-                                             arguments[5], parse_error));
+  ASSIGN_OR_RETURN(
+      IntervalsIterator l_it,
+      IntervalsIterator::Create(args[0], args[1], args[2], parse_error));
+  ASSIGN_OR_RETURN(
+      IntervalsIterator r_it,
+      IntervalsIterator::Create(args[3], args[4], args[5], parse_error));
 
   // If there are no intervals in one of the tables then there are no intervals
   // returned.
