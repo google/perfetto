@@ -99,11 +99,13 @@ export class PivotTableTreeBuilder {
   updateAggregates(tree: PivotTree, row: ColumnType[]) {
     const countIndex = this.queryMetadata.countIndex;
     const treeCount =
-        countIndex >= 0 ? expectNumber(tree.aggregates[countIndex]) : 0;
-    const rowCount = countIndex >= 0 ?
-      expectNumber(
-        row[aggregationIndex(this.pivotColumnsCount, countIndex)]) :
-      0;
+      countIndex >= 0 ? expectNumber(tree.aggregates[countIndex]) : 0;
+    const rowCount =
+      countIndex >= 0
+        ? expectNumber(
+            row[aggregationIndex(this.pivotColumnsCount, countIndex)],
+          )
+        : 0;
 
     for (let i = 0; i < this.aggregateColumns.length; i++) {
       const agg = this.aggregateColumns[i];
@@ -112,22 +114,22 @@ export class PivotTableTreeBuilder {
       const childAgg = row[aggregationIndex(this.pivotColumnsCount, i)];
       if (typeof currAgg === 'number' && typeof childAgg === 'number') {
         switch (agg.aggregationFunction) {
-        case 'SUM':
-        case 'COUNT':
-          tree.aggregates[i] = currAgg + childAgg;
-          break;
-        case 'MAX':
-          tree.aggregates[i] = Math.max(currAgg, childAgg);
-          break;
-        case 'MIN':
-          tree.aggregates[i] = Math.min(currAgg, childAgg);
-          break;
-        case 'AVG': {
-          const currSum = currAgg * treeCount;
-          const addSum = childAgg * rowCount;
-          tree.aggregates[i] = (currSum + addSum) / (treeCount + rowCount);
-          break;
-        }
+          case 'SUM':
+          case 'COUNT':
+            tree.aggregates[i] = currAgg + childAgg;
+            break;
+          case 'MAX':
+            tree.aggregates[i] = Math.max(currAgg, childAgg);
+            break;
+          case 'MIN':
+            tree.aggregates[i] = Math.min(currAgg, childAgg);
+            break;
+          case 'AVG': {
+            const currSum = currAgg * treeCount;
+            const addSum = childAgg * rowCount;
+            tree.aggregates[i] = (currSum + addSum) / (treeCount + rowCount);
+            break;
+          }
         }
       }
     }
@@ -150,8 +152,11 @@ export class PivotTableTreeBuilder {
     for (let j = 0; j < this.aggregateColumns.length; j++) {
       aggregates.push(row[aggregationIndex(this.pivotColumnsCount, j)]);
     }
-    aggregates.push(row[aggregationIndex(
-      this.pivotColumnsCount, this.aggregateColumns.length)]);
+    aggregates.push(
+      row[
+        aggregationIndex(this.pivotColumnsCount, this.aggregateColumns.length)
+      ],
+    );
 
     return {
       isCollapsed: false,
@@ -162,8 +167,9 @@ export class PivotTableTreeBuilder {
   }
 }
 
-function createEmptyQueryResult(metadata: PivotTableQueryMetadata):
-    PivotTableResult {
+function createEmptyQueryResult(
+  metadata: PivotTableQueryMetadata,
+): PivotTableResult {
   return {
     tree: {
       aggregates: [],
@@ -210,8 +216,10 @@ export class PivotTableController extends Controller<{}> {
     }
 
     const newTracks = new Set(globals.state.areas[selection.areaId].tracks);
-    if (this.lastQueryAreaId !== state.selectionArea.areaId ||
-        !this.sameTracks(newTracks)) {
+    if (
+      this.lastQueryAreaId !== state.selectionArea.areaId ||
+      !this.sameTracks(newTracks)
+    ) {
       this.lastQueryAreaId = state.selectionArea.areaId;
       this.lastQueryAreaTracks = newTracks;
       return true;
@@ -243,8 +251,11 @@ export class PivotTableController extends Controller<{}> {
     if (!it.valid()) {
       // Iterator is invalid after creation; means that there are no rows
       // satisfying filtering criteria. Return an empty tree.
-      globals.dispatch(Actions.setPivotStateQueryResult(
-        {queryResult: createEmptyQueryResult(query.metadata)}));
+      globals.dispatch(
+        Actions.setPivotStateQueryResult({
+          queryResult: createEmptyQueryResult(query.metadata),
+        }),
+      );
       return;
     }
 
@@ -253,8 +264,11 @@ export class PivotTableController extends Controller<{}> {
       treeBuilder.ingestRow(nextRow());
     }
 
-    globals.dispatch(Actions.setPivotStateQueryResult(
-      {queryResult: {tree: treeBuilder.build(), metadata: query.metadata}}));
+    globals.dispatch(
+      Actions.setPivotStateQueryResult({
+        queryResult: {tree: treeBuilder.build(), metadata: query.metadata},
+      }),
+    );
     globals.dispatch(Actions.setCurrentTab({tab: 'pivot_table'}));
   }
 
@@ -274,7 +288,6 @@ export class PivotTableController extends Controller<{}> {
     globals.dispatch(Actions.setPivotTableArgumentNames({argumentNames}));
   }
 
-
   run() {
     if (!PIVOT_TABLE_REDUX_FLAG.get()) {
       return;
@@ -287,19 +300,26 @@ export class PivotTableController extends Controller<{}> {
     const pivotTableState = globals.state.nonSerializableState.pivotTable;
     const selection = globals.state.currentSelection;
 
-    if (pivotTableState.queryRequested ||
-        (selection !== null && selection.kind === 'AREA' &&
-         this.shouldRerun(pivotTableState, selection))) {
+    if (
+      pivotTableState.queryRequested ||
+      (selection !== null &&
+        selection.kind === 'AREA' &&
+        this.shouldRerun(pivotTableState, selection))
+    ) {
       globals.dispatch(
-        Actions.setPivotTableQueryRequested({queryRequested: false}));
+        Actions.setPivotTableQueryRequested({queryRequested: false}),
+      );
       // Need to re-run the existing query, clear the current result.
       globals.dispatch(Actions.setPivotStateQueryResult({queryResult: null}));
       this.processQuery(generateQueryFromState(pivotTableState));
     }
 
-    if (selection !== null && selection.kind === 'AREA' &&
-        (pivotTableState.selectionArea === undefined ||
-         pivotTableState.selectionArea.areaId !== selection.areaId)) {
+    if (
+      selection !== null &&
+      selection.kind === 'AREA' &&
+      (pivotTableState.selectionArea === undefined ||
+        pivotTableState.selectionArea.areaId !== selection.areaId)
+    ) {
       globals.dispatch(Actions.togglePivotTable({areaId: selection.areaId}));
     }
   }

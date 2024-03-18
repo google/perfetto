@@ -40,7 +40,9 @@ interface ColumnInfo {
 }
 
 async function getColumns(
-  engine: EngineProxy, table: string): Promise<ColumnInfo[]> {
+  engine: EngineProxy,
+  table: string,
+): Promise<ColumnInfo[]> {
   const result = await engine.query(`PRAGMA table_info(${table});`);
   const it = result.iter({
     name: STR,

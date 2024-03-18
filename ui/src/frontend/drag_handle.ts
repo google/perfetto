@@ -110,11 +110,14 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     this.isClosed = this.height <= 0;
     this.fullscreenHeight = getFullScreenHeight();
     const elem = dom as HTMLElement;
-    this.trash.add(new DragGestureHandler(
-      elem,
-      this.onDrag.bind(this),
-      this.onDragStart.bind(this),
-      this.onDragEnd.bind(this)));
+    this.trash.add(
+      new DragGestureHandler(
+        elem,
+        this.onDrag.bind(this),
+        this.onDragStart.bind(this),
+        this.onDragEnd.bind(this),
+      ),
+    );
   }
 
   onupdate({attrs}: m.CVnodeDOM<DragHandleAttrs>) {
@@ -128,8 +131,9 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   }
 
   onDrag(_x: number, y: number) {
-    const newHeight =
-        Math.floor(this.dragStartHeight + (DRAG_HANDLE_HEIGHT_PX / 2) - y);
+    const newHeight = Math.floor(
+      this.dragStartHeight + DRAG_HANDLE_HEIGHT_PX / 2 - y,
+    );
     this.isClosed = newHeight <= 0;
     this.isFullscreen = newHeight >= this.fullscreenHeight;
     this.resize(newHeight);
@@ -154,11 +158,8 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     const icon = this.isClosed ? UP_ICON : DOWN_ICON;
     const title = this.isClosed ? 'Show panel' : 'Hide panel';
     const renderTab = (tab: Tab) => {
-      const {
-        key,
-        hasCloseButton = false,
-      } = tab;
-      const tag = (currentTabKey === key) ? '.tab[active]' : '.tab';
+      const {key, hasCloseButton = false} = tab;
+      const tag = currentTabKey === key ? '.tab[active]' : '.tab';
       return m(
         tag,
         {
@@ -176,66 +177,66 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
           },
         },
         m('span.pf-tab-title', tab.title),
-        hasCloseButton && m(Button, {
-          onclick: (event: Event) => {
-            onTabClose(key);
-            event.preventDefault();
-          },
-          minimal: true,
-          compact: true,
-          icon: 'close',
-        }));
+        hasCloseButton &&
+          m(Button, {
+            onclick: (event: Event) => {
+              onTabClose(key);
+              event.preventDefault();
+            },
+            minimal: true,
+            compact: true,
+            icon: 'close',
+          }),
+      );
     };
 
     return m(
       '.handle',
-      m('.buttons',
+      m(
+        '.buttons',
         tabDropdownEntries && this.renderTabDropdown(tabDropdownEntries),
       ),
       m('.tabs', tabs.map(renderTab)),
-      m('.buttons',
-        m(
-          Button,
-          {
-            onclick: () => {
+      m(
+        '.buttons',
+        m(Button, {
+          onclick: () => {
+            this.isClosed = false;
+            this.isFullscreen = true;
+            // Ensure fullscreenHeight is up to date.
+            this.fullscreenHeight = getFullScreenHeight();
+            this.resize(this.fullscreenHeight);
+            raf.scheduleFullRedraw();
+          },
+          title: 'Open fullscreen',
+          disabled: this.isFullscreen,
+          icon: 'vertical_align_top',
+          minimal: true,
+          compact: true,
+        }),
+        m(Button, {
+          onclick: () => {
+            if (this.height === 0) {
               this.isClosed = false;
-              this.isFullscreen = true;
-              // Ensure fullscreenHeight is up to date.
-              this.fullscreenHeight = getFullScreenHeight();
-              this.resize(this.fullscreenHeight);
-              raf.scheduleFullRedraw();
-            },
-            title: 'Open fullscreen',
-            disabled: this.isFullscreen,
-            icon: 'vertical_align_top',
-            minimal: true,
-            compact: true,
-          },
-        ),
-        m(
-          Button,
-          {
-            onclick: () => {
-              if (this.height === 0) {
-                this.isClosed = false;
-                if (this.previousHeight === 0) {
-                  this.previousHeight = getDefaultDetailsHeight();
-                }
-                this.resize(this.previousHeight);
-              } else {
-                this.isFullscreen = false;
-                this.isClosed = true;
-                this.previousHeight = this.height;
-                this.resize(0);
+              if (this.previousHeight === 0) {
+                this.previousHeight = getDefaultDetailsHeight();
               }
-              raf.scheduleFullRedraw();
-            },
-            title,
-            icon,
-            minimal: true,
-            compact: true,
+              this.resize(this.previousHeight);
+            } else {
+              this.isFullscreen = false;
+              this.isClosed = true;
+              this.previousHeight = this.height;
+              this.resize(0);
+            }
+            raf.scheduleFullRedraw();
           },
-        )));
+          title,
+          icon,
+          minimal: true,
+          compact: true,
+        }),
+      ),
+    );
   }
 
   private renderTabDropdown(entries: TabDropdownEntry[]) {

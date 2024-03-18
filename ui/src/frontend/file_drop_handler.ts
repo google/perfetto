@@ -15,7 +15,7 @@
 import {Actions} from '../common/actions';
 import {globals} from './globals';
 
-let lastDragTarget: EventTarget|null = null;
+let lastDragTarget: EventTarget | null = null;
 
 export function installFileDropHandler() {
   window.ondragenter = (evt: DragEvent) => {

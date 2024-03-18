@@ -14,7 +14,9 @@
 
 import {Disposable} from '../base/disposable';
 
-export interface HasKind { kind: string; }
+export interface HasKind {
+  kind: string;
+}
 
 export class RegistryError extends Error {
   constructor(message?: string) {
@@ -40,7 +42,8 @@ export class Registry<T> {
     const kind = this.key(registrant);
     if (this.registry.has(kind)) {
       throw new RegistryError(
-        `Registrant ${kind} already exists in the registry`);
+        `Registrant ${kind} already exists in the registry`,
+      );
     }
     this.registry.set(kind, registrant);
 
@@ -61,12 +64,12 @@ export class Registry<T> {
     return registrant;
   }
 
-  tryGet(kind: string): T|undefined {
+  tryGet(kind: string): T | undefined {
     return this.registry.get(kind);
   }
 
   // Support iteration: for (const foo of fooRegistry.values()) { ... }
-  * values() {
+  *values() {
     yield* this.registry.values();
   }
 

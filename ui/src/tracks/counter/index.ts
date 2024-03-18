@@ -32,7 +32,11 @@ import {
   STR,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
-import {BaseCounterTrack, BaseCounterTrackArgs, CounterOptions} from '../../frontend/base_counter_track';
+import {
+  BaseCounterTrack,
+  BaseCounterTrackArgs,
+  CounterOptions,
+} from '../../frontend/base_counter_track';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
@@ -48,16 +52,16 @@ const COUNTER_REGEX: [RegExp, Modes][] = [
   // Power counters make more sense in rate mode since you're typically
   // interested in the slope of the graph rather than the absolute
   // value.
-  [new RegExp('^power\..*$'), 'rate'],
+  [new RegExp('^power..*$'), 'rate'],
   // Same for cumulative PSI stall time counters, e.g., psi.cpu.some.
-  [new RegExp('^psi\..*$'), 'rate'],
+  [new RegExp('^psi..*$'), 'rate'],
   // Same for network counters.
   [NETWORK_TRACK_REGEX, 'rate'],
   // Entity residency
   [ENTITY_RESIDENCY_REGEX, 'rate'],
 ];
 
-function getCounterMode(name: string): Modes|undefined {
+function getCounterMode(name: string): Modes | undefined {
   for (const [re, mode] of COUNTER_REGEX) {
     if (name.match(re)) {
       return mode;
@@ -91,7 +95,7 @@ function getDefaultCounterOptions(name: string): Partial<CounterOptions> {
   // All 'Entity residency: foo bar1234' tracks should share a y-axis
   // with 'Entity residency: foo baz5678' etc tracks:
   {
-    const r = new RegExp('Entity residency: \([^ ]+\) ');
+    const r = new RegExp('Entity residency: ([^ ]+) ');
     const m = r.exec(name);
     if (m) {
       options.yRangeSharingKey = `entity-residency-${m[1]}`;
@@ -156,12 +160,14 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
       const leftTs = Time.fromRaw(it.leftTs);
       const rightTs = Time.fromRaw(it.rightTs);
 
-      globals.makeSelection(Actions.selectCounter({
-        leftTs,
-        rightTs,
-        id,
-        trackKey,
-      }));
+      globals.makeSelection(
+        Actions.selectCounter({
+          leftTs,
+          rightTs,
+          id,
+          trackKey,
+        }),
+      );
     });
 
     return true;
@@ -263,8 +269,10 @@ class CounterPlugin implements Plugin {
     this.addCpuCounterTracks(ctx, addCpuPerfCounterTracksSql);
   }
 
-  async addCpuCounterTracks(ctx: PluginContextTrace, sql: string):
-      Promise<void> {
+  async addCpuCounterTracks(
+    ctx: PluginContextTrace,
+    sql: string,
+  ): Promise<void> {
     const result = await ctx.engine.query(sql);
 
     const it = result.iter({

@@ -19,19 +19,10 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
-import {
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
-import {
-  ActualFramesTrack as ActualFramesTrackV2,
-} from './actual_frames_track_v2';
-import {
-  ExpectedFramesTrack as ExpectedFramesTrackV2,
-} from './expected_frames_track_v2';
+import {ActualFramesTrack as ActualFramesTrackV2} from './actual_frames_track_v2';
+import {ExpectedFramesTrack as ExpectedFramesTrackV2} from './expected_frames_track_v2';
 
 export const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
@@ -91,8 +82,13 @@ class FramesPlugin implements Plugin {
         continue;
       }
 
-      const displayName = getTrackName(
-        {name: trackName, upid, pid, processName, kind: 'ExpectedFrames'});
+      const displayName = getTrackName({
+        name: trackName,
+        upid,
+        pid,
+        processName,
+        kind: 'ExpectedFrames',
+      });
 
       ctx.registerTrack({
         uri: `perfetto.ExpectedFrames#${upid}`,
@@ -158,8 +154,13 @@ class FramesPlugin implements Plugin {
       }
 
       const kind = 'ActualFrames';
-      const displayName =
-          getTrackName({name: trackName, upid, pid, processName, kind});
+      const displayName = getTrackName({
+        name: trackName,
+        upid,
+        pid,
+        processName,
+        kind,
+      });
 
       ctx.registerTrack({
         uri: `perfetto.ActualFrames#${upid}`,
@@ -167,12 +168,7 @@ class FramesPlugin implements Plugin {
         trackIds,
         kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
-          return new ActualFramesTrackV2(
-            engine,
-            maxDepth,
-            trackKey,
-            trackIds,
-          );
+          return new ActualFramesTrackV2(engine, maxDepth, trackKey, trackIds);
         },
       });
     }

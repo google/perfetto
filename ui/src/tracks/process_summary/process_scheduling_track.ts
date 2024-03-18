@@ -29,11 +29,7 @@ import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {EngineProxy, Track} from '../../public';
-import {
-  LONG,
-  NUM,
-  QueryResult,
-} from '../../trace_processor/query_result';
+import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -54,12 +50,12 @@ interface Data extends TrackData {
 
 export interface Config {
   pidForColor: number;
-  upid: null|number;
+  upid: null | number;
   utid: number;
 }
 
 export class ProcessSchedulingTrack implements Track {
-  private mousePos?: {x: number, y: number};
+  private mousePos?: {x: number; y: number};
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private maxCpu = 0;
@@ -92,10 +88,12 @@ export class ProcessSchedulingTrack implements Track {
     assertTrue(cpus.length > 0);
     this.maxCpu = Math.max(...cpus) + 1;
 
-    const result = (await this.engine.query(`
+    const result = (
+      await this.engine.query(`
       select ifnull(max(dur), 0) as maxDur, count(1) as count
       from ${this.tableName('process_sched')}
-    `)).iter({maxDur: LONG, count: NUM});
+    `)
+    ).iter({maxDur: LONG, count: NUM});
     assertTrue(result.valid());
     this.maxDur = result.maxDur;
 
@@ -127,8 +125,11 @@ export class ProcessSchedulingTrack implements Track {
     this.fetcher.dispose();
   }
 
-  async onBoundsChange(start: time, end: time, resolution: duration):
-      Promise<Data> {
+  async onBoundsChange(
+    start: time,
+    end: time,
+    resolution: duration,
+  ): Promise<Data> {
     assertTrue(this.config.upid !== null);
 
     // Resolution must always be a power of 2 for this logic to work
@@ -174,14 +175,18 @@ export class ProcessSchedulingTrack implements Track {
     return slices;
   }
 
-  private queryData(start: time, end: time, bucketSize: duration):
-      Promise<QueryResult> {
+  private queryData(
+    start: time,
+    end: time,
+    bucketSize: duration,
+  ): Promise<QueryResult> {
     const isCached = this.cachedBucketSize <= bucketSize;
-    const tsq = isCached ?
-      `cached_tsq / ${bucketSize} * ${bucketSize}` :
-      `(ts + ${bucketSize / 2n}) / ${bucketSize} * ${bucketSize}`;
-    const queryTable = isCached ? this.tableName('process_sched_cached') :
-      this.tableName('process_sched');
+    const tsq = isCached
+      ? `cached_tsq / ${bucketSize} * ${bucketSize}`
+      : `(ts + ${bucketSize / 2n}) / ${bucketSize} * ${bucketSize}`;
+    const queryTable = isCached
+      ? this.tableName('process_sched_cached')
+      : this.tableName('process_sched');
     const constraintColumn = isCached ? 'cached_tsq' : 'ts';
 
     // The mouse move handler depends on slices being sorted by cpu then tsq
@@ -218,13 +223,10 @@ export class ProcessSchedulingTrack implements Track {
 
   render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {
-      visibleTimeScale,
-      visibleTimeSpan,
-    } = globals.timeline;
+    const {visibleTimeScale, visibleTimeSpan} = globals.timeline;
     const data = this.fetcher.data;
 
-    if (data === undefined) return;  // Can't possibly draw anything.
+    if (data === undefined) return; // Can't possibly draw anything.
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
@@ -234,7 +236,8 @@ export class ProcessSchedulingTrack implements Track {
       0,
       size.width,
       visibleTimeScale.timeToPx(data.start),
-      visibleTimeScale.timeToPx(data.end));
+      visibleTimeScale.timeToPx(data.end),
+    );
 
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
@@ -293,7 +296,7 @@ export class ProcessSchedulingTrack implements Track {
     }
   }
 
-  onMouseMove(pos: {x: number, y: number}) {
+  onMouseMove(pos: {x: number; y: number}) {
     const data = this.fetcher.data;
     this.mousePos = pos;
     if (data === undefined) return;

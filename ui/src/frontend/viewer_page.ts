@@ -50,14 +50,14 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
 
 // Checks if the mousePos is within 3px of the start or end of the
 // current selected time range.
-function onTimeRangeBoundary(mousePos: number): 'START'|'END'|null {
+function onTimeRangeBoundary(mousePos: number): 'START' | 'END' | null {
   const selection = globals.state.currentSelection;
   if (selection !== null && selection.kind === 'AREA') {
     // If frontend selectedArea exists then we are in the process of editing the
     // time range and need to use that value instead.
-    const area = globals.timeline.selectedArea ?
-      globals.timeline.selectedArea :
-      globals.state.areas[selection.areaId];
+    const area = globals.timeline.selectedArea
+      ? globals.timeline.selectedArea
+      : globals.state.areas[selection.areaId];
     const {visibleTimeScale} = globals.timeline;
     const start = visibleTimeScale.timeToPx(area.start);
     const end = visibleTimeScale.timeToPx(area.end);
@@ -96,7 +96,9 @@ class TraceViewer implements m.ClassComponent {
     const updateDimensions = () => {
       const rect = vnode.dom.getBoundingClientRect();
       timeline.updateLocalLimits(
-        0, rect.width - TRACK_SHELL_WIDTH - getScrollbarWidth());
+        0,
+        rect.width - TRACK_SHELL_WIDTH - getScrollbarWidth(),
+      );
     };
 
     updateDimensions();
@@ -116,9 +118,7 @@ class TraceViewer implements m.ClassComponent {
     this.zoomContent = new PanAndZoomHandler({
       element: panZoomEl,
       onPanned: (pannedPx: number) => {
-        const {
-          visibleTimeScale,
-        } = globals.timeline;
+        const {visibleTimeScale} = globals.timeline;
 
         this.keepCurrentSelection = true;
         const tDelta = visibleTimeScale.pxDeltaToDuration(pannedPx);
@@ -146,37 +146,43 @@ class TraceViewer implements m.ClassComponent {
         prevX: number,
         currentX: number,
         currentY: number,
-        editing: boolean) => {
+        editing: boolean,
+      ) => {
         const traceTime = globals.state.traceTime;
         const {visibleTimeScale} = timeline;
         this.keepCurrentSelection = true;
         if (editing) {
           const selection = globals.state.currentSelection;
           if (selection !== null && selection.kind === 'AREA') {
-            const area = globals.timeline.selectedArea ?
-              globals.timeline.selectedArea :
-              globals.state.areas[selection.areaId];
-            let newTime =
-                visibleTimeScale.pxToHpTime(currentX - TRACK_SHELL_WIDTH)
-                  .toTime();
+            const area = globals.timeline.selectedArea
+              ? globals.timeline.selectedArea
+              : globals.state.areas[selection.areaId];
+            let newTime = visibleTimeScale
+              .pxToHpTime(currentX - TRACK_SHELL_WIDTH)
+              .toTime();
             // Have to check again for when one boundary crosses over the other.
             const curBoundary = onTimeRangeBoundary(prevX);
             if (curBoundary == null) return;
             const keepTime = curBoundary === 'START' ? area.end : area.start;
             // Don't drag selection outside of current screen.
             if (newTime < keepTime) {
-              newTime =
-                  Time.max(newTime, visibleTimeScale.timeSpan.start.toTime());
+              newTime = Time.max(
+                newTime,
+                visibleTimeScale.timeSpan.start.toTime(),
+              );
             } else {
-              newTime =
-                  Time.min(newTime, visibleTimeScale.timeSpan.end.toTime());
+              newTime = Time.min(
+                newTime,
+                visibleTimeScale.timeSpan.end.toTime(),
+              );
             }
             // When editing the time range we always use the saved tracks,
             // since these will not change.
             timeline.selectArea(
               Time.max(Time.min(keepTime, newTime), traceTime.start),
               Time.min(Time.max(keepTime, newTime), traceTime.end),
-              globals.state.areas[selection.areaId].tracks);
+              globals.state.areas[selection.areaId].tracks,
+            );
           }
         } else {
           let startPx = Math.min(dragStartX, currentX) - TRACK_SHELL_WIDTH;
@@ -205,7 +211,8 @@ class TraceViewer implements m.ClassComponent {
           const selection = globals.state.currentSelection;
           if (selection !== null && selection.kind === 'AREA' && area) {
             globals.dispatch(
-              Actions.editArea({area, areaId: selection.areaId}));
+              Actions.editArea({area, areaId: selection.areaId}),
+            );
           }
         } else if (area) {
           globals.makeSelection(Actions.selectArea({area}));
@@ -226,16 +233,17 @@ class TraceViewer implements m.ClassComponent {
   }
 
   view() {
-    const scrollingPanels: PanelOrGroup[] =
-        globals.state.scrollingTracks.map((key) => {
-          const trackBundle = this.resolveTrack(key);
-          return new TrackPanel({
-            trackKey: key,
-            title: trackBundle.title,
-            tags: trackBundle.tags,
-            trackFSM: trackBundle.trackFSM,
-          });
+    const scrollingPanels: PanelOrGroup[] = globals.state.scrollingTracks.map(
+      (key) => {
+        const trackBundle = this.resolveTrack(key);
+        return new TrackPanel({
+          trackKey: key,
+          title: trackBundle.title,
+          tags: trackBundle.tags,
+          trackFSM: trackBundle.trackFSM,
         });
+      },
+    );
 
     for (const group of Object.values(globals.state.trackGroups)) {
       const key = group.tracks[0];
@@ -283,7 +291,8 @@ class TraceViewer implements m.ClassComponent {
 
     const result = m(
       '.page.viewer-page',
-      m('.pan-and-zoom-content',
+      m(
+        '.pan-and-zoom-content',
         {
           ref: this.PAN_ZOOM_CONTENT_REF,
           onclick: () => {
@@ -329,7 +338,8 @@ class TraceViewer implements m.ClassComponent {
           kind: 'TRACKS',
         }),
       ),
-      this.renderTabPanel());
+      this.renderTabPanel(),
+    );
 
     globals.trackManager.flushOldTracks();
     return result;
@@ -341,7 +351,7 @@ class TraceViewer implements m.ClassComponent {
     const {uri, params, name, labels} = trackState;
     const trackDesc = globals.trackManager.resolveTrackInfo(uri);
     const trackCacheEntry =
-        trackDesc && globals.trackManager.resolveTrack(key, trackDesc, params);
+      trackDesc && globals.trackManager.resolveTrack(key, trackDesc, params);
     const trackFSM = trackCacheEntry;
     const tags = trackCacheEntry?.desc.tags;
     const trackIds = trackCacheEntry?.desc.trackIds;

@@ -80,14 +80,14 @@ export function eventsCanBeWellFormed(): Event<KeySet> {
   return event;
 }
 
-
 const lettersKeySet = {
   num: Num,
   char: Str,
 };
 
-export async function badMaterialisation(input: EventSet<typeof lettersKeySet>):
-    Promise<UntypedEventSet> {
+export async function badMaterialisation(
+  input: EventSet<typeof lettersKeySet>,
+): Promise<UntypedEventSet> {
   {
     const a = await input.materialise({
       baz: Num,

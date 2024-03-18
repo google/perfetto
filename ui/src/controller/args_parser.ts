@@ -15,7 +15,7 @@
 import {isString} from '../base/object_utils';
 import {exists} from '../base/utils';
 
-export type Key = string|number;
+export type Key = string | number;
 
 export interface ArgNode<T> {
   key: Key;
@@ -38,8 +38,9 @@ export interface ArgNode<T> {
 // e.g. foo.bar[0].x
 //
 // See unit tests for examples.
-export function convertArgsToTree<T extends {key: string}>(input: T[]):
-    ArgNode<T>[] {
+export function convertArgsToTree<T extends {key: string}>(
+  input: T[],
+): ArgNode<T>[] {
   const result: ArgNode<T>[] = [];
   for (const arg of input) {
     const {key} = arg;
@@ -60,7 +61,11 @@ function getNestedKey(key: string): Key[] {
 }
 
 function insert<T>(
-  args: ArgNode<T>[], keys: Key[], path: string, value: T): void {
+  args: ArgNode<T>[],
+  keys: Key[],
+  path: string,
+  value: T,
+): void {
   const currentKey = keys.shift()!;
   let node = args.find((x) => x.key === currentKey);
   if (!node) {
@@ -78,10 +83,10 @@ function insert<T>(
 }
 
 type ArgLike<T> = {
-  key: string,
-  value: T
+  key: string;
+  value: T;
 };
-type ObjectType<T> = T|ObjectType<T>[]|{[key: string]: ObjectType<T>};
+type ObjectType<T> = T | ObjectType<T>[] | {[key: string]: ObjectType<T>};
 
 // Converts a list of argument-like objects (i.e. objects with key and value
 // fields) to a POJO.
@@ -95,14 +100,16 @@ type ObjectType<T> = T|ObjectType<T>[]|{[key: string]: ObjectType<T>};
 // e.g. foo.bar[0].x
 //
 // See unit tests for examples.
-export function convertArgsToObject<A extends ArgLike<T>, T>(input: A[]):
-    ObjectType<T> {
+export function convertArgsToObject<A extends ArgLike<T>, T>(
+  input: A[],
+): ObjectType<T> {
   const nested = convertArgsToTree(input);
   return parseNodes(nested);
 }
 
-function parseNodes<A extends ArgLike<T>, T>(nodes: ArgNode<A>[]):
-    ObjectType<T> {
+function parseNodes<A extends ArgLike<T>, T>(
+  nodes: ArgNode<A>[],
+): ObjectType<T> {
   if (nodes.every(({key}) => isString(key))) {
     const dict: ObjectType<T> = {};
     for (const node of nodes) {
@@ -127,8 +134,10 @@ function parseNodes<A extends ArgLike<T>, T>(nodes: ArgNode<A>[]):
   }
 }
 
-function parseNode<A extends ArgLike<T>, T>({value, children}: ArgNode<A>):
-    ObjectType<T> {
+function parseNode<A extends ArgLike<T>, T>({
+  value,
+  children,
+}: ArgNode<A>): ObjectType<T> {
   if (exists(value) && !exists(children)) {
     return value.value;
   } else if (!exists(value) && exists(children)) {

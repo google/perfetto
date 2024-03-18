@@ -13,8 +13,8 @@
 // limitations under the License.
 
 export interface SliceLayoutBase {
-  readonly padding: number;  // vertical pixel padding between slices and track.
-  readonly rowSpacing: number;  // Spacing between rows.
+  readonly padding: number; // vertical pixel padding between slices and track.
+  readonly rowSpacing: number; // Spacing between rows.
 
   // A *guess* at the depth
   readonly depthGuess?: number;
@@ -34,7 +34,7 @@ export const SLICE_LAYOUT_BASE_DEFAULTS: SliceLayoutBase = Object.freeze({
 
 export interface SliceLayoutFixed extends SliceLayoutBase {
   readonly heightMode: 'FIXED';
-  readonly fixedHeight: number;  // Outer height of the track.
+  readonly fixedHeight: number; // Outer height of the track.
 }
 
 export const SLICE_LAYOUT_FIXED_DEFAULTS: SliceLayoutFixed = Object.freeze({
@@ -45,19 +45,19 @@ export const SLICE_LAYOUT_FIXED_DEFAULTS: SliceLayoutFixed = Object.freeze({
 
 export interface SliceLayoutFitContent extends SliceLayoutBase {
   readonly heightMode: 'FIT_CONTENT';
-  readonly sliceHeight: number;  // Only when heightMode = 'FIT_CONTENT'.
+  readonly sliceHeight: number; // Only when heightMode = 'FIT_CONTENT'.
 }
 
 export const SLICE_LAYOUT_FIT_CONTENT_DEFAULTS: SliceLayoutFitContent =
-    Object.freeze({
-      ...SLICE_LAYOUT_BASE_DEFAULTS,
-      heightMode: 'FIT_CONTENT',
-      sliceHeight: 18,
-    });
+  Object.freeze({
+    ...SLICE_LAYOUT_BASE_DEFAULTS,
+    heightMode: 'FIT_CONTENT',
+    sliceHeight: 18,
+  });
 
 export interface SliceLayoutFlat extends SliceLayoutBase {
   readonly heightMode: 'FIXED';
-  readonly fixedHeight: number;  // Outer height of the track.
+  readonly fixedHeight: number; // Outer height of the track.
   readonly depthGuess: 0;
   readonly isFlat: true;
 }
@@ -73,7 +73,9 @@ export const SLICE_LAYOUT_FLAT_DEFAULTS: SliceLayoutFlat = Object.freeze({
 });
 
 export type SliceLayout =
-    SliceLayoutFixed|SliceLayoutFitContent|SliceLayoutFlat;
+  | SliceLayoutFixed
+  | SliceLayoutFitContent
+  | SliceLayoutFlat;
 
 export const DEFAULT_SLICE_LAYOUT: SliceLayout =
-    SLICE_LAYOUT_FIT_CONTENT_DEFAULTS;
+  SLICE_LAYOUT_FIT_CONTENT_DEFAULTS;

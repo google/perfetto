@@ -28,8 +28,11 @@ export {
   STR_NULL,
 } from '../trace_processor/query_result';
 
-type FetchTimeline<Data> = (start: time, end: time, resolution: duration) =>
-    Promise<Data>;
+type FetchTimeline<Data> = (
+  start: time,
+  end: time,
+  resolution: duration,
+) => Promise<Data>;
 
 // This helper provides the logic to call |doFetch()| only when more
 // data is needed as the visible window is panned and zoomed about, and
@@ -67,7 +70,7 @@ export class TimelineFetcher<Data> implements Disposable {
     }
   }
 
-  get data(): Data|undefined {
+  get data(): Data | undefined {
     return this.data_;
   }
 

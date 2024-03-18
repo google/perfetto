@@ -82,7 +82,7 @@ describe('Router.parseUrl', () => {
   // Or both in which case fragment overrides the search.
   test('Fragment parsing', () => {
     const url =
-        'http://localhost/?p=1&s=2&hideSidebar=true#!/foo?s=3&url=4&hideSidebar=false';
+      'http://localhost/?p=1&s=2&hideSidebar=true#!/foo?s=3&url=4&hideSidebar=false';
     const route = Router.parseUrl(url);
     const args = route.args;
     expect(args.p).toBe('1');
@@ -110,7 +110,7 @@ describe('Router.parseUrl', () => {
 
   test('Nested fragment', () => {
     const url =
-        'http://localhost/?p=1&s=2&hideSidebar=true#!/foo?s=3&url=4&hideSidebar=false#myfragment';
+      'http://localhost/?p=1&s=2&hideSidebar=true#!/foo?s=3&url=4&hideSidebar=false#myfragment';
     const route = Router.parseUrl(url);
     expect(route.fragment).toBe('myfragment');
   });
@@ -155,8 +155,9 @@ describe('Router.parseFragment', () => {
   });
 
   test('parameters separated from route', () => {
-    const {page, subpage, args} =
-        Router.parseFragment('#!/record/memory?url=http://localhost:1234/aaaa');
+    const {page, subpage, args} = Router.parseFragment(
+      '#!/record/memory?url=http://localhost:1234/aaaa',
+    );
     expect(page).toBe('/record');
     expect(subpage).toBe('/memory');
     expect(args.url).toEqual('http://localhost:1234/aaaa');

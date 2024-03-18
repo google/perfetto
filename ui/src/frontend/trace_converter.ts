@@ -25,8 +25,12 @@ import {maybeShowErrorDialog} from './error_dialog';
 import {globals} from './globals';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';
 
-type Args = UpdateStatusArgs|UpdateJobStatusArgs|DownloadFileArgs|
-    OpenTraceInLegacyArgs|ErrorArgs;
+type Args =
+  | UpdateStatusArgs
+  | UpdateJobStatusArgs
+  | DownloadFileArgs
+  | OpenTraceInLegacyArgs
+  | ErrorArgs;
 
 interface UpdateStatusArgs {
   kind: 'updateStatus';
@@ -55,20 +59,21 @@ interface ErrorArgs {
   error: ErrorDetails;
 }
 
-
 function handleOnMessage(msg: MessageEvent): void {
   const args: Args = msg.data;
   if (args.kind === 'updateStatus') {
-    globals.dispatch(Actions.updateStatus({
-      msg: args.status,
-      timestamp: Date.now() / 1000,
-    }));
+    globals.dispatch(
+      Actions.updateStatus({
+        msg: args.status,
+        timestamp: Date.now() / 1000,
+      }),
+    );
   } else if (args.kind === 'updateJobStatus') {
     globals.setConversionJobStatus(args.name, args.status);
   } else if (args.kind === 'downloadFile') {
     download(new File([new Blob([args.buffer])], args.name));
   } else if (args.kind === 'openTraceInLegacy') {
-    const str = (new TextDecoder('utf-8')).decode(args.buffer);
+    const str = new TextDecoder('utf-8').decode(args.buffer);
     openBufferWithLegacyTraceViewer('trace.json', str, 0);
   } else if (args.kind === 'error') {
     maybeShowErrorDialog(args.error);
@@ -99,7 +104,7 @@ export function convertTraceToSystraceAndDownload(trace: Blob) {
   });
 }
 
-export function convertToJson(trace: Blob, truncate?: 'start'|'end') {
+export function convertToJson(trace: Blob, truncate?: 'start' | 'end') {
   makeWorkerAndPost({
     kind: 'ConvertTraceAndOpenInLegacy',
     trace,
@@ -108,7 +113,10 @@ export function convertToJson(trace: Blob, truncate?: 'start'|'end') {
 }
 
 export function convertTraceToPprofAndDownload(
-  trace: Blob, pid: number, ts: time) {
+  trace: Blob,
+  pid: number,
+  ts: time,
+) {
   makeWorkerAndPost({
     kind: 'ConvertTraceToPprof',
     trace,

@@ -45,8 +45,10 @@ export interface JankIntervalPlotDetails {
 }
 
 export async function getUserScrollDeltas(
-  engine: EngineProxy, startTs: time, dur: duration):
-    Promise<ScrollDeltaDetails[]> {
+  engine: EngineProxy,
+  startTs: time,
+  dur: duration,
+): Promise<ScrollDeltaDetails[]> {
   const queryResult = await engine.query(`
     INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
 
@@ -80,8 +82,10 @@ export async function getUserScrollDeltas(
 }
 
 export async function getAppliedScrollDeltas(
-  engine: EngineProxy, startTs: time, dur: duration):
-    Promise<ScrollDeltaDetails[]> {
+  engine: EngineProxy,
+  startTs: time,
+  dur: duration,
+): Promise<ScrollDeltaDetails[]> {
   const queryResult = await engine.query(`
     INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
 
@@ -128,8 +132,10 @@ export async function getAppliedScrollDeltas(
 }
 
 export async function getJankIntervals(
-  engine: EngineProxy, startTs: time, dur: duration):
-    Promise<JankIntervalPlotDetails[]> {
+  engine: EngineProxy,
+  startTs: time,
+  dur: duration,
+): Promise<JankIntervalPlotDetails[]> {
   const queryResult = await engine.query(`
     INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals;
 
@@ -160,7 +166,8 @@ export async function getJankIntervals(
 export function buildScrollOffsetsGraph(
   userDeltas: ScrollDeltaDetails[],
   appliedDeltas: ScrollDeltaDetails[],
-  jankIntervals: JankIntervalPlotDetails[]): m.Child {
+  jankIntervals: JankIntervalPlotDetails[],
+): m.Child {
   const userData = buildOffsetData(userDeltas, USER_CATEGORY);
   const appliedData = buildOffsetData(appliedDeltas, APPLIED_CATEGORY);
   const jankData = buildJankLayerData(jankIntervals);
@@ -247,7 +254,9 @@ export function buildScrollOffsetsGraph(
 }
 
 function buildOffsetData(
-  deltas: ScrollDeltaDetails[], category: string): ScrollDeltaPlotDatum[] {
+  deltas: ScrollDeltaDetails[],
+  category: string,
+): ScrollDeltaPlotDatum[] {
   const plotData: ScrollDeltaPlotDatum[] = [];
   for (const delta of deltas) {
     plotData.push({

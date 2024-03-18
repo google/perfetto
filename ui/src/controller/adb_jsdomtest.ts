@@ -30,7 +30,6 @@ test('startAuthentication', async () => {
   const recvRaw = jest.fn();
   adb.recvRaw = recvRaw;
 
-
   const expectedAuthMessage = AdbMsgImpl.create({
     cmd: 'CNXN',
     arg0: VERSION_WITH_CHECKSUM,
@@ -69,7 +68,6 @@ test('connectedMessage', async () => {
   expect(adb.useChecksum).toBe(true);
   expect(onConnected).toHaveBeenCalledTimes(1);
 });
-
 
 test('shellOpening', () => {
   const adb = new AdbOverWebUsb();

@@ -49,62 +49,66 @@ FTRACE_CATEGORIES.set('task/*', 'task');
 FTRACE_CATEGORIES.set('vmscan/*', 'vmscan');
 FTRACE_CATEGORIES.set('fastrpc/*', 'fastrpc');
 
-export class AdvancedSettings implements
-    m.ClassComponent<RecordingSectionAttrs> {
+export class AdvancedSettings
+  implements m.ClassComponent<RecordingSectionAttrs>
+{
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
     return m(
       `.record-section${attrs.cssClass}`,
-      m(Probe,
-          {
-            title: 'Advanced ftrace config',
-            img: 'rec_ftrace.png',
-            descr:
-                `Enable individual events and tune the kernel-tracing (ftrace)
+      m(
+        Probe,
+        {
+          title: 'Advanced ftrace config',
+          img: 'rec_ftrace.png',
+          descr: `Enable individual events and tune the kernel-tracing (ftrace)
                   module. The events enabled here are in addition to those from
                   enabled by other probes.`,
-            setEnabled: (cfg, val) => cfg.ftrace = val,
-            isEnabled: (cfg) => cfg.ftrace,
-          } as ProbeAttrs,
-          m(Toggle, {
-            title: 'Resolve kernel symbols',
-            cssClass: '.thin',
-            descr: `Enables lookup via /proc/kallsyms for workqueue,
+          setEnabled: (cfg, val) => (cfg.ftrace = val),
+          isEnabled: (cfg) => cfg.ftrace,
+        } as ProbeAttrs,
+        m(Toggle, {
+          title: 'Resolve kernel symbols',
+          cssClass: '.thin',
+          descr: `Enables lookup via /proc/kallsyms for workqueue,
               sched_blocked_reason and other events
               (userdebug/eng builds only).`,
-            setEnabled: (cfg, val) => cfg.symbolizeKsyms = val,
-            isEnabled: (cfg) => cfg.symbolizeKsyms,
-          } as ToggleAttrs),
-          m(Slider, {
-            title: 'Buf size',
-            cssClass: '.thin',
-            values: [0, 512, 1024, 2 * 1024, 4 * 1024, 16 * 1024, 32 * 1024],
-            unit: 'KB',
-            zeroIsDefault: true,
-            set: (cfg, val) => cfg.ftraceBufferSizeKb = val,
-            get: (cfg) => cfg.ftraceBufferSizeKb,
-          } as SliderAttrs),
-          m(Slider, {
-            title: 'Drain rate',
-            cssClass: '.thin',
-            values: [0, 100, 250, 500, 1000, 2500, 5000],
-            unit: 'ms',
-            zeroIsDefault: true,
-            set: (cfg, val) => cfg.ftraceDrainPeriodMs = val,
-            get: (cfg) => cfg.ftraceDrainPeriodMs,
-          } as SliderAttrs),
-          m(Dropdown, {
-            title: 'Event groups',
-            cssClass: '.multicolumn.ftrace-events',
-            options: FTRACE_CATEGORIES,
-            set: (cfg, val) => cfg.ftraceEvents = val,
-            get: (cfg) => cfg.ftraceEvents,
-          } as DropdownAttrs),
-          m(Textarea, {
-            placeholder: 'Add extra events, one per line, e.g.:\n' +
-                'sched/sched_switch\n' +
-                'kmem/*',
-            set: (cfg, val) => cfg.ftraceExtraEvents = val,
-            get: (cfg) => cfg.ftraceExtraEvents,
-          } as TextareaAttrs)));
+          setEnabled: (cfg, val) => (cfg.symbolizeKsyms = val),
+          isEnabled: (cfg) => cfg.symbolizeKsyms,
+        } as ToggleAttrs),
+        m(Slider, {
+          title: 'Buf size',
+          cssClass: '.thin',
+          values: [0, 512, 1024, 2 * 1024, 4 * 1024, 16 * 1024, 32 * 1024],
+          unit: 'KB',
+          zeroIsDefault: true,
+          set: (cfg, val) => (cfg.ftraceBufferSizeKb = val),
+          get: (cfg) => cfg.ftraceBufferSizeKb,
+        } as SliderAttrs),
+        m(Slider, {
+          title: 'Drain rate',
+          cssClass: '.thin',
+          values: [0, 100, 250, 500, 1000, 2500, 5000],
+          unit: 'ms',
+          zeroIsDefault: true,
+          set: (cfg, val) => (cfg.ftraceDrainPeriodMs = val),
+          get: (cfg) => cfg.ftraceDrainPeriodMs,
+        } as SliderAttrs),
+        m(Dropdown, {
+          title: 'Event groups',
+          cssClass: '.multicolumn.ftrace-events',
+          options: FTRACE_CATEGORIES,
+          set: (cfg, val) => (cfg.ftraceEvents = val),
+          get: (cfg) => cfg.ftraceEvents,
+        } as DropdownAttrs),
+        m(Textarea, {
+          placeholder:
+            'Add extra events, one per line, e.g.:\n' +
+            'sched/sched_switch\n' +
+            'kmem/*',
+          set: (cfg, val) => (cfg.ftraceExtraEvents = val),
+          get: (cfg) => cfg.ftraceExtraEvents,
+        } as TextareaAttrs),
+      ),
+    );
   }
 }

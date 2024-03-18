@@ -13,10 +13,10 @@
 // limitations under the License.
 
 export class Icons {
-  static readonly ExternalLink = 'open_in_new';     // Could be undefined
-  static readonly UpdateSelection = 'call_made';    // Could be 'open_in_new'
-  static readonly ChangeViewport = 'query_stats';   // Could be 'search'
-  static readonly ContextMenu = 'arrow_drop_down';  // Could be 'more_vert'
+  static readonly ExternalLink = 'open_in_new'; // Could be undefined
+  static readonly UpdateSelection = 'call_made'; // Could be 'open_in_new'
+  static readonly ChangeViewport = 'query_stats'; // Could be 'search'
+  static readonly ContextMenu = 'arrow_drop_down'; // Could be 'more_vert'
   static readonly Copy = 'content_copy';
   static readonly Delete = 'delete';
   static readonly SortedAsc = 'arrow_upward';

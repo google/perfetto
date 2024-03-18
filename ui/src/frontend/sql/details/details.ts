@@ -74,24 +74,22 @@ import {Arg, getArgs} from '../args';
 //   })
 // }
 
-
 // === Public API surface ===
 
 export namespace DetailsSchema {
-
   // Create a dictionary object for the schema.
-  export function Dict(args: {data: {[key: string]: ValueDesc}}&
-                       ContainerParams): DictSchema {
-    return new DictSchema(
-      args.data,
-      {
-        skipIfEmpty: args.skipIfEmpty,
-      },
-    );
+  export function Dict(
+    args: {data: {[key: string]: ValueDesc}} & ContainerParams,
+  ): DictSchema {
+    return new DictSchema(args.data, {
+      skipIfEmpty: args.skipIfEmpty,
+    });
   }
 
   // Create an array object for the schema.
-  export function Arr(args: {data: ValueDesc[]}&ContainerParams): ArraySchema {
+  export function Arr(
+    args: {data: ValueDesc[]} & ContainerParams,
+  ): ArraySchema {
     return new ArraySchema(args.data, {
       skipIfEmpty: args.skipIfEmpty,
     });
@@ -99,15 +97,19 @@ export namespace DetailsSchema {
 
   // Create an object representing a timestamp for the schema.
   // |ts| — SQL expression (e.g. column name) for the timestamp.
-  export function Timestamp(ts: string, args?: ScalarValueParams):
-      ScalarValueSchema {
+  export function Timestamp(
+    ts: string,
+    args?: ScalarValueParams,
+  ): ScalarValueSchema {
     return new ScalarValueSchema('timestamp', ts, args);
   }
 
   // Create an object representing a duration for the schema.
   // |dur| — SQL expression (e.g. column name) for the duration.
-  export function Duration(dur: string, args?: ScalarValueParams):
-      ScalarValueSchema {
+  export function Duration(
+    dur: string,
+    args?: ScalarValueParams,
+  ): ScalarValueSchema {
     return new ScalarValueSchema('duration', dur, args);
   }
 
@@ -115,8 +117,11 @@ export namespace DetailsSchema {
   // for the schema.
   // |ts|, |dur| - SQL expressions (e.g. column names) for the timestamp
   // and duration.
-  export function Interval(ts: string, dur: string, args?: ScalarValueParams):
-      IntervalSchema {
+  export function Interval(
+    ts: string,
+    dur: string,
+    args?: ScalarValueParams,
+  ): IntervalSchema {
     return new IntervalSchema(ts, dur, args);
   }
 
@@ -125,71 +130,99 @@ export namespace DetailsSchema {
   // |ts|, |dur|, |utid| - SQL expressions (e.g. column names) for the
   // timestamp, duration and unique thread id.
   export function ThreadInterval(
-    ts: string, dur: string, utid: string,
-    args?: ScalarValueParams): ThreadIntervalSchema {
+    ts: string,
+    dur: string,
+    utid: string,
+    args?: ScalarValueParams,
+  ): ThreadIntervalSchema {
     return new ThreadIntervalSchema(ts, dur, utid, args);
   }
 
   // Create an object representing a reference to an arg set for the schema.
   // |argSetId| - SQL expression (e.g. column name) for the arg set id.
-  export function ArgSetId(argSetId: string, args?: ScalarValueParams):
-      ScalarValueSchema {
+  export function ArgSetId(
+    argSetId: string,
+    args?: ScalarValueParams,
+  ): ScalarValueSchema {
     return new ScalarValueSchema('arg_set_id', argSetId, args);
   }
 
   // Create an object representing a SQL value for the schema.
   // |value| - SQL expression (e.g. column name) for the value.
-  export function Value(value: string, args?: ScalarValueParams):
-      ScalarValueSchema {
+  export function Value(
+    value: string,
+    args?: ScalarValueParams,
+  ): ScalarValueSchema {
     return new ScalarValueSchema('value', value, args);
   }
 
   // Create an object representing string-rendered-as-url for the schema.
   // |value| - SQL expression (e.g. column name) for the value.
-  export function URLValue(value: string, args?: ScalarValueParams):
-      ScalarValueSchema {
+  export function URLValue(
+    value: string,
+    args?: ScalarValueParams,
+  ): ScalarValueSchema {
     return new ScalarValueSchema('url', value, args);
   }
 
   // Create an object representing a reference to a SQL table row in the schema.
   // |table| - name of the table.
   // |id| - SQL expression (e.g. column name) for the id.
-  export function SqlIdRef(table: string, id: string, args?: ScalarValueParams):
-      SqlIdRefSchema {
+  export function SqlIdRef(
+    table: string,
+    id: string,
+    args?: ScalarValueParams,
+  ): SqlIdRefSchema {
     return new SqlIdRefSchema(table, id, args);
   }
-
-}  // namespace DetailsSchema
+} // namespace DetailsSchema
 
 // Params which apply to scalar values (i.e. all non-dicts and non-arrays).
 type ScalarValueParams = {
   skipIfNull?: boolean;
-}
+};
 
 // Params which apply to containers (dicts and arrays).
 type ContainerParams = {
   skipIfEmpty?: boolean;
-}
-
+};
 
 // Definition of a node in the schema.
-export type ValueDesc = DictSchema|ArraySchema|ScalarValueSchema|IntervalSchema|
-    ThreadIntervalSchema|SqlIdRefSchema|string|ValueDesc[]|
-    {[key: string]: ValueDesc};
+export type ValueDesc =
+  | DictSchema
+  | ArraySchema
+  | ScalarValueSchema
+  | IntervalSchema
+  | ThreadIntervalSchema
+  | SqlIdRefSchema
+  | string
+  | ValueDesc[]
+  | {[key: string]: ValueDesc};
 
 // Class responsible for fetching the data and rendering the data.
 export class Details {
   constructor(
-      private engine: EngineProxy, private sqlTable: string, private id: number,
-      schema: {[key: string]: ValueDesc},
-      sqlIdTypesRenderers: {[key: string]: SqlIdRefRenderer} = {}) {
-    this.dataController =
-        new DataController(engine, sqlTable, id, sqlIdTypesRenderers);
+    private engine: EngineProxy,
+    private sqlTable: string,
+    private id: number,
+    schema: {[key: string]: ValueDesc},
+    sqlIdTypesRenderers: {[key: string]: SqlIdRefRenderer} = {},
+  ) {
+    this.dataController = new DataController(
+      engine,
+      sqlTable,
+      id,
+      sqlIdTypesRenderers,
+    );
 
     this.resolvedSchema = {
       kind: 'dict',
-      data: Object.fromEntries(Object.entries(schema).map(
-        ([key, value]) => [key, resolve(value, this.dataController)])),
+      data: Object.fromEntries(
+        Object.entries(schema).map(([key, value]) => [
+          key,
+          resolve(value, this.dataController),
+        ]),
+      ),
     };
     this.dataController.fetch();
   }
@@ -204,20 +237,25 @@ export class Details {
     }
     const nodes = [];
     for (const [key, value] of Object.entries(this.resolvedSchema.data)) {
-      nodes.push(renderValue(
-        this.engine,
-        key,
-        value,
-        this.dataController.data,
-        this.dataController.sqlIdRefRenderers));
+      nodes.push(
+        renderValue(
+          this.engine,
+          key,
+          value,
+          this.dataController.data,
+          this.dataController.sqlIdRefRenderers,
+        ),
+      );
     }
-    nodes.push(m(TreeNode, {
-      left: 'SQL ID',
-      right: m(SqlRef, {
-        table: this.sqlTable,
-        id: this.id,
+    nodes.push(
+      m(TreeNode, {
+        left: 'SQL ID',
+        right: m(SqlRef, {
+          table: this.sqlTable,
+          id: this.id,
+        }),
       }),
-    }));
+    );
     return m(Tree, nodes);
   }
 
@@ -230,19 +268,19 @@ export class Details {
 export type RenderedValue = {
   // The value that should be rendered as the right part of the corresponding
   // TreeNode.
-  value: m.Children,
+  value: m.Children;
   // Values that should be rendered as the children of the corresponding
   // TreeNode.
-  children?: m.Children,
-}
+  children?: m.Children;
+};
 
 // Type describing how render an id into a given table, split into
 // async `fetch` step for fetching data and sync `render` step for generating
 // the vdom.
 export type SqlIdRefRenderer = {
-  fetch: (engine: EngineProxy, id: bigint) => Promise<{}|undefined>,
-  render: (data: {}) => RenderedValue,
-}
+  fetch: (engine: EngineProxy, id: bigint) => Promise<{} | undefined>;
+  render: (data: {}) => RenderedValue;
+};
 
 // Type-safe helper to create a SqlIdRefRenderer, which ensures that the
 // type returned from the fetch is the same type that renderer takes.
@@ -269,15 +307,16 @@ type SqlIdRefIndex = Brand<number, 'sql_id_ref'>;
 // Description of a dict in the schema.
 class DictSchema {
   constructor(
-      public data: {[key: string]: ValueDesc},
-      public params?: ContainerParams) {}
+    public data: {[key: string]: ValueDesc},
+    public params?: ContainerParams,
+  ) {}
 }
 
 // Resolved version of a dict.
 type ResolvedDict = {
-  kind: 'dict',
-  data: {[key: string]: ResolvedValue},
-}&ContainerParams;
+  kind: 'dict';
+  data: {[key: string]: ResolvedValue};
+} & ContainerParams;
 
 // Description of an array in the schema.
 class ArraySchema {
@@ -286,70 +325,88 @@ class ArraySchema {
 
 // Resolved version of an array.
 type ResolvedArray = {
-  kind: 'array'; data: ResolvedValue[];
-}&ContainerParams;
+  kind: 'array';
+  data: ResolvedValue[];
+} & ContainerParams;
 
 // Schema for all simple scalar values (ones that need to fetch only one value
 // from SQL).
 class ScalarValueSchema {
   constructor(
-      public kind: 'timestamp'|'duration'|'arg_set_id'|'value'|'url',
-      public sourceExpression: string, public params?: ScalarValueParams) {}
+    public kind: 'timestamp' | 'duration' | 'arg_set_id' | 'value' | 'url',
+    public sourceExpression: string,
+    public params?: ScalarValueParams,
+  ) {}
 }
 
 // Resolved version of simple scalar values.
 type ResolvedScalarValue = {
-  kind: 'timestamp'|'duration'|'value'|'url',
-  source: ExpressionIndex,
-}&ScalarValueParams;
+  kind: 'timestamp' | 'duration' | 'value' | 'url';
+  source: ExpressionIndex;
+} & ScalarValueParams;
 
 // Resolved version of arg set.
 type ResolvedArgSet = {
-  kind: 'arg_set_id',
-  source: ArgSetIndex,
-}&ScalarValueParams;
+  kind: 'arg_set_id';
+  source: ArgSetIndex;
+} & ScalarValueParams;
 
 // Schema for a time interval (ts, dur pair).
 class IntervalSchema {
   constructor(
-      public ts: string, public dur: string,
-      public params?: ScalarValueParams) {}
+    public ts: string,
+    public dur: string,
+    public params?: ScalarValueParams,
+  ) {}
 }
 
 // Resolved version of a time interval.
 type ResolvedInterval = {
-  kind: 'interval',
-  ts: ExpressionIndex,
-  dur: ExpressionIndex,
-}&ScalarValueParams;
+  kind: 'interval';
+  ts: ExpressionIndex;
+  dur: ExpressionIndex;
+} & ScalarValueParams;
 
 // Schema for a time interval for a given thread (ts, dur, utid triple).
 class ThreadIntervalSchema {
   constructor(
-      public ts: string, public dur: string, public utid: string,
-      public params?: ScalarValueParams) {}
+    public ts: string,
+    public dur: string,
+    public utid: string,
+    public params?: ScalarValueParams,
+  ) {}
 }
 
 // Resolved version of a time interval for a given thread.
 type ResolvedThreadInterval = {
-  kind: 'thread_interval'; ts: ExpressionIndex; dur: ExpressionIndex;
+  kind: 'thread_interval';
+  ts: ExpressionIndex;
+  dur: ExpressionIndex;
   utid: ExpressionIndex;
-}&ScalarValueParams;
+} & ScalarValueParams;
 
 // Schema for a reference to a SQL table row.
 class SqlIdRefSchema {
   constructor(
-      public table: string, public id: string,
-      public params?: ScalarValueParams) {}
+    public table: string,
+    public id: string,
+    public params?: ScalarValueParams,
+  ) {}
 }
 
 type ResolvedSqlIdRef = {
-  kind: 'sql_id_ref',
-  ref: SqlIdRefIndex,
-}&ScalarValueParams;
+  kind: 'sql_id_ref';
+  ref: SqlIdRefIndex;
+} & ScalarValueParams;
 
-type ResolvedValue = ResolvedDict|ResolvedArray|ResolvedScalarValue|
-    ResolvedArgSet|ResolvedInterval|ResolvedThreadInterval|ResolvedSqlIdRef;
+type ResolvedValue =
+  | ResolvedDict
+  | ResolvedArray
+  | ResolvedScalarValue
+  | ResolvedArgSet
+  | ResolvedInterval
+  | ResolvedThreadInterval
+  | ResolvedSqlIdRef;
 
 // Helper class to store the error messages while fetching the data.
 class Err {
@@ -367,12 +424,12 @@ interface Data {
   // Source statements for the arg sets.
   argSetExpressions: string[];
   // Fetched arg sets.
-  argSets: (Arg[]|Err)[];
+  argSets: (Arg[] | Err)[];
 
   // Source statements for the SQL references.
-  sqlIdRefs: {tableName: string, idExpression: string}[];
+  sqlIdRefs: {tableName: string; idExpression: string}[];
   // Fetched data for the SQL references.
-  sqlIdRefData: ({data: {}, id: bigint}|Err)[];
+  sqlIdRefData: ({data: {}; id: bigint} | Err)[];
 }
 
 // Class responsible for collecting the description of the data to fetch and
@@ -388,14 +445,17 @@ class DataController {
   // List of SQL references to fetch. SQL reference ids are fetched first
   // (together with other scalar values as a part of the `expressions` list) and
   // then the SQL references themselves are fetched.
-  sqlIdRefs: {id: ExpressionIndex, tableName: string}[] = [];
+  sqlIdRefs: {id: ExpressionIndex; tableName: string}[] = [];
 
   // Fetched data.
   data?: Data;
 
   constructor(
-      private engine: EngineProxy, private sqlTable: string, private id: number,
-      public sqlIdRefRenderers: {[table: string]: SqlIdRefRenderer}) {}
+    private engine: EngineProxy,
+    private sqlTable: string,
+    private id: number,
+    public sqlIdRefRenderers: {[table: string]: SqlIdRefRenderer},
+  ) {}
 
   // Fetch the data. `expressions` and other lists must be populated first by
   // resolving the schema.
@@ -416,16 +476,16 @@ class DataController {
     const label = (index: number) => `col_${index}`;
 
     // Fetch the scalar values for the basic expressions.
-    const row: Row =
-        (await this.engine.query(`
+    const row: Row = (
+      await this.engine.query(`
       SELECT
-        ${
-          this.expressions
-            .map((value, index) => `${value} as ${label(index)}`)
-            .join(',\n')}
+        ${this.expressions
+          .map((value, index) => `${value} as ${label(index)}`)
+          .join(',\n')}
       FROM ${this.sqlTable}
       WHERE id = ${this.id}
-    `)).firstRow({});
+    `)
+    ).firstRow({});
     for (let i = 0; i < this.expressions.length; ++i) {
       data.values.push(row[label(i)]);
     }
@@ -436,9 +496,13 @@ class DataController {
       if (argSetId === null) {
         data.argSets.push([]);
       } else if (typeof argSetId !== 'number') {
-        data.argSets.push(new Err(`Incorrect type for arg set ${
-          data.argSetExpressions[argSetIndex]}: expected a number, got ${
-          typeof argSetId} instead}`));
+        data.argSets.push(
+          new Err(
+            `Incorrect type for arg set ${
+              data.argSetExpressions[argSetIndex]
+            }: expected a number, got ${typeof argSetId} instead}`,
+          ),
+        );
       } else {
         data.argSets.push(await getArgs(this.engine, asArgSetId(argSetId)));
       }
@@ -453,15 +517,22 @@ class DataController {
       }
       const id = data.values[ref.id];
       if (typeof id !== 'bigint') {
-        data.sqlIdRefData.push(new Err(`Incorrect type for SQL reference ${
-          data.valueExpressions[ref.id]}: expected a bigint, got ${
-          typeof id} instead}`));
+        data.sqlIdRefData.push(
+          new Err(
+            `Incorrect type for SQL reference ${
+              data.valueExpressions[ref.id]
+            }: expected a bigint, got ${typeof id} instead}`,
+          ),
+        );
         continue;
       }
       const refData = await renderer.fetch(this.engine, id);
       if (refData === undefined) {
-        data.sqlIdRefData.push(new Err(`Failed to fetch the data with id ${
-          id} for table ${ref.tableName}`));
+        data.sqlIdRefData.push(
+          new Err(
+            `Failed to fetch the data with id ${id} for table ${ref.tableName}`,
+          ),
+        );
         continue;
       }
       data.sqlIdRefData.push({data: refData, id});
@@ -563,15 +634,19 @@ function resolve(schema: ValueDesc, data: DataController): ResolvedValue {
     return {
       kind: 'dict',
       data: Object.fromEntries(
-        Object.entries(schema.data)
-          .map(([key, value]) => [key, resolve(value, data)])),
+        Object.entries(schema.data).map(([key, value]) => [
+          key,
+          resolve(value, data),
+        ]),
+      ),
       ...schema.params,
     };
   }
   return {
     kind: 'dict',
-    data: Object.fromEntries(Object.entries(schema).map(
-      ([key, value]) => [key, resolve(value, data)])),
+    data: Object.fromEntries(
+      Object.entries(schema).map(([key, value]) => [key, resolve(value, data)]),
+    ),
   };
 }
 
@@ -581,144 +656,169 @@ function renderValue(
   key: string,
   value: ResolvedValue,
   data: Data,
-  sqlIdRefRenderers: {[table: string]: SqlIdRefRenderer}): m.Children {
+  sqlIdRefRenderers: {[table: string]: SqlIdRefRenderer},
+): m.Children {
   switch (value.kind) {
-  case 'value':
-    if (data.values[value.source] === null && value.skipIfNull) return null;
-    return m(TreeNode, {
-      left: key,
-      right: sqlValueToString(data.values[value.source]),
-    });
-  case 'url': {
-    const url = data.values[value.source];
-    let rhs: m.Child;
-    if (url === null) {
-      if (value.skipIfNull) return null;
-      rhs = m('i', 'NULL');
-    } else if (typeof url !== 'string') {
-      rhs = renderError(`Incorrect type for URL ${
-        data.valueExpressions[value.source]}: expected string, got ${
-        typeof (url)}`);
-    } else {
-      rhs =
-            m(Anchor, {href: url, target: '_blank', icon: 'open_in_new'}, url);
-    }
-    return m(TreeNode, {
-      left: key,
-      right: rhs,
-    });
-  }
-  case 'timestamp': {
-    const ts = data.values[value.source];
-    let rhs: m.Child;
-    if (ts === null) {
-      if (value.skipIfNull) return null;
-      rhs = m('i', 'NULL');
-    } else if (typeof ts !== 'bigint') {
-      rhs = renderError(`Incorrect type for timestamp ${
-        data.valueExpressions[value.source]}: expected bigint, got ${
-        typeof (ts)}`);
-    } else {
-      rhs = m(TimestampWidget, {
-        ts: Time.fromRaw(ts),
+    case 'value':
+      if (data.values[value.source] === null && value.skipIfNull) return null;
+      return m(TreeNode, {
+        left: key,
+        right: sqlValueToString(data.values[value.source]),
       });
-    }
-    return m(TreeNode, {
-      left: key,
-      right: rhs,
-    });
-  }
-  case 'duration': {
-    const dur = data.values[value.source];
-    return m(TreeNode, {
-      left: key,
-      right: typeof (dur) === 'bigint' && m(DurationWidget, {
-        dur,
-      }),
-    });
-  }
-  case 'interval':
-  case 'thread_interval': {
-    const dur = data.values[value.dur];
-    return m(TreeNode, {
-      left: key,
-      right: typeof (dur) === 'bigint' && m(DurationWidget, {
-        dur,
-      }),
-    });
-  }
-  case 'sql_id_ref':
-    const ref = data.sqlIdRefs[value.ref];
-    const refData = data.sqlIdRefData[value.ref];
-    let rhs: m.Children;
-    let children: m.Children;
-    if (refData instanceof Err) {
-      rhs = renderError(refData.message);
-    } else {
-      const renderer = sqlIdRefRenderers[ref.tableName];
-      if (renderer === undefined) {
-        rhs = renderError(`Unknown table ${ref.tableName} (${ref.tableName}[${
-          refData.id}])`);
+    case 'url': {
+      const url = data.values[value.source];
+      let rhs: m.Child;
+      if (url === null) {
+        if (value.skipIfNull) return null;
+        rhs = m('i', 'NULL');
+      } else if (typeof url !== 'string') {
+        rhs = renderError(
+          `Incorrect type for URL ${
+            data.valueExpressions[value.source]
+          }: expected string, got ${typeof url}`,
+        );
       } else {
-        const rendered = renderer.render(refData.data);
-        rhs = rendered.value;
-        children = rendered.children;
+        rhs = m(
+          Anchor,
+          {href: url, target: '_blank', icon: 'open_in_new'},
+          url,
+        );
       }
-    }
-    return m(
-      TreeNode,
-      {
+      return m(TreeNode, {
         left: key,
         right: rhs,
-      },
-      children);
-  case 'arg_set_id':
-    const args = data.argSets[value.source];
-    if (args instanceof Err) {
-      return renderError(args.message);
+      });
     }
-    return hasArgs(args) &&
-          m(TreeNode,
-            {
-              left: key,
-            },
-            renderArguments(engine, args));
-  case 'array': {
-    const children: m.Children[] = [];
-    for (const child of value.data) {
-      const renderedChild = renderValue(
-        engine, `[${children.length}]`, child, data, sqlIdRefRenderers);
-      if (exists(renderedChild)) {
-        children.push(renderedChild);
+    case 'timestamp': {
+      const ts = data.values[value.source];
+      let rhs: m.Child;
+      if (ts === null) {
+        if (value.skipIfNull) return null;
+        rhs = m('i', 'NULL');
+      } else if (typeof ts !== 'bigint') {
+        rhs = renderError(
+          `Incorrect type for timestamp ${
+            data.valueExpressions[value.source]
+          }: expected bigint, got ${typeof ts}`,
+        );
+      } else {
+        rhs = m(TimestampWidget, {
+          ts: Time.fromRaw(ts),
+        });
       }
-    }
-    if (children.length === 0 && value.skipIfEmpty) {
-      return null;
-    }
-    return m(
-      TreeNode,
-      {
+      return m(TreeNode, {
         left: key,
-      },
-      children);
-  }
-  case 'dict': {
-    const children: m.Children[] = [];
-    for (const [key, val] of Object.entries(value.data)) {
-      const child = renderValue(engine, key, val, data, sqlIdRefRenderers);
-      if (exists(child)) {
-        children.push(child);
+        right: rhs,
+      });
+    }
+    case 'duration': {
+      const dur = data.values[value.source];
+      return m(TreeNode, {
+        left: key,
+        right:
+          typeof dur === 'bigint' &&
+          m(DurationWidget, {
+            dur,
+          }),
+      });
+    }
+    case 'interval':
+    case 'thread_interval': {
+      const dur = data.values[value.dur];
+      return m(TreeNode, {
+        left: key,
+        right:
+          typeof dur === 'bigint' &&
+          m(DurationWidget, {
+            dur,
+          }),
+      });
+    }
+    case 'sql_id_ref':
+      const ref = data.sqlIdRefs[value.ref];
+      const refData = data.sqlIdRefData[value.ref];
+      let rhs: m.Children;
+      let children: m.Children;
+      if (refData instanceof Err) {
+        rhs = renderError(refData.message);
+      } else {
+        const renderer = sqlIdRefRenderers[ref.tableName];
+        if (renderer === undefined) {
+          rhs = renderError(
+            `Unknown table ${ref.tableName} (${ref.tableName}[${refData.id}])`,
+          );
+        } else {
+          const rendered = renderer.render(refData.data);
+          rhs = rendered.value;
+          children = rendered.children;
+        }
       }
+      return m(
+        TreeNode,
+        {
+          left: key,
+          right: rhs,
+        },
+        children,
+      );
+    case 'arg_set_id':
+      const args = data.argSets[value.source];
+      if (args instanceof Err) {
+        return renderError(args.message);
+      }
+      return (
+        hasArgs(args) &&
+        m(
+          TreeNode,
+          {
+            left: key,
+          },
+          renderArguments(engine, args),
+        )
+      );
+    case 'array': {
+      const children: m.Children[] = [];
+      for (const child of value.data) {
+        const renderedChild = renderValue(
+          engine,
+          `[${children.length}]`,
+          child,
+          data,
+          sqlIdRefRenderers,
+        );
+        if (exists(renderedChild)) {
+          children.push(renderedChild);
+        }
+      }
+      if (children.length === 0 && value.skipIfEmpty) {
+        return null;
+      }
+      return m(
+        TreeNode,
+        {
+          left: key,
+        },
+        children,
+      );
     }
-    if (children.length === 0 && value.skipIfEmpty) {
-      return null;
+    case 'dict': {
+      const children: m.Children[] = [];
+      for (const [key, val] of Object.entries(value.data)) {
+        const child = renderValue(engine, key, val, data, sqlIdRefRenderers);
+        if (exists(child)) {
+          children.push(child);
+        }
+      }
+      if (children.length === 0 && value.skipIfEmpty) {
+        return null;
+      }
+      return m(
+        TreeNode,
+        {
+          left: key,
+        },
+        children,
+      );
     }
-    return m(
-      TreeNode,
-      {
-        left: key,
-      },
-      children);
-  }
   }
 }

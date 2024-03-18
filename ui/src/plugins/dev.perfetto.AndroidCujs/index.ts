@@ -21,7 +21,6 @@ import {
   PluginDescriptor,
 } from '../../public';
 
-
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/android_jank_cuj.sql');
   SELECT RUN_METRIC('android/jank/internal/counters.sql');
@@ -148,7 +147,8 @@ class AndroidCujs implements Plugin {
             },
             'Jank CUJs',
             {ts: 'ts', dur: 'dur', name: 'name'},
-            []);
+            [],
+          );
         });
       },
     });
@@ -157,9 +157,9 @@ class AndroidCujs implements Plugin {
       id: 'dev.perfetto.AndroidCujs#ListJankCUJs',
       name: 'Run query: Android Jank CUJs',
       callback: () => {
-        runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine)
-          .then(
-            () => ctx.tabs.openQuery(JANK_CUJ_QUERY, 'Android Jank CUJs'));
+        runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine).then(() =>
+          ctx.tabs.openQuery(JANK_CUJ_QUERY, 'Android Jank CUJs'),
+        );
       },
     });
 
@@ -175,7 +175,8 @@ class AndroidCujs implements Plugin {
           },
           'Latency CUJs',
           {ts: 'ts', dur: 'dur', name: 'name'},
-          []);
+          [],
+        );
       },
     });
 

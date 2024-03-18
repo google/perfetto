@@ -71,8 +71,10 @@ describe('toHTMLElement', () => {
   });
 
   it('should fail to convert an svg element to an HTMLElement', () => {
-    const svgElement =
-        document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const svgElement = document.createElementNS(
+      'http://www.w3.org/2000/svg',
+      'svg',
+    );
     expect(() => toHTMLElement(svgElement)).toThrow(Error);
   });
 });

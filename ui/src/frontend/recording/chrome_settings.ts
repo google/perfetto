@@ -34,8 +34,9 @@ import {
 
 import {RecordingSectionAttrs} from './recording_sections';
 
-function extractChromeCategories(dataSources: DataSource[]): string[]|
-    undefined {
+function extractChromeCategories(
+  dataSources: DataSource[],
+): string[] | undefined {
   for (const dataSource of dataSources) {
     if (dataSource.name === 'chromeCategories') {
       return dataSource.descriptor as string[];
@@ -44,10 +45,11 @@ function extractChromeCategories(dataSources: DataSource[]): string[]|
   return undefined;
 }
 
-class ChromeCategoriesSelection implements
-    m.ClassComponent<RecordingSectionAttrs> {
-  private defaultCategoryOptions: MultiSelectOption[]|undefined = undefined;
-  private disabledByDefaultCategoryOptions: MultiSelectOption[]|undefined =
+class ChromeCategoriesSelection
+  implements m.ClassComponent<RecordingSectionAttrs>
+{
+  private defaultCategoryOptions: MultiSelectOption[] | undefined = undefined;
+  private disabledByDefaultCategoryOptions: MultiSelectOption[] | undefined =
     undefined;
 
   static updateValue(attrs: CategoryGetter, diffs: MultiSelectDiff[]) {
@@ -71,19 +73,23 @@ class ChromeCategoriesSelection implements
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
     const categoryConfigGetter: CategoryGetter = {
       get: (cfg) => cfg.chromeCategoriesSelected,
-      set: (cfg, val) => cfg.chromeCategoriesSelected = val,
+      set: (cfg, val) => (cfg.chromeCategoriesSelected = val),
     };
 
-    if (this.defaultCategoryOptions === undefined ||
-        this.disabledByDefaultCategoryOptions === undefined) {
+    if (
+      this.defaultCategoryOptions === undefined ||
+      this.disabledByDefaultCategoryOptions === undefined
+    ) {
       // If we are attempting to record via the Chrome extension, we receive the
       // list of actually supported categories via DevTools. Otherwise, we fall
       // back to an integrated list of categories from a recent version of
       // Chrome.
-      const enabled =
-          new Set(categoryConfigGetter.get(globals.state.recordConfig));
-      let categories = globals.state.chromeCategories ||
-          extractChromeCategories(attrs.dataSources);
+      const enabled = new Set(
+        categoryConfigGetter.get(globals.state.recordConfig),
+      );
+      let categories =
+        globals.state.chromeCategories ||
+        extractChromeCategories(attrs.dataSources);
       if (!categories || !isChromeTarget(globals.state.recordingTarget)) {
         categories = getBuiltinChromeCategoryList();
       }
@@ -93,8 +99,10 @@ class ChromeCategoriesSelection implements
       categories.forEach((cat) => {
         const checked = enabled.has(cat);
 
-        if (cat.startsWith(disabledPrefix) &&
-            this.disabledByDefaultCategoryOptions !== undefined) {
+        if (
+          cat.startsWith(disabledPrefix) &&
+          this.disabledByDefaultCategoryOptions !== undefined
+        ) {
           this.disabledByDefaultCategoryOptions.push({
             id: cat,
             name: cat.replace(disabledPrefix, ''),
@@ -102,7 +110,8 @@ class ChromeCategoriesSelection implements
           });
         } else if (
           !cat.startsWith(disabledPrefix) &&
-            this.defaultCategoryOptions !== undefined) {
+          this.defaultCategoryOptions !== undefined
+        ) {
           this.defaultCategoryOptions.push({
             id: cat,
             name: cat,
@@ -117,54 +126,48 @@ class ChromeCategoriesSelection implements
       m(
         Section,
         {title: 'Additional Categories'},
-        m(
-          MultiSelect,
-          {
-            options: this.defaultCategoryOptions,
-            repeatCheckedItemsAtTop: false,
-            fixedSize: false,
-            onChange: (diffs: MultiSelectDiff[]) => {
-              diffs.forEach(({id, checked}) => {
-                if (this.defaultCategoryOptions === undefined) {
-                  return;
+        m(MultiSelect, {
+          options: this.defaultCategoryOptions,
+          repeatCheckedItemsAtTop: false,
+          fixedSize: false,
+          onChange: (diffs: MultiSelectDiff[]) => {
+            diffs.forEach(({id, checked}) => {
+              if (this.defaultCategoryOptions === undefined) {
+                return;
+              }
+              for (const option of this.defaultCategoryOptions) {
+                if (option.id == id) {
+                  option.checked = checked;
                 }
-                for (const option of this.defaultCategoryOptions) {
-                  if (option.id == id) {
-                    option.checked = checked;
-                  }
-                }
-              });
-              ChromeCategoriesSelection.updateValue(
-                categoryConfigGetter, diffs);
-            },
+              }
+            });
+            ChromeCategoriesSelection.updateValue(categoryConfigGetter, diffs);
           },
-        )),
+        }),
+      ),
       m(
         Section,
         {title: 'High Overhead Categories'},
-        m(
-          MultiSelect,
-          {
-            options: this.disabledByDefaultCategoryOptions,
-            repeatCheckedItemsAtTop: false,
-            fixedSize: false,
-            onChange: (diffs: MultiSelectDiff[]) => {
-              diffs.forEach(({id, checked}) => {
-                if (this.disabledByDefaultCategoryOptions === undefined) {
-                  return;
+        m(MultiSelect, {
+          options: this.disabledByDefaultCategoryOptions,
+          repeatCheckedItemsAtTop: false,
+          fixedSize: false,
+          onChange: (diffs: MultiSelectDiff[]) => {
+            diffs.forEach(({id, checked}) => {
+              if (this.disabledByDefaultCategoryOptions === undefined) {
+                return;
+              }
+              for (const option of this.disabledByDefaultCategoryOptions) {
+                if (option.id == id) {
+                  option.checked = checked;
                 }
-                for (const option of this
-                  .disabledByDefaultCategoryOptions) {
-                  if (option.id == id) {
-                    option.checked = checked;
-                  }
-                }
-              });
-              ChromeCategoriesSelection.updateValue(
-                categoryConfigGetter, diffs);
-            },
+              }
+            });
+            ChromeCategoriesSelection.updateValue(categoryConfigGetter, diffs);
           },
-        )));
+        }),
+      ),
+    );
   }
 }
 
@@ -174,61 +177,63 @@ export class ChromeSettings implements m.ClassComponent<RecordingSectionAttrs> {
       `.record-section${attrs.cssClass}`,
       CompactProbe({
         title: 'Task scheduling',
-        setEnabled: (cfg, val) => cfg.taskScheduling = val,
+        setEnabled: (cfg, val) => (cfg.taskScheduling = val),
         isEnabled: (cfg) => cfg.taskScheduling,
       }),
       CompactProbe({
         title: 'IPC flows',
-        setEnabled: (cfg, val) => cfg.ipcFlows = val,
+        setEnabled: (cfg, val) => (cfg.ipcFlows = val),
         isEnabled: (cfg) => cfg.ipcFlows,
       }),
       CompactProbe({
         title: 'Javascript execution',
-        setEnabled: (cfg, val) => cfg.jsExecution = val,
+        setEnabled: (cfg, val) => (cfg.jsExecution = val),
         isEnabled: (cfg) => cfg.jsExecution,
       }),
       CompactProbe({
         title: 'Web content rendering, layout and compositing',
-        setEnabled: (cfg, val) => cfg.webContentRendering = val,
+        setEnabled: (cfg, val) => (cfg.webContentRendering = val),
         isEnabled: (cfg) => cfg.webContentRendering,
       }),
       CompactProbe({
         title: 'UI rendering & surface compositing',
-        setEnabled: (cfg, val) => cfg.uiRendering = val,
+        setEnabled: (cfg, val) => (cfg.uiRendering = val),
         isEnabled: (cfg) => cfg.uiRendering,
       }),
       CompactProbe({
         title: 'Input events',
-        setEnabled: (cfg, val) => cfg.inputEvents = val,
+        setEnabled: (cfg, val) => (cfg.inputEvents = val),
         isEnabled: (cfg) => cfg.inputEvents,
       }),
       CompactProbe({
         title: 'Navigation & Loading',
-        setEnabled: (cfg, val) => cfg.navigationAndLoading = val,
+        setEnabled: (cfg, val) => (cfg.navigationAndLoading = val),
         isEnabled: (cfg) => cfg.navigationAndLoading,
       }),
       CompactProbe({
         title: 'Chrome Logs',
-        setEnabled: (cfg, val) => cfg.chromeLogs = val,
+        setEnabled: (cfg, val) => (cfg.chromeLogs = val),
         isEnabled: (cfg) => cfg.chromeLogs,
       }),
       CompactProbe({
         title: 'Audio',
-        setEnabled: (cfg, val) => cfg.audio = val,
+        setEnabled: (cfg, val) => (cfg.audio = val),
         isEnabled: (cfg) => cfg.audio,
       }),
       CompactProbe({
         title: 'Video',
-        setEnabled: (cfg, val) => cfg.video = val,
+        setEnabled: (cfg, val) => (cfg.video = val),
         isEnabled: (cfg) => cfg.video,
       }),
       m(Toggle, {
         title: 'Remove untyped and sensitive data like URLs from the trace',
-        descr: 'Not recommended unless you intend to share the trace' +
-              ' with third-parties.',
-        setEnabled: (cfg, val) => cfg.chromePrivacyFiltering = val,
+        descr:
+          'Not recommended unless you intend to share the trace' +
+          ' with third-parties.',
+        setEnabled: (cfg, val) => (cfg.chromePrivacyFiltering = val),
         isEnabled: (cfg) => cfg.chromePrivacyFiltering,
       } as ToggleAttrs),
-      m(ChromeCategoriesSelection, attrs));
+      m(ChromeCategoriesSelection, attrs),
+    );
   }
 }

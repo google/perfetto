@@ -26,8 +26,12 @@ beforeAll(() => {
 
 test('validAreaAfterUndefinedArea', () => {
   const areaId = '0';
-  const latestArea: AreaById =
-      {start: Time.fromRaw(0n), end: Time.fromRaw(1n), tracks: [], id: areaId};
+  const latestArea: AreaById = {
+    start: Time.fromRaw(0n),
+    end: Time.fromRaw(1n),
+    tracks: [],
+    id: areaId,
+  };
   globals.store.edit((draft) => {
     draft.currentSelection = {kind: 'AREA', areaId: areaId};
     draft.areas[areaId] = latestArea;

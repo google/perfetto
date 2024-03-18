@@ -31,4 +31,3 @@ test('it knows if a task is pending', () => {
   expect(tracker.progressMessage()).toEqual('Some task (0s)');
   deferred.resolve();
 });
-

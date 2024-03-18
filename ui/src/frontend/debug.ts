@@ -22,7 +22,6 @@ import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
 
-
 declare global {
   interface Window {
     m: typeof m;
@@ -30,7 +29,7 @@ declare global {
     globals: typeof globals;
     Actions: typeof Actions;
     produce: typeof produce;
-    pluginManager: typeof pluginManager
+    pluginManager: typeof pluginManager;
     raf: typeof raf;
   }
 }

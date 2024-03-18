@@ -28,14 +28,13 @@ interface View {
   key: string;
   name: string;
   content: m.Children;
-};
+}
 
 class AreaDetailsPanel implements m.ClassComponent {
-  private currentTab: string|undefined = undefined;
+  private currentTab: string | undefined = undefined;
 
-  private getCurrentView(): string|undefined {
-    const types = this.getViews()
-      .map(({key}) => key);
+  private getCurrentView(): string | undefined {
+    const types = this.getViews().map(({key}) => key);
 
     if (types.length === 0) {
       return undefined;
@@ -71,8 +70,7 @@ class AreaDetailsPanel implements m.ClassComponent {
         key: 'pivot_table',
         name: 'Pivot Table',
         content: m(PivotTable, {
-          selectionArea:
-              pivotTableState.selectionArea,
+          selectionArea: pivotTableState.selectionArea,
         }),
       });
     }
@@ -94,18 +92,16 @@ class AreaDetailsPanel implements m.ClassComponent {
     const currentViewKey = this.getCurrentView();
 
     const aggregationButtons = views.map(({key, name}) => {
-      return m(Button,
-        {
-          onclick: () => {
-            this.currentTab = key;
-            raf.scheduleFullRedraw();
-          },
-          key,
-          label: name,
-          active: currentViewKey === key,
-          minimal: true,
+      return m(Button, {
+        onclick: () => {
+          this.currentTab = key;
+          raf.scheduleFullRedraw();
         },
-      );
+        key,
+        label: name,
+        active: currentViewKey === key,
+        minimal: true,
+      });
     });
 
     if (currentViewKey === undefined) {
@@ -117,7 +113,8 @@ class AreaDetailsPanel implements m.ClassComponent {
       return this.renderEmptyState();
     }
 
-    return m(DetailsShell,
+    return m(
+      DetailsShell,
       {
         title: 'Area Selection',
         description: m(ButtonBar, aggregationButtons),
@@ -127,11 +124,14 @@ class AreaDetailsPanel implements m.ClassComponent {
   }
 
   private renderEmptyState(): m.Children {
-    return m(EmptyState, {
-      className: 'pf-noselection',
-      title: 'Unsupported area selection',
-    },
-    'No details available for this area selection');
+    return m(
+      EmptyState,
+      {
+        className: 'pf-noselection',
+        title: 'Unsupported area selection',
+      },
+      'No details available for this area selection',
+    );
   }
 }
 

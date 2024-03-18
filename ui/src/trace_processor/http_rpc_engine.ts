@@ -55,7 +55,7 @@ export class HttpRpcEngine extends Engine {
     if (this.connected) {
       this.websocket.send(data);
     } else {
-      this.requestQueue.push(data);  // onWebsocketConnected() will flush this.
+      this.requestQueue.push(data); // onWebsocketConnected() will flush this.
     }
   }
 
@@ -69,9 +69,11 @@ export class HttpRpcEngine extends Engine {
   }
 
   private onWebsocketMessage(e: MessageEvent) {
-    assertExists(e.data as Blob).arrayBuffer().then((buf) => {
-      super.onRpcResponseBytes(new Uint8Array(buf));
-    });
+    assertExists(e.data as Blob)
+      .arrayBuffer()
+      .then((buf) => {
+        super.onRpcResponseBytes(new Uint8Array(buf));
+      });
   }
 
   static async checkConnection(): Promise<HttpRpcState> {
@@ -80,12 +82,14 @@ export class HttpRpcEngine extends Engine {
     console.info(
       `It's safe to ignore the ERR_CONNECTION_REFUSED on ${RPC_URL} below. ` +
         `That might happen while probing the external native accelerator. The ` +
-        `error is non-fatal and unlikely to be the culprit for any UI bug.`);
+        `error is non-fatal and unlikely to be the culprit for any UI bug.`,
+    );
     try {
       const resp = await fetchWithTimeout(
         RPC_URL + 'status',
         {method: 'post', cache: 'no-cache'},
-        RPC_CONNECT_TIMEOUT_MS);
+        RPC_CONNECT_TIMEOUT_MS,
+      );
       if (resp.status !== 200) {
         httpRpcState.failure = `${resp.status} - ${resp.statusText}`;
       } else {

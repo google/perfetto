@@ -21,7 +21,12 @@ import {AddDebugTrackMenu} from '../../tracks/debug/add_debug_track_menu';
 import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
-import {addTab, BottomTab, bottomTabRegistry, NewBottomTabArgs} from '../bottom_tab';
+import {
+  addTab,
+  BottomTab,
+  bottomTabRegistry,
+  NewBottomTabArgs,
+} from '../bottom_tab';
 
 import {Filter, SqlTableState} from './state';
 import {SqlTable} from './table';
@@ -80,8 +85,11 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
   constructor(args: NewBottomTabArgs<SqlTableTabConfig>) {
     super(args);
 
-    this.state =
-        new SqlTableState(this.engine, this.config.table, this.config.filters);
+    this.state = new SqlTableState(
+      this.engine,
+      this.config.table,
+      this.config.filters,
+    );
   }
 
   static create(args: NewBottomTabArgs<SqlTableTabConfig>): SqlTableTab {
@@ -92,8 +100,9 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
     const range = this.state.getDisplayedRange();
     const rowCount = this.state.getTotalRowCount();
     const navigation = [
-      exists(range) && exists(rowCount) &&
-          `Showing rows ${range.from}-${range.to} of ${rowCount}`,
+      exists(range) &&
+        exists(rowCount) &&
+        `Showing rows ${range.from}-${range.to} of ${rowCount}`,
       m(Button, {
         icon: Icons.GoBack,
         disabled: !this.state.canGoBack(),
@@ -108,19 +117,20 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
       }),
     ];
     const {selectStatement, columns} = this.state.buildSqlSelectStatement();
-    const addDebugTrack =
-        m(Popup,
-          {
-            trigger: m(Button, {label: 'Show debug track'}),
-            position: PopupPosition.Top,
-          },
-          m(AddDebugTrackMenu, {
-            dataSource: {
-              sqlSource: selectStatement,
-              columns: columns,
-            },
-            engine: this.engine,
-          }));
+    const addDebugTrack = m(
+      Popup,
+      {
+        trigger: m(Button, {label: 'Show debug track'}),
+        position: PopupPosition.Top,
+      },
+      m(AddDebugTrackMenu, {
+        dataSource: {
+          sqlSource: selectStatement,
+          columns: columns,
+        },
+        engine: this.engine,
+      }),
+    );
 
     return m(
       DetailsShell,
@@ -143,7 +153,8 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
       },
       m(SqlTable, {
         state: this.state,
-      }));
+      }),
+    );
   }
 
   getTitle(): string {

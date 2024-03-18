@@ -14,19 +14,24 @@
 
 import {Selection} from './state';
 
-export type SelectionChangedObserver =
-    (selection: Selection|undefined, openCurrentSelectionTab: boolean) => void;
+export type SelectionChangedObserver = (
+  selection: Selection | undefined,
+  openCurrentSelectionTab: boolean,
+) => void;
 
 const selectionObservers: SelectionChangedObserver[] = [];
 
 export function onSelectionChanged(
-  selection: Selection|undefined, openCurrentSelectionTab: boolean) {
+  selection: Selection | undefined,
+  openCurrentSelectionTab: boolean,
+) {
   for (const observer of selectionObservers) {
     observer(selection, openCurrentSelectionTab);
   }
 }
 
-export function addSelectionChangeObserver(observer: SelectionChangedObserver):
-    void {
+export function addSelectionChangeObserver(
+  observer: SelectionChangedObserver,
+): void {
   selectionObservers.push(observer);
 }

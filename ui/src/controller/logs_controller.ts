@@ -12,13 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  duration,
-  Span,
-  time,
-  Time,
-  TimeSpan,
-} from '../base/time';
+import {duration, Span, time, Time, TimeSpan} from '../base/time';
 import {
   LogBounds,
   LogBoundsKey,
@@ -36,7 +30,9 @@ import {escapeGlob, escapeQuery} from '../trace_processor/query_utils';
 import {Controller} from './controller';
 
 async function updateLogBounds(
-  engine: Engine, span: Span<time, duration>): Promise<LogBounds> {
+  engine: Engine,
+  span: Span<time, duration>,
+): Promise<LogBounds> {
   const vizStartNs = span.start;
   const vizEndNs = span.end;
 
@@ -73,8 +69,10 @@ async function updateLogBounds(
 }
 
 async function updateLogEntries(
-  engine: Engine, span: Span<time, duration>, pagination: Pagination):
-    Promise<LogEntries> {
+  engine: Engine,
+  span: Span<time, duration>,
+  pagination: Pagination,
+): Promise<LogEntries> {
   const vizStartNs = span.start;
   const vizEndNs = span.end;
   const vizSqlBounds = `ts >= ${vizStartNs} and ts <= ${vizEndNs}`;
@@ -116,7 +114,8 @@ async function updateLogEntries(
     tags.push(it.tag);
     messages.push(it.msg);
     isHighlighted.push(
-      it.isMsgHighlighted === 1 || it.isProcessHighlighted === 1);
+      it.isMsgHighlighted === 1 || it.isProcessHighlighted === 1,
+    );
     processName.push(it.processName);
   }
 
@@ -243,10 +242,10 @@ export class LogsController extends Controller<'main'> {
     const oldPagination = this.pagination;
 
     const newFilteringCriteria =
-        this.logFilteringCriteria !== globals.state.logFilteringCriteria;
+      this.logFilteringCriteria !== globals.state.logFilteringCriteria;
     const needBoundsUpdate = !oldSpan.equals(newSpan) || newFilteringCriteria;
     const needEntriesUpdate =
-        !oldPagination.contains(requestedPagination) || needBoundsUpdate;
+      !oldPagination.contains(requestedPagination) || needBoundsUpdate;
 
     if (newFilteringCriteria) {
       this.logFilteringCriteria = globals.state.logFilteringCriteria;
@@ -254,7 +253,8 @@ export class LogsController extends Controller<'main'> {
 
       const globMatch = LogsController.composeGlobMatch(
         this.logFilteringCriteria.hideNonMatching,
-        this.logFilteringCriteria.textEntry);
+        this.logFilteringCriteria.textEntry,
+      );
       let selectedRows = `select prio, ts, tag, msg,
           process.name as process_name, ${globMatch}
           from android_logs
@@ -262,8 +262,9 @@ export class LogsController extends Controller<'main'> {
           left join process using(upid)
           where prio >= ${this.logFilteringCriteria.minimumLevel}`;
       if (this.logFilteringCriteria.tags.length) {
-        selectedRows += ` and tag in (${
-          LogsController.serializeTags(this.logFilteringCriteria.tags)})`;
+        selectedRows += ` and tag in (${LogsController.serializeTags(
+          this.logFilteringCriteria.tags,
+        )})`;
       }
 
       // We extract only the rows which will be visible.
@@ -283,8 +284,11 @@ export class LogsController extends Controller<'main'> {
 
     if (needEntriesUpdate) {
       this.pagination = requestedPagination.grow(100);
-      const logEntries =
-          await updateLogEntries(this.engine, newSpan, this.pagination);
+      const logEntries = await updateLogEntries(
+        this.engine,
+        newSpan,
+        this.pagination,
+      );
       publishTrackData({
         id: LogEntriesKey,
         data: logEntries,
@@ -300,8 +304,9 @@ export class LogsController extends Controller<'main'> {
     if (isCollaped) {
       // If the entries are collapsed, we won't highlight any lines.
       return `msg glob ${escapeGlob(textEntry)} as is_msg_chosen,
-        (process.name is not null and process.name glob ${
-  escapeGlob(textEntry)}) as is_process_chosen,
+        (process.name is not null and process.name glob ${escapeGlob(
+          textEntry,
+        )}) as is_process_chosen,
         0 as is_msg_highlighted,
         0 as is_process_highlighted`;
     } else if (!textEntry) {
@@ -315,8 +320,9 @@ export class LogsController extends Controller<'main'> {
       return `1 as is_msg_chosen,
         1 as is_process_chosen,
         msg glob ${escapeGlob(textEntry)} as is_msg_highlighted,
-        (process.name is not null and process.name glob ${
-  escapeGlob(textEntry)}) as is_process_highlighted`;
+        (process.name is not null and process.name glob ${escapeGlob(
+          textEntry,
+        )}) as is_process_highlighted`;
     }
   }
 }

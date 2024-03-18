@@ -26,71 +26,68 @@ const args = [
 
 describe('convertArgsToTree', () => {
   test('converts example arg set', () => {
-    expect(convertArgsToTree(args))
-      .toEqual(
-        [
+    expect(convertArgsToTree(args)).toEqual([
+      {
+        key: 'simple_key',
+        value: {key: 'simple_key', value: 'simple_value'},
+      },
+      {
+        key: 'thing',
+        children: [
+          {key: 'key', value: {key: 'thing.key', value: 'value'}},
           {
-            key: 'simple_key',
-            value: {key: 'simple_key', value: 'simple_value'},
-          },
-          {
-            key: 'thing',
+            key: 'point',
             children: [
-              {key: 'key', value: {key: 'thing.key', value: 'value'}},
               {
-                key: 'point',
+                key: 0,
                 children: [
                   {
-                    key: 0,
-                    children: [
-                      {
-                        key: 'x',
-                        value: {key: 'thing.point[0].x', value: 10},
-                      },
-                      {
-                        key: 'y',
-                        value: {key: 'thing.point[0].y', value: 20},
-                      },
-                    ],
+                    key: 'x',
+                    value: {key: 'thing.point[0].x', value: 10},
                   },
                   {
-                    key: 1,
-                    children: [
-                      {
-                        key: 'x',
-                        value: {key: 'thing.point[1].x', value: 0},
-                      },
-                      {
-                        key: 'y',
-                        value: {key: 'thing.point[1].y', value: -10},
-                      },
-                    ],
+                    key: 'y',
+                    value: {key: 'thing.point[0].y', value: 20},
                   },
                 ],
               },
-            ],
-          },
-          {
-            key: 'foo',
-            children: [
               {
-                key: 'bar',
+                key: 1,
                 children: [
                   {
-                    key: 'foo',
-                    children: [
-                      {
-                        key: 'bar',
-                        value: {key: 'foo.bar.foo.bar', value: 'baz'},
-                      },
-                    ],
+                    key: 'x',
+                    value: {key: 'thing.point[1].x', value: 0},
+                  },
+                  {
+                    key: 'y',
+                    value: {key: 'thing.point[1].y', value: -10},
                   },
                 ],
               },
             ],
           },
         ],
-      );
+      },
+      {
+        key: 'foo',
+        children: [
+          {
+            key: 'bar',
+            children: [
+              {
+                key: 'foo',
+                children: [
+                  {
+                    key: 'bar',
+                    value: {key: 'foo.bar.foo.bar', value: 'baz'},
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
   });
 
   test('handles value and children in same node', () => {
@@ -102,9 +99,7 @@ describe('convertArgsToTree', () => {
       {
         key: 'foo',
         value: {key: 'foo', value: 'foo'},
-        children: [
-          {key: 'bar', value: {key: 'foo.bar', value: 'bar'}},
-        ],
+        children: [{key: 'bar', value: {key: 'foo.bar', value: 'bar'}}],
       },
     ]);
   });
@@ -136,15 +131,11 @@ describe('convertArgsToTree', () => {
   });
 
   test('handles sparse arrays', () => {
-    const args = [
-      {key: 'foo[12]', value: 'foo'},
-    ];
+    const args = [{key: 'foo[12]', value: 'foo'}];
     expect(convertArgsToTree(args)).toEqual([
       {
         key: 'foo',
-        children: [
-          {key: 12, value: {key: 'foo[12]', value: 'foo'}},
-        ],
+        children: [{key: 12, value: {key: 'foo[12]', value: 'foo'}}],
       },
     ]);
   });
@@ -192,16 +183,9 @@ describe('convertArgsToObject', () => {
   });
 
   test('handles sparse arrays', () => {
-    const args = [
-      {key: 'foo[3]', value: 'foo'},
-    ];
+    const args = [{key: 'foo[3]', value: 'foo'}];
     expect(convertArgsToObject(args)).toEqual({
-      foo: [
-        undefined,
-        undefined,
-        undefined,
-        'foo',
-      ],
+      foo: [undefined, undefined, undefined, 'foo'],
     });
   });
 });

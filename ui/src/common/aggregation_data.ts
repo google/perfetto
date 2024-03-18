@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type Column = (StringColumn|TimestampColumn|NumberColumn|StateColumn)&
-    {title: string, columnId: string};
+export type Column = (
+  | StringColumn
+  | TimestampColumn
+  | NumberColumn
+  | StateColumn
+) & {title: string; columnId: string};
 
 export interface StringColumn {
   kind: 'STRING';
@@ -36,7 +40,9 @@ export interface StateColumn {
 }
 
 type TypedArrayConstructor =
-    Uint16ArrayConstructor|Float64ArrayConstructor|Uint32ArrayConstructor;
+  | Uint16ArrayConstructor
+  | Float64ArrayConstructor
+  | Uint32ArrayConstructor;
 export interface ColumnDef {
   title: string;
   kind: string;

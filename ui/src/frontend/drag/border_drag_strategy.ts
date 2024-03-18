@@ -29,14 +29,11 @@ export class BorderDragStrategy extends DragStrategy {
       [tEnd, tStart] = [tStart, tEnd];
     }
     super.updateGlobals(tStart, tEnd);
-    this.pixelBounds = [
-      this.map.hpTimeToPx(tStart),
-      this.map.hpTimeToPx(tEnd),
-    ];
+    this.pixelBounds = [this.map.hpTimeToPx(tStart), this.map.hpTimeToPx(tEnd)];
   }
 
   onDragStart(x: number) {
     this.moveStart =
-        Math.abs(x - this.pixelBounds[0]) < Math.abs(x - this.pixelBounds[1]);
+      Math.abs(x - this.pixelBounds[0]) < Math.abs(x - this.pixelBounds[1]);
   }
 }

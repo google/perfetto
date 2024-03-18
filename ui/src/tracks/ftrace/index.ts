@@ -45,7 +45,7 @@ export interface Config {
 
 const MARGIN = 2;
 const RECT_HEIGHT = 18;
-const TRACK_HEIGHT = (RECT_HEIGHT) + (2 * MARGIN);
+const TRACK_HEIGHT = RECT_HEIGHT + 2 * MARGIN;
 
 class FtraceRawTrack implements Track {
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
@@ -64,8 +64,11 @@ class FtraceRawTrack implements Track {
     return TRACK_HEIGHT;
   }
 
-  async onBoundsChange(start: time, end: time, resolution: duration):
-      Promise<Data> {
+  async onBoundsChange(
+    start: time,
+    end: time,
+    resolution: duration,
+  ): Promise<Data> {
     const excludeList = Array.from(globals.state.ftraceFilter.excludedNames);
     const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
     const cpuFilter = this.cpu === undefined ? '' : `and cpu = ${this.cpu}`;
@@ -92,9 +95,7 @@ class FtraceRawTrack implements Track {
       names: [],
     };
 
-    const it = queryRes.iter(
-      {tsQuant: LONG, type: STR, name: STR},
-    );
+    const it = queryRes.iter({tsQuant: LONG, type: STR, name: STR});
     for (let row = 0; it.valid(); it.next(), row++) {
       result.timestamps[row] = it.tsQuant;
       result.names[row] = it.name;
@@ -103,19 +104,23 @@ class FtraceRawTrack implements Track {
   }
 
   render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
-    const {
-      visibleTimeScale,
-    } = globals.timeline;
+    const {visibleTimeScale} = globals.timeline;
 
     const data = this.fetcher.data;
 
-    if (data === undefined) return;  // Can't possibly draw anything.
+    if (data === undefined) return; // Can't possibly draw anything.
 
     const dataStartPx = visibleTimeScale.timeToPx(data.start);
     const dataEndPx = visibleTimeScale.timeToPx(data.end);
 
     checkerboardExcept(
-      ctx, this.getHeight(), 0, size.width, dataStartPx, dataEndPx);
+      ctx,
+      this.getHeight(),
+      0,
+      size.width,
+      dataStartPx,
+      dataEndPx,
+    );
 
     const diamondSideLen = RECT_HEIGHT / Math.sqrt(2);
 

@@ -27,8 +27,8 @@ declare global {
     constructor(data: PasswordCredentialData);
   }
 
-  export interface PasswordCredentialRequestOptions extends
-      CredentialRequestOptions {
+  export interface PasswordCredentialRequestOptions
+    extends CredentialRequestOptions {
     password?: boolean;
   }
 }

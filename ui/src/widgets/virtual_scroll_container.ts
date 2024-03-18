@@ -21,13 +21,12 @@ interface VirtualScrollContainerAttrs {
   onScroll?: (dom: HTMLElement) => void;
 }
 
-export class VirtualScrollContainer implements
-    m.ClassComponent<VirtualScrollContainerAttrs> {
+export class VirtualScrollContainer
+  implements m.ClassComponent<VirtualScrollContainerAttrs>
+{
   private readonly REF = 'virtual-scroll-container';
   view({attrs, children}: m.Vnode<VirtualScrollContainerAttrs>) {
-    const {
-      onScroll = () => {},
-    } = attrs;
+    const {onScroll = () => {}} = attrs;
 
     return m(
       '.pf-virtual-scroll-container',
@@ -35,13 +34,12 @@ export class VirtualScrollContainer implements
         ref: this.REF,
         onscroll: (e: Event) => onScroll(e.target as HTMLElement),
       },
-      children);
+      children,
+    );
   }
 
   oncreate({dom, attrs}: m.VnodeDOM<VirtualScrollContainerAttrs, this>) {
-    const {
-      onScroll = () => {},
-    } = attrs;
+    const {onScroll = () => {}} = attrs;
 
     const element = findRef(dom, this.REF);
     if (element) {

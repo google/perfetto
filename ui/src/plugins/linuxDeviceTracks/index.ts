@@ -26,8 +26,7 @@ import {AsyncSliceTrackV2} from '../../tracks/async_slices/async_slice_track_v2'
 // This plugin renders visualizations of runtime power state transitions for
 // Linux kernel devices (devices managed by Linux drivers).
 class linuxDevices implements Plugin {
-  onActivate(_: PluginContext): void {
-  }
+  onActivate(_: PluginContext): void {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`

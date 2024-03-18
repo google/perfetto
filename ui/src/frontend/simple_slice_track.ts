@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import {EngineProxy, TrackContext} from '../public';
-import {CustomSqlDetailsPanelConfig, CustomSqlTableDefConfig, CustomSqlTableSliceTrack} from '../tracks/custom_sql_table_slices';
+import {
+  CustomSqlDetailsPanelConfig,
+  CustomSqlTableDefConfig,
+  CustomSqlTableSliceTrack,
+} from '../tracks/custom_sql_table_slices';
 import {NamedSliceTrackTypes} from './named_slice_track';
 import {ARG_PREFIX, SliceColumns, SqlDataSource} from './debug_tracks';
 import {uuidv4Sql} from '../base/uuid';
@@ -26,15 +30,15 @@ export interface SimpleSliceTrackConfig {
   argColumns: string[];
 }
 
-export class SimpleSliceTrack extends
-  CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+export class SimpleSliceTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   private config: SimpleSliceTrackConfig;
   private sqlTableName: string;
 
   constructor(
     engine: EngineProxy,
     ctx: TrackContext,
-    config: SimpleSliceTrackConfig) {
+    config: SimpleSliceTrackConfig,
+  ) {
     super({
       engine,
       trackKey: ctx.trackKey,
@@ -71,7 +75,8 @@ export class SimpleSliceTrack extends
   private async createTrackTable(
     data: SqlDataSource,
     sliceColumns: SliceColumns,
-    argColumns: string[]): Promise<void> {
+    argColumns: string[],
+  ): Promise<void> {
     // If the view has clashing names (e.g. "name" coming from joining two
     // different tables, we will see names like "name_1", "name_2", but they
     // won't be addressable from the SQL. So we explicitly name them through a

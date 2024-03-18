@@ -32,8 +32,7 @@ interface ChromeTasksScrollJankTrackTypes extends NamedSliceTrackTypes {
   config: ChromeTasksScrollJankTrackConfig;
 }
 
-export class ChromeTasksScrollJankTrack extends
-  NamedSliceTrack<ChromeTasksScrollJankTrackTypes> {
+export class ChromeTasksScrollJankTrack extends NamedSliceTrack<ChromeTasksScrollJankTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.BrowserUIThreadLongTasks';
 
   constructor(args: NewTrackArgs) {
@@ -46,11 +45,12 @@ from chrome_tasks_delaying_input_processing s1
 join slice s2 on s2.id=s1.slice_id`;
   }
 }
-export type GetTrackGroupUuidFn = (utid: number, upid: number|null) => string;
+export type GetTrackGroupUuidFn = (utid: number, upid: number | null) => string;
 
 export async function decideTracks(
   engine: Engine,
-  getTrackGroupUuid: GetTrackGroupUuidFn): Promise<DecideTracksResult> {
+  getTrackGroupUuid: GetTrackGroupUuidFn,
+): Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };

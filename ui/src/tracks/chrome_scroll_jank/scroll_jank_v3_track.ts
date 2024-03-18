@@ -35,8 +35,7 @@ import {getColorForSlice} from '../../common/colorizer';
 const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
 
-export class ScrollJankV3Track extends
-  CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+export class ScrollJankV3Track extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.scroll_jank_v3_track';
 
   constructor(args: NewTrackArgs) {
@@ -102,9 +101,11 @@ export class ScrollJankV3Track extends
   onUpdatedSlices(slices: EventLatencyTrackTypes['slice'][]) {
     for (const slice of slices) {
       const currentSelection = globals.state.currentSelection;
-      const isSelected = currentSelection &&
-          currentSelection.kind === 'GENERIC_SLICE' &&
-          currentSelection.id !== undefined && currentSelection.id === slice.id;
+      const isSelected =
+        currentSelection &&
+        currentSelection.kind === 'GENERIC_SLICE' &&
+        currentSelection.id !== undefined &&
+        currentSelection.id === slice.id;
 
       const highlighted = globals.state.highlightedSliceId === slice.id;
       const hasFocus = highlighted || isSelected;
@@ -114,8 +115,7 @@ export class ScrollJankV3Track extends
   }
 }
 
-export async function addScrollJankV3ScrollTrack():
-    Promise<DecideTracksResult> {
+export async function addScrollJankV3ScrollTrack(): Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };

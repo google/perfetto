@@ -93,7 +93,9 @@ class AndroidPerfTraceCounters implements Plugin {
         await addDebugSliceTrack(
           ctx.engine,
           {
-            sqlSource: sqlPrefix + `
+            sqlSource:
+              sqlPrefix +
+              `
               SELECT * FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
           },
           'Rutime IPC:' + tid,
@@ -101,7 +103,8 @@ class AndroidPerfTraceCounters implements Plugin {
           ['instruction', 'cycle', 'stall_backend_mem', 'l3_cache_miss'],
         );
         ctx.tabs.openQuery(
-          sqlPrefix + `
+          sqlPrefix +
+            `
             SELECT
               (sum(instruction) * 1.0 / sum(cycle)*1.0) AS avg_ipc,
               sum(dur)/1e6 as total_runtime_ms,

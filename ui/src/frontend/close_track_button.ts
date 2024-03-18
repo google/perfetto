@@ -24,8 +24,9 @@ export interface CloseTrackButtonAttrs {
   trackKey: string;
 }
 
-export class CloseTrackButton implements
-    m.ClassComponent<CloseTrackButtonAttrs> {
+export class CloseTrackButton
+  implements m.ClassComponent<CloseTrackButtonAttrs>
+{
   view({attrs}: m.CVnode<CloseTrackButtonAttrs>) {
     return m(TrackButton, {
       action: () => {

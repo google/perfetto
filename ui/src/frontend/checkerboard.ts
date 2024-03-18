@@ -20,7 +20,8 @@ export function checkerboard(
   ctx: CanvasRenderingContext2D,
   heightPx: number,
   leftPx: number,
-  rightPx: number): void {
+  rightPx: number,
+): void {
   const widthPx = rightPx - leftPx;
   ctx.font = '12px Roboto Condensed';
   ctx.fillStyle = '#eee';
@@ -35,7 +36,8 @@ export function checkerboard(
     ctx.fillText(
       LOADING_TEXT,
       leftPx + widthPx / 2 - LOADING_TEXT_WIDTH / 2,
-      heightPx / 2);
+      heightPx / 2,
+    );
   }
   ctx.textBaseline = oldBaseline;
 }
@@ -47,7 +49,8 @@ export function checkerboardExcept(
   startPx: number,
   endPx: number,
   leftPx: number,
-  rightPx: number): void {
+  rightPx: number,
+): void {
   // [leftPx, rightPx] doesn't overlap [startPx, endPx] at all:
   if (rightPx <= startPx || leftPx >= endPx) {
     checkerboard(ctx, heightPx, startPx, endPx);

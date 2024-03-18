@@ -40,9 +40,10 @@ describe('EventSet', () => {
         id: 'foo',
       };
       void event;
-    } {
+    }
+    {
       const keyset = {
-        'bar': Num,
+        bar: Num,
       };
       const event: Event<typeof keyset> = {
         id: 'foo',
@@ -130,8 +131,9 @@ describe('EventSet', () => {
     });
 
     test('isConcreteEventSet', () => {
-      expect(isConcreteEventSet(new ConcreteEventSet<EmptyKeySet>({}, [])))
-        .toEqual(true);
+      expect(
+        isConcreteEventSet(new ConcreteEventSet<EmptyKeySet>({}, [])),
+      ).toEqual(true);
       expect(isConcreteEventSet(EmptyEventSet.get())).toEqual(false);
     });
 
@@ -280,7 +282,6 @@ describe('EventSet', () => {
 
       const events = new ConcreteEventSet(keys, [a, b, d]);
 
-
       const justA = events.filter(eq(v('id'), c('a')));
       const justD = events.filter(eq(v('num'), c(100)));
 
@@ -311,7 +312,6 @@ describe('EventSet', () => {
       };
 
       const events = new ConcreteEventSet(keys, [a, b, d]);
-
 
       const byNum = events.sort({
         expression: v('num'),
@@ -349,7 +349,6 @@ describe('EventSet', () => {
       };
 
       const events = new ConcreteEventSet(keys, [a, b, d]);
-
 
       const byNum = events.sort({
         expression: v('num'),

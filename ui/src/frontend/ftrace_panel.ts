@@ -83,18 +83,22 @@ export class FtracePanel implements m.ClassComponent {
     this.pageCount = Math.ceil(visibleRowCount / PAGE_SIZE) + 2;
 
     if (this.page !== prevPage || this.pageCount !== prevPageCount) {
-      globals.dispatch(Actions.updateFtracePagination({
-        offset: Math.max(0, this.page) * PAGE_SIZE,
-        count: this.pageCount * PAGE_SIZE,
-      }));
+      globals.dispatch(
+        Actions.updateFtracePagination({
+          offset: Math.max(0, this.page) * PAGE_SIZE,
+          count: this.pageCount * PAGE_SIZE,
+        }),
+      );
     }
   }
 
   onremove(_: m.CVnodeDOM) {
-    globals.dispatch(Actions.updateFtracePagination({
-      offset: 0,
-      count: 0,
-    }));
+    globals.dispatch(
+      Actions.updateFtracePagination({
+        offset: 0,
+        count: 0,
+      }),
+    );
   }
 
   onScroll = (container: HTMLElement) => {
@@ -123,35 +127,35 @@ export class FtracePanel implements m.ClassComponent {
       return null;
     }
 
-    const options: MultiSelectOption[] =
-        globals.ftraceCounters.map(({name, count}) => {
-          return {
-            id: name,
-            name: `${name} (${count})`,
-            checked: !globals.state.ftraceFilter.excludedNames.some(
-              (excluded: string) => excluded === name),
-          };
-        });
-
-    return m(
-      PopupMultiSelect,
-      {
-        label: 'Filter',
-        minimal: true,
-        icon: 'filter_list_alt',
-        popupPosition: PopupPosition.Top,
-        options,
-        onChange: (diffs: MultiSelectDiff[]) => {
-          const excludedNames: StringListPatch[] = diffs.map(
-            ({id, checked}) => [checked ? 'remove' : 'add', id],
-          );
-          globals.dispatchMultiple([
-            Actions.updateFtraceFilter({excludedNames}),
-            Actions.requestTrackReload({}),
-          ]);
-        },
+    const options: MultiSelectOption[] = globals.ftraceCounters.map(
+      ({name, count}) => {
+        return {
+          id: name,
+          name: `${name} (${count})`,
+          checked: !globals.state.ftraceFilter.excludedNames.some(
+            (excluded: string) => excluded === name,
+          ),
+        };
       },
     );
+
+    return m(PopupMultiSelect, {
+      label: 'Filter',
+      minimal: true,
+      icon: 'filter_list_alt',
+      popupPosition: PopupPosition.Top,
+      options,
+      onChange: (diffs: MultiSelectDiff[]) => {
+        const excludedNames: StringListPatch[] = diffs.map(({id, checked}) => [
+          checked ? 'remove' : 'add',
+          id,
+        ]);
+        globals.dispatchMultiple([
+          Actions.updateFtraceFilter({excludedNames}),
+          Actions.requestTrackReload({}),
+        ]);
+      },
+    });
   }
 
   // Render all the rows including the first title row
@@ -159,14 +163,16 @@ export class FtracePanel implements m.ClassComponent {
     const data = globals.ftracePanelData;
     const rows: m.Children = [];
 
-    rows.push(m(
-      `.row`,
-      m('.cell.row-header', 'Timestamp'),
-      m('.cell.row-header', 'Name'),
-      m('.cell.row-header', 'CPU'),
-      m('.cell.row-header', 'Process'),
-      m('.cell.row-header', 'Args'),
-    ));
+    rows.push(
+      m(
+        `.row`,
+        m('.cell.row-header', 'Timestamp'),
+        m('.cell.row-header', 'Name'),
+        m('.cell.row-header', 'CPU'),
+        m('.cell.row-header', 'Process'),
+        m('.cell.row-header', 'Args'),
+      ),
+    );
 
     if (data) {
       const {events, offset, numEvents} = data;
@@ -179,19 +185,21 @@ export class FtracePanel implements m.ClassComponent {
 
         const color = colorForFtrace(name).base.cssString;
 
-        rows.push(m(
-          `.row`,
-          {
-            style: {top: `${(rank + 1.0) * ROW_H}px`},
-            onmouseover: this.onRowOver.bind(this, ts),
-            onmouseout: this.onRowOut.bind(this),
-          },
-          m('.cell', timestamp),
-          m('.cell', m('span.colour', {style: {background: color}}), name),
-          m('.cell', cpu),
-          m('.cell', process),
-          m('.cell', args),
-        ));
+        rows.push(
+          m(
+            `.row`,
+            {
+              style: {top: `${(rank + 1.0) * ROW_H}px`},
+              onmouseover: this.onRowOver.bind(this, ts),
+              onmouseout: this.onRowOut.bind(this),
+            },
+            m('.cell', timestamp),
+            m('.cell', m('span.colour', {style: {background: color}}), name),
+            m('.cell', cpu),
+            m('.cell', process),
+            m('.cell', args),
+          ),
+        );
       }
       return m('.rows', {style: {height: `${numEvents * ROW_H}px`}}, rows);
     } else {

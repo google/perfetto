@@ -23,15 +23,9 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
-import {
-  NUM,
-  NUM_NULL,
-  STR_NULL,
-} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
 
-import {
-  ThreadStateTrack as ThreadStateTrackV2,
-} from './thread_state_v2';
+import {ThreadStateTrack as ThreadStateTrackV2} from './thread_state_v2';
 
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
 
@@ -65,8 +59,12 @@ class ThreadState implements Plugin {
       const utid = it.utid;
       const tid = it.tid;
       const threadName = it.threadName;
-      const displayName =
-          getTrackName({utid, tid, threadName, kind: THREAD_STATE_TRACK_KIND});
+      const displayName = getTrackName({
+        utid,
+        tid,
+        threadName,
+        kind: THREAD_STATE_TRACK_KIND,
+      });
 
       ctx.registerTrack({
         uri: `perfetto.ThreadState#${utid}`,
@@ -79,25 +77,28 @@ class ThreadState implements Plugin {
               engine: ctx.engine,
               trackKey,
             },
-            utid);
+            utid,
+          );
         },
       });
     }
 
-    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
-      tabFactory: (sel) => {
-        if (sel.kind !== 'THREAD_STATE') {
-          return undefined;
-        }
-        return new ThreadStateTab({
-          config: {
-            id: asThreadStateSqlId(sel.id),
-          },
-          engine: ctx.engine,
-          uuid: uuidv4(),
-        });
-      },
-    }));
+    ctx.registerDetailsPanel(
+      new BottomTabToSCSAdapter({
+        tabFactory: (sel) => {
+          if (sel.kind !== 'THREAD_STATE') {
+            return undefined;
+          }
+          return new ThreadStateTab({
+            config: {
+              id: asThreadStateSqlId(sel.id),
+            },
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        },
+      }),
+    );
   }
 }
 

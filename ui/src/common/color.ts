@@ -32,9 +32,9 @@ type ColorTuple = [number, number, number];
 
 // Definition of an HSL color with named fields.
 interface HSL {
-  readonly h: number;  // 0-360
-  readonly s: number;  // 0-100
-  readonly l: number;  // 0-100
+  readonly h: number; // 0-360
+  readonly s: number; // 0-100
+  readonly l: number; // 0-100
 }
 
 // Defines an interface to an immutable color object, which can be defined in
@@ -68,7 +68,7 @@ export interface Color {
   // Set one or more HSL values.
   setHSL(hsl: Partial<HSL>): Color;
 
-  setAlpha(alpha: number|undefined): Color;
+  setAlpha(alpha: number | undefined): Color;
 }
 
 // Common base class for HSL colors. Avoids code duplication.
@@ -81,7 +81,7 @@ abstract class HSLColorBase<T extends Color> {
   // Saturation: 0-100
   // Lightness:  0-100
   // Alpha:      0-1
-  constructor(init: ColorTuple|HSL|string, alpha?: number) {
+  constructor(init: ColorTuple | HSL | string, alpha?: number) {
     if (Array.isArray(init)) {
       this.hsl = init;
     } else if (typeof init === 'string') {
@@ -95,7 +95,7 @@ abstract class HSLColorBase<T extends Color> {
 
   // Subclasses should implement this to teach the base class how to create a
   // new object of the subclass type.
-  abstract create(hsl: ColorTuple|HSL, alpha?: number): T;
+  abstract create(hsl: ColorTuple | HSL, alpha?: number): T;
 
   lighten(amount: number, max = LIGHTNESS_MAX): T {
     const [h, s, l] = this.hsl;
@@ -126,7 +126,7 @@ abstract class HSLColorBase<T extends Color> {
     return this.create({h, s, l, ...hsl}, this.alpha);
   }
 
-  setAlpha(alpha: number|undefined): T {
+  setAlpha(alpha: number | undefined): T {
     return this.create(this.hsl, alpha);
   }
 }
@@ -141,7 +141,7 @@ export class HSLColor extends HSLColorBase<HSLColor> implements Color {
   // Saturation: 0-100
   // Lightness:  0-100
   // Alpha:      0-1
-  constructor(hsl: ColorTuple|HSL|string, alpha?: number) {
+  constructor(hsl: ColorTuple | HSL | string, alpha?: number) {
     super(hsl, alpha);
 
     const [r, g, b] = hslToRgb(...this.hsl);
@@ -155,7 +155,7 @@ export class HSLColor extends HSLColorBase<HSLColor> implements Color {
     }
   }
 
-  create(values: ColorTuple|HSL, alpha?: number|undefined): HSLColor {
+  create(values: ColorTuple | HSL, alpha?: number | undefined): HSLColor {
     return new HSLColor(values, alpha);
   }
 }
@@ -166,7 +166,7 @@ export class HSLuvColor extends HSLColorBase<HSLuvColor> implements Color {
   readonly cssString: string;
   readonly perceivedBrightness: number;
 
-  constructor(hsl: ColorTuple|HSL, alpha?: number) {
+  constructor(hsl: ColorTuple | HSL, alpha?: number) {
     super(hsl, alpha);
 
     const rgb = hsluvToRgb(this.hsl);
@@ -183,7 +183,7 @@ export class HSLuvColor extends HSLColorBase<HSLuvColor> implements Color {
     }
   }
 
-  create(raw: ColorTuple|HSL, alpha?: number|undefined): HSLuvColor {
+  create(raw: ColorTuple | HSL, alpha?: number | undefined): HSLuvColor {
     return new HSLuvColor(raw, alpha);
   }
 }
@@ -198,7 +198,7 @@ export function hslToRgb(h: number, s: number, l: number): ColorTuple {
   l = l / LIGHTNESS_MAX;
 
   const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
   const m = l - c / 2;
 
   let [r, g, b] = [0, 0, 0];
@@ -256,20 +256,20 @@ export function rgbToHsl(rgb: ColorTuple): ColorTuple {
   const l: number = (max + min) / 2;
 
   if (max === min) {
-    h = s = 0;  // achromatic
+    h = s = 0; // achromatic
   } else {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
     switch (max) {
-    case r:
-      h = (g - b) / d + (g < b ? 6 : 0);
-      break;
-    case g:
-      h = (b - r) / d + 2;
-      break;
-    case b:
-      h = (r - g) / d + 4;
-      break;
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0);
+        break;
+      case g:
+        h = (b - r) / d + 2;
+        break;
+      case b:
+        h = (r - g) / d + 4;
+        break;
     }
     h /= 6;
   }
@@ -281,7 +281,7 @@ export function rgbToHsl(rgb: ColorTuple): ColorTuple {
 // r, g and b channels based on human perception.
 function perceivedBrightness(r: number, g: number, b: number): number {
   // YIQ calculation from https://24ways.org/2010/calculating-color-contrast
-  return ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return (r * 299 + g * 587 + b * 114) / 1000;
 }
 
 // Comparison function used for sorting colors.

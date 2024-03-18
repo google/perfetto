@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  search,
-  searchEq,
-  searchRange,
-  searchSegment,
-} from './binary_search';
+import {search, searchEq, searchRange, searchSegment} from './binary_search';
 
 test('binarySearch', () => {
   expect(search([], 100)).toEqual(-1);
