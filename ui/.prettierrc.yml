@@ -1,0 +1,12 @@
+trailingComma: "all"
+tabWidth: 2
+semi: true
+singleQuote: true
+bracketSpacing: false
+bracketSameLine: true
+quoteProps: "consistent"
+proseWrap: "always"
+overrides:
+  - files: "*.scss"
+    options:
+      singleQuote: false
