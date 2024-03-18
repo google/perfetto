@@ -16,12 +16,9 @@ import {Actions} from '../common/actions';
 import {Area} from '../common/state';
 
 import {Flow, globals} from './globals';
-import {
-  focusHorizontalRange,
-  verticalScrollToTrack,
-} from './scroll_helper';
+import {focusHorizontalRange, verticalScrollToTrack} from './scroll_helper';
 
-type Direction = 'Forward'|'Backward';
+type Direction = 'Forward' | 'Backward';
 
 // Search |boundFlows| for |flowId| and return the id following it.
 // Returns the first flow id if nothing was found or |flowId| was the last flow
@@ -47,8 +44,10 @@ function findAnotherFlowExcept(boundFlows: Flow[], flowId: number): number {
 
 // Change focus to the next flow event (matching the direction)
 export function focusOtherFlow(direction: Direction) {
-  if (!globals.state.currentSelection ||
-      globals.state.currentSelection.kind !== 'CHROME_SLICE') {
+  if (
+    !globals.state.currentSelection ||
+    globals.state.currentSelection.kind !== 'CHROME_SLICE'
+  ) {
     return;
   }
   const sliceId = globals.state.currentSelection.id;
@@ -57,31 +56,40 @@ export function focusOtherFlow(direction: Direction) {
   }
 
   const boundFlows = globals.connectedFlows.filter(
-    (flow) => flow.begin.sliceId === sliceId && direction === 'Forward' ||
-          flow.end.sliceId === sliceId && direction === 'Backward');
+    (flow) =>
+      (flow.begin.sliceId === sliceId && direction === 'Forward') ||
+      (flow.end.sliceId === sliceId && direction === 'Backward'),
+  );
 
   if (direction === 'Backward') {
-    const nextFlowId =
-        findAnotherFlowExcept(boundFlows, globals.state.focusedFlowIdLeft);
+    const nextFlowId = findAnotherFlowExcept(
+      boundFlows,
+      globals.state.focusedFlowIdLeft,
+    );
     globals.dispatch(Actions.setHighlightedFlowLeftId({flowId: nextFlowId}));
   } else {
-    const nextFlowId =
-        findAnotherFlowExcept(boundFlows, globals.state.focusedFlowIdRight);
+    const nextFlowId = findAnotherFlowExcept(
+      boundFlows,
+      globals.state.focusedFlowIdRight,
+    );
     globals.dispatch(Actions.setHighlightedFlowRightId({flowId: nextFlowId}));
   }
 }
 
 // Select the slice connected to the flow in focus
 export function moveByFocusedFlow(direction: Direction): void {
-  if (!globals.state.currentSelection ||
-      globals.state.currentSelection.kind !== 'CHROME_SLICE') {
+  if (
+    !globals.state.currentSelection ||
+    globals.state.currentSelection.kind !== 'CHROME_SLICE'
+  ) {
     return;
   }
 
   const sliceId = globals.state.currentSelection.id;
   const flowId =
-      (direction === 'Backward' ? globals.state.focusedFlowIdLeft :
-        globals.state.focusedFlowIdRight);
+    direction === 'Backward'
+      ? globals.state.focusedFlowIdLeft
+      : globals.state.focusedFlowIdRight;
 
   if (sliceId === -1 || flowId === -1) {
     return;
@@ -90,16 +98,18 @@ export function moveByFocusedFlow(direction: Direction): void {
   // Find flow that is in focus and select corresponding slice
   for (const flow of globals.connectedFlows) {
     if (flow.id === flowId) {
-      const flowPoint = (direction === 'Backward' ? flow.begin : flow.end);
+      const flowPoint = direction === 'Backward' ? flow.begin : flow.end;
       const trackKeyByTrackId = globals.trackManager.trackKeyByTrackId;
       const trackKey = trackKeyByTrackId.get(flowPoint.trackId);
       if (trackKey) {
-        globals.makeSelection(Actions.selectChromeSlice({
-          id: flowPoint.sliceId,
-          trackKey,
-          table: 'slice',
-          scroll: true,
-        }));
+        globals.makeSelection(
+          Actions.selectChromeSlice({
+            id: flowPoint.sliceId,
+            trackKey,
+            table: 'slice',
+            scroll: true,
+          }),
+        );
       }
     }
   }
@@ -107,11 +117,14 @@ export function moveByFocusedFlow(direction: Direction): void {
 
 export function lockSliceSpan(persistent = false) {
   const range = globals.findTimeRangeOfSelection();
-  if (range.start !== -1n && range.end !== -1n &&
-      globals.state.currentSelection !== null) {
-    const tracks = globals.state.currentSelection.trackKey ?
-      [globals.state.currentSelection.trackKey] :
-      [];
+  if (
+    range.start !== -1n &&
+    range.end !== -1n &&
+    globals.state.currentSelection !== null
+  ) {
+    const tracks = globals.state.currentSelection.trackKey
+      ? [globals.state.currentSelection.trackKey]
+      : [];
     const area: Area = {start: range.start, end: range.end, tracks};
     globals.dispatch(Actions.markArea({area, persistent}));
   }

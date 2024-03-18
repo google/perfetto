@@ -22,13 +22,18 @@ export function onClickCopy(url: string) {
   return (e: Event) => {
     e.preventDefault();
     copyToClipboard(url);
-    globals.dispatch(Actions.updateStatus(
-      {msg: 'Link copied into the clipboard', timestamp: Date.now() / 1000}));
+    globals.dispatch(
+      Actions.updateStatus({
+        msg: 'Link copied into the clipboard',
+        timestamp: Date.now() / 1000,
+      }),
+    );
   };
 }
 
-export async function queryResponseToClipboard(resp: QueryResponse):
-    Promise<void> {
+export async function queryResponseToClipboard(
+  resp: QueryResponse,
+): Promise<void> {
   const lines: string[][] = [];
   lines.push(resp.columns);
   for (const row of resp.rows) {

@@ -54,7 +54,7 @@ interface LabelButtonAttrs extends CommonAttrs {
   icon?: string;
 }
 
-export type ButtonAttrs = LabelButtonAttrs|IconButtonAttrs;
+export type ButtonAttrs = LabelButtonAttrs | IconButtonAttrs;
 
 export class Button implements m.ClassComponent<ButtonAttrs> {
   view({attrs}: m.CVnode<ButtonAttrs>) {
@@ -75,7 +75,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       active && 'pf-active',
       compact && 'pf-compact',
       minimal && 'pf-minimal',
-      (icon && !label) && 'pf-icon-only',
+      icon && !label && 'pf-icon-only',
       dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
       className,
     );
@@ -88,7 +88,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       },
       icon && m(Icon, {className: 'pf-left-icon', icon}),
       rightIcon && m(Icon, {className: 'pf-right-icon', icon: rightIcon}),
-      label || '\u200B',  // Zero width space keeps button in-flow
+      label || '\u200B', // Zero width space keeps button in-flow
     );
   }
 }

@@ -26,7 +26,7 @@ import {
 
 const colors = ['RED', 'GREEN', 'BLUE'] as const;
 
-type Color = typeof colors[number];
+type Color = (typeof colors)[number];
 
 const point = record({
   id: requiredStr,
@@ -38,8 +38,9 @@ const point = record({
 
 type Point = ValidatedType<typeof point>;
 
-const nested =
-    record({deeply: record({nested: record({array: arrayOf(point)})})});
+const nested = record({
+  deeply: record({nested: record({array: arrayOf(point)})}),
+});
 
 test('validator ensures presence of required fields', () => {
   expect(() => {
@@ -63,11 +64,13 @@ test('validator fills default values', () => {
 });
 
 test('validator uses provided values', () => {
-  const p: Point =
-      runValidator(
-        point,
-        {id: 'test', x: 100, y: 200, color: 'GREEN', properties: {mass: 20}})
-        .result;
+  const p: Point = runValidator(point, {
+    id: 'test',
+    x: 100,
+    y: 200,
+    color: 'GREEN',
+    properties: {mass: 20},
+  }).result;
 
   expect(p.color).toEqual('GREEN');
   expect(p.x).toEqual(100);
@@ -108,7 +111,6 @@ test('validator correctly keeps track of path when reporting keys', () => {
   expect(result.extraKeys).toContain('deeply.nested.array[1].extra3');
   expect(result.invalidKeys).toContain('deeply.nested.array[0].x');
 });
-
 
 describe('optStr', () => {
   test('it validates undefined', () => {

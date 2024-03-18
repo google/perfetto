@@ -21,7 +21,6 @@ import {Menu, MenuItem} from './menu';
 import {scheduleFullRedraw} from './raf';
 import {TextInput} from './text_input';
 
-
 export class Select implements m.ClassComponent<HTMLInputAttrs> {
   view({attrs, children}: m.CVnode<HTMLInputAttrs>) {
     return m('select.pf-select', attrs, children);
@@ -42,8 +41,9 @@ export interface FilterableSelectAttrs {
 }
 
 // A select widget with a search box, allowing the user to filter the options.
-export class FilterableSelect implements
-    m.ClassComponent<FilterableSelectAttrs> {
+export class FilterableSelect
+  implements m.ClassComponent<FilterableSelectAttrs>
+{
   searchText = '';
 
   view({attrs}: m.CVnode<FilterableSelectAttrs>) {
@@ -51,12 +51,14 @@ export class FilterableSelect implements
       return name.toLowerCase().includes(this.searchText.toLowerCase());
     });
 
-    const displayedValues = attrs.maxDisplayedItems === undefined ?
-      filteredValues :
-      filteredValues.slice(0, attrs.maxDisplayedItems);
+    const displayedValues =
+      attrs.maxDisplayedItems === undefined
+        ? filteredValues
+        : filteredValues.slice(0, attrs.maxDisplayedItems);
 
-    const extraItems = exists(attrs.maxDisplayedItems) &&
-        Math.max(0, filteredValues.length - attrs.maxDisplayedItems);
+    const extraItems =
+      exists(attrs.maxDisplayedItems) &&
+      Math.max(0, filteredValues.length - attrs.maxDisplayedItems);
 
     // TODO(altimin): when the user presses enter and there is only one item,
     // select the first one.
@@ -64,7 +66,8 @@ export class FilterableSelect implements
     // select the first one.
     return m(
       'div',
-      m('.pf-search-bar',
+      m(
+        '.pf-search-bar',
         m(TextInput, {
           oninput: (event: Event) => {
             const eventTarget = event.target as HTMLTextAreaElement;
@@ -80,11 +83,17 @@ export class FilterableSelect implements
           placeholder: 'Filter...',
           className: 'pf-search-box',
         }),
-        m(Menu,
-          ...displayedValues.map((value) => m(MenuItem, {
-            label: value,
-            onclick: () => attrs.onSelected(value),
-          })),
-          Boolean(extraItems) && m('i', `+${extraItems} more`))));
+        m(
+          Menu,
+          ...displayedValues.map((value) =>
+            m(MenuItem, {
+              label: value,
+              onclick: () => attrs.onSelected(value),
+            }),
+          ),
+          Boolean(extraItems) && m('i', `+${extraItems} more`),
+        ),
+      ),
+    );
   }
 }

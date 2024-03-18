@@ -116,10 +116,14 @@ export const recordConfigValidator = record({
 
   linuxDeviceRpm: bool(),
 });
-export const namedRecordConfigValidator = record(
-  {title: requiredStr, key: requiredStr, config: recordConfigValidator});
-export type NamedRecordConfig =
-    ValidatedType<typeof namedRecordConfigValidator>;
+export const namedRecordConfigValidator = record({
+  title: requiredStr,
+  key: requiredStr,
+  config: recordConfigValidator,
+});
+export type NamedRecordConfig = ValidatedType<
+  typeof namedRecordConfigValidator
+>;
 export type RecordConfig = ValidatedType<typeof recordConfigValidator>;
 
 export function createEmptyRecordConfig(): RecordConfig {

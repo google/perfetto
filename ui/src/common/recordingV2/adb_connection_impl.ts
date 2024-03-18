@@ -60,14 +60,15 @@ export abstract class AdbConnectionImpl implements AdbConnection {
     });
     adbStream.addOnStreamCloseCallback(() => {
       onStreamingEnded.resolve(
-        textDecoder.decode(commandOutput.toArrayBuffer()));
+        textDecoder.decode(commandOutput.toArrayBuffer()),
+      );
     });
     return onStreamingEnded;
   }
 
   async push(binary: Uint8Array, path: string): Promise<void> {
     const byteStream = await this.openStream('sync:');
-    await (new AdbFileHandler(byteStream)).pushBinary(binary, path);
+    await new AdbFileHandler(byteStream).pushBinary(binary, path);
     // We need to wait until the bytestream is closed. Otherwise, we can have a
     // race condition:
     // If this is the last stream, it will try to disconnect the device. In the

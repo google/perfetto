@@ -36,7 +36,7 @@ export class TimeScale {
     if (durationNanos <= 0 || pxSpan.delta <= 0) {
       this._nanosPerPx = 1;
     } else {
-      this._nanosPerPx = durationNanos / (pxSpan.delta);
+      this._nanosPerPx = durationNanos / pxSpan.delta;
     }
   }
 

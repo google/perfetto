@@ -13,12 +13,16 @@
 // limitations under the License.
 
 export function fetchWithTimeout(
-  input: RequestInfo, init: RequestInit, timeoutMs: number) {
+  input: RequestInfo,
+  init: RequestInit,
+  timeoutMs: number,
+) {
   return new Promise<Response>((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(
-        new Error(`fetch(${input}) timed out after ${timeoutMs} ms`)),
-      timeoutMs);
+      () =>
+        reject(new Error(`fetch(${input}) timed out after ${timeoutMs} ms`)),
+      timeoutMs,
+    );
     fetch(input, init)
       .then((response) => resolve(response))
       .catch((err) => reject(err))

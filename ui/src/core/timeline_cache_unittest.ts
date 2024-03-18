@@ -31,20 +31,41 @@ test('cacheKeys', () => {
 });
 
 test('cache', () => {
-  const key1 = (CacheKey.create(Time.fromRaw(1000n), Time.fromRaw(1100n), 100))
-    .normalize();
-  const key2 = (CacheKey.create(Time.fromRaw(2000n), Time.fromRaw(2100n), 100))
-    .normalize();
-  const key3 = (CacheKey.create(Time.fromRaw(3000n), Time.fromRaw(3100n), 100))
-    .normalize();
-  const key4 = (CacheKey.create(Time.fromRaw(4000n), Time.fromRaw(4100n), 100))
-    .normalize();
-  const key5 = (CacheKey.create(Time.fromRaw(5000n), Time.fromRaw(5100n), 100))
-    .normalize();
-  const key6 = (CacheKey.create(Time.fromRaw(6000n), Time.fromRaw(6100n), 100))
-    .normalize();
-  const key7 = (CacheKey.create(Time.fromRaw(7000n), Time.fromRaw(7100n), 100))
-    .normalize();
+  const key1 = CacheKey.create(
+    Time.fromRaw(1000n),
+    Time.fromRaw(1100n),
+    100,
+  ).normalize();
+  const key2 = CacheKey.create(
+    Time.fromRaw(2000n),
+    Time.fromRaw(2100n),
+    100,
+  ).normalize();
+  const key3 = CacheKey.create(
+    Time.fromRaw(3000n),
+    Time.fromRaw(3100n),
+    100,
+  ).normalize();
+  const key4 = CacheKey.create(
+    Time.fromRaw(4000n),
+    Time.fromRaw(4100n),
+    100,
+  ).normalize();
+  const key5 = CacheKey.create(
+    Time.fromRaw(5000n),
+    Time.fromRaw(5100n),
+    100,
+  ).normalize();
+  const key6 = CacheKey.create(
+    Time.fromRaw(6000n),
+    Time.fromRaw(6100n),
+    100,
+  ).normalize();
+  const key7 = CacheKey.create(
+    Time.fromRaw(7000n),
+    Time.fromRaw(7100n),
+    100,
+  ).normalize();
   const cache = new TimelineCache<string>(5);
 
   cache.insert(key1, 'v1');

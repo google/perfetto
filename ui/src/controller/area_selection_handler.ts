@@ -18,7 +18,7 @@ import {globals} from '../frontend/globals';
 export class AreaSelectionHandler {
   private previousArea?: Area;
 
-  getAreaChange(): [boolean, AreaById|undefined] {
+  getAreaChange(): [boolean, AreaById | undefined] {
     const currentSelection = globals.state.currentSelection;
     if (currentSelection === null || currentSelection.kind !== 'AREA') {
       return [false, undefined];
@@ -31,7 +31,7 @@ export class AreaSelectionHandler {
     // 3. Both areas are defined but their start or end times differ.
     // 4. Both areas are defined but their tracks differ.
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    let hasAreaChanged = (!!this.previousArea !== !!selectedArea);
+    let hasAreaChanged = !!this.previousArea !== !!selectedArea;
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (selectedArea && this.previousArea) {
       // There seems to be an issue with clang-format http://shortn/_Pt98d5MCjG
@@ -39,14 +39,16 @@ export class AreaSelectionHandler {
       // breaks the operator.
       // Therefore, we are using the pattern `a = a || b` instead.
       hasAreaChanged =
-          hasAreaChanged || selectedArea.start !== this.previousArea.start;
+        hasAreaChanged || selectedArea.start !== this.previousArea.start;
       hasAreaChanged =
-          hasAreaChanged || selectedArea.end !== this.previousArea.end;
-      hasAreaChanged = hasAreaChanged ||
-          selectedArea.tracks.length !== this.previousArea.tracks.length;
+        hasAreaChanged || selectedArea.end !== this.previousArea.end;
+      hasAreaChanged =
+        hasAreaChanged ||
+        selectedArea.tracks.length !== this.previousArea.tracks.length;
       for (let i = 0; i < selectedArea.tracks.length; ++i) {
-        hasAreaChanged = hasAreaChanged ||
-            selectedArea.tracks[i] !== this.previousArea.tracks[i];
+        hasAreaChanged =
+          hasAreaChanged ||
+          selectedArea.tracks[i] !== this.previousArea.tracks[i];
       }
     }
 

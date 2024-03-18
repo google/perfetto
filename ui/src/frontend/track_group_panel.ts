@@ -16,20 +16,24 @@ import m from 'mithril';
 
 import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
-import {
-  getContainingTrackId,
-} from '../common/state';
+import {getContainingTrackId} from '../common/state';
 import {TrackCacheEntry} from '../common/track_cache';
 import {TrackTags} from '../public';
 
-import {
-  TRACK_SHELL_WIDTH,
-} from './css_constants';
+import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {PanelSize} from './panel';
 import {Panel} from './panel_container';
-import {CrashButton, renderChips, renderHoveredCursorVertical, renderHoveredNoteVertical, renderNoteVerticals, renderWakeupVertical, TrackContent} from './track_panel';
+import {
+  CrashButton,
+  renderChips,
+  renderHoveredCursorVertical,
+  renderHoveredNoteVertical,
+  renderNoteVerticals,
+  renderWakeupVertical,
+  TrackContent,
+} from './track_panel';
 import {canvasClip} from '../common/canvas_utils';
 
 interface Attrs {
@@ -54,14 +58,7 @@ export class TrackGroupPanel implements Panel {
   }
 
   render(): m.Children {
-    const {
-      trackGroupId,
-      title,
-      labels,
-      tags,
-      collapsed,
-      trackFSM,
-    } = this.attrs;
+    const {trackGroupId, title, labels, tags, collapsed, trackFSM} = this.attrs;
 
     let name = title;
     if (name[0] === '/') {
@@ -86,12 +83,15 @@ export class TrackGroupPanel implements Panel {
     let checkBox = Icons.BlankCheckbox;
     if (selection !== null && selection.kind === 'AREA') {
       const selectedArea = globals.state.areas[selection.areaId];
-      if (selectedArea.tracks.includes(trackGroupId) &&
-          trackGroup.tracks.every((id) => selectedArea.tracks.includes(id))) {
+      if (
+        selectedArea.tracks.includes(trackGroupId) &&
+        trackGroup.tracks.every((id) => selectedArea.tracks.includes(id))
+      ) {
         checkBox = Icons.Checkbox;
       } else if (
         selectedArea.tracks.includes(trackGroupId) ||
-          trackGroup.tracks.some((id) => selectedArea.tracks.includes(id))) {
+        trackGroup.tracks.some((id) => selectedArea.tracks.includes(id))
+      ) {
         checkBox = Icons.IndeterminateCheckbox;
       }
     }
@@ -110,48 +110,59 @@ export class TrackGroupPanel implements Panel {
         oncreate: () => this.onupdate(),
         onupdate: () => this.onupdate(),
       },
-      m(`.shell`,
+      m(
+        `.shell`,
         {
           onclick: (e: MouseEvent) => {
             if (e.defaultPrevented) return;
-            globals.dispatch(Actions.toggleTrackGroupCollapsed({
-              trackGroupId,
-            })),
-            e.stopPropagation();
+            globals.dispatch(
+              Actions.toggleTrackGroupCollapsed({
+                trackGroupId,
+              }),
+            ),
+              e.stopPropagation();
           },
           class: `${highlightClass}`,
         },
-        m('.fold-button',
-          m('i.material-icons',
-            collapsed ? Icons.ExpandDown : Icons.ExpandUp)),
-        m('.title-wrapper',
-          m(
-            'h1.track-title',
-            {title: name},
-            name,
-            renderChips(tags),
-          ),
-          (collapsed && child !== null) ? m('h2.track-subtitle', child) :
-            null),
+        m(
+          '.fold-button',
+          m('i.material-icons', collapsed ? Icons.ExpandDown : Icons.ExpandUp),
+        ),
+        m(
+          '.title-wrapper',
+          m('h1.track-title', {title: name}, name, renderChips(tags)),
+          collapsed && child !== null ? m('h2.track-subtitle', child) : null,
+        ),
         error && m(CrashButton, {error}),
-        selection && selection.kind === 'AREA' ?
-          m('i.material-icons.track-button',
-            {
-              onclick: (e: MouseEvent) => {
-                globals.dispatch(Actions.toggleTrackSelection(
-                  {id: trackGroupId, isTrackGroup: true}));
-                e.stopPropagation();
+        selection && selection.kind === 'AREA'
+          ? m(
+              'i.material-icons.track-button',
+              {
+                onclick: (e: MouseEvent) => {
+                  globals.dispatch(
+                    Actions.toggleTrackSelection({
+                      id: trackGroupId,
+                      isTrackGroup: true,
+                    }),
+                  );
+                  e.stopPropagation();
+                },
               },
+              checkBox,
+            )
+          : '',
+      ),
+      trackFSM
+        ? m(
+            TrackContent,
+            {
+              track: trackFSM.track,
+              hasError: Boolean(trackFSM.getError()),
             },
-            checkBox) :
-          ''),
-      trackFSM ? m(TrackContent,
-        {
-          track: trackFSM.track,
-          hasError: Boolean(trackFSM.getError()),
-        },
-        (!collapsed && child !== null) ? m('span', child) : null) :
-        null);
+            !collapsed && child !== null ? m('span', child) : null,
+          )
+        : null,
+    );
   }
 
   private onupdate() {
@@ -172,25 +183,25 @@ export class TrackGroupPanel implements Panel {
         visibleTimeScale.timeToPx(selectedArea.start) + TRACK_SHELL_WIDTH,
         0,
         visibleTimeScale.durationToPx(selectedAreaDuration),
-        size.height);
+        size.height,
+      );
     }
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    const {
-      collapsed,
-      trackFSM: track,
-    } = this.attrs;
+    const {collapsed, trackFSM: track} = this.attrs;
 
     if (!collapsed) return;
 
     ctx.save();
     canvasClip(
-      ctx, TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
-    drawGridLines(
       ctx,
-      size.width,
-      size.height);
+      TRACK_SHELL_WIDTH,
+      0,
+      size.width - TRACK_SHELL_WIDTH,
+      size.height,
+    );
+    drawGridLines(ctx, size.width, size.height);
 
     if (track) {
       ctx.save();

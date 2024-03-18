@@ -49,17 +49,20 @@ export class Hints implements m.ClassComponent {
           m(HotkeyGlyphs, {hotkey: 'D'}),
           ' to navigate the trace.',
         ),
-        m('li',
+        m(
+          'li',
           'Try the ',
-          m(Anchor,
+          m(
+            Anchor,
             {
-              href:
-                      'https://perfetto.dev/docs/visualization/perfetto-ui#command-palette',
+              href: 'https://perfetto.dev/docs/visualization/perfetto-ui#command-palette',
             },
-            'command palette,'),
+            'command palette,',
+          ),
           ' press ',
           m(HotkeyGlyphs, {hotkey: '!Mod+Shift+P'}),
-          '.'),
+          '.',
+        ),
       ),
     );
   }
@@ -79,21 +82,20 @@ export const HomePage = createPage({
         m(Hints),
         m(
           '.channel-select',
-          m('',
-            'Feeling adventurous? Try our bleeding edge Canary version'),
+          m('', 'Feeling adventurous? Try our bleeding edge Canary version'),
+          m('fieldset', mkChan('stable'), mkChan('canary'), m('.highlight')),
           m(
-            'fieldset',
-            mkChan('stable'),
-            mkChan('canary'),
-            m('.highlight'),
+            `.home-page-reload${channelChanged() ? '.show' : ''}`,
+            'You need to reload the page for the changes to have effect',
           ),
-          m(`.home-page-reload${channelChanged() ? '.show' : ''}`,
-            'You need to reload the page for the changes to have effect'),
         ),
       ),
-      m('a.privacy',
+      m(
+        'a.privacy',
         {href: 'https://policies.google.com/privacy', target: '_blank'},
-        'Privacy policy'));
+        'Privacy policy',
+      ),
+    );
   },
 });
 

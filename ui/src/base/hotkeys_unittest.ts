@@ -15,16 +15,31 @@
 import {checkHotkey, Hotkey, parseHotkey} from './hotkeys';
 
 test('parseHotkey', () => {
-  expect(parseHotkey('A'))
-    .toEqual({key: 'A', allowInEditable: false, modifier: ''});
-  expect(parseHotkey('!A'))
-    .toEqual({key: 'A', allowInEditable: true, modifier: ''});
-  expect(parseHotkey('Shift+A'))
-    .toEqual({key: 'A', allowInEditable: false, modifier: 'Shift+'});
-  expect(parseHotkey('Mod+Shift+A'))
-    .toEqual({key: 'A', allowInEditable: false, modifier: 'Mod+Shift+'});
-  expect(parseHotkey('!Mod+Shift+A'))
-    .toEqual({key: 'A', allowInEditable: true, modifier: 'Mod+Shift+'});
+  expect(parseHotkey('A')).toEqual({
+    key: 'A',
+    allowInEditable: false,
+    modifier: '',
+  });
+  expect(parseHotkey('!A')).toEqual({
+    key: 'A',
+    allowInEditable: true,
+    modifier: '',
+  });
+  expect(parseHotkey('Shift+A')).toEqual({
+    key: 'A',
+    allowInEditable: false,
+    modifier: 'Shift+',
+  });
+  expect(parseHotkey('Mod+Shift+A')).toEqual({
+    key: 'A',
+    allowInEditable: false,
+    modifier: 'Mod+Shift+',
+  });
+  expect(parseHotkey('!Mod+Shift+A')).toEqual({
+    key: 'A',
+    allowInEditable: true,
+    modifier: 'Mod+Shift+',
+  });
 });
 
 describe('checkHotkey', () => {

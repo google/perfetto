@@ -38,7 +38,6 @@ import {
   WEBSOCKET_UNABLE_TO_CONNECT,
 } from './recording_utils';
 
-
 // The pattern for handling recording error can have the following nesting in
 // case of errors:
 // A. wrapRecordingError -> wraps a promise
@@ -57,7 +56,9 @@ import {
 // b) When the user starts a tracing session, but cancels it before they
 //    authorize the session on the device.
 export async function wrapRecordingError<T>(
-  promise: Promise<T>, onFailure: OnMessageCallback): Promise<T|undefined> {
+  promise: Promise<T>,
+  onFailure: OnMessageCallback,
+): Promise<T | undefined> {
   try {
     return await promise;
   } catch (e) {
@@ -73,13 +74,15 @@ export async function wrapRecordingError<T>(
 // In this way, errors occuring at different levels of the recording process
 // can be handled in a central location.
 export function showRecordingModal(message: string): void {
-  if ([
-    'Unable to claim interface.',
-    'The specified endpoint is not part of a claimed and selected ' +
-            'alternate interface.',
-    // thrown when calling the 'reset' method on a WebUSB device.
-    'Unable to reset the device.',
-  ].some((partOfMessage) => message.includes(partOfMessage))) {
+  if (
+    [
+      'Unable to claim interface.',
+      'The specified endpoint is not part of a claimed and selected ' +
+        'alternate interface.',
+      // thrown when calling the 'reset' method on a WebUSB device.
+      'Unable to reset the device.',
+    ].some((partOfMessage) => message.includes(partOfMessage))
+  ) {
     showWebUSBErrorV2();
   } else if (
     [
@@ -87,13 +90,17 @@ export function showRecordingModal(message: string): void {
       'The device was disconnected.',
       'The transfer was cancelled.',
     ].some((partOfMessage) => message.includes(partOfMessage)) ||
-      isDeviceDisconnectedError(message)) {
+    isDeviceDisconnectedError(message)
+  ) {
     showConnectionLostError();
   } else if (message === ALLOW_USB_DEBUGGING) {
     showAllowUSBDebugging();
-  } else if (isMessageComposedOf(
-    message,
-    [BINARY_PUSH_FAILURE, BINARY_PUSH_UNKNOWN_RESPONSE])) {
+  } else if (
+    isMessageComposedOf(message, [
+      BINARY_PUSH_FAILURE,
+      BINARY_PUSH_UNKNOWN_RESPONSE,
+    ])
+  ) {
     showFailedToPushBinary(message.substring(message.indexOf(':') + 1));
   } else if (message === NO_DEVICE_SELECTED) {
     showNoDeviceSelected();
@@ -101,12 +108,14 @@ export function showRecordingModal(message: string): void {
     showWebsocketConnectionIssue(message);
   } else if (message === EXTENSION_NOT_INSTALLED) {
     showExtensionNotInstalled();
-  } else if (isMessageComposedOf(message, [
-    PARSING_UNKNWON_REQUEST_ID,
-    PARSING_UNABLE_TO_DECODE_METHOD,
-    PARSING_UNRECOGNIZED_PORT,
-    PARSING_UNRECOGNIZED_MESSAGE,
-  ])) {
+  } else if (
+    isMessageComposedOf(message, [
+      PARSING_UNKNWON_REQUEST_ID,
+      PARSING_UNABLE_TO_DECODE_METHOD,
+      PARSING_UNRECOGNIZED_PORT,
+      PARSING_UNRECOGNIZED_MESSAGE,
+    ])
+  ) {
     showIssueParsingTheTracedResponse(message);
   } else {
     throw new Error(`${message}`);
@@ -114,8 +123,10 @@ export function showRecordingModal(message: string): void {
 }
 
 function isDeviceDisconnectedError(message: string) {
-  return message.includes('Device with serial') &&
-      message.includes('was disconnected.');
+  return (
+    message.includes('Device with serial') &&
+    message.includes('was disconnected.')
+  );
 }
 
 function isMessageComposedOf(message: string, issues: string[]) {

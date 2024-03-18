@@ -54,16 +54,16 @@ class BypassCache {
 }
 
 export class ServiceWorkerController {
-  private _initialWorker: ServiceWorker|null = null;
+  private _initialWorker: ServiceWorker | null = null;
   private _bypassed = false;
   private _installing = false;
 
   // Caller should reload().
   async setBypass(bypass: boolean) {
-    if (!('serviceWorker' in navigator)) return;  // Not supported.
+    if (!('serviceWorker' in navigator)) return; // Not supported.
     this._bypassed = bypass;
     if (bypass) {
-      await BypassCache.setBypass(true);  // Create the entry.
+      await BypassCache.setBypass(true); // Create the entry.
       for (const reg of await navigator.serviceWorker.getRegistrations()) {
         await reg.unregister();
       }
@@ -94,15 +94,15 @@ export class ServiceWorkerController {
     }
   }
 
-  monitorWorker(sw: ServiceWorker|null) {
+  monitorWorker(sw: ServiceWorker | null) {
     if (!sw) return;
     sw.addEventListener('error', (e) => reportError(e));
     sw.addEventListener('statechange', () => this.onStateChange(sw));
-    this.onStateChange(sw);  // Trigger updates for the current state.
+    this.onStateChange(sw); // Trigger updates for the current state.
   }
 
   async install() {
-    if (!('serviceWorker' in navigator)) return;  // Not supported.
+    if (!('serviceWorker' in navigator)) return; // Not supported.
 
     if (location.pathname !== '/') {
       // Disable the service worker when the UI is loaded from a non-root URL
@@ -115,11 +115,12 @@ export class ServiceWorkerController {
     // user manually re-enabled it (in which case bypassDisabled = '1').
     const hostname = location.hostname;
     const isLocalhost = ['127.0.0.1', '::1', 'localhost'].includes(hostname);
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    const bypassDisabled = window.localStorage &&
-        window.localStorage.getItem('bypassDisabled') === '1';
+    const bypassDisabled =
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      window.localStorage &&
+      window.localStorage.getItem('bypassDisabled') === '1';
     if (isLocalhost && !bypassDisabled) {
-      await this.setBypass(true);  // Will cause the check below to bail out.
+      await this.setBypass(true); // Will cause the check below to bail out.
     }
 
     if (await BypassCache.isBypassed()) {

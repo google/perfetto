@@ -47,8 +47,10 @@ export class ProtoRingBuffer {
     assertTrue(this.fastpath === undefined);
     if (this.rd === this.wr) {
       const msg = ProtoRingBuffer.tryReadMessage(data, 0, dataLen);
-      if (msg !== undefined &&
-          ((msg.byteOffset + msg.length) === (data.byteOffset + dataLen))) {
+      if (
+        msg !== undefined &&
+        msg.byteOffset + msg.length === data.byteOffset + dataLen
+      ) {
         // Fastpath: in many cases, the underlying stream will effectively
         // preserve the atomicity of messages for most small messages.
         // In this case we can avoid the extra buffer roundtrip and return the
@@ -94,7 +96,7 @@ export class ProtoRingBuffer {
   // The caller is expected to call this in a loop until it returns undefined.
   // Note that a single write to Append() can yield more than one message
   // (see ProtoRingBufferTest.CoalescingStream in the unittest).
-  readMessage(): Uint8Array|undefined {
+  readMessage(): Uint8Array | undefined {
     if (this.fastpath !== undefined) {
       assertTrue(this.rd === this.wr);
       const msg = this.fastpath;
@@ -103,7 +105,7 @@ export class ProtoRingBuffer {
     }
     assertTrue(this.rd <= this.wr);
     if (this.rd >= this.wr) {
-      return undefined;  // Completely empty.
+      return undefined; // Completely empty.
     }
     const msg = ProtoRingBuffer.tryReadMessage(this.buf, this.rd, this.wr);
     if (msg === undefined) return undefined;
@@ -119,21 +121,24 @@ export class ProtoRingBuffer {
   }
 
   private static tryReadMessage(
-    data: Uint8Array, dataStart: number, dataEnd: number): Uint8Array
-      |undefined {
+    data: Uint8Array,
+    dataStart: number,
+    dataEnd: number,
+  ): Uint8Array | undefined {
     assertTrue(dataEnd <= data.length);
     let pos = dataStart;
     if (pos >= dataEnd) return undefined;
-    const tag = data[pos++];  // Assume one-byte tag.
+    const tag = data[pos++]; // Assume one-byte tag.
     if (tag >= 0x80 || (tag & 0x07) !== 2 /* len delimited */) {
       throw new Error(
-        `RPC framing error, unexpected tag ${tag} @ offset ${pos - 1}`);
+        `RPC framing error, unexpected tag ${tag} @ offset ${pos - 1}`,
+      );
     }
 
     let len = 0;
-    for (let shift = 0; /* no check */; shift += 7) {
+    for (let shift = 0 /* no check */; ; shift += 7) {
       if (pos >= dataEnd) {
-        return undefined;  // Not enough data to read varint.
+        return undefined; // Not enough data to read varint.
       }
       const val = data[pos++];
       len |= ((val & 0x7f) << shift) >>> 0;
@@ -142,7 +147,8 @@ export class ProtoRingBuffer {
 
     if (len >= kMaxMsgSize) {
       throw new Error(
-        `RPC framing error, message too large (${len} > ${kMaxMsgSize}`);
+        `RPC framing error, message too large (${len} > ${kMaxMsgSize}`,
+      );
     }
     const end = pos + len;
     if (end > dataEnd) return undefined;

@@ -64,7 +64,7 @@ const CPU_SLICE_FLAGS_INCOMPLETE = 1;
 const CPU_SLICE_FLAGS_REALTIME = 2;
 
 class CpuSliceTrack implements Track {
-  private mousePos?: { x: number, y: number };
+  private mousePos?: {x: number; y: number};
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
@@ -144,16 +144,20 @@ class CpuSliceTrack implements Track {
     await this.fetcher.requestDataForCurrentTime();
   }
 
-  async onBoundsChange(start: time, end: time, resolution: duration):
-    Promise<Data> {
+  async onBoundsChange(
+    start: time,
+    end: time,
+    resolution: duration,
+  ): Promise<Data> {
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
     const isCached = this.cachedBucketSize <= resolution;
-    const queryTsq = isCached ?
-      `cached_tsq / ${resolution} * ${resolution}` :
-      `(ts + ${resolution / 2n}) / ${resolution} * ${resolution}`;
-    const queryTable =
-      isCached ? this.tableName('sched_cached') : this.tableName('sched');
+    const queryTsq = isCached
+      ? `cached_tsq / ${resolution} * ${resolution}`
+      : `(ts + ${resolution / 2n}) / ${resolution} * ${resolution}`;
+    const queryTable = isCached
+      ? this.tableName('sched_cached')
+      : this.tableName('sched');
     const constraintColumn = isCached ? 'cached_tsq' : 'ts';
 
     const queryRes = await this.engine.query(`
@@ -240,7 +244,8 @@ class CpuSliceTrack implements Track {
   async onDestroy() {
     if (this.engine.isAlive) {
       await this.engine.query(
-        `drop table if exists ${this.tableName('sched_cached')}`);
+        `drop table if exists ${this.tableName('sched_cached')}`,
+      );
     }
     this.fetcher.dispose();
   }
@@ -254,7 +259,7 @@ class CpuSliceTrack implements Track {
     const {visibleTimeScale} = globals.timeline;
     const data = this.fetcher.data;
 
-    if (data === undefined) return;  // Can't possibly draw anything.
+    if (data === undefined) return; // Can't possibly draw anything.
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
@@ -264,17 +269,15 @@ class CpuSliceTrack implements Track {
       0,
       size.width,
       visibleTimeScale.timeToPx(data.start),
-      visibleTimeScale.timeToPx(data.end));
+      visibleTimeScale.timeToPx(data.end),
+    );
 
     this.renderSlices(ctx, data);
   }
 
   renderSlices(ctx: CanvasRenderingContext2D, data: Data): void {
-    const {
-      visibleTimeScale,
-      visibleTimeSpan,
-      visibleWindowTime,
-    } = globals.timeline;
+    const {visibleTimeScale, visibleTimeSpan, visibleWindowTime} =
+      globals.timeline;
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
@@ -301,8 +304,10 @@ class CpuSliceTrack implements Track {
       // If the last slice is incomplete, it should end with the end of the
       // window, else it might spill over the window and the end would not be
       // visible as a zigzag line.
-      if (data.ids[i] === data.lastRowId &&
-          (data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE)) {
+      if (
+        data.ids[i] === data.lastRowId &&
+        data.flags[i] & CPU_SLICE_FLAGS_INCOMPLETE
+      ) {
         tEnd = endTime;
       }
       const rectStart = visibleTimeScale.timeToPx(tStart);
@@ -358,7 +363,8 @@ class CpuSliceTrack implements Track {
         if (threadInfo.pid) {
           /* eslint-enable */
           let procName = threadInfo.procName || '';
-          if (procName.startsWith('/')) {  // Remove folder paths from name
+          if (procName.startsWith('/')) {
+            // Remove folder paths from name
             procName = procName.substring(procName.lastIndexOf('/') + 1);
           }
           title = `${procName} [${threadInfo.pid}]`;
@@ -414,7 +420,8 @@ class CpuSliceTrack implements Track {
             wakeupPos,
             MARGIN_TOP + RECT_HEIGHT,
             latencyWidth,
-            latencyWidth >= 20);
+            latencyWidth >= 20,
+          );
           // Latency time with a white semi-transparent background.
           const latency = tStart - details.wakeupTs;
           const displayText = Duration.humanise(latency);
@@ -425,21 +432,24 @@ class CpuSliceTrack implements Track {
               wakeupPos + latencyWidth / 2 - measured.width / 2 - 1,
               MARGIN_TOP + RECT_HEIGHT - 12,
               measured.width + 2,
-              11);
+              11,
+            );
             ctx.textBaseline = 'bottom';
             ctx.fillStyle = 'black';
             ctx.fillText(
               displayText,
-              wakeupPos + (latencyWidth) / 2,
-              MARGIN_TOP + RECT_HEIGHT - 1);
+              wakeupPos + latencyWidth / 2,
+              MARGIN_TOP + RECT_HEIGHT - 1,
+            );
           }
         }
       }
 
       // Draw diamond if the track being drawn is the cpu of the waker.
       if (this.cpu === details.wakerCpu && details.wakeupTs) {
-        const wakeupPos =
-          Math.floor(visibleTimeScale.timeToPx(details.wakeupTs));
+        const wakeupPos = Math.floor(
+          visibleTimeScale.timeToPx(details.wakeupTs),
+        );
         ctx.beginPath();
         ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);
         ctx.fillStyle = 'black';
@@ -467,7 +477,7 @@ class CpuSliceTrack implements Track {
     }
   }
 
-  onMouseMove(pos: { x: number, y: number }) {
+  onMouseMove(pos: {x: number; y: number}) {
     const data = this.fetcher.data;
     this.mousePos = pos;
     if (data === undefined) return;
@@ -494,7 +504,8 @@ class CpuSliceTrack implements Track {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const hoveredPid = threadInfo ? (threadInfo.pid ? threadInfo.pid : -1) : -1;
     globals.dispatch(
-      Actions.setHoveredUtidAndPid({utid: hoveredUtid, pid: hoveredPid}));
+      Actions.setHoveredUtidAndPid({utid: hoveredUtid, pid: hoveredPid}),
+    );
   }
 
   onMouseOut() {
@@ -503,7 +514,7 @@ class CpuSliceTrack implements Track {
     this.mousePos = undefined;
   }
 
-  onMouseClick({x}: { x: number }) {
+  onMouseClick({x}: {x: number}) {
     const data = this.fetcher.data;
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.timeline;
@@ -580,9 +591,9 @@ class CpuSlices implements Plugin {
 // real-time priorities. The pattern is created once as an offscreen canvas and
 // is kept cached inside the Context2D of the main canvas, without making
 // assumptions on the lifetime of the main canvas.
-function getHatchedPattern(mainCtx: CanvasRenderingContext2D) : CanvasPattern {
+function getHatchedPattern(mainCtx: CanvasRenderingContext2D): CanvasPattern {
   const mctx = mainCtx as CanvasRenderingContext2D & {
-    sliceHatchedPattern ?: CanvasPattern;
+    sliceHatchedPattern?: CanvasPattern;
   };
   if (mctx.sliceHatchedPattern !== undefined) return mctx.sliceHatchedPattern;
   const canvas = document.createElement('canvas');

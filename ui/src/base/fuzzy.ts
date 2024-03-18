@@ -93,7 +93,7 @@ function indiciesToSegments(indicies: number[], text: string): FuzzySegment[] {
 // |indicies| is an array of numbers the same length as |searchTerm|, into which
 // we place the indicies of the matching chars in |text|.
 function match(searchTerm: string, text: string, indicies: number[]): boolean {
-  let j = 0;  // index into the searchTerm.
+  let j = 0; // index into the searchTerm.
   let success: boolean = true;
 
   // For each char of the searchTerm...

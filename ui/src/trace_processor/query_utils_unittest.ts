@@ -18,7 +18,7 @@ test('escapeQuery', () => {
   expect(escapeQuery(``)).toEqual(`''`);
   expect(escapeQuery(`'`)).toEqual(`''''`);
   expect(escapeQuery(`hello`)).toEqual(`'hello'`);
-  expect(escapeQuery('foo\'bar')).toEqual(`'foo''bar'`);
+  expect(escapeQuery("foo'bar")).toEqual(`'foo''bar'`);
   expect(escapeQuery('*_*')).toEqual(`'[*]_[*]'`);
   expect(escapeQuery('[]?')).toEqual(`'[[]][?]'`);
 });
@@ -26,7 +26,7 @@ test('escapeQuery', () => {
 test('escapeSearchQuery', () => {
   expect(escapeSearchQuery(``)).toEqual(`'**'`);
   expect(escapeSearchQuery(`hello`)).toEqual(`'*[hH][eE][lL][lL][oO]*'`);
-  expect(escapeSearchQuery('a\'b')).toEqual(`'*[aA]''[bB]*'`);
+  expect(escapeSearchQuery("a'b")).toEqual(`'*[aA]''[bB]*'`);
   expect(escapeSearchQuery('*_*')).toEqual(`'*[*]_[*]*'`);
   expect(escapeSearchQuery('[]?')).toEqual(`'*[[]][?]*'`);
 });
@@ -35,7 +35,7 @@ test('escapeGlob', () => {
   expect(escapeGlob(``)).toEqual(`'**'`);
   expect(escapeGlob(`'`)).toEqual(`'*''*'`);
   expect(escapeGlob(`hello`)).toEqual(`'*hello*'`);
-  expect(escapeGlob('foo\'bar')).toEqual(`'*foo''bar*'`);
+  expect(escapeGlob("foo'bar")).toEqual(`'*foo''bar*'`);
   expect(escapeGlob('*_*')).toEqual(`'**_**'`);
   expect(escapeGlob('[]?')).toEqual(`'*[]?*'`);
 });

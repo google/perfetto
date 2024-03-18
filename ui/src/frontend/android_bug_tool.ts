@@ -54,30 +54,33 @@ export function loadAndroidBugToolInfo(): Promise<TraceFromBuganizer> {
     {action: WebContentScriptMessageType.CONVERT_OBJECT_URL},
     async (response: ConvertObjectUrlResponse) => {
       switch (response.action) {
-      case WebContentScriptMessageType.CONVERT_OBJECT_URL_RESPONSE:
-        if (response.attachments?.length > 0) {
-          const filesBlobPromises =
-                response.attachments.map(async (attachment) => {
-                  const fileQueryResponse = await fetch(attachment.objectUrl);
-                  const blob = await fileQueryResponse.blob();
-                  // Note: The blob's media type is always set to "image/png".
-                  // Clone blob to clear media type.
-                  return new File([blob], attachment.name);
-                });
-          const files = await Promise.all(filesBlobPromises);
-          deferred.resolve({
-            issueId: response.issueId,
-            issueTitle: response.issueTitle,
-            file: files[0],
-          });
-        } else {
-          throw new Error('Got no attachements from extension');
-        }
-        break;
-      default:
-        throw new Error(`Received unhandled response code (${
-          response.action}) from extension.`);
+        case WebContentScriptMessageType.CONVERT_OBJECT_URL_RESPONSE:
+          if (response.attachments?.length > 0) {
+            const filesBlobPromises = response.attachments.map(
+              async (attachment) => {
+                const fileQueryResponse = await fetch(attachment.objectUrl);
+                const blob = await fileQueryResponse.blob();
+                // Note: The blob's media type is always set to "image/png".
+                // Clone blob to clear media type.
+                return new File([blob], attachment.name);
+              },
+            );
+            const files = await Promise.all(filesBlobPromises);
+            deferred.resolve({
+              issueId: response.issueId,
+              issueTitle: response.issueTitle,
+              file: files[0],
+            });
+          } else {
+            throw new Error('Got no attachements from extension');
+          }
+          break;
+        default:
+          throw new Error(
+            `Received unhandled response code (${response.action}) from extension.`,
+          );
       }
-    });
+    },
+  );
   return deferred;
 }

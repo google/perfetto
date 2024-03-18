@@ -33,8 +33,10 @@ test('gridline helper to have sensible step sizes', () => {
 
 describe('TickGenerator', () => {
   it('can generate ticks with span starting at origin', () => {
-    const tickGen =
-        new TickGenerator(new TimeSpan(Time.fromRaw(0n), Time.fromRaw(10n)), 1);
+    const tickGen = new TickGenerator(
+      new TimeSpan(Time.fromRaw(0n), Time.fromRaw(10n)),
+      1,
+    );
     const expected = [
       {type: TickType.MAJOR, time: 0n},
       {type: TickType.MINOR, time: 1n},
@@ -53,7 +55,9 @@ describe('TickGenerator', () => {
 
   it('can generate ticks when span has an offset', () => {
     const tickGen = new TickGenerator(
-      new TimeSpan(Time.fromRaw(10n), Time.fromRaw(20n)), 1);
+      new TimeSpan(Time.fromRaw(10n), Time.fromRaw(20n)),
+      1,
+    );
     const expected = [
       {type: TickType.MAJOR, time: 10n},
       {type: TickType.MINOR, time: 11n},
@@ -72,7 +76,9 @@ describe('TickGenerator', () => {
 
   it('can generate ticks when span is large', () => {
     const tickGen = new TickGenerator(
-      new TimeSpan(Time.fromRaw(1000000000n), Time.fromRaw(2000000000n)), 1);
+      new TimeSpan(Time.fromRaw(1000000000n), Time.fromRaw(2000000000n)),
+      1,
+    );
     const expected = [
       {type: TickType.MAJOR, time: 1000000000n},
       {type: TickType.MINOR, time: 1100000000n},

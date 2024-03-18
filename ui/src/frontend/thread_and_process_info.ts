@@ -43,10 +43,14 @@ export interface ProcessInfo {
 }
 
 export async function getProcessInfo(
-  engine: EngineProxy, upid: Upid): Promise<ProcessInfo> {
-  const it = (await engine.query(`
+  engine: EngineProxy,
+  upid: Upid,
+): Promise<ProcessInfo> {
+  const it = (
+    await engine.query(`
               SELECT pid, name, uid FROM process WHERE upid = ${upid};
-            `)).iter({pid: NUM, name: STR_NULL, uid: NUM_NULL});
+            `)
+  ).iter({pid: NUM, name: STR_NULL, uid: NUM_NULL});
   if (!it.valid()) {
     return {upid};
   }
@@ -84,8 +88,10 @@ export async function getProcessInfo(
   return result;
 }
 
-function getDisplayName(name: string|undefined, id: number|undefined): string|
-    undefined {
+function getDisplayName(
+  name: string | undefined,
+  id: number | undefined,
+): string | undefined {
   if (name === undefined) {
     return id === undefined ? undefined : `${id}`;
   }
@@ -99,24 +105,27 @@ export function renderProcessRef(info: ProcessInfo): m.Children {
     {
       trigger: m(Anchor, getProcessName(info)),
     },
-    exists(name) && m(MenuItem, {
-      icon: Icons.Copy,
-      label: 'Copy process name',
-      onclick: () => copyToClipboard(name),
-    }),
-    exists(info.pid) && m(MenuItem, {
-      icon: Icons.Copy,
-      label: 'Copy pid',
-      onclick: () => copyToClipboard(`${info.pid}`),
-    }),
+    exists(name) &&
+      m(MenuItem, {
+        icon: Icons.Copy,
+        label: 'Copy process name',
+        onclick: () => copyToClipboard(name),
+      }),
+    exists(info.pid) &&
+      m(MenuItem, {
+        icon: Icons.Copy,
+        label: 'Copy pid',
+        onclick: () => copyToClipboard(`${info.pid}`),
+      }),
     m(MenuItem, {
       icon: Icons.Copy,
       label: 'Copy upid',
       onclick: () => copyToClipboard(`${info.upid}`),
-    }));
+    }),
+  );
 }
 
-export function getProcessName(info?: ProcessInfo): string|undefined {
+export function getProcessName(info?: ProcessInfo): string | undefined {
   return getDisplayName(info?.name, info?.pid);
 }
 
@@ -128,18 +137,22 @@ export interface ThreadInfo {
 }
 
 export async function getThreadInfo(
-  engine: EngineProxy, utid: Utid): Promise<ThreadInfo> {
-  const it = (await engine.query(`
+  engine: EngineProxy,
+  utid: Utid,
+): Promise<ThreadInfo> {
+  const it = (
+    await engine.query(`
         SELECT tid, name, upid
         FROM thread
         WHERE utid = ${utid};
-    `)).iter({tid: NUM, name: STR_NULL, upid: NUM_NULL});
+    `)
+  ).iter({tid: NUM, name: STR_NULL, upid: NUM_NULL});
   if (!it.valid()) {
     return {
       utid,
     };
   }
-  const upid = fromNumNull(it.upid) as (Upid | undefined);
+  const upid = fromNumNull(it.upid) as Upid | undefined;
   return {
     utid,
     tid: it.tid,
@@ -148,12 +161,12 @@ export async function getThreadInfo(
   };
 }
 
-export function getThreadName(info?: ThreadInfo): string|undefined {
+export function getThreadName(info?: ThreadInfo): string | undefined {
   return getDisplayName(info?.name, info?.tid);
 }
 
 // Return the full thread name, including the process name.
-export function getFullThreadName(info?: ThreadInfo): string|undefined {
+export function getFullThreadName(info?: ThreadInfo): string | undefined {
   if (info?.process === undefined) {
     return getThreadName(info);
   }

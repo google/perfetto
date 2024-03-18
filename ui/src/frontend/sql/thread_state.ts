@@ -49,7 +49,7 @@ class Node {
   }
 
   addDuration(dur: duration) {
-    let node: Node|undefined = this;
+    let node: Node | undefined = this;
     while (node !== undefined) {
       node.dur += dur;
       node = node.parent;
@@ -67,8 +67,10 @@ export interface BreakdownByThreadState {
 // Compute a breakdown of thread states for a given thread for a given time
 // interval.
 export async function breakDownIntervalByThreadState(
-  engine: EngineProxy, range: TimeSpan, utid: Utid):
-    Promise<BreakdownByThreadState> {
+  engine: EngineProxy,
+  range: TimeSpan,
+  utid: Utid,
+): Promise<BreakdownByThreadState> {
   // TODO(altimin): this probably should share some code with pivot tables when
   // we actually get some pivot tables we like.
   const query = await engine.query(`
@@ -115,13 +117,14 @@ export async function breakDownIntervalByThreadState(
 }
 
 function renderChildren(node: Node, totalDur: duration): m.Child[] {
-  const res = Array.from(node.children.entries())
-    .map(([name, child]) => renderNode(child, name, totalDur));
+  const res = Array.from(node.children.entries()).map(([name, child]) =>
+    renderNode(child, name, totalDur),
+  );
   return res;
 }
 
 function renderNode(node: Node, name: string, totalDur: duration): m.Child {
-  const durPercent = 100. * Number(node.dur) / Number(totalDur);
+  const durPercent = (100 * Number(node.dur)) / Number(totalDur);
   return m(
     TreeNode,
     {
@@ -132,7 +135,8 @@ function renderNode(node: Node, name: string, totalDur: duration): m.Child {
       ],
       startsCollapsed: node.startsCollapsed,
     },
-    renderChildren(node, totalDur));
+    renderChildren(node, totalDur),
+  );
 }
 
 interface BreakdownByThreadStateTreeNodeAttrs {
@@ -141,8 +145,9 @@ interface BreakdownByThreadStateTreeNodeAttrs {
 }
 
 // A tree node that displays a nested breakdown a time interval by thread state.
-export class BreakdownByThreadStateTreeNode implements
-    m.ClassComponent<BreakdownByThreadStateTreeNodeAttrs> {
+export class BreakdownByThreadStateTreeNode
+  implements m.ClassComponent<BreakdownByThreadStateTreeNodeAttrs>
+{
   view({attrs}: m.Vnode<BreakdownByThreadStateTreeNodeAttrs>): m.Child[] {
     return renderChildren(attrs.data.root, attrs.dur);
   }

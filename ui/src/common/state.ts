@@ -15,9 +15,7 @@
 import {BigintMath} from '../base/bigint_math';
 import {duration, Time, time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
-import {
-  GenericSliceDetailsTabConfigBase,
-} from '../frontend/generic_slice_details_tab';
+import {GenericSliceDetailsTabConfigBase} from '../frontend/generic_slice_details_tab';
 import {
   Aggregation,
   PivotTree,
@@ -32,7 +30,9 @@ import {Direction} from './event_set';
  * We use this instead of using |Map| object since it is simpler and faster to
  * serialize for use in postMessage.
  */
-export interface ObjectById<Class extends{id: string}> { [id: string]: Class; }
+export interface ObjectById<Class extends {id: string}> {
+  [id: string]: Class;
+}
 
 // Same as ObjectById but the key parameter is called `key` rather than `id`.
 export interface ObjectByKey<Class extends {key: string}> {
@@ -43,7 +43,7 @@ export interface Timestamped {
   lastUpdate: number;
 }
 
-export type OmniboxMode = 'SEARCH'|'COMMAND';
+export type OmniboxMode = 'SEARCH' | 'COMMAND';
 
 export interface OmniboxState {
   omnibox: string;
@@ -72,7 +72,7 @@ export interface AreaSelection {
   noteId?: string;
 }
 
-export type AreaById = Area&{id: string};
+export type AreaById = Area & {id: string};
 
 export interface Area {
   start: time;
@@ -138,9 +138,9 @@ export const STATE_VERSION = 46;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
-export type EngineMode = 'WASM'|'HTTP_RPC';
+export type EngineMode = 'WASM' | 'HTTP_RPC';
 
-export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE'|'FORCE_BUILTIN_WASM';
+export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE' | 'FORCE_BUILTIN_WASM';
 
 // Key that is used to sort tracks within a block of tracks associated with a
 // given thread.
@@ -155,19 +155,20 @@ export enum InThreadTrackSortKey {
 
 // Sort key used for sorting tracks associated with a thread.
 export type ThreadTrackSortKey = {
-  utid: number,
-  priority: InThreadTrackSortKey,
-}
+  utid: number;
+  priority: InThreadTrackSortKey;
+};
 
 // Sort key for all tracks: both thread-associated and non-thread associated.
-export type TrackSortKey = PrimaryTrackSortKey|ThreadTrackSortKey;
+export type TrackSortKey = PrimaryTrackSortKey | ThreadTrackSortKey;
 
 // Mapping which defines order for threads within a given process.
 export type UtidToTrackSortKey = {
   [utid: number]: {
-    tid?: number, sortKey: PrimaryTrackSortKey,
-  }
-}
+    tid?: number;
+    sortKey: PrimaryTrackSortKey;
+  };
+};
 
 export enum ProfileType {
   HEAP_PROFILE = 'heap_profile',
@@ -232,7 +233,10 @@ export interface TraceHttpRpcSource {
 }
 
 export type TraceSource =
-    TraceFileSource|TraceArrayBufferSource|TraceUrlSource|TraceHttpRpcSource;
+  | TraceFileSource
+  | TraceArrayBufferSource
+  | TraceUrlSource
+  | TraceHttpRpcSource;
 
 export interface TrackState {
   uri: string;
@@ -249,15 +253,15 @@ export interface TrackGroupState {
   id: string;
   name: string;
   collapsed: boolean;
-  tracks: string[];         // Child track ids.
-  fixedOrdering?: boolean;  // Render tracks without sorting.
+  tracks: string[]; // Child track ids.
+  fixedOrdering?: boolean; // Render tracks without sorting.
 }
 
 export interface EngineConfig {
   id: string;
-  mode?: EngineMode;  // Is undefined until |ready| is true.
+  mode?: EngineMode; // Is undefined until |ready| is true.
   ready: boolean;
-  failed?: string;  // If defined the engine has crashed with the given message.
+  failed?: string; // If defined the engine has crashed with the given message.
   source: TraceSource;
 }
 
@@ -268,10 +272,9 @@ export interface QueryConfig {
 }
 
 export interface PermalinkConfig {
-  requestId?: string;  // Set by the frontend to request a new permalink.
-  hash?: string;       // Set by the controller when the link has been created.
-  isRecordingConfig?:
-      boolean;  // this permalink request is for a recording config only
+  requestId?: string; // Set by the frontend to request a new permalink.
+  hash?: string; // Set by the controller when the link has been created.
+  isRecordingConfig?: boolean; // this permalink request is for a recording config only
 }
 
 export interface TraceTime {
@@ -285,7 +288,7 @@ export interface FrontendLocalState {
 
 export interface Status {
   msg: string;
-  timestamp: number;  // Epoch in seconds (Date.now() / 1000).
+  timestamp: number; // Epoch in seconds (Date.now() / 1000).
 }
 
 export interface Note {
@@ -380,15 +383,23 @@ export interface GenericSliceSelection {
   start: time;
   duration: duration;
   // NOTE: this config can be expanded for multiple details panel types.
-  detailsPanelConfig: {kind: string; config: GenericSliceDetailsTabConfigBase;};
+  detailsPanelConfig: {kind: string; config: GenericSliceDetailsTabConfigBase};
 }
 
-export type Selection =
-    (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
-     CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
-     AreaSelection|PerfSamplesSelection|LogSelection|GenericSliceSelection)&
-    {trackKey?: string};
-export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
+export type Selection = (
+  | NoteSelection
+  | SliceSelection
+  | CounterSelection
+  | HeapProfileSelection
+  | CpuProfileSampleSelection
+  | ChromeSliceSelection
+  | ThreadStateSelection
+  | AreaSelection
+  | PerfSamplesSelection
+  | LogSelection
+  | GenericSliceSelection
+) & {trackKey?: string};
+export type SelectionKind = Selection['kind']; // 'THREAD_STATE' | 'SLICE' ...
 
 export interface Pagination {
   offset: number;
@@ -412,7 +423,7 @@ export interface AdbRecordingTarget extends RecordingTarget {
 
 export interface Sorting {
   column: string;
-  direction: 'DESC'|'ASC';
+  direction: 'DESC' | 'ASC';
 }
 
 export interface AggregationState {
@@ -457,7 +468,7 @@ export interface PivotTableState {
   selectionArea?: PivotTableAreaState;
 
   // Query response
-  queryResult: PivotTableResult|null;
+  queryResult: PivotTableResult | null;
 
   // Selected pivots for tables other than slice.
   // Because of the query generation, pivoting happens first on non-slice
@@ -494,7 +505,9 @@ export interface LoadedConfigNamed {
 }
 
 export type LoadedConfig =
-    LoadedConfigNone|LoadedConfigAutomatic|LoadedConfigNamed;
+  | LoadedConfigNone
+  | LoadedConfigAutomatic
+  | LoadedConfigNamed;
 
 export interface NonSerializableState {
   pivotTable: PivotTableState;
@@ -558,10 +571,10 @@ export interface State {
   lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;
   permalink: PermalinkConfig;
-  notes: ObjectById<Note|AreaNote>;
+  notes: ObjectById<Note | AreaNote>;
   status: Status;
-  currentSelection: Selection|null;
-  currentFlamegraphState: FlamegraphState|null;
+  currentSelection: Selection | null;
+  currentFlamegraphState: FlamegraphState | null;
   logsPagination: Pagination;
   ftracePagination: Pagination;
   ftraceFilter: FtraceFilterState;
@@ -610,7 +623,7 @@ export interface State {
   recordingStatus?: string;
 
   fetchChromeCategories: boolean;
-  chromeCategories: string[]|undefined;
+  chromeCategories: string[] | undefined;
 
   // Special key: this part of the state is not going to be serialized when
   // using permalink. Can be used to store those parts of the state that can't
@@ -638,7 +651,9 @@ export const defaultTraceTime = {
 };
 
 export declare type RecordMode =
-    'STOP_WHEN_FULL' | 'RING_BUFFER' | 'LONG_TRACE';
+  | 'STOP_WHEN_FULL'
+  | 'RING_BUFFER'
+  | 'LONG_TRACE';
 
 // 'Q','P','O' for Android, 'L' for Linux, 'C' for Chrome.
 export declare type TargetOs = 'S' | 'R' | 'Q' | 'P' | 'O' | 'C' | 'L' | 'CrOS';
@@ -663,18 +678,25 @@ export function isLinuxTarget(target: RecordingTarget) {
   return target.os === 'L';
 }
 
-export function isAdbTarget(target: RecordingTarget):
-    target is AdbRecordingTarget {
+export function isAdbTarget(
+  target: RecordingTarget,
+): target is AdbRecordingTarget {
   return !!(target as AdbRecordingTarget).serial;
 }
 
 export function hasActiveProbes(config: RecordConfig) {
-  const fieldsWithEmptyResult = new Set<string>(
-    ['hpBlockClient', 'allAtraceApps', 'chromePrivacyFiltering']);
+  const fieldsWithEmptyResult = new Set<string>([
+    'hpBlockClient',
+    'allAtraceApps',
+    'chromePrivacyFiltering',
+  ]);
   let key: keyof RecordConfig;
   for (key in config) {
-    if (typeof (config[key]) === 'boolean' && config[key] === true &&
-        !fieldsWithEmptyResult.has(key)) {
+    if (
+      typeof config[key] === 'boolean' &&
+      config[key] === true &&
+      !fieldsWithEmptyResult.has(key)
+    ) {
       return true;
     }
   }
@@ -960,8 +982,10 @@ export function getBuiltinChromeCategoryList(): string[] {
   ];
 }
 
-export function getContainingTrackId(state: State, trackKey: string): null|
-    string {
+export function getContainingTrackId(
+  state: State,
+  trackKey: string,
+): null | string {
   const track = state.tracks[trackKey];
   // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
   if (!track) {

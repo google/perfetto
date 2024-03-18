@@ -14,14 +14,14 @@
 
 import {VERSION} from '../gen/perfetto_version';
 
-export type ErrorType = 'ERROR'|'PROMISE_REJ'|'OTHER';
+export type ErrorType = 'ERROR' | 'PROMISE_REJ' | 'OTHER';
 export interface ErrorStackEntry {
-  name: string;      // e.g. renderCanvas
-  location: string;  // e.g. frontend_bundle.js:12:3
+  name: string; // e.g. renderCanvas
+  location: string; // e.g. frontend_bundle.js:12:3
 }
 export interface ErrorDetails {
   errType: ErrorType;
-  message: string;  // Uncaught StoreError: No such subtree: tracks,1374,state
+  message: string; // Uncaught StoreError: No such subtree: tracks,1374,state
   stack: ErrorStackEntry[];
 }
 
@@ -30,7 +30,7 @@ const errorHandlers: ErrorHandler[] = [];
 
 export function assertExists<A>(value: A | null | undefined): A {
   if (value === null || value === undefined) {
-    throw new Error('Value doesn\'t exist');
+    throw new Error("Value doesn't exist");
   }
   return value;
 }
@@ -51,7 +51,7 @@ export function addErrorHandler(handler: ErrorHandler) {
   }
 }
 
-export function reportError(err: ErrorEvent|PromiseRejectionEvent|{}) {
+export function reportError(err: ErrorEvent | PromiseRejectionEvent | {}) {
   let errorObj = undefined;
   let errMsg = '';
   let errType: ErrorType;
@@ -73,7 +73,7 @@ export function reportError(err: ErrorEvent|PromiseRejectionEvent|{}) {
   if (errorObj !== undefined && errorObj !== null) {
     const maybeStack = (errorObj as {stack?: string}).stack;
     let errStack = maybeStack !== undefined ? `${maybeStack}` : '';
-    errStack = errStack.replaceAll(/\r/g, '');  // Strip Windows CR.
+    errStack = errStack.replaceAll(/\r/g, ''); // Strip Windows CR.
     for (let line of errStack.split('\n')) {
       if (errMsg.includes(line)) continue;
       // Chrome, Firefox and safari don't agree on the stack format:

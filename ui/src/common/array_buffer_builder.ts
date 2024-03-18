@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  length as utf8Len,
-  write as utf8Write,
-} from '@protobufjs/utf8';
+import {length as utf8Len, write as utf8Write} from '@protobufjs/utf8';
 
 import {assertTrue} from '../base/logging';
 import {isString} from '../base/object_utils';
 
 // A token that can be appended to an `ArrayBufferBuilder`.
-export type ArrayBufferToken = string|number|Uint8Array;
+export type ArrayBufferToken = string | number | Uint8Array;
 
 // Return the length, in bytes, of a token to be inserted.
 function tokenLength(token: ArrayBufferToken): number {
@@ -46,7 +43,8 @@ function insertToken(
   dataView: DataView,
   typedArray: Uint8Array,
   byteOffset: number,
-  token: ArrayBufferToken): void {
+  token: ArrayBufferToken,
+): void {
   if (isString(token)) {
     // Encode the string in UTF-8
     const written = utf8Write(token, typedArray, byteOffset);

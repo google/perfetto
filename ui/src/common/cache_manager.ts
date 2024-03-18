@@ -23,9 +23,9 @@ import {TraceArrayBufferSource, TraceSource} from './state';
 const TRACE_CACHE_NAME = 'cached_traces';
 const TRACE_CACHE_SIZE = 10;
 
-let LAZY_CACHE: Cache|undefined = undefined;
+let LAZY_CACHE: Cache | undefined = undefined;
 
-async function getCache(): Promise<Cache|undefined> {
+async function getCache(): Promise<Cache | undefined> {
   if (self.caches === undefined) {
     // The browser doesn't support cache storage or the page is opened from
     // a non-secure origin.
@@ -41,7 +41,7 @@ async function getCache(): Promise<Cache|undefined> {
 async function cacheDelete(key: Request): Promise<boolean> {
   try {
     const cache = await getCache();
-    if (cache === undefined) return false;  // Cache storage not supported.
+    if (cache === undefined) return false; // Cache storage not supported.
     return await cache.delete(key);
   } catch (_) {
     // TODO(288483453): Reinstate:
@@ -53,7 +53,7 @@ async function cacheDelete(key: Request): Promise<boolean> {
 async function cachePut(key: string, value: Response): Promise<void> {
   try {
     const cache = await getCache();
-    if (cache === undefined) return;  // Cache storage not supported.
+    if (cache === undefined) return; // Cache storage not supported.
     await cache.put(key, value);
   } catch (_) {
     // TODO(288483453): Reinstate:
@@ -61,10 +61,12 @@ async function cachePut(key: string, value: Response): Promise<void> {
   }
 }
 
-async function cacheMatch(key: Request|string): Promise<Response|undefined> {
+async function cacheMatch(
+  key: Request | string,
+): Promise<Response | undefined> {
   try {
     const cache = await getCache();
-    if (cache === undefined) return undefined;  // Cache storage not supported.
+    if (cache === undefined) return undefined; // Cache storage not supported.
     return await cache.match(key);
   } catch (_) {
     // TODO(288483453): Reinstate:
@@ -76,7 +78,7 @@ async function cacheMatch(key: Request|string): Promise<Response|undefined> {
 async function cacheKeys(): Promise<readonly Request[]> {
   try {
     const cache = await getCache();
-    if (cache === undefined) return [];  // Cache storage not supported.
+    if (cache === undefined) return []; // Cache storage not supported.
     return await cache.keys();
   } catch (e) {
     // TODO(288483453): Reinstate:
@@ -86,7 +88,9 @@ async function cacheKeys(): Promise<readonly Request[]> {
 }
 
 export async function cacheTrace(
-  traceSource: TraceSource, traceUuid: string): Promise<boolean> {
+  traceSource: TraceSource,
+  traceUuid: string,
+): Promise<boolean> {
   let trace;
   let title = '';
   let fileName = '';
@@ -94,21 +98,21 @@ export async function cacheTrace(
   let contentLength = 0;
   let localOnly = false;
   switch (traceSource.type) {
-  case 'ARRAY_BUFFER':
-    trace = traceSource.buffer;
-    title = traceSource.title;
-    fileName = traceSource.fileName || '';
-    url = traceSource.url || '';
-    contentLength = traceSource.buffer.byteLength;
-    localOnly = traceSource.localOnly || false;
-    break;
-  case 'FILE':
-    trace = await traceSource.file.arrayBuffer();
-    title = traceSource.file.name;
-    contentLength = traceSource.file.size;
-    break;
-  default:
-    return false;
+    case 'ARRAY_BUFFER':
+      trace = traceSource.buffer;
+      title = traceSource.title;
+      fileName = traceSource.fileName || '';
+      url = traceSource.url || '';
+      contentLength = traceSource.buffer.byteLength;
+      localOnly = traceSource.localOnly || false;
+      break;
+    case 'FILE':
+      trace = await traceSource.file.arrayBuffer();
+      title = traceSource.file.name;
+      contentLength = traceSource.file.size;
+      break;
+    default:
+      return false;
   }
 
   const headers = new Headers([
@@ -121,18 +125,20 @@ export async function cacheTrace(
     [
       'expires',
       // Expires in a week from now (now = upload time)
-      (new Date((new Date()).getTime() + (1000 * 60 * 60 * 24 * 7)))
-        .toUTCString(),
+      new Date(new Date().getTime() + 1000 * 60 * 60 * 24 * 7).toUTCString(),
     ],
   ]);
   await deleteStaleEntries();
   await cachePut(
-    `/_${TRACE_CACHE_NAME}/${traceUuid}`, new Response(trace, {headers}));
+    `/_${TRACE_CACHE_NAME}/${traceUuid}`,
+    new Response(trace, {headers}),
+  );
   return true;
 }
 
-export async function tryGetTrace(traceUuid: string):
-    Promise<TraceArrayBufferSource|undefined> {
+export async function tryGetTrace(
+  traceUuid: string,
+): Promise<TraceArrayBufferSource | undefined> {
   await deleteStaleEntries();
   const response = await cacheMatch(`/_${TRACE_CACHE_NAME}/${traceUuid}`);
 
@@ -152,7 +158,7 @@ async function deleteStaleEntries() {
   // Loop through stored traces and invalidate all but the most recent
   // TRACE_CACHE_SIZE.
   const keys = await cacheKeys();
-  const storedTraces: Array<{key: Request, date: Date}> = [];
+  const storedTraces: Array<{key: Request; date: Date}> = [];
   const now = new Date();
   const deletions = [];
   for (const key of keys) {
@@ -178,9 +184,9 @@ async function deleteStaleEntries() {
   // Sort the traces descending by time, such that most recent ones are placed
   // at the beginning. Then, take traces from TRACE_CACHE_SIZE onwards and
   // delete them from cache.
-  const oldTraces =
-      storedTraces.sort((a, b) => b.date.getTime() - a.date.getTime())
-        .slice(TRACE_CACHE_SIZE);
+  const oldTraces = storedTraces
+    .sort((a, b) => b.date.getTime() - a.date.getTime())
+    .slice(TRACE_CACHE_SIZE);
   for (const oldTrace of oldTraces) {
     deletions.push(cacheDelete(oldTrace.key));
   }

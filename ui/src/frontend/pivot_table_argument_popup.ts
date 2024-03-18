@@ -64,7 +64,8 @@ export class ArgumentPopup implements m.ClassComponent<ArgumentPopupArgs> {
       }
 
       result.push(
-        m('div',
+        m(
+          'div',
           {
             onclick: () => {
               this.setArgument(attrs, option);
@@ -73,7 +74,9 @@ export class ArgumentPopup implements m.ClassComponent<ArgumentPopupArgs> {
           option.substring(0, index),
           // Highlight the matching part with bold font
           m('strong', this.argument),
-          option.substring(index + this.argument.length)));
+          option.substring(index + this.argument.length),
+        ),
+      );
     }
 
     return result;
@@ -92,6 +95,7 @@ export class ArgumentPopup implements m.ClassComponent<ArgumentPopupArgs> {
         value: this.argument,
       }),
       m('.arguments-popup-sizer', longestString(attrs.knownArguments)),
-      this.renderMatches(attrs));
+      this.renderMatches(attrs),
+    );
   }
 }

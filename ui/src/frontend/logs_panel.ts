@@ -47,12 +47,16 @@ export class LogPanel implements m.ClassComponent {
     this.visibleRowOffset = Math.floor(scrollContainer.scrollTop / ROW_H);
     this.visibleRowCount = Math.ceil(scrollContainer.clientHeight / ROW_H);
 
-    if (this.visibleRowOffset !== prevOffset ||
-        this.visibleRowCount !== prevCount) {
-      globals.dispatch(Actions.updateLogsPagination({
-        offset: this.visibleRowOffset,
-        count: this.visibleRowCount,
-      }));
+    if (
+      this.visibleRowOffset !== prevOffset ||
+      this.visibleRowCount !== prevCount
+    ) {
+      globals.dispatch(
+        Actions.updateLogsPagination({
+          offset: this.visibleRowOffset,
+          count: this.visibleRowCount,
+        }),
+      );
     }
   }
 
@@ -83,20 +87,22 @@ export class LogPanel implements m.ClassComponent {
     globals.dispatch(Actions.setHoverCursorTimestamp({ts: Time.INVALID}));
   }
 
-  private totalRows():
-      {isStale: boolean, total: number, offset: number, count: number} {
+  private totalRows(): {
+    isStale: boolean;
+    total: number;
+    offset: number;
+    count: number;
+  } {
     if (!this.bounds) {
       return {isStale: false, total: 0, offset: 0, count: 0};
     }
-    const {
-      totalVisibleLogs,
-      firstVisibleLogTs,
-      lastVisibleLogTs,
-    } = this.bounds;
+    const {totalVisibleLogs, firstVisibleLogTs, lastVisibleLogTs} = this.bounds;
     const vis = globals.timeline.visibleWindowTime;
 
-    const visibleLogSpan =
-        new HighPrecisionTimeSpan(firstVisibleLogTs, lastVisibleLogTs);
+    const visibleLogSpan = new HighPrecisionTimeSpan(
+      firstVisibleLogTs,
+      lastVisibleLogTs,
+    );
     const isStale = !vis.contains(visibleLogSpan);
     const offset = Math.min(this.visibleRowOffset, totalVisibleLogs);
     const visCount = Math.min(totalVisibleLogs - offset, this.visibleRowCount);
@@ -106,20 +112,26 @@ export class LogPanel implements m.ClassComponent {
   view(_: m.CVnode<{}>) {
     const {isStale, total, offset, count} = this.totalRows();
 
-    const hasProcessNames = this.entries &&
-        this.entries.processName.filter((name) => name).length > 0;
+    const hasProcessNames =
+      this.entries &&
+      this.entries.processName.filter((name) => name).length > 0;
 
     const rows: m.Children = [];
     rows.push(
-      m(`.row`,
+      m(
+        `.row`,
         m('.cell.row-header', 'Timestamp'),
         m('.cell.row-header', 'Level'),
         m('.cell.row-header', 'Tag'),
-        hasProcessNames ? m('.cell.with-process.row-header', 'Process name') :
-          undefined,
-        hasProcessNames ? m('.cell.with-process.row-header', 'Message') :
-          m('.cell.no-process.row-header', 'Message'),
-        m('br')));
+        hasProcessNames
+          ? m('.cell.with-process.row-header', 'Process name')
+          : undefined,
+        hasProcessNames
+          ? m('.cell.with-process.row-header', 'Message')
+          : m('.cell.no-process.row-header', 'Message'),
+        m('br'),
+      ),
+    );
     if (this.entries) {
       const offset = this.entries.offset;
       const timestamps = this.entries.timestamps;
@@ -131,7 +143,7 @@ export class LogPanel implements m.ClassComponent {
         const priorityLetter = LOG_PRIORITIES[priorities[i]][0];
         const ts = timestamps[i];
         const prioClass = priorityLetter || '';
-        const style: {top: string, backgroundColor?: string} = {
+        const style: {top: string; backgroundColor?: string} = {
           // 1.5 is for the width of the header
           top: `${(offset + i + 1.5) * ROW_H}px`,
         };
@@ -140,21 +152,26 @@ export class LogPanel implements m.ClassComponent {
         }
 
         rows.push(
-          m(`.row.${prioClass}`,
+          m(
+            `.row.${prioClass}`,
             {
-              'class': isStale ? 'stale' : '',
+              class: isStale ? 'stale' : '',
               style,
-              'onmouseover': this.onRowOver.bind(this, ts),
-              'onmouseout': this.onRowOut.bind(this),
+              onmouseover: this.onRowOver.bind(this, ts),
+              onmouseout: this.onRowOut.bind(this),
             },
             m('.cell', m(Timestamp, {ts})),
             m('.cell', priorityLetter || '?'),
             m('.cell', tags[i]),
-            hasProcessNames ? m('.cell.with-process', processNames[i]) :
-              undefined,
-            hasProcessNames ? m('.cell.with-process', messages[i]) :
-              m('.cell.no-process', messages[i]),
-            m('br')));
+            hasProcessNames
+              ? m('.cell.with-process', processNames[i])
+              : undefined,
+            hasProcessNames
+              ? m('.cell.with-process', messages[i])
+              : m('.cell.no-process', messages[i]),
+            m('br'),
+          ),
+        );
       }
     }
 
@@ -170,8 +187,10 @@ export class LogPanel implements m.ClassComponent {
       m(
         VirtualScrollContainer,
         {onScroll: this.onScroll},
-        m('.log-panel',
-          m('.rows', {style: {height: `${total * ROW_H}px`}}, rows)),
+        m(
+          '.log-panel',
+          m('.rows', {style: {height: `${total * ROW_H}px`}}, rows),
+        ),
       ),
     );
   }

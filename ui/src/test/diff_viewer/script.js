@@ -19,7 +19,8 @@ function m(selector, ...children) {
   const parts = selector.split('.');
   if (parts.length === 0) {
     throw new Error(
-      'Selector passed to element should be of a form tag.class1.class2');
+      'Selector passed to element should be of a form tag.class1.class2',
+    );
   }
 
   const result = document.createElement(parts[0]);
@@ -79,16 +80,19 @@ function processLines(lines) {
     const parts = line.split(';');
     if (parts.length !== 2) {
       console.warn(
-        `Malformed line (expected two files separated via semicolon) ${
-          line}!`);
+        `Malformed line (expected two files separated via semicolon) ${line}!`,
+      );
       continue;
     }
 
     const [output, diff] = parts;
-    children.push(m(
-      'div.row',
-      m('div.cell', output, m('div.image-wrapper', imageLinkElement(output))),
-      m('div.cell', diff, m('div.image-wrapper', imageLinkElement(diff)))));
+    children.push(
+      m(
+        'div.row',
+        m('div.cell', output, m('div.image-wrapper', imageLinkElement(output))),
+        m('div.cell', diff, m('div.image-wrapper', imageLinkElement(diff))),
+      ),
+    );
   }
 
   if (children.length === 0) {
@@ -106,12 +110,15 @@ function processLines(lines) {
       button.innerText = 'Copied!';
     });
 
-    container.appendChild(m(
-      'div.message',
-      'Use following command from Perfetto checkout directory to apply the ' +
-            'changes: ',
-      m('span.cmd', cmd),
-      button));
+    container.appendChild(
+      m(
+        'div.message',
+        'Use following command from Perfetto checkout directory to apply the ' +
+          'changes: ',
+        m('span.cmd', cmd),
+        button,
+      ),
+    );
   }
 
   for (const child of children) {

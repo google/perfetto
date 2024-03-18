@@ -43,7 +43,7 @@ export interface Store<T> extends Disposable {
    *
    * @param {Edit<T> | Edit<T>[]} edits The edit (or edits) to the store.
    */
-  edit(edits: Edit<T>|Edit<T>[]): void;
+  edit(edits: Edit<T> | Edit<T>[]): void;
 
   /**
    * Create a sub-store from a subtree of the state from this store.
@@ -121,7 +121,7 @@ class RootStore<T> implements Store<T> {
     return this.internalState;
   }
 
-  edit(edit: Edit<T>|Edit<T>[]): void {
+  edit(edit: Edit<T> | Edit<T>[]): void {
     if (Array.isArray(edit)) {
       this.applyEdits(edit);
     } else {
@@ -184,9 +184,9 @@ class SubStore<T, ParentT> implements Store<T> {
   private subscriptions = new Set<Callback<T>>();
 
   constructor(
-      private readonly parentStore: Store<ParentT>,
-      private readonly path: Path,
-      private readonly migrate: (init: unknown) => T,
+    private readonly parentStore: Store<ParentT>,
+    private readonly path: Path,
+    private readonly migrate: (init: unknown) => T,
   ) {
     this.parentState = getPath<unknown>(this.parentStore.state, this.path);
 
@@ -210,13 +210,13 @@ class SubStore<T, ParentT> implements Store<T> {
       return this.cachedState;
     } else {
       this.parentState = parentState;
-      return this.cachedState = produce(this.cachedState, () => {
+      return (this.cachedState = produce(this.cachedState, () => {
         return this.migrate(parentState);
-      });
+      }));
     }
   }
 
-  edit(edit: Edit<T>|Edit<T>[]): void {
+  edit(edit: Edit<T> | Edit<T>[]): void {
     if (Array.isArray(edit)) {
       this.applyEdits(edit);
     } else {
@@ -253,8 +253,10 @@ class SubStore<T, ParentT> implements Store<T> {
     }
   }
 
-  createSubStore<SubtreeState>(path: Path, migrate: Migrate<SubtreeState>):
-      Store<SubtreeState> {
+  createSubStore<SubtreeState>(
+    path: Path,
+    migrate: Migrate<SubtreeState>,
+  ): Store<SubtreeState> {
     const fullPath = [...this.path, ...path];
     return new SubStore(this.parentStore, fullPath, migrate);
   }

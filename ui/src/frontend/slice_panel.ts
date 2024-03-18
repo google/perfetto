@@ -27,8 +27,10 @@ import {DurationWidget} from './widgets/duration';
 //
 // Result can be undefined if both name and process are, in this case result is
 // not going to be displayed in the UI.
-function getDisplayName(name: string|undefined, id: number|undefined): string|
-    undefined {
+function getDisplayName(
+  name: string | undefined,
+  id: number | undefined,
+): string | undefined {
   if (name === undefined) {
     return id === undefined ? undefined : `${id}`;
   } else {
@@ -47,7 +49,7 @@ export abstract class SlicePanel implements m.ClassComponent {
   }
 
   protected getProcessThreadDetails(sliceInfo: SliceDetails) {
-    return new Map<string, string|undefined>([
+    return new Map<string, string | undefined>([
       ['Thread', getDisplayName(sliceInfo.threadName, sliceInfo.tid)],
       ['Process', getDisplayName(sliceInfo.processName, sliceInfo.pid)],
       ['User ID', exists(sliceInfo.uid) ? String(sliceInfo.uid) : undefined],
@@ -61,5 +63,5 @@ export abstract class SlicePanel implements m.ClassComponent {
     ]);
   }
 
-  abstract view(vnode: m.Vnode): void|m.Children;
+  abstract view(vnode: m.Vnode): void | m.Children;
 }

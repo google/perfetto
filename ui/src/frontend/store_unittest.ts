@@ -201,8 +201,10 @@ describe('sub-store', () => {
   it('can create more substores and edit', () => {
     const store = createStore(initialState);
     const fooState = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
-    const nestedStore =
-        fooState.createSubStore<Bar>(['nested'], (x) => x as Bar);
+    const nestedStore = fooState.createSubStore<Bar>(
+      ['nested'],
+      (x) => x as Bar,
+    );
 
     nestedStore.edit((draft) => {
       draft.value += 1;
@@ -252,7 +254,7 @@ describe('sub-store', () => {
     expect(subStore.state).toBe(undefined);
   });
 
-  it('handles edit when path doesn\'t exist in root store', () => {
+  it("handles edit when path doesn't exist in root store", () => {
     const store = createStore(initialState);
     const value: Foo = {
       counter: 123,
@@ -270,32 +272,31 @@ describe('sub-store', () => {
     });
   });
 
-  it('check subscriber only called once when edits made to undefined root path',
-    () => {
-      const store = createStore(initialState);
-      const value: Foo = {
-        counter: 123,
-        nested: {
-          value: 456,
-        },
-      };
+  it('check subscriber only called once when edits made to undefined root path', () => {
+    const store = createStore(initialState);
+    const value: Foo = {
+      counter: 123,
+      nested: {
+        value: 456,
+      },
+    };
 
-      const callback = jest.fn();
+    const callback = jest.fn();
 
-      // This target node is missing - baz doesn't exist in State
-      const subStore = store.createSubStore<Foo>(['baz', 'quux'], () => value);
-      subStore.subscribe(callback);
+    // This target node is missing - baz doesn't exist in State
+    const subStore = store.createSubStore<Foo>(['baz', 'quux'], () => value);
+    subStore.subscribe(callback);
 
-      // Edits should work just fine, but the root store will not be modified.
-      subStore.edit((draft) => {
-        draft.counter += 1;
-      });
-
-      expect(callback).toHaveBeenCalledTimes(1);
-      expect(callback).toHaveBeenCalledWith(subStore, value);
+    // Edits should work just fine, but the root store will not be modified.
+    subStore.edit((draft) => {
+      draft.counter += 1;
     });
 
-  it('notifies subscribers even when path doesn\'t exist in root store', () => {
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(subStore, value);
+  });
+
+  it("notifies subscribers even when path doesn't exist in root store", () => {
     const store = createStore(initialState);
     const value: Foo = {
       counter: 123,
@@ -336,8 +337,10 @@ describe('sub-store', () => {
 
   it('ignores irrelevant edits from the root store', () => {
     const store = createStore(initialState);
-    const nestedStore =
-        store.createSubStore<Bar>(['foo', 'nested'], (x) => x as Bar);
+    const nestedStore = store.createSubStore<Bar>(
+      ['foo', 'nested'],
+      (x) => x as Bar,
+    );
     const callback = jest.fn();
 
     // Subscribe on the proxy store
@@ -375,29 +378,27 @@ describe('sub-store', () => {
   // not, and I'm not sure we can expect people do provide one that does.
   // TODO(stevegolton): See if we can get this working, regardless of migrate
   // function implementation.
-  it.skip(
-    'unrelated state refs are still equal when modified from root store',
-    () => {
-      const store = createStore(initialState);
-      const subStore = store.createSubStore<Foo>(['foo'], migrateFoo);
-      const before = subStore.state;
+  it.skip('unrelated state refs are still equal when modified from root store', () => {
+    const store = createStore(initialState);
+    const subStore = store.createSubStore<Foo>(['foo'], migrateFoo);
+    const before = subStore.state;
 
-      // Check that unrelated state is still the same even though subtree is
-      // modified from the root store
-      store.edit((draft) => {
-        draft.foo.counter = 1234;
-      });
-
-      expect(before.nested).toBe(subStore.state.nested);
-      expect(subStore.state.counter).toBe(1234);
+    // Check that unrelated state is still the same even though subtree is
+    // modified from the root store
+    store.edit((draft) => {
+      draft.foo.counter = 1234;
     });
+
+    expect(before.nested).toBe(subStore.state.nested);
+    expect(subStore.state.counter).toBe(1234);
+  });
 
   it('works when underlying state is undefined', () => {
     interface RootState {
-      dict: {[key: string]: unknown}
+      dict: {[key: string]: unknown};
     }
     interface ProxyState {
-      bar: string
+      bar: string;
     }
 
     const store = createStore<RootState>({dict: {}});

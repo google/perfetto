@@ -25,8 +25,10 @@ export class CookieConsent implements m.ClassComponent {
 
   oninit() {
     this.showCookieConsent = true;
-    if (!globals.logging.isEnabled() ||
-        localStorage.getItem(COOKIE_ACK_KEY) === 'true') {
+    if (
+      !globals.logging.isEnabled() ||
+      localStorage.getItem(COOKIE_ACK_KEY) === 'true'
+    ) {
       this.showCookieConsent = false;
     }
   }
@@ -35,18 +37,26 @@ export class CookieConsent implements m.ClassComponent {
     if (!this.showCookieConsent) return;
     return m(
       '.cookie-consent',
-      m('.cookie-text',
+      m(
+        '.cookie-text',
         `This site uses cookies from Google to deliver its services and to
-          analyze traffic.`),
-      m('.buttons',
-        m('button',
-          m('a',
+          analyze traffic.`,
+      ),
+      m(
+        '.buttons',
+        m(
+          'button',
+          m(
+            'a',
             {
               href: 'https://policies.google.com/technologies/cookies',
               target: '_blank',
             },
-            'More details')),
-        m('button',
+            'More details',
+          ),
+        ),
+        m(
+          'button',
           {
             onclick: () => {
               this.showCookieConsent = false;
@@ -54,7 +64,9 @@ export class CookieConsent implements m.ClassComponent {
               raf.scheduleFullRedraw();
             },
           },
-          'OK')),
+          'OK',
+        ),
+      ),
     );
   }
 }

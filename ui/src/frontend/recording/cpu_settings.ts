@@ -21,54 +21,59 @@ export class CpuSettings implements m.ClassComponent<RecordingSectionAttrs> {
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
     return m(
       `.record-section${attrs.cssClass}`,
-      m(Probe,
-          {
-            title: 'Coarse CPU usage counter',
-            img: 'rec_cpu_coarse.png',
-            descr: `Lightweight polling of CPU usage counters via /proc/stat.
+      m(
+        Probe,
+        {
+          title: 'Coarse CPU usage counter',
+          img: 'rec_cpu_coarse.png',
+          descr: `Lightweight polling of CPU usage counters via /proc/stat.
                     Allows to periodically monitor CPU usage.`,
-            setEnabled: (cfg, val) => cfg.cpuCoarse = val,
-            isEnabled: (cfg) => cfg.cpuCoarse,
-          } as ProbeAttrs,
-          m(Slider, {
-            title: 'Poll interval',
-            cssClass: '.thin',
-            values: POLL_INTERVAL_MS,
-            unit: 'ms',
-            set: (cfg, val) => cfg.cpuCoarsePollMs = val,
-            get: (cfg) => cfg.cpuCoarsePollMs,
-          } as SliderAttrs)),
+          setEnabled: (cfg, val) => (cfg.cpuCoarse = val),
+          isEnabled: (cfg) => cfg.cpuCoarse,
+        } as ProbeAttrs,
+        m(Slider, {
+          title: 'Poll interval',
+          cssClass: '.thin',
+          values: POLL_INTERVAL_MS,
+          unit: 'ms',
+          set: (cfg, val) => (cfg.cpuCoarsePollMs = val),
+          get: (cfg) => cfg.cpuCoarsePollMs,
+        } as SliderAttrs),
+      ),
       m(Probe, {
         title: 'Scheduling details',
         img: 'rec_cpu_fine.png',
         descr: 'Enables high-detailed tracking of scheduling events',
-        setEnabled: (cfg, val) => cfg.cpuSched = val,
+        setEnabled: (cfg, val) => (cfg.cpuSched = val),
         isEnabled: (cfg) => cfg.cpuSched,
       } as ProbeAttrs),
-      m(Probe,
-          {
-            title: 'CPU frequency and idle states',
-            img: 'rec_cpu_freq.png',
-            descr:
-                'Records cpu frequency and idle state changes via ftrace and sysfs',
-            setEnabled: (cfg, val) => cfg.cpuFreq = val,
-            isEnabled: (cfg) => cfg.cpuFreq,
-          } as ProbeAttrs,
-          m(Slider, {
-            title: 'Sysfs poll interval',
-            cssClass: '.thin',
-            values: POLL_INTERVAL_MS,
-            unit: 'ms',
-            set: (cfg, val) => cfg.cpuFreqPollMs = val,
-            get: (cfg) => cfg.cpuFreqPollMs,
-          } as SliderAttrs)),
+      m(
+        Probe,
+        {
+          title: 'CPU frequency and idle states',
+          img: 'rec_cpu_freq.png',
+          descr:
+            'Records cpu frequency and idle state changes via ftrace and sysfs',
+          setEnabled: (cfg, val) => (cfg.cpuFreq = val),
+          isEnabled: (cfg) => cfg.cpuFreq,
+        } as ProbeAttrs,
+        m(Slider, {
+          title: 'Sysfs poll interval',
+          cssClass: '.thin',
+          values: POLL_INTERVAL_MS,
+          unit: 'ms',
+          set: (cfg, val) => (cfg.cpuFreqPollMs = val),
+          get: (cfg) => cfg.cpuFreqPollMs,
+        } as SliderAttrs),
+      ),
       m(Probe, {
         title: 'Syscalls',
         img: 'rec_syscalls.png',
         descr: `Tracks the enter and exit of all syscalls. On Android
                 requires a userdebug or eng build.`,
-        setEnabled: (cfg, val) => cfg.cpuSyscall = val,
+        setEnabled: (cfg, val) => (cfg.cpuSyscall = val),
         isEnabled: (cfg) => cfg.cpuSyscall,
-      } as ProbeAttrs));
+      } as ProbeAttrs),
+    );
   }
 }

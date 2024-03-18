@@ -18,16 +18,9 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {
-  NUM,
-  NUM_NULL,
-  STR,
-} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {ChromeSliceTrack, SLICE_TRACK_KIND} from '../chrome_slices/';
-import {
-  COUNTER_TRACK_KIND,
-  TraceProcessorCounterTrack,
-} from '../counter';
+import {COUNTER_TRACK_KIND, TraceProcessorCounterTrack} from '../counter';
 
 class AnnotationPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
@@ -62,15 +55,9 @@ class AnnotationPlugin implements Plugin {
         tags: {
           metric: true,
         },
-        trackFactory: (({trackKey}) => {
-          return new ChromeSliceTrack(
-            engine,
-            0,
-            trackKey,
-            id,
-            'annotation',
-          );
-        }),
+        trackFactory: ({trackKey}) => {
+          return new ChromeSliceTrack(engine, 0, trackKey, id, 'annotation');
+        },
       });
     }
   }

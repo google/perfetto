@@ -44,8 +44,9 @@ export async function waitForPerfettoIdle(page: Page, minIdleMs?: number) {
     await new Promise((r) => setTimeout(r, tickMs));
     const isShowingMsg = !!(await page.$('.omnibox.message-mode'));
     const isShowingAnim = !!(await page.$('.progress.progress-anim'));
-    const hasPendingRedraws =
-        await (await page.evaluateHandle('raf.hasPendingRedraws')).jsonValue();
+    const hasPendingRedraws = await (
+      await page.evaluateHandle('raf.hasPendingRedraws')
+    ).jsonValue();
 
     if (isShowingAnim || isShowingMsg || hasPendingRedraws) {
       consecutiveIdleTicks = 0;
@@ -66,9 +67,9 @@ export async function waitForPerfettoIdle(page: Page, minIdleMs?: number) {
     }
   }
   throw new Error(
-    `waitForPerfettoIdle() failed. Did not reach idle after ${
-      timeoutMs} ms. ` +
-      `Reasons not considered idle: ${reasons.join(', ')}`);
+    `waitForPerfettoIdle() failed. Did not reach idle after ${timeoutMs} ms. ` +
+      `Reasons not considered idle: ${reasons.join(', ')}`,
+  );
 }
 
 export function getTestTracePath(fname: string): string {
@@ -80,10 +81,14 @@ export function getTestTracePath(fname: string): string {
 }
 
 export async function compareScreenshots(
-  reportPath: string, actualFilename: string, expectedFilename: string) {
+  reportPath: string,
+  actualFilename: string,
+  expectedFilename: string,
+) {
   if (!fs.existsSync(expectedFilename)) {
     throw new Error(
-      `Could not find ${expectedFilename}. Run wih REBASELINE=1.`);
+      `Could not find ${expectedFilename}. Run wih REBASELINE=1.`,
+    );
   }
   const actualImg = PNG.sync.read(fs.readFileSync(actualFilename));
   const expectedImg = PNG.sync.read(fs.readFileSync(expectedFilename));
@@ -92,20 +97,26 @@ export async function compareScreenshots(
   expect(height).toEqual(expectedImg.height);
   const diffPng = new PNG({width, height});
   const diff = await pixelmatch(
-    actualImg.data, expectedImg.data, diffPng.data, width, height, {
+    actualImg.data,
+    expectedImg.data,
+    diffPng.data,
+    width,
+    height,
+    {
       threshold: DIFF_PER_PIXEL_THRESHOLD,
-    });
+    },
+  );
   if (diff > DIFF_MAX_PIXELS) {
     const diffFilename = actualFilename.replace('.png', '-diff.png');
     fs.writeFileSync(diffFilename, PNG.sync.write(diffPng));
     fs.appendFileSync(
       reportPath,
-      `${path.basename(actualFilename)};${path.basename(diffFilename)}\n`);
+      `${path.basename(actualFilename)};${path.basename(diffFilename)}\n`,
+    );
     fail(`Diff test failed on ${diffFilename}, delta: ${diff} pixels`);
   }
   return diff;
 }
-
 
 // If the user has a trace_processor_shell --httpd instance open, bail out,
 // as that will invalidate the test loading different data.
@@ -113,9 +124,10 @@ export async function failIfTraceProcessorHttpdIsActive() {
   return new Promise<void>((resolve, reject) => {
     const client = new net.Socket();
     client.connect(9001, '127.0.0.1', () => {
-      const err = 'trace_processor_shell --httpd detected on port 9001. ' +
-          'Bailing out as it interferes with the tests. ' +
-          'Please kill that and run the test again.';
+      const err =
+        'trace_processor_shell --httpd detected on port 9001. ' +
+        'Bailing out as it interferes with the tests. ' +
+        'Please kill that and run the test again.';
       console.error(err);
       client.destroy();
       reject(err);

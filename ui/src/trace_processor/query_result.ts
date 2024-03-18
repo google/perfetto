@@ -59,14 +59,14 @@ import {Duration, duration, Time, time} from '../base/time';
 
 export const NUM = 0;
 export const STR = 'str';
-export const NUM_NULL: number|null = 1;
-export const STR_NULL: string|null = 'str_null';
+export const NUM_NULL: number | null = 1;
+export const STR_NULL: string | null = 'str_null';
 export const BLOB: Uint8Array = new Uint8Array();
-export const BLOB_NULL: Uint8Array|null = new Uint8Array();
+export const BLOB_NULL: Uint8Array | null = new Uint8Array();
 export const LONG: bigint = 0n;
-export const LONG_NULL: bigint|null = 1n;
+export const LONG_NULL: bigint | null = 1n;
 
-export type ColumnType = string|number|bigint|null|Uint8Array;
+export type ColumnType = string | number | bigint | null | Uint8Array;
 export type SqlValue = ColumnType;
 
 const SHIFT_32BITS = 32n;
@@ -79,19 +79,20 @@ export function decodeInt64Varint(buf: Uint8Array, pos: number): bigint {
   let lo: number = 0;
   let i = 0;
 
-  if (buf.length - pos > 4) {  // fast route (lo)
+  if (buf.length - pos > 4) {
+    // fast route (lo)
     for (; i < 4; ++i) {
       // 1st..4th
-      lo = (lo | (buf[pos] & 127) << i * 7) >>> 0;
+      lo = (lo | ((buf[pos] & 127) << (i * 7))) >>> 0;
       if (buf[pos++] < 128) {
         return BigInt(lo);
       }
     }
     // 5th
-    lo = (lo | (buf[pos] & 127) << 28) >>> 0;
-    hi = (hi | (buf[pos] & 127) >> 4) >>> 0;
+    lo = (lo | ((buf[pos] & 127) << 28)) >>> 0;
+    hi = (hi | ((buf[pos] & 127) >> 4)) >>> 0;
     if (buf[pos++] < 128) {
-      return BigInt(hi) << SHIFT_32BITS | BigInt(lo);
+      return (BigInt(hi) << SHIFT_32BITS) | BigInt(lo);
     }
     i = 0;
   } else {
@@ -100,21 +101,22 @@ export function decodeInt64Varint(buf: Uint8Array, pos: number): bigint {
         throw Error('Index out of range');
       }
       // 1st..3rd
-      lo = (lo | (buf[pos] & 127) << i * 7) >>> 0;
+      lo = (lo | ((buf[pos] & 127) << (i * 7))) >>> 0;
       if (buf[pos++] < 128) {
         return BigInt(lo);
       }
     }
     // 4th
-    lo = (lo | (buf[pos++] & 127) << i * 7) >>> 0;
-    return BigInt(hi) << SHIFT_32BITS | BigInt(lo);
+    lo = (lo | ((buf[pos++] & 127) << (i * 7))) >>> 0;
+    return (BigInt(hi) << SHIFT_32BITS) | BigInt(lo);
   }
-  if (buf.length - pos > 4) {  // fast route (hi)
+  if (buf.length - pos > 4) {
+    // fast route (hi)
     for (; i < 5; ++i) {
       // 6th..10th
-      hi = (hi | (buf[pos] & 127) << i * 7 + 3) >>> 0;
+      hi = (hi | ((buf[pos] & 127) << (i * 7 + 3))) >>> 0;
       if (buf[pos++] < 128) {
-        const big = BigInt(hi) << SHIFT_32BITS | BigInt(lo);
+        const big = (BigInt(hi) << SHIFT_32BITS) | BigInt(lo);
         return BigInt.asIntN(64, big);
       }
     }
@@ -124,9 +126,9 @@ export function decodeInt64Varint(buf: Uint8Array, pos: number): bigint {
         throw Error('Index out of range');
       }
       // 6th..10th
-      hi = (hi | (buf[pos] & 127) << i * 7 + 3) >>> 0;
+      hi = (hi | ((buf[pos] & 127) << (i * 7 + 3))) >>> 0;
       if (buf[pos++] < 128) {
-        const big = BigInt(hi) << SHIFT_32BITS | BigInt(lo);
+        const big = (BigInt(hi) << SHIFT_32BITS) | BigInt(lo);
         return BigInt.asIntN(64, big);
       }
     }
@@ -181,47 +183,55 @@ export interface RowIteratorBase {
 // const iter = queryResult.iter({name: STR, surname: STR, id: NUM});
 // for (; iter.valid(); iter.next())
 //  console.log(iter.name, iter.surname);
-export type RowIterator<T extends Row> = RowIteratorBase&T;
+export type RowIterator<T extends Row> = RowIteratorBase & T;
 
 function columnTypeToString(t: ColumnType): string {
   switch (t) {
-  case NUM:
-    return 'NUM';
-  case NUM_NULL:
-    return 'NUM_NULL';
-  case STR:
-    return 'STR';
-  case STR_NULL:
-    return 'STR_NULL';
-  case BLOB:
-    return 'BLOB';
-  case BLOB_NULL:
-    return 'BLOB_NULL';
-  case LONG:
-    return 'LONG';
-  case LONG_NULL:
-    return 'LONG_NULL';
-  default:
-    return `INVALID(${t})`;
+    case NUM:
+      return 'NUM';
+    case NUM_NULL:
+      return 'NUM_NULL';
+    case STR:
+      return 'STR';
+    case STR_NULL:
+      return 'STR_NULL';
+    case BLOB:
+      return 'BLOB';
+    case BLOB_NULL:
+      return 'BLOB_NULL';
+    case LONG:
+      return 'LONG';
+    case LONG_NULL:
+      return 'LONG_NULL';
+    default:
+      return `INVALID(${t})`;
   }
 }
 
 function isCompatible(actual: CellType, expected: ColumnType): boolean {
   switch (actual) {
-  case CellType.CELL_NULL:
-    return expected === NUM_NULL || expected === STR_NULL ||
-          expected === BLOB_NULL || expected === LONG_NULL;
-  case CellType.CELL_VARINT:
-    return expected === NUM || expected === NUM_NULL || expected === LONG ||
-          expected === LONG_NULL;
-  case CellType.CELL_FLOAT64:
-    return expected === NUM || expected === NUM_NULL;
-  case CellType.CELL_STRING:
-    return expected === STR || expected === STR_NULL;
-  case CellType.CELL_BLOB:
-    return expected === BLOB || expected === BLOB_NULL;
-  default:
-    throw new Error(`Unknown CellType ${actual}`);
+    case CellType.CELL_NULL:
+      return (
+        expected === NUM_NULL ||
+        expected === STR_NULL ||
+        expected === BLOB_NULL ||
+        expected === LONG_NULL
+      );
+    case CellType.CELL_VARINT:
+      return (
+        expected === NUM ||
+        expected === NUM_NULL ||
+        expected === LONG ||
+        expected === LONG_NULL
+      );
+    case CellType.CELL_FLOAT64:
+      return expected === NUM || expected === NUM_NULL;
+    case CellType.CELL_STRING:
+      return expected === STR || expected === STR_NULL;
+    case CellType.CELL_BLOB:
+      return expected === BLOB || expected === BLOB_NULL;
+    default:
+      throw new Error(`Unknown CellType ${actual}`);
   }
 }
 
@@ -234,8 +244,14 @@ enum CellType {
   CELL_BLOB = 5,
 }
 
-const CELL_TYPE_NAMES =
-    ['UNKNOWN', 'NULL', 'VARINT', 'FLOAT64', 'STRING', 'BLOB'];
+const CELL_TYPE_NAMES = [
+  'UNKNOWN',
+  'NULL',
+  'VARINT',
+  'FLOAT64',
+  'STRING',
+  'BLOB',
+];
 
 const TAG_LEN_DELIM = 2;
 
@@ -259,7 +275,7 @@ export interface QueryResult {
   firstRow<T extends Row>(spec: T): T;
 
   // If != undefined the query errored out and error() contains the message.
-  error(): string|undefined;
+  error(): string | undefined;
 
   // Returns the number of rows accumulated so far. Note that this number can
   // change over time as more batches are received. It becomes stable only
@@ -357,7 +373,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   numRows(): number {
     return this._numRows;
   }
-  error(): string|undefined {
+  error(): string | undefined {
     return this._error;
   }
   columns(): string[] {
@@ -381,7 +397,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   firstRow<T extends Row>(spec: T): T {
     const impl = new RowIteratorImplWithRowData(spec, this);
     assertTrue(impl.valid());
-    return impl as {} as RowIterator<T>as T;
+    return impl as {} as RowIterator<T> as T;
   }
 
   // Can be called only once.
@@ -425,73 +441,73 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     while (reader.pos < reader.len) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-      case 1:  // column_names
-        // Only the first batch should contain the column names. If this fires
-        // something is going wrong in the handling of the batch stream.
-        assertTrue(columnNamesEmptyAtStartOfBatch);
-        const origColName = reader.string();
-        let colName = origColName;
-        // In some rare cases two columns can have the same name (b/194891824)
-        // e.g. `select 1 as x, 2 as x`. These queries don't happen in the
-        // UI code, but they can happen when the user types a query (e.g.
-        // with a join). The most practical thing we can do here is renaming
-        // the columns with a suffix. Keeping the same name will break when
-        // iterating, because column names become iterator object keys.
-        for (let i = 1; columnNamesSet.has(colName); ++i) {
-          colName = `${origColName}_${i}`;
-          assertTrue(i < 100);  // Give up at some point;
-        }
-        columnNamesSet.add(colName);
-        this.columnNames.push(colName);
-        break;
-      case 2:  // error
-        // The query has errored only if the |error| field is non-empty.
-        // In protos, we don't distinguish between non-present and empty.
-        // Make sure we don't propagate ambiguous empty strings to JS.
-        const err = reader.string();
-        this._error = (err !== undefined && err.length) ? err : undefined;
-        break;
-      case 3:  // batch
-        const batchLen = reader.uint32();
-        const batchRaw = resBytes.subarray(reader.pos, reader.pos + batchLen);
-        reader.pos += batchLen;
+        case 1: // column_names
+          // Only the first batch should contain the column names. If this fires
+          // something is going wrong in the handling of the batch stream.
+          assertTrue(columnNamesEmptyAtStartOfBatch);
+          const origColName = reader.string();
+          let colName = origColName;
+          // In some rare cases two columns can have the same name (b/194891824)
+          // e.g. `select 1 as x, 2 as x`. These queries don't happen in the
+          // UI code, but they can happen when the user types a query (e.g.
+          // with a join). The most practical thing we can do here is renaming
+          // the columns with a suffix. Keeping the same name will break when
+          // iterating, because column names become iterator object keys.
+          for (let i = 1; columnNamesSet.has(colName); ++i) {
+            colName = `${origColName}_${i}`;
+            assertTrue(i < 100); // Give up at some point;
+          }
+          columnNamesSet.add(colName);
+          this.columnNames.push(colName);
+          break;
+        case 2: // error
+          // The query has errored only if the |error| field is non-empty.
+          // In protos, we don't distinguish between non-present and empty.
+          // Make sure we don't propagate ambiguous empty strings to JS.
+          const err = reader.string();
+          this._error = err !== undefined && err.length ? err : undefined;
+          break;
+        case 3: // batch
+          const batchLen = reader.uint32();
+          const batchRaw = resBytes.subarray(reader.pos, reader.pos + batchLen);
+          reader.pos += batchLen;
 
-        // The ResultBatch ctor parses the CellsBatch submessage.
-        const parsedBatch = new ResultBatch(batchRaw);
-        this.batches.push(parsedBatch);
-        this._isComplete = parsedBatch.isLastBatch;
+          // The ResultBatch ctor parses the CellsBatch submessage.
+          const parsedBatch = new ResultBatch(batchRaw);
+          this.batches.push(parsedBatch);
+          this._isComplete = parsedBatch.isLastBatch;
 
-        // In theory one could construct a valid proto serializing the column
-        // names after the cell batches. In practice the QueryResultSerializer
-        // doesn't do that so it's not worth complicating the code.
-        const numColumns = this.columnNames.length;
-        if (numColumns !== 0) {
-          assertTrue(parsedBatch.numCells % numColumns === 0);
-          this._numRows += parsedBatch.numCells / numColumns;
-        } else {
-          // numColumns == 0 is  plausible for queries like CREATE TABLE ... .
-          assertTrue(parsedBatch.numCells === 0);
-        }
-        break;
+          // In theory one could construct a valid proto serializing the column
+          // names after the cell batches. In practice the QueryResultSerializer
+          // doesn't do that so it's not worth complicating the code.
+          const numColumns = this.columnNames.length;
+          if (numColumns !== 0) {
+            assertTrue(parsedBatch.numCells % numColumns === 0);
+            this._numRows += parsedBatch.numCells / numColumns;
+          } else {
+            // numColumns == 0 is  plausible for queries like CREATE TABLE ... .
+            assertTrue(parsedBatch.numCells === 0);
+          }
+          break;
 
-      case 4:
-        this._statementCount = reader.uint32();
-        break;
+        case 4:
+          this._statementCount = reader.uint32();
+          break;
 
-      case 5:
-        this._statementWithOutputCount = reader.uint32();
-        break;
+        case 5:
+          this._statementWithOutputCount = reader.uint32();
+          break;
 
-      case 6:
-        this._lastStatementSql = reader.string();
-        break;
+        case 6:
+          this._lastStatementSql = reader.string();
+          break;
 
-      default:
-        console.warn(`Unexpected QueryResult field ${tag >>> 3}`);
-        reader.skipType(tag & 7);
-        break;
-      }  // switch (tag)
-    }    // while (pos < end)
+        default:
+          console.warn(`Unexpected QueryResult field ${tag >>> 3}`);
+          reader.skipType(tag & 7);
+          break;
+      } // switch (tag)
+    } // while (pos < end)
 
     if (this.moreRowsPromise !== undefined) {
       this.resolveOrReject(this.moreRowsPromise, this);
@@ -505,7 +521,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
 
   ensureAllRowsPromise(): Promise<QueryResult> {
     if (this.allRowsPromise === undefined) {
-      this.waitAllRows();  // Will populate |this.allRowsPromise|.
+      this.waitAllRows(); // Will populate |this.allRowsPromise|.
     }
     return assertExists(this.allRowsPromise);
   }
@@ -563,80 +579,84 @@ class ResultBatch {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-      case 1:  // cell types, a packed array containing one CellType per cell.
-        assertTrue((tag & 7) === TAG_LEN_DELIM);  // Must be packed varint.
-        this.cellTypesLen = reader.uint32();
-        this.cellTypesOff = reader.pos;
-        reader.pos += this.cellTypesLen;
-        break;
+        case 1: // cell types, a packed array containing one CellType per cell.
+          assertTrue((tag & 7) === TAG_LEN_DELIM); // Must be packed varint.
+          this.cellTypesLen = reader.uint32();
+          this.cellTypesOff = reader.pos;
+          reader.pos += this.cellTypesLen;
+          break;
 
-      case 2:  // varint_cells, a packed varint buffer.
-        assertTrue((tag & 7) === TAG_LEN_DELIM);  // Must be packed varint.
-        const packLen = reader.uint32();
-        this.varintOff = reader.pos;
-        this.varintLen = packLen;
-        assertTrue(reader.buf === batchBytes);
-        assertTrue(
-          this.varintOff + this.varintLen <=
-              batchBytes.byteOffset + batchBytes.byteLength);
-        reader.pos += packLen;
-        break;
+        case 2: // varint_cells, a packed varint buffer.
+          assertTrue((tag & 7) === TAG_LEN_DELIM); // Must be packed varint.
+          const packLen = reader.uint32();
+          this.varintOff = reader.pos;
+          this.varintLen = packLen;
+          assertTrue(reader.buf === batchBytes);
+          assertTrue(
+            this.varintOff + this.varintLen <=
+              batchBytes.byteOffset + batchBytes.byteLength,
+          );
+          reader.pos += packLen;
+          break;
 
-      case 3:  // float64_cells, a 64-bit aligned packed fixed64 buffer.
-        assertTrue((tag & 7) === TAG_LEN_DELIM);  // Must be packed varint.
-        const f64Len = reader.uint32();
-        assertTrue(f64Len % 8 === 0);
-        // Float64Array's constructor is evil: the offset is in bytes but the
-        // length is in 8-byte words.
-        const f64Words = f64Len / 8;
-        const f64Off = batchBytes.byteOffset + reader.pos;
-        if (f64Off % 8 === 0) {
-          this.float64Cells =
-                new Float64Array(batchBytes.buffer, f64Off, f64Words);
-        } else {
-          // When using the production code in trace_processor's rpc.cc, the
-          // float64 should be 8-bytes aligned. The slow-path case is only for
-          // tests.
-          const slice = batchBytes.buffer.slice(f64Off, f64Off + f64Len);
-          this.float64Cells = new Float64Array(slice);
-        }
-        reader.pos += f64Len;
-        break;
+        case 3: // float64_cells, a 64-bit aligned packed fixed64 buffer.
+          assertTrue((tag & 7) === TAG_LEN_DELIM); // Must be packed varint.
+          const f64Len = reader.uint32();
+          assertTrue(f64Len % 8 === 0);
+          // Float64Array's constructor is evil: the offset is in bytes but the
+          // length is in 8-byte words.
+          const f64Words = f64Len / 8;
+          const f64Off = batchBytes.byteOffset + reader.pos;
+          if (f64Off % 8 === 0) {
+            this.float64Cells = new Float64Array(
+              batchBytes.buffer,
+              f64Off,
+              f64Words,
+            );
+          } else {
+            // When using the production code in trace_processor's rpc.cc, the
+            // float64 should be 8-bytes aligned. The slow-path case is only for
+            // tests.
+            const slice = batchBytes.buffer.slice(f64Off, f64Off + f64Len);
+            this.float64Cells = new Float64Array(slice);
+          }
+          reader.pos += f64Len;
+          break;
 
-      case 4:  // blob_cells: one entry per blob.
-        assertTrue((tag & 7) === TAG_LEN_DELIM);
-        // protobufjs's bytes() under the hoods calls slice() and creates
-        // a copy. Fine here as blobs are rare and not a fastpath.
-        this.blobCells.push(new Uint8Array(reader.bytes()));
-        break;
+        case 4: // blob_cells: one entry per blob.
+          assertTrue((tag & 7) === TAG_LEN_DELIM);
+          // protobufjs's bytes() under the hoods calls slice() and creates
+          // a copy. Fine here as blobs are rare and not a fastpath.
+          this.blobCells.push(new Uint8Array(reader.bytes()));
+          break;
 
-      case 5:  // string_cells: all the string cells concatenated with \0s.
-        assertTrue((tag & 7) === TAG_LEN_DELIM);
-        const strLen = reader.uint32();
-        assertTrue(reader.pos + strLen <= end);
-        const subArr = batchBytes.subarray(reader.pos, reader.pos + strLen);
-        assertTrue(subArr.length === strLen);
-        // The reason why we do this split rather than creating one string
-        // per entry is that utf8 decoding has some non-negligible cost. See
-        // go/postmessage-benchmark .
-        this.stringCells = utf8Decode(subArr).split('\0');
-        reader.pos += strLen;
-        break;
+        case 5: // string_cells: all the string cells concatenated with \0s.
+          assertTrue((tag & 7) === TAG_LEN_DELIM);
+          const strLen = reader.uint32();
+          assertTrue(reader.pos + strLen <= end);
+          const subArr = batchBytes.subarray(reader.pos, reader.pos + strLen);
+          assertTrue(subArr.length === strLen);
+          // The reason why we do this split rather than creating one string
+          // per entry is that utf8 decoding has some non-negligible cost. See
+          // go/postmessage-benchmark .
+          this.stringCells = utf8Decode(subArr).split('\0');
+          reader.pos += strLen;
+          break;
 
-      case 6:  // is_last_batch (boolean).
-        this.isLastBatch = !!reader.bool();
-        break;
+        case 6: // is_last_batch (boolean).
+          this.isLastBatch = !!reader.bool();
+          break;
 
-      case 7:  // padding for realignment, skip silently.
-        reader.skipType(tag & 7);
-        break;
+        case 7: // padding for realignment, skip silently.
+          reader.skipType(tag & 7);
+          break;
 
-      default:
-        console.warn(`Unexpected QueryResult.CellsBatch field ${tag >>> 3}`);
-        reader.skipType(tag & 7);
-        break;
-      }  // switch(tag)
-    }    // while (pos < end)
+        default:
+          console.warn(`Unexpected QueryResult.CellsBatch field ${tag >>> 3}`);
+          reader.skipType(tag & 7);
+          break;
+      } // switch(tag)
+    } // while (pos < end)
   }
 
   get numCells() {
@@ -663,11 +683,11 @@ class RowIteratorImpl implements RowIteratorBase {
   // the next() hotpath, so we can do this.float64Cells vs
   // this.resultObj.batch[this.batchIdx].float64Cells.
   // These are re-set every time tryMoveToNextBatch() is called (and succeeds).
-  private batchIdx = -1;  // The batch index within |result.batches[]|.
+  private batchIdx = -1; // The batch index within |result.batches[]|.
   private batchBytes = new Uint8Array();
   private columnNames: string[] = [];
   private numColumns = 0;
-  private cellTypesEnd = -1;  // -1 so the 1st next() hits tryMoveToNextBatch().
+  private cellTypesEnd = -1; // -1 so the 1st next() hits tryMoveToNextBatch().
   private float64Cells = new Float64Array();
   private varIntReader = protobuf.Reader.create(this.batchBytes);
   private blobCells: Uint8Array[] = [];
@@ -684,7 +704,7 @@ class RowIteratorImpl implements RowIteratorBase {
   constructor(querySpec: Row, rowData: Row, res: QueryResultImpl) {
     Object.assign(this, querySpec);
     this.rowData = rowData;
-    this.rowSpec = {...querySpec};  // ... -> Copy all the key/value pairs.
+    this.rowSpec = {...querySpec}; // ... -> Copy all the key/value pairs.
     this.resultObj = res;
     this.next();
   }
@@ -702,7 +722,8 @@ class RowIteratorImpl implements RowIteratorBase {
     if (res === undefined) {
       throw this.makeError(
         `Column '${columnName}' doesn't exist. ` +
-          `Actual columns: [${this.columnNames.join(',')}]`);
+          `Actual columns: [${this.columnNames.join(',')}]`,
+      );
     }
     return res;
   }
@@ -723,8 +744,8 @@ class RowIteratorImpl implements RowIteratorBase {
       // whole rows in each QueryResult batch and NOT truncate them midway.
       // If this assert fires the TP RPC logic has a bug.
       assertTrue(
-        this.nextCellTypeOff === this.cellTypesEnd ||
-          this.cellTypesEnd === -1);
+        this.nextCellTypeOff === this.cellTypesEnd || this.cellTypesEnd === -1,
+      );
       if (!this.tryMoveToNextBatch()) {
         this.isValid = false;
         return;
@@ -741,44 +762,46 @@ class RowIteratorImpl implements RowIteratorBase {
       const expType = this.rowSpec[colName];
 
       switch (cellType) {
-      case CellType.CELL_NULL:
-        rowData[colName] = null;
-        break;
+        case CellType.CELL_NULL:
+          rowData[colName] = null;
+          break;
 
-      case CellType.CELL_VARINT:
-        if (expType === NUM || expType === NUM_NULL) {
-          // This is very subtle. The return type of int64 can be either a
-          // number or a Long.js {high:number, low:number} if Long.js is
-          // installed. The default state seems different in node and browser.
-          // We force-disable Long.js support in the top of this source file.
-          const val = this.varIntReader.int64();
-          rowData[colName] = val as {} as number;
-        } else {
-          // LONG, LONG_NULL, or unspecified - return as bigint
-          const value =
-                decodeInt64Varint(this.batchBytes, this.varIntReader.pos);
-          rowData[colName] = value;
-          this.varIntReader.skip();  // Skips a varint
-        }
-        break;
+        case CellType.CELL_VARINT:
+          if (expType === NUM || expType === NUM_NULL) {
+            // This is very subtle. The return type of int64 can be either a
+            // number or a Long.js {high:number, low:number} if Long.js is
+            // installed. The default state seems different in node and browser.
+            // We force-disable Long.js support in the top of this source file.
+            const val = this.varIntReader.int64();
+            rowData[colName] = val as {} as number;
+          } else {
+            // LONG, LONG_NULL, or unspecified - return as bigint
+            const value = decodeInt64Varint(
+              this.batchBytes,
+              this.varIntReader.pos,
+            );
+            rowData[colName] = value;
+            this.varIntReader.skip(); // Skips a varint
+          }
+          break;
 
-      case CellType.CELL_FLOAT64:
-        rowData[colName] = this.float64Cells[this.nextFloat64Cell++];
-        break;
+        case CellType.CELL_FLOAT64:
+          rowData[colName] = this.float64Cells[this.nextFloat64Cell++];
+          break;
 
-      case CellType.CELL_STRING:
-        rowData[colName] = this.stringCells[this.nextStringCell++];
-        break;
+        case CellType.CELL_STRING:
+          rowData[colName] = this.stringCells[this.nextStringCell++];
+          break;
 
-      case CellType.CELL_BLOB:
-        const blob = this.blobCells[this.nextBlobCell++];
-        rowData[colName] = blob;
-        break;
+        case CellType.CELL_BLOB:
+          const blob = this.blobCells[this.nextBlobCell++];
+          rowData[colName] = blob;
+          break;
 
-      default:
-        throw this.makeError(`Invalid cell type ${cellType}`);
+        default:
+          throw this.makeError(`Invalid cell type ${cellType}`);
       }
-    }  // For (cells)
+    } // For (cells)
     this.isValid = true;
   }
 
@@ -811,7 +834,8 @@ class RowIteratorImpl implements RowIteratorBase {
       if (this.columnNames.indexOf(expectedCol) < 0) {
         throw this.makeError(
           `Column ${expectedCol} not found in the SQL result ` +
-            `set {${this.columnNames.join(' ')}}`);
+            `set {${this.columnNames.join(' ')}}`,
+        );
       }
     }
 
@@ -842,13 +866,14 @@ class RowIteratorImpl implements RowIteratorBase {
       let err = '';
       if (!isCompatible(actualType, expType)) {
         if (actualType === CellType.CELL_NULL) {
-          err = 'SQL value is NULL but that was not expected' +
-              ` (expected type: ${columnTypeToString(expType)}). ` +
-              'Did you mean NUM_NULL, LONG_NULL, STR_NULL or BLOB_NULL?';
+          err =
+            'SQL value is NULL but that was not expected' +
+            ` (expected type: ${columnTypeToString(expType)}). ` +
+            'Did you mean NUM_NULL, LONG_NULL, STR_NULL or BLOB_NULL?';
         } else {
-          err = `Incompatible cell type. Expected: ${
-            columnTypeToString(
-              expType)} actual: ${CELL_TYPE_NAMES[actualType]}`;
+          err = `Incompatible cell type. Expected: ${columnTypeToString(
+            expType,
+          )} actual: ${CELL_TYPE_NAMES[actualType]}`;
         }
       }
       if (err.length > 0) {
@@ -889,8 +914,9 @@ class RowIteratorImplWithRowData implements RowIteratorBase {
 //    await engine.query('...') and will get a QueryResult that is guaranteed
 //    to be complete.
 // 2. Clients that know how to handle the streaming can use it straight away.
-class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
-                                         PromiseLike<QueryResult> {
+class WaitableQueryResultImpl
+  implements QueryResult, WritableQueryResult, PromiseLike<QueryResult>
+{
   private impl: QueryResultImpl;
   private thenCalled = false;
 
@@ -960,13 +986,14 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
   // eslint and clang-format disagree on how to format get[foo](). Let
   // clang-format win:
   // eslint-disable-next-line keyword-spacing
-  get[Symbol.toStringTag](): string {
+  get [Symbol.toStringTag](): string {
     return 'Promise<WaitableQueryResult>';
   }
 }
 
-export function createQueryResult(errorInfo: QueryErrorInfo): QueryResult&
-    Promise<QueryResult>&WritableQueryResult {
+export function createQueryResult(
+  errorInfo: QueryErrorInfo,
+): QueryResult & Promise<QueryResult> & WritableQueryResult {
   return new WaitableQueryResultImpl(errorInfo);
 }
 

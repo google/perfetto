@@ -23,16 +23,19 @@ export function drawVerticalLineAtTime(
   time: time,
   height: number,
   color: string,
-  lineWidth = 2) {
+  lineWidth = 2,
+) {
   const xPos = TRACK_SHELL_WIDTH + Math.floor(timeScale.timeToPx(time));
   drawVerticalLine(ctx, xPos, height, color, lineWidth);
 }
 
-function drawVerticalLine(ctx: CanvasRenderingContext2D,
+function drawVerticalLine(
+  ctx: CanvasRenderingContext2D,
   xPos: number,
   height: number,
   color: string,
-  lineWidth = 2) {
+  lineWidth = 2,
+) {
   ctx.beginPath();
   ctx.strokeStyle = color;
   const prevLineWidth = ctx.lineWidth;
@@ -43,4 +46,3 @@ function drawVerticalLine(ctx: CanvasRenderingContext2D,
   ctx.closePath();
   ctx.lineWidth = prevLineWidth;
 }
-

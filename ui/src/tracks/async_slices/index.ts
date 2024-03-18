@@ -19,12 +19,7 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
-import {
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
 import {AsyncSliceTrackV2} from './async_slice_track_v2';
 
@@ -91,8 +86,10 @@ class AsyncSlicePlugin implements Plugin {
       const rawName = it.name === null ? undefined : it.name;
       // const rawParentName = it.parentName === null ? undefined :
       // it.parentName;
-      const displayName =
-          getTrackName({name: rawName, kind: ASYNC_SLICE_TRACK_KIND});
+      const displayName = getTrackName({
+        name: rawName,
+        kind: ASYNC_SLICE_TRACK_KIND,
+      });
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       // const parentTrackId = it.parentId;
@@ -117,11 +114,7 @@ class AsyncSlicePlugin implements Plugin {
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrackV2(
-            {engine, trackKey},
-            maxDepth,
-            trackIds,
-          );
+          return new AsyncSliceTrackV2({engine, trackKey}, maxDepth, trackIds);
         },
       });
     }
@@ -175,8 +168,13 @@ class AsyncSlicePlugin implements Plugin {
       }
 
       const kind = ASYNC_SLICE_TRACK_KIND;
-      const displayName =
-          getTrackName({name: trackName, upid, pid, processName, kind});
+      const displayName = getTrackName({
+        name: trackName,
+        upid,
+        pid,
+        processName,
+        kind,
+      });
 
       ctx.registerTrack({
         uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}`,
@@ -260,11 +258,7 @@ class AsyncSlicePlugin implements Plugin {
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrackV2(
-            {engine, trackKey},
-            maxDepth,
-            trackIds,
-          );
+          return new AsyncSliceTrackV2({engine, trackKey}, maxDepth, trackIds);
         },
       });
     }

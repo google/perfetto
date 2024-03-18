@@ -31,8 +31,12 @@ class ExampleState implements Plugin {
   private store: Store<State> = createStore({counter: 0});
 
   private migrate(initialState: unknown): State {
-    if (initialState && typeof initialState === 'object' &&
-        'counter' in initialState && typeof initialState.counter === 'number') {
+    if (
+      initialState &&
+      typeof initialState === 'object' &&
+      'counter' in initialState &&
+      typeof initialState.counter === 'number'
+    ) {
       return {counter: initialState.counter};
     } else {
       return {counter: 0};
@@ -52,7 +56,9 @@ class ExampleState implements Plugin {
       callback: () => {
         const counter = this.store.state.counter;
         ctx.tabs.openQuery(
-          `SELECT ${counter} as counter;`, `Show counter ${counter}`);
+          `SELECT ${counter} as counter;`,
+          `Show counter ${counter}`,
+        );
         this.store.edit((draft) => {
           ++draft.counter;
         });

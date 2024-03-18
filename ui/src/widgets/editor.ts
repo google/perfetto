@@ -78,11 +78,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
 
     this.editorView = new EditorView({
       doc: attrs.initialText ?? '',
-      extensions: [
-        keymap.of(keymaps),
-        oneDarkTheme,
-        basicSetup,
-      ],
+      extensions: [keymap.of(keymaps), oneDarkTheme, basicSetup],
       parent: dom,
       dispatch,
     });
@@ -93,8 +89,11 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     const editorView = this.editorView;
     if (editorView && this.generation !== generation) {
       const state = editorView.state;
-      editorView.dispatch(state.update(
-        {changes: {from: 0, to: state.doc.length, insert: initialText}}));
+      editorView.dispatch(
+        state.update({
+          changes: {from: 0, to: state.doc.length, insert: initialText},
+        }),
+      );
       this.generation = generation;
     }
   }
@@ -106,7 +105,7 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     }
   }
 
-  view({}: m.Vnode<EditorAttrs, this>): void|m.Children {
+  view({}: m.Vnode<EditorAttrs, this>): void | m.Children {
     return m('.pf-editor');
   }
 }
