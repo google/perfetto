@@ -44,7 +44,7 @@ Notes on naming:
 ```sh
 ./ui/run-dev-server
 ```
-Now navigate to [](http://localhost:10000/settings)
+Now navigate to [localhost:10000](http://localhost:10000/)
 
 ### Upload your plugin for review
 - Update `ui/src/plugins/<your-plugin-name>/OWNERS` to include your email.
