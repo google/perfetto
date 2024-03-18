@@ -25,9 +25,8 @@ import {
 } from '../../trace_processor/query_result';
 import {ChromeSliceTrack, SLICE_TRACK_KIND} from '../chrome_slices/';
 import {
-  Config as CounterTrackConfig,
   COUNTER_TRACK_KIND,
-  CounterTrack,
+  TraceProcessorCounterTrack,
 } from '../counter';
 
 class AnnotationPlugin implements Plugin {
@@ -94,30 +93,23 @@ class AnnotationPlugin implements Plugin {
     });
 
     for (; counterIt.valid(); counterIt.next()) {
-      const id = counterIt.id;
+      const trackId = counterIt.id;
       const name = counterIt.name;
-      const minimumValue =
-          counterIt.minValue === null ? undefined : counterIt.minValue;
-      const maximumValue =
-          counterIt.maxValue === null ? undefined : counterIt.maxValue;
-
-      const config: CounterTrackConfig = {
-        name,
-        trackId: id,
-        namespace: 'annotation',
-        minimumValue,
-        maximumValue,
-      };
 
       ctx.registerTrack({
-        uri: `perfetto.Annotation#counter${id}`,
+        uri: `perfetto.Annotation#counter${trackId}`,
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         tags: {
           metric: true,
         },
         trackFactory: (trackCtx) => {
-          return new CounterTrack(trackCtx, config, ctx.engine);
+          return new TraceProcessorCounterTrack({
+            engine: ctx.engine,
+            trackKey: trackCtx.trackKey,
+            trackId,
+            rootTable: 'annotation_counter',
+          });
         },
       });
     }

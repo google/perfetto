@@ -16,16 +16,13 @@ import m from 'mithril';
 
 import {searchSegment} from '../base/binary_search';
 import {Disposable, NullDisposable} from '../base/disposable';
-import {assertTrue} from '../base/logging';
-import {duration, Span, Time, time} from '../base/time';
-import {uuidv4} from '../base/uuid';
+import {assertTrue, assertUnreachable} from '../base/logging';
+import {duration, Time, time} from '../base/time';
 import {drawTrackHoverTooltip} from '../common/canvas_utils';
-import {HighPrecisionTime} from '../common/high_precision_time';
 import {raf} from '../core/raf_scheduler';
 import {EngineProxy, LONG, NUM, Track} from '../public';
-import {CounterScaleOptions} from '../tracks/counter';
 import {Button} from '../widgets/button';
-import {MenuItem, PopupMenu2} from '../widgets/menu';
+import {MenuItem, MenuDivider, PopupMenu2} from '../widgets/menu';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
@@ -33,37 +30,171 @@ import {PanelSize} from './panel';
 import {constraintsToQuerySuffix} from './sql_utils';
 import {NewTrackArgs} from './track';
 import {CacheKey, TimelineCache} from '../core/timeline_cache';
+import {featureFlags} from '../core/feature_flags';
+
+export const COUNTER_DEBUG_MENU_ITEMS = featureFlags.register({
+  id: 'counterDebugMenuItems',
+  name: 'Counter debug menu items',
+  description: 'Extra counter menu items for debugging purposes.',
+  defaultValue: false,
+});
+
+function roundAway(n: number): number {
+  const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
+  const pow10 = Math.pow(10, exp);
+  return Math.sign(n) * (Math.ceil(Math.abs(n) / (pow10 / 4)) * (pow10 / 4));
+}
+
+function toLabel(n: number): string {
+  if (n === 0) {
+    return '0';
+  }
+  const units: [number, string][] = [
+    [0.000000001, 'n'],
+    [0.000001, 'u'],
+    [0.001, 'm'],
+    [1, ''],
+    [1000, 'K'],
+    [1000*1000, 'M'],
+    [1000*1000*1000, 'G'],
+    [1000*1000*1000*1000, 'T'],
+  ];
+  let largestMultiplier;
+  let largestUnit;
+  [largestMultiplier, largestUnit] = units[0];
+  for (const [multiplier, unit] of units) {
+    if (multiplier >= n) {
+      break;
+    }
+    [largestMultiplier, largestUnit] = [multiplier, unit];
+  }
+  return `${Math.round(n/largestMultiplier)}${largestUnit}`;
+}
+
+class RangeSharer {
+  static singleton?: RangeSharer;
+
+  static get(): RangeSharer {
+    if (RangeSharer.singleton === undefined) {
+      RangeSharer.singleton = new RangeSharer();
+    }
+    return RangeSharer.singleton;
+  }
+
+  private tagToRange: Map<string, [number, number]>;
+  private keyToEnabled: Map<string, boolean>;
+
+  constructor() {
+    this.tagToRange = new Map();
+    this.keyToEnabled = new Map();
+  }
+
+  isEnabled(key: string): boolean {
+    const value = this.keyToEnabled.get(key);
+    if (value === undefined) {
+      return true;
+    }
+    return value;
+  }
+
+  setEnabled(key: string, enabled: boolean): void {
+    this.keyToEnabled.set(key, enabled);
+  }
+
+  share(options: CounterOptions, [min, max]: [number, number]):
+      [number, number] {
+    const key = options.yRangeSharingKey;
+    if (key === undefined || !this.isEnabled(key)) {
+      return [min, max];
+    }
+
+    const tag = `${options.yRangeSharingKey}-${options.yMode}-${options.yDisplay}-${!!options.enlarge}`;
+    const cachedRange = this.tagToRange.get(tag);
+    if (cachedRange === undefined) {
+      this.tagToRange.set(tag, [min, max]);
+      return [min, max];
+    }
+
+    cachedRange[0] = Math.min(min, cachedRange[0]);
+    cachedRange[1] = Math.max(max, cachedRange[1]);
+
+    return [cachedRange[0], cachedRange[1]];
+  }
+}
 
 interface CounterData {
   timestamps: BigInt64Array;
-  minValues: Float64Array;
-  maxValues: Float64Array;
-  lastValues: Float64Array;
-  totalDeltas: Float64Array;
-  rate: Float64Array;
-  maximumValue: number;
-  minimumValue: number;
-  maximumDelta: number;
-  minimumDelta: number;
-  maximumRate: number;
-  minimumRate: number;
+  counts: Uint32Array;
+  avgValues: Float64Array;
+  minDisplayValues: Float64Array;
+  maxDisplayValues: Float64Array;
+  lastDisplayValues: Float64Array;
+  displayValueRange: [number, number];
 }
 
 // 0.5 Makes the horizontal lines sharp.
 const MARGIN_TOP = 3.5;
 
-export interface RenderOptions {
+interface CounterLimits {
+  maxDisplayValue: number;
+  minDisplayValue: number;
+  maxDurNs: duration;
+}
+
+interface CounterTooltipState {
+  lastDisplayValue: number;
+  avgValue: number;
+  count: number;
+  ts: time;
+  tsEnd?: time;
+}
+
+export interface CounterOptions {
+  // Mode for computing the y value. Options are:
+  // value = v[t] directly the value of the counter at time t
+  // delta = v[t] - v[t-1] delta between value and previous value
+  // rate = (v[t] - v[t-1]) / dt as delta but normalized for time
+  yMode: 'value'|'delta'|'rate';
+
   // Whether Y scale should cover all of the possible values (and therefore, be
   // static) or whether it should be dynamic and cover only the visible values.
   yRange: 'all'|'viewport';
+
+  // Whether the Y scale should:
+  // zero = y-axis scale should cover the origin (zero)
+  // minmax = y-axis scale should cover just the range of yRange
+  // log = as minmax but also use a log scale
+  yDisplay: 'zero'|'minmax'|'log';
+
   // Whether the range boundaries should be strict and use the precise min/max
-  // values or whether they should be rounded to the nearest human readable
-  // value.
-  yBoundaries: 'strict'|'human_readable';
+  // values or whether they should be rounded down/up to the nearest human
+  // readable value.
+  yRangeRounding: 'strict'|'human_readable';
+
+  // Allows *extending* the range of the y-axis counter increasing
+  // the maximum (via yOverrideMaximum) or decreasing the minimum
+  // (via yOverrideMinimum). This is useful for percentage counters
+  // where the range (0-100) is known statically upfront and even if
+  // the trace only includes smaller values.
+  yOverrideMaximum?: number;
+  yOverrideMinimum?: number;
+
+  // If set all counters with the same key share a range.
+  yRangeSharingKey?: string;
+
+  // Show the chart as 4x the height.
+  enlarge?: boolean;
+
+  // unit for the counter. This is displayed in the tooltip and
+  // legend.
+  unit?: string;
 }
 
+export type BaseCounterTrackArgs = NewTrackArgs & {
+  options?: Partial<CounterOptions>;
+};
+
 export abstract class BaseCounterTrack implements Track {
-  protected readonly tableName: string;
   protected engine: EngineProxy;
   protected trackKey: string;
 
@@ -72,39 +203,39 @@ export abstract class BaseCounterTrack implements Track {
 
   private counters: CounterData = {
     timestamps: new BigInt64Array(0),
-    minValues: new Float64Array(0),
-    maxValues: new Float64Array(0),
-    lastValues: new Float64Array(0),
-    totalDeltas: new Float64Array(0),
-    rate: new Float64Array(0),
-    maximumValue: 0,
-    minimumValue: 0,
-    maximumDelta: 0,
-    minimumDelta: 0,
-    maximumRate: 0,
-    minimumRate: 0,
+    counts: new Uint32Array(0),
+    avgValues: new Float64Array(0),
+    minDisplayValues: new Float64Array(0),
+    maxDisplayValues: new Float64Array(0),
+    lastDisplayValues: new Float64Array(0),
+    displayValueRange: [0, 0],
   };
 
   private cache: TimelineCache<CounterData> = new TimelineCache(5);
 
-  private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
-      'QUERY_DONE' = 'UNINITIALIZED';
-
   // Cleanup hook for onInit.
   private initState?: Disposable;
 
-  private maximumValueSeen = 0;
-  private minimumValueSeen = 0;
-  private maximumDeltaSeen = 0;
-  private minimumDeltaSeen = 0;
-  private maxDurNs: duration = 0n;
+  private limits?: CounterLimits;
 
   private mousePos = {x: 0, y: 0};
-  private hoveredValue: number|undefined = undefined;
-  private hoveredTs: time|undefined = undefined;
-  private hoveredTsEnd: time|undefined = undefined;
+  private hover?: CounterTooltipState;
+  private defaultOptions: Partial<CounterOptions>;
+  private options?: CounterOptions;
 
-  private scale?: CounterScaleOptions;
+  private getCounterOptions(): CounterOptions {
+    if (this.options === undefined) {
+      const options = this.getDefaultCounterOptions();
+      for (const [key, value] of Object.entries(this.defaultOptions)) {
+        if (value !== undefined) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (options as any)[key] = value;
+        }
+      }
+      this.options = options;
+    }
+    return this.options;
+  }
 
   // Extension points.
 
@@ -120,43 +251,163 @@ export abstract class BaseCounterTrack implements Track {
   // This should be an SQL expression returning the columns `ts` and `value`.
   abstract getSqlSource(): string;
 
-  protected getRenderOptions(): RenderOptions {
+  protected getDefaultCounterOptions(): CounterOptions {
     return {
       yRange: 'all',
-      yBoundaries: 'human_readable',
+      yRangeRounding: 'human_readable',
+      yMode: 'value',
+      yDisplay: 'zero',
     };
   }
 
-  constructor(args: NewTrackArgs) {
+  constructor(args: BaseCounterTrackArgs) {
     this.engine = args.engine;
     this.trackKey = args.trackKey;
-    this.tableName = `track_${uuidv4().replace(/[^a-zA-Z0-9_]+/g, '_')}`;
+    this.defaultOptions = args.options ?? {};
   }
 
   getHeight() {
-    return 30;
+    const height = 40;
+    return this.getCounterOptions().enlarge ? height * 4: height;
   }
 
-  // A method to render menu items for switching the rendering modes.
-  // Useful if a subclass wants to encorporate it as a submenu.
+  // A method to render menu items for switching the defualt
+  // rendering options.  Useful if a subclass wants to incorporate it
+  // as a submenu.
   protected getCounterContextMenuItems(): m.Children {
-    const currentScale = this.scale;
-    const scales: {name: CounterScaleOptions, humanName: string}[] = [
-      {name: 'ZERO_BASED', humanName: 'Zero based'},
-      {name: 'MIN_MAX', humanName: 'Min/Max'},
-      {name: 'DELTA_FROM_PREVIOUS', humanName: 'Delta'},
-      {name: 'RATE', humanName: 'Rate'},
-    ];
-    return scales.map((scale) => {
-      return m(MenuItem, {
-        label: scale.humanName,
-        active: currentScale === scale.name,
-        onclick: () => {
-          this.scale = scale.name;
-          raf.scheduleFullRedraw();
+    const options = this.getCounterOptions();
+
+    return [
+
+      m(MenuItem,
+        {
+          label: `Display (currently: ${options.yDisplay})`,
         },
-      });
-    });
+
+        m(MenuItem, {
+          label: 'Zero-based',
+          icon: (options.yDisplay === 'zero') ? 'radio_button_checked' : 'radio_button_unchecked',
+          onclick: () => {
+            options.yDisplay = 'zero';
+            this.invalidate();
+          },
+        }),
+
+        m(MenuItem, {
+          label: 'Min/Max',
+          icon: (options.yDisplay === 'minmax') ? 'radio_button_checked' : 'radio_button_unchecked',
+          onclick: () => {
+            options.yDisplay = 'minmax';
+            this.invalidate();
+          },
+        }),
+
+        m(MenuItem, {
+          label: 'Log',
+          icon: (options.yDisplay === 'log') ? 'radio_button_checked' : 'radio_button_unchecked',
+          onclick: () => {
+            options.yDisplay = 'log';
+            this.invalidate();
+          },
+        }),
+
+      ),
+
+      m(MenuItem, {
+        label: 'Zoom on scroll',
+        icon: (options.yRange === 'viewport') ? 'check_box' : 'check_box_outline_blank',
+        onclick: () => {
+          options.yRange = options.yRange === 'viewport' ? 'all' : 'viewport';
+          this.invalidate();
+        },
+      }),
+
+      m(MenuItem, {
+        label: `Enlarge`,
+        icon: options.enlarge ? 'check_box' : 'check_box_outline_blank',
+        onclick: () => {
+          options.enlarge = !options.enlarge;
+          this.invalidate();
+        },
+      }),
+
+      options.yRangeSharingKey && m(MenuItem, {
+        label: `Share y-axis scale (group: ${options.yRangeSharingKey})`,
+        icon: RangeSharer.get().isEnabled(options.yRangeSharingKey) ? 'check_box' : 'check_box_outline_blank',
+        onclick: () => {
+          const key = options.yRangeSharingKey;
+          if (key === undefined) {
+            return;
+          }
+          const sharer = RangeSharer.get();
+          sharer.setEnabled(key, !sharer.isEnabled(key));
+          this.invalidate();
+        },
+      }),
+
+
+      COUNTER_DEBUG_MENU_ITEMS.get() && [
+        m(MenuDivider),
+        m(MenuItem,
+          {
+            label: `Mode (currently: ${options.yMode})`,
+          },
+
+          m(MenuItem, {
+            label: 'Value',
+            icon: (options.yMode === 'value') ? 'radio_button_checked' : 'radio_button_unchecked',
+            onclick: () => {
+              options.yMode = 'value';
+              this.invalidate();
+            },
+          }),
+
+          m(MenuItem, {
+            label: 'Delta',
+            icon: (options.yMode === 'delta') ? 'radio_button_checked' : 'radio_button_unchecked',
+            onclick: () => {
+              options.yMode = 'delta';
+              this.invalidate();
+            },
+          }),
+
+          m(MenuItem, {
+            label: 'Rate',
+            icon: (options.yMode === 'rate') ? 'radio_button_checked' : 'radio_button_unchecked',
+            onclick: () => {
+              options.yMode = 'rate';
+              this.invalidate();
+            },
+          }),
+        ),
+        m(MenuItem, {
+          label: 'Round y-axis scale',
+          icon: (options.yRangeRounding === 'human_readable') ? 'check_box' : 'check_box_outline_blank',
+          onclick: () => {
+            options.yRangeRounding = options.yRangeRounding === 'human_readable' ? 'strict' : 'human_readable';
+            this.invalidate();
+          },
+        }),
+      ],
+    ];
+  }
+
+  protected invalidate() {
+    this.limits = undefined;
+    this.cache.invalidate();
+    this.countersKey = CacheKey.zero();
+    this.counters = {
+      timestamps: new BigInt64Array(0),
+      counts: new Uint32Array(0),
+      avgValues: new Float64Array(0),
+      minDisplayValues: new Float64Array(0),
+      maxDisplayValues: new Float64Array(0),
+      lastDisplayValues: new Float64Array(0),
+      displayValueRange: [0, 0],
+    };
+    this.hover = undefined;
+
+    raf.scheduleFullRedraw();
   }
 
   // A method to render a context menu corresponding to switching the rendering
@@ -201,59 +452,42 @@ export abstract class BaseCounterTrack implements Track {
   render(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const {
       visibleTimeScale: timeScale,
-      visibleWindowTime: vizTime,
+      // visibleWindowTime: vizTime,
     } = globals.timeline;
 
     // In any case, draw whatever we have (which might be stale/incomplete).
 
-    if (this.counters === undefined || this.counters.timestamps.length === 0) {
+    const limits = this.limits;
+    const data = this.counters;
+
+    if (data.timestamps.length === 0 || limits === undefined) {
       return;
     }
 
-    const data = this.counters;
-    assertTrue(data.timestamps.length === data.minValues.length);
-    assertTrue(data.timestamps.length === data.maxValues.length);
-    assertTrue(data.timestamps.length === data.lastValues.length);
-    assertTrue(data.timestamps.length === data.totalDeltas.length);
-    assertTrue(data.timestamps.length === data.rate.length);
+    assertTrue(data.timestamps.length === data.counts.length);
+    assertTrue(data.timestamps.length === data.avgValues.length);
+    assertTrue(data.timestamps.length === data.minDisplayValues.length);
+    assertTrue(data.timestamps.length === data.maxDisplayValues.length);
+    assertTrue(data.timestamps.length === data.lastDisplayValues.length);
 
-    const scale: CounterScaleOptions = this.scale ?? 'ZERO_BASED';
+    const options = this.getCounterOptions();
 
-    let minValues = data.minValues;
-    let maxValues = data.maxValues;
-    let lastValues = data.lastValues;
-    let maximumValue = data.maximumValue;
-    let minimumValue = data.minimumValue;
-    if (scale === 'DELTA_FROM_PREVIOUS') {
-      lastValues = data.totalDeltas;
-      minValues = data.totalDeltas;
-      maxValues = data.totalDeltas;
-      maximumValue = data.maximumDelta;
-      minimumValue = data.minimumDelta;
-    }
-    if (scale === 'RATE') {
-      lastValues = data.rate;
-      minValues = data.rate;
-      maxValues = data.rate;
-      maximumValue = data.maximumRate;
-      minimumValue = data.minimumRate;
-    }
+    const timestamps = data.timestamps;
+    const minValues = data.minDisplayValues;
+    const maxValues = data.maxDisplayValues;
+    const lastValues = data.lastDisplayValues;
 
-    if (this.getRenderOptions().yRange === 'viewport') {
-      const visValuesRange = this.getVisibleValuesRange(
-        data.timestamps, minValues, maxValues, vizTime);
-      minimumValue = visValuesRange.minValue;
-      maximumValue = visValuesRange.maxValue;
-    }
+    // Choose a range for the y-axis
+    const {yRange, yMin, yMax, yLabel} =
+      this.computeYRange(limits, data.displayValueRange);
 
     const effectiveHeight = this.getHeight() - MARGIN_TOP;
     const endPx = size.width;
-    const zeroY = MARGIN_TOP + effectiveHeight / (minimumValue < 0 ? 2 : 1);
-
-    // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
-    const {yMin, yMax, yLabel} =
-        this.computeYRange(minimumValue, Math.max(maximumValue, 0));
-    const yRange = yMax - yMin;
+    const hasZero = yMin < 0 && yMax > 0;
+    let zeroY = effectiveHeight + MARGIN_TOP;
+    if (hasZero) {
+      zeroY = effectiveHeight * (yMax / (yMax - yMin)) + MARGIN_TOP;
+    }
 
     // There are 360deg of hue. We want a scale that starts at green with
     // exp <= 3 (<= 1KB), goes orange around exp = 6 (~1MB) and red/violet
@@ -279,11 +513,11 @@ export abstract class BaseCounterTrack implements Track {
     };
 
     ctx.beginPath();
-    const timestamp = Time.fromRaw(data.timestamps[0]);
+    const timestamp = Time.fromRaw(timestamps[0]);
     ctx.moveTo(calculateX(timestamp), zeroY);
     let lastDrawnY = zeroY;
-    for (let i = 0; i < this.counters.timestamps.length; i++) {
-      const timestamp = Time.fromRaw(data.timestamps[i]);
+    for (let i = 0; i < timestamps.length; i++) {
+      const timestamp = Time.fromRaw(timestamps[i]);
       const x = calculateX(timestamp);
       const minY = calculateY(minValues[i]);
       const maxY = calculateY(maxValues[i]);
@@ -306,40 +540,53 @@ export abstract class BaseCounterTrack implements Track {
     ctx.fill();
     ctx.stroke();
 
-    // Draw the Y=0 dashed line.
-    ctx.strokeStyle = `hsl(${hue}, 10%, 71%)`;
-    ctx.beginPath();
-    ctx.setLineDash([2, 4]);
-    ctx.moveTo(0, zeroY);
-    ctx.lineTo(endPx, zeroY);
-    ctx.closePath();
-    ctx.stroke();
-    ctx.setLineDash([]);
-
+    if (hasZero) {
+      // Draw the Y=0 dashed line.
+      ctx.strokeStyle = `hsl(${hue}, 10%, 71%)`;
+      ctx.beginPath();
+      ctx.setLineDash([2, 4]);
+      ctx.moveTo(0, zeroY);
+      ctx.lineTo(endPx, zeroY);
+      ctx.closePath();
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
     ctx.font = '10px Roboto Condensed';
 
-    if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
-      // TODO(hjd): Add units.
-      let text: string;
-      if (scale === 'DELTA_FROM_PREVIOUS') {
-        text = 'delta: ';
-      } else if (scale === 'RATE') {
-        text = 'delta/t: ';
-      } else {
-        text = 'value: ';
+    const hover = this.hover;
+    if (hover !== undefined) {
+      let text = `${hover.avgValue.toLocaleString()}`;
+
+      const unit = this.unit;
+      switch (options.yMode) {
+      case 'value':
+        text = `${text} ${unit}`;
+        break;
+      case 'delta':
+        text = `${text} \u0394${unit}`;
+        break;
+      case 'rate':
+        text = `${text} \u0394${unit}/s`;
+        break;
+      default:
+        assertUnreachable(options.yMode);
+        break;
       }
 
-      text += `${this.hoveredValue.toLocaleString()}`;
+      if (hover.count > 1) {
+        text += ` (avg of ${hover.count})`;
+      }
 
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
-      const xStart = Math.floor(timeScale.timeToPx(this.hoveredTs));
-      const xEnd = this.hoveredTsEnd === undefined ?
+      const xStart = Math.floor(timeScale.timeToPx(hover.ts));
+      const xEnd = hover.tsEnd === undefined ?
         endPx :
-        Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
+        Math.floor(timeScale.timeToPx(hover.tsEnd));
       const y = MARGIN_TOP + effectiveHeight -
-          Math.round(((this.hoveredValue - yMin) / yRange) * effectiveHeight);
+          Math.round(((hover.lastDisplayValue - yMin) / yRange) *
+                     effectiveHeight);
 
       // Highlight line.
       ctx.beginPath();
@@ -396,59 +643,30 @@ export abstract class BaseCounterTrack implements Track {
     const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(pos.x);
 
-    let values = data.lastValues;
-    if (this.scale === 'DELTA_FROM_PREVIOUS') {
-      values = data.totalDeltas;
-    }
-    if (this.scale === 'RATE') {
-      values = data.rate;
+    const [left, right] = searchSegment(data.timestamps, time.toTime());
+
+    if (left === -1) {
+      this.hover = undefined;
+      return;
     }
 
-    const [left, right] = searchSegment(data.timestamps, time.toTime());
-    this.hoveredTs =
-        left === -1 ? undefined : Time.fromRaw(data.timestamps[left]);
-    this.hoveredTsEnd =
-        right === -1 ? undefined : Time.fromRaw(data.timestamps[right]);
-    this.hoveredValue = left === -1 ? undefined : values[left];
+    const ts = Time.fromRaw(data.timestamps[left]);
+    const tsEnd = right === -1 ? undefined :
+      Time.fromRaw(data.timestamps[right]);
+    const lastDisplayValue = data.lastDisplayValues[left];
+    const count = data.counts[left];
+    const avgValue = data.avgValues[left];
+    this.hover = {
+      ts,
+      tsEnd,
+      lastDisplayValue,
+      count,
+      avgValue,
+    };
   }
 
   onMouseOut() {
-    this.hoveredValue = undefined;
-    this.hoveredTs = undefined;
-  }
-
-  // Depending on the rendering settings, the Y range would cover either the
-  // entire range of possible values or the values visible on the screen. This
-  // method computes the latter.
-  private getVisibleValuesRange(
-    timestamps: BigInt64Array, minValues: Float64Array,
-    maxValues: Float64Array, visibleWindowTime: Span<HighPrecisionTime>):
-      {minValue: number, maxValue: number} {
-    let minValue = undefined;
-    let maxValue = undefined;
-    for (let i = 0; i < timestamps.length; ++i) {
-      const next = i + 1 < timestamps.length ?
-        HighPrecisionTime.fromNanos(timestamps[i + 1]) :
-        HighPrecisionTime.fromTime(globals.state.traceTime.end);
-      if (visibleWindowTime.intersects(
-        HighPrecisionTime.fromNanos(timestamps[i]), next)) {
-        if (minValue === undefined) {
-          minValue = minValues[i];
-        } else {
-          minValue = Math.min(minValue, minValues[i]);
-        }
-        if (maxValue === undefined) {
-          maxValue = maxValues[i];
-        } else {
-          maxValue = Math.max(maxValue, maxValues[i]);
-        }
-      }
-    }
-
-    return {
-      minValue: minValue ?? 0,
-      maxValue: maxValue ?? 0,
-    };
+    this.hover = undefined;
   }
 
   onDestroy(): void {
@@ -458,96 +676,159 @@ export abstract class BaseCounterTrack implements Track {
     }
   }
 
-  // Compute the range of values to display, converting to human-readable scale
-  // if needed.
-  private computeYRange(minimumValue: number, maximumValue: number): {
+  // Compute the range of values to display and range label.
+  private computeYRange(limits: CounterLimits, dataLimits: [number, number]): {
     yMin: number,
     yMax: number,
+    yRange: number,
     yLabel: string,
   } {
-    let yMax = Math.max(Math.abs(minimumValue), maximumValue);
-    const kUnits = ['', 'K', 'M', 'G', 'T', 'E'];
-    const exp = Math.ceil(Math.log10(Math.max(yMax, 1)));
-    const pow10 = Math.pow(10, exp);
-    if (this.getRenderOptions().yBoundaries === 'human_readable') {
-      yMax = Math.ceil(yMax / (pow10 / 4)) * (pow10 / 4);
+    const options = this.getCounterOptions();
+
+    let yMin = limits.minDisplayValue;
+    let yMax = limits.maxDisplayValue;
+
+    if (options.yRange === 'viewport') {
+      [yMin, yMax] = dataLimits;
     }
-    const unitGroup = Math.floor(exp / 3);
-    let yMin = 0;
-    let yLabel = '';
-    if (this.scale === 'MIN_MAX') {
-      yMin = minimumValue;
+
+    if (options.yDisplay === 'zero') {
+      yMin = Math.min(0, yMin);
+    }
+
+    if (options.yOverrideMaximum !== undefined) {
+      yMax = Math.max(options.yOverrideMaximum, yMax);
+    }
+
+    if (options.yOverrideMinimum !== undefined) {
+      yMin = Math.min(options.yOverrideMinimum, yMin);
+    }
+
+    if (options.yRangeRounding === 'human_readable') {
+      yMax = roundAway(yMax);
+      yMin = roundAway(yMin);
+    }
+
+    const sharer = RangeSharer.get();
+    [yMin, yMax] = sharer.share(options, [yMin, yMax]);
+
+    let yLabel: string;
+
+    if (options.yDisplay === 'minmax') {
       yLabel = 'min - max';
     } else {
-      yMin = minimumValue < 0 ? -yMax : 0;
-      yLabel = `${yMax / Math.pow(10, unitGroup * 3)} ${kUnits[unitGroup]}`;
-      if (this.scale === 'DELTA_FROM_PREVIOUS') {
-        yLabel += '\u0394';
-      } else if (this.scale === 'RATE') {
-        yLabel += '\u0394/t';
+      let max = yMax;
+      let min = yMin;
+      if (options.yDisplay === 'log') {
+        max = Math.exp(max);
+        min = Math.exp(min);
       }
+      const n = Math.abs(max - min);
+      yLabel = toLabel(n);
     }
+
+    const unit = this.unit;
+    switch (options.yMode) {
+    case 'value':
+      yLabel += ` ${unit}`;
+      break;
+    case 'delta':
+      yLabel += `\u0394${unit}`;
+      break;
+    case 'rate':
+      yLabel += `\u0394${unit}/s`;
+      break;
+    default:
+      assertUnreachable(options.yMode);
+      break;
+    }
+
+    if (options.yDisplay === 'log') {
+      yLabel = `log(${yLabel})`;
+    }
+
     return {
       yMin,
       yMax,
       yLabel,
+      yRange: yMax-yMin,
     };
   }
 
-  // The underlying table has `ts` and `value` columns, but we also want to
-  // query `dur` and `delta` - we create a CTE to help with that.
+  // The underlying table has `ts` and `value` columns.
   private getSqlPreamble(): string {
+    const options = this.getCounterOptions();
+
+    let valueExpr;
+
+    switch (options.yMode) {
+    case 'value':
+      valueExpr = 'value';
+      break;
+    case 'delta':
+      valueExpr = 'lead(value, 1, value) over (order by ts) - value';
+      break;
+    case 'rate':
+      valueExpr = '(lead(value, 1, value) over (order by ts) - value) / ((lead(ts, 1, 100) over (order by ts) - ts) / 1e9)';
+      break;
+    default:
+      assertUnreachable(options.yMode);
+      break;
+    }
+
+    let displayValueExpr = valueExpr;
+    if (options.yDisplay === 'log') {
+      displayValueExpr = `ifnull(ln(${displayValueExpr}), 0)`;
+    }
+
     return `
       WITH data AS (
         SELECT
           ts,
-          value,
-          lead(ts, 1, ts) over (order by ts) - ts as dur,
-          lead(value, 1, value) over (order by ts) - value as delta
+          ${valueExpr} as value,
+          ${displayValueExpr} as displayValue
         FROM (${this.getSqlSource()})
       )
     `;
   }
 
   private async maybeRequestData(rawCountersKey: CacheKey) {
-    // Important: this method is async and is invoked on every frame. Care
-    // must be taken to avoid piling up queries on every frame, hence the FSM.
-    // TODO(altimin): Currently this is a copy of the logic in base_slice_track.
-    // Consider merging it.
-    if (this.sqlState === 'UNINITIALIZED') {
-      this.sqlState = 'INITIALIZING';
-
-      {
-        const queryRes = (await this.engine.query(`
-          ${this.getSqlPreamble()}
+    let limits = this.limits;
+    if (limits === undefined) {
+      const maxDurQuery = await this.engine.query(`
+        ${this.getSqlPreamble()}
+        SELECT
+          max(dur) as maxDur
+        FROM (
           SELECT
-            ifnull(max(value), 0) as maxValue,
-            ifnull(min(value), 0) as minValue,
-            ifnull(max(delta), 0) as maxDelta,
-            ifnull(min(delta), 0) as minDelta,
-            max(
-              iif(dur != -1, dur, (select end_ts from trace_bounds) - ts)
-            ) as maxDur
+            lead(ts, 1, ts) over (order by ts) - ts as dur
           FROM data
-        `)).firstRow({
-          maxValue: NUM,
-          minValue: NUM,
-          maxDelta: NUM,
-          minDelta: NUM,
-          maxDur: LONG,
-        });
+        )
+      `);
+      const maxDurRow = maxDurQuery.firstRow({
+        maxDur: LONG,
+      });
+      const maxDurNs = maxDurRow.maxDur;
 
-        this.minimumValueSeen = queryRes.minValue;
-        this.maximumValueSeen = queryRes.maxValue;
-        this.minimumDeltaSeen = queryRes.minDelta;
-        this.maximumDeltaSeen = queryRes.maxDelta;
-        this.maxDurNs = queryRes.maxDur;
-      }
+      const displayValueQuery = await this.engine.query(`
+        ${this.getSqlPreamble()}
+        SELECT
+          max(displayValue) as maxDisplayValue,
+          min(displayValue) as minDisplayValue
+        FROM data
+      `);
+      const displayValueRow = displayValueQuery.firstRow({
+        minDisplayValue: NUM,
+        maxDisplayValue: NUM,
+      });
 
-      this.sqlState = 'QUERY_DONE';
-    } else if (
-      this.sqlState === 'INITIALIZING' || this.sqlState === 'QUERY_PENDING') {
-      return;
+      const minDisplayValue = displayValueRow.minDisplayValue;
+      const maxDisplayValue = displayValueRow.maxDisplayValue;
+      limits = this.limits = {
+        minDisplayValue,
+        maxDisplayValue,
+        maxDurNs,
+      };
     }
 
     if (rawCountersKey.isCoveredBy(this.countersKey)) {
@@ -566,13 +847,13 @@ export abstract class BaseCounterTrack implements Track {
       this.counters = maybeCachedCounters;
     }
 
-    this.sqlState = 'QUERY_PENDING';
     const bucketNs = countersKey.bucketSize;
 
     const constraint = constraintsToQuerySuffix({
       filters: [
-        `ts >= ${countersKey.start} - ${this.maxDurNs}`,
+        `ts >= ${countersKey.start} - ${limits.maxDurNs}`,
         `ts <= ${countersKey.end}`,
+        `value is not null`,
       ],
       groupBy: [
         'tsq',
@@ -586,64 +867,58 @@ export abstract class BaseCounterTrack implements Track {
       ${this.getSqlPreamble()}
       SELECT
         (ts + ${bucketNs / 2n}) / ${bucketNs} * ${bucketNs} as tsq,
-        min(value) as minValue,
-        max(value) as maxValue,
-        sum(delta) as totalDelta,
-        value_at_max_ts(ts, value) as lastValue
+        count(value) as count,
+        avg(value) as avgValue,
+        min(displayValue) as minDisplayValue,
+        max(displayValue) as maxDisplayValue,
+        value_at_max_ts(ts, displayValue) as lastDisplayValue
       FROM data
       ${constraint}
     `);
 
     const it = queryRes.iter({
       tsq: LONG,
-      minValue: NUM,
-      maxValue: NUM,
-      totalDelta: NUM,
-      lastValue: NUM,
+      count: NUM,
+      avgValue: NUM,
+      minDisplayValue: NUM,
+      maxDisplayValue: NUM,
+      lastDisplayValue: NUM,
     });
 
     const numRows = queryRes.numRows();
     const data: CounterData = {
-      maximumValue: this.maximumValueSeen,
-      minimumValue: this.minimumValueSeen,
-      maximumDelta: this.maximumDeltaSeen,
-      minimumDelta: this.minimumDeltaSeen,
-      maximumRate: 0,
-      minimumRate: 0,
       timestamps: new BigInt64Array(numRows),
-      minValues: new Float64Array(numRows),
-      maxValues: new Float64Array(numRows),
-      lastValues: new Float64Array(numRows),
-      totalDeltas: new Float64Array(numRows),
-      rate: new Float64Array(numRows),
+      counts: new Uint32Array(numRows),
+      avgValues: new Float64Array(numRows),
+      minDisplayValues: new Float64Array(numRows),
+      maxDisplayValues: new Float64Array(numRows),
+      lastDisplayValues: new Float64Array(numRows),
+      displayValueRange: [0, 0],
     };
 
-    let lastValue = 0;
-    let lastTs = 0n;
+    let min = 0;
+    let max = 0;
     for (let row = 0; it.valid(); it.next(), row++) {
       const ts = Time.fromRaw(it.tsq);
-      const value = it.lastValue;
-      const rate = (value - lastValue) / (Time.toSeconds(Time.sub(ts, lastTs)));
-      lastTs = ts;
-      lastValue = value;
-
       data.timestamps[row] = ts;
-      data.minValues[row] = it.minValue;
-      data.maxValues[row] = it.maxValue;
-      data.lastValues[row] = value;
-      data.totalDeltas[row] = it.totalDelta;
-      data.rate[row] = rate;
-      if (row > 0) {
-        data.rate[row - 1] = rate;
-        data.maximumRate = Math.max(data.maximumRate, rate);
-        data.minimumRate = Math.min(data.minimumRate, rate);
-      }
+      data.counts[row] = it.count;
+      data.avgValues[row] = it.avgValue;
+      data.minDisplayValues[row] = it.minDisplayValue;
+      data.maxDisplayValues[row] = it.maxDisplayValue;
+      data.lastDisplayValues[row] = it.lastDisplayValue;
+      min = Math.min(min, it.minDisplayValue);
+      max = Math.max(max, it.maxDisplayValue);
     }
+
+    data.displayValueRange = [min, max];
 
     this.cache.insert(countersKey, data);
     this.counters = data;
 
-    this.sqlState = 'QUERY_DONE';
     raf.scheduleRedraw();
+  }
+
+  get unit(): string {
+    return this.getCounterOptions().unit ?? '?';
   }
 }

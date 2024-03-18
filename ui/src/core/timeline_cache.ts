@@ -142,6 +142,10 @@ export class TimelineCache<T> {
     this.lastAccessId = 0;
   }
 
+  invalidate() {
+    this.cache.clear();
+  }
+
   insert(cacheKey: CacheKey, t: T): void {
     assertTrue(cacheKey.isNormalized());
     const key = cacheKey.toString();

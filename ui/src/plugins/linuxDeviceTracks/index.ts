@@ -42,7 +42,7 @@ class linuxDevices implements Plugin {
             linux_device_track.name
           from linux_device_track
           join slices_tracks on
-	    slices_tracks.track_id = linux_device_track.id
+          slices_tracks.track_id = linux_device_track.id
         )
       select
         t.name,
