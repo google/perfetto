@@ -21,8 +21,16 @@ import {TextInput} from '../widgets/text_input';
 
 import {globals} from './globals';
 
-export const LOG_PRIORITIES =
-    ['-', '-', 'Verbose', 'Debug', 'Info', 'Warn', 'Error', 'Fatal'];
+export const LOG_PRIORITIES = [
+  '-',
+  '-',
+  'Verbose',
+  'Debug',
+  'Info',
+  'Warn',
+  'Error',
+  'Fatal',
+];
 const IGNORED_STATES = 2;
 
 interface LogPriorityWidgetAttrs {
@@ -51,7 +59,8 @@ class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
     for (let i = IGNORED_STATES; i < attrs.options.length; i++) {
       const selected = i === attrs.selectedIndex;
       optionComponents.push(
-        m('option', {value: i, selected}, attrs.options[i]));
+        m('option', {value: i, selected}, attrs.options[i]),
+      );
     }
     return m(
       Select,
@@ -84,63 +93,68 @@ class LogTagsWidget implements m.ClassComponent<LogTagsWidgetAttrs> {
   view(vnode: m.Vnode<LogTagsWidgetAttrs>) {
     const tags = vnode.attrs.tags;
     return [
-      tags.map((tag) => m(LogTagChip, {
-        name: tag,
-        removeTag: this.removeTag.bind(this),
-      })),
-      m(TextInput,
-        {
-          placeholder: 'Filter by tag...',
-          onkeydown: (e: KeyboardEvent) => {
-            // This is to avoid zooming on 'w'(and other unexpected effects
-            // of key presses in this input field).
-            e.stopPropagation();
-            const htmlElement = e.target as HTMLInputElement;
-
-            // When the user clicks 'Backspace' we delete the previous tag.
-            if (e.key === 'Backspace' && tags.length > 0 &&
-                htmlElement.value === '') {
-              globals.dispatch(
-                Actions.removeLogTag({tag: tags[tags.length - 1]}));
-              return;
-            }
-
-            if (e.key !== 'Enter') {
-              return;
-            }
-            if (htmlElement.value === '') {
-              return;
-            }
-            globals.dispatch(
-              Actions.addLogTag({tag: htmlElement.value.trim()}));
-            htmlElement.value = '';
-          },
+      tags.map((tag) =>
+        m(LogTagChip, {
+          name: tag,
+          removeTag: this.removeTag.bind(this),
         }),
+      ),
+      m(TextInput, {
+        placeholder: 'Filter by tag...',
+        onkeydown: (e: KeyboardEvent) => {
+          // This is to avoid zooming on 'w'(and other unexpected effects
+          // of key presses in this input field).
+          e.stopPropagation();
+          const htmlElement = e.target as HTMLInputElement;
+
+          // When the user clicks 'Backspace' we delete the previous tag.
+          if (
+            e.key === 'Backspace' &&
+            tags.length > 0 &&
+            htmlElement.value === ''
+          ) {
+            globals.dispatch(
+              Actions.removeLogTag({tag: tags[tags.length - 1]}),
+            );
+            return;
+          }
+
+          if (e.key !== 'Enter') {
+            return;
+          }
+          if (htmlElement.value === '') {
+            return;
+          }
+          globals.dispatch(Actions.addLogTag({tag: htmlElement.value.trim()}));
+          htmlElement.value = '';
+        },
+      }),
     ];
   }
 }
 
 class LogTextWidget implements m.ClassComponent {
   view() {
-    return m(
-      TextInput, {
-        placeholder: 'Search logs...',
-        onkeyup: (e: KeyboardEvent) => {
-          // We want to use the value of the input field after it has been
-          // updated with the latest key (onkeyup).
-          const htmlElement = e.target as HTMLInputElement;
-          globals.dispatch(
-            Actions.updateLogFilterText({textEntry: htmlElement.value}));
-        },
-      });
+    return m(TextInput, {
+      placeholder: 'Search logs...',
+      onkeyup: (e: KeyboardEvent) => {
+        // We want to use the value of the input field after it has been
+        // updated with the latest key (onkeyup).
+        const htmlElement = e.target as HTMLInputElement;
+        globals.dispatch(
+          Actions.updateLogFilterText({textEntry: htmlElement.value}),
+        );
+      },
+    });
   }
 }
 
 class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
   view({attrs}: m.Vnode<FilterByTextWidgetAttrs>) {
     const icon = attrs.hideNonMatching ? 'unfold_less' : 'unfold_more';
-    const tooltip = attrs.hideNonMatching ? 'Expand all and view highlighted' :
-      'Collapse all';
+    const tooltip = attrs.hideNonMatching
+      ? 'Expand all and view highlighted'
+      : 'Collapse all';
     return m(Button, {
       icon,
       title: tooltip,

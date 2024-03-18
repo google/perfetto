@@ -32,7 +32,8 @@ export class HostOsTargetFactory implements TargetFactory {
   connectNewTarget(): Promise<RecordingTargetV2> {
     throw new RecordingError(
       'Can not create a new Host OS target.' +
-        'The Host OS target is created at factory initialisation.');
+        'The Host OS target is created at factory initialisation.',
+    );
   }
 
   getName(): string {
@@ -59,7 +60,10 @@ export class HostOsTargetFactory implements TargetFactory {
       }
     }
     this.target = new HostOsTarget(
-      websocketUrl, this.maybeClearTarget.bind(this), this.onTargetChange);
+      websocketUrl,
+      this.maybeClearTarget.bind(this),
+      this.onTargetChange,
+    );
     this.onTargetChange();
   }
 

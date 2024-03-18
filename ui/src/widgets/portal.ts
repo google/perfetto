@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-type Style = string|Partial<CSSStyleDeclaration>;
+type Style = string | Partial<CSSStyleDeclaration>;
 
 export interface MountOptions {
   // Optionally specify an element in which to place our portal.

@@ -18,7 +18,7 @@
 // Useful for e.g. tracing, where string arg values are required.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function stringifyJsonWithBigints(object: any): string {
-  return JSON.stringify(
-    object,
-    (_, value) => typeof value === 'bigint' ? value.toString() : value);
+  return JSON.stringify(object, (_, value) =>
+    typeof value === 'bigint' ? value.toString() : value,
+  );
 }

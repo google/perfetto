@@ -13,7 +13,7 @@
 // limitations under the License.
 
 export class BigintMath {
-  static INT64_MAX: bigint = (2n ** 63n) - 1n;
+  static INT64_MAX: bigint = 2n ** 63n - 1n;
   static INT64_MIN: bigint = -(2n ** 63n);
 
   // Returns the smallest integral power of 2 that is not smaller than n.
@@ -24,23 +24,23 @@ export class BigintMath {
       result <<= 1n;
     }
     return result;
-  };
+  }
 
   // Returns the largest integral power of 2 which is not greater than n.
   // If n is less than or equal to 0, returns 1.
   static bitFloor(n: bigint): bigint {
     let result = 1n;
-    while ((result << 1n) <= n) {
+    while (result << 1n <= n) {
       result <<= 1n;
     }
     return result;
-  };
+  }
 
   // Returns the largest integral value x where 2^x is not greater than n.
   static log2(n: bigint): number {
     let result = 1n;
     let log2 = 0;
-    while ((result << 1n) <= n) {
+    while (result << 1n <= n) {
       result <<= 1n;
       ++log2;
     }

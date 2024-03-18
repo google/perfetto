@@ -19,20 +19,22 @@ import {BottomTab} from '../frontend/bottom_tab';
 
 import {DetailsPanel, Tab} from '.';
 
-export function getTrackName(args: Partial<{
-  name: string | null,
-  utid: number,
-  processName: string | null,
-  pid: number | null,
-  threadName: string | null,
-  tid: number | null,
-  upid: number | null,
-  userName: string | null,
-  uid: number | null,
-  kind: string,
-  threadTrack: boolean,
-  uidTrack: boolean
-}>) {
+export function getTrackName(
+  args: Partial<{
+    name: string | null;
+    utid: number;
+    processName: string | null;
+    pid: number | null;
+    threadName: string | null;
+    tid: number | null;
+    upid: number | null;
+    userName: string | null;
+    uid: number | null;
+    kind: string;
+    threadTrack: boolean;
+    uidTrack: boolean;
+  }>,
+) {
   const {
     name,
     upid,
@@ -97,7 +99,6 @@ export function getTrackName(args: Partial<{
 export interface BottomTabAdapterAttrs {
   tabFactory: (sel: Selection) => BottomTab | undefined;
 }
-
 
 /**
  * This adapter wraps a BottomTab, converting it into a the new "current

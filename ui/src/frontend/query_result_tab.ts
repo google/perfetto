@@ -52,7 +52,9 @@ interface QueryResultTabConfig {
 // External interface for adding a new query results tab
 // Automatically decided whether to add v1 or v2 tab
 export function addQueryResultsTab(
-  config: QueryResultTabConfig, tag?: string): void {
+  config: QueryResultTabConfig,
+  tag?: string,
+): void {
   if (TABS_V2_FLAG.get()) {
     const queryResultsTab = new QueryResultTab({
       config,
@@ -126,8 +128,9 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
   }
 
   getTitle(): string {
-    const suffix =
-        this.queryResponse ? ` (${this.queryResponse.rows.length})` : '';
+    const suffix = this.queryResponse
+      ? ` (${this.queryResponse.rows.length})`
+      : '';
     return `${this.config.title}${suffix}`;
   }
 
@@ -138,20 +141,22 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
       fillParent: true,
       onClose: () => closeTab(this.uuid),
       contextButtons: [
-        this.sqlViewName === undefined ?
-          null :
-          m(PopupMenu2,
-            {
-              trigger: m(Button, {label: 'Show debug track', minimal: true}),
-              popupPosition: PopupPosition.Top,
-            },
-            m(AddDebugTrackMenu, {
-              dataSource: {
-                sqlSource: `select * from ${this.sqlViewName}`,
-                columns: assertExists(this.queryResponse).columns,
+        this.sqlViewName === undefined
+          ? null
+          : m(
+              PopupMenu2,
+              {
+                trigger: m(Button, {label: 'Show debug track', minimal: true}),
+                popupPosition: PopupPosition.Top,
               },
-              engine: this.engine,
-            })),
+              m(AddDebugTrackMenu, {
+                dataSource: {
+                  sqlSource: `select * from ${this.sqlViewName}`,
+                  columns: assertExists(this.queryResponse).columns,
+                },
+                engine: this.engine,
+              }),
+            ),
       ],
     });
   }
@@ -165,13 +170,14 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     // Assuming that the query results come from a SELECT query, try creating a
     // view to allow us to reuse it for further queries.
     const hasValidQueryResponse =
-        this.queryResponse && this.queryResponse.error === undefined;
-    const sqlQuery = hasValidQueryResponse ?
-        this.queryResponse!.lastStatementSql :
-      this.config.query;
+      this.queryResponse && this.queryResponse.error === undefined;
+    const sqlQuery = hasValidQueryResponse
+      ? this.queryResponse!.lastStatementSql
+      : this.config.query;
     try {
-      const createViewResult =
-          await this.engine.query(`create view ${viewId} as ${sqlQuery}`);
+      const createViewResult = await this.engine.query(
+        `create view ${viewId} as ${sqlQuery}`,
+      );
       if (createViewResult.error()) {
         // If it failed, do nothing.
         return '';

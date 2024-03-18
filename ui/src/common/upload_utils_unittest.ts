@@ -59,8 +59,7 @@ describe('serializeStateObject', () => {
     const object = {
       a: 123456789123456789n,
     };
-    const expectedJson =
-        `{"a":{"__kind":"bigint","value":"123456789123456789"}}`;
+    const expectedJson = `{"a":{"__kind":"bigint","value":"123456789123456789"}}`;
     expect(serializeStateObject(object)).toEqual(expectedJson);
   });
 

@@ -23,10 +23,8 @@ interface SpinnerAttrs {
 }
 
 export class Spinner implements m.ClassComponent<SpinnerAttrs> {
-  view({attrs}: m.Vnode<SpinnerAttrs, this>): void|m.Children {
-    const {
-      easing = false,
-    } = attrs;
+  view({attrs}: m.Vnode<SpinnerAttrs, this>): void | m.Children {
+    const {easing = false} = attrs;
     const classes = classNames(easing && 'easing');
     return m('.pf-spinner', {class: classes});
   }

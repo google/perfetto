@@ -31,9 +31,9 @@ export interface EmptyStateAttrs {
 // some optional content passed as children elements, usually containing common
 // actions for things you might want to do next (e.g. clear a search box).
 export class EmptyState implements m.ClassComponent<EmptyStateAttrs> {
-  view({attrs, children}: m.Vnode<EmptyStateAttrs, this>): void|m.Children {
+  view({attrs, children}: m.Vnode<EmptyStateAttrs, this>): void | m.Children {
     const {
-      icon = 'search',  // Icon defaults to the search symbol
+      icon = 'search', // Icon defaults to the search symbol
       title,
       className,
     } = attrs;

@@ -31,8 +31,8 @@ export interface SliceColumns {
 }
 
 export interface DebugTrackV2CreateConfig {
-  pinned?: boolean;     // default true
-  closeable?: boolean;  // default true
+  pinned?: boolean; // default true
+  closeable?: boolean; // default true
 }
 
 let debugTrackCount = 0;
@@ -48,7 +48,6 @@ export interface SqlDataSource {
   columns?: string[];
 }
 
-
 // Creates actions to add a debug track. The actions must be dispatched to
 // have an effect. Use this variant if you want to create many tracks at
 // once or want to tweak the actions once produced. Otherwise, use
@@ -59,7 +58,8 @@ export async function createDebugSliceTrackActions(
   trackName: string,
   sliceColumns: SliceColumns,
   argColumns: string[],
-  config?: DebugTrackV2CreateConfig): Promise<DeferredAction<{}>[]> {
+  config?: DebugTrackV2CreateConfig,
+): Promise<DeferredAction<{}>[]> {
   const debugTrackId = ++debugTrackCount;
   const closeable = config?.closeable ?? true;
   const trackKey = uuidv4();
@@ -95,9 +95,16 @@ export async function addDebugSliceTrack(
   trackName: string,
   sliceColumns: SliceColumns,
   argColumns: string[],
-  config?: DebugTrackV2CreateConfig) {
+  config?: DebugTrackV2CreateConfig,
+) {
   const actions = await createDebugSliceTrackActions(
-    engine, data, trackName, sliceColumns, argColumns, config);
+    engine,
+    data,
+    trackName,
+    sliceColumns,
+    argColumns,
+    config,
+  );
   globals.dispatchMultiple(actions);
 }
 
@@ -107,17 +114,15 @@ export interface CounterColumns {
   value: string;
 }
 
-
 export interface CounterDebugTrackConfig {
   data: SqlDataSource;
   columns: CounterColumns;
   closeable: boolean;
 }
 
-
 export interface CounterDebugTrackCreateConfig {
-  pinned?: boolean;     // default true
-  closeable?: boolean;  // default true
+  pinned?: boolean; // default true
+  closeable?: boolean; // default true
 }
 
 // Creates actions to add a debug track. The actions must be dispatched to
@@ -128,7 +133,8 @@ export async function createDebugCounterTrackActions(
   data: SqlDataSource,
   trackName: string,
   columns: CounterColumns,
-  config?: CounterDebugTrackCreateConfig) {
+  config?: CounterDebugTrackCreateConfig,
+) {
   // To prepare displaying the provided data as a track, materialize it and
   // compute depths.
   const debugTrackId = ++debugTrackCount;
@@ -163,8 +169,13 @@ export async function addDebugCounterTrack(
   data: SqlDataSource,
   trackName: string,
   columns: CounterColumns,
-  config?: CounterDebugTrackCreateConfig) {
+  config?: CounterDebugTrackCreateConfig,
+) {
   const actions = await createDebugCounterTrackActions(
-    data, trackName, columns, config);
+    data,
+    trackName,
+    columns,
+    config,
+  );
   globals.dispatchMultiple(actions);
 }

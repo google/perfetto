@@ -24,7 +24,6 @@ import {CounterDebugTrackConfig} from '../../frontend/debug_tracks';
 import {Disposable, DisposableCallback} from '../../base/disposable';
 import {uuidv4Sql} from '../../base/uuid';
 
-
 export class DebugCounterTrack extends BaseCounterTrack {
   private config: CounterDebugTrackConfig;
   private sqlTableName: string;
@@ -52,14 +51,17 @@ export class DebugCounterTrack extends BaseCounterTrack {
   getTrackShellButtons(): m.Children {
     return [
       this.getCounterContextMenu(),
-      this.config.closeable && m(TrackButton, {
-        action: () => {
-          globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
-        },
-        i: 'close',
-        tooltip: 'Close',
-        showButton: true,
-      }),
+      this.config.closeable &&
+        m(TrackButton, {
+          action: () => {
+            globals.dispatch(
+              Actions.removeTracks({trackKeys: [this.trackKey]}),
+            );
+          },
+          i: 'close',
+          tooltip: 'Close',
+          showButton: true,
+        }),
     ];
   }
 

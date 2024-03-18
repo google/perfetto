@@ -38,8 +38,9 @@ export abstract class AndroidTarget implements RecordingTargetV2 {
   protected dataSources?: DataSource[];
 
   protected constructor(
-      private adbConnection: AdbConnectionImpl,
-      private onTargetChange: OnTargetChangeCallback) {}
+    private adbConnection: AdbConnectionImpl,
+    private onTargetChange: OnTargetChangeCallback,
+  ) {}
 
   abstract getInfo(): TargetInfo;
 
@@ -62,15 +63,17 @@ export abstract class AndroidTarget implements RecordingTargetV2 {
     return recordingMode !== 'LONG_TRACE';
   }
 
-  async createTracingSession(tracingSessionListener: TracingSessionListener):
-      Promise<TracingSession> {
+  async createTracingSession(
+    tracingSessionListener: TracingSessionListener,
+  ): Promise<TracingSession> {
     this.adbConnection.onStatus = tracingSessionListener.onStatus;
     this.adbConnection.onDisconnect = tracingSessionListener.onDisconnect;
 
     if (!exists(this.androidApiLevel)) {
       // 1. Fetch the API version from the device.
       const version = await this.adbConnection.shellAndGetOutput(
-        'getprop ro.build.version.sdk');
+        'getprop ro.build.version.sdk',
+      );
       this.androidApiLevel = Number(version);
 
       this.onTargetChange();
@@ -81,18 +84,23 @@ export abstract class AndroidTarget implements RecordingTargetV2 {
         this.consumerSocketPath = CUSTOM_TRACED_CONSUMER_SOCKET_PATH;
 
         await this.adbConnection.shellAndWaitCompletion(
-          this.composeTraceboxCommand('traced'));
+          this.composeTraceboxCommand('traced'),
+        );
         await this.adbConnection.shellAndWaitCompletion(
-          this.composeTraceboxCommand('traced_probes'));
+          this.composeTraceboxCommand('traced_probes'),
+        );
       }
     }
 
-    const adbStream =
-        await this.adbConnection.connectSocket(this.consumerSocketPath);
+    const adbStream = await this.adbConnection.connectSocket(
+      this.consumerSocketPath,
+    );
 
     // 3. Start a tracing session.
-    const tracingSession =
-        new TracedTracingSession(adbStream, tracingSessionListener);
+    const tracingSession = new TracedTracingSession(
+      adbStream,
+      tracingSessionListener,
+    );
     await tracingSession.initConnection();
 
     if (!this.dataSources) {
@@ -107,24 +115,29 @@ export abstract class AndroidTarget implements RecordingTargetV2 {
   async pushTracebox() {
     const arch = await this.fetchArchitecture();
     const shortVersion = VERSION.split('-')[0];
-    const requestUrl =
-        `https://commondatastorage.googleapis.com/perfetto-luci-artifacts/${
-          shortVersion}/${arch}/tracebox`;
+    const requestUrl = `https://commondatastorage.googleapis.com/perfetto-luci-artifacts/${shortVersion}/${arch}/tracebox`;
     const fetchResponse = await fetchWithTimeout(
-      requestUrl, {method: 'get'}, TRACEBOX_FETCH_TIMEOUT);
+      requestUrl,
+      {method: 'get'},
+      TRACEBOX_FETCH_TIMEOUT,
+    );
     const traceboxBin = await fetchResponse.arrayBuffer();
     await this.adbConnection.push(
-      new Uint8Array(traceboxBin), TRACEBOX_DEVICE_PATH);
+      new Uint8Array(traceboxBin),
+      TRACEBOX_DEVICE_PATH,
+    );
 
     // We explicitly set the tracebox permissions because adb does not reliably
     // set permissions when uploading the binary.
     await this.adbConnection.shellAndWaitCompletion(
-      `chmod 755 ${TRACEBOX_DEVICE_PATH}`);
+      `chmod 755 ${TRACEBOX_DEVICE_PATH}`,
+    );
   }
 
   async fetchArchitecture() {
     const abiList = await this.adbConnection.shellAndGetOutput(
-      'getprop ro.vendor.product.cpu.abilist');
+      'getprop ro.vendor.product.cpu.abilist',
+    );
     // If multiple ABIs are allowed, the 64bit ones should have higher priority.
     if (abiList.includes('arm64-v8a')) {
       return 'android-arm64';
@@ -146,10 +159,12 @@ export abstract class AndroidTarget implements RecordingTargetV2 {
 
   composeTraceboxCommand(applet: string) {
     // 1. Set the consumer socket.
-    return 'PERFETTO_CONSUMER_SOCK_NAME=@traced_consumer ' +
-        // 2. Set the producer socket.
-        'PERFETTO_PRODUCER_SOCK_NAME=@traced_producer ' +
-        // 3. Start the applet in the background.
-        `/data/local/tmp/tracebox ${applet} --background`;
+    return (
+      'PERFETTO_CONSUMER_SOCK_NAME=@traced_consumer ' +
+      // 2. Set the producer socket.
+      'PERFETTO_PRODUCER_SOCK_NAME=@traced_producer ' +
+      // 3. Start the applet in the background.
+      `/data/local/tmp/tracebox ${applet} --background`
+    );
   }
 }

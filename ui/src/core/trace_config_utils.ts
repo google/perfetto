@@ -16,14 +16,16 @@ import {EnableTracingRequest, TraceConfig} from '../protos';
 
 // In this file are contained a few functions to simplify the proto parsing.
 
-export function extractTraceConfig(enableTracingRequest: Uint8Array):
-    Uint8Array|undefined {
+export function extractTraceConfig(
+  enableTracingRequest: Uint8Array,
+): Uint8Array | undefined {
   try {
     const enableTracingObject =
-        EnableTracingRequest.decode(enableTracingRequest);
+      EnableTracingRequest.decode(enableTracingRequest);
     if (!enableTracingObject.traceConfig) return undefined;
     return TraceConfig.encode(enableTracingObject.traceConfig).finish();
-  } catch (e) {  // This catch is for possible proto encoding/decoding issues.
+  } catch (e) {
+    // This catch is for possible proto encoding/decoding issues.
     console.error('Error extracting the config: ', e.message);
     return undefined;
   }
@@ -32,7 +34,8 @@ export function extractTraceConfig(enableTracingRequest: Uint8Array):
 export function extractDurationFromTraceConfig(traceConfigProto: Uint8Array) {
   try {
     return TraceConfig.decode(traceConfigProto).durationMs;
-  } catch (e) {  // This catch is for possible proto encoding/decoding issues.
+  } catch (e) {
+    // This catch is for possible proto encoding/decoding issues.
     return undefined;
   }
 }
@@ -40,7 +43,8 @@ export function extractDurationFromTraceConfig(traceConfigProto: Uint8Array) {
 export function browserSupportsPerfettoConfig(): boolean {
   const minimumChromeVersion = '91.0.4448.0';
   const runningVersion = String(
-    (/Chrome\/(([0-9]+\.?){4})/.exec(navigator.userAgent) || [, 0])[1]);
+    (/Chrome\/(([0-9]+\.?){4})/.exec(navigator.userAgent) || [, 0])[1],
+  );
 
   if (!runningVersion) return false;
 
@@ -51,13 +55,16 @@ export function browserSupportsPerfettoConfig(): boolean {
     if (runVerArray[index] === minVerArray[index]) continue;
     return runVerArray[index] > minVerArray[index];
   }
-  return true;  // Exact version match.
+  return true; // Exact version match.
 }
 
 export function hasSystemDataSourceConfig(config: TraceConfig): boolean {
   for (const ds of config.dataSources) {
-    if (ds.config && ds.config.name &&
-        !ds.config.name.startsWith('org.chromium.')) {
+    if (
+      ds.config &&
+      ds.config.name &&
+      !ds.config.name.startsWith('org.chromium.')
+    ) {
       return true;
     }
   }

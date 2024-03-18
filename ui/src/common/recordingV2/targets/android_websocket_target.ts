@@ -13,19 +13,19 @@
 // limitations under the License.
 
 import {AdbConnectionOverWebsocket} from '../adb_connection_over_websocket';
-import {
-  OnTargetChangeCallback,
-  TargetInfo,
-} from '../recording_interfaces_v2';
+import {OnTargetChangeCallback, TargetInfo} from '../recording_interfaces_v2';
 import {AndroidTarget} from './android_target';
 
 export class AndroidWebsocketTarget extends AndroidTarget {
   constructor(
-      private serialNumber: string, websocketUrl: string,
-      onTargetChange: OnTargetChangeCallback) {
+    private serialNumber: string,
+    websocketUrl: string,
+    onTargetChange: OnTargetChangeCallback,
+  ) {
     super(
       new AdbConnectionOverWebsocket(serialNumber, websocketUrl),
-      onTargetChange);
+      onTargetChange,
+    );
   }
 
   getInfo(): TargetInfo {

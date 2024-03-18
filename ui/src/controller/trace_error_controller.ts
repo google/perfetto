@@ -36,7 +36,8 @@ export class TraceErrorController extends Controller<'main'> {
     const engine = this.args.engine;
     engine
       .query(
-        `SELECT sum(value) as sumValue FROM stats WHERE severity != 'info'`)
+        `SELECT sum(value) as sumValue FROM stats WHERE severity != 'info'`,
+      )
       .then((result) => {
         const errors = result.firstRow({sumValue: NUM}).sumValue;
         publishTraceErrors(errors);

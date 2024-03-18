@@ -56,10 +56,13 @@ export class CpuProfileController extends Controller<'main'> {
     this.getSampleData(selectedSample.id)
       .then((sampleData) => {
         /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-        if (sampleData !== undefined && selectedSample &&
-              /* eslint-enable */
-              this.lastSelectedSample &&
-              this.lastSelectedSample.id === selectedSample.id) {
+        if (
+          sampleData !== undefined &&
+          selectedSample &&
+          /* eslint-enable */
+          this.lastSelectedSample &&
+          this.lastSelectedSample.id === selectedSample.id
+        ) {
           const cpuProfileDetails: CpuProfileDetails = {
             id: selectedSample.id,
             ts: selectedSample.ts,
@@ -79,8 +82,9 @@ export class CpuProfileController extends Controller<'main'> {
       });
   }
 
-  private copyCpuProfileSample(cpuProfileSample: CpuProfileSampleSelection):
-      CpuProfileSampleSelection {
+  private copyCpuProfileSample(
+    cpuProfileSample: CpuProfileSampleSelection,
+  ): CpuProfileSampleSelection {
     return {
       kind: cpuProfileSample.kind,
       id: cpuProfileSample.id,
@@ -90,9 +94,11 @@ export class CpuProfileController extends Controller<'main'> {
   }
 
   private shouldRequestData(selection: CpuProfileSampleSelection) {
-    return this.lastSelectedSample === undefined ||
-        (this.lastSelectedSample !== undefined &&
-         (this.lastSelectedSample.id !== selection.id));
+    return (
+      this.lastSelectedSample === undefined ||
+      (this.lastSelectedSample !== undefined &&
+        this.lastSelectedSample.id !== selection.id)
+    );
   }
 
   async getSampleData(id: number) {

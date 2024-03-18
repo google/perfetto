@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  computeIntervals,
-  performReordering,
-} from './dragndrop_logic';
+import {computeIntervals, performReordering} from './dragndrop_logic';
 
 describe('performReordering', () => {
   test('has the same elements in the result', () => {
@@ -30,13 +27,17 @@ describe('performReordering', () => {
           continue;
         }
 
-        const permutedLeft =
-            performReordering(computeIntervals(arr.length, i, j, 'left'), arr);
+        const permutedLeft = performReordering(
+          computeIntervals(arr.length, i, j, 'left'),
+          arr,
+        );
         expect(new Set(permutedLeft)).toEqual(arrSet);
         expect(permutedLeft.length).toEqual(arr.length);
 
-        const permutedRight =
-            performReordering(computeIntervals(arr.length, i, j, 'right'), arr);
+        const permutedRight = performReordering(
+          computeIntervals(arr.length, i, j, 'right'),
+          arr,
+        );
         expect(new Set(permutedRight)).toEqual(arrSet);
         expect(permutedRight.length).toEqual(arr.length);
       }

@@ -69,9 +69,11 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
   }
 
   getTrackShellButtons(): m.Children {
-    return [m(CloseTrackButton, {
-      trackKey: this.trackKey,
-    })];
+    return [
+      m(CloseTrackButton, {
+        trackKey: this.trackKey,
+      }),
+    ];
   }
 
   protected getDefaultCounterOptions(): CounterOptions {
@@ -83,15 +85,18 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
 
   async onInit() {
     await this.engine.query(
-      `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`);
+      `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`,
+    );
     return new NullDisposable();
   }
 
   getSqlSource() {
-    const sourceTable = this.config!.cpuType === undefined ?
-      'sched_active_cpu_count' :
-      `sched_active_cpu_count_for_core_type(${
-        sqliteString(this.config!.cpuType)})`;
+    const sourceTable =
+      this.config!.cpuType === undefined
+        ? 'sched_active_cpu_count'
+        : `sched_active_cpu_count_for_core_type(${sqliteString(
+            this.config!.cpuType,
+          )})`;
     return `
     select
       ts,

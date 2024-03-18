@@ -25,8 +25,7 @@ function setToPrevious(current: number) {
 }
 
 function setToNext(current: number) {
-  const index =
-      (current + 1) % globals.currentSearchResults.totalResults;
+  const index = (current + 1) % globals.currentSearchResults.totalResults;
   globals.dispatch(Actions.setSearchIndex({index}));
 }
 
@@ -47,8 +46,10 @@ export function executeSearch(reverse = false) {
   // select the first/last item in the viewport.
   if (index === -1 || currentTs < startNs || currentTs > endNs) {
     if (reverse) {
-      const [smaller] =
-          searchSegment(globals.currentSearchResults.tsStarts, endNs);
+      const [smaller] = searchSegment(
+        globals.currentSearchResults.tsStarts,
+        endNs,
+      );
       // If there is no item in the viewport just go to the previous.
       if (smaller === -1) {
         setToPrevious(index);
@@ -56,8 +57,10 @@ export function executeSearch(reverse = false) {
         globals.dispatch(Actions.setSearchIndex({index: smaller}));
       }
     } else {
-      const [, larger] =
-          searchSegment(globals.currentSearchResults.tsStarts, startNs);
+      const [, larger] = searchSegment(
+        globals.currentSearchResults.tsStarts,
+        startNs,
+      );
       // If there is no item in the viewport just go to the next.
       if (larger === -1) {
         setToNext(index);
@@ -98,8 +101,12 @@ function selectCurrentSearchResult() {
     // Search results only include slices from the slice table for now.
     // When we include annotations we need to pass the correct table.
     globals.makeSelection(
-      Actions.selectChromeSlice(
-        {id: currentId, trackKey, table: 'slice', scroll: true}),
+      Actions.selectChromeSlice({
+        id: currentId,
+        trackKey,
+        table: 'slice',
+        scroll: true,
+      }),
       {clearSearch: false},
     );
   }

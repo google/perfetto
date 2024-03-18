@@ -22,8 +22,9 @@ import {Slider, SliderAttrs} from '../record_widgets';
 
 import {RecordingSectionAttrs} from './recording_sections';
 
-export class RecordingSettings implements
-    m.ClassComponent<RecordingSectionAttrs> {
+export class RecordingSettings
+  implements m.ClassComponent<RecordingSectionAttrs>
+{
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
     const S = (x: number) => x * 1000;
     const M = (x: number) => x * 1000 * 60;
@@ -47,23 +48,26 @@ export class RecordingSettings implements
         `label${cfg.mode === mode ? '.selected' : ''}`,
         m(`input[type=radio][name=rec_mode]`, checkboxArgs),
         m(`img[src=${globals.root}assets/${img}]`),
-        m('span', title));
+        m('span', title),
+      );
     };
 
     return m(
       `.record-section${attrs.cssClass}`,
       m('header', 'Recording mode'),
-      m('.record-mode',
+      m(
+        '.record-mode',
         recButton('STOP_WHEN_FULL', 'Stop when full', 'rec_one_shot.png'),
         recButton('RING_BUFFER', 'Ring buffer', 'rec_ring_buf.png'),
-        recButton('LONG_TRACE', 'Long trace', 'rec_long_trace.png')),
+        recButton('LONG_TRACE', 'Long trace', 'rec_long_trace.png'),
+      ),
 
       m(Slider, {
         title: 'In-memory buffer size',
         icon: '360',
         values: [4, 8, 16, 32, 64, 128, 256, 512],
         unit: 'MB',
-        set: (cfg, val) => cfg.bufferSizeMb = val,
+        set: (cfg, val) => (cfg.bufferSizeMb = val),
         get: (cfg) => cfg.bufferSizeMb,
       } as SliderAttrs),
 
@@ -73,7 +77,7 @@ export class RecordingSettings implements
         values: [S(10), S(15), S(30), S(60), M(5), M(30), H(1), H(6), H(12)],
         isTime: true,
         unit: 'h:m:s',
-        set: (cfg, val) => cfg.durationMs = val,
+        set: (cfg, val) => (cfg.durationMs = val),
         get: (cfg) => cfg.durationMs,
       } as SliderAttrs),
       m(Slider, {
@@ -82,7 +86,7 @@ export class RecordingSettings implements
         cssClass: cfg.mode !== 'LONG_TRACE' ? '.hide' : '',
         values: [5, 25, 50, 100, 500, 1000, 1000 * 5, 1000 * 10],
         unit: 'MB',
-        set: (cfg, val) => cfg.maxFileSizeMb = val,
+        set: (cfg, val) => (cfg.maxFileSizeMb = val),
         get: (cfg) => cfg.maxFileSizeMb,
       } as SliderAttrs),
       m(Slider, {
@@ -91,8 +95,9 @@ export class RecordingSettings implements
         icon: 'av_timer',
         values: [100, 250, 500, 1000, 2500, 5000],
         unit: 'ms',
-        set: (cfg, val) => cfg.fileWritePeriodMs = val,
+        set: (cfg, val) => (cfg.fileWritePeriodMs = val),
         get: (cfg) => cfg.fileWritePeriodMs || 0,
-      } as SliderAttrs));
+      } as SliderAttrs),
+    );
   }
 }

@@ -22,7 +22,7 @@
 }
 
 .pf-vega-view-status {
-  backdrop-filter: grayscale(1.0) blur(6px);
+  backdrop-filter: grayscale(1) blur(6px);
   background-color: $pf-minimal-background;
   height: 100%;
   width: 100%;

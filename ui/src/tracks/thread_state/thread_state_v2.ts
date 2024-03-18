@@ -77,8 +77,9 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
     `;
   }
 
-  rowToSlice(row: ThreadStateTrackTypes['row']):
-      ThreadStateTrackTypes['slice'] {
+  rowToSlice(
+    row: ThreadStateTrackTypes['row'],
+  ): ThreadStateTrackTypes['slice'] {
     const baseSlice = super.rowToSlice(row);
     const ioWait = row.ioWait === null ? undefined : !!row.ioWait;
     const title = translateState(row.state, ioWait);
@@ -88,15 +89,17 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
 
   onUpdatedSlices(slices: ThreadStateTrackTypes['slice'][]) {
     for (const slice of slices) {
-      slice.isHighlighted = (slice === this.hoveredSlice);
+      slice.isHighlighted = slice === this.hoveredSlice;
     }
   }
 
   onSliceClick(args: OnSliceClickArgs<ThreadStateTrackTypes['slice']>) {
-    globals.makeSelection(Actions.selectThreadState({
-      id: args.slice.id,
-      trackKey: this.trackKey,
-    }));
+    globals.makeSelection(
+      Actions.selectThreadState({
+        id: args.slice.id,
+        trackKey: this.trackKey,
+      }),
+    );
   }
 
   protected isSelectionHandled(selection: Selection): boolean {

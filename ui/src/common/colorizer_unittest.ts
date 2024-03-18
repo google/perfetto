@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  colorForCpu,
-  colorForThread,
-} from './colorizer';
+import {colorForCpu, colorForThread} from './colorizer';
 
 const PROCESS_A_THREAD_A = {
   tid: 100,
@@ -54,7 +51,7 @@ test('it gives threads colors by tid if pid missing', () => {
   expect(colorUnkA).toEqual(colorUnkB);
 });
 
-test('it doesn\'t copy colors', () => {
+test("it doesn't copy colors", () => {
   const a = colorForThread(PROCESS_A_THREAD_A);
   const b = colorForThread(PROCESS_A_THREAD_A);
   expect(a).toBe(b);

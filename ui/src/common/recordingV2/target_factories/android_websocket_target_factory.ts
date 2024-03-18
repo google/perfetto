@@ -52,7 +52,7 @@ interface ParsingResult {
 // and go/codesearch/android/packages/modules/adb/transport.cpp;l=1417-1420
 // Therefore a line will contain solely the device serial number and the
 // connectionState (and no other properties).
-function parseListedDevice(line: string): ListedDevice|undefined {
+function parseListedDevice(line: string): ListedDevice | undefined {
   const parts = line.split('\t');
   if (parts.length === 2) {
     return {
@@ -86,28 +86,35 @@ export function parseWebsocketResponse(message: string): ParsingResult {
       if (listedDevice) {
         // We overwrite previous states for the same serial number.
         latestStatusByDevice.set(
-          listedDevice.serialNumber, listedDevice.connectionState);
+          listedDevice.serialNumber,
+          listedDevice.connectionState,
+        );
       }
     }
     message = message.substring(prefixAndPayloadLength);
   }
   const listedDevices: ListedDevice[] = [];
-  for (const [serialNumber, connectionState] of latestStatusByDevice
-    .entries()) {
+  for (const [
+    serialNumber,
+    connectionState,
+  ] of latestStatusByDevice.entries()) {
     listedDevices.push({serialNumber, connectionState});
   }
   return {listedDevices, messageRemainder: message};
 }
 
 export class WebsocketConnection {
-  private targets: Map<string, AndroidWebsocketTarget> =
-    new Map<string, AndroidWebsocketTarget>();
+  private targets: Map<string, AndroidWebsocketTarget> = new Map<
+    string,
+    AndroidWebsocketTarget
+  >();
   private pendingData: string = '';
 
   constructor(
-      private websocket: WebSocket,
-      private maybeClearConnection: (connection: WebsocketConnection) => void,
-      private onTargetChange: OnTargetChangeCallback) {
+    private websocket: WebSocket,
+    private maybeClearConnection: (connection: WebsocketConnection) => void,
+    private onTargetChange: OnTargetChangeCallback,
+  ) {
     this.initWebsocket();
   }
 
@@ -120,9 +127,9 @@ export class WebsocketConnection {
     this.websocket.onclose = (ev: CloseEvent) => {
       if (ev.code === WEBSOCKET_CLOSED_ABNORMALLY_CODE) {
         console.info(
-          `It's safe to ignore the 'WebSocket connection to ${
-            this.websocket.url} error above, if present. It occurs when ` +
-            'checking the connection to the local Websocket server.');
+          `It's safe to ignore the 'WebSocket connection to ${this.websocket.url} error above, if present. It occurs when ` +
+            'checking the connection to the local Websocket server.',
+        );
       }
       this.maybeClearConnection(this);
       this.close();
@@ -189,7 +196,9 @@ export class WebsocketConnection {
           new AndroidWebsocketTarget(
             listedDevice.serialNumber,
             this.websocket.url,
-            this.onTargetChange));
+            this.onTargetChange,
+          ),
+        );
         targetsUpdated = true;
       }
     }
@@ -211,8 +220,9 @@ export class AndroidWebsocketTargetFactory implements TargetFactory {
   }
 
   listTargets(): RecordingTargetV2[] {
-    return this.websocketConnection ? this.websocketConnection.listTargets() :
-      [];
+    return this.websocketConnection
+      ? this.websocketConnection.listTargets()
+      : [];
   }
 
   listRecordingProblems(): string[] {
@@ -223,9 +233,12 @@ export class AndroidWebsocketTargetFactory implements TargetFactory {
   // can not be created on user input. It can only be created when the websocket
   // server detects a new target.
   connectNewTarget(): Promise<RecordingTargetV2> {
-    return Promise.reject(new Error(
-      'The websocket can only automatically connect targets ' +
-        'when they become available.'));
+    return Promise.reject(
+      new Error(
+        'The websocket can only automatically connect targets ' +
+          'when they become available.',
+      ),
+    );
   }
 
   tryEstablishWebsocket(websocketUrl: string) {
@@ -239,7 +252,10 @@ export class AndroidWebsocketTargetFactory implements TargetFactory {
 
     const websocket = new WebSocket(websocketUrl);
     this.websocketConnection = new WebsocketConnection(
-      websocket, this.maybeClearConnection, this.onTargetChange);
+      websocket,
+      this.maybeClearConnection,
+      this.onTargetChange,
+    );
   }
 
   maybeClearConnection(connection: WebsocketConnection): void {

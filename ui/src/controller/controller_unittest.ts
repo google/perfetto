@@ -12,16 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Child,
-  Controller,
-} from './controller';
+import {Child, Controller} from './controller';
 
 const _onCreate = jest.fn();
 const _onDestroy = jest.fn();
 const _run = jest.fn();
 
-type MockStates = 'idle'|'state1'|'state2'|'state3';
+type MockStates = 'idle' | 'state1' | 'state2' | 'state3';
 class MockController extends Controller<MockStates> {
   constructor(public type: string) {
     super('idle');
@@ -83,9 +80,7 @@ test('nestedControllers', () => {
     if (rootCtl.state === 'idle') return;
 
     if (rootCtl.state === 'state1') {
-      return [
-        Child('child1', MockController, 'child1'),
-      ];
+      return [Child('child1', MockController, 'child1')];
     }
     if (rootCtl.state === 'state2') {
       return [

@@ -24,7 +24,7 @@ const MIN_TABLE_SIZE_TO_CACHE = 100000;
 // provided whether a TrackController subclass should cache its quantized
 // data. Returns the bucket size (in ns) if caching should happen and
 // undefined otherwise.
-export function calcCachedBucketSize(numRows: number): duration|undefined {
+export function calcCachedBucketSize(numRows: number): duration | undefined {
   // Ensure that we're not caching when the table size isn't even that big.
   if (numRows < MIN_TABLE_SIZE_TO_CACHE) {
     return undefined;

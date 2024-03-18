@@ -76,25 +76,15 @@ test('sqlTableState: columnManupulation', () => {
   // The initial set of columns should include "id" and "name",
   // but not "ts" (as it is marked as startsHidden) and not "arg_set_id"
   // (as it is a special column).
-  expect(state.getSelectedColumns()).toEqual([
-    idColumn,
-    nameColumn,
-  ]);
+  expect(state.getSelectedColumns()).toEqual([idColumn, nameColumn]);
 
   state.addColumn(tsColumn, 0);
 
-  expect(state.getSelectedColumns()).toEqual([
-    idColumn,
-    tsColumn,
-    nameColumn,
-  ]);
+  expect(state.getSelectedColumns()).toEqual([idColumn, tsColumn, nameColumn]);
 
   state.hideColumnAtIndex(0);
 
-  expect(state.getSelectedColumns()).toEqual([
-    tsColumn,
-    nameColumn,
-  ]);
+  expect(state.getSelectedColumns()).toEqual([tsColumn, nameColumn]);
 });
 
 test('sqlTableState: sortedColumns', () => {
@@ -153,6 +143,7 @@ test('sqlTableState: sqlStatement', () => {
   const state = new SqlTableState(engine, table);
 
   // Check the generated SQL statement.
-  expect(normalize(state.buildSqlSelectStatement().selectStatement))
-    .toBe('SELECT id as id, name as name FROM table');
+  expect(normalize(state.buildSqlSelectStatement().selectStatement)).toBe(
+    'SELECT id as id, name as name FROM table',
+  );
 });

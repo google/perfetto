@@ -55,9 +55,9 @@ function toLabel(n: number): string {
     [0.001, 'm'],
     [1, ''],
     [1000, 'K'],
-    [1000*1000, 'M'],
-    [1000*1000*1000, 'G'],
-    [1000*1000*1000*1000, 'T'],
+    [1000 * 1000, 'M'],
+    [1000 * 1000 * 1000, 'G'],
+    [1000 * 1000 * 1000 * 1000, 'T'],
   ];
   let largestMultiplier;
   let largestUnit;
@@ -68,7 +68,7 @@ function toLabel(n: number): string {
     }
     [largestMultiplier, largestUnit] = [multiplier, unit];
   }
-  return `${Math.round(n/largestMultiplier)}${largestUnit}`;
+  return `${Math.round(n / largestMultiplier)}${largestUnit}`;
 }
 
 class RangeSharer {
@@ -101,14 +101,18 @@ class RangeSharer {
     this.keyToEnabled.set(key, enabled);
   }
 
-  share(options: CounterOptions, [min, max]: [number, number]):
-      [number, number] {
+  share(
+    options: CounterOptions,
+    [min, max]: [number, number],
+  ): [number, number] {
     const key = options.yRangeSharingKey;
     if (key === undefined || !this.isEnabled(key)) {
       return [min, max];
     }
 
-    const tag = `${options.yRangeSharingKey}-${options.yMode}-${options.yDisplay}-${!!options.enlarge}`;
+    const tag = `${options.yRangeSharingKey}-${options.yMode}-${
+      options.yDisplay
+    }-${!!options.enlarge}`;
     const cachedRange = this.tagToRange.get(tag);
     if (cachedRange === undefined) {
       this.tagToRange.set(tag, [min, max]);
@@ -154,22 +158,22 @@ export interface CounterOptions {
   // value = v[t] directly the value of the counter at time t
   // delta = v[t] - v[t-1] delta between value and previous value
   // rate = (v[t] - v[t-1]) / dt as delta but normalized for time
-  yMode: 'value'|'delta'|'rate';
+  yMode: 'value' | 'delta' | 'rate';
 
   // Whether Y scale should cover all of the possible values (and therefore, be
   // static) or whether it should be dynamic and cover only the visible values.
-  yRange: 'all'|'viewport';
+  yRange: 'all' | 'viewport';
 
   // Whether the Y scale should:
   // zero = y-axis scale should cover the origin (zero)
   // minmax = y-axis scale should cover just the range of yRange
   // log = as minmax but also use a log scale
-  yDisplay: 'zero'|'minmax'|'log';
+  yDisplay: 'zero' | 'minmax' | 'log';
 
   // Whether the range boundaries should be strict and use the precise min/max
   // values or whether they should be rounded down/up to the nearest human
   // readable value.
-  yRangeRounding: 'strict'|'human_readable';
+  yRangeRounding: 'strict' | 'human_readable';
 
   // Allows *extending* the range of the y-axis counter increasing
   // the maximum (via yOverrideMaximum) or decreasing the minimum
@@ -268,7 +272,7 @@ export abstract class BaseCounterTrack implements Track {
 
   getHeight() {
     const height = 40;
-    return this.getCounterOptions().enlarge ? height * 4: height;
+    return this.getCounterOptions().enlarge ? height * 4 : height;
   }
 
   // A method to render menu items for switching the defualt
@@ -278,15 +282,18 @@ export abstract class BaseCounterTrack implements Track {
     const options = this.getCounterOptions();
 
     return [
-
-      m(MenuItem,
+      m(
+        MenuItem,
         {
           label: `Display (currently: ${options.yDisplay})`,
         },
 
         m(MenuItem, {
           label: 'Zero-based',
-          icon: (options.yDisplay === 'zero') ? 'radio_button_checked' : 'radio_button_unchecked',
+          icon:
+            options.yDisplay === 'zero'
+              ? 'radio_button_checked'
+              : 'radio_button_unchecked',
           onclick: () => {
             options.yDisplay = 'zero';
             this.invalidate();
@@ -295,7 +302,10 @@ export abstract class BaseCounterTrack implements Track {
 
         m(MenuItem, {
           label: 'Min/Max',
-          icon: (options.yDisplay === 'minmax') ? 'radio_button_checked' : 'radio_button_unchecked',
+          icon:
+            options.yDisplay === 'minmax'
+              ? 'radio_button_checked'
+              : 'radio_button_unchecked',
           onclick: () => {
             options.yDisplay = 'minmax';
             this.invalidate();
@@ -304,18 +314,23 @@ export abstract class BaseCounterTrack implements Track {
 
         m(MenuItem, {
           label: 'Log',
-          icon: (options.yDisplay === 'log') ? 'radio_button_checked' : 'radio_button_unchecked',
+          icon:
+            options.yDisplay === 'log'
+              ? 'radio_button_checked'
+              : 'radio_button_unchecked',
           onclick: () => {
             options.yDisplay = 'log';
             this.invalidate();
           },
         }),
-
       ),
 
       m(MenuItem, {
         label: 'Zoom on scroll',
-        icon: (options.yRange === 'viewport') ? 'check_box' : 'check_box_outline_blank',
+        icon:
+          options.yRange === 'viewport'
+            ? 'check_box'
+            : 'check_box_outline_blank',
         onclick: () => {
           options.yRange = options.yRange === 'viewport' ? 'all' : 'viewport';
           this.invalidate();
@@ -331,31 +346,37 @@ export abstract class BaseCounterTrack implements Track {
         },
       }),
 
-      options.yRangeSharingKey && m(MenuItem, {
-        label: `Share y-axis scale (group: ${options.yRangeSharingKey})`,
-        icon: RangeSharer.get().isEnabled(options.yRangeSharingKey) ? 'check_box' : 'check_box_outline_blank',
-        onclick: () => {
-          const key = options.yRangeSharingKey;
-          if (key === undefined) {
-            return;
-          }
-          const sharer = RangeSharer.get();
-          sharer.setEnabled(key, !sharer.isEnabled(key));
-          this.invalidate();
-        },
-      }),
-
+      options.yRangeSharingKey &&
+        m(MenuItem, {
+          label: `Share y-axis scale (group: ${options.yRangeSharingKey})`,
+          icon: RangeSharer.get().isEnabled(options.yRangeSharingKey)
+            ? 'check_box'
+            : 'check_box_outline_blank',
+          onclick: () => {
+            const key = options.yRangeSharingKey;
+            if (key === undefined) {
+              return;
+            }
+            const sharer = RangeSharer.get();
+            sharer.setEnabled(key, !sharer.isEnabled(key));
+            this.invalidate();
+          },
+        }),
 
       COUNTER_DEBUG_MENU_ITEMS.get() && [
         m(MenuDivider),
-        m(MenuItem,
+        m(
+          MenuItem,
           {
             label: `Mode (currently: ${options.yMode})`,
           },
 
           m(MenuItem, {
             label: 'Value',
-            icon: (options.yMode === 'value') ? 'radio_button_checked' : 'radio_button_unchecked',
+            icon:
+              options.yMode === 'value'
+                ? 'radio_button_checked'
+                : 'radio_button_unchecked',
             onclick: () => {
               options.yMode = 'value';
               this.invalidate();
@@ -364,7 +385,10 @@ export abstract class BaseCounterTrack implements Track {
 
           m(MenuItem, {
             label: 'Delta',
-            icon: (options.yMode === 'delta') ? 'radio_button_checked' : 'radio_button_unchecked',
+            icon:
+              options.yMode === 'delta'
+                ? 'radio_button_checked'
+                : 'radio_button_unchecked',
             onclick: () => {
               options.yMode = 'delta';
               this.invalidate();
@@ -373,7 +397,10 @@ export abstract class BaseCounterTrack implements Track {
 
           m(MenuItem, {
             label: 'Rate',
-            icon: (options.yMode === 'rate') ? 'radio_button_checked' : 'radio_button_unchecked',
+            icon:
+              options.yMode === 'rate'
+                ? 'radio_button_checked'
+                : 'radio_button_unchecked',
             onclick: () => {
               options.yMode = 'rate';
               this.invalidate();
@@ -382,9 +409,15 @@ export abstract class BaseCounterTrack implements Track {
         ),
         m(MenuItem, {
           label: 'Round y-axis scale',
-          icon: (options.yRangeRounding === 'human_readable') ? 'check_box' : 'check_box_outline_blank',
+          icon:
+            options.yRangeRounding === 'human_readable'
+              ? 'check_box'
+              : 'check_box_outline_blank',
           onclick: () => {
-            options.yRangeRounding = options.yRangeRounding === 'human_readable' ? 'strict' : 'human_readable';
+            options.yRangeRounding =
+              options.yRangeRounding === 'human_readable'
+                ? 'strict'
+                : 'human_readable';
             this.invalidate();
           },
         }),
@@ -424,9 +457,7 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   getTrackShellButtons(): m.Children {
-    return [
-      this.getCounterContextMenu(),
-    ];
+    return [this.getCounterContextMenu()];
   }
 
   async onCreate(): Promise<void> {
@@ -434,10 +465,8 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   async onUpdate(): Promise<void> {
-    const {
-      visibleTimeScale: timeScale,
-      visibleWindowTime: vizTime,
-    } = globals.timeline;
+    const {visibleTimeScale: timeScale, visibleWindowTime: vizTime} =
+      globals.timeline;
 
     const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
     const rawStartNs = vizTime.start.toTime();
@@ -478,8 +507,10 @@ export abstract class BaseCounterTrack implements Track {
     const lastValues = data.lastDisplayValues;
 
     // Choose a range for the y-axis
-    const {yRange, yMin, yMax, yLabel} =
-      this.computeYRange(limits, data.displayValueRange);
+    const {yRange, yMin, yMax, yLabel} = this.computeYRange(
+      limits,
+      data.displayValueRange,
+    );
 
     const effectiveHeight = this.getHeight() - MARGIN_TOP;
     const endPx = size.width;
@@ -508,8 +539,11 @@ export abstract class BaseCounterTrack implements Track {
       return Math.floor(timeScale.timeToPx(ts));
     };
     const calculateY = (value: number) => {
-      return MARGIN_TOP + effectiveHeight -
-          Math.round(((value - yMin) / yRange) * effectiveHeight);
+      return (
+        MARGIN_TOP +
+        effectiveHeight -
+        Math.round(((value - yMin) / yRange) * effectiveHeight)
+      );
     };
 
     ctx.beginPath();
@@ -559,18 +593,18 @@ export abstract class BaseCounterTrack implements Track {
 
       const unit = this.unit;
       switch (options.yMode) {
-      case 'value':
-        text = `${text} ${unit}`;
-        break;
-      case 'delta':
-        text = `${text} \u0394${unit}`;
-        break;
-      case 'rate':
-        text = `${text} \u0394${unit}/s`;
-        break;
-      default:
-        assertUnreachable(options.yMode);
-        break;
+        case 'value':
+          text = `${text} ${unit}`;
+          break;
+        case 'delta':
+          text = `${text} \u0394${unit}`;
+          break;
+        case 'rate':
+          text = `${text} \u0394${unit}/s`;
+          break;
+        default:
+          assertUnreachable(options.yMode);
+          break;
       }
 
       if (hover.count > 1) {
@@ -581,12 +615,16 @@ export abstract class BaseCounterTrack implements Track {
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
       const xStart = Math.floor(timeScale.timeToPx(hover.ts));
-      const xEnd = hover.tsEnd === undefined ?
-        endPx :
-        Math.floor(timeScale.timeToPx(hover.tsEnd));
-      const y = MARGIN_TOP + effectiveHeight -
-          Math.round(((hover.lastDisplayValue - yMin) / yRange) *
-                     effectiveHeight);
+      const xEnd =
+        hover.tsEnd === undefined
+          ? endPx
+          : Math.floor(timeScale.timeToPx(hover.tsEnd));
+      const y =
+        MARGIN_TOP +
+        effectiveHeight -
+        Math.round(
+          ((hover.lastDisplayValue - yMin) / yRange) * effectiveHeight,
+        );
 
       // Highlight line.
       ctx.beginPath();
@@ -599,7 +637,12 @@ export abstract class BaseCounterTrack implements Track {
       // Draw change marker.
       ctx.beginPath();
       ctx.arc(
-        xStart, y, 3 /* r*/, 0 /* start angle*/, 2 * Math.PI /* end angle*/);
+        xStart,
+        y,
+        3 /* r*/,
+        0 /* start angle*/,
+        2 * Math.PI /* end angle*/,
+      );
       ctx.fill();
       ctx.stroke();
 
@@ -633,10 +676,11 @@ export abstract class BaseCounterTrack implements Track {
       0,
       size.width,
       timeScale.timeToPx(this.countersKey.start),
-      timeScale.timeToPx(this.countersKey.end));
+      timeScale.timeToPx(this.countersKey.end),
+    );
   }
 
-  onMouseMove(pos: {x: number, y: number}) {
+  onMouseMove(pos: {x: number; y: number}) {
     const data = this.counters;
     if (data === undefined) return;
     this.mousePos = pos;
@@ -651,8 +695,8 @@ export abstract class BaseCounterTrack implements Track {
     }
 
     const ts = Time.fromRaw(data.timestamps[left]);
-    const tsEnd = right === -1 ? undefined :
-      Time.fromRaw(data.timestamps[right]);
+    const tsEnd =
+      right === -1 ? undefined : Time.fromRaw(data.timestamps[right]);
     const lastDisplayValue = data.lastDisplayValues[left];
     const count = data.counts[left];
     const avgValue = data.avgValues[left];
@@ -677,11 +721,14 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   // Compute the range of values to display and range label.
-  private computeYRange(limits: CounterLimits, dataLimits: [number, number]): {
-    yMin: number,
-    yMax: number,
-    yRange: number,
-    yLabel: string,
+  private computeYRange(
+    limits: CounterLimits,
+    dataLimits: [number, number],
+  ): {
+    yMin: number;
+    yMax: number;
+    yRange: number;
+    yLabel: string;
   } {
     const options = this.getCounterOptions();
 
@@ -729,18 +776,18 @@ export abstract class BaseCounterTrack implements Track {
 
     const unit = this.unit;
     switch (options.yMode) {
-    case 'value':
-      yLabel += ` ${unit}`;
-      break;
-    case 'delta':
-      yLabel += `\u0394${unit}`;
-      break;
-    case 'rate':
-      yLabel += `\u0394${unit}/s`;
-      break;
-    default:
-      assertUnreachable(options.yMode);
-      break;
+      case 'value':
+        yLabel += ` ${unit}`;
+        break;
+      case 'delta':
+        yLabel += `\u0394${unit}`;
+        break;
+      case 'rate':
+        yLabel += `\u0394${unit}/s`;
+        break;
+      default:
+        assertUnreachable(options.yMode);
+        break;
     }
 
     if (options.yDisplay === 'log') {
@@ -751,7 +798,7 @@ export abstract class BaseCounterTrack implements Track {
       yMin,
       yMax,
       yLabel,
-      yRange: yMax-yMin,
+      yRange: yMax - yMin,
     };
   }
 
@@ -762,18 +809,19 @@ export abstract class BaseCounterTrack implements Track {
     let valueExpr;
 
     switch (options.yMode) {
-    case 'value':
-      valueExpr = 'value';
-      break;
-    case 'delta':
-      valueExpr = 'lead(value, 1, value) over (order by ts) - value';
-      break;
-    case 'rate':
-      valueExpr = '(lead(value, 1, value) over (order by ts) - value) / ((lead(ts, 1, 100) over (order by ts) - ts) / 1e9)';
-      break;
-    default:
-      assertUnreachable(options.yMode);
-      break;
+      case 'value':
+        valueExpr = 'value';
+        break;
+      case 'delta':
+        valueExpr = 'lead(value, 1, value) over (order by ts) - value';
+        break;
+      case 'rate':
+        valueExpr =
+          '(lead(value, 1, value) over (order by ts) - value) / ((lead(ts, 1, 100) over (order by ts) - ts) / 1e9)';
+        break;
+      default:
+        assertUnreachable(options.yMode);
+        break;
     }
 
     let displayValueExpr = valueExpr;
@@ -832,13 +880,14 @@ export abstract class BaseCounterTrack implements Track {
     }
 
     if (rawCountersKey.isCoveredBy(this.countersKey)) {
-      return;  // We have the data already, no need to re-query.
+      return; // We have the data already, no need to re-query.
     }
 
     const countersKey = rawCountersKey.normalize();
     if (!rawCountersKey.isCoveredBy(countersKey)) {
-      throw new Error(`Normalization error ${countersKey.toString()} ${
-        rawCountersKey.toString()}`);
+      throw new Error(
+        `Normalization error ${countersKey.toString()} ${rawCountersKey.toString()}`,
+      );
     }
 
     const maybeCachedCounters = this.cache.lookup(countersKey);
@@ -855,12 +904,8 @@ export abstract class BaseCounterTrack implements Track {
         `ts <= ${countersKey.end}`,
         `value is not null`,
       ],
-      groupBy: [
-        'tsq',
-      ],
-      orderBy: [
-        'tsq',
-      ],
+      groupBy: ['tsq'],
+      orderBy: ['tsq'],
     });
 
     const queryRes = await this.engine.query(`

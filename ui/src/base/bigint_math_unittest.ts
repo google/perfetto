@@ -212,8 +212,9 @@ describe('BigIntMath', () => {
     });
 
     it('should throw when presented with a negative integer', () => {
-      expect(() => BIM.popcount(-1n))
-        .toThrowError('Can\'t get popcount of negative number -1');
+      expect(() => BIM.popcount(-1n)).toThrowError(
+        "Can't get popcount of negative number -1",
+      );
     });
   });
 
@@ -225,12 +226,16 @@ describe('BigIntMath', () => {
       expect(BIM.ratio(1n, 100n)).toBeCloseTo(0.01);
       expect(
         BIM.ratio(
-          987654321098765432109876543210n, 123456789012345678901234567890n))
-        .toBeCloseTo(8);
+          987654321098765432109876543210n,
+          123456789012345678901234567890n,
+        ),
+      ).toBeCloseTo(8);
       expect(
         BIM.ratio(
-          123456789012345678901234567890n, 987654321098765432109876543210n))
-        .toBeCloseTo(0.125, 3);
+          123456789012345678901234567890n,
+          987654321098765432109876543210n,
+        ),
+      ).toBeCloseTo(0.125, 3);
     });
   });
 

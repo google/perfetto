@@ -31,18 +31,23 @@ export interface TreeTableAttrs<T> {
 export class TreeTable<T> implements m.ClassComponent<TreeTableAttrs<T>> {
   private collapsedPaths = new Set<string>();
 
-  view({attrs}: m.Vnode<TreeTableAttrs<T>, this>): void|m.Children {
+  view({attrs}: m.Vnode<TreeTableAttrs<T>, this>): void | m.Children {
     const {columns, rows} = attrs;
     const headers = columns.map(({name}) => m('th', name));
     const renderedRows = this.renderRows(rows, 0, attrs, []);
     return m(
-      'table.pf-treetable', m('thead', m('tr', headers)),
-      m('tbody', renderedRows));
+      'table.pf-treetable',
+      m('thead', m('tr', headers)),
+      m('tbody', renderedRows),
+    );
   }
 
   private renderRows(
-    rows: T[], indentLevel: number, attrs: TreeTableAttrs<T>,
-    path: string[]): m.Children {
+    rows: T[],
+    indentLevel: number,
+    attrs: TreeTableAttrs<T>,
+    path: string[],
+  ): m.Children {
     const {columns, getChildren} = attrs;
     const renderedRows: m.Children = [];
     for (const row of rows) {
@@ -60,7 +65,8 @@ export class TreeTable<T> implements m.ClassComponent<TreeTableAttrs<T>> {
             '--indentation-level': indentLevel,
           };
           return m(
-            'td', {style, class: classNames(classes, 'pf-treetable-maincol')},
+            'td',
+            {style, class: classNames(classes, 'pf-treetable-maincol')},
             m('.pf-treetable-gutter', {
               onclick: () => {
                 if (this.isCollapsed(thisPath)) {
@@ -71,7 +77,8 @@ export class TreeTable<T> implements m.ClassComponent<TreeTableAttrs<T>> {
                 raf.scheduleFullRedraw();
               },
             }),
-            getData(row));
+            getData(row),
+          );
         } else {
           const style = {
             '--indentation-level': 0,
@@ -82,7 +89,8 @@ export class TreeTable<T> implements m.ClassComponent<TreeTableAttrs<T>> {
       renderedRows.push(m('tr', cols));
       if (childRows && !this.isCollapsed(thisPath)) {
         renderedRows.push(
-          this.renderRows(childRows, indentLevel + 1, attrs, thisPath));
+          this.renderRows(childRows, indentLevel + 1, attrs, thisPath),
+        );
       }
     }
     return renderedRows;

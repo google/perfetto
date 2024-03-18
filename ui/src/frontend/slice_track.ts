@@ -40,8 +40,8 @@ export interface SliceData extends TrackData {
   starts: BigInt64Array;
   ends: BigInt64Array;
   depths: Uint16Array;
-  titles: Uint16Array;   // Index into strings.
-  colors?: Uint16Array;  // Index into strings.
+  titles: Uint16Array; // Index into strings.
+  colors?: Uint16Array; // Index into strings.
   isInstant: Uint16Array;
   isIncomplete: Uint16Array;
   cpuTimeRatio?: Float64Array;
@@ -59,8 +59,11 @@ export abstract class SliceTrackLEGACY implements Track {
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
 
   constructor(
-      private maxDepth: number, protected trackKey: string,
-      private tableName: string, private namespace?: string) {}
+    private maxDepth: number,
+    protected trackKey: string,
+    private tableName: string,
+    private namespace?: string,
+  ) {}
 
   async onUpdate(): Promise<void> {
     await this.fetcher.requestDataForCurrentTime();
@@ -70,8 +73,11 @@ export abstract class SliceTrackLEGACY implements Track {
     this.fetcher.dispose();
   }
 
-  abstract onBoundsChange(start: time, end: time, resolution: duration):
-      Promise<SliceData>;
+  abstract onBoundsChange(
+    start: time,
+    end: time,
+    resolution: duration,
+  ): Promise<SliceData>;
 
   protected namespaceTable(tableName: string = this.tableName): string {
     if (this.namespace) {
@@ -91,7 +97,7 @@ export abstract class SliceTrackLEGACY implements Track {
   render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const data = this.fetcher.data;
-    if (data === undefined) return;  // Can't possibly draw anything.
+    if (data === undefined) return; // Can't possibly draw anything.
 
     const {visibleTimeSpan, visibleTimeScale} = globals.timeline;
 
@@ -115,7 +121,6 @@ export abstract class SliceTrackLEGACY implements Track {
     // drawings, otherwise it would result under another rect.
     let drawRectOnSelected = () => {};
 
-
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = Time.fromRaw(data.starts[i]);
       let tEnd = Time.fromRaw(data.ends[i]);
@@ -126,7 +131,8 @@ export abstract class SliceTrackLEGACY implements Track {
       const isIncomplete = data.isIncomplete[i];
       const title = data.strings[titleId];
       const colorOverride = data.colors && data.strings[data.colors[i]];
-      if (isIncomplete) {  // incomplete slice
+      if (isIncomplete) {
+        // incomplete slice
         // TODO(stevegolton): This isn't exactly equivalent, ideally we should
         // choose tEnd once we've converted to screen space coords.
         tEnd = this.getEndTimeIfInComplete(tStart);
@@ -148,18 +154,22 @@ export abstract class SliceTrackLEGACY implements Track {
       };
 
       const currentSelection = globals.state.currentSelection;
-      const isSelected = currentSelection &&
-          currentSelection.kind === 'CHROME_SLICE' &&
-          currentSelection.id !== undefined && currentSelection.id === sliceId;
+      const isSelected =
+        currentSelection &&
+        currentSelection.kind === 'CHROME_SLICE' &&
+        currentSelection.id !== undefined &&
+        currentSelection.id === sliceId;
 
-      const highlighted = titleId === this.hoveredTitleId ||
-          globals.state.highlightedSliceId === sliceId;
+      const highlighted =
+        titleId === this.hoveredTitleId ||
+        globals.state.highlightedSliceId === sliceId;
 
       const hasFocus = highlighted || isSelected;
       const colorScheme = getColorForSlice(title);
       const colorObj = hasFocus ? colorScheme.variant : colorScheme.base;
-      const textColor =
-          hasFocus ? colorScheme.textVariant : colorScheme.textBase;
+      const textColor = hasFocus
+        ? colorScheme.textVariant
+        : colorScheme.textBase;
 
       let color: string;
       if (colorOverride === undefined) {
@@ -187,7 +197,11 @@ export abstract class SliceTrackLEGACY implements Track {
             ctx.beginPath();
             ctx.lineWidth = 3;
             ctx.strokeRect(
-              -HALF_CHEVRON_WIDTH_PX, 0, CHEVRON_WIDTH_PX, SLICE_HEIGHT);
+              -HALF_CHEVRON_WIDTH_PX,
+              0,
+              CHEVRON_WIDTH_PX,
+              SLICE_HEIGHT,
+            );
             ctx.closePath();
 
             // Draw inner chevron as interior
@@ -212,9 +226,12 @@ export abstract class SliceTrackLEGACY implements Track {
           rect.top,
           rect.width,
           SLICE_HEIGHT,
-          !CROP_INCOMPLETE_SLICE_FLAG.get());
+          !CROP_INCOMPLETE_SLICE_FLAG.get(),
+        );
       } else if (
-        data.cpuTimeRatio !== undefined && data.cpuTimeRatio[i] < 1 - 1e-9) {
+        data.cpuTimeRatio !== undefined &&
+        data.cpuTimeRatio[i] < 1 - 1e-9
+      ) {
         // We draw two rectangles, representing the ratio between wall time and
         // time spent on cpu.
         const cpuTimeRatio = data.cpuTimeRatio![i];
@@ -226,7 +243,8 @@ export abstract class SliceTrackLEGACY implements Track {
           rect.left + firstPartWidth,
           rect.top,
           secondPartWidth,
-          SLICE_HEIGHT);
+          SLICE_HEIGHT,
+        );
       } else {
         ctx.fillRect(rect.left, rect.top, rect.width, SLICE_HEIGHT);
       }
@@ -238,7 +256,11 @@ export abstract class SliceTrackLEGACY implements Track {
           ctx.beginPath();
           ctx.lineWidth = 3;
           ctx.strokeRect(
-            rect.left, rect.top - 1.5, rect.width, SLICE_HEIGHT + 3);
+            rect.left,
+            rect.top - 1.5,
+            rect.width,
+            SLICE_HEIGHT + 3,
+          );
           ctx.closePath();
         };
       }
@@ -268,12 +290,10 @@ export abstract class SliceTrackLEGACY implements Track {
     ctx.fill();
   }
 
-  getSliceIndex({x, y}: {x: number, y: number}): number|void {
+  getSliceIndex({x, y}: {x: number; y: number}): number | void {
     const data = this.fetcher.data;
     if (data === undefined) return;
-    const {
-      visibleTimeScale: timeScale,
-    } = globals.timeline;
+    const {visibleTimeScale: timeScale} = globals.timeline;
     if (y < TRACK_PADDING) return;
     const instantWidthTime = timeScale.pxDeltaToDuration(HALF_CHEVRON_WIDTH_PX);
     const t = timeScale.pxToHpTime(x);
@@ -308,16 +328,16 @@ export abstract class SliceTrackLEGACY implements Track {
 
     let end = visibleWindowTime.end.toTime('ceil');
     if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
-      const widthTime =
-          visibleTimeScale.pxDeltaToDuration(INCOMPLETE_SLICE_WIDTH_PX)
-            .toTime();
+      const widthTime = visibleTimeScale
+        .pxDeltaToDuration(INCOMPLETE_SLICE_WIDTH_PX)
+        .toTime();
       end = Time.add(start, widthTime);
     }
 
     return end;
   }
 
-  onMouseMove({x, y}: {x: number, y: number}) {
+  onMouseMove({x, y}: {x: number; y: number}) {
     this.hoveredTitleId = -1;
     globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1}));
     const sliceIndex = this.getSliceIndex({x, y});
@@ -334,18 +354,20 @@ export abstract class SliceTrackLEGACY implements Track {
     globals.dispatch(Actions.setHighlightedSliceId({sliceId: -1}));
   }
 
-  onMouseClick({x, y}: {x: number, y: number}): boolean {
+  onMouseClick({x, y}: {x: number; y: number}): boolean {
     const sliceIndex = this.getSliceIndex({x, y});
     if (sliceIndex === undefined) return false;
     const data = this.fetcher.data;
     if (data === undefined) return false;
     const sliceId = data.sliceIds[sliceIndex];
     if (sliceId !== undefined && sliceId !== -1) {
-      globals.makeSelection(Actions.selectChromeSlice({
-        id: sliceId,
-        trackKey: this.trackKey,
-        table: this.namespace,
-      }));
+      globals.makeSelection(
+        Actions.selectChromeSlice({
+          id: sliceId,
+          trackKey: this.trackKey,
+          table: this.namespace,
+        }),
+      );
       return true;
     }
     return false;
@@ -355,12 +377,8 @@ export abstract class SliceTrackLEGACY implements Track {
     return SLICE_HEIGHT * (this.maxDepth + 1) + 2 * TRACK_PADDING;
   }
 
-  getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect|undefined {
-    const {
-      windowSpan,
-      visibleTimeScale,
-      visibleTimeSpan,
-    } = globals.timeline;
+  getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect | undefined {
+    const {windowSpan, visibleTimeScale, visibleTimeSpan} = globals.timeline;
 
     const pxEnd = windowSpan.end;
     const left = Math.max(visibleTimeScale.timeToPx(tStart), 0);

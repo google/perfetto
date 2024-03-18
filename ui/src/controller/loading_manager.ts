@@ -36,8 +36,10 @@ export class LoadingManager implements LoadingTracker {
 
   private update(change: number) {
     this.numQueuedQueries += change;
-    if (this.numQueuedQueries === 0 ||
-        Math.abs(this.numLastUpdate - this.numQueuedQueries) > 2) {
+    if (
+      this.numQueuedQueries === 0 ||
+      Math.abs(this.numLastUpdate - this.numQueuedQueries) > 2
+    ) {
       this.numLastUpdate = this.numQueuedQueries;
       publishLoading(this.numQueuedQueries);
     }

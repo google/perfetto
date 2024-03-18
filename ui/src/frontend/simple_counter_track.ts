@@ -21,8 +21,8 @@ import {Disposable, DisposableCallback} from '../base/disposable';
 export type SimpleCounterTrackConfig = {
   data: SqlDataSource;
   columns: CounterColumns;
-  options?: Partial<CounterOptions>
-}
+  options?: Partial<CounterOptions>;
+};
 
 export class SimpleCounterTrack extends BaseCounterTrack {
   private config: SimpleCounterTrackConfig;
@@ -31,7 +31,8 @@ export class SimpleCounterTrack extends BaseCounterTrack {
   constructor(
     engine: EngineProxy,
     ctx: TrackContext,
-    config: SimpleCounterTrackConfig) {
+    config: SimpleCounterTrackConfig,
+  ) {
     super({
       engine,
       trackKey: ctx.trackKey,
@@ -51,9 +52,7 @@ export class SimpleCounterTrack extends BaseCounterTrack {
   }
 
   getTrackShellButtons(): m.Children {
-    return [
-      this.getCounterContextMenu(),
-    ];
+    return [this.getCounterContextMenu()];
   }
 
   getSqlSource(): string {

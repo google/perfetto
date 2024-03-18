@@ -29,7 +29,7 @@ import {intersect} from '../base/set_utils';
 // need to map to the related sqlite type:
 // null = NULL, string = TEXT, number = INTEGER/REAL,
 // boolean = INTEGER, bigint = INTEGER
-export type Primitive = null|string|boolean|number|bigint;
+export type Primitive = null | string | boolean | number | bigint;
 
 export const Null = 'null' as const;
 export const Num = 'num' as const;
@@ -40,7 +40,12 @@ export const Bool = 'bool' as const;
 
 // Values may be of any of the above types:
 export type KeyType =
-    typeof Num|typeof Str|typeof Null|typeof Id|typeof Bool|typeof BigInt;
+  | typeof Num
+  | typeof Str
+  | typeof Null
+  | typeof Id
+  | typeof Bool
+  | typeof BigInt;
 
 // KeySet is a specification for the key/value pairs on an Event.
 // - Every event must have a string ID.
@@ -51,7 +56,7 @@ export type KeyType =
 // const thisDoesNot: KeySet = { foo: "bar" };
 // Since although 'bar' is a string it's not a KeyType.
 export type KeySet = {
-  readonly [key: string]: KeyType,
+  readonly [key: string]: KeyType;
 };
 
 // The empty keyset. Events from this KeySet will only have ids.
@@ -67,15 +72,15 @@ export type UntypedKeySet = KeySet;
 // the given id. It is expected that users will only materialise the
 // key/value pairs relevant to the specific use case at hand.
 export type WritableUntypedEvent = {
-  id: string,
-  [key: string]: Primitive,
+  id: string;
+  [key: string]: Primitive;
 };
 
 export type UntypedEvent = Readonly<WritableUntypedEvent>;
 
 export type Event<K extends KeySet> = {
-  readonly[Property in Exclude<keyof K, 'id'>]: ConformingValue<K[Property]>;
-}&{
+  readonly [Property in Exclude<keyof K, 'id'>]: ConformingValue<K[Property]>;
+} & {
   readonly id: string;
 };
 
@@ -101,8 +106,11 @@ export interface EventSet<P extends KeySet> {
   // often have to do queries.
   count(): Promise<number>;
   isEmpty(): Promise<boolean>;
-  materialise<T extends KeySet>(keys: T, offset?: number, limit?: number):
-      Promise<Materialised<T, P>>;
+  materialise<T extends KeySet>(
+    keys: T,
+    offset?: number,
+    limit?: number,
+  ): Promise<Materialised<T, P>>;
 }
 
 interface UnionEventSet<T extends KeySet> extends EventSet<T> {
@@ -184,8 +192,9 @@ export interface Sort {
 // Together this means in the minimal case subclasses only *have* to
 // implement the single abstract method: materialise(). Everything else
 // is handled for you.
-export abstract class OptimisingEventSet<P extends KeySet> implements
-    EventSet<P> {
+export abstract class OptimisingEventSet<P extends KeySet>
+  implements EventSet<P>
+{
   abstract readonly keys: P;
 
   // OptimisingEventSet provides the synchronous refinement methods.
@@ -214,7 +223,10 @@ export abstract class OptimisingEventSet<P extends KeySet> implements
   union<Q extends KeySet>(other: EventSet<Q>): Merged<P, Q> {
     const merged = mergeKeys(this.keys, other.keys);
     const result = new NaiveUnionEventSet<MergedKeys<P, Q>>(
-      merged, this as UntypedEventSet, other as UntypedEventSet);
+      merged,
+      this as UntypedEventSet,
+      other as UntypedEventSet,
+    );
     const optimised = optimise(result);
     return optimised;
   }
@@ -222,7 +234,10 @@ export abstract class OptimisingEventSet<P extends KeySet> implements
   intersect<Q extends KeySet>(other: EventSet<Q>): Merged<P, Q> {
     const merged = mergeKeys(this.keys, other.keys);
     const result = new NaiveIntersectionEventSet<MergedKeys<P, Q>>(
-      merged, this as UntypedEventSet, other as UntypedEventSet);
+      merged,
+      this as UntypedEventSet,
+      other as UntypedEventSet,
+    );
     const optimised = optimise(result);
     return optimised;
   }
@@ -230,7 +245,10 @@ export abstract class OptimisingEventSet<P extends KeySet> implements
   // Analysis methods should be implemented by the subclass.
   // Materialise is abstract and must be implemented by the subclass.
   abstract materialise<Q extends KeySet>(
-      keys: Q, offset?: number, limit?: number): Promise<Materialised<Q, P>>;
+    keys: Q,
+    offset?: number,
+    limit?: number,
+  ): Promise<Materialised<Q, P>>;
 
   // We provide a default implementation of count() on top of
   // materialise(). It's likely the subclass can provide a more
@@ -244,14 +262,19 @@ export abstract class OptimisingEventSet<P extends KeySet> implements
   // materialise(). It's likely the subclass can provide a more
   // performant implementation.
   async isEmpty(): Promise<boolean> {
-    const materialised =
-        await this.materialise({}, 0 /* offset */, 1 /* limit */);
+    const materialised = await this.materialise(
+      {},
+      0 /* offset */,
+      1 /* limit */,
+    );
     return materialised.events.length === 0;
   }
 }
 
-class NaiveFilterEventSet<P extends KeySet> extends
-  OptimisingEventSet<P> implements FilterEventSet<P> {
+class NaiveFilterEventSet<P extends KeySet>
+  extends OptimisingEventSet<P>
+  implements FilterEventSet<P>
+{
   readonly isFilter = true;
   readonly parent: EventSet<P>;
   readonly filters: Filter[];
@@ -289,21 +312,29 @@ class NaiveFilterEventSet<P extends KeySet> extends
     return true;
   }
 
-  async materialise<Q extends KeySet>(keys: Q, offset?: number, limit?: number):
-      Promise<Materialised<Q, P>> {
+  async materialise<Q extends KeySet>(
+    keys: Q,
+    offset?: number,
+    limit?: number,
+  ): Promise<Materialised<Q, P>> {
     const combined = freeVariablesFromFilters(this.filters, keys);
     const concreateParent = await this.parent.materialise(combined);
     let events = concreateParent.events;
     for (const filter of this.filters) {
       events = events.filter((e) => filter.execute(e));
     }
-    return (new ConcreteEventSet(combined, events))
-      .materialise(keys, offset, limit);
+    return new ConcreteEventSet(combined, events).materialise(
+      keys,
+      offset,
+      limit,
+    );
   }
 }
 
-class NaiveSortEventSet<P extends KeySet> extends
-  OptimisingEventSet<P> implements SortEventSet<P> {
+class NaiveSortEventSet<P extends KeySet>
+  extends OptimisingEventSet<P>
+  implements SortEventSet<P>
+{
   readonly isSort = true;
   readonly parent: EventSet<P>;
   readonly sorts: Sort[];
@@ -324,22 +355,29 @@ class NaiveSortEventSet<P extends KeySet> extends
     return this.parent.isEmpty();
   }
 
-  async materialise<Q extends KeySet>(keys: Q, offset?: number, limit?: number):
-      Promise<Materialised<Q, P>> {
+  async materialise<Q extends KeySet>(
+    keys: Q,
+    offset?: number,
+    limit?: number,
+  ): Promise<Materialised<Q, P>> {
     const combined = freeVariablesFromSorts(this.sorts, keys);
     const concreateParent = await this.parent.materialise(combined);
     let events = concreateParent.events;
     for (const sort of this.sorts) {
       events = events.sort(cmpFromSort(sort));
     }
-    return (new ConcreteEventSet(combined, events))
-      .materialise(keys, offset, limit);
+    return new ConcreteEventSet(combined, events).materialise(
+      keys,
+      offset,
+      limit,
+    );
   }
 }
 
-
-export class NaiveUnionEventSet<T extends KeySet> extends
-  OptimisingEventSet<T> implements UnionEventSet<T> {
+export class NaiveUnionEventSet<T extends KeySet>
+  extends OptimisingEventSet<T>
+  implements UnionEventSet<T>
+{
   readonly isUnion = true;
   readonly parents: EventSet<T>[];
   readonly keys: T;
@@ -357,11 +395,15 @@ export class NaiveUnionEventSet<T extends KeySet> extends
   // TODO(hjd): We could implement a more efficient dedicated count().
   // TODO(hjd): We could implement a more efficient dedicated isEmpty().
 
-  async materialise<Q extends KeySet>(keys: Q, offset?: number, limit?: number):
-      Promise<Materialised<Q, T>> {
+  async materialise<Q extends KeySet>(
+    keys: Q,
+    offset?: number,
+    limit?: number,
+  ): Promise<Materialised<Q, T>> {
     const promises = this.parents.map((p) => p.materialise(keys));
-    const materialisedParents =
-        await Promise.all(promises) as ConcreteEventSet<Q>[];
+    const materialisedParents = (await Promise.all(
+      promises,
+    )) as ConcreteEventSet<Q>[];
     const seen = new Set<string>();
     let events = [];
 
@@ -381,8 +423,10 @@ export class NaiveUnionEventSet<T extends KeySet> extends
   }
 }
 
-export class NaiveIntersectionEventSet<T extends KeySet> extends
-  OptimisingEventSet<T> implements IntersectionEventSet<T> {
+export class NaiveIntersectionEventSet<T extends KeySet>
+  extends OptimisingEventSet<T>
+  implements IntersectionEventSet<T>
+{
   readonly isIntersection = true;
   readonly parents: EventSet<T>[];
   readonly keys: T;
@@ -400,8 +444,11 @@ export class NaiveIntersectionEventSet<T extends KeySet> extends
   // TODO(hjd): We could implement a more efficient dedicated count().
   // TODO(hjd): We could implement a more efficient dedicated isEmpty().
 
-  async materialise<Q extends KeySet>(keys: Q, offset?: number, limit?: number):
-      Promise<Materialised<Q, T>> {
+  async materialise<Q extends KeySet>(
+    keys: Q,
+    offset?: number,
+    limit?: number,
+  ): Promise<Materialised<Q, T>> {
     if (this.parents.length === 0) {
       return ConcreteEventSet.from(keys, []) as Materialised<Q, T>;
     }
@@ -410,8 +457,9 @@ export class NaiveIntersectionEventSet<T extends KeySet> extends
     const firstParent = parents.pop()!;
 
     const promises = parents.map((p) => p.materialise({}));
-    const firstPromise =
-        firstParent.materialise(keys) as unknown as ConcreteEventSet<Q>;
+    const firstPromise = firstParent.materialise(
+      keys,
+    ) as unknown as ConcreteEventSet<Q>;
 
     const materialised = await Promise.all(promises);
     const firstMaterialised = await firstPromise;
@@ -435,8 +483,10 @@ export class NaiveIntersectionEventSet<T extends KeySet> extends
 }
 
 // A completely empty EventSet.
-export class EmptyEventSet<T extends KeySet> extends
-  OptimisingEventSet<T> implements EventSet<T> {
+export class EmptyEventSet<T extends KeySet>
+  extends OptimisingEventSet<T>
+  implements EventSet<T>
+{
   readonly isEmptyEventSet = true;
   readonly keys: T;
 
@@ -458,21 +508,28 @@ export class EmptyEventSet<T extends KeySet> extends
   }
 
   async materialise<Q extends KeySet>(
-    keys: Q, _offset?: number, _limit?: number): Promise<Materialised<Q, T>> {
+    keys: Q,
+    _offset?: number,
+    _limit?: number,
+  ): Promise<Materialised<Q, T>> {
     return Promise.resolve(
-        new ConcreteEventSet<Q>(keys, []) as unknown as Materialised<Q, T>);
+      new ConcreteEventSet<Q>(keys, []) as unknown as Materialised<Q, T>,
+    );
   }
 }
 
-
-export class ConcreteEventSet<P extends KeySet> extends
-  OptimisingEventSet<P> implements EventSet<P> {
+export class ConcreteEventSet<P extends KeySet>
+  extends OptimisingEventSet<P>
+  implements EventSet<P>
+{
   readonly isConcreteEventSet = true;
   readonly events: Event<P>[];
   readonly keys: P;
 
-  static from<Q extends KeySet>(keys: Q, events: Event<Q>[]):
-      ConcreteEventSet<Q> {
+  static from<Q extends KeySet>(
+    keys: Q,
+    events: Event<Q>[],
+  ): ConcreteEventSet<Q> {
     return new ConcreteEventSet<Q>(keys, events);
   }
 
@@ -492,11 +549,14 @@ export class ConcreteEventSet<P extends KeySet> extends
     return Promise.resolve(this.events.length === 0);
   }
 
-  materialise<Q extends KeySet>(keys: Q, offset?: number, limit?: number):
-      Promise<Materialised<Q, P>> {
+  materialise<Q extends KeySet>(
+    keys: Q,
+    offset?: number,
+    limit?: number,
+  ): Promise<Materialised<Q, P>> {
     const actualOffset = offset === undefined ? 0 : offset;
     const actualEnd =
-        limit === undefined ? this.events.length : actualOffset + limit;
+      limit === undefined ? this.events.length : actualOffset + limit;
 
     const shouldFilter = !isEqualKeySet(keys, this.keys);
     const shouldSlice = actualOffset !== 0 || actualEnd !== this.events.length;
@@ -527,7 +587,8 @@ export class ConcreteEventSet<P extends KeySet> extends
     }
 
     return Promise.resolve(
-        new ConcreteEventSet<Q>(keys, events) as unknown as Materialised<Q, P>);
+      new ConcreteEventSet<Q>(keys, events) as unknown as Materialised<Q, P>,
+    );
   }
 }
 
@@ -592,8 +653,12 @@ export function optimise<T extends KeySet>(eventSet: EventSet<T>): EventSet<T> {
 
     // The union of concrete EventSets is a concrete EventSets with all
     // the events in.
-    if (isArrayOf<ConcreteEventSet<T>, EventSet<T>>(
-      isConcreteEventSet, newParents)) {
+    if (
+      isArrayOf<ConcreteEventSet<T>, EventSet<T>>(
+        isConcreteEventSet,
+        newParents,
+      )
+    ) {
       const seen = new Set<string>();
       const events = [];
       for (const p of newParents) {
@@ -859,42 +924,55 @@ export function v(name: string): Var {
 
 // Type guards:
 export function isEmptyEventSet<T extends KeySet>(
-  s: EventSet<T>|EmptyEventSet<T>): s is EmptyEventSet<T> {
-  return !!((s as EmptyEventSet<T>).isEmptyEventSet);
+  s: EventSet<T> | EmptyEventSet<T>,
+): s is EmptyEventSet<T> {
+  return !!(s as EmptyEventSet<T>).isEmptyEventSet;
 }
 
 export function isConcreteEventSet<T extends KeySet>(
-  s: EventSet<T>|ConcreteEventSet<T>): s is ConcreteEventSet<T> {
-  return !!((s as ConcreteEventSet<T>).isConcreteEventSet);
+  s: EventSet<T> | ConcreteEventSet<T>,
+): s is ConcreteEventSet<T> {
+  return !!(s as ConcreteEventSet<T>).isConcreteEventSet;
 }
 
 export function isUnionEventSet<T extends KeySet>(
-  s: EventSet<T>|UnionEventSet<T>): s is UnionEventSet<T> {
-  return (s as UnionEventSet<T>).isUnion &&
-      Array.isArray((s as UnionEventSet<T>).parents);
+  s: EventSet<T> | UnionEventSet<T>,
+): s is UnionEventSet<T> {
+  return (
+    (s as UnionEventSet<T>).isUnion &&
+    Array.isArray((s as UnionEventSet<T>).parents)
+  );
 }
 
 export function isIntersectionEventSet<T extends KeySet>(
-  s: EventSet<T>|IntersectionEventSet<T>): s is IntersectionEventSet<T> {
-  return (s as IntersectionEventSet<T>).isIntersection &&
-      Array.isArray((s as IntersectionEventSet<T>).parents);
+  s: EventSet<T> | IntersectionEventSet<T>,
+): s is IntersectionEventSet<T> {
+  return (
+    (s as IntersectionEventSet<T>).isIntersection &&
+    Array.isArray((s as IntersectionEventSet<T>).parents)
+  );
 }
 
 export function isFilterEventSet<T extends KeySet>(
-  s: EventSet<T>|FilterEventSet<T>): s is FilterEventSet<T> {
-  return (s as FilterEventSet<T>).isFilter &&
-      Array.isArray((s as FilterEventSet<T>).filters);
+  s: EventSet<T> | FilterEventSet<T>,
+): s is FilterEventSet<T> {
+  return (
+    (s as FilterEventSet<T>).isFilter &&
+    Array.isArray((s as FilterEventSet<T>).filters)
+  );
 }
 
 export function isSortEventSet<T extends KeySet>(
-  s: EventSet<T>|SortEventSet<T>): s is SortEventSet<T> {
-  return (s as SortEventSet<T>).isSort &&
-      Array.isArray((s as SortEventSet<T>).sorts);
+  s: EventSet<T> | SortEventSet<T>,
+): s is SortEventSet<T> {
+  return (
+    (s as SortEventSet<T>).isSort && Array.isArray((s as SortEventSet<T>).sorts)
+  );
 }
 
 // STUPID_TYPE_MAGIC ==================================================
 type ErrorBrand<T extends string> = {
-  [k in T]: void
+  [k in T]: void;
 };
 
 // A particular key/value pair on an Event matches the relevant entry
@@ -905,24 +983,28 @@ type ErrorBrand<T extends string> = {
 // Null => null
 // Num => number
 type KeyToType = {
-  'num': number,
-  'str': string,
-  'bool': boolean,
-  'null': null,
-  'bigint': bigint,
-  'id': string,
+  num: number;
+  str: string;
+  bool: boolean;
+  null: null;
+  bigint: bigint;
+  id: string;
 };
 
 type ConformingValue<T> = T extends keyof KeyToType ? KeyToType[T] : void;
 
-type Materialised<Concrete extends KeySet, Parent extends KeySet> =
-    Parent extends Concrete ? (ConcreteEventSet<Concrete>) :
-                              (ErrorBrand<`Very bad!`>);
+type Materialised<
+  Concrete extends KeySet,
+  Parent extends KeySet,
+> = Parent extends Concrete
+  ? ConcreteEventSet<Concrete>
+  : ErrorBrand<`Very bad!`>;
 
-type MergedKeys<Left extends KeySet, Right extends KeySet> = Left&Right;
+type MergedKeys<Left extends KeySet, Right extends KeySet> = Left & Right;
 
-type Merged<Left extends KeySet, Right extends KeySet> =
-    EventSet<MergedKeys<Left, Right>>;
+type Merged<Left extends KeySet, Right extends KeySet> = EventSet<
+  MergedKeys<Left, Right>
+>;
 
 // HELPERS ============================================================
 function applyLimitOffset<T>(arr: T[], limit?: number, offset?: number): T[] {
@@ -933,28 +1015,31 @@ function applyLimitOffset<T>(arr: T[], limit?: number, offset?: number): T[] {
 }
 
 function mergeKeys<P extends KeySet, Q extends KeySet>(
-  left: P, right: Q): MergedKeys<P, Q> {
+  left: P,
+  right: Q,
+): MergedKeys<P, Q> {
   return Object.assign({}, left, right);
 }
 
 function getKeyDefault(keyName: string, keyType: KeyType): Primitive {
   switch (keyType) {
-  case Id:
-    throw new Error(
-      `Can't create default for key '${keyName}' with type '${keyType}'`);
-  case Num:
-    return 0;
-  case Null:
-    return null;
-  case Str:
-    return '';
-  case Bool:
-    return false;
-  case BigInt:
-    return 0n;
-  default:
-    const _exhaustiveCheck: never = keyType;
-    return _exhaustiveCheck;
+    case Id:
+      throw new Error(
+        `Can't create default for key '${keyName}' with type '${keyType}'`,
+      );
+    case Num:
+      return 0;
+    case Null:
+      return null;
+    case Str:
+      return '';
+    case Bool:
+      return false;
+    case BigInt:
+      return 0n;
+    default:
+      const _exhaustiveCheck: never = keyType;
+      return _exhaustiveCheck;
   }
 }
 
@@ -973,7 +1058,9 @@ function isEqualKeySet(a: UntypedKeySet, b: UntypedKeySet): boolean {
 }
 
 function freeVariablesFromFilters(
-  filters: Filter[], initialKeySet?: KeySet): KeySet {
+  filters: Filter[],
+  initialKeySet?: KeySet,
+): KeySet {
   let result = {};
 
   if (initialKeySet !== undefined) {
@@ -1014,8 +1101,9 @@ function primativeToRank(p: Primitive) {
 // TODO(hjd): test for bignums
 // Convert an expression into a sort style comparison function.
 // Exported for testing.
-export function cmpFromExpr<T extends KeySet>(expr: Expr): (
-    l: Event<T>, r: Event<T>) => number {
+export function cmpFromExpr<T extends KeySet>(
+  expr: Expr,
+): (l: Event<T>, r: Event<T>) => number {
   return (l: Event<T>, r: Event<T>) => {
     const lhs = expr.execute(l);
     const rhs = expr.execute(r);
@@ -1040,8 +1128,9 @@ export function cmpFromExpr<T extends KeySet>(expr: Expr): (
 
 // Convert a 'sort' into a sort() style comparison function.
 // Exported for testing.
-export function cmpFromSort<T extends KeySet>(sort: Sort): (
-    l: Event<T>, r: Event<T>) => number {
+export function cmpFromSort<T extends KeySet>(
+  sort: Sort,
+): (l: Event<T>, r: Event<T>) => number {
   const cmp = cmpFromExpr<T>(sort.expression);
   if (sort.direction === Direction.ASC) {
     return cmp;

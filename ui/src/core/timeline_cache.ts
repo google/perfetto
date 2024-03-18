@@ -61,13 +61,17 @@ export class CacheKey {
   readonly windowSizePx: number;
 
   static create(startNs: time, endNs: time, windowSizePx: number): CacheKey {
-    const bucketNs = (endNs - startNs) /
-        BigInt(Math.round(windowSizePx * BUCKETS_PER_PIXEL));
+    const bucketNs =
+      (endNs - startNs) / BigInt(Math.round(windowSizePx * BUCKETS_PER_PIXEL));
     return new CacheKey(startNs, endNs, bucketNs, windowSizePx);
   }
 
   private constructor(
-    startNs: time, endNs: time, bucketNs: duration, windowSizePx: number) {
+    startNs: time,
+    endNs: time,
+    bucketNs: duration,
+    windowSizePx: number,
+  ) {
     this.start = startNs;
     this.end = endNs;
     this.bucketSize = bucketNs;
@@ -120,12 +124,10 @@ export class CacheKey {
   }
 }
 
-
 interface CacheItem<T> {
   t: T;
   lastAccessId: number;
 }
-
 
 // LRU cache for the timeline.
 // T is all the data needed for a displaying the track in a given
@@ -156,7 +158,7 @@ export class TimelineCache<T> {
     this.updateLru();
   }
 
-  lookup(cacheKey: CacheKey): undefined|T {
+  lookup(cacheKey: CacheKey): undefined | T {
     assertTrue(cacheKey.isNormalized());
     const key = cacheKey.toString();
     const item = this.cache.get(key);

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 import m from 'mithril';
 
 import {BigintMath} from '../base/bigint_math';
@@ -38,52 +37,53 @@ interface QueryTableRowAttrs {
   columns: string[];
 }
 
-type Numeric = bigint|number;
+type Numeric = bigint | number;
 
 function isIntegral(x: Row[string]): x is Numeric {
-  return typeof x === 'bigint' ||
-      (typeof x === 'number' && Number.isInteger(x));
+  return (
+    typeof x === 'bigint' || (typeof x === 'number' && Number.isInteger(x))
+  );
 }
 
-function hasTs(row: Row): row is Row&{ts: Numeric} {
-  return ('ts' in row && isIntegral(row.ts));
+function hasTs(row: Row): row is Row & {ts: Numeric} {
+  return 'ts' in row && isIntegral(row.ts);
 }
 
-function hasDur(row: Row): row is Row&{dur: Numeric} {
-  return ('dur' in row && isIntegral(row.dur));
+function hasDur(row: Row): row is Row & {dur: Numeric} {
+  return 'dur' in row && isIntegral(row.dur);
 }
 
-function hasTrackId(row: Row): row is Row&{track_id: Numeric} {
-  return ('track_id' in row && isIntegral(row.track_id));
+function hasTrackId(row: Row): row is Row & {track_id: Numeric} {
+  return 'track_id' in row && isIntegral(row.track_id);
 }
 
-function hasType(row: Row): row is Row&{type: string} {
-  return ('type' in row && isString(row.type));
+function hasType(row: Row): row is Row & {type: string} {
+  return 'type' in row && isString(row.type);
 }
 
-function hasId(row: Row): row is Row&{id: Numeric} {
-  return ('id' in row && isIntegral(row.id));
+function hasId(row: Row): row is Row & {id: Numeric} {
+  return 'id' in row && isIntegral(row.id);
 }
 
-function hasSliceId(row: Row): row is Row&{slice_id: Numeric} {
-  return ('slice_id' in row && isIntegral(row.slice_id));
+function hasSliceId(row: Row): row is Row & {slice_id: Numeric} {
+  return 'slice_id' in row && isIntegral(row.slice_id);
 }
 
 // These are properties that a row should have in order to be "slice-like",
 // insofar as it represents a time range and a track id which can be revealed
 // or zoomed-into on the timeline.
 type Sliceish = {
-  ts: Numeric,
-  dur: Numeric,
-  track_id: Numeric
+  ts: Numeric;
+  dur: Numeric;
+  track_id: Numeric;
 };
 
-export function isSliceish(row: Row): row is Row&Sliceish {
+export function isSliceish(row: Row): row is Row & Sliceish {
   return hasTs(row) && hasDur(row) && hasTrackId(row);
 }
 
 // Attempts to extract a slice ID from a row, or undefined if none can be found
-export function getSliceId(row: Row): number|undefined {
+export function getSliceId(row: Row): number | undefined {
   if (hasType(row) && row.type.includes('slice')) {
     if (hasId(row)) {
       return Number(row.id);
@@ -102,8 +102,10 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     const cells = columns.map((col) => this.renderCell(col, row[col]));
 
     // TODO(dproy): Make click handler work from analyze page.
-    if (Router.parseUrl(window.location.href).page === '/viewer' &&
-        isSliceish(row)) {
+    if (
+      Router.parseUrl(window.location.href).page === '/viewer' &&
+      isSliceish(row)
+    ) {
       return m(
         'tr',
         {
@@ -114,7 +116,8 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
           clickable: true,
           title: 'Go to slice',
         },
-        cells);
+        cells,
+      );
     } else {
       return m('tr', cells);
     }
@@ -134,12 +137,14 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
       {
         onclick: () => downloadData(`${name}.blob`, value),
       },
-      `Blob (${value.length} bytes)`);
+      `Blob (${value.length} bytes)`,
+    );
   }
 
   private selectAndRevealSlice(
-    row: Row&Sliceish,
-    switchToCurrentSelectionTab: boolean) {
+    row: Row & Sliceish,
+    switchToCurrentSelectionTab: boolean,
+  ) {
     const trackId = Number(row.track_id);
     const sliceStart = Time.fromRaw(BigInt(row.ts));
     // row.dur can be negative. Clamp to 1ns.
@@ -157,7 +162,8 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
   private selectSlice(
     sliceId: number,
     trackKey: string,
-    switchToCurrentSelectionTab: boolean) {
+    switchToCurrentSelectionTab: boolean,
+  ) {
     const action = Actions.selectChromeSlice({
       id: sliceId,
       trackKey,
@@ -187,14 +193,18 @@ class QueryTableContent implements m.ClassComponent<QueryTableContentAttrs> {
     }
     const tableHeader = m('tr', cols);
 
-    const rows =
-        resp.rows.map((row) => m(QueryTableRow, {row, columns: resp.columns}));
+    const rows = resp.rows.map((row) =>
+      m(QueryTableRow, {row, columns: resp.columns}),
+    );
 
     if (resp.error) {
       return m('.query-error', `SQL error: ${resp.error}`);
     } else {
       return m(
-        'table.pf-query-table', m('thead', tableHeader), m('tbody', rows));
+        'table.pf-query-table',
+        m('thead', tableHeader),
+        m('tbody', rows),
+      );
     }
   }
 }
@@ -209,13 +219,7 @@ interface QueryTableAttrs {
 
 export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   view({attrs}: m.CVnode<QueryTableAttrs>) {
-    const {
-      resp,
-      query,
-      onClose,
-      contextButtons = [],
-      fillParent,
-    } = attrs;
+    const {resp, query, onClose, contextButtons = [], fillParent} = attrs;
 
     return m(
       DetailsShell,
@@ -238,8 +242,11 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   }
 
   renderButtons(
-    query: string, onClose: () => void, contextButtons: m.Child[],
-    resp?: QueryResponse) {
+    query: string,
+    onClose: () => void,
+    contextButtons: m.Child[],
+    resp?: QueryResponse,
+  ) {
     return [
       contextButtons,
       m(Button, {
@@ -249,13 +256,15 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
           copyToClipboard(query);
         },
       }),
-      (resp && resp.error === undefined) && m(Button, {
-        label: 'Copy result (.tsv)',
-        minimal: true,
-        onclick: () => {
-          queryResponseToClipboard(resp);
-        },
-      }),
+      resp &&
+        resp.error === undefined &&
+        m(Button, {
+          label: 'Copy result (.tsv)',
+          minimal: true,
+          onclick: () => {
+            queryResponseToClipboard(resp);
+          },
+        }),
       m(Button, {
         minimal: true,
         label: 'Close',
@@ -268,15 +277,16 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
     return m(
       '.pf-query-panel',
       resp.statementWithOutputCount > 1 &&
-            m('.pf-query-warning',
-              m(
-                Callout,
-                {icon: 'warning'},
-                `${resp.statementWithOutputCount} out of ${
-                  resp.statementCount} `,
-                'statements returned a result. ',
-                'Only the results for the last statement are displayed.',
-              )),
+        m(
+          '.pf-query-warning',
+          m(
+            Callout,
+            {icon: 'warning'},
+            `${resp.statementWithOutputCount} out of ${resp.statementCount} `,
+            'statements returned a result. ',
+            'Only the results for the last statement are displayed.',
+          ),
+        ),
       m(QueryTableContent, {resp}),
     );
   }

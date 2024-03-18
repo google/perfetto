@@ -35,8 +35,9 @@ test('parse two devices connected in the same message', () => {
 });
 
 test('parse device connection in multiple messages', () => {
-  const message = '001702121FQC20XXXX\toffline\n001602121FQC20XXXX\tdevice\n' +
-      '001602121FQC20XXXX\tdevice\n';
+  const message =
+    '001702121FQC20XXXX\toffline\n001602121FQC20XXXX\tdevice\n' +
+    '001602121FQC20XXXX\tdevice\n';
   const response = parseWebsocketResponse(message);
   expect(response.messageRemainder).toEqual('');
   expect(response.listedDevices.length).toEqual(1);

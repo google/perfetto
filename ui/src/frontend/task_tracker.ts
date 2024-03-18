@@ -32,29 +32,32 @@ export class TaskTracker {
 
   trackPromise(promise: Promise<unknown>, message: string): void {
     this.promiseInfo.set(promise, {
-      startTimeMs: (new Date()).getMilliseconds(),
+      startTimeMs: new Date().getMilliseconds(),
       message,
     });
     this.promisesSeen += 1;
-    promise.then(() => {
-      this.promisesFulfilled += 1;
-    }).catch(() => {
-      this.promisesRejected += 1;
-    }).finally(() => {
-      this.promiseInfo.delete(promise);
-    });
+    promise
+      .then(() => {
+        this.promisesFulfilled += 1;
+      })
+      .catch(() => {
+        this.promisesRejected += 1;
+      })
+      .finally(() => {
+        this.promiseInfo.delete(promise);
+      });
   }
 
   hasPendingTasks(): boolean {
-    return this.promisesSeen > (this.promisesFulfilled + this.promisesRejected);
+    return this.promisesSeen > this.promisesFulfilled + this.promisesRejected;
   }
 
-  progressMessage(): string|undefined {
+  progressMessage(): string | undefined {
     const {value} = this.promiseInfo.values().next();
     if (value === undefined) {
       return value;
     } else {
-      const nowMs = (new Date()).getMilliseconds();
+      const nowMs = new Date().getMilliseconds();
       const runtimeSeconds = Math.round((nowMs - value.startTimeMs) / 1000);
       return `${value.message} (${runtimeSeconds}s)`;
     }

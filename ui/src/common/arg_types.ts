@@ -13,5 +13,6 @@
 // limitations under the License.
 
 export type ArgValue =
-    string|{kind: 'SLICE', trackId: string, sliceId: number, rawValue: string};
+  | string
+  | {kind: 'SLICE'; trackId: string; sliceId: number; rawValue: string};
 export type Args = Map<string, ArgValue>;

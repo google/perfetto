@@ -57,14 +57,18 @@ export class PluginContextImpl implements PluginContext, Disposable {
 
   readonly sidebar = {
     hide() {
-      globals.dispatch(Actions.setSidebar({
-        visible: false,
-      }));
+      globals.dispatch(
+        Actions.setSidebar({
+          visible: false,
+        }),
+      );
     },
     show() {
-      globals.dispatch(Actions.setSidebar({
-        visible: true,
-      }));
+      globals.dispatch(
+        Actions.setSidebar({
+          visible: true,
+        }),
+      );
     },
     isVisible() {
       return globals.state.sidebarVisible;
@@ -77,12 +81,12 @@ export class PluginContextImpl implements PluginContext, Disposable {
 
     const disposable = globals.commandManager.registerCommand(cmd);
     this.trash.add(disposable);
-  };
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   runCommand(id: string, ...args: any[]): any {
     return globals.commandManager.runCommand(id, ...args);
-  };
+  }
 
   constructor(readonly pluginId: string) {}
 
@@ -128,7 +132,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     this.trash.add(dispose);
   }
 
-  registerStaticTrack(track: TrackDescriptor&TrackRef): void {
+  registerStaticTrack(track: TrackDescriptor & TrackRef): void {
     this.registerTrack(track);
     this.addDefaultTrack(track);
   }
@@ -167,13 +171,11 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
       addQueryResultsTab({query, title});
     },
 
-    showTab(uri: string):
-        void {
+    showTab(uri: string): void {
       globals.dispatch(Actions.showTab({uri}));
     },
 
-    hideTab(uri: string):
-        void {
+    hideTab(uri: string): void {
       globals.dispatch(Actions.hideTab({uri}));
     },
   };
@@ -186,19 +188,20 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     // Add a new track to the timeline, returning its key.
     addTrack(uri: string, displayName: string, params?: unknown): string {
       const trackKey = uuidv4();
-      globals.dispatch(Actions.addTrack({
-        key: trackKey,
-        uri,
-        name: displayName,
-        params,
-        trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-        trackGroup: SCROLLING_TRACK_GROUP,
-      }));
+      globals.dispatch(
+        Actions.addTrack({
+          key: trackKey,
+          uri,
+          name: displayName,
+          params,
+          trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
+          trackGroup: SCROLLING_TRACK_GROUP,
+        }),
+      );
       return trackKey;
     },
 
-    removeTrack(key: string):
-        void {
+    removeTrack(key: string): void {
       globals.dispatch(Actions.removeTracks({trackKeys: [key]}));
     },
 
@@ -221,9 +224,11 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
           name: track.name,
         };
         if (predicate(tags) && !isPinned(track.key)) {
-          globals.dispatch(Actions.toggleTrackPinned({
-            trackKey: track.key,
-          }));
+          globals.dispatch(
+            Actions.toggleTrackPinned({
+              trackKey: track.key,
+            }),
+          );
         }
       }
     },
@@ -235,9 +240,11 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
           name: track.name,
         };
         if (predicate(tags) && isPinned(track.key)) {
-          globals.dispatch(Actions.toggleTrackPinned({
-            trackKey: track.key,
-          }));
+          globals.dispatch(
+            Actions.toggleTrackPinned({
+              trackKey: track.key,
+            }),
+          );
         }
       }
     },
@@ -291,8 +298,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
       }
     },
 
-    get tracks():
-        TrackRef[] {
+    get tracks(): TrackRef[] {
       return Object.values(globals.state.tracks).map((trackState) => {
         return {
           displayName: trackState.name,
@@ -302,8 +308,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
       });
     },
 
-    panToTimestamp(ts: time):
-        void {
+    panToTimestamp(ts: time): void {
       globals.panToTimestamp(ts);
     },
   };
@@ -331,13 +336,13 @@ export class PluginRegistry extends Registry<PluginDescriptor> {
 
 export interface PluginDetails {
   plugin: Plugin;
-  context: PluginContext&Disposable;
+  context: PluginContext & Disposable;
   traceContext?: PluginContextTraceImpl;
   previousOnTraceLoadTimeMillis?: number;
 }
 
 function isPluginClass(v: unknown): v is PluginClass {
-  return typeof v === 'function' && !!(v.prototype.onActivate);
+  return typeof v === 'function' && !!v.prototype.onActivate;
 }
 
 function makePlugin(info: PluginDescriptor): Plugin {
@@ -398,7 +403,7 @@ export class PluginManager {
     if (flag) {
       flag.set(true);
     }
-    now && await this.activatePlugin(id);
+    now && (await this.activatePlugin(id));
   }
 
   /**
@@ -411,7 +416,7 @@ export class PluginManager {
     if (flag) {
       flag.set(false);
     }
-    now && await this.deactivatePlugin(id);
+    now && (await this.deactivatePlugin(id));
   }
 
   /**
@@ -495,7 +500,7 @@ export class PluginManager {
     return Boolean(this.flags.get(pluginId)?.get());
   }
 
-  getPluginContext(pluginId: string): PluginDetails|undefined {
+  getPluginContext(pluginId: string): PluginDetails | undefined {
     return this._plugins.get(pluginId);
   }
 
@@ -534,7 +539,8 @@ export class PluginManager {
 async function doPluginTraceLoad(
   pluginDetails: PluginDetails,
   engine: Engine,
-  pluginId: string): Promise<void> {
+  pluginId: string,
+): Promise<void> {
   const {plugin, context} = pluginDetails;
 
   const engineProxy = engine.getProxy(pluginId);
@@ -553,16 +559,16 @@ async function doPluginTraceLoad(
 }
 
 async function doPluginTraceUnload(
-  pluginDetails: PluginDetails): Promise<void> {
+  pluginDetails: PluginDetails,
+): Promise<void> {
   const {traceContext, plugin} = pluginDetails;
 
   if (traceContext) {
-    plugin.onTraceUnload && await plugin.onTraceUnload(traceContext);
+    plugin.onTraceUnload && (await plugin.onTraceUnload(traceContext));
     traceContext.dispose();
     pluginDetails.traceContext = undefined;
   }
 }
-
 
 // TODO(hjd): Sort out the story for global singletons like these:
 export const pluginRegistry = new PluginRegistry();

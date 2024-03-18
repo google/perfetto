@@ -27,8 +27,8 @@ import {assertTrue} from './logging';
 
 // TextDecoder/Decoder requires the full DOM and isn't available in all types
 // of tests. Use fallback implementation from protbufjs.
-let Utf8Decoder: {decode: (buf: Uint8Array) => string;};
-let Utf8Encoder: {encode: (str: string) => Uint8Array;};
+let Utf8Decoder: {decode: (buf: Uint8Array) => string};
+let Utf8Encoder: {encode: (str: string) => Uint8Array};
 try {
   Utf8Decoder = new TextDecoder('utf-8');
   Utf8Encoder = new TextEncoder();
@@ -37,7 +37,8 @@ try {
     // Silence the warning when we know we are running under NodeJS.
     console.warn(
       'Using fallback UTF8 Encoder/Decoder, This should happen only in ' +
-        'tests and NodeJS-based environments, not in browsers.');
+        'tests and NodeJS-based environments, not in browsers.',
+    );
   }
   Utf8Decoder = {decode: (buf: Uint8Array) => utf8Read(buf, 0, buf.length)};
   Utf8Encoder = {
@@ -66,7 +67,9 @@ export function base64Decode(str: string): Uint8Array {
 // encode binary array to hex string
 export function hexEncode(bytes: Uint8Array): string {
   return bytes.reduce(
-    (prev, cur) => prev + ('0' + cur.toString(16)).slice(-2), '');
+    (prev, cur) => prev + ('0' + cur.toString(16)).slice(-2),
+    '',
+  );
 }
 
 export function utf8Encode(str: string): Uint8Array {
@@ -113,7 +116,7 @@ export function binaryDecode(str: string): Uint8Array {
 // The purpose of this function is to use in simple comparisons, to escape
 // strings used in GLOB clauses see escapeQuery function.
 export function sqliteString(str: string): string {
-  return `'${str.replaceAll('\'', '\'\'')}'`;
+  return `'${str.replaceAll("'", "''")}'`;
 }
 
 // Chat apps (including G Chat) sometimes replace ASCII characters with similar

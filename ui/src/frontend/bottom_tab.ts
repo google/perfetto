@@ -104,7 +104,6 @@ export abstract class BottomTabBase<Config = {}> {
   }
 }
 
-
 // BottomTabBase provides a more generic API allowing users to provide their
 // custom mithril component, which would allow them to listen to mithril
 // lifecycle events. Most cases, however, don't need them and BottomTab
@@ -121,9 +120,10 @@ export abstract class BottomTab<Config = {}> extends BottomTabBase<Config> {
   }
 
   renderPanel(): m.Children {
-    return m(
-      BottomTabAdapter,
-        {key: this.uuid, panel: this} as BottomTabAdapterAttrs);
+    return m(BottomTabAdapter, {
+      key: this.uuid,
+      panel: this,
+    } as BottomTabAdapterAttrs);
   }
 }
 
@@ -132,28 +132,26 @@ interface BottomTabAdapterAttrs {
 }
 
 class BottomTabAdapter implements m.ClassComponent<BottomTabAdapterAttrs> {
-  view(vnode: m.CVnode<BottomTabAdapterAttrs>): void|m.Children {
+  view(vnode: m.CVnode<BottomTabAdapterAttrs>): void | m.Children {
     return vnode.attrs.panel.viewTab();
   }
 }
 
 export type AddTabArgs = {
-  kind: string,
-  config: {},
-  tag?: string,
+  kind: string;
+  config: {};
+  tag?: string;
   // Whether to make the new tab current. True by default.
   select?: boolean;
 };
 
-export type AddTabResult =
-    {
-      uuid: string;
-    }
+export type AddTabResult = {
+  uuid: string;
+};
 
 // Shorthand for globals.bottomTabList.addTab(...) & redraw.
 // Ignored when bottomTabList does not exist (e.g. no trace is open in the UI).
-export function
-addTab(args: AddTabArgs) {
+export function addTab(args: AddTabArgs) {
   const tabList = globals.bottomTabList;
   if (!tabList) {
     return;
@@ -162,11 +160,9 @@ addTab(args: AddTabArgs) {
   raf.scheduleFullRedraw();
 }
 
-
 // Shorthand for globals.bottomTabList.closeTabById(...) & redraw.
 // Ignored when bottomTabList does not exist (e.g. no trace is open in the UI).
-export function
-closeTab(uuid: string) {
+export function closeTab(uuid: string) {
   const tabList = globals.bottomTabList;
   if (!tabList) {
     return;
@@ -176,7 +172,9 @@ closeTab(uuid: string) {
 }
 
 interface PendingTab {
-  tab: BottomTabBase, args: AddTabArgs, startTime: number,
+  tab: BottomTabBase;
+  args: AddTabArgs;
+  startTime: number;
 }
 
 function tabSelectionKey(tab: BottomTabBase) {
@@ -203,32 +201,36 @@ export class BottomTabList {
   // created panel (which can be used in the future to close it).
   addTab(args: AddTabArgs): AddTabResult {
     const uuid = uuidv4();
-    return traceEvent('addTab', () => {
-      const newPanel = bottomTabRegistry.get(args.kind).create({
-        engine: this.engine,
-        uuid,
-        config: args.config,
-        tag: args.tag,
-      });
+    return traceEvent(
+      'addTab',
+      () => {
+        const newPanel = bottomTabRegistry.get(args.kind).create({
+          engine: this.engine,
+          uuid,
+          config: args.config,
+          tag: args.tag,
+        });
 
-      this.pendingTabs.push({
-        tab: newPanel,
-        args,
-        startTime: window.performance.now(),
-      });
-      this.flushPendingTabs();
+        this.pendingTabs.push({
+          tab: newPanel,
+          args,
+          startTime: window.performance.now(),
+        });
+        this.flushPendingTabs();
 
-      return {
-        uuid,
-      };
-    }, {
-      args: {
-        'uuid': uuid,
-        'kind': args.kind,
-        'tag': args.tag ?? '<undefined>',
-        'config': stringifyJsonWithBigints(args.config),
+        return {
+          uuid,
+        };
       },
-    });
+      {
+        args: {
+          uuid: uuid,
+          kind: args.kind,
+          tag: args.tag ?? '<undefined>',
+          config: stringifyJsonWithBigints(args.config),
+        },
+      },
+    );
   }
 
   closeTabByTag(tag: string) {
@@ -259,8 +261,11 @@ export class BottomTabList {
     // that became last.
     if (tab.uuid === globals.state.currentTab && this.tabs.length > 0) {
       const newActiveIndex = index === this.tabs.length ? index - 1 : index;
-      globals.dispatch(Actions.setCurrentTab(
-        {tab: tabSelectionKey(this.tabs[newActiveIndex])}));
+      globals.dispatch(
+        Actions.setCurrentTab({
+          tab: tabSelectionKey(this.tabs[newActiveIndex]),
+        }),
+      );
     }
     raf.scheduleFullRedraw();
   }
@@ -291,41 +296,51 @@ export class BottomTabList {
       // TODO(altimin): Remove this once all places have switched to be using
       // BottomTab to display panels.
       const currentSelectionTabAlreadyExists =
-          this.tabs.filter((tab) => tab.tag === 'current_selection').length > 0;
+        this.tabs.filter((tab) => tab.tag === 'current_selection').length > 0;
       const dirtyHackForCurrentSelectionApplies =
-          tab.tag === 'current_selection' && !currentSelectionTabAlreadyExists;
+        tab.tag === 'current_selection' && !currentSelectionTabAlreadyExists;
 
       const elapsedTimeMs = currentTime - startTime;
-      if (tab.isLoading() && elapsedTimeMs < NEW_LOADING_TAB_DELAY_MS &&
-          !dirtyHackForCurrentSelectionApplies) {
+      if (
+        tab.isLoading() &&
+        elapsedTimeMs < NEW_LOADING_TAB_DELAY_MS &&
+        !dirtyHackForCurrentSelectionApplies
+      ) {
         this.schedulePendingTabsFlush(NEW_LOADING_TAB_DELAY_MS - elapsedTimeMs);
         // The first tab is not ready yet, wait.
         return;
       }
 
-      traceEvent('addPendingTab', () => {
-        this.pendingTabs.shift();
+      traceEvent(
+        'addPendingTab',
+        () => {
+          this.pendingTabs.shift();
 
-        const index =
-            args.tag ? this.tabs.findIndex((tab) => tab.tag === args.tag) : -1;
-        if (index === -1) {
-          this.tabs.push(tab);
-        } else {
-          this.tabs[index] = tab;
-        }
+          const index = args.tag
+            ? this.tabs.findIndex((tab) => tab.tag === args.tag)
+            : -1;
+          if (index === -1) {
+            this.tabs.push(tab);
+          } else {
+            this.tabs[index] = tab;
+          }
 
-        if (args.select === undefined || args.select === true) {
-          globals.dispatch(Actions.setCurrentTab({tab: tabSelectionKey(tab)}));
-        }
-        // setCurrentTab will usually schedule a redraw, but not if we replace
-        // the tab with the same tag, so we force an update here.
-        raf.scheduleFullRedraw();
-      }, {
-        args: {
-          'uuid': tab.uuid,
-          'is_loading': tab.isLoading().toString(),
+          if (args.select === undefined || args.select === true) {
+            globals.dispatch(
+              Actions.setCurrentTab({tab: tabSelectionKey(tab)}),
+            );
+          }
+          // setCurrentTab will usually schedule a redraw, but not if we replace
+          // the tab with the same tag, so we force an update here.
+          raf.scheduleFullRedraw();
         },
-      });
+        {
+          args: {
+            uuid: tab.uuid,
+            is_loading: tab.isLoading().toString(),
+          },
+        },
+      );
     }
   }
 

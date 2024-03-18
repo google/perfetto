@@ -22,7 +22,7 @@ import {defer} from '../base/deferred';
 import {Time} from '../base/time';
 
 export class TraceGcsUploader {
-  state: 'UPLOADING'|'UPLOADED'|'ERROR' = 'UPLOADING';
+  state: 'UPLOADING' | 'UPLOADED' | 'ERROR' = 'UPLOADING';
   error = '';
   totalSize = 0;
   uploadedSize = 0;
@@ -33,14 +33,15 @@ export class TraceGcsUploader {
   private donePromise = defer<void>();
   private startTime = performance.now();
 
-  constructor(trace: File|ArrayBuffer, onProgress?: () => void) {
+  constructor(trace: File | ArrayBuffer, onProgress?: () => void) {
     // TODO(hjd): This should probably also be a hash but that requires
     // trace processor support.
     const name = uuidv4();
     this.uploadedUrl = `https://storage.googleapis.com/${BUCKET_NAME}/${name}`;
-    this.reqUrl = 'https://www.googleapis.com/upload/storage/v1/b/' +
-        `${BUCKET_NAME}/o?uploadType=media` +
-        `&name=${name}&predefinedAcl=publicRead`;
+    this.reqUrl =
+      'https://www.googleapis.com/upload/storage/v1/b/' +
+      `${BUCKET_NAME}/o?uploadType=media` +
+      `&name=${name}&predefinedAcl=publicRead`;
     this.onProgress = onProgress || (() => {});
     this.req = new XMLHttpRequest();
     this.req.onabort = (e: ProgressEvent) => this.onRpcEvent(e);
@@ -63,7 +64,7 @@ export class TraceGcsUploader {
   }
 
   getEtaString() {
-    let str = `${Math.ceil(100 * this.uploadedSize / this.totalSize)}%`;
+    let str = `${Math.ceil((100 * this.uploadedSize) / this.totalSize)}%`;
     str += ` (${(this.uploadedSize / 1e6).toFixed(2)} MB)`;
     const elapsed = (performance.now() - this.startTime) / 1000;
     const rate = this.uploadedSize / elapsed;
@@ -75,29 +76,29 @@ export class TraceGcsUploader {
   private onRpcEvent(e: ProgressEvent) {
     let done = false;
     switch (e.type) {
-    case 'progress':
-      this.uploadedSize = e.loaded;
-      this.totalSize = e.total;
-      break;
-    case 'abort':
-      this.state = 'ERROR';
-      this.error = 'Upload aborted';
-      break;
-    case 'error':
-      this.state = 'ERROR';
-      this.error = `${this.req.status} - ${this.req.statusText}`;
-      break;
-    case 'loadend':
-      done = true;
-      if (this.req.status === 200) {
-        this.state = 'UPLOADED';
-      } else if (this.state === 'UPLOADING') {
+      case 'progress':
+        this.uploadedSize = e.loaded;
+        this.totalSize = e.total;
+        break;
+      case 'abort':
+        this.state = 'ERROR';
+        this.error = 'Upload aborted';
+        break;
+      case 'error':
         this.state = 'ERROR';
         this.error = `${this.req.status} - ${this.req.statusText}`;
-      }
-      break;
-    default:
-      return;
+        break;
+      case 'loadend':
+        done = true;
+        if (this.req.status === 200) {
+          this.state = 'UPLOADED';
+        } else if (this.state === 'UPLOADING') {
+          this.state = 'ERROR';
+          this.error = `${this.req.status} - ${this.req.statusText}`;
+        }
+        break;
+      default:
+        return;
     }
     this.onProgress();
     if (done) {
@@ -109,8 +110,8 @@ export class TraceGcsUploader {
 // Bigint's are not serializable using JSON.stringify, so we use a special
 // object when serialising
 export type SerializedBigint = {
-  __kind: 'bigint',
-  value: string
+  __kind: 'bigint';
+  value: string;
 };
 
 // Check if a value looks like a serialized bigint
@@ -150,13 +151,15 @@ export function deserializeStateObject<T>(json: string): T {
   return object as T;
 }
 
-export async function saveState(stateOrConfig: State|
-                                RecordConfig): Promise<string> {
+export async function saveState(
+  stateOrConfig: State | RecordConfig,
+): Promise<string> {
   const text = serializeStateObject(stateOrConfig);
   const hash = await toSha256(text);
-  const url = 'https://www.googleapis.com/upload/storage/v1/b/' +
-      `${BUCKET_NAME}/o?uploadType=media` +
-      `&name=${hash}&predefinedAcl=publicRead`;
+  const url =
+    'https://www.googleapis.com/upload/storage/v1/b/' +
+    `${BUCKET_NAME}/o?uploadType=media` +
+    `&name=${hash}&predefinedAcl=publicRead`;
   const response = await fetch(url, {
     method: 'post',
     headers: {
@@ -181,7 +184,9 @@ export async function saveState(stateOrConfig: State|
 export async function buggyToSha256(str: string): Promise<string> {
   const buffer = new TextEncoder().encode(str);
   const digest = await crypto.subtle.digest('SHA-256', buffer);
-  return Array.from(new Uint8Array(digest)).map((x) => x.toString(16)).join('');
+  return Array.from(new Uint8Array(digest))
+    .map((x) => x.toString(16))
+    .join('');
 }
 
 export async function toSha256(str: string): Promise<string> {

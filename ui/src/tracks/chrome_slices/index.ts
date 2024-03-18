@@ -23,10 +23,7 @@ import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
-import {
-  SliceData,
-  SliceTrackLEGACY,
-} from '../../frontend/slice_track';
+import {SliceData, SliceTrackLEGACY} from '../../frontend/slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   BottomTabToSCSAdapter,
@@ -52,13 +49,20 @@ export class ChromeSliceTrack extends SliceTrackLEGACY {
   private maxDurNs: duration = 0n;
 
   constructor(
-      protected engine: EngineProxy, maxDepth: number, trackKey: string,
-      private trackId: number, namespace?: string) {
+    protected engine: EngineProxy,
+    maxDepth: number,
+    trackKey: string,
+    private trackId: number,
+    namespace?: string,
+  ) {
     super(maxDepth, trackKey, 'slice', namespace);
   }
 
-  async onBoundsChange(start: time, end: time, resolution: duration):
-      Promise<SliceData> {
+  async onBoundsChange(
+    start: time,
+    end: time,
+    resolution: duration,
+  ): Promise<SliceData> {
     const tableName = this.namespaceTable('slice');
 
     if (this.maxDurNs === Duration.ZERO) {
@@ -147,7 +151,9 @@ export class ChromeSliceTrack extends SliceTrackLEGACY {
         // it is less than or equal to one, incase the thread duration exceeds
         // the total duration.
         cpuTimeRatio = Math.min(
-          Math.round(BIMath.ratio(it.threadDur, it.dur) * 100) / 100, 1);
+          Math.round(BIMath.ratio(it.threadDur, it.dur) * 100) / 100,
+          1,
+        );
       }
       slices.cpuTimeRatio![row] = cpuTimeRatio;
     }
@@ -195,8 +201,9 @@ export class ChromeSliceTrackV2 extends NamedSliceTrack<ChromeSliceTrackTypes> {
   }
 
   // Converts a SQL result row to an "Impl" Slice.
-  rowToSlice(row: ChromeSliceTrackTypes['row']):
-      ChromeSliceTrackTypes['slice'] {
+  rowToSlice(
+    row: ChromeSliceTrackTypes['row'],
+  ): ChromeSliceTrackTypes['slice'] {
     const namedSlice = super.rowToSlice(row);
 
     if (row.dur > 0n && row.threadDur !== null) {
@@ -209,7 +216,7 @@ export class ChromeSliceTrackV2 extends NamedSliceTrack<ChromeSliceTrackTypes> {
 
   onUpdatedSlices(slices: ChromeSliceTrackTypes['slice'][]) {
     for (const slice of slices) {
-      slice.isHighlighted = (slice === this.hoveredSlice);
+      slice.isHighlighted = slice === this.hoveredSlice;
     }
   }
 }
@@ -279,21 +286,23 @@ class ChromeSlicesPlugin implements Plugin {
       });
     }
 
-    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
-      tabFactory: (sel) => {
-        if (sel.kind !== 'CHROME_SLICE') {
-          return undefined;
-        }
-        return new ChromeSliceDetailsTab({
-          config: {
-            table: sel.table ?? 'slice',
-            id: sel.id,
-          },
-          engine: ctx.engine,
-          uuid: uuidv4(),
-        });
-      },
-    }));
+    ctx.registerDetailsPanel(
+      new BottomTabToSCSAdapter({
+        tabFactory: (sel) => {
+          if (sel.kind !== 'CHROME_SLICE') {
+            return undefined;
+          }
+          return new ChromeSliceDetailsTab({
+            config: {
+              table: sel.table ?? 'slice',
+              id: sel.id,
+            },
+            engine: ctx.engine,
+            uuid: uuidv4(),
+          });
+        },
+      }),
+    );
   }
 }
 

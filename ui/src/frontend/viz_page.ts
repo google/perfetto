@@ -22,7 +22,7 @@ import {VegaView} from '../widgets/vega_view';
 import {globals} from './globals';
 import {createPage} from './pages';
 
-function getEngine(): EngineProxy|undefined {
+function getEngine(): EngineProxy | undefined {
   const engineId = globals.getCurrentEngine()?.id;
   if (engineId === undefined) {
     return undefined;
@@ -31,9 +31,8 @@ function getEngine(): EngineProxy|undefined {
   return engine;
 }
 
-
 let SPEC = '';
-let ENGINE: EngineProxy|undefined = undefined;
+let ENGINE: EngineProxy | undefined = undefined;
 
 export const VizPage = createPage({
   oncreate() {

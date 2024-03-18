@@ -30,7 +30,7 @@ export function ratelimit(f: Function, ms: number): Function {
 // Returns a wrapper around |f| which waits for a |ms|ms pause in calls
 // before calling |f|.
 export function debounce(f: Function, ms: number): Function {
-  let timerId: undefined|ReturnType<typeof setTimeout>;
+  let timerId: undefined | ReturnType<typeof setTimeout>;
   return () => {
     if (timerId) {
       clearTimeout(timerId);

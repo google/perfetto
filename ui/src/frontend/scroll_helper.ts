@@ -22,7 +22,6 @@ import {getContainingTrackId} from '../common/state';
 
 import {globals} from './globals';
 
-
 // Given a timestamp, if |ts| is not currently in view move the view to
 // center |ts|, keeping the same zoom level.
 export function horizontalScrollToTs(ts: time) {
@@ -33,7 +32,9 @@ export function horizontalScrollToTs(ts: time) {
     const halfDuration = visibleWindow.duration.divide(2);
     const newStart = time.sub(halfDuration);
     const newWindow = new HighPrecisionTimeSpan(
-      newStart, newStart.add(visibleWindow.duration));
+      newStart,
+      newStart.add(visibleWindow.duration),
+    );
     globals.timeline.updateVisibleTime(newWindow);
   }
 }
@@ -51,7 +52,10 @@ export function horizontalScrollToTs(ts: time) {
 //   to cover 1/5 of the viewport.
 // - Otherwise, preserve the zoom range.
 export function focusHorizontalRange(
-  start: time, end: time, viewPercentage?: number) {
+  start: time,
+  end: time,
+  viewPercentage?: number,
+) {
   const visible = globals.timeline.visibleWindowTime;
   const trace = globals.stateTraceTime();
   const select = HighPrecisionTimeSpan.fromTime(start, end);
@@ -60,7 +64,7 @@ export function focusHorizontalRange(
     if (viewPercentage <= 0.0 || viewPercentage > 1.0) {
       console.warn(
         'Invalid value for [viewPercentage]. ' +
-              'Value must be between 0.0 (exclusive) and 1.0 (inclusive).',
+          'Value must be between 0.0 (exclusive) and 1.0 (inclusive).',
       );
       // Default to 50%.
       viewPercentage = 0.5;
@@ -109,7 +113,9 @@ export function focusHorizontalRange(
 // track is nested inside a track group, scroll to that track group instead.
 // If |openGroup| then open the track group and scroll to the track.
 export function verticalScrollToTrack(
-  trackKey: string|number, openGroup = false) {
+  trackKey: string | number,
+  openGroup = false,
+) {
   const trackKeyString = `${trackKey}`;
   const track = document.querySelector('#track_' + trackKeyString);
 
@@ -143,10 +149,12 @@ export function verticalScrollToTrack(
   }
 }
 
-
 // Scroll vertically and horizontally to reach track (|trackKey|) at |ts|.
 export function scrollToTrackAndTs(
-  trackKey: string|number|undefined, ts: time, openGroup = false) {
+  trackKey: string | number | undefined,
+  ts: time,
+  openGroup = false,
+) {
   if (trackKey !== undefined) {
     verticalScrollToTrack(trackKey, openGroup);
   }
@@ -155,7 +163,11 @@ export function scrollToTrackAndTs(
 
 // Scroll vertically and horizontally to a track and time range
 export function reveal(
-  trackKey: string|number, start: time, end: time, openGroup = false) {
+  trackKey: string | number,
+  start: time,
+  end: time,
+  openGroup = false,
+) {
   verticalScrollToTrack(trackKey, openGroup);
   focusHorizontalRange(start, end);
 }

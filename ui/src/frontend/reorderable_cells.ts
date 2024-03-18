@@ -35,8 +35,9 @@ const placeholderElement = document.createElement('span');
 // reordered between each other by using drag'n'drop.
 //
 // On completed reorder, a callback is fired.
-export class ReorderableCellGroup implements
-    m.ClassComponent<ReorderableCellGroupAttrs> {
+export class ReorderableCellGroup
+  implements m.ClassComponent<ReorderableCellGroupAttrs>
+{
   // Index of a cell being dragged.
   draggingFrom: number = -1;
 
@@ -57,15 +58,16 @@ export class ReorderableCellGroup implements
       return 'dragged';
     }
     if (this.draggingTo === index) {
-      return this.dropDirection === 'left' ? 'highlight-left' :
-        'highlight-right';
+      return this.dropDirection === 'left'
+        ? 'highlight-left'
+        : 'highlight-right';
     }
     return '';
   }
 
   view(vnode: m.Vnode<ReorderableCellGroupAttrs>): m.Children {
-    return vnode.attrs.cells.map(
-      (cell, index) => m(
+    return vnode.attrs.cells.map((cell, index) =>
+      m(
         `td.reorderable-cell${cell.extraClass ?? ''}`,
         {
           draggable: 'draggable',
@@ -87,8 +89,10 @@ export class ReorderableCellGroup implements
               return;
             }
 
-            while (target.tagName.toLowerCase() !== 'td' &&
-                       target.parentElement !== null) {
+            while (
+              target.tagName.toLowerCase() !== 'td' &&
+              target.parentElement !== null
+            ) {
               target = target.parentElement;
             }
 
@@ -98,12 +102,12 @@ export class ReorderableCellGroup implements
             // possible position.
             const offset = e.clientX - target.getBoundingClientRect().x;
             const newDropDirection =
-                    (offset > target.clientWidth / 2) ? 'right' : 'left';
-            const redraw = (newDropDirection !== this.dropDirection) ||
-                    (index !== this.draggingTo);
+              offset > target.clientWidth / 2 ? 'right' : 'left';
+            const redraw =
+              newDropDirection !== this.dropDirection ||
+              index !== this.draggingTo;
             this.dropDirection = newDropDirection;
             this.draggingTo = index;
-
 
             if (redraw) {
               raf.scheduleFullRedraw();
@@ -112,8 +116,7 @@ export class ReorderableCellGroup implements
           ondragenter: (e: DragEvent) => {
             this.enterCounters[index]++;
 
-            if (this.enterCounters[index] === 1 &&
-                    e.dataTransfer !== null) {
+            if (this.enterCounters[index] === 1 && e.dataTransfer !== null) {
               e.dataTransfer.dropEffect = 'move';
             }
           },
@@ -131,10 +134,15 @@ export class ReorderableCellGroup implements
             raf.scheduleFullRedraw();
           },
           ondragend: () => {
-            if (this.draggingTo !== this.draggingFrom &&
-                    this.draggingTo !== -1) {
+            if (
+              this.draggingTo !== this.draggingFrom &&
+              this.draggingTo !== -1
+            ) {
               vnode.attrs.onReorder(
-                this.draggingFrom, this.draggingTo, this.dropDirection);
+                this.draggingFrom,
+                this.draggingTo,
+                this.dropDirection,
+              );
             }
 
             this.draggingFrom = -1;
@@ -142,7 +150,9 @@ export class ReorderableCellGroup implements
             raf.scheduleFullRedraw();
           },
         },
-        cell.content));
+        cell.content,
+      ),
+    );
   }
 
   oncreate(vnode: m.VnodeDOM<ReorderableCellGroupAttrs, this>) {

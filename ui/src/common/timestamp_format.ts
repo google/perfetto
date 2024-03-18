@@ -23,7 +23,7 @@ export enum TimestampFormat {
   TraceTz = 'traceTz',
 }
 
-let timestampFormatCached: TimestampFormat|undefined;
+let timestampFormatCached: TimestampFormat | undefined;
 
 const TIMESTAMP_FORMAT_KEY = 'timestampFormat';
 const DEFAULT_TIMESTAMP_FORMAT = TimestampFormat.Timecode;
@@ -52,7 +52,7 @@ export enum DurationPrecision {
   HumanReadable = 'human_readable',
 }
 
-let durationFormatCached: DurationPrecision|undefined;
+let durationFormatCached: DurationPrecision | undefined;
 
 const DURATION_FORMAT_KEY = 'durationFormat';
 const DEFAULT_DURATION_FORMAT = DurationPrecision.Full;

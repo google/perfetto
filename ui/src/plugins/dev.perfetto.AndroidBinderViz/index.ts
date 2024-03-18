@@ -42,11 +42,13 @@ class AndroidBinderVizPlugin implements Plugin {
   }
 
   metricVisualisations(): MetricVisualisation[] {
-    return [{
-      metric: 'android_binder',
-      spec: SPEC,
-      path: ['android_binder', 'unaggregated_txn_breakdown'],
-    }];
+    return [
+      {
+        metric: 'android_binder',
+        spec: SPEC,
+        path: ['android_binder', 'unaggregated_txn_breakdown'],
+      },
+    ];
   }
 }
 

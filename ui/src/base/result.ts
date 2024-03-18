@@ -32,7 +32,7 @@ export interface SuccessResult<T> {
   data: T;
 }
 
-export type Result<T> = PendingResult|ErrorResult|SuccessResult<T>;
+export type Result<T> = PendingResult | ErrorResult | SuccessResult<T>;
 
 export function isError<T>(result: Result<T>): result is ErrorResult {
   return result.status === ResultStatus.ERROR;

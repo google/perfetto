@@ -32,7 +32,8 @@ export class EqualsBuilder<T> {
 
   compare<S>(
     comparator: (first: S, second: S) => boolean,
-    getter: (arg: T) => S): EqualsBuilder<T> {
+    getter: (arg: T) => S,
+  ): EqualsBuilder<T> {
     if (this.result) {
       this.result = comparator(getter(this.first), getter(this.second));
     }

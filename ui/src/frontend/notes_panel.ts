@@ -23,11 +23,7 @@ import {AreaNote, Note} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';
 
-import {
-  BottomTab,
-  bottomTabRegistry,
-  NewBottomTabArgs,
-} from './bottom_tab';
+import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {
@@ -50,7 +46,7 @@ function toSummary(s: string) {
   return s.slice(0, Math.min(newlineIndex, s.length, 16));
 }
 
-function getStartTimestamp(note: Note|AreaNote) {
+function getStartTimestamp(note: Note | AreaNote) {
   if (note.noteType === 'AREA') {
     return globals.state.areas[note.areaId].start;
   } else {
@@ -63,13 +59,14 @@ export class NotesPanel implements Panel {
   readonly selectable = false;
   readonly trackKey = undefined;
 
-  hoveredX: null|number = null;
+  hoveredX: null | number = null;
 
   constructor(readonly key: string) {}
 
   render(): m.Children {
-    const allCollapsed = Object.values(globals.state.trackGroups)
-      .every((group) => group.collapsed);
+    const allCollapsed = Object.values(globals.state.trackGroups).every(
+      (group) => group.collapsed,
+    );
 
     return m(
       '.notes-panel',
@@ -89,38 +86,50 @@ export class NotesPanel implements Panel {
         },
         onmouseout: () => {
           this.hoveredX = null;
-          globals.dispatch(
-            Actions.setHoveredNoteTimestamp({ts: Time.INVALID}));
+          globals.dispatch(Actions.setHoveredNoteTimestamp({ts: Time.INVALID}));
         },
       },
-      isTraceLoaded() ?
-        [
-          m('button',
-            {
-              onclick: (e: Event) => {
-                e.preventDefault();
-                if (allCollapsed) {
-                  globals.commandManager.runCommand('dev.perfetto.CoreCommands#ExpandAllGroups');
-                } else {
-                  globals.commandManager.runCommand('dev.perfetto.CoreCommands#CollapseAllGroups');
-                }
+      isTraceLoaded()
+        ? [
+            m(
+              'button',
+              {
+                onclick: (e: Event) => {
+                  e.preventDefault();
+                  if (allCollapsed) {
+                    globals.commandManager.runCommand(
+                      'dev.perfetto.CoreCommands#ExpandAllGroups',
+                    );
+                  } else {
+                    globals.commandManager.runCommand(
+                      'dev.perfetto.CoreCommands#CollapseAllGroups',
+                    );
+                  }
+                },
               },
-            },
-            m('i.material-icons',
-              {title: allCollapsed ? 'Expand all' : 'Collapse all'},
-              allCollapsed ? 'unfold_more' : 'unfold_less')),
-          m('button',
-            {
-              onclick: (e: Event) => {
-                e.preventDefault();
-                globals.dispatch(Actions.clearAllPinnedTracks({}));
+              m(
+                'i.material-icons',
+                {title: allCollapsed ? 'Expand all' : 'Collapse all'},
+                allCollapsed ? 'unfold_more' : 'unfold_less',
+              ),
+            ),
+            m(
+              'button',
+              {
+                onclick: (e: Event) => {
+                  e.preventDefault();
+                  globals.dispatch(Actions.clearAllPinnedTracks({}));
+                },
               },
-            },
-            m('i.material-icons',
-              {title: 'Clear all pinned tracks'},
-              'clear_all')),
-        ] :
-        '');
+              m(
+                'i.material-icons',
+                {title: 'Clear all pinned tracks'},
+                'clear_all',
+              ),
+            ),
+          ]
+        : '',
+    );
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
@@ -156,20 +165,23 @@ export class NotesPanel implements Panel {
       const timestamp = getStartTimestamp(note);
       // TODO(hjd): We should still render area selection marks in viewport is
       // *within* the area (e.g. both lhs and rhs are out of bounds).
-      if ((note.noteType !== 'AREA' && !span.contains(timestamp)) ||
-          (note.noteType === 'AREA' &&
-           !span.contains(globals.state.areas[note.areaId].end) &&
-           !span.contains(globals.state.areas[note.areaId].start))) {
+      if (
+        (note.noteType !== 'AREA' && !span.contains(timestamp)) ||
+        (note.noteType === 'AREA' &&
+          !span.contains(globals.state.areas[note.areaId].end) &&
+          !span.contains(globals.state.areas[note.areaId].start))
+      ) {
         continue;
       }
       const currentIsHovered =
-          this.hoveredX !== null && this.mouseOverNote(this.hoveredX, note);
+        this.hoveredX !== null && this.mouseOverNote(this.hoveredX, note);
       if (currentIsHovered) aNoteIsHovered = true;
 
       const selection = globals.state.currentSelection;
-      const isSelected = selection !== null &&
-          ((selection.kind === 'NOTE' && selection.id === note.id) ||
-           (selection.kind === 'AREA' && selection.noteId === note.id));
+      const isSelected =
+        selection !== null &&
+        ((selection.kind === 'NOTE' && selection.id === note.id) ||
+          (selection.kind === 'AREA' && selection.noteId === note.id));
       const x = visibleTimeScale.timeToPx(timestamp);
       const left = Math.floor(x + TRACK_SHELL_WIDTH);
 
@@ -181,7 +193,8 @@ export class NotesPanel implements Panel {
           left,
           Math.floor(visibleTimeScale.timeToPx(area.end) + TRACK_SHELL_WIDTH),
           note.color,
-          isSelected);
+          isSelected,
+        );
       } else {
         this.drawFlag(ctx, left, size.height, note.color, isSelected);
       }
@@ -192,7 +205,11 @@ export class NotesPanel implements Panel {
         // Add a white semi-transparent background for the text.
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.fillRect(
-          left + FLAG_WIDTH + 2, size.height + 2, measured.width + 2, -12);
+          left + FLAG_WIDTH + 2,
+          size.height + 2,
+          measured.width + 2,
+          -12,
+        );
         ctx.fillStyle = '#3c4b5d';
         ctx.fillText(summary, left + FLAG_WIDTH + 3, size.height + 1);
       }
@@ -219,8 +236,12 @@ export class NotesPanel implements Panel {
   }
 
   private drawAreaMarker(
-    ctx: CanvasRenderingContext2D, x: number, xEnd: number, color: string,
-    fill: boolean) {
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    xEnd: number,
+    color: string,
+    fill: boolean,
+  ) {
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
     const topOffset = 10;
@@ -253,8 +274,12 @@ export class NotesPanel implements Panel {
   }
 
   private drawFlag(
-    ctx: CanvasRenderingContext2D, x: number, height: number, color: string,
-    fill?: boolean) {
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    height: number,
+    color: string,
+    fill?: boolean,
+  ) {
     const prevFont = ctx.font;
     const prevBaseline = ctx.textBaseline;
     ctx.textBaseline = 'alphabetic';
@@ -274,7 +299,6 @@ export class NotesPanel implements Panel {
     ctx.textBaseline = prevBaseline;
   }
 
-
   private onClick(x: number, _: number) {
     if (x < 0) return;
     const {visibleTimeScale} = globals.timeline;
@@ -283,7 +307,8 @@ export class NotesPanel implements Panel {
       if (this.hoveredX !== null && this.mouseOverNote(this.hoveredX, note)) {
         if (note.noteType === 'AREA') {
           globals.makeSelection(
-            Actions.reSelectArea({areaId: note.areaId, noteId: note.id}));
+            Actions.reSelectArea({areaId: note.areaId, noteId: note.id}),
+          );
         } else {
           globals.makeSelection(Actions.selectNote({id: note.id}));
         }
@@ -294,14 +319,16 @@ export class NotesPanel implements Panel {
     globals.makeSelection(Actions.addNote({timestamp, color}));
   }
 
-  private mouseOverNote(x: number, note: AreaNote|Note): boolean {
+  private mouseOverNote(x: number, note: AreaNote | Note): boolean {
     const timeScale = globals.timeline.visibleTimeScale;
     const noteX = timeScale.timeToPx(getStartTimestamp(note));
     if (note.noteType === 'AREA') {
       const noteArea = globals.state.areas[note.areaId];
-      return (noteX <= x && x < noteX + AREA_TRIANGLE_WIDTH) ||
-          (timeScale.timeToPx(noteArea.end) > x &&
-           x > timeScale.timeToPx(noteArea.end) - AREA_TRIANGLE_WIDTH);
+      return (
+        (noteX <= x && x < noteX + AREA_TRIANGLE_WIDTH) ||
+        (timeScale.timeToPx(noteArea.end) > x &&
+          x > timeScale.timeToPx(noteArea.end) - AREA_TRIANGLE_WIDTH)
+      );
     } else {
       const width = FLAG_WIDTH;
       return noteX <= x && x < noteX + width;
@@ -336,30 +363,41 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
     const startTime = getStartTimestamp(note);
     return m(
       '.notes-editor-panel',
-      m('.notes-editor-panel-heading-bar',
-        m('.notes-editor-panel-heading',
+      m(
+        '.notes-editor-panel-heading-bar',
+        m(
+          '.notes-editor-panel-heading',
           `Annotation at `,
-          m(Timestamp, {ts: startTime})),
+          m(Timestamp, {ts: startTime}),
+        ),
         m('input[type=text]', {
           value: note.text,
           onchange: (e: InputEvent) => {
             const newText = (e.target as HTMLInputElement).value;
-            globals.dispatch(Actions.changeNoteText({
-              id: this.config.id,
-              newText,
-            }));
+            globals.dispatch(
+              Actions.changeNoteText({
+                id: this.config.id,
+                newText,
+              }),
+            );
           },
         }),
-        m('span.color-change', `Change color: `, m('input[type=color]', {
-          value: note.color,
-          onchange: (e: Event) => {
-            const newColor = (e.target as HTMLInputElement).value;
-            globals.dispatch(Actions.changeNoteColor({
-              id: this.config.id,
-              newColor,
-            }));
-          },
-        })),
+        m(
+          'span.color-change',
+          `Change color: `,
+          m('input[type=color]', {
+            value: note.color,
+            onchange: (e: Event) => {
+              const newColor = (e.target as HTMLInputElement).value;
+              globals.dispatch(
+                Actions.changeNoteColor({
+                  id: this.config.id,
+                  newColor,
+                }),
+              );
+            },
+          }),
+        ),
         m(Button, {
           label: 'Remove',
           icon: Icons.Delete,
@@ -369,7 +407,8 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
             globals.dispatch(Actions.setCurrentTab({tab: undefined}));
             raf.scheduleFullRedraw();
           },
-        })),
+        }),
+      ),
     );
   }
 }

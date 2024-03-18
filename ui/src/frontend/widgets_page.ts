@@ -30,7 +30,11 @@ import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {Icon} from '../widgets/icon';
 import {Menu, MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
 import {showModal} from '../widgets/modal';
-import {MultiSelect, MultiSelectDiff, PopupMultiSelect} from '../widgets/multiselect';
+import {
+  MultiSelect,
+  MultiSelectDiff,
+  PopupMultiSelect,
+} from '../widgets/multiselect';
 import {Popup, PopupPosition} from '../widgets/popup';
 import {Portal} from '../widgets/portal';
 import {FilterableSelect, Select} from '../widgets/select';
@@ -48,37 +52,63 @@ import {TreeTable, TreeTableAttrs} from './widgets/treetable';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
-    {category: 'a', amount: 8.167}, {category: 'b', amount: 1.492},
-    {category: 'c', amount: 2.782}, {category: 'd', amount: 4.253},
-    {category: 'e', amount: 12.70}, {category: 'f', amount: 2.228},
-    {category: 'g', amount: 2.015}, {category: 'h', amount: 6.094},
-    {category: 'i', amount: 6.966}, {category: 'j', amount: 0.253},
-    {category: 'k', amount: 1.772}, {category: 'l', amount: 4.025},
-    {category: 'm', amount: 2.406}, {category: 'n', amount: 6.749},
-    {category: 'o', amount: 7.507}, {category: 'p', amount: 1.929},
-    {category: 'q', amount: 0.095}, {category: 'r', amount: 5.987},
-    {category: 's', amount: 6.327}, {category: 't', amount: 9.056},
-    {category: 'u', amount: 2.758}, {category: 'v', amount: 0.978},
-    {category: 'w', amount: 2.360}, {category: 'x', amount: 0.250},
-    {category: 'y', amount: 1.974}, {category: 'z', amount: 0.074},
+    {category: 'a', amount: 8.167},
+    {category: 'b', amount: 1.492},
+    {category: 'c', amount: 2.782},
+    {category: 'd', amount: 4.253},
+    {category: 'e', amount: 12.7},
+    {category: 'f', amount: 2.228},
+    {category: 'g', amount: 2.015},
+    {category: 'h', amount: 6.094},
+    {category: 'i', amount: 6.966},
+    {category: 'j', amount: 0.253},
+    {category: 'k', amount: 1.772},
+    {category: 'l', amount: 4.025},
+    {category: 'm', amount: 2.406},
+    {category: 'n', amount: 6.749},
+    {category: 'o', amount: 7.507},
+    {category: 'p', amount: 1.929},
+    {category: 'q', amount: 0.095},
+    {category: 'r', amount: 5.987},
+    {category: 's', amount: 6.327},
+    {category: 't', amount: 9.056},
+    {category: 'u', amount: 2.758},
+    {category: 'v', amount: 0.978},
+    {category: 'w', amount: 2.36},
+    {category: 'x', amount: 0.25},
+    {category: 'y', amount: 1.974},
+    {category: 'z', amount: 0.074},
   ],
 };
 
 const DATA_POLISH_LETTER_FREQUENCY = {
   table: [
-    {category: 'a', amount: 8.965}, {category: 'b', amount: 1.482},
-    {category: 'c', amount: 3.988}, {category: 'd', amount: 3.293},
-    {category: 'e', amount: 7.921}, {category: 'f', amount: 0.312},
-    {category: 'g', amount: 1.377}, {category: 'h', amount: 1.072},
-    {category: 'i', amount: 8.286}, {category: 'j', amount: 2.343},
-    {category: 'k', amount: 3.411}, {category: 'l', amount: 2.136},
-    {category: 'm', amount: 2.911}, {category: 'n', amount: 5.600},
-    {category: 'o', amount: 7.590}, {category: 'p', amount: 3.101},
-    {category: 'q', amount: 0.003}, {category: 'r', amount: 4.571},
-    {category: 's', amount: 4.263}, {category: 't', amount: 3.966},
-    {category: 'u', amount: 2.347}, {category: 'v', amount: 0.034},
-    {category: 'w', amount: 4.549}, {category: 'x', amount: 0.019},
-    {category: 'y', amount: 3.857}, {category: 'z', amount: 5.620},
+    {category: 'a', amount: 8.965},
+    {category: 'b', amount: 1.482},
+    {category: 'c', amount: 3.988},
+    {category: 'd', amount: 3.293},
+    {category: 'e', amount: 7.921},
+    {category: 'f', amount: 0.312},
+    {category: 'g', amount: 1.377},
+    {category: 'h', amount: 1.072},
+    {category: 'i', amount: 8.286},
+    {category: 'j', amount: 2.343},
+    {category: 'k', amount: 3.411},
+    {category: 'l', amount: 2.136},
+    {category: 'm', amount: 2.911},
+    {category: 'n', amount: 5.6},
+    {category: 'o', amount: 7.59},
+    {category: 'p', amount: 3.101},
+    {category: 'q', amount: 0.003},
+    {category: 'r', amount: 4.571},
+    {category: 's', amount: 4.263},
+    {category: 't', amount: 3.966},
+    {category: 'u', amount: 2.347},
+    {category: 'v', amount: 0.034},
+    {category: 'w', amount: 4.549},
+    {category: 'x', amount: 0.019},
+    {category: 'y', amount: 3.857},
+    {category: 'z', amount: 5.62},
   ],
 };
 
@@ -207,32 +237,31 @@ enum DataExample {
 
 function getExampleSpec(example: SpecExample): string {
   switch (example) {
-  case SpecExample.BarChart:
-    return SPEC_BAR_CHART;
-  case SpecExample.BarChartLite:
-    return SPEC_BAR_CHART_LITE;
-  case SpecExample.Broken:
-    return SPEC_BROKEN;
-  default:
-    const exhaustiveCheck: never = example;
-    throw new Error(`Unhandled case: ${exhaustiveCheck}`);
+    case SpecExample.BarChart:
+      return SPEC_BAR_CHART;
+    case SpecExample.BarChartLite:
+      return SPEC_BAR_CHART_LITE;
+    case SpecExample.Broken:
+      return SPEC_BROKEN;
+    default:
+      const exhaustiveCheck: never = example;
+      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
   }
 }
 
 function getExampleData(example: DataExample) {
   switch (example) {
-  case DataExample.English:
-    return DATA_ENGLISH_LETTER_FREQUENCY;
-  case DataExample.Polish:
-    return DATA_POLISH_LETTER_FREQUENCY;
-  case DataExample.Empty:
-    return DATA_EMPTY;
-  default:
-    const exhaustiveCheck: never = example;
-    throw new Error(`Unhandled case: ${exhaustiveCheck}`);
+    case DataExample.English:
+      return DATA_ENGLISH_LETTER_FREQUENCY;
+    case DataExample.Polish:
+      return DATA_POLISH_LETTER_FREQUENCY;
+    case DataExample.Empty:
+      return DATA_EMPTY;
+    default:
+      const exhaustiveCheck: never = example;
+      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
   }
 }
-
 
 const options: {[key: string]: boolean} = {
   foobar: false,
@@ -256,12 +285,8 @@ function PortalButton() {
 
   return {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    view: function({attrs}: any) {
-      const {
-        zIndex = true,
-        absolute = true,
-        top = true,
-      } = attrs;
+    view: function ({attrs}: any) {
+      const {zIndex = true, absolute = true, top = true} = attrs;
       return [
         m(Button, {
           label: 'Toggle Portal',
@@ -271,25 +296,29 @@ function PortalButton() {
           },
         }),
         portalOpen &&
-            m(Portal,
-              {
-                style: {
-                  position: absolute && 'absolute',
-                  top: top && '0',
-                  zIndex: zIndex ? '10' : '0',
-                  background: 'white',
-                },
+          m(
+            Portal,
+            {
+              style: {
+                position: absolute && 'absolute',
+                top: top && '0',
+                zIndex: zIndex ? '10' : '0',
+                background: 'white',
               },
-              m('', `A very simple portal - a div rendered outside of the normal
-              flow of the page`)),
+            },
+            m(
+              '',
+              `A very simple portal - a div rendered outside of the normal
+              flow of the page`,
+            ),
+          ),
       ];
     },
   };
 }
 
 function lorem() {
-  const text =
-      `Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
+  const text = `Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod
       tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim
       veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea
       commodo consequat.Duis aute irure dolor in reprehenderit in voluptate
@@ -303,14 +332,13 @@ function ControlledPopup() {
   let popupOpen = false;
 
   return {
-    view: function() {
+    view: function () {
       return m(
         Popup,
         {
-          trigger:
-                m(Button, {label: `${popupOpen ? 'Close' : 'Open'} Popup`}),
+          trigger: m(Button, {label: `${popupOpen ? 'Close' : 'Open'} Popup`}),
           isOpen: popupOpen,
-          onChange: (shouldOpen: boolean) => popupOpen = shouldOpen,
+          onChange: (shouldOpen: boolean) => (popupOpen = shouldOpen),
         },
         m(Button, {
           label: 'Close Popup',
@@ -325,13 +353,12 @@ function ControlledPopup() {
 }
 
 type Options = {
-  [key: string]: EnumOption|boolean|string;
+  [key: string]: EnumOption | boolean | string;
 };
 
 class EnumOption {
   constructor(public initial: string, public options: string[]) {}
 }
-
 
 interface WidgetTitleAttrs {
   label: string;
@@ -365,11 +392,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
     if (listItems.length === 0) {
       return null;
     }
-    return m(
-      '.widget-controls',
-      m('h3', 'Options'),
-      m('ul', listItems),
-    );
+    return m('.widget-controls', m('h3', 'Options'), m('ul', listItems));
   }
 
   oninit({attrs: {initialOpts: opts}}: m.Vnode<WidgetShowcaseAttrs, this>) {
@@ -473,7 +496,8 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
           raf.scheduleFullRedraw();
         },
       },
-      optionElements);
+      optionElements,
+    );
   }
 }
 
@@ -550,12 +574,13 @@ export const WidgetsPage = createPage({
       m('h1', 'Widgets'),
       m(WidgetShowcase, {
         label: 'Button',
-        renderWidget: ({label, icon, rightIcon, ...rest}) => m(Button, {
-          icon: icon ? 'send' : undefined,
-          rightIcon: rightIcon ? 'arrow_forward' : undefined,
-          label: label ? 'Button' : '',
-          ...rest,
-        }),
+        renderWidget: ({label, icon, rightIcon, ...rest}) =>
+          m(Button, {
+            icon: icon ? 'send' : undefined,
+            rightIcon: rightIcon ? 'arrow_forward' : undefined,
+            label: label ? 'Button' : '',
+            ...rest,
+          }),
         initialOpts: {
           label: true,
           icon: true,
@@ -585,10 +610,11 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'Text Input',
-        renderWidget: ({placeholder, ...rest}) => m(TextInput, {
-          placeholder: placeholder ? 'Placeholder...' : '',
-          ...rest,
-        }),
+        renderWidget: ({placeholder, ...rest}) =>
+          m(TextInput, {
+            placeholder: placeholder ? 'Placeholder...' : '',
+            ...rest,
+          }),
         initialOpts: {
           placeholder: true,
           disabled: false,
@@ -597,47 +623,50 @@ export const WidgetsPage = createPage({
       m(WidgetShowcase, {
         label: 'Select',
         renderWidget: (opts) =>
-          m(Select, opts,
-            [
-              m('option', {value: 'foo', label: 'Foo'}),
-              m('option', {value: 'bar', label: 'Bar'}),
-              m('option', {value: 'baz', label: 'Baz'}),
-            ]),
+          m(Select, opts, [
+            m('option', {value: 'foo', label: 'Foo'}),
+            m('option', {value: 'bar', label: 'Bar'}),
+            m('option', {value: 'baz', label: 'Baz'}),
+          ]),
         initialOpts: {
           disabled: false,
         },
       }),
       m(WidgetShowcase, {
         label: 'Filterable Select',
-        renderWidget: () => m(FilterableSelect, {
-          values: ['foo', 'bar', 'baz'],
-          onSelected: () => {},
-        }),
+        renderWidget: () =>
+          m(FilterableSelect, {
+            values: ['foo', 'bar', 'baz'],
+            onSelected: () => {},
+          }),
       }),
-      m(WidgetShowcase,
-        {
-          label: 'Empty State',
-          renderWidget: ({header, content}) =>
-            m(EmptyState, {
+      m(WidgetShowcase, {
+        label: 'Empty State',
+        renderWidget: ({header, content}) =>
+          m(
+            EmptyState,
+            {
               title: header && 'No search results found...',
             },
-            content && m(Button, {label: 'Try again'})),
-          initialOpts: {
-            header: true,
-            content: true,
-          },
-        }),
+            content && m(Button, {label: 'Try again'}),
+          ),
+        initialOpts: {
+          header: true,
+          content: true,
+        },
+      }),
       m(WidgetShowcase, {
         label: 'Anchor',
-        renderWidget: ({icon}) => m(
-          Anchor,
-          {
-            icon: icon && 'open_in_new',
-            href: 'https://perfetto.dev/docs/',
-            target: '_blank',
-          },
-          'Docs',
-        ),
+        renderWidget: ({icon}) =>
+          m(
+            Anchor,
+            {
+              icon: icon && 'open_in_new',
+              href: 'https://perfetto.dev/docs/',
+              target: '_blank',
+            },
+            'Docs',
+          ),
         initialOpts: {
           icon: true,
         },
@@ -661,18 +690,18 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'Popup',
-        description:
-              `A popup is a nicely styled portal element whose position is
+        description: `A popup is a nicely styled portal element whose position is
         dynamically updated to appear to float alongside a specific element on
         the page, even as the element is moved and scrolled around.`,
-        renderWidget: (opts) => m(
-          Popup,
-          {
-            trigger: m(Button, {label: 'Toggle Popup'}),
-            ...opts,
-          },
-          lorem(),
-        ),
+        renderWidget: (opts) =>
+          m(
+            Popup,
+            {
+              trigger: m(Button, {label: 'Toggle Popup'}),
+              ...opts,
+            },
+            lorem(),
+          ),
         initialOpts: {
           position: new EnumOption(
             PopupPosition.Auto,
@@ -684,8 +713,7 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'Controlled Popup',
-        description:
-              `The open/close state of a controlled popup is passed in via
+        description: `The open/close state of a controlled popup is passed in via
         the 'isOpen' attribute. This means we can get open or close the popup
         from wherever we like. E.g. from a button inside the popup.
         Keeping this state external also means we can modify other parts of the
@@ -703,22 +731,23 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'MultiSelect panel',
-        renderWidget: ({...rest}) => m(MultiSelect, {
-          options: Object.entries(options).map(([key, value]) => {
-            return {
-              id: key,
-              name: key,
-              checked: value,
-            };
+        renderWidget: ({...rest}) =>
+          m(MultiSelect, {
+            options: Object.entries(options).map(([key, value]) => {
+              return {
+                id: key,
+                name: key,
+                checked: value,
+              };
+            }),
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => {
+                options[id] = checked;
+              });
+              raf.scheduleFullRedraw();
+            },
+            ...rest,
           }),
-          onChange: (diffs: MultiSelectDiff[]) => {
-            diffs.forEach(({id, checked}) => {
-              options[id] = checked;
-            });
-            raf.scheduleFullRedraw();
-          },
-          ...rest,
-        }),
         initialOpts: {
           repeatCheckedItemsAtTop: false,
           fixedSize: false,
@@ -726,25 +755,26 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'Popup with MultiSelect',
-        renderWidget: ({icon, ...rest}) => m(PopupMultiSelect, {
-          options: Object.entries(options).map(([key, value]) => {
-            return {
-              id: key,
-              name: key,
-              checked: value,
-            };
+        renderWidget: ({icon, ...rest}) =>
+          m(PopupMultiSelect, {
+            options: Object.entries(options).map(([key, value]) => {
+              return {
+                id: key,
+                name: key,
+                checked: value,
+              };
+            }),
+            popupPosition: PopupPosition.Top,
+            label: 'Multi Select',
+            icon: icon ? Icons.LibraryAddCheck : undefined,
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => {
+                options[id] = checked;
+              });
+              raf.scheduleFullRedraw();
+            },
+            ...rest,
           }),
-          popupPosition: PopupPosition.Top,
-          label: 'Multi Select',
-          icon: icon ? Icons.LibraryAddCheck : undefined,
-          onChange: (diffs: MultiSelectDiff[]) => {
-            diffs.forEach(({id, checked}) => {
-              options[id] = checked;
-            });
-            raf.scheduleFullRedraw();
-          },
-          ...rest,
-        }),
         initialOpts: {
           icon: true,
           showNumSelected: true,
@@ -777,73 +807,74 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'Menu',
-        renderWidget: () => m(
-          Menu,
-          m(MenuItem, {label: 'New', icon: 'add'}),
-          m(MenuItem, {label: 'Open', icon: 'folder_open'}),
-          m(MenuItem, {label: 'Save', icon: 'save', disabled: true}),
-          m(MenuDivider),
-          m(MenuItem, {label: 'Delete', icon: 'delete'}),
-          m(MenuDivider),
+        renderWidget: () =>
           m(
-            MenuItem,
-            {label: 'Share', icon: 'share'},
-            m(MenuItem, {label: 'Everyone', icon: 'public'}),
-            m(MenuItem, {label: 'Friends', icon: 'group'}),
+            Menu,
+            m(MenuItem, {label: 'New', icon: 'add'}),
+            m(MenuItem, {label: 'Open', icon: 'folder_open'}),
+            m(MenuItem, {label: 'Save', icon: 'save', disabled: true}),
+            m(MenuDivider),
+            m(MenuItem, {label: 'Delete', icon: 'delete'}),
+            m(MenuDivider),
             m(
               MenuItem,
-              {label: 'Specific people', icon: 'person_add'},
-              m(MenuItem, {label: 'Alice', icon: 'person'}),
-              m(MenuItem, {label: 'Bob', icon: 'person'}),
+              {label: 'Share', icon: 'share'},
+              m(MenuItem, {label: 'Everyone', icon: 'public'}),
+              m(MenuItem, {label: 'Friends', icon: 'group'}),
+              m(
+                MenuItem,
+                {label: 'Specific people', icon: 'person_add'},
+                m(MenuItem, {label: 'Alice', icon: 'person'}),
+                m(MenuItem, {label: 'Bob', icon: 'person'}),
+              ),
+            ),
+            m(
+              MenuItem,
+              {label: 'More', icon: 'more_horiz'},
+              m(MenuItem, {label: 'Query', icon: 'database'}),
+              m(MenuItem, {label: 'Download', icon: 'download'}),
+              m(MenuItem, {label: 'Clone', icon: 'copy_all'}),
             ),
           ),
-          m(
-            MenuItem,
-            {label: 'More', icon: 'more_horiz'},
-            m(MenuItem, {label: 'Query', icon: 'database'}),
-            m(MenuItem, {label: 'Download', icon: 'download'}),
-            m(MenuItem, {label: 'Clone', icon: 'copy_all'}),
-          ),
-        ),
-
       }),
       m(WidgetShowcase, {
         label: 'PopupMenu2',
-        renderWidget: (opts) => m(
-          PopupMenu2,
-          {
-            trigger: m(Button, {
-              label: 'Menu',
-              rightIcon: Icons.ContextMenu,
-            }),
-            ...opts,
-          },
-          m(MenuItem, {label: 'New', icon: 'add'}),
-          m(MenuItem, {label: 'Open', icon: 'folder_open'}),
-          m(MenuItem, {label: 'Save', icon: 'save', disabled: true}),
-          m(MenuDivider),
-          m(MenuItem, {label: 'Delete', icon: 'delete'}),
-          m(MenuDivider),
+        renderWidget: (opts) =>
           m(
-            MenuItem,
-            {label: 'Share', icon: 'share'},
-            m(MenuItem, {label: 'Everyone', icon: 'public'}),
-            m(MenuItem, {label: 'Friends', icon: 'group'}),
+            PopupMenu2,
+            {
+              trigger: m(Button, {
+                label: 'Menu',
+                rightIcon: Icons.ContextMenu,
+              }),
+              ...opts,
+            },
+            m(MenuItem, {label: 'New', icon: 'add'}),
+            m(MenuItem, {label: 'Open', icon: 'folder_open'}),
+            m(MenuItem, {label: 'Save', icon: 'save', disabled: true}),
+            m(MenuDivider),
+            m(MenuItem, {label: 'Delete', icon: 'delete'}),
+            m(MenuDivider),
             m(
               MenuItem,
-              {label: 'Specific people', icon: 'person_add'},
-              m(MenuItem, {label: 'Alice', icon: 'person'}),
-              m(MenuItem, {label: 'Bob', icon: 'person'}),
+              {label: 'Share', icon: 'share'},
+              m(MenuItem, {label: 'Everyone', icon: 'public'}),
+              m(MenuItem, {label: 'Friends', icon: 'group'}),
+              m(
+                MenuItem,
+                {label: 'Specific people', icon: 'person_add'},
+                m(MenuItem, {label: 'Alice', icon: 'person'}),
+                m(MenuItem, {label: 'Bob', icon: 'person'}),
+              ),
+            ),
+            m(
+              MenuItem,
+              {label: 'More', icon: 'more_horiz'},
+              m(MenuItem, {label: 'Query', icon: 'database'}),
+              m(MenuItem, {label: 'Download', icon: 'download'}),
+              m(MenuItem, {label: 'Clone', icon: 'copy_all'}),
             ),
           ),
-          m(
-            MenuItem,
-            {label: 'More', icon: 'more_horiz'},
-            m(MenuItem, {label: 'Query', icon: 'database'}),
-            m(MenuItem, {label: 'Download', icon: 'download'}),
-            m(MenuItem, {label: 'Clone', icon: 'copy_all'}),
-          ),
-        ),
         initialOpts: {
           popupPosition: new EnumOption(
             PopupPosition.Bottom,
@@ -858,10 +889,14 @@ export const WidgetsPage = createPage({
         renderWidget: ({fontSize, easing}) =>
           m('', {style: {fontSize}}, m(Spinner, {easing})),
         initialOpts: {
-          fontSize: new EnumOption(
+          fontSize: new EnumOption('16px', [
+            '12px',
             '16px',
-            ['12px', '16px', '24px', '32px', '64px', '128px'],
-          ),
+            '24px',
+            '32px',
+            '64px',
+            '128px',
+          ]),
           easing: false,
         },
       }),
@@ -875,33 +910,36 @@ export const WidgetsPage = createPage({
             opts,
             m(TreeNode, {left: 'Name', right: 'my_event', icon: 'badge'}),
             m(TreeNode, {left: 'CPU', right: '2', icon: 'memory'}),
-            m(TreeNode,
-              {left: 'Start time', right: '1s 435ms', icon: 'schedule'}),
+            m(TreeNode, {
+              left: 'Start time',
+              right: '1s 435ms',
+              icon: 'schedule',
+            }),
             m(TreeNode, {left: 'Duration', right: '86ms', icon: 'timer'}),
-            m(TreeNode,
-              {
-                left: 'SQL',
-                right:
-                          m(
-                            PopupMenu2,
-                            {
-                              popupPosition: PopupPosition.RightStart,
-                              trigger:
-                                    m(Anchor, {
-                                      icon: Icons.ContextMenu,
-                                    },
-                                    'SELECT * FROM raw WHERE id = 123'),
-                            },
-                            m(MenuItem, {
-                              label: 'Copy SQL Query',
-                              icon: 'content_copy',
-                            }),
-                            m(MenuItem, {
-                              label: 'Execute Query in new tab',
-                              icon: 'open_in_new',
-                            }),
-                          ),
-              }),
+            m(TreeNode, {
+              left: 'SQL',
+              right: m(
+                PopupMenu2,
+                {
+                  popupPosition: PopupPosition.RightStart,
+                  trigger: m(
+                    Anchor,
+                    {
+                      icon: Icons.ContextMenu,
+                    },
+                    'SELECT * FROM raw WHERE id = 123',
+                  ),
+                },
+                m(MenuItem, {
+                  label: 'Copy SQL Query',
+                  icon: 'content_copy',
+                }),
+                m(MenuItem, {
+                  label: 'Execute Query in new tab',
+                  icon: 'open_in_new',
+                }),
+              ),
+            }),
             m(TreeNode, {
               icon: 'account_tree',
               left: 'Process',
@@ -954,37 +992,39 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'Nested Popups',
-        renderWidget: () => m(
-          Popup,
-          {
-            trigger: m(Button, {label: 'Open the popup'}),
-          },
+        renderWidget: () =>
           m(
-            PopupMenu2,
+            Popup,
             {
-              trigger: m(Button, {label: 'Select an option'}),
+              trigger: m(Button, {label: 'Open the popup'}),
             },
-            m(MenuItem, {label: 'Option 1'}),
-            m(MenuItem, {label: 'Option 2'}),
+            m(
+              PopupMenu2,
+              {
+                trigger: m(Button, {label: 'Select an option'}),
+              },
+              m(MenuItem, {label: 'Option 1'}),
+              m(MenuItem, {label: 'Option 2'}),
+            ),
+            m(Button, {
+              label: 'Done',
+              dismissPopup: true,
+            }),
           ),
-          m(Button, {
-            label: 'Done',
-            dismissPopup: true,
-          }),
-        ),
       }),
       m(WidgetShowcase, {
         label: 'Callout',
-        renderWidget: () => m(
-          Callout,
-          {
-            icon: 'info',
-          },
-          'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
-                  'Nulla rhoncus tempor neque, sed malesuada eros dapibus vel. ' +
-                  'Aliquam in ligula vitae tortor porttitor laoreet iaculis ' +
-                  'finibus est.',
-        ),
+        renderWidget: () =>
+          m(
+            Callout,
+            {
+              icon: 'info',
+            },
+            'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
+              'Nulla rhoncus tempor neque, sed malesuada eros dapibus vel. ' +
+              'Aliquam in ligula vitae tortor porttitor laoreet iaculis ' +
+              'finibus est.',
+          ),
       }),
       m(WidgetShowcase, {
         label: 'Editor',
@@ -992,10 +1032,11 @@ export const WidgetsPage = createPage({
       }),
       m(WidgetShowcase, {
         label: 'VegaView',
-        renderWidget: (opt) => m(VegaView, {
-          spec: getExampleSpec(opt.exampleSpec),
-          data: getExampleData(opt.exampleData),
-        }),
+        renderWidget: (opt) =>
+          m(VegaView, {
+            spec: getExampleSpec(opt.exampleSpec),
+            data: getExampleData(opt.exampleData),
+          }),
         initialOpts: {
           exampleSpec: new EnumOption(
             SpecExample.BarChart,
@@ -1005,7 +1046,6 @@ export const WidgetsPage = createPage({
             DataExample.English,
             Object.values(DataExample),
           ),
-
         },
       }),
       m(WidgetShowcase, {
@@ -1013,19 +1053,20 @@ export const WidgetsPage = createPage({
         description: `A form placed inside a popup menu works just fine,
               and the cancel/submit buttons also dismiss the popup. A bit more
               margin is added around it too, which improves the look and feel.`,
-        renderWidget: () => m(
-          PopupMenu2,
-          {
-            trigger: m(Button, {label: 'Popup!'}),
-          },
+        renderWidget: () =>
           m(
-            MenuItem,
+            PopupMenu2,
             {
-              label: 'Open form...',
+              trigger: m(Button, {label: 'Popup!'}),
             },
-            renderForm('popup-form'),
+            m(
+              MenuItem,
+              {
+                label: 'Open form...',
+              },
+              renderForm('popup-form'),
+            ),
           ),
-        ),
       }),
       m(WidgetShowcase, {
         label: 'Hotkey',
@@ -1135,10 +1176,10 @@ class ModalShowcase implements m.ClassComponent {
       content = m('.modal-pre', 'Content of the modal dialog.\nEnd of content');
     } else {
       const component = {
-        oninit: function(vnode: m.Vnode<{}, {progress: number}>) {
-          vnode.state.progress = (vnode.state.progress as number || 0) + 1;
+        oninit: function (vnode: m.Vnode<{}, {progress: number}>) {
+          vnode.state.progress = ((vnode.state.progress as number) || 0) + 1;
         },
-        view: function(vnode: m.Vnode<{}, {progress: number}>) {
+        view: function (vnode: m.Vnode<{}, {progress: number}>) {
           vnode.state.progress = (vnode.state.progress + 1) % 100;
           raf.scheduleFullRedraw();
           return m(
@@ -1195,7 +1236,7 @@ class ModalShowcase implements m.ClassComponent {
       }),
     );
   }
-}  // class ModalShowcase
+} // class ModalShowcase
 
 function renderForm(id: string) {
   return m(
@@ -1207,21 +1248,13 @@ function renderForm(id: string) {
       resetLabel: 'Reset',
       onSubmit: () => window.alert('Form submitted!'),
     },
-    m(FormLabel,
-      {for: `${id}-foo`,
-      },
-      'Foo'),
+    m(FormLabel, {for: `${id}-foo`}, 'Foo'),
     m(TextInput, {id: `${id}-foo`}),
-    m(FormLabel,
-      {for: `${id}-bar`,
-      },
-      'Bar'),
-    m(Select,
-      {id: `${id}-bar`},
-      [
-        m('option', {value: 'foo', label: 'Foo'}),
-        m('option', {value: 'bar', label: 'Bar'}),
-        m('option', {value: 'baz', label: 'Baz'}),
-      ]),
+    m(FormLabel, {for: `${id}-bar`}, 'Bar'),
+    m(Select, {id: `${id}-bar`}, [
+      m('option', {value: 'foo', label: 'Foo'}),
+      m('option', {value: 'bar', label: 'Bar'}),
+      m('option', {value: 'baz', label: 'Baz'}),
+    ]),
   );
 }

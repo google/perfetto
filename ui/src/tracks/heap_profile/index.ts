@@ -67,8 +67,7 @@ class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
         select distinct
           id,
           ts,
-          'heap_profile:' || (select group_concat(distinct heap_name) from heap_profile_allocation where upid = ${
-  this.upid}) AS type
+          'heap_profile:' || (select group_concat(distinct heap_name) from heap_profile_allocation where upid = ${this.upid}) AS type
         from heap_profile_allocation
         where upid = ${this.upid}
         union
@@ -100,12 +99,14 @@ class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
   }
 
   onSliceClick(args: OnSliceClickArgs<HeapProfileSlice>) {
-    globals.makeSelection(Actions.selectHeapProfile({
-      id: args.slice.id,
-      upid: this.upid,
-      ts: args.slice.ts,
-      type: args.slice.type,
-    }));
+    globals.makeSelection(
+      Actions.selectHeapProfile({
+        id: args.slice.id,
+        upid: this.upid,
+        ts: args.slice.ts,
+        type: args.slice.type,
+      }),
+    );
   }
 
   protected isSelectionHandled(selection: Selection): boolean {
@@ -134,7 +135,8 @@ class HeapProfilePlugin implements Plugin {
               engine: ctx.engine,
               trackKey,
             },
-            upid);
+            upid,
+          );
         },
       });
     }

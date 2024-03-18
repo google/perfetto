@@ -27,7 +27,7 @@ interface OmniboxOptionRowAttrs {
   // Human readable display name for the option.
   // This can either be a simple string, or a list of fuzzy segments in which
   // case highlighting will be applied to the matching segments.
-  displayName: FuzzySegment[]|string;
+  displayName: FuzzySegment[] | string;
 
   // Highlight this option.
   highlighted: boolean;
@@ -46,7 +46,7 @@ interface OmniboxOptionRowAttrs {
 class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
   private highlightedBefore = false;
 
-  view({attrs}: m.Vnode<OmniboxOptionRowAttrs>): void|m.Children {
+  view({attrs}: m.Vnode<OmniboxOptionRowAttrs>): void | m.Children {
     const {displayName, highlighted, rightContent, label, ...htmlAttrs} = attrs;
     return m(
       'li',
@@ -54,16 +54,13 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
         class: classNames(highlighted && 'pf-highlighted'),
         ...htmlAttrs,
       },
-      m(
-        'span.pf-title',
-        this.renderTitle(displayName),
-      ),
+      m('span.pf-title', this.renderTitle(displayName)),
       label && m('span.pf-tag', label),
       rightContent,
     );
   }
 
-  private renderTitle(title: FuzzySegment[]|string): m.Children {
+  private renderTitle(title: FuzzySegment[] | string): m.Children {
     if (isString(title)) {
       return title;
     } else {
@@ -90,7 +87,7 @@ export interface OmniboxOption {
 
   // Display name provided as a string or a list of fuzzy segments to enable
   // fuzzy match highlighting.
-  displayName: FuzzySegment[]|string;
+  displayName: FuzzySegment[] | string;
 
   // Some tag to place on the right (to the left of the right content).
   tag?: string;
@@ -110,7 +107,7 @@ export interface OmniboxAttrs {
   onInput?: (value: string, previousValue: string) => void;
 
   // Class or list of classes to append to the Omnibox element.
-  extraClasses?: string|string[];
+  extraClasses?: string | string[];
 
   // Called on close.
   onClose?: () => void;
@@ -173,8 +170,8 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     return m(
       Popup,
       {
-        onPopupMount: (dom: HTMLElement) => this.popupElement = dom,
-        onPopupUnMount: (_dom: HTMLElement) => this.popupElement = undefined,
+        onPopupMount: (dom: HTMLElement) => (this.popupElement = dom),
+        onPopupUnMount: (_dom: HTMLElement) => (this.popupElement = undefined),
         isOpen: exists(options),
         showArrow: false,
         matchWidth: true,
@@ -240,7 +237,8 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
           rightContent,
         ),
       },
-      options && this.renderDropdown(attrs));
+      options && this.renderDropdown(attrs),
+    );
   }
 
   private renderDropdown(attrs: OmniboxAttrs): m.Children {
@@ -268,21 +266,15 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
         m(KeycapGlyph, {keyValue: 'ArrowDown'}),
         'to navigate',
       ),
-      m(
-        'section',
-        m(KeycapGlyph, {keyValue: 'Enter'}),
-        'to use',
-      ),
-      m(
-        'section',
-        m(KeycapGlyph, {keyValue: 'Escape'}),
-        'to dismiss',
-      ),
+      m('section', m(KeycapGlyph, {keyValue: 'Enter'}), 'to use'),
+      m('section', m(KeycapGlyph, {keyValue: 'Escape'}), 'to dismiss'),
     );
   }
 
-  private renderOptionsContainer(attrs: OmniboxAttrs, options: OmniboxOption[]):
-      m.Children {
+  private renderOptionsContainer(
+    attrs: OmniboxAttrs,
+    options: OmniboxOption[],
+  ): m.Children {
     const {
       onClose = () => {},
       onSubmit = () => {},
@@ -304,10 +296,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       });
     });
 
-    return m(
-      'ul.pf-omnibox-options-container',
-      opts,
-    );
+    return m('ul.pf-omnibox-options-container', opts);
   }
 
   oncreate({attrs, dom}: m.VnodeDOM<OmniboxAttrs, this>) {
@@ -356,10 +345,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
   }
 
   private highlightPreviousOption(attrs: OmniboxAttrs) {
-    const {
-      selectedOptionIndex = 0,
-      onSelectedOptionChanged = () => {},
-    } = attrs;
+    const {selectedOptionIndex = 0, onSelectedOptionChanged = () => {}} = attrs;
 
     onSelectedOptionChanged(Math.max(0, selectedOptionIndex - 1));
   }

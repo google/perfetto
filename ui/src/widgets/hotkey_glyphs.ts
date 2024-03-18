@@ -14,13 +14,7 @@
 
 import m from 'mithril';
 
-import {
-  getPlatform,
-  Hotkey,
-  Key,
-  parseHotkey,
-  Platform,
-} from '../base/hotkeys';
+import {getPlatform, Hotkey, Key, parseHotkey, Platform} from '../base/hotkeys';
 
 import {Icon} from './icon';
 
@@ -49,7 +43,8 @@ export class HotkeyGlyphs implements m.ClassComponent<HotkeyGlyphsAttrs> {
         hasCtrl && m('span.pf-keycap', glyphForCtrl(platform)),
         hasAlt && m('span.pf-keycap', glyphForAlt(platform)),
         hasShift && m('span.pf-keycap', glyphForShift()),
-        m('span.pf-keycap', glyphForKey(key, platform)));
+        m('span.pf-keycap', glyphForKey(key, platform)),
+      );
     } else {
       return m('span.pf-keycap', '???');
     }

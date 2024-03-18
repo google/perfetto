@@ -95,9 +95,9 @@ const MD_PALETTE: ColorScheme[] = MD_PALETTE_RAW.map((color): ColorScheme => {
     base,
     variant,
     disabled: GRAY_COLOR,
-    textBase: WHITE_COLOR,  // White text suits MD colors quite well
+    textBase: WHITE_COLOR, // White text suits MD colors quite well
     textVariant: WHITE_COLOR,
-    textDisabled: WHITE_COLOR,  // Low contrast is on purpose
+    textDisabled: WHITE_COLOR, // Low contrast is on purpose
   };
 });
 
@@ -110,13 +110,15 @@ export function makeColorScheme(base: Color, variant?: Color): ColorScheme {
     base,
     variant,
     disabled: GRAY_COLOR,
-    textBase: base.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT ?
-      BLACK_COLOR :
-      WHITE_COLOR,
-    textVariant: variant.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT ?
-      BLACK_COLOR :
-      WHITE_COLOR,
-    textDisabled: WHITE_COLOR,  // Low contrast is on purpose
+    textBase:
+      base.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
+        ? BLACK_COLOR
+        : WHITE_COLOR,
+    textVariant:
+      variant.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT
+        ? BLACK_COLOR
+        : WHITE_COLOR,
+    textDisabled: WHITE_COLOR, // Low contrast is on purpose
   };
 }
 
@@ -156,8 +158,11 @@ function proceduralColorScheme(seed: string): ColorScheme {
     // is because this function chooses hue/lightness uniform at random, but HSL
     // is not perceptually uniform.
     // See https://www.boronine.com/2012/03/26/Color-Spaces-for-Human-Beings/.
-    const base =
-        new HSLuvColor({h: hue, s: saturation, l: hash(seed + 'x', 40) + 40});
+    const base = new HSLuvColor({
+      h: hue,
+      s: saturation,
+      l: hash(seed + 'x', 40) + 40,
+    });
     const variant = new HSLuvColor({h: hue, s: saturation, l: 30});
     const colorScheme = makeColorScheme(base, variant);
 
@@ -187,8 +192,10 @@ export function colorForTid(tid: number): ColorScheme {
   return materialColorScheme(tid.toString());
 }
 
-export function colorForThread(thread?: {pid?: number, tid: number}):
-    ColorScheme {
+export function colorForThread(thread?: {
+  pid?: number;
+  tid: number;
+}): ColorScheme {
   if (thread === undefined) {
     return GRAY;
   }
@@ -200,7 +207,7 @@ export function colorForCpu(cpu: number): Color {
   if (USE_CONSISTENT_COLORS.get()) {
     return materialColorScheme(cpu.toString()).base;
   } else {
-    const hue = (128 + (32 * cpu)) % 256;
+    const hue = (128 + 32 * cpu) % 256;
     return new HSLColor({h: hue, s: 50, l: 50});
   }
 }

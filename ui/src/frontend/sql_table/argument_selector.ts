@@ -43,8 +43,9 @@ interface ArgumentSelectorAttrs {
 // A widget which allows the user to select a new argument to display.
 // Dinamically queries Trace Processor to find the relevant set of arg_set_ids
 // and which args are present in these arg sets.
-export class ArgumentSelector implements
-    m.ClassComponent<ArgumentSelectorAttrs> {
+export class ArgumentSelector
+  implements m.ClassComponent<ArgumentSelectorAttrs>
+{
   argList?: string[];
 
   constructor({attrs}: m.Vnode<ArgumentSelectorAttrs>) {

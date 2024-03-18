@@ -78,11 +78,14 @@ export class TimeWindow {
       start = traceTimeSpan.end.subNanos(durationNanos);
     }
 
-    this.hpTimeSpan =
-        new HighPrecisionTimeSpan(start, start.addNanos(durationNanos));
+    this.hpTimeSpan = new HighPrecisionTimeSpan(
+      start,
+      start.addNanos(durationNanos),
+    );
     this.timeSpan = new TimeSpan(
       this.hpTimeSpan.start.toTime('floor'),
-      this.hpTimeSpan.end.toTime('ceil'));
+      this.hpTimeSpan.end.toTime('ceil'),
+    );
   }
 
   static fromHighPrecisionTimeSpan(span: Span<HighPrecisionTime>): TimeWindow {
@@ -92,7 +95,9 @@ export class TimeWindow {
   // Pan the window by certain number of seconds
   pan(offset: HighPrecisionTime) {
     return new TimeWindow(
-      this.hpTimeSpan.start.add(offset), this.hpTimeSpan.duration.nanos);
+      this.hpTimeSpan.start.add(offset),
+      this.hpTimeSpan.duration.nanos,
+    );
   }
 
   // Zoom in or out a bit centered on a specific offset from the root
@@ -102,8 +107,10 @@ export class TimeWindow {
     const traceDuration = globals.stateTraceTime().duration;
     const minDuration = Math.min(this.MIN_DURATION_NS, traceDuration.nanos);
     const currentDurationNanos = this.hpTimeSpan.duration.nanos;
-    const newDurationNanos =
-        Math.max(currentDurationNanos * ratio, minDuration);
+    const newDurationNanos = Math.max(
+      currentDurationNanos * ratio,
+      minDuration,
+    );
     // Delta between new and old duration
     // +ve if new duration is shorter than old duration
     const durationDeltaNanos = currentDurationNanos - newDurationNanos;
@@ -120,7 +127,8 @@ export class TimeWindow {
     return new TimeScale(
       this.hpTimeSpan.start,
       this.hpTimeSpan.duration.nanos,
-      new PxSpan(startPx, endPx));
+      new PxSpan(startPx, endPx),
+    );
   }
 
   get earliest(): time {
@@ -160,14 +168,18 @@ export class Timeline {
   zoomVisibleWindow(ratio: number, centerPoint: number) {
     this.visibleWindow = this.visibleWindow.zoom(ratio, centerPoint);
     this._timeScale = this.visibleWindow.createTimeScale(
-      this._windowSpan.start, this._windowSpan.end);
+      this._windowSpan.start,
+      this._windowSpan.end,
+    );
     this.kickUpdateLocalState();
   }
 
   panVisibleWindow(delta: HighPrecisionTime) {
     this.visibleWindow = this.visibleWindow.pan(delta);
     this._timeScale = this.visibleWindow.createTimeScale(
-      this._windowSpan.start, this._windowSpan.end);
+      this._windowSpan.start,
+      this._windowSpan.end,
+    );
     this.kickUpdateLocalState();
   }
 
@@ -183,20 +195,25 @@ export class Timeline {
     this._visibleState = chooseLatest(this._visibleState, state.visibleState);
     const visibleStateWasUpdated = previousVisibleState !== this._visibleState;
     if (visibleStateWasUpdated) {
-      this.updateLocalTime(new HighPrecisionTimeSpan(
-        HighPrecisionTime.fromTime(this._visibleState.start),
-        HighPrecisionTime.fromTime(this._visibleState.end),
-      ));
+      this.updateLocalTime(
+        new HighPrecisionTimeSpan(
+          HighPrecisionTime.fromTime(this._visibleState.start),
+          HighPrecisionTime.fromTime(this._visibleState.end),
+        ),
+      );
     }
   }
 
   // Set the highlight box to draw
   selectArea(
-    start: time, end: time,
-    tracks = this._selectedArea ? this._selectedArea.tracks : []) {
+    start: time,
+    end: time,
+    tracks = this._selectedArea ? this._selectedArea.tracks : [],
+  ) {
     assertTrue(
       end >= start,
-      `Impossible select area: start [${start}] >= end [${end}]`);
+      `Impossible select area: start [${start}] >= end [${end}]`,
+    );
     this._selectedArea = {start, end, tracks};
     raf.scheduleFullRedraw();
   }
@@ -206,7 +223,7 @@ export class Timeline {
     raf.scheduleRedraw();
   }
 
-  get selectedArea(): Area|undefined {
+  get selectedArea(): Area | undefined {
     return this._selectedArea;
   }
 
@@ -219,9 +236,12 @@ export class Timeline {
     const start = ts.start.clamp(traceBounds.start, traceBounds.end);
     const end = ts.end.clamp(traceBounds.start, traceBounds.end);
     this.visibleWindow = TimeWindow.fromHighPrecisionTimeSpan(
-      new HighPrecisionTimeSpan(start, end));
+      new HighPrecisionTimeSpan(start, end),
+    );
     this._timeScale = this.visibleWindow.createTimeScale(
-      this._windowSpan.start, this._windowSpan.end);
+      this._windowSpan.start,
+      this._windowSpan.end,
+    );
     this.updateResolution();
   }
 
