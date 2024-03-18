@@ -18,7 +18,6 @@ import {raf} from '../core/raf_scheduler';
 
 import {Animation} from './animation';
 import {DragGestureHandler} from './drag_gesture_handler';
-import {handleKey} from './keyboard_event_handler';
 
 // When first starting to pan or zoom, move at least this many units.
 const INITIAL_PAN_STEP_PX = 50;
@@ -268,9 +267,6 @@ export class PanAndZoomHandler implements Disposable {
 
       this.updateShift(e.shiftKey);
 
-      // Handle key events that are not pan or zoom.
-      if (handleKey(e, true)) return;
-
       if (e.ctrlKey || e.metaKey) return;
 
       if (keyToPan(e) !== Pan.None) {
@@ -298,9 +294,6 @@ export class PanAndZoomHandler implements Disposable {
   private onKeyUp(e: Event) {
     if (e instanceof KeyboardEvent) {
       this.updateShift(e.shiftKey);
-
-      // Handle key events that are not pan or zoom.
-      if (handleKey(e, false)) return;
 
       if (e.ctrlKey || e.metaKey) return;
 
