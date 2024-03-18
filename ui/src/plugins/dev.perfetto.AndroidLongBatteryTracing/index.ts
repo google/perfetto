@@ -20,6 +20,7 @@ import {
 } from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
 import {SimpleSliceTrack, SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
+import {CounterOptions} from '../../frontend/base_counter_track';
 import {SimpleCounterTrack, SimpleCounterTrackConfig} from '../../frontend/simple_counter_track';
 
 const DEFAULT_NETWORK = `
@@ -1102,13 +1103,14 @@ class AndroidLongBatteryTracing implements Plugin {
 
   addCounterTrack(
     ctx: PluginContextTrace, name: string, query: string,
-    groupName: string): void {
+    groupName: string, options?: Partial<CounterOptions>): void {
     const config: SimpleCounterTrackConfig = {
       data: {
         sqlSource: query,
         columns: ['ts', 'value'],
       },
       columns: {ts: 'ts', value: 'value'},
+      options,
     };
     ctx.registerStaticTrack({
       uri: `dev.perfetto.AndroidLongBatteryTracing#${name}`,
@@ -1212,31 +1214,31 @@ class AndroidLongBatteryTracing implements Plugin {
     }
     if (features.has('net.wifi')) {
       this.addCounterTrack(
-        ctx, 'Wifi bytes (logscale)',
-        `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'wifi' group by 1`,
-        groupName);
+        ctx, 'Wifi bytes',
+        `select ts, sum(value) as value from network_summary where dev_type = 'wifi' group by 1`,
+        groupName, {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'});
       this.addCounterTrack(
-        ctx, 'Wifi TX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'tx'`,
-        groupName);
+        ctx, 'Wifi TX bytes',
+        `select ts, value from network_summary where dev_type = 'wifi' and dir = 'tx'`,
+        groupName, {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'});
       this.addCounterTrack(
-        ctx, 'Wifi RX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'rx'`,
-        groupName);
+        ctx, 'Wifi RX bytes',
+        `select ts, value from network_summary where dev_type = 'wifi' and dir = 'rx'`,
+        groupName, {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'});
     }
     if (features.has('net.modem')) {
       this.addCounterTrack(
-        ctx, 'Modem bytes (logscale)',
-        `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'modem' group by 1`,
-        groupName);
+        ctx, 'Modem bytes',
+        `select ts, sum(value) as value from network_summary where dev_type = 'modem' group by 1`,
+        groupName, {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'});
       this.addCounterTrack(
-        ctx, 'Modem TX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'tx'`,
-        groupName);
+        ctx, 'Modem TX bytes',
+        `select ts, value from network_summary where dev_type = 'modem' and dir = 'tx'`,
+        groupName, {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'});
       this.addCounterTrack(
-        ctx, 'Modem RX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'rx'`,
-        groupName);
+        ctx, 'Modem RX bytes',
+        `select ts, value from network_summary where dev_type = 'modem' and dir = 'rx'`,
+        groupName, {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'});
     }
     this.addBatteryStatsState(
       ctx, 'Cellular interface', 'battery_stats.mobile_radio', groupName,
