@@ -134,6 +134,6 @@ export function reportError(err: ErrorEvent|PromiseRejectionEvent|{}) {
 // 2) A compile time check where typescript asserts that the value passed can be
 // cast to the "never" type.
 // This is useful for ensuring we exhastively check union types.
-export function assertUnreachable(_x: never) {
-  throw new Error('This code should not be reachable');
+export function assertUnreachable(value: never) {
+  throw new Error(`This code should not be reachable ${value as unknown}`);
 }
