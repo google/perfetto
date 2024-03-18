@@ -190,7 +190,9 @@ export class FlowEventsRenderer {
       // beginning of the slice
       // rather from the end to avoid the flow arrow going backwards.
       x: this.getXCoordinate(
-        flow.flowToDescendant ? flow.begin.sliceStartTs :
+        flow.flowToDescendant ||
+        flow.begin.sliceStartTs >= flow.end.sliceStartTs ?
+          flow.begin.sliceStartTs :
           flow.begin.sliceEndTs),
       y: beginYConnection.y,
       dir: beginDir,
