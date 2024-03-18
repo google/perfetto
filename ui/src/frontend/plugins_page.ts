@@ -21,7 +21,7 @@ import {Button} from '../widgets/button';
 import {exists} from '../base/utils';
 import {PluginDescriptor} from '../public';
 import {createPage} from './pages';
-import {defaultPlugins} from '../common/default_plugins';
+import {defaultPlugins} from '../core/default_plugins';
 
 export const PluginsPage = createPage({
   view() {
