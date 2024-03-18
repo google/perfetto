@@ -61,6 +61,12 @@ import {addDebugSliceTrack} from './debug_tracks';
 import {AggregationsTabs} from './aggregation_tab';
 import {addSqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
+import {
+  findCurrentSelection,
+  focusOtherFlow,
+  lockSliceSpan,
+  moveByFocusedFlow,
+} from './keyboard_event_handler';
 
 function renderPermalink(): m.Children {
   const permalink = globals.state.permalink;
@@ -544,6 +550,109 @@ export class App implements m.ClassComponent {
               // Prompt was probably cancelled - do nothing.
             }
           },
+    },
+    {
+      id: 'perfetto.FocusSelection',
+      name: 'Focus selection',
+      callback: () => findCurrentSelection(),
+      defaultHotkey: 'F',
+    },
+    {
+      id: 'perfetto.Deselect',
+      name: 'Deselect',
+      callback: () => {
+        globals.timeline.deselectArea();
+        globals.makeSelection(Actions.deselect({}));
+        globals.dispatch(Actions.removeNote({id: '0'}));
+      },
+      defaultHotkey: 'Escape',
+    },
+    {
+      id: 'perfetto.MarkArea',
+      name: 'Mark area',
+      callback: () => {
+        const selection = globals.state.currentSelection;
+        if (selection && selection.kind === 'AREA') {
+          globals.dispatch(Actions.toggleMarkCurrentArea({persistent: false}));
+        } else if (selection) {
+          lockSliceSpan(false);
+        }
+      },
+      defaultHotkey: 'M',
+    },
+    {
+      id: 'perfetto.MarkAreaPersistent',
+      name: 'Mark area (persistent)',
+      callback: () => {
+        const selection = globals.state.currentSelection;
+        if (selection && selection.kind === 'AREA') {
+          globals.dispatch(Actions.toggleMarkCurrentArea({persistent: true}));
+        } else if (selection) {
+          lockSliceSpan(true);
+        }
+      },
+      defaultHotkey: 'Shift+M',
+    },
+    {
+      id: 'perfetto.NextFlow',
+      name: 'Next flow',
+      callback: () => focusOtherFlow('Forward'),
+      defaultHotkey: ']',
+    },
+    {
+      id: 'perfetto.PrevFlow',
+      name: 'Prev flow',
+      callback: () => focusOtherFlow('Backward'),
+      defaultHotkey: '[',
+    },
+    {
+      id: 'perfetto.MoveNextFlow',
+      name: 'Move next flow',
+      callback: () => moveByFocusedFlow('Forward'),
+      defaultHotkey: 'Mod+]',
+    },
+    {
+      id: 'perfetto.MovePrevFlow',
+      name: 'Move prev flow',
+      callback: () => moveByFocusedFlow('Backward'),
+      defaultHotkey: 'Mod+[',
+    },
+    {
+      id: 'perfetto.SelectAll',
+      name: 'Select all',
+      callback: () => {
+        let tracksToSelect: string[] = [];
+
+        const selection = globals.state.currentSelection;
+        if (selection !== null && selection.kind === 'AREA') {
+          const area = globals.state.areas[selection.areaId];
+          const coversEntireTimeRange =
+          globals.state.traceTime.start === area.start &&
+          globals.state.traceTime.end === area.end;
+          if (!coversEntireTimeRange) {
+            // If the current selection is an area which does not cover the
+            // entire time range, preserve the list of selected tracks and
+            // expand the time range.
+            tracksToSelect = area.tracks;
+          } else {
+            // If the entire time range is already covered, update the selection
+            // to cover all tracks.
+            tracksToSelect = Object.keys(globals.state.tracks);
+          }
+        } else {
+          // If the current selection is not an area, select all.
+          tracksToSelect = Object.keys(globals.state.tracks);
+        }
+        const {start, end} = globals.state.traceTime;
+        globals.dispatch(Actions.selectArea({
+          area: {
+            start,
+            end,
+            tracks: tracksToSelect,
+          },
+        }));
+      },
+      defaultHotkey: 'Mod+A',
     },
   ];
 
