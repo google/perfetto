@@ -2003,7 +2003,7 @@ message FollowerEvent {
 //     }
 //   }
 //
-// Next id: 21
+// Next id: 23
 message PerfEventConfig {
   // What event to sample on, and how often.
   // Defined in common/perf_events.proto.
@@ -2025,6 +2025,12 @@ message PerfEventConfig {
   //
   // Available since: perfetto v50.
   repeated uint32 target_cpu = 20;
+
+  // Allow failure of perf_event_open
+  optional bool ignore_open_failure = 21;
+
+  // Filter based on CPUID
+  repeated string cpuid = 22;
 
   //
   // Kernel <-> userspace ring buffer options:
@@ -12907,7 +12913,6 @@ message GenericKernelTaskRenameEvent {
   // New command name for the thread.
   optional string comm = 2;
 }
-
 // Metadata about the processes and threads in the trace.
 // The main goal of this proto is to provide a generic kernel
 // implementation a mechanism to outline its process structure.
