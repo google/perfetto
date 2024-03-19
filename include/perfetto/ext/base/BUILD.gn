@@ -22,6 +22,8 @@ source_set("base") {
     "circular_queue.h",
     "clock_snapshots.h",
     "container_annotations.h",
+    "cpu_info.h",
+    "cpu_info_features_allowlist.h",
     "crash_keys.h",
     "ctrl_c_handler.h",
     "dynamic_string_writer.h",
