@@ -17,15 +17,17 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SCHED_EVENT_STATE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SCHED_EVENT_STATE_H_
 
-#include <iosfwd>
+#include <limits>
+#include <vector>
 
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/version_number.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 // Responsible for keeping the state of pending sched events.
+// TODO(rsavitski): consider folding back into ftrace parser. The ETW parser is
+// probably better off replicating its own pending state struct.
 class SchedEventState {
  public:
   // Information retained from the preceding sched_switch seen on a given cpu.

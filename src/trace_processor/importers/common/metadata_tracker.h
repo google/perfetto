@@ -20,6 +20,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/storage/metadata.h"
@@ -50,7 +51,7 @@ class MetadataTracker {
 
   // Reads back a set metadata value.
   // Only kSingle types are supported right now.
-  SqlValue GetMetadata(metadata::KeyId key);
+  std::optional<SqlValue> GetMetadata(metadata::KeyId key);
 
   // Tracks how many ChromeMetadata bundles have been parsed.
   uint32_t IncrementChromeMetadataBundleCount() {

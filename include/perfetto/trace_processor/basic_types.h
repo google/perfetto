@@ -93,7 +93,25 @@ enum class DropFtraceDataBefore {
   // trace, no data is dropped.
   // This option can be used in cases where R- traces are being considered and
   // |kTracingStart| cannot be used because the event was not present.
-  kAllDataSourcesStarted = 2,
+  kAllDataSourcesStarted = 2
+};
+
+// Specifies whether the ftrace data should be "soft-dropped" until a given
+// global timestamp, meaning we'll still populate the |ftrace_events| table
+// and some other internal storage, but won't persist derived info such as
+// slices. See also |DropFtraceDataBefore| above.
+// Note: this might behave in surprising ways for traces using >1 tracefs
+// instances, but those aren't seen in practice at the time of writing.
+enum class SoftDropFtraceDataBefore {
+  // Drop until the earliest timestamp covered by all per-cpu event bundles.
+  // In other words, the maximum of all per-cpu "valid from" timestamps.
+  // Important for correct parsing of traces where the ftrace data is written
+  // into a central perfetto buffer in ring-buffer mode (as opposed to discard
+  // mode).
+  kAllPerCpuBuffersValid = 0,
+
+  // Keep all events (though DropFtraceDataBefore still applies).
+  kNoDrop = 1
 };
 
 // Enum which encodes which timestamp source (if any) should be used to drop
@@ -128,6 +146,11 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   // the trace before that event. See the enum documentation for more details.
   DropFtraceDataBefore drop_ftrace_data_before =
       DropFtraceDataBefore::kTracingStarted;
+
+  // Specifies whether the ftrace data should be "soft-dropped" until a given
+  // global timestamp.
+  SoftDropFtraceDataBefore soft_drop_ftrace_data_before =
+      SoftDropFtraceDataBefore::kAllPerCpuBuffersValid;
 
   // Indicates the source of timestamp before which track events should be
   // dropped. See the enum documentation for more details.

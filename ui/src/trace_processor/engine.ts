@@ -63,6 +63,7 @@ export interface TraceProcessorConfig {
   cropTrackEvents: boolean;
   ingestFtraceInRawTable: boolean;
   analyzeTraceProtoContent: boolean;
+  ftraceDropUntilAllCpusValid: boolean;
 }
 
 // Abstract interface of a trace proccessor.
@@ -273,6 +274,7 @@ export abstract class Engine {
     cropTrackEvents,
     ingestFtraceInRawTable,
     analyzeTraceProtoContent,
+    ftraceDropUntilAllCpusValid,
   }: TraceProcessorConfig): Promise<void> {
     const asyncRes = defer<void>();
     this.pendingResetTraceProcessors.push(asyncRes);
@@ -285,6 +287,7 @@ export abstract class Engine {
       : ResetTraceProcessorArgs.DropTrackEventDataBefore.NO_DROP;
     args.ingestFtraceInRawTable = ingestFtraceInRawTable;
     args.analyzeTraceProtoContent = analyzeTraceProtoContent;
+    args.ftraceDropUntilAllCpusValid = ftraceDropUntilAllCpusValid;
     this.rpcSendRequest(rpc);
     return asyncRes;
   }

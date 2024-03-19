@@ -169,8 +169,16 @@ const INGEST_FTRACE_IN_RAW_TABLE_FLAG = featureFlags.register({
 const ANALYZE_TRACE_PROTO_CONTENT_FLAG = featureFlags.register({
   id: 'analyzeTraceProtoContent',
   name: 'Analyze trace proto content',
-  description: 'Enables trace proto content analysis',
+  description:
+    'Enables trace proto content analysis (experimental_proto_content table)',
   defaultValue: false,
+});
+const FTRACE_DROP_UNTIL_FLAG = featureFlags.register({
+  id: 'ftraceDropUntilAllCpusValid',
+  name: 'Crop ftrace events',
+  description:
+    'Drop ftrace events until all per-cpu data streams are known to be valid',
+  defaultValue: true,
 });
 
 // A local storage key where the indication that JSON warning has been shown is
@@ -402,6 +410,7 @@ export class TraceController extends Controller<States> {
         cropTrackEvents: CROP_TRACK_EVENTS_FLAG.get(),
         ingestFtraceInRawTable: INGEST_FTRACE_IN_RAW_TABLE_FLAG.get(),
         analyzeTraceProtoContent: ANALYZE_TRACE_PROTO_CONTENT_FLAG.get(),
+        ftraceDropUntilAllCpusValid: FTRACE_DROP_UNTIL_FLAG.get(),
       });
     }
     this.engine = engine;

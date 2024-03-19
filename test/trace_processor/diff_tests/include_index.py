@@ -127,6 +127,7 @@ from diff_tests.syntax.view_tests import PerfettoView
 from diff_tests.tables.tests import Tables
 from diff_tests.tables.tests_counters import TablesCounters
 from diff_tests.tables.tests_sched import TablesSched
+from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 
 sys.path.pop()
 
@@ -198,6 +199,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ParsingRssStats(index_path, 'parser/parsing', 'ParsingRssStats').fetch(),
       *ParsingMemoryCounters(index_path, 'parser/parsing',
                              'ParsingMemoryCounters').fetch(),
+      *FtraceCrop(index_path, 'parser/ftrace', 'FtraceCrop').fetch(),
   ]
 
   metrics_tests = [

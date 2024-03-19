@@ -17,16 +17,19 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_PARSER_H_
 
+#include <cstdint>
+
+#include <string>
+#include <unordered_set>
+#include <vector>
+
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
-#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
-#include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/ftrace/gpu_work_period_tracker.h"
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
 #include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
@@ -34,8 +37,6 @@
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-
-#include <unordered_set>
 
 namespace perfetto {
 namespace trace_processor {
@@ -439,9 +440,13 @@ class FtraceParser {
 
   bool has_seen_first_ftrace_packet_ = false;
 
-  // Stores information about the timestamp from the metadata table which is
-  // used to filter ftrace packets which happen before this point.
+  // Ftrace events before this timestamp get dropped.
   int64_t drop_ftrace_data_before_ts_ = 0;
+
+  // Ftrace events before this timestamp get parsed into the |ftrace_events|
+  // table, but don't get propagated into other tables/trackers.
+  // Must be no less than drop_ftrace_data_before_ts_.
+  int64_t soft_drop_ftrace_data_before_ts_ = 0;
 
   // Does not skip any ftrace events.
   bool preserve_ftrace_buffer_ = false;
