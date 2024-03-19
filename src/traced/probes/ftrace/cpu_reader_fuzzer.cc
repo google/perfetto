@@ -15,15 +15,13 @@
  */
 
 #include <stddef.h>
-#include <stdint.h>
+#include <cstdint>
 
 #include <algorithm>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
-#include "perfetto/protozero/scattered_stream_null_delegate.h"
-#include "perfetto/protozero/scattered_stream_writer.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 #include "src/traced/probes/ftrace/test/cpu_reader_support.h"
@@ -69,8 +67,10 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
   NullTraceWriter null_writer;
   auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
   base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors;
+  uint64_t last_read_event_ts = 0;
   CpuReader::ProcessPagesForDataSource(
-      &null_writer, &metadata, /*cpu=*/0, &ds_config, &parse_errors, g_page,
+      &null_writer, &metadata, /*cpu=*/0, &ds_config, &parse_errors,
+      &last_read_event_ts, g_page,
       /*pages_read=*/1, compact_sched_buf.get(), table, /*symbolizer*/ nullptr,
       /*ftrace_clock_snapshot=*/nullptr,
       protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
