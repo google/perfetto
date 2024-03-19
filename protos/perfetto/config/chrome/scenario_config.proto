@@ -121,3 +121,7 @@ message ScenarioConfig {
 message ChromeFieldTracingConfig {
   repeated ScenarioConfig scenarios = 1;
 }
+
+message TracingTriggerRulesConfig {
+  repeated TriggerRule rules = 1;
+}
