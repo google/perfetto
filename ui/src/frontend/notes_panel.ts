@@ -18,7 +18,7 @@ import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
-import {randomColor} from '../common/colorizer';
+import {randomColor} from '../core/colorizer';
 import {AreaNote, Note} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';

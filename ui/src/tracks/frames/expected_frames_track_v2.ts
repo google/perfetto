@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HSLColor} from '../../common/color';
-import {makeColorScheme} from '../../common/colorizer';
+import {HSLColor} from '../../core/color';
+import {makeColorScheme} from '../../core/colorizer';
 import {NamedRow, NamedSliceTrack} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {EngineProxy, Slice} from '../../public';

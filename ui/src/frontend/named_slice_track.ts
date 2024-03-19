@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
-import {getColorForSlice} from '../common/colorizer';
+import {getColorForSlice} from '../core/colorizer';
 import {STR_NULL} from '../trace_processor/query_result';
 
 import {

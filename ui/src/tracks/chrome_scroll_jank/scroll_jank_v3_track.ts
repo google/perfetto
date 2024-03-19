@@ -30,7 +30,7 @@ import {
 } from './index';
 import {JANK_COLOR} from './jank_colors';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
-import {getColorForSlice} from '../../common/colorizer';
+import {getColorForSlice} from '../../core/colorizer';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';

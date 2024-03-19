@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../../common/actions';
-import {colorForState} from '../../common/colorizer';
+import {colorForState} from '../../core/colorizer';
 import {Selection} from '../../common/state';
 import {translateState} from '../../common/thread_state';
 import {

@@ -14,8 +14,8 @@
 
 import {Draft} from 'immer';
 
+import {using} from './disposable';
 import {createStore} from './store';
-import {using} from '../base/disposable';
 
 interface Bar {
   value: number;

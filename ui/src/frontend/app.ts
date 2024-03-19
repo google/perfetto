@@ -28,7 +28,7 @@ import {
   setDurationPrecision,
   setTimestampFormat,
   TimestampFormat,
-} from '../common/timestamp_format';
+} from '../core/timestamp_format';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
 import {EngineProxy} from '../trace_processor/engine';

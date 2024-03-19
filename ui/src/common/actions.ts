@@ -30,7 +30,7 @@ import {
 } from '../frontend/pivot_table_types';
 import {PrimaryTrackSortKey} from '../public/index';
 
-import {randomColor} from './colorizer';
+import {randomColor} from '../core/colorizer';
 import {
   computeIntervals,
   DropDirection,
