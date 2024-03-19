@@ -192,8 +192,8 @@ base::StatusOr<std::unique_ptr<Table>> IntervalIntersect::ComputeTable(
       }
 
       tables::IntervalIntersectTable::Row row;
-      row.ts = static_cast<uint32_t>(std::max(r_i.ts, l_i.ts));
-      row.dur = static_cast<uint32_t>(std::min(r_i.end(), l_i.end())) - row.ts;
+      row.ts = std::max(r_i.ts, l_i.ts);
+      row.dur = std::min(r_i.end(), l_i.end()) - row.ts;
       row.left_id = static_cast<uint32_t>(l_i.id);
       row.right_id = static_cast<uint32_t>(r_i.id);
       table->Insert(row);
@@ -214,8 +214,8 @@ base::StatusOr<std::unique_ptr<Table>> IntervalIntersect::ComputeTable(
       }
 
       tables::IntervalIntersectTable::Row row;
-      row.ts = static_cast<uint32_t>(std::max(r_i.ts, l_i.ts));
-      row.dur = static_cast<uint32_t>(std::min(r_i.end(), l_i.end())) - row.ts;
+      row.ts = std::max(r_i.ts, l_i.ts);
+      row.dur = std::min(r_i.end(), l_i.end()) - row.ts;
       row.left_id = static_cast<uint32_t>(l_i.id);
       row.right_id = static_cast<uint32_t>(r_i.id);
       table->Insert(row);
