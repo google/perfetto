@@ -164,5 +164,32 @@ JOIN
 GROUP BY 1, 2, 3, 4
 ORDER BY 5 DESC;
 
+-- Time spent by CPU in each scheduling state in a provided interval.
+CREATE PERFETTO FUNCTION sched_time_in_state_for_cpu_in_interval(
+    -- CPU id.
+    cpu INT,
+    -- Interval start.
+    ts INT,
+    -- Interval duration.
+    dur INT
+) RETURNS TABLE (
+    -- End state. From `sched.end_state`.
+    end_state STRING,
+    -- Duration in state.
+    dur INT
+) AS
+WITH sched_for_cpu AS (
+  SELECT id, ts, dur
+  FROM sched
+  WHERE cpu = $cpu AND dur != -1
+)
+SELECT
+    end_state,
+    sum(ii.dur) AS dur
+FROM sched
+JOIN _interval_intersect_single!($ts, $dur, sched_for_cpu) ii
+USING (id)
+GROUP BY end_state;
+
 
 
