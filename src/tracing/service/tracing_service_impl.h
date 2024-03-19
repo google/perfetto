@@ -573,6 +573,10 @@ class TracingServiceImpl : public TracingService {
           });
     }
 
+    // Checks whether |clone_uid| is allowed to clone the current tracing
+    // session.
+    bool IsCloneAllowed(uid_t clone_uid) const;
+
     const TracingSessionID id;
 
     // The consumer that started the session.
