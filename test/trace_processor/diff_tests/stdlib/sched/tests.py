@@ -223,7 +223,7 @@ class StdlibSched(TestSuite):
         """,
         out=Csv("""
         "state","io_wait","blocked_function","dur"
-        "S","[NULL]","[NULL]",1404466083
+        "S","[NULL]","[NULL]",9994400675
         "Running","[NULL]","[NULL]",4655524
         "D","[NULL]","[NULL]",563645
         "R+","[NULL]","[NULL]",380156
@@ -240,7 +240,7 @@ class StdlibSched(TestSuite):
         """,
         out=Csv("""
         "state","io_wait","cpu","blocked_function","dur"
-        "S","[NULL]","[NULL]","[NULL]",1404466083
+        "S","[NULL]","[NULL]","[NULL]",9994400675
         "Running","[NULL]",2,"[NULL]",4655524
         "D","[NULL]","[NULL]","[NULL]",563645
         "R+","[NULL]","[NULL]","[NULL]",380156

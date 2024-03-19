@@ -37,7 +37,7 @@ CREATE PERFETTO MACRO _interval_intersect_single(
   ts Expr,
   dur Expr,
   intervals_table TableOrSubquery
-) RETURNS TableOrSubquery AS(
+) RETURNS TableOrSubquery AS (
   SELECT
     left_id AS id,
     ts,
