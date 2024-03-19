@@ -392,7 +392,7 @@ class AndroidStdlib(TestSuite):
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
       INCLUDE PERFETTO MODULE android.io;
-      SELECT * FROM android_io_f2fs_counter_stats;
+      SELECT * FROM _android_io_f2fs_counter_stats;
       """,
         out=Csv("""
         "name","sum","max","min","dur","count","avg"
@@ -452,7 +452,7 @@ class AndroidStdlib(TestSuite):
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
       INCLUDE PERFETTO MODULE android.io;
-      SELECT tid, thread_name, pid, process_name, ino, dev, bytes, write_count FROM android_io_f2fs_write_stats;
+      SELECT tid, thread_name, pid, process_name, ino, dev, bytes, write_count FROM _android_io_f2fs_write_stats;
       """,
         out=Csv("""
         "tid","thread_name","pid","process_name","ino","dev","bytes","write_count"
@@ -479,7 +479,7 @@ class AndroidStdlib(TestSuite):
         INCLUDE PERFETTO MODULE android.io;
         SELECT total_write_count, distinct_processes, total_bytes_written,
                distinct_device_count, distict_inode_count, distinct_thread_count
-        FROM android_io_f2fs_aggregate_write_stats
+        FROM _android_io_f2fs_aggregate_write_stats
         """,
         out=Csv("""
         "total_write_count","distinct_processes","total_bytes_written","distinct_device_count","distict_inode_count","distinct_thread_count"
