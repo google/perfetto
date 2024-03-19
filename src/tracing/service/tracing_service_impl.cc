@@ -59,6 +59,7 @@
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/version.h"
@@ -3939,8 +3940,7 @@ base::Status TracingServiceImpl::FinishCloneSession(
   // Skip the UID check for sessions marked with a bugreport_score > 0.
   // Those sessions, by design, can be stolen by any other consumer for the
   // sake of creating snapshots for bugreports.
-  if (src->config.bugreport_score() <= 0 &&
-      src->consumer_uid != consumer->uid_ && consumer->uid_ != 0) {
+  if (!src->IsCloneAllowed(consumer->uid_)) {
     return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
   }
 
@@ -4026,6 +4026,20 @@ base::Status TracingServiceImpl::FinishCloneSession(
                                             ? TraceStats::FINAL_FLUSH_SUCCEEDED
                                             : TraceStats::FINAL_FLUSH_FAILED;
   return base::OkStatus();
+}
+
+bool TracingServiceImpl::TracingSession::IsCloneAllowed(uid_t clone_uid) const {
+  if (clone_uid == 0)
+    return true;  // Root is always allowed to clone everything.
+  if (clone_uid == this->consumer_uid)
+    return true;  // Allow cloning if the uids match.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // On Android allow shell to clone sessions marked as exported for bugreport.
+  // Dumpstate (invoked by adb bugreport) invokes commands as shell.
+  if (clone_uid == AID_SHELL && this->config.bugreport_score() > 0)
+    return true;
+#endif
+  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4298,8 +4312,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
   svc_state.set_supports_tracing_sessions(true);
   for (const auto& kv : service_->tracing_sessions_) {
     const TracingSession& s = kv.second;
-    // List only tracing sessions for the calling UID (or everything for root).
-    if (uid_ != 0 && uid_ != s.consumer_uid)
+    if (!s.IsCloneAllowed(uid_))
       continue;
     auto* session = svc_state.add_tracing_sessions();
     session->set_id(s.id);
