@@ -14,10 +14,10 @@
 
 import {Disposable} from '../base/disposable';
 import {duration, Time, time, TimeSpan} from '../base/time';
+export {Store} from '../base/store';
 import {raf} from '../core/raf_scheduler';
 import {globals} from '../frontend/globals';
 
-export {Store} from '../frontend/store';
 export {EngineProxy} from '../trace_processor/engine';
 export {
   LONG,

@@ -16,13 +16,12 @@ import m from 'mithril';
 
 import {Hotkey} from '../base/hotkeys';
 import {duration, time} from '../base/time';
-import {ColorScheme} from '../common/colorizer';
+import {Migrate, Store} from '../base/store';
+import {ColorScheme} from '../core/colorizer';
 import {Selection} from '../common/state';
 import {PanelSize} from '../frontend/panel';
-import {Migrate, Store} from '../frontend/store';
 import {EngineProxy} from '../trace_processor/engine';
 
-export {createStore, Migrate, Store} from '../frontend/store';
 export {EngineProxy} from '../trace_processor/engine';
 export {
   LONG,
@@ -33,6 +32,7 @@ export {
   STR_NULL,
 } from '../trace_processor/query_result';
 export {BottomTabToSCSAdapter} from './utils';
+export {createStore, Migrate, Store} from '../base/store';
 
 // This is a temporary fix until this is available in the plugin API.
 export {

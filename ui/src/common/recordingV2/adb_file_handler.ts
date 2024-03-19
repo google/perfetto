@@ -16,7 +16,7 @@ import {_TextDecoder} from 'custom_utils';
 
 import {defer, Deferred} from '../../base/deferred';
 import {assertFalse} from '../../base/logging';
-import {ArrayBufferBuilder} from '../array_buffer_builder';
+import {ArrayBufferBuilder} from '../../base/array_buffer_builder';
 
 import {RecordingError} from './recording_error_handling';
 import {ByteStream} from './recording_interfaces_v2';

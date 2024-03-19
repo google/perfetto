@@ -17,7 +17,7 @@ import {v4 as uuidv4} from 'uuid';
 import {BigintMath} from '../../base/bigint_math';
 import {assertFalse} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
-import {colorForTid} from '../../common/colorizer';
+import {colorForTid} from '../../core/colorizer';
 import {LIMIT, TrackData} from '../../common/track_data';
 import {EngineProxy, TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';

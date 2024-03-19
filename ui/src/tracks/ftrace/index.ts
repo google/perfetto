@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {duration, Time, time} from '../../base/time';
-import {colorForFtrace} from '../../common/colorizer';
+import {colorForFtrace} from '../../core/colorizer';
 import {LIMIT, TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';

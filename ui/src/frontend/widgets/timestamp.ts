@@ -22,7 +22,7 @@ import {
   setTimestampFormat,
   TimestampFormat,
   timestampFormat,
-} from '../../common/timestamp_format';
+} from '../../core/timestamp_format';
 import {raf} from '../../core/raf_scheduler';
 import {Anchor} from '../../widgets/anchor';
 import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';

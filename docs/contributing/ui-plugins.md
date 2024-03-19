@@ -468,7 +468,7 @@ mechanism.
 
 Persistent plugin state works using a `Store<T>` where `T` is some JSON
 serializable object.
-`Store` is implemented [here](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/frontend/store.ts).
+`Store` is implemented [here](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/base/store.ts).
 `Store` allows for reading and writing `T`.
 Reading:
 ```typescript

@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {duration, Span, time, Time, TimeSpan} from '../base/time';
-import {timestampFormat, TimestampFormat} from '../common/timestamp_format';
+import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
 
 import {
   BACKGROUND_COLOR,

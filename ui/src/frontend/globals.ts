@@ -14,6 +14,7 @@
 
 import {BigintMath} from '../base/bigint_math';
 import {assertExists} from '../base/logging';
+import {createStore, Store} from '../base/store';
 import {duration, Span, Time, time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
@@ -39,7 +40,7 @@ import {
   State,
 } from '../common/state';
 import {TabManager} from '../common/tab_registry';
-import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
+import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
 import {TrackManager} from '../common/track_cache';
 import {TABS_V2_FLAG} from '../core/feature_flags';
 import {setPerfHooks} from '../core/perf';
@@ -54,7 +55,6 @@ import {Router} from './router';
 import {horizontalScrollToTs} from './scroll_helper';
 import {ServiceWorkerController} from './service_worker_controller';
 import {SliceSqlId} from './sql_types';
-import {createStore, Store} from './store';
 import {PxSpan, TimeScale} from './time_scale';
 
 const INSTANT_FOCUS_DURATION = 1n;
