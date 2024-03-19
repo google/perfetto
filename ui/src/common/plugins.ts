@@ -15,6 +15,7 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {Disposable, Trash} from '../base/disposable';
+import {Registry} from '../base/registry';
 import {time} from '../base/time';
 import {globals} from '../frontend/globals';
 import {
@@ -39,7 +40,6 @@ import {
 import {Engine} from '../trace_processor/engine';
 
 import {Actions} from './actions';
-import {Registry} from './registry';
 import {SCROLLING_TRACK_GROUP} from './state';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Flag, featureFlags} from '../core/feature_flags';

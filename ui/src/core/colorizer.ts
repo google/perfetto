@@ -14,8 +14,8 @@
 
 import {hsl} from 'color-convert';
 
-import {hash} from '../common/hash';
-import {featureFlags} from '../core/feature_flags';
+import {hash} from './hash';
+import {featureFlags} from './feature_flags';
 
 import {Color, HSLColor, HSLuvColor} from './color';
 

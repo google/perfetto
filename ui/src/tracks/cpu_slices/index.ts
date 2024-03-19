@@ -26,8 +26,8 @@ import {
   drawIncompleteSlice,
   drawTrackHoverTooltip,
 } from '../../common/canvas_utils';
-import {Color} from '../../common/color';
-import {colorForThread} from '../../common/colorizer';
+import {Color} from '../../core/color';
+import {colorForThread} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';

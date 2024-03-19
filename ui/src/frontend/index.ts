@@ -21,6 +21,7 @@ import m from 'mithril';
 
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
+import {Store} from '../base/store';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {flattenArgs, traceEvent} from '../common/metatracing';
 import {pluginManager} from '../common/plugins';
@@ -50,7 +51,6 @@ import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {RecordPageV2} from './record_page_v2';
 import {Route, Router} from './router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
-import {Store} from './store';
 import {TraceInfoPage} from './trace_info_page';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {ViewerPage} from './viewer_page';

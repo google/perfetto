@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HSLColor} from '../../common/color';
-import {ColorScheme, makeColorScheme} from '../../common/colorizer';
+import {HSLColor} from '../../core/color';
+import {ColorScheme, makeColorScheme} from '../../core/colorizer';
 import {
   NAMED_ROW,
   NamedSliceTrack,

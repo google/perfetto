@@ -13,9 +13,10 @@
 // limitations under the License.
 
 import {Disposable, DisposableCallback} from '../base/disposable';
-import {PanelSize} from '../frontend/panel';
 import {exists} from '../base/utils';
-import {Store} from '../frontend/store';
+import {Registry} from '../base/registry';
+import {Store} from '../base/store';
+import {PanelSize} from '../frontend/panel';
 import {
   Migrate,
   Track,
@@ -23,7 +24,6 @@ import {
   TrackDescriptor,
   TrackRef,
 } from '../public';
-import {Registry} from './registry';
 
 import {ObjectByKey, State, TrackState} from './state';
 

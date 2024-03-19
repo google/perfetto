@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Registry} from '../registry';
+import {Registry} from '../../base/registry';
 
 import {RecordingTargetV2, TargetFactory} from './recording_interfaces_v2';
 

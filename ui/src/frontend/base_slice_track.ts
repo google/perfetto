@@ -23,8 +23,8 @@ import {
   drawIncompleteSlice,
   drawTrackHoverTooltip,
 } from '../common/canvas_utils';
-import {colorCompare} from '../common/color';
-import {UNEXPECTED_PINK} from '../common/colorizer';
+import {colorCompare} from '../core/color';
+import {UNEXPECTED_PINK} from '../core/colorizer';
 import {Selection, SelectionKind} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';

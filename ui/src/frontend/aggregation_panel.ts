@@ -21,7 +21,7 @@ import {
   ThreadStateExtra,
   isEmptyData,
 } from '../common/aggregation_data';
-import {colorForState} from '../common/colorizer';
+import {colorForState} from '../core/colorizer';
 import {translateState} from '../common/thread_state';
 
 import {globals} from './globals';

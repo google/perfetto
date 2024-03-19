@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {Time, time, toISODateOnly} from '../base/time';
-import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
+import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';

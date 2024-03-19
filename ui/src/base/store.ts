@@ -14,8 +14,8 @@
 
 import produce, {Draft} from 'immer';
 
-import {Disposable} from '../base/disposable';
-import {getPath, Path, setPath} from '../base/object_utils';
+import {Disposable} from './disposable';
+import {getPath, Path, setPath} from './object_utils';
 
 export type Migrate<T> = (init: unknown) => T;
 export type Edit<T> = (draft: Draft<T>) => void;
