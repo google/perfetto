@@ -16,6 +16,7 @@
 
 #include "src/profiling/perf/perf_producer.h"
 
+#include <map>
 #include <optional>
 #include <random>
 #include <utility>
@@ -40,6 +41,7 @@
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
+#include "src/base/cpu_info.h"
 #include "src/profiling/common/callstack_trie.h"
 #include "src/profiling/common/proc_cmdline.h"
 #include "src/profiling/common/producer_support.h"
@@ -479,13 +481,39 @@ void PerfProducer::StartDataSource(DataSourceInstanceID ds_id,
   }
 
   std::vector<EventReader> per_cpu_readers;
+  auto cpuids = base::GetCpuID();
+
   for (uint32_t cpu : target_cpus) {
+    using std::begin;
+    using std::end;
+    // Filter using the CPUID
+    if (!event_config_pb.cpuid().empty()) {
+      const auto& config_ids = event_config_pb.cpuid();
+      auto it = cpuids.find(cpu);
+      if (it == cpuids.end()) {
+        continue;
+      }
+      const auto& cpuid = it->second;
+      bool allowed = std::find_if(begin(config_ids), end(config_ids),
+                                  [&](const auto& config_id) {
+                                    return base::StartsWith(cpuid, config_id);
+                                  }) != end(config_ids);
+      if (!allowed) {
+        continue;
+      }
+    }
+
     std::optional<EventReader> event_reader =
         EventReader::ConfigureEvents(cpu, event_config.value());
     if (!event_reader.has_value()) {
       PERFETTO_ELOG("Failed to set up perf events for cpu%" PRIu32
                     ", discarding data source.",
                     cpu);
+      if (event_config_pb.has_ignore_open_failure() &&
+          event_config_pb.ignore_open_failure()) {
+        continue;
+      }
+
       return;
     }
     per_cpu_readers.emplace_back(std::move(event_reader.value()));
