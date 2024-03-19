@@ -44,6 +44,6 @@ SELECT AndroidIo(
                 'distinct_thread_count', distinct_thread_count
             )
         )
-        FROM android_io_f2fs_aggregate_write_stats
+        FROM _android_io_f2fs_aggregate_write_stats
     )
 );

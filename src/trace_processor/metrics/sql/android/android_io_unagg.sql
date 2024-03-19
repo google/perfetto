@@ -30,6 +30,6 @@ SELECT AndroidIoUnaggregated(
                 'dev', dev
             )
         )
-        FROM android_io_f2fs_write_stats
+        FROM _android_io_f2fs_write_stats
     )
 );
