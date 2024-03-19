@@ -1003,7 +1003,6 @@ perfetto_cc_library(
             ":src_traced_probes_ps_ps",
             ":src_traced_probes_statsd_client_statsd_client",
             ":src_traced_probes_sys_stats_sys_stats",
-            ":src_traced_probes_system_info_cpu_info_features_allowlist",
             ":src_traced_probes_system_info_system_info",
             ":src_traced_probes_user_list_user_list",
             ":src_tracing_ipc_producer_producer",
@@ -1140,6 +1139,8 @@ perfetto_filegroup(
         "include/perfetto/ext/base/circular_queue.h",
         "include/perfetto/ext/base/clock_snapshots.h",
         "include/perfetto/ext/base/container_annotations.h",
+        "include/perfetto/ext/base/cpu_info.h",
+        "include/perfetto/ext/base/cpu_info_features_allowlist.h",
         "include/perfetto/ext/base/crash_keys.h",
         "include/perfetto/ext/base/ctrl_c_handler.h",
         "include/perfetto/ext/base/dynamic_string_writer.h",
@@ -1641,6 +1642,7 @@ perfetto_cc_library(
         ":src_base_regex",
         "src/base/android_utils.cc",
         "src/base/base64.cc",
+        "src/base/cpu_info.cc",
         "src/base/crash_keys.cc",
         "src/base/ctrl_c_handler.cc",
         "src/base/event_fd.cc",
@@ -5058,14 +5060,6 @@ perfetto_filegroup(
     srcs = [
         "src/traced/probes/sys_stats/sys_stats_data_source.cc",
         "src/traced/probes/sys_stats/sys_stats_data_source.h",
-    ],
-)
-
-# GN target: //src/traced/probes/system_info:cpu_info_features_allowlist
-perfetto_filegroup(
-    name = "src_traced_probes_system_info_cpu_info_features_allowlist",
-    srcs = [
-        "src/traced/probes/system_info/cpu_info_features_allowlist.h",
     ],
 )
 
