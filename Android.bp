@@ -15256,12 +15256,6 @@ cc_binary {
     defaults: [
         "perfetto_defaults",
     ],
-    required: [
-        "libperfetto_android_internal",
-        "mm_events",
-        "traced_perf",
-        "trigger_perfetto",
-    ],
     target: {
         android: {
             shared_libs: [
@@ -15628,4 +15622,14 @@ prebuilt_etc {
     filename: "persistent_cfg.pbtxt",
     sub_dir: "perfetto",
     src: "persistent_cfg.pbtxt",
+}
+
+phony {
+    name: "perfetto-extras",
+    required: [
+        "libperfetto_android_internal",
+        "mm_events",
+        "traced_perf",
+        "trigger_perfetto",
+    ],
 }
