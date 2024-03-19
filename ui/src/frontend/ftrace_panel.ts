@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {time, Time} from '../base/time';
 import {Actions} from '../common/actions';
-import {colorForFtrace} from '../common/colorizer';
+import {colorForFtrace} from '../core/colorizer';
 import {StringListPatch} from '../common/state';
 import {DetailsShell} from '../widgets/details_shell';
 import {

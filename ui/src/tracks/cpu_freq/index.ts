@@ -20,7 +20,7 @@ import {assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import {calcCachedBucketSize} from '../../common/cache_utils';
 import {drawTrackHoverTooltip} from '../../common/canvas_utils';
-import {colorForCpu} from '../../common/colorizer';
+import {colorForCpu} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';

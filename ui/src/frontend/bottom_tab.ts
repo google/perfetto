@@ -19,7 +19,7 @@ import {stringifyJsonWithBigints} from '../base/json_utils';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {traceEvent} from '../common/metatracing';
-import {Registry} from '../common/registry';
+import {Registry} from '../base/registry';
 import {raf} from '../core/raf_scheduler';
 import {EngineProxy} from '../trace_processor/engine';
 

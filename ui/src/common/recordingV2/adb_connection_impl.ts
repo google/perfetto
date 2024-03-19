@@ -15,7 +15,7 @@
 import {_TextDecoder} from 'custom_utils';
 
 import {defer} from '../../base/deferred';
-import {ArrayBufferBuilder} from '../array_buffer_builder';
+import {ArrayBufferBuilder} from '../../base/array_buffer_builder';
 
 import {AdbFileHandler} from './adb_file_handler';
 import {

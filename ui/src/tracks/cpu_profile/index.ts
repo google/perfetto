@@ -15,7 +15,7 @@
 import {searchSegment} from '../../base/binary_search';
 import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {colorForSample} from '../../common/colorizer';
+import {colorForSample} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {CpuProfileDetailsPanel} from '../../frontend/cpu_profile_panel';

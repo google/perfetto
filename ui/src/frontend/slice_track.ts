@@ -15,7 +15,7 @@
 import {duration, Time, time} from '../base/time';
 import {Actions} from '../common/actions';
 import {cropText, drawIncompleteSlice} from '../common/canvas_utils';
-import {getColorForSlice} from '../common/colorizer';
+import {getColorForSlice} from '../core/colorizer';
 import {HighPrecisionTime} from '../common/high_precision_time';
 import {TrackData} from '../common/track_data';
 import {TimelineFetcher} from '../common/track_helper';

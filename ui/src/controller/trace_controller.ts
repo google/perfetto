@@ -106,7 +106,7 @@ import {
   TraceFileStream,
   TraceHttpStream,
   TraceStream,
-} from './trace_stream';
+} from '../core/trace_stream';
 import {decideTracks} from './track_decider';
 
 type States = 'init' | 'loading_trace' | 'ready';
