@@ -83,9 +83,6 @@ def main():
         if not pattern.match(rel_path):
           continue
 
-      if args.verbose:
-        print(f'Parsing {rel_path}:')
-
       with open(path, 'r') as f:
         sql = f.read()
 
@@ -98,10 +95,13 @@ def main():
       modules.append((path, sql, parsed))
 
       if args.verbose:
-        function_count = len(parsed.functions) + len(parsed.table_functions)
-        print(f'Parsed {function_count} functions'
-              f', {len(parsed.table_views)} tables/views'
-              f' ({len(parsed.errors)} errors).')
+        obj_count = len(parsed.functions) + len(parsed.table_functions) + len(
+            parsed.table_views) + len(parsed.macros)
+        print(
+            f"""Parsing '{rel_path}' ({obj_count} objects, {len(parsed.errors)} errors)
+- {len(parsed.functions)} functions + {len(parsed.table_functions)} table functions,
+- {len(parsed.table_views)} tables/views,
+- {len(parsed.macros)} macros.""")
 
   for path, sql, parsed in modules:
     lines = [l.strip() for l in sql.split('\n')]

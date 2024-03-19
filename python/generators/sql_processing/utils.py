@@ -70,7 +70,7 @@ CREATE_TABLE_FUNCTION_PATTERN = update_pattern(
     fr" \( ({ARGS}) \) "
     # Type: table definition after RETURNS.
     fr"({COMMENTS})"
-    fr" RETURNS TABLE\( ({ARGS}) \) AS ")
+    fr" RETURNS TABLE \( ({ARGS}) \) AS ")
 
 CREATE_MACRO_PATTERN = update_pattern(
     fr"CREATE (OR REPLACE)? PERFETTO MACRO ({NAME}) "
