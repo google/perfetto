@@ -74,11 +74,13 @@ bool DumpCpuStats(std::string text, FtraceCpuStats* stats) {
 }
 
 bool DumpAllCpuStats(FtraceProcfs* ftrace, FtraceStats* stats) {
-  stats->cpu_stats.resize(ftrace->NumberOfCpus(), {});
-  for (size_t cpu = 0; cpu < ftrace->NumberOfCpus(); cpu++) {
+  size_t num_cpus = ftrace->NumberOfCpus();
+  stats->cpu_stats.resize(num_cpus, {});
+  for (size_t cpu = 0; cpu < num_cpus; cpu++) {
     stats->cpu_stats[cpu].cpu = cpu;
-    if (!DumpCpuStats(ftrace->ReadCpuStats(cpu), &stats->cpu_stats[cpu]))
+    if (!DumpCpuStats(ftrace->ReadCpuStats(cpu), &stats->cpu_stats[cpu])) {
       return false;
+    }
   }
   return true;
 }

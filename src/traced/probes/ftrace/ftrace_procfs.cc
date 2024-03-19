@@ -397,7 +397,7 @@ void FtraceProcfs::ClearTrace() {
   // We cannot use PERFETTO_CHECK as we might get a permission denied error
   // on Android. The permissions to these files are configured in
   // platform/framework/native/cmds/atrace/atrace.rc.
-  for (size_t cpu = 0; cpu < NumberOfCpus(); cpu++) {
+  for (size_t cpu = 0, num_cpus = NumberOfCpus(); cpu < num_cpus; cpu++) {
     ClearPerCpuTrace(cpu);
   }
 }
