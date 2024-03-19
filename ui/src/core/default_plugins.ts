@@ -55,5 +55,5 @@ export const defaultPlugins = [
   'perfetto.Screenshots',
   'perfetto.ThreadState',
   'perfetto.VisualisedArgs',
-  'linuxDeviceTracks',
+  'org.kernel.LinuxKernelDevices',
 ];
