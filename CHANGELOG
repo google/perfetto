@@ -12,7 +12,11 @@ Unreleased:
       of RING_BUFFER traces, removing artifacts such as never-ending slices
       starting at the beginning of the trace.
   SDK:
-    *
+    * "track_event" categories are disabled by default in the C API, if they
+      don't match anything in the data source config. This behavior differs from
+      the C++ API. Configs should include either `enabled_categories: "*"` or
+      `disable_categories: "*"` to explicitly specify the desired behavior that
+      work both for C and C++.
 
 
 v43.2 - 2024-03-07:

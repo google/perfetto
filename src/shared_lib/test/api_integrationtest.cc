@@ -1028,7 +1028,7 @@ TEST_F(SharedLibTrackEventTest, TrackEventFastpathOtherDsCatDisabled) {
   EXPECT_FALSE(std::atomic_load(cat3.enabled));
 }
 
-TEST_F(SharedLibTrackEventTest, TrackEventFastpathEmptyConfigEnableAllCats) {
+TEST_F(SharedLibTrackEventTest, TrackEventFastpathEmptyConfigDisablesAllCats) {
   ASSERT_FALSE(std::atomic_load(cat1.enabled));
   ASSERT_FALSE(std::atomic_load(cat2.enabled));
   ASSERT_FALSE(std::atomic_load(cat3.enabled));
@@ -1036,9 +1036,9 @@ TEST_F(SharedLibTrackEventTest, TrackEventFastpathEmptyConfigEnableAllCats) {
   TracingSession tracing_session =
       TracingSession::Builder().set_data_source_name("track_event").Build();
 
-  EXPECT_TRUE(std::atomic_load(cat1.enabled));
-  EXPECT_TRUE(std::atomic_load(cat2.enabled));
-  EXPECT_TRUE(std::atomic_load(cat3.enabled));
+  EXPECT_FALSE(std::atomic_load(cat1.enabled));
+  EXPECT_FALSE(std::atomic_load(cat2.enabled));
+  EXPECT_FALSE(std::atomic_load(cat3.enabled));
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventFastpathOneCatEnabled) {
@@ -1058,9 +1058,12 @@ TEST_F(SharedLibTrackEventTest, TrackEventFastpathOneCatEnabled) {
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventHlCategory) {
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
+  EXPECT_TRUE(std::atomic_load(cat1.enabled));
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
@@ -1194,8 +1197,10 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlDynamicCategoryMultipleSessions) {
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventHlInstant) {
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"));
 
@@ -1235,8 +1240,10 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlInstant) {
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventLlInstant) {
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
           cat1.enabled, PERFETTO_MEMORY_ORDER_RELAXED))) {
@@ -1315,8 +1322,10 @@ TEST_F(SharedLibTrackEventTest, TrackEventLlInstant) {
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventHlInstantNoIntern) {
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"), PERFETTO_TE_NO_INTERN());
 
@@ -1345,8 +1354,10 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlInstantNoIntern) {
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventHlDbgArg) {
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"),
               PERFETTO_TE_ARG_UINT64("arg_name", 42));
@@ -1413,8 +1424,10 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlDbgArg) {
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventHlNamedTrack) {
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"),
               PERFETTO_TE_NAMED_TRACK("MyTrack", 1, 2));
@@ -1453,8 +1466,10 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlNamedTrack) {
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredCounter) {
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   PerfettoTeRegisteredTrack my_counter_track;
   PerfettoTeCounterTrackRegister(&my_counter_track, "MyCounter",
