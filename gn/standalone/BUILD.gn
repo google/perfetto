@@ -83,6 +83,7 @@ config("extra_warnings") {
       "-Wno-gnu-zero-variadic-macro-arguments",
       "-Wno-padded",
       "-Wno-poison-system-directories",
+      "-Wno-pre-c11-compat",
       "-Wno-reserved-id-macro",
       "-Wno-reserved-identifier",
       "-Wno-shadow-uncaptured-local",
