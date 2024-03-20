@@ -26,11 +26,8 @@ enum BuiltinClock {
   BUILTIN_CLOCK_MONOTONIC_COARSE = 4;
   BUILTIN_CLOCK_MONOTONIC_RAW = 5;
   BUILTIN_CLOCK_BOOTTIME = 6;
+  BUILTIN_CLOCK_TSC = 9;
   BUILTIN_CLOCK_MAX_ID = 63;
 
   reserved 7, 8;
-
-  // An internal CL (ag/16521245) has taken this for BUILTIN_CLOCK_TSC.
-  // That might get upstreamed later on. Avoid diverging on this ID in future.
-  reserved 9;
 }
