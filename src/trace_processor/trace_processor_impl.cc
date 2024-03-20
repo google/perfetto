@@ -873,6 +873,10 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->jit_code_table());
   RegisterStaticTable(storage->jit_frame_table());
 
+  RegisterStaticTable(storage->inputmethod_clients_table());
+  RegisterStaticTable(storage->inputmethod_manager_service_table());
+  RegisterStaticTable(storage->inputmethod_service_table());
+
   RegisterStaticTable(storage->surfaceflinger_layers_snapshot_table());
   RegisterStaticTable(storage->surfaceflinger_layer_table());
   RegisterStaticTable(storage->surfaceflinger_transactions_table());

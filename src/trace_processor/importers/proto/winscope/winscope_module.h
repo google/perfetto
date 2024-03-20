@@ -41,6 +41,27 @@ class WinscopeModule : public ProtoImporterModule {
                             uint32_t field_id) override;
 
  private:
+  void ParseWinscopeExtensionsData(protozero::ConstBytes blob,
+                                   int64_t timestamp);
+  void ParseInputMethodClientsData(int64_t timestamp,
+                                   protozero::ConstBytes blob);
+  void ParseInputMethodManagerServiceData(int64_t timestamp,
+                                          protozero::ConstBytes blob);
+  void ParseInputMethodServiceData(int64_t timestamp,
+                                   protozero::ConstBytes blob);
+
+  static constexpr auto* kInputMethodClientsProtoName =
+      ".perfetto.protos.InputMethodClientsTraceProto";
+  static constexpr auto* kInputMethodManagerServiceProtoName =
+      ".perfetto.protos.InputMethodManagerServiceTraceProto";
+
+  static constexpr auto* kInputMethodServiceProtoName =
+      ".perfetto.protos.InputMethodServiceTraceProto";
+
+  TraceProcessorContext* const context_;
+  DescriptorPool pool_;
+  util::ProtoToArgsParser args_parser_;
+
   SurfaceFlingerLayersParser surfaceflinger_layers_parser_;
   SurfaceFlingerTransactionsParser surfaceflinger_transactions_parser_;
   ShellTransitionsParser shell_transitions_parser_;

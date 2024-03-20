@@ -19,6 +19,7 @@ perfetto_sql_source_set("android") {
     "auto",
     "frames",
     "startup",
+    "winscope",
   ]
   sources = [
     "anrs.sql",
