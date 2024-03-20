@@ -16,7 +16,6 @@ import m from 'mithril';
 
 import {BigintMath} from '../base/bigint_math';
 import {sqliteString} from '../base/string_utils';
-import {duration, time} from '../base/time';
 import {exists} from '../base/utils';
 import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
@@ -24,7 +23,6 @@ import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {Tree, TreeNode} from '../widgets/tree';
 
-import {globals} from './globals';
 import {SliceDetails} from './sql/slice';
 import {
   BreakdownByThreadState,
@@ -35,15 +33,6 @@ import {SqlTables} from './sql_table/well_known_tables';
 import {getProcessName, getThreadName} from './thread_and_process_info';
 import {DurationWidget} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
-
-function computeDuration(ts: time, dur: duration): m.Children {
-  if (dur === -1n) {
-    const minDuration = globals.state.traceTime.end - ts;
-    return [m(DurationWidget, {dur: minDuration}), ' (Did not end)'];
-  } else {
-    return m(DurationWidget, {dur});
-  }
-}
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.
@@ -92,7 +81,7 @@ export function renderDetails(
         TreeNode,
         {
           left: 'Duration',
-          right: computeDuration(slice.ts, slice.dur),
+          right: m(DurationWidget, {dur: slice.dur}),
         },
         exists(durationBreakdown) &&
           slice.dur > 0 &&
@@ -148,7 +137,7 @@ function renderThreadDuration(sliceInfo: SliceDetails) {
     return m(TreeNode, {
       left: 'Thread duration',
       right: [
-        computeDuration(sliceInfo.threadTs, sliceInfo.threadDur),
+        m(DurationWidget, {dur: sliceInfo.threadDur}),
         threadDurFractionSuffix,
       ],
     });
