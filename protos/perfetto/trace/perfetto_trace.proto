@@ -9141,6 +9141,14 @@ message DsiTxFtraceEvent {
   optional uint32 tx_buf = 2;
   optional uint32 type = 3;
 }
+message PanelWriteGenericFtraceEvent {
+  optional int32 pid = 1;
+  optional string trace_name = 2;
+  optional uint32 trace_begin = 3;
+  optional string name = 4;
+  optional uint32 type = 5;
+  optional int32 value = 6;
+}
 
 // End of protos/perfetto/trace/ftrace/panel.proto
 
@@ -10459,6 +10467,8 @@ message FtraceEvent {
     BinderReturnFtraceEvent binder_return = 486;
     SchedSwitchWithCtrsFtraceEvent sched_switch_with_ctrs = 487;
     GpuWorkPeriodFtraceEvent gpu_work_period = 488;
+    RpmStatusFtraceEvent rpm_status = 489;
+    PanelWriteGenericFtraceEvent panel_write_generic = 490;
   }
 }
 
