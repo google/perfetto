@@ -66,6 +66,7 @@
   * [Service model](concepts/service-model.md)
   * [Clock synchronization](concepts/clock-sync.md)
   * [Detached mode](concepts/detached-mode.md)
+  * [Concurrent tracing sessions](concepts/concurrent-tracing-sessions.md)
 
 * [Reference](#)
   * [Trace Config proto](reference/trace-config-proto.autogen)
