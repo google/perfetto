@@ -126,7 +126,7 @@ export class SliceDetailsPanel extends SlicePanel {
       return m(TreeNode, {
         icon: 'timer',
         left: 'Thread Duration',
-        right: this.computeDuration(sliceInfo.threadTs, sliceInfo.threadDur),
+        right: m(DurationWidget, {dur: sliceInfo.threadDur}),
       });
     } else {
       return null;
@@ -189,7 +189,7 @@ export class SliceDetailsPanel extends SlicePanel {
         }),
         m(TreeNode, {
           left: 'Duration',
-          right: this.computeDuration(sliceInfo.ts, sliceInfo.dur),
+          right: m(DurationWidget, {dur: sliceInfo.dur}),
         }),
         this.renderThreadDuration(sliceInfo),
         m(TreeNode, {

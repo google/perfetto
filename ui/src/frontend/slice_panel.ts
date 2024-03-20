@@ -14,11 +14,9 @@
 
 import m from 'mithril';
 
-import {duration, time} from '../base/time';
 import {exists} from '../base/utils';
 
-import {globals, SliceDetails} from './globals';
-import {DurationWidget} from './widgets/duration';
+import {SliceDetails} from './globals';
 
 // To display process or thread, we want to concatenate their name with ID, but
 // either can be undefined and all the cases need to be considered carefully to
@@ -39,15 +37,6 @@ function getDisplayName(
 }
 
 export abstract class SlicePanel implements m.ClassComponent {
-  protected computeDuration(ts: time, dur: duration): m.Children {
-    if (dur === -1n) {
-      const minDuration = globals.state.traceTime.end - ts;
-      return [m(DurationWidget, {dur: minDuration}), ' (Did not end)'];
-    } else {
-      return m(DurationWidget, {dur});
-    }
-  }
-
   protected getProcessThreadDetails(sliceInfo: SliceDetails) {
     return new Map<string, string | undefined>([
       ['Thread', getDisplayName(sliceInfo.threadName, sliceInfo.tid)],
