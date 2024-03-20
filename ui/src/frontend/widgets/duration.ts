@@ -38,6 +38,9 @@ interface DurationWidgetAttrs {
 export class DurationWidget implements m.ClassComponent<DurationWidgetAttrs> {
   view({attrs}: m.Vnode<DurationWidgetAttrs>) {
     const {dur} = attrs;
+    if (dur === -1n) {
+      return '(Did not end)';
+    }
     return m(
       PopupMenu2,
       {
