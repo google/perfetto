@@ -516,9 +516,12 @@ export const StateActions = {
 
   selectNote(state: StateDraft, args: {id: string}): void {
     if (args.id) {
-      state.legacySelection = {
-        kind: 'NOTE',
-        id: args.id,
+      state.selection = {
+        kind: 'legacy',
+        legacySelection: {
+          kind: 'NOTE',
+          id: args.id,
+        },
       };
     }
   },
@@ -553,32 +556,33 @@ export const StateActions = {
     state: StateDraft,
     args: {color: string; persistent: boolean},
   ): void {
-    if (
-      state.legacySelection === null ||
-      state.legacySelection.kind !== 'AREA'
-    ) {
+    if (state.selection.kind !== 'legacy') {
       return;
     }
+    if (state.selection.legacySelection.kind !== 'AREA') {
+      return;
+    }
+    const legacySelection = state.selection.legacySelection;
     const id = args.persistent ? generateNextId(state) : '0';
     const color = args.persistent ? args.color : '#344596';
     state.notes[id] = {
       noteType: 'AREA',
       id,
-      areaId: state.legacySelection.areaId,
+      areaId: legacySelection.areaId,
       color,
       text: '',
     };
-    state.legacySelection.noteId = id;
+    legacySelection.noteId = id;
   },
 
   toggleMarkCurrentArea(state: StateDraft, args: {persistent: boolean}) {
-    const selection = state.legacySelection;
+    const selection = state.selection;
     if (
-      selection != null &&
-      selection.kind === 'AREA' &&
-      selection.noteId !== undefined
+      selection.kind === 'legacy' &&
+      selection.legacySelection.kind === 'AREA' &&
+      selection.legacySelection.noteId !== undefined
     ) {
-      this.removeNote(state, {id: selection.noteId});
+      this.removeNote(state, {id: selection.legacySelection.noteId});
     } else {
       const color = randomColor();
       this.markCurrentArea(state, {color, persistent: args.persistent});
@@ -621,17 +625,19 @@ export const StateActions = {
     delete state.notes[args.id];
     // For regular notes, we clear the current selection but for an area note
     // we only want to clear the note/marking and leave the area selected.
-    if (state.legacySelection === null) return;
+    if (state.selection.kind !== 'legacy') return;
     if (
-      state.legacySelection.kind === 'NOTE' &&
-      state.legacySelection.id === args.id
+      state.selection.legacySelection.kind === 'NOTE' &&
+      state.selection.legacySelection.id === args.id
     ) {
-      state.legacySelection = null;
+      state.selection = {
+        kind: 'empty',
+      };
     } else if (
-      state.legacySelection.kind === 'AREA' &&
-      state.legacySelection.noteId === args.id
+      state.selection.legacySelection.kind === 'AREA' &&
+      state.selection.legacySelection.noteId === args.id
     ) {
-      state.legacySelection.noteId = undefined;
+      state.selection.legacySelection.noteId = undefined;
     }
   },
 
@@ -639,10 +645,13 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; trackKey: string; scroll?: boolean},
   ): void {
-    state.legacySelection = {
-      kind: 'SLICE',
-      id: args.id,
-      trackKey: args.trackKey,
+    state.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'SLICE',
+        id: args.id,
+        trackKey: args.trackKey,
+      },
     };
     state.pendingScrollId = args.scroll ? args.id : undefined;
   },
@@ -651,12 +660,15 @@ export const StateActions = {
     state: StateDraft,
     args: {leftTs: time; rightTs: time; id: number; trackKey: string},
   ): void {
-    state.legacySelection = {
-      kind: 'COUNTER',
-      leftTs: args.leftTs,
-      rightTs: args.rightTs,
-      id: args.id,
-      trackKey: args.trackKey,
+    state.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'COUNTER',
+        leftTs: args.leftTs,
+        rightTs: args.rightTs,
+        id: args.id,
+        trackKey: args.trackKey,
+      },
     };
   },
 
@@ -664,12 +676,15 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; upid: number; ts: time; type: ProfileType},
   ): void {
-    state.legacySelection = {
-      kind: 'HEAP_PROFILE',
-      id: args.id,
-      upid: args.upid,
-      ts: args.ts,
-      type: args.type,
+    state.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'HEAP_PROFILE',
+        id: args.id,
+        upid: args.upid,
+        ts: args.ts,
+        type: args.type,
+      },
     };
     this.openFlamegraph(state, {
       type: args.type,
@@ -690,13 +705,16 @@ export const StateActions = {
       type: ProfileType;
     },
   ): void {
-    state.legacySelection = {
-      kind: 'PERF_SAMPLES',
-      id: args.id,
-      upid: args.upid,
-      leftTs: args.leftTs,
-      rightTs: args.rightTs,
-      type: args.type,
+    state.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'PERF_SAMPLES',
+        id: args.id,
+        upid: args.upid,
+        leftTs: args.leftTs,
+        rightTs: args.rightTs,
+        type: args.type,
+      },
     };
     this.openFlamegraph(state, {
       type: args.type,
@@ -732,11 +750,14 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; utid: number; ts: time},
   ): void {
-    state.legacySelection = {
-      kind: 'CPU_PROFILE_SAMPLE',
-      id: args.id,
-      utid: args.utid,
-      ts: args.ts,
+    state.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'CPU_PROFILE_SAMPLE',
+        id: args.id,
+        utid: args.utid,
+        ts: args.ts,
+      },
     };
   },
 
@@ -768,11 +789,14 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; trackKey: string; table?: string; scroll?: boolean},
   ): void {
-    state.legacySelection = {
-      kind: 'CHROME_SLICE',
-      id: args.id,
-      trackKey: args.trackKey,
-      table: args.table,
+    state.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'CHROME_SLICE',
+        id: args.id,
+        trackKey: args.trackKey,
+        table: args.table,
+      },
     };
     state.pendingScrollId = args.scroll ? args.id : undefined;
   },
@@ -796,16 +820,19 @@ export const StateActions = {
       ...args.detailsPanelConfig.config,
     };
 
-    state.legacySelection = {
-      kind: 'GENERIC_SLICE',
-      id: args.id,
-      sqlTableName: args.sqlTableName,
-      start: args.start,
-      duration: args.duration,
-      trackKey: args.trackKey,
-      detailsPanelConfig: {
-        kind: args.detailsPanelConfig.kind,
-        config: detailsPanelConfig,
+    state.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'GENERIC_SLICE',
+        id: args.id,
+        sqlTableName: args.sqlTableName,
+        start: args.start,
+        duration: args.duration,
+        trackKey: args.trackKey,
+        detailsPanelConfig: {
+          kind: args.detailsPanelConfig.kind,
+          config: detailsPanelConfig,
+        },
       },
     };
   },
@@ -818,10 +845,13 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; trackKey: string},
   ): void {
-    state.legacySelection = {
-      kind: 'THREAD_STATE',
-      id: args.id,
-      trackKey: args.trackKey,
+    state.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'THREAD_STATE',
+        id: args.id,
+        trackKey: args.trackKey,
+      },
     };
   },
 
@@ -829,16 +859,21 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; trackKey: string; scroll?: boolean},
   ): void {
-    state.legacySelection = {
-      kind: 'LOG',
-      id: args.id,
-      trackKey: args.trackKey,
+    state.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'LOG',
+        id: args.id,
+        trackKey: args.trackKey,
+      },
     };
     state.pendingScrollId = args.scroll ? args.id : undefined;
   },
 
   deselect(state: StateDraft, _: {}): void {
-    state.legacySelection = null;
+    state.selection = {
+      kind: 'empty',
+    };
   },
 
   updateLogsPagination(state: StateDraft, args: Pagination): void {
@@ -919,7 +954,10 @@ export const StateActions = {
     assertTrue(start <= end);
     const areaId = generateNextId(state);
     state.areas[areaId] = {id: areaId, start, end, tracks};
-    state.legacySelection = {kind: 'AREA', areaId};
+    state.selection = {
+      kind: 'legacy',
+      legacySelection: {kind: 'AREA', areaId},
+    };
   },
 
   editArea(state: StateDraft, args: {area: Area; areaId: string}): void {
@@ -932,10 +970,13 @@ export const StateActions = {
     state: StateDraft,
     args: {areaId: string; noteId: string},
   ): void {
-    state.legacySelection = {
-      kind: 'AREA',
-      areaId: args.areaId,
-      noteId: args.noteId,
+    state.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'AREA',
+        areaId: args.areaId,
+        noteId: args.noteId,
+      },
     };
   },
 
@@ -943,9 +984,14 @@ export const StateActions = {
     state: StateDraft,
     args: {id: string; isTrackGroup: boolean},
   ) {
-    const selection = state.legacySelection;
-    if (selection === null || selection.kind !== 'AREA') return;
-    const areaId = selection.areaId;
+    const selection = state.selection;
+    if (
+      selection.kind !== 'legacy' ||
+      selection.legacySelection.kind !== 'AREA'
+    ) {
+      return;
+    }
+    const areaId = selection.legacySelection.areaId;
     const index = state.areas[areaId].tracks.indexOf(args.id);
     if (index > -1) {
       state.areas[areaId].tracks.splice(index, 1);
@@ -973,7 +1019,7 @@ export const StateActions = {
     // selection to be updated and this leads to bugs for people who do:
     // if (oldSelection !== state.selection) etc.
     // To solve this re-create the selection object here:
-    state.legacySelection = Object.assign({}, state.legacySelection);
+    state.selection = Object.assign({}, state.selection);
   },
 
   setVisibleTraceTime(state: StateDraft, args: VisibleState): void {

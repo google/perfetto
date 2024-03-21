@@ -33,7 +33,10 @@ test('validAreaAfterUndefinedArea', () => {
     id: areaId,
   };
   globals.store.edit((draft) => {
-    draft.legacySelection = {kind: 'AREA', areaId: areaId};
+    draft.selection = {
+      kind: 'legacy',
+      legacySelection: {kind: 'AREA', areaId: areaId},
+    };
     draft.areas[areaId] = latestArea;
   });
 
@@ -53,9 +56,12 @@ test('UndefinedAreaAfterValidArea', () => {
     id: previousAreaId,
   };
   globals.store.edit((draft) => {
-    draft.legacySelection = {
-      kind: 'AREA',
-      areaId: previousAreaId,
+    draft.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'AREA',
+        areaId: previousAreaId,
+      },
     };
     draft.areas[previousAreaId] = previous;
   });
@@ -64,9 +70,12 @@ test('UndefinedAreaAfterValidArea', () => {
 
   const currentAreaId = '1';
   globals.store.edit((draft) => {
-    draft.legacySelection = {
-      kind: 'AREA',
-      areaId: currentAreaId,
+    draft.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'AREA',
+        areaId: currentAreaId,
+      },
     };
   });
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
@@ -77,13 +86,19 @@ test('UndefinedAreaAfterValidArea', () => {
 
 test('UndefinedAreaAfterUndefinedArea', () => {
   globals.store.edit((draft) => {
-    draft.legacySelection = {kind: 'AREA', areaId: '0'};
+    draft.selection = {
+      kind: 'legacy',
+      legacySelection: {kind: 'AREA', areaId: '0'},
+    };
   });
   const areaSelectionHandler = new AreaSelectionHandler();
   areaSelectionHandler.getAreaChange();
 
   globals.store.edit((draft) => {
-    draft.legacySelection = {kind: 'AREA', areaId: '1'};
+    draft.selection = {
+      kind: 'legacy',
+      legacySelection: {kind: 'AREA', areaId: '1'},
+    };
   });
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
 
@@ -100,9 +115,12 @@ test('validAreaAfterValidArea', () => {
     id: previousAreaId,
   };
   globals.store.edit((draft) => {
-    draft.legacySelection = {
-      kind: 'AREA',
-      areaId: previousAreaId,
+    draft.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'AREA',
+        areaId: previousAreaId,
+      },
     };
     draft.areas[previousAreaId] = previous;
   });
@@ -117,9 +135,12 @@ test('validAreaAfterValidArea', () => {
     id: currentAreaId,
   };
   globals.store.edit((draft) => {
-    draft.legacySelection = {
-      kind: 'AREA',
-      areaId: currentAreaId,
+    draft.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'AREA',
+        areaId: currentAreaId,
+      },
     };
     draft.areas[currentAreaId] = current;
   });
@@ -138,9 +159,12 @@ test('sameAreaSelected', () => {
     id: previousAreaId,
   };
   globals.store.edit((draft) => {
-    draft.legacySelection = {
-      kind: 'AREA',
-      areaId: previousAreaId,
+    draft.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'AREA',
+        areaId: previousAreaId,
+      },
     };
     draft.areas[previousAreaId] = previous;
   });
@@ -155,9 +179,12 @@ test('sameAreaSelected', () => {
     id: currentAreaId,
   };
   globals.store.edit((draft) => {
-    draft.legacySelection = {
-      kind: 'AREA',
-      areaId: currentAreaId,
+    draft.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'AREA',
+        areaId: currentAreaId,
+      },
     };
     draft.areas[currentAreaId] = current;
   });
@@ -169,17 +196,23 @@ test('sameAreaSelected', () => {
 
 test('NonAreaSelectionAfterUndefinedArea', () => {
   globals.store.edit((draft) => {
-    draft.legacySelection = {kind: 'AREA', areaId: '0'};
+    draft.selection = {
+      kind: 'legacy',
+      legacySelection: {kind: 'AREA', areaId: '0'},
+    };
   });
   const areaSelectionHandler = new AreaSelectionHandler();
   areaSelectionHandler.getAreaChange();
 
   globals.store.edit((draft) => {
-    draft.legacySelection = {
-      kind: 'COUNTER',
-      leftTs: Time.fromRaw(0n),
-      rightTs: Time.fromRaw(0n),
-      id: 1,
+    draft.selection = {
+      kind: 'legacy',
+      legacySelection: {
+        kind: 'COUNTER',
+        leftTs: Time.fromRaw(0n),
+        rightTs: Time.fromRaw(0n),
+        id: 1,
+      },
     };
   });
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
