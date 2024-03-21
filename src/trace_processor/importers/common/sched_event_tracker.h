@@ -17,12 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SCHED_EVENT_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SCHED_EVENT_TRACKER_H_
 
-#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/system_info_tracker.h"
+
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
-#include "src/trace_processor/types/task_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -82,20 +80,6 @@ class SchedEventTracker : public Destructible {
     // when unpacking the information inside; this allows savings of 48 bits
     // per slice.
     slices->mutable_end_state()->Set(pending_slice_idx, prev_state);
-  }
-
-  // TODO(rsavitski): fold back into ftrace parser, this is specific to Linux.
-  PERFETTO_ALWAYS_INLINE
-  StringId TaskStateToStringId(int64_t task_state_int) {
-    using ftrace_utils::TaskState;
-
-    std::optional<VersionNumber> kernel_version =
-        SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
-    TaskState task_state = TaskState::FromRawPrevState(
-        static_cast<uint16_t>(task_state_int), kernel_version);
-    return task_state.is_valid()
-               ? context_->storage->InternString(task_state.ToString().data())
-               : kNullStringId;
   }
 
  private:
