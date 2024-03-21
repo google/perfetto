@@ -29,6 +29,7 @@ import {
   ScrollJankTracks as DecideTracksResult,
 } from './index';
 import {JANK_COLOR} from './jank_colors';
+import {getLegacySelection} from '../../common/state';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
@@ -85,7 +86,7 @@ export class EventLatencyTrack extends CustomSqlTableSliceTrack<EventLatencyTrac
 
   onUpdatedSlices(slices: EventLatencyTrackTypes['slice'][]) {
     for (const slice of slices) {
-      const currentSelection = globals.state.currentSelection;
+      const currentSelection = getLegacySelection(globals.state);
       const isSelected =
         currentSelection &&
         currentSelection.kind === 'GENERIC_SLICE' &&

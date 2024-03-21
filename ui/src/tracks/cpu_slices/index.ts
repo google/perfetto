@@ -20,6 +20,7 @@ import {assertExists, assertTrue} from '../../base/logging';
 import {Duration, duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {calcCachedBucketSize} from '../../common/cache_utils';
+import {getLegacySelection} from '../../common/state';
 import {
   cropText,
   drawDoubleHeadedArrow,
@@ -392,7 +393,7 @@ class CpuSliceTrack implements Track {
       ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
 
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     const details = globals.sliceDetails;
     if (selection !== null && selection.kind === 'SLICE') {
       const [startIndex, endIndex] = searchEq(data.ids, selection.id);

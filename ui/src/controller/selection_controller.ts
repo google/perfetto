@@ -15,7 +15,7 @@
 import {assertTrue} from '../base/logging';
 import {Time, time} from '../base/time';
 import {Args, ArgValue} from '../common/arg_types';
-import {ChromeSliceSelection} from '../common/state';
+import {ChromeSliceSelection, getLegacySelection} from '../common/state';
 import {
   CounterDetails,
   globals,
@@ -68,7 +68,7 @@ export class SelectionController extends Controller<'main'> {
   }
 
   run() {
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (!selection || selection.kind === 'AREA') return;
 
     const selectWithId = [
@@ -281,7 +281,7 @@ export class SelectionController extends Controller<'main'> {
     }
 
     // Check selection is still the same on completion of query.
-    if (selection === globals.state.currentSelection) {
+    if (selection === getLegacySelection(globals.state)) {
       publishSliceDetails(selected);
     }
   }
@@ -352,7 +352,7 @@ export class SelectionController extends Controller<'main'> {
     `;
     const result = await this.args.engine.query(query);
 
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (result.numRows() > 0 && selection) {
       const row = result.firstRow({
         ts: LONG,
@@ -379,7 +379,7 @@ export class SelectionController extends Controller<'main'> {
     WHERE sched.id = ${id}`;
     const result = await this.args.engine.query(sqlQuery);
     // Check selection is still the same on completion of query.
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (result.numRows() > 0 && selection) {
       const row = result.firstRow({
         ts: LONG,

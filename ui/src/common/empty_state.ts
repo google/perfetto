@@ -139,7 +139,7 @@ export function createEmptyState(): State {
     },
 
     status: {msg: '', timestamp: 0},
-    currentSelection: null,
+    legacySelection: null,
     currentFlamegraphState: null,
     traceConversionInProgress: false,
 

@@ -25,7 +25,7 @@ import {
 } from '../common/canvas_utils';
 import {colorCompare} from '../core/color';
 import {UNEXPECTED_PINK} from '../core/colorizer';
-import {Selection, SelectionKind} from '../common/state';
+import {Selection, SelectionKind, getLegacySelection} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {EngineProxy, Slice, SliceRect, Track} from '../public';
@@ -360,7 +360,7 @@ export abstract class BaseSliceTrack<
       vizTime.end.toTime('ceil'),
     );
 
-    let selection = globals.state.currentSelection;
+    let selection = getLegacySelection(globals.state);
     if (!selection || !this.isSelectionHandled(selection)) {
       selection = null;
     }

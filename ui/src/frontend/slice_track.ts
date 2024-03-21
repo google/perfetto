@@ -20,6 +20,7 @@ import {HighPrecisionTime} from '../common/high_precision_time';
 import {TrackData} from '../common/track_data';
 import {TimelineFetcher} from '../common/track_helper';
 import {SliceRect, Track} from '../public';
+import {getLegacySelection} from '../common/state';
 
 import {CROP_INCOMPLETE_SLICE_FLAG} from './base_slice_track';
 import {checkerboardExcept} from './checkerboard';
@@ -153,7 +154,7 @@ export abstract class SliceTrackLEGACY implements Track {
         height: SLICE_HEIGHT,
       };
 
-      const currentSelection = globals.state.currentSelection;
+      const currentSelection = getLegacySelection(globals.state);
       const isSelected =
         currentSelection &&
         currentSelection.kind === 'CHROME_SLICE' &&
