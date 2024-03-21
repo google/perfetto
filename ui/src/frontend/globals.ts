@@ -38,6 +38,7 @@ import {
   ProfileType,
   RESOLUTION_DEFAULT,
   State,
+  getLegacySelection,
 } from '../common/state';
 import {TabManager} from '../common/tab_registry';
 import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
@@ -644,12 +645,14 @@ class Globals {
 
     // HACK(stevegolton + altimin): This is a workaround to allow passing the
     // next tab state to the Bottom Tab API
-    if (this.state.currentSelection !== previousState.currentSelection) {
+    const currentSelection = getLegacySelection(this.state);
+    const previousSelection = getLegacySelection(previousState);
+    if (currentSelection !== previousSelection) {
       // TODO(altimin): Currently we are not triggering this when changing
       // the set of selected tracks via toggling per-track checkboxes.
       // Fix that.
       onSelectionChanged(
-        this.state.currentSelection ?? undefined,
+        currentSelection ?? undefined,
         switchToCurrentSelectionTab,
       );
     }
@@ -809,7 +812,7 @@ class Globals {
   }
 
   findTimeRangeOfSelection(): {start: time; end: time} {
-    const selection = this.state.currentSelection;
+    const selection = getLegacySelection(this.state);
     let start = Time.INVALID;
     let end = Time.INVALID;
     if (selection === null) {

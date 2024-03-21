@@ -19,7 +19,7 @@ import {Icons} from '../base/semantic_icons';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {randomColor} from '../core/colorizer';
-import {AreaNote, Note} from '../common/state';
+import {AreaNote, Note, getLegacySelection} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';
 
@@ -177,7 +177,7 @@ export class NotesPanel implements Panel {
         this.hoveredX !== null && this.mouseOverNote(this.hoveredX, note);
       if (currentIsHovered) aNoteIsHovered = true;
 
-      const selection = globals.state.currentSelection;
+      const selection = getLegacySelection(globals.state);
       const isSelected =
         selection !== null &&
         ((selection.kind === 'NOTE' && selection.id === note.id) ||

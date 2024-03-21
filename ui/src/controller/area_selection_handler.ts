@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Area, AreaById} from '../common/state';
+import {Area, AreaById, getLegacySelection} from '../common/state';
 import {globals} from '../frontend/globals';
 
 export class AreaSelectionHandler {
   private previousArea?: Area;
 
   getAreaChange(): [boolean, AreaById | undefined] {
-    const currentSelection = globals.state.currentSelection;
+    const currentSelection = getLegacySelection(globals.state);
     if (currentSelection === null || currentSelection.kind !== 'AREA') {
       return [false, undefined];
     }

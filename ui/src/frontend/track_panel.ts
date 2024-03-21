@@ -36,6 +36,7 @@ import {Button} from '../widgets/button';
 import {Popup} from '../widgets/popup';
 import {canvasClip} from '../common/canvas_utils';
 import {TimeScale} from './time_scale';
+import {getLegacySelection} from '../common/state';
 
 function getTitleSize(title: string): string | undefined {
   const length = title.length;
@@ -62,7 +63,7 @@ function isPinned(id: string) {
 }
 
 function isSelected(id: string) {
-  const selection = globals.state.currentSelection;
+  const selection = getLegacySelection(globals.state);
   if (selection === null || selection.kind !== 'AREA') return false;
   const selectedArea = globals.state.areas[selection.areaId];
   return selectedArea.tracks.includes(id);
@@ -143,6 +144,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       }
     }
 
+    const currentSelection = getLegacySelection(globals.state);
+
     return m(
       `.track-shell[draggable=true]`,
       {
@@ -183,8 +186,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           showButton: isPinned(attrs.trackKey),
           fullHeight: true,
         }),
-        globals.state.currentSelection !== null &&
-          globals.state.currentSelection.kind === 'AREA'
+        currentSelection !== null && currentSelection.kind === 'AREA'
           ? m(TrackButton, {
               action: (e: MouseEvent) => {
                 globals.dispatch(
@@ -473,7 +475,7 @@ export class TrackPanel implements Panel {
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const {visibleTimeScale} = globals.timeline;
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (!selection || selection.kind !== 'AREA') {
       return;
     }
@@ -574,9 +576,10 @@ export function renderWakeupVertical(
   visibleTimeScale: TimeScale,
   size: PanelSize,
 ) {
-  if (globals.state.currentSelection !== null) {
+  const currentSelection = getLegacySelection(globals.state);
+  if (currentSelection !== null) {
     if (
-      globals.state.currentSelection.kind === 'SLICE' &&
+      currentSelection.kind === 'SLICE' &&
       globals.sliceDetails.wakeupTs !== undefined
     ) {
       drawVerticalLineAtTime(

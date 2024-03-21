@@ -21,6 +21,7 @@ import {
   PivotTableQueryMetadata,
   PivotTableResult,
   PivotTableState,
+  getLegacySelection,
 } from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {globals} from '../frontend/globals';
@@ -298,7 +299,7 @@ export class PivotTableController extends Controller<{}> {
     }
 
     const pivotTableState = globals.state.nonSerializableState.pivotTable;
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
 
     if (
       pivotTableState.queryRequested ||
