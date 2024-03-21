@@ -127,24 +127,12 @@ class GeneratorJob {
       error_ = reason;
   }
 
-  // Get full name (including outer descriptors) of proto descriptor.
-  template <class T>
-  inline std::string GetDescriptorName(const T* descriptor) {
-    if (!package_.empty()) {
-      return StripPrefix(descriptor->full_name(), package_ + ".");
-    }
-    return descriptor->full_name();
-  }
-
   // Get C++ class name corresponding to proto descriptor.
   // Nested names are splitted by underscores. Underscores in type names aren't
   // prohibited but not recommended in order to avoid name collisions.
   template <class T>
-  inline std::string GetCppClassName(const T* descriptor, bool full = false) {
-    std::string name = StripChars(GetDescriptorName(descriptor), ".", '_');
-    if (full)
-      name = full_namespace_prefix_ + "_" + name;
-    return name;
+  inline std::string GetCppClassName(const T* descriptor) {
+    return StripChars(descriptor->full_name(), ".", '_');
   }
 
   const char* FieldTypeToPackedBufferType(FieldDescriptor::Type type) {
@@ -213,7 +201,7 @@ class GeneratorJob {
       case FieldDescriptor::TYPE_DOUBLE:
         return "double";
       case FieldDescriptor::TYPE_ENUM:
-        return "enum " + GetCppClassName(field->enum_type(), true);
+        return "enum " + GetCppClassName(field->enum_type());
       case FieldDescriptor::TYPE_STRING:
       case FieldDescriptor::TYPE_BYTES:
         return "const char*";
@@ -305,10 +293,6 @@ class GeneratorJob {
     while (!stack.empty()) {
       const FileDescriptor* imp = stack.back();
       stack.pop_back();
-      // Having imports under different packages leads to unnecessary
-      // complexity with namespaces.
-      if (imp->package() != package_)
-        Abort("Imported proto must be in the same package.");
 
       for (int i = 0; i < imp->public_dependency_count(); ++i) {
         stack.push_back(imp->public_dependency(i));
@@ -427,7 +411,7 @@ class GeneratorJob {
     // Print forward declarations.
     for (const Descriptor* message : referenced_messages_) {
       stub_h_->Print("PERFETTO_PB_MSG_DECL($class$);\n", "class",
-                     GetCppClassName(message, true));
+                     GetCppClassName(message));
     }
 
     stub_h_->Print("\n");
@@ -436,11 +420,11 @@ class GeneratorJob {
   void GenerateEnumDescriptor(const EnumDescriptor* enumeration) {
     if (enumeration->containing_type()) {
       stub_h_->Print("PERFETTO_PB_ENUM_IN_MSG($msg$, $class$){\n", "msg",
-                     GetCppClassName(enumeration->containing_type(), true),
-                     "class", enumeration->name());
+                     GetCppClassName(enumeration->containing_type()), "class",
+                     enumeration->name());
     } else {
       stub_h_->Print("PERFETTO_PB_ENUM($class$){\n", "class",
-                     GetCppClassName(enumeration, true));
+                     GetCppClassName(enumeration));
     }
     stub_h_->Indent();
 
@@ -451,8 +435,8 @@ class GeneratorJob {
       if (enumeration->containing_type()) {
         stub_h_->Print(
             "PERFETTO_PB_ENUM_IN_MSG_ENTRY($msg$, $val$) = $number$,\n", "msg",
-            GetCppClassName(enumeration->containing_type(), true), "val",
-            value_name, "number", std::to_string(value->number()));
+            GetCppClassName(enumeration->containing_type()), "val", value_name,
+            "number", std::to_string(value->number()));
       } else {
         stub_h_->Print("PERFETTO_PB_ENUM_ENTRY($val$) = $number$, \n", "val",
                        full_namespace_prefix_ + "_" + value_name, "number",
@@ -532,8 +516,7 @@ class GeneratorJob {
 
   void GenerateNestedMessageFieldDescriptor(const std::string& message_cpp_type,
                                             const FieldDescriptor* field) {
-    std::string inner_class =
-        full_namespace_prefix_ + "_" + GetCppClassName(field->message_type());
+    std::string inner_class = GetCppClassName(field->message_type());
     stub_h_->Print(
         "PERFETTO_PB_FIELD($class$, MSG, $inner_class$, $name$, $id$);\n",
         "class", message_cpp_type, "id", std::to_string(field->number()),
@@ -542,12 +525,11 @@ class GeneratorJob {
 
   void GenerateMessageDescriptor(const Descriptor* message) {
     stub_h_->Print("PERFETTO_PB_MSG($name$);\n", "name",
-                   GetCppClassName(message, true));
+                   GetCppClassName(message));
 
     // Field descriptors.
     for (int i = 0; i < message->field_count(); ++i) {
-      GenerateFieldDescriptor(GetCppClassName(message, true),
-                              message->field(i));
+      GenerateFieldDescriptor(GetCppClassName(message), message->field(i));
     }
     stub_h_->Print("\n");
   }
