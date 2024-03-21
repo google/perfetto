@@ -1319,7 +1319,7 @@ void FtraceParser::ParseTypedFtraceToRaw(
     StringId name_id = message_strings.field_name_ids[field_id];
 
     // Check if this field represents a kernel function.
-    const auto* it = std::find_if(
+    const auto it = std::find_if(
         kKernelFunctionFields.begin(), kKernelFunctionFields.end(),
         [ftrace_id, field_id](const FtraceEventAndFieldId& ev) {
           return ev.event_id == ftrace_id && ev.field_id == field_id;
