@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../../common/actions';
-import {ProfileType, Selection} from '../../common/state';
+import {ProfileType, LegacySelection} from '../../common/state';
 import {profileType} from '../../controller/flamegraph_controller';
 import {
   BASE_ROW,
@@ -109,7 +109,7 @@ class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
     );
   }
 
-  protected isSelectionHandled(selection: Selection): boolean {
+  protected isSelectionHandled(selection: LegacySelection): boolean {
     return selection.kind === 'HEAP_PROFILE';
   }
 }

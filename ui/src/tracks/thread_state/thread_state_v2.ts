@@ -14,7 +14,7 @@
 
 import {Actions} from '../../common/actions';
 import {colorForState} from '../../core/colorizer';
-import {Selection} from '../../common/state';
+import {LegacySelection} from '../../common/state';
 import {translateState} from '../../common/thread_state';
 import {
   BASE_ROW,
@@ -102,7 +102,7 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
     );
   }
 
-  protected isSelectionHandled(selection: Selection): boolean {
+  protected isSelectionHandled(selection: LegacySelection): boolean {
     return selection.kind === 'THREAD_STATE';
   }
 }

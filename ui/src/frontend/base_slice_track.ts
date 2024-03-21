@@ -25,7 +25,11 @@ import {
 } from '../common/canvas_utils';
 import {colorCompare} from '../core/color';
 import {UNEXPECTED_PINK} from '../core/colorizer';
-import {Selection, SelectionKind, getLegacySelection} from '../common/state';
+import {
+  LegacySelection,
+  SelectionKind,
+  getLegacySelection,
+} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {EngineProxy, Slice, SliceRect, Track} from '../public';
@@ -300,7 +304,7 @@ export abstract class BaseSliceTrack<
     }
   }
 
-  protected isSelectionHandled(selection: Selection): boolean {
+  protected isSelectionHandled(selection: LegacySelection): boolean {
     // TODO(hjd): Remove when updating selection.
     // We shouldn't know here about CHROME_SLICE. Maybe should be set by
     // whatever deals with that. Dunno the namespace of selection is weird. For
