@@ -10739,8 +10739,6 @@ filegroup {
         "src/protozero/test/example_proto/extensions.proto",
         "src/protozero/test/example_proto/library.proto",
         "src/protozero/test/example_proto/library_internals/galaxies.proto",
-        "src/protozero/test/example_proto/other_package/test_messages.proto",
-        "src/protozero/test/example_proto/subpackage/test_messages.proto",
         "src/protozero/test/example_proto/test_messages.proto",
         "src/protozero/test/example_proto/upper_import.proto",
     ],
@@ -10751,6 +10749,8 @@ genrule {
     name: "perfetto_src_protozero_testing_messages_cpp_gen",
     srcs: [
         ":perfetto_src_protozero_testing_messages_cpp",
+        ":perfetto_src_protozero_testing_messages_other_package_cpp",
+        ":perfetto_src_protozero_testing_messages_subpackage_cpp",
     ],
     tools: [
         "aprotoc",
@@ -10761,8 +10761,6 @@ genrule {
         "external/perfetto/src/protozero/test/example_proto/extensions.gen.cc",
         "external/perfetto/src/protozero/test/example_proto/library.gen.cc",
         "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.gen.cc",
-        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.gen.cc",
-        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.gen.cc",
         "external/perfetto/src/protozero/test/example_proto/test_messages.gen.cc",
         "external/perfetto/src/protozero/test/example_proto/upper_import.gen.cc",
     ],
@@ -10773,6 +10771,8 @@ genrule {
     name: "perfetto_src_protozero_testing_messages_cpp_gen_headers",
     srcs: [
         ":perfetto_src_protozero_testing_messages_cpp",
+        ":perfetto_src_protozero_testing_messages_other_package_cpp",
+        ":perfetto_src_protozero_testing_messages_subpackage_cpp",
     ],
     tools: [
         "aprotoc",
@@ -10783,8 +10783,6 @@ genrule {
         "external/perfetto/src/protozero/test/example_proto/extensions.gen.h",
         "external/perfetto/src/protozero/test/example_proto/library.gen.h",
         "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.gen.h",
-        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.gen.h",
-        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.gen.h",
         "external/perfetto/src/protozero/test/example_proto/test_messages.gen.h",
         "external/perfetto/src/protozero/test/example_proto/upper_import.gen.h",
     ],
@@ -10801,8 +10799,6 @@ filegroup {
         "src/protozero/test/example_proto/extensions.proto",
         "src/protozero/test/example_proto/library.proto",
         "src/protozero/test/example_proto/library_internals/galaxies.proto",
-        "src/protozero/test/example_proto/other_package/test_messages.proto",
-        "src/protozero/test/example_proto/subpackage/test_messages.proto",
         "src/protozero/test/example_proto/test_messages.proto",
         "src/protozero/test/example_proto/upper_import.proto",
     ],
@@ -10813,6 +10809,8 @@ genrule {
     name: "perfetto_src_protozero_testing_messages_lite_gen",
     srcs: [
         ":perfetto_src_protozero_testing_messages_lite",
+        ":perfetto_src_protozero_testing_messages_other_package_lite",
+        ":perfetto_src_protozero_testing_messages_subpackage_lite",
     ],
     tools: [
         "aprotoc",
@@ -10822,8 +10820,6 @@ genrule {
         "external/perfetto/src/protozero/test/example_proto/extensions.pb.cc",
         "external/perfetto/src/protozero/test/example_proto/library.pb.cc",
         "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pb.cc",
-        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.pb.cc",
-        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.pb.cc",
         "external/perfetto/src/protozero/test/example_proto/test_messages.pb.cc",
         "external/perfetto/src/protozero/test/example_proto/upper_import.pb.cc",
     ],
@@ -10834,6 +10830,8 @@ genrule {
     name: "perfetto_src_protozero_testing_messages_lite_gen_headers",
     srcs: [
         ":perfetto_src_protozero_testing_messages_lite",
+        ":perfetto_src_protozero_testing_messages_other_package_lite",
+        ":perfetto_src_protozero_testing_messages_subpackage_lite",
     ],
     tools: [
         "aprotoc",
@@ -10843,10 +10841,268 @@ genrule {
         "external/perfetto/src/protozero/test/example_proto/extensions.pb.h",
         "external/perfetto/src/protozero/test/example_proto/library.pb.h",
         "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pb.h",
-        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.pb.h",
-        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.pb.h",
         "external/perfetto/src/protozero/test/example_proto/test_messages.pb.h",
         "external/perfetto/src/protozero/test/example_proto/upper_import.pb.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_other_package_cpp
+filegroup {
+    name: "perfetto_src_protozero_testing_messages_other_package_cpp",
+    srcs: [
+        "src/protozero/test/example_proto/other_package/test_messages.proto",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_other_package_cpp
+genrule {
+    name: "perfetto_src_protozero_testing_messages_other_package_cpp_gen",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_other_package_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_other_package_cpp)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.gen.cc",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_other_package_cpp
+genrule {
+    name: "perfetto_src_protozero_testing_messages_other_package_cpp_gen_headers",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_other_package_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_other_package_cpp)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.gen.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_other_package_lite
+filegroup {
+    name: "perfetto_src_protozero_testing_messages_other_package_lite",
+    srcs: [
+        "src/protozero/test/example_proto/other_package/test_messages.proto",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_other_package_lite
+genrule {
+    name: "perfetto_src_protozero_testing_messages_other_package_lite_gen",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_other_package_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_other_package_lite)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.pb.cc",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_other_package_lite
+genrule {
+    name: "perfetto_src_protozero_testing_messages_other_package_lite_gen_headers",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_other_package_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_other_package_lite)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.pb.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_other_package_zero
+filegroup {
+    name: "perfetto_src_protozero_testing_messages_other_package_zero",
+    srcs: [
+        "src/protozero/test/example_proto/other_package/test_messages.proto",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_other_package_zero
+genrule {
+    name: "perfetto_src_protozero_testing_messages_other_package_zero_gen",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_other_package_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_other_package_zero)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.pbzero.cc",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_other_package_zero
+genrule {
+    name: "perfetto_src_protozero_testing_messages_other_package_zero_gen_headers",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_other_package_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_other_package_zero)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.pbzero.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_subpackage_cpp
+filegroup {
+    name: "perfetto_src_protozero_testing_messages_subpackage_cpp",
+    srcs: [
+        "src/protozero/test/example_proto/subpackage/test_messages.proto",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_subpackage_cpp
+genrule {
+    name: "perfetto_src_protozero_testing_messages_subpackage_cpp_gen",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_subpackage_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_subpackage_cpp)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.gen.cc",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_subpackage_cpp
+genrule {
+    name: "perfetto_src_protozero_testing_messages_subpackage_cpp_gen_headers",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_subpackage_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_subpackage_cpp)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.gen.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_subpackage_lite
+filegroup {
+    name: "perfetto_src_protozero_testing_messages_subpackage_lite",
+    srcs: [
+        "src/protozero/test/example_proto/subpackage/test_messages.proto",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_subpackage_lite
+genrule {
+    name: "perfetto_src_protozero_testing_messages_subpackage_lite_gen",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_subpackage_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_subpackage_lite)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.pb.cc",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_subpackage_lite
+genrule {
+    name: "perfetto_src_protozero_testing_messages_subpackage_lite_gen_headers",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_subpackage_lite",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_subpackage_lite)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.pb.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_subpackage_zero
+filegroup {
+    name: "perfetto_src_protozero_testing_messages_subpackage_zero",
+    srcs: [
+        "src/protozero/test/example_proto/subpackage/test_messages.proto",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_subpackage_zero
+genrule {
+    name: "perfetto_src_protozero_testing_messages_subpackage_zero_gen",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_subpackage_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_subpackage_zero)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.pbzero.cc",
+    ],
+}
+
+// GN: //src/protozero:testing_messages_subpackage_zero
+genrule {
+    name: "perfetto_src_protozero_testing_messages_subpackage_zero_gen_headers",
+    srcs: [
+        ":perfetto_src_protozero_testing_messages_subpackage_zero",
+    ],
+    tools: [
+        "aprotoc",
+        "protozero_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_src_protozero_testing_messages_subpackage_zero)",
+    out: [
+        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.pbzero.h",
     ],
     export_include_dirs: [
         ".",
@@ -10861,8 +11117,6 @@ filegroup {
         "src/protozero/test/example_proto/extensions.proto",
         "src/protozero/test/example_proto/library.proto",
         "src/protozero/test/example_proto/library_internals/galaxies.proto",
-        "src/protozero/test/example_proto/other_package/test_messages.proto",
-        "src/protozero/test/example_proto/subpackage/test_messages.proto",
         "src/protozero/test/example_proto/test_messages.proto",
         "src/protozero/test/example_proto/upper_import.proto",
     ],
@@ -10872,6 +11126,8 @@ filegroup {
 genrule {
     name: "perfetto_src_protozero_testing_messages_zero_gen",
     srcs: [
+        ":perfetto_src_protozero_testing_messages_other_package_zero",
+        ":perfetto_src_protozero_testing_messages_subpackage_zero",
         ":perfetto_src_protozero_testing_messages_zero",
     ],
     tools: [
@@ -10883,8 +11139,6 @@ genrule {
         "external/perfetto/src/protozero/test/example_proto/extensions.pbzero.cc",
         "external/perfetto/src/protozero/test/example_proto/library.pbzero.cc",
         "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pbzero.cc",
-        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.pbzero.cc",
-        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.pbzero.cc",
         "external/perfetto/src/protozero/test/example_proto/test_messages.pbzero.cc",
         "external/perfetto/src/protozero/test/example_proto/upper_import.pbzero.cc",
     ],
@@ -10894,6 +11148,8 @@ genrule {
 genrule {
     name: "perfetto_src_protozero_testing_messages_zero_gen_headers",
     srcs: [
+        ":perfetto_src_protozero_testing_messages_other_package_zero",
+        ":perfetto_src_protozero_testing_messages_subpackage_zero",
         ":perfetto_src_protozero_testing_messages_zero",
     ],
     tools: [
@@ -10905,8 +11161,6 @@ genrule {
         "external/perfetto/src/protozero/test/example_proto/extensions.pbzero.h",
         "external/perfetto/src/protozero/test/example_proto/library.pbzero.h",
         "external/perfetto/src/protozero/test/example_proto/library_internals/galaxies.pbzero.h",
-        "external/perfetto/src/protozero/test/example_proto/other_package/test_messages.pbzero.h",
-        "external/perfetto/src/protozero/test/example_proto/subpackage/test_messages.pbzero.h",
         "external/perfetto/src/protozero/test/example_proto/test_messages.pbzero.h",
         "external/perfetto/src/protozero/test/example_proto/upper_import.pbzero.h",
     ],
@@ -13947,6 +14201,12 @@ cc_test {
         ":perfetto_src_protozero_protozero",
         ":perfetto_src_protozero_testing_messages_cpp_gen",
         ":perfetto_src_protozero_testing_messages_lite_gen",
+        ":perfetto_src_protozero_testing_messages_other_package_cpp_gen",
+        ":perfetto_src_protozero_testing_messages_other_package_lite_gen",
+        ":perfetto_src_protozero_testing_messages_other_package_zero_gen",
+        ":perfetto_src_protozero_testing_messages_subpackage_cpp_gen",
+        ":perfetto_src_protozero_testing_messages_subpackage_lite_gen",
+        ":perfetto_src_protozero_testing_messages_subpackage_zero_gen",
         ":perfetto_src_protozero_testing_messages_zero_gen",
         ":perfetto_src_protozero_unittests",
         ":perfetto_src_shared_lib_intern_map",
@@ -14245,6 +14505,12 @@ cc_test {
         "perfetto_src_perfetto_cmd_protos_cpp_gen_headers",
         "perfetto_src_protozero_testing_messages_cpp_gen_headers",
         "perfetto_src_protozero_testing_messages_lite_gen_headers",
+        "perfetto_src_protozero_testing_messages_other_package_cpp_gen_headers",
+        "perfetto_src_protozero_testing_messages_other_package_lite_gen_headers",
+        "perfetto_src_protozero_testing_messages_other_package_zero_gen_headers",
+        "perfetto_src_protozero_testing_messages_subpackage_cpp_gen_headers",
+        "perfetto_src_protozero_testing_messages_subpackage_lite_gen_headers",
+        "perfetto_src_protozero_testing_messages_subpackage_zero_gen_headers",
         "perfetto_src_protozero_testing_messages_zero_gen_headers",
         "perfetto_src_trace_processor_gen_cc_test_messages_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
