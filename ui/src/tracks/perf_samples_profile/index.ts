@@ -15,7 +15,7 @@
 import {searchSegment} from '../../base/binary_search';
 import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {ProfileType} from '../../common/state';
+import {ProfileType, getLegacySelection} from '../../common/state';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
@@ -114,7 +114,7 @@ class PerfSamplesProfileTrack implements Track {
 
     for (let i = 0; i < data.tsStarts.length; i++) {
       const centerX = Time.fromRaw(data.tsStarts[i]);
-      const selection = globals.state.currentSelection;
+      const selection = getLegacySelection(globals.state);
       const isHovered = this.hoveredTs === centerX;
       const isSelected =
         selection !== null &&

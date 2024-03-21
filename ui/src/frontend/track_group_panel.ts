@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
-import {getContainingTrackId} from '../common/state';
+import {getContainingTrackId, getLegacySelection} from '../common/state';
 import {TrackCacheEntry} from '../common/track_cache';
 import {TrackTags} from '../public';
 
@@ -77,7 +77,7 @@ export class TrackGroupPanel implements Panel {
       }
     }
 
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
 
     const trackGroup = globals.state.trackGroups[trackGroupId];
     let checkBox = Icons.BlankCheckbox;
@@ -173,7 +173,7 @@ export class TrackGroupPanel implements Panel {
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const {visibleTimeScale} = globals.timeline;
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (!selection || selection.kind !== 'AREA') return;
     const selectedArea = globals.state.areas[selection.areaId];
     const selectedAreaDuration = selectedArea.end - selectedArea.start;

@@ -20,7 +20,7 @@ import {Actions} from '../common/actions';
 import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
 import {addSelectionChangeObserver} from '../common/selection_observer';
-import {Selection} from '../common/state';
+import {Selection, getLegacySelection} from '../common/state';
 
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsTab} from './chrome_slice_details_tab';
@@ -140,7 +140,7 @@ export class DetailsPanel implements m.ClassComponent {
       }
     }
 
-    const curSelection = globals.state.currentSelection;
+    const curSelection = getLegacySelection(globals.state);
     if (curSelection) {
       switch (curSelection.kind) {
         case 'NOTE':

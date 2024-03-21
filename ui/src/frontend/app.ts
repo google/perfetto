@@ -22,6 +22,7 @@ import {assertExists} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {duration, Span, Time, time, TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
+import {getLegacySelection} from '../common/state';
 import {runQuery} from '../common/queries';
 import {
   DurationPrecision,
@@ -237,7 +238,7 @@ export class App implements m.ClassComponent {
   }
 
   private getFirstUtidOfSelectionOrVisibleWindow(): number {
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (selection && selection.kind === 'AREA') {
       const selectedArea = globals.state.areas[selection.areaId];
       const firstThreadStateTrack = selectedArea.tracks.find((trackId) => {
@@ -562,7 +563,7 @@ export class App implements m.ClassComponent {
       id: 'perfetto.MarkArea',
       name: 'Mark area',
       callback: () => {
-        const selection = globals.state.currentSelection;
+        const selection = getLegacySelection(globals.state);
         if (selection && selection.kind === 'AREA') {
           globals.dispatch(Actions.toggleMarkCurrentArea({persistent: false}));
         } else if (selection) {
@@ -575,7 +576,7 @@ export class App implements m.ClassComponent {
       id: 'perfetto.MarkAreaPersistent',
       name: 'Mark area (persistent)',
       callback: () => {
-        const selection = globals.state.currentSelection;
+        const selection = getLegacySelection(globals.state);
         if (selection && selection.kind === 'AREA') {
           globals.dispatch(Actions.toggleMarkCurrentArea({persistent: true}));
         } else if (selection) {
@@ -614,7 +615,7 @@ export class App implements m.ClassComponent {
       callback: () => {
         let tracksToSelect: string[] = [];
 
-        const selection = globals.state.currentSelection;
+        const selection = getLegacySelection(globals.state);
         if (selection !== null && selection.kind === 'AREA') {
           const area = globals.state.areas[selection.areaId];
           const coversEntireTimeRange =

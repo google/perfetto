@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {Area} from '../common/state';
+import {Area, getLegacySelection} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {Flow, globals} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
@@ -443,7 +443,7 @@ export class FlowEventsController extends Controller<'main'> {
   }
 
   refreshVisibleFlows() {
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (!selection) {
       this.lastSelectedKind = 'NONE';
       publishConnectedFlows([]);

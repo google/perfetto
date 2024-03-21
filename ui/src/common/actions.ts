@@ -516,7 +516,7 @@ export const StateActions = {
 
   selectNote(state: StateDraft, args: {id: string}): void {
     if (args.id) {
-      state.currentSelection = {
+      state.legacySelection = {
         kind: 'NOTE',
         id: args.id,
       };
@@ -554,8 +554,8 @@ export const StateActions = {
     args: {color: string; persistent: boolean},
   ): void {
     if (
-      state.currentSelection === null ||
-      state.currentSelection.kind !== 'AREA'
+      state.legacySelection === null ||
+      state.legacySelection.kind !== 'AREA'
     ) {
       return;
     }
@@ -564,15 +564,15 @@ export const StateActions = {
     state.notes[id] = {
       noteType: 'AREA',
       id,
-      areaId: state.currentSelection.areaId,
+      areaId: state.legacySelection.areaId,
       color,
       text: '',
     };
-    state.currentSelection.noteId = id;
+    state.legacySelection.noteId = id;
   },
 
   toggleMarkCurrentArea(state: StateDraft, args: {persistent: boolean}) {
-    const selection = state.currentSelection;
+    const selection = state.legacySelection;
     if (
       selection != null &&
       selection.kind === 'AREA' &&
@@ -621,17 +621,17 @@ export const StateActions = {
     delete state.notes[args.id];
     // For regular notes, we clear the current selection but for an area note
     // we only want to clear the note/marking and leave the area selected.
-    if (state.currentSelection === null) return;
+    if (state.legacySelection === null) return;
     if (
-      state.currentSelection.kind === 'NOTE' &&
-      state.currentSelection.id === args.id
+      state.legacySelection.kind === 'NOTE' &&
+      state.legacySelection.id === args.id
     ) {
-      state.currentSelection = null;
+      state.legacySelection = null;
     } else if (
-      state.currentSelection.kind === 'AREA' &&
-      state.currentSelection.noteId === args.id
+      state.legacySelection.kind === 'AREA' &&
+      state.legacySelection.noteId === args.id
     ) {
-      state.currentSelection.noteId = undefined;
+      state.legacySelection.noteId = undefined;
     }
   },
 
@@ -639,7 +639,7 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; trackKey: string; scroll?: boolean},
   ): void {
-    state.currentSelection = {
+    state.legacySelection = {
       kind: 'SLICE',
       id: args.id,
       trackKey: args.trackKey,
@@ -651,7 +651,7 @@ export const StateActions = {
     state: StateDraft,
     args: {leftTs: time; rightTs: time; id: number; trackKey: string},
   ): void {
-    state.currentSelection = {
+    state.legacySelection = {
       kind: 'COUNTER',
       leftTs: args.leftTs,
       rightTs: args.rightTs,
@@ -664,7 +664,7 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; upid: number; ts: time; type: ProfileType},
   ): void {
-    state.currentSelection = {
+    state.legacySelection = {
       kind: 'HEAP_PROFILE',
       id: args.id,
       upid: args.upid,
@@ -690,7 +690,7 @@ export const StateActions = {
       type: ProfileType;
     },
   ): void {
-    state.currentSelection = {
+    state.legacySelection = {
       kind: 'PERF_SAMPLES',
       id: args.id,
       upid: args.upid,
@@ -732,7 +732,7 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; utid: number; ts: time},
   ): void {
-    state.currentSelection = {
+    state.legacySelection = {
       kind: 'CPU_PROFILE_SAMPLE',
       id: args.id,
       utid: args.utid,
@@ -768,7 +768,7 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; trackKey: string; table?: string; scroll?: boolean},
   ): void {
-    state.currentSelection = {
+    state.legacySelection = {
       kind: 'CHROME_SLICE',
       id: args.id,
       trackKey: args.trackKey,
@@ -796,7 +796,7 @@ export const StateActions = {
       ...args.detailsPanelConfig.config,
     };
 
-    state.currentSelection = {
+    state.legacySelection = {
       kind: 'GENERIC_SLICE',
       id: args.id,
       sqlTableName: args.sqlTableName,
@@ -818,7 +818,7 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; trackKey: string},
   ): void {
-    state.currentSelection = {
+    state.legacySelection = {
       kind: 'THREAD_STATE',
       id: args.id,
       trackKey: args.trackKey,
@@ -829,7 +829,7 @@ export const StateActions = {
     state: StateDraft,
     args: {id: number; trackKey: string; scroll?: boolean},
   ): void {
-    state.currentSelection = {
+    state.legacySelection = {
       kind: 'LOG',
       id: args.id,
       trackKey: args.trackKey,
@@ -838,7 +838,7 @@ export const StateActions = {
   },
 
   deselect(state: StateDraft, _: {}): void {
-    state.currentSelection = null;
+    state.legacySelection = null;
   },
 
   updateLogsPagination(state: StateDraft, args: Pagination): void {
@@ -919,7 +919,7 @@ export const StateActions = {
     assertTrue(start <= end);
     const areaId = generateNextId(state);
     state.areas[areaId] = {id: areaId, start, end, tracks};
-    state.currentSelection = {kind: 'AREA', areaId};
+    state.legacySelection = {kind: 'AREA', areaId};
   },
 
   editArea(state: StateDraft, args: {area: Area; areaId: string}): void {
@@ -932,7 +932,7 @@ export const StateActions = {
     state: StateDraft,
     args: {areaId: string; noteId: string},
   ): void {
-    state.currentSelection = {
+    state.legacySelection = {
       kind: 'AREA',
       areaId: args.areaId,
       noteId: args.noteId,
@@ -943,7 +943,7 @@ export const StateActions = {
     state: StateDraft,
     args: {id: string; isTrackGroup: boolean},
   ) {
-    const selection = state.currentSelection;
+    const selection = state.legacySelection;
     if (selection === null || selection.kind !== 'AREA') return;
     const areaId = selection.areaId;
     const index = state.areas[areaId].tracks.indexOf(args.id);
@@ -973,7 +973,7 @@ export const StateActions = {
     // selection to be updated and this leads to bugs for people who do:
     // if (oldSelection !== state.selection) etc.
     // To solve this re-create the selection object here:
-    state.currentSelection = Object.assign({}, state.currentSelection);
+    state.legacySelection = Object.assign({}, state.legacySelection);
   },
 
   setVisibleTraceTime(state: StateDraft, args: VisibleState): void {

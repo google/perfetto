@@ -134,7 +134,8 @@ export const MAX_TIME = 180;
 // 44. Add TabsV2 state.
 // 45. Remove v1 tracks.
 // 46. Remove trackKeyByTrackId.
-export const STATE_VERSION = 46;
+// 47. Selection V2
+export const STATE_VERSION = 47;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -573,7 +574,7 @@ export interface State {
   permalink: PermalinkConfig;
   notes: ObjectById<Note | AreaNote>;
   status: Status;
-  currentSelection: Selection | null;
+  legacySelection: Selection | null;
   currentFlamegraphState: FlamegraphState | null;
   logsPagination: Pagination;
   ftracePagination: Pagination;
@@ -996,4 +997,8 @@ export function getContainingTrackId(
     return null;
   }
   return parentId;
+}
+
+export function getLegacySelection(state: State): Selection | null {
+  return state.legacySelection;
 }
