@@ -38,10 +38,8 @@ class FtraceSchedEventTracker : public Destructible {
   explicit FtraceSchedEventTracker(TraceProcessorContext*);
   ~FtraceSchedEventTracker() override;
 
-  FtraceSchedEventTracker(
-      const FtraceSchedEventTracker& ftrace_sched_event_tracker) = delete;
-  FtraceSchedEventTracker& operator=(
-      const FtraceSchedEventTracker& ftrace_sched_event_tracker) = delete;
+  FtraceSchedEventTracker(const FtraceSchedEventTracker&) = delete;
+  FtraceSchedEventTracker& operator=(const FtraceSchedEventTracker&) = delete;
 
   static FtraceSchedEventTracker* GetOrCreate(TraceProcessorContext* context) {
     if (!context->ftrace_sched_tracker) {
@@ -97,6 +95,8 @@ class FtraceSchedEventTracker : public Destructible {
                               bool parse_only_into_raw);
 
  private:
+  StringId TaskStateToStringId(int64_t task_state_int);
+
   static constexpr uint8_t kSchedSwitchMaxFieldId = 7;
   std::array<StringId, kSchedSwitchMaxFieldId + 1> sched_switch_field_ids_;
   StringId sched_switch_id_;

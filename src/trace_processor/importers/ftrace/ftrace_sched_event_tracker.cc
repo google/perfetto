@@ -18,14 +18,17 @@
 
 #include <limits>
 
+#include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_state.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
+#include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/types/task_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 
@@ -84,8 +87,7 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
   bool prev_pid_match_prev_next_pid = false;
   auto* pending_sched = sched_event_state_.GetPendingSchedInfoForCpu(cpu);
   uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
-  StringId prev_state_string_id = context_->sched_event_tracker
-                                      ->TaskStateToStringId(prev_state);
+  StringId prev_state_string_id = TaskStateToStringId(prev_state);
   if (prev_state_string_id == kNullStringId) {
     context_->storage->IncrementStats(stats::task_state_invalid);
   }
@@ -158,8 +160,7 @@ void FtraceSchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
   // Close the pending slice if any (we won't have one when processing the first
   // two compact events for a given cpu).
   uint32_t pending_slice_idx = pending_sched->pending_slice_storage_idx;
-  StringId prev_state_str_id =
-      context_->sched_event_tracker->TaskStateToStringId(prev_state);
+  StringId prev_state_str_id = TaskStateToStringId(prev_state);
   if (prev_state_str_id == kNullStringId) {
     context_->storage->IncrementStats(stats::task_state_invalid);
   }
@@ -301,6 +302,18 @@ void FtraceSchedEventTracker::AddRawSchedSwitchEvent(uint32_t cpu,
     add_raw_arg(SS::kNextPidFieldNumber, Variadic::Integer(next_pid));
     add_raw_arg(SS::kNextPrioFieldNumber, Variadic::Integer(next_prio));
   }
+}
+
+StringId FtraceSchedEventTracker::TaskStateToStringId(int64_t task_state_int) {
+  using ftrace_utils::TaskState;
+  std::optional<VersionNumber> kernel_version =
+      SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
+
+  TaskState task_state = TaskState::FromRawPrevState(
+      static_cast<uint16_t>(task_state_int), kernel_version);
+  return task_state.is_valid()
+             ? context_->storage->InternString(task_state.ToString().data())
+             : kNullStringId;
 }
 
 }  // namespace trace_processor
