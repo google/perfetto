@@ -13,3 +13,4 @@ g2d:tracing_mark_write
 power:suspend_resume
 cpuhp:cpuhp_pause
 lwis:tracing_mark_write
+panel:panel_write_generic
