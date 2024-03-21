@@ -19,6 +19,8 @@ syntax = "proto2";
 package protozero.test.protos;
 
 import "src/protozero/test/example_proto/library.proto";
+import "src/protozero/test/example_proto/other_package/test_messages.proto";
+import "src/protozero/test/example_proto/subpackage/test_messages.proto";
 
 // This file contains comprehensive set of supported message structures and
 // data types. Unit tests depends on the plugin-processed version of this file.
@@ -178,4 +180,16 @@ message TestVersioning_V2 {
   optional Sub2_V2 sub2 = 11;
   repeated Sub2_V2 sub2_rep = 12;
   optional Sub2_V2 sub2_lazy = 13 [lazy = true];
+}
+
+message DifferentPackages {
+  optional subpackage.Message subpackage_message = 1;
+  optional subpackage.Message.NestedMessage subpackage_nested_message = 2;
+  optional subpackage.Enum subpackage_enum = 3;
+  optional subpackage.Message.NestedEnum subpackage_nested_enum = 4;
+
+  optional .other_package.Message otherpackage_message = 5;
+  optional .other_package.Message.NestedMessage otherpackage_nested_message = 6;
+  optional .other_package.Enum otherpackage_enum = 7;
+  optional .other_package.Message.NestedEnum otherpackage_nested_enum = 8;
 }
