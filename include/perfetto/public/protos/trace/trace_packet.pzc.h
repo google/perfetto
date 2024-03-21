@@ -29,6 +29,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraFrameEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidCameraSessionStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidEnergyEstimationBreakdown);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionList);
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidInputEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemProperty);
 PERFETTO_PB_MSG_DECL(perfetto_protos_BatteryCounters);
@@ -39,6 +40,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ClockSnapshot);
 PERFETTO_PB_MSG_DECL(perfetto_protos_CpuInfo);
 PERFETTO_PB_MSG_DECL(perfetto_protos_DeobfuscationMapping);
 PERFETTO_PB_MSG_DECL(perfetto_protos_EntityStateResidency);
+PERFETTO_PB_MSG_DECL(perfetto_protos_EtwTraceEventBundle);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ExtensionDescriptor);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FrameTimelineEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceEventBundle);
@@ -66,6 +68,11 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStats);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessTree);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProfilePacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProfiledFrameSymbols);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogMessage);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogViewerConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_RemoteClockSync);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ShellHandlerMappings);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ShellTransition);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SmapsPacket);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StatsdAtom);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StreamingAllocation);
@@ -87,6 +94,11 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_TransactionTraceEntry);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TranslationTable);
 PERFETTO_PB_MSG_DECL(perfetto_protos_Trigger);
 PERFETTO_PB_MSG_DECL(perfetto_protos_UiState);
+PERFETTO_PB_MSG_DECL(perfetto_protos_V8CodeMove);
+PERFETTO_PB_MSG_DECL(perfetto_protos_V8InternalCode);
+PERFETTO_PB_MSG_DECL(perfetto_protos_V8JsCode);
+PERFETTO_PB_MSG_DECL(perfetto_protos_V8RegExpCode);
+PERFETTO_PB_MSG_DECL(perfetto_protos_V8WasmCode);
 PERFETTO_PB_MSG_DECL(perfetto_protos_VulkanApiEvent);
 PERFETTO_PB_MSG_DECL(perfetto_protos_VulkanMemoryEvent);
 
@@ -423,6 +435,66 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   94);
 PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   MSG,
+                  perfetto_protos_ShellTransition,
+                  shell_transition,
+                  96);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_ShellHandlerMappings,
+                  shell_handler_mappings,
+                  97);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_ProtoLogMessage,
+                  protolog_message,
+                  104);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_ProtoLogViewerConfig,
+                  protolog_viewer_config,
+                  105);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_EtwTraceEventBundle,
+                  etw_events,
+                  95);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_V8JsCode,
+                  v8_js_code,
+                  99);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_V8InternalCode,
+                  v8_internal_code,
+                  100);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_V8WasmCode,
+                  v8_wasm_code,
+                  101);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_V8RegExpCode,
+                  v8_reg_exp_code,
+                  102);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_V8CodeMove,
+                  v8_code_move,
+                  103);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_AndroidInputEvent,
+                  android_input_event,
+                  106);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
+                  perfetto_protos_RemoteClockSync,
+                  remote_clock_sync,
+                  107);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  MSG,
                   perfetto_protos_TestEvent,
                   for_testing,
                   900);
@@ -467,5 +539,10 @@ PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
                   bool,
                   first_packet_on_sequence,
                   87);
+PERFETTO_PB_FIELD(perfetto_protos_TracePacket,
+                  VARINT,
+                  uint32_t,
+                  machine_id,
+                  98);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_TRACE_PACKET_PZC_H_

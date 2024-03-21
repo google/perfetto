@@ -25,7 +25,11 @@
 
 #include "perfetto/public/pb_macros.h"
 #include "src/shared_lib/test/protos/library.pzc.h"
+#include "src/shared_lib/test/protos/other_package/test_messages.pzc.h"
+#include "src/shared_lib/test/protos/subpackage/test_messages.pzc.h"
 
+PERFETTO_PB_MSG_DECL(other_package_Message);
+PERFETTO_PB_MSG_DECL(other_package_Message_NestedMessage);
 PERFETTO_PB_MSG_DECL(protozero_test_protos_EveryField);
 PERFETTO_PB_MSG_DECL(protozero_test_protos_NestedA_NestedB);
 PERFETTO_PB_MSG_DECL(protozero_test_protos_NestedA_NestedB_NestedC);
@@ -33,6 +37,8 @@ PERFETTO_PB_MSG_DECL(protozero_test_protos_TestVersioning_V1_Sub1_V1);
 PERFETTO_PB_MSG_DECL(protozero_test_protos_TestVersioning_V2_Sub1_V2);
 PERFETTO_PB_MSG_DECL(protozero_test_protos_TestVersioning_V2_Sub2_V2);
 PERFETTO_PB_MSG_DECL(protozero_test_protos_TransgalacticMessage);
+PERFETTO_PB_MSG_DECL(protozero_test_protos_subpackage_Message);
+PERFETTO_PB_MSG_DECL(protozero_test_protos_subpackage_Message_NestedMessage);
 
 PERFETTO_PB_ENUM(protozero_test_protos_SmallEnum){
     PERFETTO_PB_ENUM_ENTRY(protozero_test_protos_TO_BE) = 1,
@@ -70,6 +76,48 @@ PERFETTO_PB_ENUM_IN_MSG(protozero_test_protos_EveryField, NestedEnum){
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(protozero_test_protos_EveryField, PING) = 1,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(protozero_test_protos_EveryField, PONG) = 2,
 };
+
+PERFETTO_PB_MSG(protozero_test_protos_DifferentPackages);
+PERFETTO_PB_FIELD(protozero_test_protos_DifferentPackages,
+                  MSG,
+                  protozero_test_protos_subpackage_Message,
+                  subpackage_message,
+                  1);
+PERFETTO_PB_FIELD(protozero_test_protos_DifferentPackages,
+                  MSG,
+                  protozero_test_protos_subpackage_Message_NestedMessage,
+                  subpackage_nested_message,
+                  2);
+PERFETTO_PB_FIELD(protozero_test_protos_DifferentPackages,
+                  VARINT,
+                  enum protozero_test_protos_subpackage_Enum,
+                  subpackage_enum,
+                  3);
+PERFETTO_PB_FIELD(protozero_test_protos_DifferentPackages,
+                  VARINT,
+                  enum protozero_test_protos_subpackage_Message_NestedEnum,
+                  subpackage_nested_enum,
+                  4);
+PERFETTO_PB_FIELD(protozero_test_protos_DifferentPackages,
+                  MSG,
+                  other_package_Message,
+                  otherpackage_message,
+                  5);
+PERFETTO_PB_FIELD(protozero_test_protos_DifferentPackages,
+                  MSG,
+                  other_package_Message_NestedMessage,
+                  otherpackage_nested_message,
+                  6);
+PERFETTO_PB_FIELD(protozero_test_protos_DifferentPackages,
+                  VARINT,
+                  enum other_package_Enum,
+                  otherpackage_enum,
+                  7);
+PERFETTO_PB_FIELD(protozero_test_protos_DifferentPackages,
+                  VARINT,
+                  enum other_package_Message_NestedEnum,
+                  otherpackage_nested_enum,
+                  8);
 
 PERFETTO_PB_MSG(protozero_test_protos_TestVersioning_V2);
 PERFETTO_PB_FIELD(protozero_test_protos_TestVersioning_V2,
