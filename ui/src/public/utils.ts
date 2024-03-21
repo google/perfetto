@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {Selection} from '../common/state';
+import {LegacySelection} from '../common/state';
 import {BottomTab} from '../frontend/bottom_tab';
 
 import {DetailsPanel, Tab} from '.';
@@ -97,7 +97,7 @@ export function getTrackName(
 }
 
 export interface BottomTabAdapterAttrs {
-  tabFactory: (sel: Selection) => BottomTab | undefined;
+  tabFactory: (sel: LegacySelection) => BottomTab | undefined;
 }
 
 /**
@@ -129,7 +129,7 @@ export interface BottomTabAdapterAttrs {
     })
  */
 export class BottomTabToSCSAdapter implements DetailsPanel {
-  private oldSelection?: Selection;
+  private oldSelection?: LegacySelection;
   private bottomTab?: BottomTab;
   private attrs: BottomTabAdapterAttrs;
 
@@ -137,7 +137,7 @@ export class BottomTabToSCSAdapter implements DetailsPanel {
     this.attrs = attrs;
   }
 
-  render(selection: Selection): m.Children {
+  render(selection: LegacySelection): m.Children {
     // Detect selection changes, assuming selection is immutable
     if (selection !== this.oldSelection) {
       this.oldSelection = selection;

@@ -17,7 +17,7 @@ import {v4 as uuidv4} from 'uuid';
 import {Disposable, DisposableCallback} from '../../base/disposable';
 import {Actions} from '../../common/actions';
 import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
-import {Selection} from '../../common/state';
+import {LegacySelection} from '../../common/state';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
 import {GenericSliceDetailsTabConfigBase} from '../../frontend/generic_slice_details_tab';
 import {globals} from '../../frontend/globals';
@@ -105,7 +105,7 @@ export abstract class CustomSqlTableSliceTrack<
     return `SELECT * FROM ${this.tableName}`;
   }
 
-  isSelectionHandled(selection: Selection) {
+  isSelectionHandled(selection: LegacySelection) {
     if (selection.kind !== 'GENERIC_SLICE') {
       return false;
     }

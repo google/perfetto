@@ -18,7 +18,7 @@ import {Hotkey} from '../base/hotkeys';
 import {duration, time} from '../base/time';
 import {Migrate, Store} from '../base/store';
 import {ColorScheme} from '../core/colorizer';
-import {Selection} from '../common/state';
+import {LegacySelection} from '../common/state';
 import {PanelSize} from '../frontend/panel';
 import {EngineProxy} from '../trace_processor/engine';
 
@@ -325,7 +325,7 @@ export interface TabDescriptor {
 }
 
 export interface DetailsPanel {
-  render(selection: Selection): m.Children;
+  render(selection: LegacySelection): m.Children;
   isLoading?(): boolean;
 }
 
