@@ -25,24 +25,14 @@ import {dictToTree, Tree, TreeNode} from '../widgets/tree';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
 import {sqlValueToString} from './sql_utils';
 
-export interface ColumnConfig {
-  displayName?: string;
-}
+import {GenericSliceDetailsTabConfig} from '../core/generic_slice_details_types';
 
-export type Columns = {
-  [columnName: string]: ColumnConfig;
-};
-
-export interface GenericSliceDetailsTabConfigBase {
-  sqlTableName: string;
-  title: string;
-  // All columns are rendered if |columns| is undefined.
-  columns?: Columns;
-}
-
-export type GenericSliceDetailsTabConfig = GenericSliceDetailsTabConfigBase & {
-  id: number;
-};
+export {
+  ColumnConfig,
+  Columns,
+  GenericSliceDetailsTabConfigBase,
+  GenericSliceDetailsTabConfig,
+} from '../core/generic_slice_details_types';
 
 // A details tab, which fetches slice-like object from a given SQL table by id
 // and renders it according to the provided config, specifying which columns
