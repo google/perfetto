@@ -32,6 +32,7 @@ import {
   EngineMode,
   PendingDeeplinkState,
   ProfileType,
+  getLegacySelection,
 } from '../common/state';
 import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {BottomTabList} from '../frontend/bottom_tab';
@@ -675,8 +676,9 @@ export class TraceController extends Controller<States> {
     // If the trace was shared via a permalink, it might already have a
     // selection. Emit onSelectionChanged to ensure that the components (like
     // current selection details) react to it.
-    if (globals.state.currentSelection !== null) {
-      onSelectionChanged(globals.state.currentSelection, true);
+    const currentSelection = getLegacySelection(globals.state);
+    if (currentSelection !== null) {
+      onSelectionChanged(currentSelection, true);
     }
 
     globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));

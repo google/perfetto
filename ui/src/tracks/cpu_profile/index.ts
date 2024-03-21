@@ -14,6 +14,7 @@
 
 import {searchSegment} from '../../base/binary_search';
 import {duration, Time, time} from '../../base/time';
+import {getLegacySelection} from '../../common/state';
 import {Actions} from '../../common/actions';
 import {colorForSample} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';
@@ -117,7 +118,7 @@ class CpuProfileTrack implements Track {
 
     for (let i = 0; i < data.tsStarts.length; i++) {
       const centerX = Time.fromRaw(data.tsStarts[i]);
-      const selection = globals.state.currentSelection;
+      const selection = getLegacySelection(globals.state);
       const isHovered = this.hoveredTs === centerX;
       const isSelected =
         selection !== null &&

@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {CallsiteInfo, CpuProfileSampleSelection} from '../common/state';
+import {
+  CallsiteInfo,
+  CpuProfileSampleSelection,
+  getLegacySelection,
+} from '../common/state';
 import {CpuProfileDetails, globals} from '../frontend/globals';
 import {publishCpuProfileDetails} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';
@@ -34,7 +38,7 @@ export class CpuProfileController extends Controller<'main'> {
   }
 
   run() {
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (!selection || selection.kind !== 'CPU_PROFILE_SAMPLE') {
       return;
     }
