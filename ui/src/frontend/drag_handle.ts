@@ -21,6 +21,7 @@ import {MenuItem, PopupMenu2} from '../widgets/menu';
 
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from './css_constants';
 import {DragGestureHandler} from './drag_gesture_handler';
+import {globals} from './globals';
 
 const DRAG_HANDLE_HEIGHT_PX = 28;
 const UP_ICON = 'keyboard_arrow_up';
@@ -102,7 +103,7 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   // We can't get real fullscreen height until the pan_and_zoom_handler
   // exists.
   private fullscreenHeight = 0;
-  private trash: Trash = new Trash();
+  private trash = new Trash();
 
   oncreate({dom, attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
@@ -118,6 +119,31 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
         this.onDragEnd.bind(this),
       ),
     );
+    const cmd = globals.commandManager.registerCommand({
+      id: 'perfetto.ToggleDrawer',
+      name: 'Toggle drawer',
+      defaultHotkey: 'Q',
+      callback: () => {
+        this.toggleVisibility();
+      },
+    });
+    this.trash.add(cmd);
+  }
+
+  private toggleVisibility() {
+    if (this.height === 0) {
+      this.isClosed = false;
+      if (this.previousHeight === 0) {
+        this.previousHeight = getDefaultDetailsHeight();
+      }
+      this.resize(this.previousHeight);
+    } else {
+      this.isFullscreen = false;
+      this.isClosed = true;
+      this.previousHeight = this.height;
+      this.resize(0);
+    }
+    raf.scheduleFullRedraw();
   }
 
   onupdate({attrs}: m.CVnodeDOM<DragHandleAttrs>) {
@@ -216,19 +242,7 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
         }),
         m(Button, {
           onclick: () => {
-            if (this.height === 0) {
-              this.isClosed = false;
-              if (this.previousHeight === 0) {
-                this.previousHeight = getDefaultDetailsHeight();
-              }
-              this.resize(this.previousHeight);
-            } else {
-              this.isFullscreen = false;
-              this.isClosed = true;
-              this.previousHeight = this.height;
-              this.resize(0);
-            }
-            raf.scheduleFullRedraw();
+            this.toggleVisibility();
           },
           title,
           icon,
