@@ -387,7 +387,7 @@ export interface GenericSliceSelection {
   detailsPanelConfig: {kind: string; config: GenericSliceDetailsTabConfigBase};
 }
 
-export type Selection = (
+export type LegacySelection = (
   | NoteSelection
   | SliceSelection
   | CounterSelection
@@ -400,7 +400,7 @@ export type Selection = (
   | LogSelection
   | GenericSliceSelection
 ) & {trackKey?: string};
-export type SelectionKind = Selection['kind']; // 'THREAD_STATE' | 'SLICE' ...
+export type SelectionKind = LegacySelection['kind']; // 'THREAD_STATE' | 'SLICE' ...
 
 export interface Pagination {
   offset: number;
@@ -574,7 +574,7 @@ export interface State {
   permalink: PermalinkConfig;
   notes: ObjectById<Note | AreaNote>;
   status: Status;
-  legacySelection: Selection | null;
+  legacySelection: LegacySelection | null;
   currentFlamegraphState: FlamegraphState | null;
   logsPagination: Pagination;
   ftracePagination: Pagination;
@@ -999,6 +999,6 @@ export function getContainingTrackId(
   return parentId;
 }
 
-export function getLegacySelection(state: State): Selection | null {
+export function getLegacySelection(state: State): LegacySelection | null {
   return state.legacySelection;
 }

@@ -20,7 +20,7 @@ import {Actions} from '../common/actions';
 import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
 import {addSelectionChangeObserver} from '../common/selection_observer';
-import {Selection, getLegacySelection} from '../common/state';
+import {LegacySelection, getLegacySelection} from '../common/state';
 
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsTab} from './chrome_slice_details_tab';
@@ -50,7 +50,7 @@ function hasLogs(): boolean {
 }
 
 function handleSelectionChange(
-  newSelection: Selection | undefined,
+  newSelection: LegacySelection | undefined,
   openCurrentSelectionTab: boolean,
 ): void {
   const currentSelectionTag = CURRENT_SELECTION_TAG;
