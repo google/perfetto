@@ -29,7 +29,7 @@
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
 // MinGW has these. clang-cl and MSVC, which use just the Windows SDK, don't.
-using uid_t = unsigned int;
+using uid_t = int;
 using pid_t = int;
 #endif  // !GCC
 
