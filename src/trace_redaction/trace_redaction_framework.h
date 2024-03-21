@@ -18,14 +18,15 @@
 #define SRC_TRACE_REDACTION_TRACE_REDACTION_FRAMEWORK_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
-
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_redaction/process_thread_timeline.h"
 
 namespace perfetto::trace_redaction {
 
@@ -156,6 +157,24 @@ class Context {
   //  3.  In this example, a cpu_idle event populates the one-of slot in the
   //      ftrace event
   base::FlatSet<uint32_t> ftrace_packet_allow_list;
+
+  // The timeline is a query-focused data structure that connects a pid to a
+  // uid at specific point in time.
+  //
+  // A timeline has two modes:
+  //
+  //    1. write-only
+  //    2. read-only
+  //
+  // Attempting to use the timeline incorrectly results in undefined behaviour.
+  //
+  // To use a timeline, the primitive needs to be "built" (add events) and then
+  // "sealed" (transition to read-only).
+  //
+  // A timeline must have Sort() called to change from write-only to read-only.
+  // After Sort(), Flatten() and Reduce() can be called (optional) to improve
+  // the practical look-up times (compared to theoretical look-up times).
+  std::unique_ptr<ProcessThreadTimeline> timeline;
 };
 
 // Responsible for extracting low-level data from the trace and storing it in

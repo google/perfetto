@@ -34,8 +34,9 @@ base::Status PrunePackageList::Transform(const Context& context,
     return base::ErrStatus("PrunePackageList: missing package uid.");
   }
 
-  if (protos::pbzero::TracePacket::Decoder trace_packet_decoder(*packet);
-      !trace_packet_decoder.has_packages_list()) {
+  protos::pbzero::TracePacket::Decoder trace_packet_decoder(*packet);
+
+  if (!trace_packet_decoder.has_packages_list()) {
     return base::OkStatus();
   }
 
