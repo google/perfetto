@@ -1047,16 +1047,13 @@ const BT_BYTES = `
     from step3 left join app_package_list pl using(uid)
 `;
 
+// See go/bt_system_context_report for reference on the bit-twiddling.
 const BT_ACTIVITY = `
+  create perfetto table bt_activity as
   with step1 as (
     select
         EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.timestamp_millis') * 1000000 as ts,
-        case EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.bluetooth_stack_state')
-        when 1 then 'active'
-        when 2 then 'scanning'
-        when 3 then 'idle'
-        else 'invalid'
-        end as bluetooth_stack_state,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.bluetooth_stack_state') as bluetooth_stack_state,
         EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.controller_idle_time_millis') * 1000000 as controller_idle_dur,
         EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.controller_tx_time_millis') * 1000000 as controller_tx_dur,
         EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.controller_rx_time_millis') * 1000000 as controller_rx_dur
@@ -1076,11 +1073,27 @@ const BT_ACTIVITY = `
   )
   select
     ts,
-    dur * controller_rx_dur / dur as dur,
-    cast(100.0 * controller_rx_dur / dur as int) || '% RX, ' ||
-        cast(100.0 * controller_tx_dur / dur as int) || '% TX, ' || bluetooth_stack_state as name
+    dur,
+    bluetooth_stack_state & 0x0000000F as acl_active_count,
+    bluetooth_stack_state & 0x000000F0 >> 4 as acl_sniff_count,
+    bluetooth_stack_state & 0x00000F00 >> 8 as acl_ble_count,
+    bluetooth_stack_state & 0x0000F000 >> 12 as advertising_count,
+    case bluetooth_stack_state & 0x000F0000 >> 16
+      when 0 then 'disabled'
+      when 1 then '<5%'
+      when 2 then '5% to 10%'
+      when 3 then '10% to 25%'
+      when 4 then '25% to 100%'
+      else 'invalid'
+    end as le_scan_duty_cycle,
+    bluetooth_stack_state & 0x00100000 >> 20 as inquiry_active,
+    bluetooth_stack_state & 0x00200000 >> 21 as sco_active,
+    bluetooth_stack_state & 0x00400000 >> 22 as a2dp_active,
+    bluetooth_stack_state & 0x00800000 >> 23 as le_audio_active,
+    max(0, 100.0 * controller_idle_dur / dur) as controller_idle_pct,
+    max(0, 100.0 * controller_tx_dur / dur) as controller_tx_pct,
+    max(0, 100.0 * controller_rx_dur / dur) as controller_rx_pct
   from step2
-  where controller_rx_dur > 0
 `;
 
 class AndroidLongBatteryTracing implements Plugin {
@@ -1564,7 +1577,82 @@ class AndroidLongBatteryTracing implements Plugin {
       BT_BYTES,
       groupName,
     );
-    this.addSliceTrack(ctx, 'Activity info', BT_ACTIVITY, groupName);
+    await ctx.engine.query(BT_ACTIVITY);
+    this.addCounterTrack(
+      ctx,
+      'ACL Classic Active Count',
+      'select ts, dur, acl_active_count as value from bt_activity',
+      groupName,
+    );
+    this.addCounterTrack(
+      ctx,
+      'ACL Classic Sniff Count',
+      'select ts, dur, acl_sniff_count as value from bt_activity',
+      groupName,
+    );
+    this.addCounterTrack(
+      ctx,
+      'ACL BLE Count',
+      'select ts, dur, acl_ble_count as value from bt_activity',
+      groupName,
+    );
+    this.addCounterTrack(
+      ctx,
+      'Advertising Instance Count',
+      'select ts, dur, advertising_count as value from bt_activity',
+      groupName,
+    );
+    this.addSliceTrack(
+      ctx,
+      'LE Scan Duty Cycle',
+      'select ts, dur, le_scan_duty_cycle as name from bt_activity',
+      groupName,
+    );
+    this.addSliceTrack(
+      ctx,
+      'Inquiry Active',
+      "select ts, dur, 'Active' as name from bt_activity where inquiry_active",
+      groupName,
+    );
+    this.addSliceTrack(
+      ctx,
+      'SCO Active',
+      "select ts, dur, 'Active' as name from bt_activity where sco_active",
+      groupName,
+    );
+    this.addSliceTrack(
+      ctx,
+      'A2DP Active',
+      "select ts, dur, 'Active' as name from bt_activity where a2dp_active",
+      groupName,
+    );
+    this.addSliceTrack(
+      ctx,
+      'LE Audio Active',
+      "select ts, dur, 'Active' as name from bt_activity where le_audio_active",
+      groupName,
+    );
+    this.addCounterTrack(
+      ctx,
+      'Controller Idle Time',
+      'select ts, dur, controller_idle_pct as value from bt_activity',
+      groupName,
+      {yRangeSharingKey: 'bt_controller_time', unit: '%'},
+    );
+    this.addCounterTrack(
+      ctx,
+      'Controller TX Time',
+      'select ts, dur, controller_tx_pct as value from bt_activity',
+      groupName,
+      {yRangeSharingKey: 'bt_controller_time', unit: '%'},
+    );
+    this.addCounterTrack(
+      ctx,
+      'Controller RX Time',
+      'select ts, dur, controller_rx_pct as value from bt_activity',
+      groupName,
+      {yRangeSharingKey: 'bt_controller_time', unit: '%'},
+    );
     this.addSliceTrack(
       ctx,
       'Quality reports',
