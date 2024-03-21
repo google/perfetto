@@ -26,12 +26,14 @@
 #include "perfetto/public/pb_macros.h"
 
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidGameInterventionListConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidInputEventConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidLogConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidPolledStateConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidPowerConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSdkSyspropGuardConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_AndroidSystemPropertyConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ChromeConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_EtwConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_FtraceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_GpuCounterConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_HeapprofdConfig);
@@ -42,6 +44,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_NetworkPacketTraceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PackagesListConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PerfEventConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStatsConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StatsdTracingConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SurfaceFlingerLayersConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SurfaceFlingerTransactionsConfig);
@@ -49,6 +52,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_SysStatsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_SystemInfoConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TestConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_TrackEventConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_V8Config);
 PERFETTO_PB_MSG_DECL(perfetto_protos_VulkanMemoryConfig);
 
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_DataSourceConfig, SessionInitiator){
@@ -196,6 +200,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   101);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   MSG,
+                  perfetto_protos_V8Config,
+                  v8_config,
+                  127);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
                   perfetto_protos_InterceptorConfig,
                   interceptor_config,
                   115);
@@ -219,6 +228,21 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_AndroidSdkSyspropGuardConfig,
                   android_sdk_sysprop_guard_config,
                   124);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_EtwConfig,
+                  etw_config,
+                  125);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_ProtoLogConfig,
+                  protolog_config,
+                  126);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_AndroidInputEventConfig,
+                  android_input_event_config,
+                  128);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   STRING,
                   const char*,

@@ -80,6 +80,8 @@ PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_TraceFilter,
                                   SFP_MATCH_BREAK) = 3,
     PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_TraceFilter,
                                   SFP_ATRACE_MATCH_BREAK) = 4,
+    PERFETTO_PB_ENUM_IN_MSG_ENTRY(perfetto_protos_TraceConfig_TraceFilter,
+                                  SFP_ATRACE_REPEATED_SEARCH_REDACT_GROUPS) = 5,
 };
 
 PERFETTO_PB_ENUM_IN_MSG(perfetto_protos_TraceConfig_TriggerConfig, TriggerMode){
@@ -204,6 +206,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   bugreport_score,
                   30);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
+                  STRING,
+                  const char*,
+                  bugreport_filename,
+                  38);
+PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   MSG,
                   perfetto_protos_TraceConfig_TriggerConfig,
                   trigger_config,
@@ -233,11 +240,6 @@ PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   enum perfetto_protos_TraceConfig_CompressionType,
                   compression_type,
                   24);
-PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
-                  VARINT,
-                  bool,
-                  compress_from_cli,
-                  37);
 PERFETTO_PB_FIELD(perfetto_protos_TraceConfig,
                   MSG,
                   perfetto_protos_TraceConfig_IncidentReportConfig,
