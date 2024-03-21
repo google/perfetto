@@ -95,7 +95,13 @@ class CppObjGenerator : public ::google::protobuf::compiler::CodeGenerator {
     return full_type;
   }
 
+  template <class T>
+  bool HasSamePackage(const T* descriptor) const {
+    return descriptor->file()->package() == package_;
+  }
+
   mutable std::string wrapper_namespace_;
+  mutable std::string package_;
 };
 
 CppObjGenerator::CppObjGenerator() = default;
@@ -115,6 +121,8 @@ bool CppObjGenerator::Generate(const google::protobuf::FileDescriptor* file,
       return false;
     }
   }
+
+  package_ = file->package();
 
   auto get_file_name = [](const FileDescriptor* proto) {
     return StripSuffix(proto->name(), ".proto") + ".gen";
@@ -372,10 +380,16 @@ std::string CppObjGenerator::GetCppType(const FieldDescriptor* field,
       return constref ? "const std::string&" : "std::string";
     case FieldDescriptor::TYPE_MESSAGE:
       assert(!field->options().lazy());
-      return constref ? "const " + GetFullName(field->message_type()) + "&"
-                      : GetFullName(field->message_type());
+      return constref
+                 ? "const " +
+                       GetFullName(field->message_type(),
+                                   !HasSamePackage(field->message_type())) +
+                       "&"
+                 : GetFullName(field->message_type(),
+                               !HasSamePackage(field->message_type()));
     case FieldDescriptor::TYPE_ENUM:
-      return GetFullName(field->enum_type());
+      return GetFullName(field->enum_type(),
+                         !HasSamePackage(field->enum_type()));
     case FieldDescriptor::TYPE_GROUP:
       abort();
   }

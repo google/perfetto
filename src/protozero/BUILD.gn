@@ -93,6 +93,8 @@ perfetto_proto_library("testing_messages_@TYPE@") {
     "test/example_proto/library_internals/galaxies.proto",
     "test/example_proto/test_messages.proto",
     "test/example_proto/upper_import.proto",
+    "test/example_proto/other_package/test_messages.proto",
+    "test/example_proto/subpackage/test_messages.proto",
   ]
   proto_path = perfetto_root_path
 }
