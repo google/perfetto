@@ -274,7 +274,7 @@ int SpanJoinOperatorTable::FindFunction(const char* name,
                                         void**) {
   if (base::CaseInsensitiveEqual(name, "source_geq")) {
     *fn = [](sqlite3_context* ctx, int, sqlite3_value**) {
-      sqlite3_result_error(ctx, "Should not be called.", -1);
+      return sqlite::result::Error(ctx, "Should not be called.");
     };
     return kSourceGeqOpCode;
   }
@@ -297,7 +297,7 @@ SpanJoinOperatorTable::ComputeSqlConstraintsForDefinition(
     // affect the span join computation. Similarily, source_geq constraints
     // explicitly request that they are passed as geq constraints to the source
     // tables.
-    if (col_name == kTsColumnName && !sqlite_utils::IsOpLe(cs.op) &&
+    if (col_name == kTsColumnName && !sqlite::utils::IsOpLe(cs.op) &&
         cs.op != kSourceGeqOpCode)
       continue;
 
@@ -332,7 +332,7 @@ util::Status SpanJoinOperatorTable::CreateTableDefinition(
   }
 
   std::vector<SqliteTable::Column> cols;
-  RETURN_IF_ERROR(sqlite_utils::GetColumnsForTable(
+  RETURN_IF_ERROR(sqlite::utils::GetColumnsForTable(
       engine_->sqlite_engine()->db(), desc.name, cols));
 
   uint32_t required_columns_found = 0;
@@ -558,14 +558,14 @@ base::Status SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context,
   switch (N) {
     case Column::kTimestamp: {
       auto max_ts = std::max(t1_.ts(), t2_.ts());
-      sqlite3_result_int64(context, static_cast<sqlite3_int64>(max_ts));
+      sqlite::result::Long(context, static_cast<sqlite3_int64>(max_ts));
       break;
     }
     case Column::kDuration: {
       auto max_start = std::max(t1_.ts(), t2_.ts());
       auto min_end = std::min(t1_.raw_ts_end(), t2_.raw_ts_end());
       auto dur = min_end - max_start;
-      sqlite3_result_int64(context, static_cast<sqlite3_int64>(dur));
+      sqlite::result::Long(context, static_cast<sqlite3_int64>(dur));
       break;
     }
     case Column::kPartition: {
@@ -576,7 +576,7 @@ base::Status SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context,
         } else {
           partition = t1_.IsReal() ? t1_.partition() : t2_.partition();
         }
-        sqlite3_result_int64(context, static_cast<sqlite3_int64>(partition));
+        sqlite::result::Long(context, static_cast<sqlite3_int64>(partition));
         break;
       }
       PERFETTO_FALLTHROUGH;
@@ -803,33 +803,29 @@ std::string SpanJoinOperatorTable::Query::CreateSqlQuery(
 
 void SpanJoinOperatorTable::Query::ReportSqliteResult(sqlite3_context* context,
                                                       size_t index) {
-  const auto kSqliteTransient = reinterpret_cast<sqlite3_destructor_type>(-1);
   if (state_ != State::kReal) {
-    sqlite3_result_null(context);
-    return;
+    return sqlite::result::Null(context);
   }
 
   sqlite3_stmt* stmt = stmt_->sqlite_stmt();
   int idx = static_cast<int>(index);
   switch (sqlite3_column_type(stmt, idx)) {
     case SQLITE_INTEGER:
-      sqlite3_result_int64(context, sqlite3_column_int64(stmt, idx));
-      break;
+      return sqlite::result::Long(context, sqlite3_column_int64(stmt, idx));
     case SQLITE_FLOAT:
-      sqlite3_result_double(context, sqlite3_column_double(stmt, idx));
-      break;
+      return sqlite::result::Double(context, sqlite3_column_double(stmt, idx));
     case SQLITE_TEXT: {
       // TODO(lalitm): note for future optimizations: if we knew the addresses
       // of the string intern pool, we could check if the string returned here
       // comes from the pool, and pass it as non-transient.
-      auto ptr = reinterpret_cast<const char*>(sqlite3_column_text(stmt, idx));
-      sqlite3_result_text(context, ptr, -1, kSqliteTransient);
-      break;
+      const auto* ptr =
+          reinterpret_cast<const char*>(sqlite3_column_text(stmt, idx));
+      return sqlite::result::TransientString(context, ptr);
     }
     case SQLITE_BLOB: {
-      sqlite3_result_blob(context, sqlite3_column_blob(stmt, idx),
-                          sqlite3_column_bytes(stmt, idx), kSqliteTransient);
-      break;
+      return sqlite::result::TransientBytes(context,
+                                            sqlite3_column_blob(stmt, idx),
+                                            sqlite3_column_bytes(stmt, idx));
     }
   }
 }
