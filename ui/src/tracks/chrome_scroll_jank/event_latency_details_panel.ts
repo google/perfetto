@@ -16,11 +16,7 @@ import m from 'mithril';
 
 import {Duration, duration, time} from '../../base/time';
 import {raf} from '../../core/raf_scheduler';
-import {
-  BottomTab,
-  bottomTabRegistry,
-  NewBottomTabArgs,
-} from '../../frontend/bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {hasArgs, renderArguments} from '../../frontend/slice_args';
 import {renderDetails} from '../../frontend/slice_details';
@@ -547,5 +543,3 @@ export class EventLatencySliceDetailsPanel extends BottomTab<GenericSliceDetails
     return `Current Selection`;
   }
 }
-
-bottomTabRegistry.register(EventLatencySliceDetailsPanel);

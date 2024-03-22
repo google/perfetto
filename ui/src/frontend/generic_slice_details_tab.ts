@@ -22,7 +22,7 @@ import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {dictToTree, Tree, TreeNode} from '../widgets/tree';
 
-import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
+import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {sqlValueToString} from './sql_utils';
 
 export interface ColumnConfig {
@@ -126,5 +126,3 @@ export class GenericSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConf
     return this.data === undefined;
   }
 }
-
-bottomTabRegistry.register(GenericSliceDetailsTab);

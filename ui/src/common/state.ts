@@ -136,7 +136,8 @@ export const MAX_TIME = 180;
 // 46. Remove trackKeyByTrackId.
 // 47. Selection V2
 // 48. Rename legacySelection -> selection and introduce new Selection type.
-export const STATE_VERSION = 48;
+// 49. Remove currentTab, which is only relevant to TabsV1.
+export const STATE_VERSION = 49;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -641,8 +642,6 @@ export interface State {
   pendingScrollId?: number;
 
   searchIndex: number;
-
-  currentTab?: string;
 
   tabs: TabsV2State;
 

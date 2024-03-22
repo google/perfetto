@@ -40,7 +40,6 @@ import {createEmptyState} from './empty_state';
 import {defaultViewingOption} from './flamegraph_util';
 import {
   MetatraceTrackId,
-  traceEvent,
   traceEventBegin,
   traceEventEnd,
   TraceEventScope,
@@ -1077,22 +1076,6 @@ export const StateActions = {
     state.hoveredNoteTimestamp = args.ts;
   },
 
-  // Tab V1 specific
-  setCurrentTab(state: StateDraft, args: {tab: string | undefined}) {
-    traceEvent(
-      'setCurrentTab',
-      () => {
-        state.currentTab = args.tab;
-      },
-      {
-        args: {
-          tab: args.tab ?? '<undefined>',
-        },
-      },
-    );
-  },
-
-  // Specific to tabs V2.
   // Add a tab with a given URI to the tab bar and show it.
   // If the tab is already present in the tab bar, just show it.
   showTab(state: StateDraft, args: {uri: string}) {
@@ -1106,7 +1089,6 @@ export const StateActions = {
     state.tabs.currentTab = args.uri;
   },
 
-  // Specific to tabs V2.
   // Hide a tab in the tab bar pick a new tab to show.
   // Note: Attempting to hide the "current_selection" tab doesn't work. This tab
   // is special and cannot be removed.
