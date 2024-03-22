@@ -36,6 +36,7 @@ source_set("sqlite") {
     "sqlite_utils.cc",
     "sqlite_utils.h",
     "sqlite_utils.h",
+    "sqlite_window_function.h",
     "stats_table.cc",
     "stats_table.h",
   ]

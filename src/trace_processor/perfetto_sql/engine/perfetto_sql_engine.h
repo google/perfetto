@@ -43,6 +43,7 @@
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/sqlite/sqlite_window_function.h"
 #include "src/trace_processor/util/sql_argument.h"
 #include "src/trace_processor/util/sql_modules.h"
 
@@ -87,7 +88,7 @@ class PerfettoSqlEngine {
   //
   // The format of the function is given by the |SqlFunction|.
   //
-  // |name|:        name of the function in SQL
+  // |name|:        name of the function in SQL.
   // |argc|:        number of arguments for this function. This can be -1 if
   //                the number of arguments is variable.
   // |ctx|:         context object for the function (see SqlFunction::Run);
@@ -113,6 +114,24 @@ class PerfettoSqlEngine {
       int argc,
       std::unique_ptr<typename Function::Context> ctx,
       bool deterministic = true);
+
+  // Registers a trace processor C++ window function to be runnable from SQL.
+  //
+  // The format of the function is given by the |SqliteWindowFunction|.
+  //
+  // |name|:        name of the function in SQL.
+  // |argc|:        number of arguments for this function. This can be -1 if
+  //                the number of arguments is variable.
+  // |ctx|:         context object for the function (see SqlFunction::Run);
+  //                this object *must* outlive the function so should likely be
+  //                either static or scoped to the lifetime of TraceProcessor.
+  // |determistic|: whether this function has deterministic output given the
+  //                same set of arguments.
+  template <typename Function = SqliteWindowFunction>
+  base::Status RegisterSqliteWindowFunction(const char* name,
+                                            int argc,
+                                            typename Function::Context* ctx,
+                                            bool deterministic = true);
 
   // Registers a function with the prototype |prototype| which returns a value
   // of |return_type| and is implemented by executing the SQL statement |sql|.
@@ -173,7 +192,7 @@ class PerfettoSqlEngine {
     // The missing objects from the above query are static functions, runtime
     // functions and macros. Add those in now.
     return query_count + static_function_count_ + runtime_function_count_ +
-           macros_.size();
+           static_window_function_count_ + macros_.size();
   }
 
   // Find RuntimeTable registered with engine with provided name.
@@ -234,6 +253,7 @@ class PerfettoSqlEngine {
 
   uint64_t static_function_count_ = 0;
   uint64_t runtime_function_count_ = 0;
+  uint64_t static_window_function_count_ = 0;
 
   base::FlatHashMap<std::string, std::unique_ptr<RuntimeTableFunction::State>>
       runtime_table_fn_states_;
@@ -313,6 +333,18 @@ base::Status PerfettoSqlEngine::RegisterStaticFunction(
   return engine_->RegisterFunction(
       name, argc, perfetto_sql_internal::WrapSqlFunction<Function>, ctx,
       nullptr, deterministic);
+}
+
+template <typename Function>
+base::Status PerfettoSqlEngine::RegisterSqliteWindowFunction(
+    const char* name,
+    int argc,
+    typename Function::Context* ctx,
+    bool deterministic) {
+  static_window_function_count_++;
+  return engine_->RegisterWindowFunction(
+      name, argc, Function::Step, Function::Inverse, Function::Value,
+      Function::Final, ctx, nullptr, deterministic);
 }
 
 template <typename Function>

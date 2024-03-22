@@ -18,6 +18,7 @@
 #include <sqlite3.h>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 
 namespace perfetto::trace_processor {
 
@@ -26,14 +27,12 @@ class TraceProcessorContext;
 // Implements INTERNAL_LAYOUT(ts, dur) window aggregate function.
 // This function takes a set of slices (ordered by ts) and computes depths
 // allowing them to be displayed on a single track in a non-overlapping manner,
-// while trying to minimising total height.
+// while trying to minimise the total height.
 //
 // TODO(altimin): this should support grouping sets of sets of slices (aka
 // "tracks") by passing 'track_id' parameter. The complication is that we will
 // need to know the max depth for each "track", so it's punted for now.
-struct LayoutFunctions {
-  static base::Status Register(sqlite3* db, TraceProcessorContext* context);
-};
+base::Status RegisterLayoutFunctions(PerfettoSqlEngine& engine);
 
 }  // namespace perfetto::trace_processor
 

@@ -51,6 +51,14 @@ namespace trace_processor {
 class SqliteEngine {
  public:
   using Fn = void(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+  using WindowFnStep = void(sqlite3_context* ctx,
+                            int argc,
+                            sqlite3_value** argv);
+  using WindowFnInverse = void(sqlite3_context* ctx,
+                               int argc,
+                               sqlite3_value** argv);
+  using WindowFnValue = void(sqlite3_context* ctx);
+  using WindowFnFinal = void(sqlite3_context* ctx);
   using FnCtxDestructor = void(void*);
 
   // Wrapper class for SQLite's |sqlite3_stmt| struct and associated functions.
@@ -89,6 +97,17 @@ class SqliteEngine {
                                 void* ctx,
                                 FnCtxDestructor* ctx_destructor,
                                 bool deterministic);
+
+  // Registers a C++ window function to be runnable from SQL.
+  base::Status RegisterWindowFunction(const char* name,
+                                      int argc,
+                                      WindowFnStep* step,
+                                      WindowFnInverse* inverse,
+                                      WindowFnValue* value,
+                                      WindowFnFinal* final,
+                                      void* ctx,
+                                      FnCtxDestructor* ctx_destructor,
+                                      bool deterministic);
 
   // Unregisters a C++ function from SQL.
   base::Status UnregisterFunction(const char* name, int argc);
