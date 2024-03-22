@@ -245,10 +245,6 @@ additional_args = {
         ('test_suites', {'general-tests'}),
         ('test_config', 'PerfettoIntegrationTests.xml'),
     ],
-    'traced_probes': [('required', {
-        'libperfetto_android_internal', 'trigger_perfetto', 'traced_perf',
-        'mm_events'
-    }),],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
     'trace_processor_shell': [
         ('strip', {
