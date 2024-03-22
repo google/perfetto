@@ -38,7 +38,7 @@ base::Status CreateFunction::Run(PerfettoSqlEngine* engine,
                                  sqlite3_value** argv,
                                  SqlValue&,
                                  Destructors&) {
-  RETURN_IF_ERROR(sqlite_utils::CheckArgCount("CREATE_FUNCTION", argc, 3u));
+  RETURN_IF_ERROR(sqlite::utils::CheckArgCount("CREATE_FUNCTION", argc, 3u));
 
   sqlite3_value* prototype_value = argv[0];
   sqlite3_value* return_type_value = argv[1];
@@ -48,7 +48,7 @@ base::Status CreateFunction::Run(PerfettoSqlEngine* engine,
   {
     auto type_check = [prototype_value](sqlite3_value* value,
                                         SqlValue::Type type, const char* desc) {
-      base::Status status = sqlite_utils::TypeCheckSqliteValue(value, type);
+      base::Status status = sqlite::utils::TypeCheckSqliteValue(value, type);
       if (!status.ok()) {
         return base::ErrStatus("CREATE_FUNCTION[prototype=%s]: %s %s",
                                sqlite3_value_text(prototype_value), desc,
@@ -85,9 +85,10 @@ base::Status ExperimentalMemoize::Run(PerfettoSqlEngine* engine,
                                       sqlite3_value** argv,
                                       SqlValue&,
                                       Destructors&) {
-  RETURN_IF_ERROR(sqlite_utils::CheckArgCount("EXPERIMENTAL_MEMOIZE", argc, 1));
+  RETURN_IF_ERROR(
+      sqlite::utils::CheckArgCount("EXPERIMENTAL_MEMOIZE", argc, 1));
   base::StatusOr<std::string> function_name =
-      sqlite_utils::ExtractStringArg("MEMOIZE", "function_name", argv[0]);
+      sqlite::utils::ExtractStringArg("MEMOIZE", "function_name", argv[0]);
   RETURN_IF_ERROR(function_name.status());
   return engine->EnableSqlFunctionMemoization(*function_name);
 }

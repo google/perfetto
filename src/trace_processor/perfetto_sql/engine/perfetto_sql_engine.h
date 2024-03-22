@@ -41,6 +41,7 @@
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/util/sql_argument.h"
 #include "src/trace_processor/util/sql_modules.h"
@@ -267,13 +268,13 @@ void WrapSqlFunction(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   base::Status status =
       Function::Run(ud, static_cast<size_t>(argc), argv, value, destructors);
   if (!status.ok()) {
-    sqlite3_result_error(ctx, status.c_message(), -1);
+    sqlite::result::Error(ctx, status.c_message());
     return;
   }
 
   if (Function::kVoidReturn) {
     if (!value.is_null()) {
-      sqlite3_result_error(ctx, "void SQL function returned value", -1);
+      sqlite::result::Error(ctx, "void SQL function returned value");
       return;
     }
 
@@ -283,15 +284,15 @@ void WrapSqlFunction(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     // if we don't actually read it - just set it to a pointer to an empty
     // string for this reason.
     static char kVoidValue[] = "";
-    sqlite3_result_pointer(ctx, kVoidValue, "VOID", nullptr);
+    sqlite::result::StaticPointer(ctx, kVoidValue, "VOID");
   } else {
-    sqlite_utils::ReportSqlValue(ctx, value, destructors.string_destructor,
-                                 destructors.bytes_destructor);
+    sqlite::utils::ReportSqlValue(ctx, value, destructors.string_destructor,
+                                  destructors.bytes_destructor);
   }
 
   status = Function::VerifyPostConditions(ud);
   if (!status.ok()) {
-    sqlite3_result_error(ctx, status.c_message(), -1);
+    sqlite::result::Error(ctx, status.c_message());
     return;
   }
 }

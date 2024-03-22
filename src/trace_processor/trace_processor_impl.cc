@@ -17,20 +17,32 @@
 #include "src/trace_processor/trace_processor_impl.h"
 
 #include <algorithm>
+#include <chrono>
+#include <cinttypes>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/small_vector.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/iterator.h"
+#include "perfetto/trace_processor/trace_blob_view.h"
+#include "perfetto/trace_processor/trace_processor.h"
+#include "sqlite/sqlite_utils.h"
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -88,10 +100,14 @@
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/stats_table.h"
+#include "src/trace_processor/storage/metadata.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tp_metatrace.h"
+#include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
+#include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/regex.h"
@@ -103,6 +119,7 @@
 #include "protos/perfetto/trace/perfetto/perfetto_metatrace.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 
 namespace perfetto::trace_processor {
 namespace {
@@ -130,8 +147,8 @@ void RegisterAllProtoBuilderFunctions(DescriptorPool* pool,
     std::replace(fn_name.begin(), fn_name.end(), '.', '_');
     RegisterFunction<metrics::BuildProto>(
         engine, fn_name.c_str(), -1,
-        std::unique_ptr<metrics::BuildProto::Context>(
-            new metrics::BuildProto::Context{tp, pool, i}));
+        std::make_unique<metrics::BuildProto::Context>(
+            metrics::BuildProto::Context{tp, pool, i}));
   }
 }
 
@@ -169,24 +186,22 @@ void ValueAtMaxTsStep(sqlite3_context* ctx, int, sqlite3_value** argv) {
 
   // Note that sqlite3_aggregate_context zeros the memory for us so all the
   // variables of the struct should be zero.
-  ValueAtMaxTsContext* fn_ctx = reinterpret_cast<ValueAtMaxTsContext*>(
+  auto* fn_ctx = reinterpret_cast<ValueAtMaxTsContext*>(
       sqlite3_aggregate_context(ctx, sizeof(ValueAtMaxTsContext)));
 
   // For performance reasons, we only do the check for the type of ts and value
   // on the first call of the function.
   if (PERFETTO_UNLIKELY(!fn_ctx->initialized)) {
     if (sqlite3_value_type(ts) != SQLITE_INTEGER) {
-      sqlite3_result_error(ctx, "VALUE_AT_MAX_TS: ts passed was not an integer",
-                           -1);
-      return;
+      return sqlite::result::Error(
+          ctx, "VALUE_AT_MAX_TS: ts passed was not an integer");
     }
 
     fn_ctx->value_type = sqlite3_value_type(value);
     if (fn_ctx->value_type != SQLITE_INTEGER &&
         fn_ctx->value_type != SQLITE_FLOAT) {
-      sqlite3_result_error(
-          ctx, "VALUE_AT_MAX_TS: value passed was not an integer or float", -1);
-      return;
+      return sqlite::result::Error(
+          ctx, "VALUE_AT_MAX_TS: value passed was not an integer or float");
     }
 
     fn_ctx->max_ts = std::numeric_limits<int64_t>::min();
@@ -196,14 +211,12 @@ void ValueAtMaxTsStep(sqlite3_context* ctx, int, sqlite3_value** argv) {
   // On dcheck builds however, we check every passed ts and value.
 #if PERFETTO_DCHECK_IS_ON()
   if (sqlite3_value_type(ts) != SQLITE_INTEGER) {
-    sqlite3_result_error(ctx, "VALUE_AT_MAX_TS: ts passed was not an integer",
-                         -1);
-    return;
+    return sqlite::result::Error(
+        ctx, "VALUE_AT_MAX_TS: ts passed was not an integer");
   }
   if (sqlite3_value_type(value) != fn_ctx->value_type) {
-    sqlite3_result_error(ctx, "VALUE_AT_MAX_TS: value type is inconsistent",
-                         -1);
-    return;
+    return sqlite::result::Error(ctx,
+                                 "VALUE_AT_MAX_TS: value type is inconsistent");
   }
 #endif
 
@@ -223,13 +236,13 @@ void ValueAtMaxTsFinal(sqlite3_context* ctx) {
   ValueAtMaxTsContext* fn_ctx =
       reinterpret_cast<ValueAtMaxTsContext*>(sqlite3_aggregate_context(ctx, 0));
   if (!fn_ctx) {
-    sqlite3_result_null(ctx);
+    sqlite::result::Null(ctx);
     return;
   }
   if (fn_ctx->value_type == SQLITE_INTEGER) {
-    sqlite3_result_int64(ctx, fn_ctx->int_value_at_max_ts);
+    sqlite::result::Long(ctx, fn_ctx->int_value_at_max_ts);
   } else {
-    sqlite3_result_double(ctx, fn_ctx->double_value_at_max_ts);
+    sqlite::result::Double(ctx, fn_ctx->double_value_at_max_ts);
   }
 }
 
@@ -318,27 +331,33 @@ void InitializePreludeTablesViews(sqlite3* db) {
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
-  context_.fuchsia_trace_tokenizer.reset(new FuchsiaTraceTokenizer(&context_));
-  context_.fuchsia_trace_parser.reset(new FuchsiaTraceParser(&context_));
-  context_.ninja_log_parser.reset(new NinjaLogParser(&context_));
-  context_.systrace_trace_parser.reset(new SystraceTraceParser(&context_));
-  context_.perf_data_trace_tokenizer.reset(
-      new perf_importer::PerfDataTokenizer(&context_));
-  context_.perf_data_parser.reset(new perf_importer::PerfDataParser(&context_));
+  context_.fuchsia_trace_tokenizer =
+      std::make_unique<FuchsiaTraceTokenizer>(&context_);
+  context_.fuchsia_trace_parser =
+      std::make_unique<FuchsiaTraceParser>(&context_);
+  context_.ninja_log_parser = std::make_unique<NinjaLogParser>(&context_);
+  context_.systrace_trace_parser =
+      std::make_unique<SystraceTraceParser>(&context_);
+  context_.perf_data_trace_tokenizer =
+      std::make_unique<perf_importer::PerfDataTokenizer>(&context_);
+  context_.perf_data_parser =
+      std::make_unique<perf_importer::PerfDataParser>(&context_);
 
   if (util::IsGzipSupported()) {
-    context_.gzip_trace_parser.reset(new GzipTraceParser(&context_));
-    context_.android_bugreport_parser.reset(
-        new AndroidBugreportParser(&context_));
+    context_.gzip_trace_parser = std::make_unique<GzipTraceParser>(&context_);
+    context_.android_bugreport_parser =
+        std::make_unique<AndroidBugreportParser>(&context_);
   }
 
   if (json::IsJsonSupported()) {
-    context_.json_trace_tokenizer.reset(new JsonTraceTokenizer(&context_));
-    context_.json_trace_parser.reset(new JsonTraceParser(&context_));
+    context_.json_trace_tokenizer =
+        std::make_unique<JsonTraceTokenizer>(&context_);
+    context_.json_trace_parser = std::make_unique<JsonTraceParser>(&context_);
   }
 
   if (context_.config.analyze_trace_proto_content) {
-    context_.content_analyzer.reset(new ProtoContentAnalyzer(&context_));
+    context_.content_analyzer =
+        std::make_unique<ProtoContentAnalyzer>(&context_);
   }
 
   // Add metrics to descriptor pool
@@ -480,7 +499,8 @@ bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
       pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
   if (!desc_idx.has_value())
     return false;
-  auto field_idx = pool_.descriptors()[*desc_idx].FindFieldByName(metric_name);
+  const auto* field_idx =
+      pool_.descriptors()[*desc_idx].FindFieldByName(metric_name);
   return field_idx != nullptr;
 }
 
@@ -661,10 +681,10 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
                                         1, engine_.get());
   RegisterFunction<Import>(
       engine_.get(), "IMPORT", 1,
-      std::unique_ptr<Import::Context>(new Import::Context{engine_.get()}));
+      std::make_unique<Import::Context>(Import::Context{engine_.get()}));
   RegisterFunction<ToFtrace>(
       engine_.get(), "TO_FTRACE", 1,
-      std::unique_ptr<ToFtrace::Context>(new ToFtrace::Context{
+      std::make_unique<ToFtrace::Context>(ToFtrace::Context{
           context_.storage.get(), SystraceSerializer(&context_)}));
 
   if constexpr (regex::IsRegexSupported()) {
@@ -691,12 +711,12 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       PERFETTO_ELOG("%s", status.c_message());
   }
   {
-    base::Status status = RegisterMathFunctions(*engine_.get());
+    base::Status status = RegisterMathFunctions(*engine_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
   {
-    base::Status status = RegisterBase64Functions(*engine_.get());
+    base::Status status = RegisterBase64Functions(*engine_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
@@ -744,8 +764,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
                                                "UNWRAP_METRIC_PROTO", 2);
   RegisterFunction<metrics::RunMetric>(
       engine_.get(), "RUN_METRIC", -1,
-      std::unique_ptr<metrics::RunMetric::Context>(
-          new metrics::RunMetric::Context{engine_.get(), &sql_metrics_}));
+      std::make_unique<metrics::RunMetric::Context>(
+          metrics::RunMetric::Context{engine_.get(), &sql_metrics_}));
 
   // Legacy tables.
   engine_->sqlite_engine()->RegisterVirtualTableModule<SqlStatsTable>(
@@ -855,42 +875,37 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->experimental_missing_chrome_processes_table());
 
   // Tables dynamically generated at query time.
-  engine_->RegisterStaticTableFunction(std::unique_ptr<ExperimentalFlamegraph>(
-      new ExperimentalFlamegraph(&context_)));
-  engine_->RegisterStaticTableFunction(std::unique_ptr<ExperimentalCounterDur>(
-      new ExperimentalCounterDur(storage->counter_table())));
-  engine_->RegisterStaticTableFunction(std::unique_ptr<ExperimentalSliceLayout>(
-      new ExperimentalSliceLayout(context_.storage.get()->mutable_string_pool(),
-                                  &storage->slice_table())));
-  engine_->RegisterStaticTableFunction(std::unique_ptr<TableInfo>(new TableInfo(
-      context_.storage.get()->mutable_string_pool(), engine_.get())));
-  engine_->RegisterStaticTableFunction(std::unique_ptr<Ancestor>(
-      new Ancestor(Ancestor::Type::kSlice, context_.storage.get())));
-  engine_->RegisterStaticTableFunction(std::unique_ptr<Ancestor>(new Ancestor(
-      Ancestor::Type::kStackProfileCallsite, context_.storage.get())));
-  engine_->RegisterStaticTableFunction(std::unique_ptr<Ancestor>(
-      new Ancestor(Ancestor::Type::kSliceByStack, context_.storage.get())));
-  engine_->RegisterStaticTableFunction(std::unique_ptr<Descendant>(
-      new Descendant(Descendant::Type::kSlice, context_.storage.get())));
-  engine_->RegisterStaticTableFunction(std::unique_ptr<Descendant>(
-      new Descendant(Descendant::Type::kSliceByStack, context_.storage.get())));
-  engine_->RegisterStaticTableFunction(std::unique_ptr<ConnectedFlow>(
-      new ConnectedFlow(ConnectedFlow::Mode::kDirectlyConnectedFlow,
-                        context_.storage.get())));
   engine_->RegisterStaticTableFunction(
-      std::unique_ptr<ConnectedFlow>(new ConnectedFlow(
-          ConnectedFlow::Mode::kPrecedingFlow, context_.storage.get())));
+      std::make_unique<ExperimentalFlamegraph>(&context_));
   engine_->RegisterStaticTableFunction(
-      std::unique_ptr<ConnectedFlow>(new ConnectedFlow(
-          ConnectedFlow::Mode::kFollowingFlow, context_.storage.get())));
+      std::make_unique<ExperimentalCounterDur>(storage->counter_table()));
   engine_->RegisterStaticTableFunction(
-      std::unique_ptr<ExperimentalSchedUpid>(new ExperimentalSchedUpid(
-          storage->sched_slice_table(), storage->thread_table())));
+      std::make_unique<ExperimentalSliceLayout>(
+          context_.storage->mutable_string_pool(), &storage->slice_table()));
+  engine_->RegisterStaticTableFunction(std::make_unique<TableInfo>(
+      context_.storage->mutable_string_pool(), engine_.get()));
+  engine_->RegisterStaticTableFunction(std::make_unique<Ancestor>(
+      Ancestor::Type::kSlice, context_.storage.get()));
+  engine_->RegisterStaticTableFunction(std::make_unique<Ancestor>(
+      Ancestor::Type::kStackProfileCallsite, context_.storage.get()));
+  engine_->RegisterStaticTableFunction(std::make_unique<Ancestor>(
+      Ancestor::Type::kSliceByStack, context_.storage.get()));
+  engine_->RegisterStaticTableFunction(std::make_unique<Descendant>(
+      Descendant::Type::kSlice, context_.storage.get()));
+  engine_->RegisterStaticTableFunction(std::make_unique<Descendant>(
+      Descendant::Type::kSliceByStack, context_.storage.get()));
+  engine_->RegisterStaticTableFunction(std::make_unique<ConnectedFlow>(
+      ConnectedFlow::Mode::kDirectlyConnectedFlow, context_.storage.get()));
+  engine_->RegisterStaticTableFunction(std::make_unique<ConnectedFlow>(
+      ConnectedFlow::Mode::kPrecedingFlow, context_.storage.get()));
+  engine_->RegisterStaticTableFunction(std::make_unique<ConnectedFlow>(
+      ConnectedFlow::Mode::kFollowingFlow, context_.storage.get()));
+  engine_->RegisterStaticTableFunction(std::make_unique<ExperimentalSchedUpid>(
+      storage->sched_slice_table(), storage->thread_table()));
   engine_->RegisterStaticTableFunction(
-      std::unique_ptr<ExperimentalAnnotatedStack>(
-          new ExperimentalAnnotatedStack(&context_)));
-  engine_->RegisterStaticTableFunction(std::unique_ptr<ExperimentalFlatSlice>(
-      new ExperimentalFlatSlice(&context_)));
+      std::make_unique<ExperimentalAnnotatedStack>(&context_));
+  engine_->RegisterStaticTableFunction(
+      std::make_unique<ExperimentalFlatSlice>(&context_));
   engine_->RegisterStaticTableFunction(
       std::make_unique<DominatorTree>(context_.storage->mutable_string_pool()));
   engine_->RegisterStaticTableFunction(std::make_unique<IntervalIntersect>(
@@ -982,7 +997,7 @@ base::Status TraceProcessorImpl::DisableAndReadMetatrace(
   base::FlatHashMap<std::string, uint64_t> interned_strings;
   metatrace::DisableAndReadBuffer([&trace, &interned_strings](
                                       metatrace::Record* record) {
-    auto packet = trace->add_packet();
+    auto* packet = trace->add_packet();
     packet->set_timestamp(record->timestamp_ns);
     auto* evt = packet->set_perfetto_metatrace();
 
