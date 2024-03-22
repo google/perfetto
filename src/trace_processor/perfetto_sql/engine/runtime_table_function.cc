@@ -20,6 +20,7 @@
 #include <utility>
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/sqlite/sqlite_result.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
@@ -148,13 +149,13 @@ base::Status RuntimeTableFunction::Cursor::Filter(const QueryConstraints& qc,
 
     // We only support equality constraints as we're expecting "input arguments"
     // to our "function".
-    if (!sqlite_utils::IsOpEq(cs.op)) {
+    if (!sqlite::utils::IsOpEq(cs.op)) {
       return base::ErrStatus("%s: non-equality constraint passed",
                              state_->prototype.function_name.c_str());
     }
 
     const auto& arg = state_->prototype.arguments[col_to_arg_idx(cs.column)];
-    base::Status status = sqlite_utils::TypeCheckSqliteValue(
+    base::Status status = sqlite::utils::TypeCheckSqliteValue(
         argv[i], sql_argument::TypeToSqlValueType(arg.type()),
         sql_argument::TypeToHumanFriendlyString(arg.type()));
     if (!status.ok()) {
@@ -229,16 +230,16 @@ bool RuntimeTableFunction::Cursor::Eof() {
 base::Status RuntimeTableFunction::Cursor::Column(sqlite3_context* ctx, int i) {
   size_t idx = static_cast<size_t>(i);
   if (state_->IsReturnValueColumn(idx)) {
-    sqlite3_result_value(ctx, sqlite3_column_value(stmt_->sqlite_stmt(), i));
+    sqlite::result::Value(ctx, sqlite3_column_value(stmt_->sqlite_stmt(), i));
   } else if (state_->IsArgumentColumn(idx)) {
     // TODO(lalitm): it may be more appropriate to keep a note of the arguments
     // which we passed in and return them here. Not doing this to because it
     // doesn't seem necessary for any useful thing but something which may need
     // to be changed in the future.
-    sqlite3_result_null(ctx);
+    sqlite::result::Null(ctx);
   } else {
     PERFETTO_DCHECK(state_->IsPrimaryKeyColumn(idx));
-    sqlite3_result_int(ctx, next_call_count_);
+    sqlite::result::Long(ctx, next_call_count_);
   }
   return base::OkStatus();
 }

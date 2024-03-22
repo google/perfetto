@@ -128,8 +128,8 @@ class DbSqliteTable final
       // long as we don't call Next(). However, that only happens when Next() is
       // called on the Cursor itself, at which point SQLite no longer cares
       // about the bytes pointer.
-      sqlite_utils::ReportSqlValue(ctx, value, sqlite_utils::kSqliteStatic,
-                                   sqlite_utils::kSqliteStatic);
+      sqlite::utils::ReportSqlValue(ctx, value, sqlite::utils::kSqliteStatic,
+                                    sqlite::utils::kSqliteStatic);
     }
 
    private:

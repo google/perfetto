@@ -87,7 +87,7 @@ struct CatStacksFunction : public SqlFunction {
     // Stack expects the opposite, thus iterates the args in reverse order.
     for (size_t i = argc; i > 0; --i) {
       size_t arg_index = i - 1;
-      SqlValue value = sqlite_utils::SqliteValueToSqlValue(argv[arg_index]);
+      SqlValue value = sqlite::utils::SqliteValueToSqlValue(argv[arg_index]);
       switch (value.type) {
         case SqlValue::kBytes: {
           stack->AppendRawProtoBytes(value.bytes_value, value.bytes_count);
@@ -101,7 +101,7 @@ struct CatStacksFunction : public SqlFunction {
           break;
         case SqlValue::kLong:
         case SqlValue::kDouble:
-          return sqlite_utils::InvalidArgumentTypeError(
+          return sqlite::utils::InvalidArgumentTypeError(
               "entry", arg_index, value.type, SqlValue::kBytes,
               SqlValue::kString, SqlValue::kNull);
       }
@@ -148,7 +148,7 @@ struct StackFromStackProfileCallsiteFunction : public SqlFunction {
           kFunctionName, argc);
     }
 
-    base::StatusOr<SqlValue> value = sqlite_utils::ExtractArgument(
+    base::StatusOr<SqlValue> value = sqlite::utils::ExtractArgument(
         argc, argv, "callsite_id", 0, SqlValue::kNull, SqlValue::kLong);
     if (!value.ok()) {
       return value.status();
@@ -162,7 +162,7 @@ struct StackFromStackProfileCallsiteFunction : public SqlFunction {
              .FindById(tables::StackProfileCallsiteTable::Id(
                  static_cast<uint32_t>(value->AsLong())))
              .has_value()) {
-      return sqlite_utils::ToInvalidArgumentError(
+      return sqlite::utils::ToInvalidArgumentError(
           "callsite_id", 0,
           base::ErrStatus("callsite_id does not exist: %" PRId64,
                           value->AsLong()));
@@ -172,8 +172,8 @@ struct StackFromStackProfileCallsiteFunction : public SqlFunction {
 
     bool annotate = false;
     if (argc == 2) {
-      value = sqlite_utils::ExtractArgument(argc, argv, "annotate", 1,
-                                            SqlValue::Type::kLong);
+      value = sqlite::utils::ExtractArgument(argc, argv, "annotate", 1,
+                                             SqlValue::Type::kLong);
       if (!value.ok()) {
         return value.status();
       }
@@ -215,7 +215,7 @@ struct StackFromStackProfileFrameFunction : public SqlFunction {
                               sqlite3_value** argv,
                               SqlValue& out,
                               Destructors& destructors) {
-    base::StatusOr<SqlValue> value = sqlite_utils::ExtractArgument(
+    base::StatusOr<SqlValue> value = sqlite::utils::ExtractArgument(
         argc, argv, "frame_id", 0, SqlValue::kNull, SqlValue::kLong);
 
     if (!value.ok()) {

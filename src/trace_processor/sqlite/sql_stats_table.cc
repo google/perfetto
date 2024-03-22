@@ -83,17 +83,16 @@ base::Status SqlStatsTable::Cursor::Column(sqlite3_context* context, int col) {
   const TraceStorage::SqlStats& stats = storage_->sql_stats();
   switch (col) {
     case Column::kQuery:
-      sqlite3_result_text(context, stats.queries()[row_].c_str(), -1,
-                          sqlite_utils::kSqliteStatic);
+      sqlite::result::StaticString(context, stats.queries()[row_].c_str());
       break;
     case Column::kTimeStarted:
-      sqlite3_result_int64(context, stats.times_started()[row_]);
+      sqlite::result::Long(context, stats.times_started()[row_]);
       break;
     case Column::kTimeFirstNext:
-      sqlite3_result_int64(context, stats.times_first_next()[row_]);
+      sqlite::result::Long(context, stats.times_first_next()[row_]);
       break;
     case Column::kTimeEnded:
-      sqlite3_result_int64(context, stats.times_ended()[row_]);
+      sqlite::result::Long(context, stats.times_ended()[row_]);
       break;
   }
   return base::OkStatus();

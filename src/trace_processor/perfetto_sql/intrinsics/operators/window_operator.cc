@@ -17,14 +17,11 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h"
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/sqlite/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
-
-namespace {
-using namespace sqlite_utils;
-}  // namespace
 
 WindowOperatorTable::WindowOperatorTable(sqlite3*, const TraceStorage*) {}
 WindowOperatorTable::~WindowOperatorTable() = default;
@@ -114,7 +111,7 @@ base::Status WindowOperatorTable::Cursor::Filter(const QueryConstraints& qc,
   // return the first row.
   bool return_first = qc.constraints().size() == 1 &&
                       qc.constraints()[0].column == Column::kRowId &&
-                      IsOpEq(qc.constraints()[0].op) &&
+                      sqlite::utils::IsOpEq(qc.constraints()[0].op) &&
                       sqlite3_value_int(argv[0]) == 0;
   if (return_first) {
     filter_type_ = FilterType::kReturnFirst;
@@ -128,33 +125,33 @@ base::Status WindowOperatorTable::Cursor::Column(sqlite3_context* context,
                                                  int N) {
   switch (N) {
     case Column::kQuantum: {
-      sqlite3_result_int64(context,
+      sqlite::result::Long(context,
                            static_cast<sqlite_int64>(table_->quantum_));
       break;
     }
     case Column::kWindowStart: {
-      sqlite3_result_int64(context,
+      sqlite::result::Long(context,
                            static_cast<sqlite_int64>(table_->window_start_));
       break;
     }
     case Column::kWindowDur: {
-      sqlite3_result_int(context, static_cast<int>(table_->window_dur_));
+      sqlite::result::Long(context, static_cast<int>(table_->window_dur_));
       break;
     }
     case Column::kTs: {
-      sqlite3_result_int64(context, static_cast<sqlite_int64>(current_ts_));
+      sqlite::result::Long(context, static_cast<sqlite_int64>(current_ts_));
       break;
     }
     case Column::kDuration: {
-      sqlite3_result_int64(context, static_cast<sqlite_int64>(step_size_));
+      sqlite::result::Long(context, static_cast<sqlite_int64>(step_size_));
       break;
     }
     case Column::kQuantumTs: {
-      sqlite3_result_int64(context, static_cast<sqlite_int64>(quantum_ts_));
+      sqlite::result::Long(context, static_cast<sqlite_int64>(quantum_ts_));
       break;
     }
     case Column::kRowId: {
-      sqlite3_result_int64(context, static_cast<sqlite_int64>(row_id_));
+      sqlite::result::Long(context, static_cast<sqlite_int64>(row_id_));
       break;
     }
     default: {

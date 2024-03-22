@@ -48,8 +48,8 @@ base::Status Import::Run(Import::Context* ctx,
 
   // Type check
   {
-    base::Status status =
-        sqlite_utils::TypeCheckSqliteValue(import_val, SqlValue::Type::kString);
+    base::Status status = sqlite::utils::TypeCheckSqliteValue(
+        import_val, SqlValue::Type::kString);
     if (!status.ok()) {
       return base::ErrStatus("IMPORT(%s): %s", sqlite3_value_text(import_val),
                              status.c_message());

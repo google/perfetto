@@ -156,6 +156,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../../protos/perfetto/common:zero",
       "../../protos/perfetto/trace:zero",
       "../../protos/perfetto/trace/perfetto:zero",
+      "../../protos/perfetto/trace_processor:zero",
       "../base",
       "../protozero",
       "db",
