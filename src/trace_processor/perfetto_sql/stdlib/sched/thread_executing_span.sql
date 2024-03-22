@@ -41,10 +41,13 @@ SELECT
   thread_state.dur,
   thread_state.state,
   thread_state.utid,
+  thread_state.waker_id,
   thread_state.waker_utid
 FROM thread_state
-WHERE thread_state.dur != -1 AND thread_state.waker_utid IS NOT NULL
-   AND (thread_state.irq_context = 0 OR thread_state.irq_context IS NULL);
+WHERE
+  thread_state.dur != -1
+  AND thread_state.waker_utid IS NOT NULL
+  AND (thread_state.irq_context = 0 OR thread_state.irq_context IS NULL);
 
 -- Similar to |_runnable_state| but finds the first runnable state at thread.
 CREATE PERFETTO VIEW _first_runnable_state
@@ -62,10 +65,15 @@ SELECT
   thread_state.dur,
   thread_state.state,
   thread_state.utid,
+  thread_state.waker_id,
   thread_state.waker_utid
 FROM thread_state
-JOIN first_state USING (id)
-WHERE thread_state.dur != -1 AND thread_state.state = 'R' AND (thread_state.irq_context = 0 OR thread_state.irq_context IS NULL);
+JOIN first_state
+  USING (id)
+WHERE
+  thread_state.dur != -1
+  AND thread_state.state = 'R'
+  AND (thread_state.irq_context = 0 OR thread_state.irq_context IS NULL);
 
 --
 -- Finds all sleep states including interruptible (S) and uninterruptible (D).
@@ -125,82 +133,71 @@ GROUP BY s.utid;
 --
 -- We define the following markers in this table:
 --
--- prev_start_id    = R0_id.
--- prev_start_ts    = R0_ts.
--- prev_start_dur   = R0_dur.
--- prev_start_state = 'R'.
+-- prev_id          = R0_id.
 --
--- prev_end_id      = S0_id.
 -- prev_end_ts      = S0_ts.
--- prev_end_dur     = S0_dur.
--- prev_end_state   = 'S' or 'D'.
+-- state            = 'S' or 'D'.
+-- blocked_function = <kernel blocking function>
 --
--- start_id         = R1_id.
--- start_ts         = R1_ts.
--- start_dur        = R1_dur.
--- start_state      = 'R'.
+-- id               = R1_id.
+-- ts               = R1_ts.
 --
--- end_id           = S1_id.
 -- end_ts           = S1_ts.
--- end_dur          = S1_dur.
--- end_state        = 'S' or 'D'.
-CREATE TABLE _wakeup AS
-  SELECT
-  LAG(r.id, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS prev_start_id,
-  LAG(r.ts, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS prev_start_ts,
-  LAG(r.dur, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS prev_start_dur,
-  LAG(r.state, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS prev_start_state,
-  s.id AS prev_end_id,
-  s.ts AS prev_end_ts,
-  s.dur AS prev_end_dur,
-  s.state AS prev_end_state,
-  s.blocked_function AS prev_blocked_function,
-  r.id AS start_id,
-  r.ts AS start_ts,
-  r.dur AS start_dur,
-  r.state AS start_state,
+CREATE PERFETTO TABLE _wakeup
+AS
+SELECT
+  s.state,
+  s.blocked_function,
+  r.id,
+  r.ts AS ts,
   r.utid AS utid,
+  r.waker_id,
   r.waker_utid,
-  LEAD(s.id, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS end_id,
-  IFNULL(LEAD(s.ts, 1) OVER (PARTITION BY r.utid ORDER BY r.ts), thread_end.end_ts)  AS end_ts,
-  LEAD(s.dur, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS end_dur,
-  LEAD(s.state, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS end_state,
-  LEAD(s.blocked_function, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS blocked_function
+  IFNULL(LEAD(s.ts) OVER (PARTITION BY r.utid ORDER BY r.ts), thread_end.end_ts) AS end_ts,
+  s.ts AS prev_end_ts,
+  LAG(r.id) OVER (PARTITION BY r.utid ORDER BY r.ts) AS prev_id
 FROM _runnable_state r
 JOIN _sleep_state s
   ON s.utid = r.utid AND (s.ts + s.dur = r.ts)
-LEFT JOIN _thread_end_ts thread_end USING(utid)
+LEFT JOIN _thread_end_ts thread_end
+  USING (utid)
 UNION ALL
-  SELECT
-  NULL AS prev_start_id,
-  NULL AS prev_start_ts,
-  NULL AS prev_start_dur,
-  NULL AS prev_start_state,
-  NULL AS prev_end_id,
-  NULL AS prev_end_ts,
-  NULL AS prev_end_dur,
-  NULL AS prev_end_state,
-  NULL AS prev_blocked_function,
-  r.id AS start_id,
-  r.ts AS start_ts,
-  r.dur AS start_dur,
-  r.state AS start_state,
+SELECT
+  NULL AS state,
+  NULL AS blocked_function,
+  r.id,
+  r.ts,
   r.utid AS utid,
+  r.waker_id,
   r.waker_utid,
-  s.id AS end_id,
-  IFNULL(s.ts, thread_end.end_ts)  AS end_ts,
-  s.dur AS end_dur,
-  s.state AS end_state,
-  s.blocked_function AS blocked_function
+  IFNULL(s.ts, thread_end.end_ts) AS end_ts,
+  NULL AS prev_end_ts,
+  NULL AS prev_id
 FROM _first_runnable_state r
 LEFT JOIN _first_sleep_state s
   ON s.utid = r.utid
-LEFT JOIN _thread_end_ts thread_end USING(utid);
+LEFT JOIN _thread_end_ts thread_end
+  USING (utid);
 
--- Improves performance of |_wakeup_chain| computation.
-CREATE
-  INDEX _wakeup_idx
-ON _wakeup(waker_utid, start_ts);
+-- Mapping from running thread state to runnable
+CREATE PERFETTO TABLE _waker_map
+AS
+WITH x AS (
+SELECT id, waker_id, utid, state FROM thread_state WHERE state = 'Running' AND dur != -1
+UNION ALL
+SELECT id, waker_id, utid, state FROM _first_runnable_state
+UNION ALL
+SELECT id, waker_id, utid, state FROM _runnable_state
+), y AS (
+    SELECT
+      id AS waker_id,
+      state,
+      max(id)
+        filter(WHERE state = 'R')
+          OVER (PARTITION BY utid ORDER BY id) AS id
+    FROM x
+  )
+SELECT id, waker_id FROM y WHERE state = 'Running' AND id IS NOT NULL ORDER BY waker_id;
 
 --
 -- Builds the parent-child chain from all thread_executing_spans. The parent is the waker and
@@ -209,14 +206,38 @@ ON _wakeup(waker_utid, start_ts);
 -- Note that this doesn't include the roots. We'll compute the roots below.
 -- This two step process improves performance because it's more efficient to scan
 -- parent and find a child between than to scan child and find the parent it lies between.
-CREATE PERFETTO VIEW _wakeup_chain
+CREATE PERFETTO TABLE _wakeup_chain
 AS
-SELECT parent.start_id AS parent_id, child.*
-FROM _wakeup parent
-JOIN _wakeup child
-  ON (
-    parent.utid = child.waker_utid
-    AND child.start_ts BETWEEN parent.start_ts AND parent.end_ts);
+SELECT
+  _waker_map.id AS parent_id,
+  prev_id,
+  prev_end_ts,
+  _wakeup.id AS id,
+  _wakeup.ts AS ts,
+  _wakeup.end_ts,
+  IIF(_wakeup.state IS NULL OR _wakeup.state = 'S', 0, 1) AS is_kernel,
+  _wakeup.utid,
+  _wakeup.state,
+  _wakeup.blocked_function
+FROM _wakeup
+JOIN _waker_map USING(waker_id);
+
+-- The inverse of thread_executing_spans. All the sleeping periods between thread_executing_spans.
+CREATE PERFETTO TABLE _sleeping_span
+AS
+WITH
+  x AS (
+    SELECT
+      id,
+      ts,
+      lag(end_ts) OVER (PARTITION BY utid ORDER BY id) AS prev_end_ts,
+      utid
+    FROM _wakeup_chain
+  )
+SELECT
+  ts - prev_end_ts AS dur, prev_end_ts AS ts, id AS root_id, utid AS root_utid
+FROM x
+WHERE ts IS NOT NULL;
 
 --
 -- Finds the roots of the |_wakeup_chain|.
@@ -226,37 +247,56 @@ WITH
   _wakeup_root_id AS (
     SELECT DISTINCT parent_id AS id FROM _wakeup_chain
     EXCEPT
-    SELECT DISTINCT start_id AS id FROM _wakeup_chain
+    SELECT DISTINCT id FROM _wakeup_chain
   )
 SELECT NULL AS parent_id, _wakeup.*
 FROM _wakeup
-JOIN _wakeup_root_id
-  ON _wakeup_root_id.id = _wakeup.start_id;
+JOIN _wakeup_root_id USING(id);
 
 --
 -- Finds the leafs of the |_wakeup_chain|.
 CREATE PERFETTO TABLE _wakeup_leaf AS
 WITH
   _wakeup_leaf_id AS (
-    SELECT DISTINCT start_id AS id FROM _wakeup_chain
+    SELECT DISTINCT id AS id FROM _wakeup_chain
     EXCEPT
     SELECT DISTINCT parent_id AS id FROM _wakeup_chain
   )
 SELECT _wakeup_chain.*
 FROM _wakeup_chain
-JOIN _wakeup_leaf_id
-  ON _wakeup_leaf_id.id = _wakeup_chain.start_id;
+JOIN _wakeup_leaf_id USING(id);
 
 --
 -- Merges the roots, leafs and the rest of the chain.
 CREATE TABLE _wakeup_graph
 AS
-SELECT _wakeup_chain.*, 0 AS is_root, (_wakeup_leaf.start_id IS NOT NULL) AS is_leaf
+SELECT
+  _wakeup_chain.parent_id,
+  _wakeup_chain.id,
+  _wakeup_chain.ts,
+  _wakeup_chain.end_ts - _wakeup_chain.ts AS dur,
+  _wakeup_chain.utid,
+  _wakeup_chain.prev_end_ts,
+  _wakeup_chain.state,
+  _wakeup_chain.blocked_function,
+  0 AS is_root,
+  (_wakeup_leaf.id IS NOT NULL) AS is_leaf
 FROM _wakeup_chain
 LEFT JOIN _wakeup_leaf
-  USING (start_id)
+  USING (id)
 UNION ALL
-SELECT *, 1 AS is_root, 0 AS is_leaf FROM _wakeup_root;
+SELECT
+  _wakeup_root.parent_id,
+  _wakeup_root.id,
+  _wakeup_root.ts,
+  _wakeup_root.end_ts - _wakeup_root.ts AS dur,
+  _wakeup_root.utid,
+  _wakeup_root.prev_end_ts,
+  _wakeup_root.state,
+  _wakeup_root.blocked_function,
+  1 AS is_root,
+  0 AS is_leaf
+FROM _wakeup_root;
 
 -- Thread_executing_span graph of all wakeups across all processes.
 --
@@ -266,7 +306,6 @@ SELECT *, 1 AS is_root, 0 AS is_leaf FROM _wakeup_root;
 -- @column ts                 Timestamp of first thread_state in thread_executing_span.
 -- @column dur                Duration of thread_executing_span.
 -- @column utid               Utid of thread with thread_state.
--- @column waker_utid         Utid of thread that woke the first thread_state in thread_executing_span.
 -- @column blocked_dur        Duration of blocking thread state before waking up.
 -- @column blocked_state      Thread state ('D' or 'S') of blocked thread_state before waking up.
 -- @column blocked_function   Kernel blocked_function of thread state before waking up.
@@ -275,16 +314,15 @@ SELECT *, 1 AS is_root, 0 AS is_leaf FROM _wakeup_root;
 CREATE TABLE _thread_executing_span_graph AS
 WITH roots AS (
 SELECT
-  start_id AS root_id,
+  id AS root_id,
   parent_id,
-  start_id AS id,
-  start_ts AS ts,
-  end_ts - start_ts AS dur,
+  id,
+  ts,
+  end_ts - ts AS dur,
   utid,
-  waker_utid,
-  prev_end_dur AS blocked_dur,
-  prev_end_state AS blocked_state,
-  prev_blocked_function AS blocked_function,
+  ts - prev_end_ts AS blocked_dur,
+  state AS blocked_state,
+  blocked_function AS blocked_function,
   1 AS is_root,
   0 AS depth
 FROM _wakeup_root
@@ -294,14 +332,13 @@ FROM _wakeup_root
   SELECT
     chain.root_id,
     graph.parent_id,
-    graph.start_id AS id,
-    graph.start_ts AS ts,
-    graph.end_ts - graph.start_ts AS dur,
+    graph.id,
+    graph.ts,
+    graph.dur,
     graph.utid,
-    graph.waker_utid,
-    graph.prev_end_dur AS blocked_dur,
-    graph.prev_end_state AS blocked_state,
-    graph.prev_blocked_function AS blocked_function,
+    graph.ts - graph.prev_end_ts AS blocked_dur,
+    graph.state AS blocked_state,
+    graph.blocked_function AS blocked_function,
     0 AS is_root,
     chain.depth + 1 AS depth
   FROM _wakeup_graph graph
