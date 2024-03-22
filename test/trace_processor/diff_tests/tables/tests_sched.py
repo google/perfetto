@@ -152,7 +152,6 @@ class TablesSched(TestSuite):
           ts,
           dur,
           utid,
-          waker_utid,
           blocked_dur,
           blocked_state,
           blocked_function,
@@ -164,17 +163,17 @@ class TablesSched(TestSuite):
         LIMIT 10
         """,
         out=Csv("""
-        "root_id","parent_id","id","ts","dur","utid","waker_utid","blocked_dur","blocked_state","blocked_function","is_root","depth"
-        357,377,380,1735842234188,283571,46,427,351402620,"I","worker_thread",0,5
-        394,402,405,1735843726296,8545303,46,427,1208537,"I","worker_thread",0,3
-        357,419,432,1735850643698,16245,95,1465,154087,"I","worker_thread",0,4
-        357,443,446,1735851953029,554638012,95,427,1103252,"I","worker_thread",0,6
-        357,500,503,1735886367018,191863,46,427,34095419,"I","worker_thread",0,10
-        357,446,667,1736125372478,52493,46,95,238813597,"I","worker_thread",0,7
-        357,835,838,1736405409972,278036,46,427,279985001,"I","worker_thread",0,12
-        357,862,865,1736406817672,7959441,46,427,1129664,"I","worker_thread",0,10
-        357,882,889,1736413734042,25870,95,1467,7143001,"I","worker_thread",0,11
-        357,882,894,1736413763072,31692550,11,1467,4413060,"I","rcu_gp_fqs_loop",0,11
+        "root_id","parent_id","id","ts","dur","utid","blocked_dur","blocked_state","blocked_function","is_root","depth"
+        357,377,380,1735842234188,283571,46,351402620,"I","worker_thread",0,5
+        394,402,405,1735843726296,8545303,46,1208537,"I","worker_thread",0,3
+        357,419,432,1735850643698,16245,95,154087,"I","worker_thread",0,4
+        357,443,446,1735851953029,554638012,95,1103252,"I","worker_thread",0,6
+        357,500,503,1735886367018,191863,46,34095419,"I","worker_thread",0,10
+        357,446,667,1736125372478,52493,46,238813597,"I","worker_thread",0,7
+        357,835,838,1736405409972,278036,46,279985001,"I","worker_thread",0,12
+        357,862,865,1736406817672,7959441,46,1129664,"I","worker_thread",0,10
+        357,882,889,1736413734042,25870,95,7143001,"I","worker_thread",0,11
+        357,882,894,1736413763072,31692550,11,4413060,"I","rcu_gp_fqs_loop",0,11
         """))
 
   def test_thread_executing_span_graph_contains_forked_states(self):
@@ -189,7 +188,6 @@ class TablesSched(TestSuite):
           ts,
           dur,
           utid,
-          waker_utid,
           blocked_dur,
           blocked_state,
           blocked_function,
@@ -199,8 +197,8 @@ class TablesSched(TestSuite):
           WHERE ts = 1735842081507 AND dur = 293868
         """,
         out=Csv("""
-        "root_id","parent_id","id","ts","dur","utid","waker_utid","blocked_dur","blocked_state","blocked_function","is_root","depth"
-        357,369,376,1735842081507,293868,1465,230,"[NULL]","[NULL]","[NULL]",0,4
+        "root_id","parent_id","id","ts","dur","utid","blocked_dur","blocked_state","blocked_function","is_root","depth"
+        357,369,376,1735842081507,293868,1465,"[NULL]","[NULL]","[NULL]",0,4
         """))
 
   def test_thread_executing_span_runnable_state_has_no_running(self):
