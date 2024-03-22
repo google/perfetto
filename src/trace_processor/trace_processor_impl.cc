@@ -693,8 +693,12 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
   // functions are supported.
-  RegisterLastNonNullFunction(db);
   RegisterValueAtMaxTsFunction(db);
+  {
+    base::Status status = RegisterLastNonNullFunction(*engine_);
+    if (!status.ok())
+      PERFETTO_ELOG("%s", status.c_message());
+  }
   {
     base::Status status = RegisterStackFunctions(engine_.get(), &context_);
     if (!status.ok())
@@ -706,7 +710,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       PERFETTO_ELOG("%s", status.c_message());
   }
   {
-    base::Status status = LayoutFunctions::Register(db, &context_);
+    base::Status status = RegisterLayoutFunctions(*engine_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
