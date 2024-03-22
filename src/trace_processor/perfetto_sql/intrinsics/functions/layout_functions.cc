@@ -136,11 +136,11 @@ base::Status Step(sqlite3_context* ctx, size_t argc, sqlite3_value** argv) {
   RETURN_IF_ERROR(slice_packer.status());
 
   base::StatusOr<SqlValue> ts =
-      sqlite_utils::ExtractArgument(argc, argv, "ts", 0, SqlValue::kLong);
+      sqlite::utils::ExtractArgument(argc, argv, "ts", 0, SqlValue::kLong);
   RETURN_IF_ERROR(ts.status());
 
   base::StatusOr<SqlValue> dur =
-      sqlite_utils::ExtractArgument(argc, argv, "dur", 1, SqlValue::kLong);
+      sqlite::utils::ExtractArgument(argc, argv, "dur", 1, SqlValue::kLong);
   RETURN_IF_ERROR(dur.status());
 
   return slice_packer.value()->AddSlice(ts->AsLong(), dur.value().AsLong());
@@ -151,7 +151,7 @@ void StepWrapper(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 
   base::Status status = Step(ctx, static_cast<size_t>(argc), argv);
   if (!status.ok()) {
-    sqlite_utils::SetSqliteError(ctx, kFunctionName, status);
+    sqlite::utils::SetError(ctx, kFunctionName, status);
     return;
   }
 }
@@ -162,7 +162,7 @@ void FinalWrapper(sqlite3_context* ctx) {
   if (!slice_packer || !*slice_packer) {
     return;
   }
-  sqlite3_result_int64(ctx,
+  sqlite::result::Long(ctx,
                        static_cast<int64_t>((*slice_packer)->GetLastDepth()));
   delete *slice_packer;
 }
@@ -171,15 +171,15 @@ void ValueWrapper(sqlite3_context* ctx) {
   base::StatusOr<SlicePacker*> slice_packer =
       GetOrCreateAggregationContext(ctx);
   if (!slice_packer.ok()) {
-    sqlite_utils::SetSqliteError(ctx, kFunctionName, slice_packer.status());
+    sqlite::utils::SetError(ctx, kFunctionName, slice_packer.status());
     return;
   }
-  sqlite3_result_int64(
+  sqlite::result::Long(
       ctx, static_cast<int64_t>(slice_packer.value()->GetLastDepth()));
 }
 
 void InverseWrapper(sqlite3_context* ctx, int, sqlite3_value**) {
-  sqlite_utils::SetSqliteError(ctx, kFunctionName, base::ErrStatus(R"(
+  sqlite::utils::SetError(ctx, kFunctionName, base::ErrStatus(R"(
 The inverse step is not supported: the window clause should be
 "BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW".
 )"));

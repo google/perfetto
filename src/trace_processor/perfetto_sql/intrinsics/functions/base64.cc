@@ -39,7 +39,7 @@ struct Base64Decode : public SqlFunction {
       return base::ErrStatus("BASE64: expected one arg but got %zu", argc);
     }
 
-    auto in = sqlite_utils::SqliteValueToSqlValue(argv[0]);
+    auto in = sqlite::utils::SqliteValueToSqlValue(argv[0]);
 
     const char* src = nullptr;
     size_t src_size = 0;

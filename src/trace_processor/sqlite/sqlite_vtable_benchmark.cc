@@ -19,13 +19,18 @@
 // in a buffer. This is to have a fair estimate w.r.t. cache-misses and pointer
 // chasing of what an upper-bound can be for a virtual table implementation.
 
-#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
 #include <random>
+#include <string>
+#include <vector>
 
 #include <benchmark/benchmark.h>
 #include <sqlite3.h>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 
 namespace {
@@ -76,7 +81,7 @@ class BenchmarkCursor : public sqlite3_vtab_cursor {
   }
   PERFETTO_NO_INLINE int Next();
   PERFETTO_NO_INLINE int Column(sqlite3_context* ctx, int);
-  PERFETTO_NO_INLINE int Eof();
+  PERFETTO_NO_INLINE int Eof() const;
   void RandomFill();
 
  private:
@@ -113,7 +118,7 @@ int BenchmarkCursor::Next() {
   return SQLITE_OK;
 }
 
-int BenchmarkCursor::Eof() {
+int BenchmarkCursor::Eof() const {
   return eof_;
 }
 
@@ -202,9 +207,9 @@ ScopedDb CreateDbAndRegisterVtable(sqlite3_module& module,
   return db;
 }
 
-static void BM_SqliteStepAndResult(benchmark::State& state) {
-  size_t batch_size = static_cast<size_t>(state.range(0));
-  size_t num_cols = static_cast<size_t>(state.range(1));
+void BM_SqliteStepAndResult(benchmark::State& state) {
+  auto batch_size = static_cast<size_t>(state.range(0));
+  auto num_cols = static_cast<size_t>(state.range(1));
 
   // Make sure the module outlives the ScopedDb. SQLite calls xDisconnect in
   // the database close function and so this struct needs to be available then.
@@ -236,8 +241,8 @@ static void BM_SqliteStepAndResult(benchmark::State& state) {
 
 BENCHMARK(BM_SqliteStepAndResult)->Apply(BenchmarkArgs);
 
-static void BM_SqliteCountOne(benchmark::State& state) {
-  size_t batch_size = static_cast<size_t>(state.range(0));
+void BM_SqliteCountOne(benchmark::State& state) {
+  auto batch_size = static_cast<size_t>(state.range(0));
 
   // Make sure the module outlives the ScopedDb. SQLite calls xDisconnect in
   // the database close function and so this struct needs to be available then.

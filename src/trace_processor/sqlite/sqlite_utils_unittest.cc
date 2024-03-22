@@ -16,11 +16,10 @@
 
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
+#include "src/trace_processor/sqlite/scoped_db.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace sqlite_utils {
+namespace perfetto::trace_processor::sqlite::utils {
 
 namespace {
 
@@ -54,7 +53,7 @@ class GetColumnsForTableTest : public ::testing::Test {
 TEST_F(GetColumnsForTableTest, ValidInput) {
   RunStatement("CREATE TABLE foo (name STRING, ts INT, dur INT);");
   std::vector<SqliteTable::Column> columns;
-  auto status = sqlite_utils::GetColumnsForTable(*db_, "foo", columns);
+  auto status = sqlite::utils::GetColumnsForTable(*db_, "foo", columns);
   ASSERT_TRUE(status.ok());
 }
 
@@ -64,13 +63,14 @@ TEST_F(GetColumnsForTableTest, UnknownType) {
   // crashing.
   RunStatement("CREATE TABLE foo (name NUM, ts INT, dur INT);");
   std::vector<SqliteTable::Column> columns;
-  auto status = sqlite_utils::GetColumnsForTable(*db_, "foo", columns);
+  auto status = sqlite::utils::GetColumnsForTable(*db_, "foo", columns);
   ASSERT_FALSE(status.ok());
 }
 
 TEST_F(GetColumnsForTableTest, UnknownTableName) {
   std::vector<SqliteTable::Column> columns;
-  auto status = sqlite_utils::GetColumnsForTable(*db_, "unknowntable", columns);
+  auto status =
+      sqlite::utils::GetColumnsForTable(*db_, "unknowntable", columns);
   ASSERT_FALSE(status.ok());
 }
 
@@ -178,6 +178,4 @@ TEST(SqliteUtilsTest, ExtractFromSqlValueString) {
 }
 
 }  // namespace
-}  // namespace sqlite_utils
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::sqlite::utils
