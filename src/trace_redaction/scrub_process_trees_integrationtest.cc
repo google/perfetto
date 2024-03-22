@@ -42,18 +42,18 @@ constexpr std::string_view kTracePath =
 constexpr std::string_view kProcessName =
     "com.Unity.com.unity.multiplayer.samples.coop";
 
+}  // namespace
+
 class ScrubProcessTreesIntegrationTest : public testing::Test {
  protected:
   void SetUp() override {
-    src_trace_ = base::GetTestDataPath(std::string(kTracePath));
-
     // ScrubProcessTrees depends on:
-    //    - FindPackageUid    (uid)
-    //    - OptimizeTimeline  (sealed + optimized timeline)
+    //    - FindPackageUid    (creates: uid)
+    //    - OptimizeTimeline  (creates: optimized timeline)
     //
     // OptimizeTimeline depends on:
-    //    - FindPackageUid (uid)
-    //    - BuildTimeline  (timeline)
+    //    - FindPackageUid (uses: uid)
+    //    - BuildTimeline  (uses: timeline)
     //
     // BuildTimeline depends on.... nothing
     // FindPackageUid depends on... nothing
@@ -66,11 +66,52 @@ class ScrubProcessTreesIntegrationTest : public testing::Test {
     // In this case, the process and package have the same name.
     context_.package_name = kProcessName;
 
+    src_trace_ = base::GetTestDataPath(std::string(kTracePath));
+
     dest_trace_ = tmp_dir_.AbsolutePath("dst.pftrace");
     tmp_dir_.TrackFile("dst.pftrace");
   }
 
-  static base::StatusOr<std::string> ReadRawTrace(const std::string& path) {
+  base::Status Redact() {
+    return redactor_.Redact(src_trace_, dest_trace_, &context_);
+  }
+
+  base::StatusOr<std::string> LoadOriginal() const {
+    return ReadRawTrace(src_trace_);
+  }
+
+  base::StatusOr<std::string> LoadRedacted() const {
+    return ReadRawTrace(dest_trace_);
+  }
+
+  std::vector<std::string> CollectProcessNames(
+      protos::pbzero::Trace::Decoder trace) const {
+    std::vector<std::string> names;
+
+    for (auto packet_it = trace.packet(); packet_it; ++packet_it) {
+      protos::pbzero::TracePacket::Decoder packet(*packet_it);
+
+      if (!packet.has_process_tree()) {
+        continue;
+      }
+
+      protos::pbzero::ProcessTree::Decoder process_tree(packet.process_tree());
+
+      for (auto process_it = process_tree.processes(); process_it;
+           ++process_it) {
+        protos::pbzero::ProcessTree::Process::Decoder process(*process_it);
+
+        if (process.has_cmdline()) {
+          names.push_back(process.cmdline()->as_std_string());
+        }
+      }
+    }
+
+    return names;
+  }
+
+ private:
+  base::StatusOr<std::string> ReadRawTrace(const std::string& path) const {
     std::string redacted_buffer;
 
     if (base::ReadFile(path, &redacted_buffer)) {
@@ -80,55 +121,34 @@ class ScrubProcessTreesIntegrationTest : public testing::Test {
     return base::ErrStatus("Failed to read %s", path.c_str());
   }
 
-  std::string src_trace_;
-  std::string dest_trace_;
+  Context context_;
+  TraceRedactor redactor_;
 
   base::TmpDirTree tmp_dir_;
 
-  Context context_;
-  TraceRedactor redactor_;
+  std::string src_trace_;
+  std::string dest_trace_;
 };
 
 TEST_F(ScrubProcessTreesIntegrationTest, RemovesProcessNamesFromProcessTrees) {
-  ASSERT_OK(redactor_.Redact(src_trace_, dest_trace_, &context_));
-  ASSERT_OK_AND_ASSIGN(auto redacted_buffer, ReadRawTrace(dest_trace_));
+  ASSERT_OK(Redact());
 
-  protos::pbzero::Trace::Decoder trace(redacted_buffer);
+  auto original_trace_str = LoadOriginal();
+  ASSERT_OK(original_trace_str);
 
-  for (auto packet_it = trace.packet(); packet_it; ++packet_it) {
-    protos::pbzero::TracePacket::Decoder packet(*packet_it);
+  auto redacted_trace_str = LoadRedacted();
+  ASSERT_OK(redacted_trace_str);
 
-    if (!packet.has_process_tree()) {
-      continue;
-    }
+  protos::pbzero::Trace::Decoder original_trace(original_trace_str.value());
+  auto original_processes = CollectProcessNames(std::move(original_trace));
 
-    protos::pbzero::ProcessTree::Decoder process_tree(packet.process_tree());
+  ASSERT_GT(original_processes.size(), 1u);
 
-    for (auto process_it = process_tree.processes(); process_it; ++process_it) {
-      protos::pbzero::ProcessTree::Process::Decoder process(*process_it);
+  protos::pbzero::Trace::Decoder redacted_trace(redacted_trace_str.value());
+  auto redacted_processes = CollectProcessNames(std::move(redacted_trace));
 
-      std::vector<std::string> cmdline;
-      for (auto cmd_it = process.cmdline(); cmd_it; ++cmd_it) {
-        cmdline.push_back(cmd_it->as_std_string());
-      }
-
-      // It's okay to be empty.
-      if (cmdline.empty()) {
-        continue;
-      }
-
-      if (cmdline.size() == 1) {
-        ASSERT_EQ(cmdline[0], kProcessName);
-        continue;
-      }
-
-      // If there are more than
-      for (const auto& token : cmdline) {
-        ASSERT_TRUE(token.empty());
-      }
-    }
-  }
+  ASSERT_EQ(redacted_processes.size(), 1u);
+  ASSERT_EQ(redacted_processes.at(0), kProcessName);
 }
 
-}  // namespace
 }  // namespace perfetto::trace_redaction
