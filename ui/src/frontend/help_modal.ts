@@ -252,6 +252,7 @@ class KeyMappingsHelp implements m.ClassComponent {
           m('td', keycap(ctrlOrCmd), ' + ', keycap('s')),
           m('td', 'Search'),
         ),
+        m('tr', m('td', keycap('q')), m('td', 'Toggle tab drawer')),
         ...sidebarInstructions,
         m('tr', m('td', keycap('?')), m('td', 'Show help')),
       ),
