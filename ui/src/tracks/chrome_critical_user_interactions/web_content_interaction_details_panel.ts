@@ -29,11 +29,7 @@
 import m from 'mithril';
 
 import {duration, Time, time} from '../../base/time';
-import {
-  BottomTab,
-  bottomTabRegistry,
-  NewBottomTabArgs,
-} from '../../frontend/bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {asUpid, Upid} from '../../frontend/sql_types';
 import {DurationWidget} from '../../frontend/widgets/duration';
@@ -149,5 +145,3 @@ export class WebContentInteractionPanel extends BottomTab<GenericSliceDetailsTab
     return !this.loaded;
   }
 }
-
-bottomTabRegistry.register(WebContentInteractionPanel);

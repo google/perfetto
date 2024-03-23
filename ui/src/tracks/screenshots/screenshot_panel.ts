@@ -16,11 +16,7 @@ import m from 'mithril';
 
 import {assertTrue} from '../../base/logging';
 import {exists} from '../../base/utils';
-import {
-  BottomTab,
-  bottomTabRegistry,
-  NewBottomTabArgs,
-} from '../../frontend/bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {getSlice, SliceDetails} from '../../frontend/sql/slice';
 import {asSliceSqlId} from '../../frontend/sql_types';
@@ -74,5 +70,3 @@ export class ScreenshotTab extends BottomTab<GenericSliceDetailsTabConfig> {
     );
   }
 }
-
-bottomTabRegistry.register(ScreenshotTab);

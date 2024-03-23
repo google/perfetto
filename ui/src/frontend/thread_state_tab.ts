@@ -25,7 +25,7 @@ import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {Tree, TreeNode} from '../widgets/tree';
 
-import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
+import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {SchedSqlId, ThreadStateSqlId} from './sql_types';
 import {
   getFullThreadName,
@@ -387,5 +387,3 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     return this.state === undefined || this.relatedStates === undefined;
   }
 }
-
-bottomTabRegistry.register(ThreadStateTab);

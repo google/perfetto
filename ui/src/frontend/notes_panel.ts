@@ -23,7 +23,7 @@ import {AreaNote, Note, getLegacySelection} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';
 
-import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
+import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {
@@ -404,7 +404,6 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
           minimal: true,
           onclick: () => {
             globals.dispatch(Actions.removeNote({id: this.config.id}));
-            globals.dispatch(Actions.setCurrentTab({tab: undefined}));
             raf.scheduleFullRedraw();
           },
         }),
@@ -412,5 +411,3 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
     );
   }
 }
-
-bottomTabRegistry.register(NotesEditorTab);

@@ -26,16 +26,13 @@ import {
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {pluginManager} from '../common/plugins';
-import {onSelectionChanged} from '../common/selection_observer';
 import {
   defaultTraceTime,
   EngineMode,
   PendingDeeplinkState,
   ProfileType,
-  getLegacySelection,
 } from '../common/state';
 import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../core/feature_flags';
-import {BottomTabList} from '../frontend/bottom_tab';
 import {
   FtraceStat,
   globals,
@@ -421,7 +418,6 @@ export class TraceController extends Controller<States> {
         assertExists(getEnabledMetatracingCategories()),
       );
     }
-    globals.bottomTabList = new BottomTabList(engine.getProxy('BottomTabList'));
 
     globals.engines.set(this.engineId, engine);
     globals.dispatch(
@@ -671,14 +667,6 @@ export class TraceController extends Controller<States> {
           title: 'Deeplink Query',
         });
       }
-    }
-
-    // If the trace was shared via a permalink, it might already have a
-    // selection. Emit onSelectionChanged to ensure that the components (like
-    // current selection details) react to it.
-    const currentSelection = getLegacySelection(globals.state);
-    if (currentSelection !== null) {
-      onSelectionChanged(currentSelection, true);
     }
 
     globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
