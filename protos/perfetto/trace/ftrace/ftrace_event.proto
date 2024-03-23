@@ -607,5 +607,6 @@ message FtraceEvent {
     GpuWorkPeriodFtraceEvent gpu_work_period = 488;
     RpmStatusFtraceEvent rpm_status = 489;
     PanelWriteGenericFtraceEvent panel_write_generic = 490;
+    SchedMigrateTaskFtraceEvent sched_migrate_task = 491;
   }
 }

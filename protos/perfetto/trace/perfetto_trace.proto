@@ -9515,6 +9515,15 @@ message SchedCpuUtilCfsFtraceEvent {
   optional uint64 wake_group_util = 14;
   optional uint64 wake_util = 15;
 }
+message SchedMigrateTaskFtraceEvent {
+  optional string comm = 1;
+  optional int32 pid = 2;
+  optional int32 prio = 3;
+  optional int32 orig_cpu = 4;
+  optional int32 dest_cpu = 5;
+  optional int32 running = 6;
+  optional uint32 load = 7;
+}
 
 // End of protos/perfetto/trace/ftrace/sched.proto
 
@@ -10593,6 +10602,7 @@ message FtraceEvent {
     GpuWorkPeriodFtraceEvent gpu_work_period = 488;
     RpmStatusFtraceEvent rpm_status = 489;
     PanelWriteGenericFtraceEvent panel_write_generic = 490;
+    SchedMigrateTaskFtraceEvent sched_migrate_task = 491;
   }
 }
 
