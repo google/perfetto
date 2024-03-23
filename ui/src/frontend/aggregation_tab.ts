@@ -23,6 +23,7 @@ import {raf} from '../core/raf_scheduler';
 import {EmptyState} from '../widgets/empty_state';
 import {FlowEventsAreaSelectedPanel} from './flow_events_panel';
 import {PivotTable} from './pivot_table';
+import {FlamegraphDetailsPanel} from './flamegraph_panel';
 
 interface View {
   key: string;
@@ -53,6 +54,14 @@ class AreaDetailsPanel implements m.ClassComponent {
 
   private getViews(): View[] {
     const views = [];
+
+    if (globals.flamegraphDetails.isInAreaSelection) {
+      views.push({
+        key: 'flamegraph_selection',
+        name: 'Flamegraph Selection',
+        content: m(FlamegraphDetailsPanel, {key: 'flamegraph'}),
+      });
+    }
 
     for (const [key, value] of globals.aggregateDataStore.entries()) {
       if (!isEmptyData(value)) {
