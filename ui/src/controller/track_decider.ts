@@ -450,7 +450,7 @@ class TrackDecider {
       if (!devMap.has(groupName)) {
         devMap.set(groupName, uuidv4());
       }
-      track.name = 'Size: ' + size;
+      track.name = 'Chunk size: ' + size;
       track.trackGroup = devMap.get(groupName);
     }
 
