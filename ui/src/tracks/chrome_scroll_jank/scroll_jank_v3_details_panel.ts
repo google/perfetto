@@ -17,11 +17,7 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {raf} from '../../core/raf_scheduler';
-import {
-  BottomTab,
-  bottomTabRegistry,
-  NewBottomTabArgs,
-} from '../../frontend/bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {getSlice, SliceDetails} from '../../frontend/sql/slice';
 import {asSliceSqlId} from '../../frontend/sql_types';
@@ -342,5 +338,3 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
     return !this.loaded;
   }
 }
-
-bottomTabRegistry.register(ScrollJankV3DetailsPanel);

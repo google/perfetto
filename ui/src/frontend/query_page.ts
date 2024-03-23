@@ -128,11 +128,6 @@ export const QueryPage = createPage({
         : m(QueryTable, {
             query: state.executedQuery,
             resp: state.queryResult,
-            onClose: () => {
-              state.executedQuery = undefined;
-              state.queryResult = undefined;
-              raf.scheduleFullRedraw();
-            },
             fillParent: false,
           }),
       m(QueryHistoryComponent, {
