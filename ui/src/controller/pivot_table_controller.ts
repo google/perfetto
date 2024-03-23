@@ -270,7 +270,6 @@ export class PivotTableController extends Controller<{}> {
         queryResult: {tree: treeBuilder.build(), metadata: query.metadata},
       }),
     );
-    globals.dispatch(Actions.setCurrentTab({tab: 'pivot_table'}));
   }
 
   async requestArgumentNames() {

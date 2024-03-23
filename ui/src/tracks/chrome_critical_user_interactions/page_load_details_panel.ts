@@ -14,11 +14,7 @@
 
 import m from 'mithril';
 
-import {
-  BottomTab,
-  bottomTabRegistry,
-  NewBottomTabArgs,
-} from '../../frontend/bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {Details, DetailsSchema} from '../../frontend/sql/details/details';
 import {wellKnownTypes} from '../../frontend/sql/details/well_known_types';
@@ -93,5 +89,3 @@ export class PageLoadDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig
     return this.data.isLoading();
   }
 }
-
-bottomTabRegistry.register(PageLoadDetailsPanel);

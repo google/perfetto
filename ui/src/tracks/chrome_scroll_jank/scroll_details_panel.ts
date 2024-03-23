@@ -17,11 +17,7 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {raf} from '../../core/raf_scheduler';
-import {
-  BottomTab,
-  bottomTabRegistry,
-  NewBottomTabArgs,
-} from '../../frontend/bottom_tab';
+import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {sqlValueToString} from '../../frontend/sql_utils';
 import {
@@ -447,5 +443,3 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
     return !this.loaded;
   }
 }
-
-bottomTabRegistry.register(ScrollDetailsPanel);

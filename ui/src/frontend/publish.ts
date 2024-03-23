@@ -14,7 +14,7 @@
 
 import {time} from '../base/time';
 import {Actions} from '../common/actions';
-import {AggregateData, isEmptyData} from '../common/aggregation_data';
+import {AggregateData} from '../common/aggregation_data';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
 import {
   LogBoundsKey,
@@ -170,15 +170,11 @@ export function publishAggregateData(args: {
   kind: string;
 }) {
   globals.setAggregateData(args.kind, args.data);
-  if (!isEmptyData(args.data)) {
-    globals.dispatch(Actions.setCurrentTab({tab: args.data.tabName}));
-  }
   globals.publishRedraw();
 }
 
 export function publishQueryResult(args: {id: string; data?: {}}) {
   globals.queryResults.set(args.id, args.data);
-  globals.dispatch(Actions.setCurrentTab({tab: `query_result_${args.id}`}));
   globals.publishRedraw();
 }
 
@@ -195,7 +191,6 @@ export function publishSliceDetails(click: SliceDetails) {
   const id = click.id;
   if (id !== undefined && id === globals.state.pendingScrollId) {
     findCurrentSelection();
-    globals.dispatch(Actions.setCurrentTab({tab: 'slice'}));
     globals.dispatch(Actions.clearPendingScrollId({id: undefined}));
   }
   globals.publishRedraw();

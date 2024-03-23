@@ -19,12 +19,11 @@ import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {TrackCacheEntry} from '../common/track_cache';
-import {TABS_V2_FLAG, featureFlags} from '../core/feature_flags';
+import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {TrackTags} from '../public';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
-import {DetailsPanel} from './details_panel';
 import {globals} from './globals';
 import {NotesPanel} from './notes_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
@@ -366,11 +365,7 @@ class TraceViewer implements m.ClassComponent {
   }
 
   private renderTabPanel() {
-    if (TABS_V2_FLAG.get()) {
-      return m(TabPanel);
-    } else {
-      return m(DetailsPanel);
-    }
+    return m(TabPanel);
   }
 }
 
