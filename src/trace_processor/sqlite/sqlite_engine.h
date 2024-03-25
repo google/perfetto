@@ -133,6 +133,11 @@ class SqliteEngine {
                                   typename Module::Context* ctx);
 
   // Registers a SQLite virtual table module with the given name.
+  template <typename Module>
+  void RegisterVirtualTableModule(const std::string& module_name,
+                                  std::unique_ptr<typename Module::Context>);
+
+  // Registers a SQLite virtual table module with the given name.
   template <typename Vtab, typename Context>
   void RegisterVirtualTableModule(const std::string& module_name,
                                   Context ctx,
@@ -202,6 +207,18 @@ void SqliteEngine::RegisterVirtualTableModule(const std::string& module_name,
                 "Must subclass sqlite::Module");
   int res = sqlite3_create_module_v2(db_.get(), module_name.c_str(),
                                      &Module::kModule, ctx, nullptr);
+  PERFETTO_CHECK(res == SQLITE_OK);
+}
+
+template <typename Module>
+void SqliteEngine::RegisterVirtualTableModule(
+    const std::string& module_name,
+    std::unique_ptr<typename Module::Context> ctx) {
+  static_assert(std::is_base_of_v<sqlite::Module<Module>, Module>,
+                "Must subclass sqlite::Module");
+  int res = sqlite3_create_module_v2(
+      db_.get(), module_name.c_str(), &Module::kModule, ctx.release(),
+      [](void* arg) { delete static_cast<typename Module::Context*>(arg); });
   PERFETTO_CHECK(res == SQLITE_OK);
 }
 
