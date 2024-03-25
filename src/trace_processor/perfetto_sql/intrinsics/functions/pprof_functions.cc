@@ -34,6 +34,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/profile_builder.h"
@@ -156,7 +157,9 @@ class AggregateContext {
   std::vector<int64_t> sample_values_;
 };
 
-base::Status Step(sqlite3_context* ctx, size_t argc, sqlite3_value** argv) {
+base::Status StepStatus(sqlite3_context* ctx,
+                        size_t argc,
+                        sqlite3_value** argv) {
   auto** agg_context_ptr = static_cast<AggregateContext**>(
       sqlite3_aggregate_context(ctx, sizeof(AggregateContext*)));
   if (!agg_context_ptr) {
@@ -178,42 +181,39 @@ base::Status Step(sqlite3_context* ctx, size_t argc, sqlite3_value** argv) {
   return (*agg_context_ptr)->Step(argc, argv);
 }
 
-void StepWrapper(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-  PERFETTO_CHECK(argc >= 0);
+struct ProfileBuilder {
+  using Context = TraceProcessorContext;
 
-  base::Status status = Step(ctx, static_cast<size_t>(argc), argv);
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_CHECK(argc >= 0);
 
-  if (!status.ok()) {
-    sqlite::utils::SetError(ctx, kFunctionName, status);
-  }
-}
+    base::Status status = StepStatus(ctx, static_cast<size_t>(argc), argv);
 
-void FinalWrapper(sqlite3_context* ctx) {
-  auto** agg_context_ptr =
-      static_cast<AggregateContext**>(sqlite3_aggregate_context(ctx, 0));
-
-  if (!agg_context_ptr) {
-    return;
+    if (!status.ok()) {
+      sqlite::utils::SetError(ctx, kFunctionName, status);
+    }
   }
 
-  (*agg_context_ptr)->Final(ctx);
+  static void Final(sqlite3_context* ctx) {
+    auto** agg_context_ptr =
+        static_cast<AggregateContext**>(sqlite3_aggregate_context(ctx, 0));
 
-  delete (*agg_context_ptr);
-}
+    if (!agg_context_ptr) {
+      return;
+    }
+
+    (*agg_context_ptr)->Final(ctx);
+
+    delete (*agg_context_ptr);
+  }
+};
 
 }  // namespace
 
-base::Status PprofFunctions::Register(sqlite3* db,
+base::Status PprofFunctions::Register(PerfettoSqlEngine& engine,
                                       TraceProcessorContext* context) {
-  int flags = SQLITE_UTF8 | SQLITE_DETERMINISTIC;
-  int ret =
-      sqlite3_create_function_v2(db, kFunctionName, -1, flags, context, nullptr,
-                                 StepWrapper, FinalWrapper, nullptr);
-  if (ret != SQLITE_OK) {
-    return base::ErrStatus("Unable to register function with name %s",
-                           kFunctionName);
-  }
-  return base::OkStatus();
+  return engine.RegisterSqliteAggregateFunction<ProfileBuilder>(kFunctionName,
+                                                                -1, context);
 }
 
 }  // namespace perfetto::trace_processor

@@ -51,6 +51,10 @@ namespace trace_processor {
 class SqliteEngine {
  public:
   using Fn = void(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+  using AggregateFnStep = void(sqlite3_context* ctx,
+                               int argc,
+                               sqlite3_value** argv);
+  using AggregateFnFinal = void(sqlite3_context* ctx);
   using WindowFnStep = void(sqlite3_context* ctx,
                             int argc,
                             sqlite3_value** argv);
@@ -97,6 +101,15 @@ class SqliteEngine {
                                 void* ctx,
                                 FnCtxDestructor* ctx_destructor,
                                 bool deterministic);
+
+  // Registers a C++ aggregate function to be runnable from SQL.
+  base::Status RegisterAggregateFunction(const char* name,
+                                         int argc,
+                                         AggregateFnStep* step,
+                                         AggregateFnFinal* final,
+                                         void* ctx,
+                                         FnCtxDestructor* ctx_destructor,
+                                         bool deterministic);
 
   // Registers a C++ window function to be runnable from SQL.
   base::Status RegisterWindowFunction(const char* name,

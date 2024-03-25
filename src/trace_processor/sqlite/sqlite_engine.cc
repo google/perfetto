@@ -199,6 +199,24 @@ base::Status SqliteEngine::RegisterFunction(const char* name,
   return base::OkStatus();
 }
 
+base::Status SqliteEngine::RegisterAggregateFunction(
+    const char* name,
+    int argc,
+    AggregateFnStep* step,
+    AggregateFnFinal* final,
+    void* ctx,
+    FnCtxDestructor* destructor,
+    bool deterministic) {
+  int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
+  int ret =
+      sqlite3_create_function_v2(db_.get(), name, static_cast<int>(argc), flags,
+                                 ctx, nullptr, step, final, destructor);
+  if (ret != SQLITE_OK) {
+    return base::ErrStatus("Unable to register function with name %s", name);
+  }
+  return base::OkStatus();
+}
+
 base::Status SqliteEngine::RegisterWindowFunction(const char* name,
                                                   int argc,
                                                   WindowFnStep* step,
