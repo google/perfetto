@@ -23,8 +23,8 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/sqlite/sqlite_result.h"
-#include "src/trace_processor/sqlite/sqlite_window_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
 
 namespace perfetto::trace_processor {
 
