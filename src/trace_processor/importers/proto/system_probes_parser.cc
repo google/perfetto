@@ -107,6 +107,10 @@ std::optional<int> FingerprintToSdkVersion(const std::string& fingerprint) {
 SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
     : context_(context),
       utid_name_id_(context->storage->InternString("utid")),
+      ns_unit_id_(context->storage->InternString("ns")),
+      bytes_unit_id_(context->storage->InternString("bytes")),
+      available_chunks_unit_id_(
+          context->storage->InternString("available chunks")),
       num_forks_name_id_(context->storage->InternString("num_forks")),
       num_irq_total_name_id_(context->storage->InternString("num_irq_total")),
       num_softirq_total_name_id_(
@@ -208,6 +212,8 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
     context_->event_tracker->PushCounter(ts, value, track);
   };
 
+  // TODO(rsavitski): with the UI now supporting rate mode for counter tracks,
+  // this is likely redundant.
   auto calculate_throughput = [](double amount, int64_t diff) {
     return diff == 0 ? 0 : amount * MS_PER_SEC / static_cast<double>(diff);
   };
@@ -277,9 +283,10 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     }
     // /proc/meminfo counters are in kB, convert to bytes
     TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-        TrackTracker::Group::kMemory, meminfo_strs_id_[key]);
+        TrackTracker::Group::kMemory, meminfo_strs_id_[key], {},
+        bytes_unit_id_);
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(mi.value()) * 1024., track);
+        ts, static_cast<double>(mi.value()) * 1024, track);
   }
 
   for (auto it = sys_stats.devfreq(); it; ++it) {
@@ -402,20 +409,23 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
         ts, static_cast<double>(sys_stats.num_softirq_total()), track);
   }
 
+  // Fragmentation of the kernel binary buddy memory allocator.
+  // See /proc/buddyinfo in `man 5 proc`.
   for (auto it = sys_stats.buddy_info(); it; ++it) {
     protos::pbzero::SysStats::BuddyInfo::Decoder bi(*it);
     int order = 0;
     for (auto order_it = bi.order_pages(); order_it; ++order_it) {
       std::string node = bi.node().ToStdString();
       std::string zone = bi.zone().ToStdString();
-      uint32_t size_kb =
+      uint32_t chunk_size_kb =
           static_cast<uint32_t>(((1 << order) * page_size_) / 1024);
       base::StackString<255> counter_name("mem.buddyinfo[%s][%s][%u kB]",
-                                          node.c_str(), zone.c_str(), size_kb);
+                                          node.c_str(), zone.c_str(),
+                                          chunk_size_kb);
       StringId name =
           context_->storage->InternString(counter_name.string_view());
       TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-          TrackTracker::Group::kMemory, name);
+          TrackTracker::Group::kMemory, name, {}, available_chunks_unit_id_);
       context_->event_tracker->PushCounter(ts, static_cast<double>(*order_it),
                                            track);
       order++;
@@ -426,6 +436,8 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     ParseDiskStats(ts, *it);
   }
 
+  // Pressure Stall Information. See
+  // https://docs.kernel.org/accounting/psi.html.
   for (auto it = sys_stats.psi(); it; ++it) {
     protos::pbzero::SysStats::PsiSample::Decoder psi(*it);
 
@@ -436,11 +448,12 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       continue;
     }
 
+    // Unit = total blocked time on this resource in nanoseconds.
     // TODO(b/315152880): Consider moving psi entries for cpu/io/memory into
     // groups specific to that resource (e.g., `Group::kMemory`).
     TrackId track = context_->track_tracker->InternGlobalCounterTrack(
         TrackTracker::Group::kDeviceState,
-        sys_stats_psi_resource_names_[resource]);
+        sys_stats_psi_resource_names_[resource], {}, ns_unit_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(psi.total_ns()), track);
   }

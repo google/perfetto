@@ -50,6 +50,10 @@ class SystemProbesParser {
   TraceProcessorContext* const context_;
 
   const StringId utid_name_id_;
+  const StringId ns_unit_id_;
+  const StringId bytes_unit_id_;
+  const StringId available_chunks_unit_id_;
+
   const StringId num_forks_name_id_;
   const StringId num_irq_total_name_id_;
   const StringId num_softirq_total_name_id_;
