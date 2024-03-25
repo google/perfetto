@@ -775,8 +775,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
           metrics::RunMetric::Context{engine_.get(), &sql_metrics_}));
 
   // Legacy tables.
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SqlStatsTable>(
-      "sqlstats", storage, SqliteTableLegacy::TableType::kEponymousOnly, false);
+  engine_->sqlite_engine()->RegisterVirtualTableModule<SqlStatsModule>(
+      "sqlstats", storage);
   engine_->sqlite_engine()->RegisterVirtualTableModule<StatsModule>("stats",
                                                                     storage);
 
