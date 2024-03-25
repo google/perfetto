@@ -28,10 +28,11 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
  public:
   SpanJoinOperatorTableTest() {
     engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-        "span_join", &engine_, SqliteTable::TableType::kExplicitCreate, false);
-    engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-        "span_left_join", &engine_, SqliteTable::TableType::kExplicitCreate,
+        "span_join", &engine_, SqliteTableLegacy::TableType::kExplicitCreate,
         false);
+    engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
+        "span_left_join", &engine_,
+        SqliteTableLegacy::TableType::kExplicitCreate, false);
   }
 
   void PrepareValidStatement(const std::string& sql) {

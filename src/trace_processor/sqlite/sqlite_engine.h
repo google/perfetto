@@ -26,10 +26,12 @@
 #include <type_traits>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/db/table.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_module.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -126,10 +128,15 @@ class SqliteEngine {
   base::Status UnregisterFunction(const char* name, int argc);
 
   // Registers a SQLite virtual table module with the given name.
+  template <typename Module>
+  void RegisterVirtualTableModule(const std::string& module_name,
+                                  typename Module::Context* ctx);
+
+  // Registers a SQLite virtual table module with the given name.
   template <typename Vtab, typename Context>
   void RegisterVirtualTableModule(const std::string& module_name,
                                   Context ctx,
-                                  SqliteTable::TableType table_type,
+                                  SqliteTableLegacy::TableType table_type,
                                   bool updatable);
 
   // Declares a virtual table with SQLite.
@@ -137,19 +144,20 @@ class SqliteEngine {
 
   // Saves a SQLite table across a pair of xDisconnect/xConnect callbacks.
   base::Status SaveSqliteTable(const std::string& table_name,
-                               std::unique_ptr<SqliteTable>);
+                               std::unique_ptr<SqliteTableLegacy>);
 
   // Restores a SQLite table across a pair of xDisconnect/xConnect callbacks.
-  base::StatusOr<std::unique_ptr<SqliteTable>> RestoreSqliteTable(
+  base::StatusOr<std::unique_ptr<SqliteTableLegacy>> RestoreSqliteTable(
       const std::string& table_name);
 
   // Gets the context for a registered SQL function.
   void* GetFunctionContext(const std::string& name, int argc);
 
-  // Should be called when a SqliteTable instance is created.
-  void OnSqliteTableCreated(const std::string& name, SqliteTable::TableType);
+  // Should be called when a SqliteTableLegacy instance is created.
+  void OnSqliteTableCreated(const std::string& name,
+                            SqliteTableLegacy::TableType);
 
-  // Should be called when a SqliteTable instance is destroyed.
+  // Should be called when a SqliteTableLegacy instance is destroyed.
   void OnSqliteTableDestroyed(const std::string& name);
 
   sqlite3* db() const { return db_.get(); }
@@ -169,9 +177,10 @@ class SqliteEngine {
   SqliteEngine(SqliteEngine&&) noexcept = delete;
   SqliteEngine& operator=(SqliteEngine&&) = delete;
 
-  base::FlatHashMap<std::string, SqliteTable::TableType> sqlite_tables_;
+  base::FlatHashMap<std::string, SqliteTableLegacy::TableType> sqlite_tables_;
   std::vector<std::string> all_created_sqlite_tables_;
-  base::FlatHashMap<std::string, std::unique_ptr<SqliteTable>> saved_tables_;
+  base::FlatHashMap<std::string, std::unique_ptr<SqliteTableLegacy>>
+      saved_tables_;
   base::FlatHashMap<std::pair<std::string, int>, void*, FnHasher> fn_ctx_;
 
   ScopedDb db_;
@@ -184,15 +193,25 @@ class SqliteEngine {
 // in the header file because it is templated code. We separate it out
 // like this to keep the API people actually care about easy to read.
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+
+template <typename Module>
+void SqliteEngine::RegisterVirtualTableModule(const std::string& module_name,
+                                              typename Module::Context* ctx) {
+  static_assert(std::is_base_of_v<sqlite::Module<Module>, Module>,
+                "Must subclass sqlite::Module");
+  int res = sqlite3_create_module_v2(db_.get(), module_name.c_str(),
+                                     &Module::kModule, ctx, nullptr);
+  PERFETTO_CHECK(res == SQLITE_OK);
+}
 
 template <typename Vtab, typename Context>
-void SqliteEngine::RegisterVirtualTableModule(const std::string& module_name,
-                                              Context ctx,
-                                              SqliteTable::TableType table_type,
-                                              bool updatable) {
-  static_assert(std::is_base_of_v<SqliteTable, Vtab>,
+void SqliteEngine::RegisterVirtualTableModule(
+    const std::string& module_name,
+    Context ctx,
+    SqliteTableLegacy::TableType table_type,
+    bool updatable) {
+  static_assert(std::is_base_of_v<SqliteTableLegacy, Vtab>,
                 "Must subclass TypedSqliteTable");
 
   auto module_arg =
@@ -204,7 +223,6 @@ void SqliteEngine::RegisterVirtualTableModule(const std::string& module_name,
   PERFETTO_CHECK(res == SQLITE_OK);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE_ENGINE_H_

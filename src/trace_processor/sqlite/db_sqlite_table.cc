@@ -210,9 +210,10 @@ base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
   return base::OkStatus();
 }
 
-SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table::Schema& schema,
-                                                 const char* table_name) {
-  std::vector<SqliteTable::Column> schema_cols;
+SqliteTableLegacy::Schema DbSqliteTable::ComputeSchema(
+    const Table::Schema& schema,
+    const char* table_name) {
+  std::vector<SqliteTableLegacy::Column> schema_cols;
   for (uint32_t i = 0; i < schema.columns.size(); ++i) {
     const auto& col = schema.columns[i];
     schema_cols.emplace_back(i, col.name, col.type, col.is_hidden);
@@ -437,12 +438,12 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
   return QueryCost{final_cost, current_row_count};
 }
 
-std::unique_ptr<SqliteTable::BaseCursor> DbSqliteTable::CreateCursor() {
+std::unique_ptr<SqliteTableLegacy::BaseCursor> DbSqliteTable::CreateCursor() {
   return std::make_unique<Cursor>(this, context_->cache);
 }
 
 DbSqliteTable::Cursor::Cursor(DbSqliteTable* sqlite_table, QueryCache* cache)
-    : SqliteTable::BaseCursor(sqlite_table),
+    : SqliteTableLegacy::BaseCursor(sqlite_table),
       db_sqlite_table_(sqlite_table),
       cache_(cache) {
   switch (db_sqlite_table_->context_->computation) {

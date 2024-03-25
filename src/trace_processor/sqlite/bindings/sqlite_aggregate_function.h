@@ -26,8 +26,7 @@ namespace perfetto::trace_processor {
 //
 // See https://www.sqlite.org/c3ref/create_function.html for details on how to
 // implement the methods of this class.
-class SqliteAggregateFunction {
- public:
+struct SqliteAggregateFunction {
   // The type of the context object which will be passed to the function.
   // Can be redefined in any sub-classes to override the context.
   using Context = void;
