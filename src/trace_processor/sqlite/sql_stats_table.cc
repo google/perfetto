@@ -36,20 +36,21 @@ SqlStatsTable::~SqlStatsTable() = default;
 base::Status SqlStatsTable::Init(int, const char* const*, Schema* schema) {
   *schema = Schema(
       {
-          SqliteTable::Column(Column::kQuery, "query", SqlValue::Type::kString),
-          SqliteTable::Column(Column::kTimeStarted, "started",
-                              SqlValue::Type::kLong),
-          SqliteTable::Column(Column::kTimeFirstNext, "first_next",
-                              SqlValue::Type::kLong),
-          SqliteTable::Column(Column::kTimeEnded, "ended",
-                              SqlValue::Type::kLong),
+          SqliteTableLegacy::Column(Column::kQuery, "query",
+                                    SqlValue::Type::kString),
+          SqliteTableLegacy::Column(Column::kTimeStarted, "started",
+                                    SqlValue::Type::kLong),
+          SqliteTableLegacy::Column(Column::kTimeFirstNext, "first_next",
+                                    SqlValue::Type::kLong),
+          SqliteTableLegacy::Column(Column::kTimeEnded, "ended",
+                                    SqlValue::Type::kLong),
       },
       {Column::kTimeStarted});
   return util::OkStatus();
 }
 
-std::unique_ptr<SqliteTable::BaseCursor> SqlStatsTable::CreateCursor() {
-  return std::unique_ptr<SqliteTable::BaseCursor>(new Cursor(this));
+std::unique_ptr<SqliteTableLegacy::BaseCursor> SqlStatsTable::CreateCursor() {
+  return std::unique_ptr<SqliteTableLegacy::BaseCursor>(new Cursor(this));
 }
 
 int SqlStatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
@@ -57,7 +58,7 @@ int SqlStatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
 }
 
 SqlStatsTable::Cursor::Cursor(SqlStatsTable* table)
-    : SqliteTable::BaseCursor(table),
+    : SqliteTableLegacy::BaseCursor(table),
       storage_(table->storage_),
       table_(table) {}
 SqlStatsTable::Cursor::~Cursor() = default;

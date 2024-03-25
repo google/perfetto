@@ -52,7 +52,7 @@ class GetColumnsForTableTest : public ::testing::Test {
 
 TEST_F(GetColumnsForTableTest, ValidInput) {
   RunStatement("CREATE TABLE foo (name STRING, ts INT, dur INT);");
-  std::vector<SqliteTable::Column> columns;
+  std::vector<SqliteTableLegacy::Column> columns;
   auto status = sqlite::utils::GetColumnsForTable(*db_, "foo", columns);
   ASSERT_TRUE(status.ok());
 }
@@ -62,13 +62,13 @@ TEST_F(GetColumnsForTableTest, UnknownType) {
   // doesn't recognise. This just ensures that the query fails rather than
   // crashing.
   RunStatement("CREATE TABLE foo (name NUM, ts INT, dur INT);");
-  std::vector<SqliteTable::Column> columns;
+  std::vector<SqliteTableLegacy::Column> columns;
   auto status = sqlite::utils::GetColumnsForTable(*db_, "foo", columns);
   ASSERT_FALSE(status.ok());
 }
 
 TEST_F(GetColumnsForTableTest, UnknownTableName) {
-  std::vector<SqliteTable::Column> columns;
+  std::vector<SqliteTableLegacy::Column> columns;
   auto status =
       sqlite::utils::GetColumnsForTable(*db_, "unknowntable", columns);
   ASSERT_FALSE(status.ok());

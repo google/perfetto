@@ -182,8 +182,8 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
   }
 
   engine_->RegisterVirtualTableModule<RuntimeTableFunction>(
-      "runtime_table_function", this, SqliteTable::TableType::kExplicitCreate,
-      false);
+      "runtime_table_function", this,
+      SqliteTableLegacy::TableType::kExplicitCreate, false);
   auto context = std::make_unique<DbSqliteTable::Context>(
       query_cache_.get(),
       [this](const std::string& name) {
@@ -197,7 +197,7 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
       });
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
       "runtime_table", std::move(context),
-      SqliteTable::TableType::kExplicitCreate, false);
+      SqliteTableLegacy::TableType::kExplicitCreate, false);
 }
 
 PerfettoSqlEngine::~PerfettoSqlEngine() {
@@ -215,7 +215,7 @@ void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
       query_cache_.get(), &table, std::move(schema));
   static_tables_.Insert(table_name, &table);
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
-      table_name, std::move(context), SqliteTable::kEponymousOnly, false);
+      table_name, std::move(context), SqliteTableLegacy::kEponymousOnly, false);
 
   // Register virtual tables into an internal 'perfetto_tables' table.
   // This is used for iterating through all the tables during a database
@@ -237,7 +237,7 @@ void PerfettoSqlEngine::RegisterStaticTableFunction(
   auto context = std::make_unique<DbSqliteTable::Context>(query_cache_.get(),
                                                           std::move(fn));
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
-      table_name, std::move(context), SqliteTable::kEponymousOnly, false);
+      table_name, std::move(context), SqliteTableLegacy::kEponymousOnly, false);
 }
 
 base::StatusOr<PerfettoSqlEngine::ExecutionStats> PerfettoSqlEngine::Execute(

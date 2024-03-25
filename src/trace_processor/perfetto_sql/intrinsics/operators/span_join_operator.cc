@@ -47,7 +47,7 @@ bool IsRequiredColumn(const std::string& name) {
 }
 
 std::optional<std::string> HasDuplicateColumns(
-    const std::vector<SqliteTable::Column>& cols) {
+    const std::vector<SqliteTableLegacy::Column>& cols) {
   std::set<std::string> names;
   for (const auto& col : cols) {
     if (names.count(col.name()) > 0)
@@ -180,7 +180,7 @@ util::Status SpanJoinOperatorTable::Init(int argc,
   if (!status.ok())
     return status;
 
-  std::vector<SqliteTable::Column> cols;
+  std::vector<SqliteTableLegacy::Column> cols;
   // Ensure the shared columns are consistently ordered and are not
   // present twice in the final schema
   cols.emplace_back(Column::kTimestamp, kTsColumnName, SqlValue::Type::kLong);
@@ -217,7 +217,7 @@ util::Status SpanJoinOperatorTable::Init(int argc,
 
 void SpanJoinOperatorTable::CreateSchemaColsForDefn(
     const TableDefinition& defn,
-    std::vector<SqliteTable::Column>* cols) {
+    std::vector<SqliteTableLegacy::Column>* cols) {
   for (size_t i = 0; i < defn.columns().size(); i++) {
     const auto& n = defn.columns()[i].name();
     if (IsRequiredColumn(n) || n == defn.partition_col())
@@ -231,7 +231,8 @@ void SpanJoinOperatorTable::CreateSchemaColsForDefn(
   }
 }
 
-std::unique_ptr<SqliteTable::BaseCursor> SpanJoinOperatorTable::CreateCursor() {
+std::unique_ptr<SqliteTableLegacy::BaseCursor>
+SpanJoinOperatorTable::CreateCursor() {
   return std::unique_ptr<SpanJoinOperatorTable::Cursor>(
       new Cursor(this, engine_));
 }
@@ -331,7 +332,7 @@ util::Status SpanJoinOperatorTable::CreateTableDefinition(
         desc.name.c_str());
   }
 
-  std::vector<SqliteTable::Column> cols;
+  std::vector<SqliteTableLegacy::Column> cols;
   RETURN_IF_ERROR(sqlite::utils::GetColumnsForTable(
       engine_->sqlite_engine()->db(), desc.name, cols));
 
@@ -396,7 +397,7 @@ std::string SpanJoinOperatorTable::GetNameForGlobalColumnIndex(
 
 SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table,
                                       PerfettoSqlEngine* engine)
-    : SqliteTable::BaseCursor(table),
+    : SqliteTableLegacy::BaseCursor(table),
       t1_(table, &table->t1_defn_, engine),
       t2_(table, &table->t2_defn_, engine),
       table_(table) {}
@@ -783,7 +784,7 @@ util::Status SpanJoinOperatorTable::Query::CursorNext() {
 std::string SpanJoinOperatorTable::Query::CreateSqlQuery(
     const std::vector<std::string>& cs) const {
   std::vector<std::string> col_names;
-  for (const SqliteTable::Column& c : defn_->columns()) {
+  for (const SqliteTableLegacy::Column& c : defn_->columns()) {
     col_names.push_back("`" + c.name() + "`");
   }
 
@@ -833,7 +834,7 @@ void SpanJoinOperatorTable::Query::ReportSqliteResult(sqlite3_context* context,
 SpanJoinOperatorTable::TableDefinition::TableDefinition(
     std::string name,
     std::string partition_col,
-    std::vector<SqliteTable::Column> cols,
+    std::vector<SqliteTableLegacy::Column> cols,
     EmitShadowType emit_shadow_type,
     uint32_t ts_idx,
     uint32_t dur_idx,

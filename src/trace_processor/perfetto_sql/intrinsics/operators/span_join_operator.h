@@ -98,7 +98,7 @@ class SpanJoinOperatorTable final
 
     TableDefinition(std::string name,
                     std::string partition_col,
-                    std::vector<SqliteTable::Column> cols,
+                    std::vector<SqliteTableLegacy::Column> cols,
                     EmitShadowType emit_shadow_type,
                     uint32_t ts_idx,
                     uint32_t dur_idx,
@@ -120,7 +120,9 @@ class SpanJoinOperatorTable final
 
     const std::string& name() const { return name_; }
     const std::string& partition_col() const { return partition_col_; }
-    const std::vector<SqliteTable::Column>& columns() const { return cols_; }
+    const std::vector<SqliteTableLegacy::Column>& columns() const {
+      return cols_;
+    }
 
     uint32_t ts_idx() const { return ts_idx_; }
     uint32_t dur_idx() const { return dur_idx_; }
@@ -131,7 +133,7 @@ class SpanJoinOperatorTable final
 
     std::string name_;
     std::string partition_col_;
-    std::vector<SqliteTable::Column> cols_;
+    std::vector<SqliteTableLegacy::Column> cols_;
 
     uint32_t ts_idx_ = std::numeric_limits<uint32_t>::max();
     uint32_t dur_idx_ = std::numeric_limits<uint32_t>::max();
@@ -323,7 +325,7 @@ class SpanJoinOperatorTable final
   };
 
   // Base class for a cursor on the span table.
-  class Cursor final : public SqliteTable::BaseCursor {
+  class Cursor final : public SqliteTableLegacy::BaseCursor {
    public:
     Cursor(SpanJoinOperatorTable*, PerfettoSqlEngine*);
     ~Cursor() final;
@@ -361,8 +363,8 @@ class SpanJoinOperatorTable final
   ~SpanJoinOperatorTable() final;
 
   // Table implementation.
-  util::Status Init(int, const char* const*, SqliteTable::Schema*) final;
-  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
+  util::Status Init(int, const char* const*, SqliteTableLegacy::Schema*) final;
+  std::unique_ptr<SqliteTableLegacy::BaseCursor> CreateCursor() final;
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) final;
   int FindFunction(const char* name, FindFunctionFn* fn, void** args) final;
 
@@ -430,7 +432,7 @@ class SpanJoinOperatorTable final
                                           int global_column);
 
   void CreateSchemaColsForDefn(const TableDefinition& defn,
-                               std::vector<SqliteTable::Column>* cols);
+                               std::vector<SqliteTableLegacy::Column>* cols);
 
   TableDefinition t1_defn_;
   TableDefinition t2_defn_;

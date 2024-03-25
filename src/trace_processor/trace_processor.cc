@@ -36,7 +36,7 @@ TraceProcessor::~TraceProcessor() = default;
 void EnableSQLiteVtableDebugging() {
   // This level of indirection is required to avoid clients to depend on table.h
   // which in turn requires sqlite headers.
-  SqliteTable::debug = true;
+  SqliteTableLegacy::debug = true;
 }
 
 }  // namespace trace_processor
