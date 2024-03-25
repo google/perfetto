@@ -20,17 +20,16 @@
 #include <sqlite3.h>
 
 #include "perfetto/base/status.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
 struct PprofFunctions {
-  static base::Status Register(sqlite3* db, TraceProcessorContext* context);
+  static base::Status Register(PerfettoSqlEngine&, TraceProcessorContext*);
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_PPROF_FUNCTIONS_H_
