@@ -825,6 +825,13 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->v8_js_script_table());
   RegisterStaticTable(storage->v8_wasm_script_table());
   RegisterStaticTable(storage->v8_js_function_table());
+  RegisterStaticTable(storage->v8_js_code_table());
+  RegisterStaticTable(storage->v8_internal_code_table());
+  RegisterStaticTable(storage->v8_wasm_code_table());
+  RegisterStaticTable(storage->v8_regexp_code_table());
+
+  RegisterStaticTable(storage->jit_code_table());
+  RegisterStaticTable(storage->jit_frame_table());
 
   RegisterStaticTable(storage->jit_code_table());
   RegisterStaticTable(storage->jit_frame_table());

@@ -24,6 +24,7 @@ from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppString
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppTableId
+from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from .profiler_tables import STACK_PROFILE_FRAME_TABLE
@@ -33,7 +34,7 @@ JIT_CODE_TABLE = Table(
     class_name='JitCodeTable',
     sql_name='__intrinsic_jit_code',
     columns=[
-        C('create_ts', CppInt64()),
+        C('create_ts', CppInt64(), ColumnFlag.SORTED),
         C('estimated_delete_ts', CppOptional(CppInt64())),
         C('utid', CppUint32()),
         C('start_address', CppInt64()),
