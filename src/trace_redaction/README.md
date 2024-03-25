@@ -1,7 +1,8 @@
+# Trace Redaction
 
-# Timeline
+## Timeline
 
-## Intro
+### Intro
 
 The timeline is at the center of the redaction system. It provides an
 efficient method to find which package a thread/process belongs to.
@@ -11,7 +12,7 @@ significant privacy conern because a pid can be recycled. Just because the pid
 is excluded from redaction before time T, doesn't mean it should be redacted
 after time T.
 
-## General Structure
+### General Structure
 
 The timeline uses an event-based pattern using two events:
 
@@ -44,7 +45,7 @@ The vast majory of threads will have one event, an open event provided by the
 `ProcessTree`. For some threads, they will have multiple open (`ProcessTree`,
 `NewTask`) and close events (`ProcFree`) in alternating order.
 
-## Query
+### Query
 
 ```c++
 struct Slice {
@@ -132,3 +133,50 @@ After initialization, there would only be 64 open events and 5 close events.
 This means that every uid lookup would be $logn\ |\ n=64 = 6$. Finding the uid
 given a pid is one of the most common operations during redaction because uid
 determines if something needs to be redacted.
+
+## Scrub Task Rename Spec
+
+### Background
+
+`task_rename` are generated when a thread renames itself. This often happens
+after (but not limited to) a `task_newtask` event. The `task_rename` event
+exposes the threads old name and the threads new name.
+
+### Protobuf Message(s)
+
+__New task event:__
+
+```javascript
+event {
+  timestamp: 6702094133317685
+  pid: 6167
+  task_newtask {
+    pid: 7972
+    comm: "adbd"
+    clone_flags: 4001536
+    oom_score_adj: -1000
+  }
+}
+```
+
+__Task rename event:__
+
+```javascript
+event {
+  timestamp: 6702094133665498
+  pid: 7972
+  task_rename {
+    pid: 7972
+    oldcomm: "adbd"
+    newcomm: "shell svc 7971"
+    oom_score_adj: -1000
+  }
+}
+```
+
+### Method
+
+A `task_rename` should be redacted when `event.pid` does not belong to that
+target package (`context.package_uid`). Since the pid's naming information will
+be removed everywhere, and naming information is effectively metadata, the whole
+event can be dropped without effecting the integrity of the trace.
