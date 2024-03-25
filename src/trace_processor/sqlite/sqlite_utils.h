@@ -30,7 +30,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/sqlite/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto::trace_processor::sqlite::utils {

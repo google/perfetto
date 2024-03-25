@@ -17,7 +17,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h"
 
 #include "perfetto/base/status.h"
-#include "src/trace_processor/sqlite/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {

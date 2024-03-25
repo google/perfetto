@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE_RESULT_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_RESULT_H_
+#ifndef SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_RESULT_H_
+#define SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_RESULT_H_
 
 #include <sqlite3.h>
 #include <cstdint>
@@ -92,4 +92,4 @@ inline void StaticPointer(sqlite3_context* ctx, void* ptr, const char* name) {
 
 }  // namespace perfetto::trace_processor::sqlite::result
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE_RESULT_H_
+#endif  // SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_RESULT_H_

@@ -20,7 +20,7 @@
 #include <utility>
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/sqlite/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
