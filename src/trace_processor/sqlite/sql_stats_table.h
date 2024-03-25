@@ -42,12 +42,12 @@ class SqlStatsTable final
   };
 
   // Implementation of the SQLite cursor interface.
-  class Cursor final : public SqliteTable::BaseCursor {
+  class Cursor final : public SqliteTableLegacy::BaseCursor {
    public:
     explicit Cursor(SqlStatsTable* storage);
     ~Cursor() final;
 
-    // Implementation of SqliteTable::Cursor.
+    // Implementation of SqliteTableLegacy::Cursor.
     base::Status Filter(const QueryConstraints&,
                         sqlite3_value**,
                         FilterHistory);
@@ -73,7 +73,7 @@ class SqlStatsTable final
 
   // Table implementation.
   base::Status Init(int, const char* const*, Schema*) final;
-  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
+  std::unique_ptr<SqliteTableLegacy::BaseCursor> CreateCursor() final;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) final;
 
  private:

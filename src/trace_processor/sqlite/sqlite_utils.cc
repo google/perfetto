@@ -92,9 +92,10 @@ std::wstring SqliteValueToWString(sqlite3_value* value) {
   return {reinterpret_cast<const wchar_t*>(sqlite3_value_text16(value)), count};
 }
 
-base::Status GetColumnsForTable(sqlite3* db,
-                                const std::string& raw_table_name,
-                                std::vector<SqliteTable::Column>& columns) {
+base::Status GetColumnsForTable(
+    sqlite3* db,
+    const std::string& raw_table_name,
+    std::vector<SqliteTableLegacy::Column>& columns) {
   PERFETTO_DCHECK(columns.empty());
   char sql[1024];
   const char kRawSql[] = "SELECT name, type from pragma_table_info(\"%s\")";

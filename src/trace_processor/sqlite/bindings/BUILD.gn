@@ -19,6 +19,7 @@ assert(enable_perfetto_trace_processor_sqlite)
 source_set("bindings") {
   sources = [
     "sqlite_aggregate_function.h",
+    "sqlite_module.h",
     "sqlite_result.h",
     "sqlite_window_function.h",
   ]

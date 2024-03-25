@@ -35,9 +35,9 @@ class TypedSqliteTableBase;
 // Abstract base class representing a SQLite virtual table. Implements the
 // common bookeeping required across all tables and allows subclasses to
 // implement a friendlier API than that required by SQLite.
-class SqliteTable : public sqlite3_vtab {
+class SqliteTableLegacy : public sqlite3_vtab {
  public:
-  // Custom opcodes used by subclasses of SqliteTable.
+  // Custom opcodes used by subclasses of SqliteTableLegacy.
   // Stored here as we need a central repository of opcodes to prevent clashes
   // between different sub-classes.
   enum CustomFilterOpcode {
@@ -82,7 +82,7 @@ class SqliteTable : public sqlite3_vtab {
       kSame = 1,
     };
 
-    explicit BaseCursor(SqliteTable* table);
+    explicit BaseCursor(SqliteTableLegacy* table);
     virtual ~BaseCursor();
 
     // Methods to be implemented by derived table classes.
@@ -105,7 +105,7 @@ class SqliteTable : public sqlite3_vtab {
     // Used to extract the value from the column at index |N|.
     void Column(sqlite3_context* context, int N);
 
-    SqliteTable* table() const { return table_; }
+    SqliteTableLegacy* table() const { return table_; }
 
    protected:
     BaseCursor(BaseCursor&) = delete;
@@ -115,7 +115,7 @@ class SqliteTable : public sqlite3_vtab {
     BaseCursor& operator=(BaseCursor&&) = default;
 
    private:
-    SqliteTable* table_ = nullptr;
+    SqliteTableLegacy* table_ = nullptr;
   };
 
   // The schema of the table. Created by subclasses to allow the table class to
@@ -157,7 +157,7 @@ class SqliteTable : public sqlite3_vtab {
   };
 
   // Public for unique_ptr destructor calls.
-  virtual ~SqliteTable();
+  virtual ~SqliteTableLegacy();
 
   // When set it logs all BestIndex and Filter actions on the console.
   static bool debug;
@@ -188,7 +188,7 @@ class SqliteTable : public sqlite3_vtab {
     int64_t estimated_rows = 0;
   };
 
-  SqliteTable();
+  SqliteTableLegacy();
 
   // Methods to be implemented by derived table classes.
   virtual base::Status Init(int argc, const char* const* argv, Schema*) = 0;
@@ -214,8 +214,8 @@ class SqliteTable : public sqlite3_vtab {
   friend class TypedSqliteTable;
   friend class TypedSqliteTableBase;
 
-  SqliteTable(const SqliteTable&) = delete;
-  SqliteTable& operator=(const SqliteTable&) = delete;
+  SqliteTableLegacy(const SqliteTableLegacy&) = delete;
+  SqliteTableLegacy& operator=(const SqliteTableLegacy&) = delete;
 
   // The engine class this table is registered with. Used for restoring/saving
   // the table.
@@ -238,7 +238,7 @@ class SqliteTable : public sqlite3_vtab {
   int best_index_num_ = 0;
 };
 
-class TypedSqliteTableBase : public SqliteTable {
+class TypedSqliteTableBase : public SqliteTableLegacy {
  protected:
   struct BaseModuleArg {
     sqlite3_module module;
@@ -262,8 +262,9 @@ class TypedSqliteTableBase : public SqliteTable {
   static int xOpen(sqlite3_vtab*, sqlite3_vtab_cursor**);
   static int xBestIndex(sqlite3_vtab*, sqlite3_index_info*);
 
-  static base::Status DeclareAndAssignVtab(std::unique_ptr<SqliteTable> table,
-                                           sqlite3_vtab** tab);
+  static base::Status DeclareAndAssignVtab(
+      std::unique_ptr<SqliteTableLegacy> table,
+      sqlite3_vtab** tab);
 
   base::Status InitInternal(SqliteEngine* engine,
                             int argc,

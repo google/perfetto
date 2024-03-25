@@ -27,8 +27,8 @@ namespace trace_processor {
 
 class PerfettoSqlEngine;
 
-// The implementation of the SqliteTable interface for table functions defined
-// at runtime using SQL.
+// The implementation of the SqliteTableLegacy interface for table functions
+// defined at runtime using SQL.
 class RuntimeTableFunction final
     : public TypedSqliteTable<RuntimeTableFunction, PerfettoSqlEngine*> {
  public:
@@ -65,7 +65,7 @@ class RuntimeTableFunction final
              kPrimaryKeyColumns;
     }
   };
-  class Cursor final : public SqliteTable::BaseCursor {
+  class Cursor final : public SqliteTableLegacy::BaseCursor {
    public:
     explicit Cursor(RuntimeTableFunction* table, State* state);
     ~Cursor() final;
@@ -92,7 +92,7 @@ class RuntimeTableFunction final
   ~RuntimeTableFunction() final;
 
   base::Status Init(int argc, const char* const* argv, Schema*) final;
-  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
+  std::unique_ptr<SqliteTableLegacy::BaseCursor> CreateCursor() final;
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) final;
 
  private:

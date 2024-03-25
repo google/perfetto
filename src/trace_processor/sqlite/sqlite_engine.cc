@@ -123,7 +123,7 @@ SqliteEngine::~SqliteEngine() {
   for (auto it = all_created_sqlite_tables_.rbegin();
        it != all_created_sqlite_tables_.rend(); it++) {
     if (auto* type = sqlite_tables_.Find(*it);
-        !type || *type != SqliteTable::TableType::kExplicitCreate) {
+        !type || *type != SqliteTableLegacy::TableType::kExplicitCreate) {
       continue;
     }
     if (auto it_and_ins = dropped_tables.insert(*it); !it_and_ins.second) {
@@ -256,8 +256,9 @@ base::Status SqliteEngine::DeclareVirtualTable(const std::string& create_stmt) {
   return base::OkStatus();
 }
 
-base::Status SqliteEngine::SaveSqliteTable(const std::string& table_name,
-                                           std::unique_ptr<SqliteTable> table) {
+base::Status SqliteEngine::SaveSqliteTable(
+    const std::string& table_name,
+    std::unique_ptr<SqliteTableLegacy> table) {
   auto res = saved_tables_.Insert(table_name, {});
   if (!res.second) {
     return base::ErrStatus("Table with name %s already is saved",
@@ -267,14 +268,14 @@ base::Status SqliteEngine::SaveSqliteTable(const std::string& table_name,
   return base::OkStatus();
 }
 
-base::StatusOr<std::unique_ptr<SqliteTable>> SqliteEngine::RestoreSqliteTable(
-    const std::string& table_name) {
+base::StatusOr<std::unique_ptr<SqliteTableLegacy>>
+SqliteEngine::RestoreSqliteTable(const std::string& table_name) {
   auto* res = saved_tables_.Find(table_name);
   if (!res) {
     return base::ErrStatus("Table with name %s does not exist in saved state",
                            table_name.c_str());
   }
-  std::unique_ptr<SqliteTable> table = std::move(*res);
+  std::unique_ptr<SqliteTableLegacy> table = std::move(*res);
   PERFETTO_CHECK(saved_tables_.Erase(table_name));
   return std::move(table);
 }
@@ -289,7 +290,7 @@ std::optional<uint32_t> SqliteEngine::GetErrorOffset() const {
 }
 
 void SqliteEngine::OnSqliteTableCreated(const std::string& name,
-                                        SqliteTable::TableType type) {
+                                        SqliteTableLegacy::TableType type) {
   auto it_and_inserted = sqlite_tables_.Insert(name, type);
   PERFETTO_CHECK(it_and_inserted.second);
   all_created_sqlite_tables_.push_back(name);

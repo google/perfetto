@@ -40,7 +40,7 @@ class WindowOperatorTable final
     kDuration = 5,
     kQuantumTs = 6
   };
-  class Cursor final : public SqliteTable::BaseCursor {
+  class Cursor final : public SqliteTableLegacy::BaseCursor {
    public:
     explicit Cursor(WindowOperatorTable*);
     ~Cursor() final;
@@ -48,7 +48,7 @@ class WindowOperatorTable final
     Cursor(Cursor&&) = default;
     Cursor& operator=(Cursor&&) = default;
 
-    // Implementation of SqliteTable::Cursor.
+    // Implementation of SqliteTableLegacy::Cursor.
     base::Status Filter(const QueryConstraints& qc,
                         sqlite3_value**,
                         FilterHistory);
@@ -83,7 +83,7 @@ class WindowOperatorTable final
 
   // Table implementation.
   base::Status Init(int, const char* const*, Schema* schema) final;
-  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
+  std::unique_ptr<SqliteTableLegacy::BaseCursor> CreateCursor() final;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) final;
   base::Status ModifyConstraints(QueryConstraints* qc) final;
   base::Status Update(int, sqlite3_value**, sqlite3_int64*) final;

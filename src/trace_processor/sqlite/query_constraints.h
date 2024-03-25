@@ -46,8 +46,8 @@ class QueryConstraints {
     int op;
 
     // The original index of this constraint in the aConstraint array.
-    // Used internally by SqliteTable for xBestIndex - this should not be
-    // read or modified by subclasses of SqliteTable.
+    // Used internally by SqliteTableLegacy for xBestIndex - this should not be
+    // read or modified by subclasses of SqliteTableLegacy.
     int a_constraint_idx;
   };
   struct OrderBy {

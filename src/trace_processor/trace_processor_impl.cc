@@ -730,20 +730,20 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       PERFETTO_ELOG("%s", status.c_message());
   }
 
-  const TraceStorage* storage = context_.storage.get();
+  TraceStorage* storage = context_.storage.get();
 
   // Operator tables.
   engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_join", engine_.get(), SqliteTable::TableType::kExplicitCreate,
+      "span_join", engine_.get(), SqliteTableLegacy::TableType::kExplicitCreate,
       false);
   engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_left_join", engine_.get(), SqliteTable::TableType::kExplicitCreate,
-      false);
+      "span_left_join", engine_.get(),
+      SqliteTableLegacy::TableType::kExplicitCreate, false);
   engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_outer_join", engine_.get(), SqliteTable::TableType::kExplicitCreate,
-      false);
+      "span_outer_join", engine_.get(),
+      SqliteTableLegacy::TableType::kExplicitCreate, false);
   engine_->sqlite_engine()->RegisterVirtualTableModule<WindowOperatorTable>(
-      "window", storage, SqliteTable::TableType::kExplicitCreate, true);
+      "window", storage, SqliteTableLegacy::TableType::kExplicitCreate, true);
 
   // Initalize the tables and views in the prelude.
   InitializePreludeTablesViews(db);
@@ -776,9 +776,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   // Legacy tables.
   engine_->sqlite_engine()->RegisterVirtualTableModule<SqlStatsTable>(
-      "sqlstats", storage, SqliteTable::TableType::kEponymousOnly, false);
-  engine_->sqlite_engine()->RegisterVirtualTableModule<StatsTable>(
-      "stats", storage, SqliteTable::TableType::kEponymousOnly, false);
+      "sqlstats", storage, SqliteTableLegacy::TableType::kEponymousOnly, false);
+  engine_->sqlite_engine()->RegisterVirtualTableModule<StatsModule>("stats",
+                                                                    storage);
 
   // New style db-backed tables.
   // Note: if adding a table here which might potentially contain many rows

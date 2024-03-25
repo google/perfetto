@@ -52,7 +52,7 @@ base::Status RuntimeTableFunction::Init(int,
   return base::OkStatus();
 }
 
-SqliteTable::Schema RuntimeTableFunction::CreateSchema() {
+SqliteTableLegacy::Schema RuntimeTableFunction::CreateSchema() {
   std::vector<Column> columns;
   for (size_t i = 0; i < state_->return_values.size(); ++i) {
     const auto& ret = state_->return_values[i];
@@ -80,10 +80,11 @@ SqliteTable::Schema RuntimeTableFunction::CreateSchema() {
       Column(columns.size(), "_primary_key", SqlValue::kLong, true));
   primary_keys.emplace_back(columns.size() - 1);
 
-  return SqliteTable::Schema(std::move(columns), std::move(primary_keys));
+  return SqliteTableLegacy::Schema(std::move(columns), std::move(primary_keys));
 }
 
-std::unique_ptr<SqliteTable::BaseCursor> RuntimeTableFunction::CreateCursor() {
+std::unique_ptr<SqliteTableLegacy::BaseCursor>
+RuntimeTableFunction::CreateCursor() {
   return std::unique_ptr<Cursor>(new Cursor(this, state_));
 }
 
@@ -109,7 +110,7 @@ int RuntimeTableFunction::BestIndex(const QueryConstraints& qc,
 }
 
 RuntimeTableFunction::Cursor::Cursor(RuntimeTableFunction* table, State* state)
-    : SqliteTable::BaseCursor(table), table_(table), state_(state) {
+    : SqliteTableLegacy::BaseCursor(table), table_(table), state_(state) {
   if (state->reusable_stmt) {
     stmt_ = std::move(state->reusable_stmt);
     state->reusable_stmt = std::nullopt;
