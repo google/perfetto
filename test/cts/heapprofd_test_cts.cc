@@ -20,11 +20,14 @@
 #include <sys/wait.h>
 
 #include <random>
+#include <string>
+#include <string_view>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/base/test/tmp_dir_tree.h"
 #include "test/android_test_utils.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
@@ -71,25 +74,47 @@ std::string RandomSessionName() {
   return result;
 }
 
-std::optional<int64_t> ReadInt64FromFile(const std::string& path) {
-  std::string contents;
-  if (!base::ReadFile(path, &contents)) {
-    return std::nullopt;
+// Asks FileContentProvider.java inside the app to read a file.
+class ContentProviderReader {
+ public:
+  explicit ContentProviderReader(const std::string& app,
+                                 const std::string& path) {
+    tmp_dir_.TrackFile("contents.txt");
+    tempfile_ = tmp_dir_.AbsolutePath("contents.txt");
+    cmd_ = std::string("content read --uri content://") + app +
+           std::string("/") + path + " >" + tempfile_;
   }
-  return base::StringToInt64(contents);
-}
+  std::optional<int64_t> ReadInt64() {
+    if (system(cmd_.c_str()) != 0) {
+      return std::nullopt;
+    }
+    return ReadInt64FromFile(tempfile_);
+  }
+
+ private:
+  std::optional<int64_t> ReadInt64FromFile(const std::string& path) {
+    std::string contents;
+    if (!base::ReadFile(path, &contents)) {
+      return std::nullopt;
+    }
+    return base::StringToInt64(contents);
+  }
+
+  base::TmpDirTree tmp_dir_;
+  std::string tempfile_;
+  std::string cmd_;
+};
 
 bool WaitForAppAllocationCycle(const std::string& app_name, size_t timeout_ms) {
   const size_t sleep_per_attempt_us = 100 * 1000;
   const size_t max_attempts = timeout_ms * 1000 / sleep_per_attempt_us;
 
-  std::string path = std::string("/sdcard/Android/data/") + app_name +
-                     std::string("/files/") + std::string(kReportCyclePath);
+  ContentProviderReader app_reader(app_name, std::string(kReportCyclePath));
 
   for (size_t attempts = 0; attempts < max_attempts;) {
     int64_t first_value;
     for (; attempts < max_attempts; attempts++) {
-      std::optional<int64_t> val = ReadInt64FromFile(path);
+      std::optional<int64_t> val = app_reader.ReadInt64();
       if (val) {
         first_value = *val;
         break;
@@ -98,7 +123,7 @@ bool WaitForAppAllocationCycle(const std::string& app_name, size_t timeout_ms) {
     }
 
     for (; attempts < max_attempts; attempts++) {
-      std::optional<int64_t> val = ReadInt64FromFile(path);
+      std::optional<int64_t> val = app_reader.ReadInt64();
       if (!val || *val < first_value) {
         break;
       }
