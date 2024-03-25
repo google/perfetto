@@ -518,7 +518,7 @@ base::Status NullIfEmpty::Run(void*,
   return base::OkStatus();
 }
 
-void RepeatedFieldStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+void RepeatedField::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   if (argc != 1) {
     sqlite::result::Error(ctx, "RepeatedField: only expected one arg");
     return;
@@ -546,7 +546,7 @@ void RepeatedFieldStep(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
   }
 }
 
-void RepeatedFieldFinal(sqlite3_context* ctx) {
+void RepeatedField::Final(sqlite3_context* ctx) {
   // Note: we choose the size intentionally to be zero because we don't want to
   // allocate if the Step has never been called.
   auto** builder_ptr_ptr =

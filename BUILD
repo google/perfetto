@@ -2656,6 +2656,7 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/sql_source.h",
         "src/trace_processor/sqlite/sql_stats_table.cc",
         "src/trace_processor/sqlite/sql_stats_table.h",
+        "src/trace_processor/sqlite/sqlite_aggregate_function.h",
         "src/trace_processor/sqlite/sqlite_engine.cc",
         "src/trace_processor/sqlite/sqlite_engine.h",
         "src/trace_processor/sqlite/sqlite_result.h",

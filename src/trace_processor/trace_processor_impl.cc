@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -98,6 +99,8 @@
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
+#include "src/trace_processor/sqlite/sqlite_aggregate_function.h"
+#include "src/trace_processor/sqlite/sqlite_result.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/metadata.h"
@@ -171,86 +174,88 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
   }
 }
 
-struct ValueAtMaxTsContext {
-  bool initialized;
-  int value_type;
+class ValueAtMaxTs : public SqliteAggregateFunction {
+ public:
+  struct Context {
+    bool initialized;
+    int value_type;
 
-  int64_t max_ts;
-  int64_t int_value_at_max_ts;
-  double double_value_at_max_ts;
-};
+    int64_t max_ts;
+    int64_t int_value_at_max_ts;
+    double double_value_at_max_ts;
+  };
 
-void ValueAtMaxTsStep(sqlite3_context* ctx, int, sqlite3_value** argv) {
-  sqlite3_value* ts = argv[0];
-  sqlite3_value* value = argv[1];
+  static void Step(sqlite3_context* ctx, int, sqlite3_value** argv) {
+    sqlite3_value* ts = argv[0];
+    sqlite3_value* value = argv[1];
 
-  // Note that sqlite3_aggregate_context zeros the memory for us so all the
-  // variables of the struct should be zero.
-  auto* fn_ctx = reinterpret_cast<ValueAtMaxTsContext*>(
-      sqlite3_aggregate_context(ctx, sizeof(ValueAtMaxTsContext)));
+    // Note that sqlite3_aggregate_context zeros the memory for us so all the
+    // variables of the struct should be zero.
+    auto* fn_ctx = reinterpret_cast<Context*>(
+        sqlite3_aggregate_context(ctx, sizeof(Context)));
 
-  // For performance reasons, we only do the check for the type of ts and value
-  // on the first call of the function.
-  if (PERFETTO_UNLIKELY(!fn_ctx->initialized)) {
+    // For performance reasons, we only do the check for the type of ts and
+    // value on the first call of the function.
+    if (PERFETTO_UNLIKELY(!fn_ctx->initialized)) {
+      if (sqlite3_value_type(ts) != SQLITE_INTEGER) {
+        return sqlite::result::Error(
+            ctx, "VALUE_AT_MAX_TS: ts passed was not an integer");
+      }
+
+      fn_ctx->value_type = sqlite3_value_type(value);
+      if (fn_ctx->value_type != SQLITE_INTEGER &&
+          fn_ctx->value_type != SQLITE_FLOAT) {
+        return sqlite::result::Error(
+            ctx, "VALUE_AT_MAX_TS: value passed was not an integer or float");
+      }
+
+      fn_ctx->max_ts = std::numeric_limits<int64_t>::min();
+      fn_ctx->initialized = true;
+    }
+
+    // On dcheck builds however, we check every passed ts and value.
+#if PERFETTO_DCHECK_IS_ON()
     if (sqlite3_value_type(ts) != SQLITE_INTEGER) {
       return sqlite::result::Error(
           ctx, "VALUE_AT_MAX_TS: ts passed was not an integer");
     }
-
-    fn_ctx->value_type = sqlite3_value_type(value);
-    if (fn_ctx->value_type != SQLITE_INTEGER &&
-        fn_ctx->value_type != SQLITE_FLOAT) {
+    if (sqlite3_value_type(value) != fn_ctx->value_type) {
       return sqlite::result::Error(
-          ctx, "VALUE_AT_MAX_TS: value passed was not an integer or float");
+          ctx, "VALUE_AT_MAX_TS: value type is inconsistent");
     }
-
-    fn_ctx->max_ts = std::numeric_limits<int64_t>::min();
-    fn_ctx->initialized = true;
-  }
-
-  // On dcheck builds however, we check every passed ts and value.
-#if PERFETTO_DCHECK_IS_ON()
-  if (sqlite3_value_type(ts) != SQLITE_INTEGER) {
-    return sqlite::result::Error(
-        ctx, "VALUE_AT_MAX_TS: ts passed was not an integer");
-  }
-  if (sqlite3_value_type(value) != fn_ctx->value_type) {
-    return sqlite::result::Error(ctx,
-                                 "VALUE_AT_MAX_TS: value type is inconsistent");
-  }
 #endif
 
-  int64_t ts_int = sqlite3_value_int64(ts);
-  if (PERFETTO_LIKELY(fn_ctx->max_ts <= ts_int)) {
-    fn_ctx->max_ts = ts_int;
+    int64_t ts_int = sqlite3_value_int64(ts);
+    if (PERFETTO_LIKELY(fn_ctx->max_ts <= ts_int)) {
+      fn_ctx->max_ts = ts_int;
 
-    if (fn_ctx->value_type == SQLITE_INTEGER) {
-      fn_ctx->int_value_at_max_ts = sqlite3_value_int64(value);
-    } else {
-      fn_ctx->double_value_at_max_ts = sqlite3_value_double(value);
+      if (fn_ctx->value_type == SQLITE_INTEGER) {
+        fn_ctx->int_value_at_max_ts = sqlite3_value_int64(value);
+      } else {
+        fn_ctx->double_value_at_max_ts = sqlite3_value_double(value);
+      }
     }
   }
-}
 
-void ValueAtMaxTsFinal(sqlite3_context* ctx) {
-  ValueAtMaxTsContext* fn_ctx =
-      reinterpret_cast<ValueAtMaxTsContext*>(sqlite3_aggregate_context(ctx, 0));
-  if (!fn_ctx) {
-    sqlite::result::Null(ctx);
-    return;
+  static void Final(sqlite3_context* ctx) {
+    Context* fn_ctx =
+        reinterpret_cast<Context*>(sqlite3_aggregate_context(ctx, 0));
+    if (!fn_ctx) {
+      sqlite::result::Null(ctx);
+      return;
+    }
+    if (fn_ctx->value_type == SQLITE_INTEGER) {
+      sqlite::result::Long(ctx, fn_ctx->int_value_at_max_ts);
+    } else {
+      sqlite::result::Double(ctx, fn_ctx->double_value_at_max_ts);
+    }
   }
-  if (fn_ctx->value_type == SQLITE_INTEGER) {
-    sqlite::result::Long(ctx, fn_ctx->int_value_at_max_ts);
-  } else {
-    sqlite::result::Double(ctx, fn_ctx->double_value_at_max_ts);
-  }
-}
+};
 
-void RegisterValueAtMaxTsFunction(sqlite3* db) {
-  auto ret = sqlite3_create_function_v2(
-      db, "VALUE_AT_MAX_TS", 2, SQLITE_UTF8 | SQLITE_DETERMINISTIC, nullptr,
-      nullptr, &ValueAtMaxTsStep, &ValueAtMaxTsFinal, nullptr);
-  if (ret) {
+void RegisterValueAtMaxTsFunction(PerfettoSqlEngine& engine) {
+  base::Status status = engine.RegisterSqliteAggregateFunction<ValueAtMaxTs>(
+      "VALUE_AT_MAX_TS", 2, nullptr);
+  if (!status.ok()) {
     PERFETTO_ELOG("Error initializing VALUE_AT_MAX_TS");
   }
 }
@@ -693,7 +698,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
   // functions are supported.
-  RegisterValueAtMaxTsFunction(db);
+  RegisterValueAtMaxTsFunction(*engine_);
   {
     base::Status status = RegisterLastNonNullFunction(*engine_);
     if (!status.ok())
@@ -705,7 +710,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       PERFETTO_ELOG("%s", status.c_message());
   }
   {
-    base::Status status = PprofFunctions::Register(db, &context_);
+    base::Status status = PprofFunctions::Register(*engine_, &context_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
@@ -753,14 +758,12 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   }
 
   // Register metrics functions.
-  // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
-  // functions are supported.
   {
-    auto ret = sqlite3_create_function_v2(
-        db, "RepeatedField", 1, SQLITE_UTF8, nullptr, nullptr,
-        metrics::RepeatedFieldStep, metrics::RepeatedFieldFinal, nullptr);
-    if (ret)
-      PERFETTO_FATAL("Error initializing RepeatedField");
+    base::Status status =
+        engine_->RegisterSqliteAggregateFunction<metrics::RepeatedField>(
+            "RepeatedField", 1, nullptr);
+    if (!status.ok())
+      PERFETTO_ELOG("%s", status.c_message());
   }
 
   RegisterFunction<metrics::NullIfEmpty>(engine_.get(), "NULL_IF_EMPTY", 1);
