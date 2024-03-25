@@ -742,8 +742,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
       "span_outer_join", engine_.get(),
       SqliteTableLegacy::TableType::kExplicitCreate, false);
-  engine_->sqlite_engine()->RegisterVirtualTableModule<WindowOperatorTable>(
-      "window", storage, SqliteTableLegacy::TableType::kExplicitCreate, true);
+  engine_->sqlite_engine()->RegisterVirtualTableModule<WindowOperatorModule>(
+      "window", std::make_unique<WindowOperatorModule::Context>());
 
   // Initalize the tables and views in the prelude.
   InitializePreludeTablesViews(db);
