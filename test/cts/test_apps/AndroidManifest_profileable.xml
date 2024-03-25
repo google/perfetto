@@ -72,6 +72,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
+        <provider
+          android:name="android.perfetto.cts.app.FileContentProvider"
+          android:authorities="android.perfetto.cts.app.profileable"
+          android:exported="true"
+          android:grantUriPermissions="true" />
     </application>
 </manifest>
 
