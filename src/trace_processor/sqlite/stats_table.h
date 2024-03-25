@@ -27,7 +27,7 @@ namespace perfetto::trace_processor {
 // The stats table contains diagnostic info and errors that are either:
 // - Collected at trace time (e.g., ftrace buffer overruns).
 // - Generated at parsing time (e.g., clock events out-of-order).
-struct StatsModule : public sqlite::Module<StatsModule> {
+struct StatsModule : sqlite::Module<StatsModule> {
   using Context = TraceStorage;
   struct Vtab : sqlite::Module<StatsModule>::Vtab {
     TraceStorage* storage = nullptr;
