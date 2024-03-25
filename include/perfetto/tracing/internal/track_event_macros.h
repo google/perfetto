@@ -125,7 +125,10 @@
             category)) {                                                       \
       tns::TrackEvent::CallIfEnabled(                                          \
           [&](uint32_t instances) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {         \
-            tns::TrackEvent::method(instances, category, name, ##__VA_ARGS__); \
+            tns::TrackEvent::method(                                           \
+                instances, category,                                           \
+                ::perfetto::internal::DecayEventNameType(name),                \
+                ##__VA_ARGS__);                                                \
           });                                                                  \
     } else {                                                                   \
       tns::TrackEvent::CallIfCategoryEnabled(                                  \
@@ -135,7 +138,8 @@
                 instances,                                                     \
                 PERFETTO_UID(                                                  \
                     kCatIndex_ADD_TO_PERFETTO_DEFINE_CATEGORIES_IF_FAILS_),    \
-                name, ##__VA_ARGS__);                                          \
+                ::perfetto::internal::DecayEventNameType(name),                \
+                ##__VA_ARGS__);                                                \
           });                                                                  \
     }                                                                          \
   } while (false)
