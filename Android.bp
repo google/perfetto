@@ -2376,6 +2376,7 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_sorter_sorter",
+        ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_query_constraints",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_storage_minimal",
@@ -12442,6 +12443,11 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/sqlite/bindings:bindings
+filegroup {
+    name: "perfetto_src_trace_processor_sqlite_bindings_bindings",
+}
+
 // GN: //src/trace_processor/sqlite:query_constraints
 filegroup {
     name: "perfetto_src_trace_processor_sqlite_query_constraints",
@@ -14281,6 +14287,7 @@ cc_test {
         ":perfetto_src_trace_processor_rpc_unittests",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sorter_unittests",
+        ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_query_constraints",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_sqlite_unittests",
@@ -14995,6 +15002,7 @@ cc_binary {
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_stdiod",
         ":perfetto_src_trace_processor_sorter_sorter",
+        ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_query_constraints",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_storage_minimal",
@@ -15427,6 +15435,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_sorter_sorter",
+        ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_query_constraints",
         ":perfetto_src_trace_processor_sqlite_sqlite",
         ":perfetto_src_trace_processor_storage_minimal",
