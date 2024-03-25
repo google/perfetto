@@ -56,18 +56,16 @@ function tmux_ensure_bash() {
 
 function reset_tracing() {
   if is_android "$OUT"; then
-    # Newer versions of Android don't have debugfs mounted at all
-    # anymore so use /sys/kernel/tracing if /d/tracing doesn't exist
-    adb shell 'test -d /sys/kernel/tracing && echo 0 > /sys/kernel/tracing/tracing_on || echo 0 > /sys/kernel/debug/tracing/tracing_on'
+    adb shell 'test -d /sys/kernel/tracing && echo 0 > /sys/kernel/tracing/tracing_on'
   elif ! is_mac; then
     # shellcheck disable=SC2016
     local script='
-    if [ ! -w /sys/kernel/debug ]; then
-      echo "debugfs not accessible, try sudo chown -R $USER /sys/kernel/debug"
-      sudo chown -R "$USER" /sys/kernel/debug
+    if [ ! -w /sys/kernel/tracing ]; then
+      echo "tracefs not accessible, try sudo chown -R $USER /sys/kernel/tracing"
+      sudo chown -R "$USER" /sys/kernel/tracing
     fi
 
-    echo 0 > /sys/kernel/debug/tracing/tracing_on
+    echo 0 > /sys/kernel/tracing/tracing_on
     '
 
     if is_ssh_target; then
