@@ -175,7 +175,7 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
   }
 }
 
-class ValueAtMaxTs : public SqliteAggregateFunction {
+class ValueAtMaxTs : public SqliteAggregateFunction<ValueAtMaxTs> {
  public:
   struct Context {
     bool initialized;

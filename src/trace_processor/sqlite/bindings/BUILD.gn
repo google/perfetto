@@ -26,6 +26,7 @@ source_set("bindings") {
   deps = [
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
+    "../../../base",
   ]
   visibility = [ "..:sqlite" ]
 }

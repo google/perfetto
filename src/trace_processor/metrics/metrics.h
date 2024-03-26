@@ -195,7 +195,7 @@ struct UnwrapMetricProto : public SqlFunction {
 };
 
 // These functions implement the RepeatedField SQL aggregate functions.
-struct RepeatedField : public SqliteAggregateFunction {
+struct RepeatedField : public SqliteAggregateFunction<RepeatedField> {
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv);
   static void Final(sqlite3_context* ctx);
 };
