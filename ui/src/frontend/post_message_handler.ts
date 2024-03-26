@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {Time} from '../base/time';
 import {Actions, PostedScrollToRange, PostedTrace} from '../common/actions';
 import {showModal} from '../widgets/modal';
 
@@ -258,11 +259,9 @@ async function scrollToTimeRange(
     }
     setTimeout(scrollToTimeRange, 200, postedScrollToRange, maxAttempts + 1);
   } else {
-    focusHorizontalRange(
-      postedScrollToRange.timeStart,
-      postedScrollToRange.timeEnd,
-      postedScrollToRange.viewPercentage,
-    );
+    const start = Time.fromSeconds(postedScrollToRange.timeStart);
+    const end = Time.fromSeconds(postedScrollToRange.timeEnd);
+    focusHorizontalRange(start, end, postedScrollToRange.viewPercentage);
   }
 }
 
