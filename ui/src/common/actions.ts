@@ -14,7 +14,7 @@
 
 import {Draft} from 'immer';
 
-import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
+import {assertExists, assertTrue} from '../base/logging';
 import {duration, time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
 import {
@@ -50,7 +50,6 @@ import {
   CallsiteInfo,
   EngineMode,
   FlamegraphStateViewingOption,
-  FtraceFilterPatch,
   LoadedConfig,
   NewEngineMode,
   OmniboxMode,
@@ -877,33 +876,6 @@ export const StateActions = {
 
   updateLogsPagination(state: StateDraft, args: Pagination): void {
     state.logsPagination = args;
-  },
-
-  updateFtracePagination(state: StateDraft, args: Pagination): void {
-    state.ftracePagination = args;
-  },
-
-  updateFtraceFilter(state: StateDraft, patch: FtraceFilterPatch) {
-    const {excludedNames: diffs} = patch;
-    const excludedNames = state.ftraceFilter.excludedNames;
-    for (const [addRemove, name] of diffs) {
-      switch (addRemove) {
-        case 'add':
-          if (!excludedNames.some((excluded: string) => excluded === name)) {
-            excludedNames.push(name);
-          }
-          break;
-        case 'remove':
-          state.ftraceFilter.excludedNames =
-            state.ftraceFilter.excludedNames.filter(
-              (excluded: string) => excluded !== name,
-            );
-          break;
-        default:
-          assertUnreachable(addRemove);
-          break;
-      }
-    }
   },
 
   startRecording(state: StateDraft, _: {}): void {
