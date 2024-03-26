@@ -91,9 +91,7 @@ from diff_tests.parser.track_event.tests import TrackEvent
 from diff_tests.parser.translated_args.tests import TranslatedArgs
 from diff_tests.parser.ufs.tests import Ufs
 from diff_tests.stdlib.android.tests import AndroidStdlib
-from diff_tests.stdlib.chrome.tests import ChromeStdlib
-from diff_tests.stdlib.chrome.tests_chrome_interactions import ChromeInteractions
-from diff_tests.stdlib.chrome.tests_scroll_jank import ChromeScrollJankStdlib
+from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TESTSUITES
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
@@ -235,15 +233,11 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
 
   chrome_test_dir = os.path.abspath(
       os.path.join(__file__, '../../../data/chrome'))
-  chrome_stdlib_tests = [
-      *ChromeInteractions(index_path, 'stdlib/chrome', 'ChromeInteractions',
-                          chrome_test_dir).fetch(),
-      *ChromeScrollJankStdlib(index_path, 'stdlib/chrome',
-                              'ChromeScrollJankStdlib',
-                              chrome_test_dir).fetch(),
-      *ChromeStdlib(index_path, 'stdlib/chrome', 'ChromeStdlib',
-                    chrome_test_dir).fetch(),
-  ]
+  chrome_stdlib_tests = []
+  for test_suite_cls in CHROME_STDLIB_TESTSUITES:
+    test_suite = test_suite_cls(index_path, 'stdlib/chrome',
+                                test_suite_cls.__name__, chrome_test_dir)
+    chrome_stdlib_tests += test_suite.fetch()
 
   stdlib_tests = [
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
