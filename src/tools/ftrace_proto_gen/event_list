@@ -485,3 +485,4 @@ perf_trace_counters/sched_switch_with_ctrs
 power/gpu_work_period
 rpm/rpm_status
 panel/panel_write_generic
+sched/sched_migrate_task

@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 491> descriptors{{
+std::array<FtraceMessageDescriptor, 492> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5407,6 +5407,20 @@ std::array<FtraceMessageDescriptor, 491> descriptors{{
             {"name", ProtoSchemaType::kString},
             {"type", ProtoSchemaType::kUint32},
             {"value", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "sched_migrate_task",
+        7,
+        {
+            {},
+            {"comm", ProtoSchemaType::kString},
+            {"pid", ProtoSchemaType::kInt32},
+            {"prio", ProtoSchemaType::kInt32},
+            {"orig_cpu", ProtoSchemaType::kInt32},
+            {"dest_cpu", ProtoSchemaType::kInt32},
+            {"running", ProtoSchemaType::kInt32},
+            {"load", ProtoSchemaType::kUint32},
         },
     },
 }};
