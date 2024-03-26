@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/types/trace_processor_context.h"
+#include <optional>
 
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -27,6 +28,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -48,6 +50,14 @@ namespace trace_processor {
 
 TraceProcessorContext::TraceProcessorContext() = default;
 TraceProcessorContext::~TraceProcessorContext() = default;
+
+std::optional<MachineId> TraceProcessorContext::machine_id() const {
+  if (!machine_tracker) {
+    // Doesn't require that |machine_tracker| is initialzed, e.g. in unit tests.
+    return std::nullopt;
+  }
+  return machine_tracker->machine_id();
+}
 
 }  // namespace trace_processor
 }  // namespace perfetto

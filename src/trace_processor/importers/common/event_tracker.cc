@@ -65,7 +65,9 @@ std::optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
   max_timestamp_ = timestamp;
 
   auto* counter_values = context_->storage->mutable_counter_table();
-  return counter_values->Insert({timestamp, track_id, value}).id;
+  return counter_values
+      ->Insert({timestamp, track_id, value, {}, context_->machine_id()})
+      .id;
 }
 
 std::optional<CounterId> EventTracker::PushCounter(

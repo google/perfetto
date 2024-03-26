@@ -26,6 +26,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -49,8 +50,9 @@ namespace trace_processor {
 
 TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.config = cfg;
-
   context_.storage.reset(new TraceStorage(context_.config));
+  context_.machine_tracker.reset(new MachineTracker(&context_,
+                                                    /*raw_machine_id=*/0));
   context_.track_tracker.reset(new TrackTracker(&context_));
   context_.async_track_set_tracker.reset(new AsyncTrackSetTracker(&context_));
   context_.args_tracker.reset(new ArgsTracker(&context_));

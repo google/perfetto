@@ -28,6 +28,7 @@
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
@@ -407,6 +408,7 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
         clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;
     row.clock_name = GetBuiltinClockNameOrNull(clock_timestamp.clock.id);
     row.snapshot_id = *snapshot_id;
+    row.machine_id = context_->machine_id();
 
     context_->storage->mutable_clock_snapshot_table()->Insert(row);
   }

@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
 
 namespace perfetto {
@@ -55,6 +56,7 @@ class GlobalArgsTracker;
 class StackProfileTracker;
 class HeapGraphTracker;
 class PerfSampleTracker;
+class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
 class PacketAnalyzer;
@@ -70,6 +72,8 @@ class TraceSorter;
 class TraceStorage;
 class TrackTracker;
 class DescriptorPool;
+
+using MachineId = tables::MachineTable::Id;
 
 class TraceProcessorContext {
  public:
@@ -104,6 +108,7 @@ class TraceProcessorContext {
   std::unique_ptr<ClockTracker> clock_tracker;
   std::unique_ptr<ClockConverter> clock_converter;
   std::unique_ptr<MappingTracker> mapping_tracker;
+  std::unique_ptr<MachineTracker> machine_tracker;
   std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
   std::unique_ptr<StackProfileTracker> stack_profile_tracker;
   std::unique_ptr<MetadataTracker> metadata_tracker;
@@ -171,6 +176,8 @@ class TraceProcessorContext {
   bool uuid_found_in_trace = false;
 
   TraceType trace_type = kUnknownTraceType;
+
+  std::optional<MachineId> machine_id() const;
 };
 
 }  // namespace trace_processor

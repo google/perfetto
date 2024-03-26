@@ -60,6 +60,7 @@ ThreadTable::~ThreadTable() = default;
 ProcessTable::~ProcessTable() = default;
 FiledescriptorTable::~FiledescriptorTable() = default;
 ClockSnapshotTable::~ClockSnapshotTable() = default;
+MachineTable::~MachineTable() = default;
 
 // profiler_tables_py.h
 StackProfileMappingTable::~StackProfileMappingTable() = default;

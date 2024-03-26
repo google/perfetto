@@ -1477,6 +1477,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/global_args_tracker.h",
         "src/trace_processor/importers/common/jit_cache.cc",
         "src/trace_processor/importers/common/jit_cache.h",
+        "src/trace_processor/importers/common/machine_tracker.cc",
+        "src/trace_processor/importers/common/machine_tracker.h",
         "src/trace_processor/importers/common/mapping_tracker.cc",
         "src/trace_processor/importers/common/mapping_tracker.h",
         "src/trace_processor/importers/common/metadata_tracker.cc",
