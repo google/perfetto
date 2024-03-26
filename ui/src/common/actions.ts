@@ -93,8 +93,8 @@ export interface PostedTrace {
 }
 
 export interface PostedScrollToRange {
-  timeStart: time;
-  timeEnd: time;
+  timeStart: number;
+  timeEnd: number;
   viewPercentage?: number;
 }
 
