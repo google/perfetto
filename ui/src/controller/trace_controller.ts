@@ -33,15 +33,10 @@ import {
   ProfileType,
 } from '../common/state';
 import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../core/feature_flags';
-import {
-  FtraceStat,
-  globals,
-  QuantizedLoad,
-  ThreadDesc,
-} from '../frontend/globals';
+import {globals, QuantizedLoad, ThreadDesc} from '../frontend/globals';
 import {
   clearOverviewData,
-  publishFtraceCounters,
+  publishHasFtrace,
   publishMetricError,
   publishOverviewData,
   publishRealtimeOffset,
@@ -86,7 +81,6 @@ import {
   FlowEventsController,
   FlowEventsControllerArgs,
 } from './flow_events_controller';
-import {FtraceController} from './ftrace_controller';
 import {LoadingManager} from './loading_manager';
 import {LogsController} from './logs_controller';
 import {
@@ -355,10 +349,6 @@ export class TraceController extends Controller<States> {
         );
 
         childControllers.push(
-          Child('ftrace', FtraceController, {engine, app: globals}),
-        );
-
-        childControllers.push(
           Child('traceError', TraceErrorController, {engine}),
         );
 
@@ -554,20 +544,15 @@ export class TraceController extends Controller<States> {
     await this.loadTimelineOverview(traceTime);
 
     {
-      // Pull out the counts ftrace events by name
-      const query = `select
-            name,
-            count(name) as cnt
-          from ftrace_event
-          group by name
-          order by cnt desc`;
-      const result = await assertExists(this.engine).query(query);
-      const counters: FtraceStat[] = [];
-      const it = result.iter({name: STR, cnt: NUM});
-      for (let row = 0; it.valid(); it.next(), row++) {
-        counters.push({name: it.name, count: it.cnt});
-      }
-      publishFtraceCounters(counters);
+      // Check if we have any ftrace events at all
+      const query = `
+        select
+          *
+        from ftrace_event
+        limit 1`;
+
+      const res = await engine.query(query);
+      publishHasFtrace(res.numRows() > 0);
     }
 
     {

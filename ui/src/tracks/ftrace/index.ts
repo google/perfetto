@@ -14,136 +14,56 @@
 
 import m from 'mithril';
 
-import {duration, Time, time} from '../../base/time';
-import {colorForFtrace} from '../../core/colorizer';
-import {LIMIT, TrackData} from '../../common/track_data';
-import {TimelineFetcher} from '../../common/track_helper';
-import {checkerboardExcept} from '../../frontend/checkerboard';
-import {FtracePanel} from '../../frontend/ftrace_panel';
-import {globals} from '../../frontend/globals';
-import {PanelSize} from '../../frontend/panel';
+import {FtraceExplorer} from './ftrace_explorer';
 import {
   EngineProxy,
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
-  Track,
 } from '../../public';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {NUM, STR} from '../../trace_processor/query_result';
+import {Trash} from '../../base/disposable';
+import {FtraceFilter, FtracePluginState, FtraceStat} from './common';
+import {FtraceRawTrack} from './ftrace_track';
 
-export const FTRACE_RAW_TRACK_KIND = 'FtraceRawTrack';
+const VERSION = 1;
 
-export interface Data extends TrackData {
-  timestamps: BigInt64Array;
-  names: string[];
-}
-
-export interface Config {
-  cpu?: number;
-}
-
-const MARGIN = 2;
-const RECT_HEIGHT = 18;
-const TRACK_HEIGHT = RECT_HEIGHT + 2 * MARGIN;
-
-class FtraceRawTrack implements Track {
-  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
-
-  constructor(private engine: EngineProxy, private cpu: number) {}
-
-  async onUpdate(): Promise<void> {
-    await this.fetcher.requestDataForCurrentTime();
-  }
-
-  async onDestroy?(): Promise<void> {
-    this.fetcher.dispose();
-  }
-
-  getHeight(): number {
-    return TRACK_HEIGHT;
-  }
-
-  async onBoundsChange(
-    start: time,
-    end: time,
-    resolution: duration,
-  ): Promise<Data> {
-    const excludeList = Array.from(globals.state.ftraceFilter.excludedNames);
-    const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
-    const cpuFilter = this.cpu === undefined ? '' : `and cpu = ${this.cpu}`;
-
-    const queryRes = await this.engine.query(`
-      select
-        cast(ts / ${resolution} as integer) * ${resolution} as tsQuant,
-        type,
-        name
-      from ftrace_event
-      where
-        name not in (${excludeListSql}) and
-        ts >= ${start} and ts <= ${end} ${cpuFilter}
-      group by tsQuant
-      order by tsQuant limit ${LIMIT};`);
-
-    const rowCount = queryRes.numRows();
-    const result: Data = {
-      start,
-      end,
-      resolution,
-      length: rowCount,
-      timestamps: new BigInt64Array(rowCount),
-      names: [],
-    };
-
-    const it = queryRes.iter({tsQuant: LONG, type: STR, name: STR});
-    for (let row = 0; it.valid(); it.next(), row++) {
-      result.timestamps[row] = it.tsQuant;
-      result.names[row] = it.name;
-    }
-    return result;
-  }
-
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
-    const {visibleTimeScale} = globals.timeline;
-
-    const data = this.fetcher.data;
-
-    if (data === undefined) return; // Can't possibly draw anything.
-
-    const dataStartPx = visibleTimeScale.timeToPx(data.start);
-    const dataEndPx = visibleTimeScale.timeToPx(data.end);
-
-    checkerboardExcept(
-      ctx,
-      this.getHeight(),
-      0,
-      size.width,
-      dataStartPx,
-      dataEndPx,
-    );
-
-    const diamondSideLen = RECT_HEIGHT / Math.sqrt(2);
-
-    for (let i = 0; i < data.timestamps.length; i++) {
-      const name = data.names[i];
-      ctx.fillStyle = colorForFtrace(name).base.cssString;
-      const timestamp = Time.fromRaw(data.timestamps[i]);
-      const xPos = Math.floor(visibleTimeScale.timeToPx(timestamp));
-
-      // Draw a diamond over the event
-      ctx.save();
-      ctx.translate(xPos, MARGIN);
-      ctx.rotate(Math.PI / 4);
-      ctx.fillRect(0, 0, diamondSideLen, diamondSideLen);
-      ctx.restore();
-    }
-  }
-}
+const DEFAULT_STATE: FtracePluginState = {
+  version: VERSION,
+  filter: {
+    excludeList: [],
+  },
+};
 
 class FtraceRawPlugin implements Plugin {
+  private trash = new Trash();
+
   onActivate(_: PluginContext) {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    const store = ctx.mountStore<FtracePluginState>((init: unknown) => {
+      if (
+        typeof init === 'object' &&
+        init !== null &&
+        'version' in init &&
+        init.version === VERSION
+      ) {
+        return init as {} as FtracePluginState;
+      } else {
+        return DEFAULT_STATE;
+      }
+    });
+    this.trash.add(store);
+
+    const filterStore = store.createSubStore(
+      ['filter'],
+      (x) => x as FtraceFilter,
+    );
+    this.trash.add(filterStore);
+
+    const counters = await this.getFtraceCounters(ctx.engine);
+
     const cpus = await this.lookupCpuCores(ctx.engine);
     for (const cpuNum of cpus) {
       const uri = `perfetto.FtraceRaw#cpu${cpuNum}`;
@@ -151,10 +71,9 @@ class FtraceRawPlugin implements Plugin {
       ctx.registerTrack({
         uri,
         displayName: `Ftrace Track for CPU ${cpuNum}`,
-        kind: FTRACE_RAW_TRACK_KIND,
         cpu: cpuNum,
         trackFactory: () => {
-          return new FtraceRawTrack(ctx.engine, cpuNum);
+          return new FtraceRawTrack(ctx.engine, cpuNum, filterStore);
         },
       });
     }
@@ -165,7 +84,8 @@ class FtraceRawPlugin implements Plugin {
       uri: ftraceTabUri,
       isEphemeral: false,
       content: {
-        render: () => m(FtracePanel),
+        render: () =>
+          m(FtraceExplorer, {counters, store: filterStore, engine: ctx.engine}),
         getTitle: () => 'Ftrace Events',
       },
     });
@@ -177,6 +97,27 @@ class FtraceRawPlugin implements Plugin {
         ctx.tabs.showTab(ftraceTabUri);
       },
     });
+  }
+
+  async onTraceUnload(): Promise<void> {
+    this.trash.dispose();
+  }
+
+  private async getFtraceCounters(engine: EngineProxy): Promise<FtraceStat[]> {
+    // Pull out the counts ftrace events by name
+    const query = `select
+          name,
+          count(name) as cnt
+        from ftrace_event
+        group by name
+        order by cnt desc`;
+    const result = await engine.query(query);
+    const counters: FtraceStat[] = [];
+    const it = result.iter({name: STR, cnt: NUM});
+    for (let row = 0; it.valid(); it.next(), row++) {
+      counters.push({name: it.name, count: it.cnt});
+    }
+    return counters;
   }
 
   private async lookupCpuCores(engine: EngineProxy): Promise<number[]> {

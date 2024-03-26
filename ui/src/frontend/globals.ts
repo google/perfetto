@@ -185,27 +185,6 @@ export interface ThreadDesc {
 }
 type ThreadMap = Map<number, ThreadDesc>;
 
-export interface FtraceEvent {
-  id: number;
-  ts: time;
-  name: string;
-  cpu: number;
-  thread: string | null;
-  process: string | null;
-  args: string;
-}
-
-export interface FtracePanelData {
-  events: FtraceEvent[];
-  offset: number;
-  numEvents: number; // Number of events in the visible window
-}
-
-export interface FtraceStat {
-  name: string;
-  count: number;
-}
-
 function getRoot() {
   // Works out the root directory where the content should be served from
   // e.g. `http://origin/v1.2.3/`.
@@ -268,14 +247,13 @@ class Globals {
   private _router?: Router = undefined;
   private _embeddedMode?: boolean = undefined;
   private _hideSidebar?: boolean = undefined;
-  private _ftraceCounters?: FtraceStat[] = undefined;
-  private _ftracePanelData?: FtracePanelData = undefined;
   private _cmdManager = new CommandManager();
   private _realtimeOffset = Time.ZERO;
   private _utcOffset = Time.ZERO;
   private _traceTzOffset = Time.ZERO;
   private _tabManager = new TabManager();
   private _trackManager = new TrackManager(this._store);
+  private _hasFtrace: boolean = false;
 
   scrollToTrackKey?: string | number;
   httpRpcState: HttpRpcState = {connected: false};
@@ -516,16 +494,12 @@ class Globals {
     this._currentSearchResults = results;
   }
 
+  set hasFtrace(value: boolean) {
+    this._hasFtrace = value;
+  }
+
   get hasFtrace(): boolean {
-    return Boolean(this._ftraceCounters && this._ftraceCounters.length > 0);
-  }
-
-  get ftraceCounters(): FtraceStat[] | undefined {
-    return this._ftraceCounters;
-  }
-
-  set ftraceCounters(value: FtraceStat[] | undefined) {
-    this._ftraceCounters = value;
+    return this._hasFtrace;
   }
 
   getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {
@@ -605,14 +579,6 @@ class Globals {
 
   getCurrentEngine(): EngineConfig | undefined {
     return this.state.engine;
-  }
-
-  get ftracePanelData(): FtracePanelData | undefined {
-    return this._ftracePanelData;
-  }
-
-  set ftracePanelData(data: FtracePanelData | undefined) {
-    this._ftracePanelData = data;
   }
 
   makeSelection(action: DeferredAction<{}>, opts: MakeSelectionOpts = {}) {
