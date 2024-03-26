@@ -182,7 +182,7 @@ base::Status StepStatus(sqlite3_context* ctx,
 }
 
 struct ProfileBuilder {
-  using Context = TraceProcessorContext;
+  using UserDataContext = TraceProcessorContext;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_CHECK(argc >= 0);

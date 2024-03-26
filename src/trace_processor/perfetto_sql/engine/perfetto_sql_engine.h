@@ -129,11 +129,12 @@ class PerfettoSqlEngine {
   //                  scoped to the lifetime of TraceProcessor.
   // |deterministic|: whether this function has deterministic output given the
   //                  same set of arguments.
-  template <typename Function = SqliteAggregateFunction>
-  base::Status RegisterSqliteAggregateFunction(const char* name,
-                                               int argc,
-                                               typename Function::Context* ctx,
-                                               bool deterministic = true);
+  template <typename Function>
+  base::Status RegisterSqliteAggregateFunction(
+      const char* name,
+      int argc,
+      typename Function::UserDataContext* ctx,
+      bool deterministic = true);
 
   // Registers a trace processor C++ window function to be runnable from SQL.
   //
@@ -361,7 +362,7 @@ template <typename Function>
 base::Status PerfettoSqlEngine::RegisterSqliteAggregateFunction(
     const char* name,
     int argc,
-    typename Function::Context* ctx,
+    typename Function::UserDataContext* ctx,
     bool deterministic) {
   static_aggregate_function_count_++;
   return engine_->RegisterAggregateFunction(
