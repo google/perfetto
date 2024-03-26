@@ -146,7 +146,8 @@ export const MAX_TIME = 180;
 // 47. Selection V2
 // 48. Rename legacySelection -> selection and introduce new Selection type.
 // 49. Remove currentTab, which is only relevant to TabsV1.
-export const STATE_VERSION = 49;
+// 50. Remove ftrace filter state.
+export const STATE_VERSION = 50;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -326,12 +327,6 @@ export interface Pagination {
   count: number;
 }
 
-export type StringListPatch = ['add' | 'remove', string];
-
-export interface FtraceFilterPatch {
-  excludedNames: StringListPatch[];
-}
-
 export interface RecordingTarget {
   name: string;
   os: TargetOs;
@@ -440,13 +435,6 @@ export interface LogFilteringCriteria {
   hideNonMatching: boolean;
 }
 
-export interface FtraceFilterState {
-  // We use an exclude list rather than include list for filtering events, as we
-  // want to include all events by default but we won't know what names are
-  // present initially.
-  excludedNames: string[];
-}
-
 export interface PendingDeeplinkState {
   ts?: string;
   dur?: string;
@@ -496,8 +484,6 @@ export interface State {
   selection: Selection;
   currentFlamegraphState: FlamegraphState | null;
   logsPagination: Pagination;
-  ftracePagination: Pagination;
-  ftraceFilter: FtraceFilterState;
   traceConversionInProgress: boolean;
 
   /**

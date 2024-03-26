@@ -257,8 +257,7 @@ class SubStore<T, ParentT> implements Store<T> {
     path: Path,
     migrate: Migrate<SubtreeState>,
   ): Store<SubtreeState> {
-    const fullPath = [...this.path, ...path];
-    return new SubStore(this.parentStore, fullPath, migrate);
+    return new SubStore(this, path, migrate);
   }
 
   subscribe(callback: Callback<T>): Disposable {

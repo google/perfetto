@@ -416,4 +416,34 @@ describe('sub-store', () => {
     expect(subStore.state.bar).toBe('baz');
     expect((store.state.dict['foo'] as ProxyState).bar).toBe('baz');
   });
+
+  test('chained substores', () => {
+    interface State {
+      dict: {[key: string]: unknown};
+    }
+
+    interface FooState {
+      bar: {
+        baz: string;
+      };
+    }
+
+    const store = createStore<State>({dict: {}});
+
+    const DEFAULT_FOO_STATE: FooState = {bar: {baz: 'abc'}};
+    const fooStore = store.createSubStore(
+      ['dict', 'foo'],
+      (init) => init ?? DEFAULT_FOO_STATE,
+    );
+
+    const subFooStore = fooStore.createSubStore(
+      ['bar'],
+      (x) => x as FooState['bar'],
+    );
+
+    // Since the entry for 'foo' will be undefined in the dict, we expect the
+    // migrate function on fooStore to return DEFAULT_FOO_STATE, and thus the
+    // state of the subFooStore will be DEFAULT_FOO_STATE.bar.
+    expect(subFooStore.state).toEqual({baz: 'abc'});
+  });
 });
