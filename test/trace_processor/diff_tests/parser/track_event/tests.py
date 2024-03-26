@@ -15,7 +15,7 @@
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
-from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -691,4 +691,71 @@ class TrackEvent(TestSuite):
         "ts","name"
         12000,"slice3"
         13000,"slice4"
+        """))
+
+  def test_track_event_tracks_machine_id(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_tracks.textproto'),
+        trace_modifier=TraceInjector(['track_descriptor', 'track_event'],
+                                     {'machine_id': 1001}),
+        query="""
+        WITH track_with_name AS (
+          SELECT
+            COALESCE(
+              t1.name,
+              'thread=' || thread.name,
+              'process=' || process.name,
+              'tid=' || thread.tid,
+              'pid=' || process.pid
+            ) AS full_name,
+            *
+          FROM track t1
+          LEFT JOIN thread_track t2 USING (id)
+          LEFT JOIN thread USING (utid)
+          LEFT JOIN process_track t3 USING (id)
+          LEFT JOIN process ON t3.upid = process.id
+          WHERE t1.machine_id IS NOT NULL
+          ORDER BY id
+        )
+        SELECT t1.full_name AS name, t2.full_name AS parent_name,
+               EXTRACT_ARG(t1.source_arg_set_id, 'has_first_packet_on_sequence')
+               AS has_first_packet_on_sequence
+        FROM track_with_name t1
+        LEFT JOIN track_with_name t2 ON t1.parent_id = t2.id
+        ORDER BY 1, 2;
+        """,
+        out=Csv("""
+        "name","parent_name","has_first_packet_on_sequence"
+        "Default Track","[NULL]","[NULL]"
+        "async","process=p1",1
+        "async2","process=p1",1
+        "async3","thread=t2",1
+        "event_and_track_async3","process=p1",1
+        "process=p1","[NULL]","[NULL]"
+        "process=p2","[NULL]","[NULL]"
+        "process=p2","[NULL]","[NULL]"
+        "thread=t1","process=p1",1
+        "thread=t2","process=p1",1
+        "thread=t3","process=p1",1
+        "thread=t4","process=p2","[NULL]"
+        "tid=1","[NULL]","[NULL]"
+        """))
+
+  # Tests thread_counter_track.machine_id is not null.
+  def test_track_event_counters_counters_machine_id(self):
+    return DiffTestBlueprint(
+        trace=Path('track_event_counters.textproto'),
+        trace_modifier=TraceInjector(
+            ['track_descriptor', 'track_event', 'trace_packet_defaults'],
+            {'machine_id': 1001}),
+        query="""
+        SELECT type, name, machine_id
+        FROM thread_counter_track
+        WHERE machine_id IS NOT NULL
+        """,
+        out=Csv("""
+        "type","name","machine_id"
+        "thread_counter_track","thread_time",1
+        "thread_counter_track","thread_time",1
+        "thread_counter_track","thread_instruction_count",1
         """))
