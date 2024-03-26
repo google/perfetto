@@ -137,6 +137,9 @@ def compute_source_dependencies(out, system_buildtools=False):
   current_source = None
   for line in ninja_deps.split('\n'):
     filename = os.path.relpath(os.path.join(out, line.strip()), repo_root())
+    # Sanitizer builds may have a dependency of ignorelist.txt. Just skip it.
+    if filename.endswith('gn/standalone/sanitizers/ignorelist.txt'):
+      continue
     if not line or line[0] != ' ':
       current_source = None
       continue
