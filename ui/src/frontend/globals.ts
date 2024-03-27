@@ -14,6 +14,7 @@
 
 import {BigintMath} from '../base/bigint_math';
 import {assertExists} from '../base/logging';
+import {createStore, Store} from '../base/store';
 import {duration, Span, Time, time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
@@ -52,8 +53,8 @@ import {Router} from './router';
 import {horizontalScrollToTs} from './scroll_helper';
 import {ServiceWorkerController} from './service_worker_controller';
 import {SliceSqlId} from './sql_types';
-import {createStore, Store} from '../base/store';
 import {PxSpan, TimeScale} from './time_scale';
+import {SelectionManager} from '../core/selection_manager';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -217,7 +218,7 @@ class Globals {
 
   private _testing = false;
   private _dispatch?: Dispatch = undefined;
-  private _store = createStore(createEmptyState());
+  private _store = createStore<State>(createEmptyState());
   private _timeline?: Timeline = undefined;
   private _serviceWorkerController?: ServiceWorkerController = undefined;
   private _logging?: Analytics = undefined;
@@ -253,6 +254,7 @@ class Globals {
   private _traceTzOffset = Time.ZERO;
   private _tabManager = new TabManager();
   private _trackManager = new TrackManager(this._store);
+  private _selectionManager = new SelectionManager(this._store);
   private _hasFtrace: boolean = false;
 
   scrollToTrackKey?: string | number;
@@ -311,6 +313,7 @@ class Globals {
     this._flamegraphDetails = {};
     this._cpuProfileDetails = {};
     this.engines.clear();
+    this._selectionManager.clear();
   }
 
   // Only initialises the store - useful for testing.
@@ -583,13 +586,12 @@ class Globals {
 
   makeSelection(action: DeferredAction<{}>, opts: MakeSelectionOpts = {}) {
     const {switchToCurrentSelectionTab = true, clearSearch = true} = opts;
-
     const currentSelectionTabUri = 'current_selection';
 
     // A new selection should cancel the current search selection.
     clearSearch && globals.dispatch(Actions.setSearchIndex({index: -1}));
 
-    if (action.type !== 'deselect' && switchToCurrentSelectionTab) {
+    if (switchToCurrentSelectionTab) {
       globals.dispatch(Actions.showTab({uri: currentSelectionTabUri}));
     }
     globals.dispatch(action);
@@ -814,6 +816,11 @@ class Globals {
 
   panToTimestamp(ts: time): void {
     horizontalScrollToTs(ts);
+  }
+
+  clearSelection(): void {
+    globals.dispatch(Actions.setSearchIndex({index: -1}));
+    this._selectionManager.clear();
   }
 }
 

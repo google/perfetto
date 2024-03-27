@@ -554,7 +554,7 @@ export class App implements m.ClassComponent {
       name: 'Deselect',
       callback: () => {
         globals.timeline.deselectArea();
-        globals.makeSelection(Actions.deselect({}));
+        globals.clearSelection();
         globals.dispatch(Actions.removeNote({id: '0'}));
       },
       defaultHotkey: 'Escape',
