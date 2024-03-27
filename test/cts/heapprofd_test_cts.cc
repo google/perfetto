@@ -24,6 +24,7 @@
 #include <string_view>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/android_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
@@ -81,9 +82,19 @@ class ContentProviderReader {
                                  const std::string& path) {
     tmp_dir_.TrackFile("contents.txt");
     tempfile_ = tmp_dir_.AbsolutePath("contents.txt");
-    cmd_ = std::string("content read --uri content://") + app +
-           std::string("/") + path + " >" + tempfile_;
+
+    std::optional<int32_t> sdk =
+        base::StringToInt32(base::GetAndroidProp("ro.build.version.sdk"));
+    bool multiuser_support = sdk && *sdk >= 34;
+    cmd_ = "content read";
+    if (multiuser_support) {
+      // This command is available only starting from android U.
+      cmd_ += " --user `cmd user get-main-user`";
+    }
+    cmd_ += std::string(" --uri content://") + app + std::string("/") + path;
+    cmd_ += " >" + tempfile_;
   }
+
   std::optional<int64_t> ReadInt64() {
     if (system(cmd_.c_str()) != 0) {
       return std::nullopt;
