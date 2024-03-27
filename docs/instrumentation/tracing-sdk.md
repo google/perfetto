@@ -147,16 +147,16 @@ Track events are the best default option and serve most tracing use cases with
 very little complexity.
 
 To include your new track events in the trace, ensure that the `track_event`
-data source is included in the trace config. If you do not specify any
-categories then all non-debug categories will be included by default. However,
-you can also add just the categories you are interested in like so:
+data source is included in the trace config, with a list of enabled and disabled
+categories.
 
 ```protobuf
 data_sources {
   config {
     name: "track_event"
     track_event_config {
-    	enabled_categories: "rendering"
+        enabled_categories: "rendering"
+        disabled_categories: "*"
     }
   }
 }
