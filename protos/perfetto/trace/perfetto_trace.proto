@@ -12130,6 +12130,16 @@ message ChromeWindowHandleEventInfo {
 
 // End of protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto
 
+// Begin of protos/perfetto/trace/track_event/pixel_modem.proto
+
+// Event insights emitted by the Pixel modem.
+message PixelModemEventInsight {
+  // Opaque string containing arguments from the modem.
+  optional string detokenized_message = 1;
+}
+
+// End of protos/perfetto/trace/track_event/pixel_modem.proto
+
 // Begin of protos/perfetto/trace/track_event/screenshot.proto
 
 message Screenshot {
@@ -12215,7 +12225,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 51.
+// Next reserved id: 13 (up to 15). Next id: 52.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -12369,6 +12379,7 @@ message TrackEvent {
       43;
   optional ChromeActiveProcesses chrome_active_processes = 49;
   optional Screenshot screenshot = 50;
+  optional PixelModemEventInsight pixel_modem_event_insight = 51;
 
   // This field is used only if the source location represents the function that
   // executes during this event.
