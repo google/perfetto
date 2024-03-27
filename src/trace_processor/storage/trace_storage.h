@@ -761,6 +761,30 @@ class TraceStorage {
   tables::V8JsFunctionTable* mutable_v8_js_function_table() {
     return &v8_js_function_table_;
   }
+  const tables::V8JsCodeTable& v8_js_code_table() const {
+    return v8_js_code_table_;
+  }
+  tables::V8JsCodeTable* mutable_v8_js_code_table() {
+    return &v8_js_code_table_;
+  }
+  const tables::V8InternalCodeTable& v8_internal_code_table() const {
+    return v8_internal_code_table_;
+  }
+  tables::V8InternalCodeTable* mutable_v8_internal_code_table() {
+    return &v8_internal_code_table_;
+  }
+  const tables::V8WasmCodeTable& v8_wasm_code_table() const {
+    return v8_wasm_code_table_;
+  }
+  tables::V8WasmCodeTable* mutable_v8_wasm_code_table() {
+    return &v8_wasm_code_table_;
+  }
+  const tables::V8RegexpCodeTable& v8_regexp_code_table() const {
+    return v8_regexp_code_table_;
+  }
+  tables::V8RegexpCodeTable* mutable_v8_regexp_code_table() {
+    return &v8_regexp_code_table_;
+  }
 
   const tables::JitCodeTable& jit_code_table() const { return jit_code_table_; }
   tables::JitCodeTable* mutable_jit_code_table() { return &jit_code_table_; }
@@ -1075,6 +1099,10 @@ class TraceStorage {
   tables::V8JsScriptTable v8_js_script_table_{&string_pool_};
   tables::V8WasmScriptTable v8_wasm_script_table_{&string_pool_};
   tables::V8JsFunctionTable v8_js_function_table_{&string_pool_};
+  tables::V8JsCodeTable v8_js_code_table_{&string_pool_};
+  tables::V8InternalCodeTable v8_internal_code_table_{&string_pool_};
+  tables::V8WasmCodeTable v8_wasm_code_table_{&string_pool_};
+  tables::V8RegexpCodeTable v8_regexp_code_table_{&string_pool_};
 
   // Jit tables
   tables::JitCodeTable jit_code_table_{&string_pool_};
@@ -1132,6 +1160,9 @@ struct std::hash<::perfetto::trace_processor::FrameId>
     : std::hash<::perfetto::trace_processor::BaseId> {};
 template <>
 struct std::hash<::perfetto::trace_processor::tables::HeapGraphObjectTable::Id>
+    : std::hash<::perfetto::trace_processor::BaseId> {};
+template <>
+struct std::hash<::perfetto::trace_processor::tables::V8IsolateTable::Id>
     : std::hash<::perfetto::trace_processor::BaseId> {};
 template <>
 struct std::hash<::perfetto::trace_processor::tables::JitCodeTable::Id>

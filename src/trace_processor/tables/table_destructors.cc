@@ -129,6 +129,10 @@ V8IsolateTable::~V8IsolateTable() = default;
 V8JsScriptTable::~V8JsScriptTable() = default;
 V8WasmScriptTable::~V8WasmScriptTable() = default;
 V8JsFunctionTable::~V8JsFunctionTable() = default;
+V8JsCodeTable::~V8JsCodeTable() = default;
+V8InternalCodeTable::~V8InternalCodeTable() = default;
+V8WasmCodeTable::~V8WasmCodeTable() = default;
+V8RegexpCodeTable::~V8RegexpCodeTable() = default;
 
 // winscope_tables_py.h
 SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =
