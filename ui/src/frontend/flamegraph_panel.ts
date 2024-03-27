@@ -230,7 +230,9 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
       case ProfileType.JAVA_HEAP_GRAPH:
         if (
           viewingOption ===
-          FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY
+            FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY ||
+          viewingOption ===
+            FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_COUNT_KEY
         ) {
           return RENDER_OBJ_COUNT;
         } else {
@@ -347,7 +349,9 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
       current.viewingOption ===
         FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY ||
       current.viewingOption ===
-        FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY
+        FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY ||
+      current.viewingOption ===
+        FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_SIZE_KEY
         ? 'B'
         : '';
     this.flamegraph.draw(ctx, width, height, 0, 0, unit);
@@ -355,7 +359,13 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
 
   private onMouseClick({x, y}: {x: number; y: number}): boolean {
     const expandedCallsite = this.flamegraph.onMouseClick({x, y});
-    globals.dispatch(Actions.expandFlamegraphState({expandedCallsite}));
+    globals.state.currentFlamegraphState &&
+      globals.dispatch(
+        Actions.expandFlamegraphState({
+          expandedCallsite,
+          viewingOption: globals.state.currentFlamegraphState.viewingOption,
+        }),
+      );
     return true;
   }
 

@@ -147,7 +147,8 @@ export const MAX_TIME = 180;
 // 48. Rename legacySelection -> selection and introduce new Selection type.
 // 49. Remove currentTab, which is only relevant to TabsV1.
 // 50. Remove ftrace filter state.
-export const STATE_VERSION = 50;
+// 51. Changed structure of FlamegraphState.expandedCallsiteByViewingOption.
+export const STATE_VERSION = 51;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -189,6 +190,24 @@ export enum FlamegraphStateViewingOption {
   OBJECTS_ALLOCATED_NOT_FREED_KEY = 'OBJECTS',
   OBJECTS_ALLOCATED_KEY = 'ALLOC_OBJECTS',
   PERF_SAMPLES_KEY = 'PERF_SAMPLES',
+  DOMINATOR_TREE_OBJ_SIZE_KEY = 'DOMINATED_OBJ_SIZE',
+  DOMINATOR_TREE_OBJ_COUNT_KEY = 'DOMINATED_OBJ_COUNT',
+}
+
+const HEAP_GRAPH_DOMINATOR_TREE_VIEWING_OPTIONS = [
+  FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_SIZE_KEY,
+  FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_COUNT_KEY,
+] as const;
+
+export type HeapGraphDominatorTreeViewingOption =
+  (typeof HEAP_GRAPH_DOMINATOR_TREE_VIEWING_OPTIONS)[number];
+
+export function isHeapGraphDominatorTreeViewingOption(
+  option: FlamegraphStateViewingOption,
+): option is HeapGraphDominatorTreeViewingOption {
+  return (
+    HEAP_GRAPH_DOMINATOR_TREE_VIEWING_OPTIONS as readonly FlamegraphStateViewingOption[]
+  ).includes(option);
 }
 
 export interface FlamegraphState {
@@ -199,7 +218,7 @@ export interface FlamegraphState {
   type: ProfileType;
   viewingOption: FlamegraphStateViewingOption;
   focusRegex: string;
-  expandedCallsite?: CallsiteInfo;
+  expandedCallsiteByViewingOption: {[key: string]: CallsiteInfo | undefined};
 }
 
 export interface CallsiteInfo {
