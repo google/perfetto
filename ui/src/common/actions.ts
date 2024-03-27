@@ -868,12 +868,6 @@ export const StateActions = {
     state.pendingScrollId = args.scroll ? args.id : undefined;
   },
 
-  deselect(state: StateDraft, _: {}): void {
-    state.selection = {
-      kind: 'empty',
-    };
-  },
-
   updateLogsPagination(state: StateDraft, args: Pagination): void {
     state.logsPagination = args;
   },

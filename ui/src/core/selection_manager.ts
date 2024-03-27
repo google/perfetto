@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {duration, time} from '../base/time';
+import {Store} from '../base/store';
 import {GenericSliceDetailsTabConfigBase} from './generic_slice_details_types';
 
 export enum ProfileType {
@@ -162,4 +163,24 @@ export function selectionToLegacySelection(
     return selection.legacySelection;
   }
   return null;
+}
+
+interface SelectionState {
+  selection: Selection;
+}
+
+export class SelectionManager {
+  private store: Store<SelectionState>;
+
+  constructor(store: Store<SelectionState>) {
+    this.store = store;
+  }
+
+  clear(): void {
+    this.store.edit((draft) => {
+      draft.selection = {
+        kind: 'empty',
+      };
+    });
+  }
 }
