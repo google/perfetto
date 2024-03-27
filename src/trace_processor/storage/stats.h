@@ -289,6 +289,15 @@ namespace stats {
   F(v8_intern_errors,                                                          \
                                           kSingle,  kDataLoss, kAnalysis,      \
       "Failed to resolve V8 interned data."),                                  \
+  F(v8_no_defaults,                                                            \
+                                          kSingle,  kDataLoss, kAnalysis,      \
+      "Failed to resolve V8 default data."),                                   \
+  F(v8_no_code_range,                                                          \
+                                          kSingle,  kError,    kAnalysis,      \
+      "V8 isolate had no code range."),                                        \
+  F(v8_unknown_code_type,                 kSingle,  kError,    kAnalysis, ""), \
+  F(v8_code_load_missing_code_range,      kSingle,  kError,    kAnalysis,      \
+      "V8 load had no code range or an empty one. Event ignored."),            \
   F(winscope_sf_layers_parse_errors,      kSingle,  kInfo,     kAnalysis,      \
       "SurfaceFlinger layers snapshot has unknown fields, which results in "   \
       "some arguments missing. You may need a newer version of trace "         \

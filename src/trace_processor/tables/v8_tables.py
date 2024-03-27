@@ -20,7 +20,6 @@ for any serious business just yet""
 from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
-from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppInt32
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
@@ -30,7 +29,7 @@ from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppUint32 as CppBool
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
-from .profiler_tables import STACK_PROFILE_FRAME_TABLE
+from .jit_tables import JIT_CODE_TABLE
 
 V8_ISOLATE = Table(
     python_module=__file__,
@@ -156,10 +155,165 @@ V8_JS_FUNCTION = Table(
     ),
 )
 
+V8_JS_CODE = Table(
+    python_module=__file__,
+    class_name='V8JsCodeTable',
+    sql_name='__intrinsic_v8_js_code',
+    columns=[
+        C('jit_code_id', CppOptional(CppTableId(JIT_CODE_TABLE))),
+        C('v8_js_function_id', CppTableId(V8_JS_FUNCTION)),
+        C('tier', CppString()),
+        C('bytecode_base64', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc="""
+          Represents a v8 code snippet for a Javascript function. A given
+          function can have multiple code snippets (e.g. for different
+          compilation tiers, or as the function moves around the heap)
+        """,
+        group='v8',
+        columns={
+            'jit_code_id':
+                ColumnDoc(
+                    doc="""
+                  Set for all tiers except IGNITION.
+                    """,
+                    joinable='__intrinsic_jit_code.id',
+                ),
+            'v8_js_function_id':
+                ColumnDoc(
+                    doc='JS function for this snippet.',
+                    joinable='__intrinsic_v8_js_function.id',
+                ),
+            'tier':
+                'Compilation tier',
+            'bytecode_base64':
+                'Set only for the IGNITION tier (base64 encoded)',
+        },
+    ),
+)
+
+V8_INTERNAL_CODE = Table(
+    python_module=__file__,
+    class_name='V8InternalCodeTable',
+    sql_name='__intrinsic_v8_internal_code',
+    columns=[
+        C('jit_code_id', CppTableId(JIT_CODE_TABLE)),
+        C('v8_isolate_id', CppTableId(V8_ISOLATE)),
+        C('function_name', CppString()),
+        C('code_type', CppString()),
+    ],
+    tabledoc=TableDoc(
+        doc="""
+          Represents a v8 code snippet for a v8 internal function.
+        """,
+        group='v8',
+        columns={
+            'jit_code_id':
+                ColumnDoc(
+                    doc='Associated JitCode.',
+                    joinable='__intrinsic_jit_code.id',
+                ),
+            'v8_isolate_id':
+                ColumnDoc(
+                    doc="""
+                  V8 Isolate this code was created in.
+                    """,
+                    joinable='__intrinsic_v8_isolate.id'),
+            'function_name':
+                'Function name.',
+            'code_type':
+                'Type of internal function (e.g. BYTECODE_HANDLER, BUILTIN)',
+        },
+    ),
+)
+
+V8_WASM_CODE = Table(
+    python_module=__file__,
+    class_name='V8WasmCodeTable',
+    sql_name='__intrinsic_v8_wasm_code',
+    columns=[
+        C('jit_code_id', CppTableId(JIT_CODE_TABLE)),
+        C('v8_isolate_id', CppTableId(V8_ISOLATE)),
+        C('v8_wasm_script_id', CppTableId(V8_WASM_SCRIPT)),
+        C('function_name', CppString()),
+        C('tier', CppString()),
+        C('code_offset_in_module', CppInt32()),
+    ],
+    tabledoc=TableDoc(
+        doc="""
+          Represents the code associated to a WASM function
+        """,
+        group='v8',
+        columns={
+            'jit_code_id':
+                ColumnDoc(
+                    doc='Associated JitCode.',
+                    joinable='__intrinsic_jit_code.id',
+                ),
+            'v8_isolate_id':
+                ColumnDoc(
+                    doc="""
+                  V8 Isolate this code was created in.
+                    """,
+                    joinable='__intrinsic_v8_isolate.id'),
+            'v8_wasm_script_id':
+                ColumnDoc(
+                    doc="""
+                  Script where the function is defined.
+                    """,
+                    joinable='v8_wasm_script.id',
+                ),
+            'function_name':
+                'Function name.',
+            'tier':
+                'Compilation tier',
+            'code_offset_in_module':
+                """Offset into the WASM module where the function starts""",
+        },
+    ),
+)
+
+V8_REGEXP_CODE = Table(
+    python_module=__file__,
+    class_name='V8RegexpCodeTable',
+    sql_name='__intrinsic_v8_regexp_code',
+    columns=[
+        C('jit_code_id', CppTableId(JIT_CODE_TABLE)),
+        C('v8_isolate_id', CppTableId(V8_ISOLATE)),
+        C('pattern', CppString()),
+    ],
+    tabledoc=TableDoc(
+        doc="""
+          Represents the code associated to a regular expression
+        """,
+        group='v8',
+        columns={
+            'jit_code_id':
+                ColumnDoc(
+                    doc='Associated JitCode.',
+                    joinable='__intrinsic_jit_code.id',
+                ),
+            'v8_isolate_id':
+                ColumnDoc(
+                    doc="""
+                  V8 Isolate this code was created in.
+                    """,
+                    joinable='__intrinsic_v8_isolate.id'),
+            'pattern':
+                """The pattern the this regular expression was compiled from""",
+        },
+    ),
+)
+
 # Keep this list sorted.
 ALL_TABLES = [
     V8_ISOLATE,
     V8_JS_SCRIPT,
     V8_WASM_SCRIPT,
     V8_JS_FUNCTION,
+    V8_JS_CODE,
+    V8_INTERNAL_CODE,
+    V8_WASM_CODE,
+    V8_REGEXP_CODE,
 ]

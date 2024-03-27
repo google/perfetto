@@ -15,6 +15,7 @@
 
 
 -- Represents a jitted code snippet.
+-- TODO(carlscab): Make public
 CREATE PERFETTO VIEW _jit_code (
   -- Unique jit code id.
   jit_code_id UINT,
@@ -47,8 +48,9 @@ SELECT
 FROM __intrinsic_jit_code;
 
 -- Represents a jitted frame.
+-- TODO(carlscab): Make public
 CREATE PERFETTO VIEW _jit_frame (
-  -- Jitted code snipped the frame is in (joins with jit_code.jit_code_id).
+  -- Jitted code snipped the frame is in (joins with _jit_code.jit_code_id).
   jit_code_id UINT,
   -- Jitted frame (joins with stack_profile_frame.id).
   frame_id UINT

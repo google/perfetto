@@ -18,9 +18,13 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_V8_MODULE_H_
 
 #include <cstdint>
+#include <optional>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/v8_tables_py.h"
 
 namespace perfetto {
 namespace protos {
@@ -74,8 +78,20 @@ class V8Module : public ProtoImporterModule {
                        int64_t ts,
                        const TracePacketData& data);
 
+  // Determine the utid for a code event.
+  // If the passed in decoder has no tid field this method will try the
+  // TracePacketDefaults.
+  template <typename CodeDecoder>
+  std::optional<UniqueTid> GetUtid(PacketSequenceStateGeneration& generation,
+                                   tables::V8IsolateTable::Id isolate_id,
+                                   const CodeDecoder& code);
+  std::optional<uint32_t> GetDefaultTid(
+      PacketSequenceStateGeneration& generation) const;
   TraceProcessorContext* const context_;
   V8Tracker* const v8_tracker_;
+  // Caches isolate to pid associations. Used to compute the utid for code
+  // events.
+  base::FlatHashMap<tables::V8IsolateTable::Id, uint32_t> isolate_to_pid_;
 };
 
 }  // namespace trace_processor

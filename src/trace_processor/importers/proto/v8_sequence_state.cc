@@ -19,7 +19,6 @@
 
 #include "protos/perfetto/trace/chrome/v8.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/string_encoding_utils.h"
 #include "src/trace_processor/importers/proto/v8_tracker.h"
@@ -46,8 +45,7 @@ V8SequenceState::V8SequenceState(TraceProcessorContext* context)
 
 V8SequenceState::~V8SequenceState() = default;
 
-std::optional<tables::V8IsolateTable::Id> V8SequenceState::GetOrInsertIsolate(
-    uint64_t iid) {
+std::optional<IsolateId> V8SequenceState::GetOrInsertIsolate(uint64_t iid) {
   if (auto* id = isolates_.Find(iid); id != nullptr) {
     return *id;
   }
@@ -64,8 +62,7 @@ std::optional<tables::V8IsolateTable::Id> V8SequenceState::GetOrInsertIsolate(
 }
 
 std::optional<tables::V8JsFunctionTable::Id>
-V8SequenceState::GetOrInsertJsFunction(uint64_t iid,
-                                       tables::V8IsolateTable::Id isolate_id) {
+V8SequenceState::GetOrInsertJsFunction(uint64_t iid, IsolateId isolate_id) {
   if (auto* id = js_functions_.Find(iid); id != nullptr) {
     return *id;
   }
@@ -98,8 +95,7 @@ V8SequenceState::GetOrInsertJsFunction(uint64_t iid,
 }
 
 std::optional<tables::V8WasmScriptTable::Id>
-V8SequenceState::GetOrInsertWasmScript(uint64_t iid,
-                                       tables::V8IsolateTable::Id isolate_id) {
+V8SequenceState::GetOrInsertWasmScript(uint64_t iid, IsolateId isolate_id) {
   if (auto* id = wasm_scripts_.Find(iid); id != nullptr) {
     return *id;
   }
@@ -118,7 +114,7 @@ V8SequenceState::GetOrInsertWasmScript(uint64_t iid,
 
 std::optional<tables::V8JsScriptTable::Id> V8SequenceState::GetOrInsertJsScript(
     uint64_t iid,
-    tables::V8IsolateTable::Id v8_isolate_id) {
+    IsolateId v8_isolate_id) {
   if (auto* id = js_scripts_.Find(iid); id != nullptr) {
     return *id;
   }
@@ -157,10 +153,10 @@ std::optional<StringId> V8SequenceState::GetOrInsertJsFunctionName(
         base::StringView(ConvertLatin1ToUtf8(function_name.latin1())));
   } else if (function_name.has_utf16_le()) {
     id = storage.InternString(
-        base::StringView(ConvertUtf16LeToUtf8(function_name.latin1())));
+        base::StringView(ConvertUtf16LeToUtf8(function_name.utf16_le())));
   } else if (function_name.has_utf16_be()) {
     id = storage.InternString(
-        base::StringView(ConvertUtf16BeToUtf8(function_name.latin1())));
+        base::StringView(ConvertUtf16BeToUtf8(function_name.utf16_be())));
   } else {
     id = storage.InternString("");
   }
