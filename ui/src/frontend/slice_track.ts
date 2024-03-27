@@ -362,12 +362,18 @@ export abstract class SliceTrackLEGACY implements Track {
     if (data === undefined) return false;
     const sliceId = data.sliceIds[sliceIndex];
     if (sliceId !== undefined && sliceId !== -1) {
-      globals.makeSelection(
-        Actions.selectChromeSlice({
+      globals.setLegacySelection(
+        {
+          kind: 'CHROME_SLICE',
           id: sliceId,
           trackKey: this.trackKey,
           table: this.namespace,
-        }),
+        },
+        {
+          clearSearch: true,
+          pendingScrollId: undefined,
+          switchToCurrentSelectionTab: true,
+        },
       );
       return true;
     }

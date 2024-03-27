@@ -54,7 +54,7 @@ import {horizontalScrollToTs} from './scroll_helper';
 import {ServiceWorkerController} from './service_worker_controller';
 import {SliceSqlId} from './sql_types';
 import {PxSpan, TimeScale} from './time_scale';
-import {SelectionManager} from '../core/selection_manager';
+import {SelectionManager, LegacySelection} from '../core/selection_manager';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -208,6 +208,14 @@ export interface MakeSelectionOpts {
 
   // Whether to cancel the current search selection. Default = true.
   clearSearch?: boolean;
+}
+
+// All of these control additional things we can do when doing a
+// selection.
+export interface LegacySelectionArgs {
+  clearSearch: boolean;
+  switchToCurrentSelectionTab: boolean;
+  pendingScrollId: number | undefined;
 }
 
 /**
@@ -597,6 +605,31 @@ class Globals {
     globals.dispatch(action);
   }
 
+  setLegacySelection(
+    legacySelection: LegacySelection,
+    args: LegacySelectionArgs,
+  ): void {
+    this._selectionManager.setLegacy(legacySelection);
+    if (args.clearSearch) {
+      globals.dispatch(Actions.setSearchIndex({index: -1}));
+    }
+    if (args.pendingScrollId !== undefined) {
+      globals.dispatch(
+        Actions.setPendingScrollId({
+          pendingScrollId: args.pendingScrollId,
+        }),
+      );
+    }
+    if (args.switchToCurrentSelectionTab) {
+      globals.dispatch(Actions.showTab({uri: 'current_selection'}));
+    }
+  }
+
+  clearSelection(): void {
+    globals.dispatch(Actions.setSearchIndex({index: -1}));
+    this._selectionManager.clear();
+  }
+
   resetForTesting() {
     this._dispatch = undefined;
     this._timeline = undefined;
@@ -816,11 +849,6 @@ class Globals {
 
   panToTimestamp(ts: time): void {
     horizontalScrollToTs(ts);
-  }
-
-  clearSelection(): void {
-    globals.dispatch(Actions.setSearchIndex({index: -1}));
-    this._selectionManager.clear();
   }
 }
 
