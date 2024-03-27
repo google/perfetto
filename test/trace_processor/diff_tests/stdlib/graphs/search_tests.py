@@ -154,7 +154,7 @@ class GraphSearchTests(TestSuite):
         2,"[NULL]"
         """))
 
-  def test_weight_bounded_dfs(self):
+  def test_weight_bounded_dfs_floor(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
         query="""
@@ -174,7 +174,7 @@ class GraphSearchTests(TestSuite):
           VALUES (5, 6, 0);
 
           CREATE PERFETTO TABLE roots AS
-          SELECT 0 AS root_node_id, 0 AS root_max_weight
+          SELECT 0 AS root_node_id, 0 AS root_target_weight
           UNION ALL
           VALUES (1, 2)
           UNION ALL
@@ -182,7 +182,7 @@ class GraphSearchTests(TestSuite):
           UNION ALL
           VALUES (2, 0);
 
-          SELECT * FROM graph_reachable_weight_bounded_dfs!(foo, roots);
+          SELECT * FROM graph_reachable_weight_bounded_dfs!(foo, roots, 1);
         """,
         out=Csv("""
         "root_node_id","node_id","parent_node_id"
@@ -190,8 +190,50 @@ class GraphSearchTests(TestSuite):
         1,1,"[NULL]"
         1,2,1
         1,3,1
-        1,5,3
-        1,6,5
+        1,4,3
+        3,3,"[NULL]"
+        3,4,3
+        3,5,3
+        3,6,5
+        2,2,"[NULL]"
+        """))
+
+  def test_weight_bounded_dfs_ceiling(self):
+    return DiffTestBlueprint(
+        trace=DataPath('counters.json'),
+        query="""
+          INCLUDE PERFETTO MODULE graphs.search;
+
+          CREATE PERFETTO TABLE foo AS
+          SELECT 0 AS source_node_id, 0 AS dest_node_id, 0 AS edge_weight
+          UNION ALL
+          VALUES (1, 2, 1)
+          UNION ALL
+          VALUES (1, 3, 1)
+          UNION ALL
+          VALUES (3, 4, 1)
+          UNION ALL
+          VALUES (3, 5, 0)
+          UNION ALL
+          VALUES (5, 6, 0);
+
+          CREATE PERFETTO TABLE roots AS
+          SELECT 0 AS root_node_id, 0 AS root_target_weight
+          UNION ALL
+          VALUES (1, 2)
+          UNION ALL
+          VALUES (3, 1)
+          UNION ALL
+          VALUES (2, 0);
+
+          SELECT * FROM graph_reachable_weight_bounded_dfs!(foo, roots, 0);
+        """,
+        out=Csv("""
+        "root_node_id","node_id","parent_node_id"
+        0,0,"[NULL]"
+        1,1,"[NULL]"
+        1,2,1
+        1,3,1
         3,3,"[NULL]"
         3,4,3
         3,5,3
