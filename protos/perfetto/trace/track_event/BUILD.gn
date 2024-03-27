@@ -35,6 +35,7 @@ perfetto_proto_library("@TYPE@") {
     "counter_descriptor.proto",
     "debug_annotation.proto",
     "log_message.proto",
+    "pixel_modem.proto",
     "process_descriptor.proto",
     "range_of_interest.proto",
     "screenshot.proto",
