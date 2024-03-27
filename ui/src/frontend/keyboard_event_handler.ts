@@ -98,13 +98,18 @@ export function moveByFocusedFlow(direction: Direction): void {
       const trackKeyByTrackId = globals.trackManager.trackKeyByTrackId;
       const trackKey = trackKeyByTrackId.get(flowPoint.trackId);
       if (trackKey) {
-        globals.makeSelection(
-          Actions.selectChromeSlice({
+        globals.setLegacySelection(
+          {
+            kind: 'CHROME_SLICE',
             id: flowPoint.sliceId,
             trackKey,
             table: 'slice',
-            scroll: true,
-          }),
+          },
+          {
+            clearSearch: true,
+            pendingScrollId: flowPoint.sliceId,
+            switchToCurrentSelectionTab: true,
+          },
         );
       }
     }

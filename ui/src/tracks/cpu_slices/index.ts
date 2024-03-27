@@ -524,7 +524,20 @@ class CpuSliceTrack implements Track {
     const id = index === -1 ? undefined : data.ids[index];
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!id || this.utidHoveredInThisTrack === -1) return false;
-    globals.makeSelection(Actions.selectSlice({id, trackKey: this.trackKey}));
+
+    globals.setLegacySelection(
+      {
+        kind: 'SLICE',
+        id,
+        trackKey: this.trackKey,
+      },
+      {
+        clearSearch: true,
+        pendingScrollId: undefined,
+        switchToCurrentSelectionTab: true,
+      },
+    );
+
     return true;
   }
 }
