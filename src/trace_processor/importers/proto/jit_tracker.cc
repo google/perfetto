@@ -31,7 +31,6 @@
 namespace perfetto::trace_processor {
 
 JitTracker::JitTracker(TraceProcessorContext* context) : context_(context) {}
-
 JitTracker::~JitTracker() = default;
 
 JitCache* JitTracker::CreateJitCache(std::string name,

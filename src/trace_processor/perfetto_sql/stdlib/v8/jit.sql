@@ -76,7 +76,8 @@ FROM
 CREATE PERFETTO VIEW v8_js_script (
   -- Unique V8 JS script id.
   v8_js_script_id UINT,
-  -- V8 isolate this script belongs to (joinable with v8_isolate.v8_isolate_id).
+  -- V8 isolate this script belongs to (joinable with
+  -- `v8_isolate.v8_isolate_id`).
   v8_isolate_id UINT,
   -- Script id used by the V8 engine.
   internal_script_id UINT,
@@ -102,7 +103,8 @@ FROM
 CREATE PERFETTO VIEW v8_wasm_script (
   -- Unique V8 WASM script id.
   v8_wasm_script_id UINT,
-  -- V8 Isolate this script belongs to (joinable with v8_isolate.v8_isolate_id).
+  -- V8 Isolate this script belongs to (joinable with
+  -- `v8_isolate.v8_isolate_id`).
   v8_isolate_id UINT,
   -- Script id used by the V8 engine.
   internal_script_id UINT,
@@ -128,7 +130,7 @@ CREATE PERFETTO VIEW v8_js_function (
   -- Function name.
   name STRING,
   -- Script where the function is defined (joinable with
-  -- v8_js_script.v8_js_script_id).
+  -- `v8_js_script.v8_js_script_id`).
   v8_js_script_id UINT,
   -- Whether this function represents the top level script.
   is_toplevel BOOL,
@@ -149,3 +151,108 @@ SELECT
   col
 FROM
   __intrinsic_v8_js_function;
+
+
+-- Represents a v8 code snippet for a Javascript function. A given function can
+-- have multiple code snippets (e.g. for different compilation tiers, or as the
+-- function moves around the heap).
+-- TODO(carlscab): Make public once `_jit_code` is public too
+CREATE PERFETTO VIEW _v8_js_code(
+  -- Unique id
+  id UINT,
+  -- Associated jit code. Set for all tiers except IGNITION. Joinable with
+  -- `_jit_code.jit_code_id`.
+  jit_code_id UINT,
+  -- JS function for this snippet. Joinable with
+  -- `v8_js_function.v8_js_function_id`.
+  v8_js_function_id UINT,
+  -- Compilation tier
+  tier STRING,
+  -- V8 VM bytecode. Set only for the IGNITION tier.
+  bytecode BYTES
+) AS
+SELECT
+  id,
+  jit_code_id,
+  v8_js_function_id,
+  tier,
+  base64_decode(bytecode_base64) AS bytecode
+FROM
+  __intrinsic_v8_js_code;
+
+
+-- Represents a v8 code snippet for a v8 internal function.
+-- TODO(carlscab): Make public once `_jit_code` is public too
+CREATE PERFETTO VIEW _v8_internal_code(
+  -- Unique id
+  id UINT,
+  -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
+  jit_code_id UINT,
+  -- V8 Isolate this code was created in. Joinable with
+  -- `v8_isolate.v8_isolate_id`.
+  v8_isolate_id UINT,
+  -- Function name.
+  function_name STRING,
+  -- Type of internal code.
+  code_type STRING
+) AS
+SELECT
+  id,
+  jit_code_id,
+  v8_isolate_id,
+  function_name,
+  code_type
+FROM
+  __intrinsic_v8_internal_code;
+
+-- Represents the code associated to a WASM function.
+-- TODO(carlscab): Make public once `_jit_code` is public too
+CREATE PERFETTO VIEW _v8_wasm_code(
+  -- Unique id
+  id UINT,
+  -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
+  jit_code_id UINT,
+  -- V8 Isolate this code was created in. Joinable with
+  -- `v8_isolate.v8_isolate_id`.
+  v8_isolate_id UINT,
+  -- Script where the function is defined. Joinable with
+  -- `v8_wasm_script.v8_wasm_script_id`.
+  v8_wasm_script_id UINT,
+  -- Function name.
+  function_name STRING,
+  -- Compilation tier.
+  tier STRING,
+  -- Offset into the WASM module where the function starts.
+  code_offset_in_module INT
+ ) AS
+SELECT
+  id,
+  jit_code_id,
+  v8_isolate_id,
+  v8_wasm_script_id,
+  function_name,
+  tier,
+  code_offset_in_module
+FROM
+  __intrinsic_v8_wasm_code;
+
+-- Represents the code associated to a regular expression
+-- TODO(carlscab): Make public once `_jit_code` is public too
+CREATE PERFETTO VIEW _v8_regexp_code(
+  -- Unique id
+  id UINT,
+  -- Associated jit code. Joinable with `_jit_code.jit_code_id`.
+  jit_code_id UINT,
+  -- V8 Isolate this code was created in. Joinable with
+  -- `v8_isolate.v8_isolate_id`.
+  v8_isolate_id UINT,
+  -- The pattern the this regular expression was compiled from.
+  pattern STRING
+) AS
+SELECT
+  id,
+  jit_code_id,
+  v8_isolate_id,
+  pattern
+FROM
+  __intrinsic_v8_regexp_code;
