@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path, DataPath, Metric
-from python.generators.diff_tests.testing import Csv, Json, TextProto
+from python.generators.diff_tests.testing import Path, DataPath
+from python.generators.diff_tests.testing import Csv
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
@@ -263,3 +263,29 @@ class StdlibSched(TestSuite):
         "S",3868233011
         "x",35240577
       """))
+
+  def test_sched_previous_runnable_on_thread(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        INCLUDE PERFETTO MODULE sched.runnable;
+
+        SELECT *
+        FROM sched_previous_runnable_on_thread
+        WHERE prev_wakeup_runnable_id IS NOT NULL
+        ORDER BY id DESC
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "id","prev_runnable_id","prev_wakeup_runnable_id"
+        538199,538191,538191
+        538197,538191,538191
+        538195,538191,538191
+        538190,538136,538136
+        538188,538088,533235
+        538184,538176,524613
+        538181,538178,537492
+        538179,524619,524619
+        538177,537492,537492
+        538175,538174,524613
+        """))
