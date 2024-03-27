@@ -18,7 +18,6 @@ import {BigintMath} from '../../base/bigint_math';
 import {Icons} from '../../base/semantic_icons';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../trace_processor/engine';
 import {
   LONG,
@@ -233,13 +232,19 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
             vnode.attrs.ts,
             Time.fromRaw(vnode.attrs.ts + dur),
           );
-          globals.makeSelection(
-            Actions.selectChromeSlice({
+
+          globals.setLegacySelection(
+            {
+              kind: 'CHROME_SLICE',
               id: vnode.attrs.id,
               trackKey,
               table: 'slice',
-            }),
-            {switchToCurrentSelectionTab: switchTab},
+            },
+            {
+              clearSearch: true,
+              pendingScrollId: undefined,
+              switchToCurrentSelectionTab: switchTab,
+            },
           );
         },
       },

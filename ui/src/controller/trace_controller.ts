@@ -759,13 +759,18 @@ export class TraceController extends Controller<States> {
       if (trackKey === undefined) {
         return;
       }
-      globals.makeSelection(
-        Actions.selectChromeSlice({
+      globals.setLegacySelection(
+        {
+          kind: 'CHROME_SLICE',
           id: row.id,
           trackKey,
-          table: '',
-          scroll: true,
-        }),
+          table: 'slice',
+        },
+        {
+          clearSearch: true,
+          pendingScrollId: row.id,
+          switchToCurrentSelectionTab: false,
+        },
       );
     }
   }

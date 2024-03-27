@@ -67,9 +67,18 @@ export class FlowEventsPanel implements m.ClassComponent {
     const flowClickHandler = (sliceId: number, trackId: number) => {
       const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);
       if (trackKey) {
-        globals.makeSelection(
-          Actions.selectChromeSlice({id: sliceId, trackKey, table: 'slice'}),
-          {switchToCurrentSelectionTab: false},
+        globals.setLegacySelection(
+          {
+            kind: 'CHROME_SLICE',
+            id: sliceId,
+            trackKey,
+            table: 'slice',
+          },
+          {
+            clearSearch: true,
+            pendingScrollId: undefined,
+            switchToCurrentSelectionTab: false,
+          },
         );
       }
     };

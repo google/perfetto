@@ -639,21 +639,6 @@ export const StateActions = {
     }
   },
 
-  selectSlice(
-    state: StateDraft,
-    args: {id: number; trackKey: string; scroll?: boolean},
-  ): void {
-    state.selection = {
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'SLICE',
-        id: args.id,
-        trackKey: args.trackKey,
-      },
-    };
-    state.pendingScrollId = args.scroll ? args.id : undefined;
-  },
-
   selectCounter(
     state: StateDraft,
     args: {leftTs: time; rightTs: time; id: number; trackKey: string},
@@ -835,6 +820,10 @@ export const StateActions = {
     };
   },
 
+  setPendingScrollId(state: StateDraft, args: {pendingScrollId: number}): void {
+    state.pendingScrollId = args.pendingScrollId;
+  },
+
   clearPendingScrollId(state: StateDraft, _: {}): void {
     state.pendingScrollId = undefined;
   },
@@ -851,21 +840,6 @@ export const StateActions = {
         trackKey: args.trackKey,
       },
     };
-  },
-
-  selectLog(
-    state: StateDraft,
-    args: {id: number; trackKey: string; scroll?: boolean},
-  ): void {
-    state.selection = {
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'LOG',
-        id: args.id,
-        trackKey: args.trackKey,
-      },
-    };
-    state.pendingScrollId = args.scroll ? args.id : undefined;
   },
 
   updateLogsPagination(state: StateDraft, args: Pagination): void {
