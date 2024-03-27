@@ -180,6 +180,7 @@ LEFT JOIN _thread_end_ts thread_end
   USING (utid);
 
 -- Mapping from running thread state to runnable
+-- TODO(zezeozue): Switch to use `sched_previous_runnable_on_thread`.
 CREATE PERFETTO TABLE _waker_map
 AS
 WITH x AS (
