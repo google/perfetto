@@ -22,7 +22,7 @@ import {
 } from '../frontend/pivot_table_types';
 import {PrimaryTrackSortKey} from '../public/index';
 
-import {Direction} from './event_set';
+import {Direction} from '../core/event_set';
 
 import {
   selectionToLegacySelection,

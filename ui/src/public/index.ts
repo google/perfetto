@@ -21,7 +21,7 @@ import {ColorScheme} from '../core/colorizer';
 import {LegacySelection} from '../common/state';
 import {PanelSize} from '../frontend/panel';
 import {EngineProxy} from '../trace_processor/engine';
-import {UntypedEventSet} from '../common/event_set';
+import {UntypedEventSet} from '../core/event_set';
 
 export {EngineProxy} from '../trace_processor/engine';
 export {
