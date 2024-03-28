@@ -17,8 +17,8 @@ import {raf} from '../core/raf_scheduler';
 export const DEFAULT_CHANNEL = 'stable';
 const CHANNEL_KEY = 'perfettoUiChannel';
 
-let currentChannel: string|undefined = undefined;
-let nextChannel: string|undefined = undefined;
+let currentChannel: string | undefined = undefined;
+let nextChannel: string | undefined = undefined;
 
 // This is the channel the UI is currently running. It doesn't change once the
 // UI has been loaded.
@@ -42,7 +42,7 @@ export function channelChanged(): boolean {
 }
 
 export function setChannel(channel: string): void {
-  getCurrentChannel();  // Cache the current channel before mangling next one.
+  getCurrentChannel(); // Cache the current channel before mangling next one.
   nextChannel = channel;
   localStorage.setItem(CHANNEL_KEY, channel);
   raf.scheduleFullRedraw();

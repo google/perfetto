@@ -2115,13 +2115,13 @@ message AndroidStartupMetric {
     optional string destination_thread = 3;
     optional string destination_process = 4;
     // From
-    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=15;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=15;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional string flags = 5;
     // From
-    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=14;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=14;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional string code = 6;
     // From
-    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=37;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=37;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional int64 data_size = 7;
   }
 
@@ -2520,7 +2520,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 63
+// Next id: 64
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2693,6 +2693,10 @@ message TraceMetrics {
 
   // Android garbage collection metrics
   optional AndroidGarbageCollectionUnaggMetric android_garbage_collection_unagg = 63;
+
+  // Multiuser - metrics for switching users.
+  // Specific for Android Auto
+  optional AndroidMultiuserMetric android_auto_multiuser = 64;
 
   // Demo extensions.
   extensions 450 to 499;

@@ -1,4 +1,3 @@
-
 // Copyright (C) 2018 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,7 +30,7 @@ export const perfDebug = () => hooks.isDebug();
 // Returns performance.now() if perfDebug is enabled, otherwise 0.
 // This is needed because calling performance.now is generally expensive
 // and should not be done for every frame.
-export const debugNow = () => perfDebug() ? performance.now() : 0;
+export const debugNow = () => (perfDebug() ? performance.now() : 0);
 
 // Returns execution time of |fn| if perf debug mode is on. Returns 0 otherwise.
 export function measure(fn: () => void): number {
@@ -89,9 +88,11 @@ export class RunningStatistics {
 
 // Returns a summary string representation of a RunningStatistics object.
 export function runningStatStr(stat: RunningStatistics) {
-  return `Last: ${stat.last.toFixed(2)}ms | ` +
-      `Avg: ${stat.mean.toFixed(2)}ms | ` +
-      `Avg${stat.maxBufferSize}: ${stat.bufferMean.toFixed(2)}ms`;
+  return (
+    `Last: ${stat.last.toFixed(2)}ms | ` +
+    `Avg: ${stat.mean.toFixed(2)}ms | ` +
+    `Avg${stat.maxBufferSize}: ${stat.bufferMean.toFixed(2)}ms`
+  );
 }
 
 export interface PerfStatsSource {
@@ -117,17 +118,16 @@ class PerfDisplay {
     if (!perfDisplayEl) return;
     m.render(perfDisplayEl, [
       m('section', src.renderPerfStats()),
-      m('button.close-button',
+      m(
+        'button.close-button',
         {
           onclick: hooks.toggleDebug,
         },
-        m('i.material-icons', 'close')),
-      this.containers.map(
-        (c, i) => m(
-          'section',
-          m('div', `Panel Container ${i + 1}`),
-          c.renderPerfStats(),
-        )),
+        m('i.material-icons', 'close'),
+      ),
+      this.containers.map((c, i) =>
+        m('section', m('div', `Panel Container ${i + 1}`), c.renderPerfStats()),
+      ),
     ]);
   }
 }

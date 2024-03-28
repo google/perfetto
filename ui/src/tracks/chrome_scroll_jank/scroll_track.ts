@@ -29,10 +29,9 @@ import {
 import {ScrollDetailsPanel} from './scroll_details_panel';
 
 export const CHROME_TOPLEVEL_SCROLLS_KIND =
-    'org.chromium.TopLevelScrolls.scrolls';
+  'org.chromium.TopLevelScrolls.scrolls';
 
-export class TopLevelScrollTrack extends
-  CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+export class TopLevelScrollTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   public static kind = CHROME_TOPLEVEL_SCROLLS_KIND;
 
   getSqlDataSource(): CustomSqlTableDefConfig {
@@ -66,7 +65,8 @@ export class TopLevelScrollTrack extends
   onDestroy() {
     super.onDestroy();
     ScrollJankPluginState.getInstance().unregisterTrack(
-      TopLevelScrollTrack.kind);
+      TopLevelScrollTrack.kind,
+    );
   }
 }
 

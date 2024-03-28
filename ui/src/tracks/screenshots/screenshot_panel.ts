@@ -16,20 +16,16 @@ import m from 'mithril';
 
 import {assertTrue} from '../../base/logging';
 import {exists} from '../../base/utils';
-import {
-  BottomTab,
-  bottomTabRegistry,
-  NewBottomTabArgs,
-} from '../../frontend/bottom_tab';
-import {
-  GenericSliceDetailsTabConfig,
-} from '../../frontend/generic_slice_details_tab';
+import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
+import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {getSlice, SliceDetails} from '../../frontend/sql/slice';
 import {asSliceSqlId} from '../../frontend/sql_types';
 import {EngineProxy} from '../../trace_processor/engine';
 
 async function getSliceDetails(
-  engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {
+  engine: EngineProxy,
+  id: number,
+): Promise<SliceDetails | undefined> {
   return getSlice(engine, asSliceSqlId(id));
 }
 
@@ -38,15 +34,17 @@ export class ScreenshotTab extends BottomTab<GenericSliceDetailsTabConfig> {
 
   private sliceDetails?: SliceDetails;
 
-  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
-      ScreenshotTab {
+  static create(
+    args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
+  ): ScreenshotTab {
     return new ScreenshotTab(args);
   }
 
   constructor(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>) {
     super(args);
-    getSliceDetails(this.engine, this.config.id)
-      .then((sliceDetails) => this.sliceDetails = sliceDetails);
+    getSliceDetails(this.engine, this.config.id).then(
+      (sliceDetails) => (this.sliceDetails = sliceDetails),
+    );
   }
 
   renderTabCanvas() {}
@@ -56,16 +54,19 @@ export class ScreenshotTab extends BottomTab<GenericSliceDetailsTabConfig> {
   }
 
   viewTab() {
-    if (!exists(this.sliceDetails) || !exists(this.sliceDetails.args) ||
-        this.sliceDetails.args.length == 0) {
+    if (
+      !exists(this.sliceDetails) ||
+      !exists(this.sliceDetails.args) ||
+      this.sliceDetails.args.length == 0
+    ) {
       return m('h2', 'Loading Screenshot');
     }
     assertTrue(this.sliceDetails.args[0].key == 'screenshot.jpg_image');
-    return m('.screenshot-panel', m('img', {
-      src: 'data:image/png;base64, ' +
-                   this.sliceDetails.args[0].displayValue,
-    }));
+    return m(
+      '.screenshot-panel',
+      m('img', {
+        src: 'data:image/png;base64, ' + this.sliceDetails.args[0].displayValue,
+      }),
+    );
   }
 }
-
-bottomTabRegistry.register(ScreenshotTab);

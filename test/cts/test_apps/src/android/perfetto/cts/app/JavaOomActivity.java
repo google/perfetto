@@ -27,6 +27,17 @@ public class JavaOomActivity extends Activity {
     public void onCreate(Bundle state) {
         super.onCreate(state);
         new Thread(() -> {
+            // Inside ART, the perfetto hprof plugin (used here to dump the heap after an OOM) will
+            // use fork(). If other threads are holding some locks, the forked process might not be
+            // able to make progress, in some rare cases. This is a known limitation of the perfetto
+            // hprof plugin. In this test, we want to minimize the chance that other threads are
+            // holding locks when we cause an OOM. Unfortunately, it looks like the best way of
+            // doing this is sleeping for 500 milliseconds, allowing other threads spawned on app
+            // startup to finish what they're doing. See b/329124210 for more details.
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException ignored) {
+            }
             try {
                 Log.i(TAG, "Before the allocation");
                 // Try to allocate a big array: it should cause ART to run out of memory.

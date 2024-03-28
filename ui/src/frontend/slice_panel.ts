@@ -14,11 +14,9 @@
 
 import m from 'mithril';
 
-import {duration, time} from '../base/time';
 import {exists} from '../base/utils';
 
-import {globals, SliceDetails} from './globals';
-import {DurationWidget} from './widgets/duration';
+import {SliceDetails} from './globals';
 
 // To display process or thread, we want to concatenate their name with ID, but
 // either can be undefined and all the cases need to be considered carefully to
@@ -27,8 +25,10 @@ import {DurationWidget} from './widgets/duration';
 //
 // Result can be undefined if both name and process are, in this case result is
 // not going to be displayed in the UI.
-function getDisplayName(name: string|undefined, id: number|undefined): string|
-    undefined {
+function getDisplayName(
+  name: string | undefined,
+  id: number | undefined,
+): string | undefined {
   if (name === undefined) {
     return id === undefined ? undefined : `${id}`;
   } else {
@@ -37,17 +37,8 @@ function getDisplayName(name: string|undefined, id: number|undefined): string|
 }
 
 export abstract class SlicePanel implements m.ClassComponent {
-  protected computeDuration(ts: time, dur: duration): m.Children {
-    if (dur === -1n) {
-      const minDuration = globals.state.traceTime.end - ts;
-      return [m(DurationWidget, {dur: minDuration}), ' (Did not end)'];
-    } else {
-      return m(DurationWidget, {dur});
-    }
-  }
-
   protected getProcessThreadDetails(sliceInfo: SliceDetails) {
-    return new Map<string, string|undefined>([
+    return new Map<string, string | undefined>([
       ['Thread', getDisplayName(sliceInfo.threadName, sliceInfo.tid)],
       ['Process', getDisplayName(sliceInfo.processName, sliceInfo.pid)],
       ['User ID', exists(sliceInfo.uid) ? String(sliceInfo.uid) : undefined],
@@ -61,5 +52,5 @@ export abstract class SlicePanel implements m.ClassComponent {
     ]);
   }
 
-  abstract view(vnode: m.Vnode): void|m.Children;
+  abstract view(vnode: m.Vnode): void | m.Children;
 }

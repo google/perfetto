@@ -16,17 +16,30 @@
 
 #include "src/trace_processor/importers/proto/heap_graph_tracker.h"
 
+#include <algorithm>
+#include <array>
+#include <cinttypes>
+#include <cstdint>
+#include <cstring>
+#include <deque>
+#include <map>
+#include <memory>
 #include <optional>
+#include <set>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
 
-#include "perfetto/base/flat_set.h"
-#include "perfetto/ext/base/string_splitter.h"
-#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_view.h"
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/profiler_util.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -247,7 +260,7 @@ bool HeapGraphTracker::SetPidAndTimestamp(SequenceState* sequence_state,
 ObjectTable::RowReference HeapGraphTracker::GetOrInsertObject(
     SequenceState* sequence_state,
     uint64_t object_id) {
-  auto object_table = storage_->mutable_heap_graph_object_table();
+  auto* object_table = storage_->mutable_heap_graph_object_table();
   auto* ptr = sequence_state->object_id_to_db_row.Find(object_id);
   if (!ptr) {
     auto id_and_row = object_table->Insert({sequence_state->current_upid,
@@ -269,7 +282,7 @@ ObjectTable::RowReference HeapGraphTracker::GetOrInsertObject(
 ClassTable::RowReference HeapGraphTracker::GetOrInsertType(
     SequenceState* sequence_state,
     uint64_t type_id) {
-  auto class_table = storage_->mutable_heap_graph_class_table();
+  auto* class_table = storage_->mutable_heap_graph_class_table();
   auto* ptr = sequence_state->type_id_to_db_row.Find(type_id);
   if (!ptr) {
     auto id_and_row =
@@ -407,7 +420,7 @@ void HeapGraphTracker::AddInternedFieldName(uint32_t seq_id,
 
   auto it = sequence_state.references_for_field_name_id.find(intern_id);
   if (it != sequence_state.references_for_field_name_id.end()) {
-    auto hgr = storage_->mutable_heap_graph_reference_table();
+    auto* hgr = storage_->mutable_heap_graph_reference_table();
     for (ReferenceTable::RowNumber reference_row_num : it->second) {
       auto row_ref = reference_row_num.ToRowReference(hgr);
       row_ref.set_field_name(field_name);
@@ -754,8 +767,10 @@ void HeapGraphTracker::PopulateSuperClasses(const SequenceState& seq) {
   }
 }
 
-base::FlatSet<ObjectTable::Id> HeapGraphTracker::GetChildren(
-    ObjectTable::RowReference object) {
+void HeapGraphTracker::GetChildren(ObjectTable::RowReference object,
+                                   std::vector<ObjectTable::Id>& children) {
+  children.clear();
+
   auto cls_row_ref =
       *storage_->heap_graph_class_table().FindById(object.type_id());
 
@@ -771,7 +786,6 @@ base::FlatSet<ObjectTable::Id> HeapGraphTracker::GetChildren(
       kind == InternTypeKindString(
                   protos::pbzero::HeapGraphType::KIND_PHANTOM_REFERENCE);
 
-  base::FlatSet<ObjectTable::Id> children;
   ForReferenceSet(
       storage_, object,
       [object, &children, is_ignored_reference,
@@ -786,10 +800,14 @@ base::FlatSet<ObjectTable::Id> HeapGraphTracker::GetChildren(
           // "java.lang.ref.Reference.referent" field should be ignored.
           return true;
         }
-        children.insert(*opt_owned);
+        children.push_back(*opt_owned);
         return true;
       });
-  return children;
+  std::sort(children.begin(), children.end(),
+            [](const ObjectTable::Id& a, const ObjectTable::Id& b) {
+              return a.value < b.value;
+            });
+  children.erase(std::unique(children.begin(), children.end()), children.end());
 }
 
 size_t HeapGraphTracker::RankRoot(StringId type) {
@@ -813,6 +831,8 @@ void HeapGraphTracker::MarkRoot(ObjectTable::RowReference row_ref,
   }
   row_ref.set_root_type(type);
 
+  std::vector<ObjectTable::Id> children;
+
   // DFS to mark reachability for all children
   std::vector<ObjectTable::RowReference> stack({row_ref});
   while (!stack.empty()) {
@@ -823,7 +843,8 @@ void HeapGraphTracker::MarkRoot(ObjectTable::RowReference row_ref,
       continue;
     cur_node.set_reachable(true);
 
-    for (ObjectTable::Id child_node : GetChildren(cur_node)) {
+    GetChildren(cur_node, children);
+    for (ObjectTable::Id child_node : children) {
       auto child_ref =
           *storage_->mutable_heap_graph_object_table()->FindById(child_node);
       stack.push_back(child_ref);
@@ -835,6 +856,8 @@ void HeapGraphTracker::UpdateShortestPaths(ObjectTable::RowReference row_ref) {
   // Calculate shortest distance to a GC root.
   std::deque<std::pair<int32_t, ObjectTable::RowReference>> reachable_nodes{
       {0, row_ref}};
+
+  std::vector<ObjectTable::Id> children;
   while (!reachable_nodes.empty()) {
     auto pair = reachable_nodes.front();
 
@@ -846,7 +869,8 @@ void HeapGraphTracker::UpdateShortestPaths(ObjectTable::RowReference row_ref) {
     if (cur_distance == -1 || cur_distance > distance) {
       cur_row_ref.set_root_distance(distance);
 
-      for (ObjectTable::Id child_node : GetChildren(cur_row_ref)) {
+      GetChildren(cur_row_ref, children);
+      for (ObjectTable::Id child_node : children) {
         auto child_row_ref =
             *storage_->mutable_heap_graph_object_table()->FindById(child_node);
         int32_t child_distance = child_row_ref.root_distance();
@@ -872,7 +896,6 @@ void HeapGraphTracker::FindPathFromRoot(ObjectTable::RowReference row_ref,
   };
 
   std::vector<StackElem> stack{{row_ref, PathFromRoot::kRoot, 0, 0, {}}};
-
   while (!stack.empty()) {
     ObjectTable::RowReference object_row_ref = stack.back().node;
 
@@ -915,9 +938,7 @@ void HeapGraphTracker::FindPathFromRoot(ObjectTable::RowReference row_ref,
       // size to the relevant node in the resulting tree.
       output_tree_node->size += object_row_ref.self_size();
       output_tree_node->count++;
-      base::FlatSet<ObjectTable::Id> children_set = GetChildren(object_row_ref);
-      children.assign(children_set.begin(), children_set.end());
-      PERFETTO_CHECK(children.size() == children_set.size());
+      GetChildren(object_row_ref, children);
 
       if (object_row_ref.native_size()) {
         StringId native_class_name_id = storage_->InternString(
@@ -1106,5 +1127,4 @@ StringId HeapGraphTracker::InternTypeKindString(
 
 HeapGraphTracker::~HeapGraphTracker() = default;
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

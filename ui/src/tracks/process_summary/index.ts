@@ -20,12 +20,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
 import {
   Config as ProcessSchedulingTrackConfig,
@@ -197,7 +192,7 @@ class ProcessSummaryPlugin implements Plugin {
 
       // Group by upid if present else by utid.
       let pUuid =
-          upid === null ? this.utidToUuid.get(utid) : this.upidToUuid.get(upid);
+        upid === null ? this.utidToUuid.get(utid) : this.upidToUuid.get(upid);
       // These should only happen once for each track group.
       if (pUuid === undefined) {
         pUuid = this.getOrCreateUuid(utid, upid);
@@ -295,7 +290,7 @@ class ProcessSummaryPlugin implements Plugin {
     });
   }
 
-  private getOrCreateUuid(utid: number, upid: number|null) {
+  private getOrCreateUuid(utid: number, upid: number | null) {
     let uuid = this.getUuidUnchecked(utid, upid);
     if (uuid === undefined) {
       uuid = uuidv4();
@@ -308,9 +303,10 @@ class ProcessSummaryPlugin implements Plugin {
     return uuid;
   }
 
-  getUuidUnchecked(utid: number, upid: number|null) {
-    return upid === null ? this.utidToUuid.get(utid) :
-      this.upidToUuid.get(upid);
+  getUuidUnchecked(utid: number, upid: number | null) {
+    return upid === null
+      ? this.utidToUuid.get(utid)
+      : this.upidToUuid.get(upid);
   }
 }
 

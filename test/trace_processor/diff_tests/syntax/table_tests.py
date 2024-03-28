@@ -136,11 +136,14 @@ class PerfettoTable(TestSuite):
         trace=DataPath('android_boot.pftrace'),
         query="""
         CREATE PERFETTO TABLE foo AS
-        SELECT dur FROM slice WHERE dur != -1
-        GROUP BY 1 ORDER BY 1;
+        SELECT 2 AS c
+        UNION
+        SELECT 4
+        UNION
+        SELECT 6;
 
         SELECT col_type FROM perfetto_table_info('foo')
-        WHERE name = 'dur';
+        WHERE name = 'c';
         """,
         out=Csv("""
         "col_type"

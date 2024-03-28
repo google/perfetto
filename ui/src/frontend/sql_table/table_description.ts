@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 // Definition of the SQL table to be displayed in the SQL table widget,
 // including the semantic definitions of the columns (e.g. timestamp
 // column which requires special formatting). Also note that some of the
@@ -21,7 +20,10 @@
 // additional filtering.
 
 export type DisplayConfig =
-    SliceIdDisplayConfig|Timestamp|Duration|ThreadDuration;
+  | SliceIdDisplayConfig
+  | Timestamp
+  | Duration
+  | ThreadDuration;
 
 // Common properties for all columns.
 interface SqlTableColumnBase {
@@ -43,7 +45,7 @@ export interface RegularSqlTableColumn extends SqlTableColumnBase {
   startsHidden?: boolean;
 }
 
-export type SqlTableColumn = RegularSqlTableColumn|ArgSetIdColumn;
+export type SqlTableColumn = RegularSqlTableColumn | ArgSetIdColumn;
 
 export function startsHidden(c: SqlTableColumn): boolean {
   if (isArgSetIdColumn(c)) return true;
@@ -68,10 +70,10 @@ export function tableDisplayName(table: SqlTableDescription): string {
 // Additional columns needed to display the given column.
 export function dependendentColumns(display?: DisplayConfig): string[] {
   switch (display?.type) {
-  case 'slice_id':
-    return [display.ts, display.dur, display.trackId];
-  default:
-    return [];
+    case 'slice_id':
+      return [display.ts, display.dur, display.trackId];
+    default:
+      return [];
   }
 }
 

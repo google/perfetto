@@ -34,7 +34,6 @@ source_set("sqlite") {
     "sqlite_tokenizer.h",
     "sqlite_utils.cc",
     "sqlite_utils.h",
-    "sqlite_utils.h",
     "stats_table.cc",
     "stats_table.h",
   ]
@@ -59,6 +58,7 @@ source_set("sqlite") {
     "../util:profile_builder",
     "../util:regex",
   ]
+  public_deps = [ "bindings" ]
 }
 
 source_set("query_constraints") {

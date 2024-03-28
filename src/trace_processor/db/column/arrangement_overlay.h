@@ -35,7 +35,7 @@ namespace perfetto::trace_processor::column {
 class ArrangementOverlay final : public DataLayer {
  public:
   ArrangementOverlay(const std::vector<uint32_t>* arrangement,
-                     Indices::State arrangement_state);
+                     DataLayerChain::Indices::State arrangement_state);
   ~ArrangementOverlay() override;
 
   std::unique_ptr<DataLayerChain> MakeChain(
@@ -59,13 +59,11 @@ class ArrangementOverlay final : public DataLayer {
 
     RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-    RangeOrBitVector IndexSearchValidated(FilterOp,
-                                          SqlValue,
-                                          Indices) const override;
+    void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
     Range OrderedIndexSearchValidated(FilterOp,
                                       SqlValue,
-                                      Indices) const override {
+                                      const OrderedIndices&) const override {
       PERFETTO_FATAL(
           "OrderedIndexSearch can't be called on ArrangementOverlay");
     }
@@ -91,7 +89,7 @@ class ArrangementOverlay final : public DataLayer {
 
   std::unique_ptr<DataLayerChain> inner_;
   const std::vector<uint32_t>* arrangement_;
-  const Indices::State arrangement_state_;
+  const DataLayerChain::Indices::State arrangement_state_;
 };
 
 }  // namespace perfetto::trace_processor::column

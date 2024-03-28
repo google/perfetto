@@ -42,6 +42,8 @@ export function arrayEquals<T>(a: ArrayLike<T>, b: ArrayLike<T>): boolean {
 }
 
 export function isArrayOf<P, Q>(
-  predicate: (x: P|Q) => x is P, xs: (P|Q)[]): xs is P[] {
+  predicate: (x: P | Q) => x is P,
+  xs: (P | Q)[],
+): xs is P[] {
   return xs.every(predicate);
 }

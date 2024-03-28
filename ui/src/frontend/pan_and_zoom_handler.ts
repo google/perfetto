@@ -18,7 +18,6 @@ import {raf} from '../core/raf_scheduler';
 
 import {Animation} from './animation';
 import {DragGestureHandler} from './drag_gesture_handler';
-import {handleKey} from './keyboard_event_handler';
 
 // When first starting to pan or zoom, move at least this many units.
 const INITIAL_PAN_STEP_PX = 50;
@@ -70,7 +69,7 @@ export enum KeyMapping {
 enum Pan {
   None = 0,
   Left = -1,
-  Right = 1
+  Right = 1,
 }
 function keyToPan(e: KeyboardEvent): Pan {
   if (e.code === KeyMapping.KEY_PAN_LEFT) return Pan.Left;
@@ -81,7 +80,7 @@ function keyToPan(e: KeyboardEvent): Pan {
 enum Zoom {
   None = 0,
   In = 1,
-  Out = -1
+  Out = -1,
 }
 function keyToZoom(e: KeyboardEvent): Zoom {
   if (e.code === KeyMapping.KEY_ZOOM_IN) return Zoom.In;
@@ -93,7 +92,7 @@ function keyToZoom(e: KeyboardEvent): Zoom {
  * Enables horizontal pan and zoom with mouse-based drag and WASD navigation.
  */
 export class PanAndZoomHandler implements Disposable {
-  private mousePositionX: number|null = null;
+  private mousePositionX: number | null = null;
   private boundOnMouseMove = this.onMouseMove.bind(this);
   private boundOnWheel = this.onWheel.bind(this);
   private boundOnKeyDown = this.onKeyDown.bind(this);
@@ -112,9 +111,14 @@ export class PanAndZoomHandler implements Disposable {
   private onPanned: (movedPx: number) => void;
   private onZoomed: (zoomPositionPx: number, zoomRatio: number) => void;
   private editSelection: (currentPx: number) => boolean;
-  private onSelection:
-      (dragStartX: number, dragStartY: number, prevX: number, currentX: number,
-       currentY: number, editing: boolean) => void;
+  private onSelection: (
+    dragStartX: number,
+    dragStartY: number,
+    prevX: number,
+    currentX: number,
+    currentY: number,
+    editing: boolean,
+  ) => void;
   private endSelection: (edit: boolean) => void;
   private trash: Trash;
 
@@ -126,14 +130,19 @@ export class PanAndZoomHandler implements Disposable {
     onSelection,
     endSelection,
   }: {
-    element: HTMLElement,
-    onPanned: (movedPx: number) => void,
-    onZoomed: (zoomPositionPx: number, zoomRatio: number) => void,
-    editSelection: (currentPx: number) => boolean,
-    onSelection:
-        (dragStartX: number, dragStartY: number, prevX: number,
-         currentX: number, currentY: number, editing: boolean) => void,
-    endSelection: (edit: boolean) => void,
+    element: HTMLElement;
+    onPanned: (movedPx: number) => void;
+    onZoomed: (zoomPositionPx: number, zoomRatio: number) => void;
+    editSelection: (currentPx: number) => boolean;
+    onSelection: (
+      dragStartX: number,
+      dragStartY: number,
+      prevX: number,
+      currentX: number,
+      currentY: number,
+      editing: boolean,
+    ) => void;
+    endSelection: (edit: boolean) => void;
   }) {
     this.element = element;
     this.onPanned = onPanned;
@@ -158,38 +167,40 @@ export class PanAndZoomHandler implements Disposable {
     let dragStartX = -1;
     let dragStartY = -1;
     let edit = false;
-    this.trash.add(new DragGestureHandler(
-      this.element,
-      (x, y) => {
-        if (this.shiftDown) {
-          this.onPanned(prevX - x);
-        } else {
-          this.onSelection(dragStartX, dragStartY, prevX, x, y, edit);
-        }
-        prevX = x;
-      },
-      (x, y) => {
-        prevX = x;
-        dragStartX = x;
-        dragStartY = y;
-        edit = this.editSelection(x);
-        // Set the cursor style based on where the cursor is when the drag
-        // starts.
-        if (edit) {
-          this.element.style.cursor = EDITING_RANGE_CURSOR;
-        } else if (!this.shiftDown) {
-          this.element.style.cursor = DRAG_CURSOR;
-        }
-      },
-      () => {
-        // Reset the cursor now the drag has ended.
-        this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
-        dragStartX = -1;
-        dragStartY = -1;
-        this.endSelection(edit);
-      }));
+    this.trash.add(
+      new DragGestureHandler(
+        this.element,
+        (x, y) => {
+          if (this.shiftDown) {
+            this.onPanned(prevX - x);
+          } else {
+            this.onSelection(dragStartX, dragStartY, prevX, x, y, edit);
+          }
+          prevX = x;
+        },
+        (x, y) => {
+          prevX = x;
+          dragStartX = x;
+          dragStartY = y;
+          edit = this.editSelection(x);
+          // Set the cursor style based on where the cursor is when the drag
+          // starts.
+          if (edit) {
+            this.element.style.cursor = EDITING_RANGE_CURSOR;
+          } else if (!this.shiftDown) {
+            this.element.style.cursor = DRAG_CURSOR;
+          }
+        },
+        () => {
+          // Reset the cursor now the drag has ended.
+          this.element.style.cursor = this.shiftDown ? PAN_CURSOR : DRAG_CURSOR;
+          dragStartX = -1;
+          dragStartY = -1;
+          this.endSelection(edit);
+        },
+      ),
+    );
   }
-
 
   dispose() {
     this.trash.dispose();
@@ -268,9 +279,6 @@ export class PanAndZoomHandler implements Disposable {
 
       this.updateShift(e.shiftKey);
 
-      // Handle key events that are not pan or zoom.
-      if (handleKey(e, true)) return;
-
       if (e.ctrlKey || e.metaKey) return;
 
       if (keyToPan(e) !== Pan.None) {
@@ -298,9 +306,6 @@ export class PanAndZoomHandler implements Disposable {
   private onKeyUp(e: Event) {
     if (e instanceof KeyboardEvent) {
       this.updateShift(e.shiftKey);
-
-      // Handle key events that are not pan or zoom.
-      if (handleKey(e, false)) return;
 
       if (e.ctrlKey || e.metaKey) return;
 

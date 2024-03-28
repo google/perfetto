@@ -17,7 +17,7 @@ export const RECORDING_MODAL_DIALOG_KEY = 'recording_target';
 // Begin Websocket ////////////////////////////////////////////////////////
 
 export const WEBSOCKET_UNABLE_TO_CONNECT =
-    'Unable to connect to device via websocket.';
+  'Unable to connect to device via websocket.';
 
 // https://www.rfc-editor.org/rfc/rfc6455#section-7.4.1
 export const WEBSOCKET_CLOSED_ABNORMALLY_CODE = 1006;
@@ -71,22 +71,21 @@ export const TRACEBOX_FETCH_TIMEOUT = 30000;
 // Message shown to the user when they need to allow authentication on the
 // device in order to connect.
 export const ALLOW_USB_DEBUGGING =
-    'Please allow USB debugging on device and try again.';
+  'Please allow USB debugging on device and try again.';
 
 // If the Android device has the tracing service on it (from API version 29),
 // then we can connect to this consumer socket.
 export const DEFAULT_TRACED_CONSUMER_SOCKET_PATH =
-    'localfilesystem:/dev/socket/traced_consumer';
+  'localfilesystem:/dev/socket/traced_consumer';
 
 // If the Android device does not have the tracing service on it (before API
 // version 29), we will have to push the tracebox on the device. Then, we
 // can connect to this consumer socket (using it does not require system admin
 // privileges).
 export const CUSTOM_TRACED_CONSUMER_SOCKET_PATH =
-    'localabstract:traced_consumer';
+  'localabstract:traced_consumer';
 
 // End Adb /////////////////////////////////////////////////////////////////
-
 
 // Begin Webusb ///////////////////////////////////////////////////////////
 
@@ -99,53 +98,52 @@ export interface UsbInterfaceAndEndpoint {
 }
 
 export const ADB_DEVICE_FILTER = {
-  classCode: 255,    // USB vendor specific code
-  subclassCode: 66,  // Android vendor specific subclass
-  protocolCode: 1,   // Adb protocol
+  classCode: 255, // USB vendor specific code
+  subclassCode: 66, // Android vendor specific subclass
+  protocolCode: 1, // Adb protocol
 };
 
-export function findInterfaceAndEndpoint(device: USBDevice):
-    UsbInterfaceAndEndpoint|undefined {
+export function findInterfaceAndEndpoint(
+  device: USBDevice,
+): UsbInterfaceAndEndpoint | undefined {
   const adbDeviceFilter = ADB_DEVICE_FILTER;
   for (const config of device.configurations) {
     for (const interface_ of config.interfaces) {
       for (const alt of interface_.alternates) {
-        if (alt.interfaceClass === adbDeviceFilter.classCode &&
-            alt.interfaceSubclass === adbDeviceFilter.subclassCode &&
-            alt.interfaceProtocol === adbDeviceFilter.protocolCode) {
+        if (
+          alt.interfaceClass === adbDeviceFilter.classCode &&
+          alt.interfaceSubclass === adbDeviceFilter.subclassCode &&
+          alt.interfaceProtocol === adbDeviceFilter.protocolCode
+        ) {
           return {
             configurationValue: config.configurationValue,
             usbInterfaceNumber: interface_.interfaceNumber,
             endpoints: alt.endpoints,
           };
-        }  // if (alternate)
-      }    // for (interface.alternates)
-    }      // for (configuration.interfaces)
-  }        // for (configurations)
+        } // if (alternate)
+      } // for (interface.alternates)
+    } // for (configuration.interfaces)
+  } // for (configurations)
 
   return undefined;
 }
 
 // End Webusb //////////////////////////////////////////////////////////////
 
-
 // Begin Chrome ///////////////////////////////////////////////////////////
 
 export const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
-export const EXTENSION_URL =
-    `https://chrome.google.com/webstore/detail/perfetto-ui/${EXTENSION_ID}`;
+export const EXTENSION_URL = `https://chrome.google.com/webstore/detail/perfetto-ui/${EXTENSION_ID}`;
 export const EXTENSION_NAME = 'Chrome extension';
-export const EXTENSION_NOT_INSTALLED =
-    `To trace Chrome from the Perfetto UI, you need to install our
+export const EXTENSION_NOT_INSTALLED = `To trace Chrome from the Perfetto UI, you need to install our
     ${EXTENSION_URL} and then reload this page.`;
 
 export const MALFORMED_EXTENSION_MESSAGE = 'Malformed extension message.';
 export const BUFFER_USAGE_NOT_ACCESSIBLE = 'Buffer usage not accessible';
 export const BUFFER_USAGE_INCORRECT_FORMAT =
-    'The buffer usage data has am incorrect format';
+  'The buffer usage data has am incorrect format';
 
 // End Chrome /////////////////////////////////////////////////////////////
-
 
 // Begin Traced //////////////////////////////////////////////////////////
 

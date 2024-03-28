@@ -52,6 +52,8 @@ using NullOverlay = column::NullOverlay;
 using ArrangementOverlay = column::ArrangementOverlay;
 using SelectorOverlay = column::SelectorOverlay;
 
+using Indices = column::DataLayerChain::Indices;
+
 TEST(QueryExecutor, OnlyStorageRange) {
   std::vector<int64_t> storage_data{1, 2, 3, 4, 5};
   column::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64,

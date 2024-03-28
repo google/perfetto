@@ -210,9 +210,10 @@ base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
   return base::OkStatus();
 }
 
-SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table::Schema& schema,
-                                                 const char* table_name) {
-  std::vector<SqliteTable::Column> schema_cols;
+SqliteTableLegacy::Schema DbSqliteTable::ComputeSchema(
+    const Table::Schema& schema,
+    const char* table_name) {
+  std::vector<SqliteTableLegacy::Column> schema_cols;
   for (uint32_t i = 0; i < schema.columns.size(); ++i) {
     const auto& col = schema.columns[i];
     schema_cols.emplace_back(i, col.name, col.type, col.is_hidden);
@@ -319,7 +320,7 @@ void DbSqliteTable::ModifyConstraints(const Table::Schema& schema,
   {
     auto p = [&cs](const QueryConstraints::OrderBy& o) {
       auto inner_p = [&o](const QueryConstraints::Constraint& c) {
-        return c.column == o.iColumn && sqlite_utils::IsOpEq(c.op);
+        return c.column == o.iColumn && sqlite::utils::IsOpEq(c.op);
       };
       return std::any_of(cs->begin(), cs->end(), inner_p);
     };
@@ -373,7 +374,7 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
     if (current_row_count < 2)
       break;
     const auto& col_schema = schema.columns[static_cast<uint32_t>(c.column)];
-    if (sqlite_utils::IsOpEq(c.op) && col_schema.is_id) {
+    if (sqlite::utils::IsOpEq(c.op) && col_schema.is_id) {
       // If we have an id equality constraint, we can very efficiently filter
       // down to a single row in C++. However, if we're joining with another
       // table, SQLite will do this once per row which can be extremely
@@ -382,7 +383,7 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
       // entire filter call is ~10x the cost of iterating a single row.
       filter_cost += 10;
       current_row_count = 1;
-    } else if (sqlite_utils::IsOpEq(c.op)) {
+    } else if (sqlite::utils::IsOpEq(c.op)) {
       // If there is only a single equality constraint, we have special logic
       // to sort by that column and then binary search if we see the constraint
       // set often. Model this by dividing by the log of the number of rows as
@@ -400,8 +401,8 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
       double estimated_rows = current_row_count / (2 * log2(current_row_count));
       current_row_count = std::max(static_cast<uint32_t>(estimated_rows), 1u);
     } else if (col_schema.is_sorted &&
-               (sqlite_utils::IsOpLe(c.op) || sqlite_utils::IsOpLt(c.op) ||
-                sqlite_utils::IsOpGt(c.op) || sqlite_utils::IsOpGe(c.op))) {
+               (sqlite::utils::IsOpLe(c.op) || sqlite::utils::IsOpLt(c.op) ||
+                sqlite::utils::IsOpGt(c.op) || sqlite::utils::IsOpGe(c.op))) {
       // On a sorted column, if we see any partition constraints, we can do this
       // filter very efficiently. Model this using the log of the  number of
       // rows as a good approximation.
@@ -437,12 +438,12 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
   return QueryCost{final_cost, current_row_count};
 }
 
-std::unique_ptr<SqliteTable::BaseCursor> DbSqliteTable::CreateCursor() {
+std::unique_ptr<SqliteTableLegacy::BaseCursor> DbSqliteTable::CreateCursor() {
   return std::make_unique<Cursor>(this, context_->cache);
 }
 
 DbSqliteTable::Cursor::Cursor(DbSqliteTable* sqlite_table, QueryCache* cache)
-    : SqliteTable::BaseCursor(sqlite_table),
+    : SqliteTableLegacy::BaseCursor(sqlite_table),
       db_sqlite_table_(sqlite_table),
       cache_(cache) {
   switch (db_sqlite_table_->context_->computation) {
@@ -506,7 +507,7 @@ void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
   // If the constraing is not an equality constraint, there's little
   // benefit to caching
   const auto& c = qc.constraints().front();
-  if (!sqlite_utils::IsOpEq(c.op))
+  if (!sqlite::utils::IsOpEq(c.op))
     return;
 
   // If the column is already sorted, we don't need to cache at all.

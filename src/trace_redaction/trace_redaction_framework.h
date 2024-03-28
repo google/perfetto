@@ -18,14 +18,15 @@
 #define SRC_TRACE_REDACTION_TRACE_REDACTION_FRAMEWORK_H_
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
-
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_redaction/process_thread_timeline.h"
 
 namespace perfetto::trace_redaction {
 
@@ -117,6 +118,63 @@ class Context {
   // Because "data" is a "one of", if no field in "trace_packet_allow_list" can
   // be found, it packet should be removed.
   base::FlatSet<uint32_t> trace_packet_allow_list;
+
+  // Ftrace packets contain a "one of" entry called "event". Within the scope of
+  // a ftrace event, the event can be considered the payload and other other
+  // values can be considered metadata (e.g. timestamp and pid).
+  //
+  // A ftrace event should be removed if:
+  //
+  //  ... we know it contains too much sensitive information
+  //
+  //  ... we know it contains sensitive information and we have some ideas on
+  //      to remove it, but don't have the resources to do it right now (e.g.
+  //      print).
+  //
+  //  ... we don't see value in including it
+  //
+  // "ftrace_packet_allow_list" contains field ids of ftrace packets that we
+  // want to pass onto later transformations. An example would be:
+  //
+  //  ... kSchedWakingFieldNumber because it contains cpu activity information
+  //
+  // Compared against track days, the rules around removing ftrace packets are
+  // complicated because...
+  //
+  //  packet {
+  //    ftrace_packets {  <-- ONE-OF    (1)
+  //      event {         <-- REPEATED  (2)
+  //        cpu_idle { }  <-- ONE-OF    (3)
+  //      }
+  //      event { ... }
+  //    }
+  //  }
+  //
+  //  1.  A ftrace packet will populate the one-of slot in the trace packet.
+  //
+  //  2.  A ftrace packet can have multiple events
+  //
+  //  3.  In this example, a cpu_idle event populates the one-of slot in the
+  //      ftrace event
+  base::FlatSet<uint32_t> ftrace_packet_allow_list;
+
+  // The timeline is a query-focused data structure that connects a pid to a
+  // uid at specific point in time.
+  //
+  // A timeline has two modes:
+  //
+  //    1. write-only
+  //    2. read-only
+  //
+  // Attempting to use the timeline incorrectly results in undefined behaviour.
+  //
+  // To use a timeline, the primitive needs to be "built" (add events) and then
+  // "sealed" (transition to read-only).
+  //
+  // A timeline must have Sort() called to change from write-only to read-only.
+  // After Sort(), Flatten() and Reduce() can be called (optional) to improve
+  // the practical look-up times (compared to theoretical look-up times).
+  std::unique_ptr<ProcessThreadTimeline> timeline;
 };
 
 // Responsible for extracting low-level data from the trace and storing it in

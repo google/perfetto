@@ -82,7 +82,7 @@ std::string OpToDebugString(int op) {
       return "limit";
     case SQLITE_INDEX_CONSTRAINT_OFFSET:
       return "offset";
-    case SqliteTable::CustomFilterOpcode::kSourceGeqOpCode:
+    case SqliteTableLegacy::CustomFilterOpcode::kSourceGeqOpCode:
       return "source_geq";
     default:
       PERFETTO_FATAL("Operator to string conversion not impemented for %d", op);
@@ -90,7 +90,7 @@ std::string OpToDebugString(int op) {
 }
 
 void ConstraintsToString(const QueryConstraints& qc,
-                         const SqliteTable::Schema& schema,
+                         const SqliteTableLegacy::Schema& schema,
                          std::string& out) {
   bool is_first = true;
   for (const auto& cs : qc.constraints()) {
@@ -105,7 +105,7 @@ void ConstraintsToString(const QueryConstraints& qc,
 }
 
 void OrderByToString(const QueryConstraints& qc,
-                     const SqliteTable::Schema& schema,
+                     const SqliteTableLegacy::Schema& schema,
                      std::string& out) {
   bool is_first = true;
   for (const auto& ob : qc.order_by()) {
@@ -120,7 +120,7 @@ void OrderByToString(const QueryConstraints& qc,
 }
 
 std::string QcDebugStr(const QueryConstraints& qc,
-                       const SqliteTable::Schema& schema) {
+                       const SqliteTableLegacy::Schema& schema) {
   std::string str_result;
   str_result.reserve(512);
 
@@ -144,7 +144,7 @@ std::string QcDebugStr(const QueryConstraints& qc,
 
 void WriteQueryConstraintsToMetatrace(metatrace::Record* r,
                                       const QueryConstraints& qc,
-                                      const SqliteTable::Schema& schema) {
+                                      const SqliteTableLegacy::Schema& schema) {
   r->AddArg("constraint_count", std::to_string(qc.constraints().size()));
   std::string constraints;
   ConstraintsToString(qc, schema, constraints);
@@ -159,24 +159,26 @@ void WriteQueryConstraintsToMetatrace(metatrace::Record* r,
 }  // namespace
 
 // static
-bool SqliteTable::debug = false;
+bool SqliteTableLegacy::debug = false;
 
-SqliteTable::SqliteTable() = default;
-SqliteTable::~SqliteTable() = default;
+SqliteTableLegacy::SqliteTableLegacy() = default;
+SqliteTableLegacy::~SqliteTableLegacy() = default;
 
-base::Status SqliteTable::ModifyConstraints(QueryConstraints*) {
+base::Status SqliteTableLegacy::ModifyConstraints(QueryConstraints*) {
   return base::OkStatus();
 }
 
-int SqliteTable::FindFunction(const char*, FindFunctionFn*, void**) {
+int SqliteTableLegacy::FindFunction(const char*, FindFunctionFn*, void**) {
   return 0;
 }
 
-base::Status SqliteTable::Update(int, sqlite3_value**, sqlite3_int64*) {
+base::Status SqliteTableLegacy::Update(int, sqlite3_value**, sqlite3_int64*) {
   return base::ErrStatus("Updating not supported");
 }
 
-bool SqliteTable::ReadConstraints(int idxNum, const char* idxStr, int argc) {
+bool SqliteTableLegacy::ReadConstraints(int idxNum,
+                                        const char* idxStr,
+                                        int argc) {
   bool cache_hit = true;
   if (idxNum != qc_hash_) {
     qc_cache_ = QueryConstraints::FromString(idxStr);
@@ -196,7 +198,7 @@ bool SqliteTable::ReadConstraints(int idxNum, const char* idxStr, int argc) {
   // Logging this every ReadConstraints just leads to log spam on joins making
   // it unusable. Instead, only print this out when we miss the cache (which
   // happens precisely when the constraint set from SQLite changes.)
-  if (SqliteTable::debug && !cache_hit) {
+  if (SqliteTableLegacy::debug && !cache_hit) {
     PERFETTO_LOG("[%s::ParseConstraints] constraints=%s argc=%d", name_.c_str(),
                  QcDebugStr(qc_cache_, schema_).c_str(), argc);
   }
@@ -204,34 +206,35 @@ bool SqliteTable::ReadConstraints(int idxNum, const char* idxStr, int argc) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// SqliteTable::BaseCursor implementation
+// SqliteTableLegacy::BaseCursor implementation
 ////////////////////////////////////////////////////////////////////////////////
 
-SqliteTable::BaseCursor::BaseCursor(SqliteTable* table) : table_(table) {
+SqliteTableLegacy::BaseCursor::BaseCursor(SqliteTableLegacy* table)
+    : table_(table) {
   // This is required to prevent us from leaving this field uninitialised if
   // we ever move construct the Cursor.
   pVtab = table;
 }
-SqliteTable::BaseCursor::~BaseCursor() = default;
+SqliteTableLegacy::BaseCursor::~BaseCursor() = default;
 
 ////////////////////////////////////////////////////////////////////////////////
-// SqliteTable::Column implementation
+// SqliteTableLegacy::Column implementation
 ////////////////////////////////////////////////////////////////////////////////
 
-SqliteTable::Column::Column(size_t index,
-                            std::string name,
-                            SqlValue::Type type,
-                            bool hidden)
+SqliteTableLegacy::Column::Column(size_t index,
+                                  std::string name,
+                                  SqlValue::Type type,
+                                  bool hidden)
     : index_(index), name_(name), type_(type), hidden_(hidden) {}
 
 ////////////////////////////////////////////////////////////////////////////////
-// SqliteTable::Schema implementation
+// SqliteTableLegacy::Schema implementation
 ////////////////////////////////////////////////////////////////////////////////
 
-SqliteTable::Schema::Schema() = default;
+SqliteTableLegacy::Schema::Schema() = default;
 
-SqliteTable::Schema::Schema(std::vector<Column> columns,
-                            std::vector<size_t> primary_keys)
+SqliteTableLegacy::Schema::Schema(std::vector<Column> columns,
+                                  std::vector<size_t> primary_keys)
     : columns_(std::move(columns)), primary_keys_(std::move(primary_keys)) {
   for (size_t i = 0; i < columns_.size(); i++) {
     PERFETTO_CHECK(columns_[i].index() == i);
@@ -241,10 +244,11 @@ SqliteTable::Schema::Schema(std::vector<Column> columns,
   }
 }
 
-SqliteTable::Schema::Schema(const Schema&) = default;
-SqliteTable::Schema& SqliteTable::Schema::operator=(const Schema&) = default;
+SqliteTableLegacy::Schema::Schema(const Schema&) = default;
+SqliteTableLegacy::Schema& SqliteTableLegacy::Schema::operator=(const Schema&) =
+    default;
 
-std::string SqliteTable::Schema::ToCreateTableStmt() const {
+std::string SqliteTableLegacy::Schema::ToCreateTableStmt() const {
   std::string stmt = "CREATE TABLE x(";
   for (size_t i = 0; i < columns_.size(); ++i) {
     const Column& col = columns_[i];
@@ -279,7 +283,7 @@ std::string SqliteTable::Schema::ToCreateTableStmt() const {
 TypedSqliteTableBase::~TypedSqliteTableBase() = default;
 
 base::Status TypedSqliteTableBase::DeclareAndAssignVtab(
-    std::unique_ptr<SqliteTable> table,
+    std::unique_ptr<SqliteTableLegacy> table,
     sqlite3_vtab** tab) {
   auto create_stmt = table->schema().ToCreateTableStmt();
   PERFETTO_DLOG("Create table statement: %s", create_stmt.c_str());
@@ -289,7 +293,7 @@ base::Status TypedSqliteTableBase::DeclareAndAssignVtab(
 }
 
 int TypedSqliteTableBase::xDestroy(sqlite3_vtab* t) {
-  auto* table = static_cast<SqliteTable*>(t);
+  auto* table = static_cast<SqliteTableLegacy*>(t);
   table->engine_->OnSqliteTableDestroyed(table->name_);
   delete table;
   return SQLITE_OK;
@@ -309,7 +313,7 @@ int TypedSqliteTableBase::xConnectRestoreTable(sqlite3*,
 
   // SQLite guarantees that argv[2] contains the name of the table.
   std::string table_name = argv[2];
-  base::StatusOr<std::unique_ptr<SqliteTable>> table =
+  base::StatusOr<std::unique_ptr<SqliteTableLegacy>> table =
       xArg->engine->RestoreSqliteTable(table_name);
   if (!table.status().ok()) {
     *pzErr = sqlite3_mprintf("%s", table.status().c_message());
@@ -326,7 +330,7 @@ int TypedSqliteTableBase::xConnectRestoreTable(sqlite3*,
 int TypedSqliteTableBase::xDisconnectSaveTable(sqlite3_vtab* t) {
   auto* table = static_cast<TypedSqliteTableBase*>(t);
   base::Status status = table->engine_->SaveSqliteTable(
-      table->name(), std::unique_ptr<SqliteTable>(table));
+      table->name(), std::unique_ptr<SqliteTableLegacy>(table));
   return table->SetStatusAndReturn(status);
 }
 
@@ -423,7 +427,7 @@ int TypedSqliteTableBase::xBestIndex(sqlite3_vtab* t, sqlite3_index_info* idx) {
       });
 
   auto out_qc_str = qc.ToNewSqlite3String();
-  if (SqliteTable::debug) {
+  if (SqliteTableLegacy::debug) {
     PERFETTO_LOG(
         "[%s::BestIndex] constraints=%s orderByConsumed=%d estimatedCost=%f "
         "estimatedRows=%" PRId64,

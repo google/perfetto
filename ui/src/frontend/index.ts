@@ -21,14 +21,13 @@ import m from 'mithril';
 
 import {defer} from '../base/deferred';
 import {addErrorHandler, reportError} from '../base/logging';
+import {Store} from '../base/store';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {flattenArgs, traceEvent} from '../common/metatracing';
 import {pluginManager} from '../common/plugins';
 import {State} from '../common/state';
 import {initController, runControllers} from '../controller';
-import {
-  isGetCategoriesResponse,
-} from '../controller/chrome_proxy_record_controller';
+import {isGetCategoriesResponse} from '../controller/chrome_proxy_record_controller';
 import {RECORDING_V2_FLAG, featureFlags} from '../core/feature_flags';
 import {initLiveReloadIfLocalhost} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
@@ -52,7 +51,6 @@ import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {RecordPageV2} from './record_page_v2';
 import {Route, Router} from './router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
-import {Store} from './store';
 import {TraceInfoPage} from './trace_info_page';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {ViewerPage} from './viewer_page';
@@ -63,13 +61,13 @@ import {showModal} from '../widgets/modal';
 
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
-
 const CSP_WS_PERMISSIVE_PORT = featureFlags.register({
   id: 'cspAllowAnyWebsocketPort',
   name: 'Relax Content Security Policy for 127.0.0.1:*',
-  description: 'Allows simultaneous usage of several trace_processor_shell ' +
-               '-D --http-port 1234 by opening ' +
-               'https://ui.perfetto.dev/#!/?rpc_port=1234',
+  description:
+    'Allows simultaneous usage of several trace_processor_shell ' +
+    '-D --http-port 1234 by opening ' +
+    'https://ui.perfetto.dev/#!/?rpc_port=1234',
   defaultValue: false,
 });
 
@@ -102,23 +100,29 @@ class FrontendApi {
 
   dispatchMultiple(actions: DeferredAction[]) {
     const edits = actions.map((action) => {
-      return traceEvent(`action.${action.type}`, () => {
-        return (draft: Draft<State>) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (StateActions as any)[action.type](draft, action.args);
-        };
-      }, {
-        args: flattenArgs(action.args),
-      });
+      return traceEvent(
+        `action.${action.type}`,
+        () => {
+          return (draft: Draft<State>) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (StateActions as any)[action.type](draft, action.args);
+          };
+        },
+        {
+          args: flattenArgs(action.args),
+        },
+      );
     });
     globals.store.edit(edits);
   }
 }
 
 function setExtensionAvailability(available: boolean) {
-  globals.dispatch(Actions.setExtensionAvailable({
-    available,
-  }));
+  globals.dispatch(
+    Actions.setExtensionAvailable({
+      available,
+    }),
+  );
 }
 
 function routeChange(route: Route) {
@@ -141,8 +145,8 @@ function setupContentSecurityPolicy() {
   // Note: self and sha-xxx must be quoted, urls data: and blob: must not.
 
   let rpcPolicy = [
-    'http://127.0.0.1:9001',  // For trace_processor_shell --httpd.
-    'ws://127.0.0.1:9001',    // Ditto, for the websocket RPC.
+    'http://127.0.0.1:9001', // For trace_processor_shell --httpd.
+    'ws://127.0.0.1:9001', // Ditto, for the websocket RPC.
   ];
   if (CSP_WS_PERMISSIVE_PORT.get()) {
     const route = Router.parseUrl(window.location.href);
@@ -172,9 +176,9 @@ function setupContentSecurityPolicy() {
     'object-src': ['none'],
     'connect-src': [
       `'self'`,
-      'ws://127.0.0.1:8037',    // For the adb websocket server.
+      'ws://127.0.0.1:8037', // For the adb websocket server.
       'https://*.google-analytics.com',
-      'https://*.googleapis.com',  // For Google Cloud Storage fetches.
+      'https://*.googleapis.com', // For Google Cloud Storage fetches.
       'blob:',
       'data:',
     ].concat(rpcPolicy),
@@ -186,10 +190,7 @@ function setupContentSecurityPolicy() {
       'https://www.googletagmanager.com',
       'https://*.googleapis.com',
     ],
-    'style-src': [
-      `'self'`,
-      `'unsafe-inline'`,
-    ],
+    'style-src': [`'self'`, `'unsafe-inline'`],
     'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');
@@ -225,7 +226,7 @@ function main() {
   // and initialize GA after that (or after a timeout if something goes wrong).
   const script = document.createElement('script');
   script.src =
-      'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
+    'https://storage.cloud.google.com/perfetto-ui-internal/is_internal_user.js';
   script.async = true;
   script.onerror = () => globals.logging.initialize();
   script.onload = () => globals.logging.initialize();
@@ -279,17 +280,18 @@ function main() {
 
   // We proxy messages between the extension and the controller because the
   // controller's worker can't access chrome.runtime.
-  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-  const extensionPort = window.chrome && chrome.runtime ?
-    chrome.runtime.connect(EXTENSION_ID) :
-    undefined;
+  const extensionPort =
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+    window.chrome && chrome.runtime
+      ? chrome.runtime.connect(EXTENSION_ID)
+      : undefined;
 
   setExtensionAvailability(extensionPort !== undefined);
 
   if (extensionPort) {
     extensionPort.onDisconnect.addListener((_) => {
       setExtensionAvailability(false);
-      void chrome.runtime.lastError;  // Needed to not receive an error log.
+      void chrome.runtime.lastError; // Needed to not receive an error log.
     });
     // This forwards the messages from the extension to the controller.
     extensionPort.onMessage.addListener(
@@ -299,7 +301,8 @@ function main() {
           return;
         }
         extensionLocalChannel.port2.postMessage(message);
-      });
+      },
+    );
   }
 
   // This forwards the messages from the controller to the extension
@@ -311,9 +314,13 @@ function main() {
   registerDebugGlobals();
 
   // Prevent pinch zoom.
-  document.body.addEventListener('wheel', (e: MouseEvent) => {
-    if (e.ctrlKey) e.preventDefault();
-  }, {passive: false});
+  document.body.addEventListener(
+    'wheel',
+    (e: MouseEvent) => {
+      if (e.ctrlKey) e.preventDefault();
+    },
+    {passive: false},
+  );
 
   cssLoadPromise.then(() => onCssLoaded());
 
@@ -339,15 +346,16 @@ function onCssLoaded() {
   if (!RECORDING_V2_FLAG.get()) {
     updateAvailableAdbDevices();
     try {
-      navigator.usb.addEventListener(
-        'connect', () => updateAvailableAdbDevices());
-      navigator.usb.addEventListener(
-        'disconnect', () => updateAvailableAdbDevices());
+      navigator.usb.addEventListener('connect', () =>
+        updateAvailableAdbDevices(),
+      );
+      navigator.usb.addEventListener('disconnect', () =>
+        updateAvailableAdbDevices(),
+      );
     } catch (e) {
       console.error('WebUSB API not supported');
     }
   }
-
 
   // Will update the chip on the sidebar footer that notifies that the RPC is
   // connected. Has no effect on the controller (which will repeat this check
@@ -358,15 +366,17 @@ function onCssLoaded() {
   maybeChangeRpcPortFromFragment();
   CheckHttpRpcConnection().then(() => {
     const route = Router.parseUrl(window.location.href);
-    globals.dispatch(Actions.maybeSetPendingDeeplink({
-      ts: route.args.ts,
-      tid: route.args.tid,
-      dur: route.args.dur,
-      pid: route.args.pid,
-      query: route.args.query,
-      visStart: route.args.visStart,
-      visEnd: route.args.visEnd,
-    }));
+    globals.dispatch(
+      Actions.maybeSetPendingDeeplink({
+        ts: route.args.ts,
+        tid: route.args.tid,
+        dur: route.args.dur,
+        pid: route.args.pid,
+        query: route.args.query,
+        visStart: route.args.visStart,
+        visEnd: route.args.visEnd,
+      }),
+    );
 
     if (!globals.embeddedMode) {
       installFileDropHandler();
@@ -397,16 +407,22 @@ function maybeChangeRpcPortFromFragment() {
     if (!CSP_WS_PERMISSIVE_PORT.get()) {
       showModal({
         title: 'Using a different port requires a flag change',
-        content: m('div',
-          m('span',
+        content: m(
+          'div',
+          m(
+            'span',
             'For security reasons before connecting to a non-standard ' +
-            'TraceProcessor port you need to manually enable the flag to ' +
-            'relax the Content Security Policy and restart the UI.',
-          )),
-        buttons: [{
-          text: 'Take me to the flags page',
-          primary: true,
-          action: () => Router.navigate('#!/flags/cspAllowAnyWebsocketPort')}],
+              'TraceProcessor port you need to manually enable the flag to ' +
+              'relax the Content Security Policy and restart the UI.',
+          ),
+        ),
+        buttons: [
+          {
+            text: 'Take me to the flags page',
+            primary: true,
+            action: () => Router.navigate('#!/flags/cspAllowAnyWebsocketPort'),
+          },
+        ],
       });
     } else {
       HttpRpcEngine.rpcPort = route.args.rpc_port;

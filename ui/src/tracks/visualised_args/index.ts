@@ -38,8 +38,12 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
   private helperViewName: string;
 
   constructor(
-    engine: EngineProxy, maxDepth: number, trackKey: string, trackId: number,
-      private argName: string) {
+    engine: EngineProxy,
+    maxDepth: number,
+    trackKey: string,
+    trackId: number,
+    private argName: string,
+  ) {
     const uuid = uuidv4();
     const namespace = `__arg_visualisation_helper_${argName}_${uuid}`;
     const escapedNamespace = namespace.replace(/[^a-zA-Z]/g, '_');
@@ -110,7 +114,7 @@ class VisualisedArgsPlugin implements Plugin {
     ctx.registerTrack({
       uri: VISUALISED_ARGS_SLICE_TRACK_URI,
       tags: {
-        metric: true,  // TODO(stevegolton): Is this track really a metric?
+        metric: true, // TODO(stevegolton): Is this track really a metric?
       },
       trackFactory: (trackCtx) => {
         // TODO(stevegolton): Validate params properly. Note, this is no

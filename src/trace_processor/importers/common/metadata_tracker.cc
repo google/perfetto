@@ -17,7 +17,6 @@
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 
 #include "perfetto/ext/base/crash_keys.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -68,21 +67,23 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyId key, Variadic value) {
   return id_and_row.id;
 }
 
-SqlValue MetadataTracker::GetMetadata(metadata::KeyId key) {
+std::optional<SqlValue> MetadataTracker::GetMetadata(metadata::KeyId key) {
   // KeyType::kMulti not yet supported by this method:
   PERFETTO_CHECK(metadata::kKeyTypes[key] == metadata::KeyType::kSingle);
 
   auto* metadata_table = storage_->mutable_metadata_table();
   uint32_t key_idx = static_cast<uint32_t>(key);
-  uint32_t row =
-      metadata_table->name().IndexOf(metadata::kNames[key_idx]).value();
+  std::optional<uint32_t> row =
+      metadata_table->name().IndexOf(metadata::kNames[key_idx]);
+  if (!row.has_value())
+    return {};
 
   auto value_type = metadata::kValueTypes[key];
   switch (value_type) {
     case Variadic::kInt:
-      return metadata_table->mutable_int_value()->Get(row);
+      return metadata_table->mutable_int_value()->Get(*row);
     case Variadic::kString:
-      return metadata_table->mutable_str_value()->Get(row);
+      return metadata_table->mutable_str_value()->Get(*row);
     case Variadic::kNull:
       return SqlValue();
     case Variadic::kJson:

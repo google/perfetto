@@ -18,12 +18,8 @@ import {
   RecordingTargetV2,
   TargetFactory,
 } from '../../common/recordingV2/recording_interfaces_v2';
-import {
-  RecordingPageController,
-} from '../../common/recordingV2/recording_page_controller';
-import {
-  RECORDING_MODAL_DIALOG_KEY,
-} from '../../common/recordingV2/recording_utils';
+import {RecordingPageController} from '../../common/recordingV2/recording_page_controller';
+import {RECORDING_MODAL_DIALOG_KEY} from '../../common/recordingV2/recording_utils';
 import {closeModal} from '../../widgets/modal';
 
 interface RecordingMultipleChoiceAttrs {
@@ -33,13 +29,15 @@ interface RecordingMultipleChoiceAttrs {
   controller: RecordingPageController;
 }
 
-export class RecordingMultipleChoice implements
-    m.ClassComponent<RecordingMultipleChoiceAttrs> {
+export class RecordingMultipleChoice
+  implements m.ClassComponent<RecordingMultipleChoiceAttrs>
+{
   private selectedIndex: number = -1;
 
   targetSelection(
     targets: RecordingTargetV2[],
-    controller: RecordingPageController): m.Vnode|undefined {
+    controller: RecordingPageController,
+  ): m.Vnode | undefined {
     const targetInfo = controller.getTargetInfo();
     const targetNames = [];
     this.selectedIndex = -1;
@@ -54,12 +52,12 @@ export class RecordingMultipleChoice implements
     const selectedIndex = this.selectedIndex;
     return m(
       'label',
-      m('select',
+      m(
+        'select',
         {
           selectedIndex,
           onchange: (e: Event) => {
-            controller.onTargetSelection(
-              (e.target as HTMLSelectElement).value);
+            controller.onTargetSelection((e.target as HTMLSelectElement).value);
           },
           onupdate: (select) => {
             // Work around mithril bug
@@ -72,15 +70,16 @@ export class RecordingMultipleChoice implements
             // reselect the correct index here after any new children were
             // added.
             (select.dom as HTMLSelectElement).selectedIndex =
-                  this.selectedIndex;
+              this.selectedIndex;
           },
           ...{size: targets.length, multiple: 'multiple'},
         },
-        ...targetNames),
+        ...targetNames,
+      ),
     );
   }
 
-  view({attrs}: m.CVnode<RecordingMultipleChoiceAttrs>): m.Vnode[]|undefined {
+  view({attrs}: m.CVnode<RecordingMultipleChoiceAttrs>): m.Vnode[] | undefined {
     const controller = attrs.controller;
     if (!controller.shouldShowTargetSelection()) {
       return undefined;
@@ -97,9 +96,11 @@ export class RecordingMultipleChoice implements
 
     return [
       m('text', 'Select target:'),
-      m('.record-modal-command',
+      m(
+        '.record-modal-command',
         this.targetSelection(targets, controller),
-        m('button.record-modal-button-high',
+        m(
+          'button.record-modal-button-high',
           {
             disabled: this.selectedIndex === -1,
             onclick: () => {
@@ -107,7 +108,9 @@ export class RecordingMultipleChoice implements
               controller.onStartRecordingPressed();
             },
           },
-          'Connect')),
+          'Connect',
+        ),
+      ),
     ];
   }
 }

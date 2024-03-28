@@ -137,8 +137,9 @@ static bool IsSingleCategoryEnabled(
     }
   }
 
-  // If nothing matched, enable the category by default.
-  return true;
+  // If nothing matched, the category is disabled by default. N.B. this behavior
+  // is different than the C++ TrackEvent API.
+  return false;
 }
 
 static bool IsRegisteredCategoryEnabled(

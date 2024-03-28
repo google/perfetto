@@ -116,7 +116,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 63
+// Next id: 64
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -289,6 +289,10 @@ message TraceMetrics {
 
   // Android garbage collection metrics
   optional AndroidGarbageCollectionUnaggMetric android_garbage_collection_unagg = 63;
+
+  // Multiuser - metrics for switching users.
+  // Specific for Android Auto
+  optional AndroidMultiuserMetric android_auto_multiuser = 64;
 
   // Demo extensions.
   extensions 450 to 499;

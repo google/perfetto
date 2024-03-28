@@ -61,7 +61,7 @@ const MAX_IPC_BUFFER_SIZE = 128 * 1024;
 const PROTO_LEN_DELIMITED_WIRE_TYPE = 2;
 const TRACE_PACKET_PROTO_ID = 1;
 const TRACE_PACKET_PROTO_TAG =
-    (TRACE_PACKET_PROTO_ID << 3) | PROTO_LEN_DELIMITED_WIRE_TYPE;
+  (TRACE_PACKET_PROTO_ID << 3) | PROTO_LEN_DELIMITED_WIRE_TYPE;
 
 function parseMessageSize(buffer: Uint8Array) {
   const dv = new DataView(buffer.buffer, buffer.byteOffset, buffer.length);
@@ -108,10 +108,12 @@ export class TracedTracingSession implements TracingSession {
   // For instance, the AdbStream is obtained from a connection with an Adb
   // device.
   constructor(
-      private byteStream: ByteStream,
-      private tracingSessionListener: TracingSessionListener) {
-    this.byteStream.addOnStreamDataCallback(
-      (data) => this.handleReceivedData(data));
+    private byteStream: ByteStream,
+    private tracingSessionListener: TracingSessionListener,
+  ) {
+    this.byteStream.addOnStreamDataCallback((data) =>
+      this.handleReceivedData(data),
+    );
     this.byteStream.addOnStreamCloseCallback(() => this.clearState());
   }
 
@@ -120,23 +122,26 @@ export class TracedTracingSession implements TracingSession {
       return this.pendingQssMessage;
     }
 
-    const requestProto =
-        QueryServiceStateRequest.encode(new QueryServiceStateRequest())
-          .finish();
+    const requestProto = QueryServiceStateRequest.encode(
+      new QueryServiceStateRequest(),
+    ).finish();
     this.rpcInvoke('QueryServiceState', requestProto);
 
-    return this.pendingQssMessage = defer<DataSource[]>();
+    return (this.pendingQssMessage = defer<DataSource[]>());
   }
 
   start(config: TraceConfig): void {
     const duration = config.durationMs;
-    this.tracingSessionListener.onStatus(`${RECORDING_IN_PROGRESS}${
-      duration ? ' for ' + duration.toString() + ' ms' : ''}...`);
+    this.tracingSessionListener.onStatus(
+      `${RECORDING_IN_PROGRESS}${
+        duration ? ' for ' + duration.toString() + ' ms' : ''
+      }...`,
+    );
 
     const enableTracingRequest = new EnableTracingRequest();
     enableTracingRequest.traceConfig = config;
     const enableTracingRequestProto =
-        EnableTracingRequest.encode(enableTracingRequest).finish();
+      EnableTracingRequest.encode(enableTracingRequest).finish();
     this.rpcInvoke('EnableTracing', enableTracingRequestProto);
   }
 
@@ -145,8 +150,9 @@ export class TracedTracingSession implements TracingSession {
   }
 
   stop(): void {
-    const requestProto =
-        DisableTracingRequest.encode(new DisableTracingRequest()).finish();
+    const requestProto = DisableTracingRequest.encode(
+      new DisableTracingRequest(),
+    ).finish();
     this.rpcInvoke('DisableTracing', requestProto);
   }
 
@@ -159,8 +165,10 @@ export class TracedTracingSession implements TracingSession {
     const bufferStats = await this.getBufferStats();
     let percentageUsed = -1;
     for (const buffer of bufferStats) {
-      if (!Number.isFinite(buffer.bytesWritten) ||
-          !Number.isFinite(buffer.bufferSize)) {
+      if (
+        !Number.isFinite(buffer.bytesWritten) ||
+        !Number.isFinite(buffer.bufferSize)
+      ) {
         continue;
       }
       const used = assertExists(buffer.bytesWritten);
@@ -194,8 +202,9 @@ export class TracedTracingSession implements TracingSession {
   }
 
   private getBufferStats(): Promise<IBufferStats[]> {
-    const getTraceStatsRequestProto =
-        GetTraceStatsRequest.encode(new GetTraceStatsRequest()).finish();
+    const getTraceStatsRequestProto = GetTraceStatsRequest.encode(
+      new GetTraceStatsRequest(),
+    ).finish();
     try {
       this.rpcInvoke('GetTraceStats', getTraceStatsRequestProto);
     } catch (e) {
@@ -210,8 +219,9 @@ export class TracedTracingSession implements TracingSession {
 
   private terminateConnection(): void {
     this.clearState();
-    const requestProto =
-        FreeBuffersRequest.encode(new FreeBuffersRequest()).finish();
+    const requestProto = FreeBuffersRequest.encode(
+      new FreeBuffersRequest(),
+    ).finish();
     this.rpcInvoke('FreeBuffers', requestProto);
     this.byteStream.close();
   }
@@ -233,13 +243,17 @@ export class TracedTracingSession implements TracingSession {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!method || !method.id) {
       throw new RecordingError(
-        `Method ${methodName} not supported by the target`);
+        `Method ${methodName} not supported by the target`,
+      );
     }
     const requestId = this.requestId++;
     const frame = new IPCFrame({
       requestId,
-      msgInvokeMethod: new IPCFrame.InvokeMethod(
-        {serviceId: this.serviceId, methodId: method.id, argsProto}),
+      msgInvokeMethod: new IPCFrame.InvokeMethod({
+        serviceId: this.serviceId,
+        methodId: method.id,
+        argsProto,
+      }),
     });
     this.requestMethods.set(requestId, methodName);
     this.writeFrame(frame);
@@ -259,10 +273,12 @@ export class TracedTracingSession implements TracingSession {
 
   private handleReceivedData(rawData: Uint8Array): void {
     // we parse the length of the next frame if it's available
-    if (this.currentFrameLength === undefined &&
-        this.canCompleteLengthHeader(rawData)) {
+    if (
+      this.currentFrameLength === undefined &&
+      this.canCompleteLengthHeader(rawData)
+    ) {
       const remainingFrameBytes =
-          WIRE_PROTOCOL_HEADER_SIZE - this.bufferedPartLength;
+        WIRE_PROTOCOL_HEADER_SIZE - this.bufferedPartLength;
       this.appendToIncomingBuffer(rawData.subarray(0, remainingFrameBytes));
       rawData = rawData.subarray(remainingFrameBytes);
 
@@ -271,12 +287,13 @@ export class TracedTracingSession implements TracingSession {
     }
 
     // Parse all complete frames.
-    while (this.currentFrameLength !== undefined &&
-           this.bufferedPartLength + rawData.length >=
-               this.currentFrameLength) {
+    while (
+      this.currentFrameLength !== undefined &&
+      this.bufferedPartLength + rawData.length >= this.currentFrameLength
+    ) {
       // Read the remaining part of this message.
       const bytesToCompleteMessage =
-          this.currentFrameLength - this.bufferedPartLength;
+        this.currentFrameLength - this.bufferedPartLength;
       this.appendToIncomingBuffer(rawData.subarray(0, bytesToCompleteMessage));
       this.parseFrame(this.incomingBuffer.subarray(0, this.currentFrameLength));
       this.bufferedPartLength = 0;
@@ -311,8 +328,11 @@ export class TracedTracingSession implements TracingSession {
     if (frame.msg === 'msgBindServiceReply') {
       const msgBindServiceReply = frame.msgBindServiceReply;
       /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-      if (msgBindServiceReply && msgBindServiceReply.methods &&
-          msgBindServiceReply.serviceId) {
+      if (
+        msgBindServiceReply &&
+        msgBindServiceReply.methods &&
+        msgBindServiceReply.serviceId
+      ) {
         /* eslint-enable */
         assertTrue(msgBindServiceReply.success === true);
         this.availableMethods = msgBindServiceReply.methods;
@@ -364,12 +384,14 @@ export class TracedTracingSession implements TracingSession {
         }
         if (msgInvokeMethodReply.hasMore === false) {
           this.tracingSessionListener.onTraceData(
-            this.traceProtoWriter.finish());
+            this.traceProtoWriter.finish(),
+          );
           this.terminateConnection();
         }
       } else if (method === 'EnableTracing') {
-        const readBuffersRequestProto =
-            ReadBuffersRequest.encode(new ReadBuffersRequest()).finish();
+        const readBuffersRequestProto = ReadBuffersRequest.encode(
+          new ReadBuffersRequest(),
+        ).finish();
         this.rpcInvoke('ReadBuffers', readBuffersRequestProto);
       } else if (method === 'GetTraceStats') {
         const maybePendingStatsMessage = this.pendingStatsMessages.shift();
@@ -385,13 +407,14 @@ export class TracedTracingSession implements TracingSession {
         // No action required. Same reasoning as for FreeBuffers.
       } else if (method === 'QueryServiceState') {
         const dataSources =
-            (data as QueryServiceStateResponse)?.serviceState?.dataSources ||
-            [];
+          (data as QueryServiceStateResponse)?.serviceState?.dataSources || [];
         for (const dataSource of dataSources) {
           const name = dataSource?.dsDescriptor?.name;
           if (name) {
-            this.pendingDataSources.push(
-              {name, descriptor: dataSource.dsDescriptor});
+            this.pendingDataSources.push({
+              name,
+              descriptor: dataSource.dsDescriptor,
+            });
           }
         }
         if (msgInvokeMethodReply.hasMore === false) {
@@ -413,11 +436,10 @@ export class TracedTracingSession implements TracingSession {
   }
 }
 
-const decoders =
-    new Map<string, Function>()
-      .set('EnableTracing', EnableTracingResponse.decode)
-      .set('FreeBuffers', FreeBuffersResponse.decode)
-      .set('ReadBuffers', ReadBuffersResponse.decode)
-      .set('DisableTracing', DisableTracingResponse.decode)
-      .set('GetTraceStats', GetTraceStatsResponse.decode)
-      .set('QueryServiceState', QueryServiceStateResponse.decode);
+const decoders = new Map<string, Function>()
+  .set('EnableTracing', EnableTracingResponse.decode)
+  .set('FreeBuffers', FreeBuffersResponse.decode)
+  .set('ReadBuffers', ReadBuffersResponse.decode)
+  .set('DisableTracing', DisableTracingResponse.decode)
+  .set('GetTraceStats', GetTraceStatsResponse.decode)
+  .set('QueryServiceState', QueryServiceStateResponse.decode);

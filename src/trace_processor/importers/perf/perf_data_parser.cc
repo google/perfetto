@@ -59,8 +59,9 @@ void PerfDataParser::ParseTraceBlobView(int64_t ts, TraceBlobView tbv) {
 
   // First instruction pointer in the callchain should be from kernel space, so
   // it shouldn't be available in mappings.
+  UniquePid upid = context_->process_tracker->GetOrCreateProcess(*sample.pid);
   if (context_->mapping_tracker->FindUserMappingForAddress(
-          *sample.pid, sample.callchain.front())) {
+          upid, sample.callchain.front())) {
     context_->storage->IncrementStats(stats::perf_samples_skipped);
     return;
   }
@@ -74,7 +75,7 @@ void PerfDataParser::ParseTraceBlobView(int64_t ts, TraceBlobView tbv) {
   for (uint32_t i = 1; i < sample.callchain.size(); i++) {
     UserMemoryMapping* mapping =
         context_->mapping_tracker->FindUserMappingForAddress(
-            *sample.pid, sample.callchain[i]);
+            upid, sample.callchain[i]);
     if (!mapping) {
       context_->storage->IncrementStats(stats::perf_samples_skipped);
       return;
@@ -121,7 +122,6 @@ void PerfDataParser::ParseTraceBlobView(int64_t ts, TraceBlobView tbv) {
   }
   if (sample.tid) {
     auto utid = context_->process_tracker->GetOrCreateThread(*sample.tid);
-    context_->process_tracker->GetOrCreateProcess(*sample.pid);
     perf_sample_row.utid = utid;
   }
   context_->storage->mutable_perf_sample_table()->Insert(perf_sample_row);

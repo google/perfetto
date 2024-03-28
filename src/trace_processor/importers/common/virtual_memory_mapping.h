@@ -39,7 +39,7 @@ namespace trace_processor {
 // TODO(carlscab): Reconsider whether jit is the best abstraction here. All we
 // really care is about mapping a `rel_pc` to a symbol (aka symbolization) and
 // whether is this is constant.
-class JitDelegate;
+class JitCache;
 
 // Represents a mapping in virtual memory.
 class VirtualMemoryMapping {
@@ -61,11 +61,16 @@ class VirtualMemoryMapping {
   const std::optional<BuildId>& build_id() const { return build_id_; }
 
   // Whether this maps to a region that holds jitted code.
-  bool is_jitted() const { return jit_delegate_ != nullptr; }
+  bool is_jitted() const { return jit_cache_ != nullptr; }
 
   // Converts an absolute address into a relative one.
   uint64_t ToRelativePc(uint64_t address) const {
     return address - memory_range_.start() + offset_ + load_bias_;
+  }
+
+  // Converts a relative address to an absolute one.
+  uint64_t ToAddress(uint64_t rel_pc) const {
+    return rel_pc + (memory_range_.start() - offset_ - load_bias_);
   }
 
   // Creates a frame for the given `rel_pc`. Note that if the mapping
@@ -87,9 +92,7 @@ class VirtualMemoryMapping {
   std::pair<FrameId, bool> InternFrameImpl(uint64_t rel_pc,
                                            base::StringView function_name);
 
-  void SetJitDelegate(JitDelegate* jit_delegate) {
-    jit_delegate_ = jit_delegate;
-  }
+  void SetJitCache(JitCache* jit_cache) { jit_cache_ = jit_cache; }
 
   TraceProcessorContext* const context_;
   const MappingId mapping_id_;
@@ -98,7 +101,7 @@ class VirtualMemoryMapping {
   const uint64_t load_bias_;
   const std::string name_;
   std::optional<BuildId> const build_id_;
-  JitDelegate* jit_delegate_ = nullptr;
+  JitCache* jit_cache_ = nullptr;
 
   struct FrameKey {
     uint64_t rel_pc;

@@ -27,10 +27,7 @@ export class Section implements m.ClassComponent<SectionAttrs> {
     return m(
       'section.pf-section',
       htmlAttrs,
-      m(
-        'header',
-        m('h1', title),
-      ),
+      m('header', m('h1', title)),
       m('article', children),
     );
   }

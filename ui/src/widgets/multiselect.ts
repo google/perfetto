@@ -45,13 +45,13 @@ export interface MultiSelectAttrs {
   fixedSize?: boolean;
 }
 
-export type PopupMultiSelectAttrs = MultiSelectAttrs&{
+export type PopupMultiSelectAttrs = MultiSelectAttrs & {
   minimal?: boolean;
   compact?: boolean;
   icon?: string;
   label: string;
   popupPosition?: PopupPosition;
-}
+};
 
 // A component which shows a list of items with checkboxes, allowing the user to
 // select from the list which ones they want to be selected.
@@ -64,28 +64,23 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
   private searchText: string = '';
 
   view({attrs}: m.CVnode<MultiSelectAttrs>) {
-    const {
-      options,
-      fixedSize = true,
-    } = attrs;
+    const {options, fixedSize = true} = attrs;
 
     const filteredItems = options.filter(({name}) => {
       return name.toLowerCase().includes(this.searchText.toLowerCase());
     });
 
     return m(
-      fixedSize ? '.pf-multiselect-panel.pf-multi-select-fixed-size' :
-        '.pf-multiselect-panel',
+      fixedSize
+        ? '.pf-multiselect-panel.pf-multi-select-fixed-size'
+        : '.pf-multiselect-panel',
       this.renderSearchBox(),
       this.renderListOfItems(attrs, filteredItems),
     );
   }
 
   private renderListOfItems(attrs: MultiSelectAttrs, options: Option[]) {
-    const {
-      repeatCheckedItemsAtTop,
-      onChange = () => {},
-    } = attrs;
+    const {repeatCheckedItemsAtTop, onChange = () => {}} = attrs;
     const allChecked = options.every(({checked}) => checked);
     const anyChecked = options.some(({checked}) => checked);
 
@@ -94,72 +89,81 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
         title: `No results for '${this.searchText}'`,
       });
     } else {
-      return [m(
-        '.pf-list',
-        repeatCheckedItemsAtTop && anyChecked &&
-              m(
-                '.pf-multiselect-container',
-                m(
-                  '.pf-multiselect-header',
-                  m('span',
-                    this.searchText === '' ? 'Selected' :
-                      `Selected (Filtered)`),
-                  m(Button, {
-                    label: this.searchText === '' ? 'Clear All' :
-                      'Clear Filtered',
-                    icon: Icons.Deselect,
-                    minimal: true,
-                    onclick: () => {
-                      const diffs =
-                              options.filter(({checked}) => checked)
-                                .map(({id}) => ({id, checked: false}));
-                      onChange(diffs);
-                      scheduleFullRedraw();
-                    },
-                    disabled: !anyChecked,
-                  }),
-                ),
-                this.renderOptions(
-                  attrs, options.filter(({checked}) => checked)),
-              ),
+      return [
         m(
-          '.pf-multiselect-container',
+          '.pf-list',
+          repeatCheckedItemsAtTop &&
+            anyChecked &&
+            m(
+              '.pf-multiselect-container',
+              m(
+                '.pf-multiselect-header',
+                m(
+                  'span',
+                  this.searchText === '' ? 'Selected' : `Selected (Filtered)`,
+                ),
+                m(Button, {
+                  label:
+                    this.searchText === '' ? 'Clear All' : 'Clear Filtered',
+                  icon: Icons.Deselect,
+                  minimal: true,
+                  onclick: () => {
+                    const diffs = options
+                      .filter(({checked}) => checked)
+                      .map(({id}) => ({id, checked: false}));
+                    onChange(diffs);
+                    scheduleFullRedraw();
+                  },
+                  disabled: !anyChecked,
+                }),
+              ),
+              this.renderOptions(
+                attrs,
+                options.filter(({checked}) => checked),
+              ),
+            ),
           m(
-            '.pf-multiselect-header',
-            m('span',
-              this.searchText === '' ? 'Options' : `Options (Filtered)`),
-            m(Button, {
-              label: this.searchText === '' ? 'Select All' :
-                'Select Filtered',
-              icon: Icons.SelectAll,
-              minimal: true,
-              compact: true,
-              onclick: () => {
-                const diffs = options.filter(({checked}) => !checked)
-                  .map(({id}) => ({id, checked: true}));
-                onChange(diffs);
-                scheduleFullRedraw();
-              },
-              disabled: allChecked,
-            }),
-            m(Button, {
-              label: this.searchText === '' ? 'Clear All' :
-                'Clear Filtered',
-              icon: Icons.Deselect,
-              minimal: true,
-              compact: true,
-              onclick: () => {
-                const diffs = options.filter(({checked}) => checked)
-                  .map(({id}) => ({id, checked: false}));
-                onChange(diffs);
-                scheduleFullRedraw();
-              },
-              disabled: !anyChecked,
-            }),
+            '.pf-multiselect-container',
+            m(
+              '.pf-multiselect-header',
+              m(
+                'span',
+                this.searchText === '' ? 'Options' : `Options (Filtered)`,
+              ),
+              m(Button, {
+                label:
+                  this.searchText === '' ? 'Select All' : 'Select Filtered',
+                icon: Icons.SelectAll,
+                minimal: true,
+                compact: true,
+                onclick: () => {
+                  const diffs = options
+                    .filter(({checked}) => !checked)
+                    .map(({id}) => ({id, checked: true}));
+                  onChange(diffs);
+                  scheduleFullRedraw();
+                },
+                disabled: allChecked,
+              }),
+              m(Button, {
+                label: this.searchText === '' ? 'Clear All' : 'Clear Filtered',
+                icon: Icons.Deselect,
+                minimal: true,
+                compact: true,
+                onclick: () => {
+                  const diffs = options
+                    .filter(({checked}) => checked)
+                    .map(({id}) => ({id, checked: false}));
+                  onChange(diffs);
+                  scheduleFullRedraw();
+                },
+                disabled: !anyChecked,
+              }),
+            ),
+            this.renderOptions(attrs, options),
           ),
-          this.renderOptions(attrs, options),
         ),
-      )];
+      ];
     }
   }
 
@@ -197,15 +201,13 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
   }
 
   private renderOptions(attrs: MultiSelectAttrs, options: Option[]) {
-    const {
-      onChange = () => {},
-    } = attrs;
+    const {onChange = () => {}} = attrs;
 
     return options.map((item) => {
       const {checked, name, id} = item;
       return m(Checkbox, {
         label: name,
-        key: id,  // Prevents transitions jumping between items when searching
+        key: id, // Prevents transitions jumping between items when searching
         checked,
         className: 'pf-multiselect-item',
         onchange: () => {
@@ -219,21 +221,21 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
 
 // The same multi-select component that functions as a drop-down instead of
 // a list.
-export class PopupMultiSelect implements
-    m.ClassComponent<PopupMultiSelectAttrs> {
+export class PopupMultiSelect
+  implements m.ClassComponent<PopupMultiSelectAttrs>
+{
   view({attrs}: m.CVnode<PopupMultiSelectAttrs>) {
-    const {
-      icon,
-      popupPosition = PopupPosition.Auto,
-      minimal,
-      compact,
-    } = attrs;
+    const {icon, popupPosition = PopupPosition.Auto, minimal, compact} = attrs;
 
     return m(
       Popup,
       {
-        trigger:
-              m(Button, {label: this.labelText(attrs), icon, minimal, compact}),
+        trigger: m(Button, {
+          label: this.labelText(attrs),
+          icon,
+          minimal,
+          compact,
+        }),
         position: popupPosition,
       },
       m(MultiSelect, attrs as MultiSelectAttrs),
@@ -241,11 +243,7 @@ export class PopupMultiSelect implements
   }
 
   private labelText(attrs: PopupMultiSelectAttrs): string {
-    const {
-      options,
-      showNumSelected,
-      label,
-    } = attrs;
+    const {options, showNumSelected, label} = attrs;
 
     if (showNumSelected) {
       const numSelected = options.filter(({checked}) => checked).length;

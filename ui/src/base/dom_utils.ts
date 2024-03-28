@@ -18,7 +18,7 @@ export function isOrContains(container: Element, target: Element): boolean {
 }
 
 // Find a DOM element with a given "ref" attribute
-export function findRef(root: Element, ref: string): Element|null {
+export function findRef(root: Element, ref: string): Element | null {
   const query = `[ref=${ref}]`;
   if (root.matches(query)) {
     return root;
@@ -39,7 +39,7 @@ export function toHTMLElement(el: Element): HTMLElement {
 // Return true if EventTarget is or is inside an editable element.
 // Editable elements incluce: <input type="text">, <textarea>, or elements with
 // the |contenteditable| attribute set.
-export function elementIsEditable(target: EventTarget|null): boolean {
+export function elementIsEditable(target: EventTarget | null): boolean {
   if (target === null) {
     return false;
   }
@@ -68,7 +68,7 @@ export function elementIsEditable(target: EventTarget|null): boolean {
 // Similar to |offsetX|, |offsetY| but for |currentTarget| rather than |target|.
 // If the event has no currentTarget or it is not an element, offsetX & offsetY
 // are returned instead.
-export function currentTargetOffset(e: MouseEvent): {x: number, y: number} {
+export function currentTargetOffset(e: MouseEvent): {x: number; y: number} {
   if (e.currentTarget === e.target) {
     return {x: e.offsetX, y: e.offsetY};
   }
@@ -90,12 +90,12 @@ function calculateScrollbarWidth() {
   outer.appendChild(inner);
   document.body.appendChild(outer);
   const width =
-      outer.getBoundingClientRect().width - inner.getBoundingClientRect().width;
+    outer.getBoundingClientRect().width - inner.getBoundingClientRect().width;
   document.body.removeChild(outer);
   return width;
 }
 
-let cachedScrollBarWidth: number|undefined = undefined;
+let cachedScrollBarWidth: number | undefined = undefined;
 
 // Calculate the space a scrollbar takes up.
 export function getScrollbarWidth() {

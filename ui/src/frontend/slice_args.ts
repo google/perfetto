@@ -53,7 +53,9 @@ export function hasArgs(args?: Arg[]): args is Arg[] {
 }
 
 function renderArgTreeNodes(
-  engine: EngineProxy, args: ArgNode<Arg>[]): m.Children {
+  engine: EngineProxy,
+  args: ArgNode<Arg>[],
+): m.Children {
   return args.map((arg) => {
     const {key, value, children} = arg;
     if (children && children.length === 1) {
@@ -79,7 +81,10 @@ function renderArgTreeNodes(
 }
 
 function renderArgKey(
-  engine: EngineProxy, key: string, value?: Arg): m.Children {
+  engine: EngineProxy,
+  key: string,
+  value?: Arg,
+): m.Children {
   if (value === undefined) {
     return key;
   } else {
@@ -98,12 +103,14 @@ function renderArgKey(
         onclick: () => {
           addSqlTableTab({
             table: SqlTables.slice,
-            filters: [{
-              type: 'arg_filter',
-              argSetIdColumn: 'arg_set_id',
-              argName: fullKey,
-              op: `= ${sqliteString(displayValue)}`,
-            }],
+            filters: [
+              {
+                type: 'arg_filter',
+                argSetIdColumn: 'arg_set_id',
+                argName: fullKey,
+                op: `= ${sqliteString(displayValue)}`,
+              },
+            ],
           });
         },
       }),
@@ -156,7 +163,7 @@ async function addVisualisedArg(engine: EngineProxy, argName: string) {
     `);
 
   const tracksToAdd: AddTrackArgs[] = [];
-  const it = result.iter({'trackId': NUM, 'maxDepth': NUM});
+  const it = result.iter({trackId: NUM, maxDepth: NUM});
   const addedTrackKeys: string[] = [];
   for (; it.valid(); it.next()) {
     const trackKey = globals.trackManager.trackKeyByTrackId.get(it.trackId);
@@ -175,9 +182,10 @@ async function addVisualisedArg(engine: EngineProxy, argName: string) {
       key,
       trackGroup: track.trackGroup,
       name: argName,
-      trackSortKey: utid === undefined ?
-        track.trackSortKey :
-        {utid, priority: InThreadTrackSortKey.VISUALISED_ARGS_TRACK},
+      trackSortKey:
+        utid === undefined
+          ? track.trackSortKey
+          : {utid, priority: InThreadTrackSortKey.VISUALISED_ARGS_TRACK},
       params,
       uri: VISUALISED_ARGS_SLICE_TRACK_URI,
     });
@@ -198,7 +206,10 @@ function renderArgValue({value}: Arg): m.Children {
 }
 
 function renderSummary(children: ArgNode<Arg>[]): m.Children {
-  const summary = children.slice(0, 2).map(({key}) => key).join(', ');
+  const summary = children
+    .slice(0, 2)
+    .map(({key}) => key)
+    .join(', ');
   const remaining = children.length - 2;
   if (remaining > 0) {
     return `{${summary}, ... (${remaining} more items)}`;
@@ -220,8 +231,10 @@ function stringifyKey(...key: Key[]): string {
 }
 
 function isWebLink(value: unknown): value is string {
-  return isString(value) &&
-      (value.startsWith('http://') || value.startsWith('https://'));
+  return (
+    isString(value) &&
+    (value.startsWith('http://') || value.startsWith('https://'))
+  );
 }
 
 function renderWebLink(url: string): m.Children {

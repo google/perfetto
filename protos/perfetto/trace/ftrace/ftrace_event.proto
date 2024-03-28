@@ -62,6 +62,7 @@ import "protos/perfetto/trace/ftrace/power.proto";
 import "protos/perfetto/trace/ftrace/printk.proto";
 import "protos/perfetto/trace/ftrace/raw_syscalls.proto";
 import "protos/perfetto/trace/ftrace/regulator.proto";
+import "protos/perfetto/trace/ftrace/rpm.proto";
 import "protos/perfetto/trace/ftrace/samsung.proto";
 import "protos/perfetto/trace/ftrace/sched.proto";
 import "protos/perfetto/trace/ftrace/scm.proto";
@@ -604,5 +605,8 @@ message FtraceEvent {
     BinderReturnFtraceEvent binder_return = 486;
     SchedSwitchWithCtrsFtraceEvent sched_switch_with_ctrs = 487;
     GpuWorkPeriodFtraceEvent gpu_work_period = 488;
+    RpmStatusFtraceEvent rpm_status = 489;
+    PanelWriteGenericFtraceEvent panel_write_generic = 490;
+    SchedMigrateTaskFtraceEvent sched_migrate_task = 491;
   }
 }

@@ -72,6 +72,8 @@ namespace stats {
   F(ftrace_setup_errors,                  kSingle,  kInfo,     kTrace,         \
        "One or more atrace/ftrace categories were not found or failed to "     \
        "enable. See ftrace_setup_errors in the metadata table for details."),  \
+  F(ftrace_abi_errors_skipped_zero_data_length,                                \
+                                          kSingle,  kInfo,     kAnalysis, ""), \
   F(fuchsia_non_numeric_counters,         kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_timestamp_overflow,           kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_invalid_event,                kSingle,  kError,    kAnalysis, ""), \
@@ -245,7 +247,7 @@ namespace stats {
        "the file name is not found or no permission to access the file"),      \
   F(compact_sched_has_parse_errors,       kSingle,  kError,    kTrace,    ""), \
   F(misplaced_end_event,                  kSingle,  kDataLoss, kAnalysis, ""), \
-  F(truncated_sys_write_duration,         kSingle,  kDataLoss,  kAnalysis,     \
+  F(truncated_sys_write_duration,         kSingle,  kInfo,     kAnalysis,      \
       "Count of sys_write slices that have a truncated duration to resolve "   \
       "nesting incompatibilities with atrace slices. Real durations "          \
       "can be recovered via the |raw| table."),                                \
@@ -287,6 +289,15 @@ namespace stats {
   F(v8_intern_errors,                                                          \
                                           kSingle,  kDataLoss, kAnalysis,      \
       "Failed to resolve V8 interned data."),                                  \
+  F(v8_no_defaults,                                                            \
+                                          kSingle,  kDataLoss, kAnalysis,      \
+      "Failed to resolve V8 default data."),                                   \
+  F(v8_no_code_range,                                                          \
+                                          kSingle,  kError,    kAnalysis,      \
+      "V8 isolate had no code range."),                                        \
+  F(v8_unknown_code_type,                 kSingle,  kError,    kAnalysis, ""), \
+  F(v8_code_load_missing_code_range,      kSingle,  kError,    kAnalysis,      \
+      "V8 load had no code range or an empty one. Event ignored."),            \
   F(winscope_sf_layers_parse_errors,      kSingle,  kInfo,     kAnalysis,      \
       "SurfaceFlinger layers snapshot has unknown fields, which results in "   \
       "some arguments missing. You may need a newer version of trace "         \
@@ -310,6 +321,9 @@ namespace stats {
   F(winscope_protolog_missing_interned_stacktrace_parse_errors,                \
                                           kSingle,  kInfo,     kAnalysis,      \
       "Failed to find interned ProtoLog stacktrace."),                         \
+  F(jit_unknown_frame,                    kSingle,  kDataLoss, kTrace,         \
+      "Indicates that we were unable to determine the function for a frame in "\
+      "a jitted memory region"),                                               \
   F(ftrace_missing_event_id,              kSingle,  kInfo,    kAnalysis,       \
       "Indicates that the ftrace event was dropped because the event id was "  \
       "missing. This is an 'info' stat rather than an error stat because "     \

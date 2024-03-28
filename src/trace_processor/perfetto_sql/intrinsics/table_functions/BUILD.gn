@@ -27,6 +27,8 @@ source_set("table_functions") {
     "descendant.h",
     "dfs.cc",
     "dfs.h",
+    "dfs_weight_bounded.cc",
+    "dfs_weight_bounded.h",
     "dominator_tree.cc",
     "dominator_tree.h",
     "experimental_annotated_stack.cc",
@@ -43,6 +45,8 @@ source_set("table_functions") {
     "experimental_slice_layout.h",
     "flamegraph_construction_algorithms.cc",
     "flamegraph_construction_algorithms.h",
+    "interval_intersect.cc",
+    "interval_intersect.h",
     "table_info.cc",
     "table_info.h",
   ]

@@ -165,12 +165,6 @@ std::optional<PerfettoStatsdAtom> ConvertRateLimiterResponseToAtom(
   switch (resp) {
     case RateLimiter::kNotAllowedOnUserBuild:
       return PerfettoStatsdAtom::kCmdUserBuildTracingNotAllowed;
-    case RateLimiter::kFailedToInitState:
-      return PerfettoStatsdAtom::kCmdFailedToInitGuardrailState;
-    case RateLimiter::kInvalidState:
-      return PerfettoStatsdAtom::kCmdInvalidGuardrailState;
-    case RateLimiter::kHitUploadLimit:
-      return PerfettoStatsdAtom::kCmdHitUploadLimit;
     case RateLimiter::kOkToTrace:
       return std::nullopt;
   }
@@ -493,8 +487,9 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     }
 
     if (option == OPT_RESET_GUARDRAILS) {
-      PERFETTO_CHECK(limiter_->ClearState());
-      PERFETTO_ILOG("Guardrail state cleared");
+      PERFETTO_ILOG(
+          "Guardrails no longer exist in perfetto_cmd; this option only exists "
+          "for backwards compatability.");
       return 0;
     }
 
@@ -994,15 +989,10 @@ int PerfettoCmd::ConnectToServiceAndRun() {
   RateLimiter::Args args{};
   args.is_user_build = IsUserBuild();
   args.is_uploading = save_to_incidentd_ || report_to_android_framework_;
-  args.current_time = base::GetWallTimeS();
-  args.ignore_guardrails = ignore_guardrails_;
   args.allow_user_build_tracing = trace_config_->allow_user_build_tracing();
-  args.unique_session_name = trace_config_->unique_session_name();
-  args.max_upload_bytes_override =
-      trace_config_->guardrail_overrides().max_upload_per_day_bytes();
 
-  if (!args.unique_session_name.empty())
-    base::MaybeSetThreadName("p-" + args.unique_session_name);
+  if (!trace_config_->unique_session_name().empty())
+    base::MaybeSetThreadName("p-" + trace_config_->unique_session_name());
 
   expected_duration_ms_ = trace_config_->duration_ms();
   if (!expected_duration_ms_) {
@@ -1053,9 +1043,7 @@ int PerfettoCmd::ConnectToServiceAndRun() {
   SetupCtrlCSignalHandler();
   task_runner_.Run();
 
-  return limiter_->OnTraceDone(args, update_guardrail_state_, bytes_written_)
-             ? 0
-             : 1;
+  return tracing_succeeded_ ? 0 : 1;
 }
 
 void PerfettoCmd::OnConnect() {
@@ -1221,13 +1209,13 @@ void PerfettoCmd::ReadbackTraceDataAndQuit(const std::string& error) {
       remove(trace_out_path_.c_str());
     }
 
-    // Update guardrail state even if we failed. This is for two
-    // reasons:
-    // 1. Keeps compatibility with pre-stats code which used to
-    // ignore errors from the service and always update state.
-    // 2. We want to prevent failure storms and the guardrails help
-    // by preventing tracing too frequently with the same session.
-    update_guardrail_state_ = true;
+    // Even though there was a failure, we mark this as success for legacy
+    // reasons: when guardrails used to exist in perfetto_cmd, this codepath
+    // would still cause guardrails to be written and the exit code to be 0.
+    //
+    // We want to preserve that semantic and the easiest way to do that would
+    // be to set |tracing_succeeded_| to true.
+    tracing_succeeded_ = true;
     task_runner_.Quit();
     return;
   }
@@ -1287,7 +1275,7 @@ void PerfettoCmd::FinalizeTraceAndExit() {
   ReportFinalizeTraceUuidToAtrace(base::Uuid(uuid_));
 #endif
 
-  update_guardrail_state_ = true;
+  tracing_succeeded_ = true;
   task_runner_.Quit();
 }
 

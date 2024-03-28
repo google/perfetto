@@ -35,6 +35,9 @@ namespace {
 using testing::ElementsAre;
 using testing::IsEmpty;
 
+using Indices = DataLayerChain::Indices;
+using OrderedIndices = DataLayerChain::OrderedIndices;
+
 TEST(StringStorage, SearchOneElement) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
@@ -161,44 +164,48 @@ TEST(StringStorage, IndexSearch) {
   auto chain = storage.MakeChain();
   SqlValue val = SqlValue::String("pierogi");
   // "fries", "onion", "pierogi", NULL, "pizza", "pasta", "cheese"
-  std::vector<uint32_t> indices_vec{6, 5, 4, 3, 2, 1, 0};
-  Indices indices{indices_vec.data(), 7, Indices::State::kNonmonotonic};
+  Indices common_indices = Indices::CreateWithIndexPayloadForTesting(
+      {6, 5, 4, 3, 2, 1, 0}, Indices::State::kNonmonotonic);
 
-  FilterOp op = FilterOp::kEq;
-  auto res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2));
+  auto indices = common_indices;
+  chain->IndexSearch(FilterOp::kEq, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(2));
 
-  op = FilterOp::kNe;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 4, 5, 6));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kNe, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices),
+              ElementsAre(0, 1, 4, 5, 6));
 
-  op = FilterOp::kLt;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 5, 6));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kLt, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices),
+              ElementsAre(0, 1, 5, 6));
 
-  op = FilterOp::kLe;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 5, 6));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kLe, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices),
+              ElementsAre(0, 1, 2, 5, 6));
 
-  op = FilterOp::kGt;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(4));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kGt, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(4));
 
-  op = FilterOp::kGe;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kGe, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(2, 4));
 
-  op = FilterOp::kIsNull;
-  res = chain->IndexSearch(op, SqlValue(), indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kIsNull, SqlValue(), indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(3));
 
-  op = FilterOp::kIsNotNull;
-  res = chain->IndexSearch(op, SqlValue(), indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 4, 5, 6));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kIsNotNull, SqlValue(), indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices),
+              ElementsAre(0, 1, 2, 4, 5, 6));
 
-  op = FilterOp::kGlob;
-  res = chain->IndexSearch(op, SqlValue::String("p*"), indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4, 5));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kGlob, SqlValue::String("p*"), indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(2, 4, 5));
 }
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -241,10 +248,38 @@ TEST(StringStorage, LinearSearchRegexMalformed) {
 }
 #endif
 
+TEST(StringStorage, SearchEmptyString) {
+  std::vector<std::string> strings{"", "apple"};
+  std::vector<StringPool::Id> ids(3, StringPool::Id::Null());
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  StringStorage storage(&pool, &ids, true);
+  auto chain = storage.MakeChain();
+
+  auto res = chain->Search(FilterOp::kEq, SqlValue::String(""), {0, 5});
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3));
+}
+
+TEST(StringStorage, SearchEmptyStringIsNull) {
+  std::vector<std::string> strings{"", "apple"};
+  std::vector<StringPool::Id> ids(3, StringPool::Id::Null());
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  StringStorage storage(&pool, &ids, true);
+  auto chain = storage.MakeChain();
+
+  auto res = chain->Search(FilterOp::kIsNull, SqlValue(), {0, 5});
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
+}
+
 TEST(StringStorage, SearchSorted) {
   std::vector<std::string> strings{"apple",    "burger",   "cheese",
                                    "doughnut", "eggplant", "fries"};
-  std::vector<StringPool::Id> ids;
+  std::vector<StringPool::Id> ids(3, StringPool::Id::Null());
   StringPool pool;
   for (const auto& string : strings) {
     ids.push_back(pool.InternString(base::StringView(string)));
@@ -252,35 +287,36 @@ TEST(StringStorage, SearchSorted) {
   StringStorage storage(&pool, &ids, true);
   auto chain = storage.MakeChain();
   SqlValue val = SqlValue::String("cheese");
-  Range filter_range(0, 6);
+  // 1:NULL, 2:NULL, 3:apple, 4:burger, 5:cheese, 6:doughnut, 7:eggplant,
+  Range filter_range(1, 8);
 
   FilterOp op = FilterOp::kEq;
   auto res = chain->Search(op, val, filter_range);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(5));
 
   op = FilterOp::kNe;
   res = chain->Search(op, val, filter_range);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 6, 7));
 
   op = FilterOp::kLt;
   res = chain->Search(op, val, filter_range);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 
   op = FilterOp::kLe;
   res = chain->Search(op, val, filter_range);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 5));
 
   op = FilterOp::kGt;
   res = chain->Search(op, val, filter_range);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(6, 7));
 
   op = FilterOp::kGe;
   res = chain->Search(op, val, filter_range);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(5, 6, 7));
 
   op = FilterOp::kGlob;
   res = chain->Search(op, SqlValue::String("*e"), filter_range);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 5));
 }
 
 TEST(StringStorage, IndexSearchSorted) {
@@ -294,43 +330,42 @@ TEST(StringStorage, IndexSearchSorted) {
   StringStorage storage(&pool, &ids, true);
   auto chain = storage.MakeChain();
   SqlValue val = SqlValue::String("cheese");
-  // fries, eggplant, cheese, burger
-  std::vector<uint32_t> indices_vec{5, 4, 2, 1};
-  Indices indices{indices_vec.data(), 4, Indices::State::kNonmonotonic};
+  Indices common_indices = Indices::CreateWithIndexPayloadForTesting(
+      {5, 4, 2, 1}, Indices::State::kNonmonotonic);
 
-  FilterOp op = FilterOp::kEq;
-  auto res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2));
+  auto indices = common_indices;
+  chain->IndexSearch(FilterOp::kEq, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(2));
 
-  op = FilterOp::kNe;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 3));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kNe, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 1, 3));
 
-  op = FilterOp::kLt;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kLt, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(3));
 
-  op = FilterOp::kLe;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 3));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kLe, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(2, 3));
 
-  op = FilterOp::kGt;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kGt, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 1));
 
-  op = FilterOp::kGe;
-  res = chain->IndexSearch(op, val, indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kGe, val, indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 1, 2));
 
-  op = FilterOp::kGlob;
-  res = chain->IndexSearch(op, SqlValue::String("*e"), indices);
-  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2));
+  indices = common_indices;
+  chain->IndexSearch(FilterOp::kGlob, SqlValue::String("*e"), indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(2));
 }
 
 TEST(StringStorage, OrderedIndexSearch) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
-  std::vector<StringPool::Id> ids;
+  std::vector<StringPool::Id> ids(1, StringPool::Id::Null());
   StringPool pool;
   for (const auto& string : strings) {
     ids.push_back(pool.InternString(base::StringView(string)));
@@ -338,9 +373,8 @@ TEST(StringStorage, OrderedIndexSearch) {
   StringStorage storage(&pool, &ids);
   auto chain = storage.MakeChain();
   SqlValue val = SqlValue::String("pierogi");
-  // cheese, fries, onion, pasta, pierogi, pizza
-  std::vector<uint32_t> indices_vec{0, 5, 4, 1, 3, 2};
-  Indices indices{indices_vec.data(), 6, Indices::State::kNonmonotonic};
+  std::vector<uint32_t> indices_vec{0, 6, 5, 2, 4, 3};
+  OrderedIndices indices{indices_vec.data(), 6, Indices::State::kNonmonotonic};
 
   FilterOp op = FilterOp::kEq;
   Range res = chain->OrderedIndexSearch(op, val, indices);
@@ -349,12 +383,12 @@ TEST(StringStorage, OrderedIndexSearch) {
 
   op = FilterOp::kLt;
   res = chain->OrderedIndexSearch(op, val, indices);
-  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.start, 1u);
   ASSERT_EQ(res.end, 4u);
 
   op = FilterOp::kLe;
   res = chain->OrderedIndexSearch(op, val, indices);
-  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.start, 1u);
   ASSERT_EQ(res.end, 5u);
 
   op = FilterOp::kGt;
@@ -366,6 +400,31 @@ TEST(StringStorage, OrderedIndexSearch) {
   res = chain->OrderedIndexSearch(op, val, indices);
   ASSERT_EQ(res.start, 4u);
   ASSERT_EQ(res.end, 6u);
+
+  op = FilterOp::kIsNull;
+  res = chain->OrderedIndexSearch(op, val, indices);
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 1u);
+}
+
+TEST(StringStorage, OrderedIndexSearchLowerBoundWithNulls) {
+  std::vector<std::string> strings{"cheese",  "pasta", "pizza",
+                                   "pierogi", "onion", "fries"};
+  std::vector<StringPool::Id> ids(3, StringPool::Id::Null());
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  StringStorage storage(&pool, &ids);
+  auto chain = storage.MakeChain();
+
+  // NULL, NULL, cheese, pizza
+  std::vector<uint32_t> indices_vec{0, 2, 3, 7};
+  OrderedIndices indices{indices_vec.data(), 4, Indices::State::kNonmonotonic};
+  auto res = chain->OrderedIndexSearch(FilterOp::kEq,
+                                       SqlValue::String("cheese"), indices);
+  ASSERT_EQ(res.start, 2u);
+  ASSERT_EQ(res.end, 3u);
 }
 
 TEST(StringStorage, OrderedIndexSearchIsNull) {
@@ -380,7 +439,7 @@ TEST(StringStorage, OrderedIndexSearchIsNull) {
   auto chain = storage.MakeChain();
 
   std::vector<uint32_t> indices_vec{0, 2, 5, 7};
-  Indices indices{indices_vec.data(), 4, Indices::State::kNonmonotonic};
+  OrderedIndices indices{indices_vec.data(), 4, Indices::State::kNonmonotonic};
   auto res = chain->OrderedIndexSearch(FilterOp::kIsNull, SqlValue(), indices);
   ASSERT_EQ(res.start, 0u);
   ASSERT_EQ(res.end, 2u);
@@ -398,7 +457,7 @@ TEST(StringStorage, OrderedIndexSearchIsNotNull) {
   auto chain = storage.MakeChain();
 
   std::vector<uint32_t> indices_vec{0, 2, 5, 7};
-  Indices indices{indices_vec.data(), 4, Indices::State::kNonmonotonic};
+  OrderedIndices indices{indices_vec.data(), 4, Indices::State::kNonmonotonic};
   auto res =
       chain->OrderedIndexSearch(FilterOp::kIsNotNull, SqlValue(), indices);
   ASSERT_EQ(res.start, 2u);

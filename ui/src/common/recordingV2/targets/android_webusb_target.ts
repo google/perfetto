@@ -15,22 +15,24 @@
 import {assertExists} from '../../../base/logging';
 import {AdbConnectionOverWebusb} from '../adb_connection_over_webusb';
 import {AdbKeyManager} from '../auth/adb_key_manager';
-import {
-  OnTargetChangeCallback,
-  TargetInfo,
-} from '../recording_interfaces_v2';
+import {OnTargetChangeCallback, TargetInfo} from '../recording_interfaces_v2';
 import {AndroidTarget} from './android_target';
 
 export class AndroidWebusbTarget extends AndroidTarget {
   constructor(
-      private device: USBDevice, keyManager: AdbKeyManager,
-      onTargetChange: OnTargetChangeCallback) {
+    private device: USBDevice,
+    keyManager: AdbKeyManager,
+    onTargetChange: OnTargetChangeCallback,
+  ) {
     super(new AdbConnectionOverWebusb(device, keyManager), onTargetChange);
   }
 
   getInfo(): TargetInfo {
-    const name = assertExists(this.device.productName) + ' ' +
-        assertExists(this.device.serialNumber) + ' WebUsb';
+    const name =
+      assertExists(this.device.productName) +
+      ' ' +
+      assertExists(this.device.serialNumber) +
+      ' WebUsb';
     return {
       targetType: 'ANDROID',
       // 'androidApiLevel' will be populated after ADB authorization.

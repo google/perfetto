@@ -236,3 +236,64 @@ class AndroidMetrics(TestSuite):
         trace=DataPath('android_postboot_unlock.pftrace'),
         query=Metric('android_garbage_collection_unagg'),
         out=Path('android_garbage_collection_unagg.out'))
+
+  def test_android_auto_multiuser_switch(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 1000000000
+              pid: 4032
+              print {
+                buf: "S|5993|UserController.startUser-10-fg-start-mode-1|0\n"
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 2000000000
+              pid: 4065
+              print {
+                buf: "S|2608|launching: com.android.car.carlauncher|0\n"
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 3000000000
+              pid: 4032
+              print {
+                buf: "S|5993|UserController.startUser-11-fg-start-mode-1|0\n"
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 6878000000
+              pid: 4065
+              print {
+                buf: "S|2609|launching: com.android.car.carlauncher|0\n"
+              }
+            }
+          }
+        }
+        """),
+       query=Metric('android_auto_multiuser'),
+       out=TextProto(r"""
+       android_auto_multiuser {
+         user_switch {
+           duration_ms: 3878
+         }
+       }
+       """))

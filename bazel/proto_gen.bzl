@@ -29,7 +29,7 @@ def _proto_gen_impl(ctx):
 
     proto_path = "."
 
-    out_dir = str(ctx.genfiles_dir.path)
+    out_dir = ctx.bin_dir.path
     strip_base_path = ""
     if ctx.attr.root != "//":
         # This path is hit in Google internal builds, where root is typically
@@ -120,7 +120,6 @@ proto_gen = rule(
             default = "//",
         ),
     },
-    output_to_genfiles = True,
     implementation = _proto_gen_impl,
 )
 

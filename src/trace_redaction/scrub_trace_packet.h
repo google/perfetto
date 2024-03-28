@@ -21,8 +21,17 @@
 
 namespace perfetto::trace_redaction {
 
-// Drops whole trace packets based on an allow-list (e.g. retain ProcessTree
-// packets).
+// TODO(vaage): This primitive DOES NOT handle redacting sched_switch and
+// sched_waking ftrace events. These events contain a large amount of "to be
+// redacted" information AND there are a high quantity of them AND they are
+// large packets. As such, this primitive is not enough and an ADDITIONAL
+// primitive is required.
+
+// Goes through individual ftrace packs and drops the ftrace packets from the
+// trace packet without modifying the surround fields.
+//
+// ScrubTracePacket does not respect field order - i.e. the field order going
+// may not match the field order going out.
 class ScrubTracePacket final : public TransformPrimitive {
  public:
   base::Status Transform(const Context& context,

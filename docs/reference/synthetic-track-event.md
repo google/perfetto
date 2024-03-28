@@ -456,7 +456,7 @@ packet {
   }
   trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
   # 2 = SEQ_NEEDS_INCREMENTAL_STATE
-  sequence_flags: 3
+  sequence_flags: 2
 }
 packet {
   timestamp: 203

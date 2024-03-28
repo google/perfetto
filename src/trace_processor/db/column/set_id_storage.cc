@@ -43,13 +43,13 @@ namespace {
 
 using SetId = SetIdStorage::SetId;
 
-uint32_t UpperBoundIntrinsic(const SetId* data, SetId id, Range range) {
-  if (id >= range.end) {
-    return range.end;
+uint32_t UpperBoundIntrinsic(const SetId* data, SetId val, Range range) {
+  for (uint32_t i = std::max(range.start, val); i < range.end; i++) {
+    if (data[i] > val) {
+      return i;
+    }
   }
-  const auto* upper =
-      std::upper_bound(data + std::max(range.start, id), data + range.end, id);
-  return static_cast<uint32_t>(std::distance(data, upper));
+  return range.end;
 }
 
 uint32_t LowerBoundIntrinsic(const SetId* data, SetId id, Range range) {
@@ -117,6 +117,10 @@ SearchValidationResult SetIdStorage::ChainImpl::ValidateSearchConstraints(
       return SearchValidationResult::kNoData;
   }
 
+  if (PERFETTO_UNLIKELY(values_->empty())) {
+    return SearchValidationResult::kNoData;
+  }
+
   // Type checks.
   switch (val.type) {
     case SqlValue::kNull:
@@ -137,13 +141,16 @@ SearchValidationResult SetIdStorage::ChainImpl::ValidateSearchConstraints(
   double num_val = val.type == SqlValue::kLong
                        ? static_cast<double>(val.AsLong())
                        : val.AsDouble();
-  if (PERFETTO_UNLIKELY(num_val > std::numeric_limits<uint32_t>::max())) {
+
+  // As values are sorted, we can cover special cases for when |num_val| is
+  // bigger than the last value and smaller than the first one.
+  if (PERFETTO_UNLIKELY(num_val > values_->back())) {
     if (op == FilterOp::kLe || op == FilterOp::kLt || op == FilterOp::kNe) {
       return SearchValidationResult::kAllData;
     }
     return SearchValidationResult::kNoData;
   }
-  if (PERFETTO_UNLIKELY(num_val < std::numeric_limits<uint32_t>::min())) {
+  if (PERFETTO_UNLIKELY(num_val < values_->front())) {
     if (op == FilterOp::kGe || op == FilterOp::kGt || op == FilterOp::kNe) {
       return SearchValidationResult::kAllData;
     }
@@ -194,76 +201,66 @@ RangeOrBitVector SetIdStorage::ChainImpl::SearchValidated(
   return RangeOrBitVector(BinarySearchIntrinsic(op, val, search_range));
 }
 
-RangeOrBitVector SetIdStorage::ChainImpl::IndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    Indices indices) const {
+void SetIdStorage::ChainImpl::IndexSearchValidated(FilterOp op,
+                                                   SqlValue sql_val,
+                                                   Indices& indices) const {
   PERFETTO_TP_TRACE(
       metatrace::Category::DB, "SetIdStorage::ChainImpl::IndexSearch",
-      [indices, op](metatrace::Record* r) {
-        r->AddArg("Count", std::to_string(indices.size));
+      [&indices, op](metatrace::Record* r) {
+        r->AddArg("Count", std::to_string(indices.tokens.size()));
         r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
       });
 
   // It's a valid filter operation if |sql_val| is a double, although it
   // requires special logic.
   if (sql_val.type == SqlValue::kDouble) {
-    switch (utils::CompareIntColumnWithDouble(op, &sql_val)) {
-      case SearchValidationResult::kOk:
-        break;
-      case SearchValidationResult::kAllData:
-        return RangeOrBitVector(Range(0, indices.size));
-      case SearchValidationResult::kNoData:
-        return RangeOrBitVector(Range());
+    if (utils::CanReturnEarly(utils::CompareIntColumnWithDouble(op, &sql_val),
+                              indices)) {
+      return;
     }
   }
 
-  auto val = static_cast<uint32_t>(sql_val.AsLong());
-  BitVector::Builder builder(indices.size);
-
   // TODO(mayzner): Instead of utils::IndexSearchWithComparator, use the
   // property of SetId data - that for each index i, data[i] <= i.
+  auto val = static_cast<uint32_t>(sql_val.AsLong());
   switch (op) {
     case FilterOp::kEq:
-      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
-                                       std::equal_to<>(), builder);
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
+                                       std::equal_to<>());
       break;
     case FilterOp::kNe:
-      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
-                                       std::not_equal_to<>(), builder);
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
+                                       std::not_equal_to<>());
       break;
     case FilterOp::kLe:
-      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
-                                       std::less_equal<>(), builder);
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
+                                       std::less_equal<>());
       break;
     case FilterOp::kLt:
-      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
-                                       std::less<>(), builder);
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
+                                       std::less<>());
       break;
     case FilterOp::kGt:
-      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
-                                       std::greater<>(), builder);
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
+                                       std::greater<>());
       break;
     case FilterOp::kGe:
-      utils::IndexSearchWithComparator(val, values_->data(), indices.data,
-                                       std::greater_equal<>(), builder);
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
+                                       std::greater_equal<>());
       break;
     case FilterOp::kIsNotNull:
-      return RangeOrBitVector(Range(0, indices.size));
     case FilterOp::kIsNull:
-      return RangeOrBitVector(Range());
     case FilterOp::kGlob:
     case FilterOp::kRegex:
       PERFETTO_FATAL("Illegal argument");
   }
-  return RangeOrBitVector(std::move(builder).Build());
 }
 
 Range SetIdStorage::ChainImpl::OrderedIndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
-    Indices indices) const {
-  // Indices are monotonic non-contiguous values.
+    const OrderedIndices& indices) const {
+  // OrderedIndices are monotonic non-contiguous values.
   auto res = SearchValidated(
       op, sql_val, Range(indices.data[0], indices.data[indices.size - 1] + 1));
   PERFETTO_CHECK(res.IsRange());
@@ -282,9 +279,14 @@ Range SetIdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
                                                      SetId val,
                                                      Range range) const {
   switch (op) {
-    case FilterOp::kEq:
-      return {LowerBoundIntrinsic(values_->data(), val, range),
-              UpperBoundIntrinsic(values_->data(), val, range)};
+    case FilterOp::kEq: {
+      if (values_->data()[val] != val) {
+        return Range();
+      }
+      uint32_t start = std::max(val, range.start);
+      uint32_t end = UpperBoundIntrinsic(values_->data(), val, range);
+      return Range(std::min(start, end), end);
+    }
     case FilterOp::kLe: {
       return {range.start, UpperBoundIntrinsic(values_->data(), val, range)};
     }

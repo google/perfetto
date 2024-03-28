@@ -16,6 +16,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_UTILS_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_UTILS_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <optional>
@@ -65,28 +66,14 @@ void LinearSearchWithComparator(ValType val,
 template <typename Comparator, typename ValType, typename DataType>
 void IndexSearchWithComparator(ValType val,
                                const DataType* data_ptr,
-                               const uint32_t* indices,
-                               Comparator comparator,
-                               BitVector::Builder& builder) {
-  // Fast path: we compare as many groups of 64 elements as we can.
-  // This should be very easy for the compiler to auto-vectorize.
-  const uint32_t* cur_idx = indices;
-  uint32_t fast_path_elements = builder.BitsInCompleteWordsUntilFull();
-  for (uint32_t i = 0; i < fast_path_elements; i += BitVector::kBitsInWord) {
-    uint64_t word = 0;
-    // This part should be optimised by SIMD and is expected to be fast.
-    for (uint32_t k = 0; k < BitVector::kBitsInWord; ++k, ++cur_idx) {
-      bool comp_result = comparator(*(data_ptr + *cur_idx), val);
-      word |= static_cast<uint64_t>(comp_result) << k;
-    }
-    builder.AppendWord(word);
-  }
-
-  // Slow path: we compare <64 elements and append to fill the Builder.
-  uint32_t back_elements = builder.BitsUntilFull();
-  for (uint32_t i = 0; i < back_elements; ++i, ++cur_idx) {
-    builder.Append(comparator(*(data_ptr + *cur_idx), val));
-  }
+                               DataLayerChain::Indices& indices,
+                               Comparator comparator) {
+  auto it = std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                           [&comparator, data_ptr,
+                            &val](const DataLayerChain::Indices::Token& token) {
+                             return !comparator(*(data_ptr + token.index), val);
+                           });
+  indices.tokens.erase(it, indices.tokens.end());
 }
 
 template <typename T>
@@ -136,10 +123,17 @@ std::optional<Range> CanReturnEarly(SearchValidationResult, Range);
 std::optional<Range> CanReturnEarly(SearchValidationResult,
                                     uint32_t indices_size);
 
+// If the validation result doesn't require further search, will modify
+// |indices| to match and return true. Otherwise returns false.
+bool CanReturnEarly(SearchValidationResult res,
+                    DataLayerChain::Indices& indices);
+
 std::vector<uint32_t> ExtractPayloadForTesting(
     std::vector<column::DataLayerChain::SortToken>&);
 
 std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector&);
+
+std::vector<uint32_t> ExtractPayloadForTesting(const DataLayerChain::Indices&);
 
 }  // namespace perfetto::trace_processor::column::utils
 

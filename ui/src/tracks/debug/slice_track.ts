@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
-import {Actions} from '../../common/actions';
-import {globals} from '../../frontend/globals';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
-import {TrackButton} from '../../frontend/track_panel';
 import {TrackContext} from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
 import {
@@ -27,19 +22,21 @@ import {
 } from '../custom_sql_table_slices';
 
 import {DebugSliceDetailsTab} from './details_tab';
-import {ARG_PREFIX, SliceColumns, SqlDataSource} from '../../frontend/debug_tracks';
+import {
+  ARG_PREFIX,
+  SliceColumns,
+  SqlDataSource,
+} from '../../frontend/debug_tracks';
 import {DisposableCallback} from '../../base/disposable';
 import {uuidv4Sql} from '../../base/uuid';
 
 export interface DebugTrackV2Config {
   data: SqlDataSource;
   columns: SliceColumns;
-  closeable: boolean;
   argColumns: string[];
 }
 
-export class DebugTrackV2 extends
-  CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+export class DebugTrackV2 extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   private config: DebugTrackV2Config;
   private sqlTableName: string;
 
@@ -78,22 +75,11 @@ export class DebugTrackV2 extends
     };
   }
 
-  getTrackShellButtons(): m.Children {
-    return this.config.closeable ? m(TrackButton, {
-      action: () => {
-        globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
-      },
-      i: 'close',
-      tooltip: 'Close',
-      showButton: true,
-    }) :
-      [];
-  }
-
   private async createTrackTable(
     data: SqlDataSource,
     sliceColumns: SliceColumns,
-    argColumns: string[]): Promise<void> {
+    argColumns: string[],
+  ): Promise<void> {
     // If the view has clashing names (e.g. "name" coming from joining two
     // different tables, we will see names like "name_1", "name_2", but they
     // won't be addressable from the SQL. So we explicitly name them through a

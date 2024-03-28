@@ -21,7 +21,7 @@ import {Button} from '../widgets/button';
 import {exists} from '../base/utils';
 import {PluginDescriptor} from '../public';
 import {createPage} from './pages';
-import {defaultPlugins} from '../common/default_plugins';
+import {defaultPlugins} from '../core/default_plugins';
 
 export const PluginsPage = createPage({
   view() {
@@ -72,7 +72,8 @@ export const PluginsPage = createPage({
         Array.from(pluginRegistry.values()).map((plugin) => {
           return renderPluginRow(plugin);
         }),
-      ));
+      ),
+    );
   },
 });
 
@@ -86,10 +87,12 @@ function renderPluginRow(plugin: PluginDescriptor): m.Children {
   return [
     m('span', pluginId),
     m('span', isDefault ? 'Yes' : 'No'),
-    isEnabled ? m('.pf-tag.pf-active', 'Enabled') :
-      m('.pf-tag.pf-inactive', 'Disabled'),
-    isActive ? m('.pf-tag.pf-active', 'Active') :
-      m('.pf-tag.pf-inactive', 'Inactive'),
+    isEnabled
+      ? m('.pf-tag.pf-active', 'Enabled')
+      : m('.pf-tag.pf-inactive', 'Disabled'),
+    isActive
+      ? m('.pf-tag.pf-active', 'Active')
+      : m('.pf-tag.pf-inactive', 'Inactive'),
     m(Button, {
       label: isActive ? 'Disable' : 'Enable',
       onclick: async () => {
@@ -101,8 +104,6 @@ function renderPluginRow(plugin: PluginDescriptor): m.Children {
         raf.scheduleFullRedraw();
       },
     }),
-    exists(loadTime) ?
-      m('span', `${loadTime.toFixed(1)} ms`) :
-      m('span', `-`),
+    exists(loadTime) ? m('span', `${loadTime.toFixed(1)} ms`) : m('span', `-`),
   ];
 }

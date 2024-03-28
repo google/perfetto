@@ -812,24 +812,24 @@ TEST_F(TraceBufferTest, Fragments_PreserveUID) {
   TraceBuffer::PacketSequenceProperties sequence_properties;
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'a')));
-  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted());
+  ASSERT_EQ(static_cast<uid_t>(11), sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(
       ReadPacket(&sequence_properties),
       ElementsAre(FakePacketFragment(10, 'b'), FakePacketFragment(10, 'e')));
-  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted());
+  ASSERT_EQ(static_cast<uid_t>(11), sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'f')));
-  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted());
+  ASSERT_EQ(static_cast<uid_t>(11), sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'c')));
-  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted());
+  ASSERT_EQ(static_cast<uid_t>(22), sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'd')));
-  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted());
+  ASSERT_EQ(static_cast<uid_t>(22), sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }

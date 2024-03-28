@@ -22,7 +22,7 @@ let seed = 1;
 
 // For reproducibility.
 function Rnd(max: number) {
-  seed = seed * 16807 % 2147483647;
+  seed = (seed * 16807) % 2147483647;
   return seed % max;
 }
 
@@ -103,7 +103,6 @@ test('ProtoRingBufferTest.CoalescingStream', () => {
   expect(expected.length).toEqual(0);
 });
 
-
 test('ProtoRingBufferTest.RandomSizes', () => {
   const buf = new ProtoRingBuffer();
   const kNumMsg = 100;
@@ -111,10 +110,10 @@ test('ProtoRingBufferTest.RandomSizes', () => {
   const expectedLengths = [];
   let mergedLen = 0;
   for (let i = 0; i < kNumMsg; i++) {
-    const fieldId = 1 + Rnd(15);  // We support only one byte tag.
+    const fieldId = 1 + Rnd(15); // We support only one byte tag.
     const rndVal = Rnd(1024);
     let len = 1 + rndVal;
-    if ((rndVal % 100) < 5) {
+    if (rndVal % 100 < 5) {
       len *= 1000;
     }
     const msg = MakeProtoMessage(fieldId, len);
@@ -124,7 +123,7 @@ test('ProtoRingBufferTest.RandomSizes', () => {
     mergedLen += msg.length;
   }
 
-  for (let fragSum = 0; fragSum < mergedLen; /**/) {
+  for (let fragSum = 0; fragSum < mergedLen /**/; ) {
     let fragLen = 1 + Rnd(1024 * 32);
     fragLen = Math.min(fragLen, mergedLen - fragSum);
     buf.append(mergedBuf.subarray(fragSum, fragSum + fragLen));

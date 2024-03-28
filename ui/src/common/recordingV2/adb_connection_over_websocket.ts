@@ -38,7 +38,9 @@ export class AdbConnectionOverWebsocket extends AdbConnectionImpl {
   onDisconnect: OnDisconnectCallback = (_) => {};
 
   constructor(
-      private deviceSerialNumber: string, private websocketUrl: string) {
+    private deviceSerialNumber: string,
+    private websocketUrl: string,
+  ) {
     super();
   }
 
@@ -50,13 +52,15 @@ export class AdbConnectionOverWebsocket extends AdbConnectionImpl {
     return this.openStream(path);
   }
 
-  protected async openStream(destination: string):
-      Promise<AdbOverWebsocketStream> {
+  protected async openStream(
+    destination: string,
+  ): Promise<AdbOverWebsocketStream> {
     return AdbOverWebsocketStream.create(
       this.websocketUrl,
       destination,
       this.deviceSerialNumber,
-      this.closeStream.bind(this));
+      this.closeStream.bind(this),
+    );
   }
 
   // The disconnection for AdbConnectionOverWebsocket is synchronous, but this
@@ -103,8 +107,11 @@ export class AdbOverWebsocketStream implements ByteStream {
   private onStreamCloseCallbacks: OnStreamCloseCallback[] = [];
 
   private constructor(
-    websocketUrl: string, destination: string, deviceSerialNumber: string,
-      private removeFromConnection: (stream: AdbOverWebsocketStream) => void) {
+    websocketUrl: string,
+    destination: string,
+    deviceSerialNumber: string,
+    private removeFromConnection: (stream: AdbOverWebsocketStream) => void,
+  ) {
     this.websocket = new WebSocket(websocketUrl);
 
     this.websocket.onopen = this.onOpen.bind(this, deviceSerialNumber);
@@ -160,7 +167,7 @@ export class AdbOverWebsocketStream implements ByteStream {
     this.close();
   }
 
-  write(msg: string|Uint8Array): void {
+  write(msg: string | Uint8Array): void {
     this.websocket.send(msg);
   }
 
@@ -170,11 +177,14 @@ export class AdbOverWebsocketStream implements ByteStream {
 
   private async onOpen(deviceSerialNumber: string): Promise<void> {
     this.websocket.send(
-      buildAbdWebsocketCommand(`host:transport:${deviceSerialNumber}`));
+      buildAbdWebsocketCommand(`host:transport:${deviceSerialNumber}`),
+    );
   }
 
-  private async onMessage(destination: string, evt: MessageEvent):
-      Promise<void> {
+  private async onMessage(
+    destination: string,
+    evt: MessageEvent,
+  ): Promise<void> {
     const messageProcessed = defer<void>();
     this.messageProcessedSignals.add(messageProcessed);
     try {
@@ -187,11 +197,13 @@ export class AdbOverWebsocketStream implements ByteStream {
           this.commandSentSignal.resolve(this);
         } else if (prefix === 'FAIL' && txt.includes('device unauthorized')) {
           this.commandSentSignal.reject(
-            new RecordingError(ALLOW_USB_DEBUGGING));
+            new RecordingError(ALLOW_USB_DEBUGGING),
+          );
           this.close();
         } else {
           this.commandSentSignal.reject(
-            new RecordingError(WEBSOCKET_UNABLE_TO_CONNECT));
+            new RecordingError(WEBSOCKET_UNABLE_TO_CONNECT),
+          );
           this.close();
         }
       } else {
@@ -215,14 +227,16 @@ export class AdbOverWebsocketStream implements ByteStream {
   }
 
   static create(
-    websocketUrl: string, destination: string, deviceSerialNumber: string,
-    removeFromConnection: (stream: AdbOverWebsocketStream) => void):
-      Promise<AdbOverWebsocketStream> {
-    return (new AdbOverWebsocketStream(
+    websocketUrl: string,
+    destination: string,
+    deviceSerialNumber: string,
+    removeFromConnection: (stream: AdbOverWebsocketStream) => void,
+  ): Promise<AdbOverWebsocketStream> {
+    return new AdbOverWebsocketStream(
       websocketUrl,
       destination,
       deviceSerialNumber,
-      removeFromConnection))
-      .commandSentSignal;
+      removeFromConnection,
+    ).commandSentSignal;
   }
 }

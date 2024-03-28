@@ -35,8 +35,10 @@ export interface QueryRunParams {
 }
 
 export async function runQuery(
-  sqlQuery: string, engine: EngineProxy, params?: QueryRunParams):
-    Promise<QueryResponse> {
+  sqlQuery: string,
+  engine: EngineProxy,
+  params?: QueryRunParams,
+): Promise<QueryResponse> {
   const startMs = performance.now();
   const queryRes = engine.execute(sqlQuery);
 

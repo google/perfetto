@@ -30,7 +30,9 @@ const states: {[key: string]: string} = {
 };
 
 export function translateState(
-  state: string|undefined|null, ioWait: boolean|undefined = undefined) {
+  state: string | undefined | null,
+  ioWait: boolean | undefined = undefined,
+) {
   if (state === undefined) return '';
   if (state === 'Running') {
     return state;

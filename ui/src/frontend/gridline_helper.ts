@@ -103,15 +103,15 @@ function tickPatternToArray(pattern: string): TickType[] {
   const array = Array.from(pattern);
   return array.map((char) => {
     switch (char) {
-    case '|':
-      return TickType.MAJOR;
-    case ':':
-      return TickType.MEDIUM;
-    case '.':
-      return TickType.MINOR;
-    default:
-      // This is almost certainly a developer/fat-finger error
-      throw Error(`Invalid char "${char}" in pattern "${pattern}"`);
+      case '|':
+        return TickType.MAJOR;
+      case ':':
+        return TickType.MEDIUM;
+      case '.':
+        return TickType.MINOR;
+      default:
+        // This is almost certainly a developer/fat-finger error
+        throw Error(`Invalid char "${char}" in pattern "${pattern}"`);
     }
   });
 }
@@ -119,7 +119,7 @@ function tickPatternToArray(pattern: string): TickType[] {
 export enum TickType {
   MAJOR,
   MEDIUM,
-  MINOR
+  MINOR,
 }
 
 export interface Tick {
@@ -140,15 +140,18 @@ export class TickGenerator implements Iterable<Tick> {
   private _offset: time;
 
   constructor(
-    timeSpan: Span<time, duration>, maxMajorTicks: number,
-    offset: time = Time.ZERO) {
+    timeSpan: Span<time, duration>,
+    maxMajorTicks: number,
+    offset: time = Time.ZERO,
+  ) {
     assertTrue(timeSpan.duration > 0n, 'timeSpan.duration cannot be lte 0');
     assertTrue(maxMajorTicks > 0, 'maxMajorTicks cannot be lte 0');
 
     this._timeSpan = timeSpan.add(-offset);
     this._offset = offset;
-    const minStepSize =
-        BigInt(Math.floor(Number(timeSpan.duration) / maxMajorTicks));
+    const minStepSize = BigInt(
+      Math.floor(Number(timeSpan.duration) / maxMajorTicks),
+    );
     const [size, pattern] = getPattern(minStepSize);
     this._patternSize = size;
     this._tickPattern = tickPatternToArray(pattern);
@@ -158,14 +161,17 @@ export class TickGenerator implements Iterable<Tick> {
   // `for x of y` notation. The use of a generator here is just to make things
   // more elegant compared to creating an array of ticks and building an
   // iterator for it.
-  * [Symbol.iterator](): Generator<Tick> {
+  *[Symbol.iterator](): Generator<Tick> {
     const stepSize = this._patternSize / BigInt(this._tickPattern.length);
     const start = Time.quantFloor(this._timeSpan.start, this._patternSize);
     const end = this._timeSpan.end;
     let patternIndex = 0;
 
-    for (let time = start; time < end;
-      time = Time.add(time, stepSize), patternIndex++) {
+    for (
+      let time = start;
+      time < end;
+      time = Time.add(time, stepSize), patternIndex++
+    ) {
       if (time >= this._timeSpan.start) {
         patternIndex = patternIndex % this._tickPattern.length;
         const type = this._tickPattern[patternIndex];
@@ -177,14 +183,17 @@ export class TickGenerator implements Iterable<Tick> {
 
 // Gets the timescale associated with the current visible window.
 export function timeScaleForVisibleWindow(
-  startPx: number, endPx: number): TimeScale {
+  startPx: number,
+  endPx: number,
+): TimeScale {
   return globals.timeline.getTimeScale(startPx, endPx);
 }
 
 export function drawGridLines(
   ctx: CanvasRenderingContext2D,
   width: number,
-  height: number): void {
+  height: number,
+): void {
   ctx.strokeStyle = TRACK_BORDER_COLOR;
   ctx.lineWidth = 1;
 

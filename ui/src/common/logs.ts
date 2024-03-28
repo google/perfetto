@@ -18,7 +18,9 @@ export const LogExistsKey = 'log-exists';
 export const LogBoundsKey = 'log-bounds';
 export const LogEntriesKey = 'log-entries';
 
-export interface LogExists { exists: boolean; }
+export interface LogExists {
+  exists: boolean;
+}
 
 export interface LogBounds {
   firstLogTs: time;

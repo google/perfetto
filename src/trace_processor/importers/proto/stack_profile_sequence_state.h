@@ -21,7 +21,9 @@
 #include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -41,21 +43,64 @@ class StackProfileSequenceState final
 
   virtual ~StackProfileSequenceState() override;
 
-  std::optional<MappingId> FindOrInsertMapping(uint64_t iid);
-  std::optional<CallsiteId> FindOrInsertCallstack(uint64_t iid);
+  // Returns `nullptr`if non could be found.
+  VirtualMemoryMapping* FindOrInsertMapping(uint64_t iid);
+  std::optional<CallsiteId> FindOrInsertCallstack(UniquePid upid, uint64_t iid);
 
  private:
-  // Returns `nullptr`if non could be found.
-  VirtualMemoryMapping* FindOrInsertMappingImpl(uint64_t iid);
   std::optional<base::StringView> LookupInternedBuildId(uint64_t iid);
   std::optional<base::StringView> LookupInternedMappingPath(uint64_t iid);
   std::optional<base::StringView> LookupInternedFunctionName(uint64_t iid);
-  std::optional<FrameId> FindOrInsertFrame(uint64_t iid);
+
+  // Returns `nullptr`if non could be found.
+  VirtualMemoryMapping* FindOrInsertMappingImpl(std::optional<UniquePid> upid,
+                                                uint64_t iid);
+  std::optional<FrameId> FindOrInsertFrame(UniquePid upid, uint64_t iid);
 
   TraceProcessorContext* const context_;
-  base::FlatHashMap<uint64_t, VirtualMemoryMapping*> cached_mappings_;
-  base::FlatHashMap<uint64_t, CallsiteId> cached_callstacks_;
-  base::FlatHashMap<uint64_t, FrameId> cached_frames_;
+
+  struct OptionalUniquePidAndIid {
+    std::optional<UniquePid> upid;
+    uint64_t iid;
+
+    bool operator==(const OptionalUniquePidAndIid& o) const {
+      return upid == o.upid && iid == o.iid;
+    }
+
+    struct Hasher {
+      size_t operator()(const OptionalUniquePidAndIid& o) const {
+        base::Hasher h;
+        h.Update(o.iid);
+        if (o.upid) {
+          h.Update(*o.upid);
+        }
+        return static_cast<size_t>(h.digest());
+      }
+    };
+  };
+
+  struct UniquePidAndIid {
+    UniquePid upid;
+    uint64_t iid;
+
+    bool operator==(const UniquePidAndIid& o) const {
+      return upid == o.upid && iid == o.iid;
+    }
+
+    struct Hasher {
+      size_t operator()(const UniquePidAndIid& o) const {
+        return static_cast<size_t>(base::Hasher::Combine(o.upid, o.iid));
+      }
+    };
+  };
+  base::FlatHashMap<OptionalUniquePidAndIid,
+                    VirtualMemoryMapping*,
+                    OptionalUniquePidAndIid::Hasher>
+      cached_mappings_;
+  base::FlatHashMap<UniquePidAndIid, FrameId, UniquePidAndIid::Hasher>
+      cached_frames_;
+  base::FlatHashMap<UniquePidAndIid, CallsiteId, UniquePidAndIid::Hasher>
+      cached_callstacks_;
 };
 
 }  // namespace trace_processor

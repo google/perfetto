@@ -4,9 +4,25 @@ Unreleased:
   Trace Processor:
     *
   UI:
-    *
+    * Per-cpu scheduling tracks now distinguish real-time priority threads with
+      a hatched pattern and name prefix. Based on priority during switch-in.
+    * Added ftrace event cropping for traces recorded by perfetto v44+.
+      Events are ignored if they precede the earliest timestamp covered by all
+      per-cpu data streams. This should significantly improve the presentation
+      of RING_BUFFER traces, removing artifacts such as never-ending slices
+      starting at the beginning of the trace.
   SDK:
-    *
+    * "track_event" categories are disabled by default in the C API, if they
+      don't match anything in the data source config. This behavior differs from
+      the C++ API. Configs should include either `enabled_categories: "*"` or
+      `disable_categories: "*"` to explicitly specify the desired behavior that
+      work both for C and C++.
+
+
+v43.2 - 2024-03-07:
+  UI:
+    * Added redirection to pinned UI version when using
+      `trace_processor_shell --httpd` and pinned version is available.
 
 
 v43.1 - 2024-03-05:

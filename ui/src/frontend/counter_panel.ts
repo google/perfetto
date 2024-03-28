@@ -26,13 +26,18 @@ import {Timestamp} from './widgets/timestamp';
 export class CounterDetailsPanel implements m.ClassComponent {
   view() {
     const counterInfo = globals.counterDetails;
-    if (counterInfo.startTime && counterInfo.name !== undefined &&
-        counterInfo.value !== undefined && counterInfo.delta !== undefined &&
-        counterInfo.duration !== undefined) {
+    if (
+      counterInfo.startTime &&
+      counterInfo.name !== undefined &&
+      counterInfo.value !== undefined &&
+      counterInfo.delta !== undefined &&
+      counterInfo.duration !== undefined
+    ) {
       return m(
         DetailsShell,
         {title: 'Counter', description: `${counterInfo.name}`},
-        m(GridLayout,
+        m(
+          GridLayout,
           m(
             Section,
             {title: 'Properties'},
@@ -56,7 +61,8 @@ export class CounterDetailsPanel implements m.ClassComponent {
                 right: m(DurationWidget, {dur: counterInfo.duration}),
               }),
             ),
-          )),
+          ),
+        ),
       );
     } else {
       return m(DetailsShell, {title: 'Counter', description: 'Loading...'});

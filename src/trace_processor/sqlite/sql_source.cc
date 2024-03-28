@@ -18,6 +18,7 @@
 
 #include <sqlite3.h>
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <limits>
@@ -28,12 +29,16 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/sys_types.h"
 
-namespace perfetto {
-namespace trace_processor {
+#if SQLITE_VERSION_NUMBER < 3041002
+// There is a bug in pre-3.41.2 versions of SQLite where sqlite3_error_offset
+// can return an offset out of bounds. Make it a hard compiler error to prevent
+// us from hitting this bug.
+#error "SQLite version is too old."
+#endif
+
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -47,7 +52,7 @@ std::pair<uint32_t, uint32_t> GetLineAndColumnForOffset(const std::string& sql,
 
   const char* new_start = sql.c_str() + offset;
   size_t prev_nl = sql.rfind('\n', offset - 1);
-  ssize_t nl_count = std::count(sql.c_str(), new_start, '\n');
+  int64_t nl_count = std::count(sql.c_str(), new_start, '\n');
   PERFETTO_DCHECK((nl_count == 0) == (prev_nl == std::string_view::npos));
 
   if (prev_nl == std::string::npos) {
@@ -55,7 +60,7 @@ std::pair<uint32_t, uint32_t> GetLineAndColumnForOffset(const std::string& sql,
                           column + static_cast<uint32_t>(offset));
   }
 
-  ssize_t new_column = std::distance(sql.c_str() + prev_nl, new_start);
+  int64_t new_column = std::distance(sql.c_str() + prev_nl, new_start);
   return std::make_pair(line + static_cast<uint32_t>(nl_count),
                         static_cast<uint32_t>(new_column));
 }
@@ -100,24 +105,24 @@ SqlSource::SqlSource(std::string sql,
 }
 
 SqlSource SqlSource::FromExecuteQuery(std::string sql) {
-  return SqlSource(std::move(sql), "File \"stdin\"", true);
+  return {std::move(sql), "File \"stdin\"", true};
 }
 
 SqlSource SqlSource::FromMetric(std::string sql, const std::string& name) {
-  return SqlSource(std::move(sql), "Metric \"" + name + "\"", true);
+  return {std::move(sql), "Metric \"" + name + "\"", true};
 }
 
 SqlSource SqlSource::FromMetricFile(std::string sql, const std::string& name) {
-  return SqlSource(std::move(sql), "Metric file \"" + name + "\"", false);
+  return {std::move(sql), "Metric file \"" + name + "\"", false};
 }
 
 SqlSource SqlSource::FromModuleInclude(std::string sql,
                                        const std::string& module) {
-  return SqlSource(std::move(sql), "Module include \"" + module + "\"", false);
+  return {std::move(sql), "Module include \"" + module + "\"", false};
 }
 
 SqlSource SqlSource::FromTraceProcessorImplementation(std::string sql) {
-  return SqlSource(std::move(sql), "Trace Processor Internal", false);
+  return {std::move(sql), "Trace Processor Internal", false};
 }
 
 std::string SqlSource::AsTraceback(uint32_t offset) const {
@@ -127,16 +132,7 @@ std::string SqlSource::AsTraceback(uint32_t offset) const {
 std::string SqlSource::AsTracebackForSqliteOffset(
     std::optional<uint32_t> opt_offset) const {
   uint32_t offset = opt_offset.value_or(0);
-  // Unfortunately, there is a bug in pre-3.41.2 versions of SQLite where
-  // sqlite3_error_offset can return an offset out of bounds. In these
-  // situations, zero the offset.
-#if SQLITE_VERSION_NUMBER < 3041002
-  if (offset >= sql().size()) {
-    offset = 0;
-  }
-#else
   PERFETTO_CHECK(offset <= sql().size());
-#endif
   return AsTraceback(offset);
 }
 
@@ -389,5 +385,4 @@ SqlSource SqlSource::Rewriter::Build() && {
   return SqlSource(std::move(orig_));
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

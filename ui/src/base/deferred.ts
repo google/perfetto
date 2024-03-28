@@ -14,7 +14,7 @@
 
 // Promise wrapper with exposed resolve and reject callbacks.
 export interface Deferred<T> extends Promise<T> {
-  readonly resolve: (value?: T|PromiseLike<T>) => void;
+  readonly resolve: (value?: T | PromiseLike<T>) => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly reject: (reason?: any) => void;
 }
@@ -25,7 +25,7 @@ export function defer<T>(): Deferred<T> {
   let resolve = null as any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let reject = null as any;
-  const p = new Promise((res, rej) => [resolve, reject] = [res, rej]);
+  const p = new Promise((res, rej) => ([resolve, reject] = [res, rej]));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return Object.assign(p, {resolve, reject}) as any;
 }

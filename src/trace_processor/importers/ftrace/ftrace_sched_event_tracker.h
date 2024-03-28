@@ -17,12 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_SCHED_EVENT_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_SCHED_EVENT_TRACKER_H_
 
+#include <cstdint>
+
 #include <array>
-#include <limits>
 
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/ext/base/utils.h"
-#include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_state.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/destructible.h"
@@ -39,10 +38,8 @@ class FtraceSchedEventTracker : public Destructible {
   explicit FtraceSchedEventTracker(TraceProcessorContext*);
   ~FtraceSchedEventTracker() override;
 
-  FtraceSchedEventTracker(
-      const FtraceSchedEventTracker& ftrace_sched_event_tracker) = delete;
-  FtraceSchedEventTracker& operator=(
-      const FtraceSchedEventTracker& ftrace_sched_event_tracker) = delete;
+  FtraceSchedEventTracker(const FtraceSchedEventTracker&) = delete;
+  FtraceSchedEventTracker& operator=(const FtraceSchedEventTracker&) = delete;
 
   static FtraceSchedEventTracker* GetOrCreate(TraceProcessorContext* context) {
     if (!context->ftrace_sched_tracker) {
@@ -82,7 +79,8 @@ class FtraceSchedEventTracker : public Destructible {
                               int64_t prev_state,
                               uint32_t next_pid,
                               int32_t next_prio,
-                              StringId next_comm_id);
+                              StringId next_comm_id,
+                              bool parse_only_into_raw);
 
   // This method is called when parsing a sched_waking encoded in the compact
   // format. Note that the default encoding is handled by
@@ -93,9 +91,12 @@ class FtraceSchedEventTracker : public Destructible {
                               uint16_t target_cpu,
                               uint16_t prio,
                               StringId comm_id,
-                              uint16_t common_flags);
+                              uint16_t common_flags,
+                              bool parse_only_into_raw);
 
  private:
+  StringId TaskStateToStringId(int64_t task_state_int);
+
   static constexpr uint8_t kSchedSwitchMaxFieldId = 7;
   std::array<StringId, kSchedSwitchMaxFieldId + 1> sched_switch_field_ids_;
   StringId sched_switch_id_;

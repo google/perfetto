@@ -69,6 +69,7 @@ TEST_F(PerfDataTrackerUnittest, FindMapping) {
   PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
   PerfDataTracker::Mmap2Record rec;
+  rec.cpu_mode = protos::pbzero::Profiling::MODE_USER;
   rec.filename = "file1";
   rec.num.addr = 1000;
   rec.num.len = 100;
@@ -94,6 +95,7 @@ TEST_F(PerfDataTrackerUnittest, FindMappingFalse) {
   PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
   PerfDataTracker::Mmap2Record rec;
+  rec.cpu_mode = protos::pbzero::Profiling::MODE_USER;
   rec.filename = "file1";
   rec.num.addr = 1000;
   rec.num.len = 100;

@@ -329,6 +329,24 @@ ENERGY_COUNTER_TRACK_TABLE = Table(
             'ordinal': 'ordinal of energy consumer'
         }))
 
+LINUX_DEVICE_TRACK_TABLE = Table(
+    python_module=__file__,
+    class_name='LinuxDeviceTrackTable',
+    sql_name='linux_device_track',
+    columns=[],
+    parent=TRACK_TABLE,
+    tabledoc=TableDoc(
+        doc='''
+          Slice data corresponding to runtime power state transitions
+          associated with Linux devices (where a Linux device is anything
+          managed by a Linux driver). The name of each track corresponds to the
+          device name as recognized by the linux kernel running on the system.
+        ''',
+        group='Tracks',
+        # No additional columns are needed because the track name implicitly
+        # serves as the device name, providing all required information.
+        columns={}))
+
 UID_COUNTER_TRACK_TABLE = Table(
     python_module=__file__,
     class_name='UidCounterTrackTable',
@@ -366,6 +384,7 @@ ALL_TABLES = [
     GPU_TRACK_TABLE,
     GPU_WORK_PERIOD_TRACK_TABLE,
     IRQ_COUNTER_TRACK_TABLE,
+    LINUX_DEVICE_TRACK_TABLE,
     PERF_COUNTER_TRACK_TABLE,
     PROCESS_COUNTER_TRACK_TABLE,
     PROCESS_TRACK_TABLE,

@@ -25,16 +25,15 @@ export class GpuSettings implements m.ClassComponent<RecordingSectionAttrs> {
         title: 'GPU frequency',
         img: 'rec_cpu_freq.png',
         descr: 'Records gpu frequency via ftrace',
-        setEnabled: (cfg, val) => cfg.gpuFreq = val,
+        setEnabled: (cfg, val) => (cfg.gpuFreq = val),
         isEnabled: (cfg) => cfg.gpuFreq,
       } as ProbeAttrs),
       m(Probe, {
         title: 'GPU memory',
         img: 'rec_gpu_mem_total.png',
-        descr:
-              `Allows to track per process and global total GPU memory usages.
+        descr: `Allows to track per process and global total GPU memory usages.
                 (Available on recent Android 12+ kernels)`,
-        setEnabled: (cfg, val) => cfg.gpuMemTotal = val,
+        setEnabled: (cfg, val) => (cfg.gpuMemTotal = val),
         isEnabled: (cfg) => cfg.gpuMemTotal,
       } as ProbeAttrs),
       m(Probe, {
@@ -42,8 +41,9 @@ export class GpuSettings implements m.ClassComponent<RecordingSectionAttrs> {
         img: 'rec_cpu_voltage.png',
         descr: `Allows to track per package GPU work.
                 (Available on recent Android 14+ kernels)`,
-        setEnabled: (cfg, val) => cfg.gpuWorkPeriod = val,
+        setEnabled: (cfg, val) => (cfg.gpuWorkPeriod = val),
         isEnabled: (cfg) => cfg.gpuWorkPeriod,
-      } as ProbeAttrs));
+      } as ProbeAttrs),
+    );
   }
 }

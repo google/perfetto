@@ -106,11 +106,11 @@
       cursor: pointer;
       width: 22px;
       font-size: 18px;
-      opacity: 0;
+      visibility: hidden;
     }
 
     .track-button.show {
-      opacity: 1;
+      visibility: visible;
     }
     .track-button.full-height {
       display: flex;
@@ -124,7 +124,7 @@
     }
 
     &:hover .track-button {
-      opacity: 1;
+      visibility: visible;
     }
     &.flash {
       background-color: #ffe263;

@@ -34,10 +34,10 @@ import {VegaView} from '../widgets/vega_view';
 import {globals} from './globals';
 import {createPage} from './pages';
 
-type Format = 'json'|'prototext'|'proto';
+type Format = 'json' | 'prototext' | 'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
 
-function getEngine(): EngineProxy|undefined {
+function getEngine(): EngineProxy | undefined {
   const engineId = globals.getCurrentEngine()?.id;
   if (engineId === undefined) {
     return undefined;
@@ -56,7 +56,10 @@ async function getMetrics(engine: EngineProxy): Promise<string[]> {
 }
 
 async function getMetric(
-  engine: EngineProxy, metric: string, format: Format): Promise<string> {
+  engine: EngineProxy,
+  metric: string,
+  format: Format,
+): Promise<string> {
   const result = await engine.computeMetric([metric], format);
   if (result instanceof Uint8Array) {
     return `Uint8Array<len=${result.length}>`;
@@ -92,11 +95,12 @@ class MetricsController {
   }
 
   get visualisations(): MetricVisualisation[] {
-    return this.plugins.metricVisualisations().filter(
-      (v) => v.metric === this.selected);
+    return this.plugins
+      .metricVisualisations()
+      .filter((v) => v.metric === this.selected);
   }
 
-  set selected(metric: string|undefined) {
+  set selected(metric: string | undefined) {
     if (this._selected === metric) {
       return;
     }
@@ -104,7 +108,7 @@ class MetricsController {
     this.update();
   }
 
-  get selected(): string|undefined {
+  get selected(): string | undefined {
     return this._selected;
   }
 
@@ -189,7 +193,8 @@ class MetricPicker implements m.ClassComponent<MetricPickerAttrs> {
     const {controller} = attrs;
     return m(
       '.metrics-page-picker',
-      m(Select,
+      m(
+        Select,
         {
           value: controller.selected,
           oninput: (e: Event) => {
@@ -197,21 +202,23 @@ class MetricPicker implements m.ClassComponent<MetricPickerAttrs> {
             controller.selected = (e.target as HTMLSelectElement).value;
           },
         },
-        controller.metrics.map(
-          (metric) =>
-            m('option',
-              {
-                value: metric,
-                key: metric,
-              },
-              metric))),
+        controller.metrics.map((metric) =>
+          m(
+            'option',
+            {
+              value: metric,
+              key: metric,
+            },
+            metric,
+          ),
+        ),
+      ),
       m(
         Select,
         {
           oninput: (e: Event) => {
             if (!e.target) return;
-            controller.format =
-                    (e.target as HTMLSelectElement).value as Format;
+            controller.format = (e.target as HTMLSelectElement).value as Format;
           },
         },
         FORMATS.map((f) => {
@@ -246,7 +253,7 @@ class MetricVizView implements m.ClassComponent<MetricVizViewAttrs> {
       }),
     );
   }
-};
+}
 
 class MetricPageContents implements m.ClassComponent {
   controller?: MetricsController;
@@ -270,14 +277,14 @@ class MetricPageContents implements m.ClassComponent {
       m(MetricPicker, {
         controller,
       }),
-      (controller.format === 'json') &&
-          controller.visualisations.map((visualisation) => {
-            let data = json;
-            for (const p of visualisation.path) {
-              data = data[p] ?? [];
-            }
-            return m(MetricVizView, {visualisation, data});
-          }),
+      controller.format === 'json' &&
+        controller.visualisations.map((visualisation) => {
+          let data = json;
+          for (const p of visualisation.path) {
+            data = data[p] ?? [];
+          }
+          return m(MetricVizView, {visualisation, data});
+        }),
       m(MetricResultView, {result: controller.result}),
     ];
   }

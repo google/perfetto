@@ -173,10 +173,13 @@ test('QueryResult.NullChecks', () => {
 
   const qr = createQueryResult({query: 'Some query'});
   qr.appendResultBatch(QueryResultProto.encode(resProto).finish());
-  const actualNums = new Array<number|null>();
-  const actualStrings = new Array<string|null>();
-  for (const iter = qr.iter({n: NUM_NULL, s: STR_NULL}); iter.valid();
-    iter.next()) {
+  const actualNums = new Array<number | null>();
+  const actualStrings = new Array<string | null>();
+  for (
+    const iter = qr.iter({n: NUM_NULL, s: STR_NULL});
+    iter.valid();
+    iter.next()
+  ) {
     actualNums.push(iter.n);
     actualStrings.push(iter.s);
   }
@@ -184,10 +187,12 @@ test('QueryResult.NullChecks', () => {
   expect(actualStrings).toEqual([null, 'a', 'b']);
 
   // Check that using NUM / STR throws.
-  expect(() => qr.iter({n: NUM_NULL, s: STR}))
-    .toThrowError(/col: 's'.*is NULL.*not expected/);
-  expect(() => qr.iter({n: NUM, s: STR_NULL}))
-    .toThrowError(/col: 'n'.*is NULL.*not expected/);
+  expect(() => qr.iter({n: NUM_NULL, s: STR})).toThrowError(
+    /col: 's'.*is NULL.*not expected/,
+  );
+  expect(() => qr.iter({n: NUM, s: STR_NULL})).toThrowError(
+    /col: 'n'.*is NULL.*not expected/,
+  );
   expect(qr.iter({n: NUM_NULL})).toBeTruthy();
   expect(qr.iter({s: STR_NULL})).toBeTruthy();
 });
@@ -233,22 +238,25 @@ test('QueryResult.LateError', () => {
   expect(qr.isComplete()).toBe(true);
 });
 
-
 test('QueryResult.MultipleBatches', async () => {
   const batch1 = QueryResultProto.create({
     columnNames: ['n'],
-    batch: [{
-      cells: [T.CELL_VARINT],
-      varintCells: [1],
-      isLastBatch: false,
-    }],
+    batch: [
+      {
+        cells: [T.CELL_VARINT],
+        varintCells: [1],
+        isLastBatch: false,
+      },
+    ],
   });
   const batch2 = QueryResultProto.create({
-    batch: [{
-      cells: [T.CELL_VARINT],
-      varintCells: [2],
-      isLastBatch: true,
-    }],
+    batch: [
+      {
+        cells: [T.CELL_VARINT],
+        varintCells: [2],
+        isLastBatch: true,
+      },
+    ],
   });
 
   const qr = createQueryResult({query: 'Some query'});
@@ -265,7 +273,6 @@ test('QueryResult.MultipleBatches', async () => {
   expect(awaitRes.numRows()).toBe(2);
   expect(qr.numRows()).toBe(2);
 });
-
 
 // Regression test for b/194891824 .
 test('QueryResult.DuplicateColumnNames', () => {
@@ -306,7 +313,6 @@ test('QueryResult.DuplicateColumnNames', () => {
   }
   expect(() => qr.iter({x_3: NUM})).toThrowError(/\bx_3\b.*not found/);
 });
-
 
 test('QueryResult.WaitMoreRows', async () => {
   const batchA = QueryResultProto.CellsBatch.create({
@@ -351,8 +357,9 @@ test('QueryResult.WaitMoreRows', async () => {
 
 describe('decodeInt64Varint', () => {
   test('Parsing empty input should throw an error', () => {
-    expect(() => decodeInt64Varint(new Uint8Array(), 0))
-      .toThrow('Index out of range');
+    expect(() => decodeInt64Varint(new Uint8Array(), 0)).toThrow(
+      'Index out of range',
+    );
   });
 
   test('Parsing single byte positive integers', () => {
@@ -375,16 +382,7 @@ describe('decodeInt64Varint', () => {
       [new Uint8Array([0xff, 0xff, 0x7f]), 2097151n],
       [
         new Uint8Array([
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0x00,
+          0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00,
         ]),
         9223372036854775807n,
       ],
@@ -399,46 +397,19 @@ describe('decodeInt64Varint', () => {
     const testData: Array<[Uint8Array, BigInt]> = [
       [
         new Uint8Array([
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0x01,
+          0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01,
         ]),
         -1n,
       ],
       [
         new Uint8Array([
-          0xfe,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0xff,
-          0x01,
+          0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x01,
         ]),
         -2n,
       ],
       [
         new Uint8Array([
-          0x80,
-          0x80,
-          0x80,
-          0x80,
-          0x80,
-          0x80,
-          0x80,
-          0x80,
-          0x80,
-          0x01,
+          0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01,
         ]),
         -9223372036854775808n,
       ],

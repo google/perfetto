@@ -56,12 +56,14 @@ interface Data {
 // join with the args table, as it means that trace processor can cache the
 // query on the key instead of invoking a function for each row of the entire
 // `slice` table.
-export type Filter = string|{
-  type: 'arg_filter',
-  argSetIdColumn: string,
-  argName: string,
-  op: string,
-}
+export type Filter =
+  | string
+  | {
+      type: 'arg_filter';
+      argSetIdColumn: string;
+      argName: string;
+      op: string;
+    };
 
 interface RowCount {
   // Total number of rows in view, excluding the pagination.
@@ -93,8 +95,11 @@ export class SqlTableState {
   private rowCount?: RowCount;
 
   constructor(
-    engine: EngineProxy, table: SqlTableDescription, filters?: Filter[],
-    imports?: string[]) {
+    engine: EngineProxy,
+    table: SqlTableDescription,
+    filters?: Filter[],
+    imports?: string[],
+  ) {
     this.engine_ = engine;
     this.table_ = table;
     this.additionalImports = imports || [];
@@ -145,8 +150,9 @@ export class SqlTableState {
           WHERE key = ${sqliteString(filter.argName)}
             AND display_value ${filter.op}
         `;
-        result.joins!.push(`JOIN ${cteName} ON ${cteName}.arg_set_id = ${
-          this.table.name}.${filter.argSetIdColumn}`);
+        result.joins!.push(
+          `JOIN ${cteName} ON ${cteName}.arg_set_id = ${this.table.name}.${filter.argSetIdColumn}`,
+        );
       }
     }
     return result;
@@ -173,9 +179,9 @@ export class SqlTableState {
   }
 
   buildSqlSelectStatement(): {
-    selectStatement: string,
-    columns: string[],
-    } {
+    selectStatement: string;
+    columns: string[];
+  } {
     const projections = this.getSQLProjections();
     const orderBy = this.orderBy.map((c) => ({
       fieldName: c.column.alias,
@@ -235,7 +241,7 @@ export class SqlTableState {
     this.reload({offset: 'keep'});
   }
 
-  getDisplayedRange(): {from: number, to: number}|undefined {
+  getDisplayedRange(): {from: number; to: number} | undefined {
     if (this.data === undefined) return undefined;
     return {
       from: this.offset + 1,
@@ -243,7 +249,7 @@ export class SqlTableState {
     };
   }
 
-  private async loadRowCount(): Promise<RowCount|undefined> {
+  private async loadRowCount(): Promise<RowCount | undefined> {
     const filters = Array.from(this.filters);
     const res = await this.engine.query(this.getCountRowsSQLQuery());
     if (res.error() !== undefined) return undefined;
@@ -270,7 +276,7 @@ export class SqlTableState {
     };
   }
 
-  private async reload(params?: {offset: 'reset'|'keep'}) {
+  private async reload(params?: {offset: 'reset' | 'keep'}) {
     if ((params?.offset ?? 'reset') === 'reset') {
       this.offset = 0;
     }
@@ -294,7 +300,7 @@ export class SqlTableState {
     raf.scheduleFullRedraw();
   }
 
-  getTotalRowCount(): number|undefined {
+  getTotalRowCount(): number | undefined {
     return this.rowCount?.count;
   }
 
@@ -302,7 +308,7 @@ export class SqlTableState {
     return this.data?.rows || [];
   }
 
-  getQueryError(): string|undefined {
+  getQueryError(): string | undefined {
     return this.data?.error;
   }
 
@@ -340,7 +346,7 @@ export class SqlTableState {
     this.reload();
   }
 
-  isSortedBy(column: Column): SortDirection|undefined {
+  isSortedBy(column: Column): SortDirection | undefined {
     if (this.orderBy.length === 0) return undefined;
     if (this.orderBy[0].column !== column) return undefined;
     return this.orderBy[0].direction;
@@ -364,4 +370,4 @@ export class SqlTableState {
   getSelectedColumns(): Column[] {
     return this.columns;
   }
-};
+}

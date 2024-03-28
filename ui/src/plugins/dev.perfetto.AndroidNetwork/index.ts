@@ -21,7 +21,6 @@ import {
 } from '../../public';
 import {addDebugSliceTrack} from '../../public';
 
-
 class AndroidNetwork implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
@@ -29,8 +28,11 @@ class AndroidNetwork implements Plugin {
   // must be start with ts, dur, and a name column. The name column and all
   // following columns are shown as arguments in slice details.
   async addSimpleTrack(
-    engine: EngineProxy, trackName: string, tableOrQuery: string,
-    columns: string[]): Promise<void> {
+    engine: EngineProxy,
+    trackName: string,
+    tableOrQuery: string,
+    columns: string[],
+  ): Promise<void> {
     await addDebugSliceTrack(
       engine,
       {
@@ -60,7 +62,8 @@ class AndroidNetwork implements Plugin {
           `(SELECT *
             FROM android_battery_stats_event_slices
             WHERE track_name = "${track}")`,
-          ['ts', 'dur', 'str_value', 'int_value']);
+          ['ts', 'dur', 'str_value', 'int_value'],
+        );
       },
     });
 
@@ -96,7 +99,8 @@ class AndroidNetwork implements Plugin {
           ctx.engine,
           trackName || 'Network Activity',
           `android_network_activity_${suffix}`,
-          ['ts', 'dur', ...groupCols, 'packet_length', 'packet_count']);
+          ['ts', 'dur', ...groupCols, 'packet_length', 'packet_count'],
+        );
       },
     });
   }

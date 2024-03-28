@@ -30,6 +30,7 @@ export class Icon implements m.ClassComponent<IconAttrs> {
     return m(
       filled ? 'i.material-icons-filled' : 'i.material-icons',
       htmlAttrs,
-      icon);
+      icon,
+    );
   }
 }

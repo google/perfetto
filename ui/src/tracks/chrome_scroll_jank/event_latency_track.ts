@@ -29,18 +29,18 @@ import {
   ScrollJankTracks as DecideTracksResult,
 } from './index';
 import {JANK_COLOR} from './jank_colors';
+import {getLegacySelection} from '../../common/state';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
 export interface EventLatencyTrackTypes extends NamedSliceTrackTypes {
-  config: {baseTable: string;}
+  config: {baseTable: string};
 }
 
 const CHROME_EVENT_LATENCY_TRACK_KIND =
-    'org.chromium.ScrollJank.event_latencies';
+  'org.chromium.ScrollJank.event_latencies';
 
-export class EventLatencyTrack extends
-  CustomSqlTableSliceTrack<EventLatencyTrackTypes> {
+export class EventLatencyTrack extends CustomSqlTableSliceTrack<EventLatencyTrackTypes> {
   static readonly kind = CHROME_EVENT_LATENCY_TRACK_KIND;
 
   constructor(args: NewTrackArgs, private baseTable: string) {
@@ -86,10 +86,12 @@ export class EventLatencyTrack extends
 
   onUpdatedSlices(slices: EventLatencyTrackTypes['slice'][]) {
     for (const slice of slices) {
-      const currentSelection = globals.state.currentSelection;
-      const isSelected = currentSelection &&
-          currentSelection.kind === 'GENERIC_SLICE' &&
-          currentSelection.id !== undefined && currentSelection.id === slice.id;
+      const currentSelection = getLegacySelection(globals.state);
+      const isSelected =
+        currentSelection &&
+        currentSelection.kind === 'GENERIC_SLICE' &&
+        currentSelection.id !== undefined &&
+        currentSelection.id === slice.id;
 
       const highlighted = globals.state.highlightedSliceId === slice.id;
       const hasFocus = highlighted || isSelected;

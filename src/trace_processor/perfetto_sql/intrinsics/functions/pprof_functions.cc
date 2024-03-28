@@ -21,6 +21,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -28,10 +29,12 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/profile_builder.h"
@@ -41,8 +44,7 @@
 // should cache this somewhere maybe even have a helper table that stores all
 // this data.
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 using protos::pbzero::Stack;
@@ -69,8 +71,8 @@ class AggregateContext {
   base::Status Step(size_t argc, sqlite3_value** argv) {
     RETURN_IF_ERROR(UpdateSampleValue(argc, argv));
 
-    base::StatusOr<SqlValue> value =
-        sqlite_utils::ExtractArgument(argc, argv, "stack", 0, SqlValue::kBytes);
+    base::StatusOr<SqlValue> value = sqlite::utils::ExtractArgument(
+        argc, argv, "stack", 0, SqlValue::kBytes);
     if (!value.ok()) {
       return value.status();
     }
@@ -78,7 +80,7 @@ class AggregateContext {
     Stack::Decoder stack(static_cast<const uint8_t*>(value->bytes_value),
                          value->bytes_count);
     if (stack.bytes_left() != 0) {
-      return sqlite_utils::ToInvalidArgumentError(
+      return sqlite::utils::ToInvalidArgumentError(
           "stack", 0, base::ErrStatus("failed to deserialize Stack proto"));
     }
     if (!builder_.AddSample(stack, sample_values_)) {
@@ -94,8 +96,8 @@ class AggregateContext {
     std::unique_ptr<uint8_t[], base::FreeDeleter> data(
         static_cast<uint8_t*>(malloc(profile_proto.size())));
     memcpy(data.get(), profile_proto.data(), profile_proto.size());
-    sqlite3_result_blob(ctx, data.release(),
-                        static_cast<int>(profile_proto.size()), free);
+    return sqlite::result::RawBytes(
+        ctx, data.release(), static_cast<int>(profile_proto.size()), free);
   }
 
  private:
@@ -109,13 +111,13 @@ class AggregateContext {
     }
 
     for (size_t i = 1; i < argc; i += 3) {
-      base::StatusOr<SqlValue> type = sqlite_utils::ExtractArgument(
+      base::StatusOr<SqlValue> type = sqlite::utils::ExtractArgument(
           argc, argv, "sample_type", i, SqlValue::kString);
       if (!type.ok()) {
         return type.status();
       }
 
-      base::StatusOr<SqlValue> units = sqlite_utils::ExtractArgument(
+      base::StatusOr<SqlValue> units = sqlite::utils::ExtractArgument(
           argc, argv, "sample_units", i + 1, SqlValue::kString);
       if (!units.ok()) {
         return units.status();
@@ -140,7 +142,7 @@ class AggregateContext {
 
     PERFETTO_CHECK(argc == 1 + (sample_values_.size() * 3));
     for (size_t i = 0; i < sample_values_.size(); ++i) {
-      base::StatusOr<SqlValue> value = sqlite_utils::ExtractArgument(
+      base::StatusOr<SqlValue> value = sqlite::utils::ExtractArgument(
           argc, argv, "sample_value", 3 + i * 3, SqlValue::kLong);
       if (!value.ok()) {
         return value.status();
@@ -155,17 +157,17 @@ class AggregateContext {
   std::vector<int64_t> sample_values_;
 };
 
-static base::Status Step(sqlite3_context* ctx,
-                         size_t argc,
-                         sqlite3_value** argv) {
-  AggregateContext** agg_context_ptr = static_cast<AggregateContext**>(
+base::Status StepStatus(sqlite3_context* ctx,
+                        size_t argc,
+                        sqlite3_value** argv) {
+  auto** agg_context_ptr = static_cast<AggregateContext**>(
       sqlite3_aggregate_context(ctx, sizeof(AggregateContext*)));
   if (!agg_context_ptr) {
     return base::ErrStatus("Failed to allocate aggregate context");
   }
 
   if (!*agg_context_ptr) {
-    TraceProcessorContext* tp_context =
+    auto* tp_context =
         static_cast<TraceProcessorContext*>(sqlite3_user_data(ctx));
     base::StatusOr<std::unique_ptr<AggregateContext>> agg_context =
         AggregateContext::Create(tp_context, argc, argv);
@@ -179,43 +181,39 @@ static base::Status Step(sqlite3_context* ctx,
   return (*agg_context_ptr)->Step(argc, argv);
 }
 
-static void StepWrapper(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-  PERFETTO_CHECK(argc >= 0);
+struct ProfileBuilder {
+  using UserDataContext = TraceProcessorContext;
 
-  base::Status status = Step(ctx, static_cast<size_t>(argc), argv);
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_CHECK(argc >= 0);
 
-  if (!status.ok()) {
-    sqlite_utils::SetSqliteError(ctx, kFunctionName, status);
-  }
-}
+    base::Status status = StepStatus(ctx, static_cast<size_t>(argc), argv);
 
-static void FinalWrapper(sqlite3_context* ctx) {
-  AggregateContext** agg_context_ptr =
-      static_cast<AggregateContext**>(sqlite3_aggregate_context(ctx, 0));
-
-  if (!agg_context_ptr) {
-    return;
+    if (!status.ok()) {
+      sqlite::utils::SetError(ctx, kFunctionName, status);
+    }
   }
 
-  (*agg_context_ptr)->Final(ctx);
+  static void Final(sqlite3_context* ctx) {
+    auto** agg_context_ptr =
+        static_cast<AggregateContext**>(sqlite3_aggregate_context(ctx, 0));
 
-  delete (*agg_context_ptr);
-}
+    if (!agg_context_ptr) {
+      return;
+    }
+
+    (*agg_context_ptr)->Final(ctx);
+
+    delete (*agg_context_ptr);
+  }
+};
 
 }  // namespace
 
-base::Status PprofFunctions::Register(sqlite3* db,
+base::Status PprofFunctions::Register(PerfettoSqlEngine& engine,
                                       TraceProcessorContext* context) {
-  int flags = SQLITE_UTF8 | SQLITE_DETERMINISTIC;
-  int ret =
-      sqlite3_create_function_v2(db, kFunctionName, -1, flags, context, nullptr,
-                                 StepWrapper, FinalWrapper, nullptr);
-  if (ret != SQLITE_OK) {
-    return base::ErrStatus("Unable to register function with name %s",
-                           kFunctionName);
-  }
-  return base::OkStatus();
+  return engine.RegisterSqliteAggregateFunction<ProfileBuilder>(kFunctionName,
+                                                                -1, context);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

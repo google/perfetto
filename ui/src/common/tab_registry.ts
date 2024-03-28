@@ -59,7 +59,7 @@ export class TabManager implements Disposable {
     });
   }
 
-  resolveTab(uri: string): TabDescriptor|undefined {
+  resolveTab(uri: string): TabDescriptor | undefined {
     return this._registry.get(uri);
   }
 

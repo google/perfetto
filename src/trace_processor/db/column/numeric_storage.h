@@ -42,13 +42,11 @@ class NumericStorageBase : public DataLayer {
 
     RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-    RangeOrBitVector IndexSearchValidated(FilterOp,
-                                          SqlValue,
-                                          Indices) const override;
+    void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
     Range OrderedIndexSearchValidated(FilterOp,
                                       SqlValue,
-                                      Indices) const override;
+                                      const OrderedIndices&) const override;
 
     void Serialize(StorageProto*) const override;
 
@@ -62,11 +60,6 @@ class NumericStorageBase : public DataLayer {
     using NumericValue = std::variant<uint32_t, int32_t, int64_t, double>;
 
     BitVector LinearSearchInternal(FilterOp op, NumericValue val, Range) const;
-
-    BitVector IndexSearchInternal(FilterOp op,
-                                  NumericValue value,
-                                  const uint32_t* indices,
-                                  uint32_t indices_count) const;
 
     Range BinarySearchIntrinsic(FilterOp op,
                                 NumericValue val,

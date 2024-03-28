@@ -40,25 +40,12 @@ test('string_utils.bufferToBase64', () => {
 test('string_utils.utf8EncodeAndDecode', () => {
   const testString = '¡HéllØ wörld!';
   const buffer = utf8Encode(testString);
-  expect(buffer).toEqual(new Uint8Array([
-    194,
-    161,
-    72,
-    195,
-    169,
-    108,
-    108,
-    195,
-    152,
-    32,
-    119,
-    195,
-    182,
-    114,
-    108,
-    100,
-    33,
-  ]));
+  expect(buffer).toEqual(
+    new Uint8Array([
+      194, 161, 72, 195, 169, 108, 108, 195, 152, 32, 119, 195, 182, 114, 108,
+      100, 33,
+    ]),
+  );
   expect(utf8Decode(buffer)).toEqual(testString);
 });
 
@@ -76,7 +63,7 @@ test('string_utils.binaryEncodeAndDecode', () => {
 });
 
 test('string_utils.sqliteString', () => {
-  expect(sqliteString('that\'s it')).toEqual('\'that\'\'s it\'');
-  expect(sqliteString('no quotes')).toEqual('\'no quotes\'');
+  expect(sqliteString("that's it")).toEqual("'that''s it'");
+  expect(sqliteString('no quotes')).toEqual("'no quotes'");
   expect(sqliteString(`foo ' bar '`)).toEqual(`'foo '' bar '''`);
 });

@@ -20,6 +20,7 @@
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
@@ -4912,8 +4913,9 @@ TEST_F(TracingServiceImplTest, CloneSessionAcrossUidDenied) {
   task_runner.RunUntilCheckpoint("clone_done");
 }
 
-// Test that a consumer can clone a session from a different uid if the trace is
-// marked as eligible for bugreport.
+// Test that a consumer can clone a session from the shell uid if the trace is
+// marked as eligible for bugreport. Android only.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 TEST_F(TracingServiceImplTest, CloneSessionAcrossUidForBugreport) {
   // The consumer the creates the initial tracing session.
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
@@ -4925,7 +4927,7 @@ TEST_F(TracingServiceImplTest, CloneSessionAcrossUidForBugreport) {
 
   // The consumer that clones it and reads back the data.
   std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
-  clone_consumer->Connect(svc.get(), 1234);
+  clone_consumer->Connect(svc.get(), AID_SHELL);
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(32);
@@ -4976,6 +4978,7 @@ TEST_F(TracingServiceImplTest, CloneSessionAcrossUidForBugreport) {
                                          Property(&protos::gen::TestEvent::str,
                                                   HasSubstr("payload")))));
 }
+#endif  // OS_ANDROID
 
 TEST_F(TracingServiceImplTest, TransferOnClone) {
   // The consumer the creates the initial tracing session.

@@ -48,7 +48,7 @@ import {scheduleFullRedraw} from './raf';
 export interface ModalAttrs {
   title: string;
   buttons?: ModalButton[];
-  vAlign?: 'MIDDLE' /* default */|'TOP';
+  vAlign?: 'MIDDLE' /* default */ | 'TOP';
 
   // Used to disambiguate between different modal dialogs that might overlap
   // due to different client showing modal dialogs at the same time. This needs
@@ -63,7 +63,7 @@ export interface ModalAttrs {
   // The content/body of the modal dialog. This can be either:
   // 1. A static set of children, for simple dialogs which content never change.
   // 2. A factory method that returns a m() vnode for dyamic content.
-  content?: m.Children|(() => m.Children)
+  content?: m.Children | (() => m.Children);
 }
 
 export interface ModalButton {
@@ -113,10 +113,9 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
       }
       // If the modal dialog is instantiated in a tall scrollable container,
       // make sure to scroll it into the view.
-      vnode.dom.scrollIntoView({'block': 'center'});
+      vnode.dom.scrollIntoView({block: 'center'});
     }
   }
-
 
   view(vnode: m.Vnode<ModalAttrs>) {
     const attrs = vnode.attrs;
@@ -124,7 +123,8 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
     const buttons: m.Children = [];
     for (const button of attrs.buttons || []) {
       buttons.push(
-        m('button.modal-btn',
+        m(
+          'button.modal-btn',
           {
             class: button.primary ? 'modal-btn-primary' : '',
             id: button.id,
@@ -133,7 +133,9 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
               if (button.action !== undefined) button.action();
             },
           },
-          button.text));
+          button.text,
+        ),
+      );
     }
 
     const aria = '[aria-labelledby=mm-title][aria-model][role=dialog]';
@@ -159,7 +161,8 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
         ),
         m('main', vnode.children),
         buttons.length > 0 ? m('footer', buttons) : null,
-      ));
+      ),
+    );
   }
 
   onBackdropClick(attrs: ModalAttrs, e: MouseEvent) {
@@ -181,9 +184,8 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
 }
 
 // Set by showModal().
-let currentModal: ModalAttrs|undefined = undefined;
+let currentModal: ModalAttrs | undefined = undefined;
 let generationCounter = 0;
-
 
 // This should be called only by app.ts and nothing else.
 // This generates the modal dialog at the root of the DOM, so it can overlay
@@ -232,8 +234,10 @@ export async function showModal(userAttrs: ModalAttrs): Promise<void> {
 // in the meanwhile. If undefined, it closes whatever modal dialog is currently
 // open (if any).
 export function closeModal(key?: string) {
-  if (currentModal === undefined ||
-      (key !== undefined && currentModal.key !== key)) {
+  if (
+    currentModal === undefined ||
+    (key !== undefined && currentModal.key !== key)
+  ) {
     // Somebody else closed the modal dialog already, or opened a new one with
     // a different key.
     return;
@@ -242,6 +246,6 @@ export function closeModal(key?: string) {
   scheduleFullRedraw();
 }
 
-export function getCurrentModalKey(): string|undefined {
+export function getCurrentModalKey(): string | undefined {
   return currentModal?.key;
 }

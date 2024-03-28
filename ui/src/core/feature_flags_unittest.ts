@@ -44,11 +44,13 @@ test('registering the same flag twice is an error', () => {
     defaultValue: false,
     description: '',
   });
-  expect(() => flags.register({
-    id: 'foo',
-    defaultValue: false,
-    description: '',
-  })).toThrow('Flag with id "foo" is already registered.');
+  expect(() =>
+    flags.register({
+      id: 'foo',
+      defaultValue: false,
+      description: '',
+    }),
+  ).toThrow('Flag with id "foo" is already registered.');
 });
 
 test('can override', () => {
@@ -102,7 +104,7 @@ test('flags can be reset', () => {
 test('corrupt store is ignored', () => {
   class Store {
     load(): object {
-      return {'foo': 'bad state'};
+      return {foo: 'bad state'};
     }
 
     save(_: object): void {}

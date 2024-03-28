@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {Actions} from '../../common/actions';
-import {colorForState} from '../../common/colorizer';
-import {Selection} from '../../common/state';
+import {colorForState} from '../../core/colorizer';
+import {LegacySelection} from '../../common/state';
 import {translateState} from '../../common/thread_state';
 import {
   BASE_ROW,
@@ -77,8 +77,9 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
     `;
   }
 
-  rowToSlice(row: ThreadStateTrackTypes['row']):
-      ThreadStateTrackTypes['slice'] {
+  rowToSlice(
+    row: ThreadStateTrackTypes['row'],
+  ): ThreadStateTrackTypes['slice'] {
     const baseSlice = super.rowToSlice(row);
     const ioWait = row.ioWait === null ? undefined : !!row.ioWait;
     const title = translateState(row.state, ioWait);
@@ -88,18 +89,20 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
 
   onUpdatedSlices(slices: ThreadStateTrackTypes['slice'][]) {
     for (const slice of slices) {
-      slice.isHighlighted = (slice === this.hoveredSlice);
+      slice.isHighlighted = slice === this.hoveredSlice;
     }
   }
 
   onSliceClick(args: OnSliceClickArgs<ThreadStateTrackTypes['slice']>) {
-    globals.makeSelection(Actions.selectThreadState({
-      id: args.slice.id,
-      trackKey: this.trackKey,
-    }));
+    globals.makeSelection(
+      Actions.selectThreadState({
+        id: args.slice.id,
+        trackKey: this.trackKey,
+      }),
+    );
   }
 
-  protected isSelectionHandled(selection: Selection): boolean {
+  protected isSelectionHandled(selection: LegacySelection): boolean {
     return selection.kind === 'THREAD_STATE';
   }
 }

@@ -16,13 +16,13 @@ import m from 'mithril';
 
 import {Hotkey} from '../base/hotkeys';
 import {duration, time} from '../base/time';
-import {ColorScheme} from '../common/colorizer';
-import {Selection} from '../common/state';
+import {Migrate, Store} from '../base/store';
+import {ColorScheme} from '../core/colorizer';
+import {LegacySelection} from '../common/state';
 import {PanelSize} from '../frontend/panel';
-import {Migrate, Store} from '../frontend/store';
 import {EngineProxy} from '../trace_processor/engine';
+import {UntypedEventSet} from '../core/event_set';
 
-export {createStore, Migrate, Store} from '../frontend/store';
 export {EngineProxy} from '../trace_processor/engine';
 export {
   LONG,
@@ -33,6 +33,7 @@ export {
   STR_NULL,
 } from '../trace_processor/query_result';
 export {BottomTabToSCSAdapter} from './utils';
+export {createStore, Migrate, Store} from '../base/store';
 
 // This is a temporary fix until this is available in the plugin API.
 export {
@@ -182,7 +183,7 @@ export interface Track {
    * will be queued up and the hook will be called later once onCreate returns.
    * @param ctx Our track context object.
    */
-  onCreate?(ctx: TrackContext): Promise<void>|void;
+  onCreate?(ctx: TrackContext): Promise<void> | void;
 
   /**
    * Optional: Called every render cycle while the track is visible, just before
@@ -190,7 +191,7 @@ export interface Track {
    * If this function returns a Promise, this promise is awaited before another
    * onUpdate is called or onDestroy is called.
    */
-  onUpdate?(): Promise<void>|void;
+  onUpdate?(): Promise<void> | void;
 
   /**
    * Optional: Called when the track is no longer visible. Should be used to
@@ -198,16 +199,21 @@ export interface Track {
    * This function can return nothing or a promise. The promise is currently
    * ignored.
    */
-  onDestroy?(): Promise<void>|void;
+  onDestroy?(): Promise<void> | void;
 
   render(ctx: CanvasRenderingContext2D, size: PanelSize): void;
   onFullRedraw?(): void;
-  getSliceRect?(tStart: time, tEnd: time, depth: number): SliceRect|undefined;
+  getSliceRect?(tStart: time, tEnd: time, depth: number): SliceRect | undefined;
   getHeight(): number;
   getTrackShellButtons?(): m.Children;
-  onMouseMove?(position: {x: number, y: number}): void;
-  onMouseClick?(position: {x: number, y: number}): boolean;
+  onMouseMove?(position: {x: number; y: number}): void;
+  onMouseClick?(position: {x: number; y: number}): boolean;
   onMouseOut?(): void;
+
+  /**
+   * Optional: Get the event set that represents this track's data.
+   */
+  getEventSet?(): UntypedEventSet;
 }
 
 // A definition of a track, including a renderer implementation and metadata.
@@ -317,15 +323,15 @@ export interface Tab {
 }
 
 export interface TabDescriptor {
-  uri: string;  // TODO(stevegolton): Maybe optional for ephemeral tabs.
+  uri: string; // TODO(stevegolton): Maybe optional for ephemeral tabs.
   content: Tab;
-  isEphemeral?: boolean;  // Defaults false
+  isEphemeral?: boolean; // Defaults false
   onHide?(): void;
   onShow?(): void;
 }
 
 export interface DetailsPanel {
-  render(selection: Selection): m.Children;
+  render(selection: LegacySelection): m.Children;
   isLoading?(): boolean;
 }
 
@@ -370,7 +376,7 @@ export interface PluginContextTrace extends PluginContext {
 
     // Bring a timestamp into view.
     panToTimestamp(ts: time): void;
-  }
+  };
 
   // Control over the bottom details pane.
   tabs: {
@@ -382,7 +388,7 @@ export interface PluginContextTrace extends PluginContext {
 
     // Remove a tab from the tab bar.
     hideTab(uri: string): void;
-  }
+  };
 
   // Register a new track against a unique key known as a URI.
   // Once a track is registered it can be referenced multiple times on the
@@ -400,7 +406,7 @@ export interface PluginContextTrace extends PluginContext {
   // Simultaneously register a track and add it as a default track in one go.
   // This is simply a helper which calls registerTrack() and addDefaultTrack()
   // with the same URI.
-  registerStaticTrack(track: TrackDescriptor&TrackRef): void;
+  registerStaticTrack(track: TrackDescriptor & TrackRef): void;
 
   // Register a new tab for this plugin. Will be unregistered when the plugin
   // is deactivated or when the trace is unloaded.
@@ -440,7 +446,7 @@ export interface Plugin {
 // ... which can then be passed around by class i.e. MyPlugin
 export interface PluginClass {
   // Instantiate the plugin.
-  new(): Plugin;
+  new (): Plugin;
 }
 
 // Describes a reference to a registered track.
@@ -493,14 +499,14 @@ interface WellKnownTrackTags {
 // (in future) the sorting and grouping of tracks.
 // We define a handful of well known fields, and the rest are arbitrary key-
 // value pairs.
-export type TrackTags = Partial<WellKnownTrackTags>&{
+export type TrackTags = Partial<WellKnownTrackTags> & {
   // There may be arbitrary other key/value pairs.
-  [key: string]: string|number|boolean|undefined;
-}
+  [key: string]: string | number | boolean | undefined;
+};
 
 // Plugins can be passed as class refs, factory functions, or concrete plugin
 // implementations.
-export type PluginFactory = PluginClass|Plugin|(() => Plugin);
+export type PluginFactory = PluginClass | Plugin | (() => Plugin);
 
 export interface PluginDescriptor {
   // A unique string for your plugin. To ensure the name is unique you

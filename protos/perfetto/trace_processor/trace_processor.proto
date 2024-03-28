@@ -326,4 +326,5 @@ message ResetTraceProcessorArgs {
   optional DropTrackEventDataBefore drop_track_event_data_before = 1;
   optional bool ingest_ftrace_in_raw_table = 2;
   optional bool analyze_trace_proto_content = 3;
+  optional bool ftrace_drop_until_all_cpus_valid = 4;
 }

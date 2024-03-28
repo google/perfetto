@@ -30,8 +30,7 @@
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class SyscallTracker : public Destructible {
  public:
@@ -57,8 +56,16 @@ class SyscallTracker : public Destructible {
       return;
 
     TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
-    context_->slice_tracker->Begin(ts, track_id, kNullStringId /* cat */, name,
-                                   args_callback);
+
+    // sys_rt_sigreturn does not return so should be inserted as an instant
+    // event. See https://github.com/google/perfetto/issues/733 for details.
+    if (name == sys_rt_sigreturn_string_id_) {
+      context_->slice_tracker->Scoped(ts, track_id, kNullStringId, name, 0,
+                                      args_callback);
+    } else {
+      context_->slice_tracker->Begin(ts, track_id, kNullStringId /* cat */,
+                                     name, args_callback);
+    }
 
     if (name == sys_write_string_id_) {
       if (utid >= in_sys_write_.size())
@@ -124,11 +131,11 @@ class SyscallTracker : public Destructible {
   // the relevant StringId (this avoids having to always do two conversions).
   std::array<StringId, kMaxSyscalls> arch_syscall_to_string_id_{};
   StringId sys_write_string_id_ = std::numeric_limits<StringId>::max();
+  StringId sys_rt_sigreturn_string_id_ = std::numeric_limits<StringId>::max();
   // UniqueTids currently in a sys_write syscall.
   BitVector in_sys_write_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_SYSCALLS_SYSCALL_TRACKER_H_

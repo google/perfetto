@@ -16,12 +16,11 @@
 
 #include "src/tracing/service/tracing_service_impl.h"
 
-#include <errno.h>
 #include <limits.h>
-#include <stdint.h>
 #include <string.h>
 
 #include <cinttypes>
+#include <cstdint>
 #include <limits>
 #include <optional>
 #include <regex>
@@ -59,7 +58,8 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/metatrace.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/temp_file.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/version.h"
@@ -156,8 +156,8 @@ ssize_t writev(int fd, const struct iovec* iov, int iovcnt) {
 // Format (by bit range):
 // [   31 ][         30 ][             29:20 ][            19:10 ][        9:0]
 // [unused][has flush id][num chunks to patch][num chunks to move][producer id]
-static int32_t EncodeCommitDataRequest(ProducerID producer_id,
-                                       const CommitDataRequest& req_untrusted) {
+int32_t EncodeCommitDataRequest(ProducerID producer_id,
+                                const CommitDataRequest& req_untrusted) {
   uint32_t cmov = static_cast<uint32_t>(req_untrusted.chunks_to_move_size());
   uint32_t cpatch = static_cast<uint32_t>(req_untrusted.chunks_to_patch_size());
   uint32_t has_flush_id = req_untrusted.flush_request_id() != 0;
@@ -1015,7 +1015,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     auto range = data_sources_.equal_range(cfg_data_source.config().name());
     for (auto it = range.first; it != range.second; it++) {
       TraceConfig::ProducerConfig producer_config;
-      for (auto& config : cfg.producers()) {
+      for (const auto& config : cfg.producers()) {
         if (GetProducer(it->second.producer_id)->name_ ==
             config.producer_name()) {
           producer_config = config;
@@ -1184,7 +1184,7 @@ void TracingServiceImpl::ChangeTraceConfig(ConsumerEndpointImpl* consumer,
       // If it wasn't previously setup, set it up now.
       // (The per-producer config is optional).
       TraceConfig::ProducerConfig producer_config;
-      for (auto& config : tracing_session->config.producers()) {
+      for (const auto& config : tracing_session->config.producers()) {
         if (producer->name_ == config.producer_name()) {
           producer_config = config;
           break;
@@ -1796,13 +1796,13 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
     data_source_instances[producer_id].push_back(ds_inst.instance_id);
   }
   FlushDataSourceInstances(tracing_session, timeout_ms, data_source_instances,
-                           callback, flush_flags);
+                           std::move(callback), flush_flags);
 }
 
 void TracingServiceImpl::FlushDataSourceInstances(
     TracingSession* tracing_session,
     uint32_t timeout_ms,
-    std::map<ProducerID, std::vector<DataSourceInstanceID>>
+    const std::map<ProducerID, std::vector<DataSourceInstanceID>>&
         data_source_instances,
     ConsumerEndpoint::FlushCallback callback,
     FlushFlags flush_flags) {
@@ -2706,7 +2706,7 @@ void TracingServiceImpl::RegisterDataSource(ProducerID producer_id,
     }
 
     TraceConfig::ProducerConfig producer_config;
-    for (auto& config : tracing_session.config.producers()) {
+    for (const auto& config : tracing_session.config.producers()) {
       if (producer->name_ == config.producer_name()) {
         producer_config = config;
         break;
@@ -3519,6 +3519,8 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
     utsname_info->set_machine(uname_info.machine);
     utsname_info->set_release(uname_info.release);
   }
+  info->set_page_size(static_cast<uint32_t>(sysconf(_SC_PAGESIZE)));
+  info->set_num_cpus(static_cast<uint32_t>(sysconf(_SC_NPROCESSORS_CONF)));
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   std::string fingerprint_value = base::GetAndroidProp("ro.build.fingerprint");
@@ -3535,8 +3537,6 @@ void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
   } else {
     PERFETTO_ELOG("Unable to read ro.build.version.sdk");
   }
-  info->set_hz(sysconf(_SC_CLK_TCK));
-  info->set_page_size(static_cast<uint32_t>(sysconf(_SC_PAGESIZE)));
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   packet->set_trusted_uid(static_cast<int32_t>(uid_));
   packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
@@ -3573,7 +3573,7 @@ void TracingServiceImpl::EmitLifecycleEvents(
               return a.first < b.first;
             });
 
-  for (const auto& pair : timestamped_packets)
+  for (auto& pair : timestamped_packets)
     SerializeAndAppendPacket(packets, std::move(pair.second));
 }
 
@@ -3608,14 +3608,14 @@ void TracingServiceImpl::MaybeEmitRemoteClockSync(
       auto* sync_exchange_msg = remote_clock_sync->add_synced_clocks();
 
       auto* client_snapshots = sync_exchange_msg->set_client_clocks();
-      for (auto& client_clock : sync_exchange.client_clocks) {
+      for (const auto& client_clock : sync_exchange.client_clocks) {
         auto* clock = client_snapshots->add_clocks();
         clock->set_clock_id(client_clock.clock_id);
         clock->set_timestamp(client_clock.timestamp);
       }
 
       auto* host_snapshots = sync_exchange_msg->set_host_clocks();
-      for (auto& host_clock : sync_exchange.host_clocks) {
+      for (const auto& host_clock : sync_exchange.host_clocks) {
         auto* clock = host_snapshots->add_clocks();
         clock->set_clock_id(host_clock.clock_id);
         clock->set_timestamp(host_clock.timestamp);
@@ -3805,7 +3805,7 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
 std::map<ProducerID, std::vector<DataSourceInstanceID>>
 TracingServiceImpl::GetFlushableDataSourceInstancesForBuffers(
     TracingSession* session,
-    std::set<BufferID> bufs) {
+    const std::set<BufferID>& bufs) {
   std::map<ProducerID, std::vector<DataSourceInstanceID>> data_source_instances;
 
   for (const auto& [producer_id, ds_inst] : session->data_source_instances) {
@@ -3825,7 +3825,7 @@ TracingServiceImpl::GetFlushableDataSourceInstancesForBuffers(
 
 void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
                                              PendingCloneID clone_id,
-                                             std::set<BufferID> buf_ids,
+                                             const std::set<BufferID>& buf_ids,
                                              bool final_flush_outcome) {
   TracingSession* src = GetTracingSession(tsid);
   // The session might be gone by the time we try to clone it.
@@ -3881,7 +3881,7 @@ void TracingServiceImpl::OnFlushDoneForClone(TracingSessionID tsid,
 
 bool TracingServiceImpl::DoCloneBuffers(
     TracingSession* src,
-    std::set<BufferID> buf_ids,
+    const std::set<BufferID>& buf_ids,
     std::vector<std::unique_ptr<TraceBuffer>>* buf_snaps) {
   PERFETTO_DCHECK(src->num_buffers() == src->config.buffers().size());
   buf_snaps->resize(src->buffers_index.size());
@@ -3940,8 +3940,7 @@ base::Status TracingServiceImpl::FinishCloneSession(
   // Skip the UID check for sessions marked with a bugreport_score > 0.
   // Those sessions, by design, can be stolen by any other consumer for the
   // sake of creating snapshots for bugreports.
-  if (src->config.bugreport_score() <= 0 &&
-      src->consumer_uid != consumer->uid_ && consumer->uid_ != 0) {
+  if (!src->IsCloneAllowed(consumer->uid_)) {
     return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
   }
 
@@ -4027,6 +4026,20 @@ base::Status TracingServiceImpl::FinishCloneSession(
                                             ? TraceStats::FINAL_FLUSH_SUCCEEDED
                                             : TraceStats::FINAL_FLUSH_FAILED;
   return base::OkStatus();
+}
+
+bool TracingServiceImpl::TracingSession::IsCloneAllowed(uid_t clone_uid) const {
+  if (clone_uid == 0)
+    return true;  // Root is always allowed to clone everything.
+  if (clone_uid == this->consumer_uid)
+    return true;  // Allow cloning if the uids match.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // On Android allow shell to clone sessions marked as exported for bugreport.
+  // Dumpstate (invoked by adb bugreport) invokes commands as shell.
+  if (clone_uid == AID_SHELL && this->config.bugreport_score() > 0)
+    return true;
+#endif
+  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4273,7 +4286,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
   int num_started = 0;
   for (const auto& kv : sessions)
     num_started += kv.second.state == TracingSession::State::STARTED ? 1 : 0;
-  svc_state.set_num_sessions_started(static_cast<int>(num_started));
+  svc_state.set_num_sessions_started(num_started);
 
   for (const auto& kv : service_->producers_) {
     if (args.sessions_only)
@@ -4299,8 +4312,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::QueryServiceState(
   svc_state.set_supports_tracing_sessions(true);
   for (const auto& kv : service_->tracing_sessions_) {
     const TracingSession& s = kv.second;
-    // List only tracing sessions for the calling UID (or everything for root).
-    if (uid_ != 0 && uid_ != s.consumer_uid)
+    if (!s.IsCloneAllowed(uid_))
       continue;
     auto* session = svc_state.add_tracing_sessions();
     session->set_id(s.id);

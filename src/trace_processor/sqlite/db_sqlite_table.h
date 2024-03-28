@@ -89,7 +89,7 @@ class DbSqliteTable final
   using Context = DbSqliteTableContext;
   using TableComputation = Context::Computation;
 
-  class Cursor final : public SqliteTable::BaseCursor {
+  class Cursor final : public SqliteTableLegacy::BaseCursor {
    public:
     Cursor(DbSqliteTable*, QueryCache*);
     ~Cursor() final;
@@ -100,7 +100,7 @@ class DbSqliteTable final
     Cursor(Cursor&&) noexcept = delete;
     Cursor& operator=(Cursor&&) = delete;
 
-    // Implementation of SqliteTable::Cursor.
+    // Implementation of SqliteTableLegacy::Cursor.
     base::Status Filter(const QueryConstraints& qc,
                         sqlite3_value** argv,
                         FilterHistory);
@@ -128,8 +128,8 @@ class DbSqliteTable final
       // long as we don't call Next(). However, that only happens when Next() is
       // called on the Cursor itself, at which point SQLite no longer cares
       // about the bytes pointer.
-      sqlite_utils::ReportSqlValue(ctx, value, sqlite_utils::kSqliteStatic,
-                                   sqlite_utils::kSqliteStatic);
+      sqlite::utils::ReportSqlValue(ctx, value, sqlite::utils::kSqliteStatic,
+                                    sqlite::utils::kSqliteStatic);
     }
 
    private:
@@ -197,15 +197,15 @@ class DbSqliteTable final
   virtual ~DbSqliteTable() final;
 
   // Table implementation.
-  base::Status Init(int, const char* const*, SqliteTable::Schema*) final;
-  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
+  base::Status Init(int, const char* const*, SqliteTableLegacy::Schema*) final;
+  std::unique_ptr<SqliteTableLegacy::BaseCursor> CreateCursor() final;
   base::Status ModifyConstraints(QueryConstraints*) final;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) final;
 
   // These static functions are useful to allow other callers to make use
   // of them.
-  static SqliteTable::Schema ComputeSchema(const Table::Schema&,
-                                           const char* table_name);
+  static SqliteTableLegacy::Schema ComputeSchema(const Table::Schema&,
+                                                 const char* table_name);
   static void ModifyConstraints(const Table::Schema&, QueryConstraints*);
   static void BestIndex(const Table::Schema&,
                         uint32_t row_count,

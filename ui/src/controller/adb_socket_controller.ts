@@ -25,9 +25,7 @@ import {
 
 import {AdbBaseConsumerPort, AdbConnectionState} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';
-import {
-  isReadBuffersResponse,
-} from './consumer_port_types';
+import {isReadBuffersResponse} from './consumer_port_types';
 import {Consumer} from './record_controller_interfaces';
 
 enum SocketState {
@@ -43,7 +41,7 @@ const MAX_IPC_BUFFER_SIZE = 128 * 1024;
 const PROTO_LEN_DELIMITED_WIRE_TYPE = 2;
 const TRACE_PACKET_PROTO_ID = 1;
 const TRACE_PACKET_PROTO_TAG =
-    (TRACE_PACKET_PROTO_ID << 3) | PROTO_LEN_DELIMITED_WIRE_TYPE;
+  (TRACE_PACKET_PROTO_ID << 3) | PROTO_LEN_DELIMITED_WIRE_TYPE;
 
 declare type Frame = IPCFrame;
 declare type IMethodInfo = IPCFrame.BindServiceReply.IMethodInfo;
@@ -123,8 +121,11 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
     }
     const frame = new IPCFrame({
       requestId,
-      msgInvokeMethod: new IPCFrame.InvokeMethod(
-        {serviceId: this.serviceId, methodId, argsProto}),
+      msgInvokeMethod: new IPCFrame.InvokeMethod({
+        serviceId: this.serviceId,
+        methodId,
+        argsProto,
+      }),
     });
     this.requestMethods.set(requestId, method);
     this.sendFrame(frame);
@@ -187,8 +188,10 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   }
 
   private canParseFullMessage(newData: Uint8Array) {
-    return this.frameToParseLen &&
-        this.incomingBufferLen + newData.length >= this.frameToParseLen;
+    return (
+      this.frameToParseLen &&
+      this.incomingBufferLen + newData.length >= this.frameToParseLen
+    );
   }
 
   private appendToIncomingBuffer(array: Uint8Array) {
@@ -199,7 +202,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   handleReceivedData(newData: Uint8Array) {
     if (this.incompleteSizeHeader() && this.canCompleteSizeHeader(newData)) {
       const newDataBytesToRead =
-          WIRE_PROTOCOL_HEADER_SIZE - this.incomingBufferLen;
+        WIRE_PROTOCOL_HEADER_SIZE - this.incomingBufferLen;
       // Add to the incoming buffer the remaining bytes to arrive at
       // WIRE_PROTOCOL_HEADER_SIZE
       this.appendToIncomingBuffer(newData.subarray(0, newDataBytesToRead));
@@ -216,14 +219,17 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
       if (this.incomingBufferLen === 0) {
         this.parseMessage(newData.subarray(0, this.frameToParseLen));
         newData = newData.subarray(this.frameToParseLen);
-      } else {  // We need to complete the local buffer.
+      } else {
+        // We need to complete the local buffer.
         // Read the remaining part of this message.
         const bytesToCompleteMessage =
-            this.frameToParseLen - this.incomingBufferLen;
+          this.frameToParseLen - this.incomingBufferLen;
         this.appendToIncomingBuffer(
-          newData.subarray(0, bytesToCompleteMessage));
+          newData.subarray(0, bytesToCompleteMessage),
+        );
         this.parseMessage(
-          this.incomingBuffer.subarray(0, this.frameToParseLen));
+          this.incomingBuffer.subarray(0, this.frameToParseLen),
+        );
         this.incomingBufferLen = 0;
         // Remove the data just parsed.
         newData = newData.subarray(bytesToCompleteMessage);
@@ -231,8 +237,9 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
       this.frameToParseLen = 0;
       if (!this.canCompleteSizeHeader(newData)) break;
 
-      this.frameToParseLen =
-          this.parseMessageSize(newData.subarray(0, WIRE_PROTOCOL_HEADER_SIZE));
+      this.frameToParseLen = this.parseMessageSize(
+        newData.subarray(0, WIRE_PROTOCOL_HEADER_SIZE),
+      );
       newData = newData.subarray(WIRE_PROTOCOL_HEADER_SIZE);
     }
     // Buffer the remaining data (part of the next header + message).
@@ -240,7 +247,10 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   }
 
   decodeResponse(
-    requestId: number, responseProto: Uint8Array, hasMore = false) {
+    requestId: number,
+    responseProto: Uint8Array,
+    hasMore = false,
+  ) {
     const method = this.requestMethods.get(requestId);
     if (!method) {
       console.error(`Unknown request id: ${requestId}`);
@@ -295,8 +305,12 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   }
 
   sendReadBufferResponse() {
-    this.sendMessage(this.generateChunkReadResponse(
-      this.traceProtoWriter.finish(), /* last */ true));
+    this.sendMessage(
+      this.generateChunkReadResponse(
+        this.traceProtoWriter.finish(),
+        /* last */ true,
+      ),
+    );
     this.traceProtoWriter = protobuf.Writer.create();
   }
 
@@ -313,7 +327,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
     });
   }
 
-  findMethodId(method: string): number|undefined {
+  findMethodId(method: string): number | undefined {
     const methodObject = this.availableMethods.find((m) => m.name === method);
     return methodObject?.id ?? undefined;
   }
@@ -332,37 +346,43 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
   handleIncomingFrame(frame: IPCFrame) {
     const requestId = frame.requestId;
     switch (frame.msg) {
-    case 'msgBindServiceReply': {
-      const msgBindServiceReply = frame.msgBindServiceReply;
-      if (msgBindServiceReply && msgBindServiceReply.methods &&
-            /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-            msgBindServiceReply.serviceId) {
-        /* eslint-enable */
-        console.assert(msgBindServiceReply.success);
-        this.availableMethods = msgBindServiceReply.methods;
-        this.serviceId = msgBindServiceReply.serviceId;
-        this.resolveBindingPromise();
-        this.resolveBindingPromise = () => {};
-      }
-      return;
-    }
-    case 'msgInvokeMethodReply': {
-      const msgInvokeMethodReply = frame.msgInvokeMethodReply;
-      if (msgInvokeMethodReply && msgInvokeMethodReply.replyProto) {
-        if (!msgInvokeMethodReply.success) {
-          console.error(
-            'Unsuccessful method invocation: ', msgInvokeMethodReply);
-          return;
+      case 'msgBindServiceReply': {
+        const msgBindServiceReply = frame.msgBindServiceReply;
+        if (
+          msgBindServiceReply &&
+          msgBindServiceReply.methods &&
+          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
+          msgBindServiceReply.serviceId
+        ) {
+          /* eslint-enable */
+          console.assert(msgBindServiceReply.success);
+          this.availableMethods = msgBindServiceReply.methods;
+          this.serviceId = msgBindServiceReply.serviceId;
+          this.resolveBindingPromise();
+          this.resolveBindingPromise = () => {};
         }
-        this.decodeResponse(
-          requestId,
-          msgInvokeMethodReply.replyProto,
-          msgInvokeMethodReply.hasMore === true);
+        return;
       }
-      return;
-    }
-    default:
-      console.error(`not recognized frame message: ${frame.msg}`);
+      case 'msgInvokeMethodReply': {
+        const msgInvokeMethodReply = frame.msgInvokeMethodReply;
+        if (msgInvokeMethodReply && msgInvokeMethodReply.replyProto) {
+          if (!msgInvokeMethodReply.success) {
+            console.error(
+              'Unsuccessful method invocation: ',
+              msgInvokeMethodReply,
+            );
+            return;
+          }
+          this.decodeResponse(
+            requestId,
+            msgInvokeMethodReply.replyProto,
+            msgInvokeMethodReply.hasMore === true,
+          );
+        }
+        return;
+      }
+      default:
+        console.error(`not recognized frame message: ${frame.msg}`);
     }
   }
 }

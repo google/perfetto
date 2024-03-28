@@ -14,7 +14,7 @@
 
 import {assertTrue} from '../base/logging';
 
-export type DropDirection = 'left'|'right';
+export type DropDirection = 'left' | 'right';
 
 export interface Interval {
   from: number;
@@ -33,8 +33,11 @@ export interface Interval {
  * the element `dragTo`.
  */
 export function computeIntervals(
-  length: number, dragFrom: number, dragTo: number, direction: DropDirection):
-    Interval[] {
+  length: number,
+  dragFrom: number,
+  dragTo: number,
+  direction: DropDirection,
+): Interval[] {
   assertTrue(dragFrom !== dragTo);
 
   if (dragTo < dragFrom) {

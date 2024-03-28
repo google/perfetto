@@ -390,12 +390,15 @@ void BitVector::SelectBits(const BitVector& mask_bv) {
     // previous word), add them into the new out_word. Important: we *must* not
     // change out_word if there was no spillover as |out_word| could be pointing
     // to |data + 1| which needs to be preserved for the next loop iteration.
-    *out_word = spillover ? ext >> (popcount - out_word_bits) : *out_word;
+    if (spillover) {
+      *out_word = ext >> (popcount - out_word_bits);
+    }
   }
 
   // Loop post-condition: we must have written as many words as is required
   // to store |set_bits_in_mask|.
-  PERFETTO_DCHECK(out_word - words_.data() <= WordCount(set_bits_in_mask));
+  PERFETTO_DCHECK(static_cast<uint32_t>(out_word - words_.data()) <=
+                  WordCount(set_bits_in_mask));
 
   // Resize the BitVector to equal to the number of elements in the  mask we
   // calculated at the start of the loop.

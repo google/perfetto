@@ -19,11 +19,7 @@ test('DatabaseSchema > getKeys', () => {
     tables: [
       {
         name: 'slice',
-        columns: [
-          {name: 'id'},
-          {name: 'ts'},
-          {name: 'dur'},
-        ],
+        columns: [{name: 'id'}, {name: 'ts'}, {name: 'dur'}],
       },
     ],
   };

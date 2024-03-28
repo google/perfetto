@@ -54,7 +54,7 @@ base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
   {
     auto type_check = [prototype_value](sqlite3_value* value,
                                         SqlValue::Type type, const char* desc) {
-      base::Status status = sqlite_utils::TypeCheckSqliteValue(value, type);
+      base::Status status = sqlite::utils::TypeCheckSqliteValue(value, type);
       if (!status.ok()) {
         return base::ErrStatus("CREATE_VIEW_FUNCTION[prototype=%s]: %s %s",
                                sqlite3_value_text(prototype_value), desc,

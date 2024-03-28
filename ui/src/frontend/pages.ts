@@ -15,8 +15,9 @@
 import m from 'mithril';
 
 // Wrap component with common UI elements (nav bar etc).
-export function createPage(component: m.Component<PageAttrs>):
-    m.Component<PageAttrs> {
+export function createPage(
+  component: m.Component<PageAttrs>,
+): m.Component<PageAttrs> {
   return component;
 }
 

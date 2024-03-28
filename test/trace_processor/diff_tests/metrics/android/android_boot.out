@@ -40,7 +40,7 @@ android_boot {
         native_alloc_gc_count: 0
         explicit_gc_count: 0
         alloc_gc_count: 0
-        mb_per_ms_of_gc: 0.8829305684617433
+        mb_per_ms_of_gc: 0.8829305684617432
     }
     post_boot_gc_aggregation {
         total_gc_count: 4
@@ -54,6 +54,6 @@ android_boot {
         native_alloc_gc_count: 0
         explicit_gc_count: 0
         alloc_gc_count: 0
-        mb_per_ms_of_gc: 0.8829305684617433
+        mb_per_ms_of_gc: 0.8829305684617432
     }
 }

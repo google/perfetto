@@ -14,10 +14,17 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <queue>
 #include <vector>
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -118,7 +125,7 @@ Please specify "ORDER BY ts" in the window clause.
 
 base::StatusOr<SlicePacker*> GetOrCreateAggregationContext(
     sqlite3_context* ctx) {
-  SlicePacker** packer = static_cast<SlicePacker**>(
+  auto** packer = static_cast<SlicePacker**>(
       sqlite3_aggregate_context(ctx, sizeof(SlicePacker*)));
   if (!packer) {
     return base::ErrStatus("Failed to allocate aggregate context");
@@ -130,74 +137,68 @@ base::StatusOr<SlicePacker*> GetOrCreateAggregationContext(
   return *packer;
 }
 
-base::Status Step(sqlite3_context* ctx, size_t argc, sqlite3_value** argv) {
+base::Status StepStatus(sqlite3_context* ctx,
+                        size_t argc,
+                        sqlite3_value** argv) {
   base::StatusOr<SlicePacker*> slice_packer =
       GetOrCreateAggregationContext(ctx);
   RETURN_IF_ERROR(slice_packer.status());
 
   base::StatusOr<SqlValue> ts =
-      sqlite_utils::ExtractArgument(argc, argv, "ts", 0, SqlValue::kLong);
+      sqlite::utils::ExtractArgument(argc, argv, "ts", 0, SqlValue::kLong);
   RETURN_IF_ERROR(ts.status());
 
   base::StatusOr<SqlValue> dur =
-      sqlite_utils::ExtractArgument(argc, argv, "dur", 1, SqlValue::kLong);
+      sqlite::utils::ExtractArgument(argc, argv, "dur", 1, SqlValue::kLong);
   RETURN_IF_ERROR(dur.status());
 
   return slice_packer.value()->AddSlice(ts->AsLong(), dur.value().AsLong());
 }
 
-void StepWrapper(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-  PERFETTO_CHECK(argc >= 0);
+struct InternalLayout : public SqliteWindowFunction {
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_CHECK(argc >= 0);
 
-  base::Status status = Step(ctx, static_cast<size_t>(argc), argv);
-  if (!status.ok()) {
-    sqlite_utils::SetSqliteError(ctx, kFunctionName, status);
-    return;
+    base::Status status = StepStatus(ctx, static_cast<size_t>(argc), argv);
+    if (!status.ok()) {
+      return sqlite::utils::SetError(ctx, kFunctionName, status);
+    }
   }
-}
 
-void FinalWrapper(sqlite3_context* ctx) {
-  SlicePacker** slice_packer = static_cast<SlicePacker**>(
-      sqlite3_aggregate_context(ctx, sizeof(SlicePacker*)));
-  if (!slice_packer || !*slice_packer) {
-    return;
-  }
-  sqlite3_result_int64(ctx,
-                       static_cast<int64_t>((*slice_packer)->GetLastDepth()));
-  delete *slice_packer;
-}
-
-void ValueWrapper(sqlite3_context* ctx) {
-  base::StatusOr<SlicePacker*> slice_packer =
-      GetOrCreateAggregationContext(ctx);
-  if (!slice_packer.ok()) {
-    sqlite_utils::SetSqliteError(ctx, kFunctionName, slice_packer.status());
-    return;
-  }
-  sqlite3_result_int64(
-      ctx, static_cast<int64_t>(slice_packer.value()->GetLastDepth()));
-}
-
-void InverseWrapper(sqlite3_context* ctx, int, sqlite3_value**) {
-  sqlite_utils::SetSqliteError(ctx, kFunctionName, base::ErrStatus(R"(
+  static void Inverse(sqlite3_context* ctx, int, sqlite3_value**) {
+    sqlite::utils::SetError(ctx, kFunctionName, base::ErrStatus(R"(
 The inverse step is not supported: the window clause should be
 "BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW".
 )"));
-}
+  }
+
+  static void Value(sqlite3_context* ctx) {
+    base::StatusOr<SlicePacker*> slice_packer =
+        GetOrCreateAggregationContext(ctx);
+    if (!slice_packer.ok()) {
+      return sqlite::utils::SetError(ctx, kFunctionName, slice_packer.status());
+    }
+    return sqlite::result::Long(
+        ctx, static_cast<int64_t>(slice_packer.value()->GetLastDepth()));
+  }
+
+  static void Final(sqlite3_context* ctx) {
+    auto** slice_packer = static_cast<SlicePacker**>(
+        sqlite3_aggregate_context(ctx, sizeof(SlicePacker*)));
+    if (!slice_packer || !*slice_packer) {
+      return;
+    }
+    sqlite::result::Long(ctx,
+                         static_cast<int64_t>((*slice_packer)->GetLastDepth()));
+    delete *slice_packer;
+  }
+};
 
 }  // namespace
 
-base::Status LayoutFunctions::Register(sqlite3* db,
-                                       TraceProcessorContext* context) {
-  int flags = SQLITE_UTF8 | SQLITE_DETERMINISTIC;
-  int ret = sqlite3_create_window_function(
-      db, kFunctionName, 2, flags, context, StepWrapper, FinalWrapper,
-      ValueWrapper, InverseWrapper, nullptr);
-  if (ret != SQLITE_OK) {
-    return base::ErrStatus("Unable to register function with name %s",
-                           kFunctionName);
-  }
-  return base::OkStatus();
+base::Status RegisterLayoutFunctions(PerfettoSqlEngine& engine) {
+  return engine.RegisterSqliteWindowFunction<InternalLayout>(kFunctionName, 2,
+                                                             nullptr);
 }
 
 }  // namespace perfetto::trace_processor

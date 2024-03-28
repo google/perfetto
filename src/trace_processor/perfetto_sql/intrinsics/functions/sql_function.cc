@@ -16,8 +16,9 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 
-namespace perfetto {
-namespace trace_processor {
+#include "perfetto/base/status.h"
+
+namespace perfetto::trace_processor {
 
 base::Status SqlFunction::VerifyPostConditions(Context*) {
   return base::OkStatus();
@@ -25,5 +26,4 @@ base::Status SqlFunction::VerifyPostConditions(Context*) {
 
 void SqlFunction::Cleanup(Context*) {}
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

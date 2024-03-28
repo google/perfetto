@@ -12,18 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HSLColor} from '../../common/color';
-import {makeColorScheme} from '../../common/colorizer';
+import {HSLColor} from '../../core/color';
+import {makeColorScheme} from '../../core/colorizer';
 import {NamedRow, NamedSliceTrack} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {EngineProxy, Slice} from '../../public';
 
-const GREEN = makeColorScheme(new HSLColor('#4CAF50'));  // Green 500
+const GREEN = makeColorScheme(new HSLColor('#4CAF50')); // Green 500
 
 export class ExpectedFramesTrack extends NamedSliceTrack {
   constructor(
-    engine: EngineProxy, maxDepth: number, trackKey: string,
-      private trackIds: number[]) {
+    engine: EngineProxy,
+    maxDepth: number,
+    trackKey: string,
+    private trackIds: number[],
+  ) {
     super({engine, trackKey});
     this.sliceLayout = {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,

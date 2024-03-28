@@ -16,133 +16,157 @@
 
 #include "src/trace_processor/sqlite/stats_table.h"
 
-#include "perfetto/base/status.h"
-#include "src/trace_processor/sqlite/sqlite_utils.h"
+#include <sqlite3.h>
+#include <memory>
 
-namespace perfetto {
-namespace trace_processor {
+#include "perfetto/base/logging.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 
-StatsTable::StatsTable(sqlite3*, const TraceStorage* storage)
-    : storage_(storage) {}
+namespace perfetto::trace_processor {
 
-StatsTable::~StatsTable() = default;
-
-util::Status StatsTable::Init(int, const char* const*, Schema* schema) {
-  *schema = Schema(
-      {
-          SqliteTable::Column(Column::kName, "name", SqlValue::Type::kString),
-          // Calling a column "index" causes sqlite to silently fail, hence idx.
-          SqliteTable::Column(Column::kIndex, "idx", SqlValue::Type::kLong),
-          SqliteTable::Column(Column::kSeverity, "severity",
-                              SqlValue::Type::kString),
-          SqliteTable::Column(Column::kSource, "source",
-                              SqlValue::Type::kString),
-          SqliteTable::Column(Column::kValue, "value", SqlValue::Type::kLong),
-          SqliteTable::Column(Column::kDescription, "description",
-                              SqlValue::Type::kString),
-      },
-      {Column::kName});
-  return util::OkStatus();
-}
-
-std::unique_ptr<SqliteTable::BaseCursor> StatsTable::CreateCursor() {
-  return std::unique_ptr<SqliteTable::BaseCursor>(new Cursor(this));
-}
-
-int StatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
+int StatsModule::Connect(sqlite3* db,
+                         void* aux,
+                         int,
+                         const char* const*,
+                         sqlite3_vtab** vtab,
+                         char**) {
+  static constexpr char kSchema[] = R"(
+    CREATE TABLE x(
+      name TEXT,
+      idx BIGINT,
+      severity TEXT,
+      source TEXT,
+      value BIGINT,
+      description TEXT,
+      PRIMARY KEY(name)
+    ) WITHOUT ROWID
+  )";
+  if (int ret = sqlite3_declare_vtab(db, kSchema); ret != SQLITE_OK) {
+    return ret;
+  }
+  std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
+  res->storage = GetContext(aux);
+  *vtab = res.release();
   return SQLITE_OK;
 }
 
-StatsTable::Cursor::Cursor(StatsTable* table)
-    : SqliteTable::BaseCursor(table),
-      table_(table),
-      storage_(table->storage_) {}
-
-StatsTable::Cursor::~Cursor() = default;
-
-base::Status StatsTable::Cursor::Filter(const QueryConstraints&,
-                                        sqlite3_value**,
-                                        FilterHistory) {
-  *this = Cursor(table_);
-  return base::OkStatus();
+int StatsModule::Disconnect(sqlite3_vtab* vtab) {
+  delete GetVtab(vtab);
+  return SQLITE_OK;
 }
 
-base::Status StatsTable::Cursor::Column(sqlite3_context* ctx, int N) {
-  const auto kSqliteStatic = sqlite_utils::kSqliteStatic;
+int StatsModule::BestIndex(sqlite3_vtab*, sqlite3_index_info*) {
+  return SQLITE_OK;
+}
+
+int StatsModule::Open(sqlite3_vtab* raw_vtab, sqlite3_vtab_cursor** cursor) {
+  std::unique_ptr<Cursor> c = std::make_unique<Cursor>();
+  c->storage = GetVtab(raw_vtab)->storage;
+  *cursor = c.release();
+  return SQLITE_OK;
+}
+
+int StatsModule::Close(sqlite3_vtab_cursor* cursor) {
+  delete GetCursor(cursor);
+  return SQLITE_OK;
+}
+
+int StatsModule::Filter(sqlite3_vtab_cursor* cursor,
+                        int,
+                        const char*,
+                        int,
+                        sqlite3_value**) {
+  auto* c = GetCursor(cursor);
+  c->key = {};
+  c->it = {};
+  return SQLITE_OK;
+}
+
+int StatsModule::Next(sqlite3_vtab_cursor* cursor) {
+  static_assert(stats::kTypes[0] == stats::kSingle,
+                "the first stats entry cannot be indexed");
+
+  auto* c = GetCursor(cursor);
+  const auto* cur_entry = &c->storage->stats()[c->key];
+  if (stats::kTypes[c->key] == stats::kIndexed) {
+    if (++c->it != cur_entry->indexed_values.end()) {
+      return SQLITE_OK;
+    }
+  }
+  while (++c->key < stats::kNumKeys) {
+    cur_entry = &c->storage->stats()[c->key];
+    c->it = cur_entry->indexed_values.begin();
+    if (stats::kTypes[c->key] == stats::kSingle ||
+        !cur_entry->indexed_values.empty()) {
+      break;
+    }
+  }
+  return SQLITE_OK;
+}
+
+int StatsModule::Eof(sqlite3_vtab_cursor* cursor) {
+  return GetCursor(cursor)->key >= stats::kNumKeys;
+}
+
+int StatsModule::Column(sqlite3_vtab_cursor* cursor,
+                        sqlite3_context* ctx,
+                        int N) {
+  auto* c = GetCursor(cursor);
   switch (N) {
     case Column::kName:
-      sqlite3_result_text(ctx, stats::kNames[key_], -1, kSqliteStatic);
+      sqlite::result::StaticString(ctx, stats::kNames[c->key]);
       break;
     case Column::kIndex:
-      if (stats::kTypes[key_] == stats::kIndexed) {
-        sqlite3_result_int(ctx, index_->first);
+      if (stats::kTypes[c->key] == stats::kIndexed) {
+        sqlite::result::Long(ctx, c->it->first);
       } else {
-        sqlite3_result_null(ctx);
+        sqlite::result::Null(ctx);
       }
       break;
     case Column::kSeverity:
-      switch (stats::kSeverities[key_]) {
+      switch (stats::kSeverities[c->key]) {
         case stats::kInfo:
-          sqlite3_result_text(ctx, "info", -1, kSqliteStatic);
+          sqlite::result::StaticString(ctx, "info");
           break;
         case stats::kDataLoss:
-          sqlite3_result_text(ctx, "data_loss", -1, kSqliteStatic);
+          sqlite::result::StaticString(ctx, "data_loss");
           break;
         case stats::kError:
-          sqlite3_result_text(ctx, "error", -1, kSqliteStatic);
+          sqlite::result::StaticString(ctx, "error");
           break;
       }
       break;
     case Column::kSource:
-      switch (stats::kSources[key_]) {
+      switch (stats::kSources[c->key]) {
         case stats::kTrace:
-          sqlite3_result_text(ctx, "trace", -1, kSqliteStatic);
+          sqlite::result::StaticString(ctx, "trace");
           break;
         case stats::kAnalysis:
-          sqlite3_result_text(ctx, "analysis", -1, kSqliteStatic);
+          sqlite::result::StaticString(ctx, "analysis");
           break;
       }
       break;
     case Column::kValue:
-      if (stats::kTypes[key_] == stats::kIndexed) {
-        sqlite3_result_int64(ctx, index_->second);
+      if (stats::kTypes[c->key] == stats::kIndexed) {
+        sqlite::result::Long(ctx, c->it->second);
       } else {
-        sqlite3_result_int64(ctx, storage_->stats()[key_].value);
+        sqlite::result::Long(ctx, c->storage->stats()[c->key].value);
       }
       break;
     case Column::kDescription:
-      sqlite3_result_text(ctx, stats::kDescriptions[key_], -1, kSqliteStatic);
+      sqlite::result::StaticString(ctx, stats::kDescriptions[c->key]);
       break;
     default:
       PERFETTO_FATAL("Unknown column %d", N);
       break;
   }
-  return base::OkStatus();
+  return SQLITE_OK;
 }
 
-base::Status StatsTable::Cursor::Next() {
-  static_assert(stats::kTypes[0] == stats::kSingle,
-                "the first stats entry cannot be indexed");
-  const auto* cur_entry = &storage_->stats()[key_];
-  if (stats::kTypes[key_] == stats::kIndexed) {
-    if (++index_ != cur_entry->indexed_values.end()) {
-      return base::OkStatus();
-    }
-  }
-  while (++key_ < stats::kNumKeys) {
-    cur_entry = &storage_->stats()[key_];
-    index_ = cur_entry->indexed_values.begin();
-    if (stats::kTypes[key_] == stats::kSingle ||
-        !cur_entry->indexed_values.empty()) {
-      break;
-    }
-  }
-  return base::OkStatus();
+int StatsModule::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
+  return SQLITE_ERROR;
 }
 
-bool StatsTable::Cursor::Eof() {
-  return key_ >= stats::kNumKeys;
-}
-
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

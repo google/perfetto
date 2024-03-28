@@ -37,7 +37,10 @@ import {SliceIdDisplayConfig} from './table_description';
 // column type.
 
 function filterOptionMenuItem(
-  label: string, filter: string, state: SqlTableState): m.Child {
+  label: string,
+  filter: string,
+  state: SqlTableState,
+): m.Child {
   return m(MenuItem, {
     label,
     onclick: () => {
@@ -47,7 +50,10 @@ function filterOptionMenuItem(
 }
 
 function getStandardFilters(
-  c: Column, value: SqlValue, state: SqlTableState): m.Child[] {
+  c: Column,
+  value: SqlValue,
+  state: SqlTableState,
+): m.Child[] {
   if (value === null) {
     return [
       filterOptionMenuItem('is null', `${c.expression} is null`, state),
@@ -57,22 +63,37 @@ function getStandardFilters(
   if (isString(value)) {
     return [
       filterOptionMenuItem(
-        'equals to', `${c.expression} = ${sqliteString(value)}`, state),
+        'equals to',
+        `${c.expression} = ${sqliteString(value)}`,
+        state,
+      ),
       filterOptionMenuItem(
-        'not equals to', `${c.expression} != ${sqliteString(value)}`, state),
+        'not equals to',
+        `${c.expression} != ${sqliteString(value)}`,
+        state,
+      ),
     ];
   }
   if (typeof value === 'bigint' || typeof value === 'number') {
     return [
       filterOptionMenuItem('equals to', `${c.expression} = ${value}`, state),
       filterOptionMenuItem(
-        'not equals to', `${c.expression} != ${value}`, state),
+        'not equals to',
+        `${c.expression} != ${value}`,
+        state,
+      ),
       filterOptionMenuItem('greater than', `${c.expression} > ${value}`, state),
       filterOptionMenuItem(
-        'greater or equals than', `${c.expression} >= ${value}`, state),
+        'greater or equals than',
+        `${c.expression} >= ${value}`,
+        state,
+      ),
       filterOptionMenuItem('less than', `${c.expression} < ${value}`, state),
       filterOptionMenuItem(
-        'less or equals than', `${c.expression} <= ${value}`, state),
+        'less or equals than',
+        `${c.expression} <= ${value}`,
+        state,
+      ),
     ];
   }
   return [];
@@ -101,7 +122,10 @@ function copyMenuItem(label: string, value: string): m.Child {
 }
 
 function getContextMenuItems(
-  column: Column, row: Row, state: SqlTableState): m.Child[] {
+  column: Column,
+  row: Row,
+  state: SqlTableState,
+): m.Child[] {
   const result: m.Child[] = [];
   const value = row[column.alias];
 
@@ -112,14 +136,18 @@ function getContextMenuItems(
   const filters = getStandardFilters(column, value, state);
   if (filters.length > 0) {
     result.push(
-      m(MenuItem, {label: 'Add filter', icon: Icons.Filter}, ...filters));
+      m(MenuItem, {label: 'Add filter', icon: Icons.Filter}, ...filters),
+    );
   }
 
   return result;
 }
 
 function renderStandardColumn(
-  column: Column, row: Row, state: SqlTableState): m.Children {
+  column: Column,
+  row: Row,
+  state: SqlTableState,
+): m.Children {
   const displayValue = display(column, row);
   const contextMenuItems: m.Child[] = getContextMenuItems(column, row, state);
   return m(
@@ -132,7 +160,10 @@ function renderStandardColumn(
 }
 
 function renderTimestampColumn(
-  column: Column, row: Row, state: SqlTableState): m.Children {
+  column: Column,
+  row: Row,
+  state: SqlTableState,
+): m.Children {
   const value = row[column.alias];
   if (typeof value !== 'bigint') {
     return renderStandardColumn(column, row, state);
@@ -145,7 +176,10 @@ function renderTimestampColumn(
 }
 
 function renderDurationColumn(
-  column: Column, row: Row, state: SqlTableState): m.Children {
+  column: Column,
+  row: Row,
+  state: SqlTableState,
+): m.Children {
   const value = row[column.alias];
   if (typeof value !== 'bigint') {
     return renderStandardColumn(column, row, state);
@@ -158,8 +192,9 @@ function renderDurationColumn(
 }
 
 function renderSliceIdColumn(
-  column: {alias: string, display: SliceIdDisplayConfig},
-  row: Row): m.Children {
+  column: {alias: string; display: SliceIdDisplayConfig},
+  row: Row,
+): m.Children {
   const config = column.display;
   const id = row[column.alias];
   const ts = row[config.ts];
@@ -169,8 +204,9 @@ function renderSliceIdColumn(
   const columnNotFoundError = (type: string, name: string) =>
     renderError(`${type} column ${name} not found`);
   const wrongTypeError = (type: string, name: string, value: SqlValue) =>
-    renderError(`Wrong type for ${type} column ${name}: bigint expected, ${
-      typeof value} found`);
+    renderError(
+      `Wrong type for ${type} column ${name}: bigint expected, ${typeof value} found`,
+    );
 
   if (typeof id !== 'bigint') return sqlValueToString(id);
   if (ts === undefined) return columnNotFoundError('Timestamp', config.ts);
@@ -195,17 +231,22 @@ function renderSliceIdColumn(
 }
 
 export function renderCell(
-  column: Column, row: Row, state: SqlTableState): m.Children {
+  column: Column,
+  row: Row,
+  state: SqlTableState,
+): m.Children {
   if (column.display) {
     switch (column.display?.type) {
-    case 'slice_id':
-      return renderSliceIdColumn(
-        {alias: column.alias, display: column.display}, row);
-    case 'timestamp':
-      return renderTimestampColumn(column, row, state);
-    case 'duration':
-    case 'thread_duration':
-      return renderDurationColumn(column, row, state);
+      case 'slice_id':
+        return renderSliceIdColumn(
+          {alias: column.alias, display: column.display},
+          row,
+        );
+      case 'timestamp':
+        return renderTimestampColumn(column, row, state);
+      case 'duration':
+      case 'thread_duration':
+        return renderDurationColumn(column, row, state);
     }
   }
   return renderStandardColumn(column, row, state);
