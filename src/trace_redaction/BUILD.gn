@@ -74,6 +74,7 @@ source_set("integrationtests") {
   sources = [
     "scrub_ftrace_events_integrationtest.cc",
     "scrub_process_trees_integrationtest.cc",
+    "scrub_task_rename_integrationtest.cc",
     "trace_redactor_integrationtest.cc",
   ]
   deps = [
