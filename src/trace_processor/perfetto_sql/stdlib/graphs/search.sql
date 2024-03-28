@@ -131,7 +131,7 @@ RETURNS TableOrSubquery AS
 --      (
 --        SELECT
 --          id AS root_node_id,
---          id - COALESCE(prev_id, id) AS root_max_weight
+--          id - COALESCE(prev_id, id) AS root_target_weight
 --        FROM _wakeup_chain
 --      ));
 -- ```
@@ -150,7 +150,7 @@ CREATE PERFETTO MACRO graph_reachable_weight_bounded_dfs(
   graph_table TableOrSubquery,
   -- A table/view/subquery corresponding to start nodes to |graph_table| which will be the
   -- roots of the reachability trees. This table must have the columns
-  -- "root_node_id" and "root_max_weight" corresponding to the starting node id and the max
+  -- "root_node_id" and "root_target_weight" corresponding to the starting node id and the max
   -- weight allowed on the tree.
   --
   -- Note: the columns must contain uint32 similar to ids in trace processor
@@ -158,7 +158,14 @@ CREATE PERFETTO MACRO graph_reachable_weight_bounded_dfs(
   -- implementation makes assumptions on this for performance reasons and, if
   -- this criteria is not, can lead to enormous amounts of memory being
   -- allocated.
-  root_table TableOrSubquery
+  root_table TableOrSubquery,
+  -- Whether the target_weight is a floor weight or ceiling weight.
+  -- If it's floor, the search stops right after we exceed the target weight, and we
+  -- include the node that pushed just passed the target. If ceiling, the search stops
+  -- right before the target weight and the node that would have pushed us passed the
+  -- target is not included.
+  is_target_weight_floor Expr
+
 )
 -- The returned table has the schema (root_node_id, node_id UINT32, parent_node_id UINT32).
 -- |root_node_id| is the id of the starting node under which this edge was encountered.
@@ -175,6 +182,7 @@ RETURNS TableOrSubquery AS
     (SELECT RepeatedField(dest_node_id) FROM __temp_graph_table),
     (SELECT RepeatedField(edge_weight) FROM __temp_graph_table),
     (SELECT RepeatedField(root_node_id) FROM __temp_root_table),
-    (SELECT RepeatedField(root_max_weight) FROM __temp_root_table)
+    (SELECT RepeatedField(root_target_weight) FROM __temp_root_table),
+    $is_target_weight_floor
   ) dt
 );

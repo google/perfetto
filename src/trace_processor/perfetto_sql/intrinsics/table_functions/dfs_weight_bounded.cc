@@ -86,20 +86,20 @@ base::StatusOr<std::vector<Edge>> ParseRootToMaxWeightMap(
   std::vector<Edge> roots;
   bool parse_error = false;
   auto root_node_ids = start.int_values(&parse_error);
-  auto max_weights = end.int_values(&parse_error);
+  auto target_weights = end.int_values(&parse_error);
 
-  for (; root_node_ids && max_weights; ++root_node_ids, ++max_weights) {
+  for (; root_node_ids && target_weights; ++root_node_ids, ++target_weights) {
     roots.push_back(Edge{static_cast<uint32_t>(*root_node_ids),
-                         static_cast<uint32_t>(*max_weights)});
+                         static_cast<uint32_t>(*target_weights)});
   }
 
   if (parse_error) {
     return base::ErrStatus(
-        "Failed while parsing root_node_ids or root_max_weights");
+        "Failed while parsing root_node_ids or root_target_weights");
   }
-  if (static_cast<bool>(root_node_ids) != static_cast<bool>(max_weights)) {
+  if (static_cast<bool>(root_node_ids) != static_cast<bool>(target_weights)) {
     return base::ErrStatus(
-        "dfs_weight_bounded: length of root_node_ids and root_max_weights "
+        "dfs_weight_bounded: length of root_node_ids and root_target_weights "
         "columns is not the same");
   }
   return roots;
@@ -108,7 +108,8 @@ base::StatusOr<std::vector<Edge>> ParseRootToMaxWeightMap(
 void DfsWeightBoundedImpl(
     tables::DfsWeightBoundedTable* table,
     const std::vector<Destinations>& source_to_destinations_map,
-    const std::vector<Edge>& roots) {
+    const std::vector<Edge>& roots,
+    const bool is_target_weight_floor) {
   struct StackState {
     uint32_t id;
     uint32_t weight;
@@ -131,21 +132,25 @@ void DfsWeightBoundedImpl(
         continue;
       }
       seen_node_ids[stack_state.id] = true;
-
-      // We want to greedily return all possible edges that are reachable within
-      // the target weight. If an edge already fails the requirement, skip it
-      // and don't include it's weight but continue the search, some other edges
-      // might fit.
-      if (total_weight + stack_state.weight > root.weight) {
-        continue;
-      }
       total_weight += stack_state.weight;
+
+      if (!is_target_weight_floor && total_weight > root.weight) {
+        // If target weight is a ceiling weight then we don't want to include
+        // the last node that crosses the threshold.
+        break;
+      }
 
       tables::DfsWeightBoundedTable::Row row;
       row.root_node_id = root.id;
       row.node_id = stack_state.id;
       row.parent_node_id = stack_state.parent_id;
       table->Insert(row);
+
+      if (total_weight > root.weight) {
+        // If the target weight is a floor weight, we add the last node that
+        // crossed the threshold before exiting the search.
+        break;
+      }
 
       PERFETTO_DCHECK(stack_state.id < source_to_destinations_map.size());
 
@@ -176,24 +181,29 @@ uint32_t DfsWeightBounded::EstimateRowCount() {
 
 base::StatusOr<std::unique_ptr<Table>> DfsWeightBounded::ComputeTable(
     const std::vector<SqlValue>& arguments) {
-  PERFETTO_CHECK(arguments.size() == 5);
+  PERFETTO_CHECK(arguments.size() == 6);
 
   const SqlValue& raw_source_ids = arguments[0];
   const SqlValue& raw_dest_ids = arguments[1];
   const SqlValue& raw_edge_weights = arguments[2];
   const SqlValue& raw_root_ids = arguments[3];
-  const SqlValue& raw_root_max_weights = arguments[4];
+  const SqlValue& raw_root_target_weights = arguments[4];
+  const SqlValue& raw_is_target_weight_floor = arguments[5];
 
   if (raw_source_ids.is_null() && raw_dest_ids.is_null() &&
-      raw_edge_weights.is_null() && raw_root_ids.is_null() &&
-      raw_root_max_weights.is_null()) {
+      raw_edge_weights.is_null()) {
+    return std::unique_ptr<Table>(
+        std::make_unique<tables::DfsWeightBoundedTable>(pool_));
+  }
+
+  if (raw_root_ids.is_null() && raw_root_target_weights.is_null()) {
     return std::unique_ptr<Table>(
         std::make_unique<tables::DfsWeightBoundedTable>(pool_));
   }
 
   if (raw_source_ids.is_null() || raw_dest_ids.is_null() ||
       raw_edge_weights.is_null() || raw_root_ids.is_null() ||
-      raw_root_max_weights.is_null()) {
+      raw_root_target_weights.is_null()) {
     return base::ErrStatus(
         "dfs_weight_bounded: either all arguments should be null or none "
         "should be");
@@ -214,9 +224,9 @@ base::StatusOr<std::unique_ptr<Table>> DfsWeightBounded::ComputeTable(
     return base::ErrStatus(
         "dfs_weight_bounded: root_ids should be a repeated field");
   }
-  if (raw_root_max_weights.type != SqlValue::kBytes) {
+  if (raw_root_target_weights.type != SqlValue::kBytes) {
     return base::ErrStatus(
-        "dfs_weight_bounded: root_max_weights should be a repeated field");
+        "dfs_weight_bounded: root_target_weights should be a repeated field");
   }
 
   protos::pbzero::ProtoBuilderResult::Decoder proto_source_ids(
@@ -263,25 +273,27 @@ base::StatusOr<std::unique_ptr<Table>> DfsWeightBounded::ComputeTable(
   protos::pbzero::RepeatedBuilderResult::Decoder root_ids(
       proto_root_ids.repeated());
 
-  protos::pbzero::ProtoBuilderResult::Decoder proto_root_max_weights(
-      static_cast<const uint8_t*>(raw_root_max_weights.AsBytes()),
-      raw_root_max_weights.bytes_count);
-  if (!proto_root_max_weights.is_repeated()) {
+  protos::pbzero::ProtoBuilderResult::Decoder proto_root_target_weights(
+      static_cast<const uint8_t*>(raw_root_target_weights.AsBytes()),
+      raw_root_target_weights.bytes_count);
+  if (!proto_root_target_weights.is_repeated()) {
     return base::ErrStatus(
-        "dfs_weight_bounded: root_max_weights is not generated by "
+        "dfs_weight_bounded: root_target_weights is not generated by "
         "RepeatedField function");
   }
-  protos::pbzero::RepeatedBuilderResult::Decoder root_max_weights(
-      proto_root_max_weights.repeated());
+  protos::pbzero::RepeatedBuilderResult::Decoder root_target_weights(
+      proto_root_target_weights.repeated());
 
+  bool is_target_weight_floor =
+      static_cast<bool>(raw_is_target_weight_floor.AsLong());
   ASSIGN_OR_RETURN(auto map, ParseSourceToDestionationsMap(source_ids, dest_ids,
                                                            edge_weights));
 
   ASSIGN_OR_RETURN(auto roots,
-                   ParseRootToMaxWeightMap(root_ids, root_max_weights));
+                   ParseRootToMaxWeightMap(root_ids, root_target_weights));
 
   auto table = std::make_unique<tables::DfsWeightBoundedTable>(pool_);
-  DfsWeightBoundedImpl(table.get(), map, roots);
+  DfsWeightBoundedImpl(table.get(), map, roots, is_target_weight_floor);
   return std::unique_ptr<Table>(std::move(table));
 }
 
