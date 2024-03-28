@@ -206,6 +206,9 @@ DFS_WEIGHT_BOUNDED_TABLE = Table(
         C("in_root_max_weights",
           CppOptional(CppUint32()),
           flags=ColumnFlag.HIDDEN),
+        C("in_is_target_weight_floor",
+          CppOptional(CppUint32()),
+          flags=ColumnFlag.HIDDEN),
     ])
 
 # Keep this list sorted.
