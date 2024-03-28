@@ -80,6 +80,7 @@ export interface AddTrackArgs {
   trackSortKey: TrackSortKey;
   trackGroup?: string;
   params?: unknown;
+  closeable?: boolean;
 }
 
 export interface PostedTrace {
@@ -211,6 +212,7 @@ export const StateActions = {
         labels: track.labels,
         uri: track.uri,
         params: track.params,
+        closeable: track.closeable,
       };
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
         state.scrollingTracks.push(trackKey);

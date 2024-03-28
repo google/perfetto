@@ -67,7 +67,6 @@ export async function createDebugSliceTrackActions(
   const trackConfig: DebugTrackV2Config = {
     data,
     columns: sliceColumns,
-    closeable,
     argColumns,
   };
 
@@ -79,6 +78,7 @@ export async function createDebugSliceTrackActions(
       trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
       trackGroup: SCROLLING_TRACK_GROUP,
       params: trackConfig,
+      closeable,
     }),
   ];
   if (config?.pinned ?? true) {
@@ -117,7 +117,6 @@ export interface CounterColumns {
 export interface CounterDebugTrackConfig {
   data: SqlDataSource;
   columns: CounterColumns;
-  closeable: boolean;
 }
 
 export interface CounterDebugTrackCreateConfig {
@@ -143,7 +142,6 @@ export async function createDebugCounterTrackActions(
   const params: CounterDebugTrackConfig = {
     data,
     columns,
-    closeable,
   };
 
   const trackKey = uuidv4();
@@ -155,6 +153,7 @@ export async function createDebugCounterTrackActions(
       trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
       trackGroup: SCROLLING_TRACK_GROUP,
       params,
+      closeable,
     }),
   ];
   if (config?.pinned ?? true) {

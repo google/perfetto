@@ -37,6 +37,7 @@ import {Popup} from '../widgets/popup';
 import {canvasClip} from '../common/canvas_utils';
 import {TimeScale} from './time_scale';
 import {getLegacySelection} from '../common/state';
+import {CloseTrackButton} from './close_track_button';
 
 function getTitleSize(title: string): string | undefined {
   const length = title.length;
@@ -330,6 +331,7 @@ interface TrackComponentAttrs {
   tags?: TrackTags;
   track?: Track;
   error?: Error | undefined;
+  closeable: boolean;
 
   // Issues a scrollTo() on this DOM element at creation time. Default: false.
   revealOnCreate?: boolean;
@@ -359,6 +361,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
         m(TrackShell, {
           buttons: [
             attrs.error && m(CrashButton, {error: attrs.error}),
+            attrs.closeable && m(CloseTrackButton, {trackKey: attrs.trackKey}),
             attrs.buttons,
           ],
           title: attrs.title,
@@ -426,6 +429,7 @@ interface TrackPanelAttrs {
   tags?: TrackTags;
   trackFSM?: TrackCacheEntry;
   revealOnCreate?: boolean;
+  closeable: boolean;
 }
 
 export class TrackPanel implements Panel {
@@ -452,6 +456,7 @@ export class TrackPanel implements Panel {
           trackKey: attrs.trackKey,
           error: attrs.trackFSM.getError(),
           track: attrs.trackFSM.track,
+          closeable: attrs.closeable,
         });
       }
       return m(TrackComponent, {
@@ -463,12 +468,14 @@ export class TrackPanel implements Panel {
         track: attrs.trackFSM.track,
         error: attrs.trackFSM.getError(),
         revealOnCreate: attrs.revealOnCreate,
+        closeable: attrs.closeable,
       });
     } else {
       return m(TrackComponent, {
         trackKey: attrs.trackKey,
         title: attrs.title,
         revealOnCreate: attrs.revealOnCreate,
+        closeable: attrs.closeable,
       });
     }
   }
