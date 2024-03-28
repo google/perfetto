@@ -281,6 +281,7 @@ export interface TrackState {
   trackGroup?: string;
   params?: unknown;
   state?: unknown;
+  closeable?: boolean;
 }
 
 export interface TrackGroupState {

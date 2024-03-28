@@ -241,6 +241,7 @@ class TraceViewer implements m.ClassComponent {
           title: trackBundle.title,
           tags: trackBundle.tags,
           trackFSM: trackBundle.trackFSM,
+          closeable: trackBundle.closeable,
         });
       },
     );
@@ -270,6 +271,7 @@ class TraceViewer implements m.ClassComponent {
             title: trackBundle.title,
             tags: trackBundle.tags,
             trackFSM: trackBundle.trackFSM,
+            closeable: trackBundle.closeable,
           });
           childTracks.push(panel);
         }
@@ -327,6 +329,7 @@ class TraceViewer implements m.ClassComponent {
               tags: trackBundle.tags,
               trackFSM: trackBundle.trackFSM,
               revealOnCreate: true,
+              closeable: trackBundle.closeable,
             });
           }),
           kind: 'TRACKS',
@@ -348,7 +351,7 @@ class TraceViewer implements m.ClassComponent {
   // Resolve a track and its metadata through the track cache
   private resolveTrack(key: string): TrackBundle {
     const trackState = globals.state.tracks[key];
-    const {uri, params, name, labels} = trackState;
+    const {uri, params, name, labels, closeable} = trackState;
     const trackDesc = globals.trackManager.resolveTrackInfo(uri);
     const trackCacheEntry =
       trackDesc && globals.trackManager.resolveTrack(key, trackDesc, params);
@@ -361,6 +364,7 @@ class TraceViewer implements m.ClassComponent {
       trackFSM,
       labels,
       trackIds,
+      closeable: closeable ?? false,
     };
   }
 
@@ -371,6 +375,7 @@ class TraceViewer implements m.ClassComponent {
 
 interface TrackBundle {
   title: string;
+  closeable: boolean;
   trackFSM?: TrackCacheEntry;
   tags?: TrackTags;
   labels?: string[];
