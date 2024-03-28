@@ -726,6 +726,7 @@ export const StateActions = {
       type: args.type,
       viewingOption: args.viewingOption,
       focusRegex: '',
+      expandedCallsiteByViewingOption: {},
     };
   },
 
@@ -746,10 +747,15 @@ export const StateActions = {
 
   expandFlamegraphState(
     state: StateDraft,
-    args: {expandedCallsite?: CallsiteInfo},
+    args: {
+      expandedCallsite?: CallsiteInfo;
+      viewingOption: FlamegraphStateViewingOption;
+    },
   ): void {
     if (state.currentFlamegraphState === null) return;
-    state.currentFlamegraphState.expandedCallsite = args.expandedCallsite;
+    state.currentFlamegraphState.expandedCallsiteByViewingOption[
+      args.viewingOption
+    ] = args.expandedCallsite;
   },
 
   changeViewFlamegraphState(
