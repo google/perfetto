@@ -160,4 +160,5 @@ SELECT
   _subtree_native_size_bytes(t.id) AS dominated_native_size_bytes,
   d.depth
 FROM _heap_graph_dominator_tree t
-JOIN _heap_graph_dominator_tree_depth d USING(id);
+JOIN _heap_graph_dominator_tree_depth d USING(id)
+ORDER BY id;

@@ -12,12 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {featureFlags} from '../core/feature_flags';
 import {CallsiteInfo, FlamegraphStateViewingOption, ProfileType} from './state';
 
 interface ViewingOption {
   option: FlamegraphStateViewingOption;
   name: string;
 }
+
+const SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG = featureFlags.register({
+  id: 'showHeapGraphDominatorTree',
+  name: 'Show heap graph dominator tree',
+  description: 'Show dominated size and objects tabs in Java heap graph view.',
+  defaultValue: false,
+});
 
 export function viewingOptions(profileType: ProfileType): Array<ViewingOption> {
   switch (profileType) {
@@ -39,7 +47,22 @@ export function viewingOptions(profileType: ProfileType): Array<ViewingOption> {
           option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
           name: 'Objects',
         },
-      ];
+      ].concat(
+        SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG.get()
+          ? [
+              {
+                option:
+                  FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_SIZE_KEY,
+                name: 'Dominated size',
+              },
+              {
+                option:
+                  FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_COUNT_KEY,
+                name: 'Dominated objects',
+              },
+            ]
+          : [],
+      );
     case ProfileType.HEAP_PROFILE:
       return [
         {
