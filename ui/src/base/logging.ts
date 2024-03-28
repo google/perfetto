@@ -60,7 +60,7 @@ export function reportError(err: ErrorEvent | PromiseRejectionEvent | {}) {
 
   if (err instanceof ErrorEvent) {
     errType = 'ERROR';
-    errMsg = err.message;
+    errMsg = `${err.error}`;
     errorObj = err.error;
   } else if (err instanceof PromiseRejectionEvent) {
     errType = 'PROMISE_REJ';
