@@ -68,6 +68,7 @@
 #include "protos/perfetto/trace/ftrace/mm_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/net.pbzero.h"
 #include "protos/perfetto/trace/ftrace/oom.pbzero.h"
+#include "protos/perfetto/trace/ftrace/panel.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/raw_syscalls.pbzero.h"
 #include "protos/perfetto/trace/ftrace/rpm.pbzero.h"
@@ -1141,6 +1142,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kRpmStatusFieldNumber: {
         ParseRpmStatus(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kPanelWriteGenericFieldNumber: {
+        ParsePanelWriteGeneric(ts, pid, fld_bytes);
         break;
       }
       default:
@@ -3327,6 +3332,22 @@ void FtraceParser::ParseRpmStatus(int64_t ts, protozero::ConstBytes blob) {
   context_->slice_tracker->Begin(ts, track_id, /*category=*/kNullStringId,
                                  /*raw_name=*/GetRpmStatusStringId(rpm_status));
   devices_with_active_rpm_slice_.insert(device_name);
+}
+
+void FtraceParser::ParsePanelWriteGeneric(int64_t timestamp,
+                                          uint32_t pid,
+                                          ConstBytes blob) {
+  protos::pbzero::PanelWriteGenericFtraceEvent::Decoder evt(blob.data,
+                                                            blob.size);
+  if (!evt.type()) {
+    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    return;
+  }
+
+  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
+      timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
+      evt.name(), tgid, evt.value());
 }
 
 StringId FtraceParser::InternedKernelSymbolOrFallback(
