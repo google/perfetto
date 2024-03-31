@@ -48,6 +48,8 @@ template("wasm_lib") {
       "-s",
       "INITIAL_MEMORY=33554432",
       "-s",
+      "MAXIMUM_MEMORY=4GB",
+      "-s",
       "ALLOW_MEMORY_GROWTH=1",
       "-s",
       "ALLOW_TABLE_GROWTH=1",
