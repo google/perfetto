@@ -12851,6 +12851,7 @@ filegroup {
     srcs: [
         "src/trace_redaction/build_timeline.cc",
         "src/trace_redaction/filter_ftrace_using_allowlist.cc",
+        "src/trace_redaction/filter_print_events.cc",
         "src/trace_redaction/filter_sched_waking_events.cc",
         "src/trace_redaction/find_package_uid.cc",
         "src/trace_redaction/optimize_timeline.cc",

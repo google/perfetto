@@ -170,6 +170,7 @@ TEST_F(FilterFtraceUsingAllowlistTest, RetainsAllowedEvents) {
   ASSERT_TRUE(events.count(protos::pbzero::FtraceEvent::kTimestampFieldNumber));
 
   // These are events.
+  ASSERT_TRUE(events.count(protos::pbzero::FtraceEvent::kPrintFieldNumber));
   ASSERT_TRUE(
       events.count(protos::pbzero::FtraceEvent::kCpuFrequencyFieldNumber));
   ASSERT_TRUE(events.count(protos::pbzero::FtraceEvent::kCpuIdleFieldNumber));
@@ -197,7 +198,6 @@ TEST_F(FilterFtraceUsingAllowlistTest, RemovesNotAllowedEvents) {
   // These are events.
   ASSERT_FALSE(
       events.count(protos::pbzero::FtraceEvent::kOomScoreAdjUpdateFieldNumber));
-  ASSERT_FALSE(events.count(protos::pbzero::FtraceEvent::kPrintFieldNumber));
   ASSERT_FALSE(
       events.count(protos::pbzero::FtraceEvent::kSchedProcessExitFieldNumber));
   ASSERT_FALSE(

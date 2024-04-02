@@ -32,6 +32,8 @@ source_set("trace_redaction") {
     "build_timeline.h",
     "filter_ftrace_using_allowlist.cc",
     "filter_ftrace_using_allowlist.h",
+    "filter_print_events.cc",
+    "filter_print_events.h",
     "filter_sched_waking_events.cc",
     "filter_sched_waking_events.h",
     "find_package_uid.cc",

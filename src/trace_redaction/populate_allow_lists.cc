@@ -69,6 +69,7 @@ base::Status PopulateAllowlists::Build(Context* context) const {
       protos::pbzero::FtraceEvent::kIonBufferDestroyFieldNumber,
       protos::pbzero::FtraceEvent::kDmaHeapStatFieldNumber,
       protos::pbzero::FtraceEvent::kRssStatThrottledFieldNumber,
+      protos::pbzero::FtraceEvent::kPrintFieldNumber,
   };
 
   // TODO: Some ftrace fields should be retained, but they carry too much risk
