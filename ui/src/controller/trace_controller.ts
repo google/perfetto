@@ -104,7 +104,6 @@ import {decideTracks} from './track_decider';
 type States = 'init' | 'loading_trace' | 'ready';
 
 const METRICS = [
-  'android_startup',
   'android_ion',
   'android_lmk',
   'android_dma_heap',
