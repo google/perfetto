@@ -44,6 +44,8 @@ source_set("trace_redaction") {
     "prune_package_list.h",
     "redact_sched_switch.cc",
     "redact_sched_switch.h",
+    "redact_sched_waking.cc",
+    "redact_sched_waking.h",
     "scrub_ftrace_events.cc",
     "scrub_ftrace_events.h",
     "scrub_process_trees.cc",
@@ -75,6 +77,7 @@ source_set("integrationtests") {
   testonly = true
   sources = [
     "redact_sched_switch_integrationtest.cc",
+    "redact_sched_waking_integrationtest.cc",
     "scrub_ftrace_events_integrationtest.cc",
     "scrub_process_trees_integrationtest.cc",
     "scrub_task_rename_integrationtest.cc",
@@ -102,6 +105,7 @@ perfetto_unittest_source_set("unittests") {
     "proto_util_unittest.cc",
     "prune_package_list_unittest.cc",
     "redact_sched_switch_unittest.cc",
+    "redact_sched_waking_unittest.cc",
     "scrub_ftrace_events_unittest.cc",
     "scrub_task_rename_unittest.cc",
     "scrub_trace_packet_unittest.cc",
