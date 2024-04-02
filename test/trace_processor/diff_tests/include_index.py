@@ -46,21 +46,22 @@ from diff_tests.metrics.startup.tests_broadcasts import StartupBroadcasts
 from diff_tests.metrics.startup.tests_lock_contention import StartupLockContention
 from diff_tests.metrics.startup.tests_metrics import StartupMetrics
 from diff_tests.metrics.webview.tests import WebView
+from diff_tests.parser.android_fs.tests import AndroidFs
 from diff_tests.parser.android.tests import AndroidParser
 from diff_tests.parser.android.tests_bugreport import AndroidBugreport
 from diff_tests.parser.android.tests_games import AndroidGames
+from diff_tests.parser.android.tests_protolog import ProtoLog
+from diff_tests.parser.android.tests_shell_transitions import ShellTransitions
 from diff_tests.parser.android.tests_surfaceflinger_layers import SurfaceFlingerLayers
 from diff_tests.parser.android.tests_surfaceflinger_transactions import SurfaceFlingerTransactions
-from diff_tests.parser.android.tests_shell_transitions import ShellTransitions
-from diff_tests.parser.android.tests_protolog import ProtoLog
-from diff_tests.parser.android_fs.tests import AndroidFs
 from diff_tests.parser.atrace.tests import Atrace
 from diff_tests.parser.atrace.tests_error_handling import AtraceErrorHandling
 from diff_tests.parser.chrome.tests import ChromeParser
-from diff_tests.parser.chrome.tests_v8 import ChromeV8Parser
 from diff_tests.parser.chrome.tests_memory_snapshots import ChromeMemorySnapshots
+from diff_tests.parser.chrome.tests_v8 import ChromeV8Parser
 from diff_tests.parser.cros.tests import Cros
 from diff_tests.parser.fs.tests import Fs
+from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 from diff_tests.parser.fuchsia.tests import Fuchsia
 from diff_tests.parser.graphics.tests import GraphicsParser
 from diff_tests.parser.graphics.tests_drm_related_ftrace_events import GraphicsDrmRelatedFtraceEvents
@@ -91,22 +92,23 @@ from diff_tests.parser.track_event.tests import TrackEvent
 from diff_tests.parser.translated_args.tests import TranslatedArgs
 from diff_tests.parser.ufs.tests import Ufs
 from diff_tests.stdlib.android.tests import AndroidStdlib
+from diff_tests.stdlib.android.frames_tests import Frames
 from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TESTSUITES
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
-from diff_tests.stdlib.intervals.tests import StdlibIntervals
-from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
+from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
+from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.tests import LinuxStdlib
 from diff_tests.stdlib.memory.heap_graph_dominator_tree_tests import HeapGraphDominatorTree
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
-from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
 from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
+from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
 from diff_tests.stdlib.sched.tests import StdlibSched
 from diff_tests.stdlib.slices.tests import Slices
 from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
@@ -125,7 +127,6 @@ from diff_tests.syntax.view_tests import PerfettoView
 from diff_tests.tables.tests import Tables
 from diff_tests.tables.tests_counters import TablesCounters
 from diff_tests.tables.tests_sched import TablesSched
-from diff_tests.parser.ftrace.ftrace_crop_tests import FtraceCrop
 
 sys.path.pop()
 
@@ -242,6 +243,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
   stdlib_tests = [
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
       *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
+      *Frames(index_path, 'stdlib/android', 'Frames').fetch(),
       *GraphSearchTests(index_path, 'stdlib/graphs',
                         'GraphSearchTests').fetch(),
       *StdlibCounterIntervals(index_path, 'stdlib/counters',
