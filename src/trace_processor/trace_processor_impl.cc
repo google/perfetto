@@ -43,7 +43,6 @@
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "sqlite/sqlite_utils.h"
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
@@ -66,6 +65,7 @@
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
@@ -667,6 +667,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterFunction<Base64Encode>(engine_.get(), "BASE64_ENCODE", 1);
   RegisterFunction<Demangle>(engine_.get(), "DEMANGLE", 1);
   RegisterFunction<SourceGeq>(engine_.get(), "SOURCE_GEQ", -1);
+  RegisterFunction<TablePtrBind>(engine_.get(), "__intrinsic_table_ptr_bind",
+                                 -1);
   RegisterFunction<ExportJson>(engine_.get(), "EXPORT_JSON", 1,
                                context_.storage.get(), false);
   RegisterFunction<ExtractArg>(engine_.get(), "EXTRACT_ARG", 2,
@@ -780,6 +782,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       "sqlstats", storage);
   engine_->sqlite_engine()->RegisterVirtualTableModule<StatsModule>("stats",
                                                                     storage);
+  engine_->sqlite_engine()->RegisterVirtualTableModule<TablePointerModule>(
+      "__intrinsic_table_ptr", nullptr);
 
   // New style db-backed tables.
   // Note: if adding a table here which might potentially contain many rows
