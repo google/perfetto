@@ -322,8 +322,8 @@ export class App implements m.ClassComponent {
 
         if (engine !== undefined && trackUtid != 0) {
           await runQuery(
-              `INCLUDE PERFETTO MODULE sched.thread_executing_span;`,
-              engine,
+            `INCLUDE PERFETTO MODULE sched.thread_executing_span;`,
+            engine,
           );
           await addDebugSliceTrack(
             engine,
@@ -365,8 +365,8 @@ export class App implements m.ClassComponent {
 
         if (engine !== undefined && trackUtid != 0) {
           await runQuery(
-              `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;`,
-              engine,
+            `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;`,
+            engine,
           );
           await addDebugSliceTrack(
             engine,
@@ -399,8 +399,7 @@ export class App implements m.ClassComponent {
 
         if (engine !== undefined && trackUtid != 0) {
           addQueryResultsTab({
-            query:
-                `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;
+            query: `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;
                    SELECT *
                       FROM
                         _thread_executing_span_critical_path_graph(

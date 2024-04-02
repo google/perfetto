@@ -504,16 +504,6 @@ SELECT
   ) AS startup
 FROM android_startups launches;
 
-DROP VIEW IF EXISTS android_startup_event;
-CREATE PERFETTO VIEW android_startup_event AS
-SELECT
-  'slice' AS track_type,
-  'Android App Startups' AS track_name,
-  l.ts AS ts,
-  l.dur AS dur,
-  l.package AS slice_name
-FROM android_startups l;
-
 DROP VIEW IF EXISTS android_startup_output;
 CREATE PERFETTO VIEW android_startup_output AS
 SELECT
