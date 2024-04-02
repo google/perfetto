@@ -97,16 +97,15 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       }
     }
 
-    const depth = attrs.trackState.trackGroup === SCROLLING_TRACK_GROUP ?
+    const depth = (attrs.trackState.trackGroup === SCROLLING_TRACK_GROUP ?
       0 :
-      getContainingTrackIds(globals.state, attrs.trackState.id)?.length ?? 0;
+      getContainingTrackIds(globals.state, attrs.trackState.id)?.length ?? 0) +
+      1;
     const trackTitle = attrs.trackState.title ?? attrs.trackState.name;
     const titleStyling: Record<string, string|undefined> = {
       fontSize: getTitleSize(trackTitle),
     };
-    if (depth > 0) {
       titleStyling.marginLeft = `${depth/2}rem`;
-    }
 
     const dragClass = this.dragging ? `drag` : '';
     const dropClass = this.dropping ? `drop-${this.dropping}` : '';
