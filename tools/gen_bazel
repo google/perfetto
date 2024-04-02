@@ -181,6 +181,11 @@ bazel_required_defines = [
   "PERFETTO_SHLIB_SDK_IMPLEMENTATION"
 ]
 
+# Targets with the "avoid_dep" tag;
+avoid_dep_targets = set([
+  '//python:trace_processor_py_no_resolvers',
+])
+
 # Filter defines that appear in the bazel build file to only those that bazel requires.
 def filter_defines(defines):
   return [d for d in defines if d in bazel_required_defines]
@@ -240,6 +245,8 @@ class PythonBuildGenerator:
     self.populate_python_deps(target, label)
     if target.name in public_python_targets:
       label.visibility = ['//visibility:public']
+    if target.name in avoid_dep_targets:
+      label.tags += ['avoid_dep']
     return [label]
 
   def gen_python_binary(self, target: GnParser.Target):
@@ -346,6 +353,7 @@ class BazelLabel(object):
     self.python_version: Optional[str] = None
     self.root_dir: Optional[str] = None
     self.namespace: Optional[str] = None
+    self.tags: List[str] = []
 
   def __lt__(self, other):
     if isinstance(other, self.__class__):
