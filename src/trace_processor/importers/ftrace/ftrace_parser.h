@@ -296,6 +296,9 @@ class FtraceParser {
                                    protozero::ConstBytes);
   StringId GetRpmStatusStringId(int32_t rpm_status_val);
   void ParseRpmStatus(int64_t ts, protozero::ConstBytes);
+  void ParsePanelWriteGeneric(int64_t timestamp,
+                              uint32_t pid,
+                              protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;

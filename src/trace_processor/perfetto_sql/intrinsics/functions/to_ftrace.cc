@@ -38,6 +38,7 @@
 #include "protos/perfetto/trace/ftrace/g2d.pbzero.h"
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mdss.pbzero.h"
+#include "protos/perfetto/trace/ftrace/panel.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/samsung.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
@@ -448,6 +449,19 @@ void ArgsSerializer::SerializeArgs() {
     return;
   } else if (event_name_ == "dpu_tracing_mark_write") {
     using TMW = protos::pbzero::DpuTracingMarkWriteFtraceEvent;
+    WriteValueForField(TMW::kTypeFieldNumber, [this](const Variadic& value) {
+      PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+      writer_->AppendChar(static_cast<char>(value.uint_value));
+    });
+    writer_->AppendString("|");
+    WriteValueForField(TMW::kPidFieldNumber, DVW());
+    writer_->AppendString("|");
+    WriteValueForField(TMW::kNameFieldNumber, DVW());
+    writer_->AppendString("|");
+    WriteValueForField(TMW::kValueFieldNumber, DVW());
+    return;
+  } else if (event_name_ == "panel_write_generic") {
+    using TMW = protos::pbzero::PanelWriteGenericFtraceEvent;
     WriteValueForField(TMW::kTypeFieldNumber, [this](const Variadic& value) {
       PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
       writer_->AppendChar(static_cast<char>(value.uint_value));
