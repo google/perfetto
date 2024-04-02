@@ -39,14 +39,15 @@ import {
   STR_NULL,
 } from '../../public';
 import {raf} from '../../core/raf_scheduler';
-import {VisibleState} from '../../common/state';
+import {AsyncLimiter} from '../../base/async_limiter';
+import {Monitor} from '../../base/monitor';
 
 const ROW_H = 20;
 const PAGE_SIZE = 250;
 
 interface FtraceExplorerAttrs {
   counters: FtraceStat[];
-  store: Store<FtraceFilter>;
+  filterStore: Store<FtraceFilter>;
   engine: EngineProxy;
 }
 
@@ -72,32 +73,37 @@ interface Pagination {
 }
 
 export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
-  private paginationStore = createStore<Pagination>({
+  private readonly paginationStore = createStore<Pagination>({
     page: 0,
     pageCount: 0,
   });
-  private oldPagination?: Pagination;
-  private oldFilterState?: FtraceFilter;
-  private oldVisibleState?: VisibleState;
+  private readonly monitor: Monitor;
+  private readonly queryLimiter = new AsyncLimiter();
 
   // A cache of the data we have most recently loaded from our store
   private data?: FtracePanelData;
 
+  constructor({attrs}: m.CVnode<FtraceExplorerAttrs>) {
+    this.monitor = new Monitor([
+      () => globals.state.frontendLocalState.visibleState.start,
+      () => globals.state.frontendLocalState.visibleState.end,
+      () => attrs.filterStore.state,
+      () => this.paginationStore.state,
+    ]);
+  }
+
   view({attrs}: m.CVnode<FtraceExplorerAttrs>) {
-    if (this.shouldUpdate(attrs.store)) {
-      this.oldVisibleState = globals.state.frontendLocalState.visibleState;
-      this.oldFilterState = attrs.store.state;
-      this.oldPagination = this.paginationStore.state;
-      lookupFtraceEvents(
-        attrs.engine,
-        this.paginationStore.state.page * PAGE_SIZE,
-        this.paginationStore.state.pageCount * PAGE_SIZE,
-        attrs.store.state,
-      ).then((data) => {
-        this.data = data;
+    this.monitor.ifStateChanged(() =>
+      this.queryLimiter.schedule(async () => {
+        this.data = await lookupFtraceEvents(
+          attrs.engine,
+          this.paginationStore.state.page * PAGE_SIZE,
+          this.paginationStore.state.pageCount * PAGE_SIZE,
+          attrs.filterStore.state,
+        );
         raf.scheduleFullRedraw();
-      });
-    }
+      }),
+    );
 
     return m(
       DetailsShell,
@@ -124,7 +130,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     const visibleRowCount = Math.ceil(scrollContainer.clientHeight / ROW_H);
 
     // Work out which "page" we're on
-    const page = Math.floor(visibleRowOffset / PAGE_SIZE) - 1;
+    const page = Math.max(0, Math.floor(visibleRowOffset / PAGE_SIZE) - 1);
     const pageCount = Math.ceil(visibleRowCount / PAGE_SIZE) + 2;
 
     if (page !== prevPage || pageCount !== prevPageCount) {
@@ -134,24 +140,6 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
       });
       raf.scheduleFullRedraw();
     }
-  }
-
-  private shouldUpdate(filterStore: Store<FtraceFilter>): boolean {
-    if (filterStore.state !== this.oldFilterState) {
-      return true;
-    }
-
-    if (
-      globals.state.frontendLocalState.visibleState !== this.oldVisibleState
-    ) {
-      return true;
-    }
-
-    if (this.paginationStore.state !== this.oldPagination) {
-      return true;
-    }
-
-    return false;
   }
 
   onRowOver(ts: time) {
@@ -172,7 +160,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   }
 
   private renderFilterPanel(attrs: FtraceExplorerAttrs) {
-    const excludeList = attrs.store.state.excludeList;
+    const excludeList = attrs.filterStore.state.excludeList;
     const options: MultiSelectOption[] = attrs.counters.map(({name, count}) => {
       return {
         id: name,
@@ -196,7 +184,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
             newList.add(id);
           }
         });
-        attrs.store.edit((draft) => {
+        attrs.filterStore.edit((draft) => {
           draft.excludeList = Array.from(newList);
         });
       },
