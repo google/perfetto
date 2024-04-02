@@ -41,6 +41,11 @@ CREATE_TABLE_ALLOWLIST = {
         'android_cujs', 'relevant_binder_calls_with_names',
         'android_blocking_calls_cuj_calls'
     ],
+    ('/android'
+    '/android_blocking_calls_unagg.sql'): [
+        'filtered_processes_with_non_zero_blocking_calls',
+        'process_info', 'android_blocking_calls_unagg_calls'
+    ],
     '/android/jank/cujs.sql': ['android_jank_cuj'],
     '/chrome/gesture_flow_event.sql': [
         '{{prefix}}_latency_info_flow_step_filtered'
