@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../../gn/perfetto_tp_tables.gni")
 import("../../../../../gn/test.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
@@ -25,6 +26,8 @@ source_set("functions") {
     "create_function.h",
     "create_view_function.cc",
     "create_view_function.h",
+    "dfs.cc",
+    "dfs.h",
     "import.cc",
     "import.h",
     "layout_functions.cc",
@@ -43,6 +46,7 @@ source_set("functions") {
     "window_functions.h",
   ]
   deps = [
+    ":tables",
     "../../..:demangle",
     "../../..:export_json",
     "../../..:metatrace",
@@ -84,6 +88,10 @@ source_set("interface") {
     "../../../../../include/perfetto/trace_processor:basic_types",
     "../../../../base",
   ]
+}
+
+perfetto_tp_tables("tables") {
+  sources = [ "tables.py" ]
 }
 
 perfetto_unittest_source_set("unittests") {
