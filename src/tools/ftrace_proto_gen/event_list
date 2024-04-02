@@ -486,3 +486,6 @@ power/gpu_work_period
 rpm/rpm_status
 panel/panel_write_generic
 sched/sched_migrate_task
+dpu/dsi_cmd_fifo_status
+dpu/dsi_rx
+dpu/dsi_tx
