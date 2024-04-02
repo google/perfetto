@@ -85,7 +85,11 @@ class FtraceRawPlugin implements Plugin {
       isEphemeral: false,
       content: {
         render: () =>
-          m(FtraceExplorer, {counters, store: filterStore, engine: ctx.engine}),
+          m(FtraceExplorer, {
+            counters,
+            filterStore,
+            engine: ctx.engine,
+          }),
         getTitle: () => 'Ftrace Events',
       },
     });
