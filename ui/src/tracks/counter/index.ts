@@ -313,7 +313,6 @@ class CounterPlugin implements Plugin {
         thread.end_ts as endTs
       from thread_counter_track
       join thread using(utid)
-      left join process using(upid)
       where thread_counter_track.name != 'thread_time'
     `);
 

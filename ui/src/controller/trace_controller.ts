@@ -202,23 +202,25 @@ function showJsonWarning() {
 // ensure it's only run once.
 async function defineMaxLayoutDepthSqlFunction(engine: Engine): Promise<void> {
   await engine.query(`
-    select create_function(
-      'max_layout_depth(track_count INT, track_ids STRING)',
-      'INT',
-      '
-        select iif(
-          $track_count = 1,
-          (
-            select max(depth)
-            from slice
-            where track_id = cast($track_ids AS int)
-          ),
-          (
-            select max(layout_depth)
-            from experimental_slice_layout($track_ids)
-          )
-        );
-      '
+    create or replace perfetto table __max_layout_depth_state as
+    select track_id, max(depth) as max_depth
+    from slice
+    group by track_id
+    order by track_id;
+
+    create perfetto function __max_layout_depth(track_count INT, track_ids STRING)
+    returns INT AS
+    select iif(
+      $track_count = 1,
+      (
+        select max_depth
+        from __max_layout_depth_state
+        where track_id = cast($track_ids AS int)
+      ),
+      (
+        select max(layout_depth)
+        from experimental_slice_layout($track_ids)
+      )
     );
   `);
 }
