@@ -207,10 +207,11 @@ struct Module {
   // Implementations MUST define this function themselves if
   // |kDoesOverloadFunctions| == |true|; this function is declared but *not*
   // defined so linker errors will be thrown if not defined.
+  using FindFunctionFn = void(sqlite3_context*, int, sqlite3_value**);
   static int FindFunction(sqlite3_vtab*,
                           int,
                           const char*,
-                          void (**)(sqlite3_context*, int, sqlite3_value**),
+                          FindFunctionFn**,
                           void**);
 
   // Helper function to cast the module context pointer to the correct type.
