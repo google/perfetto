@@ -41,6 +41,9 @@ int TablePointerModule::Connect(sqlite3* db,
                                 const char* const*,
                                 sqlite3_vtab** vtab,
                                 char**) {
+  // Specify a dynamic list of columns as our schema which can be later be bound
+  // to specific columns in the table. Only the columns which are bound can be
+  // accessed - all others will throw an error.
   static constexpr char kSchema[] = R"(
     CREATE TABLE x(
       c0 ANY,
@@ -101,7 +104,10 @@ int TablePointerModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
       if (bound) {
         return sqlite::utils::SetError(tab, "Duplicate bound column");
       }
-      // TODO(lalitm): all of the values here should be constants.
+      // TODO(lalitm): all of the values here should be constants which should
+      // be accessed with sqlite3_rhs_value. Doing this would require having to
+      // serialize and deserialize the constants though so let's not do it for
+      // now.
       out.argvIndex = kBoundColumnArgvOffset + in.iColumn;
       out.omit = true;
       bound = true;
