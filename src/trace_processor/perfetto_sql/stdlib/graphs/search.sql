@@ -59,13 +59,17 @@ CREATE PERFETTO MACRO graph_reachable_dfs(
 -- search of the graph.
 RETURNS TableOrSubquery AS
 (
-  WITH __temp_graph_table AS (SELECT * FROM $graph_table)
-  SELECT dt.node_id, dt.parent_node_id
-  FROM __intrinsic_dfs(
-    (SELECT RepeatedField(source_node_id) FROM __temp_graph_table),
-    (SELECT RepeatedField(dest_node_id) FROM __temp_graph_table),
-    $start_node_id
-  ) dt
+  -- Rename the generic columns of __intrinsic_table_ptr to the actual columns.
+  SELECT c0 AS node_id, c1 AS parent_node_id
+  FROM __intrinsic_table_ptr((
+    -- Aggregate function to perform a DFS on the nodes on the input graph.
+    SELECT __intrinsic_dfs(g.source_node_id, g.dest_node_id, $start_node_id)
+    FROM $graph_table g
+  ))
+  -- Bind the dynamic columns in the |__intrinsic_table_ptr| to the columns of
+  -- the DFS table.
+  WHERE __intrinsic_table_ptr_bind(c0, 'node_id')
+    AND __intrinsic_table_ptr_bind(c1, 'parent_node_id')
 );
 
 -- Computes the next sibling node in a directed graph. The next node under a parent node
