@@ -198,7 +198,7 @@ class TrackDecider {
         p.name as parentName,
         t.name as name,
         t.trackIds as trackIds,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from global_tracks_grouped AS t
       left join track p on (t.parent_id = p.id)
       order by p.name, t.name;
@@ -767,24 +767,19 @@ class TrackDecider {
 
   async addThreadStateTracks(engine: EngineProxy): Promise<void> {
     const result = await engine.query(`
+      with ts_distinct as materialized (select distinct utid from thread_state)
       select
         utid,
-        tid,
         upid,
-        pid,
+        tid,
         thread.name as threadName
-      from
-        thread_state
-        left join thread using(utid)
-        left join process using(upid)
-      where utid != 0
-      group by utid`);
+      from thread
+      where utid != 0 and utid in ts_distinct`);
 
     const it = result.iter({
       utid: NUM,
       upid: NUM_NULL,
       tid: NUM_NULL,
-      pid: NUM_NULL,
       threadName: STR_NULL,
     });
     for (; it.valid(); it.next()) {
@@ -822,19 +817,18 @@ class TrackDecider {
 
   async addThreadCpuSampleTracks(engine: EngineProxy): Promise<void> {
     const result = await engine.query(`
+      with thread_cpu_sample as (
+        select distinct utid
+        from cpu_profile_stack_sample
+        where utid != 0
+      )
       select
         utid,
         tid,
         upid,
         thread.name as threadName
-      from
-        thread
-        join (select utid
-            from cpu_profile_stack_sample group by utid
-        ) using(utid)
-        left join process using(upid)
-      where utid != 0
-      group by utid`);
+      from thread_cpu_sample
+      join thread using(utid)`);
 
     const it = result.iter({
       utid: NUM,
@@ -870,7 +864,6 @@ class TrackDecider {
       thread_counter_track.id as trackId
     from thread_counter_track
     join thread using(utid)
-    left join process using(upid)
     where thread_counter_track.name != 'thread_time'
   `);
 
@@ -921,7 +914,7 @@ class TrackDecider {
           group_concat(process_track.id) as trackIds,
           count(1) as trackCount
         from process_track
-        left join process using(upid)
+        join process using(upid)
         where
             process_track.name is null or
             process_track.name not like "% Timeline"
@@ -931,7 +924,7 @@ class TrackDecider {
       )
       select
         t.*,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from process_async_tracks t;
     `);
 
@@ -996,7 +989,7 @@ class TrackDecider {
         t.uid as uid,
         package_list.package_name as package_name,
         t.trackIds as trackIds,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from global_tracks t
       join package_list
       where t.uid = package_list.uid
@@ -1065,7 +1058,7 @@ class TrackDecider {
           group_concat(process_track.id) as trackIds,
           count(1) as trackCount
         from process_track
-        left join process using(upid)
+        join process using(upid)
         where process_track.name = "Actual Timeline"
         group by
           process_track.upid,
@@ -1073,7 +1066,7 @@ class TrackDecider {
       )
       select
         t.*,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from process_async_tracks t;
   `);
 
@@ -1127,7 +1120,7 @@ class TrackDecider {
           group_concat(process_track.id) as trackIds,
           count(1) as trackCount
         from process_track
-        left join process using(upid)
+        join process using(upid)
         where process_track.name = "Expected Timeline"
         group by
           process_track.upid,
@@ -1135,7 +1128,7 @@ class TrackDecider {
       )
       select
         t.*,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from process_async_tracks t;
   `);
 
@@ -1181,20 +1174,19 @@ class TrackDecider {
 
   async addThreadSliceTracks(engine: EngineProxy): Promise<void> {
     const result = await engine.query(`
-        select
-          thread_track.utid as utid,
-          thread_track.id as trackId,
-          thread_track.name as trackName,
-          EXTRACT_ARG(thread_track.source_arg_set_id,
-                      'is_root_in_scope') as isDefaultTrackForScope,
-          tid,
-          thread.name as threadName,
-          process.upid as upid
-        from slice
-        join thread_track on slice.track_id = thread_track.id
-        join thread using(utid)
-        left join process using(upid)
-        group by thread_track.id
+      with slice_track as materialized (select distinct track_id from slice)
+      select
+        thread_track.utid as utid,
+        thread_track.id as trackId,
+        thread_track.name as trackName,
+        EXTRACT_ARG(thread_track.source_arg_set_id,
+                    'is_root_in_scope') as isDefaultTrackForScope,
+        tid,
+        thread.name as threadName,
+        thread.upid as upid
+      from thread_track
+      join thread using(utid)
+      join slice_track on thread_track.id = slice_track.track_id
   `);
 
     const it = result.iter({
@@ -1421,6 +1413,54 @@ class TrackDecider {
     //  thread name
     //  utid
     const result = await engine.query(`
+    with candidateThreadsAndProcesses as materialized (
+      select upid, 0 as utid from process_track
+      union
+      select upid, 0 as utid from process_counter_track
+      union
+      select upid, utid from thread_counter_track join thread using(utid)
+      union
+      select upid, utid from thread_track join thread using(utid)
+      union
+      select upid, utid from (
+        select distinct utid from sched
+      ) join thread using(utid) group by utid
+      union
+      select upid, 0 as utid from (
+        select distinct utid from perf_sample where callsite_id is not null
+      ) join thread using (utid)
+      union
+      select upid, utid from (
+        select distinct utid from cpu_profile_stack_sample
+      ) join thread using(utid)
+      union
+      select upid as upid, 0 as utid from heap_profile_allocation
+      union
+      select upid as upid, 0 as utid from heap_graph_object
+    ),
+    schedSum as materialized (
+      select upid, sum(thread_total_dur) as total_dur
+      from (
+        select utid, sum(dur) as thread_total_dur
+        from sched where dur != -1 and utid != 0
+        group by utid
+      )
+      join thread using (utid)
+      group by upid
+    ),
+    sliceSum as materialized (
+      select
+        process.upid as upid,
+        sum(cnt) as sliceCount
+      from (select track_id, count(*) as cnt from slice group by track_id)
+        left join thread_track on track_id = thread_track.id
+        left join thread on thread_track.utid = thread.utid
+        left join process_track on track_id = process_track.id
+        join process on process.upid = thread.upid
+          or process_track.upid = process.upid
+      where process.upid is not null
+      group by process.upid
+    )
     select
       the_tracks.upid,
       the_tracks.utid,
@@ -1445,40 +1485,8 @@ class TrackDecider {
          when 'Renderer' then 1
          else 0
       end) as chromeProcessRank
-    from (
-      select upid, 0 as utid from process_track
-      union
-      select upid, 0 as utid from process_counter_track
-      union
-      select upid, utid from thread_counter_track join thread using(utid)
-      union
-      select upid, utid from thread_track join thread using(utid)
-      union
-      select upid, utid from sched join thread using(utid) group by utid
-      union
-      select upid, 0 as utid from (
-        select distinct upid
-        from perf_sample join thread using (utid) join process using (upid)
-        where callsite_id is not null)
-      union
-      select upid, utid from (
-        select distinct(utid) from cpu_profile_stack_sample
-      ) join thread using(utid)
-      union
-      select distinct(upid) as upid, 0 as utid from heap_profile_allocation
-      union
-      select distinct(upid) as upid, 0 as utid from heap_graph_object
-    ) the_tracks
-    left join (
-      select upid, sum(thread_total_dur) as total_dur
-      from (
-        select utid, sum(dur) as thread_total_dur
-        from sched where dur != -1 and utid != 0
-        group by utid
-      )
-      join thread using (utid)
-      group by upid
-    ) using(upid)
+    from candidateThreadsAndProcesses the_tracks
+    left join schedSum using(upid)
     left join (
       select
         distinct(upid) as upid,
@@ -1501,19 +1509,7 @@ class TrackDecider {
       ) join thread using (utid)
       group by thread.upid
     ) using (upid)
-    left join (
-      select
-        process.upid as upid,
-        sum(cnt) as sliceCount
-      from (select track_id, count(*) as cnt from slice group by track_id)
-        left join thread_track on track_id = thread_track.id
-        left join thread on thread_track.utid = thread.utid
-        left join process_track on track_id = process_track.id
-        join process on process.upid = thread.upid
-          or process_track.upid = process.upid
-      where process.upid is not null
-      group by process.upid
-    ) using (upid)
+    left join sliceSum using (upid)
     left join thread using(utid)
     left join process using(upid)
     left join package_list using(uid)
@@ -1600,10 +1596,9 @@ class TrackDecider {
     select
       utid,
       tid,
-      pid,
-      thread.name as threadName
-    from thread
-    left join process using(upid)`);
+      (select pid from process p where t.upid = p.upid) as pid,
+      t.name as threadName
+    from thread t`);
 
     const it = result.iter({
       utid: NUM,
