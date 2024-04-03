@@ -154,22 +154,6 @@ DOMINATOR_TREE_TABLE = Table(
         C("in_root_node_id", CppOptional(CppUint32()), flags=ColumnFlag.HIDDEN),
     ])
 
-DFS_TABLE = Table(
-    python_module=__file__,
-    class_name="DfsTable",
-    sql_name="__intrinsic_dfs",
-    columns=[
-        C("node_id", CppUint32()),
-        C("parent_node_id", CppOptional(CppUint32())),
-        C("in_source_node_ids",
-          CppOptional(CppString()),
-          flags=ColumnFlag.HIDDEN),
-        C("in_dest_node_ids", CppOptional(CppString()),
-          flags=ColumnFlag.HIDDEN),
-        C("in_start_node_id", CppOptional(CppUint32()),
-          flags=ColumnFlag.HIDDEN),
-    ])
-
 INTERVAL_INTERSECT_TABLE = Table(
     python_module=__file__,
     class_name="IntervalIntersectTable",
@@ -219,7 +203,6 @@ ALL_TABLES = [
     CONNECTED_FLOW_TABLE,
     DESCENDANT_SLICE_BY_STACK_TABLE,
     DESCENDANT_SLICE_TABLE,
-    DFS_TABLE,
     DFS_WEIGHT_BOUNDED_TABLE,
     DOMINATOR_TREE_TABLE,
     EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE,

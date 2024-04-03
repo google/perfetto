@@ -70,6 +70,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/dfs.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/import.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
@@ -84,7 +85,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs_weight_bounded.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dominator_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h"
@@ -929,10 +929,12 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       std::make_unique<DominatorTree>(context_.storage->mutable_string_pool()));
   engine_->RegisterStaticTableFunction(std::make_unique<IntervalIntersect>(
       context_.storage->mutable_string_pool()));
-  engine_->RegisterStaticTableFunction(
-      std::make_unique<Dfs>(context_.storage->mutable_string_pool()));
   engine_->RegisterStaticTableFunction(std::make_unique<DfsWeightBounded>(
       context_.storage->mutable_string_pool()));
+
+  // Value table aggregate functions.
+  engine_->RegisterSqliteAggregateFunction<Dfs>(
+      Dfs::kName, Dfs::kArgCount, context_.storage->mutable_string_pool());
 
   // Metrics.
   RegisterAllProtoBuilderFunctions(&pool_, engine_.get(), this);
