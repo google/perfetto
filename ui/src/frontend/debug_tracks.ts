@@ -23,11 +23,13 @@ export const ARG_PREFIX = 'arg_';
 export const DEBUG_SLICE_TRACK_URI = 'perfetto.DebugSlices';
 export const DEBUG_COUNTER_TRACK_URI = 'perfetto.DebugCounter';
 
-// Names of the columns of the underlying view to be used as ts / dur / name.
+// Names of the columns of the underlying view to be used as
+// ts / dur / name / pivot.
 export interface SliceColumns {
   ts: string;
   dur: string;
   name: string;
+  pivot?: string;
 }
 
 export interface DebugTrackV2CreateConfig {
@@ -85,6 +87,43 @@ export async function createDebugSliceTrackActions(
     actions.push(Actions.toggleTrackPinned({trackKey}));
   }
   return actions;
+}
+
+export async function addPivotDebugSliceTracks(
+  engine: EngineProxy,
+  data: SqlDataSource,
+  trackName: string,
+  sliceColumns: SliceColumns,
+  argColumns: string[],
+  config?: DebugTrackV2CreateConfig,
+) {
+  if (sliceColumns.pivot) {
+    // Get distinct values to group by
+    const pivotValues = await engine.query(`
+      with all_vals as (${data.sqlSource})
+      select DISTINCT ${sliceColumns.pivot} from all_vals;`);
+
+    const iter = pivotValues.iter({});
+
+    for (; iter.valid(); iter.next()) {
+      const pivotDataSource: SqlDataSource = {
+        sqlSource: `select * from
+        (${data.sqlSource})
+        where ${sliceColumns.pivot} = '${iter.get(sliceColumns.pivot)}'`,
+      };
+
+      const actions = await createDebugSliceTrackActions(
+        engine,
+        pivotDataSource,
+        `${trackName.trim() || 'Pivot Track'}: ${iter.get(sliceColumns.pivot)}`,
+        sliceColumns,
+        argColumns,
+        config,
+      );
+
+      globals.dispatchMultiple(actions);
+    }
+  }
 }
 
 // Adds a debug track immediately. Use createDebugSliceTrackActions() if you
