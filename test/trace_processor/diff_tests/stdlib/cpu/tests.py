@@ -52,6 +52,7 @@ class CpuStdlib(TestSuite):
             35,1708800,2,2553866772
             36,1708800,3,2553814688
             """))
+
   # Test CPU idle state counter grouping.
   def test_cpu_eos_counters_idle(self):
     return DiffTestBlueprint(

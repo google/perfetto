@@ -2413,6 +2413,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/binder.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/broadcasts.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/critical_blocking_calls.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/device.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/dvfs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/freezer.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/garbage_collection.sql",
@@ -2599,6 +2600,17 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/wattson:wattson
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_wattson_wattson",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/wattson/arm_dsu.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/cpu_freq.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/cpu_idle.sql",
+        "src/trace_processor/perfetto_sql/stdlib/wattson/system_state.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib:stdlib
 perfetto_cc_amalgamated_sql(
     name = "src_trace_processor_perfetto_sql_stdlib_stdlib",
@@ -2623,6 +2635,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_stack_trace_stack_trace",
         ":src_trace_processor_perfetto_sql_stdlib_time_time",
         ":src_trace_processor_perfetto_sql_stdlib_v8_v8",
+        ":src_trace_processor_perfetto_sql_stdlib_wattson_wattson",
     ],
     outs = [
         "src/trace_processor/perfetto_sql/stdlib/stdlib.h",
