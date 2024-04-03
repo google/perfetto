@@ -126,6 +126,9 @@ perfetto_py_library(
            ] + PERFETTO_CONFIG.deps.pandas_py +
            PERFETTO_CONFIG.deps.protobuf_py +
            PERFETTO_CONFIG.deps.tp_vendor_py,
+    tags = [
+        "avoid_dep",
+    ],
 )
 
 # GN target: //python:trace_uri_resolver

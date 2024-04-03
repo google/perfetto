@@ -357,7 +357,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
         label: 'Critical path',
         onclick: () =>
           runQuery(
-            `INCLUDE PERFETTO MODULE sched.thread_executing_span;`,
+            `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;`,
             this.engine,
           ).then(() =>
             addDebugSliceTrack(

@@ -54,6 +54,13 @@ namespace perfetto::trace_processor {
 //     uint32 values corresponding to the max sum of edge weights inclusive,
 //     at which point the DFS from the |root_node_ids| stops. This number of
 //     values should be the same as |root_node_ids|.
+//  6) |is_target_weight_floor|: Whether the target_weight is a floor weight or
+//  ceiling weight.
+//     If it's floor, the search stops right after we exceed the target weight,
+//     and we include the node that pushed just passed the target. If ceiling,
+//     the search stops right before the target weight and the node that would
+//     have pushed us passed the target is not included.
+
 //
 // Returns:
 //  A table with the nodes reachable from the start node, their "parent" in
