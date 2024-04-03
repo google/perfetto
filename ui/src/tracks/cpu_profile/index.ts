@@ -267,19 +267,18 @@ class CpuProfile implements Plugin {
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
+      with thread_cpu_sample as (
+        select distinct utid
+        from cpu_profile_stack_sample
+        where utid != 0
+      )
       select
         utid,
         tid,
         upid,
         thread.name as threadName
-      from
-        thread
-        join (select utid
-            from cpu_profile_stack_sample group by utid
-        ) using(utid)
-        left join process using(upid)
-      where utid != 0
-      group by utid`);
+      from thread_cpu_sample
+      join thread using(utid)`);
 
     const it = result.iter({
       utid: NUM,
