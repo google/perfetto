@@ -27,7 +27,30 @@
 namespace perfetto::trace_processor {
 
 // SQLite module which allows iteration over a table pointer (i.e. a instance of
-// Table which is being directly passed in as a SQL value).
+// Table which is being directly passed in as a SQL value). This allows for a
+// dynamic, schema-less iteration over table pointers. This is generally not
+// possible as SQLite reqiures the schema to be defined upfront but this class
+// works around that by having a fixed schema but then allowing "binding" table
+// pointer columns to SQLite columns dynamically at query time.
+//
+// Example:
+// ```
+//  -- Renaming the static columns defined by this table to the particular
+//  -- column names for this query.
+//  SELECT c0 AS node_id, c1 AS parent_node_id
+//  -- The call to this class
+//  FROM __intrinsic_table_ptr((
+//    -- An aggregate function which returns the table pointer we want to
+//    -- iterate over.
+//    SELECT __intrinsic_dfs(g.source_node_id, g.dest_node_id, $start_node_id)
+//    FROM $graph_table g
+//  ))
+//  -- Informs this class about which SQLite column corresponds to which
+//  -- SQLite column. The SQLite columns bindings should be dense starting from
+//  -- 0.
+//  WHERE __intrinsic_table_ptr_bind(c0, 'node_id')
+//    AND __intrinsic_table_ptr_bind(c1, 'parent_node_id')
+// ```
 //
 // Note: this class is *not* intended to be used directly by end users. It is
 // a building block intended for use by very low-level macros in the standard
