@@ -25,6 +25,7 @@ import {
   SqlDataSource,
   addDebugCounterTrack,
   addDebugSliceTrack,
+  addPivotDebugSliceTracks,
 } from '../../frontend/debug_tracks';
 
 export const ARG_PREFIX = 'arg_';
@@ -52,7 +53,13 @@ export class AddDebugTrackMenu
   // 'value' for slice and 'name' for counter) and then just don't the values
   // which don't match the currently selected track type (so changing track type
   // from A to B and back to A is a no-op).
-  renderParams: {ts: string; dur: string; name: string; value: string};
+  renderParams: {
+    ts: string;
+    dur: string;
+    name: string;
+    value: string;
+    pivot: string;
+  };
 
   constructor(vnode: m.Vnode<AddDebugTrackMenuAttrs>) {
     this.columns = [...vnode.attrs.dataSource.columns];
@@ -77,6 +84,7 @@ export class AddDebugTrackMenu
       dur: chooseDefaultOption('dur'),
       name: chooseDefaultOption('name'),
       value: chooseDefaultOption('value'),
+      pivot: '',
     };
   }
 
@@ -124,15 +132,23 @@ export class AddDebugTrackMenu
   }
 
   view(vnode: m.Vnode<AddDebugTrackMenuAttrs>) {
-    const renderSelect = (name: 'ts' | 'dur' | 'name' | 'value') => {
+    const renderSelect = (name: 'ts' | 'dur' | 'name' | 'value' | 'pivot') => {
       const options = [];
+
+      if (name === 'pivot') {
+        options.push(
+          m(
+            'option',
+            {selected: this.renderParams[name] === '' ? true : undefined},
+            m('i', ''),
+          ),
+        );
+      }
       for (const column of this.columns) {
         options.push(
           m(
             'option',
-            {
-              selected: this.renderParams[name] === column ? true : undefined,
-            },
+            {selected: this.renderParams[name] === column ? true : undefined},
             column,
           ),
         );
@@ -161,23 +177,39 @@ export class AddDebugTrackMenu
         ),
       ];
     };
+
     return m(
       Form,
       {
         onSubmit: () => {
           switch (this.trackType) {
             case 'slice':
-              addDebugSliceTrack(
-                vnode.attrs.engine,
-                vnode.attrs.dataSource,
-                this.name,
-                {
-                  ts: this.renderParams.ts,
-                  dur: this.renderParams.dur,
-                  name: this.renderParams.name,
-                },
-                this.columns,
-              );
+              if (this.renderParams.pivot === '') {
+                addDebugSliceTrack(
+                  vnode.attrs.engine,
+                  vnode.attrs.dataSource,
+                  this.name,
+                  {
+                    ts: this.renderParams.ts,
+                    dur: this.renderParams.dur,
+                    name: this.renderParams.name,
+                  },
+                  this.columns,
+                );
+              } else {
+                addPivotDebugSliceTracks(
+                  vnode.attrs.engine,
+                  vnode.attrs.dataSource,
+                  this.name,
+                  {
+                    ts: this.renderParams.ts,
+                    dur: this.renderParams.dur,
+                    name: this.renderParams.name,
+                    pivot: this.renderParams.pivot,
+                  },
+                  this.columns,
+                );
+              }
               break;
             case 'counter':
               addDebugCounterTrack(vnode.attrs.dataSource, this.name, {
@@ -207,6 +239,7 @@ export class AddDebugTrackMenu
       renderSelect('ts'),
       this.trackType === 'slice' && renderSelect('dur'),
       this.trackType === 'slice' && renderSelect('name'),
+      this.trackType === 'slice' && renderSelect('pivot'),
       this.trackType === 'counter' && renderSelect('value'),
     );
   }
