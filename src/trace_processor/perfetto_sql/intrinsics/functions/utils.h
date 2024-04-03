@@ -347,6 +347,18 @@ struct SourceGeq : public SqlFunction {
   }
 };
 
+struct TablePtrBind : public SqlFunction {
+  static base::Status Run(void*,
+                          size_t,
+                          sqlite3_value**,
+                          SqlValue&,
+                          Destructors&) {
+    return base::ErrStatus(
+        "__intrinsic_table_ptr_bind should not be called from the global "
+        "scope");
+  }
+};
+
 struct Glob : public SqlFunction {
   static base::Status Run(void*,
                           size_t,
