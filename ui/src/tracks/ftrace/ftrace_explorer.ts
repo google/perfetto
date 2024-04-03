@@ -276,10 +276,8 @@ async function lookupFtraceEvents(
       process.name as process,
       to_ftrace(ftrace_event.id) as args
     from ftrace_event
-    left join thread
-    on ftrace_event.utid = thread.utid
-    left join process
-    on thread.upid = process.upid
+    join thread using (utid)
+    left join process on thread.upid = process.upid
     where
       ftrace_event.name not in (${excludeListSql}) and
       ts >= ${start} and ts <= ${end}

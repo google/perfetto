@@ -227,6 +227,11 @@ class ChromeSlicesPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
+        with max_depth_materialized as (
+          select track_id, max(depth) as maxDepth
+          from slice
+          group by track_id
+        )
         select
           thread_track.utid as utid,
           thread_track.id as trackId,
@@ -235,13 +240,11 @@ class ChromeSlicesPlugin implements Plugin {
                       'is_root_in_scope') as isDefaultTrackForScope,
           tid,
           thread.name as threadName,
-          max(slice.depth) as maxDepth,
-          process.upid as upid
-        from slice
-        join thread_track on slice.track_id = thread_track.id
+          maxDepth,
+          thread.upid as upid
+        from thread_track
         join thread using(utid)
-        left join process using(upid)
-        group by thread_track.id
+        join max_depth_materialized mdd on mdd.track_id = thread_track.id
   `);
 
     const it = result.iter({

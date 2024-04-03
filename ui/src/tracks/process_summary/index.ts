@@ -62,6 +62,54 @@ class ProcessSummaryPlugin implements Plugin {
     //  thread name
     //  utid
     const result = await ctx.engine.query(`
+    with candidateThreadsAndProcesses as materialized (
+      select upid, 0 as utid from process_track
+      union
+      select upid, 0 as utid from process_counter_track
+      union
+      select upid, utid from thread_counter_track join thread using(utid)
+      union
+      select upid, utid from thread_track join thread using(utid)
+      union
+      select upid, utid from (
+        select distinct utid from sched
+      ) join thread using(utid) group by utid
+      union
+      select upid, 0 as utid from (
+        select distinct utid from perf_sample where callsite_id is not null
+      ) join thread using (utid)
+      union
+      select upid, utid from (
+        select distinct utid from cpu_profile_stack_sample
+      ) join thread using(utid)
+      union
+      select upid as upid, 0 as utid from heap_profile_allocation
+      union
+      select upid as upid, 0 as utid from heap_graph_object
+    ),
+    schedSum as materialized (
+      select upid, sum(thread_total_dur) as total_dur
+      from (
+        select utid, sum(dur) as thread_total_dur
+        from sched where dur != -1 and utid != 0
+        group by utid
+      )
+      join thread using (utid)
+      group by upid
+    ),
+    sliceSum as materialized (
+      select
+        process.upid as upid,
+        sum(cnt) as sliceCount
+      from (select track_id, count(*) as cnt from slice group by track_id)
+        left join thread_track on track_id = thread_track.id
+        left join thread on thread_track.utid = thread.utid
+        left join process_track on track_id = process_track.id
+        join process on process.upid = thread.upid
+          or process_track.upid = process.upid
+      where process.upid is not null
+      group by process.upid
+    )
     select
       the_tracks.upid,
       the_tracks.utid,
@@ -86,40 +134,8 @@ class ProcessSummaryPlugin implements Plugin {
          when 'Renderer' then 1
          else 0
       end) as chromeProcessRank
-    from (
-      select upid, 0 as utid from process_track
-      union
-      select upid, 0 as utid from process_counter_track
-      union
-      select upid, utid from thread_counter_track join thread using(utid)
-      union
-      select upid, utid from thread_track join thread using(utid)
-      union
-      select upid, utid from sched join thread using(utid) group by utid
-      union
-      select upid, 0 as utid from (
-        select distinct upid
-        from perf_sample join thread using (utid) join process using (upid)
-        where callsite_id is not null)
-      union
-      select upid, utid from (
-        select distinct(utid) from cpu_profile_stack_sample
-      ) join thread using(utid)
-      union
-      select distinct(upid) as upid, 0 as utid from heap_profile_allocation
-      union
-      select distinct(upid) as upid, 0 as utid from heap_graph_object
-    ) the_tracks
-    left join (
-      select upid, sum(thread_total_dur) as total_dur
-      from (
-        select utid, sum(dur) as thread_total_dur
-        from sched where dur != -1 and utid != 0
-        group by utid
-      )
-      join thread using (utid)
-      group by upid
-    ) using(upid)
+    from candidateThreadsAndProcesses the_tracks
+    left join schedSum using(upid)
     left join (
       select
         distinct(upid) as upid,
@@ -142,19 +158,7 @@ class ProcessSummaryPlugin implements Plugin {
       ) join thread using (utid)
       group by thread.upid
     ) using (upid)
-    left join (
-      select
-        process.upid as upid,
-        sum(cnt) as sliceCount
-      from (select track_id, count(*) as cnt from slice group by track_id)
-        left join thread_track on track_id = thread_track.id
-        left join thread on thread_track.utid = thread.utid
-        left join process_track on track_id = process_track.id
-        join process on process.upid = thread.upid
-          or process_track.upid = process.upid
-      where process.upid is not null
-      group by process.upid
-    ) using (upid)
+    left join sliceSum using (upid)
     left join thread using(utid)
     left join process using(upid)
     left join package_list using(uid)
