@@ -2466,6 +2466,8 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_cpu_cpu",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/cpu/cpus.sql",
+        "src/trace_processor/perfetto_sql/stdlib/cpu/freq.sql",
+        "src/trace_processor/perfetto_sql/stdlib/cpu/idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/cpu/size.sql",
     ],
 )

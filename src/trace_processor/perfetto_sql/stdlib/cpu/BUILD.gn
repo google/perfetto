@@ -17,6 +17,8 @@ import("../../../../../gn/perfetto_sql.gni")
 perfetto_sql_source_set("cpu") {
   sources = [
     "cpus.sql",
+    "freq.sql",
+    "idle.sql",
     "size.sql",
   ]
 }

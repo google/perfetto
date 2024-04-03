@@ -12398,6 +12398,8 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/common/timestamps.sql",
         "src/trace_processor/perfetto_sql/stdlib/counters/intervals.sql",
         "src/trace_processor/perfetto_sql/stdlib/cpu/cpus.sql",
+        "src/trace_processor/perfetto_sql/stdlib/cpu/freq.sql",
+        "src/trace_processor/perfetto_sql/stdlib/cpu/idle.sql",
         "src/trace_processor/perfetto_sql/stdlib/cpu/size.sql",
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/args.sql",
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/counters.sql",

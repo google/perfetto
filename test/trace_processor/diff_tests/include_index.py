@@ -97,6 +97,7 @@ from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TEST
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
+from diff_tests.stdlib.cpu.tests import CpuStdlib
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
 from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
@@ -242,6 +243,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
 
   stdlib_tests = [
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
+      *CpuStdlib(index_path, 'stdlib/cpu', 'CpuStdlib').fetch(),
       *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
       *Frames(index_path, 'stdlib/android', 'Frames').fetch(),
       *GraphSearchTests(index_path, 'stdlib/graphs',
