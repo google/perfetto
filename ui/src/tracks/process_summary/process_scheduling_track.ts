@@ -59,15 +59,23 @@ export class ProcessSchedulingTrack implements Track {
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private maxCpu = 0;
-  private maxDur = 0n;
+  private maxDur;
+  private eventCount;
   private cachedBucketSize = BIMath.INT64_MAX;
   private engine: EngineProxy;
   private uuid = uuidv4();
   private config: Config;
 
-  constructor(engine: EngineProxy, config: Config) {
+  constructor(
+    engine: EngineProxy,
+    config: Config,
+    maxDur: duration,
+    eventCount: number,
+  ) {
     this.engine = engine;
     this.config = config;
+    this.maxDur = maxDur;
+    this.eventCount = eventCount;
   }
 
   // Returns a valid SQL table name with the given prefix that should be unique
@@ -88,17 +96,7 @@ export class ProcessSchedulingTrack implements Track {
     assertTrue(cpus.length > 0);
     this.maxCpu = Math.max(...cpus) + 1;
 
-    const result = (
-      await this.engine.query(`
-      select ifnull(max(dur), 0) as maxDur, count(1) as count
-      from ${this.tableName('process_sched')}
-    `)
-    ).iter({maxDur: LONG, count: NUM});
-    assertTrue(result.valid());
-    this.maxDur = result.maxDur;
-
-    const rowCount = result.count;
-    const bucketSize = calcCachedBucketSize(rowCount);
+    const bucketSize = calcCachedBucketSize(this.eventCount);
     if (bucketSize === undefined) {
       return;
     }

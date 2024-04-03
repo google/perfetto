@@ -20,7 +20,14 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
+import {
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
+import {assertExists} from '../../base/logging';
 
 import {
   Config as ProcessSchedulingTrackConfig,
@@ -87,10 +94,18 @@ class ProcessSummaryPlugin implements Plugin {
       union
       select upid as upid, 0 as utid from heap_graph_object
     ),
-    schedSum as materialized (
-      select upid, sum(thread_total_dur) as total_dur
+    schedSummary as materialized (
+      select
+        upid,
+        sum(thread_total_dur) as total_dur,
+        max(thread_max_dur) as total_max_dur,
+        sum(thread_event_count) as total_event_count
       from (
-        select utid, sum(dur) as thread_total_dur
+        select
+          utid,
+          sum(dur) as thread_total_dur,
+          max(dur) as thread_max_dur,
+          count() as thread_event_count
         from sched where dur != -1 and utid != 0
         group by utid
       )
@@ -114,6 +129,8 @@ class ProcessSummaryPlugin implements Plugin {
       the_tracks.upid,
       the_tracks.utid,
       total_dur as hasSched,
+      total_max_dur as schedMaxDur,
+      total_event_count as schedEventCount,
       hasHeapProfiles,
       process.pid as pid,
       thread.tid as tid,
@@ -135,7 +152,7 @@ class ProcessSummaryPlugin implements Plugin {
          else 0
       end) as chromeProcessRank
     from candidateThreadsAndProcesses the_tracks
-    left join schedSum using(upid)
+    left join schedSummary using(upid)
     left join (
       select
         distinct(upid) as upid,
@@ -182,6 +199,8 @@ class ProcessSummaryPlugin implements Plugin {
       threadName: STR_NULL,
       processName: STR_NULL,
       hasSched: NUM_NULL,
+      schedMaxDur: LONG_NULL,
+      schedEventCount: NUM_NULL,
       hasHeapProfiles: NUM_NULL,
       isDebuggable: NUM_NULL,
       chromeProcessLabels: STR,
@@ -192,6 +211,8 @@ class ProcessSummaryPlugin implements Plugin {
       const upid = it.upid;
       const pid = it.pid;
       const hasSched = Boolean(it.hasSched);
+      const schedMaxDur = it.schedMaxDur;
+      const schedEventCount = it.schedEventCount;
       const isDebuggable = Boolean(it.isDebuggable);
 
       // Group by upid if present else by utid.
@@ -218,7 +239,13 @@ class ProcessSummaryPlugin implements Plugin {
             tags: {
               isDebuggable,
             },
-            trackFactory: () => new ProcessSchedulingTrack(ctx.engine, config),
+            trackFactory: () =>
+              new ProcessSchedulingTrack(
+                ctx.engine,
+                config,
+                assertExists(schedMaxDur),
+                assertExists(schedEventCount),
+              ),
           });
         } else {
           const config: ProcessSummaryTrackConfig = {
