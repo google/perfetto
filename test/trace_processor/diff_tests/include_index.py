@@ -273,9 +273,9 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *SpanJoinSmoke(index_path, 'stdlib/span_join', 'SpanJoinSmoke').fetch(),
       *StdlibCommon(index_path, 'stdlib/common', 'StdlibCommon').fetch(),
       *StdlibIntervals(index_path, 'stdlib/intervals',
-                       'StdlibIntervalsIntersect').fetch(),
+                       'StdlibIntervals').fetch(),
       *IntervalsIntersect(index_path, 'stdlib/intervals',
-                          'StdlibIntervals').fetch(),
+                          'StdlibIntervalsIntersect').fetch(),
       *Timestamps(index_path, 'stdlib/timestamps', 'Timestamps').fetch(),
   ] + chrome_stdlib_tests
 
