@@ -24,6 +24,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
+#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
 
 namespace perfetto::trace_processor {
 
@@ -39,7 +40,6 @@ struct WindowOperatorModule : sqlite::Module<WindowOperatorModule> {
     kReturnFirst = 1,
   };
   struct State {
-    bool disconnected = false;
     int64_t quantum = 0;
     int64_t window_start = 0;
 
@@ -48,15 +48,12 @@ struct WindowOperatorModule : sqlite::Module<WindowOperatorModule> {
     int64_t window_dur = std::numeric_limits<int64_t>::max();
   };
   struct Context {
-    base::FlatHashMap<std::string, std::unique_ptr<State>> state_by_name;
+    sqlite::ModuleStateManager<WindowOperatorModule> manager;
   };
   struct Vtab : sqlite::Module<WindowOperatorModule>::Vtab {
-    Context* context;
-    std::string name;
-    State* state = nullptr;
+    sqlite::ModuleStateManager<WindowOperatorModule>::PerVtabState* state;
   };
   struct Cursor : sqlite::Module<WindowOperatorModule>::Cursor {
-    int64_t window_start = 0;
     int64_t window_end = 0;
     int64_t step_size = 0;
 
