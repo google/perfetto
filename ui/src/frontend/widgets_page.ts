@@ -589,6 +589,7 @@ export const WidgetsPage = createPage({
           minimal: false,
           active: false,
           compact: false,
+          loading: false,
         },
       }),
       m(WidgetShowcase, {

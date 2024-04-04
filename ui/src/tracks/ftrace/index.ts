@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {FtraceExplorer} from './ftrace_explorer';
+import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {
   EngineProxy,
   Plugin,
@@ -22,9 +22,9 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {NUM} from '../../trace_processor/query_result';
 import {Trash} from '../../base/disposable';
-import {FtraceFilter, FtracePluginState, FtraceStat} from './common';
+import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceRawTrack} from './ftrace_track';
 
 const VERSION = 1;
@@ -62,8 +62,6 @@ class FtraceRawPlugin implements Plugin {
     );
     this.trash.add(filterStore);
 
-    const counters = await this.getFtraceCounters(ctx.engine);
-
     const cpus = await this.lookupCpuCores(ctx.engine);
     for (const cpuNum of cpus) {
       const uri = `perfetto.FtraceRaw#cpu${cpuNum}`;
@@ -79,6 +77,11 @@ class FtraceRawPlugin implements Plugin {
       });
     }
 
+    const cache: FtraceExplorerCache = {
+      state: 'blank',
+      counters: [],
+    };
+
     const ftraceTabUri = 'perfetto.FtraceRaw#FtraceEventsTab';
 
     ctx.registerTab({
@@ -87,8 +90,8 @@ class FtraceRawPlugin implements Plugin {
       content: {
         render: () =>
           m(FtraceExplorer, {
-            counters,
             filterStore,
+            cache,
             engine: ctx.engine,
           }),
         getTitle: () => 'Ftrace Events',
@@ -106,32 +109,6 @@ class FtraceRawPlugin implements Plugin {
 
   async onTraceUnload(): Promise<void> {
     this.trash.dispose();
-  }
-
-  private async getFtraceCounters(engine: EngineProxy): Promise<FtraceStat[]> {
-    // Pull out the counts ftrace events by name
-    // TODO(stevegolton): this is an extraordinarily slow query on large traces
-    // as it goes through every ftrace evnet which can be a lot on big traces.
-    // Consider if we can have some different UX which avoids needing these
-    // counts
-    // TODO(mayzner): the +name below is an awful hack to workaround
-    // extraordinarily slow sorting of strings. However, even with this hack,
-    // this is just a slow query. There are various ways we can improve this
-    // (e.g. with using the vtab_distinct APIs of SQLite).
-    const result = await engine.query(`
-      select
-        name,
-        count(1) as cnt
-      from ftrace_event
-      group by +name
-      order by cnt desc
-    `);
-    const counters: FtraceStat[] = [];
-    const it = result.iter({name: STR, cnt: NUM});
-    for (let row = 0; it.valid(); it.next(), row++) {
-      counters.push({name: it.name, count: it.cnt});
-    }
-    return counters;
   }
 
   private async lookupCpuCores(engine: EngineProxy): Promise<number[]> {
