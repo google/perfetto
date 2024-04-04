@@ -58,10 +58,10 @@ class ScrubProcessTreesIntegrationTest : public testing::Test {
     // BuildTimeline depends on.... nothing
     // FindPackageUid depends on... nothing
 
-    redactor_.collectors()->emplace_back(new FindPackageUid());
-    redactor_.collectors()->emplace_back(new BuildTimeline());
-    redactor_.builders()->emplace_back(new OptimizeTimeline());
-    redactor_.transformers()->emplace_back(new ScrubProcessTrees());
+    redactor_.emplace_collect<FindPackageUid>();
+    redactor_.emplace_collect<BuildTimeline>();
+    redactor_.emplace_build<OptimizeTimeline>();
+    redactor_.emplace_transform<ScrubProcessTrees>();
 
     // In this case, the process and package have the same name.
     context_.package_name = kProcessName;
