@@ -52,3 +52,33 @@ class StdlibIntervals(TestSuite):
         80,2
         90,1
         """))
+
+  def test_intervals_overlap_in_table(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH data_no_overlaps(ts, dur) AS (
+          VALUES
+            (10, 10),
+            (30, 10)
+        ),
+        data_with_overlaps(ts, dur) AS (
+          VALUES
+            (10, 10),
+            (15, 10)
+        )
+        SELECT * FROM (
+        SELECT *
+        FROM _intervals_overlap_in_table!(data_no_overlaps)
+        UNION
+        SELECT *
+        FROM _intervals_overlap_in_table!(data_with_overlaps)
+        )
+        """,
+        out=Csv("""
+        "has_overlaps"
+        0
+        1
+        """))
