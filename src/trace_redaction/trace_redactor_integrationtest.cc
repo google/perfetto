@@ -89,8 +89,8 @@ class PackageListTraceRedactorIntegrationTest
   void SetUp() override {
     TraceRedactorIntegrationTest::SetUp();
 
-    redactor_.collectors()->emplace_back(new FindPackageUid());
-    redactor_.transformers()->emplace_back(new PrunePackageList());
+    redactor_.emplace_collect<FindPackageUid>();
+    redactor_.emplace_transform<PrunePackageList>();
   }
 
   std::vector<protozero::ConstBytes> GetPackageInfos(
@@ -210,10 +210,10 @@ class BroadphaseTraceRedactorIntegrationTest
   void SetUp() override {
     TraceRedactorIntegrationTest::SetUp();
 
-    redactor_.collectors()->emplace_back(new FindPackageUid());
-    redactor_.builders()->emplace_back(new PopulateAllowlists());
-    redactor_.transformers()->emplace_back(new ScrubTracePacket());
-    redactor_.transformers()->emplace_back(new ScrubFtraceEvents());
+    redactor_.emplace_collect<FindPackageUid>();
+    redactor_.emplace_build<PopulateAllowlists>();
+    redactor_.emplace_transform<ScrubTracePacket>();
+    redactor_.emplace_transform<ScrubFtraceEvents>();
   }
 
   static base::StatusOr<protozero::ConstBytes> FindFirstFtraceEvents(
