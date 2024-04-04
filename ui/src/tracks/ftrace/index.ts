@@ -68,8 +68,9 @@ class FtraceRawPlugin implements Plugin {
     for (const cpuNum of cpus) {
       const uri = `perfetto.FtraceRaw#cpu${cpuNum}`;
 
-      ctx.registerTrack({
+      ctx.registerStaticTrack({
         uri,
+        groupName: 'Ftrace Events',
         displayName: `Ftrace Track for CPU ${cpuNum}`,
         cpu: cpuNum,
         trackFactory: () => {

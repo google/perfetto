@@ -633,47 +633,6 @@ class TrackDecider {
     }
   }
 
-  async addFtraceTrack(engine: EngineProxy): Promise<void> {
-    const query = 'select distinct cpu from ftrace_event';
-
-    const result = await engine.query(query);
-    const it = result.iter({cpu: NUM});
-
-    let groupUuid = undefined;
-    let summaryTrackKey = undefined;
-
-    // use the first one as the summary track
-    for (let row = 0; it.valid(); it.next(), row++) {
-      if (groupUuid === undefined) {
-        groupUuid = 'ftrace-track-group';
-        summaryTrackKey = uuidv4();
-        this.tracksToAdd.push({
-          uri: NULL_TRACK_URI,
-          trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-          name: `Ftrace Events`,
-          trackGroup: undefined,
-          key: summaryTrackKey,
-        });
-      }
-      this.tracksToAdd.push({
-        uri: `perfetto.FtraceRaw#cpu${it.cpu}`,
-        trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-        name: `Ftrace Events Cpu ${it.cpu}`,
-        trackGroup: groupUuid,
-      });
-    }
-
-    if (groupUuid !== undefined && summaryTrackKey !== undefined) {
-      const addGroup = Actions.addTrackGroup({
-        name: 'Ftrace Events',
-        id: groupUuid,
-        collapsed: true,
-        summaryTrackKey,
-      });
-      this.addTrackGroupActions.push(addGroup);
-    }
-  }
-
   async addAnnotationTracks(engine: EngineProxy): Promise<void> {
     const sliceResult = await engine.query(`
       select id, name, upid, group_name
@@ -1690,9 +1649,6 @@ class TrackDecider {
     // Add first the global tracks that don't require per-process track groups.
     await this.addScrollJankPluginTracks();
     await this.addCpuSchedulingTracks();
-    await this.addFtraceTrack(
-      this.engine.getProxy('TrackDecider::addFtraceTrack'),
-    );
     await this.addCpuFreqTracks(
       this.engine.getProxy('TrackDecider::addCpuFreqTracks'),
     );
