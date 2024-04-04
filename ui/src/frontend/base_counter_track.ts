@@ -42,7 +42,7 @@ export const COUNTER_DEBUG_MENU_ITEMS = featureFlags.register({
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
   const pow10 = Math.pow(10, exp);
-  return Math.sign(n) * (Math.ceil(Math.abs(n) / (pow10 / 4)) * (pow10 / 4));
+  return Math.sign(n) * (Math.ceil(Math.abs(n) / (pow10 / 20)) * (pow10 / 20));
 }
 
 function toLabel(n: number): string {
@@ -752,8 +752,13 @@ export abstract class BaseCounterTrack implements Track {
     }
 
     if (options.yRangeRounding === 'human_readable') {
-      yMax = roundAway(yMax);
-      yMin = roundAway(yMin);
+      if (options.yDisplay === 'log') {
+        yMax = Math.log(roundAway(Math.exp(yMax)));
+        yMin = Math.log(roundAway(Math.exp(yMin)));
+      } else {
+        yMax = roundAway(yMax);
+        yMin = roundAway(yMin);
+      }
     }
 
     const sharer = RangeSharer.get();
