@@ -22,6 +22,7 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto::trace_processor {
@@ -52,24 +53,15 @@ int WindowOperatorModule::Create(sqlite3* db,
     return ret;
   }
   auto* ctx = GetContext(raw_ctx);
-  auto it_and_inserted = ctx->state_by_name.Insert(argv[2], nullptr);
-  PERFETTO_CHECK(
-      it_and_inserted.second ||
-      (it_and_inserted.first && it_and_inserted.first->get()->disconnected));
-  *it_and_inserted.first = std::make_unique<State>();
-
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->context = ctx;
-  res->name = argv[2];
-  res->state = it_and_inserted.first->get();
+  res->state = ctx->manager.OnCreate(argv, std::make_unique<State>());
   *vtab = res.release();
   return SQLITE_OK;
 }
 
 int WindowOperatorModule::Destroy(sqlite3_vtab* vtab) {
-  auto* tab = GetVtab(vtab);
-  PERFETTO_CHECK(tab->context->state_by_name.Erase(tab->name));
-  delete tab;
+  std::unique_ptr<Vtab> tab(GetVtab(vtab));
+  sqlite::ModuleStateManager<WindowOperatorModule>::OnDestroy(tab->state);
   return SQLITE_OK;
 }
 
@@ -84,24 +76,15 @@ int WindowOperatorModule::Connect(sqlite3* db,
     return ret;
   }
   auto* ctx = GetContext(raw_ctx);
-  auto* ptr = ctx->state_by_name.Find(argv[2]);
-  PERFETTO_CHECK(ptr);
-  ptr->get()->disconnected = false;
-
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
-  res->context = ctx;
-  res->name = argv[2];
-  res->state = ptr->get();
+  res->state = ctx->manager.OnConnect(argv);
   *vtab = res.release();
   return SQLITE_OK;
 }
 
 int WindowOperatorModule::Disconnect(sqlite3_vtab* vtab) {
-  auto* tab = GetVtab(vtab);
-  auto* ptr = tab->context->state_by_name.Find(tab->name);
-  PERFETTO_CHECK(ptr);
-  ptr->get()->disconnected = true;
-  delete tab;
+  std::unique_ptr<Vtab> tab(GetVtab(vtab));
+  sqlite::ModuleStateManager<WindowOperatorModule>::OnDisconnect(tab->state);
   return SQLITE_OK;
 }
 
@@ -143,13 +126,12 @@ int WindowOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
                                  sqlite3_value** argv) {
   auto* t = GetVtab(cursor->pVtab);
   auto* c = GetCursor(cursor);
+  auto* s =
+      sqlite::ModuleStateManager<WindowOperatorModule>::GetState(t->state);
 
-  c->window_start = t->state->window_start;
-  c->window_end = t->state->window_start + t->state->window_dur;
-  c->step_size =
-      t->state->quantum == 0 ? t->state->window_dur : t->state->quantum;
-
-  c->current_ts = c->window_start;
+  c->window_end = s->window_start + s->window_dur;
+  c->step_size = s->quantum == 0 ? s->window_dur : s->quantum;
+  c->current_ts = s->window_start;
 
   if (is_row_id_constraint) {
     PERFETTO_CHECK(argc == 1);
@@ -186,18 +168,19 @@ int WindowOperatorModule::Column(sqlite3_vtab_cursor* cursor,
                                  int N) {
   auto* t = GetVtab(cursor->pVtab);
   auto* c = GetCursor(cursor);
+  auto* s =
+      sqlite::ModuleStateManager<WindowOperatorModule>::GetState(t->state);
   switch (N) {
     case Column::kQuantum: {
-      sqlite::result::Long(ctx, static_cast<sqlite_int64>(t->state->quantum));
+      sqlite::result::Long(ctx, static_cast<sqlite_int64>(s->quantum));
       break;
     }
     case Column::kWindowStart: {
-      sqlite::result::Long(ctx,
-                           static_cast<sqlite_int64>(t->state->window_start));
+      sqlite::result::Long(ctx, static_cast<sqlite_int64>(s->window_start));
       break;
     }
     case Column::kWindowDur: {
-      sqlite::result::Long(ctx, static_cast<int>(t->state->window_dur));
+      sqlite::result::Long(ctx, static_cast<int>(s->window_dur));
       break;
     }
     case Column::kTs: {
@@ -233,6 +216,8 @@ int WindowOperatorModule::Update(sqlite3_vtab* tab,
                                  sqlite3_value** argv,
                                  sqlite_int64*) {
   auto* t = GetVtab(tab);
+  auto* s =
+      sqlite::ModuleStateManager<WindowOperatorModule>::GetState(t->state);
 
   // We only support updates to ts and dur. Disallow deletes (argc == 1) and
   // inserts (argv[0] == null).
@@ -249,9 +234,9 @@ int WindowOperatorModule::Update(sqlite3_vtab* tab,
         tab, "Cannot set duration of window table to zero.");
   }
 
-  t->state->quantum = new_quantum;
-  t->state->window_start = new_start;
-  t->state->window_dur = new_dur;
+  s->quantum = new_quantum;
+  s->window_start = new_start;
+  s->window_dur = new_dur;
 
   return SQLITE_OK;
 }
