@@ -41,12 +41,13 @@ import {
 import {raf} from '../../core/raf_scheduler';
 import {AsyncLimiter} from '../../base/async_limiter';
 import {Monitor} from '../../base/monitor';
+import {Button} from '../../widgets/button';
 
 const ROW_H = 20;
 const PAGE_SIZE = 250;
 
 interface FtraceExplorerAttrs {
-  counters: FtraceStat[];
+  cache: FtraceExplorerCache;
   filterStore: Store<FtraceFilter>;
   engine: EngineProxy;
 }
@@ -72,6 +73,36 @@ interface Pagination {
   pageCount: number;
 }
 
+export interface FtraceExplorerCache {
+  state: 'blank' | 'loading' | 'valid';
+  counters: FtraceStat[];
+}
+
+async function getFtraceCounters(engine: EngineProxy): Promise<FtraceStat[]> {
+  // TODO(stevegolton): this is an extraordinarily slow query on large traces
+  // as it goes through every ftrace event which can be a lot on big traces.
+  // Consider if we can have some different UX which avoids needing these
+  // counts
+  // TODO(mayzner): the +name below is an awful hack to workaround
+  // extraordinarily slow sorting of strings. However, even with this hack,
+  // this is just a slow query. There are various ways we can improve this
+  // (e.g. with using the vtab_distinct APIs of SQLite).
+  const result = await engine.query(`
+    select
+      name,
+      count(1) as cnt
+    from ftrace_event
+    group by name
+    order by cnt desc
+  `);
+  const counters: FtraceStat[] = [];
+  const it = result.iter({name: STR, cnt: NUM});
+  for (let row = 0; it.valid(); it.next(), row++) {
+    counters.push({name: it.name, count: it.cnt});
+  }
+  return counters;
+}
+
 export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   private readonly paginationStore = createStore<Pagination>({
     page: 0,
@@ -90,6 +121,18 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
       () => attrs.filterStore.state,
       () => this.paginationStore.state,
     ]);
+
+    if (attrs.cache.state === 'blank') {
+      getFtraceCounters(attrs.engine)
+        .then((counters) => {
+          attrs.cache.counters = counters;
+          attrs.cache.state = 'valid';
+        })
+        .catch(() => {
+          attrs.cache.state = 'blank';
+        });
+      attrs.cache.state = 'loading';
+    }
   }
 
   view({attrs}: m.CVnode<FtraceExplorerAttrs>) {
@@ -160,14 +203,25 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   }
 
   private renderFilterPanel(attrs: FtraceExplorerAttrs) {
+    if (attrs.cache.state !== 'valid') {
+      return m(Button, {
+        label: 'Filter',
+        minimal: true,
+        disabled: true,
+        loading: true,
+      });
+    }
+
     const excludeList = attrs.filterStore.state.excludeList;
-    const options: MultiSelectOption[] = attrs.counters.map(({name, count}) => {
-      return {
-        id: name,
-        name: `${name} (${count})`,
-        checked: !excludeList.some((excluded: string) => excluded === name),
-      };
-    });
+    const options: MultiSelectOption[] = attrs.cache.counters.map(
+      ({name, count}) => {
+        return {
+          id: name,
+          name: `${name} (${count})`,
+          checked: !excludeList.some((excluded: string) => excluded === name),
+        };
+      },
+    );
 
     return m(PopupMultiSelect, {
       label: 'Filter',
