@@ -50,10 +50,10 @@ constexpr std::string_view kPackageName =
 class RedactSchedWakingIntegrationTest : public testing::Test {
  protected:
   void SetUp() override {
-    redactor_.collectors()->emplace_back(new FindPackageUid());
-    redactor_.collectors()->emplace_back(new BuildTimeline());
-    redactor_.builders()->emplace_back(new OptimizeTimeline());
-    redactor_.transformers()->emplace_back(new RedactSchedWaking());
+    redactor_.emplace_collect<FindPackageUid>();
+    redactor_.emplace_collect<BuildTimeline>();
+    redactor_.emplace_build<OptimizeTimeline>();
+    redactor_.emplace_transform<RedactSchedWaking>();
 
     context_.package_name = kPackageName;
 

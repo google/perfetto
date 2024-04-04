@@ -55,10 +55,10 @@ class RenameEventsTraceRedactorIntegrationTest : public testing::Test {
   void SetUp() override {
     // In order for ScrubTaskRename to work, it needs the timeline. All
     // registered primitives are there to generate the timeline.
-    redactor_.collectors()->emplace_back(new FindPackageUid());
-    redactor_.collectors()->emplace_back(new BuildTimeline());
-    redactor_.builders()->emplace_back(new OptimizeTimeline());
-    redactor_.transformers()->emplace_back(new ScrubTaskRename());
+    redactor_.emplace_collect<FindPackageUid>();
+    redactor_.emplace_collect<BuildTimeline>();
+    redactor_.emplace_build<OptimizeTimeline>();
+    redactor_.emplace_transform<ScrubTaskRename>();
 
     context_.package_name = kPackageName;
 
