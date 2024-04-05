@@ -7259,6 +7259,20 @@ message DpuTracingMarkWriteFtraceEvent {
   optional uint32 type = 5;
   optional int32 value = 6;
 }
+message DpuDsiCmdFifoStatusFtraceEvent {
+  optional uint32 header = 1;
+  optional uint32 payload = 2;
+}
+message DpuDsiRxFtraceEvent {
+  optional uint32 cmd = 1;
+  optional uint32 rx_buf = 2;
+}
+message DpuDsiTxFtraceEvent {
+  optional uint32 type = 1;
+  optional uint32 tx_buf = 2;
+  optional uint32 last = 3;
+  optional uint32 delay_ms = 4;
+}
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
 
@@ -10607,6 +10621,9 @@ message FtraceEvent {
     RpmStatusFtraceEvent rpm_status = 489;
     PanelWriteGenericFtraceEvent panel_write_generic = 490;
     SchedMigrateTaskFtraceEvent sched_migrate_task = 491;
+    DpuDsiCmdFifoStatusFtraceEvent dpu_dsi_cmd_fifo_status = 492;
+    DpuDsiRxFtraceEvent dpu_dsi_rx = 493;
+    DpuDsiTxFtraceEvent dpu_dsi_tx = 494;
   }
 }
 

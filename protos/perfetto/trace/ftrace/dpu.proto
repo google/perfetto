@@ -13,3 +13,17 @@ message DpuTracingMarkWriteFtraceEvent {
   optional uint32 type = 5;
   optional int32 value = 6;
 }
+message DpuDsiCmdFifoStatusFtraceEvent {
+  optional uint32 header = 1;
+  optional uint32 payload = 2;
+}
+message DpuDsiRxFtraceEvent {
+  optional uint32 cmd = 1;
+  optional uint32 rx_buf = 2;
+}
+message DpuDsiTxFtraceEvent {
+  optional uint32 type = 1;
+  optional uint32 tx_buf = 2;
+  optional uint32 last = 3;
+  optional uint32 delay_ms = 4;
+}

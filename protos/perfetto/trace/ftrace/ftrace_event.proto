@@ -608,5 +608,8 @@ message FtraceEvent {
     RpmStatusFtraceEvent rpm_status = 489;
     PanelWriteGenericFtraceEvent panel_write_generic = 490;
     SchedMigrateTaskFtraceEvent sched_migrate_task = 491;
+    DpuDsiCmdFifoStatusFtraceEvent dpu_dsi_cmd_fifo_status = 492;
+    DpuDsiRxFtraceEvent dpu_dsi_rx = 493;
+    DpuDsiTxFtraceEvent dpu_dsi_tx = 494;
   }
 }
