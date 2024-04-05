@@ -36,6 +36,7 @@ namespace protozero {
 namespace {
 
 using ::testing::_;
+using ::testing::ElementsAre;
 using ::testing::InSequence;
 using ::testing::Invoke;
 using namespace proto_utils;
@@ -622,6 +623,28 @@ TEST(ProtoDecoderTest, PacketRepeatedWireTypeMismatch) {
   ASSERT_FALSE(parse_error);
   // But the iterator returns 0 elements.
   EXPECT_FALSE(it);
+}
+
+TEST(ProtoDecoderTest, RepeatedMaxFieldIdStack) {
+  HeapBuffered<Message> message;
+  message->AppendVarInt(15, 1);
+  message->AppendVarInt(15, 2);
+  std::vector<uint8_t> proto = message.SerializeAsArray();
+
+  // Make sure that even with a max field id close to the stack capacity,
+  // TypedProtoDecoder behaves correctly w.r.t. repeated fields.
+  const int kMaxFieldId = PROTOZERO_DECODER_INITIAL_STACK_CAPACITY;
+
+  {
+    protozero::TypedProtoDecoder<kMaxFieldId,
+                                 /*HAS_NONPACKED_REPEATED_FIELDS=*/true>
+        decoder(proto.data(), proto.size());
+    std::vector<uint64_t> res;
+    for (auto it = decoder.GetRepeated<uint64_t>(15); it; it++) {
+      res.push_back(*it);
+    }
+    EXPECT_THAT(res, ElementsAre(1, 2));
+  }
 }
 
 }  // namespace
