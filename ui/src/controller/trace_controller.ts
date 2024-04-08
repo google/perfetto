@@ -528,8 +528,9 @@ export class TraceController extends Controller<States> {
 
     await defineMaxLayoutDepthSqlFunction(engine);
 
-    this.updateStatus('Loading plugins');
-    await pluginManager.onTraceLoad(engine);
+    await pluginManager.onTraceLoad(engine, (id) => {
+      this.updateStatus(`Running plugin: ${id}`);
+    });
 
     {
       // When we reload from a permalink don't create extra tracks:
