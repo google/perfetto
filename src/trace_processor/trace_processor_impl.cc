@@ -77,6 +77,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h"
@@ -935,6 +936,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // Value table aggregate functions.
   engine_->RegisterSqliteAggregateFunction<Dfs>(
       Dfs::kName, Dfs::kArgCount, context_.storage->mutable_string_pool());
+  engine_->RegisterSqliteAggregateFunction<StructuralTreePartition>(
+      StructuralTreePartition::kName, StructuralTreePartition::kArgCount,
+      context_.storage->mutable_string_pool());
 
   // Metrics.
   RegisterAllProtoBuilderFunctions(&pool_, engine_.get(), this);
