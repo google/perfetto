@@ -29,6 +29,15 @@ base::Status PopulateAllowlists::Build(Context* context) const {
     return base::ErrStatus("Trace packet allow-list should be empty.");
   }
 
+  // TRACE PACKET NOTES
+  //
+  //    protos::pbzero::TracePacket::kAndroidSystemPropertyFieldNumber
+  //
+  //      AndroidSystemProperty exposes a key-value pair structure with no
+  //      constraints around keys or values, making fine-grain redaction
+  //      difficult. Because this packet's value has no measurable, the safest
+  //      option to drop the whole packet.
+
   context->trace_packet_allow_list = {
       protos::pbzero::TracePacket::kProcessTreeFieldNumber,
       protos::pbzero::TracePacket::kProcessStatsFieldNumber,
@@ -42,7 +51,6 @@ base::Status PopulateAllowlists::Build(Context* context) const {
       protos::pbzero::TracePacket::kServiceEventFieldNumber,
       protos::pbzero::TracePacket::kInitialDisplayStateFieldNumber,
       protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber,
-      protos::pbzero::TracePacket::kAndroidSystemPropertyFieldNumber,
       protos::pbzero::TracePacket::kSynchronizationMarkerFieldNumber,
       protos::pbzero::TracePacket::kFtraceEventsFieldNumber,
 
