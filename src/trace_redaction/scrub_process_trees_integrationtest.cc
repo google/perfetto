@@ -30,6 +30,7 @@
 #include "src/trace_redaction/optimize_timeline.h"
 #include "src/trace_redaction/scrub_process_trees.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
+#include "src/trace_redaction/trace_redaction_integration_fixture.h"
 #include "src/trace_redaction/trace_redactor.h"
 #include "test/gtest_and_gmock.h"
 
@@ -37,14 +38,14 @@ namespace perfetto::trace_redaction {
 
 namespace {
 
-constexpr std::string_view kTracePath =
-    "test/data/trace-redaction-general.pftrace";
 constexpr std::string_view kProcessName =
     "com.Unity.com.unity.multiplayer.samples.coop";
 
 }  // namespace
 
-class ScrubProcessTreesIntegrationTest : public testing::Test {
+class ScrubProcessTreesIntegrationTest
+    : public testing::Test,
+      protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
     // ScrubProcessTrees depends on:
@@ -58,30 +59,13 @@ class ScrubProcessTreesIntegrationTest : public testing::Test {
     // BuildTimeline depends on.... nothing
     // FindPackageUid depends on... nothing
 
-    redactor_.emplace_collect<FindPackageUid>();
-    redactor_.emplace_collect<BuildTimeline>();
-    redactor_.emplace_build<OptimizeTimeline>();
-    redactor_.emplace_transform<ScrubProcessTrees>();
+    trace_redactor()->emplace_collect<FindPackageUid>();
+    trace_redactor()->emplace_collect<BuildTimeline>();
+    trace_redactor()->emplace_build<OptimizeTimeline>();
+    trace_redactor()->emplace_transform<ScrubProcessTrees>();
 
     // In this case, the process and package have the same name.
-    context_.package_name = kProcessName;
-
-    src_trace_ = base::GetTestDataPath(std::string(kTracePath));
-
-    dest_trace_ = tmp_dir_.AbsolutePath("dst.pftrace");
-    tmp_dir_.TrackFile("dst.pftrace");
-  }
-
-  base::Status Redact() {
-    return redactor_.Redact(src_trace_, dest_trace_, &context_);
-  }
-
-  base::StatusOr<std::string> LoadOriginal() const {
-    return ReadRawTrace(src_trace_);
-  }
-
-  base::StatusOr<std::string> LoadRedacted() const {
-    return ReadRawTrace(dest_trace_);
+    context()->package_name = kProcessName;
   }
 
   std::vector<std::string> CollectProcessNames(
@@ -109,25 +93,6 @@ class ScrubProcessTreesIntegrationTest : public testing::Test {
 
     return names;
   }
-
- private:
-  base::StatusOr<std::string> ReadRawTrace(const std::string& path) const {
-    std::string redacted_buffer;
-
-    if (base::ReadFile(path, &redacted_buffer)) {
-      return redacted_buffer;
-    }
-
-    return base::ErrStatus("Failed to read %s", path.c_str());
-  }
-
-  Context context_;
-  TraceRedactor redactor_;
-
-  base::TmpDirTree tmp_dir_;
-
-  std::string src_trace_;
-  std::string dest_trace_;
 };
 
 TEST_F(ScrubProcessTreesIntegrationTest, RemovesProcessNamesFromProcessTrees) {
