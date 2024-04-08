@@ -45,6 +45,7 @@ source_set("sqlite") {
     "../../../gn:default_deps",
     "../../../gn:sqlite",
     "../../../include/perfetto/trace_processor",
+    "../../../include/perfetto/trace_processor:basic_types",
     "../../../protos/perfetto/trace/ftrace:zero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
@@ -90,7 +91,9 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../gn:sqlite",
+    "../../../include/perfetto/trace_processor:basic_types",
     "../../base",
+    "../../base:test_support",
   ]
 }
 
