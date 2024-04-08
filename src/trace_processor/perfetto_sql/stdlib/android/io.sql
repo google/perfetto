@@ -111,7 +111,7 @@ CREATE PERFETTO VIEW _android_io_f2fs_aggregate_write_stats(
   -- Count of distinct devices written to.
   distinct_device_count INT,
   -- Count of distinct inodes written to.
-  distict_inode_count INT,
+  distinct_inode_count INT,
   -- Count of distinct threads writing.
   distinct_thread_count INT
 ) AS
@@ -119,6 +119,6 @@ select SUM(write_count) as total_write_count,
       COUNT(DISTINCT pid) distinct_processes,
       SUM(bytes) as total_bytes_written,
       COUNT(DISTINCT dev) as distinct_device_count,
-      COUNT(DISTINCT ino) distict_inode_count,
+      COUNT(DISTINCT ino) distinct_inode_count,
       COUNT(DISTINCT tid) distinct_thread_count
 from _android_io_f2fs_write_stats;

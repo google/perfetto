@@ -40,7 +40,7 @@ message AndroidIo {
     optional int64 distinct_processes = 2;
     optional int64 total_bytes_written = 3;
     optional int64 distinct_device_count = 4;
-    optional int64 distict_inode_count = 5;
+    optional int64 distinct_inode_count = 5;
     optional int64 distinct_thread_count = 6;
   }
   repeated F2fsCounterStats f2fs_counter_stats = 1;

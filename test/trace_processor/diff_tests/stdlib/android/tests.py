@@ -478,11 +478,11 @@ class AndroidStdlib(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE android.io;
         SELECT total_write_count, distinct_processes, total_bytes_written,
-               distinct_device_count, distict_inode_count, distinct_thread_count
+               distinct_device_count, distinct_inode_count, distinct_thread_count
         FROM _android_io_f2fs_aggregate_write_stats
         """,
         out=Csv("""
-        "total_write_count","distinct_processes","total_bytes_written","distinct_device_count","distict_inode_count","distinct_thread_count"
+        "total_write_count","distinct_processes","total_bytes_written","distinct_device_count","distinct_inode_count","distinct_thread_count"
         203,3,375180,1,13,6
         """))
 
