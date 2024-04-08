@@ -26,9 +26,10 @@
 #include "src/base/test/tmp_dir_tree.h"
 #include "src/base/test/utils.h"
 #include "src/trace_redaction/build_timeline.h"
+#include "src/trace_redaction/filter_sched_waking_events.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/optimize_timeline.h"
-#include "src/trace_redaction/redact_sched_waking.h"
+#include "src/trace_redaction/scrub_ftrace_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redactor.h"
 #include "test/gtest_and_gmock.h"
@@ -50,10 +51,13 @@ constexpr std::string_view kPackageName =
 class RedactSchedWakingIntegrationTest : public testing::Test {
  protected:
   void SetUp() override {
+
     redactor_.emplace_collect<FindPackageUid>();
     redactor_.emplace_collect<BuildTimeline>();
     redactor_.emplace_build<OptimizeTimeline>();
-    redactor_.emplace_transform<RedactSchedWaking>();
+
+    auto transformer = redactor_.emplace_transform<ScrubFtraceEvents>();
+    transformer->emplace_back<FilterSchedWakingEvents>();
 
     context_.package_name = kPackageName;
 

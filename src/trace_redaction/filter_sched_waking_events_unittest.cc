@@ -14,22 +14,24 @@
  * limitations under the License.
  */
 
-#include "src/trace_redaction/redact_sched_waking.h"
-#include "test/gtest_and_gmock.h"
-
-#include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
-#include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
+#include "protos/perfetto/trace/trace.gen.h"
+#include "src/trace_redaction/filter_sched_waking_events.h"
+#include "src/trace_redaction/scrub_ftrace_events.h"
+#include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_redaction {
 namespace {
 constexpr int32_t kPackageUid = 1;
 }  // namespace
 
-class RedactSchedWakingTest : public testing::Test {
+class FilterSchedWakingEventsTest : public testing::Test {
  protected:
+  void SetUp() override { transform_.emplace_back<FilterSchedWakingEvents>(); }
+
   void BeginBundle() { ftrace_bundle_ = trace_packet_.mutable_ftrace_events(); }
 
   void AddWaking(uint64_t ts, int32_t pid, std::string_view comm) {
@@ -43,7 +45,7 @@ class RedactSchedWakingTest : public testing::Test {
     sched_waking->set_comm(std::string(comm));
   }
 
-  const RedactSchedWaking& transform() const { return transform_; }
+  const ScrubFtraceEvents& transform() const { return transform_; }
 
   // event {
   //   timestamp: 6702093757720043
@@ -105,10 +107,10 @@ class RedactSchedWakingTest : public testing::Test {
   protos::gen::TracePacket trace_packet_;
   protos::gen::FtraceEventBundle* ftrace_bundle_;
 
-  RedactSchedWaking transform_;
+  ScrubFtraceEvents transform_;
 };
 
-TEST_F(RedactSchedWakingTest, ReturnsErrorForNullPacket) {
+TEST_F(FilterSchedWakingEventsTest, ReturnsErrorForNullPacket) {
   // Don't use context_. These tests will use invalid contexts.
   Context context;
   context.package_uid = kPackageUid;
@@ -117,7 +119,7 @@ TEST_F(RedactSchedWakingTest, ReturnsErrorForNullPacket) {
   ASSERT_FALSE(transform().Transform(context, nullptr).ok());
 }
 
-TEST_F(RedactSchedWakingTest, ReturnsErrorForEmptyPacket) {
+TEST_F(FilterSchedWakingEventsTest, ReturnsErrorForEmptyPacket) {
   // Don't use context_. These tests will use invalid contexts.
   Context context;
   context.package_uid = kPackageUid;
@@ -128,7 +130,7 @@ TEST_F(RedactSchedWakingTest, ReturnsErrorForEmptyPacket) {
   ASSERT_FALSE(transform().Transform(context, &packet_str).ok());
 }
 
-TEST_F(RedactSchedWakingTest, ReturnsErrorForNoTimeline) {
+TEST_F(FilterSchedWakingEventsTest, ReturnsErrorForNoTimeline) {
   // Don't use context_. These tests will use invalid contexts.
   Context context;
   context.package_uid = kPackageUid;
@@ -139,7 +141,7 @@ TEST_F(RedactSchedWakingTest, ReturnsErrorForNoTimeline) {
   ASSERT_FALSE(transform().Transform(context, &packet_str).ok());
 }
 
-TEST_F(RedactSchedWakingTest, ReturnsErrorForMissingPackage) {
+TEST_F(FilterSchedWakingEventsTest, ReturnsErrorForMissingPackage) {
   // Don't use context_. These tests will use invalid contexts.
   Context context;
   context.timeline = std::make_unique<ProcessThreadTimeline>();
@@ -182,7 +184,7 @@ TEST_F(RedactSchedWakingTest, ReturnsErrorForMissingPackage) {
 // KeepsWakingWhenBothPidsConnectToPackage for more information on how). Because
 // this transform only affects waking events, the sched switch event should be
 // retain.
-TEST_F(RedactSchedWakingTest, RetainsNonWakingEvents) {
+TEST_F(FilterSchedWakingEventsTest, RetainsNonWakingEvents) {
   std::string packet_str;
 
   {
@@ -255,7 +257,7 @@ TEST_F(RedactSchedWakingTest, RetainsNonWakingEvents) {
 //
 // Because the sched waking event pid's appears in the timeline and is connected
 // to the target package (kPackageUid), the waking even should remain.
-TEST_F(RedactSchedWakingTest, KeepsWakingWhenBothPidsConnectToPackage) {
+TEST_F(FilterSchedWakingEventsTest, KeepsWhenBothPidsConnectToPackage) {
   std::string packet_str;
 
   {
@@ -322,10 +324,10 @@ TEST_F(RedactSchedWakingTest, KeepsWakingWhenBothPidsConnectToPackage) {
 //   }
 // }
 //
-// Because the only one of the sched waking events pid's appears in the
+// Because only one of the sched waking events pid's appears in the
 // timeline and is connected to the target package (kPackageUid), the waking
-// even should remain.
-TEST_F(RedactSchedWakingTest, DropsWakingWhenOnlyWakerPidsConnectToPackage) {
+// even should be removed.
+TEST_F(FilterSchedWakingEventsTest, DropWhenOnlyWakerConnectsToPackage) {
   std::string packet_str;
 
   {
@@ -385,7 +387,7 @@ TEST_F(RedactSchedWakingTest, DropsWakingWhenOnlyWakerPidsConnectToPackage) {
 // Because the only one of the sched waking events pid's appears in the
 // timeline and is connected to the target package (kPackageUid), the waking
 // even should remain.
-TEST_F(RedactSchedWakingTest, DropsWakingWhenOnlyTargetPidsConnectToPackage) {
+TEST_F(FilterSchedWakingEventsTest, DropWhenOnlyTargetConnectsToPackage) {
   std::string packet_str;
 
   {
