@@ -24,6 +24,7 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -155,6 +156,23 @@ inline void SetError(sqlite3_context* ctx,
                                 status.c_message()));
 }
 
+// Converts the given SqlValue type to the type string SQLite understands.
+inline std::string SqlValueTypeToString(SqlValue::Type type) {
+  switch (type) {
+    case SqlValue::Type::kString:
+      return "TEXT";
+    case SqlValue::Type::kLong:
+      return "BIGINT";
+    case SqlValue::Type::kDouble:
+      return "DOUBLE";
+    case SqlValue::Type::kBytes:
+      return "BLOB";
+    case SqlValue::Type::kNull:
+      PERFETTO_FATAL("Cannot map unknown column type");
+  }
+  PERFETTO_FATAL("Not reached");  // For gcc
+}
+
 // Exracts the given type from the SqlValue if |value| can fit
 // in the provided optional. Note that SqlValue::kNull will always
 // succeed and cause std::nullopt to be set.
@@ -176,7 +194,7 @@ base::Status ExtractFromSqlValue(const SqlValue& value,
 base::Status GetColumnsForTable(
     sqlite3* db,
     const std::string& raw_table_name,
-    std::vector<SqliteTableLegacy::Column>& columns);
+    std::vector<std::pair<SqlValue::Type, std::string>>& columns);
 
 // Reads a `SQLITE_TEXT` value and returns it as a wstring (UTF-16) in the
 // default byte order. `value` must be a `SQLITE_TEXT`.

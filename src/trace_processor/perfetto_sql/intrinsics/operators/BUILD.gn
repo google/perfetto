@@ -28,6 +28,7 @@ source_set("operators") {
     "../../../../../gn:default_deps",
     "../../../../../gn:sqlite",
     "../../../../../include/perfetto/trace_processor",
+    "../../../../../protos/perfetto/trace_processor:zero",
     "../../../../base",
     "../../../sqlite",
     "../../../util",
@@ -43,6 +44,7 @@ perfetto_unittest_source_set("unittests") {
     "../../../../../gn:default_deps",
     "../../../../../gn:gtest_and_gmock",
     "../../../../../gn:sqlite",
+    "../../../containers",
     "../../../sqlite",
     "../../engine",
   ]

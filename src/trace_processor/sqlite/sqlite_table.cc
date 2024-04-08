@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/string_view.h"
 #include "sqlite3.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -35,22 +36,6 @@ namespace perfetto {
 namespace trace_processor {
 
 namespace {
-
-std::string TypeToSqlString(SqlValue::Type type) {
-  switch (type) {
-    case SqlValue::Type::kString:
-      return "TEXT";
-    case SqlValue::Type::kLong:
-      return "BIGINT";
-    case SqlValue::Type::kDouble:
-      return "DOUBLE";
-    case SqlValue::Type::kBytes:
-      return "BLOB";
-    case SqlValue::Type::kNull:
-      PERFETTO_FATAL("Cannot map unknown column type");
-  }
-  PERFETTO_FATAL("Not reached");  // For gcc
-}
 
 std::string OpToDebugString(int op) {
   switch (op) {
@@ -255,7 +240,7 @@ std::string SqliteTableLegacy::Schema::ToCreateTableStmt() const {
     stmt += " " + col.name();
 
     if (col.type() != SqlValue::Type::kNull) {
-      stmt += " " + TypeToSqlString(col.type());
+      stmt += " " + sqlite::utils::SqlValueTypeToString(col.type());
     } else if (std::find(primary_keys_.begin(), primary_keys_.end(), i) !=
                primary_keys_.end()) {
       PERFETTO_FATAL("Unknown type for primary key column %s",
