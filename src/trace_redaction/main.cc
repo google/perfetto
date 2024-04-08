@@ -25,6 +25,7 @@
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/redact_sched_switch.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
+#include "src/trace_redaction/scrub_process_stats.h"
 #include "src/trace_redaction/scrub_process_trees.h"
 #include "src/trace_redaction/scrub_task_rename.h"
 #include "src/trace_redaction/scrub_trace_packet.h"
@@ -60,6 +61,7 @@ static base::Status Main(std::string_view input,
   redactor.emplace_transform<ScrubProcessTrees>();
   redactor.emplace_transform<ScrubTaskRename>();
   redactor.emplace_transform<RedactSchedSwitch>();
+  redactor.emplace_transform<ScrubProcessStats>();
 
   Context context;
   context.package_name = package_name;
