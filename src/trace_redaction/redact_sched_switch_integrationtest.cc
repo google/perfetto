@@ -16,20 +16,16 @@
 
 #include <cstdint>
 #include <string>
-#include <string_view>
-#include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/base/test/status_matchers.h"
-#include "src/base/test/tmp_dir_tree.h"
-#include "src/base/test/utils.h"
 #include "src/trace_redaction/build_timeline.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/optimize_timeline.h"
 #include "src/trace_redaction/redact_sched_switch.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
+#include "src/trace_redaction/trace_redaction_integration_fixture.h"
 #include "src/trace_redaction/trace_redactor.h"
 #include "test/gtest_and_gmock.h"
 
@@ -40,59 +36,19 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
-namespace {
 
-constexpr std::string_view kTracePath =
-    "test/data/trace-redaction-general.pftrace";
-constexpr std::string_view kPackageName =
-    "com.Unity.com.unity.multiplayer.samples.coop";
-
-class RedactSchedSwitchIntegrationTest : public testing::Test {
+class RedactSchedSwitchIntegrationTest
+    : public testing::Test,
+      protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    redactor_.emplace_collect<FindPackageUid>();
-    redactor_.emplace_collect<BuildTimeline>();
-    redactor_.emplace_build<OptimizeTimeline>();
-    redactor_.emplace_transform<RedactSchedSwitch>();
+    trace_redactor()->emplace_collect<FindPackageUid>();
+    trace_redactor()->emplace_collect<BuildTimeline>();
+    trace_redactor()->emplace_build<OptimizeTimeline>();
+    trace_redactor()->emplace_transform<RedactSchedSwitch>();
 
-    context_.package_name = kPackageName;
-
-    src_trace_ = base::GetTestDataPath(std::string(kTracePath));
-
-    dest_trace_ = tmp_dir_.AbsolutePath("dst.pftrace");
-    tmp_dir_.TrackFile("dst.pftrace");
+    context()->package_name = "com.Unity.com.unity.multiplayer.samples.coop";
   }
-
-  base::Status Redact() {
-    return redactor_.Redact(src_trace_, dest_trace_, &context_);
-  }
-
-  base::StatusOr<std::string> LoadOriginal() const {
-    return ReadRawTrace(src_trace_);
-  }
-
-  base::StatusOr<std::string> LoadRedacted() const {
-    return ReadRawTrace(dest_trace_);
-  }
-
- private:
-  base::StatusOr<std::string> ReadRawTrace(const std::string& path) const {
-    std::string redacted_buffer;
-
-    if (base::ReadFile(path, &redacted_buffer)) {
-      return redacted_buffer;
-    }
-
-    return base::ErrStatus("Failed to read %s", path.c_str());
-  }
-
-  Context context_;
-  TraceRedactor redactor_;
-
-  base::TmpDirTree tmp_dir_;
-
-  std::string src_trace_;
-  std::string dest_trace_;
 };
 
 // >>> SELECT uid
@@ -233,5 +189,4 @@ TEST_F(RedactSchedSwitchIntegrationTest, ClearsNonTargetSwitchComms) {
   }
 }
 
-}  // namespace
 }  // namespace perfetto::trace_redaction
