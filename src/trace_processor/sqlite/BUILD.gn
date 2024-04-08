@@ -35,6 +35,7 @@ source_set("sqlite") {
     "sqlite_tokenizer.h",
     "sqlite_utils.cc",
     "sqlite_utils.h",
+    "sqlite_value.h",
     "stats_table.cc",
     "stats_table.h",
   ]
