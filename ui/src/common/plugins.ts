@@ -504,7 +504,10 @@ export class PluginManager {
     return this._plugins.get(pluginId);
   }
 
-  async onTraceLoad(engine: Engine): Promise<void> {
+  async onTraceLoad(
+    engine: Engine,
+    beforeEach?: (id: string) => void,
+  ): Promise<void> {
     this.engine = engine;
     const plugins = Array.from(this._plugins.entries());
     // Awaiting all plugins in parallel will skew timing data as later plugins
@@ -513,6 +516,7 @@ export class PluginManager {
     // most plugins use the same engine, which can only process one query at a
     // time.
     for (const [id, pluginDetails] of plugins) {
+      beforeEach?.(id);
       await doPluginTraceLoad(pluginDetails, engine, id);
     }
   }
