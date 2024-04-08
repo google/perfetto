@@ -84,6 +84,8 @@ source_set("integrationtests") {
     "scrub_ftrace_events_integrationtest.cc",
     "scrub_process_trees_integrationtest.cc",
     "scrub_task_rename_integrationtest.cc",
+    "trace_redaction_integration_fixture.cc",
+    "trace_redaction_integration_fixture.h",
     "trace_redactor_integrationtest.cc",
   ]
   deps = [
