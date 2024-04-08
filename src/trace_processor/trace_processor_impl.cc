@@ -737,15 +737,15 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   TraceStorage* storage = context_.storage.get();
 
   // Operator tables.
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_join", engine_.get(), SqliteTableLegacy::TableType::kExplicitCreate,
-      false);
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_left_join", engine_.get(),
-      SqliteTableLegacy::TableType::kExplicitCreate, false);
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_outer_join", engine_.get(),
-      SqliteTableLegacy::TableType::kExplicitCreate, false);
+  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+      "span_join",
+      std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
+  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+      "span_left_join",
+      std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
+  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+      "span_outer_join",
+      std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
   engine_->sqlite_engine()->RegisterVirtualTableModule<WindowOperatorModule>(
       "window", std::make_unique<WindowOperatorModule::Context>());
 
