@@ -29,7 +29,18 @@ DFS_TABLE = Table(
         C("parent_node_id", CppOptional(CppUint32())),
     ])
 
+STRUCTURAL_TREE_PARTITION_TABLE = Table(
+    python_module=__file__,
+    class_name="StructuralTreePartitionTable",
+    sql_name="__intrinsic_structural_tree_partition",
+    columns=[
+        C("node_id", CppUint32()),
+        C("parent_node_id", CppOptional(CppUint32())),
+        C("group_key", CppUint32()),
+    ])
+
 # Keep this list sorted.
 ALL_TABLES = [
     DFS_TABLE,
+    STRUCTURAL_TREE_PARTITION_TABLE,
 ]
