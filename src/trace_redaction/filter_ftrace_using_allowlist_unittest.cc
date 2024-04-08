@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_redaction/scrub_ftrace_events.h"
+#include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "src/base/test/status_matchers.h"
 #include "test/gtest_and_gmock.h"
@@ -30,12 +31,12 @@
 namespace perfetto::trace_redaction {
 
 // Tests which nested messages and fields are removed.
-class ScrubFtraceEventsTest : public testing::Test {
- public:
-  ScrubFtraceEventsTest() = default;
-  ~ScrubFtraceEventsTest() override = default;
-
+class FilterFtraceUsingAllowlistTest : public testing::Test {
  protected:
+  void SetUp() override {
+    transform_.emplace_back<FilterFtraceUsingAllowlist>();
+  }
+
   // task_rename should be in the allow-list.
   static void AddTaskRename(protos::gen::FtraceEventBundle* bundle,
                             int32_t pid,
@@ -56,19 +57,20 @@ class ScrubFtraceEventsTest : public testing::Test {
     e->mutable_clock_set_rate()->set_name(name);
     e->mutable_clock_set_rate()->set_state(state);
   }
+
+  ScrubFtraceEvents transform_;
 };
 
-TEST_F(ScrubFtraceEventsTest, ReturnErrorForNullPacket) {
+TEST_F(FilterFtraceUsingAllowlistTest, ReturnErrorForNullPacket) {
   // Have something in the allow-list to avoid that error.
   Context context;
   context.ftrace_packet_allow_list = {
       protos::pbzero::FtraceEvent::kTaskRenameFieldNumber};
 
-  ScrubFtraceEvents scrub;
-  ASSERT_FALSE(scrub.Transform(context, nullptr).ok());
+  ASSERT_FALSE(transform_.Transform(context, nullptr).ok());
 }
 
-TEST_F(ScrubFtraceEventsTest, ReturnErrorForEmptyPacket) {
+TEST_F(FilterFtraceUsingAllowlistTest, ReturnErrorForEmptyPacket) {
   // Have something in the allow-list to avoid that error.
   Context context;
   context.ftrace_packet_allow_list = {
@@ -76,22 +78,20 @@ TEST_F(ScrubFtraceEventsTest, ReturnErrorForEmptyPacket) {
 
   std::string packet_str = "";
 
-  ScrubFtraceEvents scrub;
-  ASSERT_FALSE(scrub.Transform(context, &packet_str).ok());
+  ASSERT_FALSE(transform_.Transform(context, &packet_str).ok());
 }
 
-TEST_F(ScrubFtraceEventsTest, ReturnErrorForEmptyAllowList) {
+TEST_F(FilterFtraceUsingAllowlistTest, ReturnErrorForEmptyAllowList) {
   // The context will have no allow-list entries. ScrubFtraceEvents should fail.
   Context context;
 
   protos::gen::TracePacket packet;
   std::string packet_str = packet.SerializeAsString();
 
-  ScrubFtraceEvents scrub;
-  ASSERT_FALSE(scrub.Transform(context, &packet_str).ok());
+  ASSERT_FALSE(transform_.Transform(context, &packet_str).ok());
 }
 
-TEST_F(ScrubFtraceEventsTest, IgnorePacketWithNoFtraceEvents) {
+TEST_F(FilterFtraceUsingAllowlistTest, IgnorePacketWithNoFtraceEvents) {
   protos::gen::TracePacket trace_packet;
   auto* tree = trace_packet.mutable_process_tree();
 
@@ -112,8 +112,8 @@ TEST_F(ScrubFtraceEventsTest, IgnorePacketWithNoFtraceEvents) {
   context.ftrace_packet_allow_list = {
       protos::pbzero::FtraceEvent::kTaskRenameFieldNumber};
 
-  ScrubFtraceEvents transform;
-  ASSERT_OK(transform.Transform(context, &packet));
+  auto transform_status = transform_.Transform(context, &packet);
+  ASSERT_OK(transform_status) << transform_status.c_message();
 
   // The packet doesn't have any ftrace events. It should not be affected by
   // this transform.
@@ -122,7 +122,7 @@ TEST_F(ScrubFtraceEventsTest, IgnorePacketWithNoFtraceEvents) {
 
 // There are some values in a ftrace event that sits behind the ftrace bundle.
 // These values should be retained.
-TEST_F(ScrubFtraceEventsTest, KeepsFtraceBundleSiblingValues) {
+TEST_F(FilterFtraceUsingAllowlistTest, KeepsFtraceBundleSiblingValues) {
   protos::gen::TracePacket trace_packet;
   auto* ftrace_events = trace_packet.mutable_ftrace_events();
 
@@ -137,8 +137,7 @@ TEST_F(ScrubFtraceEventsTest, KeepsFtraceBundleSiblingValues) {
   context.ftrace_packet_allow_list = {
       protos::pbzero::FtraceEvent::kTaskRenameFieldNumber};
 
-  ScrubFtraceEvents transform;
-  ASSERT_OK(transform.Transform(context, &packet));
+  ASSERT_OK(transform_.Transform(context, &packet));
 
   protos::gen::TracePacket gen_packet;
   gen_packet.ParseFromString(packet);
@@ -157,7 +156,7 @@ TEST_F(ScrubFtraceEventsTest, KeepsFtraceBundleSiblingValues) {
   ASSERT_TRUE(gen_events.event().front().has_task_rename());
 }
 
-TEST_F(ScrubFtraceEventsTest, KeepsAllowedEvents) {
+TEST_F(FilterFtraceUsingAllowlistTest, KeepsAllowedEvents) {
   Context context;
   context.ftrace_packet_allow_list = {
       protos::pbzero::FtraceEvent::kTaskRenameFieldNumber,
@@ -171,8 +170,7 @@ TEST_F(ScrubFtraceEventsTest, KeepsAllowedEvents) {
   auto before_str = before.SerializeAsString();
   auto after_str = before_str;
 
-  ScrubFtraceEvents transform;
-  ASSERT_OK(transform.Transform(context, &after_str));
+  ASSERT_OK(transform_.Transform(context, &after_str));
 
   protos::gen::TracePacket after;
   after.ParseFromString(after_str);
@@ -203,7 +201,7 @@ TEST_F(ScrubFtraceEventsTest, KeepsAllowedEvents) {
 }
 
 // Only the specific non-allowed events should be removed from the event list.
-TEST_F(ScrubFtraceEventsTest, OnlyDropsNotAllowedEvents) {
+TEST_F(FilterFtraceUsingAllowlistTest, OnlyDropsNotAllowedEvents) {
   // AddTaskRename >> Keep
   // AddClockSetRate >> Drop
   protos::gen::TracePacket original_packet;
@@ -221,8 +219,7 @@ TEST_F(ScrubFtraceEventsTest, OnlyDropsNotAllowedEvents) {
   context.ftrace_packet_allow_list = {
       protos::pbzero::FtraceEvent::kTaskRenameFieldNumber};
 
-  ScrubFtraceEvents transform;
-  ASSERT_OK(transform.Transform(context, &packet));
+  ASSERT_OK(transform_.Transform(context, &packet));
 
   protos::gen::TracePacket modified_packet;
   ASSERT_TRUE(modified_packet.ParseFromString(packet));

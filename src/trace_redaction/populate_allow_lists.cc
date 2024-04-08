@@ -75,11 +75,12 @@ base::Status PopulateAllowlists::Build(Context* context) const {
   // without additional redaction. This list should be configured in a build
   // primitive so that they can be optionally included.
   //
+  // protos::pbzero::FtraceEvent::kPrintFieldNumber,
+  //
   // TODO: Some fields will create new packets (e.g. binder calls may create
   // new spans. This is currently not supported (generated packets still
   // need to be redacted).
   //
-  // protos::pbzero::FtraceEvent::kPrintFieldNumber,
   // protos::pbzero::FtraceEvent::kBinderTransactionFieldNumber,
   // protos::pbzero::FtraceEvent::kBinderTransactionReceivedFieldNumber,
   // protos::pbzero::FtraceEvent::kBinderSetPriorityFieldNumber,
