@@ -14,13 +14,13 @@
 -- limitations under the License.
 --
 
+INCLUDE PERFETTO MODULE android.power_rails;
+
 -- View of Power Rail counters with ts converted from ns to ms.
 DROP VIEW IF EXISTS power_rails_counters;
 CREATE PERFETTO VIEW power_rails_counters AS
-SELECT value, ts / 1000000 AS ts, name
-FROM counter c
-JOIN counter_track t ON c.track_id = t.id
-WHERE name GLOB 'power.*';
+SELECT value, ts / 1000000 AS ts, power_rail_name AS name
+FROM android_power_rails_counters;
 
 DROP VIEW IF EXISTS avg_used_powers;
 CREATE PERFETTO VIEW avg_used_powers AS
