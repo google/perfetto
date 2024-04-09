@@ -45,7 +45,6 @@
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
-#include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
@@ -169,7 +168,7 @@ std::string GetTokenNamesAllowedInMacro() {
 }  // namespace
 
 PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
-    : query_cache_(new QueryCache()), pool_(pool), engine_(new SqliteEngine()) {
+    : pool_(pool), engine_(new SqliteEngine()) {
   // Initialize `perfetto_tables` table, which will contain the names of all of
   // the registered tables.
   char* errmsg_raw = nullptr;
@@ -185,7 +184,6 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
       "runtime_table_function", this,
       SqliteTableLegacy::TableType::kExplicitCreate, false);
   auto context = std::make_unique<DbSqliteTable::Context>(
-      query_cache_.get(),
       [this](const std::string& name) {
         auto* table = runtime_tables_.Find(name);
         PERFETTO_CHECK(table);
@@ -211,8 +209,8 @@ PerfettoSqlEngine::~PerfettoSqlEngine() {
 void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
                                             const std::string& table_name,
                                             Table::Schema schema) {
-  auto context = std::make_unique<DbSqliteTable::Context>(
-      query_cache_.get(), &table, std::move(schema));
+  auto context =
+      std::make_unique<DbSqliteTable::Context>(&table, std::move(schema));
   static_tables_.Insert(table_name, &table);
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
       table_name, std::move(context), SqliteTableLegacy::kEponymousOnly, false);
@@ -234,8 +232,7 @@ void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
 void PerfettoSqlEngine::RegisterStaticTableFunction(
     std::unique_ptr<StaticTableFunction> fn) {
   std::string table_name = fn->TableName();
-  auto context = std::make_unique<DbSqliteTable::Context>(query_cache_.get(),
-                                                          std::move(fn));
+  auto context = std::make_unique<DbSqliteTable::Context>(std::move(fn));
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
       table_name, std::move(context), SqliteTableLegacy::kEponymousOnly, false);
 }

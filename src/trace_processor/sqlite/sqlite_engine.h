@@ -32,7 +32,6 @@
 #include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
-#include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
