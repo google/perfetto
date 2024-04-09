@@ -18,10 +18,13 @@
 #define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_UTILS_H_
 
 #include <sqlite3.h>
+#include <algorithm>
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <functional>
+#include <initializer_list>
 #include <optional>
 #include <string>
 #include <utility>
@@ -154,6 +157,54 @@ inline void SetError(sqlite3_context* ctx,
                      const base::Status& status) {
   SetError(ctx, base::ErrStatus("%s: %s", function_name.c_str(),
                                 status.c_message()));
+}
+
+// For a given |sqlite3_index_info| struct received in a BestIndex call, returns
+// whether all |arg_count| arguments (with |is_arg_column| indicating whether a
+// given column is a function argument) have exactly one equaltiy constraint
+// associated with them.
+//
+// If so, the associated constraint is omitted and the argvIndex is mapped to
+// the corresponding argument's index.
+inline base::Status ValidateFunctionArguments(
+    sqlite3_index_info* info,
+    size_t arg_count,
+    const std::function<bool(size_t)>& is_arg_column) {
+  std::vector<bool> present;
+  size_t present_count = 0;
+  for (int i = 0; i < info->nConstraint; ++i) {
+    const auto& in = info->aConstraint[i];
+    if (!in.usable) {
+      continue;
+    }
+    auto cs_col = static_cast<size_t>(in.iColumn);
+    if (!is_arg_column(cs_col)) {
+      continue;
+    }
+    if (!IsOpEq(in.op)) {
+      return base::ErrStatus(
+          "Unexpected non equality constraints for column %zu", cs_col);
+    }
+    if (cs_col >= present.size()) {
+      present.resize(cs_col + 1);
+    }
+    if (present[cs_col]) {
+      return base::ErrStatus("Unexpected multiple constraints for column %zu",
+                             cs_col);
+    }
+    present[cs_col] = true;
+    present_count++;
+
+    auto& out = info->aConstraintUsage[i];
+    out.argvIndex = static_cast<int>(present_count);
+    out.omit = true;
+  }
+  if (present_count != arg_count) {
+    return base::ErrStatus(
+        "Unexpected missing argument: expected %zu, actual %zu", arg_count,
+        present_count);
+  }
+  return base::OkStatus();
 }
 
 // Converts the given SqlValue type to the type string SQLite understands.
