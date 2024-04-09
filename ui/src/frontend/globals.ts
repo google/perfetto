@@ -160,6 +160,8 @@ export interface FlamegraphDetails {
   // When heap_graph_non_finalized_graph has a count >0, we mark the graph
   // as incomplete.
   graphIncomplete?: boolean;
+  // About to show a new graph whose data is not ready yet.
+  graphLoading?: boolean;
 }
 
 export interface CpuProfileDetails {
