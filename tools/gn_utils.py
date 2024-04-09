@@ -123,7 +123,7 @@ def build_targets(out, targets, quiet=False, system_buildtools=False):
     source files in the amalgamated result.
     """
   targets = [t.replace('//', '') for t in targets]
-  with open(os.devnull, 'w') as devnull:
+  with open(os.devnull, 'w', newline='\n') as devnull:
     stdout = devnull if quiet else None
     cmd = _tool_path('ninja', system_buildtools) + targets
     subprocess.check_call(cmd, cwd=os.path.abspath(out), stdout=stdout)
@@ -211,7 +211,7 @@ def check_or_commit_generated_files(tmp_files, check):
         res = 1
       os.unlink(tmp_file)
     else:
-      os.rename(tmp_file, target_file)
+      os.replace(tmp_file, target_file)
   return res
 
 
