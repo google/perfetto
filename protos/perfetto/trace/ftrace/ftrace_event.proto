@@ -611,5 +611,8 @@ message FtraceEvent {
     DpuDsiCmdFifoStatusFtraceEvent dpu_dsi_cmd_fifo_status = 492;
     DpuDsiRxFtraceEvent dpu_dsi_rx = 493;
     DpuDsiTxFtraceEvent dpu_dsi_tx = 494;
+    F2fsBackgroundGcFtraceEvent f2fs_background_gc = 495;
+    F2fsGcBeginFtraceEvent f2fs_gc_begin = 496;
+    F2fsGcEndFtraceEvent f2fs_gc_end = 497;
   }
 }
