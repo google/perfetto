@@ -237,10 +237,12 @@ class FtraceParser {
   void ParseSchedCpuUtilCfs(int64_t timestamp, protozero::ConstBytes);
 
   void ParseFuncgraphEntry(int64_t timestamp,
+                           uint32_t cpu,
                            uint32_t pid,
                            protozero::ConstBytes blob,
                            PacketSequenceStateGeneration* seq_state);
   void ParseFuncgraphExit(int64_t timestamp,
+                          uint32_t cpu,
                           uint32_t pid,
                           protozero::ConstBytes blob,
                           PacketSequenceStateGeneration* seq_state);
