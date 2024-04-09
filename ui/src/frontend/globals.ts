@@ -671,6 +671,7 @@ class Globals {
   set isInternalUser(value: boolean) {
     localStorage.setItem('isInternalUser', value ? '1' : '0');
     this._isInternalUser = value;
+    raf.scheduleFullRedraw();
   }
 
   get testing() {
