@@ -41,7 +41,6 @@
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
-#include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -270,7 +269,6 @@ class PerfettoSqlEngine {
       const std::string& key,
       const PerfettoSqlParser& parser);
 
-  std::unique_ptr<QueryCache> query_cache_;
   StringPool* pool_ = nullptr;
 
   uint64_t static_function_count_ = 0;

@@ -21,7 +21,6 @@ source_set("sqlite") {
     "db_sqlite_table.cc",
     "db_sqlite_table.h",
     "module_lifecycle_manager.h",
-    "query_cache.h",
     "scoped_db.h",
     "sql_source.cc",
     "sql_source.h",

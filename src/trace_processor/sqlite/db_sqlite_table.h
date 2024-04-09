@@ -34,7 +34,6 @@
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
-#include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/query_constraints.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -54,16 +53,11 @@ struct DbSqliteTableContext {
     // Table is defined in runtime.
     kRuntime
   };
-  DbSqliteTableContext(QueryCache* query_cache,
-                       const Table* table,
-                       Table::Schema schema);
-  DbSqliteTableContext(QueryCache* query_cache,
-                       std::function<RuntimeTable*(std::string)> get_table,
+  DbSqliteTableContext(const Table* table, Table::Schema schema);
+  DbSqliteTableContext(std::function<RuntimeTable*(std::string)> get_table,
                        std::function<void(std::string)> erase_table);
-  DbSqliteTableContext(QueryCache* query_cache,
-                       std::unique_ptr<StaticTableFunction> table);
+  explicit DbSqliteTableContext(std::unique_ptr<StaticTableFunction> table);
 
-  QueryCache* cache;
   Computation computation;
 
   // Only valid when computation == TableComputation::kStatic.
@@ -91,7 +85,7 @@ class DbSqliteTable final
 
   class Cursor final : public SqliteTableLegacy::BaseCursor {
    public:
-    Cursor(DbSqliteTable*, QueryCache*);
+    explicit Cursor(DbSqliteTable*);
     ~Cursor() final;
 
     Cursor(const Cursor&) = delete;
@@ -156,7 +150,6 @@ class DbSqliteTable final
     void FilterAndSortMetatrace(metatrace::Record* record);
 
     DbSqliteTable* db_sqlite_table_ = nullptr;
-    QueryCache* cache_ = nullptr;
     std::vector<uint32_t> argument_index_per_column_;
 
     const Table* upstream_table_ = nullptr;
@@ -176,7 +169,7 @@ class DbSqliteTable final
     // Stores a sorted version of |db_table_| sorted on a repeated equals
     // constraint. This allows speeding up repeated subqueries in joins
     // significantly.
-    std::shared_ptr<Table> sorted_cache_table_;
+    std::optional<Table> sorted_cache_table_;
 
     // Stores the count of repeated equality queries to decide whether it is
     // wortwhile to sort |db_table_| to create |sorted_cache_table_|.
