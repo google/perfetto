@@ -580,7 +580,16 @@ export declare type RecordMode =
   | 'LONG_TRACE';
 
 // 'Q','P','O' for Android, 'L' for Linux, 'C' for Chrome.
-export declare type TargetOs = 'S' | 'R' | 'Q' | 'P' | 'O' | 'C' | 'L' | 'CrOS';
+export declare type TargetOs =
+  | 'S'
+  | 'R'
+  | 'Q'
+  | 'P'
+  | 'O'
+  | 'C'
+  | 'L'
+  | 'CrOS'
+  | 'Win';
 
 export function isAndroidP(target: RecordingTarget) {
   return target.os === 'P';
@@ -600,6 +609,10 @@ export function isCrOSTarget(target: RecordingTarget) {
 
 export function isLinuxTarget(target: RecordingTarget) {
   return target.os === 'L';
+}
+
+export function isWindowsTarget(target: RecordingTarget) {
+  return target.os === 'Win';
 }
 
 export function isAdbTarget(
@@ -638,6 +651,7 @@ export function getDefaultRecordingTargets(): RecordingTarget[] {
     {os: 'C', name: 'Chrome'},
     {os: 'CrOS', name: 'Chrome OS (system trace)'},
     {os: 'L', name: 'Linux desktop'},
+    {os: 'Win', name: 'Windows desktop'},
   ];
 }
 

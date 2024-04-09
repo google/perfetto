@@ -48,6 +48,7 @@ import {AdvancedSettings} from './recording/advanced_settings';
 import {AndroidSettings} from './recording/android_settings';
 import {ChromeSettings} from './recording/chrome_settings';
 import {CpuSettings} from './recording/cpu_settings';
+import {EtwSettings} from './recording/etw_settings';
 import {GpuSettings} from './recording/gpu_settings';
 import {LinuxPerfSettings} from './recording/linux_perf_settings';
 import {MemorySettings} from './recording/memory_settings';
@@ -488,6 +489,15 @@ function recordMenu(routePage: string) {
       m('.sub', 'Lightweight stack polling'),
     ),
   );
+  const etwProbe = m(
+    'a[href="#!/record/etw"]',
+    m(
+      `li${routePage === 'etw' ? '.active' : ''}`,
+      m('i.material-icons', 'subtitles'),
+      m('.title', 'ETW Tracing Config'),
+      m('.sub', 'Context switch, Thread state'),
+    ),
+  );
 
   // We only display the probes when we have a valid target, so it's not
   // possible for the target to be undefined here.
@@ -495,6 +505,8 @@ function recordMenu(routePage: string) {
   const probes = [];
   if (targetType === 'CHROME_OS' || targetType === 'LINUX') {
     probes.push(cpuProbe, powerProbe, memoryProbe, chromeProbe, advancedProbe);
+  } else if (targetType === 'WINDOWS') {
+    probes.push(chromeProbe, etwProbe);
   } else if (targetType === 'CHROME') {
     probes.push(chromeProbe);
   } else {
@@ -618,6 +630,7 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
     ['chrome', ChromeSettings],
     ['tracePerf', LinuxPerfSettings],
     ['advanced', AdvancedSettings],
+    ['etw', EtwSettings],
   ]);
   for (const [section, component] of settingsSections.entries()) {
     pages.push(
