@@ -134,19 +134,22 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
 
   onMouseClick({x}: {x: number}): boolean {
     const {visibleTimeScale} = globals.timeline;
-    const time = visibleTimeScale.pxToHpTime(x);
+    const time = visibleTimeScale.pxToHpTime(x).toTime('floor');
 
-    const result = this.engine.query(`
-
-      select
+    const query = `
+      SELECT
         id,
         ts as leftTs,
-        max(ts) OVER (ROWS BETWEEN CURRENT ROW AND 1 FOLLOWING) as rightTs
-        from
-        ${this.rootTable}
-        where track_id = ${this.trackId} and ts > ${time} limit 1`);
+        min(ts) OVER (ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) as rightTs
+      FROM ${this.rootTable}
+      WHERE
+        track_id = ${this.trackId} AND
+        ts < ${time}
+      ORDER BY ts DESC
+      LIMIT 1
+    `;
 
-    result.then((result) => {
+    this.engine.query(query).then((result) => {
       const it = result.iter({
         id: NUM,
         leftTs: LONG,
