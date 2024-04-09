@@ -180,9 +180,10 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
     PERFETTO_FATAL("Failed to initialize perfetto_tables: %s", errmsg_raw);
   }
 
-  engine_->RegisterVirtualTableModule<RuntimeTableFunction>(
-      "runtime_table_function", this,
-      SqliteTableLegacy::TableType::kExplicitCreate, false);
+  auto ctx = std::make_unique<RuntimeTableFunctionModule::Context>();
+  runtime_table_fn_context_ = ctx.get();
+  engine_->RegisterVirtualTableModule<RuntimeTableFunctionModule>(
+      "runtime_table_function", std::move(ctx));
   auto context = std::make_unique<DbSqliteTable::Context>(
       [this](const std::string& name) {
         auto* table = runtime_tables_.Find(name);
@@ -202,7 +203,6 @@ PerfettoSqlEngine::~PerfettoSqlEngine() {
   // Destroying the sqlite engine should also destroy all the created table
   // functions.
   engine_.reset();
-  PERFETTO_CHECK(runtime_table_fn_states_.size() == 0);
   PERFETTO_CHECK(runtime_tables_.size() == 0);
 }
 
@@ -620,8 +620,9 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
                                    cf.sql);
   }
 
-  std::unique_ptr<RuntimeTableFunction::State> state(
-      new RuntimeTableFunction::State{cf.sql, cf.prototype, {}, std::nullopt});
+  auto state = std::make_unique<RuntimeTableFunctionModule::State>(
+      RuntimeTableFunctionModule::State{
+          this, cf.sql, cf.prototype, {}, std::nullopt});
 
   // Parse the return type into a enum format.
   {
@@ -699,36 +700,44 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
           state->return_values[i].name().c_str());
     }
   }
-  state->reusable_stmt = std::move(stmt);
+  state->temporary_create_stmt = std::move(stmt);
 
   // TODO(lalitm): this suffers the same non-atomic DROP/CREATE problem as
   // CREATE PERFETTO TABLE implementation above: see the comment there for
   // more info on this.
-  std::string fn_name = state->prototype.function_name;
-  std::string lower_name = base::ToLower(state->prototype.function_name);
-  if (runtime_table_fn_states_.Find(lower_name)) {
-    if (!cf.replace) {
-      return base::ErrStatus("Table function named %s already exists",
-                             state->prototype.function_name.c_str());
-    }
-    // This will cause |OnTableFunctionDestroyed| below to be executed.
-    base::StackString<1024> drop("DROP TABLE %s",
+  if (cf.replace) {
+    base::StackString<1024> drop("DROP TABLE IF EXISTS %s",
                                  state->prototype.function_name.c_str());
     auto res = Execute(
         SqlSource::FromTraceProcessorImplementation(drop.ToStdString()));
     RETURN_IF_ERROR(res.status());
   }
 
-  auto it_and_inserted =
-      runtime_table_fn_states_.Insert(lower_name, std::move(state));
-  PERFETTO_CHECK(it_and_inserted.second);
-
   base::StackString<1024> create(
-      "CREATE VIRTUAL TABLE %s USING runtime_table_function", fn_name.c_str());
-  return Execute(cf.sql.RewriteAllIgnoreExisting(
-                     SqlSource::FromTraceProcessorImplementation(
-                         create.ToStdString())))
-      .status();
+      "CREATE VIRTUAL TABLE %s USING runtime_table_function",
+      state->prototype.function_name.c_str());
+
+  // Make sure we didn't accidentally leak a state from a previous function
+  // creation.
+  PERFETTO_CHECK(!runtime_table_fn_context_->temporary_create_state);
+
+  // Move the state into the context so that it will be picked up in xCreate
+  // of RuntimeTableFunctionModule.
+  runtime_table_fn_context_->temporary_create_state = std::move(state);
+  auto status = Execute(cf.sql.RewriteAllIgnoreExisting(
+                            SqlSource::FromTraceProcessorImplementation(
+                                create.ToStdString())))
+                    .status();
+
+  // If an error happened, it's possible that the state was not picked up.
+  // Therefore, always reset the state just in case. OTOH if the creation
+  // succeeded, the state should always have been captured.
+  if (status.ok()) {
+    PERFETTO_CHECK(!runtime_table_fn_context_->temporary_create_state);
+  } else {
+    runtime_table_fn_context_->temporary_create_state.reset();
+  }
+  return status;
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateMacro(
@@ -777,18 +786,6 @@ base::Status PerfettoSqlEngine::ExecuteCreateMacro(
   auto it_and_inserted = macros_.Insert(std::move(name), std::move(macro));
   PERFETTO_CHECK(it_and_inserted.second);
   return base::OkStatus();
-}
-
-RuntimeTableFunction::State* PerfettoSqlEngine::GetRuntimeTableFunctionState(
-    const std::string& name) const {
-  auto* it = runtime_table_fn_states_.Find(base::ToLower(name));
-  PERFETTO_CHECK(it);
-  return it->get();
-}
-
-void PerfettoSqlEngine::OnRuntimeTableFunctionDestroyed(
-    const std::string& name) {
-  PERFETTO_CHECK(runtime_table_fn_states_.Erase(base::ToLower(name)));
 }
 
 base::StatusOr<std::vector<std::string>>
