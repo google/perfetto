@@ -755,7 +755,6 @@ int SpanJoinOperatorModule::Connect(sqlite3* db,
   auto* context = GetContext(ctx);
   std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
   res->state = context->manager.OnConnect(argv);
-  *vtab = res.release();
 
   auto* state =
       sqlite::ModuleStateManager<SpanJoinOperatorModule>::GetState(res->state);
@@ -763,6 +762,7 @@ int SpanJoinOperatorModule::Connect(sqlite3* db,
       ret != SQLITE_OK) {
     return ret;
   }
+  *vtab = res.release();
   return SQLITE_OK;
 }
 
