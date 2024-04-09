@@ -26,7 +26,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
-#include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"

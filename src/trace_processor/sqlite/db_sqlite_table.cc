@@ -41,7 +41,6 @@
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
-#include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/query_constraints.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -439,13 +438,12 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
 }
 
 std::unique_ptr<SqliteTableLegacy::BaseCursor> DbSqliteTable::CreateCursor() {
-  return std::make_unique<Cursor>(this, context_->cache);
+  return std::make_unique<Cursor>(this);
 }
 
-DbSqliteTable::Cursor::Cursor(DbSqliteTable* sqlite_table, QueryCache* cache)
+DbSqliteTable::Cursor::Cursor(DbSqliteTable* sqlite_table)
     : SqliteTableLegacy::BaseCursor(sqlite_table),
-      db_sqlite_table_(sqlite_table),
-      cache_(cache) {
+      db_sqlite_table_(sqlite_table) {
   switch (db_sqlite_table_->context_->computation) {
     case TableComputation::kStatic:
       upstream_table_ = db_sqlite_table_->context_->static_table;
@@ -473,25 +471,13 @@ DbSqliteTable::Cursor::~Cursor() = default;
 void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
     const QueryConstraints& qc,
     FilterHistory history) {
-  // Check if we have a cache. Some subclasses (e.g. the flamegraph table) may
-  // pass nullptr to disable caching.
-  if (!cache_)
-    return;
-
   if (history == FilterHistory::kDifferent) {
     repeated_cache_count_ = 0;
-
-    // Check if the new constraint set is cached by another cursor.
-    sorted_cache_table_ =
-        cache_->GetIfCached(upstream_table_, qc.constraints());
+    sorted_cache_table_ = std::nullopt;
     return;
   }
 
   PERFETTO_DCHECK(history == FilterHistory::kSame);
-
-  // TODO(lalitm): all of the caching policy below should live in QueryCache and
-  // not here. This is only here temporarily to allow migration of sched without
-  // regressing UI performance and should be removed ASAP.
 
   // Only try and create the cached table on exactly the third time we see this
   // constraint set.
@@ -516,10 +502,7 @@ void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
     return;
 
   // Try again to get the result or start caching it.
-  sorted_cache_table_ =
-      cache_->GetOrCache(upstream_table_, qc.constraints(), [this, col]() {
-        return upstream_table_->Sort({Order{col, false}});
-      });
+  sorted_cache_table_ = upstream_table_->Sort({Order{col, false}});
 }
 
 base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
@@ -706,28 +689,22 @@ void DbSqliteTable::Cursor::FilterAndSortMetatrace(metatrace::Record* r) {
   }
 }
 
-DbSqliteTableContext::DbSqliteTableContext(QueryCache* query_cache,
-                                           const Table* table,
+DbSqliteTableContext::DbSqliteTableContext(const Table* table,
                                            Table::Schema schema)
-    : cache(query_cache),
-      computation(Computation::kStatic),
+    : computation(Computation::kStatic),
       static_table(table),
       static_schema(std::move(schema)) {}
 
 DbSqliteTableContext::DbSqliteTableContext(
-    QueryCache* query_cache,
     std::function<RuntimeTable*(std::string)> get_table,
     std::function<void(std::string)> erase_table)
-    : cache(query_cache),
-      computation(Computation::kRuntime),
+    : computation(Computation::kRuntime),
       get_runtime_table(std::move(get_table)),
       erase_runtime_table(std::move(erase_table)) {}
 
 DbSqliteTableContext::DbSqliteTableContext(
-    QueryCache* query_cache,
     std::unique_ptr<StaticTableFunction> table)
-    : cache(query_cache),
-      computation(Computation::kTableFunction),
+    : computation(Computation::kTableFunction),
       static_table_function(std::move(table)) {}
 
 }  // namespace perfetto::trace_processor
