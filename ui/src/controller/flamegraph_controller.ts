@@ -300,6 +300,7 @@ export class FlamegraphController extends Controller<'main'> {
         await this.args.engine.query(`select value from stats
        where severity = 'error' and name = 'heap_graph_non_finalized_graph'`)
       ).firstRow({value: NUM}).value > 0;
+    flamegraphDetails.graphLoading = false;
     publishFlamegraphDetails(flamegraphDetails);
   }
 
@@ -317,8 +318,10 @@ export class FlamegraphController extends Controller<'main'> {
     if (this.flamegraphDatasets.has(key)) {
       currentData = this.flamegraphDatasets.get(key)!;
     } else {
-      // TODO(b/330703412): Show loading state.
-
+      publishFlamegraphDetails({
+        ...globals.flamegraphDetails,
+        graphLoading: true,
+      });
       // Collecting data for drawing flamegraph for selected profile.
       // Data needs to be in following format:
       // id, name, parent_id, depth, total_size
