@@ -173,43 +173,6 @@
         width: 50%;
       }
     }
-    &.flamegraph-profile {
-      display: flex;
-      justify-content: space-between;
-      align-content: center;
-      height: 30px;
-      padding: 0;
-      font-size: 12px;
-      * {
-        align-self: center;
-      }
-      .options {
-        display: inline-flex;
-        justify-content: space-around;
-      }
-      .details {
-        display: inline-flex;
-        justify-content: flex-end;
-      }
-      .title {
-        justify-self: start;
-        margin-left: 5px;
-        font-size: 14px;
-        margin-right: 10px;
-      }
-      .time {
-        justify-self: end;
-        margin-right: 10px;
-      }
-      .selected {
-        justify-self: end;
-        margin-right: 10px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        width: 200px;
-      }
-    }
   }
 
   table {
@@ -708,4 +671,36 @@
 
 .pf-noselection {
   height: 100%;
+}
+
+.flamegraph-profile {
+  height: 100%;
+  // This is required to position locally-scoped (i.e. non-full-screen) modal
+  // dialogs within the panel, as they use position: absolute.
+  position: relative;
+
+  .time {
+    justify-self: end;
+    margin-right: 10px;
+  }
+  .selected {
+    justify-self: end;
+    margin-right: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 200px;
+  }
+  .flamegraph-content {
+    overflow: auto;
+    height: 100%;
+
+    .loading-container {
+      font-size: larger;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+    }
+  }
 }
