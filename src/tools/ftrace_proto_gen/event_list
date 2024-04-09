@@ -489,3 +489,6 @@ sched/sched_migrate_task
 dpu/dsi_cmd_fifo_status
 dpu/dsi_rx
 dpu/dsi_tx
+f2fs/f2fs_background_gc
+f2fs/f2fs_gc_begin
+f2fs/f2fs_gc_end
