@@ -18,13 +18,11 @@
 #define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_UTILS_H_
 
 #include <sqlite3.h>
-#include <algorithm>
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <initializer_list>
 #include <optional>
 #include <string>
 #include <utility>
@@ -35,7 +33,6 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
-#include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto::trace_processor::sqlite::utils {
 

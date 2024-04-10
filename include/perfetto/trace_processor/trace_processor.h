@@ -140,9 +140,6 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   virtual std::vector<uint8_t> GetMetricDescriptors() = 0;
 };
 
-// When set, logs SQLite actions on the console.
-void PERFETTO_EXPORT_COMPONENT EnableSQLiteVtableDebugging();
-
 }  // namespace trace_processor
 }  // namespace perfetto
 
