@@ -17,10 +17,15 @@
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 
+#include <sqlite3.h>
+#include <array>
+#include <cstdint>
+
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/db/table.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 Table::Schema CreateSchema() {
@@ -43,56 +48,85 @@ Table::Schema CreateSchema() {
   return schema;
 }
 
-TEST(DbSqliteTable, IdEqCheaperThanOtherEq) {
+sqlite3_index_info::sqlite3_index_constraint CreateConstraint(int col,
+                                                              uint8_t op) {
+  return {col, op, true, 0};
+}
+
+sqlite3_index_info::sqlite3_index_constraint_usage CreateUsage() {
+  return {1, true};
+}
+
+sqlite3_index_info CreateCsIndexInfo(
+    int cs_count,
+    sqlite3_index_info::sqlite3_index_constraint* c,
+    sqlite3_index_info::sqlite3_index_constraint_usage* u) {
+  return {cs_count, c, 0, nullptr, u, 0, nullptr, false, 0, 0, 0, 0, 0};
+}
+
+sqlite3_index_info CreateObIndexInfo(
+    int ob_count,
+    sqlite3_index_info::sqlite3_index_orderby* o) {
+  return {0, nullptr, ob_count, o, nullptr, 0, nullptr, false, 0, 0, 0, 0, 0};
+}
+
+TEST(DbSqliteModule, IdEqCheaperThanOtherEq) {
   auto schema = CreateSchema();
   constexpr uint32_t kRowCount = 1234;
 
-  QueryConstraints id_eq;
-  id_eq.AddConstraint(0u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+  auto c = CreateConstraint(0, SQLITE_INDEX_CONSTRAINT_EQ);
+  auto u = CreateUsage();
+  auto info = CreateCsIndexInfo(1, &c, &u);
 
-  auto id_cost = DbSqliteTable::EstimateCost(schema, kRowCount, id_eq);
+  auto id_cost =
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info, {0u}, {});
 
-  QueryConstraints a_eq;
-  a_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_EQ, 1u);
-
-  auto a_cost = DbSqliteTable::EstimateCost(schema, kRowCount, a_eq);
+  c.iColumn = 1;
+  auto a_cost =
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info, {0u}, {});
 
   ASSERT_LT(id_cost.cost, a_cost.cost);
   ASSERT_LT(id_cost.rows, a_cost.rows);
 }
 
-TEST(DbSqliteTable, IdEqCheaperThatOtherConstraint) {
+TEST(DbSqliteModule, IdEqCheaperThatOtherConstraint) {
   auto schema = CreateSchema();
   constexpr uint32_t kRowCount = 1234;
 
-  QueryConstraints id_eq;
-  id_eq.AddConstraint(0u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+  auto c = CreateConstraint(0, SQLITE_INDEX_CONSTRAINT_EQ);
+  auto u = CreateUsage();
+  auto info = CreateCsIndexInfo(1, &c, &u);
 
-  auto id_cost = DbSqliteTable::EstimateCost(schema, kRowCount, id_eq);
+  auto id_cost =
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info, {0u}, {});
 
-  QueryConstraints a_eq;
-  a_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_LT, 1u);
-
-  auto a_cost = DbSqliteTable::EstimateCost(schema, kRowCount, a_eq);
+  c.iColumn = 1;
+  c.op = SQLITE_INDEX_CONSTRAINT_LT;
+  auto a_cost =
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info, {0u}, {});
 
   ASSERT_LT(id_cost.cost, a_cost.cost);
   ASSERT_LT(id_cost.rows, a_cost.rows);
 }
 
-TEST(DbSqliteTable, SingleEqCheaperThanMultipleConstraint) {
+TEST(DbSqliteModule, SingleEqCheaperThanMultipleConstraint) {
   auto schema = CreateSchema();
   constexpr uint32_t kRowCount = 1234;
 
-  QueryConstraints single_eq;
-  single_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+  auto c = CreateConstraint(1, SQLITE_INDEX_CONSTRAINT_EQ);
+  auto u = CreateUsage();
+  auto info = CreateCsIndexInfo(1, &c, &u);
 
-  auto single_cost = DbSqliteTable::EstimateCost(schema, kRowCount, single_eq);
+  auto single_cost =
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info, {0u}, {});
 
-  QueryConstraints multi_eq;
-  multi_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
-  multi_eq.AddConstraint(2u, SQLITE_INDEX_CONSTRAINT_EQ, 1u);
+  std::array c2{CreateConstraint(1, SQLITE_INDEX_CONSTRAINT_EQ),
+                CreateConstraint(2, SQLITE_INDEX_CONSTRAINT_EQ)};
+  std::array u2{CreateUsage(), CreateUsage()};
+  auto info2 = CreateCsIndexInfo(c2.size(), c2.data(), u2.data());
 
-  auto multi_cost = DbSqliteTable::EstimateCost(schema, kRowCount, multi_eq);
+  auto multi_cost =
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info2, {0u, 1u}, {});
 
   // The cost of the single filter should be cheaper (because of our special
   // handling of single equality). But the number of rows should be greater.
@@ -100,22 +134,25 @@ TEST(DbSqliteTable, SingleEqCheaperThanMultipleConstraint) {
   ASSERT_GT(single_cost.rows, multi_cost.rows);
 }
 
-TEST(DbSqliteTable, MultiSortedEqCheaperThanMultiUnsortedEq) {
+TEST(DbSqliteModule, MultiSortedEqCheaperThanMultiUnsortedEq) {
   auto schema = CreateSchema();
   constexpr uint32_t kRowCount = 1234;
 
-  QueryConstraints sorted_eq;
-  sorted_eq.AddConstraint(2u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
-  sorted_eq.AddConstraint(3u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+  std::array c1{CreateConstraint(1, SQLITE_INDEX_CONSTRAINT_EQ),
+                CreateConstraint(2, SQLITE_INDEX_CONSTRAINT_EQ)};
+  std::array u1{CreateUsage(), CreateUsage()};
+  auto info1 = CreateCsIndexInfo(c1.size(), c1.data(), u1.data());
 
-  auto sorted_cost = DbSqliteTable::EstimateCost(schema, kRowCount, sorted_eq);
+  auto sorted_cost =
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info1, {0u, 1u}, {});
 
-  QueryConstraints unsorted_eq;
-  unsorted_eq.AddConstraint(3u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
-  unsorted_eq.AddConstraint(4u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+  std::array c2{CreateConstraint(3, SQLITE_INDEX_CONSTRAINT_EQ),
+                CreateConstraint(4, SQLITE_INDEX_CONSTRAINT_EQ)};
+  std::array u2{CreateUsage(), CreateUsage()};
+  auto info2 = CreateCsIndexInfo(c2.size(), c2.data(), u2.data());
 
   auto unsorted_cost =
-      DbSqliteTable::EstimateCost(schema, kRowCount, unsorted_eq);
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info2, {0u, 1u}, {});
 
   // The number of rows should be the same but the cost of the sorted
   // query should be less.
@@ -123,41 +160,49 @@ TEST(DbSqliteTable, MultiSortedEqCheaperThanMultiUnsortedEq) {
   ASSERT_EQ(sorted_cost.rows, unsorted_cost.rows);
 }
 
-TEST(DbSqliteTable, EmptyTableCosting) {
+TEST(DbSqliteModule, EmptyTableCosting) {
   auto schema = CreateSchema();
+  constexpr uint32_t kRowCount = 0;
 
-  QueryConstraints id_eq;
-  id_eq.AddConstraint(0u, SQLITE_INDEX_CONSTRAINT_EQ, 0u);
+  std::array c1{CreateConstraint(0, SQLITE_INDEX_CONSTRAINT_EQ)};
+  std::array u1{CreateUsage()};
+  auto info1 = CreateCsIndexInfo(c1.size(), c1.data(), u1.data());
 
-  auto id_cost = DbSqliteTable::EstimateCost(schema, 0, id_eq);
+  auto id_cost =
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info1, {0u}, {});
 
-  QueryConstraints a_eq;
-  a_eq.AddConstraint(1u, SQLITE_INDEX_CONSTRAINT_LT, 1u);
+  std::array c2{CreateConstraint(0, SQLITE_INDEX_CONSTRAINT_EQ)};
+  std::array u2{CreateUsage()};
+  auto info2 = CreateCsIndexInfo(c2.size(), c2.data(), u2.data());
 
-  auto a_cost = DbSqliteTable::EstimateCost(schema, 0, a_eq);
+  auto a_cost =
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info2, {0u}, {});
 
   ASSERT_DOUBLE_EQ(id_cost.cost, a_cost.cost);
   ASSERT_EQ(id_cost.rows, a_cost.rows);
 }
 
-TEST(DbSqliteTable, OrderByOnSortedCheaper) {
+TEST(DbSqliteModule, OrderByOnSortedCheaper) {
   auto schema = CreateSchema();
   constexpr uint32_t kRowCount = 1234;
 
-  QueryConstraints a_qc;
-  a_qc.AddOrderBy(1u, false);
+  sqlite3_index_info::sqlite3_index_orderby ob1{1u, false};
+  auto info1 = CreateObIndexInfo(1, &ob1);
 
-  auto a_cost = DbSqliteTable::EstimateCost(schema, kRowCount, a_qc);
+  auto a_cost =
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info1, {}, {0u});
+
+  sqlite3_index_info::sqlite3_index_orderby ob2{2u, false};
+  auto info2 = CreateObIndexInfo(1, &ob2);
 
   // On an ordered column, the constraint for sorting would get pruned so
   // we would end up with an empty constraint set.
-  QueryConstraints sorted_qc;
-  auto sorted_cost = DbSqliteTable::EstimateCost(schema, kRowCount, sorted_qc);
+  auto sorted_cost =
+      DbSqliteModule::EstimateCost(schema, kRowCount, &info2, {}, {});
 
   ASSERT_LT(sorted_cost.cost, a_cost.cost);
   ASSERT_EQ(sorted_cost.rows, a_cost.rows);
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

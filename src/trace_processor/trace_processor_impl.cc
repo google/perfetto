@@ -103,7 +103,6 @@
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
-#include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -799,7 +798,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   RegisterStaticTable(storage->slice_table());
   RegisterStaticTable(storage->flow_table());
-  RegisterStaticTable(storage->slice_table());
   RegisterStaticTable(storage->sched_slice_table());
   RegisterStaticTable(storage->spurious_sched_wakeup_table());
   RegisterStaticTable(storage->thread_state_table());
@@ -862,9 +860,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->v8_internal_code_table());
   RegisterStaticTable(storage->v8_wasm_code_table());
   RegisterStaticTable(storage->v8_regexp_code_table());
-
-  RegisterStaticTable(storage->jit_code_table());
-  RegisterStaticTable(storage->jit_frame_table());
 
   RegisterStaticTable(storage->jit_code_table());
   RegisterStaticTable(storage->jit_frame_table());

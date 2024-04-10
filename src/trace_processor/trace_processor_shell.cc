@@ -813,7 +813,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   static const option long_options[] = {
       {"help", no_argument, nullptr, 'h'},
       {"version", no_argument, nullptr, 'v'},
-      {"debug", no_argument, nullptr, 'd'},
       {"wide", no_argument, nullptr, 'W'},
       {"perf-file", required_argument, nullptr, 'p'},
       {"query-file", required_argument, nullptr, 'q'},
@@ -857,11 +856,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       printf("Trace Processor RPC API version: %d\n",
              protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
       exit(0);
-    }
-
-    if (option == 'd') {
-      EnableSQLiteVtableDebugging();
-      continue;
     }
 
     if (option == 'W') {

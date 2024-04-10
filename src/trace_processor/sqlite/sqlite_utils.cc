@@ -31,7 +31,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
-#include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto::trace_processor::sqlite::utils {
 namespace internal {
