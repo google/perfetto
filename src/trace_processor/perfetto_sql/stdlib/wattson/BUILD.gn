@@ -14,11 +14,11 @@
 
 import("../../../../../gn/perfetto_sql.gni")
 
-perfetto_sql_source_set("cpu") {
+perfetto_sql_source_set("wattson") {
   sources = [
-    "cpus.sql",
-    "freq.sql",
-    "idle.sql",
-    "size.sql",
+    "arm_dsu.sql",
+    "cpu_freq.sql",
+    "cpu_idle.sql",
+    "system_state.sql",
   ]
 }
