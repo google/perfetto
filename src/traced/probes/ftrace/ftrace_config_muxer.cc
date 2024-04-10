@@ -203,9 +203,6 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         AddEventGroup(table, "g2d", &events);
         InsertEvent("g2d", "tracing_mark_write", &events);
         InsertEvent("g2d", "g2d_perf_update_qos", &events);
-
-        AddEventGroup(table, "panel", &events);
-        InsertEvent("panel", "panel_write_generic", &events);
         continue;
       }
 

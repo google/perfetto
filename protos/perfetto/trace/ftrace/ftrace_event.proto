@@ -604,7 +604,5 @@ message FtraceEvent {
     BinderReturnFtraceEvent binder_return = 486;
     SchedSwitchWithCtrsFtraceEvent sched_switch_with_ctrs = 487;
     GpuWorkPeriodFtraceEvent gpu_work_period = 488;
-    RpmStatusFtraceEvent rpm_status = 489;
-    PanelWriteGenericFtraceEvent panel_write_generic = 490;
   }
 }
