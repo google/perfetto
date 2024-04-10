@@ -42,10 +42,7 @@ ArrangementOverlay::ChainImpl::ChainImpl(
     : inner_(std::move(inner)),
       arrangement_(arrangement),
       arrangement_state_(arrangement_state),
-      does_arrangement_order_storage_(does_arrangement_order_storage) {
-  PERFETTO_DCHECK(*std::max_element(arrangement->begin(), arrangement->end()) <=
-                  inner_->size());
-}
+      does_arrangement_order_storage_(does_arrangement_order_storage) {}
 
 SingleSearchResult ArrangementOverlay::ChainImpl::SingleSearch(
     FilterOp op,
