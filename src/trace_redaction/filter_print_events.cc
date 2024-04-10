@@ -47,7 +47,8 @@ bool FilterPrintEvents::KeepEvent(const Context& context,
   protozero::ProtoDecoder event(bytes);
 
   // This is not a print packet. Keep the packet.
-  if (event.FindField(protos::pbzero::FtraceEvent::kPrintFieldNumber).valid()) {
+  if (!event.FindField(protos::pbzero::FtraceEvent::kPrintFieldNumber)
+           .valid()) {
     return true;
   }
 
