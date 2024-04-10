@@ -23,6 +23,7 @@ import {
   BufferConfig,
   ChromeConfig,
   DataSourceConfig,
+  EtwConfig,
   FtraceConfig,
   HeapprofdConfig,
   JavaContinuousDumpConfig,
@@ -649,31 +650,35 @@ export function genTraceConfig(
   }
 
   // Keep these last. The stages above can enrich them.
+  if (
+    targetInfo.targetType !== 'WINDOWS' &&
+    targetInfo.targetType !== 'CHROME'
+  ) {
+    if (sysStatsCfg !== undefined) {
+      const ds = new TraceConfig.DataSource();
+      ds.config = new DataSourceConfig();
+      ds.config.name = 'linux.sys_stats';
+      ds.config.sysStatsConfig = sysStatsCfg;
+      protoCfg.dataSources.push(ds);
+    }
 
-  if (sysStatsCfg !== undefined && targetInfo.targetType !== 'CHROME') {
-    const ds = new TraceConfig.DataSource();
-    ds.config = new DataSourceConfig();
-    ds.config.name = 'linux.sys_stats';
-    ds.config.sysStatsConfig = sysStatsCfg;
-    protoCfg.dataSources.push(ds);
-  }
+    if (heapprofd !== undefined) {
+      const ds = new TraceConfig.DataSource();
+      ds.config = new DataSourceConfig();
+      ds.config.targetBuffer = 0;
+      ds.config.name = 'android.heapprofd';
+      ds.config.heapprofdConfig = heapprofd;
+      protoCfg.dataSources.push(ds);
+    }
 
-  if (heapprofd !== undefined && targetInfo.targetType !== 'CHROME') {
-    const ds = new TraceConfig.DataSource();
-    ds.config = new DataSourceConfig();
-    ds.config.targetBuffer = 0;
-    ds.config.name = 'android.heapprofd';
-    ds.config.heapprofdConfig = heapprofd;
-    protoCfg.dataSources.push(ds);
-  }
-
-  if (javaHprof !== undefined && targetInfo.targetType !== 'CHROME') {
-    const ds = new TraceConfig.DataSource();
-    ds.config = new DataSourceConfig();
-    ds.config.targetBuffer = 0;
-    ds.config.name = 'android.java_hprof';
-    ds.config.javaHprofConfig = javaHprof;
-    protoCfg.dataSources.push(ds);
+    if (javaHprof !== undefined) {
+      const ds = new TraceConfig.DataSource();
+      ds.config = new DataSourceConfig();
+      ds.config.targetBuffer = 0;
+      ds.config.name = 'android.java_hprof';
+      ds.config.javaHprofConfig = javaHprof;
+      protoCfg.dataSources.push(ds);
+    }
   }
 
   if (
@@ -755,6 +760,28 @@ export function genTraceConfig(
     if (targetInfo.targetType !== 'CHROME') {
       protoCfg.dataSources.push(ds);
     }
+  }
+
+  if (
+    targetInfo.targetType === 'WINDOWS' ||
+    uiCfg.etwCSwitch ||
+    uiCfg.etwThreadState
+  ) {
+    const ds = new TraceConfig.DataSource();
+    ds.config = new DataSourceConfig();
+    ds.config.name = 'windows.etw';
+    ds.config.etwConfig = new EtwConfig();
+
+    const kernelFlags: EtwConfig.KernelFlag[] = [];
+
+    if (uiCfg.etwCSwitch) {
+      kernelFlags.push(EtwConfig.KernelFlag.CSWITCH);
+    }
+    if (uiCfg.etwThreadState) {
+      kernelFlags.push(EtwConfig.KernelFlag.DISPATCHER);
+    }
+    ds.config.etwConfig.kernelFlags = kernelFlags;
+    protoCfg.dataSources.push(ds);
   }
 
   return protoCfg;

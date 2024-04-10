@@ -79,7 +79,7 @@ export interface ChromeTargetInfo extends TargetInfoBase {
 }
 
 export interface HostOsTargetInfo extends TargetInfoBase {
-  targetType: 'LINUX' | 'MACOS';
+  targetType: 'LINUX' | 'MACOS' | 'WINDOWS';
 }
 
 // Holds information about a target. It's used by the UI and the logic which

@@ -91,7 +91,11 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
       ),
       attrs.compact
         ? ''
-        : m('div', m('div', attrs.descr), m('.probe-config', children)),
+        : m(
+            `div${attrs.img ? '' : '.extended-desc'}`,
+            m('div', attrs.descr),
+            m('.probe-config', children),
+          ),
     );
   }
 }

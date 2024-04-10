@@ -64,7 +64,7 @@ function convertToRecordingV2Input(
   uiCfg: RecordConfig,
   target: RecordingTarget,
 ): TraceConfig {
-  let targetType: 'ANDROID' | 'CHROME' | 'CHROME_OS' | 'LINUX';
+  let targetType: 'ANDROID' | 'CHROME' | 'CHROME_OS' | 'LINUX' | 'WINDOWS';
   let androidApiLevel!: number;
   switch (target.os) {
     case 'L':
@@ -75,6 +75,9 @@ function convertToRecordingV2Input(
       break;
     case 'CrOS':
       targetType = 'CHROME_OS';
+      break;
+    case 'Win':
+      targetType = 'WINDOWS';
       break;
     case 'S':
       androidApiLevel = 31;
@@ -105,14 +108,12 @@ function convertToRecordingV2Input(
       dataSources: [],
       name: '',
     };
-  } else if (targetType === 'CHROME' || targetType === 'CHROME_OS') {
+  } else {
     targetInfo = {
       targetType,
       dataSources: [],
       name: '',
     };
-  } else {
-    targetInfo = {targetType, dataSources: [], name: ''};
   }
 
   return genTraceConfig(uiCfg, targetInfo);

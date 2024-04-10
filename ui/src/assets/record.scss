@@ -689,6 +689,10 @@
       max-height: 0;
     }
 
+    .extended-desc {
+      grid-column: span 2;
+    }
+
     &.enabled {
       .probe-config {
         opacity: 1;
