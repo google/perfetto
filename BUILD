@@ -261,7 +261,6 @@ perfetto_cc_library(
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
-        ":src_trace_processor_sqlite_query_constraints",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
@@ -2697,15 +2696,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/sqlite:query_constraints
-perfetto_filegroup(
-    name = "src_trace_processor_sqlite_query_constraints",
-    srcs = [
-        "src/trace_processor/sqlite/query_constraints.cc",
-        "src/trace_processor/sqlite/query_constraints.h",
-    ],
-)
-
 # GN target: //src/trace_processor/sqlite:sqlite
 perfetto_filegroup(
     name = "src_trace_processor_sqlite_sqlite",
@@ -2720,8 +2710,6 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/sql_stats_table.h",
         "src/trace_processor/sqlite/sqlite_engine.cc",
         "src/trace_processor/sqlite/sqlite_engine.h",
-        "src/trace_processor/sqlite/sqlite_table.cc",
-        "src/trace_processor/sqlite/sqlite_table.h",
         "src/trace_processor/sqlite/sqlite_tokenizer.cc",
         "src/trace_processor/sqlite/sqlite_tokenizer.h",
         "src/trace_processor/sqlite/sqlite_utils.cc",
@@ -5749,7 +5737,6 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
-        ":src_trace_processor_sqlite_query_constraints",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
@@ -5922,7 +5909,6 @@ perfetto_cc_binary(
         ":src_trace_processor_rpc_stdiod",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
-        ":src_trace_processor_sqlite_query_constraints",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
@@ -6147,7 +6133,6 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
-        ":src_trace_processor_sqlite_query_constraints",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",

@@ -62,7 +62,6 @@ source_set("table_functions") {
     "../../../importers/proto:full",
     "../../../importers/proto:minimal",
     "../../../sqlite",
-    "../../../sqlite:query_constraints",
     "../../../storage",
     "../../../tables",
     "../../../types",
@@ -82,7 +81,6 @@ source_set("interface") {
     "../../../../../include/perfetto/trace_processor:basic_types",
     "../../../../base",
     "../../../db",
-    "../../../sqlite:query_constraints",
   ]
 }
 
