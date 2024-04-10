@@ -508,9 +508,6 @@ Range NumericStorageBase::ChainImpl::OrderedIndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
     const OrderedIndices& indices) const {
-  PERFETTO_DCHECK(*std::max_element(indices.data, indices.data + indices.size) <
-                  size());
-
   PERFETTO_TP_TRACE(
       metatrace::Category::DB, "NumericStorage::ChainImpl::OrderedIndexSearch",
       [indices, op](metatrace::Record* r) {
