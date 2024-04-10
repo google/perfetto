@@ -20,6 +20,7 @@
 #include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "src/trace_redaction/filter_print_events.h"
 #include "src/trace_redaction/filter_sched_waking_events.h"
+#include "src/trace_redaction/filter_task_rename.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/optimize_timeline.h"
 #include "src/trace_redaction/populate_allow_lists.h"
@@ -28,7 +29,6 @@
 #include "src/trace_redaction/scrub_ftrace_events.h"
 #include "src/trace_redaction/scrub_process_stats.h"
 #include "src/trace_redaction/scrub_process_trees.h"
-#include "src/trace_redaction/scrub_task_rename.h"
 #include "src/trace_redaction/scrub_trace_packet.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redactor.h"
@@ -59,9 +59,9 @@ static base::Status Main(std::string_view input,
   scrub_ftrace_events->emplace_back<FilterFtraceUsingAllowlist>();
   scrub_ftrace_events->emplace_back<FilterPrintEvents>();
   scrub_ftrace_events->emplace_back<FilterSchedWakingEvents>();
+  scrub_ftrace_events->emplace_back<FilterTaskRename>();
 
   redactor.emplace_transform<ScrubProcessTrees>();
-  redactor.emplace_transform<ScrubTaskRename>();
   redactor.emplace_transform<RedactSchedSwitch>();
   redactor.emplace_transform<ScrubProcessStats>();
 

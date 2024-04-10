@@ -14,24 +14,24 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_REDACTION_SCRUB_TASK_RENAME_H_
-#define SRC_TRACE_REDACTION_SCRUB_TASK_RENAME_H_
-
-#include <string>
+#ifndef SRC_TRACE_REDACTION_FILTER_TASK_RENAME_H_
+#define SRC_TRACE_REDACTION_FILTER_TASK_RENAME_H_
 
 #include "perfetto/base/status.h"
+#include "src/trace_redaction/scrub_ftrace_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
 
-// Find all task_rename ftrace events and drops the event if the pid does not
-// belong to the target package.
-class ScrubTaskRename final : public TransformPrimitive {
+// Reject rename events that don't belong to the target package.
+class FilterTaskRename final : public FtraceEventFilter {
  public:
-  base::Status Transform(const Context& context,
-                         std::string* packet) const override;
+  base::Status VerifyContext(const Context& context) const override;
+
+  bool KeepEvent(
+      const Context& context, protozero::ConstBytes bytes) const override;
 };
 
 }  // namespace perfetto::trace_redaction
 
-#endif  // SRC_TRACE_REDACTION_SCRUB_TASK_RENAME_H_
+#endif  // SRC_TRACE_REDACTION_FILTER_TASK_RENAME_H_

@@ -20,14 +20,11 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "src/base/test/status_matchers.h"
-#include "src/base/test/tmp_dir_tree.h"
-#include "src/base/test/utils.h"
 #include "src/trace_redaction/build_timeline.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/optimize_timeline.h"
-#include "src/trace_redaction/scrub_task_rename.h"
+#include "src/trace_redaction/filter_task_rename.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redaction_integration_fixture.h"
 #include "src/trace_redaction/trace_redactor.h"
@@ -61,7 +58,10 @@ class RenameEventsTraceRedactorIntegrationTest
     trace_redactor()->emplace_collect<FindPackageUid>();
     trace_redactor()->emplace_collect<BuildTimeline>();
     trace_redactor()->emplace_build<OptimizeTimeline>();
-    trace_redactor()->emplace_transform<ScrubTaskRename>();
+
+    auto scrub_ftrace_events =
+        trace_redactor()->emplace_transform<ScrubFtraceEvents>();
+    scrub_ftrace_events->emplace_back<FilterTaskRename>();
 
     context()->package_name = kPackageName;
   }
