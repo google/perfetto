@@ -1012,11 +1012,11 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kFuncgraphEntryFieldNumber: {
-        ParseFuncgraphEntry(ts, pid, fld_bytes, seq_state);
+        ParseFuncgraphEntry(ts, cpu, pid, fld_bytes, seq_state);
         break;
       }
       case FtraceEvent::kFuncgraphExitFieldNumber: {
-        ParseFuncgraphExit(ts, pid, fld_bytes, seq_state);
+        ParseFuncgraphExit(ts, cpu, pid, fld_bytes, seq_state);
         break;
       }
       case FtraceEvent::kV4l2QbufFieldNumber:
@@ -3194,37 +3194,54 @@ void FtraceParser::ParseSchedCpuUtilCfs(int64_t timestamp,
 
 void FtraceParser::ParseFuncgraphEntry(
     int64_t timestamp,
+    uint32_t cpu,
     uint32_t pid,
     protozero::ConstBytes blob,
     PacketSequenceStateGeneration* seq_state) {
-  // TODO(rsavitski): remove if/when we stop collapsing all idle (swapper)
-  // threads to a single track, otherwise this breaks slice nesting.
-  if (pid == 0)
-    return;
-
   protos::pbzero::FuncgraphEntryFtraceEvent::Decoder evt(blob.data, blob.size);
   StringId name_id = InternedKernelSymbolOrFallback(evt.func(), seq_state);
 
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+  TrackId track = {};
+  if (pid != 0) {
+    // common case: normal thread
+    UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+    track = context_->track_tracker->InternThreadTrack(utid);
+  } else {
+    // Idle threads (swapper) are implicit, and all share the same thread id 0.
+    // Therefore we cannot use a thread-scoped track because many instances
+    // of swapper might be running concurrently. Fall back onto global tracks
+    // (one per cpu).
+    base::StackString<255> track_name("swapper%" PRIu32 "-funcgraph", cpu);
+    StringId track_name_id =
+        context_->storage->InternString(track_name.string_view());
+    track = context_->track_tracker->InternCpuTrack(track_name_id, cpu);
+  }
+
   context_->slice_tracker->Begin(timestamp, track, kNullStringId, name_id);
 }
 
 void FtraceParser::ParseFuncgraphExit(
     int64_t timestamp,
+    uint32_t cpu,
     uint32_t pid,
     protozero::ConstBytes blob,
     PacketSequenceStateGeneration* seq_state) {
-  // TODO(rsavitski): remove if/when we stop collapsing all idle (swapper)
-  // threads to a single track, otherwise this breaks slice nesting.
-  if (pid == 0)
-    return;
-
   protos::pbzero::FuncgraphExitFtraceEvent::Decoder evt(blob.data, blob.size);
   StringId name_id = InternedKernelSymbolOrFallback(evt.func(), seq_state);
 
-  UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
-  TrackId track = context_->track_tracker->InternThreadTrack(utid);
+  TrackId track = {};
+  if (pid != 0) {
+    // common case: normal thread
+    UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
+    track = context_->track_tracker->InternThreadTrack(utid);
+  } else {
+    // special case: see |ParseFuncgraphEntry|
+    base::StackString<255> track_name("swapper%" PRIu32 "-funcgraph", cpu);
+    StringId track_name_id =
+        context_->storage->InternString(track_name.string_view());
+    track = context_->track_tracker->InternCpuTrack(track_name_id, cpu);
+  }
+
   context_->slice_tracker->End(timestamp, track, kNullStringId, name_id);
 }
 
