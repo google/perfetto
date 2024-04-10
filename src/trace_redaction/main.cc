@@ -18,6 +18,7 @@
 #include "perfetto/base/status.h"
 #include "src/trace_redaction/build_timeline.h"
 #include "src/trace_redaction/filter_ftrace_using_allowlist.h"
+#include "src/trace_redaction/filter_packet_using_allowlist.h"
 #include "src/trace_redaction/filter_print_events.h"
 #include "src/trace_redaction/filter_sched_waking_events.h"
 #include "src/trace_redaction/filter_task_rename.h"
@@ -50,18 +51,21 @@ static base::Status Main(std::string_view input,
   redactor.emplace_build<OptimizeTimeline>();
 
   // Add all transforms.
-  redactor.emplace_transform<PrunePackageList>();
-  redactor.emplace_transform<ScrubTracePacket>();
+  auto* scrub_packet = redactor.emplace_transform<ScrubTracePacket>();
+  scrub_packet->emplace_back<FilterPacketUsingAllowlist>();
 
-  // Scrub ftrace events before other ftrace events in order to reduce the
-  // number of events they need to iterate over.
-  auto scrub_ftrace_events = redactor.emplace_transform<ScrubFtraceEvents>();
+  auto* scrub_ftrace_events = redactor.emplace_transform<ScrubFtraceEvents>();
   scrub_ftrace_events->emplace_back<FilterFtraceUsingAllowlist>();
   scrub_ftrace_events->emplace_back<FilterPrintEvents>();
   scrub_ftrace_events->emplace_back<FilterSchedWakingEvents>();
   scrub_ftrace_events->emplace_back<FilterTaskRename>();
 
+  // Scrub packets and ftrace events first as they will remove the largest
+  // chucks of data from the trace. This will reduce the amount of data that the
+  // other primitives need to operate on.
+  redactor.emplace_transform<ScrubTracePacket>();
   redactor.emplace_transform<ScrubProcessTrees>();
+  redactor.emplace_transform<PrunePackageList>();
   redactor.emplace_transform<RedactSchedSwitch>();
   redactor.emplace_transform<ScrubProcessStats>();
 

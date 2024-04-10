@@ -21,21 +21,31 @@
 
 namespace perfetto::trace_redaction {
 
-// TODO(vaage): This primitive DOES NOT handle redacting sched_switch and
-// sched_waking ftrace events. These events contain a large amount of "to be
-// redacted" information AND there are a high quantity of them AND they are
-// large packets. As such, this primitive is not enough and an ADDITIONAL
-// primitive is required.
+class TracePacketFilter {
+ public:
+  virtual ~TracePacketFilter();
 
-// Goes through individual ftrace packs and drops the ftrace packets from the
-// trace packet without modifying the surround fields.
-//
-// ScrubTracePacket does not respect field order - i.e. the field order going
-// may not match the field order going out.
-class ScrubTracePacket final : public TransformPrimitive {
+  // Checks if the context contains all neccessary parameters.
+  virtual base::Status VerifyContext(const Context& context) const = 0;
+
+  virtual bool KeepPacket(const Context& context,
+                          const std::string& bytes) const = 0;
+};
+
+class ScrubTracePacket : public TransformPrimitive {
  public:
   base::Status Transform(const Context& context,
                          std::string* packet) const override;
+
+  template <typename T>
+  void emplace_back() {
+    filters_.emplace_back(new T());
+  }
+
+ private:
+  bool KeepEvent(const Context& context, const std::string& bytes) const;
+
+  std::vector<std::unique_ptr<TracePacketFilter>> filters_;
 };
 
 }  // namespace perfetto::trace_redaction
