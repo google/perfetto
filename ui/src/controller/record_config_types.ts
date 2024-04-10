@@ -107,6 +107,9 @@ export const recordConfigValidator = record({
   audio: bool(),
   video: bool(),
 
+  etwCSwitch: bool(),
+  etwThreadState: bool(),
+
   symbolizeKsyms: bool(),
 
   // Enabling stack sampling
