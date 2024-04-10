@@ -325,7 +325,7 @@ allocations done before will not be shown.
 
 Use the `tools/heap_profile` script to profile a process. If you are having
 trouble make sure you are using the [latest version](
-https://raw.githubusercontent.com/google/perfetto/master/tools/heap_profile).
+https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile).
 See all the arguments using `tools/heap_profile -h`, or use the defaults
 and just profile a process (e.g. `system_server`):
 
@@ -390,7 +390,7 @@ NOTE: For detailed instructions about capturing Java heap dumps and
 We can get a snapshot of the graph of all the Java objects that constitute the
 Java heap. We use the `tools/java_heap_dump` script. If you are having trouble
 make sure you are using the [latest version](
-https://raw.githubusercontent.com/google/perfetto/master/tools/java_heap_dump).
+https://raw.githubusercontent.com/google/perfetto/main/tools/java_heap_dump).
 
 ```bash
 $ tools/java_heap_dump -n com.android.systemui

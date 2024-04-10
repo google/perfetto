@@ -29,7 +29,7 @@ export ANDROID_SERIAL=SER123456
 Download `cpu_profile` (if you don't have a Perfetto checkout):
 
 ```bash
-curl -LO https://raw.githubusercontent.com/google/perfetto/master/tools/cpu_profile
+curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/cpu_profile
 chmod +x cpu_profile
 ```
 
