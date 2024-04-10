@@ -306,8 +306,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     result.push(m(TrackButton, {
       action: () => globals.dispatch(
         Actions.removeTrack({trackId: attrs.trackState.id})),
-      i: 'delete',
-      tooltip: 'Remove track',
+      i: 'hide',
+      tooltip: 'Hide track',
       showButton: false, // Only show on roll-over
       fullHeight: true,
       disabled: !this.canDeleteTrack(attrs.trackState),

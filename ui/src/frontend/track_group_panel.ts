@@ -389,9 +389,9 @@ export class TrackGroupPanel extends Panel<Attrs> {
             ]);
             e.stopPropagation();
           },
-          i: 'delete',
+          i: 'hide',
           disabled,
-          tooltip: 'Remove track group',
+          tooltip: 'Hide track group',
           showButton: false, // Only show on roll-over
           fullHeight: true,
         }));

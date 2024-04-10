@@ -100,10 +100,16 @@ export type AddTrackLikeArgs = AddTrackArgs | AddTrackGroupArgs;
 export interface RemoveTrackArgs {
   // The ID of the track to remove
   id: string;
+
   // Whether to keep the ID so that it may be reused when the
   // track is subsequently added again (required for group
   // summary tracks only).
   keepId?: boolean;
+
+  // Set to true if the track is user-defined and the user wishes
+  // to outright delete the track definition rather than just hide
+  // it. I.e., don't add the track to the filtered list.
+  purge? : boolean;
 }
 
 export interface RemoveTrackGroupArgs {
@@ -501,11 +507,11 @@ export const StateActions = {
 
   removeTracks(state: StateDraft, args: {tracks: RemoveTrackArgs[]}): void {
     args.tracks.forEach((track) => this.removeTrack(
-      state, {trackId: track.id, keepId: track.keepId}));
+      state, {trackId: track.id, keepId: track.keepId, purge: track.purge}));
   },
 
   removeTrack(state: StateDraft,
-      args: {trackId: string, keepId?: boolean}): void {
+      args: {trackId: string, keepId?: boolean, purge?: boolean}): void {
     const track = state.tracks[args.trackId];
     if (!track) {
       return;
@@ -514,20 +520,22 @@ export const StateActions = {
 
     this.cleanUiTrackIdByTraceTrackId(state, track as TrackState, args.trackId);
 
-    // Don't attempt to reuse track IDs unless requested (usually only
-    // for group summary tracks)
-    const id = args.keepId ? {id: args.trackId} : {};
-    state.filteredTracks.push({
-      ...id,
-      kind: track.kind,
-      engineId: track.engineId,
-      name: track.name,
-      title: track.title,
-      trackSortKey: track.trackSortKey,
-      trackGroup: track.trackGroup,
-      labels: track.labels,
-      config: current(track.config),
-    });
+    if (!args.purge) {
+      // Don't attempt to reuse track IDs unless requested (usually only
+      // for group summary tracks)
+      const id = args.keepId ? {id: args.trackId} : {};
+      state.filteredTracks.push({
+        ...id,
+        kind: track.kind,
+        engineId: track.engineId,
+        name: track.name,
+        title: track.title,
+        trackSortKey: track.trackSortKey,
+        trackGroup: track.trackGroup,
+        labels: track.labels,
+        config: current(track.config),
+      });
+    }
 
     dropTables(track.engineId, track.id);
   },
