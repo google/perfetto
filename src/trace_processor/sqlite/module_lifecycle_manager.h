@@ -19,6 +19,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -115,6 +116,16 @@ class ModuleStateManager {
   // from the manager state.
   static typename Module::State* GetState(PerVtabState* s) {
     return s->state.get();
+  }
+
+  // Looks up the state of a module by name. This function should only be called
+  // for speculative lookups from outside the module implementation: use
+  // |GetState| inside the sqlite::Module implementation.
+  typename Module::State* FindStateByName(std::string_view name) {
+    if (auto ptr = state_by_name_.Find(std::string(name)); ptr) {
+      return GetState(ptr->get());
+    }
+    return nullptr;
   }
 
  private:
