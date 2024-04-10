@@ -8,7 +8,7 @@ is to use the [open\_trace\_in\_ui script](/tools/open_trace_in_ui).
 This can be used as follows:
 
 ```sh
-curl -OL https://github.com/google/perfetto/raw/master/tools/open_trace_in_ui
+curl -OL https://github.com/google/perfetto/raw/main/tools/open_trace_in_ui
 chmod +x open_trace_in_ui
 ./open_trace_in_ui -i /path/to/trace
 ```
