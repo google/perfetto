@@ -19,7 +19,6 @@
 #include <optional>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
