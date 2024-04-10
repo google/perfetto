@@ -33,6 +33,7 @@ import DisableTracingResponse = protos.perfetto.protos.DisableTracingResponse;
 import EnableMetatraceArgs = protos.perfetto.protos.EnableMetatraceArgs;
 import EnableTracingRequest = protos.perfetto.protos.EnableTracingRequest;
 import EnableTracingResponse = protos.perfetto.protos.EnableTracingResponse;
+import EtwConfig = protos.perfetto.protos.EtwConfig;
 import FreeBuffersRequest = protos.perfetto.protos.FreeBuffersRequest;
 import FreeBuffersResponse = protos.perfetto.protos.FreeBuffersResponse;
 import FtraceConfig = protos.perfetto.protos.FtraceConfig;
@@ -101,6 +102,7 @@ export {
   EnableMetatraceArgs,
   EnableTracingRequest,
   EnableTracingResponse,
+  EtwConfig,
   FreeBuffersRequest,
   FreeBuffersResponse,
   FtraceConfig,
