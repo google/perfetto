@@ -27,6 +27,7 @@ perfetto_sql_source_set("android") {
     "binder.sql",
     "broadcasts.sql",
     "critical_blocking_calls.sql",
+    "device.sql",
     "dvfs.sql",
     "freezer.sql",
     "garbage_collection.sql",

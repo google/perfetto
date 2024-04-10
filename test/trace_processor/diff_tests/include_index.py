@@ -97,6 +97,7 @@ from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TEST
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
+from diff_tests.stdlib.cpu.tests import CpuStdlib
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
 from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
 from diff_tests.stdlib.graphs.partition_tests import GraphPartitionTests
@@ -118,6 +119,7 @@ from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
+from diff_tests.stdlib.wattson.tests import WattsonStdlib
 from diff_tests.syntax.filtering_tests import PerfettoFiltering
 from diff_tests.syntax.function_tests import PerfettoFunction
 from diff_tests.syntax.include_tests import PerfettoInclude
@@ -243,6 +245,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
 
   stdlib_tests = [
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
+      *CpuStdlib(index_path, 'stdlib/cpu', 'CpuStdlib').fetch(),
       *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
       *Frames(index_path, 'stdlib/android', 'Frames').fetch(),
       *GraphSearchTests(index_path, 'stdlib/graphs',
@@ -280,6 +283,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *IntervalsIntersect(index_path, 'stdlib/intervals',
                           'StdlibIntervalsIntersect').fetch(),
       *Timestamps(index_path, 'stdlib/timestamps', 'Timestamps').fetch(),
+      *WattsonStdlib(index_path, 'stdlib/wattson', 'WattsonStdlib').fetch(),
   ] + chrome_stdlib_tests
 
   syntax_tests = [
