@@ -29,7 +29,7 @@ export ANDROID_SERIAL=SER123456
 Download the `tools/heap_profile` (if you don't have a perfetto checkout):
 
 ```bash
-curl -LO https://raw.githubusercontent.com/google/perfetto/master/tools/heap_profile
+curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile
 chmod +x heap_profile
 ```
 
@@ -56,7 +56,7 @@ set ANDROID_SERIAL=SER123456
 ```
 
 Download the
-[heap_profile](https://raw.githubusercontent.com/google/perfetto/master/tools/heap_profile)
+[heap_profile](https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile)
 script. Then start the profile:
 
 ```bash
