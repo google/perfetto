@@ -94,7 +94,9 @@ base::Status ScrubFtraceEvents::Transform(const Context& context,
 bool ScrubFtraceEvents::KeepEvent(const Context& context,
                                   protozero::ConstBytes bytes) const {
   for (const auto& filter : filters_) {
-    if (!filter->KeepEvent(context, bytes)) {
+    auto keep = filter->KeepEvent(context, bytes);
+
+    if (!keep) {
       return false;
     }
   }
