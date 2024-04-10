@@ -32,6 +32,8 @@ source_set("trace_redaction") {
     "build_timeline.h",
     "filter_ftrace_using_allowlist.cc",
     "filter_ftrace_using_allowlist.h",
+    "filter_packet_using_allowlist.cc",
+    "filter_packet_using_allowlist.h",
     "filter_print_events.cc",
     "filter_print_events.h",
     "filter_sched_waking_events.cc",
@@ -111,6 +113,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "build_timeline_unittest.cc",
     "filter_ftrace_using_allowlist_unittest.cc",
+    "filter_packet_using_allowlist_unittest.cc",
     "filter_sched_waking_events_unittest.cc",
     "filter_task_rename_unittest.cc",
     "find_package_uid_unittest.cc",
@@ -118,7 +121,6 @@ perfetto_unittest_source_set("unittests") {
     "proto_util_unittest.cc",
     "prune_package_list_unittest.cc",
     "redact_sched_switch_unittest.cc",
-    "scrub_trace_packet_unittest.cc",
   ]
   deps = [
     ":trace_redaction",

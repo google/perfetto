@@ -17,6 +17,7 @@
 #include <string>
 
 #include "src/base/test/status_matchers.h"
+#include "src/trace_redaction/filter_packet_using_allowlist.h"
 #include "src/trace_redaction/scrub_trace_packet.h"
 #include "test/gtest_and_gmock.h"
 
@@ -26,17 +27,22 @@
 
 namespace perfetto::trace_redaction {
 
-TEST(ScrubTracePacketTest, ReturnErrorForNullPacket) {
+TEST(FilterPacketUsingAllowlistParamErrorTest, ReturnErrorForNullPacket) {
+  ScrubTracePacket transform_;
+  transform_.emplace_back<FilterPacketUsingAllowlist>();
+
   // Have something in the allow-list to avoid that error.
   Context context;
   context.trace_packet_allow_list.insert(
       protos::pbzero::TracePacket::kProcessTreeFieldNumber);
 
-  ScrubTracePacket scrub;
-  ASSERT_FALSE(scrub.Transform(context, nullptr).ok());
+  ASSERT_FALSE(transform_.Transform(context, nullptr).ok());
 }
 
-TEST(ScrubTracePacketTest, ReturnErrorForEmptyPacket) {
+TEST(FilterPacketUsingAllowlistParamErrorTest, ReturnErrorForEmptyPacket) {
+  ScrubTracePacket transform_;
+  transform_.emplace_back<FilterPacketUsingAllowlist>();
+
   // Have something in the allow-list to avoid that error.
   Context context;
   context.trace_packet_allow_list.insert(
@@ -44,65 +50,80 @@ TEST(ScrubTracePacketTest, ReturnErrorForEmptyPacket) {
 
   std::string packet_str = "";
 
-  ScrubTracePacket scrub;
-  ASSERT_FALSE(scrub.Transform(context, &packet_str).ok());
+  ASSERT_FALSE(transform_.Transform(context, &packet_str).ok());
 }
 
-TEST(ScrubTracePacketTest, ReturnErrorForEmptyAllowList) {
+class FilterPacketUsingAllowlistTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    transform_.emplace_back<FilterPacketUsingAllowlist>();
+  }
+
+  base::StatusOr<std::string> Redact(const protos::gen::TracePacket& packet) {
+    auto str = packet.SerializeAsString();
+    auto status = transform_.Transform(context_, &str);
+
+    if (status.ok()) {
+      return str;
+    }
+
+    return status;
+  }
+
+  Context context_;
+
+ private:
+  ScrubTracePacket transform_;
+};
+
+TEST_F(FilterPacketUsingAllowlistTest, ReturnErrorForEmptyAllowList) {
   // The context will have no allow-list entries. ScrubTracePacket should fail.
-  Context context;
 
   protos::gen::TracePacket packet;
-  std::string packet_str = packet.SerializeAsString();
 
-  ScrubTracePacket scrub;
-  ASSERT_FALSE(scrub.Transform(context, &packet_str).ok());
+  auto status = Redact(packet);
+  ASSERT_FALSE(status.ok()) << status.status().c_message();
 }
 
 // The whole packet should be dropped (cleared) when it has a data type not
 // included in the allow-list.
-TEST(ScrubTracePacketTest, DropsOutsiderPacketType) {
+TEST_F(FilterPacketUsingAllowlistTest, DropsOutsiderPacketType) {
   protos::gen::TracePacket packet;
   packet.set_timestamp(1234);
   packet.mutable_android_camera_frame_event();  // Creates and sets data.
 
-  std::string packet_str = packet.SerializeAsString();
-  ASSERT_GT(packet_str.size(), 0u);
-
   // Populate the allow-list with something that doesn't match the data in the
   // packet.
-  Context context;
-  context.trace_packet_allow_list.insert(
+  context_.trace_packet_allow_list.insert(
       protos::pbzero::TracePacket::kProcessTreeFieldNumber);
 
-  ScrubTracePacket scrub;
-  ASSERT_OK(scrub.Transform(context, &packet_str));
+  auto status = Redact(packet);
+  ASSERT_OK(status) << status.status().c_message();
 
-  ASSERT_TRUE(packet_str.empty());
+  ASSERT_TRUE(status->empty());
 }
 
 // Typically a trace packet should always have a data type (e.g. ProcessTree),
 // but it is possible that another transformation has cleared that data. If
 // that's the case, this primitive should treat it as an outsider.
-TEST(ScrubTracePacketTest, DropsPacketsWithNoType) {
+TEST_F(FilterPacketUsingAllowlistTest, DropsPacketsWithNoType) {
   protos::gen::TracePacket packet;
   packet.set_timestamp(1234);
 
   std::string packet_str = packet.SerializeAsString();
   ASSERT_GT(packet_str.size(), 0u);
 
-  Context context;
-  context.trace_packet_allow_list.insert(
+  context_.trace_packet_allow_list.insert(
       protos::pbzero::TracePacket::kProcessTreeFieldNumber);
 
-  ScrubTracePacket scrub;
-  ASSERT_OK(scrub.Transform(context, &packet_str));
+  auto status = Redact(packet);
+  ASSERT_OK(status) << status.status().c_message();
 
-  ASSERT_TRUE(packet_str.empty());
+  ASSERT_TRUE(status->empty());
 }
 
 // A packet should not change (at all) if it's in the allow-list.
-TEST(ScrubTracePacketTest, SkipsAllowedPacket) {
+TEST_F(FilterPacketUsingAllowlistTest, SkipsAllowedPacket) {
   protos::gen::TracePacket packet;
   packet.set_timestamp(1234);
 
@@ -112,23 +133,15 @@ TEST(ScrubTracePacketTest, SkipsAllowedPacket) {
   process->set_ppid(3);
   process->set_pid(7);
 
-  std::string original_packet_str = packet.SerializeAsString();
-  ASSERT_GT(original_packet_str.size(), 0u);
-
-  // Make a copy that can be modified by the primitive (even though it shouldn't
-  // be).
-  std::string mutable_packet_str(original_packet_str);
-
-  Context context;
-  context.trace_packet_allow_list.insert(
+  context_.trace_packet_allow_list.insert(
       protos::pbzero::TracePacket::kProcessTreeFieldNumber);
 
-  ScrubTracePacket scrub;
-  ASSERT_OK(scrub.Transform(context, &mutable_packet_str));
+  auto status = Redact(packet);
+  ASSERT_OK(status) << status.status().c_message();
 
   // The transform shouldn't have changed the string, so the string before and
   // after should match.
-  ASSERT_EQ(original_packet_str, mutable_packet_str);
+  ASSERT_EQ(*status, packet.SerializeAsString());
 }
 
 }  // namespace perfetto::trace_redaction
