@@ -28,6 +28,7 @@ syntax = "proto3";
 import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/trace/chrome/chrome_trace_event.proto";
+import "protos/perfetto/trace/chrome/chrome_trigger.proto";
 import "protos/perfetto/trace/clock_snapshot.proto";
 import "protos/perfetto/trace/interned_data/interned_data.proto";
 import "protos/perfetto/trace/profiling/profile_packet.proto";
@@ -52,6 +53,7 @@ message ChromeTracePacket {
   ThreadDescriptor thread_descriptor = 44;
   StreamingProfilePacket streaming_profile_packet = 54;
   ProfiledFrameSymbols profiled_frame_symbols = 55;
+  ChromeTrigger chrome_trigger = 109;
 
   // The original trace config.
   TraceConfig trace_config = 33;
