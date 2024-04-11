@@ -52,6 +52,8 @@ source_set("trace_redaction") {
     "proto_util.h",
     "prune_package_list.cc",
     "prune_package_list.h",
+    "redact_ftrace_event.cc",
+    "redact_ftrace_event.h",
     "redact_sched_switch.cc",
     "redact_sched_switch.h",
     "scrub_ftrace_events.cc",
