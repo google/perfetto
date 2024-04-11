@@ -226,17 +226,27 @@ class TraceViewer implements m.ClassComponent {
     );
 
     for (const group of Object.values(globals.state.trackGroups)) {
-      const key = group.tracks[0];
-      const trackBundle = this.resolveTrack(key);
-      const headerPanel = new TrackGroupPanel({
-        trackGroupId: group.id,
-        key: `trackgroup-${group.id}`,
-        trackFSM: trackBundle.trackFSM,
-        labels: trackBundle.labels,
-        tags: trackBundle.tags,
-        collapsed: group.collapsed,
-        title: group.name,
-      });
+      const key = group.summaryTrack;
+      let headerPanel;
+      if (key) {
+        const trackBundle = this.resolveTrack(key);
+        headerPanel = new TrackGroupPanel({
+          trackGroupId: group.id,
+          key: `trackgroup-${group.id}`,
+          trackFSM: trackBundle.trackFSM,
+          labels: trackBundle.labels,
+          tags: trackBundle.tags,
+          collapsed: group.collapsed,
+          title: group.name,
+        });
+      } else {
+        headerPanel = new TrackGroupPanel({
+          trackGroupId: group.id,
+          key: `trackgroup-${group.id}`,
+          collapsed: group.collapsed,
+          title: group.name,
+        });
+      }
 
       const childTracks: Panel[] = [];
       // The first track is the summary track, and is displayed as part of the
