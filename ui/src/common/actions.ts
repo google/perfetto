@@ -256,7 +256,7 @@ export const StateActions = {
     args: {
       name: string;
       id: string;
-      summaryTrackKey: string;
+      summaryTrackKey?: string;
       collapsed: boolean;
       fixedOrdering?: boolean;
     },
@@ -265,7 +265,8 @@ export const StateActions = {
       name: args.name,
       id: args.id,
       collapsed: args.collapsed,
-      tracks: [args.summaryTrackKey],
+      tracks: [],
+      summaryTrack: args.summaryTrackKey,
       fixedOrdering: args.fixedOrdering,
     };
   },

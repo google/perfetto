@@ -26,11 +26,9 @@ import {
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
-  PrimaryTrackSortKey,
 } from '../../public';
 import {Engine, EngineProxy} from '../../trace_processor/engine';
 import {CustomSqlDetailsPanelConfig} from '../custom_sql_table_slices';
-import {NULL_TRACK_URI} from '../null_track';
 
 import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
@@ -138,20 +136,10 @@ export async function getScrollJankTracks(
   const eventLatencies = await addLatencyTracks();
   result.tracksToAdd = result.tracksToAdd.concat(eventLatencies.tracksToAdd);
 
-  const summaryTrackKey = uuidv4();
-  result.tracksToAdd.push({
-    uri: NULL_TRACK_URI,
-    trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-    name: '', // TODO(stevegolton): We should probably put some name here.
-    trackGroup: undefined,
-    key: summaryTrackKey,
-  });
-
   const addTrackGroup = Actions.addTrackGroup({
     name: 'Chrome Scroll Jank',
     id: SCROLL_JANK_GROUP_ID,
     collapsed: false,
-    summaryTrackKey,
     fixedOrdering: true,
   });
 

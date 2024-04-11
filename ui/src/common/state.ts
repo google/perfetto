@@ -148,7 +148,8 @@ export const MAX_TIME = 180;
 // 49. Remove currentTab, which is only relevant to TabsV1.
 // 50. Remove ftrace filter state.
 // 51. Changed structure of FlamegraphState.expandedCallsiteByViewingOption.
-export const STATE_VERSION = 51;
+// 52. Update track group state - don't make the summary track the first track.
+export const STATE_VERSION = 52;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -290,6 +291,7 @@ export interface TrackGroupState {
   collapsed: boolean;
   tracks: string[]; // Child track ids.
   fixedOrdering?: boolean; // Render tracks without sorting.
+  summaryTrack: string | undefined;
 }
 
 export interface EngineConfig {
