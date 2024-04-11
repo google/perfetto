@@ -139,6 +139,12 @@
 #define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ARCH_CPU_ARM64() 0
 #endif
 
+#if defined(__x86_64__) || defined(_M_X64)
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ARCH_CPU_X86_64() 1
+#else
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ARCH_CPU_X86_64() 0
+#endif
+
 // perfetto_build_flags.h contains the tweakable build flags defined via GN.
 // - In GN builds (e.g., standalone, chromium, v8) this file is generated at
 //   build time via the gen_rule //gn/gen_buildflags.
