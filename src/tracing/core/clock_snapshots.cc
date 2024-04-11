@@ -66,6 +66,12 @@ ClockSnapshotVector CaptureClockSnapshots() {
       ClockReading(protos::pbzero::BUILTIN_CLOCK_MONOTONIC, wall_time_ns));
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
+  // X86-specific but OS-independent TSC clocksource
+  snapshot_data.push_back(
+      ClockReading(protos::pbzero::BUILTIN_CLOCK_TSC, base::Rdtsc()));
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
+
   return snapshot_data;
 }
 
