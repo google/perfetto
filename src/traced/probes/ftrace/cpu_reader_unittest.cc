@@ -80,6 +80,7 @@ FtraceDataSourceConfig EmptyConfig() {
                                 std::nullopt,
                                 {},
                                 {},
+                                {},
                                 false /*symbolize_ksyms*/,
                                 50u,
                                 {}};
@@ -1048,6 +1049,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSixSchedSwitchCompactFormat) {
                                    std::nullopt,
                                    {},
                                    {},
+                                   {},
                                    false /* symbolize_ksyms*/,
                                    false /*preserve_ftrace_buffer*/,
                                    {}};
@@ -1161,6 +1163,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseCompactSchedSwitchAndWaking) {
                                    EventFilter{},
                                    EnabledCompactSchedConfigForTesting(),
                                    std::nullopt,
+                                   {},
                                    {},
                                    {},
                                    false /* symbolize_ksyms*/,
