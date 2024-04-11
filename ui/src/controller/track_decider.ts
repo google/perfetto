@@ -41,7 +41,6 @@ import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
 } from '../tracks/frames';
-import {NULL_TRACK_URI} from '../tracks/null_track';
 import {decideTracks as screenshotDecideTracks} from '../tracks/screenshots';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
@@ -233,19 +232,8 @@ class TrackDecider {
           parentIdToGroupId.set(parentTrackId, trackGroup);
 
           const parentName = getTrackName({name: rawParentName, kind});
-
-          const summaryTrackKey = uuidv4();
-          this.tracksToAdd.push({
-            uri: NULL_TRACK_URI,
-            key: summaryTrackKey,
-            trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-            trackGroup: undefined,
-            name: parentName,
-          });
-
           this.addTrackGroupActions.push(
             Actions.addTrackGroup({
-              summaryTrackKey: summaryTrackKey,
               name: parentName,
               id: trackGroup,
               collapsed: true,
@@ -406,18 +394,7 @@ class TrackDecider {
 
     for (const [key, value] of devMap) {
       const groupName = group + key;
-      const summaryTrackKey = uuidv4();
-
-      this.tracksToAdd.push({
-        uri: NULL_TRACK_URI,
-        key: summaryTrackKey,
-        trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-        name: groupName,
-        trackGroup: undefined,
-      });
-
       const addGroup = Actions.addTrackGroup({
-        summaryTrackKey,
         name: groupName,
         id: value,
         collapsed: true,
@@ -456,18 +433,7 @@ class TrackDecider {
 
     for (const [key, value] of devMap) {
       const groupName = key;
-      const summaryTrackKey = uuidv4();
-
-      this.tracksToAdd.push({
-        uri: NULL_TRACK_URI,
-        key: summaryTrackKey,
-        trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-        name: groupName,
-        trackGroup: undefined,
-      });
-
       const addGroup = Actions.addTrackGroup({
-        summaryTrackKey,
         name: groupName,
         id: value,
         collapsed: true,
@@ -492,9 +458,6 @@ class TrackDecider {
         ) {
           continue;
         }
-        if (track.uri === NULL_TRACK_URI) {
-          continue;
-        }
         if (groupUuid === undefined) {
           groupUuid = uuidv4();
         }
@@ -503,17 +466,7 @@ class TrackDecider {
     }
 
     if (groupUuid !== undefined) {
-      const summaryTrackKey = uuidv4();
-      this.tracksToAdd.push({
-        uri: NULL_TRACK_URI,
-        key: summaryTrackKey,
-        trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-        name: groupName,
-        trackGroup: undefined,
-      });
-
       const addGroup = Actions.addTrackGroup({
-        summaryTrackKey,
         name: groupName,
         id: groupUuid,
         collapsed: true,
@@ -540,9 +493,6 @@ class TrackDecider {
       ) {
         continue;
       }
-      if (track.uri === NULL_TRACK_URI) {
-        continue;
-      }
       let allowlisted = false;
       for (const regex of ALLOWLIST_REGEXES) {
         allowlisted = allowlisted || regex.test(track.name);
@@ -557,17 +507,7 @@ class TrackDecider {
     }
 
     if (groupUuid !== undefined) {
-      const summaryTrackKey = uuidv4();
-      this.tracksToAdd.push({
-        uri: NULL_TRACK_URI,
-        key: summaryTrackKey,
-        trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-        name: groupName,
-        trackGroup: undefined,
-      });
-
       const addGroup = Actions.addTrackGroup({
-        summaryTrackKey,
         name: groupName,
         id: groupUuid,
         collapsed: true,
@@ -587,9 +527,6 @@ class TrackDecider {
         ) {
           continue;
         }
-        if (track.uri === NULL_TRACK_URI) {
-          continue;
-        }
         if (groupUuid === undefined) {
           groupUuid = uuidv4();
         }
@@ -598,17 +535,7 @@ class TrackDecider {
     }
 
     if (groupUuid !== undefined) {
-      const summaryTrackKey = uuidv4();
-      this.tracksToAdd.push({
-        uri: NULL_TRACK_URI,
-        key: summaryTrackKey,
-        trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-        name: groupName,
-        trackGroup: undefined,
-      });
-
       const addGroup = Actions.addTrackGroup({
-        summaryTrackKey: summaryTrackKey,
         name: groupName,
         id: groupUuid,
         collapsed: true,
@@ -962,7 +889,7 @@ class TrackDecider {
     });
 
     // Map From [name] -> [uuid, key]
-    const groupMap = new Map<string, [string, string]>();
+    const groupMap = new Map<string, string>();
 
     for (; it.valid(); it.next()) {
       if (it.name == null || it.uid == null) {
@@ -975,16 +902,7 @@ class TrackDecider {
 
       const groupUuid = `uid-track-group${rawName}`;
       if (groupMap.get(rawName) === undefined) {
-        const summaryTrackKey = uuidv4();
-        this.tracksToAdd.push({
-          uri: NULL_TRACK_URI,
-          trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-          name: `UID Tracks`,
-          trackGroup: undefined,
-          key: summaryTrackKey,
-        });
-
-        groupMap.set(rawName, [groupUuid, summaryTrackKey]);
+        groupMap.set(rawName, groupUuid);
       }
 
       this.tracksToAdd.push({
@@ -995,12 +913,11 @@ class TrackDecider {
       });
     }
 
-    for (const [name, [groupUuid, summaryTrackKey]] of groupMap) {
+    for (const [name, groupUuid] of groupMap) {
       const addGroup = Actions.addTrackGroup({
         name: name,
         id: groupUuid,
         collapsed: true,
-        summaryTrackKey,
       });
       this.addTrackGroupActions.push(addGroup);
     }
@@ -1589,25 +1506,12 @@ class TrackDecider {
         if (uuid) {
           groupUuid = uuid;
         } else {
-          console.log(`Creating group "${groupName}"`);
-
-          // Add the summary track
-          const summaryTrackKey = uuidv4();
-          this.tracksToAdd.push({
-            uri: NULL_TRACK_URI,
-            trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-            name: groupName,
-            trackGroup: undefined,
-            key: summaryTrackKey,
-          });
-
           // Add the group
           groupUuid = uuidv4();
           const addGroup = Actions.addTrackGroup({
             name: groupName,
             id: groupUuid,
             collapsed: true,
-            summaryTrackKey,
             fixedOrdering: true,
           });
           this.addTrackGroupActions.push(addGroup);
