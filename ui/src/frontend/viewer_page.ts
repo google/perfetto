@@ -249,11 +249,8 @@ class TraceViewer implements m.ClassComponent {
       }
 
       const childTracks: Panel[] = [];
-      // The first track is the summary track, and is displayed as part of the
-      // group panel, we don't want to display it twice so we start from 1.
       if (!group.collapsed) {
-        for (let i = 1; i < group.tracks.length; ++i) {
-          const key = group.tracks[i];
+        for (const key of group.tracks) {
           const trackBundle = this.resolveTrack(key);
           const panel = new TrackPanel({
             trackKey: key,

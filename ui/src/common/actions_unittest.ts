@@ -133,8 +133,8 @@ test('add track to track group', () => {
     });
   });
 
-  expect(afterTrackAdd.trackGroups['123-123-123'].tracks[0]).toBe('s');
-  expect(afterTrackAdd.trackGroups['123-123-123'].tracks[1]).toBe('1');
+  expect(afterTrackAdd.trackGroups['123-123-123'].summaryTrack).toBe('s');
+  expect(afterTrackAdd.trackGroups['123-123-123'].tracks[0]).toBe('1');
 });
 
 test('reorder tracks', () => {
@@ -346,7 +346,7 @@ test('sortTracksByPriority', () => {
 
   // High Priority tracks should be sorted before Low Priority tracks:
   // 'b' appears twice because it's the summary track
-  expect(after.trackGroups['g'].tracks).toEqual(['a', 'b', 'b']);
+  expect(after.trackGroups['g'].tracks).toEqual(['a', 'b']);
 });
 
 test('sortTracksByPriorityAndKindAndName', () => {
@@ -406,7 +406,6 @@ test('sortTracksByPriorityAndKindAndName', () => {
   expect(after.trackGroups['g'].tracks).toEqual([
     'a',
     'b',
-    'b',
     'c',
     'd',
     'e',
@@ -456,7 +455,7 @@ test('sortTracksByTidThenName', () => {
     StateActions.sortThreadTracks(draft, {});
   });
 
-  expect(after.trackGroups['g'].tracks).toEqual(['a', 'a', 'c', 'b']);
+  expect(after.trackGroups['g'].tracks).toEqual(['a', 'c', 'b']);
 });
 
 test('perf samples open flamegraph', () => {
