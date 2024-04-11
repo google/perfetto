@@ -45,8 +45,12 @@ def main():
     trace_descriptor_path = os.path.join(trace_protos_path, 'trace.descriptor')
     test_extensions_descriptor_path = os.path.join(
         trace_protos_path, 'test_extensions.descriptor')
+    winscope_extensions_descriptor_path = os.path.join(
+        trace_protos_path, 'android', 'winscope.descriptor')
     extension_descriptors = [
-        chrome_extension_descriptor_path, test_extensions_descriptor_path
+        chrome_extension_descriptor_path,
+        test_extensions_descriptor_path,
+        winscope_extensions_descriptor_path
     ]
   elif args.descriptor and not args.out:
     trace_descriptor_path = args.descriptor
