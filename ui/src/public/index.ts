@@ -425,7 +425,7 @@ export interface PluginContextTrace extends PluginContext {
 
 export interface Plugin {
   // Lifecycle methods.
-  onActivate(ctx: PluginContext): void;
+  onActivate?(ctx: PluginContext): void;
   onTraceLoad?(ctx: PluginContextTrace): Promise<void>;
   onTraceUnload?(ctx: PluginContextTrace): Promise<void>;
   onDeactivate?(ctx: PluginContext): void;
@@ -504,9 +504,8 @@ export type TrackTags = Partial<WellKnownTrackTags> & {
   [key: string]: string | number | boolean | undefined;
 };
 
-// Plugins can be passed as class refs, factory functions, or concrete plugin
-// implementations.
-export type PluginFactory = PluginClass | Plugin | (() => Plugin);
+// Plugins can be class refs or concrete plugin implementations.
+export type PluginFactory = PluginClass | Plugin;
 
 export interface PluginDescriptor {
   // A unique string for your plugin. To ensure the name is unique you

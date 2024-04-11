@@ -88,7 +88,7 @@ group by
 order by total_self_size desc
 limit 100;`;
 
-const coreCommands: Plugin = {
+class CoreCommandsPlugin implements Plugin {
   onActivate(ctx: PluginContext) {
     ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#ToggleLeftSidebar',
@@ -102,7 +102,7 @@ const coreCommands: Plugin = {
       },
       defaultHotkey: '!Mod+B',
     });
-  },
+  }
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
@@ -249,8 +249,8 @@ const coreCommands: Plugin = {
         ctx.tabs.showTab('current_selection');
       },
     });
-  },
-};
+  }
+}
 
 function promptForTimestamp(message: string): time | undefined {
   const tsStr = window.prompt(message);
@@ -266,5 +266,5 @@ function promptForTimestamp(message: string): time | undefined {
 
 export const plugin: PluginDescriptor = {
   pluginId: 'dev.perfetto.CoreCommands',
-  plugin: coreCommands,
+  plugin: CoreCommandsPlugin,
 };

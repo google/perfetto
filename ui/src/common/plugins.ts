@@ -25,7 +25,6 @@ import {
   MetricVisualisation,
   Migrate,
   Plugin,
-  PluginClass,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
@@ -341,20 +340,13 @@ export interface PluginDetails {
   previousOnTraceLoadTimeMillis?: number;
 }
 
-function isPluginClass(v: unknown): v is PluginClass {
-  return typeof v === 'function' && !!v.prototype.onActivate;
-}
-
 function makePlugin(info: PluginDescriptor): Plugin {
   const {plugin} = info;
 
+  // Class refs are functions, concrete plugins are not
   if (typeof plugin === 'function') {
-    if (isPluginClass(plugin)) {
-      const PluginClass = plugin;
-      return new PluginClass();
-    } else {
-      return plugin();
-    }
+    const PluginClass = plugin;
+    return new PluginClass();
   } else {
     return plugin;
   }
@@ -433,7 +425,7 @@ export class PluginManager {
 
     const context = new PluginContextImpl(id);
 
-    plugin.onActivate(context);
+    plugin.onActivate?.(context);
 
     const pluginDetails: PluginDetails = {
       plugin,

@@ -24,7 +24,6 @@ import {PanelSize} from '../../frontend/panel';
 import {
   EngineProxy,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   Track,
@@ -158,8 +157,6 @@ class AndroidLogTrack implements Track {
 }
 
 class AndroidLog implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(
       `select count(1) as cnt from android_logs`,
