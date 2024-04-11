@@ -45,7 +45,10 @@ class RedactSchedSwitchIntegrationTest
     trace_redactor()->emplace_collect<FindPackageUid>();
     trace_redactor()->emplace_collect<BuildTimeline>();
     trace_redactor()->emplace_build<OptimizeTimeline>();
-    trace_redactor()->emplace_transform<RedactSchedSwitch>();
+
+    auto* ftrace_event_redactions =
+        trace_redactor()->emplace_transform<RedactFtraceEvent>();
+    ftrace_event_redactions->emplace_back<RedactSchedSwitch>();
 
     context()->package_name = "com.Unity.com.unity.multiplayer.samples.coop";
   }
