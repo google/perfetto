@@ -625,12 +625,12 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     // Set up the rest of the tracefs state, without starting it.
     // Notes:
     // * resizing buffers can be quite slow (up to hundreds of ms).
-    // * resizing buffers doesn't clear their existing contents, which matters
-    // to the preserve_ftrace_buffer option.
+    // * resizing buffers may truncate existing contents if the new size is
+    // smaller, which matters to the preserve_ftrace_buffer option.
     if (!request.preserve_ftrace_buffer()) {
       SetupClock(request);
+      SetupBufferSize(request);
     }
-    SetupBufferSize(request);
   }
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);

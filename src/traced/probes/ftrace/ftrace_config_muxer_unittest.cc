@@ -1385,5 +1385,28 @@ TEST_F(FtraceConfigMuxerTest, SecondaryInstanceDoNotSupportAtrace) {
   ASSERT_FALSE(model.SetupConfig(/* id= */ 73, config));
 }
 
+TEST_F(FtraceConfigMuxerTest, PreserveFtraceBufferNotSetBufferSizeKb) {
+  auto fake_table = CreateFakeTable();
+  NiceMock<MockFtraceProcfs> ftrace;
+  FtraceConfigMuxer model(&ftrace, fake_table.get(), GetSyscallTable(), {},
+                          /* secondary_instance= */ false);
+
+  FtraceConfig config = CreateFtraceConfig({"sched/sched_switch"});
+
+  config.set_preserve_ftrace_buffer(true);
+  EXPECT_CALL(ftrace, ReadOneCharFromFile("/root/tracing_on"))
+      .WillOnce(Return('1'));
+  ON_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
+      .WillByDefault(Return("[local] global boot"));
+  EXPECT_CALL(ftrace, ReadFileIntoString("/root/trace_clock"))
+      .Times(AnyNumber());
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", _)).Times(0);
+  EXPECT_CALL(ftrace,
+              WriteToFile("/root/events/sched/sched_switch/enable", "1"));
+
+  FtraceConfigId id = 44;
+  ASSERT_TRUE(model.SetupConfig(id, config));
+}
+
 }  // namespace
 }  // namespace perfetto
