@@ -37,6 +37,14 @@
 #include <emscripten/emscripten.h>
 #endif
 
+#if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
+#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
+#include <intrin.h>
+#else
+#include <x86intrin.h>
+#endif
+#endif
+
 namespace perfetto {
 namespace base {
 
@@ -271,6 +279,12 @@ inline int64_t MkTime(int year, int month, int day, int h, int m, int s) {
   tms.tm_sec = s;
   return TimeGm(&tms);
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
+inline uint64_t Rdtsc() {
+  return static_cast<uint64_t>(__rdtsc());
+}
+#endif
 
 std::optional<int32_t> GetTimezoneOffsetMins();
 
