@@ -44,6 +44,7 @@
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr 0;
+  container-type: size;
 
   &::after {
     display: block;
@@ -56,15 +57,28 @@
 
   .track-shell {
     @include transition();
-    padding-left: 10px;
-    display: grid;
     cursor: grab;
-    grid-template-areas: "title buttons";
-    grid-template-columns: 1fr auto;
-    align-items: center;
     width: var(--track-shell-width);
     border-right: 1px solid #c7d0db;
-    overflow: hidden;
+
+    .track-menubar {
+      position: sticky;
+      top: 0;
+      display: grid;
+      padding-block: 6px;
+      padding-left: 10px;
+      padding-right: 2px;
+      grid-template-areas: "title buttons";
+      grid-template-columns: 1fr auto;
+    }
+
+    .pf-visible-on-hover {
+      visibility: hidden;
+    }
+
+    &:hover .pf-visible-on-hover {
+      visibility: visible;
+    }
 
     &.drag {
       background-color: #eee;
@@ -99,33 +113,9 @@
       display: flex;
       height: 100%;
       align-items: center;
-    }
-    .track-button {
-      @include transition();
-      color: rgb(60, 86, 136);
-      cursor: pointer;
-      width: 22px;
       font-size: 18px;
-      visibility: hidden;
     }
 
-    .track-button.show {
-      visibility: visible;
-    }
-    .track-button.full-height {
-      display: flex;
-      height: 100%;
-      align-items: center;
-      justify-content: center;
-
-      &:hover {
-        background-color: #ebeef9;
-      }
-    }
-
-    &:hover .track-button {
-      visibility: visible;
-    }
     &.flash {
       background-color: #ffe263;
     }
@@ -137,6 +127,12 @@
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
   height: 40px;
+
+  .shell {
+    border-right: 1px solid transparent;
+    padding-right: 2px;
+  }
+
   &::after {
     display: block;
     content: "";
@@ -168,10 +164,10 @@
     }
   }
   .shell {
-    padding: 4px 4px;
+    padding-left: 10px;
     display: grid;
-    grid-template-areas: "fold-button title buttons check";
-    grid-template-columns: 28px 1fr auto 20px;
+    grid-template-areas: "fold-button title buttons";
+    grid-template-columns: 28px 1fr auto;
     align-items: center;
     line-height: 1;
     width: var(--track-shell-width);
@@ -209,9 +205,15 @@
     .fold-button {
       grid-area: fold-button;
     }
-    .track-button {
-      font-size: 20px;
+
+    .track-buttons {
+      grid-area: buttons;
+      display: flex;
+      height: 100%;
+      align-items: center;
+      font-size: 18px;
     }
+
     &:hover {
       cursor: pointer;
       .fold-button {
@@ -230,6 +232,30 @@
     span {
       @include track_shell_title();
       align-self: center;
+    }
+  }
+}
+
+.pf-panel-group {
+  .track-shell {
+    .track-menubar {
+      top: 40px;
+    }
+  }
+}
+
+// If the track is short, center the track titlebar vertically
+@container (height < 26px) {
+  .track {
+    .track-shell {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+
+      .track-menubar {
+        padding-block: 0px;
+      }
     }
   }
 }

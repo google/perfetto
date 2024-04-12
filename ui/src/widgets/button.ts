@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {classNames} from '../base/classnames';
 
-import {HTMLButtonAttrs} from './common';
+import {HTMLAttrs, HTMLButtonAttrs} from './common';
 import {Icon} from './icon';
 import {Popup} from './popup';
 import {Spinner} from './spinner';
@@ -44,6 +44,9 @@ interface CommonAttrs extends HTMLButtonAttrs {
   // Show loading spinner instead of icon.
   // Defaults to false.
   loading?: boolean;
+  // Whether to use a filled icon
+  // Defaults to false;
+  iconFilled?: boolean;
 }
 
 interface IconButtonAttrs extends CommonAttrs {
@@ -70,6 +73,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       rightIcon,
       className,
       dismissPopup,
+      iconFilled,
       ...htmlAttrs
     } = attrs;
 
@@ -81,7 +85,6 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       minimal && 'pf-minimal',
       icon && !label && 'pf-icon-only',
       dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
-      // loading && 'pf-loading',
       className,
     );
 
@@ -92,17 +95,23 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
         className: classes,
       },
       this.renderIcon(attrs),
-      rightIcon && m(Icon, {className: 'pf-right-icon', icon: rightIcon}),
+      rightIcon &&
+        m(Icon, {
+          className: 'pf-right-icon',
+          icon: rightIcon,
+          filled: iconFilled,
+        }),
       label || '\u200B', // Zero width space keeps button in-flow
     );
   }
 
   private renderIcon(attrs: ButtonAttrs): m.Children {
+    const {icon, iconFilled} = attrs;
     const className = 'pf-left-icon';
     if (attrs.loading) {
       return m(Spinner, {className});
-    } else if (attrs.icon) {
-      return m(Icon, {className, icon: attrs.icon});
+    } else if (icon) {
+      return m(Icon, {className, icon, filled: iconFilled});
     } else {
       return undefined;
     }
@@ -112,8 +121,8 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
 /**
  * Space buttons out with a little gap between each one.
  */
-export class ButtonBar implements m.ClassComponent {
-  view({children}: m.CVnode): m.Children {
-    return m('.pf-button-bar', children);
+export class ButtonBar implements m.ClassComponent<HTMLAttrs> {
+  view({attrs, children}: m.CVnode<HTMLAttrs>): m.Children {
+    return m('.pf-button-bar', attrs, children);
   }
 }
