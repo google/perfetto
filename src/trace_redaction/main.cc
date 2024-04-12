@@ -27,6 +27,7 @@
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/redact_ftrace_event.h"
+#include "src/trace_redaction/redact_process_free.h"
 #include "src/trace_redaction/redact_sched_switch.h"
 #include "src/trace_redaction/redact_task_newtask.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
@@ -72,6 +73,7 @@ static base::Status Main(std::string_view input,
   auto* redact_ftrace_events = redactor.emplace_transform<RedactFtraceEvent>();
   redact_ftrace_events->emplace_back<RedactSchedSwitch>();
   redact_ftrace_events->emplace_back<RedactTaskNewTask>();
+  redact_ftrace_events->emplace_back<RedactProcessFree>();
 
   Context context;
   context.package_name = package_name;
