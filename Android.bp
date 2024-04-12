@@ -12872,6 +12872,7 @@ filegroup {
         "src/trace_redaction/prune_package_list.cc",
         "src/trace_redaction/redact_ftrace_event.cc",
         "src/trace_redaction/redact_sched_switch.cc",
+        "src/trace_redaction/redact_task_newtask.cc",
         "src/trace_redaction/scrub_ftrace_events.cc",
         "src/trace_redaction/scrub_process_stats.cc",
         "src/trace_redaction/scrub_process_trees.cc",
@@ -12895,6 +12896,7 @@ filegroup {
         "src/trace_redaction/proto_util_unittest.cc",
         "src/trace_redaction/prune_package_list_unittest.cc",
         "src/trace_redaction/redact_sched_switch_unittest.cc",
+        "src/trace_redaction/redact_task_newtask_unittest.cc",
     ],
 }
 
