@@ -17,7 +17,6 @@ import m from 'mithril';
 import {LogFilteringCriteria, LogPanel} from './logs_panel';
 import {
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -45,8 +44,6 @@ interface AndroidLogPluginState {
 }
 
 class AndroidLog implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const store = ctx.mountStore<AndroidLogPluginState>((init) => {
       return init && (init as {version: unknown}).version === VERSION

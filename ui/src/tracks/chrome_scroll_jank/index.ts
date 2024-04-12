@@ -23,7 +23,6 @@ import {
   BottomTabToSCSAdapter,
   NUM,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -148,8 +147,6 @@ export async function getScrollJankTracks(
 }
 
 class ChromeScrollJankPlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addChromeScrollJankTrack(ctx);
     await this.addTopLevelScrollTrack(ctx);

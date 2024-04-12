@@ -20,7 +20,6 @@ import {
 import {
   BottomTabToSCSAdapter,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -31,8 +30,6 @@ import {DebugTrackV2} from './slice_track';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 
 class DebugTrackPlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerTrack({
       uri: DEBUG_SLICE_TRACK_URI,

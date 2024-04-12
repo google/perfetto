@@ -18,7 +18,6 @@ import {ThreadStateTab} from '../../frontend/thread_state_tab';
 import {
   BottomTabToSCSAdapter,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -30,8 +29,6 @@ import {ThreadStateTrack as ThreadStateTrackV2} from './thread_state_v2';
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
 
 class ThreadState implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
