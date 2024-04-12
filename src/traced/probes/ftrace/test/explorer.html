@@ -15,8 +15,8 @@
 # limitations under the License.
 
 cd $(dirname $0)
-python -m webbrowser -t "http://localhost:8000/$(basename $0)"
-python -m SimpleHTTPServer
+python3 -m webbrowser -t "http://localhost:8000/$(basename $0)"
+python3 -m http.server
 
 <<-EOF
 -->
