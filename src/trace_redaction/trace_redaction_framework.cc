@@ -20,6 +20,14 @@ namespace perfetto::trace_redaction {
 
 CollectPrimitive::~CollectPrimitive() = default;
 
+base::Status CollectPrimitive::Begin(Context*) const {
+  return base::OkStatus();
+}
+
+base::Status CollectPrimitive::End(Context*) const {
+  return base::OkStatus();
+}
+
 BuildPrimitive::~BuildPrimitive() = default;
 
 TransformPrimitive::~TransformPrimitive() = default;

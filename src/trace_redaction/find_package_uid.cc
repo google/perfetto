@@ -15,7 +15,6 @@
  */
 
 #include "src/trace_redaction/find_package_uid.h"
-#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
@@ -24,16 +23,29 @@
 
 namespace perfetto::trace_redaction {
 
-base::StatusOr<CollectPrimitive::ContinueCollection> FindPackageUid::Collect(
-    const protos::pbzero::TracePacket::Decoder& packet,
-    Context* context) const {
+base::Status FindPackageUid::Begin(Context* context) const {
   if (context->package_name.empty()) {
     return base::ErrStatus("FindPackageUid: missing package name.");
   }
 
+  if (context->package_uid.has_value()) {
+    return base::ErrStatus("FindPackageUid: package uid already found.");
+  }
+
+  return base::OkStatus();
+}
+
+base::Status FindPackageUid::Collect(
+    const protos::pbzero::TracePacket::Decoder& packet,
+    Context* context) const {
+  // If a package has been found in a pervious iteration, stop.
+  if (context->package_uid.has_value()) {
+    return base::OkStatus();
+  }
+
   // Skip package and move onto the next packet.
   if (!packet.has_packages_list()) {
-    return ContinueCollection::kNextPacket;
+    return base::OkStatus();
   }
 
   protos::pbzero::PackagesList::Decoder packages_list_decoder(
@@ -53,12 +65,20 @@ base::StatusOr<CollectPrimitive::ContinueCollection> FindPackageUid::Collect(
       if (base::StringView(context->package_name)
               .CaseInsensitiveEq(name.as_string())) {
         context->package_uid = NormalizeUid(uid.as_uint64());
-        return ContinueCollection::kRetire;
+        return base::OkStatus();
       }
     }
   }
 
-  return ContinueCollection::kNextPacket;
+  return base::OkStatus();
+}
+
+base::Status FindPackageUid::End(Context* context) const {
+  if (!context->package_uid.has_value()) {
+    return base::ErrStatus("FindPackageUid: did not find package uid.");
+  }
+
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_redaction
