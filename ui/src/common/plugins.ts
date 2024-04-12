@@ -16,7 +16,7 @@ import {v4 as uuidv4} from 'uuid';
 
 import {Disposable, Trash} from '../base/disposable';
 import {Registry} from '../base/registry';
-import {time} from '../base/time';
+import {Span, duration, time} from '../base/time';
 import {globals} from '../frontend/globals';
 import {
   Command,
@@ -46,6 +46,7 @@ import {Flag, featureFlags} from '../core/feature_flags';
 import {assertExists} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
 import {defaultPlugins} from '../core/default_plugins';
+import {HighPrecisionTimeSpan} from './high_precision_time';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -311,6 +312,15 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     panToTimestamp(ts: time): void {
       globals.panToTimestamp(ts);
     },
+
+    setViewportTime(start: time, end: time): void {
+      const interval = HighPrecisionTimeSpan.fromTime(start, end);
+      globals.timeline.updateVisibleTime(interval);
+    },
+
+    get viewport(): Span<time, duration> {
+      return globals.timeline.visibleTimeSpan;
+    },
   };
 
   dispose(): void {
@@ -321,6 +331,12 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   mountStore<T>(migrate: Migrate<T>): Store<T> {
     return globals.store.createSubStore(['plugins', this.pluginId], migrate);
   }
+
+  readonly trace = {
+    get span(): Span<time, duration> {
+      return globals.stateTraceTimeTP();
+    },
+  };
 }
 
 function isPinned(trackId: string): boolean {

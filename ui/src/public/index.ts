@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {Hotkey} from '../base/hotkeys';
-import {duration, time} from '../base/time';
+import {Span, duration, time} from '../base/time';
 import {Migrate, Store} from '../base/store';
 import {ColorScheme} from '../core/colorizer';
 import {LegacySelection} from '../common/state';
@@ -376,6 +376,12 @@ export interface PluginContextTrace extends PluginContext {
 
     // Bring a timestamp into view.
     panToTimestamp(ts: time): void;
+
+    // Move the viewport
+    setViewportTime(start: time, end: time): void;
+
+    // A span representing the current viewport location
+    readonly viewport: Span<time, duration>;
   };
 
   // Control over the bottom details pane.
@@ -421,6 +427,11 @@ export interface PluginContextTrace extends PluginContext {
 
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;
+
+  trace: {
+    // A span representing the start and end time of the trace
+    readonly span: Span<time, duration>;
+  };
 }
 
 export interface Plugin {
