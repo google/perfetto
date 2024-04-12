@@ -16,12 +16,6 @@ import {time} from '../base/time';
 import {Actions} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
-import {
-  LogBoundsKey,
-  LogEntriesKey,
-  LogExists,
-  LogExistsKey,
-} from '../common/logs';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {raf} from '../core/raf_scheduler';
@@ -64,13 +58,7 @@ export function clearOverviewData() {
 
 export function publishTrackData(args: {id: string; data: {}}) {
   globals.setTrackData(args.id, args.data);
-  if ([LogExistsKey, LogBoundsKey, LogEntriesKey].includes(args.id)) {
-    const trackDataStore = globals.trackDataStore;
-    const data = trackDataStore.get(LogExistsKey) as LogExists | undefined;
-    if (data && data.exists) raf.scheduleFullRedraw();
-  } else {
-    raf.scheduleRedraw();
-  }
+  raf.scheduleRedraw();
 }
 
 export function publishMetricResult(metricResult: MetricResult) {
