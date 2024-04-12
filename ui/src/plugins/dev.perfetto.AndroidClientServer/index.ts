@@ -16,7 +16,6 @@ import {
   NUM,
   NUM_NULL,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   STR,
@@ -24,8 +23,6 @@ import {
 import {addDebugSliceTrack} from '../../public';
 
 class AndroidClientServer implements Plugin {
-  onActivate(_: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidClientServer#ThreadRuntimeIPC',

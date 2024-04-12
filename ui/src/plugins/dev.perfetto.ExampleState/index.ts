@@ -15,7 +15,6 @@
 import {
   createStore,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   Store,
@@ -41,10 +40,6 @@ class ExampleState implements Plugin {
     } else {
       return {counter: 0};
     }
-  }
-
-  onActivate(_: PluginContext): void {
-    //
   }
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {

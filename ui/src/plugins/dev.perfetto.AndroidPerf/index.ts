@@ -15,15 +15,12 @@
 import {
   addDebugSliceTrack,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
 
 class AndroidPerf implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async addAppProcessStartsDebugTrack(
     engine: EngineProxy,
     reason: string,

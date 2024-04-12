@@ -12,19 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {ChromeSliceTrack, SLICE_TRACK_KIND} from '../chrome_slices/';
 import {COUNTER_TRACK_KIND, TraceProcessorCounterTrack} from '../counter';
 
 class AnnotationPlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addAnnotationTracks(ctx);
     await this.addAnnotationCounterTracks(ctx);

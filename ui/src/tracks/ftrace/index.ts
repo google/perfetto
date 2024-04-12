@@ -18,7 +18,6 @@ import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {
   EngineProxy,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -38,8 +37,6 @@ const DEFAULT_STATE: FtracePluginState = {
 
 class FtraceRawPlugin implements Plugin {
   private trash = new Trash();
-
-  onActivate(_: PluginContext) {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const store = ctx.mountStore<FtracePluginState>((init: unknown) => {

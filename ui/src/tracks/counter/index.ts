@@ -25,7 +25,6 @@ import {
   LONG_NULL,
   NUM,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   PrimaryTrackSortKey,
@@ -175,8 +174,6 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
 }
 
 class CounterPlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addCounterTracks(ctx);
     await this.addGpuFrequencyTracks(ctx);

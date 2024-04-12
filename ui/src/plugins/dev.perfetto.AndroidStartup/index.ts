@@ -12,21 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  LONG,
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {LONG, Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {
   SimpleSliceTrack,
   SimpleSliceTrackConfig,
 } from '../../frontend/simple_slice_track';
 
 class AndroidStartup implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const e = ctx.engine;
     await e.query(`include perfetto module android.startup.startups;`);
