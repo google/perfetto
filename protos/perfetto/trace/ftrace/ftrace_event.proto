@@ -614,5 +614,9 @@ message FtraceEvent {
     F2fsBackgroundGcFtraceEvent f2fs_background_gc = 495;
     F2fsGcBeginFtraceEvent f2fs_gc_begin = 496;
     F2fsGcEndFtraceEvent f2fs_gc_end = 497;
+    FastrpcDmaFreeFtraceEvent fastrpc_dma_free = 498;
+    FastrpcDmaAllocFtraceEvent fastrpc_dma_alloc = 499;
+    FastrpcDmaUnmapFtraceEvent fastrpc_dma_unmap = 500;
+    FastrpcDmaMapFtraceEvent fastrpc_dma_map = 501;
   }
 }
