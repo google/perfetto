@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
@@ -26,8 +21,6 @@ import {AsyncSliceTrackV2} from './async_slice_track_v2';
 export const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
 
 class AsyncSlicePlugin implements Plugin {
-  onActivate(_ctx: PluginContext) {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addGlobalAsyncTracks(ctx);
     await this.addProcessAsyncSliceTracks(ctx);

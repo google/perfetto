@@ -14,12 +14,7 @@
 
 import {v4 as uuidv4} from 'uuid';
 
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {
   LONG_NULL,
   NUM,
@@ -44,8 +39,6 @@ import {
 class ProcessSummaryPlugin implements Plugin {
   private upidToUuid = new Map<number, string>();
   private utidToUuid = new Map<number, string>();
-
-  onActivate(_ctx: PluginContext): void {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addProcessTrackGroups(ctx);

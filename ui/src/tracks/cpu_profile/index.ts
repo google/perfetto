@@ -26,7 +26,6 @@ import {TimeScale} from '../../frontend/time_scale';
 import {
   EngineProxy,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   Track,
@@ -263,8 +262,6 @@ class CpuProfileTrack implements Track {
 }
 
 class CpuProfile implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
       with thread_cpu_sample as (

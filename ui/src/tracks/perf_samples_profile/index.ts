@@ -26,7 +26,6 @@ import {TimeScale} from '../../frontend/time_scale';
 import {
   EngineProxy,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   Track,
@@ -245,8 +244,6 @@ class PerfSamplesProfileTrack implements Track {
 }
 
 class PerfSamplesProfilePlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
       select distinct upid, pid

@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
 import {
   SimpleSliceTrack,
@@ -1086,8 +1081,6 @@ const BT_ACTIVITY = `
 `;
 
 class AndroidLongBatteryTracing implements Plugin {
-  onActivate(_: PluginContext): void {}
-
   addSliceTrack(
     ctx: PluginContextTrace,
     name: string,
