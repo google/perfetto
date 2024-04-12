@@ -179,25 +179,31 @@ std::unique_ptr<FtraceController> FtraceController::Create(
   if (!table)
     return nullptr;
 
+  auto atrace_wrapper = std::make_unique<AtraceWrapperImpl>();
+
   std::map<std::string, std::vector<GroupAndName>> vendor_evts =
       GetAtraceVendorEvents(ftrace_procfs.get());
 
   SyscallTable syscalls = SyscallTable::FromCurrentArch();
 
   auto muxer = std::make_unique<FtraceConfigMuxer>(
-      ftrace_procfs.get(), table.get(), std::move(syscalls), vendor_evts);
-  return std::unique_ptr<FtraceController>(
-      new FtraceController(std::move(ftrace_procfs), std::move(table),
-                           std::move(muxer), runner, observer));
+      ftrace_procfs.get(), atrace_wrapper.get(), table.get(),
+      std::move(syscalls), vendor_evts);
+  return std::unique_ptr<FtraceController>(new FtraceController(
+      std::move(ftrace_procfs), std::move(table), std::move(atrace_wrapper),
+      std::move(muxer), runner, observer));
 }
 
-FtraceController::FtraceController(std::unique_ptr<FtraceProcfs> ftrace_procfs,
-                                   std::unique_ptr<ProtoTranslationTable> table,
-                                   std::unique_ptr<FtraceConfigMuxer> muxer,
-                                   base::TaskRunner* task_runner,
-                                   Observer* observer)
+FtraceController::FtraceController(
+    std::unique_ptr<FtraceProcfs> ftrace_procfs,
+    std::unique_ptr<ProtoTranslationTable> table,
+    std::unique_ptr<AtraceWrapper> atrace_wrapper,
+    std::unique_ptr<FtraceConfigMuxer> muxer,
+    base::TaskRunner* task_runner,
+    Observer* observer)
     : task_runner_(task_runner),
       observer_(observer),
+      atrace_wrapper_(std::move(atrace_wrapper)),
       primary_(std::move(ftrace_procfs), std::move(table), std::move(muxer)),
       weak_factory_(this) {}
 
@@ -816,7 +822,8 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
   auto syscalls = SyscallTable::FromCurrentArch();
 
   auto muxer = std::make_unique<FtraceConfigMuxer>(
-      ftrace_procfs.get(), table.get(), std::move(syscalls), vendor_evts,
+      ftrace_procfs.get(), atrace_wrapper_.get(), table.get(),
+      std::move(syscalls), vendor_evts,
       /* secondary_instance= */ true);
   return std::make_unique<FtraceInstanceState>(
       std::move(ftrace_procfs), std::move(table), std::move(muxer));

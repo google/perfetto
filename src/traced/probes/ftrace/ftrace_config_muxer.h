@@ -22,6 +22,7 @@
 #include <set>
 
 #include "src/kernel_utils/syscall_table.h"
+#include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_print_filter.h"
@@ -106,6 +107,7 @@ class FtraceConfigMuxer {
   // should outlive this instance.
   FtraceConfigMuxer(
       FtraceProcfs* ftrace,
+      AtraceWrapper* atrace_wrapper,
       ProtoTranslationTable* table,
       SyscallTable syscalls,
       std::map<std::string, std::vector<GroupAndName>> vendor_events,
@@ -174,10 +176,6 @@ class FtraceConfigMuxer {
       const SyscallTable& syscalls);
 
  private:
-  static bool StartAtrace(const std::vector<std::string>& apps,
-                          const std::vector<std::string>& categories,
-                          std::string* atrace_errors);
-
   struct FtraceState {
     EventFilter ftrace_events;
     std::set<size_t> syscall_filter;  // syscall ids or kAllSyscallsId
@@ -198,6 +196,9 @@ class FtraceConfigMuxer {
   void SetupBufferSize(const FtraceConfig& request);
   bool UpdateBufferPercent();
   void UpdateAtrace(const FtraceConfig& request, std::string* atrace_errors);
+  bool StartAtrace(const std::vector<std::string>& apps,
+                   const std::vector<std::string>& categories,
+                   std::string* atrace_errors);
   void DisableAtrace();
 
   // This processes the config to get the exact events.
@@ -226,6 +227,7 @@ class FtraceConfigMuxer {
   bool SetSyscallEventFilter(const EventFilter& extra_syscalls);
 
   FtraceProcfs* ftrace_;
+  AtraceWrapper* atrace_wrapper_;
   ProtoTranslationTable* table_;
   SyscallTable syscalls_;
 

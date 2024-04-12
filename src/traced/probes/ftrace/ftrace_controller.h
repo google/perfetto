@@ -29,6 +29,7 @@
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/kallsyms/lazy_kernel_symbolizer.h"
+#include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 
@@ -99,6 +100,7 @@ class FtraceController {
 
   FtraceController(std::unique_ptr<FtraceProcfs>,
                    std::unique_ptr<ProtoTranslationTable>,
+                   std::unique_ptr<AtraceWrapper>,
                    std::unique_ptr<FtraceConfigMuxer>,
                    base::TaskRunner*,
                    Observer*);
@@ -122,6 +124,8 @@ class FtraceController {
       const std::string& instance_name);
 
   virtual uint64_t NowMs() const;
+
+  AtraceWrapper* atrace_wrapper() const { return atrace_wrapper_.get(); }
 
  private:
   friend class TestFtraceController;
@@ -168,6 +172,7 @@ class FtraceController {
   bool retain_ksyms_on_stop_ = false;
   PollSupport buffer_watermark_support_ = PollSupport::kUntested;
   std::set<FtraceDataSource*> data_sources_;
+  std::unique_ptr<AtraceWrapper> atrace_wrapper_;
   // Default tracefs instance (normally /sys/kernel/tracing) is valid for as
   // long as the controller is valid.
   // Secondary instances (i.e. /sys/kernel/tracing/instances/...) are created
