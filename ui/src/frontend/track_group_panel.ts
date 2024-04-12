@@ -35,6 +35,7 @@ import {
   TrackContent,
 } from './track_panel';
 import {canvasClip} from '../common/canvas_utils';
+import {Button} from '../widgets/button';
 
 interface Attrs {
   trackGroupId: string;
@@ -133,24 +134,26 @@ export class TrackGroupPanel implements Panel {
           m('h1.track-title', {title: name}, name, renderChips(tags)),
           collapsed && child !== null ? m('h2.track-subtitle', child) : null,
         ),
-        error && m(CrashButton, {error}),
-        selection && selection.kind === 'AREA'
-          ? m(
-              'i.material-icons.track-button',
-              {
-                onclick: (e: MouseEvent) => {
-                  globals.dispatch(
-                    Actions.toggleTrackSelection({
-                      id: trackGroupId,
-                      isTrackGroup: true,
-                    }),
-                  );
-                  e.stopPropagation();
-                },
+        m(
+          '.track-buttons',
+          error && m(CrashButton, {error}),
+          selection &&
+            selection.kind === 'AREA' &&
+            m(Button, {
+              onclick: (e: MouseEvent) => {
+                globals.dispatch(
+                  Actions.toggleTrackSelection({
+                    id: trackGroupId,
+                    isTrackGroup: true,
+                  }),
+                );
+                e.stopPropagation();
               },
-              checkBox,
-            )
-          : '',
+              icon: checkBox,
+              minimal: true,
+              compact: true,
+            }),
+        ),
       ),
       trackFSM
         ? m(
@@ -158,6 +161,7 @@ export class TrackGroupPanel implements Panel {
             {
               track: trackFSM.track,
               hasError: Boolean(trackFSM.getError()),
+              height: this.attrs.trackFSM?.track.getHeight(),
             },
             !collapsed && child !== null ? m('span', child) : null,
           )

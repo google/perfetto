@@ -49,11 +49,9 @@ export class RunnableThreadCountTrack extends BaseCounterTrack {
   }
 
   getTrackShellButtons(): m.Children {
-    return [
-      m(CloseTrackButton, {
-        trackKey: this.trackKey,
-      }),
-    ];
+    return m(CloseTrackButton, {
+      trackKey: this.trackKey,
+    });
   }
 
   protected getDefaultCounterOptions(): CounterOptions {

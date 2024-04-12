@@ -270,7 +270,7 @@ export class PanelContainer
   renderTree(node: PanelOrGroup, path: string): m.Vnode {
     if (node.kind === 'group') {
       return m(
-        'div',
+        'div.pf-panel-group',
         {key: path},
         this.renderPanel(
           node.header,
