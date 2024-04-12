@@ -492,3 +492,7 @@ dpu/dsi_tx
 f2fs/f2fs_background_gc
 f2fs/f2fs_gc_begin
 f2fs/f2fs_gc_end
+fastrpc/fastrpc_dma_free
+fastrpc/fastrpc_dma_alloc
+fastrpc/fastrpc_dma_unmap
+fastrpc/fastrpc_dma_map
