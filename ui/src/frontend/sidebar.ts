@@ -128,158 +128,160 @@ interface Section {
   appendOpenedTraceTitle?: boolean;
 }
 
-const SECTIONS: Section[] = [
-  {
-    title: 'Navigation',
-    summary: 'Open or record a new trace',
-    expanded: true,
-    items: [
-      {t: 'Open trace file', a: popupFileSelectionDialog, i: 'folder_open'},
-      {
-        t: 'Open with legacy UI',
-        a: popupFileSelectionDialogOldUI,
-        i: 'filter_none',
-      },
-      {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
-      {
-        t: 'Widgets',
-        a: navigateWidgets,
-        i: 'widgets',
-        isVisible: () => WIDGETS_PAGE_IN_NAV_FLAG.get(),
-      },
-      {
-        t: 'Plugins',
-        a: navigatePlugins,
-        i: 'extension',
-        isVisible: () => PLUGINS_PAGE_IN_NAV_FLAG.get(),
-      },
-    ],
-  },
+function getSections(): Section[] {
+  return [
+    {
+      title: 'Navigation',
+      summary: 'Open or record a new trace',
+      expanded: true,
+      items: [
+        {t: 'Open trace file', a: popupFileSelectionDialog, i: 'folder_open'},
+        {
+          t: 'Open with legacy UI',
+          a: popupFileSelectionDialogOldUI,
+          i: 'filter_none',
+        },
+        {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
+        {
+          t: 'Widgets',
+          a: navigateWidgets,
+          i: 'widgets',
+          isVisible: () => WIDGETS_PAGE_IN_NAV_FLAG.get(),
+        },
+        {
+          t: 'Plugins',
+          a: navigatePlugins,
+          i: 'extension',
+          isVisible: () => PLUGINS_PAGE_IN_NAV_FLAG.get(),
+        },
+      ],
+    },
 
-  {
-    title: 'Current Trace',
-    summary: 'Actions on the current trace',
-    expanded: true,
-    hideIfNoTraceLoaded: true,
-    appendOpenedTraceTitle: true,
-    items: [
-      {t: 'Show timeline', a: navigateViewer, i: 'line_style'},
-      {
-        t: 'Share',
-        a: handleShareTrace,
-        i: 'share',
-        internalUserOnly: true,
-        isPending: () =>
-          globals.getConversionJobStatus('create_permalink') ===
-          ConversionJobStatus.InProgress,
-      },
-      {
-        t: 'Download',
-        a: downloadTrace,
-        i: 'file_download',
-        checkDownloadDisabled: true,
-      },
-      {t: 'Query (SQL)', a: navigateQuery, i: 'database'},
-      {
-        t: 'Insights',
-        a: navigateInsights,
-        i: 'insights',
-        isVisible: () => INSIGHTS_PAGE_IN_NAV_FLAG.get(),
-      },
-      {
-        t: 'Viz',
-        a: navigateViz,
-        i: 'area_chart',
-        isVisible: () => VIZ_PAGE_IN_NAV_FLAG.get(),
-      },
-      {t: 'Metrics', a: navigateMetrics, i: 'speed'},
-      {t: 'Info and stats', a: navigateInfo, i: 'info'},
-    ],
-  },
+    {
+      title: 'Current Trace',
+      summary: 'Actions on the current trace',
+      expanded: true,
+      hideIfNoTraceLoaded: true,
+      appendOpenedTraceTitle: true,
+      items: [
+        {t: 'Show timeline', a: navigateViewer, i: 'line_style'},
+        {
+          t: 'Share',
+          a: handleShareTrace,
+          i: 'share',
+          internalUserOnly: true,
+          isPending: () =>
+            globals.getConversionJobStatus('create_permalink') ===
+            ConversionJobStatus.InProgress,
+        },
+        {
+          t: 'Download',
+          a: downloadTrace,
+          i: 'file_download',
+          checkDownloadDisabled: true,
+        },
+        {t: 'Query (SQL)', a: navigateQuery, i: 'database'},
+        {
+          t: 'Insights',
+          a: navigateInsights,
+          i: 'insights',
+          isVisible: () => INSIGHTS_PAGE_IN_NAV_FLAG.get(),
+        },
+        {
+          t: 'Viz',
+          a: navigateViz,
+          i: 'area_chart',
+          isVisible: () => VIZ_PAGE_IN_NAV_FLAG.get(),
+        },
+        {t: 'Metrics', a: navigateMetrics, i: 'speed'},
+        {t: 'Info and stats', a: navigateInfo, i: 'info'},
+      ],
+    },
 
-  {
-    title: 'Convert trace',
-    summary: 'Convert to other formats',
-    expanded: true,
-    hideIfNoTraceLoaded: true,
-    items: [
-      {
-        t: 'Switch to legacy UI',
-        a: openCurrentTraceWithOldUI,
-        i: 'filter_none',
-        isPending: () =>
-          globals.getConversionJobStatus('open_in_legacy') ===
-          ConversionJobStatus.InProgress,
-      },
-      {
-        t: 'Convert to .json',
-        a: convertTraceToJson,
-        i: 'file_download',
-        isPending: () =>
-          globals.getConversionJobStatus('convert_json') ===
-          ConversionJobStatus.InProgress,
-        checkDownloadDisabled: true,
-      },
+    {
+      title: 'Convert trace',
+      summary: 'Convert to other formats',
+      expanded: true,
+      hideIfNoTraceLoaded: true,
+      items: [
+        {
+          t: 'Switch to legacy UI',
+          a: openCurrentTraceWithOldUI,
+          i: 'filter_none',
+          isPending: () =>
+            globals.getConversionJobStatus('open_in_legacy') ===
+            ConversionJobStatus.InProgress,
+        },
+        {
+          t: 'Convert to .json',
+          a: convertTraceToJson,
+          i: 'file_download',
+          isPending: () =>
+            globals.getConversionJobStatus('convert_json') ===
+            ConversionJobStatus.InProgress,
+          checkDownloadDisabled: true,
+        },
 
-      {
-        t: 'Convert to .systrace',
-        a: convertTraceToSystrace,
-        i: 'file_download',
-        isVisible: () => globals.hasFtrace,
-        isPending: () =>
-          globals.getConversionJobStatus('convert_systrace') ===
-          ConversionJobStatus.InProgress,
-        checkDownloadDisabled: true,
-      },
-    ],
-  },
+        {
+          t: 'Convert to .systrace',
+          a: convertTraceToSystrace,
+          i: 'file_download',
+          isVisible: () => globals.hasFtrace,
+          isPending: () =>
+            globals.getConversionJobStatus('convert_systrace') ===
+            ConversionJobStatus.InProgress,
+          checkDownloadDisabled: true,
+        },
+      ],
+    },
 
-  {
-    title: 'Example Traces',
-    expanded: true,
-    summary: 'Open an example trace',
-    items: [
-      {
-        t: 'Open Android example',
-        a: openTraceUrl(EXAMPLE_ANDROID_TRACE_URL),
-        i: 'description',
-      },
-      {
-        t: 'Open Chrome example',
-        a: openTraceUrl(EXAMPLE_CHROME_TRACE_URL),
-        i: 'description',
-      },
-    ],
-  },
+    {
+      title: 'Example Traces',
+      expanded: true,
+      summary: 'Open an example trace',
+      items: [
+        {
+          t: 'Open Android example',
+          a: openTraceUrl(EXAMPLE_ANDROID_TRACE_URL),
+          i: 'description',
+        },
+        {
+          t: 'Open Chrome example',
+          a: openTraceUrl(EXAMPLE_CHROME_TRACE_URL),
+          i: 'description',
+        },
+      ],
+    },
 
-  {
-    title: 'Support',
-    expanded: true,
-    summary: 'Documentation & Bugs',
-    items: [
-      {t: 'Keyboard shortcuts', a: openHelp, i: 'help'},
-      {t: 'Documentation', a: 'https://perfetto.dev/docs', i: 'find_in_page'},
-      {t: 'Flags', a: navigateFlags, i: 'emoji_flags'},
-      {
-        t: 'Report a bug',
-        a: () => window.open(getBugReportUrl()),
-        i: 'bug_report',
-      },
-      {
-        t: 'Record metatrace',
-        a: recordMetatrace,
-        i: 'fiber_smart_record',
-        checkMetatracingDisabled: true,
-      },
-      {
-        t: 'Finalise metatrace',
-        a: finaliseMetatrace,
-        i: 'file_download',
-        checkMetatracingEnabled: true,
-      },
-    ],
-  },
-];
+    {
+      title: 'Support',
+      expanded: true,
+      summary: 'Documentation & Bugs',
+      items: [
+        {t: 'Keyboard shortcuts', a: openHelp, i: 'help'},
+        {t: 'Documentation', a: 'https://perfetto.dev/docs', i: 'find_in_page'},
+        {t: 'Flags', a: navigateFlags, i: 'emoji_flags'},
+        {
+          t: 'Report a bug',
+          a: getBugReportUrl(),
+          i: 'bug_report',
+        },
+        {
+          t: 'Record metatrace',
+          a: recordMetatrace,
+          i: 'fiber_smart_record',
+          checkMetatracingDisabled: true,
+        },
+        {
+          t: 'Finalise metatrace',
+          a: finaliseMetatrace,
+          i: 'file_download',
+          checkMetatracingEnabled: true,
+        },
+      ],
+    },
+  ];
+}
 
 function openHelp(e: Event) {
   e.preventDefault();
@@ -812,7 +814,7 @@ export class Sidebar implements m.ClassComponent {
   view() {
     if (globals.hideSidebar) return null;
     const vdomSections = [];
-    for (const section of SECTIONS) {
+    for (const section of getSections()) {
       if (section.hideIfNoTraceLoaded && !isTraceLoaded()) continue;
       const vdomItems = [];
       for (const item of section.items) {
