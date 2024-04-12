@@ -56,6 +56,8 @@ source_set("trace_redaction") {
     "redact_ftrace_event.h",
     "redact_sched_switch.cc",
     "redact_sched_switch.h",
+    "redact_task_newtask.cc",
+    "redact_task_newtask.h",
     "scrub_ftrace_events.cc",
     "scrub_ftrace_events.h",
     "scrub_process_stats.cc",
@@ -123,6 +125,7 @@ perfetto_unittest_source_set("unittests") {
     "proto_util_unittest.cc",
     "prune_package_list_unittest.cc",
     "redact_sched_switch_unittest.cc",
+    "redact_task_newtask_unittest.cc",
   ]
   deps = [
     ":trace_redaction",
