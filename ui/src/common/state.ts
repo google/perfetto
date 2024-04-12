@@ -149,7 +149,8 @@ export const MAX_TIME = 180;
 // 50. Remove ftrace filter state.
 // 51. Changed structure of FlamegraphState.expandedCallsiteByViewingOption.
 // 52. Update track group state - don't make the summary track the first track.
-export const STATE_VERSION = 52;
+// 53. Remove android log state.
+export const STATE_VERSION = 53;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -450,13 +451,6 @@ export interface NonSerializableState {
   pivotTable: PivotTableState;
 }
 
-export interface LogFilteringCriteria {
-  minimumLevel: number;
-  tags: string[];
-  textEntry: string;
-  hideNonMatching: boolean;
-}
-
 export interface PendingDeeplinkState {
   ts?: string;
   dur?: string;
@@ -505,7 +499,6 @@ export interface State {
   status: Status;
   selection: Selection;
   currentFlamegraphState: FlamegraphState | null;
-  logsPagination: Pagination;
   traceConversionInProgress: boolean;
 
   /**
@@ -555,9 +548,6 @@ export interface State {
   // using permalink. Can be used to store those parts of the state that can't
   // be serialized at the moment, such as ES6 Set and Map.
   nonSerializableState: NonSerializableState;
-
-  // Android logs filtering state.
-  logFilteringCriteria: LogFilteringCriteria;
 
   // Omnibox info.
   omniboxState: OmniboxState;

@@ -82,7 +82,6 @@ import {
   FlowEventsControllerArgs,
 } from './flow_events_controller';
 import {LoadingManager} from './loading_manager';
-import {LogsController} from './logs_controller';
 import {
   PIVOT_TABLE_REDUX_FLAG,
   PivotTableController,
@@ -340,13 +339,6 @@ export class TraceController extends Controller<States> {
         );
         childControllers.push(
           Child('pivot_table', PivotTableController, {engine}),
-        );
-
-        childControllers.push(
-          Child('logs', LogsController, {
-            engine,
-            app: globals,
-          }),
         );
 
         childControllers.push(
