@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// import {NewTrackArgs, Track} from '../../frontend/track';
-// import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
 import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
 import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
-import {TrackButton} from '../../frontend/track_panel';
 import {
   EngineProxy,
   Plugin,
@@ -32,6 +29,8 @@ import {
   VISUALISED_ARGS_SLICE_TRACK_URI,
   VisualisedArgsState,
 } from '../../frontend/visualized_args_tracks';
+import {Button} from '../../widgets/button';
+import {Icons} from '../../base/semantic_icons';
 
 export class VisualisedArgsTrack extends ChromeSliceTrack {
   private helperViewName: string;
@@ -89,8 +88,8 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
   }
 
   getTrackShellButtons(): m.Children {
-    return m(TrackButton, {
-      action: () => {
+    return m(Button, {
+      onclick: () => {
         // This behavior differs to the original behavior a little.
         // Originally, hitting the close button on a single track removed ALL
         // tracks with this argName, whereas this one only closes the single
@@ -99,9 +98,10 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
         // tracks instead of this "initial state" approach to add these tracks.
         globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
       },
-      i: 'close',
-      tooltip: 'Close',
-      showButton: true,
+      icon: Icons.Close,
+      title: 'Close',
+      minimal: true,
+      compact: true,
     });
   }
 }
