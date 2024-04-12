@@ -45,8 +45,9 @@ class SchedEventTracker : public Destructible {
     // just switched to. Set the duration to -1, to indicate that the event is
     // not finished. Duration will be updated later after event finish.
     auto* sched = context_->storage->mutable_sched_slice_table();
-    auto row_and_id = sched->Insert(
-        {ts, /* duration */ -1, cpu, next_utid, kNullStringId, next_prio});
+    auto row_and_id =
+        sched->Insert({ts, /* duration */ -1, cpu, next_utid, kNullStringId,
+                       next_prio, context_->machine_id()});
     SchedId sched_id = row_and_id.id;
     return *sched->id().IndexOf(sched_id);
   }

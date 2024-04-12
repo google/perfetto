@@ -20,6 +20,7 @@
 #include "protos/perfetto/trace/statsd/statsd_atom.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
@@ -245,9 +246,9 @@ ModuleResult StatsdModule::TokenizePacket(const TracePacket::Decoder& decoder,
     std::vector<uint8_t> vec = forged.SerializeAsArray();
     TraceBlob blob = TraceBlob::CopyFrom(vec.data(), vec.size());
 
-    context_->sorter->PushTracePacket(atom_timestamp,
-                                      state->current_generation(),
-                                      TraceBlobView(std::move(blob)));
+    context_->sorter->PushTracePacket(
+        atom_timestamp, state->current_generation(),
+        TraceBlobView(std::move(blob)), context_->machine_id());
   }
 
   return ModuleResult::Handled();
