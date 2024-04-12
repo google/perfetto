@@ -19,11 +19,13 @@
 
 #include <algorithm>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -95,21 +97,37 @@ class TraceSorter {
               SortingMode);
   ~TraceSorter();
 
-  inline void PushTraceBlobView(int64_t timestamp, TraceBlobView tbv) {
+  inline void AddMachine(std::optional<MachineId> machine_id,
+                         std::unique_ptr<TraceParser> parser) {
+    sorter_data_by_machine_.emplace_back(machine_id, std::move(parser));
+  }
+
+  inline void PushTraceBlobView(
+      int64_t timestamp,
+      TraceBlobView tbv,
+      std::optional<MachineId> machine_id = std::nullopt) {
     TraceTokenBuffer::Id id = token_buffer_.Append(std::move(tbv));
-    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTraceBlobView, id);
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTraceBlobView, id,
+                         machine_id);
   }
 
-  inline void PushTracePacket(int64_t timestamp, TracePacketData data) {
+  inline void PushTracePacket(
+      int64_t timestamp,
+      TracePacketData data,
+      std::optional<MachineId> machine_id = std::nullopt) {
     TraceTokenBuffer::Id id = token_buffer_.Append(std::move(data));
-    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTracePacket, id);
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTracePacket, id,
+                         machine_id);
   }
 
-  inline void PushTracePacket(int64_t timestamp,
-                              RefPtr<PacketSequenceStateGeneration> state,
-                              TraceBlobView tbv) {
+  inline void PushTracePacket(
+      int64_t timestamp,
+      RefPtr<PacketSequenceStateGeneration> state,
+      TraceBlobView tbv,
+      std::optional<MachineId> machine_id = std::nullopt) {
     PushTracePacket(timestamp,
-                    TracePacketData{std::move(tbv), std::move(state)});
+                    TracePacketData{std::move(tbv), std::move(state)},
+                    machine_id);
   }
 
   inline void PushJsonValue(int64_t timestamp, std::string json_value) {
@@ -130,37 +148,45 @@ class TraceSorter {
                          TimestampedEvent::Type::kSystraceLine, id);
   }
 
-  inline void PushTrackEventPacket(int64_t timestamp,
-                                   TrackEventData track_event) {
+  inline void PushTrackEventPacket(
+      int64_t timestamp,
+      TrackEventData track_event,
+      std::optional<MachineId> machine_id = std::nullopt) {
     TraceTokenBuffer::Id id = token_buffer_.Append(std::move(track_event));
-    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTrackEvent, id);
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTrackEvent, id,
+                         machine_id);
   }
 
   inline void PushEtwEvent(uint32_t cpu,
                            int64_t timestamp,
                            TraceBlobView tbv,
-                           RefPtr<PacketSequenceStateGeneration> state) {
+                           RefPtr<PacketSequenceStateGeneration> state,
+                           std::optional<MachineId> machine_id = std::nullopt) {
     TraceTokenBuffer::Id id =
         token_buffer_.Append(TracePacketData{std::move(tbv), std::move(state)});
-    auto* queue = GetQueue(cpu + 1);
+    auto* queue = GetQueue(cpu + 1, machine_id);
     queue->Append(timestamp, TimestampedEvent::Type::kEtwEvent, id);
     UpdateAppendMaxTs(queue);
   }
 
-  inline void PushFtraceEvent(uint32_t cpu,
-                              int64_t timestamp,
-                              TraceBlobView tbv,
-                              RefPtr<PacketSequenceStateGeneration> state) {
+  inline void PushFtraceEvent(
+      uint32_t cpu,
+      int64_t timestamp,
+      TraceBlobView tbv,
+      RefPtr<PacketSequenceStateGeneration> state,
+      std::optional<MachineId> machine_id = std::nullopt) {
     TraceTokenBuffer::Id id =
         token_buffer_.Append(TracePacketData{std::move(tbv), std::move(state)});
-    auto* queue = GetQueue(cpu + 1);
+    auto* queue = GetQueue(cpu + 1, machine_id);
     queue->Append(timestamp, TimestampedEvent::Type::kFtraceEvent, id);
     UpdateAppendMaxTs(queue);
   }
 
-  inline void PushInlineFtraceEvent(uint32_t cpu,
-                                    int64_t timestamp,
-                                    InlineSchedSwitch inline_sched_switch) {
+  inline void PushInlineFtraceEvent(
+      uint32_t cpu,
+      int64_t timestamp,
+      InlineSchedSwitch inline_sched_switch,
+      std::optional<MachineId> machine_id = std::nullopt) {
     // TODO(rsavitski): if a trace has a mix of normal & "compact" events
     // (being pushed through this function), the ftrace batches will no longer
     // be fully sorted by timestamp. In such situations, we will have to sort
@@ -170,17 +196,19 @@ class TraceSorter {
     // // instead.
     TraceTokenBuffer::Id id =
         token_buffer_.Append(std::move(inline_sched_switch));
-    auto* queue = GetQueue(cpu + 1);
+    auto* queue = GetQueue(cpu + 1, machine_id);
     queue->Append(timestamp, TimestampedEvent::Type::kInlineSchedSwitch, id);
     UpdateAppendMaxTs(queue);
   }
 
-  inline void PushInlineFtraceEvent(uint32_t cpu,
-                                    int64_t timestamp,
-                                    InlineSchedWaking inline_sched_waking) {
+  inline void PushInlineFtraceEvent(
+      uint32_t cpu,
+      int64_t timestamp,
+      InlineSchedWaking inline_sched_waking,
+      std::optional<MachineId> machine_id = std::nullopt) {
     TraceTokenBuffer::Id id =
         token_buffer_.Append(std::move(inline_sched_waking));
-    auto* queue = GetQueue(cpu + 1);
+    auto* queue = GetQueue(cpu + 1, machine_id);
     queue->Append(timestamp, TimestampedEvent::Type::kInlineSchedWaking, id);
     UpdateAppendMaxTs(queue);
   }
@@ -188,10 +216,12 @@ class TraceSorter {
   void ExtractEventsForced() {
     BumpAllocator::AllocId end_id = token_buffer_.PastTheEndAllocId();
     SortAndExtractEventsUntilAllocId(end_id);
-    for (const auto& queue : queues_) {
-      PERFETTO_DCHECK(queue.events_.empty());
+    for (auto& sorter_data : sorter_data_by_machine_) {
+      for (const auto& queue : sorter_data.queues) {
+        PERFETTO_DCHECK(queue.events_.empty());
+      }
+      sorter_data.queues.clear();
     }
-    queues_.clear();
 
     alloc_id_for_extraction_ = end_id;
     flushes_since_extraction_ = 0;
@@ -319,16 +349,34 @@ class TraceSorter {
 
   void SortAndExtractEventsUntilAllocId(BumpAllocator::AllocId alloc_id);
 
-  inline Queue* GetQueue(size_t index) {
-    if (PERFETTO_UNLIKELY(index >= queues_.size()))
-      queues_.resize(index + 1);
-    return &queues_[index];
+  inline Queue* GetQueue(size_t index,
+                         std::optional<MachineId> machine_id = std::nullopt) {
+    // sorter_data_by_machine_[0] corresponds to the default machine.
+    PERFETTO_DCHECK(sorter_data_by_machine_[0].machine_id == std::nullopt);
+    auto* queues = &sorter_data_by_machine_[0].queues;
+
+    // Find the TraceSorterData instance when |machine_id| is not nullopt.
+    if (PERFETTO_UNLIKELY(!!machine_id)) {
+      auto it = std::find_if(sorter_data_by_machine_.begin() + 1,
+                             sorter_data_by_machine_.end(),
+                             [machine_id](const TraceSorterData& item) {
+                               return item.machine_id == machine_id;
+                             });
+      PERFETTO_DCHECK(it != sorter_data_by_machine_.end());
+      queues = &it->queues;
+    }
+
+    if (PERFETTO_UNLIKELY(index >= queues->size()))
+      queues->resize(index + 1);
+    return &queues->at(index);
   }
 
-  inline void AppendNonFtraceEvent(int64_t ts,
-                                   TimestampedEvent::Type event_type,
-                                   TraceTokenBuffer::Id id) {
-    Queue* queue = GetQueue(0);
+  inline void AppendNonFtraceEvent(
+      int64_t ts,
+      TimestampedEvent::Type event_type,
+      TraceTokenBuffer::Id id,
+      std::optional<MachineId> machine_id = std::nullopt) {
+    Queue* queue = GetQueue(0, machine_id);
     queue->Append(ts, event_type, id);
     UpdateAppendMaxTs(queue);
   }
@@ -337,19 +385,33 @@ class TraceSorter {
     append_max_ts_ = std::max(append_max_ts_, queue->max_ts_);
   }
 
-  void ParseTracePacket(const TimestampedEvent&);
-  void ParseFtracePacket(uint32_t cpu, const TimestampedEvent&);
-  void ParseEtwPacket(uint32_t cpu, const TimestampedEvent&);
+  void ParseTracePacket(TraceParser*, const TimestampedEvent&);
+  void ParseFtracePacket(TraceParser*, uint32_t cpu, const TimestampedEvent&);
+  void ParseEtwPacket(TraceParser*, uint32_t cpu, const TimestampedEvent&);
 
-  void MaybeExtractEvent(size_t queue_idx, const TimestampedEvent&);
+  void MaybeExtractEvent(size_t machine_idx,
+                         size_t queue_idx,
+                         const TimestampedEvent&);
   void ExtractAndDiscardTokenizedObject(const TimestampedEvent& event);
 
   TraceTokenBuffer::Id GetTokenBufferId(const TimestampedEvent& event) {
     return TraceTokenBuffer::Id{event.alloc_id()};
   }
 
+  struct TraceSorterData {
+    TraceSorterData(std::optional<MachineId> _machine_id,
+                    std::unique_ptr<TraceParser> _parser)
+        : machine_id(_machine_id), parser(std::move(_parser)) {}
+    std::optional<MachineId> machine_id;
+    std::unique_ptr<TraceParser> parser;
+    // queues_[0] is the general (non-ftrace) queue.
+    // queues_[1] is the ftrace queue for CPU(0).
+    // queues_[x] is the ftrace queue for CPU(x - 1).
+    std::vector<Queue> queues;
+  };
+  std::vector<TraceSorterData> sorter_data_by_machine_;
+
   TraceProcessorContext* context_ = nullptr;
-  std::unique_ptr<TraceParser> parser_;
 
   // Whether we should ignore incremental extraction and just wait for
   // forced extractionn at the end of the trace.
@@ -367,11 +429,6 @@ class TraceSorter {
   // The number of flushes which have happened since the last incremental
   // extraction.
   uint32_t flushes_since_extraction_ = 0;
-
-  // queues_[0] is the general (non-ftrace) queue.
-  // queues_[1] is the ftrace queue for CPU(0).
-  // queues_[x] is the ftrace queue for CPU(x - 1).
-  std::vector<Queue> queues_;
 
   // max(e.ts for e appended to the sorter)
   int64_t append_max_ts_ = 0;

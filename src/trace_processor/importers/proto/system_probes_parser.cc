@@ -761,6 +761,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       cluster_id++;
     }
     cpu_row.cluster_id = cluster_id;
+    cpu_row.machine_id = context_->machine_id();
 
     last_cpu_freqs = freqs;
     tables::CpuTable::Id cpu_row_id =
@@ -771,6 +772,7 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
       tables::CpuFreqTable::Row cpu_freq_row;
       cpu_freq_row.cpu_id = cpu_row_id;
       cpu_freq_row.freq = freq;
+      cpu_freq_row.machine_id = context_->machine_id();
       context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
     }
   }

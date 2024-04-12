@@ -21,6 +21,7 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -280,7 +281,8 @@ void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
   }
 
   context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
-                                    state->current_generation());
+                                    state->current_generation(),
+                                    context_->machine_id());
 }
 
 PERFETTO_ALWAYS_INLINE
@@ -340,7 +342,8 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedSwitch(
       DlogWithLimit(timestamp.status());
       return;
     }
-    context_->sorter->PushInlineFtraceEvent(cpu, *timestamp, event);
+    context_->sorter->PushInlineFtraceEvent(cpu, *timestamp, event,
+                                            context_->machine_id());
   }
 
   // Check that all packed buffers were decoded correctly, and fully.
@@ -396,7 +399,8 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
       DlogWithLimit(timestamp.status());
       return;
     }
-    context_->sorter->PushInlineFtraceEvent(cpu, *timestamp, event);
+    context_->sorter->PushInlineFtraceEvent(cpu, *timestamp, event,
+                                            context_->machine_id());
   }
 
   // Check that all packed buffers were decoded correctly, and fully.
@@ -461,7 +465,8 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
   }
 
   context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
-                                    state->current_generation());
+                                    state->current_generation(),
+                                    context_->machine_id());
 }
 
 }  // namespace trace_processor

@@ -20,6 +20,7 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
@@ -41,10 +42,11 @@ class ThreadStateTrackerUnittest : public testing::Test {
  public:
   ThreadStateTrackerUnittest() {
     context_.storage.reset(new TraceStorage());
+    context_.process_tracker.reset(new ProcessTracker(&context_));
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
     context_.args_tracker.reset(new ArgsTracker(&context_));
-    tracker_.reset(new ThreadStateTracker(context_.storage.get()));
+    tracker_.reset(new ThreadStateTracker(&context_));
   }
 
   StringId StringIdOf(const char* s) {

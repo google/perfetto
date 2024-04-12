@@ -27,6 +27,8 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import WrappingSqlView
 
+from src.trace_processor.tables.metadata_tables import MACHINE_TABLE
+
 SCHED_SLICE_TABLE = Table(
     python_module=__file__,
     class_name='SchedSliceTable',
@@ -38,6 +40,7 @@ SCHED_SLICE_TABLE = Table(
         C('utid', CppUint32()),
         C('end_state', CppString()),
         C('priority', CppInt32()),
+        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -70,7 +73,12 @@ SCHED_SLICE_TABLE = Table(
                   cleanup).
                 ''',
             'priority':
-                '''The kernel priority that the thread ran at.'''
+                '''The kernel priority that the thread ran at.''',
+            'machine_id':
+                '''
+                  Machine identifier, non-null for scheduling slices on a remote
+                  machine.
+                ''',
         }))
 
 SPURIOUS_SCHED_WAKEUP_TABLE = Table(
@@ -122,6 +130,7 @@ THREAD_STATE_TABLE = Table(
         C('waker_utid', CppOptional(CppUint32())),
         C('waker_id', CppOptional(CppSelfTableId())),
         C('irq_context', CppOptional(CppUint32())),
+        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -160,7 +169,11 @@ THREAD_STATE_TABLE = Table(
             'waker_id':
                 '''
                   The unique thread state id which caused a wakeup of this thread.
+                ''',
+            'machine_id':
                 '''
+                  Machine identifier, non-null for threads on a remote machine.
+                ''',
         }))
 
 # Keep this list sorted.

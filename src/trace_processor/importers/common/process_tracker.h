@@ -189,6 +189,10 @@ class ProcessTracker {
                               uint32_t tid,
                               std::vector<uint32_t> nstid);
 
+  // The UniqueTid of the swapper thread, is 0 for the default machine and is
+  // > 0 for remote machines.
+  UniqueTid swapper_utid() const { return swapper_utid_; }
+
  private:
   // Returns the utid of a thread having |tid| and |pid| as the parent process.
   // pid == std::nullopt matches all processes.
@@ -253,6 +257,9 @@ class ProcessTracker {
   // Keeps track pid-namespaced processes, keyed by root-level pids.
   std::unordered_map<uint32_t /* pid (aka tgid) */, NamespacedProcess>
       namespaced_processes_;
+
+  UniquePid swapper_upid_ = 0;
+  UniqueTid swapper_utid_ = 0;
 };
 
 }  // namespace trace_processor

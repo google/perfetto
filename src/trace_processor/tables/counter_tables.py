@@ -23,6 +23,7 @@ from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
 
+from src.trace_processor.tables.metadata_tables import MACHINE_TABLE
 from src.trace_processor.tables.track_tables import COUNTER_TRACK_TABLE
 
 COUNTER_TABLE = Table(
@@ -34,15 +35,25 @@ COUNTER_TABLE = Table(
         C('track_id', CppTableId(COUNTER_TRACK_TABLE)),
         C('value', CppDouble()),
         C('arg_set_id', CppOptional(CppUint32())),
+        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
     tabledoc=TableDoc(
         doc='''''',
         group='Events',
         columns={
-            'ts': '''''',
-            'track_id': '''''',
-            'value': '''''',
-            'arg_set_id': '''''',
+            'ts':
+                '''''',
+            'track_id':
+                '''''',
+            'value':
+                '''''',
+            'arg_set_id':
+                '''''',
+            'machine_id':
+                '''
+                  Machine identifier, non-null for counters from a remote
+                  machine.
+                ''',
         }))
 
 # Keep this list sorted.

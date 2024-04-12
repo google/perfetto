@@ -15,14 +15,17 @@
  */
 
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
+#include <cstdint>
 #include <optional>
+#include "src/trace_processor/importers/common/process_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
-ThreadStateTracker::ThreadStateTracker(TraceStorage* storage)
-    : storage_(storage),
-      running_string_id_(storage->InternString("Running")),
-      runnable_string_id_(storage->InternString("R")) {}
+ThreadStateTracker::ThreadStateTracker(TraceProcessorContext* context)
+    : storage_(context->storage.get()),
+      context_(context),
+      running_string_id_(storage_->InternString("Running")),
+      runnable_string_id_(storage_->InternString("R")) {}
 ThreadStateTracker::~ThreadStateTracker() = default;
 
 void ThreadStateTracker::PushSchedSwitchEvent(int64_t event_ts,
@@ -124,9 +127,9 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
                                       std::optional<uint16_t> cpu,
                                       std::optional<UniqueTid> waker_utid,
                                       std::optional<uint16_t> common_flags) {
-  // Ignore utid 0 because it corresponds to the swapper thread which doesn't
-  // make sense to insert.
-  if (utid == 0)
+  // Ignore the swapper utid because it corresponds to the swapper thread which
+  // doesn't make sense to insert.
+  if (utid == context_->process_tracker->swapper_utid())
     return;
 
   // Insert row with unfinished state
@@ -137,6 +140,7 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
   row.dur = -1;
   row.utid = utid;
   row.state = state;
+  row.machine_id = context_->machine_id();
   if (common_flags.has_value()) {
     row.irq_context = CommonFlagsToIrqContext(*common_flags);
   }

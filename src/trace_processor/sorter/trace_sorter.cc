@@ -31,9 +31,8 @@ namespace trace_processor {
 TraceSorter::TraceSorter(TraceProcessorContext* context,
                          std::unique_ptr<TraceParser> parser,
                          SortingMode sorting_mode)
-    : context_(context),
-      parser_(std::move(parser)),
-      sorting_mode_(sorting_mode) {
+    : context_(context), sorting_mode_(sorting_mode) {
+  AddMachine(context_->machine_id(), std::move(parser));
   const char* env = getenv("TRACE_PROCESSOR_SORT_ONLY");
   bypass_next_stage_for_testing_ = env && !strcmp(env, "1");
   if (bypass_next_stage_for_testing_)
@@ -44,9 +43,11 @@ TraceSorter::~TraceSorter() {
   // If trace processor encountered a fatal error, it's possible for some events
   // to have been pushed without evicting them by pushing to the next stage. Do
   // that now.
-  for (auto& queue : queues_) {
-    for (const auto& event : queue.events_) {
-      ExtractAndDiscardTokenizedObject(event);
+  for (auto& sorter_data : sorter_data_by_machine_) {
+    for (auto& queue : sorter_data.queues) {
+      for (const auto& event : queue.events_) {
+        ExtractAndDiscardTokenizedObject(event);
+      }
     }
   }
 }
@@ -98,6 +99,7 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
     BumpAllocator::AllocId limit_alloc_id) {
   constexpr int64_t kTsMax = std::numeric_limits<int64_t>::max();
   for (;;) {
+    size_t min_machine_idx = 0;
     size_t min_queue_idx = 0;  // The index of the queue with the min(ts).
 
     // The top-2 min(ts) among all queues.
@@ -107,25 +109,30 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
     // This loop identifies the queue which starts with the earliest event and
     // also remembers the earliest event of the 2nd queue (in min_queue_ts[1]).
     bool all_queues_empty = true;
-    for (size_t i = 0; i < queues_.size(); i++) {
-      auto& queue = queues_[i];
-      if (queue.events_.empty())
-        continue;
-      all_queues_empty = false;
+    for (size_t m = 0; m < sorter_data_by_machine_.size(); m++) {
+      TraceSorterData& sorter_data = sorter_data_by_machine_[m];
+      for (size_t i = 0; i < sorter_data.queues.size(); i++) {
+        auto& queue = sorter_data.queues[i];
+        if (queue.events_.empty())
+          continue;
+        all_queues_empty = false;
 
-      PERFETTO_DCHECK(queue.max_ts_ <= append_max_ts_);
-      if (queue.min_ts_ < min_queue_ts[0]) {
-        min_queue_ts[1] = min_queue_ts[0];
-        min_queue_ts[0] = queue.min_ts_;
-        min_queue_idx = i;
-      } else if (queue.min_ts_ < min_queue_ts[1]) {
-        min_queue_ts[1] = queue.min_ts_;
+        PERFETTO_DCHECK(queue.max_ts_ <= append_max_ts_);
+        if (queue.min_ts_ < min_queue_ts[0]) {
+          min_queue_ts[1] = min_queue_ts[0];
+          min_queue_ts[0] = queue.min_ts_;
+          min_queue_idx = i;
+          min_machine_idx = m;
+        } else if (queue.min_ts_ < min_queue_ts[1]) {
+          min_queue_ts[1] = queue.min_ts_;
+        }
       }
     }
     if (all_queues_empty)
       break;
 
-    Queue& queue = queues_[min_queue_idx];
+    auto& sorter_data = sorter_data_by_machine_[min_machine_idx];
+    auto& queue = sorter_data.queues[min_queue_idx];
     auto& events = queue.events_;
     if (queue.needs_sorting())
       queue.Sort();
@@ -148,7 +155,7 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
       }
 
       ++num_extracted;
-      MaybeExtractEvent(min_queue_idx, event);
+      MaybeExtractEvent(min_machine_idx, min_queue_idx, event);
     }  // for (event: events)
 
     // The earliest event cannot be extracted without going past the limit.
@@ -174,32 +181,33 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
   }  // for(;;)
 }
 
-void TraceSorter::ParseTracePacket(const TimestampedEvent& event) {
+void TraceSorter::ParseTracePacket(TraceParser* parser,
+                                   const TimestampedEvent& event) {
   TraceTokenBuffer::Id id = GetTokenBufferId(event);
   switch (static_cast<TimestampedEvent::Type>(event.event_type)) {
     case TimestampedEvent::Type::kTraceBlobView:
-      parser_->ParseTraceBlobView(event.ts,
-                                  token_buffer_.Extract<TraceBlobView>(id));
+      parser->ParseTraceBlobView(event.ts,
+                                 token_buffer_.Extract<TraceBlobView>(id));
       return;
     case TimestampedEvent::Type::kTracePacket:
-      parser_->ParseTracePacket(event.ts,
-                                token_buffer_.Extract<TracePacketData>(id));
+      parser->ParseTracePacket(event.ts,
+                               token_buffer_.Extract<TracePacketData>(id));
       return;
     case TimestampedEvent::Type::kTrackEvent:
-      parser_->ParseTrackEvent(event.ts,
-                               token_buffer_.Extract<TrackEventData>(id));
+      parser->ParseTrackEvent(event.ts,
+                              token_buffer_.Extract<TrackEventData>(id));
       return;
     case TimestampedEvent::Type::kFuchsiaRecord:
-      parser_->ParseFuchsiaRecord(event.ts,
-                                  token_buffer_.Extract<FuchsiaRecord>(id));
+      parser->ParseFuchsiaRecord(event.ts,
+                                 token_buffer_.Extract<FuchsiaRecord>(id));
       return;
     case TimestampedEvent::Type::kJsonValue:
-      parser_->ParseJsonPacket(
+      parser->ParseJsonPacket(
           event.ts, std::move(token_buffer_.Extract<JsonEvent>(id).value));
       return;
     case TimestampedEvent::Type::kSystraceLine:
-      parser_->ParseSystraceLine(event.ts,
-                                 token_buffer_.Extract<SystraceLine>(id));
+      parser->ParseSystraceLine(event.ts,
+                                token_buffer_.Extract<SystraceLine>(id));
       return;
     case TimestampedEvent::Type::kInlineSchedSwitch:
     case TimestampedEvent::Type::kInlineSchedWaking:
@@ -210,7 +218,8 @@ void TraceSorter::ParseTracePacket(const TimestampedEvent& event) {
   PERFETTO_FATAL("For GCC");
 }
 
-void TraceSorter::ParseEtwPacket(uint32_t /*cpu*/,
+void TraceSorter::ParseEtwPacket(TraceParser* /*parser*/,
+                                 uint32_t /*cpu*/,
                                  const TimestampedEvent& event) {
   switch (static_cast<TimestampedEvent::Type>(event.event_type)) {
     case TimestampedEvent::Type::kEtwEvent:
@@ -229,21 +238,22 @@ void TraceSorter::ParseEtwPacket(uint32_t /*cpu*/,
   PERFETTO_FATAL("For GCC");
 }
 
-void TraceSorter::ParseFtracePacket(uint32_t cpu,
+void TraceSorter::ParseFtracePacket(TraceParser* parser,
+                                    uint32_t cpu,
                                     const TimestampedEvent& event) {
   TraceTokenBuffer::Id id = GetTokenBufferId(event);
   switch (static_cast<TimestampedEvent::Type>(event.event_type)) {
     case TimestampedEvent::Type::kInlineSchedSwitch:
-      parser_->ParseInlineSchedSwitch(
+      parser->ParseInlineSchedSwitch(
           cpu, event.ts, token_buffer_.Extract<InlineSchedSwitch>(id));
       return;
     case TimestampedEvent::Type::kInlineSchedWaking:
-      parser_->ParseInlineSchedWaking(
+      parser->ParseInlineSchedWaking(
           cpu, event.ts, token_buffer_.Extract<InlineSchedWaking>(id));
       return;
     case TimestampedEvent::Type::kFtraceEvent:
-      parser_->ParseFtraceEvent(cpu, event.ts,
-                                token_buffer_.Extract<TracePacketData>(id));
+      parser->ParseFtraceEvent(cpu, event.ts,
+                               token_buffer_.Extract<TracePacketData>(id));
       return;
     case TimestampedEvent::Type::kEtwEvent:
     case TimestampedEvent::Type::kTrackEvent:
@@ -295,8 +305,10 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
   PERFETTO_FATAL("For GCC");
 }
 
-void TraceSorter::MaybeExtractEvent(size_t queue_idx,
+void TraceSorter::MaybeExtractEvent(size_t min_machine_idx,
+                                    size_t queue_idx,
                                     const TimestampedEvent& event) {
+  auto* parser = sorter_data_by_machine_[min_machine_idx].parser.get();
   int64_t timestamp = event.ts;
   if (timestamp < latest_pushed_event_ts_)
     context_->storage->IncrementStats(stats::sorter_push_event_out_of_order);
@@ -311,16 +323,16 @@ void TraceSorter::MaybeExtractEvent(size_t queue_idx,
   }
 
   if (queue_idx == 0) {
-    ParseTracePacket(event);
+    ParseTracePacket(parser, event);
   } else {
     // Ftrace queues start at offset 1. So queues_[1] = cpu[0] and so on.
     uint32_t cpu = static_cast<uint32_t>(queue_idx - 1);
     auto event_type = static_cast<TimestampedEvent::Type>(event.event_type);
 
     if (event_type == TimestampedEvent::Type::kEtwEvent) {
-      ParseEtwPacket(static_cast<uint32_t>(cpu), event);
+      ParseEtwPacket(parser, static_cast<uint32_t>(cpu), event);
     } else {
-      ParseFtracePacket(cpu, event);
+      ParseFtracePacket(parser, cpu, event);
     }
   }
 }
