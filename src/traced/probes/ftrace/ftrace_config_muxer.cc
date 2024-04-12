@@ -579,11 +579,13 @@ bool FtraceConfigMuxer::SetSyscallEventFilter(
 
 FtraceConfigMuxer::FtraceConfigMuxer(
     FtraceProcfs* ftrace,
+    AtraceWrapper* atrace_wrapper,
     ProtoTranslationTable* table,
     SyscallTable syscalls,
     std::map<std::string, std::vector<GroupAndName>> vendor_events,
     bool secondary_instance)
     : ftrace_(ftrace),
+      atrace_wrapper_(atrace_wrapper),
       table_(table),
       syscalls_(std::move(syscalls)),
       current_state_(),
@@ -654,7 +656,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
           "atrace_apps options as they affect global state");
       return false;
     }
-    if (IsOldAtrace() && !ds_configs_.empty()) {
+    if (atrace_wrapper_->IsOldAtrace() && !ds_configs_.empty()) {
       PERFETTO_ELOG(
           "Concurrent atrace sessions are not supported before Android P, "
           "bailing out.");
@@ -1040,7 +1042,6 @@ void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request,
   }
 }
 
-// static
 bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
                                     const std::vector<std::string>& categories,
                                     std::string* atrace_errors) {
@@ -1049,7 +1050,7 @@ bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
   std::vector<std::string> args;
   args.push_back("atrace");  // argv0 for exec()
   args.push_back("--async_start");
-  if (!IsOldAtrace())
+  if (!atrace_wrapper_->IsOldAtrace())
     args.push_back("--only_userspace");
 
   for (const auto& category : categories)
@@ -1066,7 +1067,7 @@ bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
     args.push_back(arg);
   }
 
-  bool result = RunAtrace(args, atrace_errors);
+  bool result = atrace_wrapper_->RunAtrace(args, atrace_errors);
   PERFETTO_DLOG("...done (%s)", result ? "success" : "fail");
   return result;
 }
@@ -1077,9 +1078,9 @@ void FtraceConfigMuxer::DisableAtrace() {
   PERFETTO_DLOG("Stop atrace...");
 
   std::vector<std::string> args{"atrace", "--async_stop"};
-  if (!IsOldAtrace())
+  if (!atrace_wrapper_->IsOldAtrace())
     args.push_back("--only_userspace");
-  if (RunAtrace(args, /*atrace_errors=*/nullptr)) {
+  if (atrace_wrapper_->RunAtrace(args, /*atrace_errors=*/nullptr)) {
     current_state_.atrace_categories.clear();
     current_state_.atrace_apps.clear();
     current_state_.atrace_on = false;
