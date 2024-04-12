@@ -450,14 +450,14 @@ export abstract class BaseCounterTrack implements Track {
     return m(
       PopupMenu2,
       {
-        trigger: m(Button, {icon: 'show_chart', minimal: true}),
+        trigger: m(Button, {icon: 'show_chart', minimal: true, compact: true}),
       },
       this.getCounterContextMenuItems(),
     );
   }
 
   getTrackShellButtons(): m.Children {
-    return [this.getCounterContextMenu()];
+    return this.getCounterContextMenu();
   }
 
   async onCreate(): Promise<void> {

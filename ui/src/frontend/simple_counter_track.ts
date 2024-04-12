@@ -52,7 +52,7 @@ export class SimpleCounterTrack extends BaseCounterTrack {
   }
 
   getTrackShellButtons(): m.Children {
-    return [this.getCounterContextMenu()];
+    return this.getCounterContextMenu();
   }
 
   getSqlSource(): string {
