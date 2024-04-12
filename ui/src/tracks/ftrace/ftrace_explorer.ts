@@ -206,7 +206,6 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
     if (attrs.cache.state !== 'valid') {
       return m(Button, {
         label: 'Filter',
-        minimal: true,
         disabled: true,
         loading: true,
       });
@@ -225,7 +224,6 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
 
     return m(PopupMultiSelect, {
       label: 'Filter',
-      minimal: true,
       icon: 'filter_list_alt',
       popupPosition: PopupPosition.Top,
       options,

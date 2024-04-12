@@ -108,7 +108,6 @@ export class NotesPanel implements Panel {
             },
             title: allCollapsed ? 'Expand all' : 'Collapse all',
             icon: allCollapsed ? 'unfold_more' : 'unfold_less',
-            minimal: true,
             compact: true,
           }),
           m(Button, {
@@ -118,7 +117,6 @@ export class NotesPanel implements Panel {
             },
             title: 'Clear all pinned tracks',
             icon: 'clear_all',
-            minimal: true,
             compact: true,
           }),
         ),
@@ -394,7 +392,6 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
         m(Button, {
           label: 'Remove',
           icon: Icons.Delete,
-          minimal: true,
           onclick: () => {
             globals.dispatch(Actions.removeNote({id: this.config.id}));
             raf.scheduleFullRedraw();

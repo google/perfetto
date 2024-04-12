@@ -100,7 +100,6 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
       },
       icon: Icons.Close,
       title: 'Close',
-      minimal: true,
       compact: true,
     });
   }
