@@ -483,6 +483,7 @@ class TrackDecider {
       new RegExp('^Trace Triggers$'),
       new RegExp('^Android App Startups$'),
       new RegExp('^Device State.*$'),
+      new RegExp('^Android logs$'),
     ];
 
     let groupUuid = undefined;
@@ -541,22 +542,6 @@ class TrackDecider {
         collapsed: true,
       });
       this.addTrackGroupActions.push(addGroup);
-    }
-  }
-
-  async addLogsTrack(engine: EngineProxy): Promise<void> {
-    const result = await engine.query(
-      `select count(1) as cnt from android_logs`,
-    );
-    const count = result.firstRow({cnt: NUM}).cnt;
-
-    if (count > 0) {
-      this.tracksToAdd.push({
-        uri: 'perfetto.AndroidLog',
-        name: 'Android logs',
-        trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-        trackGroup: SCROLLING_TRACK_GROUP,
-      });
     }
   }
 
@@ -1652,7 +1637,6 @@ class TrackDecider {
     await this.addThreadCpuSampleTracks(
       this.engine.getProxy('TrackDecider::addThreadCpuSampleTracks'),
     );
-    await this.addLogsTrack(this.engine.getProxy('TrackDecider::addLogsTrack'));
 
     // TODO(hjd): Move into plugin API.
     {
