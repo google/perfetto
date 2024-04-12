@@ -19,6 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -370,7 +371,8 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
     return;
   }
 
-  context_->sorter->PushTrackEventPacket(timestamp, std::move(data));
+  context_->sorter->PushTrackEventPacket(timestamp, std::move(data),
+                                         context_->machine_id());
 }
 
 template <typename T>

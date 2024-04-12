@@ -22,7 +22,10 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import ColumnDoc
 from python.generators.trace_processor_table.public import CppSelfTableId
+from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+
+from src.trace_processor.tables.metadata_tables import MACHINE_TABLE
 
 TRACK_TABLE = Table(
     python_module=__file__,
@@ -32,6 +35,7 @@ TRACK_TABLE = Table(
         C("name", CppString()),
         C("parent_id", CppOptional(CppSelfTableId())),
         C("source_arg_set_id", CppOptional(CppUint32())),
+        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -60,6 +64,10 @@ TRACK_TABLE = Table(
                       track orginated from atrace, Chrome tracepoints etc.
                     ''',
                     joinable='args.arg_set_id'),
+            'machine_id':
+                '''
+                  Machine identifier, non-null for tracks on a remote machine.
+                ''',
         }))
 
 PROCESS_TRACK_TABLE = Table(

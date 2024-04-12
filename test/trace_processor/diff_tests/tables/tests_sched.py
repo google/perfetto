@@ -124,7 +124,8 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT * FROM raw WHERE common_flags != 0 ORDER BY ts LIMIT 10
+        SELECT id, type, ts, name, cpu, utid, arg_set_id, common_flags
+        FROM raw WHERE common_flags != 0 ORDER BY ts LIMIT 10
         """,
         out=Csv("""
         "id","type","ts","name","cpu","utid","arg_set_id","common_flags"
