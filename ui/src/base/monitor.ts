@@ -26,11 +26,24 @@ export class Monitor {
     this.cached = reducers.map(() => undefined);
   }
 
-  ifStateChanged(callback: Callback): void {
-    const state = this.reducers.map((f) => f());
-    if (state.some((x, i) => x !== this.cached[i])) {
-      callback();
+  /**
+   * Invokes all reducers and compares values against with the previous values.
+   *
+   * If any of the values have changed, |callback| is called (if present) and
+   * returns true, otherwise no callback is called and returns false.
+   *
+   * @param callback Optional callback to call when diffs are detected.
+   * @returns True if diffs were detected, false otherwise.
+   */
+  ifStateChanged(callback?: Callback): boolean {
+    const oldState = this.cached;
+    const newState = this.reducers.map((f) => f());
+    this.cached = newState;
+    if (newState.some((x, i) => x !== oldState[i])) {
+      callback?.();
+      return true;
     }
-    this.cached = state;
+
+    return false;
   }
 }
