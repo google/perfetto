@@ -18,13 +18,7 @@
 #include <string_view>
 #include <vector>
 
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/file_utils.h"
-#include "protos/perfetto/trace/ps/process_tree.pbzero.h"
-#include "protos/perfetto/trace/trace.pbzero.h"
 #include "src/base/test/status_matchers.h"
-#include "src/base/test/tmp_dir_tree.h"
-#include "src/base/test/utils.h"
 #include "src/trace_redaction/build_timeline.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/optimize_timeline.h"
@@ -33,6 +27,9 @@
 #include "src/trace_redaction/trace_redaction_integration_fixture.h"
 #include "src/trace_redaction/trace_redactor.h"
 #include "test/gtest_and_gmock.h"
+
+#include "protos/perfetto/trace/ps/process_tree.pbzero.h"
+#include "protos/perfetto/trace/trace.pbzero.h"
 
 namespace perfetto::trace_redaction {
 

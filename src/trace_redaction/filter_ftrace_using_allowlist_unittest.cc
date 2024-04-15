@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#include "src/trace_redaction/scrub_ftrace_events.h"
 #include "src/trace_redaction/filter_ftrace_using_allowlist.h"
-#include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "src/base/test/status_matchers.h"
+#include "src/trace_redaction/scrub_ftrace_events.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "protos/perfetto/trace/ftrace/task.gen.h"
 #include "protos/perfetto/trace/ps/process_tree.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"

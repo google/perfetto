@@ -22,7 +22,6 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "src/base/test/status_matchers.h"
 #include "src/base/test/utils.h"
-#include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "test/gtest_and_gmock.h"

@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
-#include "protos/perfetto/trace/ftrace/sched.gen.h"
-#include "protos/perfetto/trace/trace_packet.gen.h"
-#include "protos/perfetto/trace/trace.gen.h"
 #include "src/trace_redaction/filter_sched_waking_events.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
 #include "test/gtest_and_gmock.h"
+
+#include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
+#include "protos/perfetto/trace/ftrace/sched.gen.h"
+#include "protos/perfetto/trace/trace.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto::trace_redaction {
 namespace {
