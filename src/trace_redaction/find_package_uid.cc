@@ -23,19 +23,9 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
-namespace {
-
-using PackagesList_PackageInfo = protos::pbzero::PackagesList_PackageInfo;
-using PackagesList = protos::pbzero::PackagesList;
-
-}  // namespace
-
-FindPackageUid::FindPackageUid() = default;
-
-FindPackageUid::~FindPackageUid() = default;
 
 base::StatusOr<CollectPrimitive::ContinueCollection> FindPackageUid::Collect(
-    const protos::pbzero::TracePacket_Decoder& packet,
+    const protos::pbzero::TracePacket::Decoder& packet,
     Context* context) const {
   if (context->package_name.empty()) {
     return base::ErrStatus("FindPackageUid: missing package name.");
@@ -46,17 +36,23 @@ base::StatusOr<CollectPrimitive::ContinueCollection> FindPackageUid::Collect(
     return ContinueCollection::kNextPacket;
   }
 
-  const PackagesList::Decoder pkg_list_decoder(packet.packages_list());
+  protos::pbzero::PackagesList::Decoder packages_list_decoder(
+      packet.packages_list());
 
-  for (auto pkg_it = pkg_list_decoder.packages(); pkg_it; ++pkg_it) {
-    PackagesList_PackageInfo::Decoder pkg_info(*pkg_it);
+  for (auto package = packages_list_decoder.packages(); package; ++package) {
+    protozero::ProtoDecoder package_decoder(*package);
 
-    if (pkg_info.has_name() && pkg_info.has_uid()) {
+    auto name = package_decoder.FindField(
+        protos::pbzero::PackagesList::PackageInfo::kNameFieldNumber);
+    auto uid = package_decoder.FindField(
+        protos::pbzero::PackagesList::PackageInfo::kUidFieldNumber);
+
+    if (name.valid() && uid.valid()) {
       // Package names should be lowercase, but this check is meant to be more
       // forgiving.
       if (base::StringView(context->package_name)
-              .CaseInsensitiveEq(pkg_info.name())) {
-        context->package_uid = NormalizeUid(pkg_info.uid());
+              .CaseInsensitiveEq(name.as_string())) {
+        context->package_uid = NormalizeUid(uid.as_uint64());
         return ContinueCollection::kRetire;
       }
     }

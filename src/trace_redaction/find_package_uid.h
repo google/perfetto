@@ -30,9 +30,6 @@ namespace perfetto::trace_redaction {
 // need to report the failure.
 class FindPackageUid final : public CollectPrimitive {
  public:
-  FindPackageUid();
-  ~FindPackageUid() override;
-
   base::StatusOr<ContinueCollection> Collect(
       const protos::pbzero::TracePacket::Decoder& packet,
       Context* context) const override;
