@@ -43,7 +43,7 @@ FtraceEventFilter::~FtraceEventFilter() = default;
 base::Status ScrubFtraceEvents::Transform(const Context& context,
                                           std::string* packet) const {
   if (packet == nullptr || packet->empty()) {
-    return base::ErrStatus("FilterPrintEvents: null or empty packet.");
+    return base::ErrStatus("ScrubFtraceEvents: null or empty packet.");
   }
 
   for (const auto& filter : filters_) {
