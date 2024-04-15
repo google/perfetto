@@ -26,7 +26,7 @@ namespace perfetto::trace_redaction {
 base::Status FilterPacketUsingAllowlist::VerifyContext(
     const Context& context) const {
   if (context.trace_packet_allow_list.empty()) {
-    return base::ErrStatus("Cannot scrub trace packets, missing allow-list.");
+    return base::ErrStatus("FilterPacketUsingAllowlist: missing allow-list.");
   }
 
   return base::OkStatus();

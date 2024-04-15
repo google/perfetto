@@ -27,7 +27,7 @@ TracePacketFilter::~TracePacketFilter() = default;
 base::Status ScrubTracePacket::Transform(const Context& context,
                                          std::string* packet) const {
   if (packet == nullptr || packet->empty()) {
-    return base::ErrStatus("Cannot scrub null or empty trace packet.");
+    return base::ErrStatus("ScrubTracePacket: null or empty packet.");
   }
 
   for (const auto& filter : filters_) {

@@ -110,11 +110,11 @@ void ScrubThread(protozero::Field field,
 base::Status ScrubProcessTrees::Transform(const Context& context,
                                           std::string* packet) const {
   if (!context.package_uid.has_value()) {
-    return base::ErrStatus("Missing package uid.");
+    return base::ErrStatus("ScrubProcessTrees: missing package uid.");
   }
 
   if (context.timeline == nullptr) {
-    return base::ErrStatus("Missing timeline.");
+    return base::ErrStatus("ScrubProcessTrees: missing timeline.");
   }
 
   protozero::ProtoDecoder decoder(*packet);
@@ -126,7 +126,7 @@ base::Status ScrubProcessTrees::Transform(const Context& context,
   auto timestamp_field = decoder.FindField(kTimestampFieldNumber);
 
   if (!timestamp_field.valid()) {
-    return base::ErrStatus("Could not find timestamp in trace packet");
+    return base::ErrStatus("ScrubProcessTrees: trace packet missing timestamp");
   }
 
   auto timestamp = timestamp_field.as_uint64();
