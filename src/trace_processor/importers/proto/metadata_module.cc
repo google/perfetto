@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/metadata_module.h"
 
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -128,7 +129,8 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
   if (trigger.has_trigger_name()) {
     name_id = context_->storage->InternString(trigger.trigger_name());
   } else {
-    name_id = context_->storage->InternString(trigger.trigger_hash());
+    name_id = context_->storage->InternString(
+        base::StringView(base::IntToHexString(trigger.trigger_name_hash())));
   }
   context_->slice_tracker->Scoped(ts, track_id, cat_id, name_id,
                                   /* duration = */ 0);

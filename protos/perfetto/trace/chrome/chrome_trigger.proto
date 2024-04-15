@@ -17,12 +17,12 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// When a TracingSession receives a trigger it records the boot time
-// nanoseconds in the TracePacket's timestamp field. We emit this data so
-// filtering can be done on triggers received in the trace.
+// Information about a specific trigger during a background tracing scenario
+// Associated packet timestamps are useful to delimitate a scenario range in a
+// trace. Triggers are also useful for filtering traces.
 message ChromeTrigger {
   // Name of the trigger which was received.
   optional string trigger_name = 1;
-  // MD5 hash of the trigger name.
-  optional string trigger_hash = 2;
+  // SHA1 hash of the trigger name.
+  optional fixed32 trigger_name_hash = 2;
 }
