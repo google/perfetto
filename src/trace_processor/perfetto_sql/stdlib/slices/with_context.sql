@@ -36,8 +36,10 @@ CREATE PERFETTO VIEW thread_slice(
   thread_name STRING,
   -- Alias for `thread.utid`.
   utid INT,
-  -- Alias for `thread.tid`
+  -- Alias for `thread.tid`.
   tid INT,
+  -- Alias for `thread.is_main_thread`.
+  is_main_thread BOOL,
   -- Alias for `process.name`.
   process_name STRING,
   -- Alias for `process.upid`.
@@ -67,6 +69,7 @@ SELECT
   thread.name AS thread_name,
   thread.utid,
   thread.tid,
+  thread.is_main_thread,
   process.name AS process_name,
   process.upid,
   process.pid,
