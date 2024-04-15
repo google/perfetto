@@ -15,7 +15,6 @@
  */
 
 #include "src/trace_redaction/find_package_uid.h"
-
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_redaction/trace_redaction_framework.h"

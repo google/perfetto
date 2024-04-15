@@ -16,10 +16,9 @@
 
 #include "src/trace_redaction/filter_sched_waking_events.h"
 
-#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
-
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 
 namespace perfetto::trace_redaction {
 

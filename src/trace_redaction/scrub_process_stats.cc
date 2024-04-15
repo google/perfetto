@@ -21,9 +21,10 @@
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/ps/process_stats.pbzero.h"
 #include "src/trace_redaction/proto_util.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
+
+#include "protos/perfetto/trace/ps/process_stats.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
