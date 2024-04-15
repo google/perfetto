@@ -25,7 +25,7 @@
 namespace perfetto {
 namespace trace_processor {
 namespace perf_importer {
-void Reader::SkipSlow(size_t bytes_to_skip) {
+void PerfDataReader::SkipSlow(size_t bytes_to_skip) {
   size_t bytes_in_buffer = BytesInBuffer();
 
   // Size fits in buffer.
@@ -40,7 +40,7 @@ void Reader::SkipSlow(size_t bytes_to_skip) {
   blob_offset_ += bytes_to_skip - bytes_in_buffer;
 }
 
-void Reader::PeekSlow(uint8_t* obj_data, size_t size) const {
+void PerfDataReader::PeekSlow(uint8_t* obj_data, size_t size) const {
   size_t bytes_in_buffer = BytesInBuffer();
 
   // Read from buffer.
@@ -55,7 +55,7 @@ void Reader::PeekSlow(uint8_t* obj_data, size_t size) const {
          size - bytes_in_buffer);
 }
 
-TraceBlobView Reader::PeekTraceBlobViewSlow(size_t size) const {
+TraceBlobView PerfDataReader::PeekTraceBlobViewSlow(size_t size) const {
   auto blob = TraceBlob::Allocate(size);
   size_t bytes_in_buffer = BytesInBuffer();
 

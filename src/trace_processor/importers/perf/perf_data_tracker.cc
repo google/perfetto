@@ -101,7 +101,7 @@ void PerfDataTracker::PushMmap2Record(Mmap2Record record) {
 }
 
 base::StatusOr<PerfDataTracker::PerfSample> PerfDataTracker::ParseSample(
-    perfetto::trace_processor::perf_importer::Reader& reader) {
+    perfetto::trace_processor::perf_importer::PerfDataReader& reader) {
   uint64_t sample_type = common_sample_type();
   PerfDataTracker::PerfSample sample;
 
