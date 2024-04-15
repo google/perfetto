@@ -16,8 +16,6 @@
 
 #include "src/trace_redaction/redact_sched_switch.h"
 
-#include <string>
-
 #include "src/trace_redaction/proto_util.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -59,11 +57,11 @@ base::Status RedactSchedSwitch::Redact(
     protozero::ConstBytes bytes,
     protos::pbzero::FtraceEvent* event_message) const {
   if (!context.package_uid.has_value()) {
-    return base::Status("RedactSchedSwitch: missing package uid");
+    return base::ErrStatus("RedactSchedSwitch: missing package uid");
   }
 
   if (!context.timeline) {
-    return base::Status("RedactSchedSwitch: missing timeline");
+    return base::ErrStatus("RedactSchedSwitch: missing timeline");
   }
 
   protos::pbzero::SchedSwitchFtraceEvent::Decoder sched_switch(bytes);

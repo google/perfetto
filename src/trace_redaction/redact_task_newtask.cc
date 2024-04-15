@@ -56,11 +56,11 @@ base::Status RedactTaskNewTask::Redact(
     protozero::ConstBytes bytes,
     protos::pbzero::FtraceEvent* event_message) const {
   if (!context.package_uid.has_value()) {
-    return base::Status("RedactTaskNewTask: missing package uid");
+    return base::ErrStatus("RedactTaskNewTask: missing package uid");
   }
 
   if (!context.timeline) {
-    return base::Status("RedactTaskNewTask: missing timeline");
+    return base::ErrStatus("RedactTaskNewTask: missing timeline");
   }
 
   // There must be a pid. If not, the message is meaningless and can be dropped.
