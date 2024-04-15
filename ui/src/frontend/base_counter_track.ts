@@ -891,6 +891,7 @@ export abstract class BaseCounterTrack implements Track {
     if (maybeCachedCounters) {
       this.countersKey = countersKey;
       this.counters = maybeCachedCounters;
+      return;
     }
 
     const bucketNs = countersKey.bucketSize;
@@ -955,6 +956,7 @@ export abstract class BaseCounterTrack implements Track {
     data.displayValueRange = [min, max];
 
     this.cache.insert(countersKey, data);
+    this.countersKey = countersKey;
     this.counters = data;
 
     raf.scheduleRedraw();
