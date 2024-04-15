@@ -542,7 +542,7 @@ void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
   tids_.Insert(0, std::vector<UniqueTid>{swapper_utid_});
   pids_.Insert(0, swapper_upid_);
 
-  // Use null StringId for the swapper process/thread.
+  // Set the hardcoded, constant "swapper" thread name to the thread.
   UpdateThreadName(0, swapper_id, ThreadNamePriority::kTraceProcessorConstant);
 }
 
