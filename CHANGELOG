@@ -6,7 +6,13 @@ Unreleased:
   UI:
     *
   SDK:
-    *
+    * The TRACE_EVENT macro used to reject `const char *` event names: either
+      `StaticString` or `DynamicString` needed to be specified. In the last year
+      (since https://r.android.com/2494614), TRACE_EVENT mistakenly accepted
+      `const char *` as an event name. This has been fixed now. In case your
+      code fails to compile,
+      https://perfetto.dev/docs/instrumentation/track-events#dynamic-event-names
+      explains how to fix the problem.
 
 
 v44.0 - 2024-04-10:
