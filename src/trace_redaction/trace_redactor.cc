@@ -48,7 +48,7 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
   base::ScopedMmap mapped =
       base::ReadMmapWholeFile(source_filename_str.c_str());
   if (!mapped.IsValid()) {
-    return base::ErrStatus("Failed to map pages for trace (%s)",
+    return base::ErrStatus("TraceRedactor: failed to map pages for trace (%s)",
                            source_filename_str.c_str());
   }
 
@@ -168,7 +168,8 @@ base::Status TraceRedactor::Transform(
     if (const auto exported_data =
             base::WriteAll(dest_fd.get(), packet.data(), packet.size());
         exported_data <= 0) {
-      return base::ErrStatus("Failed to write redacted trace to disk");
+      return base::ErrStatus(
+          "TraceRedactor: failed to write redacted trace to disk");
     }
   }
 

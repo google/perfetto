@@ -26,7 +26,7 @@ namespace perfetto::trace_redaction {
 
 base::Status PopulateAllowlists::Build(Context* context) const {
   if (!context->trace_packet_allow_list.empty()) {
-    return base::ErrStatus("Trace packet allow-list should be empty.");
+    return base::ErrStatus("PopulateAllowlists: allow-list should be empty.");
   }
 
   // TRACE PACKET NOTES
