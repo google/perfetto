@@ -17,14 +17,10 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/base/test/status_matchers.h"
-#include "src/base/test/tmp_dir_tree.h"
-#include "src/base/test/utils.h"
 #include "src/trace_redaction/build_timeline.h"
 #include "src/trace_redaction/filter_sched_waking_events.h"
 #include "src/trace_redaction/find_package_uid.h"

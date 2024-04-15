@@ -15,12 +15,11 @@
  * limitations under the License.
  */
 
-#include "src/trace_redaction/find_package_uid.h"
-
 #include <cstdint>
 #include <string>
 
 #include "src/base/test/status_matchers.h"
+#include "src/trace_redaction/find_package_uid.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/android/packages_list.gen.h"
