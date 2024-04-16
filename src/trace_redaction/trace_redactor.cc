@@ -55,19 +55,13 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
   trace_processor::TraceBlobView whole_view(
       trace_processor::TraceBlob::FromMmap(std::move(mapped)));
 
-  // TODO(vaage): Update other status code to use RETURN_IF_ERROR.
   RETURN_IF_ERROR(Collect(context, whole_view));
 
-  if (auto status = Build(context); !status.ok()) {
-    return status;
+  for (const auto& builder : builders_) {
+    RETURN_IF_ERROR(builder->Build(context));
   }
 
-  if (auto status = Transform(*context, whole_view, std::string(dest_filename));
-      !status.ok()) {
-    return status;
-  }
-
-  return base::OkStatus();
+  return Transform(*context, whole_view, std::string(dest_filename));
 }
 
 base::Status TraceRedactor::Collect(
@@ -89,16 +83,6 @@ base::Status TraceRedactor::Collect(
 
   for (const auto& collector : collectors_) {
     RETURN_IF_ERROR(collector->End(context));
-  }
-
-  return base::OkStatus();
-}
-
-base::Status TraceRedactor::Build(Context* context) const {
-  for (const auto& builder : builders_) {
-    if (auto status = builder->Build(context); !status.ok()) {
-      return status;
-    }
   }
 
   return base::OkStatus();
@@ -128,10 +112,7 @@ base::Status TraceRedactor::Transform(
         break;
       }
 
-      if (auto status = transformer->Transform(context, &packet);
-          !status.ok()) {
-        return status;
-      }
+      RETURN_IF_ERROR(transformer->Transform(context, &packet));
     }
 
     // The packet has been removed from the trace. Don't write an empty packet
