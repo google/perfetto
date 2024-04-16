@@ -72,5 +72,8 @@
     "build": "node build.js",
     "test": "node build.js --run-unittests",
     "lint": "npx eslint . --ext .js,.ts"
+  },
+  "jest": {
+    "setupFiles": ["jest-localstorage-mock"]
   }
 }
