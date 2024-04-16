@@ -205,7 +205,7 @@ class MockFtraceProcfs : public FtraceProcfs {
 class MockAtraceWrapper : public AtraceWrapper {
  public:
   MOCK_METHOD(bool, RunAtrace, (const std::vector<std::string>&, std::string*));
-  MOCK_METHOD(bool, IsOldAtrace, ());
+  MOCK_METHOD(bool, SupportsUserspaceOnly, ());
 };
 
 }  // namespace

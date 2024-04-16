@@ -96,7 +96,7 @@ class MockFtraceProcfs : public FtraceProcfs {
 class MockAtraceWrapper : public AtraceWrapper {
  public:
   MOCK_METHOD(bool, RunAtrace, (const std::vector<std::string>&, std::string*));
-  MOCK_METHOD(bool, IsOldAtrace, ());
+  MOCK_METHOD(bool, SupportsUserspaceOnly, ());
 };
 
 class MockProtoTranslationTable : public ProtoTranslationTable {
@@ -173,7 +173,7 @@ class FtraceConfigMuxerTest : public ::testing::Test {
  protected:
   FtraceConfigMuxerTest() {
     ON_CALL(atrace_wrapper_, RunAtrace).WillByDefault(Return(true));
-    ON_CALL(atrace_wrapper_, IsOldAtrace).WillByDefault(Return(false));
+    ON_CALL(atrace_wrapper_, SupportsUserspaceOnly).WillByDefault(Return(true));
   }
 
   std::unique_ptr<MockProtoTranslationTable> GetMockTable() {
