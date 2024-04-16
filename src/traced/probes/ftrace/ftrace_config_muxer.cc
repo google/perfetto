@@ -656,7 +656,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
           "atrace_apps options as they affect global state");
       return false;
     }
-    if (atrace_wrapper_->IsOldAtrace() && !ds_configs_.empty()) {
+    if (!atrace_wrapper_->SupportsUserspaceOnly() && !ds_configs_.empty()) {
       PERFETTO_ELOG(
           "Concurrent atrace sessions are not supported before Android P, "
           "bailing out.");
@@ -1050,7 +1050,7 @@ bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
   std::vector<std::string> args;
   args.push_back("atrace");  // argv0 for exec()
   args.push_back("--async_start");
-  if (!atrace_wrapper_->IsOldAtrace())
+  if (atrace_wrapper_->SupportsUserspaceOnly())
     args.push_back("--only_userspace");
 
   for (const auto& category : categories)
@@ -1078,7 +1078,7 @@ void FtraceConfigMuxer::DisableAtrace() {
   PERFETTO_DLOG("Stop atrace...");
 
   std::vector<std::string> args{"atrace", "--async_stop"};
-  if (!atrace_wrapper_->IsOldAtrace())
+  if (atrace_wrapper_->SupportsUserspaceOnly())
     args.push_back("--only_userspace");
   if (atrace_wrapper_->RunAtrace(args, /*atrace_errors=*/nullptr)) {
     current_state_.atrace_categories.clear();
