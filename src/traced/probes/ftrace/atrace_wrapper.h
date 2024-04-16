@@ -30,7 +30,7 @@ class AtraceWrapper {
   // - Just use atrace --async_start/stop, which will cause atrace to also
   //   poke at ftrace.
   // - Suppress the checks for "somebody else enabled ftrace unexpectedly".
-  virtual bool IsOldAtrace() = 0;
+  virtual bool SupportsUserspaceOnly() = 0;
   virtual bool RunAtrace(const std::vector<std::string>& args,
                          std::string* atrace_errors) = 0;
 };
@@ -38,7 +38,7 @@ class AtraceWrapper {
 class AtraceWrapperImpl : public AtraceWrapper {
  public:
   ~AtraceWrapperImpl() override;
-  bool IsOldAtrace() override;
+  bool SupportsUserspaceOnly() override;
   bool RunAtrace(const std::vector<std::string>& args,
                  std::string* atrace_errors) override;
 };
