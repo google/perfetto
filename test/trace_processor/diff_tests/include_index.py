@@ -92,6 +92,7 @@ from diff_tests.parser.track_event.tests import TrackEvent
 from diff_tests.parser.translated_args.tests import TranslatedArgs
 from diff_tests.parser.ufs.tests import Ufs
 from diff_tests.stdlib.android.frames_tests import Frames
+from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.tests import AndroidStdlib
 from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TESTSUITES
 from diff_tests.stdlib.common.tests import StdlibCommon
@@ -282,6 +283,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
                        'StdlibIntervals').fetch(),
       *IntervalsIntersect(index_path, 'stdlib/intervals',
                           'StdlibIntervalsIntersect').fetch(),
+      *Startups(index_path, 'stdlib/android', 'Startups').fetch(),
       *Timestamps(index_path, 'stdlib/timestamps', 'Timestamps').fetch(),
       *WattsonStdlib(index_path, 'stdlib/wattson', 'WattsonStdlib').fetch(),
   ] + chrome_stdlib_tests
