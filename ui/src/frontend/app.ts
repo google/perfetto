@@ -804,6 +804,9 @@ export class App implements m.ClassComponent {
         this.addRecentCommand(key);
         cmdMgr.runCommand(key);
       },
+      onGoBack: () => {
+        this.enterSearchMode(false);
+      },
     });
   }
 
@@ -822,6 +825,7 @@ export class App implements m.ClassComponent {
       placeholder: ph,
       inputRef: App.OMNIBOX_INPUT_REF,
       extraClasses: 'query-mode',
+
       onInput: (value) => {
         this.queryText = value;
         raf.scheduleFullRedraw();
@@ -841,6 +845,9 @@ export class App implements m.ClassComponent {
         }
         this.enterSearchMode(false);
         raf.scheduleFullRedraw();
+      },
+      onGoBack: () => {
+        this.enterSearchMode(false);
       },
     });
   }
