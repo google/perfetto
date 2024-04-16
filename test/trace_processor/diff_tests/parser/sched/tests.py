@@ -15,7 +15,7 @@
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
-from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -72,4 +72,39 @@ class SchedParser(TestSuite):
         "Cpu 5 Util",13000,125.000000
         "Cpu 5 Cap",13000,757.000000
         "Cpu 5 Nr Running",13000,1.000000
+        """))
+
+  def test_sched_cpu_util_cfs_machine_id(self):
+    return DiffTestBlueprint(
+        trace=Path('sched_cpu_util_cfs.textproto'),
+        trace_modifier=TraceInjector(['ftrace_events'], {'machine_id': 1001}),
+        query="""
+        SELECT
+          t.name,
+          c.ts,
+          c.value,
+          c.machine_id
+        FROM
+          counter AS c
+        LEFT JOIN
+          counter_track AS t
+          ON c.track_id = t.id
+        WHERE
+          name GLOB "Cpu ? Cap" OR name GLOB "Cpu ? Util" OR name GLOB "Cpu ? Nr Running"
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "name","ts","value","machine_id"
+        "Cpu 6 Util",10000,1.000000,1
+        "Cpu 6 Cap",10000,1004.000000,1
+        "Cpu 6 Nr Running",10000,0.000000,1
+        "Cpu 7 Util",11000,1.000000,1
+        "Cpu 7 Cap",11000,1007.000000,1
+        "Cpu 7 Nr Running",11000,0.000000,1
+        "Cpu 4 Util",12000,43.000000,1
+        "Cpu 4 Cap",12000,760.000000,1
+        "Cpu 4 Nr Running",12000,0.000000,1
+        "Cpu 5 Util",13000,125.000000,1
+        "Cpu 5 Cap",13000,757.000000,1
+        "Cpu 5 Nr Running",13000,1.000000,1
         """))
