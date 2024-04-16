@@ -90,8 +90,7 @@ class TestParams {
 class BuildTimelineTest : public testing::Test,
                           public testing::WithParamInterface<TestParams> {
  protected:
-  base::StatusOr<CollectPrimitive::ContinueCollection> PushProcessTreePacket(
-      uint64_t timestamp) {
+  base::Status PushProcessTreePacket(uint64_t timestamp) {
     protos::gen::TracePacket packet;
     packet.set_trusted_uid(9999);
     packet.set_timestamp(timestamp);
@@ -124,8 +123,7 @@ class BuildTimelineTest : public testing::Test,
                           &context_);
   }
 
-  base::StatusOr<CollectPrimitive::ContinueCollection>
-  PushSchedProcessFreePacket(uint64_t timestamp) {
+  base::Status PushSchedProcessFreePacket(uint64_t timestamp) {
     protos::gen::TracePacket packet;
 
     packet.set_trusted_uid(9999);
@@ -159,7 +157,7 @@ TEST_P(BuildTimelineWithProcessTree, FindsOpenSpans) {
   auto params = GetParam();
 
   auto result = PushProcessTreePacket(kProcessTreeTimestamp);
-  ASSERT_OK(result) << result.status().message();
+  ASSERT_OK(result) << result.message();
 
   context_.timeline->Sort();
 
@@ -194,10 +192,10 @@ TEST_P(BuildTimelineWithFreeProcess, FindsClosedSpans) {
   auto params = GetParam();
 
   auto result = PushProcessTreePacket(kProcessTreeTimestamp);
-  ASSERT_OK(result) << result.status().message();
+  ASSERT_OK(result) << result.message();
 
   result = PushSchedProcessFreePacket(kThreadFreeTimestamp);
-  ASSERT_OK(result) << result.status().message();
+  ASSERT_OK(result) << result.message();
 
   context_.timeline->Sort();
 

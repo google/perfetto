@@ -17,7 +17,6 @@
 #ifndef SRC_TRACE_REDACTION_BUILD_TIMELINE_H_
 #define SRC_TRACE_REDACTION_BUILD_TIMELINE_H_
 
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -28,9 +27,8 @@ namespace perfetto::trace_redaction {
 // packets and stores them in a timeline.
 class BuildTimeline : public CollectPrimitive {
  public:
-  base::StatusOr<ContinueCollection> Collect(
-      const protos::pbzero::TracePacket::Decoder& packet,
-      Context* context) const override;
+  base::Status Collect(const protos::pbzero::TracePacket::Decoder& packet,
+                       Context* context) const override;
 };
 
 }  // namespace perfetto::trace_redaction
