@@ -28,8 +28,8 @@ executable("trace_redactor") {
 
 source_set("trace_redaction") {
   sources = [
-    "build_timeline.cc",
-    "build_timeline.h",
+    "collect_timeline_events.cc",
+    "collect_timeline_events.h",
     "filter_ftrace_using_allowlist.cc",
     "filter_ftrace_using_allowlist.h",
     "filter_packet_using_allowlist.cc",
@@ -118,7 +118,7 @@ source_set("integrationtests") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
-    "build_timeline_unittest.cc",
+    "collect_timeline_events_unittest.cc",
     "filter_ftrace_using_allowlist_unittest.cc",
     "filter_packet_using_allowlist_unittest.cc",
     "filter_sched_waking_events_unittest.cc",

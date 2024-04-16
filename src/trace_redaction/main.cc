@@ -16,7 +16,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "src/trace_redaction/build_timeline.h"
+#include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "src/trace_redaction/filter_packet_using_allowlist.h"
 #include "src/trace_redaction/filter_print_events.h"
@@ -47,7 +47,7 @@ static base::Status Main(std::string_view input,
 
   // Add all collectors.
   redactor.emplace_collect<FindPackageUid>();
-  redactor.emplace_collect<BuildTimeline>();
+  redactor.emplace_collect<CollectTimelineEvents>();
 
   // Add all builders.
   redactor.emplace_build<PopulateAllowlists>();
