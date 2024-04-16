@@ -15,7 +15,7 @@
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric, Systrace
 from python.generators.diff_tests.testing import Csv, Json, TextProto, BinaryProto
-from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 from python.generators.diff_tests.testing import PrintProfileProto
 
@@ -203,3 +203,54 @@ class AndroidParser(TestSuite):
       0
       0
       """))
+
+  # Tests when counter_tack.machine_id is not null.
+  def test_android_system_property_counter_machine_id(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 1000
+          android_system_property {
+            values {
+              name: "debug.tracing.screen_state"
+              value: "2"
+            }
+            values {
+              name: "debug.tracing.device_state"
+              value: "some_state_from_sysprops"
+            }
+          }
+          machine_id: 1001
+        }
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 2000
+              pid: 1
+              print {
+                buf: "C|1000|ScreenState|1\n"
+              }
+            }
+            event {
+              timestamp: 3000
+              pid: 1
+              print {
+                buf: "N|1000|DeviceStateChanged|some_state_from_atrace\n"
+              }
+            }
+          }
+          machine_id: 1001
+        }
+        """),
+        query="""
+        SELECT t.type, t.name, c.id, c.ts, c.type, c.value
+        FROM counter_track t JOIN counter c ON t.id = c.track_id
+        WHERE name = 'ScreenState'
+          AND t.machine_id IS NOT NULL;
+        """,
+        out=Csv("""
+        "type","name","id","ts","type","value"
+        "counter_track","ScreenState",0,1000,"counter",2.000000
+        "counter_track","ScreenState",1,2000,"counter",1.000000
+        """))

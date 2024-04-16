@@ -149,6 +149,23 @@ def get_trace_descriptor_path(out_path: str, trace_descriptor: str):
   return trace_descriptor_path
 
 
+def modify_trace(trace_descriptor_path, extension_descriptor_paths,
+                 in_trace_path, out_trace_path, modifier):
+  trace_proto = create_message_factory([trace_descriptor_path] +
+                                       extension_descriptor_paths,
+                                       'perfetto.protos.Trace')()
+
+  with open(in_trace_path, "rb") as f:
+    # This may raise DecodeError when |in_trace_path| isn't protobuf.
+    trace_proto.ParseFromString(f.read())
+    # Modify the trace proto object with the provided modifier function.
+    modifier.inject(trace_proto)
+
+  with open(out_trace_path, "wb") as f:
+    f.write(trace_proto.SerializeToString())
+    f.flush()
+
+
 def read_all_tests(name_filter: str, root_dir: str) -> List[testing.TestCase]:
   # Import
   INCLUDE_PATH = os.path.join(root_dir, 'test', 'trace_processor', 'diff_tests')

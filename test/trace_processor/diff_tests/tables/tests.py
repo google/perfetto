@@ -15,7 +15,7 @@
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
-from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -413,4 +413,59 @@ class Tables(TestSuite):
         out=Csv("""
           "TO_REALTIME(0)"
           420
+        """))
+
+  # Test cpu_track with machine_id ID.
+  def test_cpu_track_table_machine_id(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 100001000000
+              pid: 10
+              irq_handler_entry {
+                irq: 100
+                name : "resource1"
+              }
+            }
+            event {
+              timestamp: 100002000000
+              pid: 10
+              irq_handler_exit {
+                irq: 100
+                ret: 1
+              }
+            }
+          }
+          machine_id: 1001
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100003000000
+              pid: 15
+              irq_handler_entry {
+                irq: 100
+                name : "resource1"
+              }
+            }
+          }
+          machine_id: 1001
+        }
+        """),
+        query="""
+        SELECT
+          type,
+          cpu,
+          machine_id
+        FROM cpu_track
+        ORDER BY type, cpu
+        """,
+        out=Csv("""
+        "type","cpu","machine_id"
+        "cpu_track",0,1
+        "cpu_track",1,1
         """))
