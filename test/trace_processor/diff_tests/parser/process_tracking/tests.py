@@ -15,7 +15,7 @@
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
-from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -225,6 +225,36 @@ class ProcessTracking(TestSuite):
         out=Csv("""
         "tid","pid","pname","tname"
         19999,"[NULL]","[NULL]","real_name"
+        """))
+
+  def test_process_tracking_machine_id(self):
+    return DiffTestBlueprint(
+        trace=Path('synth_process_tracking.py'),
+        trace_modifier=TraceInjector(['ftrace_events', 'process_tree'],
+                                     {'machine_id': 1001}),
+        query="""
+        SELECT tid, pid, process.name AS pname, thread.name AS tname,
+               thread.machine_id as tmachine, process.machine_id as pmachine
+        FROM thread
+        LEFT JOIN process USING(upid)
+        WHERE tid > 0
+        ORDER BY tid;
+        """,
+        out=Csv("""
+        "tid","pid","pname","tname","tmachine","pmachine"
+        10,10,"process1","p1-t0",1,1
+        11,"[NULL]","[NULL]","p1-t1",1,"[NULL]"
+        12,10,"process1","p1-t2",1,1
+        20,20,"process_2","p2-t0",1,1
+        21,20,"process_2","p2-t1",1,1
+        22,20,"process_2","p2-t2",1,1
+        30,30,"process_3","p3-t0",1,1
+        31,30,"process_3","p3-t1",1,1
+        31,40,"process_4","p4-t1",1,1
+        32,30,"process_3","p3-t2",1,1
+        33,30,"process_3","p3-t3",1,1
+        34,30,"process_3","p3-t4",1,1
+        40,40,"process_4","p4-t0",1,1
         """))
 
   def test_process_stats_process_runtime(self):

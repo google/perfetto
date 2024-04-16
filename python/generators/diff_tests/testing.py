@@ -16,7 +16,7 @@
 import inspect
 import os
 from dataclasses import dataclass
-from typing import List, Union, Callable
+from typing import Any, Dict, List, Union, Callable
 from enum import Enum
 import re
 
@@ -72,6 +72,42 @@ class Systrace:
   contents: str
 
 
+class TraceInjector:
+  '''Injects fields into trace packets before test starts.
+
+  TraceInjector can be used within a DiffTestBlueprint to selectively inject
+  fields to trace packets containing specific data types. For example:
+
+    DiffTestBlueprint(
+        trace=...,
+        trace_modifier=TraceInjector('ftrace_events',
+                                     'sys_stats',
+                                     'process_tree',
+                                     {'machine_id': 1001},
+                                     trusted_uid=123)
+        query=...,
+        out=...)
+
+  packet_data_types: Data types to target for injection ('ftrace_events',
+  'sys_stats', 'process_tree')
+  injected_fields: Fields and their values to inject into matching packets
+  ({'machine_id': 1001}, trusted_uid=123).
+  '''
+
+  def __init__(self, packet_data_types: List[str], injected_fields: Dict[str,
+                                                                         Any]):
+    self.packet_data_types = packet_data_types
+    self.injected_fields = injected_fields
+
+  def inject(self, proto):
+    for p in proto.packet:
+      for f in self.packet_data_types:
+        if p.HasField(f):
+          for k, v, in self.injected_fields.items():
+            setattr(p, k, v)
+          continue
+
+
 class TestType(Enum):
   QUERY = 1
   METRIC = 2
@@ -86,6 +122,7 @@ class DiffTestBlueprint:
   trace: Union[Path, DataPath, Json, Systrace, TextProto]
   query: Union[str, Path, DataPath, Metric]
   out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
+  trace_modifier: Union[TraceInjector, None] = None
 
   def is_trace_file(self):
     return isinstance(self.trace, Path)
