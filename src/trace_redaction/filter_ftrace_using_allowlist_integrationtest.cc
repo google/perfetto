@@ -18,14 +18,11 @@
 #include <string>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "src/base/test/status_matchers.h"
-#include "src/base/test/tmp_dir_tree.h"
-#include "src/base/test/utils.h"
 #include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
-#include "src/trace_redaction/trace_redaction_framework.h"
+#include "src/trace_redaction/trace_redaction_integration_fixture.h"
 #include "src/trace_redaction/trace_redactor.h"
 #include "test/gtest_and_gmock.h"
 
@@ -36,39 +33,15 @@
 
 namespace perfetto::trace_redaction {
 
-class FilterFtraceUsingAllowlistTest : public testing::Test {
+class FilterFtraceUsingAllowlistTest
+    : public testing::Test,
+      protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    redactor_.emplace_build<PopulateAllowlists>();
-
-    auto* scrub_ftrace_events =
-        redactor_.emplace_transform<ScrubFtraceEvents>();
-    scrub_ftrace_events->emplace_back<FilterFtraceUsingAllowlist>();
-
-    src_trace_ =
-        base::GetTestDataPath("test/data/trace-redaction-general.pftrace");
-
-    dest_trace_ = tmp_dir_.AbsolutePath("dst.pftrace");
-  }
-
-  base::Status Redact() {
-    auto status = redactor_.Redact(src_trace_, dest_trace_, &context_);
-
-    // If redaction failed, the redactor should not have written the file to
-    // disk.
-    if (status.ok()) {
-      tmp_dir_.TrackFile("dst.pftrace");
-    }
-
-    return status;
-  }
-
-  base::StatusOr<std::string> LoadOriginal() const {
-    return ReadRawTrace(src_trace_);
-  }
-
-  base::StatusOr<std::string> LoadRedacted() const {
-    return ReadRawTrace(dest_trace_);
+    trace_redactor()->emplace_build<PopulateAllowlists>();
+    trace_redactor()
+        ->emplace_transform<ScrubFtraceEvents>()
+        ->emplace_back<FilterFtraceUsingAllowlist>();
   }
 
   // Parse the given buffer and gather field ids from across all events. This
@@ -100,25 +73,6 @@ class FilterFtraceUsingAllowlistTest : public testing::Test {
 
     return event_ids;
   }
-
- private:
-  base::StatusOr<std::string> ReadRawTrace(const std::string& path) const {
-    std::string redacted_buffer;
-
-    if (base::ReadFile(path, &redacted_buffer)) {
-      return redacted_buffer;
-    }
-
-    return base::ErrStatus("Failed to read %s", path.c_str());
-  }
-
-  Context context_;
-  TraceRedactor redactor_;
-
-  base::TmpDirTree tmp_dir_;
-
-  std::string src_trace_;
-  std::string dest_trace_;
 };
 
 // This is not a test of FilterFtraceUsingAllowlist, but instead verifies of the
