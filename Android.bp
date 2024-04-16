@@ -12879,6 +12879,7 @@ filegroup {
         "src/trace_redaction/scrub_process_stats.cc",
         "src/trace_redaction/scrub_process_trees.cc",
         "src/trace_redaction/scrub_trace_packet.cc",
+        "src/trace_redaction/suspend_resume.cc",
         "src/trace_redaction/trace_redaction_framework.cc",
         "src/trace_redaction/trace_redactor.cc",
     ],
@@ -12900,6 +12901,7 @@ filegroup {
         "src/trace_redaction/redact_process_free_unittest.cc",
         "src/trace_redaction/redact_sched_switch_unittest.cc",
         "src/trace_redaction/redact_task_newtask_unittest.cc",
+        "src/trace_redaction/suspend_resume_unittest.cc",
     ],
 }
 
