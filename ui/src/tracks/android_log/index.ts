@@ -15,11 +15,7 @@
 import m from 'mithril';
 
 import {LogFilteringCriteria, LogPanel} from './logs_panel';
-import {
-  Plugin,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {NUM} from '../../trace_processor/query_result';
 import {AndroidLogTrack} from './logs_track';
 
