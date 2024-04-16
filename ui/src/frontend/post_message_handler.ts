@@ -35,7 +35,7 @@ interface PostedScrollToRangeWrapped {
 
 // Returns whether incoming traces should be opened automatically or should
 // instead require a user interaction.
-function isTrustedOrigin(origin: string): boolean {
+export function isTrustedOrigin(origin: string): boolean {
   const TRUSTED_ORIGINS = [
     'https://chrometto.googleplex.com',
     'https://uma.googleplex.com',
@@ -46,8 +46,15 @@ function isTrustedOrigin(origin: string): boolean {
   if (isUserTrustedOrigin(origin)) return true;
 
   const hostname = new URL(origin).hostname;
-  if (hostname.endsWith('corp.google.com')) return true;
-  if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+  if (hostname.endsWith('.corp.google.com')) return true;
+  if (hostname.endsWith('.c.googlers.com')) return true;
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '[::1]'
+  ) {
+    return true;
+  }
   return false;
 }
 
