@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 
+#include <sqlite3.h>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -47,7 +48,15 @@ void EnsureSqliteInitialized() {
   // sqlite3_initialize isn't actually thread-safe in standalone builds because
   // we build with SQLITE_THREADSAFE=0. Ensure it's only called from a single
   // thread.
-  static bool init_once = [] { return sqlite3_initialize() == SQLITE_OK; }();
+  static bool init_once = [] {
+    // Enabling memstatus causes a lock to be taken on every malloc/free in
+    // SQLite to update the memory statistics. This can cause massive contention
+    // in trace processor when multiple instances are used in parallel.
+    // Fix this by disabling the memstatus API which we don't make use of in
+    // any case. See b/335019324 for more info on this.
+    PERFETTO_CHECK(sqlite3_config(SQLITE_CONFIG_MEMSTATUS, 0) == SQLITE_OK);
+    return sqlite3_initialize() == SQLITE_OK;
+  }();
   PERFETTO_CHECK(init_once);
 }
 
