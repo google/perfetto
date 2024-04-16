@@ -87,10 +87,11 @@ class TestParams {
 
 }  // namespace
 
-class CollectTimelineEventsTest : public testing::Test,
-                          public testing::WithParamInterface<TestParams> {
+class CollectTimelineEventsTest
+    : public testing::Test,
+      public testing::WithParamInterface<TestParams> {
  protected:
-  base::Status PushProcessTreePacket(uint64_t timestamp) {
+  std::string CreateProcessTreePacket(uint64_t timestamp) {
     protos::gen::TracePacket packet;
     packet.set_trusted_uid(9999);
     packet.set_timestamp(timestamp);
@@ -118,12 +119,10 @@ class CollectTimelineEventsTest : public testing::Test,
 
     process_tree->set_collection_end_timestamp(timestamp);
 
-    std::string packet_str = packet.SerializeAsString();
-    return build_.Collect(protos::pbzero::TracePacket::Decoder(packet_str),
-                          &context_);
+    return packet.SerializeAsString();
   }
 
-  base::Status PushSchedProcessFreePacket(uint64_t timestamp) {
+  std::string CreateSchedProcessFreePacket(uint64_t timestamp) {
     protos::gen::TracePacket packet;
 
     packet.set_trusted_uid(9999);
@@ -142,26 +141,32 @@ class CollectTimelineEventsTest : public testing::Test,
     process_free->set_pid(kUnityTid);
     process_free->set_prio(120);
 
-    std::string packet_str = packet.SerializeAsString();
-    return build_.Collect(protos::pbzero::TracePacket::Decoder(packet_str),
-                          &context_);
+    return packet.SerializeAsString();
   }
-
-  CollectTimelineEvents build_;
-  Context context_;
 };
 
-class CollectTimelineEventsWithProcessTree : public CollectTimelineEventsTest {};
+class CollectTimelineEventsWithProcessTree : public CollectTimelineEventsTest {
+};
 
 TEST_P(CollectTimelineEventsWithProcessTree, FindsOpenSpans) {
   auto params = GetParam();
 
-  auto result = PushProcessTreePacket(kProcessTreeTimestamp);
-  ASSERT_OK(result) << result.message();
+  auto packet_str = CreateProcessTreePacket(kProcessTreeTimestamp);
 
-  context_.timeline->Sort();
+  protos::pbzero::TracePacket::Decoder packet(packet_str);
 
-  auto slice = context_.timeline->Search(params.ts(), params.pid());
+  Context context;
+  CollectTimelineEvents collector;
+  auto begin_status = collector.Begin(&context);
+  ASSERT_OK(begin_status) << begin_status.message();
+
+  auto packet_status = collector.Collect(packet, &context);
+  ASSERT_OK(packet_status) << packet_status.message();
+
+  auto end_status = collector.End(&context);
+  ASSERT_OK(end_status) << end_status.message();
+
+  auto slice = context.timeline->Search(params.ts(), params.pid());
   ASSERT_EQ(slice.pid, params.pid());
   ASSERT_EQ(slice.uid, params.uid());
 }
@@ -186,20 +191,33 @@ INSTANTIATE_TEST_SUITE_P(
         TestParams(kProcessTreeTimestamp + 1, kUnityTid, kUnityPackage)));
 
 // Assumes all CollectTimelineEventsWithProcessTree tests pass.
-class CollectTimelineEventsWithFreeProcess : public CollectTimelineEventsTest {};
+class CollectTimelineEventsWithFreeProcess : public CollectTimelineEventsTest {
+};
 
 TEST_P(CollectTimelineEventsWithFreeProcess, FindsClosedSpans) {
   auto params = GetParam();
 
-  auto result = PushProcessTreePacket(kProcessTreeTimestamp);
-  ASSERT_OK(result) << result.message();
+  auto packet_1_str = CreateProcessTreePacket(kProcessTreeTimestamp);
+  auto packet_2_str = CreateSchedProcessFreePacket(kThreadFreeTimestamp);
 
-  result = PushSchedProcessFreePacket(kThreadFreeTimestamp);
-  ASSERT_OK(result) << result.message();
+  protos::pbzero::TracePacket::Decoder packet_1(packet_1_str);
+  protos::pbzero::TracePacket::Decoder packet_2(packet_2_str);
 
-  context_.timeline->Sort();
+  Context context;
+  CollectTimelineEvents collector;
+  auto begin_status = collector.Begin(&context);
+  ASSERT_OK(begin_status) << begin_status.message();
 
-  auto slice = context_.timeline->Search(params.ts(), params.pid());
+  auto packet_1_status = collector.Collect(packet_1, &context);
+  ASSERT_OK(packet_1_status) << packet_1_status.message();
+
+  auto packet_2_status = collector.Collect(packet_2, &context);
+  ASSERT_OK(packet_2_status) << packet_2_status.message();
+
+  auto end_status = collector.End(&context);
+  ASSERT_OK(end_status) << end_status.message();
+
+  auto slice = context.timeline->Search(params.ts(), params.pid());
   ASSERT_EQ(slice.pid, params.pid());
   ASSERT_EQ(slice.uid, params.uid());
 }

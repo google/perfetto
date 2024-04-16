@@ -108,15 +108,21 @@ void AppendEvents(FtraceEventBundle::Decoder ftrace_events,
 
 }  // namespace
 
-base::Status CollectTimelineEvents::Collect(const TracePacket::Decoder& packet,
-                                    Context* context) const {
-  // TODO(vaage): This should only be true on the first call. However, that
-  // means a branch is called N times when N-1 times it will be false. This may
-  // be common across Collect primitives. Having a "begin" and "end" end-points.
-  if (!context->timeline) {
-    context->timeline = std::make_unique<ProcessThreadTimeline>();
+base::Status CollectTimelineEvents::Begin(Context* context) const {
+  // This primitive is artifically limited to owning the timeline. In practice
+  // there is no reason why multiple primitives could contribute to the
+  // timeline.
+  if (context->timeline) {
+    return base::ErrStatus(
+        "CollectTimelineEvents: timeline was already initialized");
   }
 
+  context->timeline = std::make_unique<ProcessThreadTimeline>();
+  return base::OkStatus();
+}
+
+base::Status CollectTimelineEvents::Collect(const TracePacket::Decoder& packet,
+                                            Context* context) const {
   // Unlike ftrace events, process trees do not provide per-process or
   // per-thread timing information. The packet has timestamp and the process
   // tree has collection_end_timestamp (collection_end_timestamp > timestamp).
@@ -134,6 +140,13 @@ base::Status CollectTimelineEvents::Collect(const TracePacket::Decoder& packet,
                  context->timeline.get());
   }
 
+  return base::OkStatus();
+}
+
+base::Status CollectTimelineEvents::End(Context* context) const {
+  // Sort must be called in order to read from the timeline. If any more events
+  // are added after this, then sort will need to be called again.
+  context->timeline->Sort();
   return base::OkStatus();
 }
 

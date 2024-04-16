@@ -27,8 +27,12 @@ namespace perfetto::trace_redaction {
 // packets and stores them in a timeline.
 class CollectTimelineEvents : public CollectPrimitive {
  public:
+  base::Status Begin(Context* context) const override;
+
   base::Status Collect(const protos::pbzero::TracePacket::Decoder& packet,
                        Context* context) const override;
+
+  base::Status End(Context* context) const override;
 };
 
 }  // namespace perfetto::trace_redaction
