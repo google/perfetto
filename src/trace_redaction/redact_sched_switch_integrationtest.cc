@@ -20,7 +20,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/base/test/status_matchers.h"
-#include "src/trace_redaction/build_timeline.h"
+#include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/optimize_timeline.h"
 #include "src/trace_redaction/redact_sched_switch.h"
@@ -43,7 +43,7 @@ class RedactSchedSwitchIntegrationTest
  protected:
   void SetUp() override {
     trace_redactor()->emplace_collect<FindPackageUid>();
-    trace_redactor()->emplace_collect<BuildTimeline>();
+    trace_redactor()->emplace_collect<CollectTimelineEvents>();
     trace_redactor()->emplace_build<OptimizeTimeline>();
 
     auto* ftrace_event_redactions =

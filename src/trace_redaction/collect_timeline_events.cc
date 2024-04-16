@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-#include "src/trace_redaction/build_timeline.h"
+#include "src/trace_redaction/collect_timeline_events.h"
 
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_redaction/process_thread_timeline.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
@@ -109,7 +108,7 @@ void AppendEvents(FtraceEventBundle::Decoder ftrace_events,
 
 }  // namespace
 
-base::Status BuildTimeline::Collect(const TracePacket::Decoder& packet,
+base::Status CollectTimelineEvents::Collect(const TracePacket::Decoder& packet,
                                     Context* context) const {
   // TODO(vaage): This should only be true on the first call. However, that
   // means a branch is called N times when N-1 times it will be false. This may

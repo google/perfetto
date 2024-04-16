@@ -18,7 +18,7 @@
 #include <string>
 
 #include "src/base/test/status_matchers.h"
-#include "src/trace_redaction/build_timeline.h"
+#include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
@@ -87,7 +87,7 @@ class TestParams {
 
 }  // namespace
 
-class BuildTimelineTest : public testing::Test,
+class CollectTimelineEventsTest : public testing::Test,
                           public testing::WithParamInterface<TestParams> {
  protected:
   base::Status PushProcessTreePacket(uint64_t timestamp) {
@@ -147,13 +147,13 @@ class BuildTimelineTest : public testing::Test,
                           &context_);
   }
 
-  BuildTimeline build_;
+  CollectTimelineEvents build_;
   Context context_;
 };
 
-class BuildTimelineWithProcessTree : public BuildTimelineTest {};
+class CollectTimelineEventsWithProcessTree : public CollectTimelineEventsTest {};
 
-TEST_P(BuildTimelineWithProcessTree, FindsOpenSpans) {
+TEST_P(CollectTimelineEventsWithProcessTree, FindsOpenSpans) {
   auto params = GetParam();
 
   auto result = PushProcessTreePacket(kProcessTreeTimestamp);
@@ -168,7 +168,7 @@ TEST_P(BuildTimelineWithProcessTree, FindsOpenSpans) {
 
 INSTANTIATE_TEST_SUITE_P(
     AcrossWholeTimeline,
-    BuildTimelineWithProcessTree,
+    CollectTimelineEventsWithProcessTree,
     testing::Values(
         // Before the processes/threads existed.
         TestParams(0, kZygotePid, kNoPackage),
@@ -185,10 +185,10 @@ INSTANTIATE_TEST_SUITE_P(
         TestParams(kProcessTreeTimestamp + 1, kUnityPid, kUnityPackage),
         TestParams(kProcessTreeTimestamp + 1, kUnityTid, kUnityPackage)));
 
-// Assumes all BuildTimelineWithProcessTree tests pass.
-class BuildTimelineWithFreeProcess : public BuildTimelineTest {};
+// Assumes all CollectTimelineEventsWithProcessTree tests pass.
+class CollectTimelineEventsWithFreeProcess : public CollectTimelineEventsTest {};
 
-TEST_P(BuildTimelineWithFreeProcess, FindsClosedSpans) {
+TEST_P(CollectTimelineEventsWithFreeProcess, FindsClosedSpans) {
   auto params = GetParam();
 
   auto result = PushProcessTreePacket(kProcessTreeTimestamp);
@@ -206,7 +206,7 @@ TEST_P(BuildTimelineWithFreeProcess, FindsClosedSpans) {
 
 INSTANTIATE_TEST_SUITE_P(
     AcrossWholeTimeline,
-    BuildTimelineWithFreeProcess,
+    CollectTimelineEventsWithFreeProcess,
     testing::Values(
         TestParams(kThreadFreeTimestamp - 1, kZygotePid, kNoPackage),
         TestParams(kThreadFreeTimestamp - 1, kUnityPid, kUnityPackage),

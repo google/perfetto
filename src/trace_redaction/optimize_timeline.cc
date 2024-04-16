@@ -24,7 +24,8 @@ namespace perfetto::trace_redaction {
 base::Status OptimizeTimeline::Build(Context* context) const {
   if (!context->timeline) {
     return base::ErrStatus(
-        "Cannot optimize a null timeline. Are you missing BuildTimeline or an "
+        "Cannot optimize a null timeline. Are you missing "
+        "CollectTimelineEvents or an "
         "alternative?");
   }
 
