@@ -98,7 +98,7 @@ class PerfDataTracker : public Destructible {
   uint64_t common_sample_type() { return common_sample_type_; }
 
   base::StatusOr<PerfSample> ParseSample(
-      perfetto::trace_processor::perf_importer::Reader&);
+      perfetto::trace_processor::perf_importer::PerfDataReader&);
 
  private:
   const perf_event_attr* FindAttrWithId(uint64_t id) const;

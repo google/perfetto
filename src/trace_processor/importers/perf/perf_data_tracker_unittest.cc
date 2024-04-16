@@ -121,7 +121,7 @@ TEST_F(PerfDataTrackerUnittest, ParseSampleTrivial) {
 
   TraceBlob blob =
       TraceBlob::CopyFrom(static_cast<const void*>(&ts), sizeof(uint64_t));
-  Reader reader(TraceBlobView(std::move(blob)));
+  PerfDataReader reader(TraceBlobView(std::move(blob)));
 
   auto parsed_sample = tracker->ParseSample(reader);
   EXPECT_TRUE(parsed_sample.ok());
@@ -149,7 +149,7 @@ TEST_F(PerfDataTrackerUnittest, ParseSampleCallchain) {
   memcpy(blob.data(), &sample.callchain_size, sizeof(uint64_t));
   memcpy(blob.data() + sizeof(uint64_t), sample.callchain.data(),
          sizeof(uint64_t) * 3);
-  Reader reader(TraceBlobView(std::move(blob)));
+  PerfDataReader reader(TraceBlobView(std::move(blob)));
 
   auto parsed_sample = tracker->ParseSample(reader);
   EXPECT_TRUE(parsed_sample.ok());
@@ -185,7 +185,7 @@ TEST_F(PerfDataTrackerUnittest, ParseSampleWithoutId) {
   memcpy(blob.data(), &sample, sizeof(Sample));
   memcpy(blob.data() + sizeof(Sample), callchain.data(), sizeof(uint64_t) * 3);
 
-  Reader reader(TraceBlobView(std::move(blob)));
+  PerfDataReader reader(TraceBlobView(std::move(blob)));
   EXPECT_TRUE(reader.CanReadSize(sizeof(Sample)));
 
   auto parsed_sample = tracker->ParseSample(reader);
@@ -229,7 +229,7 @@ TEST_F(PerfDataTrackerUnittest, ParseSampleWithId) {
   memcpy(blob.data(), &sample, sizeof(Sample));
   memcpy(blob.data() + sizeof(Sample), callchain.data(), sizeof(uint64_t) * 3);
 
-  Reader reader(TraceBlobView(std::move(blob)));
+  PerfDataReader reader(TraceBlobView(std::move(blob)));
 
   auto parsed_sample = tracker->ParseSample(reader);
   EXPECT_TRUE(parsed_sample.ok());

@@ -35,10 +35,10 @@ namespace perf_importer {
 // it's design is not related to perf. Responsible for hiding away the
 // complexity of reading values from TraceBlobView and glueing the tbvs together
 // in case there is data between many of them.
-class Reader {
+class PerfDataReader {
  public:
-  Reader() = default;
-  explicit Reader(TraceBlobView tbv) : tbv_(std::move(tbv)) {}
+  PerfDataReader() = default;
+  explicit PerfDataReader(TraceBlobView tbv) : tbv_(std::move(tbv)) {}
 
   // Updates old TraceBlobView with new one. If there is data left in the old
   // one, it will be saved in the buffer.
