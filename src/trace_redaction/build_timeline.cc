@@ -109,9 +109,8 @@ void AppendEvents(FtraceEventBundle::Decoder ftrace_events,
 
 }  // namespace
 
-base::StatusOr<CollectPrimitive::ContinueCollection> BuildTimeline::Collect(
-    const TracePacket::Decoder& packet,
-    Context* context) const {
+base::Status BuildTimeline::Collect(const TracePacket::Decoder& packet,
+                                    Context* context) const {
   // TODO(vaage): This should only be true on the first call. However, that
   // means a branch is called N times when N-1 times it will be false. This may
   // be common across Collect primitives. Having a "begin" and "end" end-points.
@@ -129,16 +128,14 @@ base::StatusOr<CollectPrimitive::ContinueCollection> BuildTimeline::Collect(
     AppendEvents(packet.timestamp(),
                  ProcessTree::Decoder(packet.process_tree()),
                  context->timeline.get());
-    return ContinueCollection::kNextPacket;
   }
 
   if (packet.has_ftrace_events()) {
     AppendEvents(FtraceEventBundle::Decoder(packet.ftrace_events()),
                  context->timeline.get());
-    return ContinueCollection::kNextPacket;
   }
 
-  return ContinueCollection::kNextPacket;
+  return base::OkStatus();
 }
 
 }  // namespace perfetto::trace_redaction

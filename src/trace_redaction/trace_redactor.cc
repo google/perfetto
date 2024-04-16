@@ -19,7 +19,6 @@
 #include <cstddef>
 #include <string>
 #include <string_view>
-#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -28,6 +27,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/trace.pbzero.h"
@@ -55,9 +55,8 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
   trace_processor::TraceBlobView whole_view(
       trace_processor::TraceBlob::FromMmap(std::move(mapped)));
 
-  if (auto status = Collect(context, whole_view); !status.ok()) {
-    return status;
-  }
+  // TODO(vaage): Update other status code to use RETURN_IF_ERROR.
+  RETURN_IF_ERROR(Collect(context, whole_view));
 
   if (auto status = Build(context); !status.ok()) {
     return status;
@@ -74,13 +73,8 @@ base::Status TraceRedactor::Redact(std::string_view source_filename,
 base::Status TraceRedactor::Collect(
     Context* context,
     const trace_processor::TraceBlobView& view) const {
-  // Mask, marking which collectors should be ran. When a collector no longer
-  // needs to run, the value will be null.
-  std::vector<const CollectPrimitive*> collectors;
-  collectors.reserve(collectors_.size());
-
   for (const auto& collector : collectors_) {
-    collectors.push_back(collector.get());
+    RETURN_IF_ERROR(collector->Begin(context));
   }
 
   const Trace::Decoder trace_decoder(view.data(), view.length());
@@ -88,28 +82,13 @@ base::Status TraceRedactor::Collect(
   for (auto packet_it = trace_decoder.packet(); packet_it; ++packet_it) {
     const TracePacket::Decoder packet(packet_it->as_bytes());
 
-    for (auto cit = collectors.begin(); cit != collectors.end();) {
-      auto status = (*cit)->Collect(packet, context);
-
-      if (!status.ok()) {
-        return status.status();
-      }
-
-      // If this collector has returned `kStop`, it means that it (and it alone)
-      // no longer needs to run. The driver (TraceRedactor) should not invoke it
-      // on any future packets.
-      if (status.value() == CollectPrimitive::ContinueCollection::kRetire) {
-        cit = collectors.erase(cit);
-      } else {
-        ++cit;
-      }
+    for (auto& collector : collectors_) {
+      RETURN_IF_ERROR(collector->Collect(packet, context));
     }
+  }
 
-    // If all the collectors have found what they were looking for, then there
-    // is no reason to continue through the trace.
-    if (collectors.empty()) {
-      break;
-    }
+  for (const auto& collector : collectors_) {
+    RETURN_IF_ERROR(collector->End(context));
   }
 
   return base::OkStatus();
