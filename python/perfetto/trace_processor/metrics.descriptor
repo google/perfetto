@@ -674,14 +674,14 @@ type_count (2,.perfetto.protos.JavaHeapHistogram.TypeCountR	typeCount«
 upid (RupidA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocessC
 samples (2).perfetto.protos.JavaHeapHistogram.SampleRsamples
-©
-5protos/perfetto/metrics/android/java_heap_stats.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"¦
+Õ
+5protos/perfetto/metrics/android/java_heap_stats.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ò
 JavaHeapStatsS
 instance_stats (2,.perfetto.protos.JavaHeapStats.InstanceStatsRinstanceStatsb
 	HeapRoots
 	root_type (	RrootType
 	type_name (	RtypeName
-	obj_count (RobjCount±
+	obj_count (RobjCountÝ
 Sample
 ts (Rts
 	heap_size (RheapSize(
@@ -693,7 +693,8 @@ type_count (2,.perfetto.protos.JavaHeapHistogram.TypeCountR	typeCount«
 anon_rss_and_swap_size (RanonRssAndSwapSize>
 roots (2(.perfetto.protos.JavaHeapStats.HeapRootsRroots"
 oom_score_adj
- (RoomScoreAdj§
+ (RoomScoreAdj*
+process_uptime_ms (RprocessUptimeMs§
 InstanceStats
 upid (RupidA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocess?
