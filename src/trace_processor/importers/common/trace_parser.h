@@ -43,6 +43,7 @@ class TraceParser {
   virtual void ParseTrackEvent(int64_t, TrackEventData);
   virtual void ParseSystraceLine(int64_t, SystraceLine);
 
+  virtual void ParseEtwEvent(uint32_t, int64_t, TracePacketData);
   virtual void ParseFtraceEvent(uint32_t, int64_t, TracePacketData);
   virtual void ParseInlineSchedSwitch(uint32_t, int64_t, InlineSchedSwitch);
   virtual void ParseInlineSchedWaking(uint32_t, int64_t, InlineSchedWaking);

@@ -35,6 +35,7 @@ namespace trace_processor {
 enum class ThreadNamePriority {
   kOther = 0,
   kFtrace = 1,
+  kEtwTrace = 1,
   kProcessTree = 2,
   kTrackDescriptorThreadType = 3,
   kTrackDescriptor = 4,

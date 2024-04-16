@@ -2344,6 +2344,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
         ":perfetto_src_trace_processor_importers_etw_full",
+        ":perfetto_src_trace_processor_importers_etw_minimal",
         ":perfetto_src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_ftrace_full",
         ":perfetto_src_trace_processor_importers_ftrace_minimal",
@@ -11484,8 +11485,17 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_importers_etw_full",
     srcs: [
-        "src/trace_processor/importers/etw/etw_module.cc",
+        "src/trace_processor/importers/etw/etw_module_impl.cc",
+        "src/trace_processor/importers/etw/etw_parser.cc",
         "src/trace_processor/importers/etw/etw_tokenizer.cc",
+    ],
+}
+
+// GN: //src/trace_processor/importers/etw:minimal
+filegroup {
+    name: "perfetto_src_trace_processor_importers_etw_minimal",
+    srcs: [
+        "src/trace_processor/importers/etw/etw_module.cc",
     ],
 }
 
@@ -14321,6 +14331,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
         ":perfetto_src_trace_processor_importers_common_unittests",
         ":perfetto_src_trace_processor_importers_etw_full",
+        ":perfetto_src_trace_processor_importers_etw_minimal",
         ":perfetto_src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_ftrace_full",
         ":perfetto_src_trace_processor_importers_ftrace_minimal",
@@ -15048,6 +15059,7 @@ cc_binary {
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
         ":perfetto_src_trace_processor_importers_etw_full",
+        ":perfetto_src_trace_processor_importers_etw_minimal",
         ":perfetto_src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_ftrace_full",
         ":perfetto_src_trace_processor_importers_ftrace_minimal",
@@ -15268,6 +15280,7 @@ cc_binary {
         ":perfetto_src_trace_processor_importers_common_common",
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
+        ":perfetto_src_trace_processor_importers_etw_minimal",
         ":perfetto_src_trace_processor_importers_ftrace_minimal",
         ":perfetto_src_trace_processor_importers_fuchsia_fuchsia_record",
         ":perfetto_src_trace_processor_importers_json_minimal",
@@ -15420,6 +15433,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_common_parser_types",
         ":perfetto_src_trace_processor_importers_common_trace_parser_hdr",
         ":perfetto_src_trace_processor_importers_etw_full",
+        ":perfetto_src_trace_processor_importers_etw_minimal",
         ":perfetto_src_trace_processor_importers_ftrace_ftrace_descriptors",
         ":perfetto_src_trace_processor_importers_ftrace_full",
         ":perfetto_src_trace_processor_importers_ftrace_minimal",
