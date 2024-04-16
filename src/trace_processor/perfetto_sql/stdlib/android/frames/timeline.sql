@@ -13,6 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE slices.with_context;
+INCLUDE PERFETTO MODULE android.frames.timeline_maxsdk28;
+
 -- Parses the slice name to fetch `frame_id` from `slice` table.
 -- Use with caution. Slice names are a flaky source of ids and the resulting
 -- table might require some further operations.
@@ -23,13 +26,16 @@ CREATE PERFETTO FUNCTION _get_frame_table_with_id(
     -- `slice.id` of the frame slice.
     id INT,
     -- Parsed frame id.
-    frame_id INT
+    frame_id INT,
+    -- Utid.
+    utid INT
 ) AS
 WITH all_found AS (
     SELECT
         id,
-        cast_int!(STR_SPLIT(name, ' ', 1)) AS frame_id
-    FROM slice
+        cast_int!(STR_SPLIT(name, ' ', 1)) AS frame_id,
+        utid
+    FROM thread_slice
     WHERE name GLOB $glob_str
 )
 SELECT *
@@ -47,11 +53,10 @@ CREATE PERFETTO TABLE android_frames_choreographer_do_frame(
     ui_thread_utid INT
 ) AS
 SELECT
-    c.*,
-    thread_track.utid AS ui_thread_utid
-FROM _get_frame_table_with_id('Choreographer#doFrame*') c
-JOIN slice USING (id)
-JOIN thread_track ON (thread_track.id = slice.track_id);
+    id,
+    frame_id,
+    utid AS ui_thread_utid
+FROM _get_frame_table_with_id('Choreographer#doFrame*');
 
 -- All of the `DrawFrame` slices with their frame id and render thread.
 -- There might be multiple DrawFrames slices for a single vsync (frame id).
@@ -66,11 +71,10 @@ CREATE PERFETTO TABLE android_frames_draw_frame(
     render_thread_utid INT
 ) AS
 SELECT
-    d.*,
-    thread_track.utid AS render_thread_utid
-FROM _get_frame_table_with_id('DrawFrame*') d
-JOIN slice USING (id)
-JOIN thread_track ON (thread_track.id = slice.track_id);
+    id,
+    frame_id,
+    utid AS render_thread_utid
+FROM _get_frame_table_with_id('DrawFrame*');
 
 -- `actual_frame_timeline_slice` returns the same slice on different tracks.
 -- We are getting the first slice with one frame id.
@@ -119,21 +123,47 @@ CREATE PERFETTO TABLE android_frames(
     -- `utid` of the UI thread.
     ui_thread_utid INT
 ) AS
+WITH frames_sdk_after_28 AS (
 SELECT
     frame_id,
     ts,
     dur,
     do_frame.id AS do_frame_id,
     draw_frame.id AS draw_frame_id,
-    act.id AS actual_frame_timeline_id,
-    exp.id AS expected_frame_timeline_id,
     draw_frame.render_thread_utid,
-    do_frame.ui_thread_utid
+    do_frame.ui_thread_utid,
+    "after_28" AS sdk,
+    act.id AS actual_frame_timeline_id,
+    exp.id AS expected_frame_timeline_id
 FROM android_frames_choreographer_do_frame do_frame
 JOIN android_frames_draw_frame draw_frame USING (frame_id)
 JOIN _distinct_from_actual_timeline_slice act USING (frame_id)
 JOIN _distinct_from_expected_timeline_slice exp USING (frame_id)
-ORDER BY frame_id;
+ORDER BY frame_id
+),
+all_frames AS (
+    SELECT * FROM frames_sdk_after_28
+    UNION
+    SELECT
+        *,
+        NULL AS actual_frame_timeline_id,
+        NULL AS expected_frame_timeline_id
+    FROM _frames_maxsdk_28
+)
+SELECT
+    frame_id,
+    ts,
+    dur,
+    do_frame_id,
+    draw_frame_id,
+    actual_frame_timeline_id,
+    expected_frame_timeline_id,
+    render_thread_utid,
+    ui_thread_utid
+FROM all_frames
+WHERE sdk = IIF(
+    (SELECT COUNT(1) FROM actual_frame_timeline_slice) > 0,
+    "after_28", "maxsdk28");
 
 -- Returns first frame after the provided timestamp. The returning table has at
 -- most one row.
