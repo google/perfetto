@@ -109,7 +109,6 @@ class AreaDetailsPanel implements m.ClassComponent {
         key,
         label: name,
         active: currentViewKey === key,
-        minimal: true,
       });
     });
 

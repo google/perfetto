@@ -42,6 +42,7 @@ import {convertTraceToPprofAndDownload} from './trace_converter';
 import {ButtonBar} from '../widgets/button';
 import {DurationWidget} from './widgets/duration';
 import {DetailsShell} from '../widgets/details_shell';
+import {Intent} from '../widgets/common';
 
 const HEADER_HEIGHT = 30;
 
@@ -143,6 +144,7 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
                 this.profileType === ProfileType.JAVA_HEAP_SAMPLES) &&
                 m(Button, {
                   icon: 'file_download',
+                  intent: Intent.Primary,
                   onclick: () => {
                     this.downloadPprof();
                   },
@@ -416,7 +418,6 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
     return m(Button, {
       label: text,
       active,
-      minimal: true,
       onclick: () => {
         globals.dispatch(Actions.changeViewFlamegraphState({viewingOption}));
       },

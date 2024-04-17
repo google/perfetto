@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {classNames} from '../base/classnames';
 
-import {HTMLAttrs, HTMLButtonAttrs} from './common';
+import {HTMLAttrs, HTMLButtonAttrs, Intent, classForIntent} from './common';
 import {Icon} from './icon';
 import {Popup} from './popup';
 import {Spinner} from './spinner';
@@ -31,9 +31,6 @@ interface CommonAttrs extends HTMLButtonAttrs {
   // Use minimal padding, reducing the overall size of the button by a few px.
   // Defaults to false.
   compact?: boolean;
-  // Reduces button decorations.
-  // Defaults to false.
-  minimal?: boolean;
   // Optional right icon.
   rightIcon?: string;
   // List of space separated class names forwarded to the icon.
@@ -47,6 +44,9 @@ interface CommonAttrs extends HTMLButtonAttrs {
   // Whether to use a filled icon
   // Defaults to false;
   iconFilled?: boolean;
+  // Indicate button colouring by intent.
+  // Defaults to undefined aka "None"
+  intent?: Intent;
 }
 
 interface IconButtonAttrs extends CommonAttrs {
@@ -69,11 +69,11 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       icon,
       active,
       compact,
-      minimal,
       rightIcon,
       className,
       dismissPopup,
       iconFilled,
+      intent = Intent.None,
       ...htmlAttrs
     } = attrs;
 
@@ -82,7 +82,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
     const classes = classNames(
       active && 'pf-active',
       compact && 'pf-compact',
-      minimal && 'pf-minimal',
+      classForIntent(intent),
       icon && !label && 'pf-icon-only',
       dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
       className,

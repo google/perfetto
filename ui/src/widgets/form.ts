@@ -17,6 +17,7 @@ import m from 'mithril';
 import {Button} from './button';
 import {HTMLAttrs, HTMLLabelAttrs} from './common';
 import {Popup} from './popup';
+import {Intent} from '../widgets/common';
 
 export interface FormAttrs extends HTMLAttrs {
   // Text to show on the "submit" button.
@@ -73,6 +74,7 @@ export class Form implements m.ClassComponent<FormAttrs> {
           label: submitLabel,
           rightIcon: submitIcon,
           className: Popup.DISMISS_POPUP_GROUP_CLASS,
+          intent: Intent.Primary,
           onclick: (e: Event) => {
             preventDefault && e.preventDefault();
             onSubmit();
@@ -84,13 +86,11 @@ export class Form implements m.ClassComponent<FormAttrs> {
             type: 'button',
             label: cancelLabel,
             className: Popup.DISMISS_POPUP_GROUP_CLASS,
-            minimal: true,
           }),
         // This reset button just clears the form.
         resetLabel &&
           m(Button, {
             label: resetLabel,
-            minimal: true,
             type: 'reset',
           }),
       ),
