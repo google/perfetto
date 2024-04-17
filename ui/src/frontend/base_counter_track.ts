@@ -963,6 +963,6 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   get unit(): string {
-    return this.getCounterOptions().unit ?? '?';
+    return this.getCounterOptions().unit ?? '';
   }
 }
