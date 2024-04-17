@@ -190,11 +190,13 @@ def _args_dict_from_uri(uri: str,
   """Creates an the args dictionary from a trace URI.
 
     URIs have the form:
-    android_ci:day=2021-01-01;devices=blueline,crosshatch;key>=value
+    android_ci:day=2021-01-01;devices=blueline,crosshatch;key>=value;\
+    version>=1;version<5
 
     This is converted to a dictionary of the form:
     {'day': '2021-01-01', 'id': ['blueline', 'crosshatch'],
-    'key': ConstraintClass('value', Op.GE)}
+    'key': ConstraintClass('value', Op.GE),
+    'version': [ConstraintClass(1, Op.GE), ConstraintClass(5, Op.LT)]}
   """
   _, args_str = util.parse_trace_uri(uri)
   if not args_str:
@@ -206,13 +208,14 @@ def _args_dict_from_uri(uri: str,
     (key, op, value) = _parse_arg(arg)
     lst = value.split(',')
     if len(lst) > 1:
-      args_dict[key] = lst
+      args_dict_value = lst
     else:
-      args_dict[key] = value
+      args_dict_value = value
 
     if key not in type_hints:
       if op != ConstraintClass.Op.EQ:
         raise ValueError(f'{key} only supports "=" operator')
+      args_dict[key] = args_dict_value
       continue
     have_constraint = False
     type_hint = type_hints[key]
@@ -227,5 +230,12 @@ def _args_dict_from_uri(uri: str,
       raise ValueError('Operator other than "=" passed to argument which '
                        'does not have constraint type: ' + arg)
     if have_constraint:
-      args_dict[key] = ConstraintClass(args_dict[key], op)
+      if key not in args_dict:
+        args_dict[key] = ConstraintClass(args_dict_value, op)
+      else:
+        if isinstance(args_dict[key], ConstraintClass):
+          args_dict[key] = [args_dict[key]]
+        args_dict[key].append(ConstraintClass(args_dict_value, op))
+    else:
+      args_dict[key] = args_dict_value
   return args_dict
