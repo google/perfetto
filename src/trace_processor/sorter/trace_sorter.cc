@@ -211,18 +211,21 @@ void TraceSorter::ParseTracePacket(TraceParser* parser,
       return;
     case TimestampedEvent::Type::kInlineSchedSwitch:
     case TimestampedEvent::Type::kInlineSchedWaking:
-    case TimestampedEvent::Type::kFtraceEvent:
     case TimestampedEvent::Type::kEtwEvent:
+    case TimestampedEvent::Type::kFtraceEvent:
       PERFETTO_FATAL("Invalid event type");
   }
   PERFETTO_FATAL("For GCC");
 }
 
-void TraceSorter::ParseEtwPacket(TraceParser* /*parser*/,
-                                 uint32_t /*cpu*/,
+void TraceSorter::ParseEtwPacket(TraceParser* parser,
+                                 uint32_t cpu,
                                  const TimestampedEvent& event) {
+  TraceTokenBuffer::Id id = GetTokenBufferId(event);
   switch (static_cast<TimestampedEvent::Type>(event.event_type)) {
     case TimestampedEvent::Type::kEtwEvent:
+      parser->ParseEtwEvent(cpu, event.ts,
+                            token_buffer_.Extract<TracePacketData>(id));
       return;
     case TimestampedEvent::Type::kInlineSchedSwitch:
     case TimestampedEvent::Type::kInlineSchedWaking:

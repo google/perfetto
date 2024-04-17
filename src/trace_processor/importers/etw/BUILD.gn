@@ -14,14 +14,30 @@
 
 import("../../../../gn/test.gni")
 
-source_set("full") {
+source_set("minimal") {
   sources = [
     "etw_module.cc",
     "etw_module.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../common:parser_types",
+    "../common:trace_parser_hdr",
+    "../proto:proto_importer_module",
+  ]
+}
+
+source_set("full") {
+  sources = [
+    "etw_module_impl.cc",
+    "etw_module_impl.h",
+    "etw_parser.cc",
+    "etw_parser.h",
     "etw_tokenizer.cc",
     "etw_tokenizer.h",
   ]
   deps = [
+    ":minimal",
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/trace:zero",
