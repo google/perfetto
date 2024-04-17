@@ -22,6 +22,7 @@ import {exists} from '../base/utils';
 import {PluginDescriptor} from '../public';
 import {createPage} from './pages';
 import {defaultPlugins} from '../core/default_plugins';
+import {Intent} from '../widgets/common';
 
 export const PluginsPage = createPage({
   view() {
@@ -31,7 +32,7 @@ export const PluginsPage = createPage({
       m(
         '.pf-plugins-topbar',
         m(Button, {
-          minimal: false,
+          intent: Intent.Primary,
           label: 'Disable All',
           onclick: async () => {
             for (const plugin of pluginRegistry.values()) {
@@ -41,7 +42,7 @@ export const PluginsPage = createPage({
           },
         }),
         m(Button, {
-          minimal: false,
+          intent: Intent.Primary,
           label: 'Enable All',
           onclick: async () => {
             for (const plugin of pluginRegistry.values()) {
@@ -51,7 +52,7 @@ export const PluginsPage = createPage({
           },
         }),
         m(Button, {
-          minimal: false,
+          intent: Intent.Primary,
           label: 'Restore Defaults',
           onclick: async () => {
             await pluginManager.restoreDefaults(true);
@@ -95,6 +96,7 @@ function renderPluginRow(plugin: PluginDescriptor): m.Children {
       : m('.pf-tag.pf-inactive', 'Inactive'),
     m(Button, {
       label: isActive ? 'Disable' : 'Enable',
+      intent: Intent.Primary,
       onclick: async () => {
         if (isActive) {
           await pluginManager.disablePlugin(pluginId, true);

@@ -30,6 +30,7 @@ import {escapeGlob, escapeQuery} from '../../trace_processor/query_utils';
 import {Select} from '../../widgets/select';
 import {Button} from '../../widgets/button';
 import {TextInput} from '../../widgets/text_input';
+import {Intent} from '../../widgets/common';
 
 const ROW_H = 20;
 
@@ -285,6 +286,7 @@ class LogTagChip implements m.ClassComponent<LogTagChipAttrs> {
       label: attrs.name,
       rightIcon: 'close',
       onclick: () => attrs.removeTag(attrs.name),
+      intent: Intent.Primary,
     });
   }
 }
@@ -371,7 +373,6 @@ class FilterByTextWidget implements m.ClassComponent<FilterByTextWidgetAttrs> {
       icon,
       title: tooltip,
       disabled: attrs.disabled,
-      minimal: true,
       onclick: attrs.onClick,
     });
   }

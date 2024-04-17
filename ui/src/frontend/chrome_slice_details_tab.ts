@@ -399,7 +399,6 @@ export class ChromeSliceDetailsTab extends BottomTab<ChromeSliceDetailsTabConfig
     const contextMenuItems = getSliceContextMenuItems(sliceInfo);
     if (contextMenuItems.length > 0) {
       const trigger = m(Button, {
-        minimal: true,
         compact: true,
         label: 'Contextual Options',
         rightIcon: Icons.ContextMenu,
