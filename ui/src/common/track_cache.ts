@@ -180,6 +180,7 @@ export class TrackManager {
 }
 
 enum TrackFSMState {
+  NotCreated = 'not_created',
   Creating = 'creating',
   Ready = 'ready',
   UpdatePending = 'update_pending',
@@ -200,20 +201,22 @@ class TrackFSM implements TrackCacheEntry {
   constructor(
     public track: Track,
     public desc: TrackDescriptor,
-    ctx: TrackContext,
+    private readonly ctx: TrackContext,
   ) {
-    this.state = TrackFSMState.Creating;
-    const result = this.track.onCreate?.(ctx);
-    Promise.resolve(result)
-      .then(() => this.onTrackCreated())
-      .catch((e) => {
-        this.error = e;
-        this.state = TrackFSMState.Error;
-      });
+    this.state = TrackFSMState.NotCreated;
   }
 
   update(): void {
     switch (this.state) {
+      case TrackFSMState.NotCreated:
+        Promise.resolve(this.track.onCreate?.(this.ctx))
+          .then(() => this.onTrackCreated())
+          .catch((e) => {
+            this.error = e;
+            this.state = TrackFSMState.Error;
+          });
+        this.state = TrackFSMState.Creating;
+        break;
       case TrackFSMState.Creating:
       case TrackFSMState.Updating:
         this.state = TrackFSMState.UpdatePending;
@@ -240,6 +243,10 @@ class TrackFSM implements TrackCacheEntry {
 
   destroy(): void {
     switch (this.state) {
+      case TrackFSMState.NotCreated:
+        // Nothing to do
+        this.state = TrackFSMState.Destroyed;
+        break;
       case TrackFSMState.Ready:
         // Don't bother awaiting this as the track can no longer be used.
         Promise.resolve(this.track.onDestroy?.()).catch(() => {
@@ -267,6 +274,7 @@ class TrackFSM implements TrackCacheEntry {
         this.track.onDestroy?.();
         this.state = TrackFSMState.Destroyed;
         break;
+      case TrackFSMState.Creating:
       case TrackFSMState.UpdatePending:
         const result = this.track.onUpdate?.();
         Promise.resolve(result)
@@ -276,9 +284,6 @@ class TrackFSM implements TrackCacheEntry {
             this.state = TrackFSMState.Error;
           });
         this.state = TrackFSMState.Updating;
-        break;
-      case TrackFSMState.Creating:
-        this.state = TrackFSMState.Ready;
         break;
       case TrackFSMState.Error:
         break;
