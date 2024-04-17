@@ -74,8 +74,8 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
                                         uint32_t next_pid,
                                         base::StringView next_comm,
                                         int32_t next_prio) {
-  if (!context_->sched_event_tracker->UpdateEventTrackerTimestamp(ts,
-      "sched_switch",stats::sched_switch_out_of_order)) {
+  if (!context_->sched_event_tracker->UpdateEventTrackerTimestamp(
+          ts, "sched_switch", stats::sched_switch_out_of_order)) {
     return;
   }
 
@@ -267,7 +267,6 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
       ts, wakee_utid, curr_utid, common_flags);
 }
 
-PERFETTO_ALWAYS_INLINE
 void FtraceSchedEventTracker::AddRawSchedSwitchEvent(uint32_t cpu,
                                                      int64_t ts,
                                                      UniqueTid prev_utid,

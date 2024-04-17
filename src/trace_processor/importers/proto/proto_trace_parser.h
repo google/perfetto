@@ -49,6 +49,10 @@ class ProtoTraceParser : public TraceParser {
   void ParseTrackEvent(int64_t ts, TrackEventData data) override;
   void ParseTracePacket(int64_t ts, TracePacketData data) override;
 
+  void ParseEtwEvent(uint32_t cpu,
+                     int64_t /*ts*/,
+                     TracePacketData data) override;
+
   void ParseFtraceEvent(uint32_t cpu,
                         int64_t /*ts*/,
                         TracePacketData data) override;
