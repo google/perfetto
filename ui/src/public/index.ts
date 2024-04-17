@@ -177,10 +177,15 @@ export interface SliceRect {
 
 export interface Track {
   /**
-   * Optional: Called when the track is first materialized on the timeline.
+   * Optional: Called once before onUpdate is first called.
+   *
    * If this function returns a Promise, this promise is awaited before onUpdate
    * or onDestroy is called. Any calls made to these functions in the meantime
    * will be queued up and the hook will be called later once onCreate returns.
+   *
+   * Exactly when this hook is called is left purposely undefined. The only
+   * guarantee is that it will be called once before onUpdate is first called.
+   *
    * @param ctx Our track context object.
    */
   onCreate?(ctx: TrackContext): Promise<void> | void;

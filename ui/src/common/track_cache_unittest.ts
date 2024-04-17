@@ -63,8 +63,10 @@ describe('TrackCache', () => {
   it('reuses tracks', async () => {
     const first = trackCache.resolveTrack('foo', td);
     trackCache.flushOldTracks();
+    first.update();
     const second = trackCache.resolveTrack('foo', td);
     trackCache.flushOldTracks();
+    second.update();
 
     // Ensure onCreate only called once
     expect(track.onCreate).toHaveBeenCalledTimes(1);
@@ -72,7 +74,8 @@ describe('TrackCache', () => {
   });
 
   it('destroys tracks', async () => {
-    trackCache.resolveTrack('foo', td);
+    const t = trackCache.resolveTrack('foo', td);
+    t.update();
 
     // Double flush should destroy all tracks
     trackCache.flushOldTracks();
