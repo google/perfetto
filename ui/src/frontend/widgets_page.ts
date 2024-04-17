@@ -49,6 +49,7 @@ import {createPage} from './pages';
 import {PopupMenuButton} from './popup_menu';
 import {TableShowcase} from './tables/table_showcase';
 import {TreeTable, TreeTableAttrs} from './widgets/treetable';
+import {Intent} from '../widgets/common';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -290,6 +291,7 @@ function PortalButton() {
       return [
         m(Button, {
           label: 'Toggle Portal',
+          intent: Intent.Primary,
           onclick: () => {
             portalOpen = !portalOpen;
             raf.scheduleFullRedraw();
@@ -586,7 +588,7 @@ export const WidgetsPage = createPage({
           icon: true,
           rightIcon: false,
           disabled: false,
-          minimal: false,
+          intent: new EnumOption(Intent.None, Object.values(Intent)),
           active: false,
           compact: false,
           loading: false,

@@ -39,6 +39,7 @@ import {TimeScale} from './time_scale';
 import {getLegacySelection} from '../common/state';
 import {CloseTrackButton} from './close_track_button';
 import {exists} from '../base/utils';
+import {Intent} from '../widgets/common';
 
 function getTitleSize(title: string): string | undefined {
   const length = title.length;
@@ -99,7 +100,6 @@ export class CrashButton implements m.ClassComponent<CrashButtonAttrs> {
       {
         trigger: m(Button, {
           icon: Icons.Crashed,
-          minimal: true,
         }),
       },
       this.renderErrorMessage(attrs.error),
@@ -112,6 +112,7 @@ export class CrashButton implements m.ClassComponent<CrashButtonAttrs> {
       'This track has crashed',
       m(Button, {
         label: 'Re-raise exception',
+        intent: Intent.Primary,
         className: Popup.DISMISS_POPUP_GROUP_CLASS,
         onclick: () => {
           throw error;
@@ -190,7 +191,6 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             icon: Icons.Pin,
             iconFilled: pinned,
             title: pinned ? 'Unpin' : 'Pin to top',
-            minimal: true,
             compact: true,
           }),
           currentSelection !== null && currentSelection.kind === 'AREA'
@@ -204,7 +204,6 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
                   );
                   e.stopPropagation();
                 },
-                minimal: true,
                 compact: true,
                 icon: isSelected(attrs.trackKey)
                   ? Icons.Checkbox

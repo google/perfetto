@@ -94,13 +94,11 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
         icon: Icons.GoBack,
         disabled: !this.state.canGoBack(),
         onclick: () => this.state.goBack(),
-        minimal: true,
       }),
       m(Button, {
         icon: Icons.GoForward,
         disabled: !this.state.canGoForward(),
         onclick: () => this.state.goForward(),
-        minimal: true,
       }),
     ];
     const {selectStatement, columns} = this.state.buildSqlSelectStatement();

@@ -34,7 +34,6 @@ export class CloseTrackButton
       },
       icon: Icons.Close,
       title: 'Close',
-      minimal: true,
       compact: true,
     });
   }

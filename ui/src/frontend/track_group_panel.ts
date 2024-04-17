@@ -150,7 +150,6 @@ export class TrackGroupPanel implements Panel {
                 e.stopPropagation();
               },
               icon: checkBox,
-              minimal: true,
               compact: true,
             }),
         ),
