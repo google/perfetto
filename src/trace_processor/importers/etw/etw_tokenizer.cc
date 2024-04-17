@@ -50,9 +50,11 @@ base::Status EtwTokenizer::TokenizeEtwBundle(TraceBlobView bundle,
   // in case the EtwTraceEvent does not contain the cpu.
   std::optional<uint32_t> bundle_cpu =
       decoder.has_cpu() ? std::make_optional(decoder.cpu()) : std::nullopt;
-  auto it = decoder.event();
-  return TokenizeEtwEvent(bundle_cpu, bundle.slice(it->data(), it->size()),
-                          state);
+
+  for (auto it = decoder.event(); it; ++it) {
+    TokenizeEtwEvent(bundle_cpu, bundle.slice(it->data(), it->size()), state);
+  }
+  return base::OkStatus();
 }
 
 PERFETTO_ALWAYS_INLINE

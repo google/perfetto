@@ -46,6 +46,12 @@ WHEN 'K' THEN 'Wakekill'
 WHEN 'W' THEN 'Waking'
 WHEN 'P' THEN 'Parked'
 WHEN 'N' THEN 'No Load'
+-- ETW SPECIFIC STATES
+WHEN 'Stand By' THEN 'Stand By'
+WHEN 'Initialized' THEN 'Initialized'
+WHEN 'Waiting' THEN 'Waiting'
+WHEN 'Transition' THEN 'Transition'
+WHEN 'Deferred Ready' THEN 'Deferred Ready'
 ELSE $short_name
 END;
 

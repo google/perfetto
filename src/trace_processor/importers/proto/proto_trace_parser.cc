@@ -36,6 +36,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
@@ -109,6 +110,18 @@ void ProtoTraceParser::ParseTrackEvent(int64_t ts, TrackEventData data) {
   const TraceBlobView& blob = data.trace_packet_data.packet;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   context_->track_module->ParseTrackEventData(packet, ts, data);
+  context_->args_tracker->Flush();
+}
+
+void ProtoTraceParser::ParseEtwEvent(uint32_t cpu,
+                                     int64_t ts,
+                                     TracePacketData data) {
+  PERFETTO_DCHECK(context_->etw_module);
+  context_->etw_module->ParseEtwEventData(cpu, ts, data);
+
+  // TODO(lalitm): maybe move this to the flush method in the trace processor
+  // once we have it. This may reduce performance in the ArgsTracker though so
+  // needs to be handled carefully.
   context_->args_tracker->Flush();
 }
 

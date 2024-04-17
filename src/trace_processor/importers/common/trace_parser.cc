@@ -51,6 +51,9 @@ void TraceParser::ParseInlineSchedSwitch(uint32_t, int64_t, InlineSchedSwitch) {
 void TraceParser::ParseInlineSchedWaking(uint32_t, int64_t, InlineSchedWaking) {
   PERFETTO_FATAL("Wrong parser type");
 }
+void TraceParser::ParseEtwEvent(uint32_t, int64_t, TracePacketData) {
+  PERFETTO_FATAL("Wrong parser type");
+}
 
 }  // namespace trace_processor
 }  // namespace perfetto
