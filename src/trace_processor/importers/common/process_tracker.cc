@@ -15,10 +15,10 @@
  */
 
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/storage/stats.h"
 
-#include <cinttypes>
 #include <utility>
+
+#include "src/trace_processor/storage/stats.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -102,7 +102,7 @@ void ProcessTracker::EndThread(int64_t timestamp, uint32_t tid) {
   // Remove the thread from the list of threads being tracked as any event after
   // this one should be ignored.
   auto& vector = tids_[tid];
-  vector.erase(std::remove(vector.begin(), vector.end(), utid));
+  vector.erase(std::remove(vector.begin(), vector.end(), utid), vector.end());
 
   auto opt_upid = thread_table->upid()[utid];
   if (!opt_upid.has_value() || process_table->pid()[*opt_upid] != tid)
@@ -536,13 +536,11 @@ void ProcessTracker::AssociateThreadToProcess(UniqueTid utid, UniquePid upid) {
 }
 
 void ProcessTracker::SetPidZeroIsUpidZeroIdleProcess() {
-  auto swapper_id = context_->storage->InternString("swapper");
-
   // Create a mapping from (t|p)id 0 -> u(t|p)id for the idle process.
   tids_.Insert(0, std::vector<UniqueTid>{swapper_utid_});
   pids_.Insert(0, swapper_upid_);
 
-  // Set the hardcoded, constant "swapper" thread name to the thread.
+  auto swapper_id = context_->storage->InternString("swapper");
   UpdateThreadName(0, swapper_id, ThreadNamePriority::kTraceProcessorConstant);
 }
 

@@ -15,8 +15,10 @@
  */
 
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
+
 #include <cstdint>
 #include <optional>
+
 #include "src/trace_processor/importers/common/process_tracker.h"
 
 namespace perfetto {
@@ -182,7 +184,10 @@ uint32_t ThreadStateTracker::CommonFlagsToIrqContext(uint32_t common_flags) {
   // If common_flags contains TRACE_FLAG_HARDIRQ | TRACE_FLAG_SOFTIRQ, wakeup
   // was emitted in interrupt context.
   // See:
-  // https://cs.android.com/android/kernel/superproject/+/common-android-mainline:common/include/trace/trace_events.h
+  // https://cs.android.com/android/kernel/superproject/+/common-android-mainline:common/include/linux/trace_events.h
+  // TODO(rsavitski): we could also include TRACE_FLAG_NMI for a complete
+  // "interrupt context" meaning. But at the moment it's not necessary as this
+  // is used for sched_waking events, which are not emitted from NMI contexts.
   return common_flags & (0x08 | 0x10) ? 1 : 0;
 }
 
