@@ -68,6 +68,8 @@ source_set("trace_redaction") {
     "scrub_process_trees.h",
     "scrub_trace_packet.cc",
     "scrub_trace_packet.h",
+    "suspend_resume.cc",
+    "suspend_resume.h",
     "trace_redaction_framework.cc",
     "trace_redaction_framework.h",
     "trace_redactor.cc",
@@ -132,6 +134,7 @@ perfetto_unittest_source_set("unittests") {
     "redact_process_free_unittest.cc",
     "redact_sched_switch_unittest.cc",
     "redact_task_newtask_unittest.cc",
+    "suspend_resume_unittest.cc",
   ]
   deps = [
     ":trace_redaction",
