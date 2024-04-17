@@ -140,6 +140,7 @@ perfetto_unittest_source_set("unittests") {
     ":trace_redaction",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
+    "../../include/perfetto/ext/base:base",
     "../../include/perfetto/protozero:protozero",
     "../../protos/perfetto/config:cpp",
     "../../protos/perfetto/config:zero",

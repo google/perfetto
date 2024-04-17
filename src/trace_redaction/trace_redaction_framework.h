@@ -24,7 +24,6 @@
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
 #include "src/trace_redaction/process_thread_timeline.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
