@@ -16,6 +16,7 @@
 
 #include <string>
 
+#include "perfetto/ext/base/status_or.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_redaction/filter_packet_using_allowlist.h"
 #include "src/trace_redaction/scrub_trace_packet.h"
