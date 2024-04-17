@@ -14,63 +14,37 @@
  * limitations under the License.
  */
 
-#include <string>
-#include <string_view>
 #include <vector>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/file_utils.h"
 #include "src/base/test/status_matchers.h"
-#include "src/base/test/utils.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
+#include "src/trace_redaction/trace_redaction_integration_fixture.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace//ftrace/ftrace_event.pbzero.h"
-#include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
-namespace {
-using FtraceEvent = protos::pbzero::FtraceEvent;
-using PackagesList = protos::pbzero::PackagesList;
-using PackageInfo = protos::pbzero::PackagesList::PackageInfo;
-using Trace = protos::pbzero::Trace;
-using TracePacket = protos::pbzero::TracePacket;
-
-constexpr std::string_view kTracePath =
-    "test/data/trace-redaction-general.pftrace";
-
 // Runs ScrubFtraceEvents over an actual trace, verifying packet integrity when
 // fields are removed.
-class ScrubFtraceEventsIntegrationTest : public testing::Test {
+class ScrubFtraceEventsIntegrationTest
+    : public testing::Test,
+      protected TraceRedactionIntegrationFixure {
  public:
   ScrubFtraceEventsIntegrationTest() = default;
   ~ScrubFtraceEventsIntegrationTest() override = default;
 
  protected:
   void SetUp() override {
-    src_trace_ = base::GetTestDataPath(std::string(kTracePath));
-    context_.ftrace_packet_allow_list.insert(
+    context()->ftrace_packet_allow_list.insert(
         protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber);
-  }
 
-  std::string src_trace_;
-
-  Context context_;  // Used for allowlist.
-  ScrubFtraceEvents transform_;
-
-  static base::StatusOr<std::string> ReadRawTrace(const std::string& path) {
-    std::string redacted_buffer;
-
-    if (base::ReadFile(path, &redacted_buffer)) {
-      return redacted_buffer;
-    }
-
-    return base::ErrStatus("Failed to read %s", path.c_str());
+    trace_redactor()->emplace_transform<ScrubFtraceEvents>();
   }
 
   // Gets spans for `event` messages that contain `sched_switch` messages.
@@ -137,23 +111,34 @@ class ScrubFtraceEventsIntegrationTest : public testing::Test {
 };
 
 TEST_F(ScrubFtraceEventsIntegrationTest, FindsPackageAndFiltersPackageList) {
-  const auto& src_file = src_trace_;
+  auto redacted = Redact();
+  ASSERT_OK(redacted) << redacted.message();
 
-  auto raw_src_trace = ReadRawTrace(src_file);
-  ASSERT_OK(raw_src_trace);
+  // Load source.
+  auto before_raw_trace = LoadOriginal();
+  ASSERT_OK(before_raw_trace) << before_raw_trace.status().message();
+  protos::pbzero::Trace::Decoder before_trace(before_raw_trace.value());
+  auto before_it = before_trace.packet();
 
-  protos::pbzero::Trace::Decoder source_trace(raw_src_trace.value());
+  // Load redacted.
+  auto after_raw_trace = LoadRedacted();
+  ASSERT_OK(after_raw_trace) << after_raw_trace.status().message();
+  protos::pbzero::Trace::Decoder after_trace(after_raw_trace.value());
+  auto after_it = after_trace.packet();
 
-  for (auto packet_it = source_trace.packet(); packet_it; ++packet_it) {
-    auto packet = packet_it->as_std_string();
-    ASSERT_OK(transform_.Transform(context_, &packet));
+  while (before_it && after_it) {
+    protos::pbzero::TracePacket::Decoder before_packet(*before_it);
+    protos::pbzero::TracePacket::Decoder after_packet(*after_it);
 
-    protos::pbzero::TracePacket::Decoder left_packet(*packet_it);
-    protos::pbzero::TracePacket::Decoder right_packet(packet);
+    ComparePackets(std::move(before_packet), std::move(after_packet));
 
-    ComparePackets(std::move(left_packet), std::move(right_packet));
+    ++before_it;
+    ++after_it;
   }
+
+  // Both should be at the end.
+  ASSERT_FALSE(before_it);
+  ASSERT_FALSE(after_it);
 }
 
-}  // namespace
 }  // namespace perfetto::trace_redaction
