@@ -293,7 +293,7 @@ class TraceViewer implements m.ClassComponent {
           },
         },
         m(
-          '.header',
+          '.pf-timeline-header',
           m(PanelContainer, {
             className: 'header-panel-container',
             panels: [
