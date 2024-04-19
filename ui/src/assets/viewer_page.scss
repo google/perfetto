@@ -24,13 +24,15 @@
     z-index: 1;
     flex-grow: 0;
     flex-shrink: 0;
-    overflow: hidden;
+    overflow-x: hidden;
     overflow-y: auto;
+    scrollbar-gutter: stable;
   }
 
   .scrolling-panel-container {
     overflow-x: hidden;
     overflow-y: auto;
+    scrollbar-gutter: stable;
     flex: 1 1 auto;
     will-change: transform; // Force layer creation.
   }
@@ -40,10 +42,21 @@
     overflow: auto;
   }
 
-  .header-panel-container {
-    overflow: visible;
+  .pf-timeline-header {
+    display: flex;
+    flex-direction: row;
     box-shadow: 1px 3px 15px rgba(23, 32, 44, 0.3);
     z-index: 2;
+
+    .header-panel-container {
+      flex-grow: 1;
+    }
+
+    .scrollbar-spacer-vertical {
+      scrollbar-gutter: stable;
+      overflow-y: scroll;
+      visibility: hidden;
+    }
   }
 
   .pan-and-zoom-content {
@@ -68,6 +81,9 @@
 
   .notes-panel {
     height: 20px;
+    .pf-toolbar {
+      font-size: 24px;
+    }
   }
 
   .time-selection-panel {

@@ -608,5 +608,15 @@ message FtraceEvent {
     RpmStatusFtraceEvent rpm_status = 489;
     PanelWriteGenericFtraceEvent panel_write_generic = 490;
     SchedMigrateTaskFtraceEvent sched_migrate_task = 491;
+    DpuDsiCmdFifoStatusFtraceEvent dpu_dsi_cmd_fifo_status = 492;
+    DpuDsiRxFtraceEvent dpu_dsi_rx = 493;
+    DpuDsiTxFtraceEvent dpu_dsi_tx = 494;
+    F2fsBackgroundGcFtraceEvent f2fs_background_gc = 495;
+    F2fsGcBeginFtraceEvent f2fs_gc_begin = 496;
+    F2fsGcEndFtraceEvent f2fs_gc_end = 497;
+    FastrpcDmaFreeFtraceEvent fastrpc_dma_free = 498;
+    FastrpcDmaAllocFtraceEvent fastrpc_dma_alloc = 499;
+    FastrpcDmaUnmapFtraceEvent fastrpc_dma_unmap = 500;
+    FastrpcDmaMapFtraceEvent fastrpc_dma_map = 501;
   }
 }

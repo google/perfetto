@@ -209,7 +209,6 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
               onTabClose(key);
               event.preventDefault();
             },
-            minimal: true,
             compact: true,
             icon: 'close',
           }),
@@ -237,7 +236,6 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
           title: 'Open fullscreen',
           disabled: this.isFullscreen,
           icon: 'vertical_align_top',
-          minimal: true,
           compact: true,
         }),
         m(Button, {
@@ -246,7 +244,6 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
           },
           title,
           icon,
-          minimal: true,
           compact: true,
         }),
       ),
@@ -258,7 +255,6 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
       PopupMenu2,
       {
         trigger: m(Button, {
-          minimal: true,
           compact: true,
           icon: 'more_vert',
           disabled: entries.length === 0,

@@ -20,10 +20,10 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/android/packages_list.pbzero.h"
 #include "src/trace_redaction/proto_util.h"
+
+#include "protos/perfetto/trace/android/packages_list.pbzero.h"
 
 namespace perfetto::trace_redaction {
 namespace {

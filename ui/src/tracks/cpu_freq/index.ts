@@ -29,7 +29,6 @@ import {PanelSize} from '../../frontend/panel';
 import {
   EngineProxy,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   Track,
@@ -522,8 +521,6 @@ class CpuFreqTrack implements Track {
 }
 
 class CpuFreq implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
 

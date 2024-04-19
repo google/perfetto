@@ -21,7 +21,7 @@ import {Actions} from '../common/actions';
 import {randomColor} from '../core/colorizer';
 import {AreaNote, Note, getLegacySelection} from '../common/state';
 import {raf} from '../core/raf_scheduler';
-import {Button} from '../widgets/button';
+import {Button, ButtonBar} from '../widgets/button';
 
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {TRACK_SHELL_WIDTH} from './css_constants';
@@ -89,46 +89,37 @@ export class NotesPanel implements Panel {
           globals.dispatch(Actions.setHoveredNoteTimestamp({ts: Time.INVALID}));
         },
       },
-      isTraceLoaded()
-        ? [
-            m(
-              'button',
-              {
-                onclick: (e: Event) => {
-                  e.preventDefault();
-                  if (allCollapsed) {
-                    globals.commandManager.runCommand(
-                      'dev.perfetto.CoreCommands#ExpandAllGroups',
-                    );
-                  } else {
-                    globals.commandManager.runCommand(
-                      'dev.perfetto.CoreCommands#CollapseAllGroups',
-                    );
-                  }
-                },
-              },
-              m(
-                'i.material-icons',
-                {title: allCollapsed ? 'Expand all' : 'Collapse all'},
-                allCollapsed ? 'unfold_more' : 'unfold_less',
-              ),
-            ),
-            m(
-              'button',
-              {
-                onclick: (e: Event) => {
-                  e.preventDefault();
-                  globals.dispatch(Actions.clearAllPinnedTracks({}));
-                },
-              },
-              m(
-                'i.material-icons',
-                {title: 'Clear all pinned tracks'},
-                'clear_all',
-              ),
-            ),
-          ]
-        : '',
+      isTraceLoaded() &&
+        m(
+          ButtonBar,
+          {className: 'pf-toolbar'},
+          m(Button, {
+            onclick: (e: Event) => {
+              e.preventDefault();
+              if (allCollapsed) {
+                globals.commandManager.runCommand(
+                  'dev.perfetto.CoreCommands#ExpandAllGroups',
+                );
+              } else {
+                globals.commandManager.runCommand(
+                  'dev.perfetto.CoreCommands#CollapseAllGroups',
+                );
+              }
+            },
+            title: allCollapsed ? 'Expand all' : 'Collapse all',
+            icon: allCollapsed ? 'unfold_more' : 'unfold_less',
+            compact: true,
+          }),
+          m(Button, {
+            onclick: (e: Event) => {
+              e.preventDefault();
+              globals.dispatch(Actions.clearAllPinnedTracks({}));
+            },
+            title: 'Clear all pinned tracks',
+            icon: 'clear_all',
+            compact: true,
+          }),
+        ),
     );
   }
 
@@ -401,7 +392,6 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
         m(Button, {
           label: 'Remove',
           icon: Icons.Delete,
-          minimal: true,
           onclick: () => {
             globals.dispatch(Actions.removeNote({id: this.config.id}));
             raf.scheduleFullRedraw();

@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
 import {
   SimpleSliceTrack,
@@ -448,32 +443,21 @@ const KERNEL_WAKELOCKS = `
       wakelock_dur
     from step2
     where wakelock_dur is not null
-      and wakelock_dur > 0
-      and count >= 0
-  ),
-  step4 as (
-    select
-      ts,
-      ts_end,
-      suspended_dur,
-      wakelock_name,
-      count,
-      1.0 * wakelock_dur / (ts_end - ts - suspended_dur) as ratio,
-      wakelock_dur
-    from step3
+      and wakelock_dur >= 0
   )
   select
     ts,
-    min(ratio, 1) * (ts_end - ts) as dur,
+    ts_end - ts as dur,
     wakelock_name,
-    cast (100.0 * ratio as int) || '% (+' || count || ')' as name
-    from step4
-  where cast (100.0 * wakelock_dur / (ts_end - ts - suspended_dur) as int) > 1`;
+    min(100.0 * wakelock_dur / (ts_end - ts - suspended_dur), 100) as value
+  from step3`;
 
 const KERNEL_WAKELOCKS_SUMMARY = `
-  select distinct wakelock_name
+  select wakelock_name, max(value) as max_value
   from kernel_wakelocks
   where wakelock_name not in ('PowerManager.SuspendLockout', 'PowerManagerService.Display')
+  group by 1
+  having max_value > 1
   order by 1;`;
 
 const HIGH_CPU = `
@@ -1079,12 +1063,12 @@ const BT_ACTIVITY = `
     bluetooth_stack_state & 0x00000F00 >> 8 as acl_ble_count,
     bluetooth_stack_state & 0x0000F000 >> 12 as advertising_count,
     case bluetooth_stack_state & 0x000F0000 >> 16
-      when 0 then 'disabled'
-      when 1 then '<5%'
-      when 2 then '5% to 10%'
-      when 3 then '10% to 25%'
-      when 4 then '25% to 100%'
-      else 'invalid'
+      when 0 then 0
+      when 1 then 5
+      when 2 then 10
+      when 3 then 25
+      when 4 then 100
+      else -1
     end as le_scan_duty_cycle,
     bluetooth_stack_state & 0x00100000 >> 20 as inquiry_active,
     bluetooth_stack_state & 0x00200000 >> 21 as sco_active,
@@ -1097,8 +1081,6 @@ const BT_ACTIVITY = `
 `;
 
 class AndroidLongBatteryTracing implements Plugin {
-  onActivate(_: PluginContext): void {}
-
   addSliceTrack(
     ctx: PluginContextTrace,
     name: string,
@@ -1436,11 +1418,12 @@ class AndroidLongBatteryTracing implements Plugin {
     const result = await e.query(KERNEL_WAKELOCKS_SUMMARY);
     const it = result.iter({wakelock_name: 'str'});
     for (; it.valid(); it.next()) {
-      this.addSliceTrack(
+      this.addCounterTrack(
         ctx,
         it.wakelock_name,
-        `select ts, dur, name from kernel_wakelocks where wakelock_name = "${it.wakelock_name}"`,
+        `select ts, dur, value from kernel_wakelocks where wakelock_name = "${it.wakelock_name}"`,
         groupName,
+        {yRangeSharingKey: 'kernel_wakelock', unit: '%'},
       );
     }
   }
@@ -1602,11 +1585,12 @@ class AndroidLongBatteryTracing implements Plugin {
       'select ts, dur, advertising_count as value from bt_activity',
       groupName,
     );
-    this.addSliceTrack(
+    this.addCounterTrack(
       ctx,
-      'LE Scan Duty Cycle',
-      'select ts, dur, le_scan_duty_cycle as name from bt_activity',
+      'LE Scan Duty Cycle Maximum',
+      'select ts, dur, le_scan_duty_cycle as value from bt_activity',
       groupName,
+      {unit: '%'},
     );
     this.addSliceTrack(
       ctx,

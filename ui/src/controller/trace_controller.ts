@@ -82,7 +82,6 @@ import {
   FlowEventsControllerArgs,
 } from './flow_events_controller';
 import {LoadingManager} from './loading_manager';
-import {LogsController} from './logs_controller';
 import {
   PIVOT_TABLE_REDUX_FLAG,
   PivotTableController,
@@ -202,23 +201,25 @@ function showJsonWarning() {
 // ensure it's only run once.
 async function defineMaxLayoutDepthSqlFunction(engine: Engine): Promise<void> {
   await engine.query(`
-    select create_function(
-      'max_layout_depth(track_count INT, track_ids STRING)',
-      'INT',
-      '
-        select iif(
-          $track_count = 1,
-          (
-            select max(depth)
-            from slice
-            where track_id = cast($track_ids AS int)
-          ),
-          (
-            select max(layout_depth)
-            from experimental_slice_layout($track_ids)
-          )
-        );
-      '
+    create or replace perfetto table __max_layout_depth_state as
+    select track_id, max(depth) as max_depth
+    from slice
+    group by track_id
+    order by track_id;
+
+    create perfetto function __max_layout_depth(track_count INT, track_ids STRING)
+    returns INT AS
+    select iif(
+      $track_count = 1,
+      (
+        select max_depth
+        from __max_layout_depth_state
+        where track_id = cast($track_ids AS int)
+      ),
+      (
+        select max(layout_depth)
+        from experimental_slice_layout($track_ids)
+      )
     );
   `);
 }
@@ -338,13 +339,6 @@ export class TraceController extends Controller<States> {
         );
         childControllers.push(
           Child('pivot_table', PivotTableController, {engine}),
-        );
-
-        childControllers.push(
-          Child('logs', LogsController, {
-            engine,
-            app: globals,
-          }),
         );
 
         childControllers.push(
@@ -526,8 +520,9 @@ export class TraceController extends Controller<States> {
 
     await defineMaxLayoutDepthSqlFunction(engine);
 
-    this.updateStatus('Loading plugins');
-    await pluginManager.onTraceLoad(engine);
+    await pluginManager.onTraceLoad(engine, (id) => {
+      this.updateStatus(`Running plugin: ${id}`);
+    });
 
     {
       // When we reload from a permalink don't create extra tracks:

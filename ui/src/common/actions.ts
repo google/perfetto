@@ -54,7 +54,6 @@ import {
   NewEngineMode,
   OmniboxMode,
   OmniboxState,
-  Pagination,
   PendingDeeplinkState,
   PivotTableResult,
   ProfileType,
@@ -256,7 +255,7 @@ export const StateActions = {
     args: {
       name: string;
       id: string;
-      summaryTrackKey: string;
+      summaryTrackKey?: string;
       collapsed: boolean;
       fixedOrdering?: boolean;
     },
@@ -265,7 +264,8 @@ export const StateActions = {
       name: args.name,
       id: args.id,
       collapsed: args.collapsed,
-      tracks: [args.summaryTrackKey],
+      tracks: [],
+      summaryTrack: args.summaryTrackKey,
       fixedOrdering: args.fixedOrdering,
     };
   },
@@ -850,10 +850,6 @@ export const StateActions = {
     };
   },
 
-  updateLogsPagination(state: StateDraft, args: Pagination): void {
-    state.logsPagination = args;
-  },
-
   startRecording(state: StateDraft, _: {}): void {
     state.recordingInProgress = true;
     state.lastRecordingError = undefined;
@@ -1200,31 +1196,6 @@ export const StateActions = {
         ),
         aggregations,
       );
-  },
-
-  setMinimumLogLevel(state: StateDraft, args: {minimumLevel: number}) {
-    state.logFilteringCriteria.minimumLevel = args.minimumLevel;
-  },
-
-  addLogTag(state: StateDraft, args: {tag: string}) {
-    if (!state.logFilteringCriteria.tags.includes(args.tag)) {
-      state.logFilteringCriteria.tags.push(args.tag);
-    }
-  },
-
-  removeLogTag(state: StateDraft, args: {tag: string}) {
-    state.logFilteringCriteria.tags = state.logFilteringCriteria.tags.filter(
-      (t) => t !== args.tag,
-    );
-  },
-
-  updateLogFilterText(state: StateDraft, args: {textEntry: string}) {
-    state.logFilteringCriteria.textEntry = args.textEntry;
-  },
-
-  toggleCollapseByTextEntry(state: StateDraft, _: {}) {
-    state.logFilteringCriteria.hideNonMatching =
-      !state.logFilteringCriteria.hideNonMatching;
   },
 };
 

@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/proto/metadata_module.h"
 
 #include "perfetto/ext/base/base64.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -26,6 +27,7 @@
 #include "src/trace_processor/util/protozero_to_text.h"
 
 #include "protos/perfetto/config/trace_config.pbzero.h"
+#include "protos/perfetto/trace/chrome/chrome_trigger.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_uuid.pbzero.h"
 #include "protos/perfetto/trace/trigger.pbzero.h"
@@ -87,10 +89,13 @@ void MetadataModule::ParseTracePacketData(
     int64_t ts,
     const TracePacketData&,
     uint32_t field_id) {
+  // We handle triggers at parse time rather at tokenization because
+  // we add slices to tables which need to happen post-sorting.
   if (field_id == TracePacket::kTriggerFieldNumber) {
-    // We handle triggers at parse time rather at tokenization because
-    // we add slices to tables which need to happen post-sorting.
     ParseTrigger(ts, decoder.trigger());
+  }
+  if (field_id == TracePacket::kChromeTriggerFieldNumber) {
+    ParseChromeTrigger(ts, decoder.chrome_trigger());
   }
 }
 
@@ -114,6 +119,21 @@ void MetadataModule::ParseTrigger(int64_t ts, ConstBytes blob) {
                              Variadic::Integer(trigger.trusted_producer_uid()));
         }
       });
+}
+
+void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
+  protos::pbzero::ChromeTrigger::Decoder trigger(blob.data, blob.size);
+  StringId cat_id = kNullStringId;
+  TrackId track_id = context_->track_tracker->GetOrCreateTriggerTrack();
+  StringId name_id;
+  if (trigger.has_trigger_name()) {
+    name_id = context_->storage->InternString(trigger.trigger_name());
+  } else {
+    name_id = context_->storage->InternString(
+        base::StringView(base::IntToHexString(trigger.trigger_name_hash())));
+  }
+  context_->slice_tracker->Scoped(ts, track_id, cat_id, name_id,
+                                  /* duration = */ 0);
 }
 
 void MetadataModule::ParseTraceUuid(ConstBytes blob) {

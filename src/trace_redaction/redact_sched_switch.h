@@ -17,23 +17,22 @@
 #ifndef SRC_TRACE_REDACTION_REDACT_SCHED_SWITCH_H_
 #define SRC_TRACE_REDACTION_REDACT_SCHED_SWITCH_H_
 
-#include <string>
-
+#include "src/trace_redaction/redact_ftrace_event.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
 
-//  Assumptions:
-//    1. This is a hot path (a lot of ftrace packets)
-//    2. Allocations are slower than CPU cycles.
-//
-// Redact sched switch is called "redact" and not "prune" or "scrub" because it
-// is not removing sched switch events, but rather removing information from
-// within the event.
-class RedactSchedSwitch final : public TransformPrimitive {
+// Goes through ftrace events and conditonally removes the comm values from
+// sched switch events.
+class RedactSchedSwitch : public FtraceEventRedaction {
  public:
-  base::Status Transform(const Context& context,
-                         std::string* packet) const override;
+  RedactSchedSwitch();
+
+  base::Status Redact(
+      const Context& context,
+      const protos::pbzero::FtraceEvent::Decoder& event,
+      protozero::ConstBytes bytes,
+      protos::pbzero::FtraceEvent* event_message) const override;
 };
 
 }  // namespace perfetto::trace_redaction

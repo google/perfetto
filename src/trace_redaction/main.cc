@@ -16,17 +16,25 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "src/trace_redaction/build_timeline.h"
+#include "src/trace_redaction/collect_timeline_events.h"
+#include "src/trace_redaction/filter_ftrace_using_allowlist.h"
+#include "src/trace_redaction/filter_packet_using_allowlist.h"
+#include "src/trace_redaction/filter_print_events.h"
+#include "src/trace_redaction/filter_sched_waking_events.h"
+#include "src/trace_redaction/filter_task_rename.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/optimize_timeline.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
+#include "src/trace_redaction/redact_ftrace_event.h"
+#include "src/trace_redaction/redact_process_free.h"
 #include "src/trace_redaction/redact_sched_switch.h"
-#include "src/trace_redaction/redact_sched_waking.h"
+#include "src/trace_redaction/redact_task_newtask.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
+#include "src/trace_redaction/scrub_process_stats.h"
 #include "src/trace_redaction/scrub_process_trees.h"
-#include "src/trace_redaction/scrub_task_rename.h"
 #include "src/trace_redaction/scrub_trace_packet.h"
+#include "src/trace_redaction/suspend_resume.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redactor.h"
 
@@ -39,21 +47,36 @@ static base::Status Main(std::string_view input,
   TraceRedactor redactor;
 
   // Add all collectors.
-  redactor.collectors()->emplace_back(new FindPackageUid());
-  redactor.collectors()->emplace_back(new BuildTimeline());
+  redactor.emplace_collect<FindPackageUid>();
+  redactor.emplace_collect<CollectTimelineEvents>();
 
   // Add all builders.
-  redactor.builders()->emplace_back(new PopulateAllowlists());
-  redactor.builders()->emplace_back(new OptimizeTimeline());
+  redactor.emplace_build<PopulateAllowlists>();
+  redactor.emplace_build<AllowSuspendResume>();
+  redactor.emplace_build<OptimizeTimeline>();
 
   // Add all transforms.
-  redactor.transformers()->emplace_back(new PrunePackageList());
-  redactor.transformers()->emplace_back(new ScrubTracePacket());
-  redactor.transformers()->emplace_back(new ScrubFtraceEvents());
-  redactor.transformers()->emplace_back(new ScrubProcessTrees());
-  redactor.transformers()->emplace_back(new ScrubTaskRename());
-  redactor.transformers()->emplace_back(new RedactSchedSwitch());
-  redactor.transformers()->emplace_back(new RedactSchedWaking());
+  auto* scrub_packet = redactor.emplace_transform<ScrubTracePacket>();
+  scrub_packet->emplace_back<FilterPacketUsingAllowlist>();
+
+  auto* scrub_ftrace_events = redactor.emplace_transform<ScrubFtraceEvents>();
+  scrub_ftrace_events->emplace_back<FilterFtraceUsingAllowlist>();
+  scrub_ftrace_events->emplace_back<FilterPrintEvents>();
+  scrub_ftrace_events->emplace_back<FilterSchedWakingEvents>();
+  scrub_ftrace_events->emplace_back<FilterTaskRename>();
+  scrub_ftrace_events->emplace_back<FilterSuspendResume>();
+
+  // Scrub packets and ftrace events first as they will remove the largest
+  // chucks of data from the trace. This will reduce the amount of data that the
+  // other primitives need to operate on.
+  redactor.emplace_transform<ScrubProcessTrees>();
+  redactor.emplace_transform<PrunePackageList>();
+  redactor.emplace_transform<ScrubProcessStats>();
+
+  auto* redact_ftrace_events = redactor.emplace_transform<RedactFtraceEvent>();
+  redact_ftrace_events->emplace_back<RedactSchedSwitch>();
+  redact_ftrace_events->emplace_back<RedactTaskNewTask>();
+  redact_ftrace_events->emplace_back<RedactProcessFree>();
 
   Context context;
   context.package_name = package_name;

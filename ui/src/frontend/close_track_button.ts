@@ -18,7 +18,7 @@ import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
 
 import {globals} from './globals';
-import {TrackButton} from './track_panel';
+import {Button} from '../widgets/button';
 
 export interface CloseTrackButtonAttrs {
   trackKey: string;
@@ -28,13 +28,13 @@ export class CloseTrackButton
   implements m.ClassComponent<CloseTrackButtonAttrs>
 {
   view({attrs}: m.CVnode<CloseTrackButtonAttrs>) {
-    return m(TrackButton, {
-      action: () => {
+    return m(Button, {
+      onclick: () => {
         globals.dispatch(Actions.removeTracks({trackKeys: [attrs.trackKey]}));
       },
-      i: Icons.Close,
-      tooltip: 'Close',
-      showButton: true,
+      icon: Icons.Close,
+      title: 'Close',
+      compact: true,
     });
   }
 }

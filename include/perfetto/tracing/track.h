@@ -204,7 +204,7 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
   using CounterType =
       perfetto::protos::gen::CounterDescriptor::BuiltinCounterType;
 
-  // |name| must be a string with static lifetime.
+  // |name| must outlive this object.
   constexpr explicit CounterTrack(const char* name,
                                   Track parent = MakeProcessTrack())
       : Track(internal::Fnv1a(name) ^ kCounterMagic, parent),
@@ -212,7 +212,7 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
         category_(nullptr) {}
 
   // |unit_name| is a free-form description of the unit used by this counter. It
-  // must have static lifetime.
+  // must outlive this object.
   constexpr CounterTrack(const char* name,
                          const char* unit_name,
                          Track parent = MakeProcessTrack())

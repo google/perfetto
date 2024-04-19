@@ -42,7 +42,7 @@ export const COUNTER_DEBUG_MENU_ITEMS = featureFlags.register({
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
   const pow10 = Math.pow(10, exp);
-  return Math.sign(n) * (Math.ceil(Math.abs(n) / (pow10 / 4)) * (pow10 / 4));
+  return Math.sign(n) * (Math.ceil(Math.abs(n) / (pow10 / 20)) * (pow10 / 20));
 }
 
 function toLabel(n: number): string {
@@ -450,14 +450,14 @@ export abstract class BaseCounterTrack implements Track {
     return m(
       PopupMenu2,
       {
-        trigger: m(Button, {icon: 'show_chart', minimal: true}),
+        trigger: m(Button, {icon: 'show_chart', compact: true}),
       },
       this.getCounterContextMenuItems(),
     );
   }
 
   getTrackShellButtons(): m.Children {
-    return [this.getCounterContextMenu()];
+    return this.getCounterContextMenu();
   }
 
   async onCreate(): Promise<void> {
@@ -520,16 +520,8 @@ export abstract class BaseCounterTrack implements Track {
       zeroY = effectiveHeight * (yMax / (yMax - yMin)) + MARGIN_TOP;
     }
 
-    // There are 360deg of hue. We want a scale that starts at green with
-    // exp <= 3 (<= 1KB), goes orange around exp = 6 (~1MB) and red/violet
-    // around exp >= 9 (1GB).
-    // The hue scale looks like this:
-    // 0                              180                                 360
-    // Red        orange         green | blue         purple          magenta
-    // So we want to start @ 180deg with pow=0, go down to 0deg and then wrap
-    // back from 360deg back to 180deg.
     const exp = Math.ceil(Math.log10(Math.max(yMax, 1)));
-    const expCapped = Math.min(Math.max(exp - 3), 9);
+    const expCapped = Math.min(exp - 3, 9);
     const hue = (180 - Math.floor(expCapped * (180 / 6)) + 360) % 360;
 
     ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
@@ -752,8 +744,13 @@ export abstract class BaseCounterTrack implements Track {
     }
 
     if (options.yRangeRounding === 'human_readable') {
-      yMax = roundAway(yMax);
-      yMin = roundAway(yMin);
+      if (options.yDisplay === 'log') {
+        yMax = Math.log(roundAway(Math.exp(yMax)));
+        yMin = Math.log(roundAway(Math.exp(yMin)));
+      } else {
+        yMax = roundAway(yMax);
+        yMin = roundAway(yMin);
+      }
     }
 
     const sharer = RangeSharer.get();
@@ -894,6 +891,7 @@ export abstract class BaseCounterTrack implements Track {
     if (maybeCachedCounters) {
       this.countersKey = countersKey;
       this.counters = maybeCachedCounters;
+      return;
     }
 
     const bucketNs = countersKey.bucketSize;
@@ -958,12 +956,13 @@ export abstract class BaseCounterTrack implements Track {
     data.displayValueRange = [min, max];
 
     this.cache.insert(countersKey, data);
+    this.countersKey = countersKey;
     this.counters = data;
 
     raf.scheduleRedraw();
   }
 
   get unit(): string {
-    return this.getCounterOptions().unit ?? '?';
+    return this.getCounterOptions().unit ?? '';
   }
 }

@@ -15,14 +15,19 @@
  */
 
 #include "src/trace_processor/importers/common/thread_state_tracker.h"
+
+#include <cstdint>
 #include <optional>
+
+#include "src/trace_processor/importers/common/process_tracker.h"
 
 namespace perfetto {
 namespace trace_processor {
-ThreadStateTracker::ThreadStateTracker(TraceStorage* storage)
-    : storage_(storage),
-      running_string_id_(storage->InternString("Running")),
-      runnable_string_id_(storage->InternString("R")) {}
+ThreadStateTracker::ThreadStateTracker(TraceProcessorContext* context)
+    : storage_(context->storage.get()),
+      context_(context),
+      running_string_id_(storage_->InternString("Running")),
+      runnable_string_id_(storage_->InternString("R")) {}
 ThreadStateTracker::~ThreadStateTracker() = default;
 
 void ThreadStateTracker::PushSchedSwitchEvent(int64_t event_ts,
@@ -124,9 +129,9 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
                                       std::optional<uint16_t> cpu,
                                       std::optional<UniqueTid> waker_utid,
                                       std::optional<uint16_t> common_flags) {
-  // Ignore utid 0 because it corresponds to the swapper thread which doesn't
-  // make sense to insert.
-  if (utid == 0)
+  // Ignore the swapper utid because it corresponds to the swapper thread which
+  // doesn't make sense to insert.
+  if (utid == context_->process_tracker->swapper_utid())
     return;
 
   // Insert row with unfinished state
@@ -137,6 +142,7 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
   row.dur = -1;
   row.utid = utid;
   row.state = state;
+  row.machine_id = context_->machine_id();
   if (common_flags.has_value()) {
     row.irq_context = CommonFlagsToIrqContext(*common_flags);
   }
@@ -178,7 +184,10 @@ uint32_t ThreadStateTracker::CommonFlagsToIrqContext(uint32_t common_flags) {
   // If common_flags contains TRACE_FLAG_HARDIRQ | TRACE_FLAG_SOFTIRQ, wakeup
   // was emitted in interrupt context.
   // See:
-  // https://cs.android.com/android/kernel/superproject/+/common-android-mainline:common/include/trace/trace_events.h
+  // https://cs.android.com/android/kernel/superproject/+/common-android-mainline:common/include/linux/trace_events.h
+  // TODO(rsavitski): we could also include TRACE_FLAG_NMI for a complete
+  // "interrupt context" meaning. But at the moment it's not necessary as this
+  // is used for sched_waking events, which are not emitted from NMI contexts.
   return common_flags & (0x08 | 0x10) ? 1 : 0;
 }
 

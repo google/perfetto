@@ -249,7 +249,6 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       contextButtons,
       m(Button, {
         label: 'Copy query',
-        minimal: true,
         onclick: () => {
           copyToClipboard(query);
         },
@@ -258,7 +257,6 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
         resp.error === undefined &&
         m(Button, {
           label: 'Copy result (.tsv)',
-          minimal: true,
           onclick: () => {
             queryResponseToClipboard(resp);
           },

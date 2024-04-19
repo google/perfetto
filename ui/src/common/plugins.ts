@@ -16,7 +16,7 @@ import {v4 as uuidv4} from 'uuid';
 
 import {Disposable, Trash} from '../base/disposable';
 import {Registry} from '../base/registry';
-import {time} from '../base/time';
+import {Span, duration, time} from '../base/time';
 import {globals} from '../frontend/globals';
 import {
   Command,
@@ -25,7 +25,6 @@ import {
   MetricVisualisation,
   Migrate,
   Plugin,
-  PluginClass,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
@@ -46,6 +45,7 @@ import {Flag, featureFlags} from '../core/feature_flags';
 import {assertExists} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
 import {defaultPlugins} from '../core/default_plugins';
+import {HighPrecisionTimeSpan} from './high_precision_time';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -311,6 +311,15 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     panToTimestamp(ts: time): void {
       globals.panToTimestamp(ts);
     },
+
+    setViewportTime(start: time, end: time): void {
+      const interval = HighPrecisionTimeSpan.fromTime(start, end);
+      globals.timeline.updateVisibleTime(interval);
+    },
+
+    get viewport(): Span<time, duration> {
+      return globals.timeline.visibleTimeSpan;
+    },
   };
 
   dispose(): void {
@@ -321,6 +330,12 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   mountStore<T>(migrate: Migrate<T>): Store<T> {
     return globals.store.createSubStore(['plugins', this.pluginId], migrate);
   }
+
+  readonly trace = {
+    get span(): Span<time, duration> {
+      return globals.stateTraceTimeTP();
+    },
+  };
 }
 
 function isPinned(trackId: string): boolean {
@@ -341,20 +356,13 @@ export interface PluginDetails {
   previousOnTraceLoadTimeMillis?: number;
 }
 
-function isPluginClass(v: unknown): v is PluginClass {
-  return typeof v === 'function' && !!v.prototype.onActivate;
-}
-
 function makePlugin(info: PluginDescriptor): Plugin {
   const {plugin} = info;
 
+  // Class refs are functions, concrete plugins are not
   if (typeof plugin === 'function') {
-    if (isPluginClass(plugin)) {
-      const PluginClass = plugin;
-      return new PluginClass();
-    } else {
-      return plugin();
-    }
+    const PluginClass = plugin;
+    return new PluginClass();
   } else {
     return plugin;
   }
@@ -433,7 +441,7 @@ export class PluginManager {
 
     const context = new PluginContextImpl(id);
 
-    plugin.onActivate(context);
+    plugin.onActivate?.(context);
 
     const pluginDetails: PluginDetails = {
       plugin,
@@ -504,7 +512,10 @@ export class PluginManager {
     return this._plugins.get(pluginId);
   }
 
-  async onTraceLoad(engine: Engine): Promise<void> {
+  async onTraceLoad(
+    engine: Engine,
+    beforeEach?: (id: string) => void,
+  ): Promise<void> {
     this.engine = engine;
     const plugins = Array.from(this._plugins.entries());
     // Awaiting all plugins in parallel will skew timing data as later plugins
@@ -513,6 +524,7 @@ export class PluginManager {
     // most plugins use the same engine, which can only process one query at a
     // time.
     for (const [id, pluginDetails] of plugins) {
+      beforeEach?.(id);
       await doPluginTraceLoad(pluginDetails, engine, id);
     }
   }

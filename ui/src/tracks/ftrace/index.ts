@@ -14,17 +14,16 @@
 
 import m from 'mithril';
 
-import {FtraceExplorer} from './ftrace_explorer';
+import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {
   EngineProxy,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {NUM} from '../../trace_processor/query_result';
 import {Trash} from '../../base/disposable';
-import {FtraceFilter, FtracePluginState, FtraceStat} from './common';
+import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceRawTrack} from './ftrace_track';
 
 const VERSION = 1;
@@ -38,8 +37,6 @@ const DEFAULT_STATE: FtracePluginState = {
 
 class FtraceRawPlugin implements Plugin {
   private trash = new Trash();
-
-  onActivate(_: PluginContext) {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const store = ctx.mountStore<FtracePluginState>((init: unknown) => {
@@ -62,14 +59,13 @@ class FtraceRawPlugin implements Plugin {
     );
     this.trash.add(filterStore);
 
-    const counters = await this.getFtraceCounters(ctx.engine);
-
     const cpus = await this.lookupCpuCores(ctx.engine);
     for (const cpuNum of cpus) {
       const uri = `perfetto.FtraceRaw#cpu${cpuNum}`;
 
-      ctx.registerTrack({
+      ctx.registerStaticTrack({
         uri,
+        groupName: 'Ftrace Events',
         displayName: `Ftrace Track for CPU ${cpuNum}`,
         cpu: cpuNum,
         trackFactory: () => {
@@ -77,6 +73,11 @@ class FtraceRawPlugin implements Plugin {
         },
       });
     }
+
+    const cache: FtraceExplorerCache = {
+      state: 'blank',
+      counters: [],
+    };
 
     const ftraceTabUri = 'perfetto.FtraceRaw#FtraceEventsTab';
 
@@ -86,8 +87,8 @@ class FtraceRawPlugin implements Plugin {
       content: {
         render: () =>
           m(FtraceExplorer, {
-            counters,
             filterStore,
+            cache,
             engine: ctx.engine,
           }),
         getTitle: () => 'Ftrace Events',
@@ -105,23 +106,6 @@ class FtraceRawPlugin implements Plugin {
 
   async onTraceUnload(): Promise<void> {
     this.trash.dispose();
-  }
-
-  private async getFtraceCounters(engine: EngineProxy): Promise<FtraceStat[]> {
-    // Pull out the counts ftrace events by name
-    const query = `select
-          name,
-          count(name) as cnt
-        from ftrace_event
-        group by name
-        order by cnt desc`;
-    const result = await engine.query(query);
-    const counters: FtraceStat[] = [];
-    const it = result.iter({name: STR, cnt: NUM});
-    for (let row = 0; it.valid(); it.next(), row++) {
-      counters.push({name: it.name, count: it.cnt});
-    }
-    return counters;
   }
 
   private async lookupCpuCores(engine: EngineProxy): Promise<number[]> {

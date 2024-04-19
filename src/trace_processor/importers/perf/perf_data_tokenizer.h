@@ -100,7 +100,7 @@ class PerfDataTokenizer : public ChunkedTraceReader {
   uint64_t ids_end_ = 0;
   std::vector<uint8_t> after_header_buffer_;
 
-  perf_importer::Reader reader_;
+  perf_importer::PerfDataReader reader_;
 };
 
 }  // namespace perf_importer

@@ -74,8 +74,8 @@ void FtraceSchedEventTracker::PushSchedSwitch(uint32_t cpu,
                                         uint32_t next_pid,
                                         base::StringView next_comm,
                                         int32_t next_prio) {
-  if (!context_->sched_event_tracker->UpdateEventTrackerTimestamp(ts,
-      "sched_switch",stats::sched_switch_out_of_order)) {
+  if (!context_->sched_event_tracker->UpdateEventTrackerTimestamp(
+          ts, "sched_switch", stats::sched_switch_out_of_order)) {
     return;
   }
 
@@ -241,6 +241,7 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
     row.cpu = cpu;
     row.utid = curr_utid;
     row.common_flags = common_flags;
+    row.machine_id = context_->machine_id();
 
     // Add an entry to the raw table.
     RawId id = context_->storage->mutable_ftrace_event_table()->Insert(row).id;
@@ -266,7 +267,6 @@ void FtraceSchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
       ts, wakee_utid, curr_utid, common_flags);
 }
 
-PERFETTO_ALWAYS_INLINE
 void FtraceSchedEventTracker::AddRawSchedSwitchEvent(uint32_t cpu,
                                                      int64_t ts,
                                                      UniqueTid prev_utid,
@@ -281,7 +281,13 @@ void FtraceSchedEventTracker::AddRawSchedSwitchEvent(uint32_t cpu,
     // Push the raw event - this is done as the raw ftrace event codepath does
     // not insert sched_switch.
     RawId id = context_->storage->mutable_ftrace_event_table()
-                   ->Insert({ts, sched_switch_id_, cpu, prev_utid})
+                   ->Insert({ts,
+                             sched_switch_id_,
+                             cpu,
+                             prev_utid,
+                             {},
+                             {},
+                             context_->machine_id()})
                    .id;
 
     // Note: this ordering is important. The events should be pushed in the same

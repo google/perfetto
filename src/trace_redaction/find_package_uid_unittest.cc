@@ -15,12 +15,11 @@
  * limitations under the License.
  */
 
-#include "src/trace_redaction/find_package_uid.h"
-
 #include <cstdint>
 #include <string>
 
 #include "src/base/test/status_matchers.h"
+#include "src/trace_redaction/find_package_uid.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/android/packages_list.gen.h"
@@ -187,8 +186,14 @@ TEST(FindPackageUidTest, FindsUidInPackageList) {
 
   const auto decoder = protos::pbzero::TracePacket::Decoder(packet);
 
-  ASSERT_OK_AND_ASSIGN(auto status, find.Collect(decoder, &context));
-  ASSERT_EQ(status, CollectPrimitive::ContinueCollection::kRetire);
+  base::Status status = find.Begin(&context);
+  ASSERT_OK(status) << status.message();
+
+  status = find.Collect(decoder, &context);
+  ASSERT_OK(status) << status.message();
+
+  status = find.End(&context);
+  ASSERT_OK(status) << status.message();
 
   ASSERT_TRUE(context.package_uid.has_value());
   ASSERT_EQ(NormalizeUid(context.package_uid.value()), NormalizeUid(10205));
@@ -204,8 +209,15 @@ TEST(FindPackageUidTest, ContinuesOverNonPackageList) {
 
   const auto decoder = protos::pbzero::TracePacket::Decoder(packet);
 
-  ASSERT_OK_AND_ASSIGN(auto status, find.Collect(decoder, &context));
-  ASSERT_EQ(status, CollectPrimitive::ContinueCollection::kNextPacket);
+  base::Status status = find.Begin(&context);
+  ASSERT_OK(status) << status.message();
+
+  status = find.Collect(decoder, &context);
+  ASSERT_OK(status) << status.message();
+
+  // The should not have been found; End() should return an error.
+  status = find.End(&context);
+  ASSERT_FALSE(status.ok()) << status.message();
 
   ASSERT_FALSE(context.package_uid.has_value());
 }
@@ -220,8 +232,15 @@ TEST(FindPackageUidTest, ContinuesOverPackageListWithOutPackageName) {
 
   const auto decoder = protos::pbzero::TracePacket::Decoder(packet);
 
-  ASSERT_OK_AND_ASSIGN(auto status, find.Collect(decoder, &context));
-  ASSERT_EQ(status, CollectPrimitive::ContinueCollection::kNextPacket);
+  base::Status status = find.Begin(&context);
+  ASSERT_OK(status) << status.message();
+
+  status = find.Collect(decoder, &context);
+  ASSERT_OK(status) << status.message();
+
+  // The should not have been found; End() should return an error.
+  status = find.End(&context);
+  ASSERT_FALSE(status.ok()) << status.message();
 
   ASSERT_FALSE(context.package_uid.has_value());
 }
@@ -230,10 +249,28 @@ TEST(FindPackageUidTest, MissingPackageNameReturnsError) {
   const auto packet = CreatePackageListPacket();
 
   Context context;
+
   const FindPackageUid find;
 
   const auto decoder = protos::pbzero::TracePacket::Decoder(packet);
-  ASSERT_FALSE(find.Collect(decoder, &context).ok());
+
+  base::Status status = find.Begin(&context);
+  ASSERT_FALSE(status.ok()) << status.message();
+}
+
+TEST(FindPackageUidTest, FailsIfUidStartsInitialized) {
+  const auto packet = CreatePackageListPacket();
+
+  Context context;
+  context.package_name = "com.google.android.uvexposurereporter";
+  context.package_uid = 1000;
+
+  const FindPackageUid find;
+
+  const auto decoder = protos::pbzero::TracePacket::Decoder(packet);
+
+  base::Status status = find.Begin(&context);
+  ASSERT_FALSE(status.ok()) << status.message();
 }
 
 }  // namespace perfetto::trace_redaction

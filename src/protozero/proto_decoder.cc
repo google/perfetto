@@ -222,6 +222,11 @@ void TypedProtoDecoderBase::ParseAllFields() {
       //    supposed to return the last value of X, not the first one.
       // This is so that the RepeatedFieldIterator will iterate in the right
       // order, see comments on RepeatedFieldIterator.
+      if (num_fields_ > size_) {
+        ExpandHeapStorage();
+        fld = &fields_[field_id];
+      }
+
       PERFETTO_DCHECK(size_ < capacity_);
       fields_[size_++] = *fld;
       *fld = std::move(res.field);

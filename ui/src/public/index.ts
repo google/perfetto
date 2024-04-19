@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {Hotkey} from '../base/hotkeys';
-import {duration, time} from '../base/time';
+import {Span, duration, time} from '../base/time';
 import {Migrate, Store} from '../base/store';
 import {ColorScheme} from '../core/colorizer';
 import {LegacySelection} from '../common/state';
@@ -177,10 +177,15 @@ export interface SliceRect {
 
 export interface Track {
   /**
-   * Optional: Called when the track is first materialized on the timeline.
+   * Optional: Called once before onUpdate is first called.
+   *
    * If this function returns a Promise, this promise is awaited before onUpdate
    * or onDestroy is called. Any calls made to these functions in the meantime
    * will be queued up and the hook will be called later once onCreate returns.
+   *
+   * Exactly when this hook is called is left purposely undefined. The only
+   * guarantee is that it will be called once before onUpdate is first called.
+   *
    * @param ctx Our track context object.
    */
   onCreate?(ctx: TrackContext): Promise<void> | void;
@@ -376,6 +381,12 @@ export interface PluginContextTrace extends PluginContext {
 
     // Bring a timestamp into view.
     panToTimestamp(ts: time): void;
+
+    // Move the viewport
+    setViewportTime(start: time, end: time): void;
+
+    // A span representing the current viewport location
+    readonly viewport: Span<time, duration>;
   };
 
   // Control over the bottom details pane.
@@ -421,11 +432,16 @@ export interface PluginContextTrace extends PluginContext {
 
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;
+
+  trace: {
+    // A span representing the start and end time of the trace
+    readonly span: Span<time, duration>;
+  };
 }
 
 export interface Plugin {
   // Lifecycle methods.
-  onActivate(ctx: PluginContext): void;
+  onActivate?(ctx: PluginContext): void;
   onTraceLoad?(ctx: PluginContextTrace): Promise<void>;
   onTraceUnload?(ctx: PluginContextTrace): Promise<void>;
   onDeactivate?(ctx: PluginContext): void;
@@ -504,9 +520,8 @@ export type TrackTags = Partial<WellKnownTrackTags> & {
   [key: string]: string | number | boolean | undefined;
 };
 
-// Plugins can be passed as class refs, factory functions, or concrete plugin
-// implementations.
-export type PluginFactory = PluginClass | Plugin | (() => Plugin);
+// Plugins can be class refs or concrete plugin implementations.
+export type PluginFactory = PluginClass | Plugin;
 
 export interface PluginDescriptor {
   // A unique string for your plugin. To ensure the name is unique you

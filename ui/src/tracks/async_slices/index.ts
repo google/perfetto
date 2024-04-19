@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
@@ -26,8 +21,6 @@ import {AsyncSliceTrackV2} from './async_slice_track_v2';
 export const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
 
 class AsyncSlicePlugin implements Plugin {
-  onActivate(_ctx: PluginContext) {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addGlobalAsyncTracks(ctx);
     await this.addProcessAsyncSliceTracks(ctx);
@@ -67,7 +60,7 @@ class AsyncSlicePlugin implements Plugin {
         p.name as parentName,
         t.name as name,
         t.trackIds as trackIds,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from global_tracks_grouped AS t
       left join track p on (t.parent_id = p.id)
       order by p.name, t.name;
@@ -131,7 +124,7 @@ class AsyncSlicePlugin implements Plugin {
           group_concat(process_track.id) as trackIds,
           count(1) as trackCount
         from process_track
-        left join process using(upid)
+        join process using(upid)
         where
             process_track.name is null or
             process_track.name not like "% Timeline"
@@ -141,7 +134,7 @@ class AsyncSlicePlugin implements Plugin {
       )
       select
         t.*,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from process_async_tracks t;
     `);
 
@@ -215,7 +208,7 @@ class AsyncSlicePlugin implements Plugin {
         t.uid as uid,
         package_list.package_name as package_name,
         t.trackIds as trackIds,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from global_tracks t
       join package_list
       where t.uid = package_list.uid

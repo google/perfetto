@@ -25,11 +25,16 @@
 namespace perfetto::trace_redaction {
 
 base::Status PopulateAllowlists::Build(Context* context) const {
-  if (!context->trace_packet_allow_list.empty()) {
-    return base::ErrStatus("Trace packet allow-list should be empty.");
-  }
+  // TRACE PACKET NOTES
+  //
+  //    protos::pbzero::TracePacket::kAndroidSystemPropertyFieldNumber
+  //
+  //      AndroidSystemProperty exposes a key-value pair structure with no
+  //      constraints around keys or values, making fine-grain redaction
+  //      difficult. Because this packet's value has no measurable, the safest
+  //      option to drop the whole packet.
 
-  context->trace_packet_allow_list = {
+  std::initializer_list<uint> trace_packets = {
       protos::pbzero::TracePacket::kProcessTreeFieldNumber,
       protos::pbzero::TracePacket::kProcessStatsFieldNumber,
       protos::pbzero::TracePacket::kClockSnapshotFieldNumber,
@@ -42,7 +47,6 @@ base::Status PopulateAllowlists::Build(Context* context) const {
       protos::pbzero::TracePacket::kServiceEventFieldNumber,
       protos::pbzero::TracePacket::kInitialDisplayStateFieldNumber,
       protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber,
-      protos::pbzero::TracePacket::kAndroidSystemPropertyFieldNumber,
       protos::pbzero::TracePacket::kSynchronizationMarkerFieldNumber,
       protos::pbzero::TracePacket::kFtraceEventsFieldNumber,
 
@@ -51,13 +55,16 @@ base::Status PopulateAllowlists::Build(Context* context) const {
       protos::pbzero::TracePacket::kPackagesListFieldNumber,
   };
 
-  context->ftrace_packet_allow_list = {
+  for (auto item : trace_packets) {
+    context->trace_packet_allow_list.insert(item);
+  }
+
+  std::initializer_list<uint> ftrace_events = {
       protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber,
       protos::pbzero::FtraceEvent::kCpuFrequencyFieldNumber,
       protos::pbzero::FtraceEvent::kCpuIdleFieldNumber,
       protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber,
       protos::pbzero::FtraceEvent::kSchedWakingFieldNumber,
-      protos::pbzero::FtraceEvent::kSuspendResumeFieldNumber,
       protos::pbzero::FtraceEvent::kTaskNewtaskFieldNumber,
       protos::pbzero::FtraceEvent::kTaskRenameFieldNumber,
       protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber,
@@ -69,22 +76,12 @@ base::Status PopulateAllowlists::Build(Context* context) const {
       protos::pbzero::FtraceEvent::kIonBufferDestroyFieldNumber,
       protos::pbzero::FtraceEvent::kDmaHeapStatFieldNumber,
       protos::pbzero::FtraceEvent::kRssStatThrottledFieldNumber,
+      protos::pbzero::FtraceEvent::kPrintFieldNumber,
   };
 
-  // TODO: Some ftrace fields should be retained, but they carry too much risk
-  // without additional redaction. This list should be configured in a build
-  // primitive so that they can be optionally included.
-  //
-  // TODO: Some fields will create new packets (e.g. binder calls may create
-  // new spans. This is currently not supported (generated packets still
-  // need to be redacted).
-  //
-  // protos::pbzero::FtraceEvent::kPrintFieldNumber,
-  // protos::pbzero::FtraceEvent::kBinderTransactionFieldNumber,
-  // protos::pbzero::FtraceEvent::kBinderTransactionReceivedFieldNumber,
-  // protos::pbzero::FtraceEvent::kBinderSetPriorityFieldNumber,
-  // protos::pbzero::FtraceEvent::kBinderLockedFieldNumber,
-  // protos::pbzero::FtraceEvent::kBinderUnlockFieldNumber,
+  for (auto item : ftrace_events) {
+    context->ftrace_packet_allow_list.insert(item);
+  }
 
   return base::OkStatus();
 }

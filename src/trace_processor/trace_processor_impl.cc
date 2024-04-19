@@ -77,6 +77,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h"
@@ -102,7 +103,6 @@
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
-#include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -736,15 +736,15 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   TraceStorage* storage = context_.storage.get();
 
   // Operator tables.
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_join", engine_.get(), SqliteTableLegacy::TableType::kExplicitCreate,
-      false);
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_left_join", engine_.get(),
-      SqliteTableLegacy::TableType::kExplicitCreate, false);
-  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_outer_join", engine_.get(),
-      SqliteTableLegacy::TableType::kExplicitCreate, false);
+  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+      "span_join",
+      std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
+  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+      "span_left_join",
+      std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
+  engine_->sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+      "span_outer_join",
+      std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
   engine_->sqlite_engine()->RegisterVirtualTableModule<WindowOperatorModule>(
       "window", std::make_unique<WindowOperatorModule::Context>());
 
@@ -798,7 +798,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   RegisterStaticTable(storage->slice_table());
   RegisterStaticTable(storage->flow_table());
-  RegisterStaticTable(storage->slice_table());
   RegisterStaticTable(storage->sched_slice_table());
   RegisterStaticTable(storage->spurious_sched_wakeup_table());
   RegisterStaticTable(storage->thread_state_table());
@@ -861,9 +860,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->v8_internal_code_table());
   RegisterStaticTable(storage->v8_wasm_code_table());
   RegisterStaticTable(storage->v8_regexp_code_table());
-
-  RegisterStaticTable(storage->jit_code_table());
-  RegisterStaticTable(storage->jit_frame_table());
 
   RegisterStaticTable(storage->jit_code_table());
   RegisterStaticTable(storage->jit_frame_table());
@@ -935,6 +931,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // Value table aggregate functions.
   engine_->RegisterSqliteAggregateFunction<Dfs>(
       Dfs::kName, Dfs::kArgCount, context_.storage->mutable_string_pool());
+  engine_->RegisterSqliteAggregateFunction<StructuralTreePartition>(
+      StructuralTreePartition::kName, StructuralTreePartition::kArgCount,
+      context_.storage->mutable_string_pool());
 
   // Metrics.
   RegisterAllProtoBuilderFunctions(&pool_, engine_.get(), this);

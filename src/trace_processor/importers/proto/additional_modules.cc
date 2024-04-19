@@ -15,13 +15,14 @@
  */
 
 #include "src/trace_processor/importers/proto/additional_modules.h"
-#include "src/trace_processor/importers/etw/etw_module.h"
+#include "src/trace_processor/importers/etw/etw_module_impl.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
 #include "src/trace_processor/importers/proto/metadata_module.h"
+#include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/importers/proto/network_trace_module.h"
 #include "src/trace_processor/importers/proto/statsd_module.h"
 #include "src/trace_processor/importers/proto/system_probes_module.h"
@@ -44,13 +45,19 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new MetadataModule(context));
   context->modules.emplace_back(new V8Module(context));
   context->modules.emplace_back(new WinscopeModule(context));
-  context->modules.emplace_back(new EtwModule(context));
 
-  // Ftrace module is special, because it has one extra method for parsing
-  // ftrace packets. So we need to store a pointer to it separately.
+  // Ftrace/Etw modules are special, because it has one extra method for parsing
+  // ftrace/etw packets. So we need to store a pointer to it separately.
   context->modules.emplace_back(new FtraceModuleImpl(context));
   context->ftrace_module =
       static_cast<FtraceModule*>(context->modules.back().get());
+  context->modules.emplace_back(new EtwModuleImpl(context));
+  context->etw_module = static_cast<EtwModule*>(context->modules.back().get());
+
+  if (context->multi_machine_trace_manager) {
+    context->multi_machine_trace_manager->EnableAdditionalModules(
+        RegisterAdditionalModules);
+  }
 }
 
 }  // namespace trace_processor

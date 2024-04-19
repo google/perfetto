@@ -45,16 +45,31 @@ class TraceRedactor {
                       std::string_view dest_filename,
                       Context* context) const;
 
-  std::vector<std::unique_ptr<CollectPrimitive>>* collectors() {
-    return &collectors_;
+  // T must be derived from trace_redaction::CollectPrimitive.
+  template <typename T>
+  T* emplace_collect() {
+    auto uptr = std::make_unique<T>();
+    auto* ptr = uptr.get();
+    collectors_.push_back(std::move(uptr));
+    return ptr;
   }
 
-  std::vector<std::unique_ptr<BuildPrimitive>>* builders() {
-    return &builders_;
+  // T must be derived from trace_redaction::BuildPrimitive.
+  template <typename T>
+  T* emplace_build() {
+    auto uptr = std::make_unique<T>();
+    auto* ptr = uptr.get();
+    builders_.push_back(std::move(uptr));
+    return ptr;
   }
 
-  std::vector<std::unique_ptr<TransformPrimitive>>* transformers() {
-    return &transformers_;
+  // T must be derived from trace_redaction::TransformPrimitive.
+  template <typename T>
+  T* emplace_transform() {
+    auto uptr = std::make_unique<T>();
+    auto* ptr = uptr.get();
+    transformers_.push_back(std::move(uptr));
+    return ptr;
   }
 
  private:

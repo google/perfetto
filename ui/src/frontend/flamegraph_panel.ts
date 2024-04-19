@@ -30,6 +30,8 @@ import {Button} from '../widgets/button';
 import {Icon} from '../widgets/icon';
 import {Modal, ModalAttrs} from '../widgets/modal';
 import {Popup} from '../widgets/popup';
+import {EmptyState} from '../widgets/empty_state';
+import {Spinner} from '../widgets/spinner';
 
 import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
@@ -37,7 +39,10 @@ import {debounce} from './rate_limiters';
 import {Router} from './router';
 import {getCurrentTrace} from './sidebar';
 import {convertTraceToPprofAndDownload} from './trace_converter';
+import {ButtonBar} from '../widgets/button';
 import {DurationWidget} from './widgets/duration';
+import {DetailsShell} from '../widgets/details_shell';
+import {Intent} from '../widgets/common';
 
 const HEADER_HEIGHT = 30;
 
@@ -90,33 +95,31 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
         ? this.flamegraph.getHeight() + HEADER_HEIGHT
         : 0;
       return m(
-        '.details-panel',
+        '.flamegraph-profile',
         this.maybeShowModal(flamegraphDetails.graphIncomplete),
         m(
-          '.details-panel-heading.flamegraph-profile',
-          {onclick: (e: MouseEvent) => e.stopPropagation()},
-          [
-            m('div.options', [
-              m(
-                'div.title',
-                this.getTitle(),
-                this.profileType === ProfileType.MIXED_HEAP_PROFILE &&
+          DetailsShell,
+          {
+            fillParent: true,
+            title: m(
+              'div.title',
+              this.getTitle(),
+              this.profileType === ProfileType.MIXED_HEAP_PROFILE &&
+                m(
+                  Popup,
+                  {
+                    trigger: m(Icon, {icon: 'warning'}),
+                  },
                   m(
-                    Popup,
-                    {
-                      trigger: m(Icon, {icon: 'warning'}),
-                    },
-                    m(
-                      '',
-                      {style: {width: '300px'}},
-                      'This is a mixed java/native heap profile, free()s are not visualized. To visualize free()s, remove "all_heaps: true" from the config.',
-                    ),
+                    '',
+                    {style: {width: '300px'}},
+                    'This is a mixed java/native heap profile, free()s are not visualized. To visualize free()s, remove "all_heaps: true" from the config.',
                   ),
-                ':',
-              ),
-              this.getViewingOptionButtons(),
-            ]),
-            m('div.details', [
+                ),
+              ':',
+            ),
+            description: this.getViewingOptionButtons(),
+            buttons: [
               m(
                 'div.selected',
                 `Selected function: ${toSelectedCallsite(
@@ -141,27 +144,44 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
                 this.profileType === ProfileType.JAVA_HEAP_SAMPLES) &&
                 m(Button, {
                   icon: 'file_download',
+                  intent: Intent.Primary,
                   onclick: () => {
                     this.downloadPprof();
                   },
                 }),
-            ]),
-          ],
+            ],
+          },
+          m(
+            '.flamegraph-content',
+            flamegraphDetails.graphLoading
+              ? m(
+                  '.loading-container',
+                  m(
+                    EmptyState,
+                    {
+                      icon: 'bar_chart',
+                      title: 'Computing graph ...',
+                      className: 'flamegraph-loading',
+                    },
+                    m(Spinner, {easing: true}),
+                  ),
+                )
+              : m(`canvas[ref=canvas]`, {
+                  style: `height:${height}px; width:100%`,
+                  onmousemove: (e: MouseEvent) => {
+                    const {offsetX, offsetY} = e;
+                    this.onMouseMove({x: offsetX, y: offsetY});
+                  },
+                  onmouseout: () => {
+                    this.onMouseOut();
+                  },
+                  onclick: (e: MouseEvent) => {
+                    const {offsetX, offsetY} = e;
+                    this.onMouseClick({x: offsetX, y: offsetY});
+                  },
+                }),
+          ),
         ),
-        m(`canvas[ref=canvas]`, {
-          style: `height:${height}px; width:100%`,
-          onmousemove: (e: MouseEvent) => {
-            const {offsetX, offsetY} = e;
-            this.onMouseMove({x: offsetX, y: offsetY});
-          },
-          onmouseout: () => {
-            this.onMouseOut();
-          },
-          onclick: (e: MouseEvent) => {
-            const {offsetX, offsetY} = e;
-            this.onMouseClick({x: offsetX, y: offsetY});
-          },
-        }),
       );
     } else {
       return m(
@@ -260,7 +280,7 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
 
   getViewingOptionButtons(): m.Children {
     return m(
-      'div',
+      ButtonBar,
       ...FlamegraphDetailsPanel.selectViewingOptions(
         assertExists(this.profileType),
       ),
@@ -398,7 +418,6 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
     return m(Button, {
       label: text,
       active,
-      minimal: true,
       onclick: () => {
         globals.dispatch(Actions.changeViewFlamegraphState({viewingOption}));
       },

@@ -68,9 +68,9 @@ For that, we need to find the timestamp and upid of the graph.
 select distinct graph_sample_ts, upid from heap_graph_object
 ```
 
-graph_sample_ts     |        upid        |
---------------------|--------------------|
-     56785646801    |         1          |
+|graph_sample_ts     |        upid        |
+|--------------------|--------------------|
+|     56785646801    |         1          |
 
 We can then use them to get the flamegraph data.
 

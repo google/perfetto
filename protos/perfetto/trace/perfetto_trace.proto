@@ -339,13 +339,10 @@ enum BuiltinClock {
   BUILTIN_CLOCK_MONOTONIC_COARSE = 4;
   BUILTIN_CLOCK_MONOTONIC_RAW = 5;
   BUILTIN_CLOCK_BOOTTIME = 6;
+  BUILTIN_CLOCK_TSC = 9;
   BUILTIN_CLOCK_MAX_ID = 63;
 
   reserved 7, 8;
-
-  // An internal CL (ag/16521245) has taken this for BUILTIN_CLOCK_TSC.
-  // That might get upstreamed later on. Avoid diverging on this ID in future.
-  reserved 9;
 }
 
 // End of protos/perfetto/common/builtin_clock.proto
@@ -662,6 +659,32 @@ message PackagesListConfig {
 }
 
 // End of protos/perfetto/config/android/packages_list_config.proto
+
+// Begin of protos/perfetto/config/android/pixel_modem_config.proto
+
+// Data source that records events from the modem.
+message PixelModemConfig {
+  // Event group to record, as defined by the modem.
+  enum EventGroup {
+    EVENT_GROUP_UNKNOWN = 0;
+
+    // Events suitable for low bandwidth tracing only.
+    EVENT_GROUP_LOW_BANDWIDTH = 1;
+
+    // Events suitable for high and low bandwidth tracing.
+    EVENT_GROUP_HIGH_AND_LOW_BANDWIDTH = 2;
+  }
+
+  optional EventGroup event_group = 1;
+
+  // If set, record only events with these hashes.
+  repeated int64 pigweed_hash_allow_list = 2;
+
+  // If set and allow_list is not set, deny events with these hashes.
+  repeated int64 pigweed_hash_deny_list = 3;
+}
+
+// End of protos/perfetto/config/android/pixel_modem_config.proto
 
 // Begin of protos/perfetto/common/protolog_common.proto
 
@@ -3234,7 +3257,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 129
+// Next id: 130
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3381,6 +3404,9 @@ message DataSourceConfig {
 
   // Data source name: android.input.inputevent
   optional AndroidInputEventConfig android_input_event_config = 128 [lazy = true];
+
+  // Data source name: android.pixel.modem
+  optional PixelModemConfig pixel_modem_config = 129 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
@@ -4999,6 +5025,27 @@ message PackagesList {
 
 // End of protos/perfetto/trace/android/packages_list.proto
 
+// Begin of protos/perfetto/trace/android/pixel_modem_events.proto
+
+message PixelModemEvents {
+  // Pigweed-format dehydrated events.
+  repeated bytes events = 1;
+
+  // Timestamps of the events, converted to CLOCK_BOOTTIME. The first
+  // timestamp is the absolute timestamp of the first event. Subsequent
+  // timestamps are deltas from the previous timestamp.
+  // The nth entry from `events` gets the nth entry here.
+  repeated uint64 event_time_nanos = 2;
+}
+
+// NB: this is not emitted in the trace but can be prepended later.
+message PixelModemTokenDatabase {
+  // Pigweed-format database to allow event rehydration.
+  optional bytes database = 1;
+}
+
+// End of protos/perfetto/trace/android/pixel_modem_events.proto
+
 // Begin of protos/perfetto/trace/android/protolog.proto
 
 /* represents a single log entry */
@@ -5253,12 +5300,15 @@ message LayersSnapshotProto {
   // elapsed realtime in nanos since boot of when this entry was logged
   optional sfixed64 elapsed_realtime_nanos = 1;
 
-  // where the trace originated
+  // SurfaceFlinger's stage where the snapshot was triggered.
+  // Currently either "visibleRegionsDirty" or "bufferLatched".
   optional string where = 2;
 
   optional LayersProto layers = 3;
 
   // Blob for the current HWC information for all layers, reported by dumpsys.
+  // Example:
+  //   "maxDownScale: 4, maxFullWidth: 8192, HWState: 1, AssignedState: 3, ..."
   optional string hwc_blob = 4;
 
   // Excludes state sent during composition like visible region and composition
@@ -5280,6 +5330,7 @@ message LayersProto {
 
 message DisplayProto {
   optional uint64 id = 1;
+  // Display descriptor, e.g. "Built-In Screen"
   optional string name = 2;
   optional uint32 layer_stack = 3;
   optional SizeProto size = 4;
@@ -5314,12 +5365,14 @@ message LayerProto {
   // unique id per layer.
   optional int32 id = 1;
   // unique name per layer.
+  // Example: "Wallpaper".
   optional string name = 2;
   // list of children this layer may have. May be empty.
   repeated int32 children = 3 [packed = true];
   // list of layers that are z order relative to this layer.
   repeated int32 relatives = 4 [packed = true];
-  // The type of layer, ex Color, Layer
+  // The type of layer.
+  // Examples: "ContainerLayer", "BufferStateLayer".
   optional string type = 5;
   optional RegionProto transparent_region = 6;
   optional RegionProto visible_region = 7;
@@ -5340,7 +5393,14 @@ message LayerProto {
   optional RectProto final_crop = 15 [deprecated = true];
   optional bool is_opaque = 16;
   optional bool invalidate = 17;
+  // Composition states's dataspace.
+  // Examples: "STANDARD_BT709", "STANDARD_BT601_625".
+  // See full enum in
+  // frameworks/native/libs/nativewindow/include/android/data_space.h
   optional string dataspace = 18;
+  // Buffer's pixel format
+  // Examples: "PIXEL_FORMAT_TRANSLUCENT", "PIXEL_FORMAT_RGBA_8888".
+  // See full enum in frameworks/native/libs/ui/include/ui/PixelFormat.h
   optional string pixel_format = 19;
   // The layer's actual color.
   optional ColorProto color = 20;
@@ -5987,6 +6047,20 @@ message ChromeEventBundle {
 }
 
 // End of protos/perfetto/trace/chrome/chrome_trace_event.proto
+
+// Begin of protos/perfetto/trace/chrome/chrome_trigger.proto
+
+// Information about a specific trigger during a background tracing scenario
+// Associated packet timestamps are useful to delimitate a scenario range in a
+// trace. Triggers are also useful for filtering traces.
+message ChromeTrigger {
+  // Name of the trigger which was received.
+  optional string trigger_name = 1;
+  // SHA1 hash of the trigger name.
+  optional fixed32 trigger_name_hash = 2;
+}
+
+// End of protos/perfetto/trace/chrome/chrome_trigger.proto
 
 // Begin of protos/perfetto/trace/chrome/v8.proto
 
@@ -7259,6 +7333,20 @@ message DpuTracingMarkWriteFtraceEvent {
   optional uint32 type = 5;
   optional int32 value = 6;
 }
+message DpuDsiCmdFifoStatusFtraceEvent {
+  optional uint32 header = 1;
+  optional uint32 payload = 2;
+}
+message DpuDsiRxFtraceEvent {
+  optional uint32 cmd = 1;
+  optional uint32 rx_buf = 2;
+}
+message DpuDsiTxFtraceEvent {
+  optional uint32 type = 1;
+  optional uint32 tx_buf = 2;
+  optional uint32 last = 3;
+  optional uint32 delay_ms = 4;
+}
 
 // End of protos/perfetto/trace/ftrace/dpu.proto
 
@@ -8257,6 +8345,40 @@ message F2fsIostatLatencyFtraceEvent {
   optional uint32 n_wr_s_cnt = 27;
   optional uint32 n_wr_s_peak = 28;
 }
+message F2fsBackgroundGcFtraceEvent {
+  optional uint64 dev = 1;
+  optional uint32 wait_ms = 2;
+  optional uint32 prefree = 3;
+  optional uint32 free = 4;
+}
+message F2fsGcBeginFtraceEvent {
+  optional uint64 dev = 1;
+  optional uint32 sync = 2;
+  optional uint32 background = 3;
+  optional int64 dirty_nodes = 4;
+  optional int64 dirty_dents = 5;
+  optional int64 dirty_imeta = 6;
+  optional uint32 free_sec = 7;
+  optional uint32 free_seg = 8;
+  optional int32 reserved_seg = 9;
+  optional uint32 prefree_seg = 10;
+  optional int32 gc_type = 11;
+  optional uint32 no_bg_gc = 12;
+  optional uint32 nr_free_secs = 13;
+}
+message F2fsGcEndFtraceEvent {
+  optional uint64 dev = 1;
+  optional int32 ret = 2;
+  optional int32 seg_freed = 3;
+  optional int32 sec_freed = 4;
+  optional int64 dirty_nodes = 5;
+  optional int64 dirty_dents = 6;
+  optional int64 dirty_imeta = 7;
+  optional uint32 free_sec = 8;
+  optional uint32 free_seg = 9;
+  optional int32 reserved_seg = 10;
+  optional uint32 prefree_seg = 11;
+}
 
 // End of protos/perfetto/trace/ftrace/f2fs.proto
 
@@ -8266,6 +8388,32 @@ message FastrpcDmaStatFtraceEvent {
   optional int32 cid = 1;
   optional int64 len = 2;
   optional uint64 total_allocated = 3;
+}
+message FastrpcDmaFreeFtraceEvent {
+  optional int32 cid = 1;
+  optional uint64 phys = 2;
+  optional uint64 size = 3;
+}
+message FastrpcDmaAllocFtraceEvent {
+  optional int32 cid = 1;
+  optional uint64 phys = 2;
+  optional uint64 size = 3;
+  optional uint64 attr = 4;
+  optional int32 mflags = 5;
+}
+message FastrpcDmaUnmapFtraceEvent {
+  optional int32 cid = 1;
+  optional uint64 phys = 2;
+  optional uint64 size = 3;
+}
+message FastrpcDmaMapFtraceEvent {
+  optional int32 cid = 1;
+  optional int32 fd = 2;
+  optional uint64 phys = 3;
+  optional uint64 size = 4;
+  optional uint64 len = 5;
+  optional uint32 attr = 6;
+  optional int32 mflags = 7;
 }
 
 // End of protos/perfetto/trace/ftrace/fastrpc.proto
@@ -10607,6 +10755,16 @@ message FtraceEvent {
     RpmStatusFtraceEvent rpm_status = 489;
     PanelWriteGenericFtraceEvent panel_write_generic = 490;
     SchedMigrateTaskFtraceEvent sched_migrate_task = 491;
+    DpuDsiCmdFifoStatusFtraceEvent dpu_dsi_cmd_fifo_status = 492;
+    DpuDsiRxFtraceEvent dpu_dsi_rx = 493;
+    DpuDsiTxFtraceEvent dpu_dsi_tx = 494;
+    F2fsBackgroundGcFtraceEvent f2fs_background_gc = 495;
+    F2fsGcBeginFtraceEvent f2fs_gc_begin = 496;
+    F2fsGcEndFtraceEvent f2fs_gc_end = 497;
+    FastrpcDmaFreeFtraceEvent fastrpc_dma_free = 498;
+    FastrpcDmaAllocFtraceEvent fastrpc_dma_alloc = 499;
+    FastrpcDmaUnmapFtraceEvent fastrpc_dma_unmap = 500;
+    FastrpcDmaMapFtraceEvent fastrpc_dma_map = 501;
   }
 }
 
@@ -14613,7 +14771,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 108.
+// Next id: 112.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -14654,6 +14812,7 @@ message TracePacket {
     AndroidLogPacket android_log = 39;
     SystemInfo system_info = 45;
     Trigger trigger = 46;
+    ChromeTrigger chrome_trigger = 109;
     PackagesList packages_list = 47;
     ChromeBenchmarkMetadata chrome_benchmark_metadata = 48;
     PerfettoMetatrace perfetto_metatrace = 49;
@@ -14751,6 +14910,9 @@ message TracePacket {
 
     // Clock synchronization with remote machines.
     RemoteClockSync remote_clock_sync = 107;
+
+    PixelModemEvents pixel_modem_events = 110;
+    PixelModemTokenDatabase pixel_modem_token_database = 111;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455

@@ -15,7 +15,7 @@
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
-from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -296,3 +296,20 @@ class GraphicsParser(TestSuite):
   #      751796307210,4313965,"mali_KCPU_FENCE_WAIT"
   #      751800638997,0,"mali_KCPU_FENCE_SIGNAL"
   #      """))
+
+  # Tests gpu_track with machine_id ID.
+  def test_graphics_frame_events_machine_id(self):
+    return DiffTestBlueprint(
+        trace=Path('graphics_frame_events.py'),
+        trace_modifier=TraceInjector(['graphics_frame_event'],
+                                     {'machine_id': 1001}),
+        query="""
+        SELECT ts, gpu_track.name AS track_name, dur, frame_slice.name AS slice_name,
+          frame_number, layer_name
+        FROM gpu_track
+        LEFT JOIN frame_slice ON gpu_track.id = frame_slice.track_id
+        WHERE scope = 'graphics_frame_event'
+          AND gpu_track.machine_id IS NOT NULL
+        ORDER BY ts;
+        """,
+        out=Path('graphics_frame_events.out'))

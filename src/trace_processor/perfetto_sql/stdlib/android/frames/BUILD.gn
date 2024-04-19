@@ -18,5 +18,6 @@ perfetto_sql_source_set("frames") {
   sources = [
     "per_frame_metrics.sql",
     "timeline.sql",
+    "timeline_maxsdk28.sql",
   ]
 }

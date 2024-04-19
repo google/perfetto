@@ -231,7 +231,7 @@ function getLastUpdate(lastUpdate) {
     return lastUpdateMins + ' mins ago';
   if (lastUpdateMins < 60 * 24)
     return Math.ceil(lastUpdateMins / 60) + ' hours ago';
-  return lastUpdate.toLocaleDateString();
+  return lastUpdate.toISOString().substr(0, 10);
 }
 
 function renderCLRow(cl) {

@@ -45,11 +45,9 @@
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
-#include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
-#include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/sql_argument.h"
 #include "src/trace_processor/util/sql_modules.h"
@@ -169,7 +167,7 @@ std::string GetTokenNamesAllowedInMacro() {
 }  // namespace
 
 PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
-    : query_cache_(new QueryCache()), pool_(pool), engine_(new SqliteEngine()) {
+    : pool_(pool), engine_(new SqliteEngine()) {
   // Initialize `perfetto_tables` table, which will contain the names of all of
   // the registered tables.
   char* errmsg_raw = nullptr;
@@ -181,63 +179,75 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
     PERFETTO_FATAL("Failed to initialize perfetto_tables: %s", errmsg_raw);
   }
 
-  engine_->RegisterVirtualTableModule<RuntimeTableFunction>(
-      "runtime_table_function", this,
-      SqliteTableLegacy::TableType::kExplicitCreate, false);
-  auto context = std::make_unique<DbSqliteTable::Context>(
-      query_cache_.get(),
-      [this](const std::string& name) {
-        auto* table = runtime_tables_.Find(name);
-        PERFETTO_CHECK(table);
-        return table->get();
-      },
-      [this](const std::string& name) {
-        bool res = runtime_tables_.Erase(name);
-        PERFETTO_CHECK(res);
-      });
-  engine_->RegisterVirtualTableModule<DbSqliteTable>(
-      "runtime_table", std::move(context),
-      SqliteTableLegacy::TableType::kExplicitCreate, false);
-}
-
-PerfettoSqlEngine::~PerfettoSqlEngine() {
-  // Destroying the sqlite engine should also destroy all the created table
-  // functions.
-  engine_.reset();
-  PERFETTO_CHECK(runtime_table_fn_states_.size() == 0);
-  PERFETTO_CHECK(runtime_tables_.size() == 0);
+  {
+    auto ctx = std::make_unique<RuntimeTableFunctionModule::Context>();
+    runtime_table_fn_context_ = ctx.get();
+    engine_->RegisterVirtualTableModule<RuntimeTableFunctionModule>(
+        "runtime_table_function", std::move(ctx));
+  }
+  {
+    auto ctx = std::make_unique<DbSqliteModule::Context>();
+    runtime_table_context_ = ctx.get();
+    engine_->RegisterVirtualTableModule<DbSqliteModule>("runtime_table",
+                                                        std::move(ctx));
+  }
+  {
+    auto ctx = std::make_unique<DbSqliteModule::Context>();
+    static_table_context_ = ctx.get();
+    engine_->RegisterVirtualTableModule<DbSqliteModule>("static_table",
+                                                        std::move(ctx));
+  }
+  {
+    auto ctx = std::make_unique<DbSqliteModule::Context>();
+    static_table_fn_context_ = ctx.get();
+    engine_->RegisterVirtualTableModule<DbSqliteModule>("static_table_function",
+                                                        std::move(ctx));
+  }
 }
 
 void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
                                             const std::string& table_name,
                                             Table::Schema schema) {
-  auto context = std::make_unique<DbSqliteTable::Context>(
-      query_cache_.get(), &table, std::move(schema));
-  static_tables_.Insert(table_name, &table);
-  engine_->RegisterVirtualTableModule<DbSqliteTable>(
-      table_name, std::move(context), SqliteTableLegacy::kEponymousOnly, false);
+  // Make sure we didn't accidentally leak a state from a previous table
+  // creation.
+  PERFETTO_CHECK(!static_table_context_->temporary_create_state);
+  static_table_context_->temporary_create_state =
+      std::make_unique<DbSqliteModule::State>(&table, std::move(schema));
 
-  // Register virtual tables into an internal 'perfetto_tables' table.
-  // This is used for iterating through all the tables during a database
-  // export.
-  char* insert_sql = sqlite3_mprintf(
-      "INSERT INTO perfetto_tables(name) VALUES('%q')", table_name.c_str());
-  char* error = nullptr;
-  sqlite3_exec(engine_->db(), insert_sql, nullptr, nullptr, &error);
-  sqlite3_free(insert_sql);
-  if (error) {
-    PERFETTO_ELOG("Error adding table to perfetto_tables: %s", error);
-    sqlite3_free(error);
+  base::StackString<1024> sql(
+      R"(
+        CREATE VIRTUAL TABLE %s USING static_table;
+        INSERT INTO perfetto_tables(name) VALUES('%s');
+      )",
+      table_name.c_str(), table_name.c_str());
+  auto status =
+      Execute(SqlSource::FromTraceProcessorImplementation(sql.ToStdString()));
+  if (!status.ok()) {
+    PERFETTO_FATAL("%s", status.status().c_message());
   }
+
+  PERFETTO_CHECK(!static_table_context_->temporary_create_state);
 }
 
 void PerfettoSqlEngine::RegisterStaticTableFunction(
     std::unique_ptr<StaticTableFunction> fn) {
-  std::string table_name = fn->TableName();
-  auto context = std::make_unique<DbSqliteTable::Context>(query_cache_.get(),
-                                                          std::move(fn));
-  engine_->RegisterVirtualTableModule<DbSqliteTable>(
-      table_name, std::move(context), SqliteTableLegacy::kEponymousOnly, false);
+  std::string name = fn->TableName();
+
+  // Make sure we didn't accidentally leak a state from a previous table
+  // creation.
+  PERFETTO_CHECK(!static_table_fn_context_->temporary_create_state);
+  static_table_fn_context_->temporary_create_state =
+      std::make_unique<DbSqliteModule::State>(std::move(fn));
+
+  base::StackString<1024> sql(
+      "CREATE VIRTUAL TABLE %s USING static_table_function;", name.c_str());
+  auto status =
+      Execute(SqlSource::FromTraceProcessorImplementation(sql.ToStdString()));
+  if (!status.ok()) {
+    PERFETTO_FATAL("%s", status.status().c_message());
+  }
+
+  PERFETTO_CHECK(!static_table_fn_context_->temporary_create_state);
 }
 
 base::StatusOr<PerfettoSqlEngine::ExecutionStats> PerfettoSqlEngine::Execute(
@@ -484,24 +494,38 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
   //
   // We would need to do with the transaction API but given we have no usage of
   // this until now, investigating that needs some proper work.
-  if (runtime_tables_.Find(create_table.name)) {
-    if (!create_table.replace) {
-      return base::ErrStatus("CREATE PERFETTO TABLE: table '%s' already exists",
-                             create_table.name.c_str());
-    }
-
-    base::StackString<1024> drop("DROP TABLE %s", create_table.name.c_str());
-    RETURN_IF_ERROR(
-        Execute(SqlSource::FromTraceProcessorImplementation(drop.ToStdString()))
-            .status());
+  if (create_table.replace) {
+    base::StackString<1024> drop("DROP TABLE IF EXISTS %s",
+                                 create_table.name.c_str());
+    auto drop_res = Execute(
+        SqlSource::FromTraceProcessorImplementation(drop.ToStdString()));
+    RETURN_IF_ERROR(drop_res.status());
   }
 
-  runtime_tables_.Insert(create_table.name, std::move(table));
   base::StackString<1024> create("CREATE VIRTUAL TABLE %s USING runtime_table",
                                  create_table.name.c_str());
-  return Execute(
-             SqlSource::FromTraceProcessorImplementation(create.ToStdString()))
-      .status();
+
+  // Make sure we didn't accidentally leak a state from a previous function
+  // creation.
+  PERFETTO_CHECK(!runtime_table_context_->temporary_create_state);
+
+  // Move the state into the context so that it will be picked up in xCreate
+  // of RuntimeTableFunctionModule.
+  runtime_table_context_->temporary_create_state =
+      std::make_unique<DbSqliteModule::State>(std::move(table));
+  auto status =
+      Execute(SqlSource::FromTraceProcessorImplementation(create.ToStdString()))
+          .status();
+
+  // If an error happened, it's possible that the state was not picked up.
+  // Therefore, always reset the state just in case. OTOH if the creation
+  // succeeded, the state should always have been captured.
+  if (status.ok()) {
+    PERFETTO_CHECK(!runtime_table_context_->temporary_create_state);
+  } else {
+    runtime_table_context_->temporary_create_state.reset();
+  }
+  return status;
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateView(
@@ -623,8 +647,9 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
                                    cf.sql);
   }
 
-  std::unique_ptr<RuntimeTableFunction::State> state(
-      new RuntimeTableFunction::State{cf.sql, cf.prototype, {}, std::nullopt});
+  auto state = std::make_unique<RuntimeTableFunctionModule::State>(
+      RuntimeTableFunctionModule::State{
+          this, cf.sql, cf.prototype, {}, std::nullopt});
 
   // Parse the return type into a enum format.
   {
@@ -702,36 +727,44 @@ base::Status PerfettoSqlEngine::ExecuteCreateFunction(
           state->return_values[i].name().c_str());
     }
   }
-  state->reusable_stmt = std::move(stmt);
+  state->temporary_create_stmt = std::move(stmt);
 
   // TODO(lalitm): this suffers the same non-atomic DROP/CREATE problem as
   // CREATE PERFETTO TABLE implementation above: see the comment there for
   // more info on this.
-  std::string fn_name = state->prototype.function_name;
-  std::string lower_name = base::ToLower(state->prototype.function_name);
-  if (runtime_table_fn_states_.Find(lower_name)) {
-    if (!cf.replace) {
-      return base::ErrStatus("Table function named %s already exists",
-                             state->prototype.function_name.c_str());
-    }
-    // This will cause |OnTableFunctionDestroyed| below to be executed.
-    base::StackString<1024> drop("DROP TABLE %s",
+  if (cf.replace) {
+    base::StackString<1024> drop("DROP TABLE IF EXISTS %s",
                                  state->prototype.function_name.c_str());
     auto res = Execute(
         SqlSource::FromTraceProcessorImplementation(drop.ToStdString()));
     RETURN_IF_ERROR(res.status());
   }
 
-  auto it_and_inserted =
-      runtime_table_fn_states_.Insert(lower_name, std::move(state));
-  PERFETTO_CHECK(it_and_inserted.second);
-
   base::StackString<1024> create(
-      "CREATE VIRTUAL TABLE %s USING runtime_table_function", fn_name.c_str());
-  return Execute(cf.sql.RewriteAllIgnoreExisting(
-                     SqlSource::FromTraceProcessorImplementation(
-                         create.ToStdString())))
-      .status();
+      "CREATE VIRTUAL TABLE %s USING runtime_table_function",
+      state->prototype.function_name.c_str());
+
+  // Make sure we didn't accidentally leak a state from a previous function
+  // creation.
+  PERFETTO_CHECK(!runtime_table_fn_context_->temporary_create_state);
+
+  // Move the state into the context so that it will be picked up in xCreate
+  // of RuntimeTableFunctionModule.
+  runtime_table_fn_context_->temporary_create_state = std::move(state);
+  auto status = Execute(cf.sql.RewriteAllIgnoreExisting(
+                            SqlSource::FromTraceProcessorImplementation(
+                                create.ToStdString())))
+                    .status();
+
+  // If an error happened, it's possible that the state was not picked up.
+  // Therefore, always reset the state just in case. OTOH if the creation
+  // succeeded, the state should always have been captured.
+  if (status.ok()) {
+    PERFETTO_CHECK(!runtime_table_fn_context_->temporary_create_state);
+  } else {
+    runtime_table_fn_context_->temporary_create_state.reset();
+  }
+  return status;
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateMacro(
@@ -780,18 +813,6 @@ base::Status PerfettoSqlEngine::ExecuteCreateMacro(
   auto it_and_inserted = macros_.Insert(std::move(name), std::move(macro));
   PERFETTO_CHECK(it_and_inserted.second);
   return base::OkStatus();
-}
-
-RuntimeTableFunction::State* PerfettoSqlEngine::GetRuntimeTableFunctionState(
-    const std::string& name) const {
-  auto* it = runtime_table_fn_states_.Find(base::ToLower(name));
-  PERFETTO_CHECK(it);
-  return it->get();
-}
-
-void PerfettoSqlEngine::OnRuntimeTableFunctionDestroyed(
-    const std::string& name) {
-  PERFETTO_CHECK(runtime_table_fn_states_.Erase(base::ToLower(name)));
 }
 
 base::StatusOr<std::vector<std::string>>
@@ -882,14 +903,14 @@ base::Status PerfettoSqlEngine::ValidateColumnNames(
 
 const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(
     std::string_view name) const {
-  auto* table_ptr = runtime_tables_.Find(name.data());
-  return table_ptr ? table_ptr->get() : nullptr;
+  auto* state = runtime_table_context_->manager.FindStateByName(name);
+  return state ? state->runtime_table.get() : nullptr;
 }
 
 const Table* PerfettoSqlEngine::GetStaticTableOrNull(
     std::string_view name) const {
-  auto* table_ptr = static_tables_.Find(name.data());
-  return table_ptr ? *table_ptr : nullptr;
+  auto* state = static_table_context_->manager.FindStateByName(name);
+  return state ? state->static_table : nullptr;
 }
 
 }  // namespace perfetto::trace_processor

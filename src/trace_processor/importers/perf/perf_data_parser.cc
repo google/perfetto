@@ -43,7 +43,7 @@ PerfDataParser::~PerfDataParser() = default;
 
 base::StatusOr<PerfDataTracker::PerfSample> PerfDataParser::ParseSample(
     TraceBlobView tbv) {
-  perf_importer::Reader reader(std::move(tbv));
+  perf_importer::PerfDataReader reader(std::move(tbv));
   return tracker_->ParseSample(reader);
 }
 

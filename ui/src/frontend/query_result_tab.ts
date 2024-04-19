@@ -130,7 +130,7 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
           : m(
               PopupMenu2,
               {
-                trigger: m(Button, {label: 'Show debug track', minimal: true}),
+                trigger: m(Button, {label: 'Show debug track'}),
                 popupPosition: PopupPosition.Top,
               },
               m(AddDebugTrackMenu, {

@@ -38,10 +38,9 @@
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
-#include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_window_function.h"
-#include "src/trace_processor/sqlite/query_cache.h"
+#include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -66,7 +65,6 @@ class PerfettoSqlEngine {
   };
 
   explicit PerfettoSqlEngine(StringPool* pool);
-  ~PerfettoSqlEngine();
 
   // Executes all the statements in |sql| and returns a |ExecutionResult|
   // object. The metadata will reference all the statements executed and the
@@ -173,13 +171,6 @@ class PerfettoSqlEngine {
   // Registers a trace processor C++ table function with SQLite.
   void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);
 
-  // Returns the state for the given table function.
-  RuntimeTableFunction::State* GetRuntimeTableFunctionState(
-      const std::string&) const;
-
-  // Should be called when a table function is destroyed.
-  void OnRuntimeTableFunctionDestroyed(const std::string&);
-
   SqliteEngine* sqlite_engine() { return engine_.get(); }
 
   // Makes new SQL module available to import.
@@ -270,7 +261,6 @@ class PerfettoSqlEngine {
       const std::string& key,
       const PerfettoSqlParser& parser);
 
-  std::unique_ptr<QueryCache> query_cache_;
   StringPool* pool_ = nullptr;
 
   uint64_t static_function_count_ = 0;
@@ -278,10 +268,10 @@ class PerfettoSqlEngine {
   uint64_t static_window_function_count_ = 0;
   uint64_t runtime_function_count_ = 0;
 
-  base::FlatHashMap<std::string, std::unique_ptr<RuntimeTableFunction::State>>
-      runtime_table_fn_states_;
-  base::FlatHashMap<std::string, const Table*> static_tables_;
-  base::FlatHashMap<std::string, std::unique_ptr<RuntimeTable>> runtime_tables_;
+  RuntimeTableFunctionModule::Context* runtime_table_fn_context_ = nullptr;
+  DbSqliteModule::Context* runtime_table_context_ = nullptr;
+  DbSqliteModule::Context* static_table_context_ = nullptr;
+  DbSqliteModule::Context* static_table_fn_context_ = nullptr;
   base::FlatHashMap<std::string, sql_modules::RegisteredModule> modules_;
   base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
   std::unique_ptr<SqliteEngine> engine_;

@@ -543,8 +543,8 @@ flushCount
 all_mem_avg+ (R	allMemAvg"Z
 AndroidHwuiMetricE
 process_info (2".perfetto.protos.ProcessRenderInfoRprocessInfo
-Ï
-/protos/perfetto/metrics/android/io_metric.protoperfetto.protos"Š
+Ñ
+/protos/perfetto/metrics/android/io_metric.protoperfetto.protos"Œ
 	AndroidIoY
 f2fs_counter_stats (2+.perfetto.protos.AndroidIo.F2fsCounterStatsRf2fsCounterStatsS
 f2fs_write_stats (2).perfetto.protos.AndroidIo.F2fsWriteStatsRf2fsWriteStats–
@@ -555,13 +555,13 @@ flushCount
 min (Rmin
 dur (Rdur
 count (Rcount
-avg (Ravg³
+avg (Ravgµ
 F2fsWriteStats*
 total_write_count (RtotalWriteCount-
 distinct_processes (RdistinctProcesses.
 total_bytes_written (RtotalBytesWritten2
-distinct_device_count (RdistinctDeviceCount.
-distict_inode_count (RdistictInodeCount2
+distinct_device_count (RdistinctDeviceCount0
+distinct_inode_count (RdistinctInodeCount2
 distinct_thread_count (RdistinctThreadCount
 ”
 5protos/perfetto/metrics/android/io_unagg_metric.protoperfetto.protos"É
@@ -674,14 +674,14 @@ type_count (2,.perfetto.protos.JavaHeapHistogram.TypeCountR	typeCount«
 upid (RupidA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocessC
 samples (2).perfetto.protos.JavaHeapHistogram.SampleRsamples
-©
-5protos/perfetto/metrics/android/java_heap_stats.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"¦
+Õ
+5protos/perfetto/metrics/android/java_heap_stats.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ò
 JavaHeapStatsS
 instance_stats (2,.perfetto.protos.JavaHeapStats.InstanceStatsRinstanceStatsb
 	HeapRoots
 	root_type (	RrootType
 	type_name (	RtypeName
-	obj_count (RobjCount±
+	obj_count (RobjCountÝ
 Sample
 ts (Rts
 	heap_size (RheapSize(
@@ -693,7 +693,8 @@ type_count (2,.perfetto.protos.JavaHeapHistogram.TypeCountR	typeCount«
 anon_rss_and_swap_size (RanonRssAndSwapSize>
 roots (2(.perfetto.protos.JavaHeapStats.HeapRootsRroots"
 oom_score_adj
- (RoomScoreAdj§
+ (RoomScoreAdj*
+process_uptime_ms (RprocessUptimeMs§
 InstanceStats
 upid (RupidA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocess?

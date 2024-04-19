@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_ETW_ETW_MODULE_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_ETW_ETW_MODULE_H_
 
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
-#include "src/trace_processor/importers/etw/etw_module.h"
-#include "src/trace_processor/importers/etw/etw_tokenizer.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
 namespace perfetto {
@@ -29,17 +25,9 @@ namespace trace_processor {
 
 class EtwModule : public ProtoImporterModule {
  public:
-  explicit EtwModule(TraceProcessorContext* context);
-
-  ModuleResult TokenizePacket(
-      const protos::pbzero::TracePacket::Decoder& decoder,
-      TraceBlobView* packet,
-      int64_t packet_timestamp,
-      PacketSequenceState* state,
-      uint32_t field_id) override;
-
- private:
-  EtwTokenizer tokenizer_;
+  virtual void ParseEtwEventData(uint32_t cpu,
+                                 int64_t ts,
+                                 const TracePacketData& data);
 };
 
 }  // namespace trace_processor

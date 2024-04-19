@@ -15,7 +15,7 @@
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto, BinaryProto
-from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 from python.generators.diff_tests.testing import PrintProfileProto
 
@@ -124,7 +124,8 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT * FROM raw WHERE common_flags != 0 ORDER BY ts LIMIT 10
+        SELECT id, type, ts, name, cpu, utid, arg_set_id, common_flags
+        FROM raw WHERE common_flags != 0 ORDER BY ts LIMIT 10
         """,
         out=Csv("""
         "id","type","ts","name","cpu","utid","arg_set_id","common_flags"
@@ -673,4 +674,39 @@ class TablesSched(TestSuite):
         process_name: com.android.providers.media.module (0x0)
         thread_state: S (0x0)
         critical path (0x0)
+        """))
+
+  # Test machine_id ID of the sched table.
+  def test_android_sched_and_ps_machine_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_sched_and_ps.pb'),
+        trace_modifier=TraceInjector(['ftrace_events'], {'machine_id': 1001}),
+        query="""
+        SELECT ts, cpu, machine_id FROM sched WHERE ts >= 81473797418963 LIMIT 10;
+        """,
+        out=Csv("""
+        "ts","cpu","machine_id"
+        81473797824982,3,1
+        81473797942847,3,1
+        81473798135399,0,1
+        81473798786857,2,1
+        81473798875451,3,1
+        81473799019930,2,1
+        81473799079982,0,1
+        81473800089357,3,1
+        81473800144461,3,1
+        81473800441805,3,1
+        """))
+
+  # Test the support of machine_id ID of the raw table.
+  def test_raw_machine_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_sched_and_ps.pb'),
+        trace_modifier=TraceInjector(['ftrace_events'], {'machine_id': 1001}),
+        query="""
+        SELECT count(*) FROM raw WHERE machine_id is NULL;
+        """,
+        out=Csv("""
+        "count(*)"
+        0
         """))

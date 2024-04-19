@@ -27,7 +27,6 @@ import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   Slice,
@@ -115,7 +114,6 @@ class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
 }
 
 class HeapProfilePlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
       select distinct(upid) from heap_profile_allocation

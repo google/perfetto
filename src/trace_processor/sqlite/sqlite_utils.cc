@@ -22,6 +22,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -30,7 +31,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
-#include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto::trace_processor::sqlite::utils {
 namespace internal {
@@ -95,7 +95,7 @@ std::wstring SqliteValueToWString(sqlite3_value* value) {
 base::Status GetColumnsForTable(
     sqlite3* db,
     const std::string& raw_table_name,
-    std::vector<SqliteTableLegacy::Column>& columns) {
+    std::vector<std::pair<SqlValue::Type, std::string>>& columns) {
   PERFETTO_DCHECK(columns.empty());
   char sql[1024];
   const char kRawSql[] = "SELECT name, type from pragma_table_info(\"%s\")";
@@ -155,7 +155,7 @@ base::Status GetColumnsForTable(
       return base::ErrStatus("Unknown column type '%s' on table %s", raw_type,
                              raw_table_name.c_str());
     }
-    columns.emplace_back(columns.size(), name, type);
+    columns.emplace_back(type, name);
   }
 
   // Catch mis-spelt table names.

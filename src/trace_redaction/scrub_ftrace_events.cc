@@ -25,67 +25,15 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 
 namespace perfetto::trace_redaction {
-namespace {
 
-constexpr auto kFtraceEventsFieldNumber =
-    protos::pbzero::TracePacket::kFtraceEventsFieldNumber;
-
-constexpr auto kEventFieldNumber =
-    protos::pbzero::FtraceEventBundle::kEventFieldNumber;
-
-enum class Redact : uint8_t {
-  // Some resources in the target need to be redacted.
-  kSomething = 0,
-
-  // No resources in the target need to be redacted.
-  kNothing = 1,
-};
-
-// Return kSomething if an event will change after redaction . If a packet
-// will not change, then the packet should skip redaction and be appended
-// to the output.
-//
-// Event packets have few packets (e.g. timestamp, pid, the event payload).
-// because of this, it is relatively cheap to test a packet.
-//
-//  event {
-//    timestamp: 6702095044306682
-//    pid: 0
-//    sched_switch {
-//      prev_comm: "swapper/2"
-//      prev_pid: 0
-//      prev_prio: 120
-//      prev_state: 0
-//      next_comm: "surfaceflinger"
-//      next_pid: 819
-//      next_prio: 120
-//    }
-//  }
-Redact ProbeEvent(const Context& context, const protozero::Field& event) {
-  if (event.id() != kEventFieldNumber) {
-    PERFETTO_FATAL("Invalid proto field. Expected kEventFieldNumber.");
-  }
-
-  protozero::ProtoDecoder decoder(event.data(), event.size());
-
-  for (auto field = decoder.ReadField(); field.valid();
-       field = decoder.ReadField()) {
-    if (context.ftrace_packet_allow_list.count(field.id()) != 0) {
-      return Redact::kNothing;
-    }
-  }
-
-  return Redact::kSomething;
-}
-
-}  // namespace
+FtraceEventFilter::~FtraceEventFilter() = default;
 
 //  packet {
 //    ftrace_events {
 //      event {                   <-- This is where we test the allow-list
 //        timestamp: 6702095044299807
 //        pid: 0
-//        cpu_idle {              <-- This is the event data (allow-list)
+//        cpu_idle {              <-- This is the event type
 //          state: 4294967295
 //          cpu_id: 2
 //        }
@@ -95,58 +43,65 @@ Redact ProbeEvent(const Context& context, const protozero::Field& event) {
 base::Status ScrubFtraceEvents::Transform(const Context& context,
                                           std::string* packet) const {
   if (packet == nullptr || packet->empty()) {
-    return base::ErrStatus("Cannot scrub null or empty trace packet.");
+    return base::ErrStatus("ScrubFtraceEvents: null or empty packet.");
   }
 
-  if (context.ftrace_packet_allow_list.empty()) {
-    return base::ErrStatus("Cannot scrub ftrace packets, missing allow-list.");
+  for (const auto& filter : filters_) {
+    auto status = filter->VerifyContext(context);
+
+    if (!status.ok()) {
+      return status;
+    }
   }
 
-  // If the packet has no ftrace events, skip it, leaving it unmodified.
-  protos::pbzero::TracePacket::Decoder query(*packet);
-  if (!query.has_ftrace_events()) {
+  protozero::ProtoDecoder packet_decoder(*packet);
+
+  if (!packet_decoder
+           .FindField(protos::pbzero::TracePacket::kFtraceEventsFieldNumber)
+           .valid()) {
     return base::OkStatus();
   }
 
-  protozero::HeapBuffered<protos::pbzero::TracePacket> packet_msg;
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet_message;
 
-  // packet.foreach_child.foreach( ... )
-  protozero::ProtoDecoder d_packet(*packet);
-  for (auto packet_child_it = d_packet.ReadField(); packet_child_it.valid();
-       packet_child_it = d_packet.ReadField()) {
-    // packet.child_not<ftrace_events>( ).do ( ... )
-    if (packet_child_it.id() != kFtraceEventsFieldNumber) {
-      proto_util::AppendField(packet_child_it, packet_msg.get());
+  for (auto field = packet_decoder.ReadField(); field.valid();
+       field = packet_decoder.ReadField()) {
+    if (field.id() != protos::pbzero::TracePacket::kFtraceEventsFieldNumber) {
+      proto_util::AppendField(field, packet_message.get());
       continue;
     }
 
-    // To clarify, "ftrace_events" is the field name and "FtraceEventBundle" is
-    // the field type. The terms are often used interchangeably.
-    auto* ftrace_events_msg = packet_msg->set_ftrace_events();
+    auto* bundle_message = packet_message->set_ftrace_events();
 
-    // packet.child<ftrace_events>( ).foreach_child( ... )
-    protozero::ProtoDecoder ftrace_events(packet_child_it.as_bytes());
-    for (auto ftrace_events_it = ftrace_events.ReadField();
-         ftrace_events_it.valid();
-         ftrace_events_it = ftrace_events.ReadField()) {
-      // packet.child<ftrace_events>( ).child_not<event>( ).do ( ... )
-      if (ftrace_events_it.id() != kEventFieldNumber) {
-        proto_util::AppendField(ftrace_events_it, ftrace_events_msg);
-        continue;
+    protozero::ProtoDecoder bundle(field.as_bytes());
+
+    for (auto event_it = bundle.ReadField(); event_it.valid();
+         event_it = bundle.ReadField()) {
+      if (event_it.id() !=
+              protos::pbzero::FtraceEventBundle::kEventFieldNumber ||
+          KeepEvent(context, event_it.as_bytes())) {
+        proto_util::AppendField(event_it, bundle_message);
       }
-
-      // packet.child<ftrace_events>( ).child_is<event>( ).do ( ... )
-      if (ProbeEvent(context, ftrace_events_it) == Redact::kNothing) {
-        proto_util::AppendField(ftrace_events_it, ftrace_events_msg);
-        continue;
-      }
-
-      // Dropping packet = "is event" and "is redacted"
     }
   }
 
-  packet->assign(packet_msg.SerializeAsString());
+  packet->assign(packet_message.SerializeAsString());
+
   return base::OkStatus();
+}
+
+// Logical AND of all filters.
+bool ScrubFtraceEvents::KeepEvent(const Context& context,
+                                  protozero::ConstBytes bytes) const {
+  for (const auto& filter : filters_) {
+    auto keep = filter->KeepEvent(context, bytes);
+
+    if (!keep) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 }  // namespace perfetto::trace_redaction

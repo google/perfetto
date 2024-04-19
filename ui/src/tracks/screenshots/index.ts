@@ -20,7 +20,6 @@ import {
   BottomTabToSCSAdapter,
   NUM,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   PrimaryTrackSortKey,
@@ -84,8 +83,6 @@ export async function decideTracks(
 }
 
 class ScreenshotsPlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await ctx.engine.query(`INCLUDE PERFETTO MODULE android.screenshots`);
 

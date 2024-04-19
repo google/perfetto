@@ -541,6 +541,9 @@ class TraceStorage {
     return &ftrace_event_table_;
   }
 
+  const tables::MachineTable& machine_table() const { return machine_table_; }
+  tables::MachineTable* mutable_machine_table() { return &machine_table_; }
+
   const tables::CpuTable& cpu_table() const { return cpu_table_; }
   tables::CpuTable* mutable_cpu_table() { return &cpu_table_; }
 
@@ -1045,6 +1048,8 @@ class TraceStorage {
 
   tables::RawTable raw_table_{&string_pool_};
   tables::FtraceEventTable ftrace_event_table_{&string_pool_, &raw_table_};
+
+  tables::MachineTable machine_table_{&string_pool_};
 
   tables::CpuTable cpu_table_{&string_pool_};
 

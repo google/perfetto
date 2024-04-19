@@ -21,48 +21,41 @@
 #include "perfetto/base/status.h"
 
 namespace perfetto::trace_redaction {
-// The TracePacket message has a simple structure. At its core its one sub
-// message (e.g. ProcessTree) and some additional context (e.g. timestamp).
-// This makes the per-packet check binary - does it contain one of the
-// allow-listed messages?
-//
-// This transform will be called P times where P is the number of packet in the
-// trace.
-//
-// There are A packet types in the allow-list. The allow-list in a set with logA
-// look up. Since the allow-list is relatively small and constant in size,
-// allow-list can be considered constant.
-//
-// There are at most F fields where F is the max number of concurrent fields in
-// a trace packet. Given the limit, this can be considered constant.
-//
-// All together, this implementation can be considered linear in relation to the
-// trace size.
+
+TracePacketFilter::~TracePacketFilter() = default;
+
 base::Status ScrubTracePacket::Transform(const Context& context,
                                          std::string* packet) const {
   if (packet == nullptr || packet->empty()) {
-    return base::ErrStatus("Cannot scrub null or empty trace packet.");
+    return base::ErrStatus("ScrubTracePacket: null or empty packet.");
   }
 
-  const auto& allow_list = context.trace_packet_allow_list;
+  for (const auto& filter : filters_) {
+    auto status = filter->VerifyContext(context);
 
-  if (allow_list.empty()) {
-    return base::ErrStatus("Cannot scrub trace packets, missing allow-list.");
-  }
-
-  protozero::ProtoDecoder d(*packet);
-
-  // A packet should only have one data type (proto oneof), but there are other
-  // values in the packet (e.g. timestamp). If one field is in the allowlist,
-  // then allow the whole trace packet.
-  for (auto f = d.ReadField(); f.valid(); f = d.ReadField()) {
-    if (allow_list.count(f.id()) != 0) {
-      return base::OkStatus();
+    if (!status.ok()) {
+      return status;
     }
+  }
+
+  if (KeepEvent(context, *packet)) {
+    return base::OkStatus();
   }
 
   packet->clear();
   return base::OkStatus();
+}
+
+// Logical AND of all filters.
+bool ScrubTracePacket::KeepEvent(const Context& context,
+                                 const std::string& bytes) const {
+  for (const auto& filter : filters_) {
+    if (!filter->KeepPacket(context, bytes)) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 }  // namespace perfetto::trace_redaction

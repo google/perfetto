@@ -20,30 +20,20 @@
   // instead.
   user-select: none;
 
-  .pf-panels {
-    // Make this a positioned element so .pf-scroll-limiter is positioned
-    // relative to this element.
-    position: relative;
+  .pf-panel-stack {
+    position: relative; // Position overlay relative to this element
 
-    // In the scrolling case, since the canvas is overdrawn and continuously
-    // repositioned, we need the canvas to be in a div with overflow hidden and
-    // height equalling the total height of the content to prevent scrolling
-    // height from growing.
-    .pf-scroll-limiter {
+    .pf-overlay {
       position: absolute;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      overflow: hidden;
-
-      // Make this overlay invisible to pointer events.
-      pointer-events: none;
+      inset: 0; // Shorthand for [top, left, right, bottom]: 0
+      pointer-events: none; // Make this overlay invisible to pointer events
     }
 
     .pf-panel {
       &.pf-sticky {
         position: sticky;
         top: 0;
+        z-index: 1;
       }
     }
   }
