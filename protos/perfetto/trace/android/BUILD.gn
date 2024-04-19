@@ -29,6 +29,7 @@ perfetto_proto_library("@TYPE@") {
     "initial_display_state.proto",
     "network_trace.proto",
     "packages_list.proto",
+    "pixel_modem_events.proto",
     "protolog.proto",
     "shell_transition.proto",
     "surfaceflinger_common.proto",
