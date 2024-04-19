@@ -30,6 +30,7 @@ import "protos/perfetto/trace/android/graphics_frame_event.proto";
 import "protos/perfetto/trace/android/initial_display_state.proto";
 import "protos/perfetto/trace/android/network_trace.proto";
 import "protos/perfetto/trace/android/packages_list.proto";
+import "protos/perfetto/trace/android/pixel_modem_events.proto";
 import "protos/perfetto/trace/android/protolog.proto";
 import "protos/perfetto/trace/android/shell_transition.proto";
 import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
@@ -103,7 +104,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 109.
+// Next id: 112.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -242,6 +243,9 @@ message TracePacket {
 
     // Clock synchronization with remote machines.
     RemoteClockSync remote_clock_sync = 107;
+
+    PixelModemEvents pixel_modem_events = 110;
+    PixelModemTokenDatabase pixel_modem_token_database = 111;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
