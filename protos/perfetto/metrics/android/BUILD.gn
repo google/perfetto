@@ -33,6 +33,7 @@ perfetto_proto_library("@TYPE@") {
     "android_trusty_workqueues.proto",
     "anr_metric.proto",
     "app_process_starts_metric.proto",
+    "auto_metric.proto",
     "batt_metric.proto",
     "binder_metric.proto",
     "camera_metric.proto",
