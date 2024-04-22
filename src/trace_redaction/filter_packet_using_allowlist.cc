@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <string>
-
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
 #include "src/trace_redaction/filter_packet_using_allowlist.h"
@@ -32,25 +30,11 @@ base::Status FilterPacketUsingAllowlist::VerifyContext(
   return base::OkStatus();
 }
 
-bool FilterPacketUsingAllowlist::KeepPacket(const Context& context,
-                                            const std::string& bytes) const {
+bool FilterPacketUsingAllowlist::KeepField(
+    const Context& context,
+    const protozero::Field& field) const {
   PERFETTO_DCHECK(!context.trace_packet_allow_list.empty());
-
-  const auto& allow_list = context.trace_packet_allow_list;
-
-  protozero::ProtoDecoder decoder(bytes);
-
-  // A packet should only have one data type (proto oneof), but there are other
-  // values in the packet (e.g. timestamp). If one field is in the allowlist,
-  // then allow the whole trace packet.
-  for (auto field = decoder.ReadField(); field.valid();
-       field = decoder.ReadField()) {
-    if (allow_list.count(field.id()) != 0) {
-      return true;
-    }
-  }
-
-  return false;
+  return field.valid() && context.trace_packet_allow_list.count(field.id());
 }
 
 }  // namespace perfetto::trace_redaction
