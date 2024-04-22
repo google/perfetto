@@ -56,7 +56,7 @@ export async function getUserScrollDeltas(
       ts,
       IFNULL(scroll_update_id, "") AS scrollUpdateId,
       delta_y AS deltaY,
-      offset_y AS offsetY
+      relative_offset_y AS offsetY
     FROM chrome_scroll_input_offsets
     WHERE ts >= ${startTs} AND ts <= ${startTs + dur};
   `);
@@ -100,7 +100,7 @@ export async function getAppliedScrollDeltas(
       ts,
       IFNULL(scroll_update_ids, "") AS scrollUpdateIds,
       delta_y AS deltaY,
-      offset_y AS offsetY
+      relative_offset_y AS offsetY
     FROM chrome_presented_scroll_offsets
     LEFT JOIN scroll_update_ids
       USING(ts)
