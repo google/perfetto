@@ -136,15 +136,21 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
     const time = visibleTimeScale.pxToHpTime(x).toTime('floor');
 
     const query = `
+      WITH X AS (
+        SELECT
+          id,
+          ts AS leftTs,
+          LEAD(ts) OVER (ORDER BY ts) AS rightTs
+        FROM counter
+        WHERE track_id = ${this.trackId}
+        ORDER BY ts
+      )
       SELECT
         id,
-        ts as leftTs,
-        min(ts) OVER (ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) as rightTs
-      FROM ${this.rootTable}
-      WHERE
-        track_id = ${this.trackId} AND
-        ts < ${time}
-      ORDER BY ts DESC
+        leftTs,
+        rightTs
+      FROM X
+      WHERE rightTs > ${time}
       LIMIT 1
     `;
 
@@ -152,7 +158,7 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
       const it = result.iter({
         id: NUM,
         leftTs: LONG,
-        rightTs: LONG,
+        rightTs: LONG_NULL,
       });
       if (!it.valid()) {
         return;
@@ -160,7 +166,11 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
       const trackKey = this.trackKey;
       const id = it.id;
       const leftTs = Time.fromRaw(it.leftTs);
-      const rightTs = Time.fromRaw(it.rightTs);
+
+      // TODO(stevegolton): Don't try to guess times and durations here, make it
+      // obvious to the user that this counter sample has no duration as it's
+      // the last one in the series
+      const rightTs = Time.fromRaw(it.rightTs ?? leftTs);
 
       globals.makeSelection(
         Actions.selectCounter({
