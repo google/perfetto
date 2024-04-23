@@ -2,6 +2,8 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
+INCLUDE PERFETTO MODULE chrome.scroll_jank.utils;
+
 -- Defines slices for all of the individual scrolls in a trace based on the
 -- LatencyInfo-based scroll definition.
 --
@@ -19,36 +21,39 @@ CREATE PERFETTO TABLE chrome_scrolls(
   ts INT,
   -- The duration of the scroll.
   dur INT,
-  -- The earliest timestamp of the InputLatency::GestureScrollBegin for the
+  -- The earliest timestamp of the EventLatency slice of the GESTURE_SCROLL_BEGIN type for the
   -- corresponding scroll id.
   gesture_scroll_begin_ts INT,
-  -- The earliest timestamp of the InputLatency::GestureScrollEnd for the
+  -- The earliest timestamp of the EventLatency slice of the GESTURE_SCROLL_END type /
+  -- the latest timestamp of the EventLatency slice of the GESTURE_SCROLL_UPDATE type for the
   -- corresponding scroll id.
   gesture_scroll_end_ts INT
 ) AS
 WITH all_scrolls AS (
   SELECT
-    name,
-    ts,
-    dur,
-    extract_arg(arg_set_id, 'chrome_latency_info.gesture_scroll_id') AS scroll_id
-  FROM slice
-  WHERE name GLOB 'InputLatency::GestureScroll*'
-  AND extract_arg(arg_set_id, 'chrome_latency_info.gesture_scroll_id') IS NOT NULL
+    args.string_value AS name,
+    S.ts AS ts,
+    S.dur AS dur,
+    chrome_get_most_recent_scroll_begin_id(S.ts) AS scroll_id
+  FROM slice AS S JOIN args USING(arg_set_id)
+  WHERE name="EventLatency"
+  AND args.string_value GLOB "*GESTURE_SCROLL*"
 ),
 scroll_starts AS (
   SELECT
     scroll_id,
     MIN(ts) AS gesture_scroll_begin_ts
   FROM all_scrolls
-  WHERE name = 'InputLatency::GestureScrollBegin'
+  WHERE name = "GESTURE_SCROLL_BEGIN"
   GROUP BY scroll_id
-), scroll_ends AS (
+),
+scroll_ends AS (
   SELECT
     scroll_id,
-    MIN(ts) AS gesture_scroll_end_ts
+    MAX(ts) AS gesture_scroll_end_ts
   FROM all_scrolls
-  WHERE name = 'InputLatency::GestureScrollEnd'
+  WHERE name GLOB "*GESTURE_SCROLL_UPDATE"
+    OR name = "GESTURE_SCROLL_END"
   GROUP BY scroll_id
 )
 SELECT
