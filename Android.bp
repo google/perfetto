@@ -11304,6 +11304,7 @@ filegroup {
     name: "perfetto_src_trace_processor_containers_unittests",
     srcs: [
         "src/trace_processor/containers/bit_vector_unittest.cc",
+        "src/trace_processor/containers/implicit_segment_forest_unittest.cc",
         "src/trace_processor/containers/null_term_string_view_unittest.cc",
         "src/trace_processor/containers/row_map_unittest.cc",
         "src/trace_processor/containers/string_pool_unittest.cc",
