@@ -83,7 +83,6 @@ export function createEmptyNonSerializableState(): NonSerializableState {
       ],
       constrainToArea: true,
       queryRequested: false,
-      argumentNames: [],
     },
   };
 }

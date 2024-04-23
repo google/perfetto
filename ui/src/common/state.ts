@@ -424,9 +424,6 @@ export interface PivotTableState {
   // Set to true by frontend to request controller to perform the query to
   // acquire the necessary data from the engine.
   queryRequested: boolean;
-
-  // Argument names in the current trace, used for autocompletion purposes.
-  argumentNames: string[];
 }
 
 export interface LoadedConfigNone {
