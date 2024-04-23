@@ -232,6 +232,75 @@ enum RpmStatus {
   RPM_SUSPENDED,
   RPM_SUSPENDING,
 };
+
+// Obtain the string corresponding to the event code (`event` field) in the
+// `device_pm_callback_start` tracepoint.
+std::string GetDpmCallbackEventString(int64_t event) {
+  // This mapping order is obtained directly from the Linux kernel code.
+  switch (event) {
+    case 0x2:
+      return "suspend";
+    case 0x10:
+      return "resume";
+    case 0x1:
+      return "freeze";
+    case 0x8:
+      return "quiesce";
+    case 0x4:
+      return "hibernate";
+    case 0x20:
+      return "thaw";
+    case 0x40:
+      return "restore";
+    case 0x80:
+      return "recover";
+    default:
+      return "(unknown PM event)";
+  }
+}
+
+bool StrStartsWith(const std::string& str, const std::string& prefix) {
+  return str.size() >= prefix.size() &&
+         str.compare(0, prefix.size(), prefix) == 0;
+}
+
+// Constructs the display string for device PM callback slices.
+//
+// Format: "<driver name> <device name> <event type>[:<callback phase>]"
+//
+// Note: The optional `<callback phase>` is extracted from the `pm_ops` field
+// of the `device_pm_callback_start` tracepoint.
+std::string ConstructDpmCallbackSliceName(const std::string& driver_name,
+                                          const std::string& device_name,
+                                          const std::string& pm_ops,
+                                          const std::string& event_type) {
+  std::string slice_name_base =
+      driver_name + " " + device_name + " " + event_type;
+
+  // The Linux kernel has a limitation where the `pm_ops` field in the
+  // tracepoint is left empty if the phase is either prepare/complete.
+  if (pm_ops == "") {
+    if (event_type == "suspend")
+      return slice_name_base + ":prepare";
+    else if (event_type == "resume")
+      return slice_name_base + ":complete";
+  }
+
+  // Extract callback phase (if present) for slice display name.
+  //
+  // The `pm_ops` string may contain both callback phase and callback type, but
+  // only phase is needed. A prefix match is used due to potential absence of
+  // either/both phase or type in `pm_ops`.
+  const std::vector<std::string> valid_phases = {"early", "late", "noirq"};
+  for (const std::string& valid_phase : valid_phases) {
+    if (StrStartsWith(pm_ops, valid_phase)) {
+      return slice_name_base + ":" + valid_phase;
+    }
+  }
+
+  return slice_name_base;
+}
+
 }  // namespace
 
 FtraceParser::FtraceParser(TraceProcessorContext* context)
@@ -1167,6 +1236,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kGoogleIrmEventFieldNumber: {
         ParseGoogleIrmEvent(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kDevicePmCallbackStartFieldNumber: {
+        ParseDevicePmCallbackStart(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kDevicePmCallbackEndFieldNumber: {
+        ParseDevicePmCallbackEnd(ts, fld_bytes);
         break;
       }
       default:
@@ -3376,6 +3453,55 @@ void FtraceParser::ParseRpmStatus(int64_t ts, protozero::ConstBytes blob) {
   context_->slice_tracker->Begin(ts, track_id, /*category=*/kNullStringId,
                                  /*raw_name=*/GetRpmStatusStringId(rpm_status));
   devices_with_active_rpm_slice_.insert(device_name);
+}
+
+// Parses `device_pm_callback_start` events and begins corresponding slices in
+// the suspend / resume latency UI track.
+void FtraceParser::ParseDevicePmCallbackStart(int64_t ts,
+                                              protozero::ConstBytes blob) {
+  protos::pbzero::DevicePmCallbackStartFtraceEvent::Decoder dpm_event(
+      blob.data, blob.size);
+
+  // Device here refers to anything managed by a Linux kernel driver.
+  std::string device_name = dpm_event.device().ToStdString();
+  int64_t cookie;
+
+  if (suspend_resume_cookie_map_.Find(device_name) == nullptr) {
+    cookie = static_cast<int64_t>(suspend_resume_cookie_map_.size());
+    suspend_resume_cookie_map_[device_name] = cookie;
+  } else {
+    cookie = suspend_resume_cookie_map_[device_name];
+  }
+
+  std::string slice_name = ConstructDpmCallbackSliceName(
+      dpm_event.driver().ToStdString(), device_name,
+      dpm_event.pm_ops().ToStdString(),
+      GetDpmCallbackEventString(dpm_event.event()));
+  StringId slice_name_id = context_->storage->InternString(slice_name.c_str());
+
+  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
+      suspend_resume_name_id_);
+  TrackId track_id =
+      context_->async_track_set_tracker->Begin(async_track, cookie);
+  context_->slice_tracker->Begin(ts, track_id, suspend_resume_name_id_,
+                                 slice_name_id);
+}
+
+// Parses `device_pm_callback_end` events and ends corresponding slices in the
+// suspend / resume latency UI track.
+void FtraceParser::ParseDevicePmCallbackEnd(int64_t ts,
+                                            protozero::ConstBytes blob) {
+  protos::pbzero::DevicePmCallbackEndFtraceEvent::Decoder dpm_event(blob.data,
+                                                                    blob.size);
+
+  // Device here refers to anything managed by a Linux kernel driver.
+  std::string device_name = dpm_event.device().ToStdString();
+
+  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
+      suspend_resume_name_id_);
+  TrackId track_id = context_->async_track_set_tracker->End(
+      async_track, suspend_resume_cookie_map_[device_name]);
+  context_->slice_tracker->End(ts, track_id);
 }
 
 void FtraceParser::ParsePanelWriteGeneric(int64_t timestamp,
