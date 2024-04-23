@@ -44,6 +44,7 @@ MetadataModule::MetadataModule(TraceProcessorContext* context)
           context_->storage->InternString("trusted_producer_uid")) {
   RegisterForField(TracePacket::kUiStateFieldNumber, context);
   RegisterForField(TracePacket::kTriggerFieldNumber, context);
+  RegisterForField(TracePacket::kChromeTriggerFieldNumber, context);
   RegisterForField(TracePacket::kTraceUuidFieldNumber, context);
 }
 
