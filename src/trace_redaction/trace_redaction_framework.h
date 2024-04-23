@@ -21,9 +21,12 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_set>
+#include <vector>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/status.h"
+#include "src/trace_redaction/frame_cookie.h"
 #include "src/trace_redaction/process_thread_timeline.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -186,6 +189,34 @@ class Context {
   // After Sort(), Flatten() and Reduce() can be called (optional) to improve
   // the practical look-up times (compared to theoretical look-up times).
   std::unique_ptr<ProcessThreadTimeline> timeline;
+
+  // All frame events:
+  //
+  //  - ActualDisplayFrame
+  //  - ActualSurfaceFrame
+  //  - ExpectedDisplayFrame
+  //  - ExpectedSurfaceFrame
+  //
+  // Connect a time, a pid, and a cookie value. Cookies are unqiue within a
+  // trace, so if a cookie was connected to the target package, it can always be
+  // used.
+  //
+  // End events (i.e. FrameEnd) only have a time and cookie value. The cookie
+  // value connects it to its start time.
+  //
+  // In the collect phase, all start events are collected and converted to a
+  // simpler structure.
+  //
+  // In the build phase, the cookies are filtered to only include the ones that
+  // belong to the target package. This is down in the build phase, and not the
+  // collect phase, because the timeline is needed to determine if the cookie
+  // belongs to the target package.
+  std::vector<FrameCookie> global_frame_cookies;
+
+  // The collect of cookies that belong to the target package. Because cookie
+  // values are unique within the scope of the trace, pid and time are no longer
+  // needed and a set can be used for faster queries.
+  std::unordered_set<int64_t> package_frame_cookies;
 };
 
 // Extracts low-level data from the trace and writes it into the context. The

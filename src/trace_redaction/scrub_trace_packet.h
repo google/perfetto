@@ -26,7 +26,7 @@ class TracePacketFilter {
   virtual ~TracePacketFilter();
 
   // Checks if the context contains all neccessary parameters.
-  virtual base::Status VerifyContext(const Context& context) const = 0;
+  virtual base::Status VerifyContext(const Context& context) const;
 
   // Checks if the field should be pass onto the new packet. Checks are a
   // logical AND, so all filters must return true.
