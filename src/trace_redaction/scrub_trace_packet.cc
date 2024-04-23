@@ -27,6 +27,10 @@ namespace perfetto::trace_redaction {
 
 TracePacketFilter::~TracePacketFilter() = default;
 
+base::Status TracePacketFilter::VerifyContext(const Context&) const {
+  return base::OkStatus();
+}
+
 base::Status ScrubTracePacket::Transform(const Context& context,
                                          std::string* packet) const {
   if (packet == nullptr || packet->empty()) {
