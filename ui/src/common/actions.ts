@@ -1162,13 +1162,6 @@ export const StateActions = {
       );
   },
 
-  setPivotTableArgumentNames(
-    state: StateDraft,
-    args: {argumentNames: string[]},
-  ) {
-    state.nonSerializableState.pivotTable.argumentNames = args.argumentNames;
-  },
-
   changePivotTablePivotOrder(
     state: StateDraft,
     args: {from: number; to: number; direction: DropDirection},

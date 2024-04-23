@@ -31,7 +31,7 @@ import {
 } from '../frontend/pivot_table_query_generator';
 import {Aggregation, PivotTree} from '../frontend/pivot_table_types';
 import {Engine} from '../trace_processor/engine';
-import {ColumnType, STR} from '../trace_processor/query_result';
+import {ColumnType} from '../trace_processor/query_result';
 
 import {Controller} from './controller';
 
@@ -189,7 +189,6 @@ export class PivotTableController extends Controller<{}> {
   engine: Engine;
   lastQueryAreaId = '';
   lastQueryAreaTracks = new Set<string>();
-  requestedArgumentNames = false;
 
   constructor(args: {engine: Engine}) {
     super({});
@@ -272,29 +271,9 @@ export class PivotTableController extends Controller<{}> {
     );
   }
 
-  async requestArgumentNames() {
-    this.requestedArgumentNames = true;
-    const result = await this.engine.query(`
-      select distinct flat_key from args
-    `);
-    const it = result.iter({flat_key: STR});
-
-    const argumentNames = [];
-    while (it.valid()) {
-      argumentNames.push(it.flat_key);
-      it.next();
-    }
-
-    globals.dispatch(Actions.setPivotTableArgumentNames({argumentNames}));
-  }
-
   run() {
     if (!PIVOT_TABLE_REDUX_FLAG.get()) {
       return;
-    }
-
-    if (!this.requestedArgumentNames) {
-      this.requestArgumentNames();
     }
 
     const pivotTableState = globals.state.nonSerializableState.pivotTable;
