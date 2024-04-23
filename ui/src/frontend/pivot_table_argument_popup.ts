@@ -20,21 +20,6 @@ import {raf} from '../core/raf_scheduler';
 
 interface ArgumentPopupArgs {
   onArgumentChange: (arg: string) => void;
-  knownArguments: string[];
-}
-
-function longestString(array: string[]): string {
-  if (array.length === 0) {
-    return '';
-  }
-
-  let answer = array[0];
-  for (let i = 1; i < array.length; i++) {
-    if (array[i].length > answer.length) {
-      answer = array[i];
-    }
-  }
-  return answer;
 }
 
 // Component rendering popup for entering an argument name to use as a pivot.
@@ -45,41 +30,6 @@ export class ArgumentPopup implements m.ClassComponent<ArgumentPopupArgs> {
     this.argument = arg;
     attrs.onArgumentChange(arg);
     raf.scheduleFullRedraw();
-  }
-
-  renderMatches(attrs: ArgumentPopupArgs): m.Child[] {
-    const result: m.Child[] = [];
-
-    for (const option of attrs.knownArguments) {
-      // Would be great to have smarter fuzzy matching, but in the meantime
-      // simple substring check should work fine.
-      const index = option.indexOf(this.argument);
-
-      if (index === -1) {
-        continue;
-      }
-
-      if (result.length === 10) {
-        break;
-      }
-
-      result.push(
-        m(
-          'div',
-          {
-            onclick: () => {
-              this.setArgument(attrs, option);
-            },
-          },
-          option.substring(0, index),
-          // Highlight the matching part with bold font
-          m('strong', this.argument),
-          option.substring(index + this.argument.length),
-        ),
-      );
-    }
-
-    return result;
   }
 
   view({attrs}: m.Vnode<ArgumentPopupArgs>): m.Child {
@@ -94,8 +44,6 @@ export class ArgumentPopup implements m.ClassComponent<ArgumentPopupArgs> {
         },
         value: this.argument,
       }),
-      m('.arguments-popup-sizer', longestString(attrs.knownArguments)),
-      this.renderMatches(attrs),
     );
   }
 }
