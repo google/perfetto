@@ -26,6 +26,11 @@ def _proto_gen_impl(ctx):
         for dep in ctx.attr.deps
         for f in dep[ProtoInfo].transitive_imports.to_list()
     ]
+    proto_paths = [
+        f
+        for dep in ctx.attr.deps
+        for f in dep[ProtoInfo].transitive_proto_path.to_list()
+    ]
 
     proto_path = "."
 
@@ -58,8 +63,10 @@ def _proto_gen_impl(ctx):
         out_files += [ctx.actions.declare_file(base_path + ".%s.cc" % suffix)]
 
     arguments = [
-        "--proto_path=" + proto_path,
+        "--proto_path=" + proto_path
+        for proto_path in proto_paths
     ]
+
     plugin_deps = []
     if ctx.attr.plugin:
         wrap_arg = ctx.attr.wrapper_namespace
