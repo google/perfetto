@@ -41,11 +41,11 @@ class ProtoLogMessagesTracker : public Destructible {
   };
 
   static ProtoLogMessagesTracker* GetOrCreate(TraceProcessorContext* context) {
-    if (!context->shell_transitions_tracker) {
-      context->shell_transitions_tracker.reset(new ProtoLogMessagesTracker());
+    if (!context->protolog_messages_tracker) {
+      context->protolog_messages_tracker.reset(new ProtoLogMessagesTracker());
     }
     return static_cast<ProtoLogMessagesTracker*>(
-        context->shell_transitions_tracker.get());
+        context->protolog_messages_tracker.get());
   }
 
   void TrackMessage(TrackedProtoLogMessage tracked_protolog_message);
