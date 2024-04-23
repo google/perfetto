@@ -16,6 +16,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_redaction/collect_frame_cookies.h"
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "src/trace_redaction/filter_packet_using_allowlist.h"
@@ -49,15 +50,18 @@ static base::Status Main(std::string_view input,
   // Add all collectors.
   redactor.emplace_collect<FindPackageUid>();
   redactor.emplace_collect<CollectTimelineEvents>();
+  redactor.emplace_collect<CollectFrameCookies>();
 
   // Add all builders.
   redactor.emplace_build<PopulateAllowlists>();
   redactor.emplace_build<AllowSuspendResume>();
   redactor.emplace_build<OptimizeTimeline>();
+  redactor.emplace_build<ReduceFrameCookies>();
 
   // Add all transforms.
   auto* scrub_packet = redactor.emplace_transform<ScrubTracePacket>();
   scrub_packet->emplace_back<FilterPacketUsingAllowlist>();
+  scrub_packet->emplace_back<FilterFrameEvents>();
 
   auto* scrub_ftrace_events = redactor.emplace_transform<ScrubFtraceEvents>();
   scrub_ftrace_events->emplace_back<FilterFtraceUsingAllowlist>();
