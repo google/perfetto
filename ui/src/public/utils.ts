@@ -22,7 +22,7 @@ import {DetailsPanel, Tab} from '.';
 export function getTrackName(
   args: Partial<{
     name: string | null;
-    utid: number;
+    utid: number | null;
     processName: string | null;
     pid: number | null;
     threadName: string | null;
