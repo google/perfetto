@@ -12892,6 +12892,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_redaction_trace_redaction",
     srcs: [
+        "src/trace_redaction/collect_frame_cookies.cc",
         "src/trace_redaction/collect_timeline_events.cc",
         "src/trace_redaction/filter_ftrace_using_allowlist.cc",
         "src/trace_redaction/filter_packet_using_allowlist.cc",
@@ -12922,6 +12923,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_redaction_unittests",
     srcs: [
+        "src/trace_redaction/collect_frame_cookies_unittest.cc",
         "src/trace_redaction/collect_timeline_events_unittest.cc",
         "src/trace_redaction/filter_ftrace_using_allowlist_unittest.cc",
         "src/trace_redaction/filter_packet_using_allowlist_unittest.cc",
