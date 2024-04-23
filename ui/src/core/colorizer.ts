@@ -182,6 +182,8 @@ export function colorForState(state: string): ColorScheme {
       return DESAT_RED;
     }
     return ORANGE;
+  } else if (state.includes('Dead')) {
+    return GRAY;
   } else if (state.includes('Sleeping') || state.includes('Idle')) {
     return TRANSPARENT_WHITE;
   }
