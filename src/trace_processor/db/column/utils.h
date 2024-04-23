@@ -19,7 +19,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <optional>
+#include <type_traits>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -29,6 +31,36 @@
 #include "src/trace_processor/db/column/types.h"
 
 namespace perfetto::trace_processor::column::utils {
+namespace internal {
+
+template <typename T, typename Comparator>
+SingleSearchResult SingleSearchNumeric(T left, const SqlValue& right_v) {
+  if constexpr (std::is_same_v<T, double>) {
+    if (right_v.type != SqlValue::kDouble) {
+      // Because of the large amount of code needing for handling comparisons
+      // with integers, just defer to the full search.
+      return SingleSearchResult::kNeedsFullSearch;
+    }
+    return Comparator()(left, right_v.double_value)
+               ? SingleSearchResult::kMatch
+               : SingleSearchResult::kNoMatch;
+  } else if constexpr (std::is_integral_v<T>) {
+    if (right_v.type != SqlValue::kLong ||
+        right_v.long_value > std::numeric_limits<T>::max() ||
+        right_v.long_value < std::numeric_limits<T>::min()) {
+      // Because of the large amount of code needing for handling comparisons
+      // with doubles or out of range values, just defer to the full search.
+      return SingleSearchResult::kNeedsFullSearch;
+    }
+    return Comparator()(left, static_cast<T>(right_v.long_value))
+               ? SingleSearchResult::kMatch
+               : SingleSearchResult::kNoMatch;
+  } else {
+    static_assert(std::is_same_v<T, void>, "Illegal type");
+  }
+}
+
+}  // namespace internal
 
 template <typename Comparator, typename ValType, typename DataType>
 void LinearSearchWithComparator(ValType val,
@@ -77,27 +109,25 @@ void IndexSearchWithComparator(ValType val,
 }
 
 template <typename T>
-SingleSearchResult SingleSearchNumeric(FilterOp op, T left, T right) {
+SingleSearchResult SingleSearchNumeric(FilterOp op,
+                                       T left,
+                                       const SqlValue& right_v) {
   switch (op) {
     case FilterOp::kEq:
-      return std::equal_to<T>()(left, right) ? SingleSearchResult::kMatch
-                                             : SingleSearchResult::kNoMatch;
+      return internal::SingleSearchNumeric<T, std::equal_to<T>>(left, right_v);
     case FilterOp::kNe:
-      return std::not_equal_to<T>()(left, right) ? SingleSearchResult::kMatch
-                                                 : SingleSearchResult::kNoMatch;
+      return internal::SingleSearchNumeric<T, std::not_equal_to<T>>(left,
+                                                                    right_v);
     case FilterOp::kGe:
-      return std::greater_equal<T>()(left, right)
-                 ? SingleSearchResult::kMatch
-                 : SingleSearchResult::kNoMatch;
+      return internal::SingleSearchNumeric<T, std::greater_equal<T>>(left,
+                                                                     right_v);
     case FilterOp::kGt:
-      return std::greater<T>()(left, right) ? SingleSearchResult::kMatch
-                                            : SingleSearchResult::kNoMatch;
+      return internal::SingleSearchNumeric<T, std::greater<T>>(left, right_v);
     case FilterOp::kLe:
-      return std::less_equal<T>()(left, right) ? SingleSearchResult::kMatch
-                                               : SingleSearchResult::kNoMatch;
+      return internal::SingleSearchNumeric<T, std::less_equal<T>>(left,
+                                                                  right_v);
     case FilterOp::kLt:
-      return std::less<T>()(left, right) ? SingleSearchResult::kMatch
-                                         : SingleSearchResult::kNoMatch;
+      return internal::SingleSearchNumeric<T, std::less<T>>(left, right_v);
     case FilterOp::kIsNotNull:
       return SingleSearchResult::kMatch;
     case FilterOp::kGlob:

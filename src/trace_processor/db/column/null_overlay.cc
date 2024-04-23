@@ -129,10 +129,10 @@ RangeOrBitVector NullOverlay::ChainImpl::SearchValidated(FilterOp op,
       case SearchValidationResult::kNoData: {
         // There is no need to search in underlying storage. It's enough to
         // intersect the |non_null_|.
-        BitVector res = non_null_->IntersectRange(in.start, in.end);
-        res.Not();
+        BitVector res = non_null_->Copy();
         res.Resize(in.end, false);
-        return RangeOrBitVector(std::move(res));
+        res.Not();
+        return RangeOrBitVector(res.IntersectRange(in.start, in.end));
       }
       case SearchValidationResult::kAllData:
         return RangeOrBitVector(in);
