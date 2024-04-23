@@ -12,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {
   LONG_NULL,
   NUM,
   NUM_NULL,
-  STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
 import {assertExists} from '../../base/logging';
@@ -37,166 +34,61 @@ import {
 
 // This plugin now manages both process "scheduling" and "summary" tracks.
 class ProcessSummaryPlugin implements Plugin {
-  private upidToUuid = new Map<number, string>();
-  private utidToUuid = new Map<number, string>();
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
     await this.addKernelThreadSummary(ctx);
   }
 
   private async addProcessTrackGroups(ctx: PluginContextTrace): Promise<void> {
-    this.upidToUuid.clear();
-    this.utidToUuid.clear();
-
-    // We want to create groups of tracks in a specific order.
-    // The tracks should be grouped:
-    //    by upid
-    //    or (if upid is null) by utid
-    // the groups should be sorted by:
-    //  Chrome-based process rank based on process names (e.g. Browser)
-    //  has a heap profile or not
-    //  total cpu time *for the whole parent process*
-    //  process name
-    //  upid
-    //  thread name
-    //  utid
     const result = await ctx.engine.query(`
-    with candidateThreadsAndProcesses as materialized (
-      select upid, 0 as utid from process_track
-      union
-      select upid, 0 as utid from process_counter_track
-      union
-      select upid, utid from thread_counter_track join thread using(utid)
-      union
-      select upid, utid from thread_track join thread using(utid)
-      union
-      select upid, utid from (
-        select distinct utid from sched
-      ) join thread using(utid) group by utid
-      union
-      select upid, 0 as utid from (
-        select distinct utid from perf_sample where callsite_id is not null
-      ) join thread using (utid)
-      union
-      select upid, utid from (
-        select distinct utid from cpu_profile_stack_sample
-      ) join thread using(utid)
-      union
-      select upid as upid, 0 as utid from heap_profile_allocation
-      union
-      select upid as upid, 0 as utid from heap_graph_object
-    ),
-    schedSummary as materialized (
-      select
-        upid,
-        sum(thread_total_dur) as total_dur,
-        max(thread_max_dur) as total_max_dur,
-        sum(thread_event_count) as total_event_count
+      select *
       from (
         select
-          utid,
-          sum(dur) as thread_total_dur,
-          max(dur) as thread_max_dur,
-          count() as thread_event_count
-        from sched where dur != -1 and utid != 0
-        group by utid
+          _process_available_info_summary.upid,
+          null as utid,
+          pid,
+          null as tid,
+          process.name as processName,
+          null as threadName,
+          sum_running_dur > 0 as hasSched,
+          max_running_dur as maxRunningDur,
+          running_count as runningCount,
+          android_process_metadata.debuggable as isDebuggable
+        from _process_available_info_summary
+        join process using(upid)
+        left join android_process_metadata using(upid)
       )
-      join thread using (utid)
-      group by upid
-    ),
-    sliceSum as materialized (
-      select
-        process.upid as upid,
-        sum(cnt) as sliceCount
-      from (select track_id, count(*) as cnt from slice group by track_id)
-        left join thread_track on track_id = thread_track.id
-        left join thread on thread_track.utid = thread.utid
-        left join process_track on track_id = process_track.id
-        join process on process.upid = thread.upid
-          or process_track.upid = process.upid
-      where process.upid is not null
-      group by process.upid
-    )
-    select
-      the_tracks.upid,
-      the_tracks.utid,
-      total_dur as hasSched,
-      total_max_dur as schedMaxDur,
-      total_event_count as schedEventCount,
-      hasHeapProfiles,
-      process.pid as pid,
-      thread.tid as tid,
-      process.name as processName,
-      thread.name as threadName,
-      package_list.debuggable as isDebuggable,
-      ifnull((
-        select group_concat(string_value)
-        from args
-        where
-          process.arg_set_id is not null and
-          arg_set_id = process.arg_set_id and
-          flat_key = 'chrome.process_label'
-      ), '') AS chromeProcessLabels,
-      (case process.name
-         when 'Browser' then 3
-         when 'Gpu' then 2
-         when 'Renderer' then 1
-         else 0
-      end) as chromeProcessRank
-    from candidateThreadsAndProcesses the_tracks
-    left join schedSummary using(upid)
-    left join (
-      select
-        distinct(upid) as upid,
-        true as hasHeapProfiles
-      from heap_profile_allocation
-      union
-      select
-        distinct(upid) as upid,
-        true as hasHeapProfiles
-      from heap_graph_object
-    ) using (upid)
-    left join (
-      select
-        thread.upid as upid,
-        sum(cnt) as perfSampleCount
+      union all
+      select *
       from (
-          select utid, count(*) as cnt
-          from perf_sample where callsite_id is not null
-          group by utid
-      ) join thread using (utid)
-      group by thread.upid
-    ) using (upid)
-    left join sliceSum using (upid)
-    left join thread using(utid)
-    left join process using(upid)
-    left join package_list using(uid)
-    order by
-      chromeProcessRank desc,
-      hasHeapProfiles desc,
-      perfSampleCount desc,
-      total_dur desc,
-      sliceCount desc,
-      processName asc nulls last,
-      the_tracks.upid asc nulls last,
-      threadName asc nulls last,
-      the_tracks.utid asc nulls last;
+        select
+          null,
+          utid,
+          null as pid,
+          tid,
+          null as processName,
+          thread.name threadName,
+          sum_running_dur > 0 as hasSched,
+          max_running_dur as maxRunningDur,
+          running_count as runningCount,
+          0 as isDebuggable
+        from _thread_available_info_summary
+        join thread using (utid)
+        where upid is null
+      )
   `);
 
     const it = result.iter({
-      utid: NUM,
       upid: NUM_NULL,
-      tid: NUM_NULL,
+      utid: NUM_NULL,
       pid: NUM_NULL,
-      threadName: STR_NULL,
+      tid: NUM_NULL,
       processName: STR_NULL,
+      threadName: STR_NULL,
       hasSched: NUM_NULL,
-      schedMaxDur: LONG_NULL,
-      schedEventCount: NUM_NULL,
-      hasHeapProfiles: NUM_NULL,
+      maxRunningDur: LONG_NULL,
+      runningCount: NUM_NULL,
       isDebuggable: NUM_NULL,
-      chromeProcessLabels: STR,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -204,59 +96,52 @@ class ProcessSummaryPlugin implements Plugin {
       const upid = it.upid;
       const pid = it.pid;
       const hasSched = Boolean(it.hasSched);
-      const schedMaxDur = it.schedMaxDur;
-      const schedEventCount = it.schedEventCount;
+      const maxRunningDur = it.maxRunningDur;
+      const runningCount = it.runningCount;
       const isDebuggable = Boolean(it.isDebuggable);
 
-      // Group by upid if present else by utid.
-      let pUuid =
-        upid === null ? this.utidToUuid.get(utid) : this.upidToUuid.get(upid);
-      // These should only happen once for each track group.
-      if (pUuid === undefined) {
-        pUuid = this.getOrCreateUuid(utid, upid);
-        const pidForColor = pid ?? tid ?? upid ?? utid ?? 0;
-        const type = hasSched ? 'schedule' : 'summary';
-        const uri = `perfetto.ProcessScheduling#${upid}.${utid}.${type}`;
+      const pidForColor = pid ?? tid ?? upid ?? utid ?? 0;
+      const type = hasSched ? 'schedule' : 'summary';
+      const uri = `perfetto.ProcessScheduling#${upid}.${utid}.${type}`;
 
-        if (hasSched) {
-          const config: ProcessSchedulingTrackConfig = {
-            pidForColor,
-            upid,
-            utid,
-          };
+      if (hasSched) {
+        const config: ProcessSchedulingTrackConfig = {
+          pidForColor,
+          upid,
+          utid,
+        };
 
-          ctx.registerTrack({
-            uri,
-            displayName: `${upid === null ? tid : pid} schedule`,
-            kind: PROCESS_SCHEDULING_TRACK_KIND,
-            tags: {
-              isDebuggable,
-            },
-            trackFactory: () =>
-              new ProcessSchedulingTrack(
-                ctx.engine,
-                config,
-                assertExists(schedMaxDur),
-                assertExists(schedEventCount),
-              ),
-          });
-        } else {
-          const config: ProcessSummaryTrackConfig = {
-            pidForColor,
-            upid,
-            utid,
-          };
+        ctx.registerTrack({
+          uri,
+          displayName: `${upid === null ? tid : pid} schedule`,
+          kind: PROCESS_SCHEDULING_TRACK_KIND,
+          tags: {
+            isDebuggable,
+          },
+          trackFactory: () =>
+            new ProcessSchedulingTrack(
+              ctx.engine,
+              config,
+              assertExists(maxRunningDur),
+              assertExists(runningCount),
+            ),
+        });
+      } else {
+        const config: ProcessSummaryTrackConfig = {
+          pidForColor,
+          upid,
+          utid,
+        };
 
-          ctx.registerTrack({
-            uri,
-            displayName: `${upid === null ? tid : pid} summary`,
-            kind: PROCESS_SUMMARY_TRACK,
-            tags: {
-              isDebuggable,
-            },
-            trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
-          });
-        }
+        ctx.registerTrack({
+          uri,
+          displayName: `${upid === null ? tid : pid} summary`,
+          kind: PROCESS_SUMMARY_TRACK,
+          tags: {
+            isDebuggable,
+          },
+          trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
+        });
       }
     }
   }
@@ -312,25 +197,6 @@ class ProcessSummaryPlugin implements Plugin {
       kind: PROCESS_SUMMARY_TRACK,
       trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
     });
-  }
-
-  private getOrCreateUuid(utid: number, upid: number | null) {
-    let uuid = this.getUuidUnchecked(utid, upid);
-    if (uuid === undefined) {
-      uuid = uuidv4();
-      if (upid === null) {
-        this.utidToUuid.set(utid, uuid);
-      } else {
-        this.upidToUuid.set(upid, uuid);
-      }
-    }
-    return uuid;
-  }
-
-  getUuidUnchecked(utid: number, upid: number | null) {
-    return upid === null
-      ? this.utidToUuid.get(utid)
-      : this.upidToUuid.get(upid);
   }
 }
 

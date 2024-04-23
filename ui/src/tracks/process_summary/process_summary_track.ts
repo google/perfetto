@@ -37,7 +37,7 @@ interface Data extends TrackData {
 export interface Config {
   pidForColor: number;
   upid: number | null;
-  utid: number;
+  utid: number | null;
 }
 
 const MARGIN_TOP = 5;

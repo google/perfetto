@@ -30,76 +30,40 @@ class AsyncSlicePlugin implements Plugin {
   async addGlobalAsyncTracks(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const rawGlobalAsyncTracks = await engine.query(`
-      with tracks_with_slices as materialized (
-        select distinct track_id
-        from slice
-      ),
-      global_tracks as (
-        select
-          track.parent_id as parent_id,
-          track.id as track_id,
-          track.name as name
-        from track
-        join tracks_with_slices on tracks_with_slices.track_id = track.id
-        where
-          track.type = "track"
-          or track.type = "gpu_track"
-          or track.type = "cpu_track"
-      ),
-      global_tracks_grouped as (
+      with global_tracks_grouped as (
         select
           parent_id,
           name,
-          group_concat(track_id) as trackIds,
-          count(track_id) as trackCount
-        from global_tracks track
+          group_concat(id) as trackIds,
+          count() as trackCount
+        from track t
+        join _slice_track_summary using (id)
+        where t.type in ('track', 'gpu_track', 'cpu_track')
         group by parent_id, name
       )
       select
-        t.parent_id as parentId,
-        p.name as parentName,
         t.name as name,
+        t.parent_id as parentId,
         t.trackIds as trackIds,
         __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from global_tracks_grouped AS t
-      left join track p on (t.parent_id = p.id)
-      order by p.name, t.name;
+      from global_tracks_grouped t
     `);
     const it = rawGlobalAsyncTracks.iter({
       name: STR_NULL,
-      parentName: STR_NULL,
       parentId: NUM_NULL,
       trackIds: STR,
-      maxDepth: NUM_NULL,
+      maxDepth: NUM,
     });
-
-    // let scrollJankRendered = false;
 
     for (; it.valid(); it.next()) {
       const rawName = it.name === null ? undefined : it.name;
-      // const rawParentName = it.parentName === null ? undefined :
-      // it.parentName;
       const displayName = getTrackName({
         name: rawName,
         kind: ASYNC_SLICE_TRACK_KIND,
       });
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      // const parentTrackId = it.parentId;
       const maxDepth = it.maxDepth;
-
-      // If there are no slices in this track, skip it.
-      if (maxDepth === null) {
-        continue;
-      }
-
-      // if (ENABLE_SCROLL_JANK_PLUGIN_V2.get() && !scrollJankRendered &&
-      //     name.includes(INPUT_LATENCY_TRACK)) {
-      //   // This ensures that the scroll jank tracks render above the tracks
-      //   // for GestureScrollUpdate.
-      //   await this.addScrollJankTracks(this.engine);
-      //   scrollJankRendered = true;
-      // }
 
       ctx.registerTrack({
         uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}`,
@@ -115,27 +79,16 @@ class AsyncSlicePlugin implements Plugin {
 
   async addProcessAsyncSliceTracks(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
-      with process_async_tracks as materialized (
-        select
-          process_track.upid as upid,
-          process_track.name as trackName,
-          process.name as processName,
-          process.pid as pid,
-          group_concat(process_track.id) as trackIds,
-          count(1) as trackCount
-        from process_track
-        join process using(upid)
-        where
-            process_track.name is null or
-            process_track.name not like "% Timeline"
-        group by
-          process_track.upid,
-          process_track.name
-      )
       select
-        t.*,
-        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from process_async_tracks t;
+        upid,
+        t.name as trackName,
+        t.track_ids as trackIds,
+        process.name as processName,
+        process.pid as pid,
+        __max_layout_depth(t.track_count, t.track_ids) as maxDepth
+      from _process_track_summary_by_upid_and_name t
+      join process using(upid)
+      where t.name is null or t.name not glob "* Timeline"
     `);
 
     const it = result.iter({
@@ -144,7 +97,7 @@ class AsyncSlicePlugin implements Plugin {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
-      maxDepth: NUM_NULL,
+      maxDepth: NUM,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -154,11 +107,6 @@ class AsyncSlicePlugin implements Plugin {
       const processName = it.processName;
       const pid = it.pid;
       const maxDepth = it.maxDepth;
-
-      if (maxDepth === null) {
-        // If there are no slices in this track, skip it.
-        continue;
-      }
 
       const kind = ASYNC_SLICE_TRACK_KIND;
       const displayName = getTrackName({
@@ -188,37 +136,20 @@ class AsyncSlicePlugin implements Plugin {
   async addUserAsyncSliceTracks(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
-      with tracks_with_slices as materialized (
-        select distinct track_id
-        from slice
-      ),
-      global_tracks as (
-        select
-          uid_track.name,
-          uid_track.uid,
-          group_concat(uid_track.id) as trackIds,
-          count(uid_track.id) as trackCount
-        from uid_track
-        join tracks_with_slices
-        where tracks_with_slices.track_id == uid_track.id
-        group by uid_track.uid
-      )
       select
         t.name as name,
         t.uid as uid,
-        package_list.package_name as package_name,
-        t.trackIds as trackIds,
-        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from global_tracks t
-      join package_list
-      where t.uid = package_list.uid
-      group by t.uid
-      `);
+        package_list.package_name as packageName,
+        t.track_ids as trackIds,
+        __max_layout_depth(t.track_count, t.track_ids) as maxDepth
+      from _uid_track_track_summary_by_uid_and_name t
+      join package_list using (uid)
+    `);
 
     const it = result.iter({
       name: STR_NULL,
       uid: NUM_NULL,
-      package_name: STR_NULL,
+      packageName: STR_NULL,
       trackIds: STR,
       maxDepth: NUM_NULL,
     });
@@ -226,7 +157,7 @@ class AsyncSlicePlugin implements Plugin {
     for (; it.valid(); it.next()) {
       const kind = ASYNC_SLICE_TRACK_KIND;
       const rawName = it.name === null ? undefined : it.name;
-      const userName = it.package_name === null ? undefined : it.package_name;
+      const userName = it.packageName === null ? undefined : it.packageName;
       const uid = it.uid === null ? undefined : it.uid;
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
