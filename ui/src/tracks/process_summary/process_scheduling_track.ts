@@ -50,8 +50,8 @@ interface Data extends TrackData {
 
 export interface Config {
   pidForColor: number;
-  upid: null | number;
-  utid: number;
+  upid: number | null;
+  utid: number | null;
 }
 
 export class ProcessSchedulingTrack implements Track {

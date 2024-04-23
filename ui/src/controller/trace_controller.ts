@@ -201,20 +201,14 @@ function showJsonWarning() {
 // ensure it's only run once.
 async function defineMaxLayoutDepthSqlFunction(engine: Engine): Promise<void> {
   await engine.query(`
-    create or replace perfetto table __max_layout_depth_state as
-    select track_id, max(depth) as max_depth
-    from slice
-    group by track_id
-    order by track_id;
-
     create perfetto function __max_layout_depth(track_count INT, track_ids STRING)
     returns INT AS
     select iif(
       $track_count = 1,
       (
         select max_depth
-        from __max_layout_depth_state
-        where track_id = cast($track_ids AS int)
+        from _slice_track_summary
+        where id = cast($track_ids AS int)
       ),
       (
         select max(layout_depth)
@@ -517,6 +511,7 @@ export class TraceController extends Controller<States> {
 
     // Make sure the helper views are available before we start adding tracks.
     await this.initialiseHelperViews();
+    await this.includeSummaryTables();
 
     await defineMaxLayoutDepthSqlFunction(engine);
 
@@ -1095,6 +1090,22 @@ export class TraceController extends Controller<States> {
         }
       }
     }
+  }
+
+  async includeSummaryTables() {
+    const engine = assertExists<Engine>(this.engine);
+
+    this.updateStatus('Creating slice summaries');
+    await engine.query(`include perfetto module viz.summary.slices;`);
+
+    this.updateStatus('Creating thread summaries');
+    await engine.query(`include perfetto module viz.summary.threads;`);
+
+    this.updateStatus('Creating processes summaries');
+    await engine.query(`include perfetto module viz.summary.processes;`);
+
+    this.updateStatus('Creating track summaries');
+    await engine.query(`include perfetto module viz.summary.tracks;`);
   }
 
   private updateStatus(msg: string): void {

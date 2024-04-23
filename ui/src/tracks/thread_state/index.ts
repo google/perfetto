@@ -32,14 +32,14 @@ class ThreadState implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
-      with ts_distinct as materialized (select distinct utid from thread_state)
       select
         utid,
         upid,
         tid,
         thread.name as threadName
       from thread
-      where utid != 0 and utid in ts_distinct`);
+      join _sched_summary using (utid)
+    `);
 
     const it = result.iter({
       utid: NUM,
