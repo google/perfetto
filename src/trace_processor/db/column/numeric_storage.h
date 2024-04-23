@@ -100,21 +100,7 @@ class NumericStorage final : public NumericStorageBase {
     SingleSearchResult SingleSearch(FilterOp op,
                                     SqlValue sql_val,
                                     uint32_t i) const override {
-      if constexpr (std::is_same_v<T, double>) {
-        if (sql_val.type != SqlValue::kDouble) {
-          return SingleSearchResult::kNeedsFullSearch;
-        }
-        return utils::SingleSearchNumeric(op, (*vector_)[i],
-                                          sql_val.double_value);
-      } else {
-        if (sql_val.type != SqlValue::kLong ||
-            sql_val.long_value > std::numeric_limits<T>::max() ||
-            sql_val.long_value < std::numeric_limits<T>::min()) {
-          return SingleSearchResult::kNeedsFullSearch;
-        }
-        return utils::SingleSearchNumeric(op, (*vector_)[i],
-                                          static_cast<T>(sql_val.long_value));
-      }
+      return utils::SingleSearchNumeric(op, (*vector_)[i], sql_val);
     }
 
     void StableSort(SortToken* start,
