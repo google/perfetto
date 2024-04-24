@@ -87,8 +87,9 @@ Table Table::CopyExceptOverlays() const {
   return {string_pool_, row_count_, std::move(cols), {}};
 }
 
-RowMap Table::QueryToRowMap(const std::vector<Constraint>& cs,
-                            const std::vector<Order>& ob) const {
+RowMap Table::QueryToRowMap(const Query& q) const {
+  const auto& cs = q.constraints;
+  const auto& ob = q.orders;
   // We need to delay creation of the chains to this point because of Chrome
   // does not want the binary size overhead of including the chain
   // implementations. As they also don't query tables (instead just iterating)
@@ -134,7 +135,9 @@ Table Table::Sort(const std::vector<Order>& ob) const {
   // Return a copy of this table with the RowMaps using the computed ordered
   // RowMap.
   Table table = CopyExceptOverlays();
-  RowMap rm = QueryToRowMap({}, ob);
+  Query q;
+  q.orders = ob;
+  RowMap rm = QueryToRowMap(q);
   for (const ColumnStorageOverlay& overlay : overlays_) {
     table.overlays_.emplace_back(overlay.SelectRows(rm));
     PERFETTO_DCHECK(table.overlays_.back().size() == table.row_count());

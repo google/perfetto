@@ -70,7 +70,9 @@ class NetworkTraceModuleTest : public testing::Test {
   bool HasArg(ArgSetId sid, base::StringView key, Variadic value) {
     StringId key_id = storage_->InternString(key);
     const auto& a = storage_->arg_table();
-    for (auto it = a.FilterToIterator({a.arg_set_id().eq(sid)}); it; ++it) {
+    Query q;
+    q.constraints = {a.arg_set_id().eq(sid)};
+    for (auto it = a.FilterToIterator(q); it; ++it) {
       if (it.key() == key_id) {
         EXPECT_EQ(it.flat_key(), key_id);
         if (storage_->GetArgValue(it.row_number().row_number()) == value) {

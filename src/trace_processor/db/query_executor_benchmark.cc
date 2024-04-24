@@ -234,15 +234,17 @@ struct HeapGraphObjectTableForBenchmark {
 void BenchmarkSliceTableFilter(benchmark::State& state,
                                SliceTableForBenchmark& table,
                                std::initializer_list<Constraint> c) {
+  Query q;
+  q.constraints = c;
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.QueryToRowMap(c, {}));
+    benchmark::DoNotOptimize(table.table_.QueryToRowMap(q));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
                          benchmark::Counter::kIsIterationInvariantRate |
                              benchmark::Counter::kInvert);
   state.counters["s/out"] = benchmark::Counter(
-      static_cast<double>(table.table_.QueryToRowMap(c, {}).size()),
+      static_cast<double>(table.table_.QueryToRowMap(q).size()),
       benchmark::Counter::kIsIterationInvariantRate |
           benchmark::Counter::kInvert);
 }
@@ -263,15 +265,17 @@ void BenchmarkExpectedFrameTableFilter(
     benchmark::State& state,
     ExpectedFrameTimelineTableForBenchmark& table,
     Constraint c) {
+  Query q;
+  q.constraints = {c};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.QueryToRowMap({c}, {}));
+    benchmark::DoNotOptimize(table.table_.QueryToRowMap(q));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
                          benchmark::Counter::kIsIterationInvariantRate |
                              benchmark::Counter::kInvert);
   state.counters["s/out"] = benchmark::Counter(
-      static_cast<double>(table.table_.QueryToRowMap({c}, {}).size()),
+      static_cast<double>(table.table_.QueryToRowMap(q).size()),
       benchmark::Counter::kIsIterationInvariantRate |
           benchmark::Counter::kInvert);
 }
@@ -279,15 +283,17 @@ void BenchmarkExpectedFrameTableFilter(
 void BenchmarkFtraceEventTableFilter(benchmark::State& state,
                                      FtraceEventTableForBenchmark& table,
                                      std::initializer_list<Constraint> c) {
+  Query q;
+  q.constraints = c;
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.QueryToRowMap(c, {}));
+    benchmark::DoNotOptimize(table.table_.QueryToRowMap(q));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
                          benchmark::Counter::kIsIterationInvariantRate |
                              benchmark::Counter::kInvert);
   state.counters["s/out"] = benchmark::Counter(
-      static_cast<double>(table.table_.QueryToRowMap({c}, {}).size()),
+      static_cast<double>(table.table_.QueryToRowMap(q).size()),
       benchmark::Counter::kIsIterationInvariantRate |
           benchmark::Counter::kInvert);
 }
@@ -424,15 +430,17 @@ void BM_QEFilterWithArrangement(benchmark::State& state) {
 
   Constraint c{table.table_.track_id().index_in_table(), FilterOp::kGt,
                SqlValue::Long(10)};
+  Query q;
+  q.constraints = {c};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(slice_sorted_with_duration.QueryToRowMap({c}, {}));
+    benchmark::DoNotOptimize(slice_sorted_with_duration.QueryToRowMap(q));
   }
   state.counters["s/row"] = benchmark::Counter(
       static_cast<double>(slice_sorted_with_duration.row_count()),
       benchmark::Counter::kIsIterationInvariantRate |
           benchmark::Counter::kInvert);
   state.counters["s/out"] = benchmark::Counter(
-      static_cast<double>(table.table_.QueryToRowMap({c}, {}).size()),
+      static_cast<double>(table.table_.QueryToRowMap(q).size()),
       benchmark::Counter::kIsIterationInvariantRate |
           benchmark::Counter::kInvert);
 }
@@ -443,15 +451,17 @@ void BM_QEDenseNullFilter(benchmark::State& state) {
   HeapGraphObjectTableForBenchmark table(state);
   Constraint c{table.table_.reference_set_id().index_in_table(), FilterOp::kGt,
                SqlValue::Long(1000)};
+  Query q;
+  q.constraints = {c};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.QueryToRowMap({c}, {}));
+    benchmark::DoNotOptimize(table.table_.QueryToRowMap(q));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
                          benchmark::Counter::kIsIterationInvariantRate |
                              benchmark::Counter::kInvert);
   state.counters["s/out"] = benchmark::Counter(
-      static_cast<double>(table.table_.QueryToRowMap({c}, {}).size()),
+      static_cast<double>(table.table_.QueryToRowMap(q).size()),
       benchmark::Counter::kIsIterationInvariantRate |
           benchmark::Counter::kInvert);
 }
@@ -461,15 +471,17 @@ void BM_QEDenseNullFilterIsNull(benchmark::State& state) {
   HeapGraphObjectTableForBenchmark table(state);
   Constraint c{table.table_.reference_set_id().index_in_table(),
                FilterOp::kIsNull, SqlValue()};
+  Query q;
+  q.constraints = {c};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.QueryToRowMap({c}, {}));
+    benchmark::DoNotOptimize(table.table_.QueryToRowMap(q));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
                          benchmark::Counter::kIsIterationInvariantRate |
                              benchmark::Counter::kInvert);
   state.counters["s/out"] = benchmark::Counter(
-      static_cast<double>(table.table_.QueryToRowMap({c}, {}).size()),
+      static_cast<double>(table.table_.QueryToRowMap(q).size()),
       benchmark::Counter::kIsIterationInvariantRate |
           benchmark::Counter::kInvert);
 }
@@ -500,15 +512,17 @@ void BM_QEFilterOrderedArrangement(benchmark::State& state) {
 
   Constraint c{table.table_.dur().index_in_table(), FilterOp::kGt,
                SqlValue::Long(10)};
+  Query q;
+  q.constraints = {c};
   for (auto _ : state) {
-    benchmark::DoNotOptimize(slice_sorted_with_duration.QueryToRowMap({c}, {}));
+    benchmark::DoNotOptimize(slice_sorted_with_duration.QueryToRowMap(q));
   }
   state.counters["s/row"] = benchmark::Counter(
       static_cast<double>(slice_sorted_with_duration.row_count()),
       benchmark::Counter::kIsIterationInvariantRate |
           benchmark::Counter::kInvert);
   state.counters["s/out"] = benchmark::Counter(
-      static_cast<double>(table.table_.QueryToRowMap({c}, {}).size()),
+      static_cast<double>(table.table_.QueryToRowMap(q).size()),
       benchmark::Counter::kIsIterationInvariantRate |
           benchmark::Counter::kInvert);
 }
