@@ -20,18 +20,23 @@
 -- 1 input per frame as flings are generated once per vsync.
 -- The numbers mentioned above are estimates in the ideal case scenario.
 
+INCLUDE PERFETTO MODULE chrome.scroll_jank.utils;
+INCLUDE PERFETTO MODULE common.slices;
+
 -- Grab all GestureScrollUpdate slices.
 DROP VIEW IF EXISTS chrome_all_scroll_updates;
 CREATE PERFETTO VIEW chrome_all_scroll_updates AS
 SELECT
-  id,
-  EXTRACT_ARG(arg_set_id, 'chrome_latency_info.gesture_scroll_id') AS scroll_id,
-  EXTRACT_ARG(arg_set_id, 'chrome_latency_info.is_coalesced') AS is_coalesced,
+  S.id,
+  chrome_get_most_recent_scroll_begin_id(ts) AS scroll_id,
+  has_descendant_slice_with_name(S.id, "SubmitCompositorFrameToPresentationCompositorFrame")
+  AS is_presented,
   ts,
   dur,
   track_id
-FROM slice
-WHERE name = "InputLatency::GestureScrollUpdate";
+FROM slice S JOIN args USING(arg_set_id)
+WHERE NAME = "EventLatency"
+AND args.string_value GLOB "*GESTURE_SCROLL_UPDATE";
 
 -- Count number of input GestureScrollUpdates per scroll.
 DROP VIEW IF EXISTS chrome_update_count_per_scroll;
@@ -46,26 +51,26 @@ GROUP BY scroll_id;
 
 -- Count the number of input GestureScrollUpdates that were converted
 -- frames per scroll.
-DROP VIEW IF EXISTS chrome_non_coalesced_update_count_per_scroll;
-CREATE PERFETTO VIEW chrome_non_coalesced_update_count_per_scroll AS
+DROP VIEW IF EXISTS chrome_presented_update_count_per_scroll;
+CREATE PERFETTO VIEW chrome_presented_update_count_per_scroll AS
 SELECT
-  CAST(COUNT() AS FLOAT) AS non_coalesced_count,
+  CAST(COUNT() AS FLOAT) AS presented_count,
   scroll_id,
   id,
   track_id,
   dur
 FROM chrome_all_scroll_updates
-WHERE NOT is_coalesced
+WHERE is_presented
 GROUP BY scroll_id;
 
 -- Get the average number of inputs per frame per scroll.
 DROP VIEW IF EXISTS chrome_avg_scroll_inputs_per_frame;
 CREATE PERFETTO VIEW chrome_avg_scroll_inputs_per_frame AS
 SELECT
-  count / non_coalesced_count AS avg_inputs_per_frame_per_scroll,
+  count / presented_count AS avg_inputs_per_frame_per_scroll,
   scroll_id,
-  non_coalesced_count
-FROM chrome_non_coalesced_update_count_per_scroll
+  presented_count
+FROM chrome_presented_update_count_per_scroll
 JOIN chrome_update_count_per_scroll USING(scroll_id);
 
 -- Get the last scroll update event that wasn't coalesced before the
@@ -75,14 +80,14 @@ CREATE PERFETTO VIEW chrome_frame_main_input_id AS
 SELECT
   id,
   scroll_id,
-  is_coalesced,
+  is_presented,
   ts,
   dur,
   track_id,
   (SELECT
     MAX(id)
     FROM chrome_all_scroll_updates parent_scrolls
-    WHERE NOT is_coalesced
+    WHERE is_presented
       AND parent_scrolls.ts <= scrolls.ts) AS presented_scroll_id
 FROM chrome_all_scroll_updates scrolls;
 
