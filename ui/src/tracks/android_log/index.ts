@@ -84,7 +84,7 @@ class AndroidLog implements Plugin {
 
     ctx.registerCommand({
       id: 'perfetto.AndroidLog#ShowLogsTab',
-      name: 'Show Android Logs Tab',
+      name: 'Show android logs tab',
       callback: () => {
         ctx.tabs.showTab(androidLogsTabUri);
       },
