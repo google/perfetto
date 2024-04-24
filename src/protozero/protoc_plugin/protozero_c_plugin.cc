@@ -258,8 +258,9 @@ class GeneratorJob {
     for (int i = 0; i < source_->enum_type_count(); ++i)
       enums_.push_back(source_->enum_type(i));
 
-    if (source_->extension_count() > 0)
-      Abort("top-level extension blocks are not supported");
+    if (source_->extension_count() > 0) {
+      // TODO(b/336524288): emit field numbers
+    }
 
     for (const Descriptor* message : messages_) {
       for (int i = 0; i < message->enum_type_count(); ++i) {
@@ -293,7 +294,6 @@ class GeneratorJob {
     while (!stack.empty()) {
       const FileDescriptor* imp = stack.back();
       stack.pop_back();
-
       for (int i = 0; i < imp->public_dependency_count(); ++i) {
         stack.push_back(imp->public_dependency(i));
       }
