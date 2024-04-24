@@ -129,7 +129,7 @@ class AndroidCujs implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidCujs#PinJankCUJs',
-      name: 'Pin: Android Jank CUJs',
+      name: 'Pin: Android jank CUJs',
       callback: () => {
         runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine).then(() => {
           addDebugSliceTrack(
@@ -148,7 +148,7 @@ class AndroidCujs implements Plugin {
 
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidCujs#ListJankCUJs',
-      name: 'Run query: Android Jank CUJs',
+      name: 'Run query: Android jank CUJs',
       callback: () => {
         runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine).then(() =>
           ctx.tabs.openQuery(JANK_CUJ_QUERY, 'Android Jank CUJs'),
@@ -158,7 +158,7 @@ class AndroidCujs implements Plugin {
 
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidCujs#PinLatencyCUJs',
-      name: 'Pin: Android Latency CUJs',
+      name: 'Pin: Android latency CUJs',
       callback: () => {
         addDebugSliceTrack(
           ctx.engine,

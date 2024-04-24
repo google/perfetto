@@ -97,7 +97,7 @@ class FtraceRawPlugin implements Plugin {
 
     ctx.registerCommand({
       id: 'perfetto.FtraceRaw#ShowFtraceTab',
-      name: 'Show Ftrace Tab',
+      name: 'Show ftrace tab',
       callback: () => {
         ctx.tabs.showTab(ftraceTabUri);
       },

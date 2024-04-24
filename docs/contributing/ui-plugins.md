@@ -36,9 +36,10 @@ Notes on naming:
 - Commands should have ids with the pattern `example.com#DoSomething`
 - Command's ids should be prefixed with the id of the plugin which
   provides them.
-- Commands names should have the form "Verb something something".
-  Good: "Pin janky frame timeline tracks"
-  Bad: "Tracks are Displayed if Janky"
+- Command names should have the form "Verb something something", and should be
+  in normal sentence case. I.e. don't capitalize the first letter of each word.
+  - Good: "Pin janky frame timeline tracks"
+  - Bad: "Tracks are Displayed if Janky"
 
 ### Start the dev server
 ```sh
