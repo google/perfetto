@@ -62,7 +62,7 @@ class AndroidNetwork implements Plugin {
 
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidNetwork#activityTrack',
-      name: 'Run query: Visualize Network Activity',
+      name: 'Run query: Visualize network activity',
       callback: async (groupby, filter, trackName) => {
         if (groupby === undefined) {
           groupby = prompt('Group by', 'package_name');
