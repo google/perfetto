@@ -63,6 +63,8 @@
 
   &.pf-fill-parent {
     height: 100%;
+    overflow-y: hidden;
+
     .pf-content {
       overflow-y: auto;
     }
