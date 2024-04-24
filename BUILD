@@ -3212,6 +3212,17 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
+# GN target: //src/traceconv:gen_cc_winscope_descriptor
+perfetto_cc_proto_descriptor(
+    name = "src_traceconv_gen_cc_winscope_descriptor",
+    deps = [
+        ":protos_perfetto_trace_android_winscope_descriptor",
+    ],
+    outs = [
+        "src/traceconv/winscope.descriptor.h",
+    ],
+)
+
 # GN target: //src/traceconv:lib
 perfetto_filegroup(
     name = "src_traceconv_lib",
@@ -6566,6 +6577,7 @@ perfetto_cc_binary(
                ":src_trace_processor_perfetto_sql_prelude_prelude",
                ":src_trace_processor_perfetto_sql_stdlib_stdlib",
                ":src_traceconv_gen_cc_trace_descriptor",
+               ":src_traceconv_gen_cc_winscope_descriptor",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
            PERFETTO_CONFIG.deps.sqlite_ext_percentile +
