@@ -100,6 +100,7 @@ export class CrashButton implements m.ClassComponent<CrashButtonAttrs> {
       {
         trigger: m(Button, {
           icon: Icons.Crashed,
+          compact: true,
         }),
       },
       this.renderErrorMessage(attrs.error),
