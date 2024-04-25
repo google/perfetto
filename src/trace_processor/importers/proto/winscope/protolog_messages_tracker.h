@@ -17,12 +17,18 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_PROTOLOG_MESSAGES_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_PROTOLOG_MESSAGES_TRACKER_H_
 
-#include "perfetto/trace_processor/basic_types.h"
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <vector>
+
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/winscope_tables_py.h"
+#include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class ProtoLogMessagesTracker : public Destructible {
  public:
@@ -49,8 +55,7 @@ class ProtoLogMessagesTracker : public Destructible {
   }
 
   void TrackMessage(TrackedProtoLogMessage tracked_protolog_message);
-  const std::optional<
-      std::vector<ProtoLogMessagesTracker::TrackedProtoLogMessage>*>
+  std::optional<std::vector<ProtoLogMessagesTracker::TrackedProtoLogMessage>*>
   GetTrackedMessagesByMessageId(uint64_t message_id);
 
  private:
@@ -58,7 +63,6 @@ class ProtoLogMessagesTracker : public Destructible {
       tracked_protolog_messages;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_PROTOLOG_MESSAGES_TRACKER_H_
