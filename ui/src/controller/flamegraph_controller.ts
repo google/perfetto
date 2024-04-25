@@ -106,6 +106,10 @@ class TablesCache {
     }
     return tableName;
   }
+
+  hasQuery(query: string): boolean {
+    return this.cache.get(query) !== undefined;
+  }
 }
 
 export class FlamegraphController extends Controller<'main'> {
@@ -536,6 +540,10 @@ export class FlamegraphController extends Controller<'main'> {
 
   private async loadHeapGraphDominatorTreeQuery(upid: number, timestamp: time) {
     const outputTableName = `heap_graph_type_dominated_${upid}_${timestamp}`;
+    const outputQuery = `SELECT * FROM ${outputTableName}`;
+    if (this.cache.hasQuery(outputQuery)) {
+      return outputQuery;
+    }
 
     this.args.engine.query(`
     INCLUDE PERFETTO MODULE memory.heap_graph_dominator_tree;
@@ -611,7 +619,7 @@ export class FlamegraphController extends Controller<'main'> {
     DROP TABLE _dominator_tree_path_hash;
     `);
 
-    return `SELECT * FROM ${outputTableName}`;
+    return outputQuery;
   }
 
   getMinSizeDisplayed(
