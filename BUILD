@@ -2418,6 +2418,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/startup/startups_maxsdk28.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/startups_minsdk29.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/startups_minsdk33.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/startup/time_to_display.sql",
     ],
 )
 
