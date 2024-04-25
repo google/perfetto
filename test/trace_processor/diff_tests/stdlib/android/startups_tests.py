@@ -35,26 +35,26 @@ class Startups(TestSuite):
 
   def test_warm_startups(self):
     return DiffTestBlueprint(
-        trace=DataPath('api32_startup_warm.perfetto-trace'),
+        trace=DataPath('api31_startup_warm.perfetto-trace'),
         query="""
         INCLUDE PERFETTO MODULE android.startup.startups;
         SELECT * FROM android_startups;
         """,
         out=Csv("""
         "startup_id","ts","ts_end","dur","package","startup_type"
-        28,157479786566030,157479943081777,156515747,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
+        1,186982050780778,186982115528805,64748027,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
         """))
 
   def test_cold_startups(self):
     return DiffTestBlueprint(
-        trace=DataPath('api34_startup_cold.perfetto-trace'),
+        trace=DataPath('api31_startup_cold.perfetto-trace'),
         query="""
         INCLUDE PERFETTO MODULE android.startup.startups;
         SELECT * FROM android_startups;
         """,
         out=Csv("""
         "startup_id","ts","ts_end","dur","package","startup_type"
-        61,17806781251694,17806891032171,109780477,"com.android.systemui.people","warm"
+        1,186974938196632,186975083989042,145792410,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
         """))
 
   def test_hot_startups_maxsdk28(self):
@@ -66,8 +66,8 @@ class Startups(TestSuite):
         """,
         out=Csv("""
         "startup_id","ts","ts_end","dur","package","startup_type"
-        1,779860286416,779893485322,33198906,"com.google.android.googlequicksearchbox","[NULL]"
-        2,780778904571,780813944498,35039927,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
+        1,779860286416,779893485322,33198906,"com.google.android.googlequicksearchbox","hot"
+        2,780778904571,780813944498,35039927,"androidx.benchmark.integration.macrobenchmark.target","hot"
         """))
 
   def test_warm_startups_maxsdk28(self):
@@ -79,7 +79,7 @@ class Startups(TestSuite):
         """,
         out=Csv("""
         "startup_id","ts","ts_end","dur","package","startup_type"
-        1,799979565075,800014194731,34629656,"com.google.android.googlequicksearchbox","[NULL]"
+        1,799979565075,800014194731,34629656,"com.google.android.googlequicksearchbox","hot"
         2,800868511677,800981929562,113417885,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
         """))
 
@@ -93,4 +93,78 @@ class Startups(TestSuite):
         out=Csv("""
         "startup_id","ts","ts_end","dur","package","startup_type"
         1,791231114368,791501060868,269946500,"androidx.benchmark.integration.macrobenchmark.target","[NULL]"
+        """))
+
+  def test_android_startup_time_to_display_hot_maxsdk28(self):
+    return DiffTestBlueprint(
+        trace=DataPath('api24_startup_hot.perfetto-trace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.startup.time_to_display;
+        SELECT * FROM android_startup_time_to_display;
+        """,
+        out=Csv("""
+        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        1,33198906,"[NULL]",1,"[NULL]",355
+        2,35039927,537343160,4,5,383
+        """))
+
+  def test_android_startup_time_to_display_warm_maxsdk28(self):
+    return DiffTestBlueprint(
+        trace=DataPath('api24_startup_warm.perfetto-trace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.startup.time_to_display;
+        SELECT * FROM android_startup_time_to_display;
+        """,
+        out=Csv("""
+        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        1,34629656,"[NULL]",1,"[NULL]",355
+        2,108563770,581026583,4,5,388
+        """))
+
+  def test_android_startup_time_to_display_cold_maxsdk28(self):
+    return DiffTestBlueprint(
+        trace=DataPath('api24_startup_cold.perfetto-trace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.startup.time_to_display;
+        SELECT * FROM android_startup_time_to_display;
+        """,
+        out=Csv("""
+        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        1,264869885,715406822,65,66,396
+        """))
+
+  def test_android_startup_time_to_display_hot(self):
+    return DiffTestBlueprint(
+        trace=DataPath('api31_startup_hot.perfetto-trace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.startup.time_to_display;
+        SELECT * FROM android_startup_time_to_display;
+        """,
+        out=Csv("""
+        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        1,40534066,542222554,5872867,5872953,184
+        """))
+
+  def test_android_startup_time_to_display_warm(self):
+    return DiffTestBlueprint(
+        trace=DataPath('api31_startup_warm.perfetto-trace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.startup.time_to_display;
+        SELECT * FROM android_startup_time_to_display;
+        """,
+        out=Csv("""
+        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        1,62373965,555968701,5873800,5873889,185
+        """))
+
+  def test_android_startup_time_to_display_cold(self):
+    return DiffTestBlueprint(
+        trace=DataPath('api31_startup_cold.perfetto-trace'),
+        query="""
+        INCLUDE PERFETTO MODULE android.startup.time_to_display;
+        SELECT * FROM android_startup_time_to_display;
+        """,
+        out=Csv("""
+        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        1,143980066,620815843,5873276,5873353,229
         """))
