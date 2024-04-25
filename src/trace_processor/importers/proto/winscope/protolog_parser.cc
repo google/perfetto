@@ -285,10 +285,11 @@ std::string ProtoLogParser::FormatMessage(
           formatted_message.append(str_params_itr->c_str());
           ++str_params_itr;
           break;
-          case 'b':
-            formatted_message.append(*boolean_params_itr ? "true" : "false");
-            ++boolean_params_itr;
-            break;
+        }
+        case 'b': {
+          formatted_message.append(*boolean_params_itr ? "true" : "false");
+          ++boolean_params_itr;
+          break;
         }
         default:
           // Should never happen
