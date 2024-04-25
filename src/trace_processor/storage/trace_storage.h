@@ -885,8 +885,9 @@ class TraceStorage {
                           const char* key,
                           std::optional<Variadic>* result) const {
     const auto& args = arg_table();
-    RowMap filtered = args.QueryToRowMap(
-        {args.arg_set_id().eq(arg_set_id), args.key().eq(key)}, {});
+    Query q;
+    q.constraints = {args.arg_set_id().eq(arg_set_id), args.key().eq(key)};
+    RowMap filtered = args.QueryToRowMap(q);
     if (filtered.empty()) {
       *result = std::nullopt;
       return util::OkStatus();

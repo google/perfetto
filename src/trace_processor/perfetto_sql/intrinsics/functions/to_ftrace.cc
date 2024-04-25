@@ -157,7 +157,9 @@ ArgsSerializer::ArgsSerializer(
 
   // We assume that the row map is a contiguous range (which is always the case
   // because arg_set_ids are contiguous by definition).
-  row_map_ = args.QueryToRowMap({set_ids.eq(arg_set_id_)}, {});
+  Query q;
+  q.constraints = {set_ids.eq(arg_set_id_)};
+  row_map_ = args.QueryToRowMap(q);
   start_row_ = row_map_.empty() ? 0 : row_map_.Get(0);
 
   // If the vector already has entries, we've previously cached the mapping

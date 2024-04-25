@@ -298,7 +298,9 @@ class ProtoTraceParserTest : public ::testing::Test {
 
   bool HasArg(ArgSetId set_id, StringId key_id, Variadic value) {
     const auto& args = storage_->arg_table();
-    RowMap rm = args.QueryToRowMap({args.arg_set_id().eq(set_id)}, {});
+    Query q;
+    q.constraints = {args.arg_set_id().eq(set_id)};
+    RowMap rm = args.QueryToRowMap(q);
     bool found = false;
     for (auto it = rm.IterateRows(); it; it.Next()) {
       if (args.key()[it.index()] == key_id) {
@@ -448,7 +450,9 @@ TEST_F(ProtoTraceParserTest, LoadGenericFtrace) {
   auto set_id = raw.arg_set_id()[raw.row_count() - 1];
 
   const auto& args = storage_->arg_table();
-  RowMap rm = args.QueryToRowMap({args.arg_set_id().eq(set_id)}, {});
+  Query q;
+  q.constraints = {args.arg_set_id().eq(set_id)};
+  RowMap rm = args.QueryToRowMap(q);
 
   auto row = rm.Get(0);
 
