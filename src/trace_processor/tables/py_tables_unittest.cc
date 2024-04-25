@@ -243,14 +243,16 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
   // Verify that not-present ids are not returned.
   {
     static constexpr uint32_t kFilterArgSetId = 1;
-    auto res =
-        table.QueryToRowMap({table.arg_set_id().eq(kFilterArgSetId)}, {});
+    Query q;
+    q.constraints = {table.arg_set_id().eq(kFilterArgSetId)};
+    auto res = table.QueryToRowMap(q);
     ASSERT_TRUE(res.empty());
   }
   {
     static constexpr uint32_t kFilterArgSetId = 9;
-    auto res =
-        table.QueryToRowMap({table.arg_set_id().eq(kFilterArgSetId)}, {});
+    Query q;
+    q.constraints = {table.arg_set_id().eq(kFilterArgSetId)};
+    auto res = table.QueryToRowMap(q);
     ASSERT_TRUE(res.empty());
   }
 
@@ -260,8 +262,9 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
   // Verify that filtering equality for real arg set ids works as expected.
   {
     static constexpr uint32_t kFilterArgSetId = 4;
-    auto res =
-        table.QueryToRowMap({table.arg_set_id().eq(kFilterArgSetId)}, {});
+    Query q;
+    q.constraints = {table.arg_set_id().eq(kFilterArgSetId)};
+    auto res = table.QueryToRowMap(q);
     ASSERT_EQ(res.size(), 4u);
     for (auto it = table.ApplyAndIterateRows(std::move(res)); it; ++it) {
       auto arg_set_id =
@@ -271,8 +274,9 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
   }
   {
     static constexpr uint32_t kFilterArgSetId = 0;
-    auto res =
-        table.QueryToRowMap({table.arg_set_id().eq(kFilterArgSetId)}, {});
+    Query q;
+    q.constraints = {table.arg_set_id().eq(kFilterArgSetId)};
+    auto res = table.QueryToRowMap(q);
     ASSERT_EQ(res.size(), 2u);
     for (auto it = table.ApplyAndIterateRows(std::move(res)); it; ++it) {
       auto arg_set_id =
@@ -282,8 +286,9 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
   }
   {
     static constexpr uint32_t kFilterArgSetId = 8;
-    auto res =
-        table.QueryToRowMap({table.arg_set_id().eq(kFilterArgSetId)}, {});
+    Query q;
+    q.constraints = {table.arg_set_id().eq(kFilterArgSetId)};
+    auto res = table.QueryToRowMap(q);
     ASSERT_EQ(res.size(), 1u);
     for (auto it = table.ApplyAndIterateRows(std::move(res)); it; ++it) {
       auto arg_set_id =
@@ -296,9 +301,10 @@ TEST_F(PyTablesUnittest, SetIdColumns) {
   // column works.
   {
     static constexpr uint32_t kFilterArgSetId = 4;
-    auto res = table.QueryToRowMap(
-        {table.int_value().eq(200), table.arg_set_id().eq(kFilterArgSetId)},
-        {});
+    Query q;
+    q.constraints = {table.int_value().eq(200),
+                     table.arg_set_id().eq(kFilterArgSetId)};
+    auto res = table.QueryToRowMap(q);
     ASSERT_EQ(res.size(), 2u);
     for (auto it = table.ApplyAndIterateRows(std::move(res)); it; ++it) {
       uint32_t arg_set_id =

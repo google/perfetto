@@ -142,8 +142,9 @@ base::StatusOr<std::unique_ptr<Table>> Ancestor::ComputeTable(
       // Find the all slice ids that have the stack id and find all the
       // ancestors of the slice ids.
       const auto& slice_table = storage_->slice_table();
-      auto it =
-          slice_table.FilterToIterator({slice_table.stack_id().eq(start_id)});
+      Query q;
+      q.constraints = {slice_table.stack_id().eq(start_id)};
+      auto it = slice_table.FilterToIterator(q);
       std::vector<tables::SliceTable::RowNumber> ancestors;
       for (; it; ++it) {
         RETURN_IF_ERROR(GetAncestors(slice_table, it.id(), ancestors));
