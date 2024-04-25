@@ -130,8 +130,7 @@ class Table {
 
   // Filters and sorts the tables with the arguments specified, returning the
   // result as a RowMap.
-  RowMap QueryToRowMap(const std::vector<Constraint>&,
-                       const std::vector<Order>&) const;
+  RowMap QueryToRowMap(const Query&) const;
 
   // Applies the RowMap |rm| onto this table and returns an iterator over the
   // resulting rows.

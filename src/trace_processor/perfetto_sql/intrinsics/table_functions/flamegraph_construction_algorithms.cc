@@ -330,8 +330,10 @@ std::unique_ptr<tables::ExperimentalFlamegraphTable> BuildHeapProfileFlamegraph(
       storage->heap_profile_allocation_table();
   // PASS OVER ALLOCATIONS:
   // Aggregate allocations into the newly built tree.
-  auto it = allocation_tbl.FilterToIterator(
-      {allocation_tbl.ts().le(timestamp), allocation_tbl.upid().eq(upid)});
+  Query q;
+  q.constraints = {allocation_tbl.ts().le(timestamp),
+                   allocation_tbl.upid().eq(upid)};
+  auto it = allocation_tbl.FilterToIterator(q);
   if (!it) {
     return nullptr;
   }
@@ -367,7 +369,7 @@ BuildNativeCallStackSamplingFlamegraph(
   std::unordered_set<UniqueTid> utids;
   {
     auto it = storage->thread_table().FilterToIterator(
-        {storage->thread_table().upid().is_not_null()});
+        Query{{storage->thread_table().upid().is_not_null()}, {}});
     for (; it; ++it) {
       if (upids.count(*it.upid())) {
         utids.emplace(it.id().value);
@@ -391,7 +393,7 @@ BuildNativeCallStackSamplingFlamegraph(
   }
   std::vector<uint32_t> cs_rows;
   {
-    auto it = storage->perf_sample_table().FilterToIterator(cs);
+    auto it = storage->perf_sample_table().FilterToIterator(Query{cs, {}});
     for (; it; ++it) {
       if (utids.find(it.utid()) != utids.end()) {
         cs_rows.push_back(it.row_number().row_number());
@@ -404,10 +406,10 @@ BuildNativeCallStackSamplingFlamegraph(
   }
 
   // The logic underneath is selecting a default timestamp to be used by all
-  // frames which do not have a timestamp. The timestamp is taken from the query
-  // value and it's not meaningful for the row. It prevents however the rows
-  // with no timestamp from being filtered out by Sqlite, after we create the
-  // table ExperimentalFlamegraphTable in this class.
+  // frames which do not have a timestamp. The timestamp is taken from the
+  // query value and it's not meaningful for the row. It prevents however the
+  // rows with no timestamp from being filtered out by Sqlite, after we create
+  // the table ExperimentalFlamegraphTable in this class.
   int64_t default_timestamp = 0;
   if (!time_constraints.empty()) {
     auto& tc = time_constraints[0];
