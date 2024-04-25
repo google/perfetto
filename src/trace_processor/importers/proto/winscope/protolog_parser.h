@@ -17,15 +17,15 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_PROTOLOG_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_PROTOLOG_PARSER_H_
 
-#include "protos/perfetto/trace/android/protolog.pbzero.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include <cstdint>
+#include <string>
+#include <vector>
+
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
-namespace perfetto {
-
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class TraceProcessorContext;
 
@@ -38,14 +38,11 @@ class ProtoLogParser {
   void ParseProtoLogViewerConfig(protozero::ConstBytes);
 
  private:
-  std::string FormatMessage(const std::string message,
+  std::string FormatMessage(const std::string& message,
                             const std::vector<int64_t>& sint64_params,
                             const std::vector<double>& double_params,
                             const std::vector<bool>& boolean_params,
                             const std::vector<std::string>& string_params);
-
-  static constexpr auto* kProtoLogMessageProtoName =
-      "perfetto.protos.ProtoLogMessage";
 
   TraceProcessorContext* const context_;
   DescriptorPool pool_;
@@ -59,7 +56,6 @@ class ProtoLogParser {
   const StringId log_level_wtf_string_id_;
   const StringId log_level_unknown_string_id_;
 };
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_PROTOLOG_PARSER_H_
