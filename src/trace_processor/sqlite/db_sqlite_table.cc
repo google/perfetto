@@ -138,20 +138,22 @@ std::string CreateTableStatementFromSchema(const Table::Schema& schema,
   return stmt;
 }
 
-base::StatusOr<SqlValue> SqliteValueToSqlValueChecked(sqlite3_value* value,
-                                                      const Constraint& cs) {
-  SqlValue v = sqlite::utils::SqliteValueToSqlValue(value);
+int SqliteValueToSqlValueChecked(SqlValue* sql_val,
+                                 sqlite3_value* value,
+                                 const Constraint& cs,
+                                 sqlite3_vtab* vtab) {
+  *sql_val = sqlite::utils::SqliteValueToSqlValue(value);
   if constexpr (regex::IsRegexSupported()) {
     if (cs.op == FilterOp::kRegex) {
       if (cs.value.type != SqlValue::kString) {
-        return base::ErrStatus("Value has to be a string");
+        return sqlite::utils::SetError(vtab, "Value has to be a string");
       }
       if (auto st = regex::Regex::Create(cs.value.AsString()); !st.ok()) {
-        return st.status();
+        return sqlite::utils::SetError(vtab, st.status().c_message());
       }
     }
   }
-  return v;
+  return SQLITE_OK;
 }
 
 int UpdateConstraintsAndOrderByFromIndex(DbSqliteModule::Cursor* c,
@@ -173,11 +175,11 @@ int UpdateConstraintsAndOrderByFromIndex(DbSqliteModule::Cursor* c,
     PERFETTO_CHECK(splitter.Next());
     cs.op = static_cast<FilterOp>(*base::CStringToUInt32(splitter.cur_token()));
 
-    auto value_or = SqliteValueToSqlValueChecked(argv[c_offset++], cs);
-    if (!value_or.ok()) {
-      return sqlite::utils::SetError(c->pVtab, value_or.status().c_message());
+    if (int ret = SqliteValueToSqlValueChecked(&cs.value, argv[c_offset++], cs,
+                                               c->pVtab);
+        ret != SQLITE_OK) {
+      return ret;
     }
-    cs.value = *value_or;
   }
 
   PERFETTO_CHECK(splitter.Next());
@@ -572,11 +574,11 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
   bool is_same_idx = idx_num == c->last_idx_num;
   if (PERFETTO_LIKELY(is_same_idx)) {
     for (auto& cs : c->query.constraints) {
-      auto value_or = SqliteValueToSqlValueChecked(argv[offset++], cs);
-      if (!value_or.ok()) {
-        return sqlite::utils::SetError(c->pVtab, value_or.status().c_message());
+      if (int ret = SqliteValueToSqlValueChecked(&cs.value, argv[offset++], cs,
+                                                 c->pVtab);
+          ret != SQLITE_OK) {
+        return ret;
       }
-      cs.value = *value_or;
     }
   } else {
     if (int r = UpdateConstraintsAndOrderByFromIndex(c, idx_str, argv + offset);
