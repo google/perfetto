@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-#include "protolog_messages_tracker.h"
-#include "perfetto/ext/base/crash_keys.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/storage/metadata.h"
-#include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/importers/proto/winscope/protolog_messages_tracker.h"
 
-namespace perfetto {
-namespace trace_processor {
-ProtoLogMessagesTracker::ProtoLogMessagesTracker() {}
+#include <cstdint>
+#include <optional>
+#include <vector>
 
+namespace perfetto::trace_processor {
+
+ProtoLogMessagesTracker::ProtoLogMessagesTracker() = default;
 ProtoLogMessagesTracker::~ProtoLogMessagesTracker() = default;
 
 void ProtoLogMessagesTracker::TrackMessage(
@@ -34,18 +33,14 @@ void ProtoLogMessagesTracker::TrackMessage(
       .first->emplace_back(tracked_protolog_message);
 }
 
-const std::optional<
-    std::vector<ProtoLogMessagesTracker::TrackedProtoLogMessage>*>
+std::optional<std::vector<ProtoLogMessagesTracker::TrackedProtoLogMessage>*>
 ProtoLogMessagesTracker::GetTrackedMessagesByMessageId(uint64_t message_id) {
-  auto tracked_messages = tracked_protolog_messages.Find(message_id);
-
+  auto* tracked_messages = tracked_protolog_messages.Find(message_id);
   if (tracked_messages == nullptr) {
     // No tracked messages found for this id
     return std::nullopt;
   }
-
   return tracked_messages;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
