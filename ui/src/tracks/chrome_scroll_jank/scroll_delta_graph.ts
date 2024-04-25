@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {duration, Time, time} from '../../base/time';
 import {EngineProxy} from '../../trace_processor/engine';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {LONG, NUM} from '../../trace_processor/query_result';
 import {VegaView} from '../../widgets/vega_view';
 
 const USER_CATEGORY = 'User';
@@ -27,14 +27,14 @@ interface ScrollDeltaPlotDatum {
   // to denote the color of the data point.
   category: string;
   offset: number;
-  scrollUpdateIds: string;
+  scrollUpdateId: number;
   ts: number;
   delta: number;
 }
 
 export interface ScrollDeltaDetails {
   ts: time;
-  scrollUpdateIds: string;
+  scrollUpdateId: number;
   scrollDelta: number;
   scrollOffset: number;
 }
@@ -54,7 +54,7 @@ export async function getUserScrollDeltas(
 
     SELECT
       ts,
-      IFNULL(scroll_update_id, "") AS scrollUpdateId,
+      IFNULL(scroll_update_id, 0) AS scrollUpdateId,
       delta_y AS deltaY,
       relative_offset_y AS offsetY
     FROM chrome_scroll_input_offsets
@@ -72,7 +72,7 @@ export async function getUserScrollDeltas(
   for (; it.valid(); it.next()) {
     deltas.push({
       ts: Time.fromRaw(it.ts),
-      scrollUpdateIds: it.scrollUpdateId.toString(),
+      scrollUpdateId: it.scrollUpdateId,
       scrollOffset: it.offsetY,
       scrollDelta: it.deltaY,
     });
@@ -87,30 +87,21 @@ export async function getAppliedScrollDeltas(
   dur: duration,
 ): Promise<ScrollDeltaDetails[]> {
   const queryResult = await engine.query(`
-    INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
+    INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets
 
-    WITH scroll_update_ids AS (
-      SELECT DISTINCT
-        ts,
-        GROUP_CONCAT(scroll_update_id, ', ')
-          OVER (PARTITION BY ts) AS scroll_update_ids
-      FROM chrome_presented_scroll_offsets
-    )
     SELECT
       ts,
-      IFNULL(scroll_update_ids, "") AS scrollUpdateIds,
+      IFNULL(scroll_update_id, 0) AS scrollUpdateId,
       delta_y AS deltaY,
       relative_offset_y AS offsetY
     FROM chrome_presented_scroll_offsets
-    LEFT JOIN scroll_update_ids
-      USING(ts)
     WHERE ts >= ${startTs} AND ts <= ${startTs + dur}
       AND delta_y IS NOT NULL;
   `);
 
   const it = queryResult.iter({
     ts: LONG,
-    scrollUpdateIds: STR,
+    scrollUpdateId: NUM,
     deltaY: NUM,
     offsetY: NUM,
   });
@@ -122,7 +113,7 @@ export async function getAppliedScrollDeltas(
 
     deltas.push({
       ts: Time.fromRaw(it.ts),
-      scrollUpdateIds: it.scrollUpdateIds,
+      scrollUpdateId: it.scrollUpdateId,
       scrollOffset: offset,
       scrollDelta: it.deltaY,
     });
@@ -242,7 +233,11 @@ export function buildScrollOffsetsGraph(
         },
         "tooltip": [
           {"field": "delta", "type": "quantitative", "title": "Delta"},
-          {"field": "scrollUpdateIds", "type": "nominal", "title": "Trace Ids"}
+          {
+            "field": "scrollUpdateId",
+            "type": "quantititive",
+            "title": "Trace Id"
+          }
         ]
       }
     }
@@ -262,7 +257,7 @@ function buildOffsetData(
     plotData.push({
       category: category,
       ts: Number(delta.ts) / 10e8,
-      scrollUpdateIds: delta.scrollUpdateIds,
+      scrollUpdateId: delta.scrollUpdateId,
       offset: delta.scrollOffset,
       delta: delta.scrollDelta,
     });
