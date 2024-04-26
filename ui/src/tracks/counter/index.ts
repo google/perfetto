@@ -136,22 +136,24 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
     const time = visibleTimeScale.pxToHpTime(x).toTime('floor');
 
     const query = `
-      WITH X AS (
-        SELECT
-          id,
-          ts AS leftTs,
-          LEAD(ts) OVER (ORDER BY ts) AS rightTs
-        FROM counter
-        WHERE track_id = ${this.trackId}
-        ORDER BY ts
-      )
-      SELECT
+      select
         id,
-        leftTs,
-        rightTs
-      FROM X
-      WHERE rightTs > ${time}
-      LIMIT 1
+        ts as leftTs,
+        (
+          select ts
+          from ${this.rootTable}
+          where
+            track_id = ${this.trackId}
+            and ts >= ${time}
+          order by ts
+          limit 1
+        ) as rightTs
+      from ${this.rootTable}
+      where
+        track_id = ${this.trackId}
+        and ts < ${time}
+      order by ts DESC
+      limit 1
     `;
 
     this.engine.query(query).then((result) => {
