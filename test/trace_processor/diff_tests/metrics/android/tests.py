@@ -303,3 +303,9 @@ class AndroidMetrics(TestSuite):
          }
        }
        """))
+  def test_android_oom_adjuster(self):
+    return DiffTestBlueprint(
+      trace=DataPath('android_postboot_unlock.pftrace'),
+      query=Metric("android_oom_adjuster"),
+      out=Path('android_oom_adjuster.out')
+    )
