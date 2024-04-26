@@ -674,13 +674,10 @@ export abstract class BaseSliceTrack<
     }
 
     const extraCols = this.extraSqlColumns.join(',');
-
-    // TODO(hjd): Count and expose the number of slices summarized in
-    // each bucket?
     const queryRes = await this.engine.query(`
       SELECT
-        z.ts,
-        iif(s.dur = -1, s.dur, z.dur) as dur,
+        (z.ts / ${rawSlicesKey.bucketSize}) * ${rawSlicesKey.bucketSize} as ts,
+        iif(s.dur = -1, s.dur, max(z.dur, ${rawSlicesKey.bucketSize})) as dur,
         s.id,
         z.depth
         ${extraCols ? ',' + extraCols : ''}
