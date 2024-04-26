@@ -869,6 +869,9 @@ bool CpuReader::ParseField(const Field& field,
     case kDevId64ToUint64:
       ReadDevId<uint64_t>(field_start, field_id, message, metadata);
       return true;
+    case kFtraceSymAddr32ToUint64:
+      ReadSymbolAddr<uint32_t>(field_start, field_id, message, metadata);
+      return true;
     case kFtraceSymAddr64ToUint64:
       ReadSymbolAddr<uint64_t>(field_start, field_id, message, metadata);
       return true;

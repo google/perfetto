@@ -239,6 +239,7 @@ void SetProtoType(FtraceFieldType ftrace_type,
     case kFtraceUint64:
     case kFtraceInode32:
     case kFtraceInode64:
+    case kFtraceSymAddr32:
     case kFtraceSymAddr64:
       *proto_type = ProtoSchemaType::kUint64;
       *proto_field_id = GenericFtraceEvent::Field::kUintValueFieldNumber;
@@ -310,13 +311,16 @@ bool InferFtraceType(const std::string& type_and_name,
     return true;
   }
 
-  // Kernel addresses that need symbolization via kallsyms. Only 64-bit kernels
-  // are supported for now. 32-bit kernels seems to be going away.
-  if ((base::StartsWith(type_and_name, "void*") ||
-       base::StartsWith(type_and_name, "void *")) &&
-      size == 8) {
-    *out = kFtraceSymAddr64;
-    return true;
+  // Kernel addresses that need symbolization via kallsyms.
+  if (base::StartsWith(type_and_name, "void*") ||
+      base::StartsWith(type_and_name, "void *")) {
+    if (size == 4) {
+      *out = kFtraceSymAddr32;
+      return true;
+    } else if (size == 8) {
+      *out = kFtraceSymAddr64;
+      return true;
+    }
   }
 
   // Variable length strings: "char foo" + size: 0 (as in 'print').
