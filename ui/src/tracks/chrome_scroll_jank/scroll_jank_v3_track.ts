@@ -76,8 +76,8 @@ export class ScrollJankV3Track extends CustomSqlTableSliceTrack<NamedSliceTrackT
     };
   }
 
-  onDestroy() {
-    super.onDestroy();
+  async onDestroy(): Promise<void> {
+    await super.onDestroy();
     ScrollJankPluginState.getInstance().unregisterTrack(ScrollJankV3Track.kind);
   }
 
