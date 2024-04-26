@@ -114,6 +114,9 @@ class ImplicitSegmentForest {
   // element |Push|-ed into the tree.
   const T& operator[](uint32_t n) { return values_[n * 2]; }
 
+  // Returns the number of elements pushed into the forest.
+  uint32_t size() const { return static_cast<uint32_t>(values_.size() / 2); }
+
  private:
   static uint32_t Lsp(uint32_t x) { return x & -x; }
   static uint32_t Msp(uint32_t x) {
