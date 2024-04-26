@@ -128,8 +128,6 @@ export class ProcessSchedulingTrack implements Track {
     end: time,
     resolution: duration,
   ): Promise<Data> {
-    assertTrue(this.config.upid !== null);
-
     // Resolution must always be a power of 2 for this logic to work
     assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
@@ -205,14 +203,23 @@ export class ProcessSchedulingTrack implements Track {
   }
 
   private async createSchedView() {
-    await this.engine.query(`
-      create view ${this.tableName('process_sched')} as
-      select ts, dur, cpu, utid
-      from experimental_sched_upid
-      where
-        utid != 0 and
-        upid = ${this.config.upid}
-    `);
+    if (this.config.upid !== null) {
+      await this.engine.query(`
+        create view ${this.tableName('process_sched')} as
+        select ts, dur, cpu, utid
+        from experimental_sched_upid
+        where
+          utid != 0 and
+          upid = ${this.config.upid}
+      `);
+    } else {
+      await this.engine.query(`
+        create view ${this.tableName('process_sched')} as
+        select ts, dur, cpu, utid
+        from sched
+        where utid = ${this.config.utid}
+      `);
+    }
   }
 
   getHeight(): number {
