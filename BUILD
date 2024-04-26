@@ -2313,6 +2313,8 @@ perfetto_cc_tp_tables(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_operators_operators",
     srcs = [
+        "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.h",
         "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.cc",
         "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.h",
         "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.cc",
