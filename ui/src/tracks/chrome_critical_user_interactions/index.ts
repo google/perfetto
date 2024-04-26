@@ -284,7 +284,7 @@ class CriticalUserInteractionPlugin implements Plugin {
   onActivate(ctx: PluginContext): void {
     ctx.registerCommand({
       id: 'perfetto.CriticalUserInteraction.AddInteractionTrack',
-      name: 'Add Chrome interactions track',
+      name: 'Add track: Chrome interactions',
       callback: () => addCriticalUserInteractionTrack(),
     });
   }
