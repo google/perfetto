@@ -53,8 +53,8 @@ export class EventLatencyTrack extends CustomSqlTableSliceTrack<EventLatencyTrac
     });
   }
 
-  onDestroy() {
-    super.onDestroy();
+  async onDestroy(): Promise<void> {
+    await super.onDestroy();
     ScrollJankPluginState.getInstance().unregisterTrack(EventLatencyTrack.kind);
   }
 

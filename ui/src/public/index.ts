@@ -45,9 +45,9 @@ export interface Slice {
   // These properties are updated only once per query result when the Slice
   // object is created and don't change afterwards.
   readonly id: number;
-  readonly startNsQ: time;
-  readonly endNsQ: time;
-  readonly durNsQ: duration;
+  readonly startNs: time;
+  readonly endNs: time;
+  readonly durNs: duration;
   readonly ts: time;
   readonly dur: duration;
   readonly depth: number;
