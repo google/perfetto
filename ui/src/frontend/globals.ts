@@ -276,8 +276,8 @@ class Globals {
   private _publishRedraw?: () => void = undefined;
 
   private _currentSearchResults: CurrentSearchResults = {
-    sliceIds: new Float64Array(0),
-    tsStarts: new BigInt64Array(0),
+    eventIds: new Float64Array(0),
+    tses: new BigInt64Array(0),
     utids: new Float64Array(0),
     trackKeys: [],
     sources: [],
@@ -648,8 +648,8 @@ class Globals {
     this._numQueriesQueued = 0;
     this._metricResult = undefined;
     this._currentSearchResults = {
-      sliceIds: new Float64Array(0),
-      tsStarts: new BigInt64Array(0),
+      eventIds: new Float64Array(0),
+      tses: new BigInt64Array(0),
       utids: new Float64Array(0),
       trackKeys: [],
       sources: [],
