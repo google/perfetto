@@ -194,3 +194,138 @@ class WattsonStdlib(TestSuite):
             "name"
             "monaco"
             """))
+
+  # Tests intermediate table
+  def test_wattson_intermediate_table(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_dsu_pmu.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+              select * from _w_independent_cpus_calc
+              WHERE ts > 359661672577
+              ORDER by ts ASC
+              LIMIT 10
+            """),
+        out=Csv("""
+            "ts","dur","l3_hit_count","l3_miss_count","freq_0","idle_0","freq_1","idle_1","freq_2","idle_2","freq_3","idle_3","freq_4","idle_4","freq_5","idle_5","freq_6","idle_6","freq_7","idle_7","policy_4","policy_5","policy_6","policy_7","no_static","cpu0_curve","cpu1_curve","cpu2_curve","cpu3_curve","cpu4_curve","cpu5_curve","cpu6_curve","cpu7_curve","static_4","static_5","static_6","static_7"
+            359661672578,75521,8326,9689,1401000,0,1401000,0,1401000,0,1401000,0,2253000,-1,2253000,0,2802000,-1,2802000,0,4,4,6,6,0,"[NULL]","[NULL]","[NULL]","[NULL]",527.050000,23.500000,1942.890000,121.430000,35.660000,-1.000000,35.640000,-1.000000
+            359661748099,2254517,248577,289258,1401000,0,1401000,0,1401000,0,1401000,0,2253000,0,2253000,0,2802000,-1,2802000,0,4,4,6,6,0,"[NULL]","[NULL]","[NULL]","[NULL]",23.500000,23.500000,1942.890000,121.430000,-1.000000,-1.000000,35.640000,-1.000000
+            359664003674,11596,1278,1487,1401000,-1,1401000,-1,1401000,-1,1401000,-1,2253000,-1,2253000,-1,2802000,-1,2802000,-1,4,4,6,6,-1,"[NULL]","[NULL]","[NULL]","[NULL]",527.050000,527.050000,1942.890000,1942.890000,35.660000,35.660000,35.640000,35.640000
+            359664015270,4720,520,605,1401000,-1,1401000,-1,1401000,-1,1401000,-1,2253000,-1,2253000,-1,2802000,-1,2802000,0,4,4,6,6,-1,"[NULL]","[NULL]","[NULL]","[NULL]",527.050000,527.050000,1942.890000,121.430000,35.660000,35.660000,35.640000,-1.000000
+            359664019990,18921,2086,2427,1401000,-1,1401000,-1,1401000,-1,1401000,-1,2253000,0,2253000,-1,2802000,-1,2802000,0,4,4,6,6,-1,"[NULL]","[NULL]","[NULL]","[NULL]",23.500000,527.050000,1942.890000,121.430000,-1.000000,35.660000,35.640000,-1.000000
+            359664038911,8871,978,1138,1401000,-1,1401000,-1,1401000,0,1401000,-1,2253000,0,2253000,-1,2802000,-1,2802000,0,4,4,6,6,-1,"[NULL]","[NULL]","[NULL]","[NULL]",23.500000,527.050000,1942.890000,121.430000,-1.000000,35.660000,35.640000,-1.000000
+            359664047782,1343,148,172,1401000,-1,1401000,0,1401000,0,1401000,-1,2253000,0,2253000,-1,2802000,-1,2802000,0,4,4,6,6,-1,"[NULL]","[NULL]","[NULL]","[NULL]",23.500000,527.050000,1942.890000,121.430000,-1.000000,35.660000,35.640000,-1.000000
+            359664049491,1383,152,177,1401000,0,1401000,0,1401000,0,1401000,-1,2253000,0,2253000,0,2802000,-1,2802000,0,4,4,6,6,-1,"[NULL]","[NULL]","[NULL]","[NULL]",23.500000,23.500000,1942.890000,121.430000,-1.000000,-1.000000,35.640000,-1.000000
+            359664050874,2409912,265711,309195,1401000,0,1401000,0,1401000,0,1401000,0,2253000,0,2253000,0,2802000,-1,2802000,0,4,4,6,6,0,"[NULL]","[NULL]","[NULL]","[NULL]",23.500000,23.500000,1942.890000,121.430000,-1.000000,-1.000000,35.640000,-1.000000
+            359666460786,13754,1516,1764,1401000,0,1401000,0,1401000,0,1401000,0,2253000,-1,2253000,0,2802000,-1,2802000,0,4,4,6,6,0,"[NULL]","[NULL]","[NULL]","[NULL]",527.050000,23.500000,1942.890000,121.430000,35.660000,-1.000000,35.640000,-1.000000
+            """))
+
+  # Tests that device static curve selection is only when CPUs are active
+  def test_wattson_static_curve_selection(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_dsu_pmu.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+              select * from _system_state_curves
+              ORDER by ts ASC
+              LIMIT 5
+            """),
+        out=Csv("""
+            "ts","dur","cpu0_curve","cpu1_curve","cpu2_curve","cpu3_curve","cpu4_curve","cpu5_curve","cpu6_curve","cpu7_curve","static_curve","l3_hit_value","l3_miss_value"
+            359085636893,23030,0.000000,"[NULL]",0.000000,0.000000,0.000000,28.510000,0.000000,0.000000,0.000000,"[NULL]","[NULL]"
+            359085659923,6664673,0.000000,"[NULL]",0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000
+            359092324596,1399699,0.000000,"[NULL]",0.000000,21.840000,0.000000,0.000000,0.000000,0.000000,3.730000,"[NULL]","[NULL]"
+            359093724295,6959391,0.000000,"[NULL]",0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000
+            359100683686,375122,0.000000,"[NULL]",0.000000,0.000000,28.510000,0.000000,0.000000,0.000000,0.000000,"[NULL]","[NULL]"
+            """))
+
+  # Tests that L3 cache calculations are being done correctly
+  def test_wattson_l3_calculations(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_dsu_pmu.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+              select * from _system_state_curves
+              WHERE ts > 359661672577
+              ORDER by ts ASC
+              LIMIT 5
+            """),
+        out=Csv("""
+            "ts","dur","cpu0_curve","cpu1_curve","cpu2_curve","cpu3_curve","cpu4_curve","cpu5_curve","cpu6_curve","cpu7_curve","static_curve","l3_hit_value","l3_miss_value"
+            359661672578,75521,3.410000,3.410000,3.410000,3.410000,527.050000,23.500000,1942.890000,121.430000,35.660000,16836.004600,1215.000600
+            359661748099,2254517,3.450000,3.450000,3.450000,3.450000,23.500000,23.500000,1942.890000,121.430000,35.640000,578637.540600,262212.377000
+            359664003674,11596,248.900000,248.900000,248.900000,248.900000,527.050000,527.050000,1942.890000,1942.890000,35.660000,2584.243800,186.469800
+            359664015270,4720,248.900000,248.900000,248.900000,248.900000,527.050000,527.050000,1942.890000,121.430000,35.660000,1051.492000,75.867000
+            359664019990,18921,248.900000,248.900000,248.900000,248.900000,23.500000,527.050000,1942.890000,121.430000,35.660000,4218.100600,304.345800
+            """))
+
+  # Tests that suspend values are being skipped
+  def test_wattson_suspend_calculations(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_eos_suspend.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.curves.ungrouped;
+              select * from _system_state_curves
+              WHERE ts > 24790009884888
+              ORDER by ts ASC
+              LIMIT 5
+            """),
+        out=Csv("""
+            "ts","dur","cpu0_curve","cpu1_curve","cpu2_curve","cpu3_curve","cpu4_curve","cpu5_curve","cpu6_curve","cpu7_curve","static_curve","l3_hit_value","l3_miss_value"
+            24790009886451,21406,39.690000,39.690000,39.690000,39.690000,0.000000,0.000000,0.000000,0.000000,18.390000,"[NULL]","[NULL]"
+            24790009907857,2784616769,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0.000000,0,0
+            24792794524626,654584,39.690000,39.690000,39.690000,39.690000,0.000000,0.000000,0.000000,0.000000,18.390000,"[NULL]","[NULL]"
+            24792795179210,38854,39.690000,39.690000,39.690000,39.690000,0.000000,0.000000,0.000000,0.000000,18.390000,"[NULL]","[NULL]"
+            24792795218064,164583,39.690000,39.690000,39.690000,39.690000,0.000000,0.000000,0.000000,0.000000,18.390000,"[NULL]","[NULL]"
+            """))
+
+  # Tests that device curve table is being looked up correctly
+  def test_wattson_device_curve_per_policy(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_dsu_pmu.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.curves.grouped;
+              select * from wattson_estimate_per_component
+              WHERE ts > 359661672577
+              ORDER by ts ASC
+              LIMIT 10
+            """),
+        out=Csv("""
+            "ts","dur","l3","little_cpus","mid_cpus","big_cpus"
+            359661672578,75521,18051.005200,49.300000,550.550000,2064.320000
+            359661748099,2254517,840849.917600,49.440000,47.000000,2064.320000
+            359664003674,11596,2770.713600,1031.260000,1054.100000,3885.780000
+            359664015270,4720,1127.359000,1031.260000,1054.100000,2064.320000
+            359664019990,18921,4522.446400,1031.260000,550.550000,2064.320000
+            359664038911,8871,2120.319000,785.770000,550.550000,2064.320000
+            359664047782,1343,320.839600,540.280000,550.550000,2064.320000
+            359664049491,1383,514.276100,254.130000,47.000000,2064.320000
+            359664050874,2409912,898807.333300,49.440000,47.000000,2064.320000
+            359666460786,13754,3286.709200,49.300000,550.550000,2064.320000
+            """))
+
+  # Tests that total calculations are correct
+  def test_wattson_total_raven_calc(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_dsu_pmu.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.curves.grouped;
+               select * from _wattson_entire_trace
+            """),
+        out=Csv("""
+            "total_l3","total_little_cpus","total_mid_cpus","total_big_cpus","total"
+            500.120000,661.980000,370.730000,1490.970000,3023.800000
+            """))
+
+  # Tests that total calculations are correct
+  def test_wattson_total_eos_calc(self):
+    return DiffTestBlueprint(
+        trace=DataPath('wattson_eos_suspend.pb'),
+        query=("""
+            INCLUDE PERFETTO MODULE wattson.curves.grouped;
+               select * from _wattson_entire_trace
+            """),
+        out=Csv("""
+            "total_l3","total_little_cpus","total_mid_cpus","total_big_cpus","total"
+            0.000000,2603.100000,0.000000,0.000000,2603.100000
+            """))
