@@ -13,13 +13,7 @@
 // limitations under the License.
 
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
-import {
-  LONG_NULL,
-  NUM,
-  NUM_NULL,
-  STR_NULL,
-} from '../../trace_processor/query_result';
-import {assertExists} from '../../base/logging';
+import {NUM, NUM_NULL} from '../../trace_processor/query_result';
 
 import {
   Config as ProcessSchedulingTrackConfig,
@@ -51,8 +45,6 @@ class ProcessSummaryPlugin implements Plugin {
           process.name as processName,
           null as threadName,
           sum_running_dur > 0 as hasSched,
-          max_running_dur as maxRunningDur,
-          running_count as runningCount,
           android_process_metadata.debuggable as isDebuggable
         from _process_available_info_summary
         join process using(upid)
@@ -69,8 +61,6 @@ class ProcessSummaryPlugin implements Plugin {
           null as processName,
           thread.name threadName,
           sum_running_dur > 0 as hasSched,
-          max_running_dur as maxRunningDur,
-          running_count as runningCount,
           0 as isDebuggable
         from _thread_available_info_summary
         join thread using (utid)
@@ -83,23 +73,18 @@ class ProcessSummaryPlugin implements Plugin {
       utid: NUM_NULL,
       pid: NUM_NULL,
       tid: NUM_NULL,
-      processName: STR_NULL,
-      threadName: STR_NULL,
       hasSched: NUM_NULL,
-      maxRunningDur: LONG_NULL,
-      runningCount: NUM_NULL,
       isDebuggable: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
-      const utid = it.utid;
-      const tid = it.tid;
       const upid = it.upid;
+      const utid = it.utid;
       const pid = it.pid;
+      const tid = it.tid;
       const hasSched = Boolean(it.hasSched);
-      const maxRunningDur = it.maxRunningDur;
-      const runningCount = it.runningCount;
       const isDebuggable = Boolean(it.isDebuggable);
 
+      // Group by upid if present else by utid.
       const pidForColor = pid ?? tid ?? upid ?? utid ?? 0;
       const type = hasSched ? 'schedule' : 'summary';
       const uri = `perfetto.ProcessScheduling#${upid}.${utid}.${type}`;
@@ -118,13 +103,9 @@ class ProcessSummaryPlugin implements Plugin {
           tags: {
             isDebuggable,
           },
-          trackFactory: () =>
-            new ProcessSchedulingTrack(
-              ctx.engine,
-              config,
-              assertExists(maxRunningDur),
-              assertExists(runningCount),
-            ),
+          trackFactory: ({trackKey}) => {
+            return new ProcessSchedulingTrack(ctx.engine, trackKey, config);
+          },
         });
       } else {
         const config: ProcessSummaryTrackConfig = {
