@@ -785,7 +785,7 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   // The underlying table has `ts` and `value` columns.
-  private getSqlPreamble(): string {
+  private getValueExpression(): string {
     const options = this.getCounterOptions();
 
     let valueExpr;
@@ -804,19 +804,11 @@ export abstract class BaseCounterTrack implements Track {
         assertUnreachable(options.yMode);
     }
 
-    let displayValueExpr = valueExpr;
     if (options.yDisplay === 'log') {
-      displayValueExpr = `ifnull(ln(${displayValueExpr}), 0)`;
+      return `ifnull(ln(${valueExpr}), 0)`;
+    } else {
+      return valueExpr;
     }
-
-    return `
-      WITH data AS (
-        SELECT
-          ts,
-          ${displayValueExpr} as displayValue
-        FROM (${this.getSqlSource()})
-      )
-    `;
   }
 
   private async maybeRequestData(rawCountersKey: CacheKey) {
@@ -827,11 +819,10 @@ export abstract class BaseCounterTrack implements Track {
 
         create virtual table counter_${this.trackKey}
         using __intrinsic_counter_mipmap((
-          ${this.getSqlPreamble()}
           SELECT
             ts,
-            displayValue as value
-          FROM data
+            ${this.getValueExpression()} as value
+          FROM (${this.getSqlSource()})
         ));
 
         select
