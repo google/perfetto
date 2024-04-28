@@ -74,7 +74,6 @@ export class FtraceRawTrack implements Track {
     const queryRes = await this.engine.query(`
       select
         cast(ts / ${resolution} as integer) * ${resolution} as tsQuant,
-        type,
         name
       from ftrace_event
       where
@@ -93,7 +92,7 @@ export class FtraceRawTrack implements Track {
       names: [],
     };
 
-    const it = queryRes.iter({tsQuant: LONG, type: STR, name: STR});
+    const it = queryRes.iter({tsQuant: LONG, name: STR});
     for (let row = 0; it.valid(); it.next(), row++) {
       result.timestamps[row] = it.tsQuant;
       result.names[row] = it.name;

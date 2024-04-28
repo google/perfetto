@@ -90,13 +90,12 @@ export class DebugTrackV2 extends CustomSqlTableSliceTrack<NamedSliceTrackTypes>
     // TODO(altimin): Support removing this table when the track is closed.
     const dur = sliceColumns.dur === '0' ? 0 : sliceColumns.dur;
     await this.engine.query(`
-      create table ${this.sqlTableName} as
+      create perfetto table ${this.sqlTableName} as
       with data${dataColumns} as (
         ${data.sqlSource}
       ),
       prepared_data as (
         select
-          row_number() over () as id,
           ${sliceColumns.ts} as ts,
           ifnull(cast(${dur} as int), -1) as dur,
           printf('%s', ${sliceColumns.name}) as name
@@ -105,6 +104,7 @@ export class DebugTrackV2 extends CustomSqlTableSliceTrack<NamedSliceTrackTypes>
         from data
       )
       select
+        row_number() over (order by ts) as id,
         *
       from prepared_data
       order by ts;`);
