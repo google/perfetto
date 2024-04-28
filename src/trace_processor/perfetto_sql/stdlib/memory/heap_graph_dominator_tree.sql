@@ -18,20 +18,21 @@ INCLUDE PERFETTO MODULE graphs.dominator_tree;
 -- Excluding following types from the graph as they share objects' ownership
 -- with their real (more interesting) owners and will mask their idom to be the
 -- "super root".
-CREATE PERFETTO TABLE _excluded_type_ids AS
-WITH RECURSIVE class_visitor(type_id) AS (
-  SELECT id AS type_id
-  FROM heap_graph_class
-  WHERE name IN (
-    'java.lang.ref.PhantomReference',
-    'java.lang.ref.FinalizerReference'
-  )
-  UNION ALL
-  SELECT child.id AS type_id
-  FROM heap_graph_class child
-  JOIN class_visitor parent ON parent.type_id = child.superclass_id
-)
-SELECT * FROM class_visitor;
+CREATE PERFETTO TABLE _ref_type_ids AS
+SELECT id AS type_id FROM heap_graph_class
+WHERE kind IN (
+  'KIND_FINALIZER_REFERENCE',
+  'KIND_PHANTOM_REFERENCE',
+  'KIND_SOFT_REFERENCE',
+  'KIND_WEAK_REFERENCE');
+
+CREATE PERFETTO TABLE _excluded_refs AS
+SELECT ref.id
+  FROM _ref_type_ids
+  JOIN heap_graph_object robj USING (type_id)
+  JOIN heap_graph_reference ref USING (reference_set_id)
+WHERE ref.field_name = 'java.lang.ref.Reference.referent'
+ORDER BY ref.id;
 
 -- The assigned id of the "super root".
 -- Since a Java heap graph is a "forest" structure, we need to add a imaginary
@@ -48,7 +49,8 @@ SELECT
   ref.owned_id AS dest_node_id
 FROM heap_graph_reference ref
 JOIN heap_graph_object source_node ON ref.owner_id = source_node.id
-WHERE source_node.reachable AND source_node.type_id NOT IN _excluded_type_ids
+WHERE source_node.reachable
+  AND ref.id NOT IN _excluded_refs
   AND ref.owned_id IS NOT NULL
 UNION ALL
 SELECT
