@@ -19,6 +19,7 @@ import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/android_jank_cuj.sql');
   SELECT RUN_METRIC('android/jank/internal/counters.sql');
+  INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 `;
 
 const JANK_CUJ_QUERY = `
@@ -125,6 +126,42 @@ const LATENCY_CUJ_QUERY = `
 `;
 
 const LATENCY_COLUMNS = ['name', 'dur_ms', 'ts', 'dur', 'track_id', 'slice_id'];
+
+const BLOCKING_CALLS_DURING_CUJS_QUERY = `
+    SELECT
+      s.id AS slice_id,
+      s.name,
+      max(s.ts, cuj.ts) AS ts,
+      min(s.ts + s.dur, cuj.ts_end) as ts_end,
+      min(s.ts + s.dur, cuj.ts_end) - max(s.ts, cuj.ts) AS dur,
+      cuj.cuj_id,
+      cuj.cuj_name,
+      s.process_name,
+      s.upid,
+      s.utid,
+      'slice' AS table_name
+    FROM _android_critical_blocking_calls s
+      JOIN  android_jank_cuj cuj
+      -- only when there is an overlap
+      ON s.ts + s.dur > cuj.ts AND s.ts < cuj.ts_end
+          -- and are from the same process
+          AND s.upid = cuj.upid
+`;
+
+const BLOCKING_CALLS_DURING_CUJS_COLUMNS = [
+  'slice_id',
+  'name',
+  'ts',
+  'cuj_ts',
+  'dur',
+  'cuj_id',
+  'cuj_name',
+  'process_name',
+  'upid',
+  'utid',
+  'table_name',
+];
+
 class AndroidCujs implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
@@ -178,6 +215,25 @@ class AndroidCujs implements Plugin {
       name: 'Run query: Android Latency CUJs',
       callback: () =>
         ctx.tabs.openQuery(LATENCY_CUJ_QUERY, 'Android Latency CUJs'),
+    });
+
+    ctx.registerCommand({
+      id: 'dev.perfetto.AndroidCujs#PinBlockingCalls',
+      name: 'Add track: Android Blocking calls during CUJs',
+      callback: () => {
+        runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine).then(() =>
+          addDebugSliceTrack(
+            ctx.engine,
+            {
+              sqlSource: BLOCKING_CALLS_DURING_CUJS_QUERY,
+              columns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
+            },
+            'Blocking calls during CUJs',
+            {ts: 'ts', dur: 'dur', name: 'name'},
+            BLOCKING_CALLS_DURING_CUJS_COLUMNS,
+          ),
+        );
+      },
     });
   }
 }
