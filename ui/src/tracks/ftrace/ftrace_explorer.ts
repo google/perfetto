@@ -24,27 +24,18 @@ import {
   PopupMultiSelect,
 } from '../../widgets/multiselect';
 import {PopupPosition} from '../../widgets/popup';
-import {VirtualScrollContainer} from '../../widgets/virtual_scroll_container';
 
 import {globals} from '../../frontend/globals';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {FtraceFilter, FtraceStat} from './common';
-import {
-  createStore,
-  EngineProxy,
-  LONG,
-  NUM,
-  Store,
-  STR,
-  STR_NULL,
-} from '../../public';
+import {EngineProxy, LONG, NUM, Store, STR, STR_NULL} from '../../public';
 import {raf} from '../../core/raf_scheduler';
 import {AsyncLimiter} from '../../base/async_limiter';
 import {Monitor} from '../../base/monitor';
 import {Button} from '../../widgets/button';
+import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
 
 const ROW_H = 20;
-const PAGE_SIZE = 250;
 
 interface FtraceExplorerAttrs {
   cache: FtraceExplorerCache;
@@ -69,8 +60,8 @@ interface FtracePanelData {
 }
 
 interface Pagination {
-  page: number;
-  pageCount: number;
+  offset: number;
+  count: number;
 }
 
 export interface FtraceExplorerCache {
@@ -104,10 +95,10 @@ async function getFtraceCounters(engine: EngineProxy): Promise<FtraceStat[]> {
 }
 
 export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
-  private readonly paginationStore = createStore<Pagination>({
-    page: 0,
-    pageCount: 0,
-  });
+  private pagination: Pagination = {
+    offset: 0,
+    count: 0,
+  };
   private readonly monitor: Monitor;
   private readonly queryLimiter = new AsyncLimiter();
 
@@ -119,7 +110,6 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
       () => globals.state.frontendLocalState.visibleState.start,
       () => globals.state.frontendLocalState.visibleState.end,
       () => attrs.filterStore.state,
-      () => this.paginationStore.state,
     ]);
 
     if (attrs.cache.state === 'blank') {
@@ -136,60 +126,85 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
   }
 
   view({attrs}: m.CVnode<FtraceExplorerAttrs>) {
-    this.monitor.ifStateChanged(() =>
-      this.queryLimiter.schedule(async () => {
-        this.data = await lookupFtraceEvents(
-          attrs.engine,
-          this.paginationStore.state.page * PAGE_SIZE,
-          this.paginationStore.state.pageCount * PAGE_SIZE,
-          attrs.filterStore.state,
-        );
-        raf.scheduleFullRedraw();
-      }),
-    );
+    this.monitor.ifStateChanged(() => {
+      this.reloadData(attrs);
+    });
 
     return m(
       DetailsShell,
       {
         title: this.renderTitle(),
         buttons: this.renderFilterPanel(attrs),
+        fillParent: true,
       },
-      m(
-        VirtualScrollContainer,
-        {
-          onScroll: this.onScroll.bind(this),
+      m(VirtualTable, {
+        className: 'pf-ftrace-explorer',
+        columns: [
+          {header: 'ID', width: '5em'},
+          {header: 'Timestamp', width: '13em'},
+          {header: 'Name', width: '24em'},
+          {header: 'CPU', width: '3em'},
+          {header: 'Process', width: '24em'},
+          {header: 'Args', width: '200em'},
+        ],
+        firstRowOffset: this.data?.offset ?? 0,
+        numRows: this.data?.numEvents ?? 0,
+        rowHeight: ROW_H,
+        rows: this.renderData(),
+        onReload: (offset, count) => {
+          this.pagination = {offset, count};
+          this.reloadData(attrs);
         },
-        m('.ftrace-panel', this.renderRows()),
-      ),
+        onRowHover: this.onRowOver.bind(this),
+        onRowOut: this.onRowOut.bind(this),
+      }),
     );
   }
 
-  onScroll(scrollContainer: HTMLElement) {
-    const paginationState = this.paginationStore.state;
-    const prevPage = paginationState.page;
-    const prevPageCount = paginationState.pageCount;
-
-    const visibleRowOffset = Math.floor(scrollContainer.scrollTop / ROW_H);
-    const visibleRowCount = Math.ceil(scrollContainer.clientHeight / ROW_H);
-
-    // Work out which "page" we're on
-    const page = Math.max(0, Math.floor(visibleRowOffset / PAGE_SIZE) - 1);
-    const pageCount = Math.ceil(visibleRowCount / PAGE_SIZE) + 2;
-
-    if (page !== prevPage || pageCount !== prevPageCount) {
-      this.paginationStore.edit((draft) => {
-        draft.page = page;
-        draft.pageCount = pageCount;
-      });
+  private reloadData(attrs: FtraceExplorerAttrs): void {
+    this.queryLimiter.schedule(async () => {
+      this.data = await lookupFtraceEvents(
+        attrs.engine,
+        this.pagination.offset,
+        this.pagination.count,
+        attrs.filterStore.state,
+      );
       raf.scheduleFullRedraw();
+    });
+  }
+
+  private renderData(): VirtualTableRow[] {
+    if (!this.data) {
+      return [];
+    }
+
+    return this.data.events.map((event) => {
+      const {ts, name, cpu, process, args, id} = event;
+      const timestamp = m(Timestamp, {ts});
+      const color = colorForFtrace(name).base.cssString;
+
+      return {
+        id,
+        cells: [
+          id,
+          timestamp,
+          m('', m('span.colour', {style: {background: color}}), name),
+          cpu,
+          process,
+          args,
+        ],
+      };
+    });
+  }
+
+  private onRowOver(id: number) {
+    const event = this.data?.events.find((event) => event.id === id);
+    if (event) {
+      globals.dispatch(Actions.setHoverCursorTimestamp({ts: event.ts}));
     }
   }
 
-  onRowOver(ts: time) {
-    globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
-  }
-
-  onRowOut() {
+  private onRowOut() {
     globals.dispatch(Actions.setHoverCursorTimestamp({ts: Time.INVALID}));
   }
 
@@ -241,55 +256,6 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
         });
       },
     });
-  }
-
-  // Render all the rows including the first title row
-  private renderRows() {
-    const data = this.data;
-    const rows: m.Children = [];
-
-    rows.push(
-      m(
-        `.row`,
-        m('.cell.row-header', 'Timestamp'),
-        m('.cell.row-header', 'Name'),
-        m('.cell.row-header', 'CPU'),
-        m('.cell.row-header', 'Process'),
-        m('.cell.row-header', 'Args'),
-      ),
-    );
-
-    if (data) {
-      const {events, offset, numEvents} = data;
-      for (let i = 0; i < events.length; i++) {
-        const {ts, name, cpu, process, args} = events[i];
-
-        const timestamp = m(Timestamp, {ts});
-
-        const rank = i + offset;
-
-        const color = colorForFtrace(name).base.cssString;
-
-        rows.push(
-          m(
-            `.row`,
-            {
-              style: {top: `${(rank + 1.0) * ROW_H}px`},
-              onmouseover: this.onRowOver.bind(this, ts),
-              onmouseout: this.onRowOut.bind(this),
-            },
-            m('.cell', timestamp),
-            m('.cell', m('span.colour', {style: {background: color}}), name),
-            m('.cell', cpu),
-            m('.cell', process),
-            m('.cell', args),
-          ),
-        );
-      }
-      return m('.rows', {style: {height: `${numEvents * ROW_H}px`}}, rows);
-    } else {
-      return m('.rows', rows);
-    }
   }
 }
 

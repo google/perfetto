@@ -50,6 +50,11 @@ import {PopupMenuButton} from './popup_menu';
 import {TableShowcase} from './tables/table_showcase';
 import {TreeTable, TreeTableAttrs} from './widgets/treetable';
 import {Intent} from '../widgets/common';
+import {
+  VirtualTable,
+  VirtualTableAttrs,
+  VirtualTableRow,
+} from '../widgets/virtual_table';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -568,6 +573,11 @@ const files: File[] = [
     date: '2022-12-27',
   },
 ];
+
+let virtualTableData: {offset: number; rows: VirtualTableRow[]} = {
+  offset: 0,
+  rows: [],
+};
 
 export const WidgetsPage = createPage({
   view() {
@@ -1154,10 +1164,38 @@ export const WidgetsPage = createPage({
           return m(TreeTable<File>, attrs);
         },
       }),
+      m(WidgetShowcase, {
+        label: 'VirtualTable',
+        description: `Virtualized table for efficient rendering of large datasets`,
+        renderWidget: () => {
+          const attrs: VirtualTableAttrs = {
+            columns: [
+              {header: 'x', width: '4em'},
+              {header: 'x^2', width: '8em'},
+            ],
+            rows: virtualTableData.rows,
+            firstRowOffset: virtualTableData.offset,
+            rowHeight: 20,
+            numRows: 500_000,
+            style: {height: '200px'},
+            onReload: (rowOffset, rowCount) => {
+              const rows = [];
+              for (let i = rowOffset; i < rowOffset + rowCount; i++) {
+                rows.push({id: i, cells: [i, i ** 2]});
+              }
+              virtualTableData = {
+                offset: rowOffset,
+                rows,
+              };
+              raf.scheduleFullRedraw();
+            },
+          };
+          return m(VirtualTable, attrs);
+        },
+      }),
     );
   },
 });
-
 class ModalShowcase implements m.ClassComponent {
   private static counter = 0;
 
