@@ -103,8 +103,8 @@ class ProcessSummaryPlugin implements Plugin {
           tags: {
             isDebuggable,
           },
-          trackFactory: ({trackKey}) => {
-            return new ProcessSchedulingTrack(ctx.engine, trackKey, config);
+          trackFactory: () => {
+            return new ProcessSchedulingTrack(ctx.engine, config);
           },
         });
       } else {

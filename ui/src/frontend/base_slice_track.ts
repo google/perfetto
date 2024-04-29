@@ -41,6 +41,7 @@ import {PanelSize} from './panel';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {NewTrackArgs} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey} from '../core/timeline_cache';
+import {uuidv4Sql} from '../base/uuid';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -174,6 +175,7 @@ export abstract class BaseSliceTrack<
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
   protected engine: EngineProxy;
   protected trackKey: string;
+  protected trackUuid = uuidv4Sql();
 
   // This is the over-skirted cached bounds:
   private slicesKey: CacheKey = CacheKey.zero();
@@ -307,6 +309,10 @@ export abstract class BaseSliceTrack<
     return `${size}px Roboto Condensed`;
   }
 
+  private getTableName(): string {
+    return `slice_${this.trackUuid}`;
+  }
+
   async onCreate(): Promise<void> {
     this.initState = await this.onInit();
 
@@ -357,7 +363,7 @@ export abstract class BaseSliceTrack<
     this.incomplete = incomplete;
 
     await this.engine.query(`
-      create virtual table slice_${this.trackKey}
+      create virtual table ${this.getTableName()}
       using __intrinsic_slice_mipmap((
         select id, ts, dur, ${this.depthColumn()}
         from (${this.getSqlSource()})
@@ -654,7 +660,9 @@ export abstract class BaseSliceTrack<
       this.initState.dispose();
       this.initState = undefined;
     }
-    await this.engine.execute(`drop table slice_${this.trackKey}`);
+    if (this.engine.isAlive) {
+      await this.engine.execute(`drop table ${this.getTableName()}`);
+    }
   }
 
   // This method figures out if the visible window is outside the bounds of
@@ -681,7 +689,7 @@ export abstract class BaseSliceTrack<
         s.id,
         z.depth
         ${extraCols ? ',' + extraCols : ''}
-      FROM slice_${this.trackKey}(
+      FROM ${this.getTableName()}(
         ${slicesKey.start},
         ${slicesKey.end},
         ${slicesKey.bucketSize}
