@@ -189,11 +189,6 @@ void MetadataMinimalModule::ParseChromeMetadataPacket(ConstBytes blob) {
       return;
     protos::pbzero::BackgroundTracingMetadata::TriggerRule::Decoder
         triggered_rule_decoder(triggered_rule.data, triggered_rule.size);
-    if (!triggered_rule_decoder.has_name_hash())
-      return;
-    metadata->SetDynamicMetadata(
-        storage->InternString("cr-triggered_rule_name_hash"),
-        Variadic::Integer(triggered_rule_decoder.name_hash()));
   }
 }
 
