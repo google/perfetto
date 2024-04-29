@@ -31,6 +31,7 @@ import {
   Track,
 } from '../../public';
 import {LONG, NUM, NUM_NULL} from '../../trace_processor/query_result';
+import {uuidv4Sql} from '../../base/uuid';
 
 export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
 
@@ -63,30 +64,29 @@ class CpuFreqTrack implements Track {
 
   private engine: EngineProxy;
   private config: Config;
-  private trackKey: string;
+  private trackUuid = uuidv4Sql();
 
-  constructor(config: Config, engine: EngineProxy, trackKey: string) {
+  constructor(config: Config, engine: EngineProxy) {
     this.config = config;
     this.engine = engine;
-    this.trackKey = trackKey.split('-').join('_');
   }
 
   async onCreate() {
     if (this.config.idleTrackId === undefined) {
       await this.engine.execute(`
-        create view raw_freq_idle_${this.trackKey} as
+        create view raw_freq_idle_${this.trackUuid} as
         select ts, dur, value as freqValue, -1 as idleValue
         from experimental_counter_dur c
         where track_id = ${this.config.freqTrackId}
       `);
     } else {
       await this.engine.execute(`
-        create view raw_freq_${this.trackKey} as
+        create view raw_freq_${this.trackUuid} as
         select ts, dur, value as freqValue
         from experimental_counter_dur c
         where track_id = ${this.config.freqTrackId};
 
-        create view raw_idle_${this.trackKey} as
+        create view raw_idle_${this.trackUuid} as
         select
           ts,
           dur,
@@ -94,22 +94,22 @@ class CpuFreqTrack implements Track {
         from experimental_counter_dur c
         where track_id = ${this.config.idleTrackId};
 
-        create virtual table raw_freq_idle_${this.trackKey}
-        using span_join(raw_freq_${this.trackKey}, raw_idle_${this.trackKey});
+        create virtual table raw_freq_idle_${this.trackUuid}
+        using span_join(raw_freq_${this.trackUuid}, raw_idle_${this.trackUuid});
       `);
     }
 
     await this.engine.execute(`
-      create virtual table cpu_freq_${this.trackKey}
+      create virtual table cpu_freq_${this.trackUuid}
       using __intrinsic_counter_mipmap((
         select ts, freqValue as value
-        from raw_freq_idle_${this.trackKey}
+        from raw_freq_idle_${this.trackUuid}
       ));
 
-      create virtual table cpu_idle_${this.trackKey}
+      create virtual table cpu_idle_${this.trackUuid}
       using __intrinsic_counter_mipmap((
         select ts, idleValue as value
-        from raw_freq_idle_${this.trackKey}
+        from raw_freq_idle_${this.trackUuid}
       ));
     `);
   }
@@ -120,11 +120,11 @@ class CpuFreqTrack implements Track {
 
   async onDestroy(): Promise<void> {
     if (this.engine.isAlive) {
-      await this.engine.query(`drop table cpu_freq_${this.trackKey}`);
-      await this.engine.query(`drop table cpu_idle_${this.trackKey}`);
-      await this.engine.query(`drop table raw_freq_idle_${this.trackKey}`);
-      await this.engine.query(`drop view if exists raw_freq_${this.trackKey}`);
-      await this.engine.query(`drop view if exists raw_idle_${this.trackKey}`);
+      await this.engine.query(`drop table cpu_freq_${this.trackUuid}`);
+      await this.engine.query(`drop table cpu_idle_${this.trackUuid}`);
+      await this.engine.query(`drop table raw_freq_idle_${this.trackUuid}`);
+      await this.engine.query(`drop view if exists raw_freq_${this.trackUuid}`);
+      await this.engine.query(`drop view if exists raw_idle_${this.trackUuid}`);
     }
   }
 
@@ -143,7 +143,7 @@ class CpuFreqTrack implements Track {
         max_value as maxFreq,
         last_ts as ts,
         last_value as lastFreq
-      FROM cpu_freq_${this.trackKey}(
+      FROM cpu_freq_${this.trackUuid}(
         ${start},
         ${end},
         ${resolution}
@@ -151,7 +151,7 @@ class CpuFreqTrack implements Track {
     `);
     const idleResult = await this.engine.query(`
       SELECT last_value as lastIdle
-      FROM cpu_idle_${this.trackKey}(
+      FROM cpu_idle_${this.trackUuid}(
         ${start},
         ${end},
         ${resolution}
@@ -450,7 +450,7 @@ class CpuFreq implements Plugin {
           displayName: `Cpu ${cpu} Frequency`,
           kind: CPU_FREQ_TRACK_KIND,
           cpu,
-          trackFactory: (c) => new CpuFreqTrack(config, ctx.engine, c.trackKey),
+          trackFactory: () => new CpuFreqTrack(config, ctx.engine),
         });
       }
     }
