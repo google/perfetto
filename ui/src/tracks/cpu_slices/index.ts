@@ -40,6 +40,7 @@ import {
   Track,
 } from '../../public';
 import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
+import {uuidv4Sql} from '../../base/uuid';
 
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 
@@ -69,6 +70,7 @@ class CpuSliceTrack implements Track {
   private engine: EngineProxy;
   private cpu: number;
   private trackKey: string;
+  private trackUuid = uuidv4Sql();
 
   constructor(engine: EngineProxy, trackKey: string, cpu: number) {
     this.engine = engine;
@@ -78,7 +80,7 @@ class CpuSliceTrack implements Track {
 
   async onCreate() {
     await this.engine.query(`
-      create virtual table cpu_slice_${this.trackKey}
+      create virtual table cpu_slice_${this.trackUuid}
       using __intrinsic_slice_mipmap((
         select
           id,
@@ -116,7 +118,7 @@ class CpuSliceTrack implements Track {
         s.id,
         s.dur = -1 as isIncomplete,
         ifnull(s.priority < 100, 0) as isRealtime
-      from cpu_slice_${this.trackKey}(${start}, ${end}, ${resolution}) z
+      from cpu_slice_${this.trackUuid}(${start}, ${end}, ${resolution}) z
       cross join sched s using (id)
     `);
 
@@ -165,7 +167,7 @@ class CpuSliceTrack implements Track {
   async onDestroy() {
     if (this.engine.isAlive) {
       await this.engine.query(
-        `drop table if exists cpu_slice_${this.trackKey}`,
+        `drop table if exists cpu_slice_${this.trackUuid}`,
       );
     }
     this.fetcher.dispose();

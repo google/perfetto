@@ -30,6 +30,7 @@ import {PanelSize} from './panel';
 import {NewTrackArgs} from './track';
 import {CacheKey} from '../core/timeline_cache';
 import {featureFlags} from '../core/feature_flags';
+import {uuidv4Sql} from '../base/uuid';
 
 export const COUNTER_DEBUG_MENU_ITEMS = featureFlags.register({
   id: 'counterDebugMenuItems',
@@ -195,6 +196,7 @@ export type BaseCounterTrackArgs = NewTrackArgs & {
 export abstract class BaseCounterTrack implements Track {
   protected engine: EngineProxy;
   protected trackKey: string;
+  protected trackUuid = uuidv4Sql();
 
   // This is the over-skirted cached bounds:
   private countersKey: CacheKey = CacheKey.zero();
@@ -256,7 +258,7 @@ export abstract class BaseCounterTrack implements Track {
 
   constructor(args: BaseCounterTrackArgs) {
     this.engine = args.engine;
-    this.trackKey = args.trackKey.replaceAll('-', '_');
+    this.trackKey = args.trackKey;
     this.defaultOptions = args.options ?? {};
   }
 
@@ -449,6 +451,33 @@ export abstract class BaseCounterTrack implements Track {
 
   async onCreate(): Promise<void> {
     this.initState = await this.onInit();
+
+    const displayValueQuery = await this.engine.query(`
+        create virtual table ${this.getTableName()}
+        using __intrinsic_counter_mipmap((
+          SELECT
+            ts,
+            ${this.getValueExpression()} as value
+          FROM (${this.getSqlSource()})
+        ));
+
+        select
+          min_value as minDisplayValue,
+          max_value as maxDisplayValue
+        from ${this.getTableName()}(
+          trace_start(), trace_end(), trace_dur()
+        );
+      `);
+
+    const {minDisplayValue, maxDisplayValue} = displayValueQuery.firstRow({
+      minDisplayValue: NUM,
+      maxDisplayValue: NUM,
+    });
+
+    this.limits = {
+      minDisplayValue,
+      maxDisplayValue,
+    };
   }
 
   async onUpdate(): Promise<void> {
@@ -691,10 +720,13 @@ export abstract class BaseCounterTrack implements Track {
     this.hover = undefined;
   }
 
-  onDestroy(): void {
+  async onDestroy(): Promise<void> {
     if (this.initState) {
       this.initState.dispose();
       this.initState = undefined;
+    }
+    if (this.engine.isAlive) {
+      await this.engine.query(`drop table if exists ${this.getTableName()}`);
     }
   }
 
@@ -811,37 +843,11 @@ export abstract class BaseCounterTrack implements Track {
     }
   }
 
+  private getTableName(): string {
+    return `counter_${this.trackUuid}`;
+  }
+
   private async maybeRequestData(rawCountersKey: CacheKey) {
-    let limits = this.limits;
-    if (limits === undefined) {
-      const displayValueQuery = await this.engine.query(`
-        drop table if exists counter_${this.trackKey};
-
-        create virtual table counter_${this.trackKey}
-        using __intrinsic_counter_mipmap((
-          SELECT
-            ts,
-            ${this.getValueExpression()} as value
-          FROM (${this.getSqlSource()})
-        ));
-
-        select
-          min_value as minDisplayValue,
-          max_value as maxDisplayValue
-        from counter_${this.trackKey}(
-          trace_start(), trace_end(), trace_dur()
-        );
-      `);
-      const {minDisplayValue, maxDisplayValue} = displayValueQuery.firstRow({
-        minDisplayValue: NUM,
-        maxDisplayValue: NUM,
-      });
-      limits = this.limits = {
-        minDisplayValue,
-        maxDisplayValue,
-      };
-    }
-
     if (rawCountersKey.isCoveredBy(this.countersKey)) {
       return; // We have the data already, no need to re-query.
     }
@@ -859,7 +865,7 @@ export abstract class BaseCounterTrack implements Track {
         max_value as maxDisplayValue,
         last_ts as ts,
         last_value as lastDisplayValue
-      FROM counter_${this.trackKey}(
+      FROM ${this.getTableName()}(
         ${countersKey.start},
         ${countersKey.end},
         ${countersKey.bucketSize}
