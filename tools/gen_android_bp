@@ -768,7 +768,6 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
   # The .proto filegroup will be added to `tool_files` of rdeps so that the
   # genrules can be sandboxed.
 
-  tool_files = set()
   for proto_dep in target.proto_deps().union(target.transitive_proto_deps()):
     tool_files.add(":" + label_to_module_name(proto_dep.name))
 
