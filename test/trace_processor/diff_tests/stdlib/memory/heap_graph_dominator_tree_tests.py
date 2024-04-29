@@ -65,7 +65,7 @@ class HeapGraphDominatorTree(TestSuite):
           19,14,1,128,4,"U"
           20,14,1,256,4,"V"
           21,14,1,512,4,"W"
-          23,25,1,1024,1,"java.lang.ref.FinalizerReference"
+          23,25,1,1024,1,"sun.misc.Cleaner"
         """))
 
   def test_heap_graph_super_root_fn(self):
