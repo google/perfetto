@@ -5323,6 +5323,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_metrics_webview_descriptor",
     srcs: [
+        ":libprotobuf-internal-descriptor-proto",
         "protos/perfetto/metrics/android/ad_services_metric.proto",
         "protos/perfetto/metrics/android/android_blocking_call.proto",
         "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto",
@@ -5388,7 +5389,7 @@ genrule {
     tools: [
         "aprotoc",
     ],
-    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --proto_path=external/protobuf/src --descriptor_set_out=$(out) $(in)",
     out: [
         "perfetto_protos_perfetto_metrics_webview_descriptor.bin",
     ],
