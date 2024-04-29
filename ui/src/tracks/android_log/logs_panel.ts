@@ -18,12 +18,10 @@ import {duration, Span, time, Time, TimeSpan} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {raf} from '../../core/raf_scheduler';
 import {DetailsShell} from '../../widgets/details_shell';
-import {VirtualScrollContainer} from '../../widgets/virtual_scroll_container';
 
-import {SELECTED_LOG_ROWS_COLOR} from '../../frontend/css_constants';
 import {globals} from '../../frontend/globals';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {createStore, EngineProxy, LONG, NUM, Store, STR} from '../../public';
+import {EngineProxy, LONG, NUM, NUM_NULL, Store, STR} from '../../public';
 import {Monitor} from '../../base/monitor';
 import {AsyncLimiter} from '../../base/async_limiter';
 import {escapeGlob, escapeQuery} from '../../trace_processor/query_utils';
@@ -31,6 +29,8 @@ import {Select} from '../../widgets/select';
 import {Button} from '../../widgets/button';
 import {TextInput} from '../../widgets/text_input';
 import {Intent} from '../../widgets/common';
+import {VirtualTable, VirtualTableRow} from '../../widgets/virtual_table';
+import {classNames} from '../../base/classnames';
 
 const ROW_H = 20;
 
@@ -63,15 +63,12 @@ interface LogEntries {
 }
 
 export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
-  private readonly SKIRT_SIZE = 50;
   private entries?: LogEntries;
-  private isStale = true;
-  private viewportBounds = {top: 0, bottom: 0};
 
-  private readonly paginationStore = createStore<Pagination>({
+  private pagination: Pagination = {
     offset: 0,
     count: 0,
-  });
+  };
   private readonly rowsMonitor: Monitor;
   private readonly filterMonitor: Monitor;
   private readonly queryLimiter = new AsyncLimiter();
@@ -81,7 +78,6 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       () => attrs.filterStore.state,
       () => globals.state.frontendLocalState.visibleState.start,
       () => globals.state.frontendLocalState.visibleState.end,
-      () => this.paginationStore.state,
     ]);
 
     this.filterMonitor = new Monitor([() => attrs.filterStore.state]);
@@ -89,148 +85,104 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
 
   view({attrs}: m.CVnode<LogPanelAttrs>) {
     if (this.rowsMonitor.ifStateChanged()) {
-      this.queryLimiter.schedule(async () => {
-        this.isStale = true;
-        raf.scheduleFullRedraw();
-
-        const visibleState = globals.state.frontendLocalState.visibleState;
-        const visibleSpan = new TimeSpan(visibleState.start, visibleState.end);
-
-        if (this.filterMonitor.ifStateChanged()) {
-          await updateLogView(attrs.engine, attrs.filterStore.state);
-        }
-
-        this.entries = await updateLogEntries(
-          attrs.engine,
-          visibleSpan,
-          this.paginationStore.state,
-        );
-
-        raf.scheduleFullRedraw();
-        this.isStale = false;
-      });
+      this.reloadData(attrs);
     }
 
     const hasProcessNames =
       this.entries &&
       this.entries.processName.filter((name) => name).length > 0;
+    const totalEvents = this.entries?.totalEvents ?? 0;
 
-    const rows: m.Children = [];
-    rows.push(
-      m(
-        `.row`,
-        m('.cell.row-header', 'Timestamp'),
-        m('.cell.row-header', 'Level'),
-        m('.cell.row-header', 'Tag'),
-        hasProcessNames
-          ? m('.cell.with-process.row-header', 'Process name')
-          : undefined,
-        hasProcessNames
-          ? m('.cell.with-process.row-header', 'Message')
-          : m('.cell.no-process.row-header', 'Message'),
-        m('br'),
-      ),
-    );
-    if (this.entries) {
-      const offset = this.entries.offset;
-      const timestamps = this.entries.timestamps;
-      const priorities = this.entries.priorities;
-      const tags = this.entries.tags;
-      const messages = this.entries.messages;
-      const processNames = this.entries.processName;
-      const totalEvents = this.entries.totalEvents;
-
-      for (let i = 0; i < this.entries.timestamps.length; i++) {
-        const priorityLetter = LOG_PRIORITIES[priorities[i]][0];
-        const ts = timestamps[i];
-        const prioClass = priorityLetter || '';
-        const style: {top: string; backgroundColor?: string} = {
-          // 1.5 is for the width of the header
-          top: `${(offset + i + 1.5) * ROW_H}px`,
-        };
-        if (this.entries.isHighlighted[i]) {
-          style.backgroundColor = SELECTED_LOG_ROWS_COLOR;
-        }
-
-        rows.push(
-          m(
-            `.row.${prioClass}`,
-            {
-              class: this.isStale ? 'stale' : '',
-              style,
-              onmouseover: () => {
-                globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
-              },
-              onmouseout: () => {
-                globals.dispatch(
-                  Actions.setHoverCursorTimestamp({ts: Time.INVALID}),
-                );
-              },
-            },
-            m('.cell', m(Timestamp, {ts})),
-            m('.cell', priorityLetter || '?'),
-            m('.cell', tags[i]),
-            hasProcessNames
-              ? m('.cell.with-process', processNames[i])
-              : undefined,
-            hasProcessNames
-              ? m('.cell.with-process', messages[i])
-              : m('.cell.no-process', messages[i]),
-            m('br'),
-          ),
-        );
-      }
-
-      return m(
-        DetailsShell,
-        {
-          title: 'Android Logs',
-          description: `[${this.viewportBounds.top}, ${this.viewportBounds.bottom}] / ${totalEvents}`,
-          buttons: m(LogsFilters, {store: attrs.filterStore}),
+    return m(
+      DetailsShell,
+      {
+        title: 'Android Logs',
+        description: `Total messages: ${totalEvents}`,
+        buttons: m(LogsFilters, {store: attrs.filterStore}),
+      },
+      m(VirtualTable, {
+        className: 'pf-android-logs-table',
+        columns: [
+          {header: 'Timestamp', width: '7rem'},
+          {header: 'Level', width: '4rem'},
+          {header: 'Tag', width: '13rem'},
+          ...(hasProcessNames ? [{header: 'Process', width: '18rem'}] : []),
+          {header: 'Message', width: '42rem'},
+        ],
+        rows: this.renderRows(hasProcessNames),
+        firstRowOffset: this.entries?.offset ?? 0,
+        numRows: this.entries?.totalEvents ?? 0,
+        rowHeight: ROW_H,
+        onReload: (offset, count) => {
+          this.pagination = {offset, count};
+          this.reloadData(attrs);
         },
-        m(
-          VirtualScrollContainer,
-          {
-            onScroll: (scrollContainer: HTMLElement) => {
-              this.recomputeVisibleRowsAndUpdate(scrollContainer);
-              raf.scheduleFullRedraw();
-            },
-          },
-          m(
-            '.log-panel',
-            m('.rows', {style: {height: `${totalEvents * ROW_H}px`}}, rows),
-          ),
-        ),
-      );
-    }
-
-    return null;
+        onRowHover: (id) => {
+          const timestamp = this.entries?.timestamps[id];
+          if (timestamp !== undefined) {
+            globals.dispatch(Actions.setHoverCursorTimestamp({ts: timestamp}));
+          }
+        },
+        onRowOut: () => {
+          globals.dispatch(Actions.setHoverCursorTimestamp({ts: Time.INVALID}));
+        },
+      }),
+    );
   }
 
-  recomputeVisibleRowsAndUpdate(scrollContainer: HTMLElement) {
-    const viewportTop = Math.floor(scrollContainer.scrollTop / ROW_H);
-    const viewportHeight = Math.ceil(scrollContainer.clientHeight / ROW_H);
-    const viewportBottom = viewportTop + viewportHeight;
+  private reloadData(attrs: LogPanelAttrs) {
+    this.queryLimiter.schedule(async () => {
+      const visibleState = globals.state.frontendLocalState.visibleState;
+      const visibleSpan = new TimeSpan(visibleState.start, visibleState.end);
 
-    this.viewportBounds = {
-      top: viewportTop,
-      bottom: viewportBottom,
-    };
+      if (this.filterMonitor.ifStateChanged()) {
+        await updateLogView(attrs.engine, attrs.filterStore.state);
+      }
 
-    const curPage = this.paginationStore.state;
+      this.entries = await updateLogEntries(
+        attrs.engine,
+        visibleSpan,
+        this.pagination,
+      );
 
-    if (
-      viewportTop < curPage.offset ||
-      viewportBottom >= curPage.offset + curPage.count
-    ) {
-      this.paginationStore.edit((draft) => {
-        const offset = Math.max(0, viewportTop - this.SKIRT_SIZE);
-        // Make it even so alternating coloured rows line up
-        const offsetEven = Math.floor(offset / 2) * 2;
-        draft.offset = offsetEven;
-        draft.count = viewportHeight + this.SKIRT_SIZE * 2;
+      raf.scheduleFullRedraw();
+    });
+  }
+
+  private renderRows(hasProcessNames: boolean | undefined): VirtualTableRow[] {
+    if (!this.entries) {
+      return [];
+    }
+
+    const timestamps = this.entries.timestamps;
+    const priorities = this.entries.priorities;
+    const tags = this.entries.tags;
+    const messages = this.entries.messages;
+    const processNames = this.entries.processName;
+
+    const rows: VirtualTableRow[] = [];
+    for (let i = 0; i < this.entries.timestamps.length; i++) {
+      const priorityLetter = LOG_PRIORITIES[priorities[i]][0];
+      const ts = timestamps[i];
+      const prioClass = priorityLetter || '';
+
+      rows.push({
+        id: i,
+        className: classNames(
+          prioClass,
+          this.entries.isHighlighted[i] && 'pf-highlighted',
+        ),
+        cells: [
+          m(Timestamp, {ts}),
+          priorityLetter || '?',
+          tags[i],
+          ...(hasProcessNames ? [processNames[i]] : []),
+          messages[i],
+        ],
       });
     }
+
+    return rows;
   }
 }
 
@@ -460,7 +412,7 @@ async function updateLogEntries(
     prio: NUM,
     tag: STR,
     msg: STR,
-    isMsgHighlighted: NUM,
+    isMsgHighlighted: NUM_NULL,
     isProcessHighlighted: NUM,
     processName: STR,
   });
