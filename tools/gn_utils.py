@@ -529,9 +529,8 @@ class GnParser(object):
     return metadata.get('exports', [])
 
   def get_proto_paths(self, proto_desc):
-    # import_dirs in metadata will be available for source_set targets.
     metadata = proto_desc.get('metadata', {})
-    return metadata.get('import_dirs', [])
+    return metadata.get('proto_import_dirs', [])
 
   def get_proto_target_type(self, target: Target
                            ) -> Tuple[Optional[str], Optional[Dict]]:
