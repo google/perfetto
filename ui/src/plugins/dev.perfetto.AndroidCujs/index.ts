@@ -64,15 +64,17 @@ const JANK_CUJ_QUERY = `
       sf_callback_missed_frames,
       hwui_callback_missed_frames,
       cuj_layer.layer_name,
-      cuj.ts,
-      cuj.dur,
+      /* Boundaries table doesn't contain ts and dur when a CUJ didn't complete successfully.
+        In that case we still want to show that it was canceled, so let's take the slice timestamps. */
+      CASE WHEN boundaries.ts IS NOT NULL THEN boundaries.ts ELSE cuj.ts END AS ts,
+      CASE WHEN boundaries.dur IS NOT NULL THEN boundaries.dur ELSE cuj.dur END AS dur,
       cuj.track_id,
       cuj.slice_id
     FROM slice AS cuj
-           JOIN process_track AS pt
-                ON cuj.track_id = pt.id
+           JOIN process_track AS pt ON cuj.track_id = pt.id
            LEFT JOIN android_jank_cuj jc
                      ON pt.upid = jc.upid AND cuj.name = jc.cuj_slice_name AND cuj.ts = jc.ts
+           LEFT JOIN android_jank_cuj_main_thread_cuj_boundary boundaries using (cuj_id)
            LEFT JOIN android_jank_cuj_layer_name cuj_layer USING (cuj_id)
            LEFT JOIN android_jank_cuj_counter_metrics USING (cuj_id)
     WHERE cuj.name GLOB 'J<*>'
@@ -140,7 +142,7 @@ class AndroidCujs implements Plugin {
             },
             'Jank CUJs',
             {ts: 'ts', dur: 'dur', name: 'name'},
-            [],
+            JANK_COLUMNS,
           );
         });
       },
