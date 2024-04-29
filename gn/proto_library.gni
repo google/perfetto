@@ -371,7 +371,7 @@ template("perfetto_proto_library") {
 
         metadata = {
           proto_library_sources = invoker.sources
-          import_dirs = import_dirs_
+          proto_import_dirs = import_dirs_
           exports = get_path_info(public_deps_, "abspath")
         }
         forward_variables_from(invoker, vars_to_forward)
