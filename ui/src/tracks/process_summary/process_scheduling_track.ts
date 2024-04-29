@@ -27,6 +27,7 @@ import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {EngineProxy, Track} from '../../public';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
+import {uuidv4Sql} from '../../base/uuid';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -57,13 +58,12 @@ export class ProcessSchedulingTrack implements Track {
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private maxCpu = 0;
   private engine: EngineProxy;
-  private trackKey: string;
+  private trackUuid = uuidv4Sql();
   private config: Config;
 
-  constructor(engine: EngineProxy, trackKey: string, config: Config) {
+  constructor(engine: EngineProxy, config: Config) {
     this.engine = engine;
     this.config = config;
-    this.trackKey = trackKey.split('-').join('_');
   }
 
   async onCreate(): Promise<void> {
@@ -75,7 +75,7 @@ export class ProcessSchedulingTrack implements Track {
 
     if (this.config.upid !== null) {
       await this.engine.query(`
-        create virtual table process_scheduling_${this.trackKey}
+        create virtual table process_scheduling_${this.trackUuid}
         using __intrinsic_slice_mipmap((
           select
             id,
@@ -95,7 +95,7 @@ export class ProcessSchedulingTrack implements Track {
     } else {
       assertExists(this.config.utid);
       await this.engine.query(`
-        create virtual table process_scheduling_${this.trackKey}
+        create virtual table process_scheduling_${this.trackUuid}
         using __intrinsic_slice_mipmap((
           select
             id,
@@ -121,7 +121,7 @@ export class ProcessSchedulingTrack implements Track {
     this.fetcher.dispose();
     if (this.engine.isAlive) {
       await this.engine.query(`
-        drop table process_scheduling_${this.trackKey}
+        drop table process_scheduling_${this.trackUuid}
       `);
     }
   }
@@ -182,7 +182,7 @@ export class ProcessSchedulingTrack implements Track {
         s.id,
         z.depth as cpu,
         utid
-      from process_scheduling_${this.trackKey}(
+      from process_scheduling_${this.trackUuid}(
         ${start}, ${end}, ${bucketSize}
       ) z
       cross join sched s using (id)
