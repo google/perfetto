@@ -299,11 +299,20 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     },
 
     get tracks(): TrackRef[] {
-      return Object.values(globals.state.tracks).map((trackState) => {
+      const tracks = Object.values(globals.state.tracks);
+      const pinnedTracks = globals.state.pinnedTracks;
+      const groups = globals.state.trackGroups;
+      return tracks.map((trackState) => {
+        const group = trackState.trackGroup
+          ? groups[trackState.trackGroup]
+          : undefined;
         return {
           displayName: trackState.name,
           uri: trackState.uri,
           params: trackState.params,
+          key: trackState.key,
+          groupName: group?.name,
+          isPinned: pinnedTracks.includes(trackState.key),
         };
       });
     },
