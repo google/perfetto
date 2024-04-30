@@ -139,8 +139,9 @@ export const filterVisibleSlicesForTesting = filterVisibleSlices;
 // merges several tracks into one visual track.
 export const BASE_ROW = {
   id: NUM, // The slice ID, for selection / lookups.
-  ts: LONG, // Start time in nanoseconds.
-  dur: LONG, // Duration in nanoseconds. -1 = incomplete, 0 = instant.
+  dur: LONG, // True duration in nanoseconds. -1 = incomplete, 0 = instant.
+  tsQ: LONG, // Quantized start time in nanoseconds.
+  durQ: LONG, // Quantized duration in nanoseconds.
   depth: NUM, // Vertical depth.
 };
 
@@ -334,7 +335,8 @@ export abstract class BaseSliceTrack<
       queryRes = await this.engine.query(`
           select
             ${this.depthColumn()},
-            ts,
+            ts as tsQ,
+            -1 as durQ,
             -1 as dur,
             id
             ${extraCols ? ',' + extraCols : ''}
@@ -346,6 +348,8 @@ export abstract class BaseSliceTrack<
         select
           ${this.depthColumn()},
           max(ts) as ts,
+          max(ts) as tsQ,
+          -1 as durQ,
           -1 as dur,
           id
           ${extraCols ? ',' + extraCols : ''}
@@ -684,8 +688,9 @@ export abstract class BaseSliceTrack<
     const extraCols = this.extraSqlColumns.join(',');
     const queryRes = await this.engine.query(`
       SELECT
-        (z.ts / ${rawSlicesKey.bucketSize}) * ${rawSlicesKey.bucketSize} as ts,
-        iif(s.dur = -1, s.dur, max(z.dur, ${rawSlicesKey.bucketSize})) as dur,
+        (z.ts / ${rawSlicesKey.bucketSize}) * ${rawSlicesKey.bucketSize} as tsQ,
+        iif(s.dur = -1, s.dur, max(z.dur, ${rawSlicesKey.bucketSize})) as durQ,
+        s.dur as dur,
         s.id,
         z.depth
         ${extraCols ? ',' + extraCols : ''}
@@ -738,9 +743,9 @@ export abstract class BaseSliceTrack<
   }
 
   rowToSlice(row: T['row']): T['slice'] {
-    const startNs = Time.fromRaw(row.ts);
-    const endNs = Time.fromRaw(row.ts + row.dur);
-    const ts = Time.fromRaw(row.ts);
+    const startNs = Time.fromRaw(row.tsQ);
+    const endNs = Time.fromRaw(row.tsQ + row.durQ);
+    const ts = Time.fromRaw(row.tsQ);
     const dur: duration = row.dur;
 
     let flags = 0;
