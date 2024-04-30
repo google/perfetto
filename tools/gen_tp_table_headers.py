@@ -72,7 +72,8 @@ def main():
   ]
   headers: Dict[str, Header] = {}
   for table in parse_tables_from_modules(modules):
-    input_path = os.path.relpath(table.table.python_module, ROOT_DIR)
+    raw_path = table.table.python_module
+    input_path = raw_path[raw_path.rfind('/src') + 1:]
     header = headers.get(input_path, Header([]))
     header.tables.append(table)
     headers[input_path] = header
