@@ -26,7 +26,8 @@ namespace perfetto::trace_redaction {
 // process free events.
 class RedactProcessFree : public FtraceEventRedaction {
  public:
-  RedactProcessFree();
+  static constexpr auto kFieldId =
+      protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber;
 
   base::Status Redact(
       const Context& context,

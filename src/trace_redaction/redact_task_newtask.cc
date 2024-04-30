@@ -41,15 +41,6 @@ namespace perfetto::trace_redaction {
 //
 // In the above message, it should be noted that "event.pid" will never be
 // equal to "event.task_newtask.pid" (a thread cannot start itself).
-
-// TODO(vaage): How does this primitive (and others like it) work when we're
-// merging threads? Remame events are already dropped. New task and proces free
-// events won't matter the timeline is created. Can these events be dropped?
-
-RedactTaskNewTask::RedactTaskNewTask()
-    : FtraceEventRedaction(
-          protos::pbzero::FtraceEvent::kTaskNewtaskFieldNumber) {}
-
 base::Status RedactTaskNewTask::Redact(
     const Context& context,
     const protos::pbzero::FtraceEvent::Decoder& event,

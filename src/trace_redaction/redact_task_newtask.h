@@ -26,7 +26,8 @@ namespace perfetto::trace_redaction {
 // task_newtask events.
 class RedactTaskNewTask : public FtraceEventRedaction {
  public:
-  RedactTaskNewTask();
+  static constexpr auto kFieldId =
+      protos::pbzero::FtraceEvent::kTaskNewtaskFieldNumber;
 
   base::Status Redact(
       const Context& context,
