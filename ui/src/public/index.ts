@@ -482,6 +482,12 @@ export interface TrackRef {
 
   // Optional: Add tracks to a group with this name.
   groupName?: string;
+
+  // Optional: Track key
+  key?: string;
+
+  // Optional: Whether the track is pinned
+  isPinned?: boolean;
 }
 
 // A predicate for selecting a subset of tracks.
