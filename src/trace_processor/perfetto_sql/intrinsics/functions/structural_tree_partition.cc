@@ -178,6 +178,7 @@ void StructuralTreePartition::Final(sqlite3_context* ctx) {
       // Keep track of the fact this node was processed and update the ancestor
       // id for all children.
       ss.first_pass_done = true;
+      ss.prev_ancestor_id_for_group = ancestor_id_for_group[ss.row.group];
       ancestor_id_for_group[ss.row.group] = ss.row.id;
 
       const auto* start = helper.ChildrenForIdBegin(ss.row.id);
