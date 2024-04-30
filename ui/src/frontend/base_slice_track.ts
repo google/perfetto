@@ -15,7 +15,7 @@
 import {Disposable, NullDisposable} from '../base/disposable';
 import {assertExists} from '../base/logging';
 import {clamp, floatEqual} from '../base/math_utils';
-import {duration, Time, time} from '../base/time';
+import {Time, time} from '../base/time';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {
@@ -139,6 +139,7 @@ export const filterVisibleSlicesForTesting = filterVisibleSlices;
 // merges several tracks into one visual track.
 export const BASE_ROW = {
   id: NUM, // The slice ID, for selection / lookups.
+  ts: LONG, // True ts in nanoseconds.
   dur: LONG, // True duration in nanoseconds. -1 = incomplete, 0 = instant.
   tsQ: LONG, // Quantized start time in nanoseconds.
   durQ: LONG, // Quantized duration in nanoseconds.
@@ -336,6 +337,7 @@ export abstract class BaseSliceTrack<
           select
             ${this.depthColumn()},
             ts as tsQ,
+            ts,
             -1 as durQ,
             -1 as dur,
             id
@@ -347,8 +349,8 @@ export abstract class BaseSliceTrack<
       queryRes = await this.engine.query(`
         select
           ${this.depthColumn()},
-          max(ts) as ts,
           max(ts) as tsQ,
+          ts,
           -1 as durQ,
           -1 as dur,
           id
@@ -689,7 +691,8 @@ export abstract class BaseSliceTrack<
     const queryRes = await this.engine.query(`
       SELECT
         (z.ts / ${rawSlicesKey.bucketSize}) * ${rawSlicesKey.bucketSize} as tsQ,
-        iif(s.dur = -1, s.dur, max(z.dur, ${rawSlicesKey.bucketSize})) as durQ,
+        max(z.dur, ${rawSlicesKey.bucketSize}) as durQ,
+        s.ts as ts,
         s.dur as dur,
         s.id,
         z.depth
@@ -743,11 +746,6 @@ export abstract class BaseSliceTrack<
   }
 
   rowToSlice(row: T['row']): T['slice'] {
-    const startNs = Time.fromRaw(row.tsQ);
-    const endNs = Time.fromRaw(row.tsQ + row.durQ);
-    const ts = Time.fromRaw(row.tsQ);
-    const dur: duration = row.dur;
-
     let flags = 0;
     if (row.dur === -1n) {
       flags |= SLICE_FLAGS_INCOMPLETE;
@@ -757,11 +755,11 @@ export abstract class BaseSliceTrack<
 
     return {
       id: row.id,
-      startNs,
-      endNs,
-      durNs: row.dur,
-      ts,
-      dur,
+      startNs: Time.fromRaw(row.tsQ),
+      endNs: Time.fromRaw(row.tsQ + row.durQ),
+      durNs: row.durQ,
+      ts: Time.fromRaw(row.ts),
+      dur: row.dur,
       flags,
       depth: row.depth,
       title: '',
