@@ -11348,6 +11348,7 @@ filegroup {
     srcs: [
         "src/trace_processor/db/column/arrangement_overlay_unittest.cc",
         "src/trace_processor/db/column/dense_null_overlay_unittest.cc",
+        "src/trace_processor/db/column/fake_storage_unittest.cc",
         "src/trace_processor/db/column/id_storage_unittest.cc",
         "src/trace_processor/db/column/null_overlay_unittest.cc",
         "src/trace_processor/db/column/numeric_storage_unittest.cc",
