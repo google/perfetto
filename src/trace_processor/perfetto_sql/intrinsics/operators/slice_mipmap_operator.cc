@@ -77,7 +77,7 @@ int SliceMipmapOperator::Create(sqlite3* db,
                                 sqlite3_vtab** vtab,
                                 char** zErr) {
   if (argc != 4) {
-    *zErr = sqlite3_mprintf("zoom_index_operator: wrong number of arguments");
+    *zErr = sqlite3_mprintf("slice_mipmap: wrong number of arguments");
     return SQLITE_ERROR;
   }
 
@@ -93,8 +93,7 @@ int SliceMipmapOperator::Create(sqlite3* db,
   auto res = ctx->engine->ExecuteUntilLastStatement(
       SqlSource::FromTraceProcessorImplementation(std::move(sql)));
   if (!res.ok()) {
-    *zErr =
-        sqlite3_mprintf("zoom_index_operator: %s", res.status().c_message());
+    *zErr = sqlite3_mprintf("%s", res.status().c_message());
     return SQLITE_ERROR;
   }
   do {
@@ -113,8 +112,7 @@ int SliceMipmapOperator::Create(sqlite3* db,
     by_depth.timestamps.push_back(ts);
   } while (res->stmt.Step());
   if (!res->stmt.status().ok()) {
-    *zErr = sqlite3_mprintf("zoom_index_operator: %s",
-                            res->stmt.status().c_message());
+    *zErr = sqlite3_mprintf("%s", res->stmt.status().c_message());
     return SQLITE_ERROR;
   }
 
@@ -208,8 +206,8 @@ int SliceMipmapOperator::Filter(sqlite3_vtab_cursor* cursor,
         tses.begin(), std::lower_bound(tses.begin(), tses.end(), start)));
     if (start_idx != 0 &&
         (static_cast<size_t>(start_idx) == tses.size() ||
-         tses[start_idx] != start) &&
-        (tses[start_idx] + by_depth.forest[start_idx].dur > start)) {
+         (tses[start_idx] != start &&
+          tses[start_idx] + by_depth.forest[start_idx].dur > start))) {
       --start_idx;
     }
 
