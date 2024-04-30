@@ -60,16 +60,36 @@ export function reportError(err: ErrorEvent | PromiseRejectionEvent | {}) {
 
   if (err instanceof ErrorEvent) {
     errType = 'ERROR';
-    errMsg = `${err.error}`;
-    errorObj = err.error;
+    // In nominal cases the error is set in err.error{message,stack} and
+    // a toString() of the error object returns a meaningful one-line
+    // description. However, in the case of wasm errors, emscripten seems to
+    // wrap the error in an unusual way: err.error is null but err.message
+    // contains the whole one-line + stack trace.
+    if (err.error === null || err.error === undefined) {
+      // Wasm case.
+      const errLines = `${err.message}`.split('\n');
+      errMsg = errLines[0];
+      errorObj = {stack: errLines.slice(1).join('\n')};
+    } else {
+      // Standard JS case.
+      errMsg = `${err.error}`;
+      errorObj = err.error;
+    }
   } else if (err instanceof PromiseRejectionEvent) {
     errType = 'PROMISE_REJ';
-    errMsg = `PromiseRejection: ${err.reason}`;
+    errMsg = `${err.reason}`;
     errorObj = err.reason;
   } else {
     errType = 'OTHER';
-    errMsg = `Err: ${err}`;
+    errMsg = `${err}`;
   }
+
+  // Remove useless "Uncaught Error:" or "Error:" prefixes which just create
+  // noise in the bug tracker without adding any meaningful value.
+  errMsg = errMsg.replace(/^Uncaught Error:/, '');
+  errMsg = errMsg.replace(/^Error:/, '');
+  errMsg = errMsg.trim();
+
   if (errorObj !== undefined && errorObj !== null) {
     const maybeStack = (errorObj as {stack?: string}).stack;
     let errStack = maybeStack !== undefined ? `${maybeStack}` : '';
@@ -113,6 +133,15 @@ export function reportError(err: ErrorEvent | PromiseRejectionEvent | {}) {
         entryLocation = entryLocation.replace(`/${VERSION}/`, '');
       }
       stack.push({name: entryName, location: entryLocation});
+    } // for (line in stack)
+
+    // Beautify the Wasm error message if possible. Most Wasm errors are of the
+    // form RuntimeError: unreachable or RuntimeError: abort. Those lead to bug
+    // titles that are undistinguishable from each other. Instead try using the
+    // first entry of the stack that contains a perfetto:: function name.
+    const wasmFunc = stack.find((e) => e.name.includes('perfetto::'))?.name;
+    if (errMsg.includes('RuntimeError') && wasmFunc) {
+      errMsg += ` @ ${wasmFunc.trim()}`;
     }
   }
   // Invoke all the handlers registered through addErrorHandler.
