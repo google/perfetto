@@ -4,7 +4,18 @@ Unreleased:
   Trace Processor:
     *
   UI:
-    *
+    * Add tracks to the list of searchable items.
+    * Use mipmaps to improve track query performance on large traces.
+    * Fix slow scrolling bug in ftrace explorer tab on low DPI machines.
+    * Overhaul track decider queries to improve trace load times.
+    * Add track
+    * Tidy up command names & remove some example ones.
+    * Remove arg auto-completion in pivot table.
+    * Show dominator tree views by default.
+    * Fix counter event selection off-by-one error.
+    * Add viewport control to the plugin API.
+    * Sticky track titles to improve track button accessibility in tall tracks.
+    * A handful of small bugfixes.
   SDK:
     * The TRACE_EVENT macro used to reject `const char *` event names: either
       `StaticString` or `DynamicString` needed to be specified. In the last year
