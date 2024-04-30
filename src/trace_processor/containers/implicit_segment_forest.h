@@ -98,7 +98,9 @@ class ImplicitSegmentForest {
     values_.emplace_back(std::move(v));
 
     size_t len = values_.size();
-    auto levels_to_index = static_cast<uint32_t>(__builtin_ctzl(~len)) - 1;
+    auto levels_to_index = static_cast<uint32_t>(__builtin_ctzl(
+                               static_cast<unsigned long>(~len))) -
+                           1;
 
     size_t cur = len - 1;
     for (uint32_t level = 0; level < levels_to_index; ++level) {
