@@ -75,6 +75,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "arrangement_overlay_unittest.cc",
     "dense_null_overlay_unittest.cc",
+    "fake_storage_unittest.cc",
     "id_storage_unittest.cc",
     "null_overlay_unittest.cc",
     "numeric_storage_unittest.cc",
