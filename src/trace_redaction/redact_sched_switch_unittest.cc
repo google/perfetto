@@ -108,7 +108,7 @@ TEST_F(RedactSchedSwitchTest, RejectMissingTimeline) {
   ASSERT_FALSE(result.ok());
 }
 
-TEST_F(RedactSchedSwitchTest, ClearsPrevAndNext) {
+TEST_F(RedactSchedSwitchTest, ReplacePrevAndNextWithEmptyStrings) {
   RedactSchedSwitch redact;
 
   Context context;
@@ -131,15 +131,15 @@ TEST_F(RedactSchedSwitchTest, ClearsPrevAndNext) {
 
   ASSERT_TRUE(event.has_sched_switch());
 
-  // Pid should always carry over; only the comm value should get removed.
-  ASSERT_TRUE(event.sched_switch().has_next_pid());
-  ASSERT_FALSE(event.sched_switch().has_next_comm());
+  // Cleared prev and next comm.
+  ASSERT_TRUE(event.sched_switch().has_prev_comm());
+  ASSERT_TRUE(event.sched_switch().prev_comm().empty());
 
-  ASSERT_TRUE(event.sched_switch().has_prev_pid());
-  ASSERT_FALSE(event.sched_switch().has_prev_comm());
+  ASSERT_TRUE(event.sched_switch().has_next_comm());
+  ASSERT_TRUE(event.sched_switch().next_comm().empty());
 }
 
-TEST_F(RedactSchedSwitchTest, ClearsPrev) {
+TEST_F(RedactSchedSwitchTest, ReplacePrevWithEmptyStrings) {
   RedactSchedSwitch redact;
 
   Context context;
@@ -162,15 +162,15 @@ TEST_F(RedactSchedSwitchTest, ClearsPrev) {
 
   ASSERT_TRUE(event.has_sched_switch());
 
-  // Pid should always carry over; only the comm value should get removed.
-  ASSERT_TRUE(event.sched_switch().has_next_pid());
-  ASSERT_TRUE(event.sched_switch().has_next_comm());
+  // Only cleared the prev comm.
+  ASSERT_TRUE(event.sched_switch().has_prev_comm());
+  ASSERT_TRUE(event.sched_switch().prev_comm().empty());
 
-  ASSERT_TRUE(event.sched_switch().has_prev_pid());
-  ASSERT_FALSE(event.sched_switch().has_prev_comm());
+  ASSERT_TRUE(event.sched_switch().has_next_comm());
+  ASSERT_FALSE(event.sched_switch().next_comm().empty());
 }
 
-TEST_F(RedactSchedSwitchTest, ClearNext) {
+TEST_F(RedactSchedSwitchTest, ReplaceNextWithEmptyStrings) {
   RedactSchedSwitch redact;
 
   Context context;
@@ -193,12 +193,12 @@ TEST_F(RedactSchedSwitchTest, ClearNext) {
 
   ASSERT_TRUE(event.has_sched_switch());
 
-  // Pid should always carry over; only the comm value should get removed.
-  ASSERT_TRUE(event.sched_switch().has_next_pid());
-  ASSERT_FALSE(event.sched_switch().has_next_comm());
-
-  ASSERT_TRUE(event.sched_switch().has_prev_pid());
   ASSERT_TRUE(event.sched_switch().has_prev_comm());
+  ASSERT_FALSE(event.sched_switch().prev_comm().empty());
+
+  // Only cleared the next comm.
+  ASSERT_TRUE(event.sched_switch().has_next_comm());
+  ASSERT_TRUE(event.sched_switch().next_comm().empty());
 }
 
 }  // namespace perfetto::trace_redaction
