@@ -135,11 +135,6 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
   }
   context_->slice_tracker->Scoped(ts, track_id, cat_id, name_id,
                                   /* duration = */ 0);
-
-  MetadataTracker* metadata = context_->metadata_tracker.get();
-  metadata->SetDynamicMetadata(
-      context_->storage->InternString("cr-triggered_rule_name_hash"),
-      Variadic::Integer(trigger.trigger_name_hash()));
 }
 
 void MetadataModule::ParseTraceUuid(ConstBytes blob) {
