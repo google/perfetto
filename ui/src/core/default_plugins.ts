@@ -32,6 +32,7 @@ export const defaultPlugins = [
   'dev.perfetto.BookmarkletApi',
   'dev.perfetto.CoreCommands',
   'dev.perfetto.LargeScreensPerf',
+  'dev.perfetto.RestorePinnedTrack',
   'perfetto.AndroidLog',
   'perfetto.Annotation',
   'perfetto.AsyncSlices',
