@@ -42,10 +42,6 @@ namespace perfetto::trace_redaction {
 // The timeline treats "start" as inclusive and "end" as exclusive. This means
 // no pid will connect to the target package at a process free event. Because
 // of this, the timeline is not needed.
-RedactProcessFree::RedactProcessFree()
-    : FtraceEventRedaction(
-          protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber) {}
-
 base::Status RedactProcessFree::Redact(
     const Context&,
     const protos::pbzero::FtraceEvent::Decoder&,

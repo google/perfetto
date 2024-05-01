@@ -48,7 +48,8 @@ class RedactSchedSwitchIntegrationTest
 
     auto* ftrace_event_redactions =
         trace_redactor()->emplace_transform<RedactFtraceEvent>();
-    ftrace_event_redactions->emplace_back<RedactSchedSwitch>();
+    ftrace_event_redactions
+        ->emplace_back<RedactSchedSwitch::kFieldId, RedactSchedSwitch>();
 
     context()->package_name = "com.Unity.com.unity.multiplayer.samples.coop";
   }

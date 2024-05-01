@@ -85,26 +85,14 @@ void RedactFtraceEvent::RedactEvent(
 
   for (auto field = event.ReadField(); field.valid();
        field = event.ReadField()) {
-    auto mod = FindRedactionFor(field.id());
+    auto* mod = redactions_.Find(field.id());
 
-    if (mod) {
+    if (mod && mod->get()) {
       protos::pbzero::FtraceEvent::Decoder event_decoder(bytes);
-      mod->Redact(context, event_decoder, field.as_bytes(), message);
+      mod->get()->Redact(context, event_decoder, field.as_bytes(), message);
     } else {
       proto_util::AppendField(field, message);
     }
   }
 }
-
-const FtraceEventRedaction* RedactFtraceEvent::FindRedactionFor(
-    uint32_t i) const {
-  for (const auto& modification : redactions_) {
-    if (modification->field_id() == i) {
-      return modification.get();
-    }
-  }
-
-  return nullptr;
-}
-
 }  // namespace perfetto::trace_redaction
