@@ -2477,16 +2477,24 @@ class TrackDecider {
 
   async addPluginTracks(): Promise<void> {
     const promises = pluginManager.findPotentialTracks(this.engine);
-    const groups = await Promise.all(promises);
+    const results = await Promise.all(promises);
 
     const grouperator = (track: TrackInfo): string => {
       if (track.group) {
         return this.lazyTrackGroup(track.group)();
       }
+      if (track.groups) {
+        let parentGroupIdProvider: LazyIdProvider | undefined = undefined;
+        for (const group of track.groups) {
+          parentGroupIdProvider = this.lazyTrackGroup(group, {lazyParentGroup: parentGroupIdProvider});
+        }
+        return parentGroupIdProvider!();
+      }
+
       return SCROLLING_TRACK_GROUP;
     };
 
-    for (const infos of groups) {
+    for (const infos of results) {
       for (const info of infos) {
         this.tracksToAdd.push({
           engineId: this.engineId,

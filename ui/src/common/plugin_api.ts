@@ -47,6 +47,15 @@ export interface TrackInfo {
   // Tracks of the same group name are collected into a group of that name.
   group?: string;
 
+  // SOKATOA: support specifying a sequence/hierarchy of groups, as an
+  // alternative to specifying just a single one. This way, the plugin
+  // can create a track in an arbitrarily nested group.
+  // This property is ignored if |group| is defined.
+  //
+  // All elements in the array are group names, never a group ID, not even
+  // a group ID constant (e.g., SCROLLING_TRACKS).
+  groups?: string[];
+
   // An opaque config for the track.
   config: {};
 }
