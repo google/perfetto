@@ -371,6 +371,17 @@ interface WidgetTitleAttrs {
   label: string;
 }
 
+function recursiveTreeNode(): m.Children {
+  return m(LazyTreeNode, {
+    left: 'Recursive',
+    right: '...',
+    fetchData: async () => {
+      // await new Promise((r) => setTimeout(r, 1000));
+      return () => recursiveTreeNode();
+    },
+  });
+}
+
 class WidgetTitle implements m.ClassComponent<WidgetTitleAttrs> {
   view({attrs}: m.CVnode<WidgetTitleAttrs>) {
     const {label} = attrs;
@@ -996,6 +1007,7 @@ export const WidgetsPage = createPage({
                 return () => m(TreeNode, {left: 'foo'});
               },
             }),
+            recursiveTreeNode(),
           ),
         wide: true,
       }),
