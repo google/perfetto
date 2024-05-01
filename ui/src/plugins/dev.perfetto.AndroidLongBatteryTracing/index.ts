@@ -1144,7 +1144,7 @@ class AndroidLongBatteryTracing implements Plugin {
     this.addSliceTrack(
       ctx,
       name,
-      `SELECT ts, dur, value_name AS name
+      `SELECT ts, safe_dur AS dur, value_name AS name
     FROM android_battery_stats_state
     WHERE track_name = "${track}"`,
       groupName,
@@ -1165,7 +1165,7 @@ class AndroidLongBatteryTracing implements Plugin {
     this.addSliceTrack(
       ctx,
       name,
-      `SELECT ts, dur, str_value AS name
+      `SELECT ts, safe_dur AS dur, str_value AS name
     FROM android_battery_stats_event_slices
     WHERE track_name = "${track}"`,
       groupName,
@@ -1201,7 +1201,7 @@ class AndroidLongBatteryTracing implements Plugin {
       'Device State: Long wakelocks',
       `SELECT
             ts - 60000000000 as ts,
-            dur + 60000000000 as dur,
+            safe_dur + 60000000000 as dur,
             str_value AS name,
             ifnull(
             (select package_name from package_list where uid = int_value % 100000),
