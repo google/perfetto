@@ -188,7 +188,11 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
         cells: [
           id,
           timestamp,
-          m('', m('span.colour', {style: {background: color}}), name),
+          m(
+            '.pf-ftrace-namebox',
+            m('.pf-ftrace-colorbox', {style: {background: color}}),
+            name,
+          ),
           cpu,
           process,
           args,
