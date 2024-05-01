@@ -98,11 +98,12 @@ void SystraceParser::ParseKernelTracingMarkWrite(int64_t ts,
   point.int_value = value;
   point.tgid = tgid;
 
-  // Some versions of this trace point fill trace_type with one of (B/E/C),
+  // Some versions of this trace point fill trace_type with one of (B/E/C/I),
   // others use the trace_begin boolean and only support begin/end events:
   if (trace_type == 0) {
     point.phase = trace_begin ? 'B' : 'E';
-  } else if (trace_type == 'B' || trace_type == 'E' || trace_type == 'C') {
+  } else if (trace_type == 'B' || trace_type == 'E' || trace_type == 'C' ||
+             trace_type == 'I') {
     point.phase = trace_type;
   } else {
     context_->storage->IncrementStats(stats::systrace_parse_failure);

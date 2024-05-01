@@ -471,7 +471,11 @@ function updateSymlinks() {
 function buildWasm(skipWasmBuild) {
   if (!skipWasmBuild) {
     if (!cfg.noOverrideGnArgs) {
-      const gnArgs = ['gen', `--args=is_debug=${cfg.debug}`, cfg.outDir];
+      let gnVars = `is_debug=${cfg.debug}`;
+      if (childProcess.spawnSync('which', ['ccache']).status === 0) {
+        gnVars += ` cc_wrapper="ccache"`;
+      }
+      const gnArgs = ['gen', `--args=${gnVars}`, cfg.outDir];
       addTask(exec, [pjoin(ROOT_DIR, 'tools/gn'), gnArgs]);
     }
 

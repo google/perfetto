@@ -12,16 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertUnreachable} from '../base/logging';
 
 // This file contains interfaces for attributes for various HTML elements.
 // They are typically used by widgets which pass attributes down to their
 // internal child, to provide a type-safe interface to users of those widgets.
 // Note: This is a non-exhaustive list, and is added to when required.
 // Feel free to add any missing attributes as they arise.
-export type Style = string|Partial<CSSStyleDeclaration>;
+export type Style = string | Partial<CSSStyleDeclaration>;
 
 export interface HTMLAttrs {
-  ref?: string;  // This is a common attribute used in Perfetto.
+  ref?: string; // This is a common attribute used in Perfetto.
   style?: Style;
   id?: string;
   title?: string;
@@ -59,4 +60,20 @@ export interface HTMLAnchorAttrs extends HTMLAttrs {
 
 export interface HTMLLabelAttrs extends HTMLAttrs {
   for?: string;
+}
+
+export enum Intent {
+  None = 'none',
+  Primary = 'primary',
+}
+
+export function classForIntent(intent: Intent): string | undefined {
+  switch (intent) {
+    case Intent.None:
+      return undefined;
+    case Intent.Primary:
+      return 'pf-intent-primary';
+    default:
+      return assertUnreachable(intent);
+  }
 }

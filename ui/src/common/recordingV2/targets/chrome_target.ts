@@ -25,14 +25,18 @@ export class ChromeTarget implements RecordingTargetV2 {
   onTargetChange?: OnTargetChangeCallback;
   private chromeCategories?: string[];
 
-  constructor(private name: string, private targetType: 'CHROME'|'CHROME_OS') {}
+  constructor(
+    private name: string,
+    private targetType: 'CHROME' | 'CHROME_OS',
+  ) {}
 
   getInfo(): ChromeTargetInfo {
     return {
       targetType: this.targetType,
       name: this.name,
-      dataSources:
-          [{name: 'chromeCategories', descriptor: this.chromeCategories}],
+      dataSources: [
+        {name: 'chromeCategories', descriptor: this.chromeCategories},
+      ],
     };
   }
 
@@ -42,10 +46,12 @@ export class ChromeTarget implements RecordingTargetV2 {
     return true;
   }
 
-  async createTracingSession(tracingSessionListener: TracingSessionListener):
-      Promise<TracingSession> {
-    const tracingSession =
-        new ChromeTracedTracingSession(tracingSessionListener);
+  async createTracingSession(
+    tracingSessionListener: TracingSessionListener,
+  ): Promise<TracingSession> {
+    const tracingSession = new ChromeTracedTracingSession(
+      tracingSessionListener,
+    );
     tracingSession.initConnection();
 
     if (!this.chromeCategories) {
@@ -61,10 +67,12 @@ export class ChromeTarget implements RecordingTargetV2 {
 
   // Starts a tracing session in order to fetch chrome categories from the
   // device. Then, it cancels the session.
-  async fetchTargetInfo(tracingSessionListener: TracingSessionListener):
-      Promise<void> {
-    const tracingSession =
-        await this.createTracingSession(tracingSessionListener);
+  async fetchTargetInfo(
+    tracingSessionListener: TracingSessionListener,
+  ): Promise<void> {
+    const tracingSession = await this.createTracingSession(
+      tracingSessionListener,
+    );
     tracingSession.cancel();
   }
 

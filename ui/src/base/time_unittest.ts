@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Duration,
-  Time,
-  Timecode,
-  TimeSpan,
-} from '../base/time';
+import {Duration, Time, Timecode, TimeSpan} from '../base/time';
 
 test('Duration.format', () => {
   expect(Duration.format(0n)).toEqual('0s');
@@ -68,20 +63,27 @@ test('Duration.fromMillis', () => {
 });
 
 test('timecode', () => {
-  expect(new Timecode(Time.fromRaw(0n)).toString(' '))
-    .toEqual('00:00:00.000 000 000');
-  expect(new Timecode(Time.fromRaw(123n)).toString(' '))
-    .toEqual('00:00:00.000 000 123');
-  expect(new Timecode(Time.fromRaw(60_000_000_000n)).toString(' '))
-    .toEqual('00:01:00.000 000 000');
-  expect(new Timecode(Time.fromRaw(12_345_678_910n)).toString(' '))
-    .toEqual('00:00:12.345 678 910');
-  expect(new Timecode(Time.fromRaw(86_400_000_000_000n)).toString(' '))
-    .toEqual('1d00:00:00.000 000 000');
-  expect(new Timecode(Time.fromRaw(31_536_000_000_000_000n)).toString(' '))
-    .toEqual('365d00:00:00.000 000 000');
-  expect(new Timecode(Time.fromRaw(-123n)).toString(' '))
-    .toEqual('-00:00:00.000 000 123');
+  expect(new Timecode(Time.fromRaw(0n)).toString(' ')).toEqual(
+    '00:00:00.000 000 000',
+  );
+  expect(new Timecode(Time.fromRaw(123n)).toString(' ')).toEqual(
+    '00:00:00.000 000 123',
+  );
+  expect(new Timecode(Time.fromRaw(60_000_000_000n)).toString(' ')).toEqual(
+    '00:01:00.000 000 000',
+  );
+  expect(new Timecode(Time.fromRaw(12_345_678_910n)).toString(' ')).toEqual(
+    '00:00:12.345 678 910',
+  );
+  expect(new Timecode(Time.fromRaw(86_400_000_000_000n)).toString(' ')).toEqual(
+    '1d00:00:00.000 000 000',
+  );
+  expect(
+    new Timecode(Time.fromRaw(31_536_000_000_000_000n)).toString(' '),
+  ).toEqual('365d00:00:00.000 000 000');
+  expect(new Timecode(Time.fromRaw(-123n)).toString(' ')).toEqual(
+    '-00:00:00.000 000 123',
+  );
 });
 
 function mkSpan(start: bigint, end: bigint) {

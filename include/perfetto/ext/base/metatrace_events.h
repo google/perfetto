@@ -51,7 +51,7 @@ enum Tags : uint32_t {
   F(FTRACE_CPU_WAIT_CMD), /*unused*/ \
   F(FTRACE_CPU_RUN_CYCLE), /*unused*/ \
   F(FTRACE_CPU_FLUSH), \
-  F(FTRACE_CPU_DRAIN), /*unused*/ \
+  F(FTRACE_CPU_BUFFER_WATERMARK), \
   F(READ_SYS_STATS), \
   F(PS_WRITE_ALL_PROCESSES), \
   F(PS_ON_PIDS), \

@@ -14,33 +14,14 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE deprecated.v42.common.timestamps;
-INCLUDE PERFETTO MODULE deprecated.v42.common.cpus;
+INCLUDE PERFETTO MODULE sched.time_in_state;
+INCLUDE PERFETTO MODULE sched.states;
+INCLUDE PERFETTO MODULE cpu.size;
 
--- TODO(altimin): this doesn't handle some corner cases which thread_state.ts
--- handles (as complex strings manipulations in SQL are pretty painful),
--- but they are pretty niche.
--- Translates the thread state name from a single-letter shorthard to
--- a human-readable name.
 CREATE PERFETTO FUNCTION _translate_thread_state_name(name STRING)
 RETURNS STRING AS
-SELECT CASE $name
-WHEN 'Running' THEN 'Running'
-WHEN 'R' THEN 'Runnable'
-WHEN 'R+' THEN 'Runnable (Preempted)'
-WHEN 'S' THEN 'Sleeping'
-WHEN 'D' THEN 'Uninterruptible Sleep'
-WHEN 'T' THEN 'Stopped'
-WHEN 't' THEN 'Traced'
-WHEN 'X' THEN 'Exit (Dead)'
-WHEN 'Z' THEN 'Exit (Zombie)'
-WHEN 'x' THEN 'Task Dead'
-WHEN 'I' THEN 'Idle'
-WHEN 'K' THEN 'Wakekill'
-WHEN 'W' THEN 'Waking'
-WHEN 'P' THEN 'Parked'
-WHEN 'N' THEN 'No Load'
-ELSE $name
-END;
+SELECT sched_state_to_human_readable_string($name);
+
 
 -- Returns a human-readable name for a thread state.
 CREATE PERFETTO FUNCTION human_readable_thread_state_name(
@@ -48,20 +29,9 @@ CREATE PERFETTO FUNCTION human_readable_thread_state_name(
   id INT)
 -- Human-readable name for the thread state.
 RETURNS STRING AS
-WITH data AS (
-  SELECT
-    _translate_thread_state_name(state) AS state,
-    (CASE io_wait
-      WHEN 1 THEN ' (IO)'
-      WHEN 0 THEN ' (non-IO)'
-      ELSE ''
-    END) AS io_wait
-  FROM thread_state
-  WHERE id = $id
-)
-SELECT
-  printf('%s%s', state, io_wait)
-FROM data;
+SELECT sched_state_io_to_human_readable_string(state, io_wait)
+FROM thread_state
+WHERE id = $id;
 
 -- Returns an aggregation of thread states (by state and cpu) for a given
 -- interval of time for a given thread.
@@ -86,34 +56,11 @@ RETURNS TABLE(
   -- The total duration.
   dur INT
 ) AS
-WITH
-states_starting_inside AS (
-  SELECT id
-  FROM thread_state
-  WHERE $ts <= ts
-    AND ts <= $ts + $dur
-    AND utid = $utid
-),
-first_state_starting_before AS (
-  SELECT id
-  FROM thread_state
-  WHERE ts < $ts AND utid = $utid
-  ORDER BY ts DESC
-  LIMIT 1
-),
-relevant_states AS (
-  SELECT * FROM states_starting_inside
-  UNION ALL
-  SELECT * FROM first_state_starting_before
-)
 SELECT
-  human_readable_thread_state_name(id) as state,
-  state as raw_state,
-  guess_cpu_size(cpu) as cpu_type,
+  sched_state_io_to_human_readable_string(state, io_wait) as state,
+  state AS raw_state,
+  cpu_guess_core_type(cpu) as cpu_type,
   cpu,
   blocked_function,
-  sum(spans_overlapping_dur($ts, $dur, ts, dur)) as dur
-FROM thread_state
-JOIN relevant_states USING (id)
-GROUP BY state, raw_state, cpu_type, cpu, blocked_function
-ORDER BY dur desc;
+  dur
+FROM sched_time_in_state_and_cpu_for_thread_in_interval($ts, $dur, $utid);

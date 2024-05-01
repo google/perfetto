@@ -75,7 +75,7 @@ base::StatusOr<SqlValue> EvaluateScalarStatement(
   }
 
   SqlValue result =
-      sqlite_utils::SqliteValueToSqlValue(sqlite3_column_value(stmt, 0));
+      sqlite::utils::SqliteValueToSqlValue(sqlite3_column_value(stmt, 0));
 
   // If we return a bytes type but have a null pointer, SQLite will convert this
   // to an SQL null. However, for proto build functions, we actively want to
@@ -205,7 +205,7 @@ class Memoizer {
     if (argc != 1) {
       return std::nullopt;
     }
-    SqlValue arg = sqlite_utils::SqliteValueToSqlValue(argv[0]);
+    SqlValue arg = sqlite::utils::SqliteValueToSqlValue(argv[0]);
     if (arg.type != SqlValue::Type::kLong) {
       return std::nullopt;
     }
@@ -611,7 +611,7 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
   for (size_t i = 0; i < argc; ++i) {
     sqlite3_value* arg = argv[i];
     sql_argument::Type type = state->prototype().arguments[i].type();
-    base::Status status = sqlite_utils::TypeCheckSqliteValue(
+    base::Status status = sqlite::utils::TypeCheckSqliteValue(
         arg, sql_argument::TypeToSqlValueType(type),
         sql_argument::TypeToHumanFriendlyString(type));
     if (!status.ok()) {

@@ -17,14 +17,8 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {raf} from '../../core/raf_scheduler';
-import {
-  BottomTab,
-  bottomTabRegistry,
-  NewBottomTabArgs,
-} from '../../frontend/bottom_tab';
-import {
-  GenericSliceDetailsTabConfig,
-} from '../../frontend/generic_slice_details_tab';
+import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
+import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {sqlValueToString} from '../../frontend/sql_utils';
 import {
   ColumnDescriptor,
@@ -84,17 +78,17 @@ interface JankSliceDetails {
   delayVsync: number;
 }
 
-export class ScrollDetailsPanel extends
-  BottomTab<GenericSliceDetailsTabConfig> {
+export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> {
   static readonly kind = 'org.perfetto.ScrollDetailsPanel';
   loaded = false;
-  data: Data|undefined;
+  data: Data | undefined;
   metrics: Metrics = {};
   orderedJankSlices: JankSliceDetails[] = [];
   scrollDeltas: m.Child;
 
-  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
-      ScrollDetailsPanel {
+  static create(
+    args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
+  ): ScrollDetailsPanel {
     return new ScrollDetailsPanel(args);
   }
 
@@ -221,8 +215,10 @@ export class ScrollDetailsPanel extends
         if (iter.delayDur <= 0) {
           break;
         }
-        const jankSlices =
-            await getScrollJankSlices(this.engine, iter.eventLatencyId);
+        const jankSlices = await getScrollJankSlices(
+          this.engine,
+          iter.eventLatencyId,
+        );
 
         this.orderedJankSlices.push({
           cause: iter.cause,
@@ -236,19 +232,31 @@ export class ScrollDetailsPanel extends
 
   private async loadScrollOffsets() {
     if (exists(this.data)) {
-      const userDeltas =
-          await getUserScrollDeltas(this.engine, this.data.ts, this.data.dur);
+      const userDeltas = await getUserScrollDeltas(
+        this.engine,
+        this.data.ts,
+        this.data.dur,
+      );
       const appliedDeltas = await getAppliedScrollDeltas(
-        this.engine, this.data.ts, this.data.dur);
-      const jankIntervals =
-          await getJankIntervals(this.engine, this.data.ts, this.data.dur);
-      this.scrollDeltas =
-          buildScrollOffsetsGraph(userDeltas, appliedDeltas, jankIntervals);
+        this.engine,
+        this.data.ts,
+        this.data.dur,
+      );
+      const jankIntervals = await getJankIntervals(
+        this.engine,
+        this.data.ts,
+        this.data.dur,
+      );
+      this.scrollDeltas = buildScrollOffsetsGraph(
+        userDeltas,
+        appliedDeltas,
+        jankIntervals,
+      );
 
       if (appliedDeltas.length > 0) {
         this.metrics.startOffset = appliedDeltas[0].scrollOffset;
         this.metrics.endOffset =
-            appliedDeltas[appliedDeltas.length - 1].scrollOffset;
+          appliedDeltas[appliedDeltas.length - 1].scrollOffset;
 
         let pixelsScrolled = 0;
         for (let i = 0; i < appliedDeltas.length; i++) {
@@ -269,11 +277,12 @@ export class ScrollDetailsPanel extends
     metrics['Total Chrome Presented Frames'] = this.metrics.presentedFrameCount;
     metrics['Total Janky Frames'] = this.metrics.jankyFrameCount;
     metrics['Number of Vsyncs Janky Frames were Delayed by'] =
-        this.metrics.missedVsyncs;
+      this.metrics.missedVsyncs;
 
     if (this.metrics.jankyFramePercent !== undefined) {
-      metrics['Janky Frame Percentage (Total Janky Frames / Total Chrome Presented Frames)'] =
-          `${this.metrics.jankyFramePercent}%`;
+      metrics[
+        'Janky Frame Percentage (Total Janky Frames / Total Chrome Presented Frames)'
+      ] = `${this.metrics.jankyFramePercent}%`;
     }
 
     if (this.metrics.startOffset != undefined) {
@@ -284,15 +293,18 @@ export class ScrollDetailsPanel extends
       metrics['Ending Offset'] = this.metrics.endOffset;
     }
 
-    if (this.metrics.startOffset != undefined &&
-        this.metrics.endOffset != undefined) {
-      metrics['Net Pixels Scrolled'] =
-          Math.abs(this.metrics.endOffset - this.metrics.startOffset);
+    if (
+      this.metrics.startOffset != undefined &&
+      this.metrics.endOffset != undefined
+    ) {
+      metrics['Net Pixels Scrolled'] = Math.abs(
+        this.metrics.endOffset - this.metrics.startOffset,
+      );
     }
 
     if (this.metrics.totalPixelsScrolled != undefined) {
       metrics['Total Pixels Scrolled (all directions)'] =
-          this.metrics.totalPixelsScrolled;
+        this.metrics.totalPixelsScrolled;
     }
 
     return dictToTreeNodes(metrics);
@@ -315,7 +327,10 @@ export class ScrollDetailsPanel extends
       for (const jankSlice of this.orderedJankSlices) {
         data.push({
           jankLink: getSliceForTrack(
-            jankSlice.jankSlice, ScrollJankV3Track.kind, jankSlice.cause),
+            jankSlice.jankSlice,
+            ScrollJankV3Track.kind,
+            jankSlice.cause,
+          ),
           dur: m(DurationWidget, {dur: jankSlice.delayDur}),
           delayedVSyncs: jankSlice.delayVsync,
         });
@@ -390,35 +405,33 @@ export class ScrollDetailsPanel extends
       {
         title: this.getTitle(),
       },
-      m(GridLayout,
-        m(GridLayoutColumn,
+      m(
+        GridLayout,
+        m(
+          GridLayoutColumn,
+          m(Section, {title: 'Details'}, m(Tree, details)),
           m(
             Section,
-            {title: 'Details'},
-            m(Tree, details),
-          ),
-          m(Section,
             {title: 'Slice Metrics'},
-            m(Tree, this.renderMetricsDictionary())),
+            m(Tree, this.renderMetricsDictionary()),
+          ),
           m(
             Section,
             {title: 'Frame Presentation Delays'},
             this.getDelayTable(),
-          )),
+          ),
+        ),
         m(
           GridLayoutColumn,
-          m(
-            Section,
-            {title: 'Description'},
-            this.getDescriptionText(),
-          ),
+          m(Section, {title: 'Description'}, this.getDescriptionText()),
           m(
             Section,
             {title: 'Scroll Offsets Plot'},
-            m('.div[style=\'padding-bottom:5px\']', this.getGraphText()),
+            m(".div[style='padding-bottom:5px']", this.getGraphText()),
             this.scrollDeltas,
           ),
-        )),
+        ),
+      ),
     );
   }
 
@@ -430,5 +443,3 @@ export class ScrollDetailsPanel extends
     return !this.loaded;
   }
 }
-
-bottomTabRegistry.register(ScrollDetailsPanel);

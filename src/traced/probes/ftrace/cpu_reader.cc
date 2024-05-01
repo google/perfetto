@@ -23,11 +23,8 @@
 #include <optional>
 #include <utility>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/metatrace.h"
-#include "perfetto/ext/base/string_splitter.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "src/kallsyms/kernel_symbol_map.h"
@@ -117,8 +114,7 @@ T ReadValue(const uint8_t* ptr) {
 }
 
 // Reads a signed ftrace value as an int64_t, sign extending if necessary.
-static int64_t ReadSignedFtraceValue(const uint8_t* ptr,
-                                     FtraceFieldType ftrace_type) {
+int64_t ReadSignedFtraceValue(const uint8_t* ptr, FtraceFieldType ftrace_type) {
   if (ftrace_type == kFtraceInt32) {
     int32_t value;
     memcpy(&value, reinterpret_cast<const void*>(ptr), sizeof(value));
@@ -301,33 +297,42 @@ size_t CpuReader::ReadAndProcessBatch(
   if (pages_read == 0)
     return pages_read;
 
+  uint64_t last_read_ts = last_read_event_ts_;
   for (FtraceDataSource* data_source : started_data_sources) {
+    last_read_ts = last_read_event_ts_;
     ProcessPagesForDataSource(
         data_source->trace_writer(), data_source->mutable_metadata(), cpu_,
         data_source->parsing_config(), data_source->mutable_parse_errors(),
-        parsing_buf, pages_read, compact_sched_buf, table_, symbolizer_,
-        ftrace_clock_snapshot_, ftrace_clock_);
+        &last_read_ts, parsing_buf, pages_read, compact_sched_buf, table_,
+        symbolizer_, ftrace_clock_snapshot_, ftrace_clock_);
   }
+  last_read_event_ts_ = last_read_ts;
 
   return pages_read;
 }
 
-void CpuReader::Bundler::StartNewPacket(bool lost_events) {
+void CpuReader::Bundler::StartNewPacket(bool lost_events,
+                                        uint64_t last_read_event_timestamp) {
   FinalizeAndRunSymbolizer();
   packet_ = trace_writer_->NewTracePacket();
   bundle_ = packet_->set_ftrace_events();
-  if (ftrace_clock_) {
-    bundle_->set_ftrace_clock(ftrace_clock_);
-
-    if (ftrace_clock_snapshot_ && ftrace_clock_snapshot_->ftrace_clock_ts) {
-      bundle_->set_ftrace_timestamp(ftrace_clock_snapshot_->ftrace_clock_ts);
-      bundle_->set_boot_timestamp(ftrace_clock_snapshot_->boot_clock_ts);
-    }
-  }
 
   bundle_->set_cpu(static_cast<uint32_t>(cpu_));
   if (lost_events) {
     bundle_->set_lost_events(true);
+  }
+
+  // note: set-to-zero is valid and expected for the first bundle per cpu
+  // (outside of concurrent tracing), with the effective meaning of "all data is
+  // valid since the data source was started".
+  bundle_->set_last_read_event_timestamp(last_read_event_timestamp);
+
+  if (ftrace_clock_) {
+    bundle_->set_ftrace_clock(ftrace_clock_);
+    if (ftrace_clock_snapshot_ && ftrace_clock_snapshot_->ftrace_clock_ts) {
+      bundle_->set_ftrace_timestamp(ftrace_clock_snapshot_->ftrace_clock_ts);
+      bundle_->set_boot_timestamp(ftrace_clock_snapshot_->boot_clock_ts);
+    }
   }
 }
 
@@ -405,6 +410,13 @@ void CpuReader::Bundler::FinalizeAndRunSymbolizer() {
 // event bundle proto with a timestamp, letting the trace processor decide
 // whether to discard or keep the post-error data. Previously, we crashed as
 // soon as we encountered such an error.
+// TODO(rsavitski, b/192586066): consider moving last_read_event_ts tracking to
+// be per-datasource. The current implementation can be pessimistic if there are
+// multiple concurrent data sources, one of which is only interested in sparse
+// events (imagine a print filter and one matching event every minute, while the
+// buffers are read - advancing the last read timestamp - multiple times per
+// second). Tracking the timestamp of the last event *written into the
+// datasource* can be more accurate.
 // static
 bool CpuReader::ProcessPagesForDataSource(
     TraceWriter* trace_writer,
@@ -412,6 +424,7 @@ bool CpuReader::ProcessPagesForDataSource(
     size_t cpu,
     const FtraceDataSourceConfig* ds_config,
     base::FlatSet<protos::pbzero::FtraceParseStatus>* parse_errors,
+    uint64_t* last_read_event_ts,
     const uint8_t* parsing_buf,
     const size_t pages_read,
     CompactSchedBuffer* compact_sched_buf,
@@ -423,7 +436,7 @@ bool CpuReader::ProcessPagesForDataSource(
   Bundler bundler(trace_writer, metadata,
                   ds_config->symbolize_ksyms ? symbolizer : nullptr, cpu,
                   ftrace_clock_snapshot, ftrace_clock, compact_sched_buf,
-                  ds_config->compact_sched.enabled);
+                  ds_config->compact_sched.enabled, *last_read_event_ts);
 
   bool success = true;
   size_t pages_parsed = 0;
@@ -459,11 +472,14 @@ bool CpuReader::ProcessPagesForDataSource(
             kCompactSchedInternerThreshold;
 
     if (page_header->lost_events || interner_past_threshold) {
-      bundler.StartNewPacket(page_header->lost_events);
+      // pass in an updated last_read_event_ts since we're starting a new
+      // bundle, which needs to reference the last timestamp from the prior one.
+      bundler.StartNewPacket(page_header->lost_events, *last_read_event_ts);
     }
 
-    FtraceParseStatus status = ParsePagePayload(
-        parse_pos, &page_header.value(), table, ds_config, &bundler, metadata);
+    FtraceParseStatus status =
+        ParsePagePayload(parse_pos, &page_header.value(), table, ds_config,
+                         &bundler, metadata, last_read_event_ts);
 
     if (status != FtraceParseStatus::FTRACE_STATUS_OK) {
       WriteAndSetParseError(&bundler, parse_errors, page_header->timestamp,
@@ -543,11 +559,13 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
     const ProtoTranslationTable* table,
     const FtraceDataSourceConfig* ds_config,
     Bundler* bundler,
-    FtraceMetadata* metadata) {
+    FtraceMetadata* metadata,
+    uint64_t* last_read_event_ts) {
   const uint8_t* ptr = start_of_payload;
   const uint8_t* const end = ptr + page_header->size;
 
   uint64_t timestamp = page_header->timestamp;
+  uint64_t last_data_record_ts = 0;
 
   while (ptr < end) {
     EventHeader event_header;
@@ -596,7 +614,7 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
       }
       // Data record:
       default: {
-        // If type_or_length <=28, the the record length is 4x that value.
+        // If type_or_length <=28, the record length is 4x that value.
         // If type_or_length == 0, the length of the record is stored in the
         // first uint32_t word of the payload.
         uint32_t event_size = 0;
@@ -677,11 +695,13 @@ protos::pbzero::FtraceParseStatus CpuReader::ParsePagePayload(
             }
           }
         }
-        // Jump to next event.
-        ptr = next;
+        last_data_record_ts = timestamp;
+        ptr = next;  // jump to next event
       }  // default case
     }    // switch (event_header.type_or_length)
   }      // while (ptr < end)
+  if (last_data_record_ts)
+    *last_read_event_ts = last_data_record_ts;
   return FtraceParseStatus::FTRACE_STATUS_OK;
 }
 
@@ -718,7 +738,7 @@ bool CpuReader::ParseEvent(uint16_t ftrace_event_id,
                         protos::pbzero::FtraceEvent::kGenericFieldNumber)) {
     nested->AppendString(GenericFtraceEvent::kEventNameFieldNumber, info.name);
     for (const Field& field : info.fields) {
-      auto generic_field = nested->BeginNestedMessage<protozero::Message>(
+      auto* generic_field = nested->BeginNestedMessage<protozero::Message>(
           GenericFtraceEvent::kFieldFieldNumber);
       generic_field->AppendString(GenericFtraceEvent::Field::kNameFieldNumber,
                                   field.ftrace_name);

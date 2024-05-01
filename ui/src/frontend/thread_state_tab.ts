@@ -24,8 +24,9 @@ import {GridLayout} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
 import {Tree, TreeNode} from '../widgets/tree';
+import {Intent} from '../widgets/common';
 
-import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
+import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {SchedSqlId, ThreadStateSqlId} from './sql_types';
 import {
   getFullThreadName,
@@ -84,28 +85,34 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     }
 
     const relatedStates: RelatedThreadStates = {};
-    relatedStates.prev = (await getThreadStateFromConstraints(this.engine, {
-      filters: [
-        `ts + dur = ${this.state.ts}`,
-        `utid = ${this.state.thread?.utid}`,
-      ],
-      limit: 1,
-    }))[0];
-    relatedStates.next = (await getThreadStateFromConstraints(this.engine, {
-      filters: [
-        `ts = ${this.state.ts + this.state.dur}`,
-        `utid = ${this.state.thread?.utid}`,
-      ],
-      limit: 1,
-    }))[0];
-    if (this.state.wakerThread?.utid !== undefined) {
-      relatedStates.waker = (await getThreadStateFromConstraints(this.engine, {
+    relatedStates.prev = (
+      await getThreadStateFromConstraints(this.engine, {
         filters: [
-          `utid = ${this.state.wakerThread?.utid}`,
-          `ts <= ${this.state.ts}`,
-          `ts + dur >= ${this.state.ts}`,
+          `ts + dur = ${this.state.ts}`,
+          `utid = ${this.state.thread?.utid}`,
         ],
-      }))[0];
+        limit: 1,
+      })
+    )[0];
+    relatedStates.next = (
+      await getThreadStateFromConstraints(this.engine, {
+        filters: [
+          `ts = ${this.state.ts + this.state.dur}`,
+          `utid = ${this.state.thread?.utid}`,
+        ],
+        limit: 1,
+      })
+    )[0];
+    if (this.state.wakerThread?.utid !== undefined) {
+      relatedStates.waker = (
+        await getThreadStateFromConstraints(this.engine, {
+          filters: [
+            `utid = ${this.state.wakerThread?.utid}`,
+            `ts <= ${this.state.ts}`,
+            `ts + dur >= ${this.state.ts}`,
+          ],
+        })
+      )[0];
     }
     relatedStates.wakee = await getThreadStateFromConstraints(this.engine, {
       filters: [
@@ -130,15 +137,19 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     return m(
       DetailsShell,
       {title: 'Thread State', description: this.renderLoadingText()},
-      m(GridLayout,
+      m(
+        GridLayout,
         m(
           Section,
           {title: 'Details'},
           this.state && this.renderTree(this.state),
         ),
-        m(Section,
+        m(
+          Section,
           {title: 'Related thread states'},
-          this.renderRelatedThreadStates())),
+          this.renderRelatedThreadStates(),
+        ),
+      ),
     );
   }
 
@@ -169,16 +180,22 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
       m(TreeNode, {
         left: 'State',
         right: this.renderState(
-          state.state, state.cpu, state.schedSqlId, state.ts),
+          state.state,
+          state.cpu,
+          state.schedSqlId,
+          state.ts,
+        ),
       }),
-      state.blockedFunction && m(TreeNode, {
-        left: 'Blocked function',
-        right: state.blockedFunction,
-      }),
-      process && m(TreeNode, {
-        left: 'Process',
-        right: getProcessName(process),
-      }),
+      state.blockedFunction &&
+        m(TreeNode, {
+          left: 'Blocked function',
+          right: state.blockedFunction,
+        }),
+      process &&
+        m(TreeNode, {
+          left: 'Process',
+          right: getProcessName(process),
+        }),
       thread && m(TreeNode, {left: 'Thread', right: getThreadName(thread)}),
       state.wakerThread && this.renderWakerThread(state.wakerThread),
       m(TreeNode, {
@@ -189,8 +206,11 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
   }
 
   private renderState(
-    state: string, cpu: number|undefined, id: SchedSqlId|undefined,
-    ts: time): m.Children {
+    state: string,
+    cpu: number | undefined,
+    id: SchedSqlId | undefined,
+    ts: time,
+  ): m.Children {
     if (!state) {
       return null;
     }
@@ -204,15 +224,18 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
         icon: 'call_made',
         onclick: () => goToSchedSlice(cpu, id, ts),
       },
-      `${state} on CPU ${cpu}`);
+      `${state} on CPU ${cpu}`,
+    );
   }
 
   private renderWakerThread(wakerThread: ThreadInfo) {
     return m(
       TreeNode,
       {left: 'Waker'},
-      m(TreeNode,
-        {left: 'Process', right: getProcessName(wakerThread.process)}),
+      m(TreeNode, {
+        left: 'Process',
+        right: getProcessName(wakerThread.process),
+      }),
       m(TreeNode, {left: 'Thread', right: getThreadName(wakerThread)}),
     );
   }
@@ -222,23 +245,17 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
       return 'Loading';
     }
     const startTs = this.state.ts;
-    const renderRef = (state: ThreadState, name?: string) => m(ThreadStateRef, {
-      id: state.threadStateSqlId,
-      ts: state.ts,
-      dur: state.dur,
-      utid: state.thread!.utid,
-      name,
-    });
+    const renderRef = (state: ThreadState, name?: string) =>
+      m(ThreadStateRef, {
+        id: state.threadStateSqlId,
+        ts: state.ts,
+        dur: state.dur,
+        utid: state.thread!.utid,
+        name,
+      });
 
     const sliceColumns = {ts: 'ts', dur: 'dur', name: 'name'};
-    const sliceColumnNames = [
-      'id',
-      'utid',
-      'ts',
-      'dur',
-      'name',
-      'table_name',
-    ];
+    const sliceColumnNames = ['id', 'utid', 'ts', 'dur', 'name', 'table_name'];
 
     const sliceLiteColumns = {ts: 'ts', dur: 'dur', name: 'thread_name'};
     const sliceLiteColumnNames = [
@@ -253,32 +270,42 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
 
     const nameForNextOrPrev = (state: ThreadState) =>
       `${state.state} for ${renderDuration(state.dur)}`;
-    return [m(
-      Tree,
-      this.relatedStates.waker && m(TreeNode, {
-        left: 'Waker',
-        right: renderRef(
-          this.relatedStates.waker,
-          getFullThreadName(this.relatedStates.waker.thread)),
-      }),
-      this.relatedStates.prev && m(TreeNode, {
-        left: 'Previous state',
-        right: renderRef(
-          this.relatedStates.prev,
-          nameForNextOrPrev(this.relatedStates.prev)),
-      }),
-      this.relatedStates.next && m(TreeNode, {
-        left: 'Next state',
-        right: renderRef(
-          this.relatedStates.next,
-          nameForNextOrPrev(this.relatedStates.next)),
-      }),
-      this.relatedStates.wakee && this.relatedStates.wakee.length > 0 &&
-            m(TreeNode,
-              {
-                left: 'Woken threads',
-              },
-              this.relatedStates.wakee.map((state) => m(TreeNode, ({
+    return [
+      m(
+        Tree,
+        this.relatedStates.waker &&
+          m(TreeNode, {
+            left: 'Waker',
+            right: renderRef(
+              this.relatedStates.waker,
+              getFullThreadName(this.relatedStates.waker.thread),
+            ),
+          }),
+        this.relatedStates.prev &&
+          m(TreeNode, {
+            left: 'Previous state',
+            right: renderRef(
+              this.relatedStates.prev,
+              nameForNextOrPrev(this.relatedStates.prev),
+            ),
+          }),
+        this.relatedStates.next &&
+          m(TreeNode, {
+            left: 'Next state',
+            right: renderRef(
+              this.relatedStates.next,
+              nameForNextOrPrev(this.relatedStates.next),
+            ),
+          }),
+        this.relatedStates.wakee &&
+          this.relatedStates.wakee.length > 0 &&
+          m(
+            TreeNode,
+            {
+              left: 'Woken threads',
+            },
+            this.relatedStates.wakee.map((state) =>
+              m(TreeNode, {
                 left: m(Timestamp, {
                   ts: state.ts,
                   display: [
@@ -287,16 +314,22 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                   ],
                 }),
                 right: renderRef(state, getFullThreadName(state.thread)),
-              })))),
-    ), m(Button,
-      {
+              }),
+            ),
+          ),
+      ),
+      m(Button, {
         label: 'Critical path lite',
-        onclick: () => runQuery(`INCLUDE PERFETTO MODULE sched.thread_executing_span;`, this.engine)
-          .then(() => addDebugSliceTrack(
+        intent: Intent.Primary,
+        onclick: () =>
+          runQuery(
+            `INCLUDE PERFETTO MODULE sched.thread_executing_span;`,
             this.engine,
-            {
-              sqlSource:
-                  `
+          ).then(() =>
+            addDebugSliceTrack(
+              this.engine,
+              {
+                sqlSource: `
                     SELECT
                       cr.id,
                       cr.utid,
@@ -314,21 +347,26 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                     JOIN thread USING(utid)
                     JOIN process USING(upid)
                   `,
-              columns: sliceLiteColumnNames,
-            },
-            `${this.state?.thread?.name}`,
-            sliceLiteColumns,
-            sliceLiteColumnNames)),
-      },
-    ), m(Button,
-      {
+                columns: sliceLiteColumnNames,
+              },
+              `${this.state?.thread?.name}`,
+              sliceLiteColumns,
+              sliceLiteColumnNames,
+            ),
+          ),
+      }),
+      m(Button, {
         label: 'Critical path',
-        onclick: () => runQuery(`INCLUDE PERFETTO MODULE sched.thread_executing_span;`, this.engine)
-          .then(() => addDebugSliceTrack(
+        intent: Intent.Primary,
+        onclick: () =>
+          runQuery(
+            `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;`,
             this.engine,
-            {
-              sqlSource:
-                  `
+          ).then(() =>
+            addDebugSliceTrack(
+              this.engine,
+              {
+                sqlSource: `
                     SELECT cr.id, cr.utid, cr.ts, cr.dur, cr.name, cr.table_name
                       FROM
                         _thread_executing_span_critical_path_stack(
@@ -337,19 +375,18 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                           trace_bounds.end_ts - trace_bounds.start_ts) cr,
                         trace_bounds WHERE name IS NOT NULL
                   `,
-              columns: sliceColumnNames,
-            },
-            `${this.state?.thread?.name}`,
-            sliceColumns,
-            sliceColumnNames)),
-      },
-    )];
+                columns: sliceColumnNames,
+              },
+              `${this.state?.thread?.name}`,
+              sliceColumns,
+              sliceColumnNames,
+            ),
+          ),
+      }),
+    ];
   }
-
 
   isLoading() {
     return this.state === undefined || this.relatedStates === undefined;
   }
 }
-
-bottomTabRegistry.register(ThreadStateTab);

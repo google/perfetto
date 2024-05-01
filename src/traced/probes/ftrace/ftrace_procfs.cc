@@ -21,8 +21,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <fstream>
-#include <sstream>
 #include <string>
 
 #include "perfetto/base/logging.h"
@@ -399,7 +397,7 @@ void FtraceProcfs::ClearTrace() {
   // We cannot use PERFETTO_CHECK as we might get a permission denied error
   // on Android. The permissions to these files are configured in
   // platform/framework/native/cmds/atrace/atrace.rc.
-  for (size_t cpu = 0; cpu < NumberOfCpus(); cpu++) {
+  for (size_t cpu = 0, num_cpus = NumberOfCpus(); cpu < num_cpus; cpu++) {
     ClearPerCpuTrace(cpu);
   }
 }
@@ -415,10 +413,6 @@ bool FtraceProcfs::WriteTraceMarker(const std::string& str) {
 }
 
 bool FtraceProcfs::SetCpuBufferSizeInPages(size_t pages) {
-  if (pages * base::GetSysPageSize() > 1 * 1024 * 1024 * 1024) {
-    PERFETTO_ELOG("Tried to set the per CPU buffer size to more than 1gb.");
-    return false;
-  }
   std::string path = root_ + "buffer_size_kb";
   return WriteNumberToFile(path, pages * (base::GetSysPageSize() / 1024ul));
 }
@@ -513,6 +507,19 @@ std::set<std::string> FtraceProcfs::AvailableClocks() {
   }
 
   return names;
+}
+
+uint32_t FtraceProcfs::ReadBufferPercent() {
+  std::string path = root_ + "buffer_percent";
+  std::string raw = ReadFileIntoString(path);
+  std::optional<uint32_t> percent =
+      base::StringToUInt32(base::StripSuffix(raw, "\n"));
+  return percent.has_value() ? *percent : 0;
+}
+
+bool FtraceProcfs::SetBufferPercent(uint32_t percent) {
+  std::string path = root_ + "buffer_percent";
+  return WriteNumberToFile(path, percent);
 }
 
 bool FtraceProcfs::WriteNumberToFile(const std::string& path, size_t value) {

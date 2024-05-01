@@ -15,7 +15,7 @@
 import {assertTrue} from '../base/logging';
 import {Time, time} from '../base/time';
 import {Args, ArgValue} from '../common/arg_types';
-import {ChromeSliceSelection} from '../common/state';
+import {ChromeSliceSelection, getLegacySelection} from '../common/state';
 import {
   CounterDetails,
   globals,
@@ -61,22 +61,29 @@ interface ProcessDetails {
 // This class queries the TP for the details on a specific slice that has
 // been clicked.
 export class SelectionController extends Controller<'main'> {
-  private lastSelectedId?: number|string;
+  private lastSelectedId?: number | string;
   private lastSelectedKind?: string;
   constructor(private args: SelectionControllerArgs) {
     super('main');
   }
 
   run() {
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (!selection || selection.kind === 'AREA') return;
 
-    const selectWithId =
-        ['SLICE', 'COUNTER', 'CHROME_SLICE', 'HEAP_PROFILE', 'THREAD_STATE'];
-    if (!selectWithId.includes(selection.kind) ||
-        (selectWithId.includes(selection.kind) &&
-         selection.id === this.lastSelectedId &&
-         selection.kind === this.lastSelectedKind)) {
+    const selectWithId = [
+      'SLICE',
+      'COUNTER',
+      'CHROME_SLICE',
+      'HEAP_PROFILE',
+      'THREAD_STATE',
+    ];
+    if (
+      !selectWithId.includes(selection.kind) ||
+      (selectWithId.includes(selection.kind) &&
+        selection.id === this.lastSelectedId &&
+        selection.kind === this.lastSelectedKind)
+    ) {
       return;
     }
     const selectedId = selection.id;
@@ -87,13 +94,19 @@ export class SelectionController extends Controller<'main'> {
     if (selectedId === undefined) return;
 
     if (selection.kind === 'COUNTER') {
-      this.counterDetails(selection.leftTs, selection.rightTs, selection.id)
-        .then((results) => {
-          if (results !== undefined && selection.kind === selectedKind &&
-                selection.id === selectedId) {
-            publishCounterDetails(results);
-          }
-        });
+      this.counterDetails(
+        selection.leftTs,
+        selection.rightTs,
+        selection.id,
+      ).then((results) => {
+        if (
+          results !== undefined &&
+          selection.kind === selectedKind &&
+          selection.id === selectedId
+        ) {
+          publishCounterDetails(results);
+        }
+      });
     } else if (selection.kind === 'SLICE') {
       this.sliceDetails(selectedId as number);
     } else if (selection.kind === 'THREAD_STATE') {
@@ -136,8 +149,7 @@ export class SelectionController extends Controller<'main'> {
     }
 
     const promisedDetails = this.args.engine.query(`
-      SELECT *, ABS_TIME_STR(ts) as absTime FROM ${leafTable} WHERE id = ${
-  selectedId};
+      SELECT *, ABS_TIME_STR(ts) as absTime FROM ${leafTable} WHERE id = ${selectedId};
     `);
 
     const [details, args] = await Promise.all([promisedDetails, promisedArgs]);
@@ -178,37 +190,37 @@ export class SelectionController extends Controller<'main'> {
     for (const k of details.columns()) {
       const v = rowIter.get(k);
       switch (k) {
-      case 'id':
-        break;
-      case 'ts':
-        ts = timeFromSql(v);
-        break;
-      case 'thread_ts':
-        threadTs = timeFromSql(v);
-        break;
-      case 'absTime':
-        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-        if (v) absTime = `${v}`;
-        /* eslint-enable */
-        break;
-      case 'name':
-        name = `${v}`;
-        break;
-      case 'dur':
-        dur = durationFromSql(v);
-        break;
-      case 'thread_dur':
-        threadDur = durationFromSql(v);
-        break;
-      case 'category':
-      case 'cat':
-        category = `${v}`;
-        break;
-      case 'track_id':
-        trackId = Number(v);
-        break;
-      default:
-        if (!ignoredColumns.includes(k)) args.set(k, `${v}`);
+        case 'id':
+          break;
+        case 'ts':
+          ts = timeFromSql(v);
+          break;
+        case 'thread_ts':
+          threadTs = timeFromSql(v);
+          break;
+        case 'absTime':
+          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
+          if (v) absTime = `${v}`;
+          /* eslint-enable */
+          break;
+        case 'name':
+          name = `${v}`;
+          break;
+        case 'dur':
+          dur = durationFromSql(v);
+          break;
+        case 'thread_dur':
+          threadDur = durationFromSql(v);
+          break;
+        case 'category':
+        case 'cat':
+          category = `${v}`;
+          break;
+        case 'track_id':
+          trackId = Number(v);
+          break;
+        default:
+          if (!ignoredColumns.includes(k)) args.set(k, `${v}`);
       }
     }
 
@@ -225,7 +237,8 @@ export class SelectionController extends Controller<'main'> {
     };
 
     if (trackId !== undefined) {
-      const columnInfo = (await this.args.engine.query(`
+      const columnInfo = (
+        await this.args.engine.query(`
         WITH
            leafTrackTable AS (SELECT type FROM track WHERE id = ${trackId}),
            cols AS (
@@ -237,25 +250,30 @@ export class SelectionController extends Controller<'main'> {
           'upid' in cols AS hasUpid,
           'utid' in cols AS hasUtid
         FROM leafTrackTable
-      `)).firstRow({hasUpid: NUM, hasUtid: NUM, leafTrackTable: STR});
+      `)
+      ).firstRow({hasUpid: NUM, hasUtid: NUM, leafTrackTable: STR});
       const hasUpid = columnInfo.hasUpid !== 0;
       const hasUtid = columnInfo.hasUtid !== 0;
 
       if (hasUtid) {
-        const utid = (await this.args.engine.query(`
+        const utid = (
+          await this.args.engine.query(`
             SELECT utid
             FROM ${columnInfo.leafTrackTable}
             WHERE id = ${trackId};
-        `)).firstRow({
+        `)
+        ).firstRow({
           utid: NUM,
         }).utid;
         Object.assign(selected, await this.computeThreadDetails(utid));
       } else if (hasUpid) {
-        const upid = (await this.args.engine.query(`
+        const upid = (
+          await this.args.engine.query(`
             SELECT upid
             FROM ${columnInfo.leafTrackTable}
             WHERE id = ${trackId};
-        `)).firstRow({
+        `)
+        ).firstRow({
           upid: NUM,
         }).upid;
         Object.assign(selected, await this.computeProcessDetails(upid));
@@ -263,7 +281,7 @@ export class SelectionController extends Controller<'main'> {
     }
 
     // Check selection is still the same on completion of query.
-    if (selection === globals.state.currentSelection) {
+    if (selection === getLegacySelection(globals.state)) {
       publishSliceDetails(selected);
     }
   }
@@ -334,7 +352,7 @@ export class SelectionController extends Controller<'main'> {
     `;
     const result = await this.args.engine.query(query);
 
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (result.numRows() > 0 && selection) {
       const row = result.firstRow({
         ts: LONG,
@@ -361,7 +379,7 @@ export class SelectionController extends Controller<'main'> {
     WHERE sched.id = ${id}`;
     const result = await this.args.engine.query(sqlQuery);
     // Check selection is still the same on completion of query.
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (result.numRows() > 0 && selection) {
       const row = result.firstRow({
         ts: LONG,
@@ -402,10 +420,14 @@ export class SelectionController extends Controller<'main'> {
     }
   }
 
-  async counterDetails(ts: time, rightTs: time, id: number):
-      Promise<CounterDetails> {
+  async counterDetails(
+    ts: time,
+    rightTs: time,
+    id: number,
+  ): Promise<CounterDetails> {
     const counter = await this.args.engine.query(
-      `SELECT value, track_id as trackId FROM counter WHERE id = ${id}`);
+      `SELECT value, track_id as trackId FROM counter WHERE id = ${id}`,
+    );
     const row = counter.iter({
       value: NUM,
       trackId: NUM,
@@ -422,7 +444,7 @@ export class SelectionController extends Controller<'main'> {
     const endTs = rightTs !== -1n ? rightTs : globals.state.traceTime.end;
     const delta = value - previousValue;
     const duration = endTs - ts;
-    const trackKey = globals.state.trackKeyByTrackId[trackId];
+    const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);
     const name = trackKey ? globals.state.tracks[trackKey].name : undefined;
     return {startTime: ts, value, delta, duration, name};
   }
@@ -458,8 +480,10 @@ export class SelectionController extends Controller<'main'> {
 
     // If this is the first sched slice for this utid or if the wakeup found
     // was after the previous slice then we know the wakeup was for this slice.
-    if (prevSchedResult.numRows() !== 0 &&
-        wakeupTs < prevSchedResult.firstRow({ts: LONG}).ts) {
+    if (
+      prevSchedResult.numRows() !== 0 &&
+      wakeupTs < prevSchedResult.firstRow({ts: LONG}).ts
+    ) {
       return undefined;
     }
 
@@ -481,13 +505,16 @@ export class SelectionController extends Controller<'main'> {
     return {wakeupTs, wakerUtid, wakerCpu: wakerRow.cpu};
   }
 
-  async computeThreadDetails(utid: number):
-      Promise<ThreadDetails&ProcessDetails> {
-    const threadInfo = (await this.args.engine.query(`
+  async computeThreadDetails(
+    utid: number,
+  ): Promise<ThreadDetails & ProcessDetails> {
+    const threadInfo = (
+      await this.args.engine.query(`
           SELECT tid, name, upid
           FROM thread
           WHERE utid = ${utid};
-      `)).firstRow({tid: NUM, name: STR_NULL, upid: NUM_NULL});
+      `)
+    ).firstRow({tid: NUM, name: STR_NULL, upid: NUM_NULL});
     const threadDetails = {
       tid: threadInfo.tid,
       threadName: threadInfo.name || undefined,
@@ -495,16 +522,21 @@ export class SelectionController extends Controller<'main'> {
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (threadInfo.upid) {
       return Object.assign(
-        {}, threadDetails, await this.computeProcessDetails(threadInfo.upid));
+        {},
+        threadDetails,
+        await this.computeProcessDetails(threadInfo.upid),
+      );
     }
     return threadDetails;
   }
 
   async computeProcessDetails(upid: number): Promise<ProcessDetails> {
     const details: ProcessDetails = {};
-    const processResult = (await this.args.engine.query(`
+    const processResult = (
+      await this.args.engine.query(`
                 SELECT pid, name, uid FROM process WHERE upid = ${upid};
-              `)).firstRow({pid: NUM, name: STR_NULL, uid: NUM_NULL});
+              `)
+    ).firstRow({pid: NUM, name: STR_NULL, uid: NUM_NULL});
     details.pid = processResult.pid;
     details.processName = processResult.name || undefined;
     if (processResult.uid === null) {

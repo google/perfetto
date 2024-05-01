@@ -57,6 +57,9 @@ on property:persist.traced.enable=1
     # by the bug reporting UI (ls+getattr).
     mkdir /data/misc/perfetto-traces/bugreport 0773 root shell
 
+    # Traces in this directory are only accessed by system server
+    mkdir /data/misc/perfetto-traces/profiling 0773 root shell
+
     # This directory allows shell to save configs file in a place where the
     # perfetto cmdline client can read then. /data/local/tmp/ isn't safe because
     # too many other domains can write into that. See b/170404111.
@@ -153,3 +156,31 @@ on init
     setprop debug.hwui.skia_use_perfetto_track_events false
     setprop debug.renderengine.skia_tracing_enabled false
     setprop debug.renderengine.skia_use_perfetto_track_events false
+
+##############################################################################
+#  perfetto_persistent_sysui_tracing_for_bugreport - Keeps a persistent active
+#  tracing session, for debugging purposes
+##############################################################################
+
+on property:persist.debug.perfetto.persistent_sysui_tracing_for_bugreport=1 && property:persist.traced.enable=1 && property:ro.debuggable=1
+    # Set by traced after listen()ing on the consumer socket. Without this,
+    # perfetto could try to connect to traced before traced is ready to listen.
+    wait_for_prop sys.trace.traced_started 1
+    start perfetto_persistent_sysui_tracing_for_bugreport
+
+# If something disables traced, we don't want init to respawn the service (that will fail) continuously.
+on property:persist.traced.enable=0
+    stop perfetto_persistent_sysui_tracing_for_bugreport
+
+on property:persist.debug.perfetto.persistent_sysui_tracing_for_bugreport=0
+    setprop persist.debug.perfetto.persistent_sysui_tracing_for_bugreport ""
+
+on property:persist.debug.perfetto.persistent_sysui_tracing_for_bugreport=""
+    stop perfetto_persistent_sysui_tracing_for_bugreport
+
+service perfetto_persistent_sysui_tracing_for_bugreport /system/bin/perfetto -c /system/etc/perfetto/persistent_cfg.pbtxt --txt -o /dev/null
+    disabled
+    timeout_period 86400
+    restart_period 60
+    user nobody
+    group nobody

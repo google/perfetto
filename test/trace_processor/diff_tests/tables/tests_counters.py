@@ -15,7 +15,7 @@
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
-from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -124,4 +124,107 @@ class TablesCounters(TestSuite):
         73727335051,23522762
         73727335051,23522762
         86726132752,24487554
+        """))
+
+  def test_counter_dur_example_android_trace_30s_machine_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        trace_modifier=TraceInjector(
+            ['ftrace_events', 'sys_stats', 'process_stats', 'process_tree'],
+            {'machine_id': 1001}),
+        query="""
+        SELECT ts, dur, machine_id
+        FROM experimental_counter_dur
+        WHERE track_id IN (1, 2, 3)
+        ORDER BY dur LIMIT 10;
+        """,
+        out=Csv("""
+        "ts","dur","machine_id"
+        100351738640,-1,1
+        100351738640,-1,1
+        100351738640,-1,1
+        70731059648,19510835,1
+        70731059648,19510835,1
+        70731059648,19510835,1
+        73727335051,23522762,1
+        73727335051,23522762,1
+        73727335051,23522762,1
+        86726132752,24487554,1
+        """))
+
+  # Tests counter.machine_id and process_counter_track.machine.
+  def test_filter_row_vector_example_android_trace_30s_machine_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        trace_modifier=TraceInjector(
+            ['ftrace_events', 'sys_stats', 'process_stats', 'process_tree'],
+            {'machine_id': 1001}),
+        query="""
+        SELECT ts
+        FROM counter
+        WHERE
+          ts > 72563651549
+          AND track_id = (
+            SELECT t.id
+            FROM process_counter_track t
+            JOIN process p USING (upid)
+            WHERE
+              t.name = 'Heap size (KB)'
+              AND p.pid = 1204
+              AND t.machine_id is not NULL
+          )
+          AND value != 17952.000000
+          AND counter.machine_id is not NULL
+        LIMIT 20;
+        """,
+        out=Path('filter_row_vector_example_android_trace_30s.out'))
+
+  def test_counters_where_cpu_counters_where_cpu_machine_id(self):
+    return DiffTestBlueprint(
+        trace=Path('counters_where_cpu.py'),
+        trace_modifier=TraceInjector(['ftrace_events'], {'machine_id': 1001}),
+        query="""
+        SELECT
+          ts,
+          lead(ts, 1, ts) OVER (PARTITION BY name ORDER BY ts) - ts AS dur,
+          value, c.machine_id
+        FROM counter c
+        JOIN cpu_counter_track t ON t.id = c.track_id
+        WHERE cpu = 1;
+        """,
+        out=Csv("""
+        "ts","dur","value","machine_id"
+        1000,1,3000.000000,1
+        1001,0,4000.000000,1
+        """))
+
+  def test_synth_1_filter_counter_machine_id(self):
+    return DiffTestBlueprint(
+        trace=Path('../common/synth_1.py'),
+        trace_modifier=TraceInjector(
+            ['ftrace_events', 'process_stats', 'process_tree'],
+            {'machine_id': 1001}),
+        query="""
+        SELECT COUNT(*), machine_id
+        FROM counter
+        WHERE
+          track_id = 0;
+        """,
+        out=Csv("""
+        "COUNT(*)","machine_id"
+        2,1
+        """))
+
+  def test_memory_counters_machine_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('memory_counters.pb'),
+        trace_modifier=TraceInjector(
+            ['ftrace_events', 'sys_stats', 'process_stats', 'process_tree'],
+            {'machine_id': 1001}),
+        query="""
+        SELECT count(*), machine_id FROM counters WHERE -1 < ts group by machine_id;
+        """,
+        out=Csv("""
+        "count(*)","machine_id"
+        98688,1
         """))

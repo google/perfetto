@@ -20,7 +20,7 @@ import {Actions} from '../../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {
   BaseCounterTrack,
-  RenderOptions,
+  CounterOptions,
 } from '../../frontend/base_counter_track';
 import {CloseTrackButton} from '../../frontend/close_track_button';
 import {globals} from '../../frontend/globals';
@@ -49,21 +49,22 @@ export class RunnableThreadCountTrack extends BaseCounterTrack {
   }
 
   getTrackShellButtons(): m.Children {
-    return [m(CloseTrackButton, {
+    return m(CloseTrackButton, {
       trackKey: this.trackKey,
-    })];
+    });
   }
 
-  protected getRenderOptions(): RenderOptions {
-    return {
-      yBoundaries: 'strict',
-      yRange: 'viewport',
-    };
+  protected getDefaultCounterOptions(): CounterOptions {
+    const options = super.getDefaultCounterOptions();
+    options.yRangeRounding = 'strict';
+    options.yRange = 'viewport';
+    return options;
   }
 
   async onInit() {
     await this.engine.query(
-      `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`);
+      `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`,
+    );
     return new NullDisposable();
   }
 

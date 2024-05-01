@@ -22,7 +22,7 @@ import {createPage} from './pages';
 import {Router} from './router';
 
 const RELEASE_PROCESS_URL =
-    'https://perfetto.dev/docs/visualization/perfetto-ui-release-process';
+  'https://perfetto.dev/docs/visualization/perfetto-ui-release-process';
 
 interface FlagOption {
   id: string;
@@ -30,7 +30,7 @@ interface FlagOption {
 }
 
 interface SelectWidgetAttrs {
-  id: string,
+  id: string;
   label: string;
   description: m.Children;
   options: FlagOption[];
@@ -86,16 +86,16 @@ class FlagWidget implements m.ClassComponent<FlagWidgetAttrs> {
       selected: flag.overriddenState(),
       onSelect: (value: string) => {
         switch (value) {
-        case OverrideState.TRUE:
-          flag.set(true);
-          break;
-        case OverrideState.FALSE:
-          flag.set(false);
-          break;
-        default:
-        case OverrideState.DEFAULT:
-          flag.reset();
-          break;
+          case OverrideState.TRUE:
+            flag.set(true);
+            break;
+          case OverrideState.FALSE:
+            flag.set(false);
+            break;
+          default:
+          case OverrideState.DEFAULT:
+            flag.reset();
+            break;
         }
       },
     });
@@ -110,20 +110,21 @@ export const FlagsPage = createPage({
       m(
         '.flags-content',
         m('h1', 'Feature flags'),
-        needsReload &&
-                [
-                  m('h2', 'Please reload for your changes to take effect'),
-                ],
+        needsReload && [
+          m('h2', 'Please reload for your changes to take effect'),
+        ],
         m(SelectWidget, {
           label: 'Release channel',
           id: 'releaseChannel',
           description: [
             'Which release channel of the UI to use. See ',
-            m('a',
+            m(
+              'a',
               {
                 href: RELEASE_PROCESS_URL,
               },
-              'Release Process'),
+              'Release Process',
+            ),
             ' for more information.',
           ],
           options: [
@@ -134,17 +135,20 @@ export const FlagsPage = createPage({
           selected: getNextChannel(),
           onSelect: (id) => setChannel(id),
         }),
-        m('button',
+        m(
+          'button',
           {
             onclick: () => {
               featureFlags.resetAll();
               raf.scheduleFullRedraw();
             },
           },
-          'Reset all below'),
+          'Reset all below',
+        ),
 
         featureFlags.allFlags().map((flag) => m(FlagWidget, {flag})),
-      ));
+      ),
+    );
   },
 
   oncreate(vnode: m.VnodeDOM) {

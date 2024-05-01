@@ -12,9 +12,9 @@ will show examples using the
 representation of protobufs.
 
 The root container of the protobuf-based traces is the
-[Trace](https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/trace.proto)
+[Trace](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/protos/perfetto/trace/trace.proto)
 message which itself is simply a repeated field of
-[TracePacket](https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/trace_packet.proto)
+[TracePacket](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/protos/perfetto/trace/trace_packet.proto)
 messages.
 
 ## Thread-scoped (sync) slices
@@ -456,7 +456,7 @@ packet {
   }
   trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
   # 2 = SEQ_NEEDS_INCREMENTAL_STATE
-  sequence_flags: 3
+  sequence_flags: 2
 }
 packet {
   timestamp: 203

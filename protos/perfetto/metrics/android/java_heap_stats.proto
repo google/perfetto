@@ -26,7 +26,7 @@ message JavaHeapStats {
     optional int64 obj_count = 3;
   }
 
-  // Next id: 11
+  // Next id: 12
   message Sample {
     optional int64 ts = 1;
     // Size of the Java heap in bytes
@@ -47,6 +47,8 @@ message JavaHeapStats {
     repeated HeapRoots roots = 7;
     // OOM adjustment score
     optional int64 oom_score_adj = 10;
+    // Process uptime in millis at the time of the heap dump
+    optional int64 process_uptime_ms = 11;
   }
 
   // Heap stats per process. One sample per dump (can be > 1 if continuous

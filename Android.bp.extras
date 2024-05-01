@@ -184,16 +184,34 @@ gensrcs {
         "soong_zip",
     ],
     cmd: "mkdir -p $(genDir)/$(in) " +
-      "&& $(location aprotoc) " +
+        "&& $(location aprotoc) " +
         "--plugin=$(location protoc-gen-javastream) " +
+        "--javastream_opt=include_filter:perfetto.protos.TracePacket,perfetto.protos.ShellTransition,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogMessage,perfetto.protos.ProtoLogViewerConfig,perfetto.protos.ShellHandlerMapping,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogGroup,perfetto.protos.ProtoLogConfig,perfetto.protos.DataSourceConfig,perfetto.protos.InternedString,perfetto.protos.InternedData,perfetto.protos.ProtoLogLevel,perfetto.protos.TestEvent,perfetto.protos.TestEvent.TestPayload,perfetto.protos.TestConfig,perfetto.protos.TestConfig.DummyFields " +
         "--javastream_out=$(genDir)/$(in) " +
         "-Iexternal/protobuf/src " +
         "-Iexternal/perfetto " +
         "-I . $(in) " +
-      "&& $(location soong_zip) " +
+        "&& $(location soong_zip) " +
         "-jar -o $(out) -C $(genDir)/$(in) -D $(genDir)/$(in)",
     data: [
         ":libprotobuf-internal-protos",
     ],
     output_extension: "srcjar",
+}
+
+prebuilt_etc {
+    name: "perfetto_persistent_cfg.pbtxt",
+    filename: "persistent_cfg.pbtxt",
+    sub_dir: "perfetto",
+    src: "persistent_cfg.pbtxt",
+}
+
+phony {
+    name: "perfetto-extras",
+    required: [
+        "libperfetto_android_internal",
+        "mm_events",
+        "traced_perf",
+        "trigger_perfetto",
+    ],
 }

@@ -14,13 +14,7 @@
 
 import {runQuery} from '../../common/queries';
 import {addDebugSliceTrack} from '../../public';
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/android_jank_cuj.sql');
@@ -132,8 +126,6 @@ const LATENCY_CUJ_QUERY = `
 
 const LATENCY_COLUMNS = ['name', 'dur_ms', 'ts', 'dur', 'track_id', 'slice_id'];
 class AndroidCujs implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidCujs#PinJankCUJs',
@@ -148,7 +140,8 @@ class AndroidCujs implements Plugin {
             },
             'Jank CUJs',
             {ts: 'ts', dur: 'dur', name: 'name'},
-            []);
+            [],
+          );
         });
       },
     });
@@ -157,9 +150,9 @@ class AndroidCujs implements Plugin {
       id: 'dev.perfetto.AndroidCujs#ListJankCUJs',
       name: 'Run query: Android Jank CUJs',
       callback: () => {
-        runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine)
-          .then(
-            () => ctx.tabs.openQuery(JANK_CUJ_QUERY, 'Android Jank CUJs'));
+        runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine).then(() =>
+          ctx.tabs.openQuery(JANK_CUJ_QUERY, 'Android Jank CUJs'),
+        );
       },
     });
 
@@ -175,7 +168,8 @@ class AndroidCujs implements Plugin {
           },
           'Latency CUJs',
           {ts: 'ts', dur: 'dur', name: 'name'},
-          []);
+          [],
+        );
       },
     });
 

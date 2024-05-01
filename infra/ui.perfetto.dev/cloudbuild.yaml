@@ -3,6 +3,11 @@ steps:
 - name: gcr.io/$PROJECT_ID/perfetto-ui-builder
   args:
   - 'ui/release/builder_entrypoint.sh'
+  - ''
+  # The extra arg above is load baring. The builder_entrypoint.sh
+  # script can't handle $1 sometimes being defined (as in
+  # cloudbuild.yaml) and sometimes not.
+
 # Timeout = 30 min (last measured time in Feb 2021: 12 min)
 timeout: 1800s
 options:

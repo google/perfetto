@@ -25,8 +25,8 @@ source_set("table_functions") {
     "connected_flow.h",
     "descendant.cc",
     "descendant.h",
-    "dfs.cc",
-    "dfs.h",
+    "dfs_weight_bounded.cc",
+    "dfs_weight_bounded.h",
     "dominator_tree.cc",
     "dominator_tree.h",
     "experimental_annotated_stack.cc",
@@ -43,6 +43,8 @@ source_set("table_functions") {
     "experimental_slice_layout.h",
     "flamegraph_construction_algorithms.cc",
     "flamegraph_construction_algorithms.h",
+    "interval_intersect.cc",
+    "interval_intersect.h",
     "table_info.cc",
     "table_info.h",
   ]
@@ -60,7 +62,6 @@ source_set("table_functions") {
     "../../../importers/proto:full",
     "../../../importers/proto:minimal",
     "../../../sqlite",
-    "../../../sqlite:query_constraints",
     "../../../storage",
     "../../../tables",
     "../../../types",
@@ -80,7 +81,6 @@ source_set("interface") {
     "../../../../../include/perfetto/trace_processor:basic_types",
     "../../../../base",
     "../../../db",
-    "../../../sqlite:query_constraints",
   ]
 }
 

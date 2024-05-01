@@ -408,5 +408,39 @@ base::Status SetFilePermissions(const std::string& file_path,
 #endif
 }
 
+std::optional<uint64_t> GetFileSize(const std::string& file_path) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  // This does not use base::OpenFile to avoid getting an exclusive lock.
+  base::ScopedPlatformHandle fd(
+      CreateFileA(file_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+#else
+  base::ScopedFile fd(base::OpenFile(file_path, O_RDONLY | O_CLOEXEC));
+#endif
+  if (!fd) {
+    return std::nullopt;
+  }
+  return GetFileSize(*fd);
+}
+
+std::optional<uint64_t> GetFileSize(PlatformHandle fd) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+  LARGE_INTEGER file_size;
+  file_size.QuadPart = 0;
+  if (!GetFileSizeEx(fd, &file_size)) {
+    return std::nullopt;
+  }
+  static_assert(sizeof(decltype(file_size.QuadPart)) <= sizeof(uint64_t));
+  return static_cast<uint64_t>(file_size.QuadPart);
+#else
+  struct stat buf {};
+  if (fstat(fd, &buf) == -1) {
+    return std::nullopt;
+  }
+  static_assert(sizeof(decltype(buf.st_size)) <= sizeof(uint64_t));
+  return static_cast<uint64_t>(buf.st_size);
+#endif
+}
+
 }  // namespace base
 }  // namespace perfetto

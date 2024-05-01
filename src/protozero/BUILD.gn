@@ -45,15 +45,13 @@ perfetto_component("protozero") {
 }
 
 source_set("proto_ring_buffer") {
+  public_deps = [ "../../include/perfetto/ext/protozero" ]
   deps = [
     ":protozero",
     "../../gn:default_deps",
     "../base",
   ]
-  sources = [
-    "proto_ring_buffer.cc",
-    "proto_ring_buffer.h",
-  ]
+  sources = [ "proto_ring_buffer.cc" ]
 }
 
 perfetto_unittest_source_set("unittests") {
@@ -63,6 +61,12 @@ perfetto_unittest_source_set("unittests") {
     ":protozero",
     ":testing_messages_cpp",
     ":testing_messages_lite",
+    ":testing_messages_other_package_cpp",
+    ":testing_messages_other_package_lite",
+    ":testing_messages_other_package_zero",
+    ":testing_messages_subpackage_cpp",
+    ":testing_messages_subpackage_lite",
+    ":testing_messages_subpackage_zero",
     ":testing_messages_zero",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
@@ -89,6 +93,10 @@ perfetto_unittest_source_set("unittests") {
 # Generates both xxx.pbzero.h and xxx.pb.h (official proto).
 
 perfetto_proto_library("testing_messages_@TYPE@") {
+  deps = [
+    ":testing_messages_other_package_@TYPE@",
+    ":testing_messages_subpackage_@TYPE@",
+  ]
   sources = [
     "test/example_proto/extensions.proto",
     "test/example_proto/library.proto",
@@ -96,6 +104,16 @@ perfetto_proto_library("testing_messages_@TYPE@") {
     "test/example_proto/test_messages.proto",
     "test/example_proto/upper_import.proto",
   ]
+  proto_path = perfetto_root_path
+}
+
+perfetto_proto_library("testing_messages_other_package_@TYPE@") {
+  sources = [ "test/example_proto/other_package/test_messages.proto" ]
+  proto_path = perfetto_root_path
+}
+
+perfetto_proto_library("testing_messages_subpackage_@TYPE@") {
+  sources = [ "test/example_proto/subpackage/test_messages.proto" ]
   proto_path = perfetto_root_path
 }
 

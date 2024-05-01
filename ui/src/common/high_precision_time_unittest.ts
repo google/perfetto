@@ -174,22 +174,22 @@ describe('Time', () => {
   });
 
   it('should convert to seconds', () => {
-    expect(new HPTime(1n, .2).seconds).toBeCloseTo(0.0000000012);
-    expect(new HPTime(1000000000n, .0).seconds).toBeCloseTo(1);
+    expect(new HPTime(1n, 0.2).seconds).toBeCloseTo(0.0000000012);
+    expect(new HPTime(1000000000n, 0.0).seconds).toBeCloseTo(1);
   });
 
   it('should convert to nanos', () => {
-    expect(new HPTime(1n, .2).nanos).toBeCloseTo(1.2);
-    expect(new HPTime(1000000000n, .0).nanos).toBeCloseTo(1e9);
+    expect(new HPTime(1n, 0.2).nanos).toBeCloseTo(1.2);
+    expect(new HPTime(1000000000n, 0.0).nanos).toBeCloseTo(1e9);
   });
 
   it('should convert to timestamps', () => {
-    expect(new HPTime(1n, .2).toTime('round')).toBe(1n);
-    expect(new HPTime(1n, .5).toTime('round')).toBe(2n);
-    expect(new HPTime(1n, .2).toTime('floor')).toBe(1n);
-    expect(new HPTime(1n, .5).toTime('floor')).toBe(1n);
-    expect(new HPTime(1n, .2).toTime('ceil')).toBe(2n);
-    expect(new HPTime(1n, .5).toTime('ceil')).toBe(2n);
+    expect(new HPTime(1n, 0.2).toTime('round')).toBe(1n);
+    expect(new HPTime(1n, 0.5).toTime('round')).toBe(2n);
+    expect(new HPTime(1n, 0.2).toTime('floor')).toBe(1n);
+    expect(new HPTime(1n, 0.5).toTime('floor')).toBe(1n);
+    expect(new HPTime(1n, 0.2).toTime('ceil')).toBe(2n);
+    expect(new HPTime(1n, 0.5).toTime('ceil')).toBe(2n);
   });
 
   it('should divide', () => {
@@ -268,8 +268,9 @@ describe('HighPrecisionTimeSpan', () => {
 
   it('throws when start is later than end', () => {
     expect(() => new HPTimeInterval(mkTime('0.1'), mkTime('0'))).toThrow();
-    expect(() => new HPTimeInterval(mkTime('1124.0001'), mkTime('1124')))
-      .toThrow();
+    expect(
+      () => new HPTimeInterval(mkTime('1124.0001'), mkTime('1124')),
+    ).toThrow();
   });
 
   it('can calc duration', () => {

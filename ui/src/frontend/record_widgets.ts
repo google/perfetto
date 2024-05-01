@@ -43,7 +43,8 @@ class DocsChip implements m.ClassComponent<DocsChipAttrs> {
       'a.inline-chip',
       {href: attrs.href, title: 'Open docs in new tab', target: '_blank'},
       m('i.material-icons', 'info'),
-      ' Docs');
+      ' Docs',
+    );
   }
 }
 
@@ -53,7 +54,7 @@ class DocsChip implements m.ClassComponent<DocsChipAttrs> {
 
 export interface ProbeAttrs {
   title: string;
-  img: string|null;
+  img: string | null;
   compact?: boolean;
   descr: m.Children;
   isEnabled: Getter<boolean>;
@@ -73,28 +74,36 @@ export class Probe implements m.ClassComponent<ProbeAttrs> {
 
     return m(
       `.probe${attrs.compact ? '.compact' : ''}${enabled ? '.enabled' : ''}`,
-      attrs.img && m('img', {
-        src: `${globals.root}assets/${attrs.img}`,
-        onclick: () => onToggle(!enabled),
-      }),
-      m('label',
+      attrs.img &&
+        m('img', {
+          src: `${globals.root}assets/${attrs.img}`,
+          onclick: () => onToggle(!enabled),
+        }),
+      m(
+        'label',
         m(`input[type=checkbox]`, {
           checked: enabled,
           oninput: (e: InputEvent) => {
             onToggle((e.target as HTMLInputElement).checked);
           },
         }),
-        m('span', attrs.title)),
-      attrs.compact ?
-        '' :
-        m('div', m('div', attrs.descr), m('.probe-config', children)));
+        m('span', attrs.title),
+      ),
+      attrs.compact
+        ? ''
+        : m(
+            `div${attrs.img ? '' : '.extended-desc'}`,
+            m('div', attrs.descr),
+            m('.probe-config', children),
+          ),
+    );
   }
 }
 
 export function CompactProbe(args: {
-  title: string,
-  isEnabled: Getter<boolean>,
-  setEnabled: Setter<boolean>
+  title: string;
+  isEnabled: Getter<boolean>;
+  setEnabled: Setter<boolean>;
 }) {
   return m(Probe, {
     title: args.title,
@@ -131,15 +140,18 @@ export class Toggle implements m.ClassComponent<ToggleAttrs> {
 
     return m(
       `.toggle${enabled ? '.enabled' : ''}${attrs.cssClass || ''}`,
-      m('label',
+      m(
+        'label',
         m(`input[type=checkbox]`, {
           checked: enabled,
           oninput: (e: InputEvent) => {
             onToggle((e.target as HTMLInputElement).checked);
           },
         }),
-        m('span', attrs.title)),
-      m('.descr', attrs.descr));
+        m('span', attrs.title),
+      ),
+      m('.descr', attrs.descr),
+    );
   }
 }
 
@@ -175,8 +187,7 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
       const date = new Date(`1970-01-01T${hms}.000Z`);
       if (isNaN(date.getTime())) return;
       this.onValueChange(attrs, date.getTime());
-    } catch {
-    }
+    } catch {}
   }
 
   onSliderChange(attrs: SliderAttrs, newIdx: number) {
@@ -184,7 +195,7 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
   }
 
   view({attrs}: m.CVnode<SliderAttrs>) {
-    const id = attrs.title.replace(/[^a-z0-9]/gmi, '_').toLowerCase();
+    const id = attrs.title.replace(/[^a-z0-9]/gim, '_').toLowerCase();
     const maxIdx = attrs.values.length - 1;
     const val = attrs.get(globals.state.recordConfig);
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
@@ -197,14 +208,13 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
 
     // Find the index of the closest value in the slider.
     let idx = 0;
-    for (; idx < attrs.values.length && attrs.values[idx] < val; idx++) {
-    }
+    for (; idx < attrs.values.length && attrs.values[idx] < val; idx++) {}
 
     let spinnerCfg = {};
     if (attrs.isTime) {
       spinnerCfg = {
         type: 'text',
-        pattern: '(0[0-9]|1[0-9]|2[0-3])(:[0-5][0-9]){2}',  // hh:mm:ss
+        pattern: '(0[0-9]|1[0-9]|2[0-3])(:[0-5][0-9]){2}', // hh:mm:ss
         value: new Date(val).toISOString().substr(11, 8),
         oninput: (e: InputEvent) => {
           this.onTimeValueChange(attrs, (e.target as HTMLInputElement).value);
@@ -233,7 +243,8 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
         },
       }),
       m(`input.spinner[min=${min}][for=${id}]`, spinnerCfg),
-      m('.unit', attrs.unit));
+      m('.unit', attrs.unit),
+    );
   }
 }
 
@@ -298,10 +309,10 @@ export class Dropdown implements m.ClassComponent<DropdownAttrs> {
         oninput: (e: Event) => this.onChange(attrs, e),
         oncreate: (vnode) => this.resetScroll(vnode.dom as HTMLSelectElement),
       },
-      m('optgroup', {label}, options));
+      m('optgroup', {label}, options),
+    );
   }
 }
-
 
 // +---------------------------------------------------------------------------+
 // | Textarea: wrapper around <textarea>.                                      |
@@ -327,15 +338,18 @@ export class Textarea implements m.ClassComponent<TextareaAttrs> {
   view({attrs}: m.CVnode<TextareaAttrs>) {
     return m(
       '.textarea-holder',
-      m('header',
+      m(
+        'header',
         attrs.title,
-        attrs.docsLink && [' ', m(DocsChip, {href: attrs.docsLink})]),
+        attrs.docsLink && [' ', m(DocsChip, {href: attrs.docsLink})],
+      ),
       m(`textarea.extra-input${attrs.cssClass || ''}`, {
         onchange: (e: Event) =>
           this.onChange(attrs, e.target as HTMLTextAreaElement),
         placeholder: attrs.placeholder,
         value: attrs.get(globals.state.recordConfig),
-      }));
+      }),
+    );
   }
 }
 
@@ -352,32 +366,37 @@ export class CodeSnippet implements m.ClassComponent<CodeSnippetAttrs> {
   view({attrs}: m.CVnode<CodeSnippetAttrs>) {
     return m(
       '.code-snippet',
-      m('button',
+      m(
+        'button',
         {
           title: 'Copy to clipboard',
           onclick: () => copyToClipboard(attrs.text),
         },
-        m('i.material-icons', 'assignment')),
+        m('i.material-icons', 'assignment'),
+      ),
       m('code', attrs.text),
     );
   }
 }
-
 
 export interface CategoryGetter {
   get: Getter<string[]>;
   set: Setter<string[]>;
 }
 
-type CategoriesCheckboxListParams = CategoryGetter&{
+type CategoriesCheckboxListParams = CategoryGetter & {
   categories: Map<string, string>;
   title: string;
-}
+};
 
-export class CategoriesCheckboxList implements
-    m.ClassComponent<CategoriesCheckboxListParams> {
+export class CategoriesCheckboxList
+  implements m.ClassComponent<CategoriesCheckboxListParams>
+{
   updateValue(
-    attrs: CategoriesCheckboxListParams, value: string, enabled: boolean) {
+    attrs: CategoriesCheckboxListParams,
+    value: string,
+    enabled: boolean,
+  ) {
     const traceCfg = produce(globals.state.recordConfig, (draft) => {
       const values = attrs.get(draft);
       const index = values.indexOf(value);
@@ -395,9 +414,11 @@ export class CategoriesCheckboxList implements
     const enabled = new Set(attrs.get(globals.state.recordConfig));
     return m(
       '.categories-list',
-      m('h3',
+      m(
+        'h3',
         attrs.title,
-        m('button.config-button',
+        m(
+          'button.config-button',
           {
             onclick: () => {
               const config = produce(globals.state.recordConfig, (draft) => {
@@ -406,8 +427,10 @@ export class CategoriesCheckboxList implements
               globals.dispatch(Actions.setRecordConfig({config}));
             },
           },
-          'All'),
-        m('button.config-button',
+          'All',
+        ),
+        m(
+          'button.config-button',
           {
             onclick: () => {
               const config = produce(globals.state.recordConfig, (draft) => {
@@ -416,14 +439,18 @@ export class CategoriesCheckboxList implements
               globals.dispatch(Actions.setRecordConfig({config}));
             },
           },
-          'None')),
-      m('ul.checkboxes',
+          'None',
+        ),
+      ),
+      m(
+        'ul.checkboxes',
         Array.from(attrs.categories.entries()).map(([key, value]) => {
           const id = `category-checkbox-${key}`;
           return m(
             'label',
-            {'for': id},
-            m('li',
+            {for: id},
+            m(
+              'li',
               m('input[type=checkbox]', {
                 id,
                 checked: enabled.has(key),
@@ -432,7 +459,11 @@ export class CategoriesCheckboxList implements
                   this.updateValue(attrs, key, target.checked);
                 },
               }),
-              value));
-        })));
+              value,
+            ),
+          );
+        }),
+      ),
+    );
   }
 }

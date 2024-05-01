@@ -135,4 +135,6 @@ message InternedData {
 
   // Interned protolog strings args.
   repeated InternedString protolog_string_args = 36;
+  // Interned protolog stacktraces.
+  repeated InternedString protolog_stacktrace = 37;
 }

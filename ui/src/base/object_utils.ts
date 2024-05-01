@@ -15,7 +15,7 @@
 import {assertExists} from './logging';
 import {exists} from './utils';
 
-export type PathKey = string|number;
+export type PathKey = string | number;
 export type Path = PathKey[];
 
 /**
@@ -41,7 +41,7 @@ export type Path = PathKey[];
  * assertions which would serve no benefit.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getPath<T>(obj: any, path: Path): T|undefined {
+export function getPath<T>(obj: any, path: Path): T | undefined {
   let x = obj;
   for (const node of path) {
     if (x === undefined) return undefined;
@@ -113,6 +113,8 @@ export function isString(s: unknown): s is string {
 
 // Given a string enum |enum|, check that |value| is a valid member of |enum|.
 export function isEnumValue<T extends {}>(
-  enm: T, value: unknown): value is T[keyof T] {
+  enm: T,
+  value: unknown,
+): value is T[keyof T] {
   return Object.values(enm).includes(value);
 }

@@ -36,7 +36,10 @@ namespace perfetto::trace_processor::column {
 // included in the column.
 class IdStorage final : public DataLayer {
  public:
-  std::unique_ptr<DataLayerChain> MakeChain() override;
+  IdStorage();
+  ~IdStorage() override;
+
+  std::unique_ptr<DataLayerChain> MakeChain();
 
  private:
   class ChainImpl : public DataLayerChain {
@@ -50,13 +53,11 @@ class IdStorage final : public DataLayer {
 
     RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-    RangeOrBitVector IndexSearchValidated(FilterOp,
-                                          SqlValue,
-                                          Indices) const override;
+    void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
     Range OrderedIndexSearchValidated(FilterOp,
                                       SqlValue,
-                                      Indices) const override;
+                                      const OrderedIndices&) const override;
 
     void StableSort(SortToken* start,
                     SortToken* end,

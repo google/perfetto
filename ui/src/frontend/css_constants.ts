@@ -35,29 +35,29 @@ export function initCssConstants() {
   TRACK_BORDER_COLOR = getCssStr('--track-border-color') || TRACK_BORDER_COLOR;
   TOPBAR_HEIGHT = getCssNum('--topbar-height') ?? TOPBAR_HEIGHT;
   SELECTION_STROKE_COLOR =
-      getCssStr('--selection-stroke-color') || SELECTION_STROKE_COLOR;
+    getCssStr('--selection-stroke-color') || SELECTION_STROKE_COLOR;
   SELECTION_FILL_COLOR =
-      getCssStr('--selection-fill-color') || SELECTION_FILL_COLOR;
+    getCssStr('--selection-fill-color') || SELECTION_FILL_COLOR;
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR =
-      getCssStr('--overview-timeline-non-visible-color') ||
-      OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
+    getCssStr('--overview-timeline-non-visible-color') ||
+    OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
   DEFAULT_DETAILS_CONTENT_HEIGHT =
-      getCssNum('--details-content-height') ?? DEFAULT_DETAILS_CONTENT_HEIGHT;
+    getCssNum('--details-content-height') ?? DEFAULT_DETAILS_CONTENT_HEIGHT;
   BACKGROUND_COLOR = getCssStr('--main-background-color') || BACKGROUND_COLOR;
   FOREGROUND_COLOR = getCssStr('--main-foreground-color') || FOREGROUND_COLOR;
   COLLAPSED_BACKGROUND =
-      getCssStr('--collapsed-background') || COLLAPSED_BACKGROUND;
+    getCssStr('--collapsed-background') || COLLAPSED_BACKGROUND;
   EXPANDED_BACKGROUND =
-      getCssStr('--expanded-background') || EXPANDED_BACKGROUND;
+    getCssStr('--expanded-background') || EXPANDED_BACKGROUND;
 }
 
-function getCssStr(prop: string): string|undefined {
+function getCssStr(prop: string): string | undefined {
   if (typeof window === 'undefined') return undefined;
   const body = window.document.body;
   return window.getComputedStyle(body).getPropertyValue(prop);
 }
 
-function getCssNum(prop: string): number|undefined {
+function getCssNum(prop: string): number | undefined {
   const str = getCssStr(prop);
   if (str === undefined) return undefined;
   const match = str.match(/^\W*(\d+)px(|\!important')$/);

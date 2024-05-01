@@ -28,6 +28,7 @@
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/json/json_utils.h"
@@ -196,14 +197,15 @@ std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   }
   // Interned mapping_id loses it's meaning when the sequence ends. So we need
   // to get an id from stack_profile_mapping table.
-  auto mapping_id = delegate.seq_state()
-                        ->GetOrCreate<StackProfileSequenceState>()
-                        ->FindOrInsertMapping(decoder->mapping_id());
-  if (!mapping_id) {
+  auto mapping = delegate.seq_state()
+                     ->GetOrCreate<StackProfileSequenceState>()
+                     ->FindOrInsertMapping(decoder->mapping_id());
+  if (!mapping) {
     return std::nullopt;
   }
   delegate.AddUnsignedInteger(
-      util::ProtoToArgsParser::Key(prefix + ".mapping_id"), mapping_id->value);
+      util::ProtoToArgsParser::Key(prefix + ".mapping_id"),
+      mapping->mapping_id().value);
   delegate.AddUnsignedInteger(util::ProtoToArgsParser::Key(prefix + ".rel_pc"),
                               decoder->rel_pc());
   return base::OkStatus();
@@ -1121,7 +1123,8 @@ class TrackEventParser::EventImporter {
       return util::ErrStatus("raw legacy event without thread association");
 
     RawId id = storage_->mutable_raw_table()
-                   ->Insert({ts_, parser_->raw_legacy_event_id_, 0, *utid_})
+                   ->Insert({ts_, parser_->raw_legacy_event_id_, 0, *utid_, 0,
+                             0, context_->machine_id()})
                    .id;
 
     auto inserter = context_->args_tracker->AddArgsTo(id);

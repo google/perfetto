@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../../common/actions';
-import {ProfileType, Selection} from '../../common/state';
+import {ProfileType, LegacySelection} from '../../common/state';
 import {profileType} from '../../controller/flamegraph_controller';
 import {
   BASE_ROW,
@@ -27,7 +27,6 @@ import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
   Slice,
@@ -67,8 +66,7 @@ class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
         select distinct
           id,
           ts,
-          'heap_profile:' || (select group_concat(distinct heap_name) from heap_profile_allocation where upid = ${
-  this.upid}) AS type
+          'heap_profile:' || (select group_concat(distinct heap_name) from heap_profile_allocation where upid = ${this.upid}) AS type
         from heap_profile_allocation
         where upid = ${this.upid}
         union
@@ -100,21 +98,22 @@ class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
   }
 
   onSliceClick(args: OnSliceClickArgs<HeapProfileSlice>) {
-    globals.makeSelection(Actions.selectHeapProfile({
-      id: args.slice.id,
-      upid: this.upid,
-      ts: args.slice.ts,
-      type: args.slice.type,
-    }));
+    globals.makeSelection(
+      Actions.selectHeapProfile({
+        id: args.slice.id,
+        upid: this.upid,
+        ts: args.slice.ts,
+        type: args.slice.type,
+      }),
+    );
   }
 
-  protected isSelectionHandled(selection: Selection): boolean {
+  protected isSelectionHandled(selection: LegacySelection): boolean {
     return selection.kind === 'HEAP_PROFILE';
   }
 }
 
 class HeapProfilePlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
       select distinct(upid) from heap_profile_allocation
@@ -134,7 +133,8 @@ class HeapProfilePlugin implements Plugin {
               engine: ctx.engine,
               trackKey,
             },
-            upid);
+            upid,
+          );
         },
       });
     }

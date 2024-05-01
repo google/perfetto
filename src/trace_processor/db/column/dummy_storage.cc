@@ -17,7 +17,6 @@
 #include "src/trace_processor/db/column/dummy_storage.h"
 
 #include <cstdint>
-#include <memory>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -44,15 +43,16 @@ RangeOrBitVector DummyStorage::ChainImpl::SearchValidated(FilterOp,
   PERFETTO_FATAL("Shouldn't be called");
 }
 
-RangeOrBitVector DummyStorage::ChainImpl::IndexSearchValidated(FilterOp,
-                                                               SqlValue,
-                                                               Indices) const {
+void DummyStorage::ChainImpl::IndexSearchValidated(FilterOp,
+                                                   SqlValue,
+                                                   Indices&) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 
-Range DummyStorage::ChainImpl::OrderedIndexSearchValidated(FilterOp,
-                                                           SqlValue,
-                                                           Indices) const {
+Range DummyStorage::ChainImpl::OrderedIndexSearchValidated(
+    FilterOp,
+    SqlValue,
+    const OrderedIndices&) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 

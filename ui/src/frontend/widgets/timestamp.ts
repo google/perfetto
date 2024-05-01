@@ -22,7 +22,7 @@ import {
   setTimestampFormat,
   TimestampFormat,
   timestampFormat,
-} from '../../common/timestamp_format';
+} from '../../core/timestamp_format';
 import {raf} from '../../core/raf_scheduler';
 import {Anchor} from '../../widgets/anchor';
 import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
@@ -46,18 +46,20 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
     return m(
       PopupMenu2,
       {
-        trigger:
-              m(Anchor,
-                {
-                  onmouseover: () => {
-                    globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
-                  },
-                  onmouseout: () => {
-                    globals.dispatch(
-                      Actions.setHoverCursorTimestamp({ts: Time.INVALID}));
-                  },
-                },
-                attrs.display ?? renderTimestamp(ts)),
+        trigger: m(
+          Anchor,
+          {
+            onmouseover: () => {
+              globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
+            },
+            onmouseout: () => {
+              globals.dispatch(
+                Actions.setHoverCursorTimestamp({ts: Time.INVALID}),
+              );
+            },
+          },
+          attrs.display ?? renderTimestamp(ts),
+        ),
       },
       m(MenuItem, {
         icon: Icons.Copy,
@@ -78,7 +80,8 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
         menuItemForFormat(TimestampFormat.Raw, 'Raw'),
         menuItemForFormat(
           TimestampFormat.RawLocale,
-          'Raw (with locale-specific formatting)'),
+          'Raw (with locale-specific formatting)',
+        ),
       ),
       attrs.extraMenuItems ? [m(MenuDivider), attrs.extraMenuItems] : null,
     );
@@ -86,7 +89,9 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
 }
 
 export function menuItemForFormat(
-  value: TimestampFormat, label: string): m.Children {
+  value: TimestampFormat,
+  label: string,
+): m.Children {
   return m(MenuItem, {
     label,
     active: value === timestampFormat(),
@@ -101,19 +106,19 @@ function renderTimestamp(time: time): m.Children {
   const fmt = timestampFormat();
   const domainTime = globals.toDomainTime(time);
   switch (fmt) {
-  case TimestampFormat.UTC:
-  case TimestampFormat.TraceTz:
-  case TimestampFormat.Timecode:
-    return renderTimecode(domainTime);
-  case TimestampFormat.Raw:
-    return domainTime.toString();
-  case TimestampFormat.RawLocale:
-    return domainTime.toLocaleString();
-  case TimestampFormat.Seconds:
-    return Time.formatSeconds(domainTime);
-  default:
-    const x: never = fmt;
-    throw new Error(`Invalid timestamp ${x}`);
+    case TimestampFormat.UTC:
+    case TimestampFormat.TraceTz:
+    case TimestampFormat.Timecode:
+      return renderTimecode(domainTime);
+    case TimestampFormat.Raw:
+      return domainTime.toString();
+    case TimestampFormat.RawLocale:
+      return domainTime.toLocaleString();
+    case TimestampFormat.Seconds:
+      return Time.formatSeconds(domainTime);
+    default:
+      const x: never = fmt;
+      throw new Error(`Invalid timestamp ${x}`);
   }
 }
 

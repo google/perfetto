@@ -31,7 +31,7 @@ SELECT AndroidIo(
                 'avg', avg
             )
         )
-        FROM android_io_f2fs_counter_stats
+        FROM _android_io_f2fs_counter_stats
     ),
     'f2fs_write_stats', (
         SELECT RepeatedField(
@@ -40,10 +40,10 @@ SELECT AndroidIo(
                 'distinct_processes', distinct_processes,
                 'total_bytes_written', total_bytes_written,
                 'distinct_device_count', distinct_device_count,
-                'distict_inode_count', distict_inode_count,
+                'distinct_inode_count', distinct_inode_count,
                 'distinct_thread_count', distinct_thread_count
             )
         )
-        FROM android_io_f2fs_aggregate_write_stats
+        FROM _android_io_f2fs_aggregate_write_stats
     )
 );

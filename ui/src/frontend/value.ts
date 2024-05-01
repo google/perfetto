@@ -28,9 +28,9 @@ import {PopupMenuButton, PopupMenuItem} from './popup_menu';
 // Leaf (non-dict and non-array) value which can be displayed to the user
 // together with the rendering customisation parameters.
 type StringValue = {
-  kind: 'STRING',
-  value: string,
-}&StringValueParams;
+  kind: 'STRING';
+  value: string;
+} & StringValueParams;
 
 // Helper function to create a StringValue from string together with optional
 // parameters.
@@ -44,8 +44,10 @@ export function value(value: string, params?: StringValueParams): StringValue {
 
 // Helper function to convert a potentially undefined value to StringValue or
 // null.
-export function maybeValue(v?: string, params?: StringValueParams): StringValue|
-    null {
+export function maybeValue(
+  v?: string,
+  params?: StringValueParams,
+): StringValue | null {
   if (!v) {
     return null;
   }
@@ -54,19 +56,21 @@ export function maybeValue(v?: string, params?: StringValueParams): StringValue|
 
 // A basic type for the JSON-like value, comprising a primitive type (string)
 // and composite types (arrays and dicts).
-export type Value = StringValue|Array|Dict;
+export type Value = StringValue | Array | Dict;
 
 // Dictionary type.
 export type Dict = {
-  kind: 'DICT',
-  items: {[name: string]: Value},
-}&ValueParams;
+  kind: 'DICT';
+  items: {[name: string]: Value};
+} & ValueParams;
 
 // Helper function to simplify creation of a dictionary.
 // This function accepts and filters out nulls as values in the passed
 // dictionary (useful for simplifying the code to render optional values).
 export function dict(
-  items: {[name: string]: Value|null}, params?: ValueParams): Dict {
+  items: {[name: string]: Value | null},
+  params?: ValueParams,
+): Dict {
   const result: {[name: string]: Value} = {};
   for (const [name, value] of Object.entries(items)) {
     if (value !== null) {
@@ -82,16 +86,17 @@ export function dict(
 
 // Array type.
 export type Array = {
-  kind: 'ARRAY', items: Value[];
-}&ValueParams;
+  kind: 'ARRAY';
+  items: Value[];
+} & ValueParams;
 
 // Helper function to simplify creation of an array.
 // This function accepts and filters out nulls in the passed array (useful for
 // simplifying the code to render optional values).
-export function array(items: (Value|null)[], params?: ValueParams): Array {
+export function array(items: (Value | null)[], params?: ValueParams): Array {
   return {
     kind: 'ARRAY',
-    items: items.filter((item: Value|null) => item !== null) as Value[],
+    items: items.filter((item: Value | null) => item !== null) as Value[],
     ...params,
   };
 }
@@ -102,7 +107,7 @@ type ButtonParams = {
   action: () => void;
   hoverText?: string;
   icon?: string;
-}
+};
 
 // Customisation parameters which apply to any Value (e.g. context menu).
 interface ValueParams {
@@ -118,26 +123,27 @@ interface StringValueParams extends ValueParams {
 
 export function isArray(value: Value): value is Array {
   return value.kind === 'ARRAY';
-};
+}
 
 export function isDict(value: Value): value is Dict {
   return value.kind === 'DICT';
-};
+}
 
 export function isStringValue(value: Value): value is StringValue {
   return !isArray(value) && !isDict(value);
-};
+}
 
 // Recursively render the given value and its children, returning a list of
 // vnodes corresponding to the nodes of the table.
 function renderValue(name: string, value: Value): m.Children {
   const left = [
     name,
-    value.contextMenu ? m(PopupMenuButton, {
-      icon: 'arrow_drop_down',
-      items: value.contextMenu,
-    }) :
-      null,
+    value.contextMenu
+      ? m(PopupMenuButton, {
+          icon: 'arrow_drop_down',
+          items: value.contextMenu,
+        })
+      : null,
   ];
   if (isArray(value)) {
     const nodes = value.items.map((value: Value, index: number) => {
@@ -161,7 +167,8 @@ function renderValue(name: string, value: Value): m.Children {
           onclick: button.action,
           title: button.hoverText,
         },
-        button.icon ? button.icon : 'call_made');
+        button.icon ? button.icon : 'call_made',
+      );
     };
     if (value.kind === 'STRING') {
       const right = [

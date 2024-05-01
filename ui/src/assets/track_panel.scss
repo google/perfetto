@@ -1,0 +1,261 @@
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@use "sass:math";
+
+@mixin track_shell_title() {
+  font-size: 14px;
+  max-height: 30px;
+  overflow: hidden;
+  text-align: left;
+  overflow-wrap: break-word;
+  font-family: "Roboto Condensed", sans-serif;
+  font-weight: 300;
+  line-break: anywhere;
+}
+
+.track-content.pf-track-content-error {
+  // Necessary trig because we have a 45deg stripes
+  $pattern-density: 1px * math.sqrt(2);
+  $pattern-col: #ddd;
+
+  // box-shadow: inset 0 0 0 5px red;
+  background: repeating-linear-gradient(
+    -45deg,
+    $pattern-col,
+    $pattern-col $pattern-density,
+    white $pattern-density,
+    white $pattern-density * 2
+  );
+}
+
+.track {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: 1fr 0;
+  container-type: size;
+
+  &::after {
+    display: block;
+    content: "";
+    grid-column: 1 / span 2;
+    border-top: 1px solid var(--track-border-color);
+    margin-top: -1px;
+    z-index: 2;
+  }
+
+  .track-shell {
+    @include transition();
+    cursor: grab;
+    width: var(--track-shell-width);
+    border-right: 1px solid #c7d0db;
+
+    .track-menubar {
+      position: sticky;
+      top: 0;
+      display: grid;
+      padding-block: 6px;
+      padding-left: 10px;
+      padding-right: 2px;
+      grid-template-areas: "title buttons";
+      grid-template-columns: 1fr auto;
+    }
+
+    .pf-visible-on-hover {
+      visibility: hidden;
+    }
+
+    &:hover .pf-visible-on-hover {
+      visibility: visible;
+    }
+
+    &.drag {
+      background-color: #eee;
+      box-shadow: 0 4px 12px -4px #999 inset;
+    }
+    &.drop-before {
+      box-shadow: 0 4px 2px -1px hsl(213, 40%, 50%) inset;
+    }
+    &.drop-after {
+      box-shadow: 0 -4px 2px -1px hsl(213, 40%, 50%) inset;
+    }
+
+    &.selected {
+      background-color: #ebeef9;
+    }
+
+    .chip {
+      background-color: #bed6ff;
+      border-radius: $pf-border-radius;
+      font-size: smaller;
+      padding: 0 0.1rem;
+      margin-left: 1ch;
+    }
+
+    h1 {
+      grid-area: title;
+      color: hsl(213, 22%, 30%);
+      @include track_shell_title();
+    }
+    .track-buttons {
+      grid-area: buttons;
+      display: flex;
+      height: 100%;
+      align-items: center;
+      font-size: 18px;
+    }
+
+    &.flash {
+      background-color: #ffe263;
+    }
+  }
+}
+
+.track-group-panel {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: 1fr;
+  height: 40px;
+
+  .shell {
+    border-right: 1px solid transparent;
+    padding-right: 2px;
+  }
+
+  &::after {
+    display: block;
+    content: "";
+    grid-column: 1 / span 2;
+    border-top: 1px solid var(--track-border-color);
+    margin-top: -1px;
+  }
+  &[collapsed="true"] {
+    background-color: var(--collapsed-background);
+    .shell {
+      border-right: 1px solid #c7d0db;
+    }
+    .track-button {
+      color: rgb(60, 86, 136);
+    }
+  }
+  &[collapsed="false"] {
+    background-color: var(--expanded-background);
+    color: white;
+    font-weight: bold;
+    .shell.flash {
+      color: #121212;
+    }
+    .track-button {
+      color: white;
+    }
+    span.chip {
+      color: #121212;
+    }
+  }
+  .shell {
+    padding-left: 10px;
+    display: grid;
+    grid-template-areas: "fold-button title buttons";
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    line-height: 1;
+    width: var(--track-shell-width);
+    min-height: 40px;
+
+    .track-title {
+      user-select: text;
+    }
+
+    .track-subtitle {
+      font-size: 0.6rem;
+      font-weight: normal;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      // Maximum width according to grid-template-columns value for .shell
+      width: calc(var(--track-shell-width) - 56px);
+    }
+
+    .chip {
+      background-color: #bed6ff;
+      border-radius: 3px;
+      font-size: smaller;
+      padding: 0 0.1rem;
+      margin-left: 1ch;
+    }
+
+    .title-wrapper {
+      grid-area: title;
+      overflow: hidden;
+    }
+    h1 {
+      @include track_shell_title();
+    }
+    .fold-button {
+      grid-area: fold-button;
+    }
+
+    .track-buttons {
+      grid-area: buttons;
+      display: flex;
+      height: 100%;
+      align-items: center;
+      font-size: 18px;
+    }
+
+    &:hover {
+      cursor: pointer;
+      .fold-button {
+        color: hsl(45, 100%, 48%);
+      }
+    }
+    &.flash {
+      background-color: #ffe263;
+    }
+    &.selected {
+      background-color: #ebeef9;
+    }
+  }
+  .track-content {
+    display: grid;
+    span {
+      @include track_shell_title();
+      align-self: center;
+    }
+  }
+}
+
+.pf-panel-group {
+  .track-shell {
+    .track-menubar {
+      top: 40px;
+    }
+  }
+}
+
+// If the track is short, center the track titlebar vertically
+@container (height < 26px) {
+  .track {
+    .track-shell {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+
+      .track-menubar {
+        padding-block: 0px;
+      }
+    }
+  }
+}

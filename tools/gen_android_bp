@@ -71,6 +71,7 @@ default_targets = [
     '//src/traced/probes:traced_probes',
     '//src/traced/service:traced',
     '//src/trace_processor:trace_processor_shell',
+    '//src/trace_redaction:trace_redactor',
     '//test/cts:perfetto_cts_deps',
     '//test/cts:perfetto_cts_jni_deps',
     '//test:perfetto_gtest_logcat_printer',
@@ -245,10 +246,6 @@ additional_args = {
         ('test_suites', {'general-tests'}),
         ('test_config', 'PerfettoIntegrationTests.xml'),
     ],
-    'traced_probes': [('required', {
-        'libperfetto_android_internal', 'trigger_perfetto', 'traced_perf',
-        'mm_events'
-    }),],
     'libperfetto_android_internal': [('static_libs', {'libhealthhalutils'}),],
     'trace_processor_shell': [
         ('strip', {
@@ -282,6 +279,7 @@ additional_args = {
         ('min_sdk_version', 'S'),
     ],
     'libperfetto': [('export_include_dirs', {'include', buildflags_dir}),],
+    'perfetto': [('required', {'perfetto_persistent_cfg.pbtxt'}),],
 }
 
 

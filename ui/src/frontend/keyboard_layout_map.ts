@@ -14,7 +14,7 @@
 // A keyboard layout map that converts key codes to their equivalent glyphs for
 // a given keyboard layout (e.g. 'KeyX' -> 'x').
 export interface KeyboardLayoutMap {
-  get(code: string): string|undefined;
+  get(code: string): string | undefined;
 }
 
 interface Keyboard {

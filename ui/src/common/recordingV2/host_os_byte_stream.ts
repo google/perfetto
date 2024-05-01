@@ -62,7 +62,7 @@ export class HostOsByteStream implements ByteStream {
     return this._isConnected;
   }
 
-  write(msg: string|Uint8Array): void {
+  write(msg: string | Uint8Array): void {
     this.websocket.send(msg);
   }
 
@@ -79,6 +79,6 @@ export class HostOsByteStream implements ByteStream {
   }
 
   static create(websocketUrl: string): Promise<HostOsByteStream> {
-    return (new HostOsByteStream(websocketUrl)).handshakeSignal;
+    return new HostOsByteStream(websocketUrl).handshakeSignal;
   }
 }

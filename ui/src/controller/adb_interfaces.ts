@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 export interface Adb {
   connect(device: USBDevice): Promise<void>;
   disconnect(): Promise<void>;
@@ -25,7 +24,7 @@ export interface Adb {
 }
 
 export interface AdbStream {
-  write(msg: string|Uint8Array): Promise<void>;
+  write(msg: string | Uint8Array): Promise<void>;
   onMessage(message: AdbMsg): void;
   close(): void;
   setClosed(): void;
@@ -58,7 +57,7 @@ export class MockAdb implements Adb {
 }
 
 export class MockAdbStream implements AdbStream {
-  write(_: string|Uint8Array): Promise<void> {
+  write(_: string | Uint8Array): Promise<void> {
     return Promise.resolve();
   }
   onMessage = (_: AdbMsg) => {};
@@ -71,7 +70,12 @@ export class MockAdbStream implements AdbStream {
 }
 
 export declare type CmdType =
-    'CNXN' | 'AUTH' | 'CLSE' | 'OKAY' | 'WRTE' | 'OPEN';
+  | 'CNXN'
+  | 'AUTH'
+  | 'CLSE'
+  | 'OKAY'
+  | 'WRTE'
+  | 'OPEN';
 
 export interface AdbMsg {
   cmd: CmdType;

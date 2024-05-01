@@ -15,7 +15,7 @@
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
-from python.generators.diff_tests.testing import DiffTestBlueprint
+from python.generators.diff_tests.testing import DiffTestBlueprint, TraceInjector
 from python.generators.diff_tests.testing import TestSuite
 
 
@@ -89,4 +89,36 @@ class PowerEnergyBreakdown(TestSuite):
         3,10234
         3,10190
         3,10235
+        """))
+
+  def test_energy_breakdown_uid_table_machine_id(self):
+    return DiffTestBlueprint(
+        trace=Path('energy_breakdown_uid.textproto'),
+        trace_modifier=TraceInjector(['android_energy_estimation_breakdown'],
+                                     {'machine_id': 1001}),
+        query="""
+        SELECT uid, name
+        FROM uid_counter_track
+        WHERE machine_id IS NOT NULL;
+        """,
+        out=Csv("""
+        "uid","name"
+        10234,"GPU"
+        10190,"GPU"
+        10235,"GPU"
+        """))
+
+  def test_energy_breakdown_table_machine_id(self):
+    return DiffTestBlueprint(
+        trace=Path('energy_breakdown.textproto'),
+        trace_modifier=TraceInjector(['android_energy_estimation_breakdown'],
+                                     {'machine_id': 1001}),
+        query="""
+        SELECT consumer_id, name, consumer_type, ordinal
+        FROM energy_counter_track
+        WHERE machine_id IS NOT NULL;
+        """,
+        out=Csv("""
+        "consumer_id","name","consumer_type","ordinal"
+        0,"CPUCL0","CPU_CLUSTER",0
         """))

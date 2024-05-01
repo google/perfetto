@@ -20,7 +20,7 @@ source_set("sqlite") {
   sources = [
     "db_sqlite_table.cc",
     "db_sqlite_table.h",
-    "query_cache.h",
+    "module_lifecycle_manager.h",
     "scoped_db.h",
     "sql_source.cc",
     "sql_source.h",
@@ -28,22 +28,20 @@ source_set("sqlite") {
     "sql_stats_table.h",
     "sqlite_engine.cc",
     "sqlite_engine.h",
-    "sqlite_table.cc",
-    "sqlite_table.h",
     "sqlite_tokenizer.cc",
     "sqlite_tokenizer.h",
     "sqlite_utils.cc",
     "sqlite_utils.h",
-    "sqlite_utils.h",
+    "sqlite_value.h",
     "stats_table.cc",
     "stats_table.h",
   ]
   deps = [
-    ":query_constraints",
     "..:metatrace",
     "../../../gn:default_deps",
     "../../../gn:sqlite",
     "../../../include/perfetto/trace_processor",
+    "../../../include/perfetto/trace_processor:basic_types",
     "../../../protos/perfetto/trace/ftrace:zero",
     "../../../protos/perfetto/trace_processor:zero",
     "../../base",
@@ -59,36 +57,26 @@ source_set("sqlite") {
     "../util:profile_builder",
     "../util:regex",
   ]
-}
-
-source_set("query_constraints") {
-  sources = [
-    "query_constraints.cc",
-    "query_constraints.h",
-  ]
-  deps = [
-    "../../../gn:default_deps",
-    "../../../gn:sqlite",
-    "../../base",
-  ]
+  public_deps = [ "bindings" ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "db_sqlite_table_unittest.cc",
-    "query_constraints_unittest.cc",
     "sql_source_unittest.cc",
     "sqlite_tokenizer_unittest.cc",
     "sqlite_utils_unittest.cc",
   ]
   deps = [
-    ":query_constraints",
     ":sqlite",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../gn:sqlite",
+    "../../../include/perfetto/trace_processor:basic_types",
     "../../base",
+    "../../base:test_support",
+    "../db",
   ]
 }
 

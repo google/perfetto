@@ -37,7 +37,8 @@ export class Notes implements Disposable {
             return undefined;
           }
         },
-      }));
+      }),
+    );
     this.trash.add(unregister);
   }
 

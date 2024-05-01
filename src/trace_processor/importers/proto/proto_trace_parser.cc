@@ -30,11 +30,13 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
@@ -108,6 +110,18 @@ void ProtoTraceParser::ParseTrackEvent(int64_t ts, TrackEventData data) {
   const TraceBlobView& blob = data.trace_packet_data.packet;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   context_->track_module->ParseTrackEventData(packet, ts, data);
+  context_->args_tracker->Flush();
+}
+
+void ProtoTraceParser::ParseEtwEvent(uint32_t cpu,
+                                     int64_t ts,
+                                     TracePacketData data) {
+  PERFETTO_DCHECK(context_->etw_module);
+  context_->etw_module->ParseEtwEventData(cpu, ts, data);
+
+  // TODO(lalitm): maybe move this to the flush method in the trace processor
+  // once we have it. This may reduce performance in the ArgsTracker though so
+  // needs to be handled carefully.
   context_->args_tracker->Flush();
 }
 
@@ -255,7 +269,8 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   ArgsTracker args(context_);
   if (bundle.has_metadata()) {
     RawId id = storage->mutable_raw_table()
-                   ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0})
+                   ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0, 0, 0,
+                             context_->machine_id()})
                    .id;
     auto inserter = args.AddArgsTo(id);
 
@@ -301,10 +316,10 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   }
 
   if (bundle.has_legacy_ftrace_output()) {
-    RawId id =
-        storage->mutable_raw_table()
-            ->Insert({ts, raw_chrome_legacy_system_trace_event_id_, 0, 0})
-            .id;
+    RawId id = storage->mutable_raw_table()
+                   ->Insert({ts, raw_chrome_legacy_system_trace_event_id_, 0, 0,
+                             0, 0, context_->machine_id()})
+                   .id;
 
     std::string data;
     for (auto it = bundle.legacy_ftrace_output(); it; ++it) {
@@ -322,10 +337,10 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
           protos::pbzero::ChromeLegacyJsonTrace::USER_TRACE) {
         continue;
       }
-      RawId id =
-          storage->mutable_raw_table()
-              ->Insert({ts, raw_chrome_legacy_user_trace_event_id_, 0, 0})
-              .id;
+      RawId id = storage->mutable_raw_table()
+                     ->Insert({ts, raw_chrome_legacy_user_trace_event_id_, 0, 0,
+                               0, 0, context_->machine_id()})
+                     .id;
       Variadic value =
           Variadic::String(storage->InternString(legacy_trace.data()));
       args.AddArgsTo(id).AddArg(data_name_id_, value);

@@ -17,6 +17,7 @@
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -43,6 +44,10 @@ AndroidLogTable::~AndroidLogTable() = default;
 // counter_tables_py.h
 CounterTable::~CounterTable() = default;
 
+// jit_tables.py
+JitCodeTable::~JitCodeTable() = default;
+JitFrameTable::~JitFrameTable() = default;
+
 // metadata_tables_py.h
 RawTable::~RawTable() = default;
 FtraceEventTable::~FtraceEventTable() = default;
@@ -55,6 +60,7 @@ ThreadTable::~ThreadTable() = default;
 ProcessTable::~ProcessTable() = default;
 FiledescriptorTable::~FiledescriptorTable() = default;
 ClockSnapshotTable::~ClockSnapshotTable() = default;
+MachineTable::~MachineTable() = default;
 
 // profiler_tables_py.h
 StackProfileMappingTable::~StackProfileMappingTable() = default;
@@ -107,6 +113,7 @@ PerfCounterTrackTable::~PerfCounterTrackTable() = default;
 EnergyCounterTrackTable::~EnergyCounterTrackTable() = default;
 UidCounterTrackTable::~UidCounterTrackTable() = default;
 EnergyPerUidCounterTrackTable::~EnergyPerUidCounterTrackTable() = default;
+LinuxDeviceTrackTable::~LinuxDeviceTrackTable() = default;
 
 // trace_proto_tables_py.h
 ExperimentalProtoPathTable::~ExperimentalProtoPathTable() = default;
@@ -123,6 +130,10 @@ V8IsolateTable::~V8IsolateTable() = default;
 V8JsScriptTable::~V8JsScriptTable() = default;
 V8WasmScriptTable::~V8WasmScriptTable() = default;
 V8JsFunctionTable::~V8JsFunctionTable() = default;
+V8JsCodeTable::~V8JsCodeTable() = default;
+V8InternalCodeTable::~V8InternalCodeTable() = default;
+V8WasmCodeTable::~V8WasmCodeTable() = default;
+V8RegexpCodeTable::~V8RegexpCodeTable() = default;
 
 // winscope_tables_py.h
 SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =

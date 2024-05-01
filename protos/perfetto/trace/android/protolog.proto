@@ -25,13 +25,16 @@ message ProtoLogMessage {
   /* log statement identifier, created from message string and log level. */
   optional fixed64 message_id = 1;
   /* string parameters passed to the log call that have been interned. */
-  repeated uint32 interned_str_params = 2;
+  repeated uint32 str_param_iids = 2;
   /* integer parameters passed to the log call. */
   repeated sint64 sint64_params = 3;
   /* floating point parameters passed to the log call. */
   repeated double double_params = 4;
   /* boolean parameters passed to the log call. */
   repeated int32 boolean_params = 5;
+  // id of the interned stacktrace string
+  // (only dumped if explicitly confuigured to do so)
+  optional uint32 stacktrace_iid = 6;
 }
 
 /* contains all the data required to fully decode the protolog messages */

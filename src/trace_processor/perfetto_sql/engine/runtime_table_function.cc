@@ -16,14 +16,28 @@
 
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 
+#include <sqlite3.h>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <optional>
+#include <string>
 #include <utility>
+#include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/public/compiler.h"
+#include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/util/status_macros.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/tp_metatrace.h"
+#include "src/trace_processor/util/sql_argument.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 
@@ -32,216 +46,226 @@ void ResetStatement(sqlite3_stmt* stmt) {
   sqlite3_clear_bindings(stmt);
 }
 
-}  // namespace
-
-RuntimeTableFunction::RuntimeTableFunction(sqlite3*, PerfettoSqlEngine* engine)
-    : engine_(engine) {}
-
-RuntimeTableFunction::~RuntimeTableFunction() {
-  engine_->OnRuntimeTableFunctionDestroyed(name());
-}
-
-base::Status RuntimeTableFunction::Init(int,
-                                        const char* const*,
-                                        Schema* schema) {
-  state_ = engine_->GetRuntimeTableFunctionState(name());
-
-  // Now we've parsed prototype and return values, create the schema.
-  *schema = CreateSchema();
-  return base::OkStatus();
-}
-
-SqliteTable::Schema RuntimeTableFunction::CreateSchema() {
-  std::vector<Column> columns;
-  for (size_t i = 0; i < state_->return_values.size(); ++i) {
-    const auto& ret = state_->return_values[i];
-    columns.push_back(Column(columns.size(), ret.name().ToStdString(),
+auto CreateTableStrFromState(RuntimeTableFunctionModule::State* state) {
+  std::vector<std::string> columns;
+  columns.reserve(state->return_values.size());
+  for (const auto& ret : state->return_values) {
+    columns.emplace_back(ret.name().ToStdString() + " " +
+                         sqlite::utils::SqlValueTypeToString(
                              sql_argument::TypeToSqlValueType(ret.type())));
   }
-  for (size_t i = 0; i < state_->prototype.arguments.size(); ++i) {
-    const auto& arg = state_->prototype.arguments[i];
-
+  for (const auto& arg : state->prototype.arguments) {
     // Add the "in_" prefix to every argument param to avoid clashes between the
     // output and input parameters.
-    columns.push_back(Column(columns.size(), "in_" + arg.name().ToStdString(),
-                             sql_argument::TypeToSqlValueType(arg.type()),
-                             true));
+    columns.emplace_back("in_" + arg.name().ToStdString() + " " +
+                         sqlite::utils::SqlValueTypeToString(
+                             sql_argument::TypeToSqlValueType(arg.type())) +
+                         " HIDDEN");
   }
+  columns.emplace_back("_primary_key BIGINT HIDDEN");
 
-  std::vector<size_t> primary_keys;
-
-  // Add the "primary key" column. SQLite requires that we provide a column
-  // which is non-null and unique. Unfortunately, we have no restrictions on
-  // the subqueries so we cannot rely on this constraint being held there.
-  // Therefore, we create a "primary key" column which exists purely for SQLite
-  // primary key purposes and is equal to the row number.
-  columns.push_back(
-      Column(columns.size(), "_primary_key", SqlValue::kLong, true));
-  primary_keys.emplace_back(columns.size() - 1);
-
-  return SqliteTable::Schema(std::move(columns), std::move(primary_keys));
+  std::string cols = base::Join(columns, ",");
+  return base::StackString<1024>(
+      R"(CREATE TABLE x(%s, PRIMARY KEY(_primary_key)) WITHOUT ROWID)",
+      cols.c_str());
 }
 
-std::unique_ptr<SqliteTable::BaseCursor> RuntimeTableFunction::CreateCursor() {
-  return std::unique_ptr<Cursor>(new Cursor(this, state_));
+}  // namespace
+
+int RuntimeTableFunctionModule::Create(sqlite3* db,
+                                       void* ctx,
+                                       int,
+                                       const char* const* argv,
+                                       sqlite3_vtab** vtab,
+                                       char**) {
+  auto* context = GetContext(ctx);
+  auto state = std::move(context->temporary_create_state);
+
+  auto create_table_str = CreateTableStrFromState(state.get());
+  if (int ret = sqlite3_declare_vtab(db, create_table_str.c_str());
+      ret != SQLITE_OK) {
+    return ret;
+  }
+  std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
+  res->reusable_stmt = std::move(state->temporary_create_stmt);
+  state->temporary_create_stmt = std::nullopt;
+  res->state = context->manager.OnCreate(argv, std::move(state));
+  *vtab = res.release();
+  return SQLITE_OK;
 }
 
-int RuntimeTableFunction::BestIndex(const QueryConstraints& qc,
-                                    BestIndexInfo* info) {
-  // Only accept constraint sets where every input parameter has a value.
-  size_t seen_argument_constraints = 0;
-  for (size_t i = 0; i < qc.constraints().size(); ++i) {
-    const auto& cs = qc.constraints()[i];
-    seen_argument_constraints +=
-        state_->IsArgumentColumn(static_cast<size_t>(cs.column));
+int RuntimeTableFunctionModule::Destroy(sqlite3_vtab* vtab) {
+  std::unique_ptr<Vtab> tab(GetVtab(vtab));
+  sqlite::ModuleStateManager<RuntimeTableFunctionModule>::OnDestroy(tab->state);
+  return SQLITE_OK;
+}
+
+int RuntimeTableFunctionModule::Connect(sqlite3* db,
+                                        void* ctx,
+                                        int,
+                                        const char* const*,
+                                        sqlite3_vtab** vtab,
+                                        char** argv) {
+  auto* context = GetContext(ctx);
+
+  std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
+  res->state = context->manager.OnConnect(argv);
+
+  auto create_table_str = CreateTableStrFromState(
+      sqlite::ModuleStateManager<RuntimeTableFunctionModule>::GetState(
+          res->state));
+  if (int ret = sqlite3_declare_vtab(db, create_table_str.c_str());
+      ret != SQLITE_OK) {
+    // If the registration happens to fail, make sure to disconnect the state
+    // again.
+    sqlite::ModuleStateManager<RuntimeTableFunctionModule>::OnDisconnect(
+        res->state);
+    return ret;
   }
-  if (seen_argument_constraints < state_->prototype.arguments.size())
+  *vtab = res.release();
+  return SQLITE_OK;
+}
+
+int RuntimeTableFunctionModule::Disconnect(sqlite3_vtab* vtab) {
+  std::unique_ptr<Vtab> tab(GetVtab(vtab));
+  sqlite::ModuleStateManager<RuntimeTableFunctionModule>::OnDisconnect(
+      tab->state);
+  return SQLITE_OK;
+}
+
+int RuntimeTableFunctionModule::BestIndex(sqlite3_vtab* tab,
+                                          sqlite3_index_info* info) {
+  auto* t = GetVtab(tab);
+  auto* s = sqlite::ModuleStateManager<RuntimeTableFunctionModule>::GetState(
+      t->state);
+
+  // Don't deal with any constraints on the output parameters for simplicty.
+  // TODO(lalitm): reconsider this decision to allow more efficient queries:
+  // we would need to wrap the query in a SELECT * FROM (...) WHERE constraint
+  // like we do for SPAN JOIN.
+  base::Status status = sqlite::utils::ValidateFunctionArguments(
+      info, s->prototype.arguments.size(),
+      [s](size_t c) { return s->IsArgumentColumn(c); });
+  if (!status.ok()) {
     return SQLITE_CONSTRAINT;
-
-  for (size_t i = 0; i < info->sqlite_omit_constraint.size(); ++i) {
-    size_t col = static_cast<size_t>(qc.constraints()[i].column);
-    if (state_->IsArgumentColumn(col)) {
-      info->sqlite_omit_constraint[i] = true;
-    }
   }
   return SQLITE_OK;
 }
 
-RuntimeTableFunction::Cursor::Cursor(RuntimeTableFunction* table, State* state)
-    : SqliteTable::BaseCursor(table), table_(table), state_(state) {
-  if (state->reusable_stmt) {
-    stmt_ = std::move(state->reusable_stmt);
-    state->reusable_stmt = std::nullopt;
-    return_stmt_to_state_ = true;
+int RuntimeTableFunctionModule::Open(sqlite3_vtab* tab,
+                                     sqlite3_vtab_cursor** cursor) {
+  auto* t = GetVtab(tab);
+  std::unique_ptr<Cursor> c = std::make_unique<Cursor>();
+  if (t->reusable_stmt) {
+    c->stmt = std::move(t->reusable_stmt);
+    t->reusable_stmt = std::nullopt;
   }
+  *cursor = c.release();
+  return SQLITE_OK;
 }
 
-RuntimeTableFunction::Cursor::~Cursor() {
-  if (return_stmt_to_state_) {
-    ResetStatement(stmt_->sqlite_stmt());
-    state_->reusable_stmt = std::move(stmt_);
+int RuntimeTableFunctionModule::Close(sqlite3_vtab_cursor* cursor) {
+  std::unique_ptr<Cursor> c(GetCursor(cursor));
+  auto* t = GetVtab(c->pVtab);
+  if (!t->reusable_stmt && c->stmt) {
+    ResetStatement(c->stmt->sqlite_stmt());
+    t->reusable_stmt = std::move(c->stmt);
   }
+  return SQLITE_OK;
 }
 
-base::Status RuntimeTableFunction::Cursor::Filter(const QueryConstraints& qc,
-                                                  sqlite3_value** argv,
-                                                  FilterHistory) {
+int RuntimeTableFunctionModule::Filter(sqlite3_vtab_cursor* cur,
+                                       int,
+                                       const char*,
+                                       int argc,
+                                       sqlite3_value** argv) {
+  auto* c = GetCursor(cur);
+  auto* t = GetVtab(cur->pVtab);
+  auto* s = sqlite::ModuleStateManager<RuntimeTableFunctionModule>::GetState(
+      t->state);
+
+  PERFETTO_CHECK(static_cast<size_t>(argc) == s->prototype.arguments.size());
   PERFETTO_TP_TRACE(metatrace::Category::FUNCTION_CALL, "TABLE_FUNCTION_CALL",
-                    [this](metatrace::Record* r) {
-                      r->AddArg("Function",
-                                state_->prototype.function_name.c_str());
+                    [s](metatrace::Record* r) {
+                      r->AddArg("Function", s->prototype.function_name.c_str());
                     });
-
-  auto col_to_arg_idx = [this](int col) {
-    return static_cast<uint32_t>(col) -
-           static_cast<uint32_t>(state_->return_values.size());
-  };
-
-  size_t seen_argument_constraints = 0;
-  for (size_t i = 0; i < qc.constraints().size(); ++i) {
-    const auto& cs = qc.constraints()[i];
-
-    // Only consider argument columns (i.e. input parameters) as we're
-    // delegating the rest to SQLite.
-    if (!state_->IsArgumentColumn(static_cast<size_t>(cs.column)))
-      continue;
-
-    // We only support equality constraints as we're expecting "input arguments"
-    // to our "function".
-    if (!sqlite_utils::IsOpEq(cs.op)) {
-      return base::ErrStatus("%s: non-equality constraint passed",
-                             state_->prototype.function_name.c_str());
-    }
-
-    const auto& arg = state_->prototype.arguments[col_to_arg_idx(cs.column)];
-    base::Status status = sqlite_utils::TypeCheckSqliteValue(
-        argv[i], sql_argument::TypeToSqlValueType(arg.type()),
-        sql_argument::TypeToHumanFriendlyString(arg.type()));
-    if (!status.ok()) {
-      return base::ErrStatus("%s: argument %s (index %zu) %s",
-                             state_->prototype.function_name.c_str(),
-                             arg.name().c_str(), i, status.c_message());
-    }
-
-    seen_argument_constraints++;
-  }
-
-  // Verify that we saw one valid constraint for every input argument.
-  if (seen_argument_constraints < state_->prototype.arguments.size()) {
-    return base::ErrStatus(
-        "%s: missing value for input argument. Saw %zu arguments but expected "
-        "%zu",
-        state_->prototype.function_name.c_str(), seen_argument_constraints,
-        state_->prototype.arguments.size());
-  }
 
   // Prepare the SQL definition as a statement using SQLite.
   // TODO(lalitm): measure and implement whether it would be a good idea to
   // forward constraints here when we build the nested query.
-  if (stmt_) {
+  if (c->stmt) {
     // Filter can be called multiple times for the same cursor, so if we
     // already have a statement, reset and reuse it. Otherwise, create a
     // new one.
-    ResetStatement(stmt_->sqlite_stmt());
+    ResetStatement(c->stmt->sqlite_stmt());
   } else {
-    auto stmt = table_->engine_->sqlite_engine()->PrepareStatement(
-        state_->sql_defn_str);
-    RETURN_IF_ERROR(stmt.status());
-    stmt_ = std::move(stmt);
+    auto stmt = s->engine->sqlite_engine()->PrepareStatement(s->sql_defn_str);
+    c->stmt = std::move(stmt);
+    if (const auto& status = c->stmt->status(); !status.ok()) {
+      return sqlite::utils::SetError(t, status.c_message());
+    }
   }
 
   // Bind all the arguments to the appropriate places in the function.
-  for (size_t i = 0; i < qc.constraints().size(); ++i) {
-    const auto& cs = qc.constraints()[i];
-
-    // Don't deal with any constraints on the output parameters for simplicty.
-    // TODO(lalitm): reconsider this decision to allow more efficient queries:
-    // we would need to wrap the query in a SELECT * FROM (...) WHERE constraint
-    // like we do for SPAN JOIN.
-    if (!state_->IsArgumentColumn(static_cast<size_t>(cs.column)))
-      continue;
-
-    uint32_t index = col_to_arg_idx(cs.column);
-    PERFETTO_DCHECK(index < state_->prototype.arguments.size());
-
-    const auto& arg = state_->prototype.arguments[index];
-    auto status = MaybeBindArgument(
-        stmt_->sqlite_stmt(), state_->prototype.function_name, arg, argv[i]);
-    RETURN_IF_ERROR(status);
+  for (uint32_t i = 0; i < static_cast<uint32_t>(argc); ++i) {
+    const auto& arg = s->prototype.arguments[i];
+    base::Status status = MaybeBindArgument(
+        c->stmt->sqlite_stmt(), s->prototype.function_name, arg, argv[i]);
+    if (!status.ok()) {
+      return sqlite::utils::SetError(t, status.c_message());
+    }
   }
 
   // Reset the next call count - this is necessary because the same cursor
   // can be used for multiple filter operations.
-  next_call_count_ = 0;
-  return Next();
+  c->next_call_count = 0;
+  return Next(cur);
 }
 
-base::Status RuntimeTableFunction::Cursor::Next() {
-  is_eof_ = !stmt_->Step();
-  next_call_count_++;
-  return stmt_->status();
+int RuntimeTableFunctionModule::Next(sqlite3_vtab_cursor* cur) {
+  auto* c = GetCursor(cur);
+  c->is_eof = !c->stmt->Step();
+  c->next_call_count++;
+  if (const auto& status = c->stmt->status(); !status.ok()) {
+    return sqlite::utils::SetError(cur->pVtab, status.c_message());
+  }
+  return SQLITE_OK;
 }
 
-bool RuntimeTableFunction::Cursor::Eof() {
-  return is_eof_;
+int RuntimeTableFunctionModule::Eof(sqlite3_vtab_cursor* cur) {
+  return GetCursor(cur)->is_eof;
 }
 
-base::Status RuntimeTableFunction::Cursor::Column(sqlite3_context* ctx, int i) {
-  size_t idx = static_cast<size_t>(i);
-  if (state_->IsReturnValueColumn(idx)) {
-    sqlite3_result_value(ctx, sqlite3_column_value(stmt_->sqlite_stmt(), i));
-  } else if (state_->IsArgumentColumn(idx)) {
+int RuntimeTableFunctionModule::Column(sqlite3_vtab_cursor* cur,
+                                       sqlite3_context* ctx,
+                                       int N) {
+  auto* c = GetCursor(cur);
+  auto* t = GetVtab(cur->pVtab);
+  auto* s = sqlite::ModuleStateManager<RuntimeTableFunctionModule>::GetState(
+      t->state);
+
+  auto idx = static_cast<size_t>(N);
+  if (PERFETTO_LIKELY(s->IsReturnValueColumn(idx))) {
+    sqlite::result::Value(ctx, sqlite3_column_value(c->stmt->sqlite_stmt(), N));
+    return SQLITE_OK;
+  }
+
+  if (PERFETTO_LIKELY(s->IsArgumentColumn(idx))) {
     // TODO(lalitm): it may be more appropriate to keep a note of the arguments
     // which we passed in and return them here. Not doing this to because it
     // doesn't seem necessary for any useful thing but something which may need
     // to be changed in the future.
-    sqlite3_result_null(ctx);
-  } else {
-    PERFETTO_DCHECK(state_->IsPrimaryKeyColumn(idx));
-    sqlite3_result_int(ctx, next_call_count_);
+    sqlite::result::Null(ctx);
+    return SQLITE_OK;
   }
-  return base::OkStatus();
+
+  PERFETTO_DCHECK(s->IsPrimaryKeyColumn(idx));
+  sqlite::result::Long(ctx, c->next_call_count);
+  return SQLITE_OK;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+int RuntimeTableFunctionModule::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
+  return SQLITE_ERROR;
+}
+
+}  // namespace perfetto::trace_processor

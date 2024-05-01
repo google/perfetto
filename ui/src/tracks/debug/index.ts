@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import {uuidv4} from '../../base/uuid';
-import {DEBUG_COUNTER_TRACK_URI, DEBUG_SLICE_TRACK_URI} from '../../frontend/debug_tracks';
+import {
+  DEBUG_COUNTER_TRACK_URI,
+  DEBUG_SLICE_TRACK_URI,
+} from '../../frontend/debug_tracks';
 import {
   BottomTabToSCSAdapter,
   Plugin,
-  PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
@@ -28,28 +30,30 @@ import {DebugTrackV2} from './slice_track';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 
 class DebugTrackPlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerTrack({
       uri: DEBUG_SLICE_TRACK_URI,
       trackFactory: (trackCtx) => new DebugTrackV2(ctx.engine, trackCtx),
     });
 
-    ctx.registerDetailsPanel(new BottomTabToSCSAdapter({
-      tabFactory: (selection) => {
-        if (selection.kind === 'GENERIC_SLICE' &&
-            selection.detailsPanelConfig.kind === DebugSliceDetailsTab.kind) {
-          const config = selection.detailsPanelConfig.config;
-          return new DebugSliceDetailsTab({
-            config: config as GenericSliceDetailsTabConfig,
-            engine: ctx.engine,
-            uuid: uuidv4(),
-          });
-        }
-        return undefined;
-      },
-    }));
+    ctx.registerDetailsPanel(
+      new BottomTabToSCSAdapter({
+        tabFactory: (selection) => {
+          if (
+            selection.kind === 'GENERIC_SLICE' &&
+            selection.detailsPanelConfig.kind === DebugSliceDetailsTab.kind
+          ) {
+            const config = selection.detailsPanelConfig.config;
+            return new DebugSliceDetailsTab({
+              config: config as GenericSliceDetailsTabConfig,
+              engine: ctx.engine,
+              uuid: uuidv4(),
+            });
+          }
+          return undefined;
+        },
+      }),
+    );
 
     ctx.registerTrack({
       uri: DEBUG_COUNTER_TRACK_URI,

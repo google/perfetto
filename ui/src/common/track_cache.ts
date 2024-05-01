@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Disposable, DisposableCallback} from '../base/disposable';
+import {exists} from '../base/utils';
+import {Registry} from '../base/registry';
+import {Store} from '../base/store';
 import {PanelSize} from '../frontend/panel';
-import {Store} from '../frontend/store';
 import {
   Migrate,
   Track,
@@ -22,7 +25,7 @@ import {
   TrackRef,
 } from '../public';
 
-import {State} from './state';
+import {ObjectByKey, State, TrackState} from './state';
 
 export interface TrackCacheEntry {
   track: Track;
@@ -55,30 +58,33 @@ export interface TrackCacheEntry {
 // Third cycle
 //   flushTracks() <-- 'foo' is destroyed.
 export class TrackManager {
-  private safeCache = new Map<string, TrackCacheEntry>();
-  private recycleBin = new Map<string, TrackCacheEntry>();
-  private trackRegistry = new Map<string, TrackDescriptor>();
+  private _trackKeyByTrackId = new Map<number, string>();
+  private newTracks = new Map<string, TrackCacheEntry>();
+  private currentTracks = new Map<string, TrackCacheEntry>();
+  private trackRegistry = new Registry<TrackDescriptor>(({uri}) => uri);
   private defaultTracks = new Set<TrackRef>();
+
   private store: Store<State>;
+  private trackState?: ObjectByKey<TrackState>;
 
   constructor(store: Store<State>) {
     this.store = store;
   }
 
-  registerTrack(trackDesc: TrackDescriptor): void {
-    this.trackRegistry.set(trackDesc.uri, trackDesc);
+  get trackKeyByTrackId() {
+    this.updateTrackKeyByTrackIdMap();
+    return this._trackKeyByTrackId;
   }
 
-  unregisterTrack(uri: string): void {
-    this.trackRegistry.delete(uri);
+  registerTrack(trackDesc: TrackDescriptor): Disposable {
+    return this.trackRegistry.register(trackDesc);
   }
 
-  addDefaultTrack(track: TrackRef): void {
+  addPotentialTrack(track: TrackRef): Disposable {
     this.defaultTracks.add(track);
-  }
-
-  removeDefaultTrack(track: TrackRef): void {
-    this.defaultTracks.delete(track);
+    return new DisposableCallback(() => {
+      this.defaultTracks.delete(track);
+    });
   }
 
   findPotentialTracks(): TrackRef[] {
@@ -91,16 +97,19 @@ export class TrackManager {
 
   // Look up track into for a given track's URI.
   // Returns |undefined| if no track can be found.
-  resolveTrackInfo(uri: string): TrackDescriptor|undefined {
-    return this.trackRegistry.get(uri);
+  resolveTrackInfo(uri: string): TrackDescriptor | undefined {
+    return this.trackRegistry.tryGet(uri);
   }
 
   // Creates a new track using |uri| and |params| or retrieves a cached track if
   // |key| exists in the cache.
-  resolveTrack(key: string, trackDesc: TrackDescriptor, params?: unknown):
-      TrackCacheEntry {
-    // Search for a cached version of this track in either of the caches.
-    const cached = this.recycleBin.get(key) ?? this.safeCache.get(key);
+  resolveTrack(
+    key: string,
+    trackDesc: TrackDescriptor,
+    params?: unknown,
+  ): TrackCacheEntry {
+    // Search for a cached version of this track,
+    const cached = this.currentTracks.get(key);
 
     // Ensure the cached track has the same factory type as the resolved track.
     // If this has changed, the track should be re-created.
@@ -110,8 +119,7 @@ export class TrackManager {
 
       // Move this track from the recycle bin to the safe cache, which means
       // it's safe from disposal for this cycle.
-      this.safeCache.set(key, cached);
-      this.recycleBin.delete(key);
+      this.newTracks.set(key, cached);
 
       return cached;
     } else {
@@ -128,30 +136,57 @@ export class TrackManager {
       const entry = new TrackFSM(track, trackDesc, trackContext);
 
       // Push track into the safe cache.
-      this.safeCache.set(key, entry);
+      this.newTracks.set(key, entry);
       return entry;
     }
   }
 
-  // Destroys all tracks in the recycle bin and moves all safe tracks into
-  // the recycle bin.
+  // Destroys all current tracks not present in the new cache.
   flushOldTracks() {
-    for (const entry of this.recycleBin.values()) {
-      entry.destroy();
+    for (const [key, entry] of this.currentTracks.entries()) {
+      if (!this.newTracks.has(key)) {
+        entry.destroy();
+      }
     }
 
-    this.recycleBin = this.safeCache;
-    this.safeCache = new Map<string, TrackCacheEntry>();
+    this.currentTracks = this.newTracks;
+    this.newTracks = new Map<string, TrackCacheEntry>();
+  }
+
+  private updateTrackKeyByTrackIdMap() {
+    if (this.trackState === this.store.state.tracks) {
+      return;
+    }
+
+    const trackKeyByTrackId = new Map<number, string>();
+
+    const trackList = Object.entries(this.store.state.tracks);
+    trackList.forEach(([key, {uri}]) => {
+      const desc = this.trackRegistry.get(uri);
+      for (const trackId of desc?.trackIds ?? []) {
+        const existingKey = trackKeyByTrackId.get(trackId);
+        if (exists(existingKey)) {
+          throw new Error(
+            `Trying to map track id ${trackId} to UI track ${key}, already mapped to ${existingKey}`,
+          );
+        }
+        trackKeyByTrackId.set(trackId, key);
+      }
+    });
+
+    this._trackKeyByTrackId = trackKeyByTrackId;
+    this.trackState = this.store.state.tracks;
   }
 }
 
-enum TrackState {
+enum TrackFSMState {
+  NotCreated = 'not_created',
   Creating = 'creating',
   Ready = 'ready',
   UpdatePending = 'update_pending',
   Updating = 'updating',
   DestroyPending = 'destroy_pending',
-  Destroyed = 'destroyed',  // <- Final state, cannot escape.
+  Destroyed = 'destroyed', // <- Final state, cannot escape.
   Error = 'error',
 }
 
@@ -160,121 +195,127 @@ enum TrackState {
  * hooks are called synchronously and in the correct order.
  */
 class TrackFSM implements TrackCacheEntry {
-  private state: TrackState;
+  private state: TrackFSMState;
   private error?: Error;
 
   constructor(
-      public track: Track, public desc: TrackDescriptor, ctx: TrackContext) {
-    this.state = TrackState.Creating;
-    const result = this.track.onCreate?.(ctx);
-    Promise.resolve(result)
-      .then(() => this.onTrackCreated())
-      .catch((e) => {
-        this.error = e;
-        this.state = TrackState.Error;
-      });
+    public track: Track,
+    public desc: TrackDescriptor,
+    private readonly ctx: TrackContext,
+  ) {
+    this.state = TrackFSMState.NotCreated;
   }
 
   update(): void {
     switch (this.state) {
-    case TrackState.Creating:
-    case TrackState.Updating:
-      this.state = TrackState.UpdatePending;
-      break;
-    case TrackState.Ready:
-      const result = this.track.onUpdate?.();
-      Promise.resolve(result)
-        .then(() => this.onTrackUpdated())
-        .catch((e) => {
-          this.error = e;
-          this.state = TrackState.Error;
-        });
-      this.state = TrackState.Updating;
-      break;
-    case TrackState.UpdatePending:
-      // Update already pending... do nothing!
-      break;
-    case TrackState.Error:
-      break;
-    default:
-      throw new Error('Invalid state transition');
+      case TrackFSMState.NotCreated:
+        Promise.resolve(this.track.onCreate?.(this.ctx))
+          .then(() => this.onTrackCreated())
+          .catch((e) => {
+            this.error = e;
+            this.state = TrackFSMState.Error;
+          });
+        this.state = TrackFSMState.Creating;
+        break;
+      case TrackFSMState.Creating:
+      case TrackFSMState.Updating:
+        this.state = TrackFSMState.UpdatePending;
+        break;
+      case TrackFSMState.Ready:
+        const result = this.track.onUpdate?.();
+        Promise.resolve(result)
+          .then(() => this.onTrackUpdated())
+          .catch((e) => {
+            this.error = e;
+            this.state = TrackFSMState.Error;
+          });
+        this.state = TrackFSMState.Updating;
+        break;
+      case TrackFSMState.UpdatePending:
+        // Update already pending... do nothing!
+        break;
+      case TrackFSMState.Error:
+        break;
+      default:
+        throw new Error('Invalid state transition');
     }
   }
 
   destroy(): void {
     switch (this.state) {
-    case TrackState.Ready:
-      // Don't bother awaiting this as the track can no longer be used.
-      Promise.resolve(this.track.onDestroy?.())
-        .catch(() => {
+      case TrackFSMState.NotCreated:
+        // Nothing to do
+        this.state = TrackFSMState.Destroyed;
+        break;
+      case TrackFSMState.Ready:
+        // Don't bother awaiting this as the track can no longer be used.
+        Promise.resolve(this.track.onDestroy?.()).catch(() => {
           // Track crashed while being destroyed
           // There's not a lot we can do here - just swallow the error
         });
-      this.state = TrackState.Destroyed;
-      break;
-    case TrackState.Creating:
-    case TrackState.Updating:
-    case TrackState.UpdatePending:
-      this.state = TrackState.DestroyPending;
-      break;
-    case TrackState.Error:
-      break;
-    default:
-      throw new Error('Invalid state transition');
+        this.state = TrackFSMState.Destroyed;
+        break;
+      case TrackFSMState.Creating:
+      case TrackFSMState.Updating:
+      case TrackFSMState.UpdatePending:
+        this.state = TrackFSMState.DestroyPending;
+        break;
+      case TrackFSMState.Error:
+        break;
+      default:
+        throw new Error('Invalid state transition');
     }
   }
 
   private onTrackCreated() {
     switch (this.state) {
-    case TrackState.DestroyPending:
-      // Don't bother awaiting this as the track can no longer be used.
-      this.track.onDestroy?.();
-      this.state = TrackState.Destroyed;
-      break;
-    case TrackState.UpdatePending:
-      const result = this.track.onUpdate?.();
-      Promise.resolve(result)
-        .then(() => this.onTrackUpdated())
-        .catch((e) => {
-          this.error = e;
-          this.state = TrackState.Error;
-        });
-      this.state = TrackState.Updating;
-      break;
-    case TrackState.Creating:
-      this.state = TrackState.Ready;
-      break;
-    case TrackState.Error:
-      break;
-    default:
-      throw new Error('Invalid state transition');
+      case TrackFSMState.DestroyPending:
+        // Don't bother awaiting this as the track can no longer be used.
+        this.track.onDestroy?.();
+        this.state = TrackFSMState.Destroyed;
+        break;
+      case TrackFSMState.Creating:
+      case TrackFSMState.UpdatePending:
+        const result = this.track.onUpdate?.();
+        Promise.resolve(result)
+          .then(() => this.onTrackUpdated())
+          .catch((e) => {
+            this.error = e;
+            this.state = TrackFSMState.Error;
+          });
+        this.state = TrackFSMState.Updating;
+        break;
+      case TrackFSMState.Error:
+        break;
+      default:
+        throw new Error('Invalid state transition');
     }
   }
 
   private onTrackUpdated() {
     switch (this.state) {
-    case TrackState.DestroyPending:
-      // Don't bother awaiting this as the track can no longer be used.
-      this.track.onDestroy?.();
-      this.state = TrackState.Destroyed;
-      break;
-    case TrackState.UpdatePending:
-      const result = this.track.onUpdate?.();
-      Promise.resolve(result)
-        .then(() => this.onTrackUpdated())
-        .catch((e) => {
-          this.error = e;
-          this.state = TrackState.Error;
-        });
-      this.state = TrackState.Updating;
-      break;
-    case TrackState.Updating:
-      this.state = TrackState.Ready;
-      break;
-    case TrackState.Error:
-      break;
-    default:
-      throw new Error('Invalid state transition');
+      case TrackFSMState.DestroyPending:
+        // Don't bother awaiting this as the track can no longer be used.
+        this.track.onDestroy?.();
+        this.state = TrackFSMState.Destroyed;
+        break;
+      case TrackFSMState.UpdatePending:
+        const result = this.track.onUpdate?.();
+        Promise.resolve(result)
+          .then(() => this.onTrackUpdated())
+          .catch((e) => {
+            this.error = e;
+            this.state = TrackFSMState.Error;
+          });
+        this.state = TrackFSMState.Updating;
+        break;
+      case TrackFSMState.Updating:
+        this.state = TrackFSMState.Ready;
+        break;
+      case TrackFSMState.Error:
+        break;
+      default:
+        throw new Error('Invalid state transition');
     }
   }
 
@@ -282,12 +323,12 @@ class TrackFSM implements TrackCacheEntry {
     try {
       this.track.render(ctx, size);
     } catch {
-      this.state = TrackState.Error;
+      this.state = TrackFSMState.Error;
     }
   }
 
   getError(): Error | undefined {
-    if (this.state === TrackState.Error) {
+    if (this.state === TrackFSMState.Error) {
       return this.error;
     } else {
       return undefined;

@@ -15,7 +15,8 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {Disposable, Trash} from '../base/disposable';
-import {time} from '../base/time';
+import {Registry} from '../base/registry';
+import {Span, duration, time} from '../base/time';
 import {globals} from '../frontend/globals';
 import {
   Command,
@@ -24,7 +25,6 @@ import {
   MetricVisualisation,
   Migrate,
   Plugin,
-  PluginClass,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
@@ -39,13 +39,13 @@ import {
 import {Engine} from '../trace_processor/engine';
 
 import {Actions} from './actions';
-import {Registry} from './registry';
 import {SCROLLING_TRACK_GROUP} from './state';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Flag, featureFlags} from '../core/feature_flags';
 import {assertExists} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
-import {defaultPlugins} from './default_plugins';
+import {defaultPlugins} from '../core/default_plugins';
+import {HighPrecisionTimeSpan} from './high_precision_time';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -57,14 +57,18 @@ export class PluginContextImpl implements PluginContext, Disposable {
 
   readonly sidebar = {
     hide() {
-      globals.dispatch(Actions.setSidebar({
-        visible: false,
-      }));
+      globals.dispatch(
+        Actions.setSidebar({
+          visible: false,
+        }),
+      );
     },
     show() {
-      globals.dispatch(Actions.setSidebar({
-        visible: true,
-      }));
+      globals.dispatch(
+        Actions.setSidebar({
+          visible: true,
+        }),
+      );
     },
     isVisible() {
       return globals.state.sidebarVisible;
@@ -75,14 +79,14 @@ export class PluginContextImpl implements PluginContext, Disposable {
     // Silently ignore if context is dead.
     if (!this.alive) return;
 
-    const disposable = globals.commandManager.registry.register(cmd);
+    const disposable = globals.commandManager.registerCommand(cmd);
     this.trash.add(disposable);
-  };
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   runCommand(id: string, ...args: any[]): any {
     return globals.commandManager.runCommand(id, ...args);
-  };
+  }
 
   constructor(readonly pluginId: string) {}
 
@@ -108,25 +112,27 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     // Silently ignore if context is dead.
     if (!this.alive) return;
 
-    const disposable = globals.commandManager.registry.register(cmd);
-    this.trash.add(disposable);
+    const dispose = globals.commandManager.registerCommand(cmd);
+    this.trash.add(dispose);
   }
 
   registerTrack(trackDesc: TrackDescriptor): void {
     // Silently ignore if context is dead.
     if (!this.alive) return;
-    globals.trackManager.registerTrack(trackDesc);
-    this.trash.addCallback(
-      () => globals.trackManager.unregisterTrack(trackDesc.uri));
+
+    const dispose = globals.trackManager.registerTrack(trackDesc);
+    this.trash.add(dispose);
   }
 
   addDefaultTrack(track: TrackRef): void {
-    globals.trackManager.addDefaultTrack(track);
-    this.trash.addCallback(
-      () => globals.trackManager.removeDefaultTrack(track));
+    // Silently ignore if context is dead.
+    if (!this.alive) return;
+
+    const dispose = globals.trackManager.addPotentialTrack(track);
+    this.trash.add(dispose);
   }
 
-  registerStaticTrack(track: TrackDescriptor&TrackRef): void {
+  registerStaticTrack(track: TrackDescriptor & TrackRef): void {
     this.registerTrack(track);
     this.addDefaultTrack(track);
   }
@@ -165,13 +171,11 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
       addQueryResultsTab({query, title});
     },
 
-    showTab(uri: string):
-        void {
+    showTab(uri: string): void {
       globals.dispatch(Actions.showTab({uri}));
     },
 
-    hideTab(uri: string):
-        void {
+    hideTab(uri: string): void {
       globals.dispatch(Actions.hideTab({uri}));
     },
   };
@@ -184,19 +188,20 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     // Add a new track to the timeline, returning its key.
     addTrack(uri: string, displayName: string, params?: unknown): string {
       const trackKey = uuidv4();
-      globals.dispatch(Actions.addTrack({
-        key: trackKey,
-        uri,
-        name: displayName,
-        params,
-        trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-        trackGroup: SCROLLING_TRACK_GROUP,
-      }));
+      globals.dispatch(
+        Actions.addTrack({
+          key: trackKey,
+          uri,
+          name: displayName,
+          params,
+          trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
+          trackGroup: SCROLLING_TRACK_GROUP,
+        }),
+      );
       return trackKey;
     },
 
-    removeTrack(key: string):
-        void {
+    removeTrack(key: string): void {
       globals.dispatch(Actions.removeTracks({trackKeys: [key]}));
     },
 
@@ -219,9 +224,11 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
           name: track.name,
         };
         if (predicate(tags) && !isPinned(track.key)) {
-          globals.dispatch(Actions.toggleTrackPinned({
-            trackKey: track.key,
-          }));
+          globals.dispatch(
+            Actions.toggleTrackPinned({
+              trackKey: track.key,
+            }),
+          );
         }
       }
     },
@@ -233,9 +240,11 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
           name: track.name,
         };
         if (predicate(tags) && isPinned(track.key)) {
-          globals.dispatch(Actions.toggleTrackPinned({
-            trackKey: track.key,
-          }));
+          globals.dispatch(
+            Actions.toggleTrackPinned({
+              trackKey: track.key,
+            }),
+          );
         }
       }
     },
@@ -289,8 +298,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
       }
     },
 
-    get tracks():
-        TrackRef[] {
+    get tracks(): TrackRef[] {
       return Object.values(globals.state.tracks).map((trackState) => {
         return {
           displayName: trackState.name,
@@ -300,9 +308,17 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
       });
     },
 
-    panToTimestamp(ts: time):
-        void {
+    panToTimestamp(ts: time): void {
       globals.panToTimestamp(ts);
+    },
+
+    setViewportTime(start: time, end: time): void {
+      const interval = HighPrecisionTimeSpan.fromTime(start, end);
+      globals.timeline.updateVisibleTime(interval);
+    },
+
+    get viewport(): Span<time, duration> {
+      return globals.timeline.visibleTimeSpan;
     },
   };
 
@@ -314,6 +330,12 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   mountStore<T>(migrate: Migrate<T>): Store<T> {
     return globals.store.createSubStore(['plugins', this.pluginId], migrate);
   }
+
+  readonly trace = {
+    get span(): Span<time, duration> {
+      return globals.stateTraceTimeTP();
+    },
+  };
 }
 
 function isPinned(trackId: string): boolean {
@@ -329,25 +351,18 @@ export class PluginRegistry extends Registry<PluginDescriptor> {
 
 export interface PluginDetails {
   plugin: Plugin;
-  context: PluginContext&Disposable;
+  context: PluginContext & Disposable;
   traceContext?: PluginContextTraceImpl;
   previousOnTraceLoadTimeMillis?: number;
-}
-
-function isPluginClass(v: unknown): v is PluginClass {
-  return typeof v === 'function' && !!(v.prototype.onActivate);
 }
 
 function makePlugin(info: PluginDescriptor): Plugin {
   const {plugin} = info;
 
+  // Class refs are functions, concrete plugins are not
   if (typeof plugin === 'function') {
-    if (isPluginClass(plugin)) {
-      const PluginClass = plugin;
-      return new PluginClass();
-    } else {
-      return plugin();
-    }
+    const PluginClass = plugin;
+    return new PluginClass();
   } else {
     return plugin;
   }
@@ -396,7 +411,7 @@ export class PluginManager {
     if (flag) {
       flag.set(true);
     }
-    now && await this.activatePlugin(id);
+    now && (await this.activatePlugin(id));
   }
 
   /**
@@ -409,7 +424,7 @@ export class PluginManager {
     if (flag) {
       flag.set(false);
     }
-    now && await this.deactivatePlugin(id);
+    now && (await this.deactivatePlugin(id));
   }
 
   /**
@@ -426,7 +441,7 @@ export class PluginManager {
 
     const context = new PluginContextImpl(id);
 
-    plugin.onActivate(context);
+    plugin.onActivate?.(context);
 
     const pluginDetails: PluginDetails = {
       plugin,
@@ -493,11 +508,14 @@ export class PluginManager {
     return Boolean(this.flags.get(pluginId)?.get());
   }
 
-  getPluginContext(pluginId: string): PluginDetails|undefined {
+  getPluginContext(pluginId: string): PluginDetails | undefined {
     return this._plugins.get(pluginId);
   }
 
-  async onTraceLoad(engine: Engine): Promise<void> {
+  async onTraceLoad(
+    engine: Engine,
+    beforeEach?: (id: string) => void,
+  ): Promise<void> {
     this.engine = engine;
     const plugins = Array.from(this._plugins.entries());
     // Awaiting all plugins in parallel will skew timing data as later plugins
@@ -506,6 +524,7 @@ export class PluginManager {
     // most plugins use the same engine, which can only process one query at a
     // time.
     for (const [id, pluginDetails] of plugins) {
+      beforeEach?.(id);
       await doPluginTraceLoad(pluginDetails, engine, id);
     }
   }
@@ -532,7 +551,8 @@ export class PluginManager {
 async function doPluginTraceLoad(
   pluginDetails: PluginDetails,
   engine: Engine,
-  pluginId: string): Promise<void> {
+  pluginId: string,
+): Promise<void> {
   const {plugin, context} = pluginDetails;
 
   const engineProxy = engine.getProxy(pluginId);
@@ -551,16 +571,16 @@ async function doPluginTraceLoad(
 }
 
 async function doPluginTraceUnload(
-  pluginDetails: PluginDetails): Promise<void> {
+  pluginDetails: PluginDetails,
+): Promise<void> {
   const {traceContext, plugin} = pluginDetails;
 
   if (traceContext) {
-    plugin.onTraceUnload && await plugin.onTraceUnload(traceContext);
+    plugin.onTraceUnload && (await plugin.onTraceUnload(traceContext));
     traceContext.dispose();
     pluginDetails.traceContext = undefined;
   }
 }
-
 
 // TODO(hjd): Sort out the story for global singletons like these:
 export const pluginRegistry = new PluginRegistry();

@@ -16,22 +16,31 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.h"
 
+#include <sqlite3.h>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 namespace {
 
 class SpanJoinOperatorTableTest : public ::testing::Test {
  public:
   SpanJoinOperatorTableTest() {
-    engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-        "span_join", &engine_, SqliteTable::TableType::kExplicitCreate, false);
-    engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-        "span_left_join", &engine_, SqliteTable::TableType::kExplicitCreate,
-        false);
+    engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+        "span_join",
+        std::make_unique<SpanJoinOperatorModule::Context>(&engine_));
+    engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorModule>(
+        "span_left_join",
+        std::make_unique<SpanJoinOperatorModule::Context>(&engine_));
   }
 
   void PrepareValidStatement(const std::string& sql) {
@@ -48,7 +57,7 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
     ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_DONE);
   }
 
-  void AssertNextRow(const std::vector<int64_t> elements) {
+  void AssertNextRow(const std::vector<int64_t>& elements) {
     ASSERT_EQ(sqlite3_step(stmt_.get()), SQLITE_ROW);
     for (size_t i = 0; i < elements.size(); ++i) {
       ASSERT_EQ(sqlite3_column_int64(stmt_.get(), static_cast<int>(i)),
@@ -379,5 +388,4 @@ TEST_F(SpanJoinOperatorTableTest, CapitalizedLeftJoin) {
 }
 
 }  // namespace
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

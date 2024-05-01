@@ -12,15 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
-import {SimpleSliceTrack, SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
-import {SimpleCounterTrack, SimpleCounterTrackConfig} from '../../frontend/simple_counter_track';
+import {
+  SimpleSliceTrack,
+  SimpleSliceTrackConfig,
+} from '../../frontend/simple_slice_track';
+import {CounterOptions} from '../../frontend/base_counter_track';
+import {
+  SimpleCounterTrack,
+  SimpleCounterTrackConfig,
+} from '../../frontend/simple_counter_track';
 
 const DEFAULT_NETWORK = `
   with base as (
@@ -249,6 +251,37 @@ const MODEM_RIL_CHANNELS = `
   SELECT ts, dur, slot_name || "-" || attrib_name || "=" || name AS name
   FROM Stage3`;
 
+const MODEM_CELL_RESELECTION = `
+  with base as (
+    select
+        ts,
+        s.name as raw_ril,
+        ifnull(str_split(str_split(s.name, 'CellIdentityLte{', 1), ', operatorNames', 0),
+            str_split(str_split(s.name, 'CellIdentityNr{', 1), ', operatorNames', 0)) as cell_id
+    from track t join slice s on t.id = s.track_id
+    where t.name = 'RIL' and s.name like '%DATA_REGISTRATION_STATE%'
+  ),
+  base2 as (
+    select
+        ts,
+        raw_ril,
+        case
+            when cell_id like '%earfcn%' then 'LTE ' || cell_id
+            when cell_id like '%nrarfcn%' then 'NR ' || cell_id
+            when cell_id is null then 'Unknown'
+            else cell_id
+        end as cell_id
+    from base
+  ),
+  base3 as (
+    select ts, cell_id , lag(cell_id) over (order by ts) as lag_cell_id, raw_ril
+    from base2
+  )
+  select ts, 0 as dur, cell_id as name, raw_ril
+  from base3
+  where cell_id != lag_cell_id
+  order by ts`;
+
 const SUSPEND_RESUME = `
   SELECT
     ts,
@@ -410,32 +443,21 @@ const KERNEL_WAKELOCKS = `
       wakelock_dur
     from step2
     where wakelock_dur is not null
-      and wakelock_dur > 0
-      and count >= 0
-  ),
-  step4 as (
-    select
-      ts,
-      ts_end,
-      suspended_dur,
-      wakelock_name,
-      count,
-      1.0 * wakelock_dur / (ts_end - ts - suspended_dur) as ratio,
-      wakelock_dur
-    from step3
+      and wakelock_dur >= 0
   )
   select
     ts,
-    min(ratio, 1) * (ts_end - ts) as dur,
+    ts_end - ts as dur,
     wakelock_name,
-    cast (100.0 * ratio as int) || '% (+' || count || ')' as name
-    from step4
-  where cast (100.0 * wakelock_dur / (ts_end - ts - suspended_dur) as int) > 1`;
+    min(100.0 * wakelock_dur / (ts_end - ts - suspended_dur), 100) as value
+  from step3`;
 
 const KERNEL_WAKELOCKS_SUMMARY = `
-  select distinct wakelock_name
+  select wakelock_name, max(value) as max_value
   from kernel_wakelocks
   where wakelock_name not in ('PowerManager.SuspendLockout', 'PowerManagerService.Display')
+  group by 1
+  having max_value > 1
   order by 1;`;
 
 const HIGH_CPU = `
@@ -710,8 +732,7 @@ function bleScanQuery(condition: string) {
           lead(ts) over (partition by name order by ts) - ts as dur
       from step1
   )
-  select ts, dur, name from step2 where state = 'ON' and ${
-  condition} and dur is not null`;
+  select ts, dur, name from step2 where state = 'ON' and ${condition} and dur is not null`;
 }
 
 const BLE_RESULTS = `
@@ -916,8 +937,12 @@ const BT_RSSI_REPORTS = `
     'Connection '|| connection_handle as name
   from base`;
 
-const BT_RSSI_REPORTS_COLUMNS =
-    ['connection_handle', 'hci_status', 'rssi', 'metric_id'];
+const BT_RSSI_REPORTS_COLUMNS = [
+  'connection_handle',
+  'hci_status',
+  'rssi',
+  'metric_id',
+];
 
 const BT_CODE_PATH_COUNTER = `
   with base as (
@@ -956,15 +981,113 @@ const BT_HAL_CRASHES = `
 
 const BT_HAL_CRASHES_COLUMNS = ['metric_id', 'error_code', 'vendor_error_code'];
 
-class AndroidLongBatteryTracing implements Plugin {
-  onActivate(_: PluginContext): void {}
+const BT_BYTES = `
+  with step1 as (
+    select
+        ts,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_bytes_transfer.uid') as uid,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_bytes_transfer.tx_bytes') as tx_bytes,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_bytes_transfer.rx_bytes') as rx_bytes
+    from track t join slice s on t.id = s.track_id
+    where t.name = 'Statsd Atoms'
+    and s.name = 'bluetooth_bytes_transfer'
+  ),
+  step2 as (
+    select
+        ts,
+        lead(ts) over (partition by uid order by ts) - ts as dur,
+        uid,
+        lead(tx_bytes) over (partition by uid order by ts) - tx_bytes as tx_bytes,
+        lead(rx_bytes) over (partition by uid order by ts) - rx_bytes as rx_bytes
+    from step1
+  ),
+  step3 as (
+    select
+        ts,
+        dur,
+        uid % 100000 as uid,
+        sum(tx_bytes) as tx_bytes,
+        sum(rx_bytes) as rx_bytes
+    from step2
+    where tx_bytes >=0 and rx_bytes >=0
+    group by 1,2,3
+    having tx_bytes > 0 or rx_bytes > 0
+  ),
+  app_package_list as (
+  select
+    uid,
+    group_concat(package_name) as package_name
+  from package_list
+  where uid >= 10000
+  group by 1
+  )
+    select
+        ts,
+        dur,
+        case
+            when pl.package_name is null then 'uid=' || uid
+            else pl.package_name
+        end || ' TX ' || tx_bytes || ' bytes / RX ' || rx_bytes || ' bytes' as name
+    from step3 left join app_package_list pl using(uid)
+`;
 
+// See go/bt_system_context_report for reference on the bit-twiddling.
+const BT_ACTIVITY = `
+  create perfetto table bt_activity as
+  with step1 as (
+    select
+        EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.timestamp_millis') * 1000000 as ts,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.bluetooth_stack_state') as bluetooth_stack_state,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.controller_idle_time_millis') * 1000000 as controller_idle_dur,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.controller_tx_time_millis') * 1000000 as controller_tx_dur,
+        EXTRACT_ARG(arg_set_id, 'bluetooth_activity_info.controller_rx_time_millis') * 1000000 as controller_rx_dur
+    from track t join slice s on t.id = s.track_id
+    where t.name = 'Statsd Atoms'
+    and s.name = 'bluetooth_activity_info'
+  ),
+  step2 as (
+    select
+        ts,
+        lead(ts) over (order by ts) - ts as dur,
+        bluetooth_stack_state,
+        lead(controller_idle_dur) over (order by ts) - controller_idle_dur as controller_idle_dur,
+        lead(controller_tx_dur) over (order by ts) - controller_tx_dur as controller_tx_dur,
+        lead(controller_rx_dur) over (order by ts) - controller_rx_dur as controller_rx_dur
+    from step1
+  )
+  select
+    ts,
+    dur,
+    bluetooth_stack_state & 0x0000000F as acl_active_count,
+    bluetooth_stack_state & 0x000000F0 >> 4 as acl_sniff_count,
+    bluetooth_stack_state & 0x00000F00 >> 8 as acl_ble_count,
+    bluetooth_stack_state & 0x0000F000 >> 12 as advertising_count,
+    case bluetooth_stack_state & 0x000F0000 >> 16
+      when 0 then 0
+      when 1 then 5
+      when 2 then 10
+      when 3 then 25
+      when 4 then 100
+      else -1
+    end as le_scan_duty_cycle,
+    bluetooth_stack_state & 0x00100000 >> 20 as inquiry_active,
+    bluetooth_stack_state & 0x00200000 >> 21 as sco_active,
+    bluetooth_stack_state & 0x00400000 >> 22 as a2dp_active,
+    bluetooth_stack_state & 0x00800000 >> 23 as le_audio_active,
+    max(0, 100.0 * controller_idle_dur / dur) as controller_idle_pct,
+    max(0, 100.0 * controller_tx_dur / dur) as controller_tx_pct,
+    max(0, 100.0 * controller_rx_dur / dur) as controller_rx_pct
+  from step2
+`;
+
+class AndroidLongBatteryTracing implements Plugin {
   addSliceTrack(
     ctx: PluginContextTrace,
     name: string,
     query: string,
     groupName?: string,
-    columns: string[] = []): void {
+    columns: string[] = [],
+  ): void {
     const config: SimpleSliceTrackConfig = {
       data: {
         sqlSource: query,
@@ -984,14 +1107,19 @@ class AndroidLongBatteryTracing implements Plugin {
   }
 
   addCounterTrack(
-    ctx: PluginContextTrace, name: string, query: string,
-    groupName: string): void {
+    ctx: PluginContextTrace,
+    name: string,
+    query: string,
+    groupName: string,
+    options?: Partial<CounterOptions>,
+  ): void {
     const config: SimpleCounterTrackConfig = {
       data: {
         sqlSource: query,
         columns: ['ts', 'value'],
       },
       columns: {ts: 'ts', value: 'value'},
+      options,
     };
     ctx.registerStaticTrack({
       uri: `dev.perfetto.AndroidLongBatteryTracing#${name}`,
@@ -1004,44 +1132,56 @@ class AndroidLongBatteryTracing implements Plugin {
   }
 
   addBatteryStatsState(
-    ctx: PluginContextTrace, name: string, track: string, groupName: string,
-    features: Set<string>): void {
+    ctx: PluginContextTrace,
+    name: string,
+    track: string,
+    groupName: string,
+    features: Set<string>,
+  ): void {
     if (!features.has(`track.${track}`)) {
       return;
     }
     this.addSliceTrack(
-      ctx, name, `SELECT ts, dur, value_name AS name
+      ctx,
+      name,
+      `SELECT ts, dur, value_name AS name
     FROM android_battery_stats_state
     WHERE track_name = "${track}"`,
-      groupName);
+      groupName,
+    );
   }
 
   addBatteryStatsEvent(
     ctx: PluginContextTrace,
     name: string,
     track: string,
-    groupName: string|undefined,
-    features: Set<string>): void {
+    groupName: string | undefined,
+    features: Set<string>,
+  ): void {
     if (!features.has(`track.${track}`)) {
       return;
     }
 
     this.addSliceTrack(
-      ctx, name, `SELECT ts, dur, str_value AS name
+      ctx,
+      name,
+      `SELECT ts, dur, str_value AS name
     FROM android_battery_stats_event_slices
     WHERE track_name = "${track}"`,
-      groupName);
+      groupName,
+    );
   }
 
-  async addDeviceState(ctx: PluginContextTrace, features: Set<string>):
-      Promise<void> {
+  async addDeviceState(
+    ctx: PluginContextTrace,
+    features: Set<string>,
+  ): Promise<void> {
     if (!features.has('track.battery_stats.*')) {
       return;
     }
 
-    const query =
-        (name: string, track: string) =>
-          this.addBatteryStatsEvent(ctx, name, track, undefined, features);
+    const query = (name: string, track: string) =>
+      this.addBatteryStatsEvent(ctx, name, track, undefined, features);
 
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
@@ -1057,7 +1197,9 @@ class AndroidLongBatteryTracing implements Plugin {
     query('Device State: Top app', 'battery_stats.top');
 
     this.addSliceTrack(
-      ctx, 'Device State: Long wakelocks', `SELECT
+      ctx,
+      'Device State: Long wakelocks',
+      `SELECT
             ts - 60000000000 as ts,
             dur + 60000000000 as dur,
             str_value AS name,
@@ -1066,19 +1208,26 @@ class AndroidLongBatteryTracing implements Plugin {
             int_value) as package
         FROM android_battery_stats_event_slices
         WHERE track_name = "battery_stats.longwake"`,
-      undefined, ['package']);
+      undefined,
+      ['package'],
+    );
 
     query('Device State: Foreground apps', 'battery_stats.fg');
     query('Device State: Jobs', 'battery_stats.job');
 
     if (features.has('atom.thermal_throttling_severity_state_changed')) {
       this.addSliceTrack(
-        ctx, 'Device State: Thermal throttling', THERMAL_THROTTLING);
+        ctx,
+        'Device State: Thermal throttling',
+        THERMAL_THROTTLING,
+      );
     }
   }
 
-  async addNetworkSummary(ctx: PluginContextTrace, features: Set<string>):
-      Promise<void> {
+  async addNetworkSummary(
+    ctx: PluginContextTrace,
+    features: Set<string>,
+  ): Promise<void> {
     if (!features.has('net.modem') && !features.has('net.wifi')) {
       return;
     }
@@ -1095,53 +1244,98 @@ class AndroidLongBatteryTracing implements Plugin {
     }
     if (features.has('net.wifi')) {
       this.addCounterTrack(
-        ctx, 'Wifi bytes (logscale)',
-        `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'wifi' group by 1`,
-        groupName);
+        ctx,
+        'Wifi bytes',
+        `select ts, sum(value) as value from network_summary where dev_type = 'wifi' group by 1`,
+        groupName,
+        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+      );
       this.addCounterTrack(
-        ctx, 'Wifi TX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'tx'`,
-        groupName);
+        ctx,
+        'Wifi TX bytes',
+        `select ts, value from network_summary where dev_type = 'wifi' and dir = 'tx'`,
+        groupName,
+        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+      );
       this.addCounterTrack(
-        ctx, 'Wifi RX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'wifi' and dir = 'rx'`,
-        groupName);
+        ctx,
+        'Wifi RX bytes',
+        `select ts, value from network_summary where dev_type = 'wifi' and dir = 'rx'`,
+        groupName,
+        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+      );
     }
     if (features.has('net.modem')) {
       this.addCounterTrack(
-        ctx, 'Modem bytes (logscale)',
-        `select ts, ifnull(ln(sum(value)), 0) as value from network_summary where dev_type = 'modem' group by 1`,
-        groupName);
+        ctx,
+        'Modem bytes',
+        `select ts, sum(value) as value from network_summary where dev_type = 'modem' group by 1`,
+        groupName,
+        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+      );
       this.addCounterTrack(
-        ctx, 'Modem TX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'tx'`,
-        groupName);
+        ctx,
+        'Modem TX bytes',
+        `select ts, value from network_summary where dev_type = 'modem' and dir = 'tx'`,
+        groupName,
+        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+      );
       this.addCounterTrack(
-        ctx, 'Modem RX bytes (logscale)',
-        `select ts, ifnull(ln(value), 0) as value from network_summary where dev_type = 'modem' and dir = 'rx'`,
-        groupName);
+        ctx,
+        'Modem RX bytes',
+        `select ts, value from network_summary where dev_type = 'modem' and dir = 'rx'`,
+        groupName,
+        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+      );
     }
     this.addBatteryStatsState(
-      ctx, 'Cellular interface', 'battery_stats.mobile_radio', groupName,
-      features);
+      ctx,
+      'Cellular interface',
+      'battery_stats.mobile_radio',
+      groupName,
+      features,
+    );
     this.addBatteryStatsState(
-      ctx, 'Cellular connection', 'battery_stats.data_conn', groupName,
-      features);
+      ctx,
+      'Cellular connection',
+      'battery_stats.data_conn',
+      groupName,
+      features,
+    );
     this.addBatteryStatsState(
-      ctx, 'Cellular strength', 'battery_stats.phone_signal_strength',
-      groupName, features);
+      ctx,
+      'Cellular strength',
+      'battery_stats.phone_signal_strength',
+      groupName,
+      features,
+    );
     this.addBatteryStatsState(
-      ctx, 'Wifi interface', 'battery_stats.wifi_radio', groupName, features);
+      ctx,
+      'Wifi interface',
+      'battery_stats.wifi_radio',
+      groupName,
+      features,
+    );
     this.addBatteryStatsState(
-      ctx, 'Wifi supplicant state', 'battery_stats.wifi_suppl', groupName,
-      features);
+      ctx,
+      'Wifi supplicant state',
+      'battery_stats.wifi_suppl',
+      groupName,
+      features,
+    );
     this.addBatteryStatsState(
-      ctx, 'Wifi strength', 'battery_stats.wifi_signal_strength', groupName,
-      features);
+      ctx,
+      'Wifi strength',
+      'battery_stats.wifi_signal_strength',
+      groupName,
+      features,
+    );
   }
 
-  async addModemDetail(ctx: PluginContextTrace, features: Set<string>):
-      Promise<void> {
+  async addModemDetail(
+    ctx: PluginContextTrace,
+    features: Set<string>,
+  ): Promise<void> {
     if (!features.has('atom.modem_activity_info')) {
       return;
     }
@@ -1152,14 +1346,17 @@ class AndroidLongBatteryTracing implements Plugin {
     }
   }
 
-  async addModemActivityInfo(ctx: PluginContextTrace, groupName: string):
-      Promise<void> {
+  async addModemActivityInfo(
+    ctx: PluginContextTrace,
+    groupName: string,
+  ): Promise<void> {
     const query = (name: string, col: string): void =>
       this.addCounterTrack(
         ctx,
         name,
         `select ts, ${col}_ratio as value from modem_activity_info`,
-        groupName);
+        groupName,
+      );
 
     await ctx.engine.query(MODEM_ACTIVITY_INFO);
     query('Modem sleep', 'sleep_time');
@@ -1173,14 +1370,13 @@ class AndroidLongBatteryTracing implements Plugin {
   }
 
   async addModemRil(ctx: PluginContextTrace, groupName: string): Promise<void> {
-    const rilStrength =
-        (band: string, value: string): void =>
-          this.addSliceTrack(
-            ctx,
-            `Modem signal strength ${band} ${value}`,
-            `SELECT ts, dur, name FROM RilScreenOn WHERE band_name = '${
-              band}' AND value_name = '${value}'`,
-            groupName);
+    const rilStrength = (band: string, value: string): void =>
+      this.addSliceTrack(
+        ctx,
+        `Modem signal strength ${band} ${value}`,
+        `SELECT ts, dur, name FROM RilScreenOn WHERE band_name = '${band}' AND value_name = '${value}'`,
+        groupName,
+      );
 
     const e = ctx.engine;
     await e.query(MODEM_RIL_STRENGTH);
@@ -1188,15 +1384,29 @@ class AndroidLongBatteryTracing implements Plugin {
 
     rilStrength('LTE', 'rsrp');
     rilStrength('LTE', 'rssi');
-    rilStrength('NR', 'rssi');
+    rilStrength('NR', 'rsrp');
     rilStrength('NR', 'rssi');
 
     this.addSliceTrack(
-      ctx, 'Modem channel config', MODEM_RIL_CHANNELS, groupName);
+      ctx,
+      'Modem channel config',
+      MODEM_RIL_CHANNELS,
+      groupName,
+    );
+
+    this.addSliceTrack(
+      ctx,
+      'Modem cell reselection',
+      MODEM_CELL_RESELECTION,
+      groupName,
+      ['raw_ril'],
+    );
   }
 
-  async addKernelWakelocks(ctx: PluginContextTrace, features: Set<string>):
-      Promise<void> {
+  async addKernelWakelocks(
+    ctx: PluginContextTrace,
+    features: Set<string>,
+  ): Promise<void> {
     if (!features.has('atom.kernel_wakelock')) {
       return;
     }
@@ -1208,17 +1418,20 @@ class AndroidLongBatteryTracing implements Plugin {
     const result = await e.query(KERNEL_WAKELOCKS_SUMMARY);
     const it = result.iter({wakelock_name: 'str'});
     for (; it.valid(); it.next()) {
-      this.addSliceTrack(
+      this.addCounterTrack(
         ctx,
         it.wakelock_name,
-        `select ts, dur, name from kernel_wakelocks where wakelock_name = "${
-          it.wakelock_name}"`,
-        groupName);
+        `select ts, dur, value from kernel_wakelocks where wakelock_name = "${it.wakelock_name}"`,
+        groupName,
+        {yRangeSharingKey: 'kernel_wakelock', unit: '%'},
+      );
     }
   }
 
-  async addWakeups(ctx: PluginContextTrace, features: Set<string>):
-      Promise<void> {
+  async addWakeups(
+    ctx: PluginContextTrace,
+    features: Set<string>,
+  ): Promise<void> {
     if (!features.has('track.suspend_backoff')) {
       return;
     }
@@ -1261,17 +1474,23 @@ class AndroidLongBatteryTracing implements Plugin {
         `Wakeup ${it.item}`,
         `${sqlPrefix} where item="${it.item}"`,
         groupName,
-        WAKEUPS_COLUMNS);
+        WAKEUPS_COLUMNS,
+      );
       items.push(it.item);
     }
     this.addSliceTrack(
-      ctx, labelOther ? 'Other wakeups' : 'Wakeups',
-      `${sqlPrefix} where item not in ('${items.join('\',\'')}')`, groupName,
-      WAKEUPS_COLUMNS);
+      ctx,
+      labelOther ? 'Other wakeups' : 'Wakeups',
+      `${sqlPrefix} where item not in ('${items.join("','")}')`,
+      groupName,
+      WAKEUPS_COLUMNS,
+    );
   }
 
-  async addHighCpu(ctx: PluginContextTrace, features: Set<string>):
-      Promise<void> {
+  async addHighCpu(
+    ctx: PluginContextTrace,
+    features: Set<string>,
+  ): Promise<void> {
     if (!features.has('atom.cpu_cycles_per_uid_cluster')) {
       return;
     }
@@ -1281,51 +1500,171 @@ class AndroidLongBatteryTracing implements Plugin {
 
     await e.query(HIGH_CPU);
     const result = await e.query(
-      `select distinct pkg, cluster from high_cpu where value > 10 order by 1, 2`);
+      `select distinct pkg, cluster from high_cpu where value > 10 order by 1, 2`,
+    );
     const it = result.iter({pkg: 'str', cluster: 'str'});
     for (; it.valid(); it.next()) {
       this.addCounterTrack(
         ctx,
         `CPU (${it.cluster}): ${it.pkg}`,
-        `select ts, value from high_cpu where pkg = "${
-          it.pkg}" and cluster="${it.cluster}"`,
-        groupName);
+        `select ts, value from high_cpu where pkg = "${it.pkg}" and cluster="${it.cluster}"`,
+        groupName,
+      );
     }
   }
 
-  async addBluetooth(ctx: PluginContextTrace, features: Set<string>):
-      Promise<void> {
-    if (!Array.from(features.values())
-      .some(
-        (f) => f.startsWith('atom.bluetooth_') ||
-                     f.startsWith('atom.ble_'))) {
+  async addBluetooth(
+    ctx: PluginContextTrace,
+    features: Set<string>,
+  ): Promise<void> {
+    if (
+      !Array.from(features.values()).some(
+        (f) => f.startsWith('atom.bluetooth_') || f.startsWith('atom.ble_'),
+      )
+    ) {
       return;
     }
     const groupName = 'Bluetooth';
     this.addSliceTrack(
-      ctx, 'BLE Scans (opportunistic)', bleScanQuery('opportunistic'),
-      groupName);
+      ctx,
+      'BLE Scans (opportunistic)',
+      bleScanQuery('opportunistic'),
+      groupName,
+    );
     this.addSliceTrack(
-      ctx, 'BLE Scans (filtered)', bleScanQuery('filtered'), groupName);
+      ctx,
+      'BLE Scans (filtered)',
+      bleScanQuery('filtered'),
+      groupName,
+    );
     this.addSliceTrack(
-      ctx, 'BLE Scans (unfiltered)', bleScanQuery('not filtered'), groupName);
+      ctx,
+      'BLE Scans (unfiltered)',
+      bleScanQuery('not filtered'),
+      groupName,
+    );
     this.addSliceTrack(ctx, 'BLE Scan Results', BLE_RESULTS, groupName);
     this.addSliceTrack(ctx, 'Connections (ACL)', BT_CONNS_ACL, groupName);
     this.addSliceTrack(ctx, 'Connections (SCO)', BT_CONNS_SCO, groupName);
     this.addSliceTrack(
-      ctx, 'Link-level Events', BT_LINK_LEVEL_EVENTS, groupName,
-      BT_LINK_LEVEL_EVENTS_COLUMNS);
+      ctx,
+      'Link-level Events',
+      BT_LINK_LEVEL_EVENTS,
+      groupName,
+      BT_LINK_LEVEL_EVENTS_COLUMNS,
+    );
     this.addSliceTrack(ctx, 'A2DP Audio', BT_A2DP_AUDIO, groupName);
     this.addSliceTrack(
-      ctx, 'Quality reports', BT_QUALITY_REPORTS, groupName,
-      BT_QUALITY_REPORTS_COLUMNS);
+      ctx,
+      'Bytes Transferred (L2CAP/RFCOMM)',
+      BT_BYTES,
+      groupName,
+    );
+    await ctx.engine.query(BT_ACTIVITY);
+    this.addCounterTrack(
+      ctx,
+      'ACL Classic Active Count',
+      'select ts, dur, acl_active_count as value from bt_activity',
+      groupName,
+    );
+    this.addCounterTrack(
+      ctx,
+      'ACL Classic Sniff Count',
+      'select ts, dur, acl_sniff_count as value from bt_activity',
+      groupName,
+    );
+    this.addCounterTrack(
+      ctx,
+      'ACL BLE Count',
+      'select ts, dur, acl_ble_count as value from bt_activity',
+      groupName,
+    );
+    this.addCounterTrack(
+      ctx,
+      'Advertising Instance Count',
+      'select ts, dur, advertising_count as value from bt_activity',
+      groupName,
+    );
+    this.addCounterTrack(
+      ctx,
+      'LE Scan Duty Cycle Maximum',
+      'select ts, dur, le_scan_duty_cycle as value from bt_activity',
+      groupName,
+      {unit: '%'},
+    );
     this.addSliceTrack(
-      ctx, 'RSSI Reports', BT_RSSI_REPORTS, groupName, BT_RSSI_REPORTS_COLUMNS);
+      ctx,
+      'Inquiry Active',
+      "select ts, dur, 'Active' as name from bt_activity where inquiry_active",
+      groupName,
+    );
     this.addSliceTrack(
-      ctx, 'HAL Crashes', BT_HAL_CRASHES, groupName, BT_HAL_CRASHES_COLUMNS);
+      ctx,
+      'SCO Active',
+      "select ts, dur, 'Active' as name from bt_activity where sco_active",
+      groupName,
+    );
     this.addSliceTrack(
-      ctx, 'Code Path Counter', BT_CODE_PATH_COUNTER, groupName,
-      BT_CODE_PATH_COUNTER_COLUMNS);
+      ctx,
+      'A2DP Active',
+      "select ts, dur, 'Active' as name from bt_activity where a2dp_active",
+      groupName,
+    );
+    this.addSliceTrack(
+      ctx,
+      'LE Audio Active',
+      "select ts, dur, 'Active' as name from bt_activity where le_audio_active",
+      groupName,
+    );
+    this.addCounterTrack(
+      ctx,
+      'Controller Idle Time',
+      'select ts, dur, controller_idle_pct as value from bt_activity',
+      groupName,
+      {yRangeSharingKey: 'bt_controller_time', unit: '%'},
+    );
+    this.addCounterTrack(
+      ctx,
+      'Controller TX Time',
+      'select ts, dur, controller_tx_pct as value from bt_activity',
+      groupName,
+      {yRangeSharingKey: 'bt_controller_time', unit: '%'},
+    );
+    this.addCounterTrack(
+      ctx,
+      'Controller RX Time',
+      'select ts, dur, controller_rx_pct as value from bt_activity',
+      groupName,
+      {yRangeSharingKey: 'bt_controller_time', unit: '%'},
+    );
+    this.addSliceTrack(
+      ctx,
+      'Quality reports',
+      BT_QUALITY_REPORTS,
+      groupName,
+      BT_QUALITY_REPORTS_COLUMNS,
+    );
+    this.addSliceTrack(
+      ctx,
+      'RSSI Reports',
+      BT_RSSI_REPORTS,
+      groupName,
+      BT_RSSI_REPORTS_COLUMNS,
+    );
+    this.addSliceTrack(
+      ctx,
+      'HAL Crashes',
+      BT_HAL_CRASHES,
+      groupName,
+      BT_HAL_CRASHES_COLUMNS,
+    );
+    this.addSliceTrack(
+      ctx,
+      'Code Path Counter',
+      BT_CODE_PATH_COUNTER,
+      groupName,
+      BT_CODE_PATH_COUNTER_COLUMNS,
+    );
   }
 
   async findFeatures(e: EngineProxy): Promise<Set<string>> {
@@ -1368,7 +1707,7 @@ class AndroidLongBatteryTracing implements Plugin {
     const features: Set<string> = await this.findFeatures(ctx.engine);
 
     await this.addNetworkSummary(ctx, features),
-    await this.addModemDetail(ctx, features);
+      await this.addModemDetail(ctx, features);
     await this.addKernelWakelocks(ctx, features);
     await this.addWakeups(ctx, features);
     await this.addDeviceState(ctx, features);

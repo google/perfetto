@@ -17,14 +17,8 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {raf} from '../../core/raf_scheduler';
-import {
-  BottomTab,
-  bottomTabRegistry,
-  NewBottomTabArgs,
-} from '../../frontend/bottom_tab';
-import {
-  GenericSliceDetailsTabConfig,
-} from '../../frontend/generic_slice_details_tab';
+import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
+import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {getSlice, SliceDetails} from '../../frontend/sql/slice';
 import {asSliceSqlId} from '../../frontend/sql_types';
 import {sqlValueToString} from '../../frontend/sql_utils';
@@ -67,14 +61,15 @@ interface Data {
 }
 
 async function getSliceDetails(
-  engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {
+  engine: EngineProxy,
+  id: number,
+): Promise<SliceDetails | undefined> {
   return getSlice(engine, asSliceSqlId(id));
 }
 
-export class ScrollJankV3DetailsPanel extends
-  BottomTab<GenericSliceDetailsTabConfig> {
+export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> {
   static readonly kind = 'org.perfetto.ScrollJankV3DetailsPanel';
-  data: Data|undefined;
+  data: Data | undefined;
   loaded = false;
 
   //
@@ -98,8 +93,9 @@ export class ScrollJankV3DetailsPanel extends
   // slice. Does not apply to all causes.
   private subcauseSliceDetails?: EventLatencySlice;
 
-  static create(args: NewBottomTabArgs<GenericSliceDetailsTabConfig>):
-      ScrollJankV3DetailsPanel {
+  static create(
+    args: NewBottomTabArgs<GenericSliceDetailsTabConfig>,
+  ): ScrollJankV3DetailsPanel {
     return new ScrollJankV3DetailsPanel(args);
   }
 
@@ -170,19 +166,29 @@ export class ScrollJankV3DetailsPanel extends
 
   private async loadSlices() {
     if (exists(this.data)) {
-      this.sliceDetails =
-          await getSliceDetails(this.engine, this.data.eventLatencyId);
-      this.eventLatencySliceDetails =
-          await getEventLatencySlice(this.engine, this.data.eventLatencyId);
+      this.sliceDetails = await getSliceDetails(
+        this.engine,
+        this.data.eventLatencyId,
+      );
+      this.eventLatencySliceDetails = await getEventLatencySlice(
+        this.engine,
+        this.data.eventLatencyId,
+      );
 
       if (this.hasCause()) {
         this.causeSliceDetails = await getEventLatencyDescendantSlice(
-          this.engine, this.data.eventLatencyId, this.data.jankCause);
+          this.engine,
+          this.data.eventLatencyId,
+          this.data.jankCause,
+        );
       }
 
       if (this.hasSubcause()) {
         this.subcauseSliceDetails = await getEventLatencyDescendantSlice(
-          this.engine, this.data.eventLatencyId, this.data.jankSubcause);
+          this.engine,
+          this.data.eventLatencyId,
+          this.data.jankSubcause,
+        );
       }
     }
   }
@@ -219,12 +225,15 @@ export class ScrollJankV3DetailsPanel extends
     const details: {[key: string]: m.Child} = {};
     if (exists(this.data)) {
       details['Name'] = sqlValueToString(this.data.name);
-      details['Expected Frame Presentation Timestamp'] =
-          m(Timestamp, {ts: this.data.ts});
-      details['Actual Frame Presentation Timestamp'] =
-          m(Timestamp, {ts: Time.add(this.data.ts, this.data.dur)});
-      details['Frame Presentation Delay'] =
-          m(DurationWidget, {dur: this.data.dur});
+      details['Expected Frame Presentation Timestamp'] = m(Timestamp, {
+        ts: this.data.ts,
+      });
+      details['Actual Frame Presentation Timestamp'] = m(Timestamp, {
+        ts: Time.add(this.data.ts, this.data.dur),
+      });
+      details['Frame Presentation Delay'] = m(DurationWidget, {
+        dur: this.data.dur,
+      });
       details['Vsyncs Delayed'] = this.data.delayedVsyncCount;
       if (exists(this.data.jankyFrames)) {
         details['Janky Frame Count'] = this.data.jankyFrames;
@@ -249,38 +258,44 @@ export class ScrollJankV3DetailsPanel extends
       m(TextParagraph, {
         text: `This is the period of time during which the user is viewing a
                  frame that isn't correct.`,
-      }));
+      }),
+    );
   }
 
   private getLinksSection(): m.Child[] {
     const result: {[key: string]: m.Child} = {};
 
     if (exists(this.sliceDetails) && exists(this.data)) {
-      result['Janked Event Latency stage'] = exists(this.causeSliceDetails) ?
-        getSliceForTrack(
-          this.causeSliceDetails,
-          EventLatencyTrack.kind,
-          this.data.jankCause) :
-        sqlValueToString(this.data.jankCause);
+      result['Janked Event Latency stage'] = exists(this.causeSliceDetails)
+        ? getSliceForTrack(
+            this.causeSliceDetails,
+            EventLatencyTrack.kind,
+            this.data.jankCause,
+          )
+        : sqlValueToString(this.data.jankCause);
 
       if (this.hasSubcause()) {
-        result['Sub-cause of Jank'] = exists(this.subcauseSliceDetails) ?
-          getSliceForTrack(
-            this.subcauseSliceDetails,
-            EventLatencyTrack.kind,
-            this.data.jankSubcause) :
-          sqlValueToString(this.data.jankSubcause);
+        result['Sub-cause of Jank'] = exists(this.subcauseSliceDetails)
+          ? getSliceForTrack(
+              this.subcauseSliceDetails,
+              EventLatencyTrack.kind,
+              this.data.jankSubcause,
+            )
+          : sqlValueToString(this.data.jankSubcause);
       }
 
       const children = dictToTreeNodes(result);
       if (exists(this.eventLatencySliceDetails)) {
-        children.unshift(m(TreeNode, {
-          left: getSliceForTrack(
-            this.eventLatencySliceDetails,
-            EventLatencyTrack.kind,
-            'Input EventLatency in context of ScrollUpdates'),
-          right: '',
-        }));
+        children.unshift(
+          m(TreeNode, {
+            left: getSliceForTrack(
+              this.eventLatencySliceDetails,
+              EventLatencyTrack.kind,
+              'Input EventLatency in context of ScrollUpdates',
+            ),
+            right: '',
+          }),
+        );
       } else {
         children.unshift(sqlValueToString('Event Latency'));
       }
@@ -303,26 +318,15 @@ export class ScrollJankV3DetailsPanel extends
       {
         title: this.getTitle(),
       },
-      m(GridLayout,
+      m(
+        GridLayout,
+        m(GridLayoutColumn, m(Section, {title: 'Details'}, m(Tree, details))),
         m(
           GridLayoutColumn,
-          m(
-            Section,
-            {title: 'Details'},
-            m(Tree, details),
-          ),
+          m(Section, {title: 'Description'}, this.getDescriptionText()),
+          m(Section, {title: 'Jank Cause'}, m(Tree, this.getLinksSection())),
         ),
-        m(GridLayoutColumn,
-          m(
-            Section,
-            {title: 'Description'},
-            this.getDescriptionText(),
-          ),
-          m(
-            Section,
-            {title: 'Jank Cause'},
-            m(Tree, this.getLinksSection()),
-          ))),
+      ),
     );
   }
 
@@ -334,5 +338,3 @@ export class ScrollJankV3DetailsPanel extends
     return !this.loaded;
   }
 }
-
-bottomTabRegistry.register(ScrollJankV3DetailsPanel);

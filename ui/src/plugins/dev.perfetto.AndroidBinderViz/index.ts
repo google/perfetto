@@ -12,12 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  MetricVisualisation,
-  Plugin,
-  PluginContext,
-  PluginDescriptor,
-} from '../../public';
+import {MetricVisualisation, Plugin, PluginDescriptor} from '../../public';
 
 const SPEC = `
 {
@@ -37,16 +32,14 @@ const SPEC = `
 `;
 
 class AndroidBinderVizPlugin implements Plugin {
-  onActivate(_: PluginContext): void {
-    //
-  }
-
   metricVisualisations(): MetricVisualisation[] {
-    return [{
-      metric: 'android_binder',
-      spec: SPEC,
-      path: ['android_binder', 'unaggregated_txn_breakdown'],
-    }];
+    return [
+      {
+        metric: 'android_binder',
+        spec: SPEC,
+        path: ['android_binder', 'unaggregated_txn_breakdown'],
+      },
+    ];
   }
 }
 

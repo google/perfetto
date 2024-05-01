@@ -47,15 +47,61 @@
 
 import {elementIsEditable} from './dom_utils';
 
-type Alphabet = 'A'|'B'|'C'|'D'|'E'|'F'|'G'|'H'|'I'|'J'|'K'|'L'|'M'|'N'|'O'|'P'|
-    'Q'|'R'|'S'|'T'|'U'|'V'|'W'|'X'|'Y'|'Z';
-type Number = '0'|'1'|'2'|'3'|'4'|'5'|'6'|'7'|'8'|'9';
-type Special = 'Enter'|'Escape'|'/'|'?'|'!'|'Space'|'ArrowUp'|'ArrowDown'|
-    'ArrowLeft'|'ArrowRight';
-export type Key = Alphabet|Number|Special;
-export type Modifier = ''|'Mod+'|'Shift+'|'Ctrl+'|'Alt+'|'Mod+Shift+'|'Mod+Alt'|
-    'Mod+Shift+Alt'|'Ctrl+Shift+'|'Ctrl+Alt'|'Ctrl+Shift+Alt';
-type AllowInEditable = '!'|'';
+type Alphabet =
+  | 'A'
+  | 'B'
+  | 'C'
+  | 'D'
+  | 'E'
+  | 'F'
+  | 'G'
+  | 'H'
+  | 'I'
+  | 'J'
+  | 'K'
+  | 'L'
+  | 'M'
+  | 'N'
+  | 'O'
+  | 'P'
+  | 'Q'
+  | 'R'
+  | 'S'
+  | 'T'
+  | 'U'
+  | 'V'
+  | 'W'
+  | 'X'
+  | 'Y'
+  | 'Z';
+type Number = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9';
+type Special =
+  | 'Enter'
+  | 'Escape'
+  | '/'
+  | '?'
+  | '!'
+  | 'Space'
+  | 'ArrowUp'
+  | 'ArrowDown'
+  | 'ArrowLeft'
+  | 'ArrowRight'
+  | '['
+  | ']';
+export type Key = Alphabet | Number | Special;
+export type Modifier =
+  | ''
+  | 'Mod+'
+  | 'Shift+'
+  | 'Ctrl+'
+  | 'Alt+'
+  | 'Mod+Shift+'
+  | 'Mod+Alt'
+  | 'Mod+Shift+Alt'
+  | 'Ctrl+Shift+'
+  | 'Ctrl+Alt'
+  | 'Ctrl+Shift+Alt';
+type AllowInEditable = '!' | '';
 export type Hotkey = `${AllowInEditable}${Modifier}${Key}`;
 
 // Represents a deconstructed hotkey.
@@ -73,7 +119,7 @@ export interface HotkeyParts {
 
 // Deconstruct a hotkey from its string representation into its constituent
 // parts.
-export function parseHotkey(hotkey: Hotkey): HotkeyParts|null {
+export function parseHotkey(hotkey: Hotkey): HotkeyParts | null {
   const regex = /^(!?)((?:Mod\+|Shift\+|Alt\+|Ctrl\+)*)(.*)$/;
   const result = hotkey.match(regex);
 
@@ -89,13 +135,15 @@ export function parseHotkey(hotkey: Hotkey): HotkeyParts|null {
 }
 
 // Like |KeyboardEvent| but all fields apart from |key| are optional.
-export type KeyboardEventLike =
-    Pick<KeyboardEvent, 'key'>&Partial<KeyboardEvent>;
+export type KeyboardEventLike = Pick<KeyboardEvent, 'key'> &
+  Partial<KeyboardEvent>;
 
 // Check whether |hotkey| is present in the keyboard event |event|.
 export function checkHotkey(
-  hotkey: Hotkey, event: KeyboardEventLike, spoofPlatform?: Platform):
-    boolean {
+  hotkey: Hotkey,
+  event: KeyboardEventLike,
+  spoofPlatform?: Platform,
+): boolean {
   const result = parseHotkey(hotkey);
   if (!result) {
     return false;
@@ -118,8 +166,10 @@ function compareKeys(e: KeyboardEventLike, key: Key): boolean {
 
 // Return true if modifiers specified in |mods| match those in the event.
 function checkMods(
-  event: KeyboardEventLike, hotkey: HotkeyParts, spoofPlatform?: Platform):
-    boolean {
+  event: KeyboardEventLike,
+  hotkey: HotkeyParts,
+  spoofPlatform?: Platform,
+): boolean {
   const platform = spoofPlatform ?? getPlatform();
 
   const {key, modifier} = hotkey;
@@ -133,20 +183,25 @@ function checkMods(
 
   const wantShift = modifier.includes('Shift');
   const wantAlt = modifier.includes('Alt');
-  const wantCtrl = platform === 'Mac' ?
-    modifier.includes('Ctrl') :
-    (modifier.includes('Ctrl') || modifier.includes('Mod'));
+  const wantCtrl =
+    platform === 'Mac'
+      ? modifier.includes('Ctrl')
+      : modifier.includes('Ctrl') || modifier.includes('Mod');
   const wantMeta = platform === 'Mac' && modifier.includes('Mod');
 
   // For certain keys we relax the shift requirement, as they usually cannot be
   // pressed without the shift key on English keyboards.
   const shiftOk = key.match(/[\?\!]/) || shiftKey === wantShift;
 
-  return metaKey === wantMeta && Boolean(shiftOk) && altKey === wantAlt &&
-      ctrlKey === wantCtrl;
+  return (
+    metaKey === wantMeta &&
+    Boolean(shiftOk) &&
+    altKey === wantAlt &&
+    ctrlKey === wantCtrl
+  );
 }
 
-export type Platform = 'Mac'|'PC';
+export type Platform = 'Mac' | 'PC';
 
 // Get the current platform (PC or Mac).
 export function getPlatform(spoof?: Platform): Platform {

@@ -17,27 +17,24 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE_UTILS_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_UTILS_H_
 
-#include <math.h>
 #include <sqlite3.h>
 #include <bitset>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
+#include <functional>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/sqlite/scoped_db.h"
-#include "src/trace_processor/sqlite/sqlite_table.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace sqlite_utils {
+namespace perfetto::trace_processor::sqlite::utils {
 
 const auto kSqliteStatic = reinterpret_cast<sqlite3_destructor_type>(0);
 const auto kSqliteTransient = reinterpret_cast<sqlite3_destructor_type>(-1);
@@ -121,36 +118,107 @@ inline void ReportSqlValue(
     sqlite3_destructor_type bytes_destructor = kSqliteTransient) {
   switch (value.type) {
     case SqlValue::Type::kLong:
-      sqlite3_result_int64(ctx, value.long_value);
+      sqlite::result::Long(ctx, value.long_value);
       break;
     case SqlValue::Type::kDouble:
-      sqlite3_result_double(ctx, value.double_value);
+      sqlite::result::Double(ctx, value.double_value);
       break;
     case SqlValue::Type::kString: {
-      sqlite3_result_text(ctx, value.string_value, -1, string_destructor);
+      sqlite::result::RawString(ctx, value.string_value, string_destructor);
       break;
     }
     case SqlValue::Type::kBytes:
-      sqlite3_result_blob(ctx, value.bytes_value,
-                          static_cast<int>(value.bytes_count),
-                          bytes_destructor);
+      sqlite::result::RawBytes(ctx, value.bytes_value,
+                               static_cast<int>(value.bytes_count),
+                               bytes_destructor);
       break;
     case SqlValue::Type::kNull:
-      sqlite3_result_null(ctx);
+      sqlite::result::Null(ctx);
       break;
   }
 }
 
-inline void SetSqliteError(sqlite3_context* ctx, const base::Status& status) {
-  PERFETTO_CHECK(!status.ok());
-  sqlite3_result_error(ctx, status.c_message(), -1);
+inline int SetError(sqlite3_vtab* tab, const char* status) {
+  sqlite3_free(tab->zErrMsg);
+  tab->zErrMsg = sqlite3_mprintf("%s", status);
+  return SQLITE_ERROR;
 }
 
-inline void SetSqliteError(sqlite3_context* ctx,
-                           const std::string& function_name,
-                           const base::Status& status) {
-  SetSqliteError(ctx, base::ErrStatus("%s: %s", function_name.c_str(),
-                                      status.c_message()));
+inline void SetError(sqlite3_context* ctx, const base::Status& status) {
+  PERFETTO_CHECK(!status.ok());
+  sqlite::result::Error(ctx, status.c_message());
+}
+
+inline void SetError(sqlite3_context* ctx,
+                     const std::string& function_name,
+                     const base::Status& status) {
+  SetError(ctx, base::ErrStatus("%s: %s", function_name.c_str(),
+                                status.c_message()));
+}
+
+// For a given |sqlite3_index_info| struct received in a BestIndex call, returns
+// whether all |arg_count| arguments (with |is_arg_column| indicating whether a
+// given column is a function argument) have exactly one equaltiy constraint
+// associated with them.
+//
+// If so, the associated constraint is omitted and the argvIndex is mapped to
+// the corresponding argument's index.
+inline base::Status ValidateFunctionArguments(
+    sqlite3_index_info* info,
+    size_t arg_count,
+    const std::function<bool(size_t)>& is_arg_column) {
+  std::vector<bool> present;
+  size_t present_count = 0;
+  for (int i = 0; i < info->nConstraint; ++i) {
+    const auto& in = info->aConstraint[i];
+    if (!in.usable) {
+      continue;
+    }
+    auto cs_col = static_cast<size_t>(in.iColumn);
+    if (!is_arg_column(cs_col)) {
+      continue;
+    }
+    if (!IsOpEq(in.op)) {
+      return base::ErrStatus(
+          "Unexpected non equality constraints for column %zu", cs_col);
+    }
+    if (cs_col >= present.size()) {
+      present.resize(cs_col + 1);
+    }
+    if (present[cs_col]) {
+      return base::ErrStatus("Unexpected multiple constraints for column %zu",
+                             cs_col);
+    }
+    present[cs_col] = true;
+    present_count++;
+
+    auto& out = info->aConstraintUsage[i];
+    out.argvIndex = static_cast<int>(present_count);
+    out.omit = true;
+  }
+  if (present_count != arg_count) {
+    return base::ErrStatus(
+        "Unexpected missing argument: expected %zu, actual %zu", arg_count,
+        present_count);
+  }
+  return base::OkStatus();
+}
+
+// Converts the given SqlValue type to the type string SQLite understands.
+inline std::string SqlValueTypeToString(SqlValue::Type type) {
+  switch (type) {
+    case SqlValue::Type::kString:
+      return "TEXT";
+    case SqlValue::Type::kLong:
+      return "BIGINT";
+    case SqlValue::Type::kDouble:
+      return "DOUBLE";
+    case SqlValue::Type::kBytes:
+      return "BLOB";
+    case SqlValue::Type::kNull:
+      PERFETTO_FATAL("Cannot map unknown column type");
+  }
+  PERFETTO_FATAL("Not reached");  // For gcc
 }
 
 // Exracts the given type from the SqlValue if |value| can fit
@@ -171,9 +239,10 @@ base::Status ExtractFromSqlValue(const SqlValue& value,
                                  std::optional<const char*>&);
 
 // Returns the column names for the table named by |raw_table_name|.
-base::Status GetColumnsForTable(sqlite3* db,
-                                const std::string& raw_table_name,
-                                std::vector<SqliteTable::Column>& columns);
+base::Status GetColumnsForTable(
+    sqlite3* db,
+    const std::string& raw_table_name,
+    std::vector<std::pair<SqlValue::Type, std::string>>& columns);
 
 // Reads a `SQLITE_TEXT` value and returns it as a wstring (UTF-16) in the
 // default byte order. `value` must be a `SQLITE_TEXT`.
@@ -250,7 +319,7 @@ base::Status MissingArgumentError(const char* argument_name);
 
 base::Status ToInvalidArgumentError(const char* argument_name,
                                     size_t arg_index,
-                                    const base::Status error);
+                                    const base::Status& error);
 
 template <typename... args>
 base::StatusOr<SqlValue> ExtractArgument(size_t argc,
@@ -264,8 +333,6 @@ base::StatusOr<SqlValue> ExtractArgument(size_t argc,
       internal::ToExpectedTypesSet(expected_type, expected_type_args...));
 }
 
-}  // namespace sqlite_utils
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::sqlite::utils
 
 #endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE_UTILS_H_

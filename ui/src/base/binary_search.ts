@@ -12,14 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-type Numeric = number|bigint;
+type Numeric = number | bigint;
 type Range = [number, number];
 
 function searchImpl<T extends Numeric>(
-  haystack: ArrayLike<T>, needle: T, i: number, j: number): number {
+  haystack: ArrayLike<T>,
+  needle: T,
+  i: number,
+  j: number,
+): number {
   if (i === j) return -1;
   if (i + 1 === j) {
-    return (needle >= haystack[i]) ? i : -1;
+    return needle >= haystack[i] ? i : -1;
   }
 
   const mid = Math.floor((j - i) / 2) + i;
@@ -32,7 +36,11 @@ function searchImpl<T extends Numeric>(
 }
 
 function searchRangeImpl<T extends Numeric>(
-  haystack: ArrayLike<T>, needle: T, i: number, j: number): Range {
+  haystack: ArrayLike<T>,
+  needle: T,
+  i: number,
+  j: number,
+): Range {
   if (i === j) return [i, j];
   if (i + 1 === j) {
     if (haystack[i] <= needle) {
@@ -60,14 +68,19 @@ function searchRangeImpl<T extends Numeric>(
 // index of the last element of |haystack| which is less than or equal to
 // |needle|, or -1 if all elements of |haystack| are greater than |needle|.
 export function search<T extends Numeric>(
-  haystack: ArrayLike<T>, needle: T): number {
+  haystack: ArrayLike<T>,
+  needle: T,
+): number {
   return searchImpl(haystack, needle, 0, haystack.length);
 }
 
 // Given a sorted array of numeric values (|haystack|) return the half open
 // range [i, j) of indices where |haystack| is equal to needle.
 export function searchEq<T extends Numeric>(
-  haystack: ArrayLike<T>, needle: T, optRange?: Range): Range {
+  haystack: ArrayLike<T>,
+  needle: T,
+  optRange?: Range,
+): Range {
   const range = searchRange(haystack, needle, optRange);
   const [i, j] = range;
   if (haystack[i] === needle) return range;
@@ -77,7 +90,10 @@ export function searchEq<T extends Numeric>(
 // Given a sorted array of numeric values (|haystack|) and a |needle| return the
 // smallest half open range [i, j) of indexes which contains |needle|.
 export function searchRange<T extends Numeric>(
-  haystack: ArrayLike<T>, needle: T, optRange?: Range): Range {
+  haystack: ArrayLike<T>,
+  needle: T,
+  optRange?: Range,
+): Range {
   const [left, right] = optRange ? optRange : [0, haystack.length];
   return searchRangeImpl(haystack, needle, left, right);
 }
@@ -92,7 +108,9 @@ export function searchRange<T extends Numeric>(
 // So we try to get the indexes of the two data points around needle
 // or -1 if there is no such datapoint.
 export function searchSegment<T extends Numeric>(
-  haystack: ArrayLike<T>, needle: T): Range {
+  haystack: ArrayLike<T>,
+  needle: T,
+): Range {
   if (!haystack.length) return [-1, -1];
 
   const left = search(haystack, needle);

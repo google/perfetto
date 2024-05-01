@@ -19,15 +19,15 @@ import {classNames} from '../base/classnames';
 interface SpinnerAttrs {
   // Whether to use an ease-in-ease-out animation rather than a linear one.
   // Defaults to false.
-  easing: boolean;
+  easing?: boolean;
+  // Additional space separated classnames.
+  className?: string;
 }
 
 export class Spinner implements m.ClassComponent<SpinnerAttrs> {
-  view({attrs}: m.Vnode<SpinnerAttrs, this>): void|m.Children {
-    const {
-      easing = false,
-    } = attrs;
-    const classes = classNames(easing && 'easing');
+  view({attrs}: m.Vnode<SpinnerAttrs, this>): void | m.Children {
+    const {easing = false, className} = attrs;
+    const classes = classNames(easing && 'easing', className);
     return m('.pf-spinner', {class: classes});
   }
 }

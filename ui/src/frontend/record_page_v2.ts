@@ -12,15 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 import m from 'mithril';
 import {Attributes} from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
-import {
-  RecordingConfigUtils,
-} from '../common/recordingV2/recording_config_utils';
+import {RecordingConfigUtils} from '../common/recordingV2/recording_config_utils';
 import {
   ChromeTargetInfo,
   RecordingTargetV2,
@@ -34,9 +31,7 @@ import {
   EXTENSION_NAME,
   EXTENSION_URL,
 } from '../common/recordingV2/recording_utils';
-import {
-  targetFactoryRegistry,
-} from '../common/recordingV2/target_factory_registry';
+import {targetFactoryRegistry} from '../common/recordingV2/target_factory_registry';
 import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
@@ -53,15 +48,14 @@ import {AdvancedSettings} from './recording/advanced_settings';
 import {AndroidSettings} from './recording/android_settings';
 import {ChromeSettings} from './recording/chrome_settings';
 import {CpuSettings} from './recording/cpu_settings';
+import {EtwSettings} from './recording/etw_settings';
 import {GpuSettings} from './recording/gpu_settings';
 import {LinuxPerfSettings} from './recording/linux_perf_settings';
 import {MemorySettings} from './recording/memory_settings';
 import {PowerSettings} from './recording/power_settings';
 import {RecordingSectionAttrs} from './recording/recording_sections';
 import {RecordingSettings} from './recording/recording_settings';
-import {
-  FORCE_RESET_MESSAGE,
-} from './recording/recording_ui_utils';
+import {FORCE_RESET_MESSAGE} from './recording/recording_ui_utils';
 import {showAddNewTargetModal} from './recording/reset_target_modal';
 
 const START_RECORDING_MESSAGE = 'Start Recording';
@@ -78,8 +72,9 @@ export interface TargetSelectionOptions {
   shouldDisplayLabel: boolean;
 }
 
-function isChromeTargetInfo(targetInfo: TargetInfo):
-    targetInfo is ChromeTargetInfo {
+function isChromeTargetInfo(
+  targetInfo: TargetInfo,
+): targetInfo is ChromeTargetInfo {
   return ['CHROME', 'CHROME_OS'].includes(targetInfo.targetType);
 }
 
@@ -94,10 +89,13 @@ function RecordHeader() {
   }
   return m(
     '.record-header',
-    m('.top-part',
+    m(
+      '.top-part',
       m('.target-and-status', platformSelection, statusLabel),
-      buttons),
-    notes);
+      buttons,
+    ),
+    notes,
+  );
 }
 
 function RecordingPlatformSelection() {
@@ -106,14 +104,17 @@ function RecordingPlatformSelection() {
 
   return m(
     '.target',
-    m('.chip',
+    m(
+      '.chip',
       {onclick: () => showAddNewTargetModal(controller)},
       m('button', 'Add new recording target'),
-      m('i.material-icons', 'add')),
-    targetSelection());
+      m('i.material-icons', 'add'),
+    ),
+    targetSelection(),
+  );
 }
 
-export function targetSelection(): m.Vnode|undefined {
+export function targetSelection(): m.Vnode | undefined {
   if (!controller.shouldShowTargetSelection()) {
     return undefined;
   }
@@ -137,7 +138,8 @@ export function targetSelection(): m.Vnode|undefined {
   return m(
     'label',
     'Target platform:',
-    m('select',
+    m(
+      'select',
       {
         selectedIndex,
         onchange: (e: Event) => {
@@ -155,7 +157,8 @@ export function targetSelection(): m.Vnode|undefined {
           (select.dom as HTMLSelectElement).selectedIndex = selectedIndex;
         },
       },
-      ...targetNames),
+      ...targetNames,
+    ),
   );
 }
 
@@ -178,19 +181,23 @@ function Instructions(cssClass: string) {
   return m(
     `.record-section.instructions${cssClass}`,
     m('header', 'Recording command'),
-    (PERSIST_CONFIG_FLAG.get()) ?
-      m('button.permalinkconfig',
-        {
-          onclick: () => {
-            globals.dispatch(
-              Actions.createPermalink({isRecordingConfig: true}));
+    PERSIST_CONFIG_FLAG.get()
+      ? m(
+          'button.permalinkconfig',
+          {
+            onclick: () => {
+              globals.dispatch(
+                Actions.createPermalink({isRecordingConfig: true}),
+              );
+            },
           },
-        },
-        'Share recording settings') :
-      null,
+          'Share recording settings',
+        )
+      : null,
     RecordingSnippet(targetInfo),
     BufferUsageProgressBar(),
-    m('.buttons', StopCancelButtons()));
+    m('.buttons', StopCancelButtons()),
+  );
 }
 
 function BufferUsageProgressBar() {
@@ -208,7 +215,8 @@ function BufferUsageProgressBar() {
   return m(
     'label',
     'Buffer usage: ',
-    m('progress', {max: 100, value: bufferUsage * 100}));
+    m('progress', {max: 100, value: bufferUsage * 100}),
+  );
 }
 
 function RecordingNotes() {
@@ -220,41 +228,54 @@ function RecordingNotes() {
 
   const linuxUrl = 'https://perfetto.dev/docs/quickstart/linux-tracing';
   const cmdlineUrl =
-      'https://perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
+    'https://perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
 
   const notes: m.Children = [];
 
-  const msgFeatNotSupported =
-      m('span', `Some probes are only supported in Perfetto versions running
+  const msgFeatNotSupported = m(
+    'span',
+    `Some probes are only supported in Perfetto versions running
       on Android Q+. Therefore, Perfetto will sideload the latest version onto
-      the device.`);
+      the device.`,
+  );
 
   const msgPerfettoNotSupported = m(
     'span',
     `Perfetto is not supported natively before Android P. Therefore, Perfetto
-       will sideload the latest version onto the device.`);
+       will sideload the latest version onto the device.`,
+  );
 
-  const msgLinux =
-      m('.note',
-        `Use this `,
-        m('a', {href: linuxUrl, target: '_blank'}, `quickstart guide`),
-        ` to get started with tracing on Linux.`);
+  const msgLinux = m(
+    '.note',
+    `Use this `,
+    m('a', {href: linuxUrl, target: '_blank'}, `quickstart guide`),
+    ` to get started with tracing on Linux.`,
+  );
 
   const msgLongTraces = m(
     '.note',
     `Recording in long trace mode through the UI is not supported. Please copy
     the command and `,
-    m('a',
+    m(
+      'a',
       {href: cmdlineUrl, target: '_blank'},
-      `collect the trace using ADB.`));
+      `collect the trace using ADB.`,
+    ),
+  );
 
-  if (!recordConfigUtils
-    .fetchLatestRecordCommand(globals.state.recordConfig, targetInfo)
-    .hasDataSources) {
+  if (
+    !recordConfigUtils.fetchLatestRecordCommand(
+      globals.state.recordConfig,
+      targetInfo,
+    ).hasDataSources
+  ) {
     notes.push(
-      m('.note',
-        'It looks like you didn\'t add any probes. ' +
-              'Please add at least one to get a non-empty trace.'));
+      m(
+        '.note',
+        "It looks like you didn't add any probes. " +
+          'Please add at least one to get a non-empty trace.',
+      ),
+    );
   }
 
   targetFactoryRegistry.listRecordingProblems().map((recordingProblem) => {
@@ -262,29 +283,32 @@ function RecordingNotes() {
       // Special case for rendering the link to the Chrome extension.
       const parts = recordingProblem.split(EXTENSION_URL);
       notes.push(
-        m('.note',
+        m(
+          '.note',
           parts[0],
           m('a', {href: EXTENSION_URL, target: '_blank'}, EXTENSION_NAME),
-          parts[1]));
+          parts[1],
+        ),
+      );
     }
   });
 
   switch (targetInfo.targetType) {
-  case 'LINUX':
-    notes.push(msgLinux);
-    break;
-  case 'ANDROID': {
-    const androidApiLevel = targetInfo.androidApiLevel;
-    if (androidApiLevel === 28) {
-      notes.push(m('.note', msgFeatNotSupported));
-      /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-    } else if (androidApiLevel && androidApiLevel <= 27) {
-      /* eslint-enable */
-      notes.push(m('.note', msgPerfettoNotSupported));
+    case 'LINUX':
+      notes.push(msgLinux);
+      break;
+    case 'ANDROID': {
+      const androidApiLevel = targetInfo.androidApiLevel;
+      if (androidApiLevel === 28) {
+        notes.push(m('.note', msgFeatNotSupported));
+        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
+      } else if (androidApiLevel && androidApiLevel <= 27) {
+        /* eslint-enable */
+        notes.push(m('.note', msgPerfettoNotSupported));
+      }
+      break;
     }
-    break;
-  }
-  default:
+    default:
   }
 
   if (globals.state.recordConfig.mode === 'LONG_TRACE') {
@@ -304,27 +328,37 @@ function RecordingSnippet(targetInfo: TargetInfo) {
     }
     return m(
       'div',
-      m('label', `To trace Chrome from the Perfetto UI you just have to press
-         '${START_RECORDING_MESSAGE}'.`));
+      m(
+        'label',
+        `To trace Chrome from the Perfetto UI you just have to press
+         '${START_RECORDING_MESSAGE}'.`,
+      ),
+    );
   }
   return m(CodeSnippet, {text: getRecordCommand(targetInfo)});
 }
 
 function getRecordCommand(targetInfo: TargetInfo): string {
   const recordCommand = recordConfigUtils.fetchLatestRecordCommand(
-    globals.state.recordConfig, targetInfo);
+    globals.state.recordConfig,
+    targetInfo,
+  );
 
   const pbBase64 = recordCommand?.configProtoBase64 ?? '';
   const pbtx = recordCommand?.configProtoText ?? '';
   let cmd = '';
-  if (targetInfo.targetType === 'ANDROID' &&
-      targetInfo.androidApiLevel === 28) {
+  if (
+    targetInfo.targetType === 'ANDROID' &&
+    targetInfo.androidApiLevel === 28
+  ) {
     cmd += `echo '${pbBase64}' | \n`;
     cmd += 'base64 --decode | \n';
     cmd += 'adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace"\n';
   } else {
-    cmd += targetInfo.targetType === 'ANDROID' ? 'adb shell perfetto \\\n' :
-      'perfetto \\\n';
+    cmd +=
+      targetInfo.targetType === 'ANDROID'
+        ? 'adb shell perfetto \\\n'
+        : 'perfetto \\\n';
     cmd += '  -c - --txt \\\n';
     cmd += '  -o /data/misc/perfetto-traces/trace \\\n';
     cmd += '<<EOF\n\n';
@@ -335,29 +369,34 @@ function getRecordCommand(targetInfo: TargetInfo): string {
 }
 
 function RecordingButton() {
-  if (controller.getState() !== RecordingState.TARGET_INFO_DISPLAYED ||
-      !controller.canCreateTracingSession()) {
+  if (
+    controller.getState() !== RecordingState.TARGET_INFO_DISPLAYED ||
+    !controller.canCreateTracingSession()
+  ) {
     return undefined;
   }
 
   // We know we have a target because we checked the state.
   const targetInfo = assertExists(controller.getTargetInfo());
-  const hasDataSources =
-      recordConfigUtils
-        .fetchLatestRecordCommand(globals.state.recordConfig, targetInfo)
-        .hasDataSources;
+  const hasDataSources = recordConfigUtils.fetchLatestRecordCommand(
+    globals.state.recordConfig,
+    targetInfo,
+  ).hasDataSources;
   if (!hasDataSources) {
     return undefined;
   }
 
   return m(
     '.button',
-    m('button',
+    m(
+      'button',
       {
         class: 'selected',
         onclick: () => controller.onStartRecordingPressed(),
       },
-      START_RECORDING_MESSAGE));
+      START_RECORDING_MESSAGE,
+    ),
+  );
 }
 
 function StopCancelButtons() {
@@ -366,8 +405,11 @@ function StopCancelButtons() {
     return undefined;
   }
 
-  const stop =
-      m(`button.selected`, {onclick: () => controller.onStop()}, 'Stop');
+  const stop = m(
+    `button.selected`,
+    {onclick: () => controller.onStop()},
+    'Stop',
+  );
 
   const cancel = m(`button`, {onclick: () => controller.onCancel()}, 'Cancel');
 
@@ -375,54 +417,87 @@ function StopCancelButtons() {
 }
 
 function recordMenu(routePage: string) {
-  const chromeProbe =
-      m('a[href="#!/record/chrome"]',
-        m(`li${routePage === 'chrome' ? '.active' : ''}`,
-          m('i.material-icons', 'laptop_chromebook'),
-          m('.title', 'Chrome'),
-          m('.sub', 'Chrome traces')));
-  const cpuProbe =
-      m('a[href="#!/record/cpu"]',
-        m(`li${routePage === 'cpu' ? '.active' : ''}`,
-          m('i.material-icons', 'subtitles'),
-          m('.title', 'CPU'),
-          m('.sub', 'CPU usage, scheduling, wakeups')));
-  const gpuProbe =
-      m('a[href="#!/record/gpu"]',
-        m(`li${routePage === 'gpu' ? '.active' : ''}`,
-          m('i.material-icons', 'aspect_ratio'),
-          m('.title', 'GPU'),
-          m('.sub', 'GPU frequency, memory')));
-  const powerProbe =
-      m('a[href="#!/record/power"]',
-        m(`li${routePage === 'power' ? '.active' : ''}`,
-          m('i.material-icons', 'battery_charging_full'),
-          m('.title', 'Power'),
-          m('.sub', 'Battery and other energy counters')));
-  const memoryProbe =
-      m('a[href="#!/record/memory"]',
-        m(`li${routePage === 'memory' ? '.active' : ''}`,
-          m('i.material-icons', 'memory'),
-          m('.title', 'Memory'),
-          m('.sub', 'Physical mem, VM, LMK')));
-  const androidProbe =
-      m('a[href="#!/record/android"]',
-        m(`li${routePage === 'android' ? '.active' : ''}`,
-          m('i.material-icons', 'android'),
-          m('.title', 'Android apps & svcs'),
-          m('.sub', 'atrace and logcat')));
-  const advancedProbe =
-      m('a[href="#!/record/advanced"]',
-        m(`li${routePage === 'advanced' ? '.active' : ''}`,
-          m('i.material-icons', 'settings'),
-          m('.title', 'Advanced settings'),
-          m('.sub', 'Complicated stuff for wizards')));
-  const tracePerfProbe =
-      m('a[href="#!/record/tracePerf"]',
-        m(`li${routePage === 'tracePerf' ? '.active' : ''}`,
-          m('i.material-icons', 'full_stacked_bar_chart'),
-          m('.title', 'Stack Samples'),
-          m('.sub', 'Lightweight stack polling')));
+  const chromeProbe = m(
+    'a[href="#!/record/chrome"]',
+    m(
+      `li${routePage === 'chrome' ? '.active' : ''}`,
+      m('i.material-icons', 'laptop_chromebook'),
+      m('.title', 'Chrome'),
+      m('.sub', 'Chrome traces'),
+    ),
+  );
+  const cpuProbe = m(
+    'a[href="#!/record/cpu"]',
+    m(
+      `li${routePage === 'cpu' ? '.active' : ''}`,
+      m('i.material-icons', 'subtitles'),
+      m('.title', 'CPU'),
+      m('.sub', 'CPU usage, scheduling, wakeups'),
+    ),
+  );
+  const gpuProbe = m(
+    'a[href="#!/record/gpu"]',
+    m(
+      `li${routePage === 'gpu' ? '.active' : ''}`,
+      m('i.material-icons', 'aspect_ratio'),
+      m('.title', 'GPU'),
+      m('.sub', 'GPU frequency, memory'),
+    ),
+  );
+  const powerProbe = m(
+    'a[href="#!/record/power"]',
+    m(
+      `li${routePage === 'power' ? '.active' : ''}`,
+      m('i.material-icons', 'battery_charging_full'),
+      m('.title', 'Power'),
+      m('.sub', 'Battery and other energy counters'),
+    ),
+  );
+  const memoryProbe = m(
+    'a[href="#!/record/memory"]',
+    m(
+      `li${routePage === 'memory' ? '.active' : ''}`,
+      m('i.material-icons', 'memory'),
+      m('.title', 'Memory'),
+      m('.sub', 'Physical mem, VM, LMK'),
+    ),
+  );
+  const androidProbe = m(
+    'a[href="#!/record/android"]',
+    m(
+      `li${routePage === 'android' ? '.active' : ''}`,
+      m('i.material-icons', 'android'),
+      m('.title', 'Android apps & svcs'),
+      m('.sub', 'atrace and logcat'),
+    ),
+  );
+  const advancedProbe = m(
+    'a[href="#!/record/advanced"]',
+    m(
+      `li${routePage === 'advanced' ? '.active' : ''}`,
+      m('i.material-icons', 'settings'),
+      m('.title', 'Advanced settings'),
+      m('.sub', 'Complicated stuff for wizards'),
+    ),
+  );
+  const tracePerfProbe = m(
+    'a[href="#!/record/tracePerf"]',
+    m(
+      `li${routePage === 'tracePerf' ? '.active' : ''}`,
+      m('i.material-icons', 'full_stacked_bar_chart'),
+      m('.title', 'Stack Samples'),
+      m('.sub', 'Lightweight stack polling'),
+    ),
+  );
+  const etwProbe = m(
+    'a[href="#!/record/etw"]',
+    m(
+      `li${routePage === 'etw' ? '.active' : ''}`,
+      m('i.material-icons', 'subtitles'),
+      m('.title', 'ETW Tracing Config'),
+      m('.sub', 'Context switch, Thread state'),
+    ),
+  );
 
   // We only display the probes when we have a valid target, so it's not
   // possible for the target to be undefined here.
@@ -430,6 +505,8 @@ function recordMenu(routePage: string) {
   const probes = [];
   if (targetType === 'CHROME_OS' || targetType === 'LINUX') {
     probes.push(cpuProbe, powerProbe, memoryProbe, chromeProbe, advancedProbe);
+  } else if (targetType === 'WINDOWS') {
+    probes.push(chromeProbe, etwProbe);
   } else if (targetType === 'CHROME') {
     probes.push(chromeProbe);
   } else {
@@ -441,43 +518,60 @@ function recordMenu(routePage: string) {
       androidProbe,
       chromeProbe,
       tracePerfProbe,
-      advancedProbe);
+      advancedProbe,
+    );
   }
 
   return m(
     '.record-menu',
     {
-      class: controller.getState() > RecordingState.TARGET_INFO_DISPLAYED ?
-        'disabled' :
-        '',
+      class:
+        controller.getState() > RecordingState.TARGET_INFO_DISPLAYED
+          ? 'disabled'
+          : '',
       onclick: () => raf.scheduleFullRedraw(),
     },
     m('header', 'Trace config'),
-    m('ul',
-      m('a[href="#!/record/buffers"]',
-        m(`li${routePage === 'buffers' ? '.active' : ''}`,
+    m(
+      'ul',
+      m(
+        'a[href="#!/record/buffers"]',
+        m(
+          `li${routePage === 'buffers' ? '.active' : ''}`,
           m('i.material-icons', 'tune'),
           m('.title', 'Recording settings'),
-          m('.sub', 'Buffer mode, size and duration'))),
-      m('a[href="#!/record/instructions"]',
-        m(`li${routePage === 'instructions' ? '.active' : ''}`,
+          m('.sub', 'Buffer mode, size and duration'),
+        ),
+      ),
+      m(
+        'a[href="#!/record/instructions"]',
+        m(
+          `li${routePage === 'instructions' ? '.active' : ''}`,
           m('i.material-icons-filled.rec', 'fiber_manual_record'),
           m('.title', 'Recording command'),
-          m('.sub', 'Manually record trace'))),
-      PERSIST_CONFIG_FLAG.get() ?
-        m('a[href="#!/record/config"]',
-          {
-            onclick: () => {
-              recordConfigStore.reloadFromLocalStorage();
+          m('.sub', 'Manually record trace'),
+        ),
+      ),
+      PERSIST_CONFIG_FLAG.get()
+        ? m(
+            'a[href="#!/record/config"]',
+            {
+              onclick: () => {
+                recordConfigStore.reloadFromLocalStorage();
+              },
             },
-          },
-          m(`li${routePage === 'config' ? '.active' : ''}`,
-            m('i.material-icons', 'save'),
-            m('.title', 'Saved configs'),
-            m('.sub', 'Manage local configs'))) :
-        null),
+            m(
+              `li${routePage === 'config' ? '.active' : ''}`,
+              m('i.material-icons', 'save'),
+              m('.title', 'Saved configs'),
+              m('.sub', 'Manage local configs'),
+            ),
+          )
+        : null,
+    ),
     m('header', 'Probes'),
-    m('ul', probes));
+    m('ul', probes),
+  );
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -488,19 +582,25 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
     return m('.record-container', components);
   } else if (controller.getState() <= RecordingState.ASK_TO_FORCE_P1) {
     components.push(
-      m('.full-centered',
+      m(
+        '.full-centered',
         'Can not access the device without resetting the ' +
-              `connection. Please refresh the page, then click ` +
-              `'${FORCE_RESET_MESSAGE}.'`));
+          `connection. Please refresh the page, then click ` +
+          `'${FORCE_RESET_MESSAGE}.'`,
+      ),
+    );
     return m('.record-container', components);
   } else if (controller.getState() === RecordingState.AUTH_P1) {
     components.push(
-      m('.full-centered', 'Please allow USB debugging on the device.'));
+      m('.full-centered', 'Please allow USB debugging on the device.'),
+    );
     return m('.record-container', components);
   } else if (
-    controller.getState() === RecordingState.WAITING_FOR_TRACE_DISPLAY) {
+    controller.getState() === RecordingState.WAITING_FOR_TRACE_DISPLAY
+  ) {
     components.push(
-      m('.full-centered', 'Waiting for the trace to be collected.'));
+      m('.full-centered', 'Waiting for the trace to be collected.'),
+    );
     return m('.record-container', components);
   }
 
@@ -512,10 +612,12 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
   }
   pages.push(recordMenu(routePage));
 
-  pages.push(m(RecordingSettings, {
-    dataSources: [],
-    cssClass: maybeGetActiveCss(routePage, 'buffers'),
-  } as RecordingSectionAttrs));
+  pages.push(
+    m(RecordingSettings, {
+      dataSources: [],
+      cssClass: maybeGetActiveCss(routePage, 'buffers'),
+    } as RecordingSectionAttrs),
+  );
   pages.push(Instructions(maybeGetActiveCss(routePage, 'instructions')));
   pages.push(Configurations(maybeGetActiveCss(routePage, 'config')));
 
@@ -528,31 +630,33 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
     ['chrome', ChromeSettings],
     ['tracePerf', LinuxPerfSettings],
     ['advanced', AdvancedSettings],
+    ['etw', EtwSettings],
   ]);
   for (const [section, component] of settingsSections.entries()) {
-    pages.push(m(component, {
-      dataSources: controller.getTargetInfo()?.dataSources || [],
-      cssClass: maybeGetActiveCss(routePage, section),
-    } as RecordingSectionAttrs));
+    pages.push(
+      m(component, {
+        dataSources: controller.getTargetInfo()?.dataSources || [],
+        cssClass: maybeGetActiveCss(routePage, section),
+      } as RecordingSectionAttrs),
+    );
   }
 
   components.push(m('.record-container-content', pages));
   return m('.record-container', components);
 }
 
-export const RecordPageV2 =
-    createPage({
+export const RecordPageV2 = createPage({
+  oninit(): void {
+    controller.initFactories();
+  },
 
-      oninit(): void {
-        controller.initFactories();
-      },
-
-      view({attrs}: m.Vnode<PageAttrs>) {
-        return m(
-          '.record-page',
-          controller.getState() > RecordingState.TARGET_INFO_DISPLAYED ?
-            m('.hider') :
-            [],
-          getRecordContainer(attrs.subpage));
-      },
-    });
+  view({attrs}: m.Vnode<PageAttrs>) {
+    return m(
+      '.record-page',
+      controller.getState() > RecordingState.TARGET_INFO_DISPLAYED
+        ? m('.hider')
+        : [],
+      getRecordContainer(attrs.subpage),
+    );
+  },
+});

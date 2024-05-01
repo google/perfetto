@@ -21,7 +21,6 @@
 #include <functional>
 #include <iterator>
 #include <limits>
-#include <memory>
 #include <string>
 #include <utility>
 
@@ -41,40 +40,13 @@ namespace perfetto::trace_processor::column {
 namespace {
 
 template <typename Comparator>
-RangeOrBitVector IndexSearchWithComparator(uint32_t val,
-                                           const uint32_t* indices,
-                                           uint32_t indices_size,
-                                           Comparator comparator) {
-  // Slow path: we compare <64 elements and append to get us to a word
-  // boundary.
-  const uint32_t* ptr = indices;
-  BitVector::Builder builder(indices_size);
-  uint32_t front_elements = builder.BitsUntilWordBoundaryOrFull();
-  for (uint32_t i = 0; i < front_elements; ++i) {
-    builder.Append(comparator(ptr[i], val));
-  }
-  ptr += front_elements;
-
-  // Fast path: we compare as many groups of 64 elements as we can.
-  // This should be very easy for the compiler to auto-vectorize.
-  uint32_t fast_path_elements = builder.BitsInCompleteWordsUntilFull();
-  for (uint32_t i = 0; i < fast_path_elements; i += BitVector::kBitsInWord) {
-    uint64_t word = 0;
-    // This part should be optimised by SIMD and is expected to be fast.
-    for (uint32_t k = 0; k < BitVector::kBitsInWord; ++k) {
-      bool comp_result = comparator(ptr[i + k], val);
-      word |= static_cast<uint64_t>(comp_result) << k;
-    }
-    builder.AppendWord(word);
-  }
-  ptr += fast_path_elements;
-
-  // Slow path: we compare <64 elements and append to fill the Builder.
-  uint32_t back_elements = builder.BitsUntilFull();
-  for (uint32_t i = 0; i < back_elements; ++i) {
-    builder.Append(comparator(ptr[i], val));
-  }
-  return RangeOrBitVector(std::move(builder).Build());
+void IndexSearchWithComparator(uint32_t val, DataLayerChain::Indices& indices) {
+  indices.tokens.erase(
+      std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                     [val](const DataLayerChain::Indices::Token& idx) {
+                       return !Comparator()(idx.index, val);
+                     }),
+      indices.tokens.end());
 }
 
 }  // namespace
@@ -226,14 +198,13 @@ RangeOrBitVector IdStorage::ChainImpl::SearchValidated(
   return RangeOrBitVector(BinarySearchIntrinsic(op, val, search_range));
 }
 
-RangeOrBitVector IdStorage::ChainImpl::IndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    Indices indices) const {
+void IdStorage::ChainImpl::IndexSearchValidated(FilterOp op,
+                                                SqlValue sql_val,
+                                                Indices& indices) const {
   PERFETTO_TP_TRACE(
       metatrace::Category::DB, "IdStorage::ChainImpl::IndexSearch",
-      [indices, op](metatrace::Record* r) {
-        r->AddArg("Count", std::to_string(indices.size));
+      [&indices, op](metatrace::Record* r) {
+        r->AddArg("Count", std::to_string(indices.tokens.size()));
         r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
       });
 
@@ -241,35 +212,30 @@ RangeOrBitVector IdStorage::ChainImpl::IndexSearchValidated(
   // requires special logic.
   if (sql_val.type == SqlValue::kDouble) {
     switch (utils::CompareIntColumnWithDouble(op, &sql_val)) {
+      case SearchValidationResult::kAllData:
+        return;
+      case SearchValidationResult::kNoData:
+        indices.tokens.clear();
+        return;
       case SearchValidationResult::kOk:
         break;
-      case SearchValidationResult::kAllData:
-        return RangeOrBitVector(Range(0, indices.size));
-      case SearchValidationResult::kNoData:
-        return RangeOrBitVector(Range());
     }
   }
 
   auto val = static_cast<uint32_t>(sql_val.AsLong());
   switch (op) {
     case FilterOp::kEq:
-      return IndexSearchWithComparator(val, indices.data, indices.size,
-                                       std::equal_to<>());
+      return IndexSearchWithComparator<std::equal_to<>>(val, indices);
     case FilterOp::kNe:
-      return IndexSearchWithComparator(val, indices.data, indices.size,
-                                       std::not_equal_to<>());
+      return IndexSearchWithComparator<std::not_equal_to<>>(val, indices);
     case FilterOp::kLe:
-      return IndexSearchWithComparator(val, indices.data, indices.size,
-                                       std::less_equal<>());
+      return IndexSearchWithComparator<std::less_equal<>>(val, indices);
     case FilterOp::kLt:
-      return IndexSearchWithComparator(val, indices.data, indices.size,
-                                       std::less<>());
+      return IndexSearchWithComparator<std::less<>>(val, indices);
     case FilterOp::kGt:
-      return IndexSearchWithComparator(val, indices.data, indices.size,
-                                       std::greater<>());
+      return IndexSearchWithComparator<std::greater<>>(val, indices);
     case FilterOp::kGe:
-      return IndexSearchWithComparator(val, indices.data, indices.size,
-                                       std::greater_equal<>());
+      return IndexSearchWithComparator<std::greater_equal<>>(val, indices);
     case FilterOp::kIsNotNull:
     case FilterOp::kIsNull:
     case FilterOp::kGlob:
@@ -279,9 +245,10 @@ RangeOrBitVector IdStorage::ChainImpl::IndexSearchValidated(
   PERFETTO_FATAL("FilterOp not matched");
 }
 
-Range IdStorage::ChainImpl::OrderedIndexSearchValidated(FilterOp op,
-                                                        SqlValue sql_val,
-                                                        Indices indices) const {
+Range IdStorage::ChainImpl::OrderedIndexSearchValidated(
+    FilterOp op,
+    SqlValue sql_val,
+    const OrderedIndices& indices) const {
   PERFETTO_DCHECK(op != FilterOp::kNe);
 
   PERFETTO_TP_TRACE(
@@ -305,10 +272,9 @@ Range IdStorage::ChainImpl::OrderedIndexSearchValidated(FilterOp op,
   }
   auto val = static_cast<uint32_t>(sql_val.AsLong());
 
-  // Indices are monotonic non contiguous values if OrderedIndexSearch was
-  // called.
-  // Look for the first and last index and find the result of looking for this
-  // range in IdStorage.
+  // OrderedIndices are monotonic non contiguous values if OrderedIndexSearch
+  // was called. Look for the first and last index and find the result of
+  // looking for this range in IdStorage.
   Range indices_range(indices.data[0], indices.data[indices.size - 1] + 1);
   Range bin_search_ret = BinarySearchIntrinsic(op, val, indices_range);
 
@@ -327,13 +293,13 @@ Range IdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
     case FilterOp::kEq:
       return {val, val + (range.start <= val && val < range.end)};
     case FilterOp::kLe:
-      return {range.start, std::min(val + 1, range.end)};
+      return {range.start, std::clamp(val + 1, range.start, range.end)};
     case FilterOp::kLt:
-      return {range.start, std::min(val, range.end)};
+      return {range.start, std::clamp(val, range.start, range.end)};
     case FilterOp::kGe:
-      return {std::max(val, range.start), range.end};
+      return {std::clamp(val, range.start, range.end), range.end};
     case FilterOp::kGt:
-      return {std::max(val + 1, range.start), range.end};
+      return {std::clamp(val + 1, range.start, range.end), range.end};
     case FilterOp::kIsNotNull:
     case FilterOp::kNe:
     case FilterOp::kIsNull:

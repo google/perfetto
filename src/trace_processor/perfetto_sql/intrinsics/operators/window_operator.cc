@@ -16,145 +16,187 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h"
 
-#include "perfetto/base/status.h"
+#include <sqlite3.h>
+#include <cstdint>
+#include <memory>
+
+#include "perfetto/base/logging.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
+#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
-using namespace sqlite_utils;
-}  // namespace
-
-WindowOperatorTable::WindowOperatorTable(sqlite3*, const TraceStorage*) {}
-WindowOperatorTable::~WindowOperatorTable() = default;
-
-base::Status WindowOperatorTable::Init(int,
-                                       const char* const*,
-                                       Schema* schema) {
-  const bool kHidden = true;
-  *schema = Schema(
-      {
-          // These are the operator columns:
-          SqliteTable::Column(Column::kRowId, "rowid", SqlValue::Type::kLong,
-                              kHidden),
-          SqliteTable::Column(Column::kQuantum, "quantum",
-                              SqlValue::Type::kLong, kHidden),
-          SqliteTable::Column(Column::kWindowStart, "window_start",
-                              SqlValue::Type::kLong, kHidden),
-          SqliteTable::Column(Column::kWindowDur, "window_dur",
-                              SqlValue::Type::kLong, kHidden),
-          // These are the ouput columns:
-          SqliteTable::Column(Column::kTs, "ts", SqlValue::Type::kLong),
-          SqliteTable::Column(Column::kDuration, "dur", SqlValue::Type::kLong),
-          SqliteTable::Column(Column::kQuantumTs, "quantum_ts",
-                              SqlValue::Type::kLong),
-      },
-      {Column::kRowId});
-  return base::OkStatus();
+constexpr char kSchema[] = R"(
+    CREATE TABLE x(
+      rowid BIGINT HIDDEN,
+      quantum BIGINT HIDDEN,
+      window_start BIGINT HIDDEN,
+      window_dur BIGINT HIDDEN,
+      ts BIGINT,
+      dur BIGINT,
+      quantum_ts BIGINT,
+      PRIMARY KEY(rowid)
+    ) WITHOUT ROWID
+  )";
 }
 
-std::unique_ptr<SqliteTable::BaseCursor> WindowOperatorTable::CreateCursor() {
-  return std::unique_ptr<SqliteTable::BaseCursor>(new Cursor(this));
-}
-
-int WindowOperatorTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
+int WindowOperatorModule::Create(sqlite3* db,
+                                 void* raw_ctx,
+                                 int argc,
+                                 const char* const* argv,
+                                 sqlite3_vtab** vtab,
+                                 char**) {
+  PERFETTO_CHECK(argc == 3);
+  if (int ret = sqlite3_declare_vtab(db, kSchema); ret != SQLITE_OK) {
+    return ret;
+  }
+  auto* ctx = GetContext(raw_ctx);
+  std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
+  res->state = ctx->manager.OnCreate(argv, std::make_unique<State>());
+  *vtab = res.release();
   return SQLITE_OK;
 }
 
-base::Status WindowOperatorTable::ModifyConstraints(QueryConstraints* qc) {
-  // Remove ordering on timestamp if it is the only ordering as we are already
-  // sorted on TS. This makes span joining significantly faster.
-  const auto& ob = qc->order_by();
-  if (ob.size() == 1 && ob[0].iColumn == Column::kTs && !ob[0].desc) {
-    qc->mutable_order_by()->clear();
-  }
-  return base::OkStatus();
+int WindowOperatorModule::Destroy(sqlite3_vtab* vtab) {
+  std::unique_ptr<Vtab> tab(GetVtab(vtab));
+  sqlite::ModuleStateManager<WindowOperatorModule>::OnDestroy(tab->state);
+  return SQLITE_OK;
 }
 
-base::Status WindowOperatorTable::Update(int argc,
-                                         sqlite3_value** argv,
-                                         sqlite3_int64*) {
-  // We only support updates to ts and dur. Disallow deletes (argc == 1) and
-  // inserts (argv[0] == null).
-  if (argc < 2 || sqlite3_value_type(argv[0]) == SQLITE_NULL) {
-    return base::ErrStatus(
-        "Invalid number/value of arguments when updating window table");
+int WindowOperatorModule::Connect(sqlite3* db,
+                                  void* raw_ctx,
+                                  int argc,
+                                  const char* const* argv,
+                                  sqlite3_vtab** vtab,
+                                  char**) {
+  PERFETTO_CHECK(argc == 3);
+  if (int ret = sqlite3_declare_vtab(db, kSchema); ret != SQLITE_OK) {
+    return ret;
   }
-
-  int64_t new_quantum = sqlite3_value_int64(argv[3]);
-  int64_t new_start = sqlite3_value_int64(argv[4]);
-  int64_t new_dur = sqlite3_value_int64(argv[5]);
-  if (new_dur == 0) {
-    return base::ErrStatus("Cannot set duration of window table to zero.");
-  }
-
-  quantum_ = new_quantum;
-  window_start_ = new_start;
-  window_dur_ = new_dur;
-
-  return base::OkStatus();
+  auto* ctx = GetContext(raw_ctx);
+  std::unique_ptr<Vtab> res = std::make_unique<Vtab>();
+  res->state = ctx->manager.OnConnect(argv);
+  *vtab = res.release();
+  return SQLITE_OK;
 }
 
-WindowOperatorTable::Cursor::Cursor(WindowOperatorTable* table)
-    : SqliteTable::BaseCursor(table), table_(table) {}
-WindowOperatorTable::Cursor::~Cursor() = default;
+int WindowOperatorModule::Disconnect(sqlite3_vtab* vtab) {
+  std::unique_ptr<Vtab> tab(GetVtab(vtab));
+  sqlite::ModuleStateManager<WindowOperatorModule>::OnDisconnect(tab->state);
+  return SQLITE_OK;
+}
 
-base::Status WindowOperatorTable::Cursor::Filter(const QueryConstraints& qc,
-                                                 sqlite3_value** argv,
-                                                 FilterHistory) {
-  *this = Cursor(table_);
-  window_start_ = table_->window_start_;
-  window_end_ = table_->window_start_ + table_->window_dur_;
-  step_size_ = table_->quantum_ == 0 ? table_->window_dur_ : table_->quantum_;
-
-  current_ts_ = window_start_;
+int WindowOperatorModule::BestIndex(sqlite3_vtab*, sqlite3_index_info* info) {
+  info->orderByConsumed = info->nOrderBy == 1 &&
+                          info->aOrderBy[0].iColumn == Column::kTs &&
+                          !info->aOrderBy[0].desc;
 
   // Set return first if there is a equals constraint on the row id asking to
   // return the first row.
-  bool return_first = qc.constraints().size() == 1 &&
-                      qc.constraints()[0].column == Column::kRowId &&
-                      IsOpEq(qc.constraints()[0].op) &&
-                      sqlite3_value_int(argv[0]) == 0;
-  if (return_first) {
-    filter_type_ = FilterType::kReturnFirst;
+  bool is_row_id_constraint = info->nConstraint == 1 &&
+                              info->aConstraint[0].iColumn == Column::kRowId &&
+                              info->aConstraint[0].usable &&
+                              sqlite::utils::IsOpEq(info->aConstraint[0].op);
+  if (is_row_id_constraint) {
+    info->idxNum = 1;
+    info->aConstraintUsage[0].argvIndex = 1;
   } else {
-    filter_type_ = FilterType::kReturnAll;
+    info->idxNum = 0;
   }
-  return base::OkStatus();
+  return SQLITE_OK;
 }
 
-base::Status WindowOperatorTable::Cursor::Column(sqlite3_context* context,
-                                                 int N) {
+int WindowOperatorModule::Open(sqlite3_vtab*, sqlite3_vtab_cursor** cursor) {
+  std::unique_ptr<Cursor> c = std::make_unique<Cursor>();
+  *cursor = c.release();
+  return SQLITE_OK;
+}
+
+int WindowOperatorModule::Close(sqlite3_vtab_cursor* cursor) {
+  delete GetCursor(cursor);
+  return SQLITE_OK;
+}
+
+int WindowOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
+                                 int is_row_id_constraint,
+                                 const char*,
+                                 int argc,
+                                 sqlite3_value** argv) {
+  auto* t = GetVtab(cursor->pVtab);
+  auto* c = GetCursor(cursor);
+  auto* s =
+      sqlite::ModuleStateManager<WindowOperatorModule>::GetState(t->state);
+
+  c->window_end = s->window_start + s->window_dur;
+  c->step_size = s->quantum == 0 ? s->window_dur : s->quantum;
+  c->current_ts = s->window_start;
+
+  if (is_row_id_constraint) {
+    PERFETTO_CHECK(argc == 1);
+    c->filter_type = sqlite3_value_int(argv[0]) == 0 ? FilterType::kReturnFirst
+                                                     : FilterType::kReturnAll;
+  } else {
+    c->filter_type = FilterType::kReturnAll;
+  }
+  return SQLITE_OK;
+}
+
+int WindowOperatorModule::Next(sqlite3_vtab_cursor* cursor) {
+  auto* c = GetCursor(cursor);
+  switch (c->filter_type) {
+    case FilterType::kReturnFirst:
+      c->current_ts = c->window_end;
+      break;
+    case FilterType::kReturnAll:
+      c->current_ts += c->step_size;
+      c->quantum_ts++;
+      break;
+  }
+  c->row_id++;
+  return SQLITE_OK;
+}
+
+int WindowOperatorModule::Eof(sqlite3_vtab_cursor* cursor) {
+  auto* c = GetCursor(cursor);
+  return c->current_ts >= c->window_end;
+}
+
+int WindowOperatorModule::Column(sqlite3_vtab_cursor* cursor,
+                                 sqlite3_context* ctx,
+                                 int N) {
+  auto* t = GetVtab(cursor->pVtab);
+  auto* c = GetCursor(cursor);
+  auto* s =
+      sqlite::ModuleStateManager<WindowOperatorModule>::GetState(t->state);
   switch (N) {
     case Column::kQuantum: {
-      sqlite3_result_int64(context,
-                           static_cast<sqlite_int64>(table_->quantum_));
+      sqlite::result::Long(ctx, static_cast<sqlite_int64>(s->quantum));
       break;
     }
     case Column::kWindowStart: {
-      sqlite3_result_int64(context,
-                           static_cast<sqlite_int64>(table_->window_start_));
+      sqlite::result::Long(ctx, static_cast<sqlite_int64>(s->window_start));
       break;
     }
     case Column::kWindowDur: {
-      sqlite3_result_int(context, static_cast<int>(table_->window_dur_));
+      sqlite::result::Long(ctx, static_cast<int>(s->window_dur));
       break;
     }
     case Column::kTs: {
-      sqlite3_result_int64(context, static_cast<sqlite_int64>(current_ts_));
+      sqlite::result::Long(ctx, static_cast<sqlite_int64>(c->current_ts));
       break;
     }
     case Column::kDuration: {
-      sqlite3_result_int64(context, static_cast<sqlite_int64>(step_size_));
+      sqlite::result::Long(ctx, static_cast<sqlite_int64>(c->step_size));
       break;
     }
     case Column::kQuantumTs: {
-      sqlite3_result_int64(context, static_cast<sqlite_int64>(quantum_ts_));
+      sqlite::result::Long(ctx, static_cast<sqlite_int64>(c->quantum_ts));
       break;
     }
     case Column::kRowId: {
-      sqlite3_result_int64(context, static_cast<sqlite_int64>(row_id_));
+      sqlite::result::Long(ctx, static_cast<sqlite_int64>(c->row_id));
       break;
     }
     default: {
@@ -162,26 +204,41 @@ base::Status WindowOperatorTable::Cursor::Column(sqlite3_context* context,
       break;
     }
   }
-  return base::OkStatus();
+  return SQLITE_OK;
 }
 
-base::Status WindowOperatorTable::Cursor::Next() {
-  switch (filter_type_) {
-    case FilterType::kReturnFirst:
-      current_ts_ = window_end_;
-      break;
-    case FilterType::kReturnAll:
-      current_ts_ += step_size_;
-      quantum_ts_++;
-      break;
+int WindowOperatorModule::Rowid(sqlite3_vtab_cursor*, sqlite_int64*) {
+  return SQLITE_ERROR;
+}
+
+int WindowOperatorModule::Update(sqlite3_vtab* tab,
+                                 int argc,
+                                 sqlite3_value** argv,
+                                 sqlite_int64*) {
+  auto* t = GetVtab(tab);
+  auto* s =
+      sqlite::ModuleStateManager<WindowOperatorModule>::GetState(t->state);
+
+  // We only support updates to ts and dur. Disallow deletes (argc == 1) and
+  // inserts (argv[0] == null).
+  if (argc < 2 || sqlite3_value_type(argv[0]) == SQLITE_NULL) {
+    return sqlite::utils::SetError(
+        tab, "Invalid number/value of arguments when updating window table");
   }
-  row_id_++;
-  return base::OkStatus();
+
+  int64_t new_quantum = sqlite3_value_int64(argv[3]);
+  int64_t new_start = sqlite3_value_int64(argv[4]);
+  int64_t new_dur = sqlite3_value_int64(argv[5]);
+  if (new_dur == 0) {
+    return sqlite::utils::SetError(
+        tab, "Cannot set duration of window table to zero.");
+  }
+
+  s->quantum = new_quantum;
+  s->window_start = new_start;
+  s->window_dur = new_dur;
+
+  return SQLITE_OK;
 }
 
-bool WindowOperatorTable::Cursor::Eof() {
-  return current_ts_ >= window_end_;
-}
-
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

@@ -82,7 +82,7 @@ def main():
   lines.append('#endif  // %s' % guard)
   lines.append('')
 
-  with open(args.out, 'w') as out:
+  with open(args.out, 'w', newline='\n') as out:
     out.write(COPYRIGHT_HEADER)
     out.write('\n'.join(lines))
 

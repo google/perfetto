@@ -47,6 +47,7 @@ class MetadataModule : public ProtoImporterModule {
 
  private:
   void ParseTrigger(int64_t ts, ConstBytes);
+  void ParseChromeTrigger(int64_t ts, ConstBytes);
   void ParseTraceUuid(ConstBytes);
 
   TraceProcessorContext* context_;

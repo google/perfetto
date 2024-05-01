@@ -15,11 +15,7 @@
 import {Disposable, NullDisposable} from '../base/disposable';
 import {assertExists} from '../base/logging';
 import {clamp, floatEqual} from '../base/math_utils';
-import {
-  duration,
-  Time,
-  time,
-} from '../base/time';
+import {duration, Time, time} from '../base/time';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {
@@ -27,9 +23,13 @@ import {
   drawIncompleteSlice,
   drawTrackHoverTooltip,
 } from '../common/canvas_utils';
-import {colorCompare} from '../common/color';
-import {UNEXPECTED_PINK} from '../common/colorizer';
-import {Selection, SelectionKind} from '../common/state';
+import {colorCompare} from '../core/color';
+import {UNEXPECTED_PINK} from '../core/colorizer';
+import {
+  LegacySelection,
+  SelectionKind,
+  getLegacySelection,
+} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {EngineProxy, Slice, SliceRect, Track} from '../public';
@@ -41,7 +41,11 @@ import {PanelSize} from './panel';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {constraintsToQuerySuffix} from './sql_utils';
 import {NewTrackArgs} from './track';
-import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
+import {
+  BUCKETS_PER_PIXEL,
+  CacheKey,
+  TimelineCache,
+} from '../core/timeline_cache';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -74,7 +78,10 @@ export const FADE_THIN_SLICES_FLAG = featureFlags.register({
 // Exposed and standalone to allow for testing without making this
 // visible to subclasses.
 function filterVisibleSlices<S extends Slice>(
-  slices: S[], start: time, end: time): S[] {
+  slices: S[],
+  start: time,
+  end: time,
+): S[] {
   // Here we aim to reduce the number of slices we have to draw
   // by ignoring those that are not visible. A slice is visible iff:
   //   slice.endNsQ >= start && slice.startNsQ <= end
@@ -92,8 +99,7 @@ function filterVisibleSlices<S extends Slice>(
 
   // We do not need to handle non-ending slices (where dur = -1
   // but the slice is drawn as 'infinite' length) as this is handled
-  // by a special code path. See 'incomplete' in the INITIALIZING
-  // code of maybeRequestData.
+  // by a special code path. See 'incomplete' in maybeRequestData.
 
   // While the slices are guaranteed to be ordered by timestamp we must
   // consider async slices (which are not perfectly nested). This is to
@@ -118,13 +124,14 @@ function filterVisibleSlices<S extends Slice>(
   // For all slice in slices: slice.startNsQ > end (e.g. all slices are
   // to the right).
   // Since the slices are sorted by startS we can check this easily:
-  const maybeFirstSlice: S|undefined = slices[0];
+  const maybeFirstSlice: S | undefined = slices[0];
   if (exists(maybeFirstSlice) && maybeFirstSlice.startNsQ > end) {
     return [];
   }
 
   return slices.filter(
-    (slice) => slice.startNsQ <= end && slice.endNsQ >= start);
+    (slice) => slice.startNsQ <= end && slice.endNsQ >= start,
+  );
 }
 
 export const filterVisibleSlicesForTesting = filterVisibleSlices;
@@ -137,14 +144,14 @@ export const filterVisibleSlicesForTesting = filterVisibleSlices;
 // If you need temporally overlapping slices, look at AsyncSliceTrack, which
 // merges several tracks into one visual track.
 export const BASE_ROW = {
-  id: NUM,     // The slice ID, for selection / lookups.
-  ts: LONG,    // Start time in nanoseconds.
-  dur: LONG,   // Duration in nanoseconds. -1 = incomplete, 0 = instant.
-  depth: NUM,  // Vertical depth.
+  id: NUM, // The slice ID, for selection / lookups.
+  ts: LONG, // Start time in nanoseconds.
+  dur: LONG, // Duration in nanoseconds. -1 = incomplete, 0 = instant.
+  depth: NUM, // Vertical depth.
 
   // These are computed by the base class:
-  tsq: LONG,     // Quantized |ts|. This class owns the quantization logic.
-  tsqEnd: LONG,  // Quantized |ts+dur|. The end bucket.
+  tsq: LONG, // Quantized |ts|. This class owns the quantization logic.
+  tsqEnd: LONG, // Quantized |ts+dur|. The end bucket.
 };
 
 export type BaseRow = typeof BASE_ROW;
@@ -162,7 +169,7 @@ interface SliceInternal {
 // methods use CastInternal<T['slice']> (i.e. whatever the subclass requests
 // plus our implementation fields) but when we call 'virtual' methods that
 // the subclass should implement we use just T['slice'] hiding x & w.
-type CastInternal<S extends Slice> = S&SliceInternal;
+type CastInternal<S extends Slice> = S & SliceInternal;
 
 // The meta-type which describes the types used to extend the BaseSliceTrack.
 // Derived classes can extend this interface to override these types if needed.
@@ -172,7 +179,9 @@ export interface BaseSliceTrackTypes {
 }
 
 export abstract class BaseSliceTrack<
-    T extends BaseSliceTrackTypes = BaseSliceTrackTypes> implements Track {
+  T extends BaseSliceTrackTypes = BaseSliceTrackTypes,
+> implements Track
+{
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
   protected engine: EngineProxy;
   protected trackKey: string;
@@ -184,28 +193,26 @@ export abstract class BaseSliceTrack<
   private slices = new Array<CastInternal<T['slice']>>();
 
   // This is the slices cache:
-  private cache: TrackCache<Array<CastInternal<T['slice']>>> =
-    new TrackCache(5);
+  private cache: TimelineCache<Array<CastInternal<T['slice']>>> =
+    new TimelineCache(5);
 
+  private hasOneOffData: boolean = false;
   // Incomplete slices (dur = -1). Rather than adding a lot of logic to
   // the SQL queries to handle this case we materialise them one off
   // then unconditionally render them. This should be efficient since
   // there are at most |depth| slices.
   private incomplete = new Array<CastInternal<T['slice']>>();
+  private maxDurNs: duration = 0n;
 
   // The currently selected slice.
   // TODO(hjd): We should fetch this from the underlying data rather
   // than just remembering it when we see it.
   private selectedSlice?: CastInternal<T['slice']>;
 
-  private maxDurNs: duration = 0n;
-
-  private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
-      'QUERY_DONE' = 'UNINITIALIZED';
   private extraSqlColumns: string[];
 
   private charWidth = -1;
-  private hoverPos?: {x: number, y: number};
+  private hoverPos?: {x: number; y: number};
   protected hoveredSlice?: T['slice'];
   private hoverTooltip: string[] = [];
   private maxDataDepth = 0;
@@ -228,7 +235,7 @@ export abstract class BaseSliceTrack<
   // queries using the result of getSqlSource(). All persistent
   // state in trace_processor should be cleaned up when dispose is
   // called on the returned hook. In the common case of where
-  // the data for this track is d
+  // the data for this track is a SQL fragment this does nothing.
   async onInit(): Promise<Disposable> {
     return new NullDisposable();
   }
@@ -259,7 +266,9 @@ export abstract class BaseSliceTrack<
 
   // TODO(hjd): Remove.
   drawSchedLatencyArrow(
-    _: CanvasRenderingContext2D, _selectedSlice?: T['slice']): void {}
+    _: CanvasRenderingContext2D,
+    _selectedSlice?: T['slice'],
+  ): void {}
 
   constructor(args: NewTrackArgs) {
     this.engine = args.engine;
@@ -273,11 +282,15 @@ export abstract class BaseSliceTrack<
   }
 
   setSliceLayout(sliceLayout: SliceLayout) {
-    if (sliceLayout.isFlat && sliceLayout.depthGuess !== undefined &&
-        sliceLayout.depthGuess !== 0) {
+    if (
+      sliceLayout.isFlat &&
+      sliceLayout.depthGuess !== undefined &&
+      sliceLayout.depthGuess !== 0
+    ) {
       const {isFlat, depthGuess} = sliceLayout;
-      throw new Error(`if isFlat (${isFlat}) then depthGuess (${
-        depthGuess}) must be 0 if defined`);
+      throw new Error(
+        `if isFlat (${isFlat}) then depthGuess (${depthGuess}) must be 0 if defined`,
+      );
     }
     this.sliceLayout = sliceLayout;
   }
@@ -291,7 +304,7 @@ export abstract class BaseSliceTrack<
     }
   }
 
-  protected isSelectionHandled(selection: Selection): boolean {
+  protected isSelectionHandled(selection: LegacySelection): boolean {
     // TODO(hjd): Remove when updating selection.
     // We shouldn't know here about CHROME_SLICE. Maybe should be set by
     // whatever deals with that. Dunno the namespace of selection is weird. For
@@ -316,10 +329,8 @@ export abstract class BaseSliceTrack<
   }
 
   async onUpdate(): Promise<void> {
-    const {
-      visibleTimeScale: timeScale,
-      visibleWindowTime: vizTime,
-    } = globals.timeline;
+    const {visibleTimeScale: timeScale, visibleWindowTime: vizTime} =
+      globals.timeline;
 
     const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
     const rawStartNs = vizTime.start.toTime();
@@ -334,10 +345,8 @@ export abstract class BaseSliceTrack<
   render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
-    const {
-      visibleTimeScale: timeScale,
-      visibleWindowTime: vizTime,
-    } = globals.timeline;
+    const {visibleTimeScale: timeScale, visibleWindowTime: vizTime} =
+      globals.timeline;
 
     // In any case, draw whatever we have (which might be stale/incomplete).
     let charWidth = this.charWidth;
@@ -351,9 +360,11 @@ export abstract class BaseSliceTrack<
     // needed because maybeRequestData() over-fetches to handle small pan/zooms.
     // We don't want to waste time drawing slices that are off screen.
     const vizSlices = this.getVisibleSlicesInternal(
-      vizTime.start.toTime('floor'), vizTime.end.toTime('ceil'));
+      vizTime.start.toTime('floor'),
+      vizTime.end.toTime('ceil'),
+    );
 
-    let selection = globals.state.currentSelection;
+    let selection = getLegacySelection(globals.state);
     if (!selection || !this.isSelectionHandled(selection)) {
       selection = null;
     }
@@ -361,7 +372,7 @@ export abstract class BaseSliceTrack<
     if (selectedId === undefined) {
       this.selectedSlice = undefined;
     }
-    let discoveredSelection: CastInternal<T['slice']>|undefined;
+    let discoveredSelection: CastInternal<T['slice']> | undefined;
 
     // Believe it or not, doing 4xO(N) passes is ~2x faster than trying to draw
     // everything in one go. The key is that state changes operations on the
@@ -394,8 +405,10 @@ export abstract class BaseSliceTrack<
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
         let widthPx;
         if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
-          widthPx = slice.x > 0 ? Math.min(pxEnd, INCOMPLETE_SLICE_WIDTH_PX) :
-            Math.max(0, INCOMPLETE_SLICE_WIDTH_PX + slice.x);
+          widthPx =
+            slice.x > 0
+              ? Math.min(pxEnd, INCOMPLETE_SLICE_WIDTH_PX)
+              : Math.max(0, INCOMPLETE_SLICE_WIDTH_PX + slice.x);
           slice.x = Math.max(slice.x, 0);
         } else {
           slice.x = Math.max(slice.x, 0);
@@ -424,12 +437,14 @@ export abstract class BaseSliceTrack<
 
     // Second pass: fill slices by color.
     const vizSlicesByColor = vizSlices.slice();
-    vizSlicesByColor.sort(
-      (a, b) => colorCompare(a.colorScheme.base, b.colorScheme.base));
+    vizSlicesByColor.sort((a, b) =>
+      colorCompare(a.colorScheme.base, b.colorScheme.base),
+    );
     let lastColor = undefined;
     for (const slice of vizSlicesByColor) {
-      const color = slice.isHighlighted ? slice.colorScheme.variant.cssString :
-        slice.colorScheme.base.cssString;
+      const color = slice.isHighlighted
+        ? slice.colorScheme.variant.cssString
+        : slice.colorScheme.base.cssString;
       if (color !== lastColor) {
         lastColor = color;
         ctx.fillStyle = color;
@@ -438,15 +453,24 @@ export abstract class BaseSliceTrack<
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         this.drawChevron(ctx, slice.x, y, sliceHeight);
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
-        const w = CROP_INCOMPLETE_SLICE_FLAG.get() ? slice.w :
-          Math.max(slice.w - 2, 2);
+        const w = CROP_INCOMPLETE_SLICE_FLAG.get()
+          ? slice.w
+          : Math.max(slice.w - 2, 2);
         drawIncompleteSlice(
-          ctx, slice.x, y, w, sliceHeight, !CROP_INCOMPLETE_SLICE_FLAG.get());
+          ctx,
+          slice.x,
+          y,
+          w,
+          sliceHeight,
+          !CROP_INCOMPLETE_SLICE_FLAG.get(),
+        );
       } else {
         const w = Math.max(
           slice.w,
-          FADE_THIN_SLICES_FLAG.get() ? SLICE_MIN_WIDTH_FADED_PX :
-            SLICE_MIN_WIDTH_PX);
+          FADE_THIN_SLICES_FLAG.get()
+            ? SLICE_MIN_WIDTH_FADED_PX
+            : SLICE_MIN_WIDTH_PX,
+        );
         ctx.fillRect(slice.x, y, w, sliceHeight);
       }
     }
@@ -486,14 +510,18 @@ export abstract class BaseSliceTrack<
     ctx.font = this.getTitleFont();
     ctx.textBaseline = 'middle';
     for (const slice of vizSlices) {
-      if ((slice.flags & SLICE_FLAGS_INSTANT) || !slice.title ||
-          slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX) {
+      if (
+        slice.flags & SLICE_FLAGS_INSTANT ||
+        !slice.title ||
+        slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX
+      ) {
         continue;
       }
 
       // Change the title color dynamically depending on contrast.
-      const textColor = slice.isHighlighted ? slice.colorScheme.textVariant :
-        slice.colorScheme.textBase;
+      const textColor = slice.isHighlighted
+        ? slice.colorScheme.textVariant
+        : slice.colorScheme.textBase;
       ctx.fillStyle = textColor.cssString;
       const title = cropText(slice.title, charWidth, slice.w);
       const rectXCenter = slice.x + slice.w / 2;
@@ -507,14 +535,17 @@ export abstract class BaseSliceTrack<
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.font = this.getSubtitleFont();
     for (const slice of vizSlices) {
-      if (slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX || !slice.subTitle ||
-          (slice.flags & SLICE_FLAGS_INSTANT)) {
+      if (
+        slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX ||
+        !slice.subTitle ||
+        slice.flags & SLICE_FLAGS_INSTANT
+      ) {
         continue;
       }
       const rectXCenter = slice.x + slice.w / 2;
       const subTitle = cropText(slice.subTitle, charWidth, slice.w);
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      const yMidPoint = Math.ceil(y + sliceHeight * 2 / 3) + 1.5;
+      const yMidPoint = Math.ceil(y + (sliceHeight * 2) / 3) + 1.5;
       ctx.fillText(subTitle, rectXCenter, yMidPoint);
     }
 
@@ -533,7 +564,11 @@ export abstract class BaseSliceTrack<
       const THICKNESS = 3;
       ctx.lineWidth = THICKNESS;
       ctx.strokeRect(
-        slice.x, y - THICKNESS / 2, slice.w, sliceHeight + THICKNESS);
+        slice.x,
+        y - THICKNESS / 2,
+        slice.w,
+        sliceHeight + THICKNESS,
+      );
       ctx.closePath();
     }
 
@@ -545,7 +580,8 @@ export abstract class BaseSliceTrack<
       0,
       size.width,
       timeScale.timeToPx(this.slicesKey.start),
-      timeScale.timeToPx(this.slicesKey.end));
+      timeScale.timeToPx(this.slicesKey.end),
+    );
 
     // TODO(hjd): Remove this.
     // The only thing this does is drawing the sched latency arrow. We should
@@ -556,15 +592,23 @@ export abstract class BaseSliceTrack<
     // If a slice is hovered, draw the tooltip.
     const tooltip = this.hoverTooltip;
     const height = this.getHeight();
-    if (this.hoveredSlice !== undefined && tooltip.length > 0 &&
-        this.hoverPos !== undefined) {
+    if (
+      this.hoveredSlice !== undefined &&
+      tooltip.length > 0 &&
+      this.hoverPos !== undefined
+    ) {
       if (tooltip.length === 1) {
         drawTrackHoverTooltip(ctx, this.hoverPos, height, tooltip[0]);
       } else {
         drawTrackHoverTooltip(
-          ctx, this.hoverPos, height, tooltip[0], tooltip[1]);
+          ctx,
+          this.hoverPos,
+          height,
+          tooltip[0],
+          tooltip[1],
+        );
       }
-    }  // if (hoveredSlice)
+    } // if (hoveredSlice)
   }
 
   onDestroy() {
@@ -578,11 +622,8 @@ export abstract class BaseSliceTrack<
   // the cached data and if so issues new queries (i.e. sorta subsumes the
   // onBoundsChange).
   private async maybeRequestData(rawSlicesKey: CacheKey) {
-    // Important: this method is async and is invoked on every frame. Care
-    // must be taken to avoid piling up queries on every frame, hence the FSM.
-    if (this.sqlState === 'UNINITIALIZED') {
-      this.sqlState = 'INITIALIZING';
-
+    if (!this.hasOneOffData) {
+      // TODO(hjd): This could be done in onInit maybe?
       const queryRes = await this.engine.query(`select
           ifnull(max(dur), 0) as maxDur, count(1) as rowCount
           from (${this.getSqlSource()})`);
@@ -632,8 +673,9 @@ export abstract class BaseSliceTrack<
             having dur = -1;
           `);
         }
-        const incomplete =
-            new Array<CastInternal<T['slice']>>(queryRes.numRows());
+        const incomplete = new Array<CastInternal<T['slice']>>(
+          queryRes.numRows(),
+        );
         const it = queryRes.iter(this.getRowSpec());
         for (let i = 0; it.valid(); it.next(), ++i) {
           incomplete[i] = this.rowToSliceInternal(it);
@@ -642,21 +684,19 @@ export abstract class BaseSliceTrack<
         this.incomplete = incomplete;
       }
 
-      this.sqlState = 'QUERY_DONE';
-    } else if (
-      this.sqlState === 'INITIALIZING' || this.sqlState === 'QUERY_PENDING') {
-      return;
+      this.hasOneOffData = true;
     }
 
     if (rawSlicesKey.isCoveredBy(this.slicesKey)) {
-      return;  // We have the data already, no need to re-query
+      return; // We have the data already, no need to re-query
     }
 
     // Determine the cache key:
     const slicesKey = rawSlicesKey.normalize();
     if (!rawSlicesKey.isCoveredBy(slicesKey)) {
-      throw new Error(`Normalization error ${slicesKey.toString()} ${
-        rawSlicesKey.toString()}`);
+      throw new Error(
+        `Normalization error ${slicesKey.toString()} ${rawSlicesKey.toString()}`,
+      );
     }
 
     const maybeCachedSlices = this.cache.lookup(slicesKey);
@@ -667,7 +707,6 @@ export abstract class BaseSliceTrack<
       return;
     }
 
-    this.sqlState = 'QUERY_PENDING';
     const bucketNs = slicesKey.bucketSize;
     let queryTsq;
     let queryTsqEnd;
@@ -690,14 +729,8 @@ export abstract class BaseSliceTrack<
         `ts >= ${slicesKey.start - this.maxDurNs}`,
         `ts <= ${slicesKey.end}`,
       ],
-      groupBy: [
-        maybeDepth,
-        'tsq',
-      ],
-      orderBy: [
-        maybeDepth,
-        'tsq',
-      ],
+      groupBy: [maybeDepth, 'tsq'],
+      orderBy: [maybeDepth, 'tsq'],
     });
 
     // TODO(hjd): Count and expose the number of slices summarized in
@@ -738,7 +771,6 @@ export abstract class BaseSliceTrack<
     this.cache.insert(slicesKey, slices);
     this.slices = slices;
 
-    this.sqlState = 'QUERY_DONE';
     raf.scheduleRedraw();
   }
 
@@ -790,7 +822,7 @@ export abstract class BaseSliceTrack<
     };
   }
 
-  private findSlice({x, y}: {x: number, y: number}): undefined|Slice {
+  private findSlice({x, y}: {x: number; y: number}): undefined | Slice {
     const trackHeight = this.computedTrackHeight;
     const sliceHeight = this.computedSliceHeight;
     const padding = this.sliceLayout.padding;
@@ -813,14 +845,18 @@ export abstract class BaseSliceTrack<
 
     for (const slice of this.incomplete) {
       const visibleTimeScale = globals.timeline.visibleTimeScale;
-      const startPx = CROP_INCOMPLETE_SLICE_FLAG.get() ?
-        visibleTimeScale.timeToPx(slice.startNsQ) :
-        slice.x;
-      const cropUnfinishedSlicesCondition = CROP_INCOMPLETE_SLICE_FLAG.get() ?
-        startPx + INCOMPLETE_SLICE_WIDTH_PX >= x : true;
+      const startPx = CROP_INCOMPLETE_SLICE_FLAG.get()
+        ? visibleTimeScale.timeToPx(slice.startNsQ)
+        : slice.x;
+      const cropUnfinishedSlicesCondition = CROP_INCOMPLETE_SLICE_FLAG.get()
+        ? startPx + INCOMPLETE_SLICE_WIDTH_PX >= x
+        : true;
 
-      if (slice.depth === depth && startPx <= x &&
-          cropUnfinishedSlicesCondition) {
+      if (
+        slice.depth === depth &&
+        startPx <= x &&
+        cropUnfinishedSlicesCondition
+      ) {
         return slice;
       }
     }
@@ -836,7 +872,7 @@ export abstract class BaseSliceTrack<
     return this.isFlat() ? '0 as depth' : 'depth';
   }
 
-  onMouseMove(position: {x: number, y: number}): void {
+  onMouseMove(position: {x: number; y: number}): void {
     this.hoverPos = position;
     this.updateHoveredSlice(this.findSlice(position));
   }
@@ -860,13 +896,14 @@ export abstract class BaseSliceTrack<
     } else {
       const args: OnSliceOverArgs<T['slice']> = {slice: this.hoveredSlice};
       globals.dispatch(
-        Actions.setHighlightedSliceId({sliceId: this.hoveredSlice.id}));
+        Actions.setHighlightedSliceId({sliceId: this.hoveredSlice.id}),
+      );
       this.onSliceOver(args);
       this.hoverTooltip = args.tooltip || [];
     }
   }
 
-  onMouseClick(position: {x: number, y: number}): boolean {
+  onMouseClick(position: {x: number; y: number}): boolean {
     const slice = this.findSlice(position);
     if (slice === undefined) {
       return false;
@@ -876,8 +913,10 @@ export abstract class BaseSliceTrack<
     return true;
   }
 
-  private getVisibleSlicesInternal(start: time, end: time):
-      Array<CastInternal<T['slice']>> {
+  private getVisibleSlicesInternal(
+    start: time,
+    end: time,
+  ): Array<CastInternal<T['slice']>> {
     // Slice visibility is computed using tsq / endTsq. The means an
     // event at ts=100n can end up with tsq=90n depending on the bucket
     // calculation. start and end here are the direct unquantised
@@ -891,8 +930,11 @@ export abstract class BaseSliceTrack<
     start = Time.sub(start, this.slicesKey.bucketSize);
     end = Time.add(end, this.slicesKey.bucketSize);
 
-    let slices =
-        filterVisibleSlices<CastInternal<T['slice']>>(this.slices, start, end);
+    let slices = filterVisibleSlices<CastInternal<T['slice']>>(
+      this.slices,
+      start,
+      end,
+    );
     slices = slices.concat(this.incomplete);
     // The selected slice is always visible:
     if (this.selectedSlice && !this.slices.includes(this.selectedSlice)) {
@@ -930,7 +972,11 @@ export abstract class BaseSliceTrack<
   }
 
   private drawChevron(
-    ctx: CanvasRenderingContext2D, x: number, y: number, h: number) {
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    h: number,
+  ) {
     // Draw an upward facing chevrons, in order: A, B, C, D, and back to A.
     // . (x, y)
     //      A
@@ -942,11 +988,11 @@ export abstract class BaseSliceTrack<
     const HALF_CHEVRON_WIDTH_PX = CHEVRON_WIDTH_PX / 2;
     const midX = x + HALF_CHEVRON_WIDTH_PX;
     ctx.beginPath();
-    ctx.moveTo(midX, y);                              // A.
-    ctx.lineTo(x + CHEVRON_WIDTH_PX, y + h);          // B.
-    ctx.lineTo(midX, y + h - HALF_CHEVRON_WIDTH_PX);  // C.
-    ctx.lineTo(x, y + h);                             // D.
-    ctx.lineTo(midX, y);                              // Back to A.
+    ctx.moveTo(midX, y); // A.
+    ctx.lineTo(x + CHEVRON_WIDTH_PX, y + h); // B.
+    ctx.lineTo(midX, y + h - HALF_CHEVRON_WIDTH_PX); // C.
+    ctx.lineTo(x, y + h); // D.
+    ctx.lineTo(midX, y); // Back to A.
     ctx.closePath();
     ctx.fill();
   }
@@ -957,8 +1003,9 @@ export abstract class BaseSliceTrack<
   // having to reimplement it.
   protected highlightHovererdAndSameTitle(slices: Slice[]) {
     for (const slice of slices) {
-      const isHovering = globals.state.highlightedSliceId === slice.id ||
-          (this.hoveredSlice && this.hoveredSlice.title === slice.title);
+      const isHovering =
+        globals.state.highlightedSliceId === slice.id ||
+        (this.hoveredSlice && this.hoveredSlice.title === slice.title);
       slice.isHighlighted = !!isHovering;
     }
   }
@@ -968,14 +1015,10 @@ export abstract class BaseSliceTrack<
     return this.computedTrackHeight;
   }
 
-  getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect|undefined {
+  getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect | undefined {
     this.updateSliceAndTrackHeight();
 
-    const {
-      windowSpan,
-      visibleTimeScale,
-      visibleTimeSpan,
-    } = globals.timeline;
+    const {windowSpan, visibleTimeScale, visibleTimeSpan} = globals.timeline;
 
     const pxEnd = windowSpan.end;
     const left = Math.max(visibleTimeScale.timeToPx(tStart), 0);
@@ -988,7 +1031,7 @@ export abstract class BaseSliceTrack<
     return {
       left,
       width: Math.max(right - left, 1),
-      top: this.sliceLayout.padding + depth * (totalSliceHeight),
+      top: this.sliceLayout.padding + depth * totalSliceHeight,
       height: this.computedSliceHeight,
       visible,
     };
@@ -1000,18 +1043,18 @@ export abstract class BaseSliceTrack<
 // inner types within a class (whether the class is templated or not).
 export interface OnSliceOverArgs<S extends Slice> {
   // Input args (BaseSliceTrack -> Impl):
-  slice: S;  // The slice being hovered.
+  slice: S; // The slice being hovered.
 
   // Output args (Impl -> BaseSliceTrack):
-  tooltip?: string[];  // One entry per row, up to a max of 2.
+  tooltip?: string[]; // One entry per row, up to a max of 2.
 }
 
 export interface OnSliceOutArgs<S extends Slice> {
   // Input args (BaseSliceTrack -> Impl):
-  slice: S;  // The slice which is not hovered anymore.
+  slice: S; // The slice which is not hovered anymore.
 }
 
 export interface OnSliceClickArgs<S extends Slice> {
   // Input args (BaseSliceTrack -> Impl):
-  slice: S;  // The slice which is clicked.
+  slice: S; // The slice which is clicked.
 }

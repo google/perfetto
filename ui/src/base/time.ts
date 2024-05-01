@@ -54,9 +54,9 @@ export class Time {
   // value and it's decayed to a |bigint| consider using the static math methods
   // in |Time| instead, as they will do the appropriate casting for you.
   static fromRaw(v: bigint): time;
-  static fromRaw(v?: bigint): time|undefined;
-  static fromRaw(v?: bigint): time|undefined {
-    return v as (time | undefined);
+  static fromRaw(v?: bigint): time | undefined;
+  static fromRaw(v?: bigint): time | undefined {
+    return v as time | undefined;
   }
 
   // Convert seconds (number) to a time value.
@@ -108,11 +108,9 @@ export class Time {
   // Find the closest previous midnight for a given time value.
   static getLatestMidnight(time: time, offset: duration): time {
     const date = Time.toDate(time, offset);
-    const floorDay = new Date(Date.UTC(
-      date.getUTCFullYear(),
-      date.getUTCMonth(),
-      date.getUTCDate(),
-    ));
+    const floorDay = new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+    );
 
     return Time.fromDate(floorDay, offset);
   }
@@ -178,9 +176,9 @@ export class Duration {
   // value and it's decayed to a |bigint| consider using the static math methods
   // in |duration| instead, as they will do the appropriate casting for you.
   static fromRaw(v: bigint): duration;
-  static fromRaw(v?: bigint): duration|undefined;
-  static fromRaw(v?: bigint): duration|undefined {
-    return v as (duration | undefined);
+  static fromRaw(v?: bigint): duration | undefined;
+  static fromRaw(v?: bigint): duration | undefined {
+    return v as duration | undefined;
   }
 
   static min(a: duration, b: duration): duration {
@@ -209,7 +207,7 @@ export class Duration {
   //           123,123,123,123,123 -> 34h 12m
   //           1,000,000,023 -> 1 s
   //           1,230,000,023 -> 1.2 s
-  static humanise(dur: duration) {
+  static humanise(dur: duration): string {
     const sec = Duration.toSeconds(dur);
     const units = ['s', 'ms', 'us', 'ns'];
     const sign = Math.sign(sec);
@@ -267,7 +265,7 @@ export class Timecode {
 
     const absTime = BigintMath.abs(time);
 
-    const days = (absTime / 86_400_000_000_000n);
+    const days = absTime / 86_400_000_000_000n;
     const hours = (absTime / 3_600_000_000_000n) % 24n;
     const minutes = (absTime / 60_000_000_000n) % 60n;
     const seconds = (absTime / 1_000_000_000n) % 60n;
@@ -302,15 +300,14 @@ export class Timecode {
   }
 }
 
-
 export function currentDateHourAndMinute(): string {
   const date = new Date();
-  return `${date.toISOString().substr(0, 10)}-${date.getHours()}-${
-    date.getMinutes()}`;
+  return `${date
+    .toISOString()
+    .substr(0, 10)}-${date.getHours()}-${date.getMinutes()}`;
 }
 
 // Create a Time value from an arbitrary SQL value.
-
 
 // Represents a half-open interval of time in the form [start, end).
 // E.g. interval contains all time values which are >= start and < end.
@@ -319,7 +316,7 @@ export interface Span<TimeT, DurationT = TimeT> {
   get end(): TimeT;
   get duration(): DurationT;
   get midpoint(): TimeT;
-  contains(span: TimeT|Span<TimeT, DurationT>): boolean;
+  contains(span: TimeT | Span<TimeT, DurationT>): boolean;
   intersectsInterval(span: Span<TimeT, DurationT>): boolean;
   intersects(a: TimeT, b: TimeT): boolean;
   equals(span: Span<TimeT, DurationT>): boolean;
@@ -335,7 +332,8 @@ export class TimeSpan implements Span<time, duration> {
   constructor(start: time, end: time) {
     assertTrue(
       start <= end,
-      `Span start [${start}] cannot be greater than end [${end}]`);
+      `Span start [${start}] cannot be greater than end [${end}]`,
+    );
     this.start = start;
     this.end = end;
   }
@@ -352,7 +350,7 @@ export class TimeSpan implements Span<time, duration> {
     return Time.fromRaw((this.start + this.end) / 2n);
   }
 
-  contains(x: time|Span<time, duration>): boolean {
+  contains(x: time | Span<time, duration>): boolean {
     if (typeof x === 'bigint') {
       return this.start <= x && x < this.end;
     } else {
@@ -378,7 +376,9 @@ export class TimeSpan implements Span<time, duration> {
 
   pad(padding: duration): Span<time, duration> {
     return new TimeSpan(
-      Time.sub(this.start, padding), Time.add(this.end, padding));
+      Time.sub(this.start, padding),
+      Time.add(this.end, padding),
+    );
   }
 }
 

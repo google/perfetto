@@ -30,7 +30,7 @@ repository](/examples/sdk/README.md).
 To start using the Client API, first check out the latest SDK release:
 
 ```bash
-git clone https://android.googlesource.com/platform/external/perfetto -b v41.0
+git clone https://android.googlesource.com/platform/external/perfetto -b v44.0
 ```
 
 The SDK consists of two files, `sdk/perfetto.h` and `sdk/perfetto.cc`. These are
@@ -147,16 +147,16 @@ Track events are the best default option and serve most tracing use cases with
 very little complexity.
 
 To include your new track events in the trace, ensure that the `track_event`
-data source is included in the trace config. If you do not specify any
-categories then all non-debug categories will be included by default. However,
-you can also add just the categories you are interested in like so:
+data source is included in the trace config, with a list of enabled and disabled
+categories.
 
 ```protobuf
 data_sources {
   config {
     name: "track_event"
     track_event_config {
-    	enabled_categories: "rendering"
+        enabled_categories: "rendering"
+        disabled_categories: "*"
     }
   }
 }
@@ -319,7 +319,7 @@ side-channel attacks.
 * On Linux and MacOS and Windows `traced` must be built and run separately. See
   the [Linux quickstart](/docs/quickstart/linux-tracing.md) for instructions.
 * On Windows the tracing protocol works over TCP/IP (
-  [127.0.0.1:32278](https://cs.android.com/android/platform/superproject/+/main:external/perfetto/src/tracing/ipc/default_socket.cc;l=75;drc=4f88a2fdfd3801c109d5e927b8206f9756288b12)
+  [127.0.0.1:32278](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/src/tracing/ipc/default_socket.cc;l=75;drc=4f88a2fdfd3801c109d5e927b8206f9756288b12)
   ) + named shmem.
 
 ## {#recording} Recording traces through the API

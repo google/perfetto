@@ -28,10 +28,7 @@ import {
 } from '../common/state';
 import {globals} from '../frontend/globals';
 import {publishBufferUsage, publishTrackData} from '../frontend/publish';
-import {
-  ConsumerPort,
-  TraceConfig,
-} from '../protos';
+import {ConsumerPort, TraceConfig} from '../protos';
 
 import {AdbOverWebUsb} from './adb';
 import {AdbConsumerPort} from './adb_shell_controller';
@@ -50,10 +47,12 @@ import {Controller} from './controller';
 import {RecordConfig} from './record_config_types';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 
-type RPCImplMethod = (Method|rpc.ServiceMethod<Message<{}>, Message<{}>>);
+type RPCImplMethod = Method | rpc.ServiceMethod<Message<{}>, Message<{}>>;
 
 export function genConfigProto(
-  uiCfg: RecordConfig, target: RecordingTarget): Uint8Array {
+  uiCfg: RecordConfig,
+  target: RecordingTarget,
+): Uint8Array {
   return TraceConfig.encode(convertToRecordingV2Input(uiCfg, target)).finish();
 }
 
@@ -62,38 +61,43 @@ export function genConfigProto(
 // diverge.
 // TODO(octaviant) delete this once we switch to RecordingV2.
 function convertToRecordingV2Input(
-  uiCfg: RecordConfig, target: RecordingTarget): TraceConfig {
-  let targetType: 'ANDROID'|'CHROME'|'CHROME_OS'|'LINUX';
+  uiCfg: RecordConfig,
+  target: RecordingTarget,
+): TraceConfig {
+  let targetType: 'ANDROID' | 'CHROME' | 'CHROME_OS' | 'LINUX' | 'WINDOWS';
   let androidApiLevel!: number;
   switch (target.os) {
-  case 'L':
-    targetType = 'LINUX';
-    break;
-  case 'C':
-    targetType = 'CHROME';
-    break;
-  case 'CrOS':
-    targetType = 'CHROME_OS';
-    break;
-  case 'S':
-    androidApiLevel = 31;
-    targetType = 'ANDROID';
-    break;
-  case 'R':
-    androidApiLevel = 30;
-    targetType = 'ANDROID';
-    break;
-  case 'Q':
-    androidApiLevel = 29;
-    targetType = 'ANDROID';
-    break;
-  case 'P':
-    androidApiLevel = 28;
-    targetType = 'ANDROID';
-    break;
-  default:
-    androidApiLevel = 26;
-    targetType = 'ANDROID';
+    case 'L':
+      targetType = 'LINUX';
+      break;
+    case 'C':
+      targetType = 'CHROME';
+      break;
+    case 'CrOS':
+      targetType = 'CHROME_OS';
+      break;
+    case 'Win':
+      targetType = 'WINDOWS';
+      break;
+    case 'S':
+      androidApiLevel = 31;
+      targetType = 'ANDROID';
+      break;
+    case 'R':
+      androidApiLevel = 30;
+      targetType = 'ANDROID';
+      break;
+    case 'Q':
+      androidApiLevel = 29;
+      targetType = 'ANDROID';
+      break;
+    case 'P':
+      androidApiLevel = 28;
+      targetType = 'ANDROID';
+      break;
+    default:
+      androidApiLevel = 26;
+      targetType = 'ANDROID';
   }
 
   let targetInfo: TargetInfo;
@@ -104,14 +108,12 @@ function convertToRecordingV2Input(
       dataSources: [],
       name: '',
     };
-  } else if (targetType === 'CHROME' || targetType === 'CHROME_OS') {
+  } else {
     targetInfo = {
       targetType,
       dataSources: [],
       name: '',
     };
-  } else {
-    targetInfo = {targetType, dataSources: [], name: ''};
   }
 
   return genTraceConfig(uiCfg, targetInfo);
@@ -126,11 +128,18 @@ export function toPbtxt(configBuffer: Uint8Array): string {
   // With the ahead of time compiled protos we can't seem to tell which
   // fields are enums.
   function isEnum(value: string): boolean {
-    return value.startsWith('MEMINFO_') || value.startsWith('VMSTAT_') ||
-        value.startsWith('STAT_') || value.startsWith('LID_') ||
-        value.startsWith('BATTERY_COUNTER_') || value === 'DISCARD' ||
-        value === 'RING_BUFFER' || value === 'BACKGROUND' ||
-        value === 'USER_INITIATED' || value.startsWith('PERF_CLOCK_');
+    return (
+      value.startsWith('MEMINFO_') ||
+      value.startsWith('VMSTAT_') ||
+      value.startsWith('STAT_') ||
+      value.startsWith('LID_') ||
+      value.startsWith('BATTERY_COUNTER_') ||
+      value === 'DISCARD' ||
+      value === 'RING_BUFFER' ||
+      value === 'BACKGROUND' ||
+      value === 'USER_INITIATED' ||
+      value.startsWith('PERF_CLOCK_')
+    );
   }
   // Since javascript doesn't have 64 bit numbers when converting protos to
   // json the proto library encodes them as strings. This is lossy since
@@ -152,7 +161,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
     for (const [key, value] of Object.entries(msg)) {
       const isRepeated = Array.isArray(value);
       const isNested = typeof value === 'object' && !isRepeated;
-      for (const entry of (isRepeated ? value as Array<{}> : [value])) {
+      for (const entry of isRepeated ? (value as Array<{}>) : [value]) {
         yield ' '.repeat(indent) + `${snakeCase(key)}${isNested ? '' : ':'} `;
         if (isString(entry)) {
           if (isEnum(entry) || is64BitNumber(key)) {
@@ -169,8 +178,9 @@ export function toPbtxt(configBuffer: Uint8Array): string {
           yield* message(entry, indent + 4);
           yield ' '.repeat(indent) + '}';
         } else {
-          throw new Error(`Record proto entry "${entry}" with unexpected type ${
-            typeof entry}`);
+          throw new Error(
+            `Record proto entry "${entry}" with unexpected type ${typeof entry}`,
+          );
         }
         yield '\n';
       }
@@ -180,12 +190,12 @@ export function toPbtxt(configBuffer: Uint8Array): string {
 }
 
 export class RecordController extends Controller<'main'> implements Consumer {
-  private config: RecordConfig|null = null;
+  private config: RecordConfig | null = null;
   private readonly extensionPort: MessagePort;
   private recordingInProgress = false;
   private consumerPort: ConsumerPort;
   private traceBuffer: Uint8Array[] = [];
-  private bufferUpdateInterval: ReturnType<typeof setTimeout>|undefined;
+  private bufferUpdateInterval: ReturnType<typeof setTimeout> | undefined;
   private adb = new AdbOverWebUsb();
   private recordedTraceSuffix = TRACE_SUFFIX;
   private fetchedCategories = false;
@@ -212,14 +222,18 @@ export class RecordController extends Controller<'main'> implements Consumer {
       }
       globals.dispatch(Actions.setFetchChromeCategories({fetch: false}));
     }
-    if (globals.state.recordConfig === this.config &&
-        globals.state.recordingInProgress === this.recordingInProgress) {
+    if (
+      globals.state.recordConfig === this.config &&
+      globals.state.recordingInProgress === this.recordingInProgress
+    ) {
       return;
     }
     this.config = globals.state.recordConfig;
 
-    const configProto =
-        genConfigProto(this.config, globals.state.recordingTarget);
+    const configProto = genConfigProto(
+      this.config,
+      globals.state.recordingTarget,
+    );
     const configProtoText = toPbtxt(configProto);
     const configProtoBase64 = base64Encode(configProto);
     const commandline = `
@@ -228,8 +242,10 @@ export class RecordController extends Controller<'main'> implements Consumer {
       adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace" &&
       adb pull /data/misc/perfetto-traces/trace /tmp/trace
     `;
-    const traceConfig =
-        convertToRecordingV2Input(this.config, globals.state.recordingTarget);
+    const traceConfig = convertToRecordingV2Input(
+      this.config,
+      globals.state.recordingTarget,
+    );
     // TODO(hjd): This should not be TrackData after we unify the stores.
     publishTrackData({
       id: 'config',
@@ -307,16 +323,19 @@ export class RecordController extends Controller<'main'> implements Consumer {
     globals.dispatch(Actions.setRecordingStatus({status: undefined}));
     if (globals.state.recordingCancelled) {
       globals.dispatch(
-        Actions.setLastRecordingError({error: 'Recording cancelled.'}));
+        Actions.setLastRecordingError({error: 'Recording cancelled.'}),
+      );
       this.traceBuffer = [];
       return;
     }
     const trace = this.generateTrace();
-    globals.dispatch(Actions.openTraceFromBuffer({
-      title: 'Recorded trace',
-      buffer: trace.buffer,
-      fileName: `recorded_trace${this.recordedTraceSuffix}`,
-    }));
+    globals.dispatch(
+      Actions.openTraceFromBuffer({
+        title: 'Recorded trace',
+        buffer: trace.buffer,
+        fileName: `recorded_trace${this.recordedTraceSuffix}`,
+      }),
+    );
     this.traceBuffer = [];
   }
 
@@ -349,7 +368,8 @@ export class RecordController extends Controller<'main'> implements Consumer {
     // TODO(octaviant): b/204998302
     console.error('Error in record controller: ', message);
     globals.dispatch(
-      Actions.setLastRecordingError({error: message.substr(0, 150)}));
+      Actions.setLastRecordingError({error: message.substr(0, 150)}),
+    );
     globals.dispatch(Actions.stopRecording({}));
   }
 
@@ -375,29 +395,32 @@ export class RecordController extends Controller<'main'> implements Consumer {
     const precedentPromise = this.controllerPromises.get(identifier);
     if (precedentPromise) return precedentPromise;
 
-    const controllerPromise =
-        new Promise<RpcConsumerPort>(async (resolve, _) => {
-          let controller: RpcConsumerPort|undefined = undefined;
-          if (isChromeTarget(target)) {
-            controller =
-                new ChromeExtensionConsumerPort(this.extensionPort, this);
-          } else if (isAdbTarget(target)) {
-            this.onStatus(`Please allow USB debugging on device.
+    const controllerPromise = new Promise<RpcConsumerPort>(
+      async (resolve, _) => {
+        let controller: RpcConsumerPort | undefined = undefined;
+        if (isChromeTarget(target)) {
+          controller = new ChromeExtensionConsumerPort(
+            this.extensionPort,
+            this,
+          );
+        } else if (isAdbTarget(target)) {
+          this.onStatus(`Please allow USB debugging on device.
                  If you press cancel, reload the page.`);
-            const socketAccess = await this.hasSocketAccess(target);
+          const socketAccess = await this.hasSocketAccess(target);
 
-            controller = socketAccess ?
-              new AdbSocketConsumerPort(this.adb, this) :
-              new AdbConsumerPort(this.adb, this);
-          } else {
-            throw Error(`No device connected`);
-          }
+          controller = socketAccess
+            ? new AdbSocketConsumerPort(this.adb, this)
+            : new AdbConsumerPort(this.adb, this);
+        } else {
+          throw Error(`No device connected`);
+        }
 
-          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-          if (!controller) throw Error(`Unknown target: ${target}`);
-          /* eslint-enable */
-          resolve(controller);
-        });
+        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
+        if (!controller) throw Error(`Unknown target: ${target}`);
+        /* eslint-enable */
+        resolve(controller);
+      },
+    );
 
     this.controllerPromises.set(identifier, controllerPromise);
     return controllerPromise;
@@ -416,8 +439,10 @@ export class RecordController extends Controller<'main'> implements Consumer {
   }
 
   private async rpcImpl(
-    method: RPCImplMethod, requestData: Uint8Array,
-    _callback: RPCImplCallback) {
+    method: RPCImplMethod,
+    requestData: Uint8Array,
+    _callback: RPCImplCallback,
+  ) {
     try {
       const state = globals.state;
       // TODO(hjd): This is a bit weird. We implicitly send each RPC message to

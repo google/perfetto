@@ -12,27 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-import {
-  NUM,
-  NUM_NULL,
-  STR,
-} from '../../trace_processor/query_result';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {ChromeSliceTrack, SLICE_TRACK_KIND} from '../chrome_slices/';
-import {
-  Config as CounterTrackConfig,
-  COUNTER_TRACK_KIND,
-  CounterTrack,
-} from '../counter';
+import {COUNTER_TRACK_KIND, TraceProcessorCounterTrack} from '../counter';
 
 class AnnotationPlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addAnnotationTracks(ctx);
     await this.addAnnotationCounterTracks(ctx);
@@ -63,15 +48,9 @@ class AnnotationPlugin implements Plugin {
         tags: {
           metric: true,
         },
-        trackFactory: (({trackKey}) => {
-          return new ChromeSliceTrack(
-            engine,
-            0,
-            trackKey,
-            id,
-            'annotation',
-          );
-        }),
+        trackFactory: ({trackKey}) => {
+          return new ChromeSliceTrack(engine, 0, trackKey, id, 'annotation');
+        },
       });
     }
   }
@@ -94,30 +73,23 @@ class AnnotationPlugin implements Plugin {
     });
 
     for (; counterIt.valid(); counterIt.next()) {
-      const id = counterIt.id;
+      const trackId = counterIt.id;
       const name = counterIt.name;
-      const minimumValue =
-          counterIt.minValue === null ? undefined : counterIt.minValue;
-      const maximumValue =
-          counterIt.maxValue === null ? undefined : counterIt.maxValue;
-
-      const config: CounterTrackConfig = {
-        name,
-        trackId: id,
-        namespace: 'annotation',
-        minimumValue,
-        maximumValue,
-      };
 
       ctx.registerTrack({
-        uri: `perfetto.Annotation#counter${id}`,
+        uri: `perfetto.Annotation#counter${trackId}`,
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         tags: {
           metric: true,
         },
         trackFactory: (trackCtx) => {
-          return new CounterTrack(trackCtx, config, ctx.engine);
+          return new TraceProcessorCounterTrack({
+            engine: ctx.engine,
+            trackKey: trackCtx.trackKey,
+            trackId,
+            rootTable: 'annotation_counter',
+          });
         },
       });
     }

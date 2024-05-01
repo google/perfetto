@@ -18,11 +18,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/ipc/host.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "src/tracing/ipc/service/consumer_ipc_service.h"
 #include "src/tracing/ipc/service/producer_ipc_service.h"
+#include "src/tracing/ipc/service/relay_ipc_service.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
@@ -126,6 +126,14 @@ bool ServiceIPCHostImpl::DoStart() {
     bool producer_service_exposed = producer_ipc_port->ExposeService(
         std::unique_ptr<ipc::Service>(new ProducerIPCService(svc_.get())));
     PERFETTO_CHECK(producer_service_exposed);
+
+    if (!init_opts_.enable_relay_endpoint)
+      continue;
+    // Expose a secondary service for sync with remote relay service
+    // if requested.
+    bool relay_service_exposed = producer_ipc_port->ExposeService(
+        std::unique_ptr<ipc::Service>(new RelayIPCService(svc_.get())));
+    PERFETTO_CHECK(relay_service_exposed);
   }
 
   bool consumer_service_exposed = consumer_ipc_port_->ExposeService(

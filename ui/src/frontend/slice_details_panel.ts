@@ -30,6 +30,8 @@ import {SlicePanel} from './slice_panel';
 import {DurationWidget} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
 
+const MIN_NORMAL_SCHED_PRIORITY = 100;
+
 export class SliceDetailsPanel extends SlicePanel {
   view() {
     const sliceInfo = globals.sliceDetails;
@@ -86,10 +88,12 @@ export class SliceDetailsPanel extends SlicePanel {
     }
     return m(
       '.slice-details-wakeup-text',
-      m('',
+      m(
+        '',
         `Wakeup @ `,
         m(Timestamp, {ts: sliceInfo.wakeupTs!}),
-        ` on CPU ${sliceInfo.wakerCpu} by`),
+        ` on CPU ${sliceInfo.wakerCpu} by`,
+      ),
       m('', `P: ${threadInfo.procName} [${threadInfo.pid}]`),
       m('', `T: ${threadInfo.threadName} [${threadInfo.tid}]`),
     );
@@ -104,10 +108,12 @@ export class SliceDetailsPanel extends SlicePanel {
     return m(
       '.slice-details-latency-text',
       m('', `Scheduling latency: `, m(DurationWidget, {dur: latency})),
-      m('.text-detail',
+      m(
+        '.text-detail',
         `This is the interval from when the task became eligible to run
         (e.g. because of notifying a wait queue it was suspended on) to
-        when it started running.`),
+        when it started running.`,
+      ),
     );
   }
 
@@ -120,17 +126,31 @@ export class SliceDetailsPanel extends SlicePanel {
       return m(TreeNode, {
         icon: 'timer',
         left: 'Thread Duration',
-        right: this.computeDuration(sliceInfo.threadTs, sliceInfo.threadDur),
+        right: m(DurationWidget, {dur: sliceInfo.threadDur}),
       });
     } else {
       return null;
     }
   }
 
-  private renderDetails(sliceInfo: SliceDetails, threadInfo?: ThreadDesc):
-      m.Children {
-    if (!threadInfo || sliceInfo.ts === undefined ||
-        sliceInfo.dur === undefined) {
+  private renderPriorityText(priority?: number) {
+    if (priority === undefined) {
+      return undefined;
+    }
+    return priority < MIN_NORMAL_SCHED_PRIORITY
+      ? `${priority} (real-time)`
+      : `${priority}`;
+  }
+
+  private renderDetails(
+    sliceInfo: SliceDetails,
+    threadInfo?: ThreadDesc,
+  ): m.Children {
+    if (
+      !threadInfo ||
+      sliceInfo.ts === undefined ||
+      sliceInfo.dur === undefined
+    ) {
       return null;
     } else {
       const extras: m.Children = [];
@@ -148,15 +168,16 @@ export class SliceDetailsPanel extends SlicePanel {
         }),
         m(TreeNode, {
           left: 'Thread',
-          right:
-              m(Anchor,
-                {
-                  icon: 'call_made',
-                  onclick: () => {
-                    this.goToThread();
-                  },
-                },
-                `${threadInfo.threadName} [${threadInfo.tid}]`),
+          right: m(
+            Anchor,
+            {
+              icon: 'call_made',
+              onclick: () => {
+                this.goToThread();
+              },
+            },
+            `${threadInfo.threadName} [${threadInfo.tid}]`,
+          ),
         }),
         m(TreeNode, {
           left: 'Cmdline',
@@ -168,12 +189,12 @@ export class SliceDetailsPanel extends SlicePanel {
         }),
         m(TreeNode, {
           left: 'Duration',
-          right: this.computeDuration(sliceInfo.ts, sliceInfo.dur),
+          right: m(DurationWidget, {dur: sliceInfo.dur}),
         }),
         this.renderThreadDuration(sliceInfo),
         m(TreeNode, {
-          left: 'Prio',
-          right: sliceInfo.priority,
+          left: 'Priority',
+          right: this.renderPriorityText(sliceInfo.priority),
         }),
         m(TreeNode, {
           left: 'End State',
@@ -186,11 +207,7 @@ export class SliceDetailsPanel extends SlicePanel {
         ...extras,
       ];
 
-      return m(
-        Section,
-        {title: 'Details'},
-        m(Tree, treeNodes),
-      );
+      return m(Section, {title: 'Details'}, m(Tree, treeNodes));
     }
   }
 
@@ -199,28 +216,37 @@ export class SliceDetailsPanel extends SlicePanel {
     if (sliceInfo.utid === undefined) return;
     const threadInfo = globals.threads.get(sliceInfo.utid);
 
-    if (sliceInfo.id === undefined || sliceInfo.ts === undefined ||
-        sliceInfo.dur === undefined || sliceInfo.cpu === undefined ||
-        threadInfo === undefined) {
+    if (
+      sliceInfo.id === undefined ||
+      sliceInfo.ts === undefined ||
+      sliceInfo.dur === undefined ||
+      sliceInfo.cpu === undefined ||
+      threadInfo === undefined
+    ) {
       return;
     }
 
-    let trackKey: string|number|undefined;
+    let trackKey: string | number | undefined;
     for (const track of Object.values(globals.state.tracks)) {
       const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
       // TODO(stevegolton): Handle v2.
-      if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
-          trackDesc.utid === threadInfo.utid) {
+      if (
+        trackDesc &&
+        trackDesc.kind === THREAD_STATE_TRACK_KIND &&
+        trackDesc.utid === threadInfo.utid
+      ) {
         trackKey = track.key;
       }
     }
 
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (trackKey && sliceInfo.threadStateId) {
-      globals.makeSelection(Actions.selectThreadState({
-        id: sliceInfo.threadStateId,
-        trackKey: trackKey.toString(),
-      }));
+      globals.makeSelection(
+        Actions.selectThreadState({
+          id: sliceInfo.threadStateId,
+          trackKey: trackKey.toString(),
+        }),
+      );
 
       scrollToTrackAndTs(trackKey, sliceInfo.ts, true);
     }

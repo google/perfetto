@@ -19,7 +19,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
-#include <memory>
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -30,26 +29,18 @@
 
 namespace perfetto::trace_processor::column {
 
-FakeStorage::FakeStorage(uint32_t size, SearchStrategy strategy)
-    : size_(size), strategy_(strategy) {}
-
-std::unique_ptr<DataLayerChain> FakeStorage::MakeChain() {
-  return std::make_unique<ChainImpl>(size_, strategy_, range_,
-                                     bit_vector_.Copy());
-}
-
-FakeStorage::ChainImpl::ChainImpl(uint32_t size,
-                                  SearchStrategy strategy,
-                                  Range range,
-                                  BitVector bv)
+FakeStorageChain::FakeStorageChain(uint32_t size,
+                                   SearchStrategy strategy,
+                                   Range range,
+                                   BitVector bv)
     : size_(size),
       strategy_(strategy),
       range_(range),
       bit_vector_(std::move(bv)) {}
 
-SingleSearchResult FakeStorage::ChainImpl::SingleSearch(FilterOp,
-                                                        SqlValue,
-                                                        uint32_t i) const {
+SingleSearchResult FakeStorageChain::SingleSearch(FilterOp,
+                                                  SqlValue,
+                                                  uint32_t i) const {
   switch (strategy_) {
     case kAll:
       return SingleSearchResult::kMatch;
@@ -65,15 +56,15 @@ SingleSearchResult FakeStorage::ChainImpl::SingleSearch(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
-SearchValidationResult FakeStorage::ChainImpl::ValidateSearchConstraints(
+SearchValidationResult FakeStorageChain::ValidateSearchConstraints(
     FilterOp,
     SqlValue) const {
   return SearchValidationResult::kOk;
 }
 
-RangeOrBitVector FakeStorage::ChainImpl::SearchValidated(FilterOp,
-                                                         SqlValue,
-                                                         Range in) const {
+RangeOrBitVector FakeStorageChain::SearchValidated(FilterOp,
+                                                   SqlValue,
+                                                   Range in) const {
   switch (strategy_) {
     case kAll:
       return RangeOrBitVector(in);
@@ -91,34 +82,39 @@ RangeOrBitVector FakeStorage::ChainImpl::SearchValidated(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
-RangeOrBitVector FakeStorage::ChainImpl::IndexSearchValidated(
-    FilterOp,
-    SqlValue,
-    Indices indices) const {
+void FakeStorageChain::IndexSearchValidated(FilterOp,
+                                            SqlValue,
+                                            Indices& indices) const {
   switch (strategy_) {
     case kAll:
-      return RangeOrBitVector(Range(0, indices.size));
+      return;
     case kNone:
-      return RangeOrBitVector(Range());
+      indices.tokens.clear();
+      return;
     case kRange:
-    case kBitVector: {
-      BitVector::Builder builder(indices.size);
-      for (const uint32_t* it = indices.data; it != indices.data + indices.size;
-           ++it) {
-        bool in_range = strategy_ == kRange && range_.Contains(*it);
-        bool in_bv = strategy_ == kBitVector && bit_vector_.IsSet(*it);
-        builder.Append(in_range || in_bv);
-      }
-      return RangeOrBitVector(std::move(builder).Build());
-    }
+      indices.tokens.erase(
+          std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                         [this](const Indices::Token& token) {
+                           return !range_.Contains(token.index);
+                         }),
+          indices.tokens.end());
+      return;
+    case kBitVector:
+      indices.tokens.erase(
+          std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                         [this](const Indices::Token& token) {
+                           return !bit_vector_.IsSet(token.index);
+                         }),
+          indices.tokens.end());
+      return;
   }
   PERFETTO_FATAL("For GCC");
 }
 
-Range FakeStorage::ChainImpl::OrderedIndexSearchValidated(
+Range FakeStorageChain::OrderedIndexSearchValidated(
     FilterOp,
     SqlValue,
-    Indices indices) const {
+    const OrderedIndices& indices) const {
   if (strategy_ == kAll) {
     return {0, indices.size};
   }
@@ -152,13 +148,11 @@ Range FakeStorage::ChainImpl::OrderedIndexSearchValidated(
           static_cast<uint32_t>(std::distance(indices.data, first_non_set))};
 }
 
-void FakeStorage::ChainImpl::StableSort(SortToken*,
-                                        SortToken*,
-                                        SortDirection) const {
+void FakeStorageChain::StableSort(SortToken*, SortToken*, SortDirection) const {
   PERFETTO_FATAL("Not implemented");
 }
 
-void FakeStorage::ChainImpl::Serialize(StorageProto*) const {
+void FakeStorageChain::Serialize(StorageProto*) const {
   // FakeStorage doesn't really make sense to serialize.
   PERFETTO_FATAL("Not implemented");
 }

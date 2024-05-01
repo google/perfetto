@@ -41,6 +41,11 @@ CREATE_TABLE_ALLOWLIST = {
         'android_cujs', 'relevant_binder_calls_with_names',
         'android_blocking_calls_cuj_calls'
     ],
+    ('/android'
+    '/android_blocking_calls_unagg.sql'): [
+        'filtered_processes_with_non_zero_blocking_calls',
+        'process_info', 'android_blocking_calls_unagg_calls'
+    ],
     '/android/jank/cujs.sql': ['android_jank_cuj'],
     '/chrome/gesture_flow_event.sql': [
         '{{prefix}}_latency_info_flow_step_filtered'
@@ -71,6 +76,24 @@ def match_drop_view_pattern_to_dict(sql: str,
 def check(path: str, metrics_sources: str) -> List[str]:
   with open(path) as f:
     sql = f.read()
+
+  # Check that each function/macro is using "CREATE OR REPLACE"
+  lines = [l.strip() for l in sql.split('\n')]
+  for line in lines:
+    if line.startswith('--'):
+      continue
+    if 'create perfetto function' in line.casefold():
+      errors.append(
+          f'Use "CREATE OR REPLACE PERFETTO FUNCTION" in Perfetto metrics, '
+          f'to prevent the file from crashing if the metric is rerun.\n'
+          f'Offending file: {path}\n')
+    if 'create perfetto macro' in line.casefold():
+      errors.append(
+          f'Use "CREATE OR REPLACE PERFETTO MACRO" in Perfetto metrics, to '
+          f'prevent the file from crashing if the metric is rerun.\n'
+          f'Offending file: {path}\n')
+
+
 
   # Check that CREATE VIEW/TABLE has a matching DROP VIEW/TABLE before it.
   create_table_view_dir = match_create_table_pattern_to_dict(

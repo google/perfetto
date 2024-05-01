@@ -25,6 +25,7 @@ import {
   SqlDataSource,
   addDebugCounterTrack,
   addDebugSliceTrack,
+  addPivotDebugSliceTracks,
 } from '../../frontend/debug_tracks';
 
 export const ARG_PREFIX = 'arg_';
@@ -40,18 +41,25 @@ interface AddDebugTrackMenuAttrs {
 
 const TRACK_NAME_FIELD_REF = 'TRACK_NAME_FIELD';
 
-export class AddDebugTrackMenu implements
-    m.ClassComponent<AddDebugTrackMenuAttrs> {
+export class AddDebugTrackMenu
+  implements m.ClassComponent<AddDebugTrackMenuAttrs>
+{
   readonly columns: string[];
 
   name: string = '';
-  trackType: 'slice'|'counter' = 'slice';
+  trackType: 'slice' | 'counter' = 'slice';
   // Names of columns which will be used as data sources for rendering.
   // We store the config for all possible columns used for rendering (i.e.
   // 'value' for slice and 'name' for counter) and then just don't the values
   // which don't match the currently selected track type (so changing track type
   // from A to B and back to A is a no-op).
-  renderParams: {ts: string; dur: string; name: string; value: string;};
+  renderParams: {
+    ts: string;
+    dur: string;
+    name: string;
+    value: string;
+    pivot: string;
+  };
 
   constructor(vnode: m.Vnode<AddDebugTrackMenuAttrs>) {
     this.columns = [...vnode.attrs.dataSource.columns];
@@ -76,6 +84,7 @@ export class AddDebugTrackMenu implements
       dur: chooseDefaultOption('dur'),
       name: chooseDefaultOption('name'),
       value: chooseDefaultOption('value'),
+      pivot: '',
     };
   }
 
@@ -96,12 +105,15 @@ export class AddDebugTrackMenu implements
     const options = [];
     for (const type of ['slice', 'counter']) {
       options.push(
-        m('option',
+        m(
+          'option',
           {
             value: type,
             selected: this.trackType === type ? true : undefined,
           },
-          type));
+          type,
+        ),
+      );
     }
     return m(
       Select,
@@ -109,37 +121,51 @@ export class AddDebugTrackMenu implements
         id: 'track_type',
         oninput: (e: Event) => {
           if (!e.target) return;
-          this.trackType =
-                (e.target as HTMLSelectElement).value as 'slice' | 'counter';
+          this.trackType = (e.target as HTMLSelectElement).value as
+            | 'slice'
+            | 'counter';
           raf.scheduleFullRedraw();
         },
       },
-      options);
+      options,
+    );
   }
 
   view(vnode: m.Vnode<AddDebugTrackMenuAttrs>) {
-    const renderSelect = (name: 'ts'|'dur'|'name'|'value') => {
+    const renderSelect = (name: 'ts' | 'dur' | 'name' | 'value' | 'pivot') => {
       const options = [];
+
+      if (name === 'pivot') {
+        options.push(
+          m(
+            'option',
+            {selected: this.renderParams[name] === '' ? true : undefined},
+            m('i', ''),
+          ),
+        );
+      }
       for (const column of this.columns) {
         options.push(
-          m('option',
-            {
-              selected: this.renderParams[name] === column ? true : undefined,
-            },
-            column));
+          m(
+            'option',
+            {selected: this.renderParams[name] === column ? true : undefined},
+            column,
+          ),
+        );
       }
       if (name === 'dur') {
         options.push(
-          m('option',
+          m(
+            'option',
             {selected: this.renderParams[name] === '0' ? true : undefined},
-            m('i', '0')));
+            m('i', '0'),
+          ),
+        );
       }
       return [
-        m(FormLabel,
-          {for: name,
-          },
-          name),
-        m(Select,
+        m(FormLabel, {for: name}, name),
+        m(
+          Select,
           {
             id: name,
             oninput: (e: Event) => {
@@ -147,43 +173,55 @@ export class AddDebugTrackMenu implements
               this.renderParams[name] = (e.target as HTMLSelectElement).value;
             },
           },
-          options),
+          options,
+        ),
       ];
     };
+
     return m(
       Form,
       {
         onSubmit: () => {
           switch (this.trackType) {
-          case 'slice':
-            addDebugSliceTrack(
-              vnode.attrs.engine,
-              vnode.attrs.dataSource,
-              this.name,
-              {
-                ts: this.renderParams.ts,
-                dur: this.renderParams.dur,
-                name: this.renderParams.name,
-              },
-              this.columns);
-            break;
-          case 'counter':
-            addDebugCounterTrack(
-              vnode.attrs.dataSource,
-              this.name,
-              {
+            case 'slice':
+              if (this.renderParams.pivot === '') {
+                addDebugSliceTrack(
+                  vnode.attrs.engine,
+                  vnode.attrs.dataSource,
+                  this.name,
+                  {
+                    ts: this.renderParams.ts,
+                    dur: this.renderParams.dur,
+                    name: this.renderParams.name,
+                  },
+                  this.columns,
+                );
+              } else {
+                addPivotDebugSliceTracks(
+                  vnode.attrs.engine,
+                  vnode.attrs.dataSource,
+                  this.name,
+                  {
+                    ts: this.renderParams.ts,
+                    dur: this.renderParams.dur,
+                    name: this.renderParams.name,
+                    pivot: this.renderParams.pivot,
+                  },
+                  this.columns,
+                );
+              }
+              break;
+            case 'counter':
+              addDebugCounterTrack(vnode.attrs.dataSource, this.name, {
                 ts: this.renderParams.ts,
                 value: this.renderParams.value,
               });
-            break;
+              break;
           }
         },
         submitLabel: 'Show',
       },
-      m(FormLabel,
-        {for: 'track_name',
-        },
-        'Track name'),
+      m(FormLabel, {for: 'track_name'}, 'Track name'),
       m(TextInput, {
         id: 'track_name',
         ref: TRACK_NAME_FIELD_REF,
@@ -196,14 +234,12 @@ export class AddDebugTrackMenu implements
           this.name = (e.target as HTMLInputElement).value;
         },
       }),
-      m(FormLabel,
-        {for: 'track_type',
-        },
-        'Track type'),
+      m(FormLabel, {for: 'track_type'}, 'Track type'),
       this.renderTrackTypeSelect(),
       renderSelect('ts'),
       this.trackType === 'slice' && renderSelect('dur'),
       this.trackType === 'slice' && renderSelect('name'),
+      this.trackType === 'slice' && renderSelect('pivot'),
       this.trackType === 'counter' && renderSelect('value'),
     );
   }

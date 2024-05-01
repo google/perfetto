@@ -32,13 +32,16 @@ interface GenerateSqlArgs {
 
 // Function to generate a SELECT statement utilizing the internal_layout
 // SQL function as a depth field.
-export function generateSqlWithInternalLayout(sqlArgs: GenerateSqlArgs):
-    string {
-  let sql = `SELECT ` + sqlArgs.columns.toString() +
-      `, internal_layout(${sqlArgs.ts}, ${sqlArgs.dur}) OVER (ORDER BY ${
-        sqlArgs.ts}` +
-      ' ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS depth' +
-      ' FROM ' + sqlArgs.sourceTable;
+export function generateSqlWithInternalLayout(
+  sqlArgs: GenerateSqlArgs,
+): string {
+  let sql =
+    `SELECT ` +
+    sqlArgs.columns.toString() +
+    `, internal_layout(${sqlArgs.ts}, ${sqlArgs.dur}) OVER (ORDER BY ${sqlArgs.ts}` +
+    ' ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS depth' +
+    ' FROM ' +
+    sqlArgs.sourceTable;
   if (sqlArgs.whereClause !== undefined) {
     sql += ' WHERE ' + sqlArgs.whereClause;
   }

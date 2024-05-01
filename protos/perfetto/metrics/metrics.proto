@@ -20,6 +20,8 @@ package perfetto.protos;
 
 import "protos/perfetto/metrics/android/ad_services_metric.proto";
 import "protos/perfetto/metrics/android/android_boot.proto";
+import "protos/perfetto/metrics/android/android_boot_unagg.proto";
+import "protos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto";
 import "protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto";
 import "protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto";
 import "protos/perfetto/metrics/android/android_frame_timeline_metric.proto";
@@ -27,6 +29,7 @@ import "protos/perfetto/metrics/android/anr_metric.proto";
 import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto";
 import "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto";
+import "protos/perfetto/metrics/android/android_blocking_calls_unagg.proto";
 import "protos/perfetto/metrics/android/codec_metrics.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
 import "protos/perfetto/metrics/android/camera_metric.proto";
@@ -67,6 +70,7 @@ import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 import "protos/perfetto/metrics/android/binder_metric.proto";
 import "protos/perfetto/metrics/android/monitor_contention_metric.proto";
 import "protos/perfetto/metrics/android/monitor_contention_agg_metric.proto";
+import "protos/perfetto/metrics/android/app_process_starts_metric.proto";
 
 // Trace processor metadata
 message TraceMetadata {
@@ -113,7 +117,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 61
+// Next id: 66
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -277,6 +281,23 @@ message TraceMetrics {
   optional SysuiNotifShadeListBuilderMetric sysui_notif_shade_list_builder_metric = 59;
 
   optional SysuiUpdateNotifOnUiModeChangedMetric sysui_update_notif_on_ui_mode_changed_metric = 60;
+
+  // Metrics for Process starts.
+  optional AndroidAppProcessStartsMetric android_app_process_starts = 61;
+
+  // Android boot unaggregated metrics.
+  optional AndroidBootUnagg android_boot_unagg = 62;
+
+  // Android garbage collection metrics
+  optional AndroidGarbageCollectionUnaggMetric android_garbage_collection_unagg = 63;
+
+  // Multiuser - metrics for switching users.
+  // Specific for Android Auto
+  optional AndroidMultiuserMetric android_auto_multiuser = 64;
+
+  // All blocking calls (e.g. binder calls) for a trace.
+  optional AndroidBlockingCallsUnagg android_blocking_calls_unagg = 65;
+
   // Demo extensions.
   extensions 450 to 499;
 

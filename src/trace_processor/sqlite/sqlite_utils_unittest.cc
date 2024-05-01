@@ -16,13 +16,23 @@
 
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
+#include <cstdint>
+#include <limits>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/base/test/status_matchers.h"
+#include "src/trace_processor/sqlite/scoped_db.h"
 #include "test/gtest_and_gmock.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace sqlite_utils {
+namespace perfetto::trace_processor::sqlite::utils {
 
 namespace {
+using base::gtest_matchers::IsError;
 
 class GetColumnsForTableTest : public ::testing::Test {
  public:
@@ -53,9 +63,8 @@ class GetColumnsForTableTest : public ::testing::Test {
 
 TEST_F(GetColumnsForTableTest, ValidInput) {
   RunStatement("CREATE TABLE foo (name STRING, ts INT, dur INT);");
-  std::vector<SqliteTable::Column> columns;
-  auto status = sqlite_utils::GetColumnsForTable(*db_, "foo", columns);
-  ASSERT_TRUE(status.ok());
+  std::vector<std::pair<SqlValue::Type, std::string>> columns;
+  ASSERT_OK(sqlite::utils::GetColumnsForTable(*db_, "foo", columns));
 }
 
 TEST_F(GetColumnsForTableTest, UnknownType) {
@@ -63,15 +72,15 @@ TEST_F(GetColumnsForTableTest, UnknownType) {
   // doesn't recognise. This just ensures that the query fails rather than
   // crashing.
   RunStatement("CREATE TABLE foo (name NUM, ts INT, dur INT);");
-  std::vector<SqliteTable::Column> columns;
-  auto status = sqlite_utils::GetColumnsForTable(*db_, "foo", columns);
-  ASSERT_FALSE(status.ok());
+  std::vector<std::pair<SqlValue::Type, std::string>> columns;
+  ASSERT_THAT(sqlite::utils::GetColumnsForTable(*db_, "foo", columns),
+              IsError());
 }
 
 TEST_F(GetColumnsForTableTest, UnknownTableName) {
-  std::vector<SqliteTable::Column> columns;
-  auto status = sqlite_utils::GetColumnsForTable(*db_, "unknowntable", columns);
-  ASSERT_FALSE(status.ok());
+  std::vector<std::pair<SqlValue::Type, std::string>> columns;
+  ASSERT_THAT(sqlite::utils::GetColumnsForTable(*db_, "unknowntable", columns),
+              IsError());
 }
 
 TEST(SqliteUtilsTest, ExtractFromSqlValueInt32) {
@@ -178,6 +187,4 @@ TEST(SqliteUtilsTest, ExtractFromSqlValueString) {
 }
 
 }  // namespace
-}  // namespace sqlite_utils
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::sqlite::utils

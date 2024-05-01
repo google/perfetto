@@ -18,27 +18,30 @@
 #define SRC_TRACED_PROBES_FTRACE_ATRACE_WRAPPER_H_
 
 #include <string>
-#include <type_traits>
 #include <vector>
 
 namespace perfetto {
 
-using RunAtraceFunction =
-    std::add_pointer<bool(const std::vector<std::string>& /*args*/,
-                          std::string* /*atrace_errors*/)>::type;
+class AtraceWrapper {
+ public:
+  virtual ~AtraceWrapper();
+  // When we are sideloaded on an old version of Android (pre P), we cannot use
+  // atrace --only_userspace because that option doesn't exist. In that case we:
+  // - Just use atrace --async_start/stop, which will cause atrace to also
+  //   poke at ftrace.
+  // - Suppress the checks for "somebody else enabled ftrace unexpectedly".
+  virtual bool SupportsUserspaceOnly() = 0;
+  virtual bool RunAtrace(const std::vector<std::string>& args,
+                         std::string* atrace_errors) = 0;
+};
 
-// When we are sideloaded on an old version of Android (pre P), we cannot use
-// atrace --only_userspace because that option doesn't exist. In that case we:
-// - Just use atrace --async_start/stop, which will cause atrace to also
-//   poke at ftrace.
-// - Suppress the checks for "somebody else enabled ftrace unexpectedly".
-bool IsOldAtrace();
-void SetIsOldAtraceForTesting(bool);
-void ClearIsOldAtraceForTesting();
-
-bool RunAtrace(const std::vector<std::string>& args,
-               std::string* atrace_errors);
-void SetRunAtraceForTesting(RunAtraceFunction);
+class AtraceWrapperImpl : public AtraceWrapper {
+ public:
+  ~AtraceWrapperImpl() override;
+  bool SupportsUserspaceOnly() override;
+  bool RunAtrace(const std::vector<std::string>& args,
+                 std::string* atrace_errors) override;
+};
 
 }  // namespace perfetto
 

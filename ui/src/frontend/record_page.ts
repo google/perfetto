@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
@@ -26,6 +25,7 @@ import {
   isChromeTarget,
   isCrOSTarget,
   isLinuxTarget,
+  isWindowsTarget,
   LoadedConfig,
   MAX_TIME,
   RecordingTarget,
@@ -45,9 +45,7 @@ import {
   recordConfigStore,
   recordTargetStore,
 } from './record_config';
-import {
-  CodeSnippet,
-} from './record_widgets';
+import {CodeSnippet} from './record_widgets';
 import {AdvancedSettings} from './recording/advanced_settings';
 import {AndroidSettings} from './recording/android_settings';
 import {ChromeSettings} from './recording/chrome_settings';
@@ -58,6 +56,7 @@ import {MemorySettings} from './recording/memory_settings';
 import {PowerSettings} from './recording/power_settings';
 import {RecordingSectionAttrs} from './recording/recording_sections';
 import {RecordingSettings} from './recording/recording_settings';
+import {EtwSettings} from './recording/etw_settings';
 
 export const PERSIST_CONFIG_FLAG = featureFlags.register({
   id: 'persistConfigsUI',
@@ -71,6 +70,7 @@ export const RECORDING_SECTIONS = [
   'instructions',
   'config',
   'cpu',
+  'etw',
   'gpu',
   'power',
   'memory',
@@ -83,13 +83,18 @@ export const RECORDING_SECTIONS = [
 function RecordHeader() {
   return m(
     '.record-header',
-    m('.top-part',
-      m('.target-and-status',
+    m(
+      '.top-part',
+      m(
+        '.target-and-status',
         RecordingPlatformSelection(),
         RecordingStatusLabel(),
-        ErrorLabel()),
-      recordingButtons()),
-    RecordingNotes());
+        ErrorLabel(),
+      ),
+      recordingButtons(),
+    ),
+    RecordingNotes(),
+  );
 }
 
 function RecordingPlatformSelection() {
@@ -106,16 +111,17 @@ function RecordingPlatformSelection() {
     targets.push(m('option', {value: d.serial}, d.name));
   }
 
-  const selectedIndex = isAdbTarget(recordingTarget) ?
-    targets.findIndex((node) => node.attrs.value === recordingTarget.serial) :
-    targets.findIndex((node) => node.attrs.value === recordingTarget.os);
+  const selectedIndex = isAdbTarget(recordingTarget)
+    ? targets.findIndex((node) => node.attrs.value === recordingTarget.serial)
+    : targets.findIndex((node) => node.attrs.value === recordingTarget.os);
 
   return m(
     '.target',
     m(
       'label',
       'Target platform:',
-      m('select',
+      m(
+        'select',
         {
           selectedIndex,
           onchange: (e: Event) => {
@@ -133,20 +139,24 @@ function RecordingPlatformSelection() {
             (select.dom as HTMLSelectElement).selectedIndex = selectedIndex;
           },
         },
-        ...targets),
+        ...targets,
+      ),
     ),
-    m('.chip',
+    m(
+      '.chip',
       {onclick: addAndroidDevice},
       m('button', 'Add ADB Device'),
-      m('i.material-icons', 'add')));
+      m('i.material-icons', 'add'),
+    ),
+  );
 }
 
 // |target| can be the TargetOs or the android serial.
 function onTargetChange(target: string) {
   const recordingTarget: RecordingTarget =
-      globals.state.availableAdbDevices.find((d) => d.serial === target) ||
-      getDefaultRecordingTargets().find((t) => t.os === target) ||
-      getDefaultRecordingTargets()[0];
+    globals.state.availableAdbDevices.find((d) => d.serial === target) ||
+    getDefaultRecordingTargets().find((t) => t.os === target) ||
+    getDefaultRecordingTargets()[0];
 
   if (isChromeTarget(recordingTarget)) {
     globals.dispatch(Actions.setFetchChromeCategories({fetch: true}));
@@ -161,31 +171,39 @@ function Instructions(cssClass: string) {
   return m(
     `.record-section.instructions${cssClass}`,
     m('header', 'Recording command'),
-    PERSIST_CONFIG_FLAG.get() ?
-      m('button.permalinkconfig',
-        {
-          onclick: () => {
-            globals.dispatch(
-              Actions.createPermalink({isRecordingConfig: true}));
+    PERSIST_CONFIG_FLAG.get()
+      ? m(
+          'button.permalinkconfig',
+          {
+            onclick: () => {
+              globals.dispatch(
+                Actions.createPermalink({isRecordingConfig: true}),
+              );
+            },
           },
-        },
-        'Share recording settings') :
-      null,
+          'Share recording settings',
+        )
+      : null,
     RecordingSnippet(),
     BufferUsageProgressBar(),
     m('.buttons', StopCancelButtons()),
-    recordingLog());
+    recordingLog(),
+  );
 }
 
 export function loadedConfigEqual(
-  cfg1: LoadedConfig, cfg2: LoadedConfig): boolean {
-  return cfg1.type === 'NAMED' && cfg2.type === 'NAMED' ?
-    cfg1.name === cfg2.name :
-    cfg1.type === cfg2.type;
+  cfg1: LoadedConfig,
+  cfg2: LoadedConfig,
+): boolean {
+  return cfg1.type === 'NAMED' && cfg2.type === 'NAMED'
+    ? cfg1.name === cfg2.name
+    : cfg1.type === cfg2.type;
 }
 
 export function loadConfigButton(
-  config: RecordConfig, configType: LoadedConfig): m.Vnode {
+  config: RecordConfig,
+  configType: LoadedConfig,
+): m.Vnode {
   return m(
     'button',
     {
@@ -197,50 +215,67 @@ export function loadConfigButton(
         raf.scheduleFullRedraw();
       },
     },
-    m('i.material-icons', 'file_upload'));
+    m('i.material-icons', 'file_upload'),
+  );
 }
 
 export function displayRecordConfigs() {
   const configs = [];
   if (autosaveConfigStore.hasSavedConfig) {
-    configs.push(m('.config', [
-      m('span.title-config', m('strong', 'Latest started recording')),
-      loadConfigButton(autosaveConfigStore.get(), {type: 'AUTOMATIC'}),
-    ]));
+    configs.push(
+      m('.config', [
+        m('span.title-config', m('strong', 'Latest started recording')),
+        loadConfigButton(autosaveConfigStore.get(), {type: 'AUTOMATIC'}),
+      ]),
+    );
   }
   for (const validated of recordConfigStore.recordConfigs) {
     const item = validated.result;
-    configs.push(m('.config', [
-      m('span.title-config', item.title),
-      loadConfigButton(item.config, {type: 'NAMED', name: item.title}),
-      m('button',
-        {
-          class: 'config-button',
-          title: 'Overwrite configuration with current settings',
-          onclick: () => {
-            if (confirm(`Overwrite config "${
-              item.title}" with current settings?`)) {
-              recordConfigStore.overwrite(globals.state.recordConfig, item.key);
-              globals.dispatch(Actions.setRecordConfig({
-                config: item.config,
-                configType: {type: 'NAMED', name: item.title},
-              }));
+    configs.push(
+      m('.config', [
+        m('span.title-config', item.title),
+        loadConfigButton(item.config, {type: 'NAMED', name: item.title}),
+        m(
+          'button',
+          {
+            class: 'config-button',
+            title: 'Overwrite configuration with current settings',
+            onclick: () => {
+              if (
+                confirm(
+                  `Overwrite config "${item.title}" with current settings?`,
+                )
+              ) {
+                recordConfigStore.overwrite(
+                  globals.state.recordConfig,
+                  item.key,
+                );
+                globals.dispatch(
+                  Actions.setRecordConfig({
+                    config: item.config,
+                    configType: {type: 'NAMED', name: item.title},
+                  }),
+                );
+                raf.scheduleFullRedraw();
+              }
+            },
+          },
+          m('i.material-icons', 'save'),
+        ),
+        m(
+          'button',
+          {
+            class: 'config-button',
+            title: 'Remove configuration',
+            onclick: () => {
+              recordConfigStore.delete(item.key);
               raf.scheduleFullRedraw();
-            }
+            },
           },
-        },
-        m('i.material-icons', 'save')),
-      m('button',
-        {
-          class: 'config-button',
-          title: 'Remove configuration',
-          onclick: () => {
-            recordConfigStore.delete(item.key);
-            raf.scheduleFullRedraw();
-          },
-        },
-        m('i.material-icons', 'delete')),
-    ]));
+          m('i.material-icons', 'delete'),
+        ),
+      ]),
+    );
 
     const errorItems = [];
     for (const extraKey of validated.extraKeys) {
@@ -252,11 +287,15 @@ export function displayRecordConfigs() {
 
     if (errorItems.length > 0) {
       configs.push(
-        m('.parsing-errors',
+        m(
+          '.parsing-errors',
           'One or more errors have been found while loading configuration "' +
-                item.title + '". Loading is possible, but make sure to check ' +
-                'the settings afterwards.',
-          m('ul', errorItems)));
+            item.title +
+            '". Loading is possible, but make sure to check ' +
+            'the settings afterwards.',
+          m('ul', errorItems),
+        ),
+      );
     }
   }
   return configs;
@@ -280,49 +319,60 @@ export function Configurations(cssClass: string) {
   return m(
     `.record-section${cssClass}`,
     m('header', 'Save and load configurations'),
-    m('.input-config',
-      [
-        m('input', {
-          value: ConfigTitleState.title,
-          placeholder: 'Title for config',
-          oninput() {
-            ConfigTitleState.setTitle(this.value);
+    m('.input-config', [
+      m('input', {
+        value: ConfigTitleState.title,
+        placeholder: 'Title for config',
+        oninput() {
+          ConfigTitleState.setTitle(this.value);
+          raf.scheduleFullRedraw();
+        },
+      }),
+      m(
+        'button',
+        {
+          class: 'config-button',
+          disabled: !canSave,
+          title: canSave
+            ? 'Save current config'
+            : 'Duplicate name, saving disabled',
+          onclick: () => {
+            recordConfigStore.save(
+              globals.state.recordConfig,
+              ConfigTitleState.getTitle(),
+            );
             raf.scheduleFullRedraw();
+            ConfigTitleState.clearTitle();
           },
-        }),
-        m('button',
-          {
-            class: 'config-button',
-            disabled: !canSave,
-            title: canSave ? 'Save current config' :
-              'Duplicate name, saving disabled',
-            onclick: () => {
-              recordConfigStore.save(
-                globals.state.recordConfig, ConfigTitleState.getTitle());
-              raf.scheduleFullRedraw();
-              ConfigTitleState.clearTitle();
-            },
-          },
-          m('i.material-icons', 'save')),
-        m('button',
-          {
-            class: 'config-button',
-            title: 'Clear current configuration',
-            onclick: () => {
-              if (confirm(
-                'Current configuration will be cleared. ' +
-                        'Are you sure?')) {
-                globals.dispatch(Actions.setRecordConfig({
+        },
+        m('i.material-icons', 'save'),
+      ),
+      m(
+        'button',
+        {
+          class: 'config-button',
+          title: 'Clear current configuration',
+          onclick: () => {
+            if (
+              confirm(
+                'Current configuration will be cleared. ' + 'Are you sure?',
+              )
+            ) {
+              globals.dispatch(
+                Actions.setRecordConfig({
                   config: createEmptyRecordConfig(),
                   configType: {type: 'NONE'},
-                }));
-                raf.scheduleFullRedraw();
-              }
-            },
+                }),
+              );
+              raf.scheduleFullRedraw();
+            }
           },
-          m('i.material-icons', 'delete_forever')),
-      ]),
-    displayRecordConfigs());
+        },
+        m('i.material-icons', 'delete_forever'),
+      ),
+    ]),
+    displayRecordConfigs(),
+  );
 }
 
 function BufferUsageProgressBar() {
@@ -335,68 +385,84 @@ function BufferUsageProgressBar() {
   return m(
     'label',
     'Buffer usage: ',
-    m('progress', {max: 100, value: bufferUsage * 100}));
+    m('progress', {max: 100, value: bufferUsage * 100}),
+  );
 }
 
 function RecordingNotes() {
   const sideloadUrl =
-      'https://perfetto.dev/docs/contributing/build-instructions#get-the-code';
+    'https://perfetto.dev/docs/contributing/build-instructions#get-the-code';
   const linuxUrl = 'https://perfetto.dev/docs/quickstart/linux-tracing';
   const cmdlineUrl =
-      'https://perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
-  const extensionURL =
-      `https://chrome.google.com/webstore/detail/perfetto-ui/lfmkphfpdbjijhpomgecfikhfohaoine`;
+    'https://perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
+  const extensionURL = `https://chrome.google.com/webstore/detail/perfetto-ui/lfmkphfpdbjijhpomgecfikhfohaoine`;
 
   const notes: m.Children = [];
 
-  const msgFeatNotSupported =
-      m('span', `Some probes are only supported in Perfetto versions running
-      on Android Q+. `);
+  const msgFeatNotSupported = m(
+    'span',
+    `Some probes are only supported in Perfetto versions running
+      on Android Q+. `,
+  );
 
-  const msgPerfettoNotSupported =
-      m('span', `Perfetto is not supported natively before Android P. `);
+  const msgPerfettoNotSupported = m(
+    'span',
+    `Perfetto is not supported natively before Android P. `,
+  );
 
-  const msgSideload =
-      m('span',
-        `If you have a rooted device you can `,
-        m('a',
-          {href: sideloadUrl, target: '_blank'},
-          `sideload the latest version of
-         Perfetto.`));
+  const msgSideload = m(
+    'span',
+    `If you have a rooted device you can `,
+    m(
+      'a',
+      {href: sideloadUrl, target: '_blank'},
+      `sideload the latest version of
+         Perfetto.`,
+    ),
+  );
 
-  const msgRecordingNotSupported =
-      m('.note',
-        `Recording Perfetto traces from the UI is not supported natively
+  const msgRecordingNotSupported = m(
+    '.note',
+    `Recording Perfetto traces from the UI is not supported natively
      before Android Q. If you are using a P device, please select 'Android P'
      as the 'Target Platform' and `,
-        m('a',
-          {href: cmdlineUrl, target: '_blank'},
-          `collect the trace using ADB.`));
+    m(
+      'a',
+      {href: cmdlineUrl, target: '_blank'},
+      `collect the trace using ADB.`,
+    ),
+  );
 
-  const msgChrome =
-      m('.note',
-        `To trace Chrome from the Perfetto UI, you need to install our `,
-        m('a', {href: extensionURL, target: '_blank'}, 'Chrome extension'),
-        ' and then reload this page.');
+  const msgChrome = m(
+    '.note',
+    `To trace Chrome from the Perfetto UI, you need to install our `,
+    m('a', {href: extensionURL, target: '_blank'}, 'Chrome extension'),
+    ' and then reload this page.',
+  );
 
-  const msgLinux =
-      m('.note',
-        `Use this `,
-        m('a', {href: linuxUrl, target: '_blank'}, `quickstart guide`),
-        ` to get started with tracing on Linux.`);
+  const msgLinux = m(
+    '.note',
+    `Use this `,
+    m('a', {href: linuxUrl, target: '_blank'}, `quickstart guide`),
+    ` to get started with tracing on Linux.`,
+  );
 
   const msgLongTraces = m(
     '.note',
     `Recording in long trace mode through the UI is not supported. Please copy
     the command and `,
-    m('a',
+    m(
+      'a',
       {href: cmdlineUrl, target: '_blank'},
-      `collect the trace using ADB.`));
+      `collect the trace using ADB.`,
+    ),
+  );
 
-  const msgZeroProbes =
-      m('.note',
-        'It looks like you didn\'t add any probes. ' +
-            'Please add at least one to get a non-empty trace.');
+  const msgZeroProbes = m(
+    '.note',
+    "It looks like you didn't add any probes. " +
+      'Please add at least one to get a non-empty trace.',
+  );
 
   if (!hasActiveProbes(globals.state.recordConfig)) {
     notes.push(msgZeroProbes);
@@ -406,24 +472,24 @@ function RecordingNotes() {
     notes.push(msgRecordingNotSupported);
   }
   switch (globals.state.recordingTarget.os) {
-  case 'Q':
-    break;
-  case 'P':
-    notes.push(m('.note', msgFeatNotSupported, msgSideload));
-    break;
-  case 'O':
-    notes.push(m('.note', msgPerfettoNotSupported, msgSideload));
-    break;
-  case 'L':
-    notes.push(msgLinux);
-    break;
-  case 'C':
-    if (!globals.state.extensionInstalled) notes.push(msgChrome);
-    break;
-  case 'CrOS':
-    if (!globals.state.extensionInstalled) notes.push(msgChrome);
-    break;
-  default:
+    case 'Q':
+      break;
+    case 'P':
+      notes.push(m('.note', msgFeatNotSupported, msgSideload));
+      break;
+    case 'O':
+      notes.push(m('.note', msgPerfettoNotSupported, msgSideload));
+      break;
+    case 'L':
+      notes.push(msgLinux);
+      break;
+    case 'C':
+      if (!globals.state.extensionInstalled) notes.push(msgChrome);
+      break;
+    case 'CrOS':
+      if (!globals.state.extensionInstalled) notes.push(msgChrome);
+      break;
+    default:
   }
   if (globals.state.recordConfig.mode === 'LONG_TRACE') {
     notes.unshift(msgLongTraces);
@@ -438,20 +504,26 @@ function RecordingSnippet() {
   // We don't need commands to start tracing on chrome
   if (isChromeTarget(target)) {
     return globals.state.extensionInstalled &&
-            !globals.state.recordingInProgress ?
-      m('div',
-        m('label',
-          `To trace Chrome from the Perfetto UI you just have to press
-         'Start Recording'.`)) :
-      [];
+      !globals.state.recordingInProgress
+      ? m(
+          'div',
+          m(
+            'label',
+            `To trace Chrome from the Perfetto UI you just have to press
+         'Start Recording'.`,
+          ),
+        )
+      : [];
   }
   return m(CodeSnippet, {text: getRecordCommand(target)});
 }
 
 function getRecordCommand(target: RecordingTarget) {
-  const data = globals.trackDataStore.get('config') as
-          {commandline: string, pbtxt: string, pbBase64: string} |
-      null;
+  const data = globals.trackDataStore.get('config') as {
+    commandline: string;
+    pbtxt: string;
+    pbBase64: string;
+  } | null;
 
   const cfg = globals.state.recordConfig;
   let time = cfg.durationMs / 1000;
@@ -468,8 +540,9 @@ function getRecordCommand(target: RecordingTarget) {
     cmd += 'base64 --decode | \n';
     cmd += 'adb shell "perfetto -c - -o /data/misc/perfetto-traces/trace"\n';
   } else {
-    cmd +=
-        isAndroidTarget(target) ? 'adb shell perfetto \\\n' : 'perfetto \\\n';
+    cmd += isAndroidTarget(target)
+      ? 'adb shell perfetto \\\n'
+      : 'perfetto \\\n';
     cmd += '  -c - --txt \\\n';
     cmd += '  -o /data/misc/perfetto-traces/trace \\\n';
     cmd += '<<EOF\n\n';
@@ -484,19 +557,23 @@ function recordingButtons() {
   const target = state.recordingTarget;
   const recInProgress = state.recordingInProgress;
 
-  const start =
-      m(`button`,
-        {
-          class: recInProgress ? '' : 'selected',
-          onclick: onStartRecordingPressed,
-        },
-        'Start Recording');
+  const start = m(
+    `button`,
+    {
+      class: recInProgress ? '' : 'selected',
+      onclick: onStartRecordingPressed,
+    },
+    'Start Recording',
+  );
 
   const buttons: m.Children = [];
 
   if (isAndroidTarget(target)) {
-    if (!recInProgress && isAdbTarget(target) &&
-        globals.state.recordConfig.mode !== 'LONG_TRACE') {
+    if (
+      !recInProgress &&
+      isAdbTarget(target) &&
+      globals.state.recordConfig.mode !== 'LONG_TRACE'
+    ) {
       buttons.push(start);
     }
   } else if (isChromeTarget(target) && state.extensionInstalled) {
@@ -508,15 +585,17 @@ function recordingButtons() {
 function StopCancelButtons() {
   if (!globals.state.recordingInProgress) return [];
 
-  const stop =
-      m(`button.selected`,
-        {onclick: () => globals.dispatch(Actions.stopRecording({}))},
-        'Stop');
+  const stop = m(
+    `button.selected`,
+    {onclick: () => globals.dispatch(Actions.stopRecording({}))},
+    'Stop',
+  );
 
-  const cancel =
-      m(`button`,
-        {onclick: () => globals.dispatch(Actions.cancelRecording({}))},
-        'Cancel');
+  const cancel = m(
+    `button`,
+    {onclick: () => globals.dispatch(Actions.cancelRecording({}))},
+    'Cancel',
+  );
 
   return [stop, cancel];
 }
@@ -589,10 +668,11 @@ const USE_ANDROID_S_AS_DEFAULT_FLAG = featureFlags.register({
 });
 
 export async function updateAvailableAdbDevices(
-  preferredDeviceSerial?: string) {
+  preferredDeviceSerial?: string,
+) {
   const devices = await new AdbOverWebUsb().getPairedDevices();
 
-  let recordingTarget: AdbRecordingTarget|undefined = undefined;
+  let recordingTarget: AdbRecordingTarget | undefined = undefined;
 
   const availableAdbDevices: AdbRecordingTarget[] = [];
   devices.forEach((d) => {
@@ -613,7 +693,8 @@ export async function updateAvailableAdbDevices(
   });
 
   globals.dispatch(
-    Actions.setAvailableAdbDevices({devices: availableAdbDevices}));
+    Actions.setAvailableAdbDevices({devices: availableAdbDevices}),
+  );
   selectAndroidDeviceIfAvailable(availableAdbDevices, recordingTarget);
   raf.scheduleFullRedraw();
   return availableAdbDevices;
@@ -621,15 +702,17 @@ export async function updateAvailableAdbDevices(
 
 function selectAndroidDeviceIfAvailable(
   availableAdbDevices: AdbRecordingTarget[],
-  recordingTarget?: RecordingTarget) {
+  recordingTarget?: RecordingTarget,
+) {
   if (!recordingTarget) {
     recordingTarget = globals.state.recordingTarget;
   }
   const deviceConnected = isAdbTarget(recordingTarget);
-  const connectedDeviceDisconnected = deviceConnected &&
-      availableAdbDevices.find(
-        (e) => e.serial ===
-              (recordingTarget as AdbRecordingTarget).serial) === undefined;
+  const connectedDeviceDisconnected =
+    deviceConnected &&
+    availableAdbDevices.find(
+      (e) => e.serial === (recordingTarget as AdbRecordingTarget).serial,
+    ) === undefined;
 
   if (availableAdbDevices.length) {
     // If there's an Android device available and the current selection isn't
@@ -648,60 +731,94 @@ function selectAndroidDeviceIfAvailable(
   // target to the default one.
   if (connectedDeviceDisconnected) {
     globals.dispatch(
-      Actions.setRecordingTarget({target: getDefaultRecordingTargets()[0]}));
+      Actions.setRecordingTarget({target: getDefaultRecordingTargets()[0]}),
+    );
   }
 }
 
 function recordMenu(routePage: string) {
   const target = globals.state.recordingTarget;
-  const chromeProbe =
-      m('a[href="#!/record/chrome"]',
-        m(`li${routePage === 'chrome' ? '.active' : ''}`,
-          m('i.material-icons', 'laptop_chromebook'),
-          m('.title', 'Chrome'),
-          m('.sub', 'Chrome traces')));
-  const cpuProbe =
-      m('a[href="#!/record/cpu"]',
-        m(`li${routePage === 'cpu' ? '.active' : ''}`,
-          m('i.material-icons', 'subtitles'),
-          m('.title', 'CPU'),
-          m('.sub', 'CPU usage, scheduling, wakeups')));
-  const gpuProbe =
-      m('a[href="#!/record/gpu"]',
-        m(`li${routePage === 'gpu' ? '.active' : ''}`,
-          m('i.material-icons', 'aspect_ratio'),
-          m('.title', 'GPU'),
-          m('.sub', 'GPU frequency, memory')));
-  const powerProbe =
-      m('a[href="#!/record/power"]',
-        m(`li${routePage === 'power' ? '.active' : ''}`,
-          m('i.material-icons', 'battery_charging_full'),
-          m('.title', 'Power'),
-          m('.sub', 'Battery and other energy counters')));
-  const memoryProbe =
-      m('a[href="#!/record/memory"]',
-        m(`li${routePage === 'memory' ? '.active' : ''}`,
-          m('i.material-icons', 'memory'),
-          m('.title', 'Memory'),
-          m('.sub', 'Physical mem, VM, LMK')));
-  const androidProbe =
-      m('a[href="#!/record/android"]',
-        m(`li${routePage === 'android' ? '.active' : ''}`,
-          m('i.material-icons', 'android'),
-          m('.title', 'Android apps & svcs'),
-          m('.sub', 'atrace and logcat')));
-  const advancedProbe =
-      m('a[href="#!/record/advanced"]',
-        m(`li${routePage === 'advanced' ? '.active' : ''}`,
-          m('i.material-icons', 'settings'),
-          m('.title', 'Advanced settings'),
-          m('.sub', 'Complicated stuff for wizards')));
-  const tracePerfProbe =
-      m('a[href="#!/record/tracePerf"]',
-        m(`li${routePage === 'tracePerf' ? '.active' : ''}`,
-          m('i.material-icons', 'full_stacked_bar_chart'),
-          m('.title', 'Stack Samples'),
-          m('.sub', 'Lightweight stack polling')));
+  const chromeProbe = m(
+    'a[href="#!/record/chrome"]',
+    m(
+      `li${routePage === 'chrome' ? '.active' : ''}`,
+      m('i.material-icons', 'laptop_chromebook'),
+      m('.title', 'Chrome'),
+      m('.sub', 'Chrome traces'),
+    ),
+  );
+  const cpuProbe = m(
+    'a[href="#!/record/cpu"]',
+    m(
+      `li${routePage === 'cpu' ? '.active' : ''}`,
+      m('i.material-icons', 'subtitles'),
+      m('.title', 'CPU'),
+      m('.sub', 'CPU usage, scheduling, wakeups'),
+    ),
+  );
+  const gpuProbe = m(
+    'a[href="#!/record/gpu"]',
+    m(
+      `li${routePage === 'gpu' ? '.active' : ''}`,
+      m('i.material-icons', 'aspect_ratio'),
+      m('.title', 'GPU'),
+      m('.sub', 'GPU frequency, memory'),
+    ),
+  );
+  const powerProbe = m(
+    'a[href="#!/record/power"]',
+    m(
+      `li${routePage === 'power' ? '.active' : ''}`,
+      m('i.material-icons', 'battery_charging_full'),
+      m('.title', 'Power'),
+      m('.sub', 'Battery and other energy counters'),
+    ),
+  );
+  const memoryProbe = m(
+    'a[href="#!/record/memory"]',
+    m(
+      `li${routePage === 'memory' ? '.active' : ''}`,
+      m('i.material-icons', 'memory'),
+      m('.title', 'Memory'),
+      m('.sub', 'Physical mem, VM, LMK'),
+    ),
+  );
+  const androidProbe = m(
+    'a[href="#!/record/android"]',
+    m(
+      `li${routePage === 'android' ? '.active' : ''}`,
+      m('i.material-icons', 'android'),
+      m('.title', 'Android apps & svcs'),
+      m('.sub', 'atrace and logcat'),
+    ),
+  );
+  const advancedProbe = m(
+    'a[href="#!/record/advanced"]',
+    m(
+      `li${routePage === 'advanced' ? '.active' : ''}`,
+      m('i.material-icons', 'settings'),
+      m('.title', 'Advanced settings'),
+      m('.sub', 'Complicated stuff for wizards'),
+    ),
+  );
+  const tracePerfProbe = m(
+    'a[href="#!/record/tracePerf"]',
+    m(
+      `li${routePage === 'tracePerf' ? '.active' : ''}`,
+      m('i.material-icons', 'full_stacked_bar_chart'),
+      m('.title', 'Stack Samples'),
+      m('.sub', 'Lightweight stack polling'),
+    ),
+  );
+  const etwProbe = m(
+    'a[href="#!/record/etw"]',
+    m(
+      `li${routePage === 'etw' ? '.active' : ''}`,
+      m('i.material-icons', 'subtitles'),
+      m('.title', 'ETW Tracing Config'),
+      m('.sub', 'Context switch, Thread state'),
+    ),
+  );
   const recInProgress = globals.state.recordingInProgress;
 
   const probes = [];
@@ -709,6 +826,8 @@ function recordMenu(routePage: string) {
     probes.push(cpuProbe, powerProbe, memoryProbe, chromeProbe, advancedProbe);
   } else if (isChromeTarget(target)) {
     probes.push(chromeProbe);
+  } else if (isWindowsTarget(target)) {
+    probes.push(chromeProbe, etwProbe);
   } else {
     probes.push(
       cpuProbe,
@@ -718,7 +837,8 @@ function recordMenu(routePage: string) {
       androidProbe,
       chromeProbe,
       tracePerfProbe,
-      advancedProbe);
+      advancedProbe,
+    );
   }
 
   return m(
@@ -728,31 +848,46 @@ function recordMenu(routePage: string) {
       onclick: () => raf.scheduleFullRedraw(),
     },
     m('header', 'Trace config'),
-    m('ul',
-      m('a[href="#!/record/buffers"]',
-        m(`li${routePage === 'buffers' ? '.active' : ''}`,
+    m(
+      'ul',
+      m(
+        'a[href="#!/record/buffers"]',
+        m(
+          `li${routePage === 'buffers' ? '.active' : ''}`,
           m('i.material-icons', 'tune'),
           m('.title', 'Recording settings'),
-          m('.sub', 'Buffer mode, size and duration'))),
-      m('a[href="#!/record/instructions"]',
-        m(`li${routePage === 'instructions' ? '.active' : ''}`,
+          m('.sub', 'Buffer mode, size and duration'),
+        ),
+      ),
+      m(
+        'a[href="#!/record/instructions"]',
+        m(
+          `li${routePage === 'instructions' ? '.active' : ''}`,
           m('i.material-icons-filled.rec', 'fiber_manual_record'),
           m('.title', 'Recording command'),
-          m('.sub', 'Manually record trace'))),
-      PERSIST_CONFIG_FLAG.get() ?
-        m('a[href="#!/record/config"]',
-          {
-            onclick: () => {
-              recordConfigStore.reloadFromLocalStorage();
+          m('.sub', 'Manually record trace'),
+        ),
+      ),
+      PERSIST_CONFIG_FLAG.get()
+        ? m(
+            'a[href="#!/record/config"]',
+            {
+              onclick: () => {
+                recordConfigStore.reloadFromLocalStorage();
+              },
             },
-          },
-          m(`li${routePage === 'config' ? '.active' : ''}`,
-            m('i.material-icons', 'save'),
-            m('.title', 'Saved configs'),
-            m('.sub', 'Manage local configs'))) :
-        null),
+            m(
+              `li${routePage === 'config' ? '.active' : ''}`,
+              m('i.material-icons', 'save'),
+              m('.title', 'Saved configs'),
+              m('.sub', 'Manage local configs'),
+            ),
+          )
+        : null,
+    ),
     m('header', 'Probes'),
-    m('ul', probes));
+    m('ul', probes),
+  );
 }
 
 export function maybeGetActiveCss(routePage: string, section: string): string {
@@ -769,10 +904,12 @@ export const RecordPage = createPage({
     }
     pages.push(recordMenu(routePage));
 
-    pages.push(m(RecordingSettings, {
-      dataSources: [],
-      cssClass: maybeGetActiveCss(routePage, 'buffers'),
-    } as RecordingSectionAttrs));
+    pages.push(
+      m(RecordingSettings, {
+        dataSources: [],
+        cssClass: maybeGetActiveCss(routePage, 'buffers'),
+      } as RecordingSectionAttrs),
+    );
     pages.push(Instructions(maybeGetActiveCss(routePage, 'instructions')));
     pages.push(Configurations(maybeGetActiveCss(routePage, 'config')));
 
@@ -785,12 +922,15 @@ export const RecordPage = createPage({
       ['chrome', ChromeSettings],
       ['tracePerf', LinuxPerfSettings],
       ['advanced', AdvancedSettings],
+      ['etw', EtwSettings],
     ]);
     for (const [section, component] of settingsSections.entries()) {
-      pages.push(m(component, {
-        dataSources: [],
-        cssClass: maybeGetActiveCss(routePage, section),
-      } as RecordingSectionAttrs));
+      pages.push(
+        m(component, {
+          dataSources: [],
+          cssClass: maybeGetActiveCss(routePage, section),
+        } as RecordingSectionAttrs),
+      );
     }
 
     if (isChromeTarget(globals.state.recordingTarget)) {
@@ -800,8 +940,11 @@ export const RecordPage = createPage({
     return m(
       '.record-page',
       globals.state.recordingInProgress ? m('.hider') : [],
-      m('.record-container',
+      m(
+        '.record-container',
         RecordHeader(),
-        m('.record-container-content', recordMenu(routePage), pages)));
+        m('.record-container-content', recordMenu(routePage), pages),
+      ),
+    );
   },
 });

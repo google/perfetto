@@ -840,7 +840,7 @@ void DoParse(const ExamplePage& test_case,
       &writer, &metadata, /*symbolizer=*/nullptr, /*cpu=*/0,
       /*ftrace_clock_snapshot=*/nullptr,
       protos::pbzero::FTRACE_CLOCK_UNSPECIFIED, compact_sched_buf.get(),
-      /*compact_sched_enabled=*/false);
+      /*compact_sched_enabled=*/false, /*last_read_event_ts=*/0);
 
   ProtoTranslationTable* table = GetTable(test_case.name);
   auto page = PageFromXxd(test_case.data);
@@ -874,8 +874,10 @@ void DoParse(const ExamplePage& test_case,
     if (!page_header.has_value())
       return;
 
+    uint64_t last_read_event_ts = 0;
     CpuReader::ParsePagePayload(parse_pos, &page_header.value(), table,
-                                &ds_config, &bundler, &metadata);
+                                &ds_config, &bundler, &metadata,
+                                &last_read_event_ts);
 
     metadata.Clear();
     bundler.FinalizeAndRunSymbolizer();
@@ -967,13 +969,15 @@ void DoProcessPages(const ExamplePage& test_case,
 
   FtraceMetadata metadata{};
   auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
+  uint64_t last_read_event_ts = 0;
   base::FlatSet<protos::pbzero::FtraceParseStatus> parse_errors;
   while (state.KeepRunning()) {
     CpuReader::ProcessPagesForDataSource(
         &writer, &metadata, /*cpu=*/0, &ds_config, &parse_errors,
-        repeated_pages.get(), page_repetition, compact_sched_buf.get(), table,
+        &last_read_event_ts, repeated_pages.get(), page_repetition,
+        compact_sched_buf.get(), table,
         /*symbolizer=*/nullptr, /*ftrace_clock_snapshot=*/nullptr,
-        /*ftrace_clock=*/protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
+        protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 
     metadata.Clear();
   }

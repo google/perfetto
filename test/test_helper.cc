@@ -69,13 +69,16 @@ TestHelper::TestHelper(base::TestTaskRunner* task_runner, Mode mode)
 
 TestHelper::TestHelper(base::TestTaskRunner* task_runner,
                        Mode mode,
-                       const char* producer_socket)
+                       const char* producer_socket,
+                       bool enable_relay_endpoint)
     : instance_num_(next_instance_num_++),
       task_runner_(task_runner),
       mode_(mode),
       producer_socket_(producer_socket),
       consumer_socket_(ConsumerSocketForMode(mode)),
-      service_thread_(producer_socket_, consumer_socket_) {
+      service_thread_(producer_socket_,
+                      consumer_socket_,
+                      enable_relay_endpoint) {
   auto producer_sockets = TokenizeProducerSockets(producer_socket_);
   static constexpr const char* kDefaultFakeProducerName =
       "android.perfetto.FakeProducer";

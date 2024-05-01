@@ -49,6 +49,8 @@ SOURCE_FILES = [
     'files': [
       'src/protozero/test/example_proto/library.proto',
       'src/protozero/test/example_proto/library_internals/galaxies.proto',
+      'src/protozero/test/example_proto/other_package/test_messages.proto',
+      'src/protozero/test/example_proto/subpackage/test_messages.proto',
       'src/protozero/test/example_proto/test_messages.proto',
       'src/protozero/test/example_proto/upper_import.proto',
     ],

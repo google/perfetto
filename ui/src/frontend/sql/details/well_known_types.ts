@@ -22,7 +22,7 @@ import {
 import {createSqlIdRefRenderer, SqlIdRefRenderer} from './details';
 
 export const wellKnownTypes: {[key: string]: SqlIdRefRenderer} = {
-  'process': createSqlIdRefRenderer<ProcessInfo>(
+  process: createSqlIdRefRenderer<ProcessInfo>(
     async (engine, id) => await getProcessInfo(engine, asUpid(Number(id))),
     (data: ProcessInfo) => ({
       value: renderProcessRef(data),

@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {Time} from '../base/time';
 import {Actions, PostedScrollToRange, PostedTrace} from '../common/actions';
 import {showModal} from '../widgets/modal';
 
@@ -34,7 +35,7 @@ interface PostedScrollToRangeWrapped {
 
 // Returns whether incoming traces should be opened automatically or should
 // instead require a user interaction.
-function isTrustedOrigin(origin: string): boolean {
+export function isTrustedOrigin(origin: string): boolean {
   const TRUSTED_ORIGINS = [
     'https://chrometto.googleplex.com',
     'https://uma.googleplex.com',
@@ -45,8 +46,15 @@ function isTrustedOrigin(origin: string): boolean {
   if (isUserTrustedOrigin(origin)) return true;
 
   const hostname = new URL(origin).hostname;
-  if (hostname.endsWith('corp.google.com')) return true;
-  if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
+  if (hostname.endsWith('.corp.google.com')) return true;
+  if (hostname.endsWith('.c.googlers.com')) return true;
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '[::1]'
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -117,8 +125,10 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   // * closes itself
   const fromOpenee = (messageEvent.source as WindowProxy).opener === window;
 
-  if (messageEvent.source === null ||
-      !(fromOpener || fromIframeHost || fromOpenee)) {
+  if (
+    messageEvent.source === null ||
+    !(fromOpener || fromIframeHost || fromOpenee)
+  ) {
     // This can happen if an extension tries to postMessage.
     return;
   }
@@ -166,7 +176,8 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     console.warn(
       'Unknown postMessage() event received. If you are trying to open a ' +
         'trace via postMessage(), this is a bug in your code. If not, this ' +
-        'could be due to some Chrome extension.');
+        'could be due to some Chrome extension.',
+    );
     console.log('origin:', messageEvent.origin, 'data:', messageEvent.data);
     return;
   }
@@ -206,10 +217,11 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   // If not ask the user if they expect this and trust the origin.
   showModal({
     title: 'Open trace?',
-    content:
-        m('div',
-          m('div', `${messageEvent.origin} is trying to open a trace file.`),
-          m('div', 'Do you trust the origin and want to proceed?')),
+    content: m(
+      'div',
+      m('div', `${messageEvent.origin} is trying to open a trace file.`),
+      m('div', 'Do you trust the origin and want to proceed?'),
+    ),
     buttons: [
       {text: 'No', primary: true},
       {text: 'Yes', primary: false, action: openTrace},
@@ -235,12 +247,14 @@ function sanitizeString(str: string): string {
 }
 
 function isTraceViewerReady(): boolean {
-  return !!(globals.getCurrentEngine()?.ready);
+  return !!globals.getCurrentEngine()?.ready;
 }
 
 const _maxScrollToRangeAttempts = 20;
 async function scrollToTimeRange(
-  postedScrollToRange: PostedScrollToRange, maxAttempts?: number) {
+  postedScrollToRange: PostedScrollToRange,
+  maxAttempts?: number,
+) {
   const ready = isTraceViewerReady();
   if (!ready) {
     if (maxAttempts === undefined) {
@@ -252,21 +266,23 @@ async function scrollToTimeRange(
     }
     setTimeout(scrollToTimeRange, 200, postedScrollToRange, maxAttempts + 1);
   } else {
-    focusHorizontalRange(
-      postedScrollToRange.timeStart,
-      postedScrollToRange.timeEnd,
-      postedScrollToRange.viewPercentage);
+    const start = Time.fromSeconds(postedScrollToRange.timeStart);
+    const end = Time.fromSeconds(postedScrollToRange.timeEnd);
+    focusHorizontalRange(start, end, postedScrollToRange.viewPercentage);
   }
 }
 
-function isPostedScrollToRange(obj: unknown):
-    obj is PostedScrollToRangeWrapped {
+function isPostedScrollToRange(
+  obj: unknown,
+): obj is PostedScrollToRangeWrapped {
   const wrapped = obj as PostedScrollToRangeWrapped;
   if (wrapped.perfetto === undefined) {
     return false;
   }
-  return wrapped.perfetto.timeStart !== undefined ||
-      wrapped.perfetto.timeEnd !== undefined;
+  return (
+    wrapped.perfetto.timeStart !== undefined ||
+    wrapped.perfetto.timeEnd !== undefined
+  );
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -275,6 +291,8 @@ function isPostedTraceWrapped(obj: any): obj is PostedTraceWrapped {
   if (wrapped.perfetto === undefined) {
     return false;
   }
-  return wrapped.perfetto.buffer !== undefined &&
-      wrapped.perfetto.title !== undefined;
+  return (
+    wrapped.perfetto.buffer !== undefined &&
+    wrapped.perfetto.title !== undefined
+  );
 }

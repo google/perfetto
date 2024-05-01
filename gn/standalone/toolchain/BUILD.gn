@@ -185,11 +185,11 @@ declare_args() {
   } else {
     target_ar = "ar"
     if (is_android) {
-      target_ar = "$android_toolchain_root/bin/$android_abi_target-ar"
+      target_ar = "$android_llvm_dir/bin/llvm-ar"
       target_cc = "$android_llvm_dir/bin/clang"
       target_cxx = "$android_llvm_dir/bin/clang++"
       target_linker = "$android_llvm_dir/bin/ld.lld"
-      target_strip = "$android_toolchain_root/bin/$android_abi_target-strip"
+      target_strip = "$android_llvm_dir/bin/llvm-strip"
     } else {
       assert(_target_triplet != "",
              "target_triplet must be non-empty when cross-compiling")
@@ -297,11 +297,13 @@ template("gcc_like_toolchain") {
     tool("solink") {
       soname = "{{target_output_name}}{{output_extension}}"
       unstripped_so = "{{root_out_dir}}/$soname"
+      rspfile = "$unstripped_so.rsp"
+      rspfile_content = "{{inputs}}"
       rpath = "-Wl,-soname,$soname"
       if (is_mac) {
         rpath = "-Wl,-install_name,@rpath/$soname"
       }
-      command = "$cc_wrapper $cxx $ld_arg -shared {{ldflags}} ${external_ldflags} {{inputs}} {{solibs}} {{libs}} $rpath -o $unstripped_so"
+      command = "$cc_wrapper $cxx $ld_arg -shared {{ldflags}} ${external_ldflags} @$rspfile {{solibs}} {{libs}} $rpath -o $unstripped_so"
       outputs = [ unstripped_so ]
       output_prefix = "lib"
       default_output_extension = ".so"
@@ -316,7 +318,9 @@ template("gcc_like_toolchain") {
     tool("link") {
       unstripped_exe =
           "{{root_out_dir}}/{{target_output_name}}{{output_extension}}"
-      command = "$cc_wrapper $cxx $ld_arg {{ldflags}} ${external_ldflags} {{inputs}} {{solibs}} {{libs}} -o $unstripped_exe"
+      rspfile = "$unstripped_exe.rsp"
+      rspfile_content = "{{inputs}}"
+      command = "$cc_wrapper $cxx $ld_arg {{ldflags}} ${external_ldflags} @$rspfile {{solibs}} {{libs}} -o $unstripped_exe"
       outputs = [ unstripped_exe ]
       description = "link $unstripped_exe"
       if (strip != "") {
@@ -413,6 +417,11 @@ toolchain("msvc") {
   lib_switch = ""
   lib_dir_switch = "/LIBPATH:"
   sys_lib_flags = string_join(" ", win_msvc_sys_lib_flags)
+  external_cflags = string_join(" ",
+                                [
+                                  extra_cflags,
+                                  extra_host_cflags,
+                                ])
 
   # Note: /showIncludes below is required for ninja, to build a complete
   # dependency graph for headers. Removing it breaks incremental builds.
@@ -420,7 +429,7 @@ toolchain("msvc") {
   tool("cc") {
     precompiled_header_type = "msvc"
     pdbname = "{{target_out_dir}}/{{label_name}}_c.pdb"
-    command = "$cc_wrapper $cc /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256"
+    command = "$cc_wrapper $cc /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} ${external_cflags} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256"
     depsformat = "msvc"
     outputs =
         [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.obj" ]
@@ -430,7 +439,7 @@ toolchain("msvc") {
   tool("cxx") {
     precompiled_header_type = "msvc"
     pdbname = "{{target_out_dir}}/{{label_name}}_c.pdb"
-    command = "$cc_wrapper $cxx /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256"
+    command = "$cc_wrapper $cxx /nologo /showIncludes /FC {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} ${external_cflags} /c {{source}} /Fo{{output}} /Fd\"$pdbname\" /guard:cf /ZH:SHA_256"
     depsformat = "msvc"
     outputs =
         [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.obj" ]

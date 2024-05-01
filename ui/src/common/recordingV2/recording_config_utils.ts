@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 import {isString} from '../../base/object_utils';
 import {base64Encode} from '../../base/string_utils';
 import {exists} from '../../base/utils';
@@ -24,6 +23,7 @@ import {
   BufferConfig,
   ChromeConfig,
   DataSourceConfig,
+  EtwConfig,
   FtraceConfig,
   HeapprofdConfig,
   JavaContinuousDumpConfig,
@@ -60,10 +60,14 @@ export class RecordingConfigUtils {
   private configProtoBase64?: string;
   private hasDataSources: boolean = false;
 
-  fetchLatestRecordCommand(recordConfig: RecordConfig, targetInfo: TargetInfo):
-      ConfigProtoEncoded {
-    if (recordConfig === this.lastConfig &&
-        targetInfo === this.lastTargetInfo) {
+  fetchLatestRecordCommand(
+    recordConfig: RecordConfig,
+    targetInfo: TargetInfo,
+  ): ConfigProtoEncoded {
+    if (
+      recordConfig === this.lastConfig &&
+      targetInfo === this.lastTargetInfo
+    ) {
       return {
         configProtoText: this.configProtoText,
         configProtoBase64: this.configProtoBase64,
@@ -95,7 +99,9 @@ function enableCompactSched(androidApiLevel?: number): boolean {
 }
 
 export function genTraceConfig(
-  uiCfg: RecordConfig, targetInfo: TargetInfo): TraceConfig {
+  uiCfg: RecordConfig,
+  targetInfo: TargetInfo,
+): TraceConfig {
   const isAndroid = targetInfo.targetType === 'ANDROID';
   const androidApiLevel = isAndroid ? targetInfo.androidApiLevel : undefined;
   const protoCfg = new TraceConfig();
@@ -140,8 +146,9 @@ export function genTraceConfig(
   const atraceApps = new Set<string>();
   const chromeCategories = new Set<string>();
   uiCfg.chromeCategoriesSelected.forEach((it) => chromeCategories.add(it));
-  uiCfg.chromeHighOverheadCategoriesSelected.forEach(
-    (it) => chromeCategories.add(it));
+  uiCfg.chromeHighOverheadCategoriesSelected.forEach((it) =>
+    chromeCategories.add(it),
+  );
 
   let procThreadAssociationPolling = false;
   let procThreadAssociationFtrace = false;
@@ -172,7 +179,7 @@ export function genTraceConfig(
     ftraceEvents.add('power/suspend_resume');
   }
 
-  let sysStatsCfg: SysStatsConfig|undefined = undefined;
+  let sysStatsCfg: SysStatsConfig | undefined = undefined;
 
   if (uiCfg.cpuFreq) {
     ftraceEvents.add('power/cpu_frequency');
@@ -210,8 +217,10 @@ export function genTraceConfig(
   if (uiCfg.batteryDrain) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
-    if (targetInfo.targetType === 'CHROME_OS' ||
-        targetInfo.targetType === 'LINUX') {
+    if (
+      targetInfo.targetType === 'CHROME_OS' ||
+      targetInfo.targetType === 'LINUX'
+    ) {
       ds.config.name = 'linux.sysfs_power';
     } else {
       ds.config.name = 'android.power';
@@ -265,6 +274,10 @@ export function genTraceConfig(
     ftraceEvents.add('task/task_rename');
   }
 
+  if (uiCfg.linuxDeviceRpm) {
+    ftraceEvents.add('rpm/rpm_status');
+  }
+
   if (uiCfg.meminfo) {
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.meminfoPeriodMs = uiCfg.meminfoPeriodMs;
@@ -298,13 +311,15 @@ export function genTraceConfig(
     trackInitialOomScore = true;
   }
 
-  let heapprofd: HeapprofdConfig|undefined = undefined;
+  let heapprofd: HeapprofdConfig | undefined = undefined;
   if (uiCfg.heapProfiling) {
     // TODO(hjd): Check or inform user if buffer size are too small.
     const cfg = new HeapprofdConfig();
     cfg.samplingIntervalBytes = uiCfg.hpSamplingIntervalBytes;
-    if (uiCfg.hpSharedMemoryBuffer >= 8192 &&
-        uiCfg.hpSharedMemoryBuffer % 4096 === 0) {
+    if (
+      uiCfg.hpSharedMemoryBuffer >= 8192 &&
+      uiCfg.hpSharedMemoryBuffer % 4096 === 0
+    ) {
       cfg.shmemSizeBytes = uiCfg.hpSharedMemoryBuffer;
     }
     for (const value of uiCfg.hpProcesses.split('\n')) {
@@ -317,7 +332,7 @@ export function genTraceConfig(
       }
     }
     if (uiCfg.hpContinuousDumpsInterval > 0) {
-      const cdc = cfg.continuousDumpConfig = new NativeContinuousDumpConfig();
+      const cdc = (cfg.continuousDumpConfig = new NativeContinuousDumpConfig());
       cdc.dumpIntervalMs = uiCfg.hpContinuousDumpsInterval;
       if (uiCfg.hpContinuousDumpsPhase > 0) {
         cdc.dumpPhaseMs = uiCfg.hpContinuousDumpsPhase;
@@ -330,7 +345,7 @@ export function genTraceConfig(
     heapprofd = cfg;
   }
 
-  let javaHprof: JavaHprofConfig|undefined = undefined;
+  let javaHprof: JavaHprofConfig | undefined = undefined;
   if (uiCfg.javaHeapDump) {
     const cfg = new JavaHprofConfig();
     for (const value of uiCfg.jpProcesses.split('\n')) {
@@ -343,7 +358,7 @@ export function genTraceConfig(
       }
     }
     if (uiCfg.jpContinuousDumpsInterval > 0) {
-      const cdc = cfg.continuousDumpConfig = new JavaContinuousDumpConfig();
+      const cdc = (cfg.continuousDumpConfig = new JavaContinuousDumpConfig());
       cdc.dumpIntervalMs = uiCfg.jpContinuousDumpsInterval;
       if (uiCfg.hpContinuousDumpsPhase > 0) {
         cdc.dumpPhaseMs = uiCfg.jpContinuousDumpsPhase;
@@ -355,7 +370,7 @@ export function genTraceConfig(
   if (uiCfg.procStats || procThreadAssociationPolling || trackInitialOomScore) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
-    ds.config.targetBuffer = 1;  // Aux
+    ds.config.targetBuffer = 1; // Aux
     ds.config.name = 'linux.process_stats';
     ds.config.processStatsConfig = new ProcessStatsConfig();
     if (uiCfg.procStats) {
@@ -409,7 +424,7 @@ export function genTraceConfig(
       net.config.name = 'android.network_packets';
       net.config.networkPacketTraceConfig = new NetworkPacketTraceConfig();
       net.config.networkPacketTraceConfig.pollMs =
-          uiCfg.androidNetworkTracingPollMs;
+        uiCfg.androidNetworkTracingPollMs;
       protoCfg.dataSources.push(net);
 
       // Record package info so that Perfetto can display the package name for
@@ -563,11 +578,13 @@ export function genTraceConfig(
     if (chromeCategories.has('disabled-by-default-memory-infra')) {
       configStruct.memory_dump_config = {
         allowed_dump_modes: ['background', 'light', 'detailed'],
-        triggers: [{
-          min_time_between_dumps_ms: 10000,
-          mode: 'detailed',
-          type: 'periodic_interval',
-        }],
+        triggers: [
+          {
+            min_time_between_dumps_ms: 10000,
+            mode: 'detailed',
+            type: 'periodic_interval',
+          },
+        ],
       };
     }
     const chromeConfig = new ChromeConfig();
@@ -588,14 +605,16 @@ export function genTraceConfig(
     trackEventDs.config.chromeConfig = chromeConfig;
     trackEventDs.config.trackEventConfig = new TrackEventConfig();
     trackEventDs.config.trackEventConfig.disabledCategories = ['*'];
-    trackEventDs.config.trackEventConfig.enabledCategories =
-        [...chromeCategories.values(), '__metadata'];
+    trackEventDs.config.trackEventConfig.enabledCategories = [
+      ...chromeCategories.values(),
+      '__metadata',
+    ];
     trackEventDs.config.trackEventConfig.enableThreadTimeSampling = true;
     trackEventDs.config.trackEventConfig.timestampUnitMultiplier = 1000;
     trackEventDs.config.trackEventConfig.filterDynamicEventNames =
-        uiCfg.chromePrivacyFiltering;
+      uiCfg.chromePrivacyFiltering;
     trackEventDs.config.trackEventConfig.filterDebugAnnotations =
-        uiCfg.chromePrivacyFiltering;
+      uiCfg.chromePrivacyFiltering;
     protoCfg.dataSources.push(trackEventDs);
 
     const metadataDs = new TraceConfig.DataSource();
@@ -618,8 +637,10 @@ export function genTraceConfig(
       protoCfg.dataSources.push(HeapProfDs);
     }
 
-    if (chromeCategories.has('disabled-by-default-cpu_profiler') ||
-        chromeCategories.has('disabled-by-default-cpu_profiler.debug')) {
+    if (
+      chromeCategories.has('disabled-by-default-cpu_profiler') ||
+      chromeCategories.has('disabled-by-default-cpu_profiler.debug')
+    ) {
       const dataSource = new TraceConfig.DataSource();
       dataSource.config = new DataSourceConfig();
       dataSource.config.name = 'org.chromium.sampler_profiler';
@@ -629,35 +650,45 @@ export function genTraceConfig(
   }
 
   // Keep these last. The stages above can enrich them.
+  if (
+    targetInfo.targetType !== 'WINDOWS' &&
+    targetInfo.targetType !== 'CHROME'
+  ) {
+    if (sysStatsCfg !== undefined) {
+      const ds = new TraceConfig.DataSource();
+      ds.config = new DataSourceConfig();
+      ds.config.name = 'linux.sys_stats';
+      ds.config.sysStatsConfig = sysStatsCfg;
+      protoCfg.dataSources.push(ds);
+    }
 
-  if (sysStatsCfg !== undefined && targetInfo.targetType !== 'CHROME') {
-    const ds = new TraceConfig.DataSource();
-    ds.config = new DataSourceConfig();
-    ds.config.name = 'linux.sys_stats';
-    ds.config.sysStatsConfig = sysStatsCfg;
-    protoCfg.dataSources.push(ds);
+    if (heapprofd !== undefined) {
+      const ds = new TraceConfig.DataSource();
+      ds.config = new DataSourceConfig();
+      ds.config.targetBuffer = 0;
+      ds.config.name = 'android.heapprofd';
+      ds.config.heapprofdConfig = heapprofd;
+      protoCfg.dataSources.push(ds);
+    }
+
+    if (javaHprof !== undefined) {
+      const ds = new TraceConfig.DataSource();
+      ds.config = new DataSourceConfig();
+      ds.config.targetBuffer = 0;
+      ds.config.name = 'android.java_hprof';
+      ds.config.javaHprofConfig = javaHprof;
+      protoCfg.dataSources.push(ds);
+    }
   }
 
-  if (heapprofd !== undefined && targetInfo.targetType !== 'CHROME') {
-    const ds = new TraceConfig.DataSource();
-    ds.config = new DataSourceConfig();
-    ds.config.targetBuffer = 0;
-    ds.config.name = 'android.heapprofd';
-    ds.config.heapprofdConfig = heapprofd;
-    protoCfg.dataSources.push(ds);
-  }
-
-  if (javaHprof !== undefined && targetInfo.targetType !== 'CHROME') {
-    const ds = new TraceConfig.DataSource();
-    ds.config = new DataSourceConfig();
-    ds.config.targetBuffer = 0;
-    ds.config.name = 'android.java_hprof';
-    ds.config.javaHprofConfig = javaHprof;
-    protoCfg.dataSources.push(ds);
-  }
-
-  if (uiCfg.ftrace || ftrace || uiCfg.atrace || ftraceEvents.size > 0 ||
-      atraceCats.size > 0 || atraceApps.size > 0) {
+  if (
+    uiCfg.ftrace ||
+    ftrace ||
+    uiCfg.atrace ||
+    ftraceEvents.size > 0 ||
+    atraceCats.size > 0 ||
+    atraceApps.size > 0
+  ) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
     ds.config.name = 'linux.ftrace';
@@ -731,6 +762,28 @@ export function genTraceConfig(
     }
   }
 
+  if (
+    targetInfo.targetType === 'WINDOWS' ||
+    uiCfg.etwCSwitch ||
+    uiCfg.etwThreadState
+  ) {
+    const ds = new TraceConfig.DataSource();
+    ds.config = new DataSourceConfig();
+    ds.config.name = 'windows.etw';
+    ds.config.etwConfig = new EtwConfig();
+
+    const kernelFlags: EtwConfig.KernelFlag[] = [];
+
+    if (uiCfg.etwCSwitch) {
+      kernelFlags.push(EtwConfig.KernelFlag.CSWITCH);
+    }
+    if (uiCfg.etwThreadState) {
+      kernelFlags.push(EtwConfig.KernelFlag.DISPATCHER);
+    }
+    ds.config.etwConfig.kernelFlags = kernelFlags;
+    protoCfg.dataSources.push(ds);
+  }
+
   return protoCfg;
 }
 
@@ -743,10 +796,16 @@ function toPbtxt(configBuffer: Uint8Array): string {
   // With the ahead of time compiled protos we can't seem to tell which
   // fields are enums.
   function isEnum(value: string): boolean {
-    return value.startsWith('MEMINFO_') || value.startsWith('VMSTAT_') ||
-        value.startsWith('STAT_') || value.startsWith('LID_') ||
-        value.startsWith('BATTERY_COUNTER_') || value === 'DISCARD' ||
-        value === 'RING_BUFFER' || value.startsWith('PERF_CLOCK_');
+    return (
+      value.startsWith('MEMINFO_') ||
+      value.startsWith('VMSTAT_') ||
+      value.startsWith('STAT_') ||
+      value.startsWith('LID_') ||
+      value.startsWith('BATTERY_COUNTER_') ||
+      value === 'DISCARD' ||
+      value === 'RING_BUFFER' ||
+      value.startsWith('PERF_CLOCK_')
+    );
   }
   // Since javascript doesn't have 64 bit numbers when converting protos to
   // json the proto library encodes them as strings. This is lossy since
@@ -767,7 +826,7 @@ function toPbtxt(configBuffer: Uint8Array): string {
     for (const [key, value] of Object.entries(msg)) {
       const isRepeated = Array.isArray(value);
       const isNested = typeof value === 'object' && !isRepeated;
-      for (const entry of (isRepeated ? value as Array<{}>: [value])) {
+      for (const entry of isRepeated ? (value as Array<{}>) : [value]) {
         yield ' '.repeat(indent) + `${snakeCase(key)}${isNested ? '' : ':'} `;
         if (isString(entry)) {
           if (isEnum(entry) || is64BitNumber(key)) {
@@ -784,8 +843,9 @@ function toPbtxt(configBuffer: Uint8Array): string {
           yield* message(entry, indent + 4);
           yield ' '.repeat(indent) + '}';
         } else {
-          throw new Error(`Record proto entry "${entry}" with unexpected type ${
-            typeof entry}`);
+          throw new Error(
+            `Record proto entry "${entry}" with unexpected type ${typeof entry}`,
+          );
         }
         yield '\n';
       }

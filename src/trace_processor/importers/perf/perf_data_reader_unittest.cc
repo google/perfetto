@@ -37,7 +37,7 @@ TraceBlobView TraceBlobViewFromVector(std::vector<T> nums) {
 
 TEST(PerfDataReaderUnittest, AppendToEmpty) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{1, 2, 3});
-  Reader reader;
+  PerfDataReader reader;
   EXPECT_FALSE(reader.CanReadSize(1));
   reader.Append(std::move(tbv));
   EXPECT_TRUE(reader.CanReadSize(sizeof(uint64_t) * 2));
@@ -45,7 +45,7 @@ TEST(PerfDataReaderUnittest, AppendToEmpty) {
 
 TEST(PerfDataReaderUnittest, Append) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{1, 2, 3});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
 
   EXPECT_TRUE(reader.CanReadSize(sizeof(uint64_t) * 3));
   EXPECT_FALSE(reader.CanReadSize(sizeof(uint64_t) * 3 + 1));
@@ -56,7 +56,7 @@ TEST(PerfDataReaderUnittest, Append) {
 
 TEST(PerfDataReaderUnittest, Read) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 8});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   uint64_t val;
   reader.Read(val);
   EXPECT_EQ(val, 2u);
@@ -64,7 +64,7 @@ TEST(PerfDataReaderUnittest, Read) {
 
 TEST(PerfDataReaderUnittest, ReadFromBuffer) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 6});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   reader.Append(TraceBlobViewFromVector(std::vector<uint64_t>{1, 3}));
 
   // Now the first vector should be in the buffer.
@@ -75,7 +75,7 @@ TEST(PerfDataReaderUnittest, ReadFromBuffer) {
 
 TEST(PerfDataReaderUnittest, ReadBetweenBufferAndBlob) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   reader.Append(TraceBlobViewFromVector(std::vector<uint64_t>{1, 3, 5}));
 
   struct Nums {
@@ -94,7 +94,7 @@ TEST(PerfDataReaderUnittest, ReadBetweenBufferAndBlob) {
 
 TEST(PerfDataReaderUnittest, ReadOptional) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 8});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   std::optional<uint64_t> val;
   reader.ReadOptional(val);
   EXPECT_EQ(val, 2u);
@@ -103,7 +103,7 @@ TEST(PerfDataReaderUnittest, ReadOptional) {
 TEST(PerfDataReaderUnittest, ReadVector) {
   TraceBlobView tbv =
       TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 8, 16, 32});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
 
   std::vector<uint64_t> res(3);
   reader.ReadVector(res);
@@ -114,7 +114,7 @@ TEST(PerfDataReaderUnittest, ReadVector) {
 
 TEST(PerfDataReaderUnittest, Skip) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 8});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
 
   reader.Skip<uint64_t>();
 
@@ -125,7 +125,7 @@ TEST(PerfDataReaderUnittest, Skip) {
 
 TEST(PerfDataReaderUnittest, SkipInBuffer) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   reader.Append(TraceBlobViewFromVector(std::vector<uint64_t>{1, 3, 5}));
 
   reader.Skip<uint64_t>();
@@ -134,7 +134,7 @@ TEST(PerfDataReaderUnittest, SkipInBuffer) {
 
 TEST(PerfDataReaderUnittest, SkipBetweenBufferAndBlob) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   reader.Append(TraceBlobViewFromVector(std::vector<uint64_t>{1, 3, 5}));
 
   struct Nums {
@@ -149,7 +149,7 @@ TEST(PerfDataReaderUnittest, SkipBetweenBufferAndBlob) {
 
 TEST(PerfDataReaderUnittest, Peek) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 8});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
 
   uint64_t peek_val;
   reader.Peek(peek_val);
@@ -161,7 +161,7 @@ TEST(PerfDataReaderUnittest, Peek) {
 
 TEST(PerfDataReaderUnittest, PeekFromBuffer) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 6});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   reader.Append(TraceBlobViewFromVector(std::vector<uint64_t>{1, 3}));
 
   uint64_t val;
@@ -171,7 +171,7 @@ TEST(PerfDataReaderUnittest, PeekFromBuffer) {
 
 TEST(PerfDataReaderUnittest, PeekBetweenBufferAndBlob) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   reader.Append(TraceBlobViewFromVector(std::vector<uint64_t>{1, 3, 5}));
 
   struct Nums {
@@ -190,40 +190,40 @@ TEST(PerfDataReaderUnittest, PeekBetweenBufferAndBlob) {
 
 TEST(PerfDataReaderUnittest, GetTraceBlobView) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 8});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   EXPECT_TRUE(reader.CanReadSize(sizeof(uint64_t) * 3));
 
   TraceBlobView new_tbv = reader.PeekTraceBlobView(sizeof(uint64_t) * 2);
-  Reader new_reader(std::move(new_tbv));
+  PerfDataReader new_reader(std::move(new_tbv));
   EXPECT_TRUE(new_reader.CanReadSize(sizeof(uint64_t) * 2));
   EXPECT_FALSE(new_reader.CanReadSize(sizeof(uint64_t) * 3));
 }
 
 TEST(PerfDataReaderUnittest, GetTraceBlobViewFromBuffer) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   reader.Append(TraceBlobViewFromVector(std::vector<uint64_t>{1, 3, 5}));
 
   TraceBlobView new_tbv = reader.PeekTraceBlobView(sizeof(uint64_t) * 2);
-  Reader new_reader(std::move(new_tbv));
+  PerfDataReader new_reader(std::move(new_tbv));
   EXPECT_TRUE(new_reader.CanReadSize(sizeof(uint64_t) * 2));
   EXPECT_FALSE(new_reader.CanReadSize(sizeof(uint64_t) * 3));
 }
 
 TEST(PerfDataReaderUnittest, GetTraceBlobViewFromBetweenBufferAndBlob) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   reader.Append(TraceBlobViewFromVector(std::vector<uint64_t>{1, 3, 5}));
 
   TraceBlobView new_tbv = reader.PeekTraceBlobView(sizeof(uint64_t) * 3);
-  Reader new_reader(std::move(new_tbv));
+  PerfDataReader new_reader(std::move(new_tbv));
   EXPECT_TRUE(new_reader.CanReadSize(sizeof(uint64_t) * 3));
   EXPECT_FALSE(new_reader.CanReadSize(sizeof(uint64_t) * 4));
 }
 
 TEST(PerfDataReaderUnittest, CanAccessFileRange) {
   TraceBlobView tbv = TraceBlobViewFromVector(std::vector<uint64_t>{2, 4, 8});
-  Reader reader(std::move(tbv));
+  PerfDataReader reader(std::move(tbv));
   EXPECT_TRUE(reader.CanAccessFileRange(2, sizeof(uint64_t) * 3));
   EXPECT_FALSE(reader.CanAccessFileRange(2, sizeof(uint64_t) * 3 + 10));
 }

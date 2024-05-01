@@ -42,7 +42,10 @@ WORKDIR = os.path.join(CUR_DIR, 'repo')
 POLL_PERIOD_SEC = 60
 
 # The actual key is stored into the Google Cloud project metadata.
-ENV = {'GIT_SSH_COMMAND': 'ssh -i ' + os.path.join(CUR_DIR, 'deploy_key')}
+ENV = {
+    'GIT_SSH_COMMAND': 'ssh -i ' + os.path.join(CUR_DIR, 'deploy_key'),
+    'GIT_DIR': WORKDIR,
+}
 
 
 def GitCmd(*args, **kwargs):
@@ -94,14 +97,14 @@ def Sync(args):
   for line in all_refs.splitlines():
     ref_sha1, ref = line.split()
 
-    FILTER_REGEX = r'(heads/main|heads/releases/.*|tags/v\d+\.\d+)$'
-    m = re.match('refs/' + FILTER_REGEX, ref)
+    FILT_REGEX = r'(heads/main|heads/master|heads/releases/.*|tags/v\d+\.\d+)$'
+    m = re.match('refs/' + FILT_REGEX, ref)
     if m is not None:
       branch = m.group(1)
       current_heads['refs/' + branch] = ref_sha1
       continue
 
-    m = re.match('refs/remotes/upstream/' + FILTER_REGEX, ref)
+    m = re.match('refs/remotes/upstream/' + FILT_REGEX, ref)
     if m is not None:
       branch = m.group(1)
       future_heads['refs/' + branch] = ref_sha1

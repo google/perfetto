@@ -21,6 +21,23 @@ from python.generators.diff_tests.testing import TestSuite
 
 class PowerPowerRails(TestSuite):
 
+  def test_android_power_rails_counters(self):
+    return DiffTestBlueprint(
+        trace=DataPath('power_rails.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE android.power_rails;
+        SELECT
+        power_rail_name, AVG(value), COUNT(*)
+        FROM android_power_rails_counters
+        GROUP BY 1
+        LIMIT 20;
+      """,
+        out=Csv("""
+        "power_rail_name","AVG(value)","COUNT(*)"
+        "power.PPVAR_VPH_PWR_ABH_uws",7390700.360656,61
+        "power.PPVAR_VPH_PWR_OLED_uws",202362991.655738,61
+        """))
+
   def test_power_rails_power_rails(self):
     return DiffTestBlueprint(
         trace=DataPath('power_rails.pb'),

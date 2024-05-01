@@ -19,7 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "src/protozero/proto_ring_buffer.h"
+#include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "src/traceconv/trace.descriptor.h"
 #include "src/traceconv/utils.h"
 

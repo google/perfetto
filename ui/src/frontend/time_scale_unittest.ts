@@ -18,8 +18,11 @@ import {HighPrecisionTime} from '../common/high_precision_time';
 import {PxSpan, TimeScale} from './time_scale';
 
 describe('TimeScale', () => {
-  const ts =
-      new TimeScale(new HighPrecisionTime(40n), 100, new PxSpan(200, 1000));
+  const ts = new TimeScale(
+    new HighPrecisionTime(40n),
+    100,
+    new PxSpan(200, 1000),
+  );
 
   it('converts timescales to pixels', () => {
     expect(ts.timeToPx(Time.fromRaw(40n))).toEqual(200);

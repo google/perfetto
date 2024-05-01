@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-INCLUDE PERFETTO MODULE common.slices;
+INCLUDE PERFETTO MODULE slices.with_context;
 
 -- All process starts.
 CREATE PERFETTO VIEW _proc_start
@@ -103,10 +103,9 @@ JOIN _proc_start proc_start
   ON proc_start.process_name = cold_start.process_name AND cold_start.ts > proc_start.ts
 GROUP BY cold_start.upid;
 
--- TODO(b/323052521): Refactor this table name to android_startups.
 -- All app cold starts with information about their cold start reason:
 -- broadcast, service, activity or provider.
-CREATE PERFETTO TABLE _android_app_process_starts(
+CREATE PERFETTO TABLE android_app_process_starts(
   -- Slice id of the bindApplication slice in the app. Uniquely identifies a process start.
   start_id INT,
   -- Slice id of intent received in the app.

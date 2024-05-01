@@ -15,12 +15,53 @@
  */
 
 #include "src/trace_processor/importers/perf/perf_data_tracker.h"
+
+#include <optional>
+
 #include "perfetto/base/status.h"
+#include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
+
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace perf_importer {
+namespace {
+
+bool IsInKernel(protos::pbzero::Profiling::CpuMode cpu_mode) {
+  switch (cpu_mode) {
+    case protos::pbzero::Profiling::MODE_UNKNOWN:
+      PERFETTO_CHECK(false);
+    case protos::pbzero::Profiling::MODE_GUEST_KERNEL:
+    case protos::pbzero::Profiling::MODE_KERNEL:
+      return true;
+    case protos::pbzero::Profiling::MODE_USER:
+    case protos::pbzero::Profiling::MODE_HYPERVISOR:
+    case protos::pbzero::Profiling::MODE_GUEST_USER:
+      return false;
+  }
+  PERFETTO_CHECK(false);
+}
+
+CreateMappingParams BuildCreateMappingParams(
+    PerfDataTracker::Mmap2Record record) {
+  return {AddressRange::FromStartAndSize(record.num.addr, record.num.len),
+          record.num.pgoff,
+          // start_offset: This is the offset into the file where the ELF header
+          // starts. We assume all file mappings are ELF files an thus this
+          // offset is 0.
+          0,
+          // load_bias: This can only be read out of the actual ELF file, which
+          // we do not have here, so we set it to 0. When symbolizing we will
+          // hopefully have the real load bias and we can compensate there for a
+          // possible mismatch.
+          0, record.filename, std::nullopt};
+}
+}  // namespace
 
 PerfDataTracker::~PerfDataTracker() = default;
 
@@ -48,35 +89,19 @@ const perf_event_attr* PerfDataTracker::FindAttrWithId(uint64_t id) const {
 }
 
 void PerfDataTracker::PushMmap2Record(Mmap2Record record) {
-  const auto mappings =
-      context_->storage->mutable_stack_profile_mapping_table();
-  MappingTable::Row row;
-  row.start = static_cast<int64_t>(record.num.addr);
-  row.end = static_cast<int64_t>(record.num.addr + record.num.len);
-  row.name = context_->storage->InternString(record.filename.c_str());
-  MappingTable::Id id = mappings->Insert(row).id;
-  MmapRange mmap2_range{record.num.addr, record.num.addr + record.num.len, id};
-  mmap2_ranges_[record.num.pid].push_back(mmap2_range);
-}
-
-base::StatusOr<PerfDataTracker::MmapRange> PerfDataTracker::FindMapping(
-    uint32_t pid,
-    uint64_t ips) {
-  auto vec = mmap2_ranges_.Find(pid);
-  if (!vec) {
-    return base::ErrStatus("Sample pid not found in mappings.");
+  if (IsInKernel(record.cpu_mode)) {
+    context_->mapping_tracker->CreateKernelMemoryMapping(
+        BuildCreateMappingParams(std::move(record)));
+  } else {
+    UniquePid upid =
+        context_->process_tracker->GetOrCreateProcess(record.num.pid);
+    context_->mapping_tracker->CreateUserMemoryMapping(
+        upid, BuildCreateMappingParams(std::move(record)));
   }
-
-  for (const auto& range : *vec) {
-    if (ips >= range.start && ips < range.end) {
-      return range;
-    }
-  }
-  return base::ErrStatus("No mapping for callstack frame instruction pointer");
 }
 
 base::StatusOr<PerfDataTracker::PerfSample> PerfDataTracker::ParseSample(
-    perfetto::trace_processor::perf_importer::Reader& reader) {
+    perfetto::trace_processor::perf_importer::PerfDataReader& reader) {
   uint64_t sample_type = common_sample_type();
   PerfDataTracker::PerfSample sample;
 

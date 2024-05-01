@@ -14,12 +14,8 @@
 
 import m from 'mithril';
 
-import {
-  Time,
-  time,
-  toISODateOnly,
-} from '../base/time';
-import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
+import {Time, time, toISODateOnly} from '../base/time';
+import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -40,7 +36,7 @@ export class TimeAxisPanel implements Panel {
 
   constructor(readonly key: string) {}
 
-  get mithril() {
+  render(): m.Children {
     return m('.time-axis-panel');
   }
 
@@ -51,26 +47,30 @@ export class TimeAxisPanel implements Panel {
 
     const offset = globals.timestampOffset();
     switch (timestampFormat()) {
-    case TimestampFormat.Raw:
-    case TimestampFormat.RawLocale:
-      break;
-    case TimestampFormat.Seconds:
-    case TimestampFormat.Timecode:
-      const width = renderTimestamp(ctx, offset, 6, 10, MIN_PX_PER_STEP);
-      ctx.fillText('+', 6 + width + 2, 10, 6);
-      break;
-    case TimestampFormat.UTC:
-      const offsetDate =
-            Time.toDate(globals.utcOffset, globals.realtimeOffset);
-      const dateStr = toISODateOnly(offsetDate);
-      ctx.fillText(`UTC ${dateStr}`, 6, 10);
-      break;
-    case TimestampFormat.TraceTz:
-      const offsetTzDate =
-            Time.toDate(globals.traceTzOffset, globals.realtimeOffset);
-      const dateTzStr = toISODateOnly(offsetTzDate);
-      ctx.fillText(dateTzStr, 6, 10);
-      break;
+      case TimestampFormat.Raw:
+      case TimestampFormat.RawLocale:
+        break;
+      case TimestampFormat.Seconds:
+      case TimestampFormat.Timecode:
+        const width = renderTimestamp(ctx, offset, 6, 10, MIN_PX_PER_STEP);
+        ctx.fillText('+', 6 + width + 2, 10, 6);
+        break;
+      case TimestampFormat.UTC:
+        const offsetDate = Time.toDate(
+          globals.utcOffset,
+          globals.realtimeOffset,
+        );
+        const dateStr = toISODateOnly(offsetDate);
+        ctx.fillText(`UTC ${dateStr}`, 6, 10);
+        break;
+      case TimestampFormat.TraceTz:
+        const offsetTzDate = Time.toDate(
+          globals.traceTzOffset,
+          globals.realtimeOffset,
+        );
+        const dateTzStr = toISODateOnly(offsetTzDate);
+        ctx.fillText(dateTzStr, 6, 10);
+        break;
     }
 
     ctx.save();
@@ -108,19 +108,19 @@ function renderTimestamp(
 ) {
   const fmt = timestampFormat();
   switch (fmt) {
-  case TimestampFormat.UTC:
-  case TimestampFormat.TraceTz:
-  case TimestampFormat.Timecode:
-    return renderTimecode(ctx, time, x, y, minWidth);
-  case TimestampFormat.Raw:
-    return renderRawTimestamp(ctx, time.toString(), x, y, minWidth);
-  case TimestampFormat.RawLocale:
-    return renderRawTimestamp(ctx, time.toLocaleString(), x, y, minWidth);
-  case TimestampFormat.Seconds:
-    return renderRawTimestamp(ctx, Time.formatSeconds(time), x, y, minWidth);
-  default:
-    const z: never = fmt;
-    throw new Error(`Invalid timestamp ${z}`);
+    case TimestampFormat.UTC:
+    case TimestampFormat.TraceTz:
+    case TimestampFormat.Timecode:
+      return renderTimecode(ctx, time, x, y, minWidth);
+    case TimestampFormat.Raw:
+      return renderRawTimestamp(ctx, time.toString(), x, y, minWidth);
+    case TimestampFormat.RawLocale:
+      return renderRawTimestamp(ctx, time.toLocaleString(), x, y, minWidth);
+    case TimestampFormat.Seconds:
+      return renderRawTimestamp(ctx, Time.formatSeconds(time), x, y, minWidth);
+    default:
+      const z: never = fmt;
+      throw new Error(`Invalid timestamp ${z}`);
   }
 }
 

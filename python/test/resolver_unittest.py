@@ -197,6 +197,22 @@ class TestResolver(unittest.TestCase):
     self.assertEqual(
         _args_dict_from_uri('foo:key<v1', type_hints),
         {'key': ConstraintClass('v1', ConstraintClass.Op.LT)})
+    self.assertEqual(
+        _args_dict_from_uri('foo:key>v1;key<=v2', type_hints), {
+            'key': [
+                ConstraintClass('v1', ConstraintClass.Op.GT),
+                ConstraintClass('v2', ConstraintClass.Op.LE)
+            ]
+        })
+    self.assertEqual(
+        _args_dict_from_uri('foo:key>=v1;key<v4;key!=v2;key!=v3', type_hints), {
+            'key': [
+                ConstraintClass('v1', ConstraintClass.Op.GE),
+                ConstraintClass('v4', ConstraintClass.Op.LT),
+                ConstraintClass('v2', ConstraintClass.Op.NE),
+                ConstraintClass('v3', ConstraintClass.Op.NE),
+            ]
+        })
 
   def _check_resolver_result(self,
                              foo_res,

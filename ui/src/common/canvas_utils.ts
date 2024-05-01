@@ -31,7 +31,7 @@ export function cropText(str: string, charWidth: number, rectWidth: number) {
     // 32-bit double-wchar codepoint (e.g., an emoji). Here we detect if the
     // |limit|-th wchar is a leading surrogate and attach the trailing one.
     const lastCharCode = str.charCodeAt(limit - 1);
-    limit += (lastCharCode >= 0xD800 && lastCharCode < 0xDC00) ? 1 : 0;
+    limit += lastCharCode >= 0xd800 && lastCharCode < 0xdc00 ? 1 : 0;
     displayText = str.substring(0, limit) + maybeTripleDot;
   }
   return displayText;
@@ -44,7 +44,8 @@ export function drawDoubleHeadedArrow(
   length: number,
   showArrowHeads: boolean,
   width = 2,
-  color = 'black') {
+  color = 'black',
+) {
   ctx.beginPath();
   ctx.lineWidth = width;
   ctx.lineCap = 'round';
@@ -76,7 +77,8 @@ export function drawIncompleteSlice(
   y: number,
   width: number,
   height: number,
-  showGradient: boolean = true) {
+  showGradient: boolean = true,
+) {
   if (width <= 0 || height <= 0) {
     return;
   }
@@ -86,11 +88,11 @@ export function drawIncompleteSlice(
   ctx.lineTo(x + width, y);
   ctx.lineTo(x + width - 3, y + triangleSize * 0.5);
   ctx.lineTo(x + width, y + triangleSize);
-  ctx.lineTo(x + width - 3, y + (triangleSize * 1.5));
+  ctx.lineTo(x + width - 3, y + triangleSize * 1.5);
   ctx.lineTo(x + width, y + 2 * triangleSize);
-  ctx.lineTo(x + width - 3, y + (triangleSize * 2.5));
+  ctx.lineTo(x + width - 3, y + triangleSize * 2.5);
   ctx.lineTo(x + width, y + 3 * triangleSize);
-  ctx.lineTo(x + width - 3, y + (triangleSize * 3.5));
+  ctx.lineTo(x + width - 3, y + triangleSize * 3.5);
   ctx.lineTo(x + width, y + 4 * triangleSize);
   ctx.lineTo(x, y + height);
 
@@ -104,8 +106,8 @@ export function drawIncompleteSlice(
     }
   } else {
     throw new Error(
-      `drawIncompleteSlice() expects fillStyle to be a simple color not ${
-        fillStyle}`);
+      `drawIncompleteSlice() expects fillStyle to be a simple color not ${fillStyle}`,
+    );
   }
 
   ctx.fill();
@@ -114,10 +116,11 @@ export function drawIncompleteSlice(
 
 export function drawTrackHoverTooltip(
   ctx: CanvasRenderingContext2D,
-  pos: {x: number, y: number},
+  pos: {x: number; y: number},
   maxHeight: number,
   text: string,
-  text2?: string) {
+  text2?: string,
+) {
   ctx.font = '10px Roboto Condensed';
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
@@ -168,10 +171,27 @@ export function drawTrackHoverTooltip(
 
   ctx.fillStyle = 'hsl(200, 50%, 40%)';
   ctx.fillText(
-    text, x + paddingPx, y + paddingPx + textMetrics.fontBoundingBoxAscent);
+    text,
+    x + paddingPx,
+    y + paddingPx + textMetrics.fontBoundingBoxAscent,
+  );
   if (text2 !== undefined) {
-    const yOffsetPx = textMetrics.fontBoundingBoxAscent +
-        textMetrics.fontBoundingBoxDescent + text2Metrics.fontBoundingBoxAscent;
+    const yOffsetPx =
+      textMetrics.fontBoundingBoxAscent +
+      textMetrics.fontBoundingBoxDescent +
+      text2Metrics.fontBoundingBoxAscent;
     ctx.fillText(text2, x + paddingPx, y + paddingPx + yOffsetPx);
   }
+}
+
+export function canvasClip(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): void {
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
 }

@@ -25,7 +25,7 @@ export class CounterAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     await engine.query(`drop view if exists ${this.kind};`);
 
-    const trackIds: (string|number)[] = [];
+    const trackIds: (string | number)[] = [];
     for (const trackKey of area.tracks) {
       const track = globals.state.tracks[trackKey];
       if (track?.uri) {
@@ -127,7 +127,6 @@ export class CounterAggregationController extends AggregationController {
         columnConstructor: Float64Array,
         columnId: 'max_value',
       },
-
     ];
   }
 

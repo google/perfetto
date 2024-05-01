@@ -226,9 +226,10 @@ class HeapGraphTracker : public Destructible {
   // all the other tables have been fully populated.
   void PopulateNativeSize(const SequenceState& seq);
 
-  base::FlatSet<tables::HeapGraphObjectTable::Id> GetChildren(
-      tables::HeapGraphObjectTable::RowReference);
+  void GetChildren(tables::HeapGraphObjectTable::RowReference,
+                   std::vector<tables::HeapGraphObjectTable::Id>&);
   void MarkRoot(tables::HeapGraphObjectTable::RowReference, StringId type);
+  size_t RankRoot(StringId type);
   void UpdateShortestPaths(tables::HeapGraphObjectTable::RowReference row_ref);
   void FindPathFromRoot(tables::HeapGraphObjectTable::RowReference,
                         PathFromRoot* path);

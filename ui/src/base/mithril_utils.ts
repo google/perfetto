@@ -16,8 +16,11 @@ import m from 'mithril';
 
 // Check if a mithril component vnode has children
 export function hasChildren<T>({children}: m.Vnode<T>): boolean {
-  return Array.isArray(children) && children.length > 0 &&
-      children.some((value) => value);
+  return (
+    Array.isArray(children) &&
+    children.length > 0 &&
+    children.some((value) => value)
+  );
 }
 
 // A component which simply passes through it's children.
@@ -35,8 +38,7 @@ export interface GateAttrs {
 
 // The gate component is a wrapper which can either be open or closed.
 // - When open, children are rendered inside a div where display = contents.
-// - When closed, children are rendered inside a div where display = none, and
-//   the children's view() function(s) will not be called.
+// - When closed, children are rendered inside a div where display = none
 // Use this component when we want to conditionally render certain children,
 // but we want to maintain their state.
 export const Gate = {
@@ -46,7 +48,7 @@ export const Gate = {
       {
         style: {display: attrs.open ? 'contents' : 'none'},
       },
-      m(Passthrough, {onbeforeupdate: () => attrs.open}, children),
+      children,
     );
   },
 };

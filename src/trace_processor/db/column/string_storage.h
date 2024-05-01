@@ -35,8 +35,9 @@ class StringStorage final : public DataLayer {
   StringStorage(StringPool* string_pool,
                 const std::vector<StringPool::Id>* data,
                 bool is_sorted = false);
+  ~StringStorage() override;
 
-  std::unique_ptr<DataLayerChain> MakeChain() override;
+  std::unique_ptr<DataLayerChain> MakeChain();
 
  private:
   class ChainImpl : public DataLayerChain {
@@ -54,13 +55,11 @@ class StringStorage final : public DataLayer {
 
     RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-    RangeOrBitVector IndexSearchValidated(FilterOp,
-                                          SqlValue,
-                                          Indices) const override;
+    void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
     Range OrderedIndexSearchValidated(FilterOp,
                                       SqlValue,
-                                      Indices) const override;
+                                      const OrderedIndices&) const override;
 
     void StableSort(SortToken* start,
                     SortToken* end,

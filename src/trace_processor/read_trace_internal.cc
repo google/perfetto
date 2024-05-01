@@ -19,6 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/trace_processor.h"
@@ -34,11 +35,6 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
-#if TRACE_PROCESSOR_HAS_MMAP()
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#endif
 namespace perfetto {
 namespace trace_processor {
 namespace {
@@ -78,41 +74,36 @@ util::Status ReadTraceUnfinalized(
     TraceProcessor* tp,
     const char* filename,
     const std::function<void(uint64_t parsed_size)>& progress_callback) {
-  base::ScopedFile fd(base::OpenFile(filename, O_RDONLY));
-  if (!fd)
-    return util::ErrStatus("Could not open trace file (path: %s)", filename);
-
   uint64_t bytes_read = 0;
 
-#if TRACE_PROCESSOR_HAS_MMAP()
+#if PERFETTO_HAS_MMAP()
   char* no_mmap = getenv("TRACE_PROCESSOR_NO_MMAP");
-  uint64_t whole_size_64 = static_cast<uint64_t>(lseek(*fd, 0, SEEK_END));
-  lseek(*fd, 0, SEEK_SET);
   bool use_mmap = !no_mmap || *no_mmap != '1';
-  if (sizeof(size_t) < 8 && whole_size_64 > 2147483648ULL)
-    use_mmap = false;  // Cannot use mmap on 32-bit systems for files > 2GB.
 
   if (use_mmap) {
-    const size_t whole_size = static_cast<size_t>(whole_size_64);
-    void* file_mm = mmap(nullptr, whole_size, PROT_READ, MAP_PRIVATE, *fd, 0);
-    if (file_mm != MAP_FAILED) {
-      TraceBlobView whole_mmap(TraceBlob::FromMmap(file_mm, whole_size));
+    base::ScopedMmap mapped = base::ReadMmapWholeFile(filename);
+    if (mapped.IsValid()) {
+      size_t length = mapped.length();
+      TraceBlobView whole_mmap(TraceBlob::FromMmap(std::move(mapped)));
       // Parse the file in chunks so we get some status update on stdio.
       static constexpr size_t kMmapChunkSize = 128ul * 1024 * 1024;
-      while (bytes_read < whole_size_64) {
+      while (bytes_read < length) {
         progress_callback(bytes_read);
         const size_t bytes_read_z = static_cast<size_t>(bytes_read);
-        size_t slice_size = std::min(whole_size - bytes_read_z, kMmapChunkSize);
+        size_t slice_size = std::min(length - bytes_read_z, kMmapChunkSize);
         TraceBlobView slice = whole_mmap.slice_off(bytes_read_z, slice_size);
         RETURN_IF_ERROR(tp->Parse(std::move(slice)));
         bytes_read += slice_size;
       }  // while (slices)
-    }    // if (!MAP_FAILED)
-  }      // if (use_mmap)
+    }  // if (mapped.IsValid())
+  }  // if (use_mmap)
   if (bytes_read == 0)
     PERFETTO_LOG("Cannot use mmap on this system. Falling back on read()");
-#endif  // TRACE_PROCESSOR_HAS_MMAP()
+#endif  // PERFETTO_HAS_MMAP()
   if (bytes_read == 0) {
+    base::ScopedFile fd(base::OpenFile(filename, O_RDONLY));
+    if (!fd)
+      return util::ErrStatus("Could not open trace file (path: %s)", filename);
     RETURN_IF_ERROR(
         ReadTraceUsingRead(tp, *fd, &bytes_read, progress_callback));
   }

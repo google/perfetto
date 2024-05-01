@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+
+"""A tool to delete permalinks and traces behind them.
+
+To be used by the Perfetto team, who has write access to the GCS bucket.
+"""
+
+import json
+import logging
+import re
+import subprocess
+import sys
+
+from typing import List
+
+GCS_BUCKET = 'perfetto-ui-data'
+GCS_HTTP = 'https://storage.googleapis.com/%s/' % GCS_BUCKET
+
+
+def delete_gcs_obj(url: str, gcs_delete_list: List[str]):
+  if not url.startswith(GCS_HTTP):
+    logging.error('The URL %s should start with %s', url, GCS_HTTP)
+    return
+  gs_url = 'gs://%s/%s' % (GCS_BUCKET, url[len(GCS_HTTP):])
+  gcs_delete_list.append(gs_url)
+
+
+def delete_permalink_uuid(uuid: str, gcs_delete_list: List[str]):
+  state_url = GCS_HTTP + uuid
+  delete_gcs_obj(state_url, gcs_delete_list)
+  state_json = subprocess.check_output(['curl', '-Ls', state_url])
+  state = json.loads(state_json)
+  trace_url = state['engine']['source']['url']
+  delete_gcs_obj(trace_url, gcs_delete_list)
+
+
+def main():
+  gcs_delete_list = []
+  if sys.stdin.isatty():
+    logging.warn('This tool expects a list of uuids or https://ui.perfetto.dev/#!#?s=deadbeef')
+
+  for line in sys.stdin.readlines():
+    line = line.strip()
+    m = re.match(r'.*?\b([a-f0-9]{64})', line)
+    if not m:
+      logging.error('Could not find a 64 hex UUID from %s', line)
+      continue
+    uuid = m.group(1)
+    delete_permalink_uuid(uuid, gcs_delete_list)
+
+  if len(gcs_delete_list) == 0:
+    logging.info('No object to delete, quitting without taking any action')
+    return 0
+
+  print('Removing the following objects:')
+  for gs_uri in gcs_delete_list:
+    print('  ', gs_uri)
+  subprocess.check_call(['gsutil', '-m', 'rm', '-f', '-a'] + gcs_delete_list)
+
+
+if __name__ == '__main__':
+  sys.exit(main())

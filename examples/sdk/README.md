@@ -15,7 +15,7 @@ Dependencies:
 First, check out the latest Perfetto release:
 
 ```bash
-git clone https://android.googlesource.com/platform/external/perfetto -b v41.0
+git clone https://android.googlesource.com/platform/external/perfetto -b v44.0
 ```
 
 Then, build using CMake:

@@ -75,16 +75,19 @@ export interface AndroidTargetInfo extends TargetInfoBase {
 }
 
 export interface ChromeTargetInfo extends TargetInfoBase {
-  targetType: 'CHROME'|'CHROME_OS';
+  targetType: 'CHROME' | 'CHROME_OS';
 }
 
 export interface HostOsTargetInfo extends TargetInfoBase {
-  targetType: 'LINUX'|'MACOS';
+  targetType: 'LINUX' | 'MACOS' | 'WINDOWS';
 }
 
 // Holds information about a target. It's used by the UI and the logic which
 // generates a config.
-export type TargetInfo = AndroidTargetInfo|ChromeTargetInfo|HostOsTargetInfo;
+export type TargetInfo =
+  | AndroidTargetInfo
+  | ChromeTargetInfo
+  | HostOsTargetInfo;
 
 // RecordingTargetV2 is subclassed by Android devices and the Chrome browser/OS.
 // It creates tracing sessions which are used by the UI. For Android, it manages
@@ -112,11 +115,13 @@ export interface RecordingTargetV2 {
   // Some target information can only be obtained after connecting to the
   // target. This will establish a connection and retrieve data such as
   // dataSources and apiLevel for Android.
-  fetchTargetInfo(tracingSessionListener: TracingSessionListener):
-      Promise<void>;
+  fetchTargetInfo(
+    tracingSessionListener: TracingSessionListener,
+  ): Promise<void>;
 
-  createTracingSession(tracingSessionListener: TracingSessionListener):
-      Promise<TracingSession>;
+  createTracingSession(
+    tracingSessionListener: TracingSessionListener,
+  ): Promise<TracingSession>;
 }
 
 // TracingSession is used by the UI to record a trace. Depending on user
@@ -170,7 +175,7 @@ export interface ByteStream {
   addOnStreamCloseCallback(onStreamClose: OnStreamCloseCallback): void;
 
   isConnected(): boolean;
-  write(data: string|Uint8Array): void;
+  write(data: string | Uint8Array): void;
 
   close(): void;
   closeAndWaitForTeardown(): Promise<void>;

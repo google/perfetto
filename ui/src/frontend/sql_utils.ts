@@ -23,26 +23,27 @@ export interface OrderClause {
 }
 
 export type CommonTableExpressions = {
-  [key: string]: string|undefined
+  [key: string]: string | undefined;
 };
 
 // Interface for defining constraints which can be passed to a SQL query.
 export interface SQLConstraints {
   commonTableExpressions?: CommonTableExpressions;
-  filters?: (undefined|string)[];
-  joins?: (undefined|string)[];
-  orderBy?: (undefined|string|OrderClause)[];
-  groupBy?: (undefined|string)[];
+  filters?: (undefined | string)[];
+  joins?: (undefined | string)[];
+  orderBy?: (undefined | string | OrderClause)[];
+  groupBy?: (undefined | string)[];
   limit?: number;
 }
 
-function isDefined<T>(t: T|undefined): t is T {
+function isDefined<T>(t: T | undefined): t is T {
   return t !== undefined;
 }
 
 export function constraintsToQueryPrefix(c: SQLConstraints): string {
-  const ctes = Object.entries(c.commonTableExpressions ?? {})
-    .filter(([_, value]) => isDefined(value));
+  const ctes = Object.entries(c.commonTableExpressions ?? {}).filter(
+    ([_, value]) => isDefined(value),
+  );
   if (ctes.length === 0) return '';
   const cteStatements = ctes.map(([name, query]) => `${name} AS (${query})`);
   return `WITH ${cteStatements.join(',\n')}`;
@@ -89,7 +90,7 @@ export function constraintsToQuerySuffix(c: SQLConstraints): string {
 // code uses number | undefined. This functions provides a short-hand
 // conversion.
 // TODO(altimin): Support NUM_UNDEFINED as a first-class citizen.
-export function fromNumNull(n: number|null): number|undefined {
+export function fromNumNull(n: number | null): number | undefined {
   if (n === null) {
     return undefined;
   }
@@ -97,8 +98,8 @@ export function fromNumNull(n: number|null): number|undefined {
 }
 
 export function sqlValueToString(val: ColumnType): string;
-export function sqlValueToString(val?: ColumnType): string|undefined;
-export function sqlValueToString(val?: ColumnType): string|undefined {
+export function sqlValueToString(val?: ColumnType): string | undefined;
+export function sqlValueToString(val?: ColumnType): string | undefined {
   if (val === undefined) return undefined;
   if (val instanceof Uint8Array) {
     return `<blob length=${val.length}>`;
@@ -110,15 +111,16 @@ export function sqlValueToString(val?: ColumnType): string|undefined {
 }
 
 export async function getTableRowCount(
-  engine: EngineProxy, tableName: string): Promise<number|undefined> {
-  const result =
-      await engine.query(`SELECT COUNT() as count FROM ${tableName}`);
+  engine: EngineProxy,
+  tableName: string,
+): Promise<number | undefined> {
+  const result = await engine.query(
+    `SELECT COUNT() as count FROM ${tableName}`,
+  );
   if (result.numRows() === 0) {
     return undefined;
   }
-  return result
-    .firstRow({
-      count: NUM,
-    })
-    .count;
+  return result.firstRow({
+    count: NUM,
+  }).count;
 }

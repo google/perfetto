@@ -43,6 +43,7 @@
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/tables/counter_tables_py.h"
 #include "src/trace_processor/tables/flow_tables_py.h"
+#include "src/trace_processor/tables/jit_tables_py.h"
 #include "src/trace_processor/tables/memory_tables_py.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
@@ -381,6 +382,13 @@ class TraceStorage {
     return &energy_counter_track_table_;
   }
 
+  const tables::LinuxDeviceTrackTable& linux_device_track_table() const {
+    return linux_device_track_table_;
+  }
+  tables::LinuxDeviceTrackTable* mutable_linux_device_track_table() {
+    return &linux_device_track_table_;
+  }
+
   const tables::UidCounterTrackTable& uid_counter_track_table() const {
     return uid_counter_track_table_;
   }
@@ -532,6 +540,9 @@ class TraceStorage {
   tables::FtraceEventTable* mutable_ftrace_event_table() {
     return &ftrace_event_table_;
   }
+
+  const tables::MachineTable& machine_table() const { return machine_table_; }
+  tables::MachineTable* mutable_machine_table() { return &machine_table_; }
 
   const tables::CpuTable& cpu_table() const { return cpu_table_; }
   tables::CpuTable* mutable_cpu_table() { return &cpu_table_; }
@@ -753,6 +764,38 @@ class TraceStorage {
   tables::V8JsFunctionTable* mutable_v8_js_function_table() {
     return &v8_js_function_table_;
   }
+  const tables::V8JsCodeTable& v8_js_code_table() const {
+    return v8_js_code_table_;
+  }
+  tables::V8JsCodeTable* mutable_v8_js_code_table() {
+    return &v8_js_code_table_;
+  }
+  const tables::V8InternalCodeTable& v8_internal_code_table() const {
+    return v8_internal_code_table_;
+  }
+  tables::V8InternalCodeTable* mutable_v8_internal_code_table() {
+    return &v8_internal_code_table_;
+  }
+  const tables::V8WasmCodeTable& v8_wasm_code_table() const {
+    return v8_wasm_code_table_;
+  }
+  tables::V8WasmCodeTable* mutable_v8_wasm_code_table() {
+    return &v8_wasm_code_table_;
+  }
+  const tables::V8RegexpCodeTable& v8_regexp_code_table() const {
+    return v8_regexp_code_table_;
+  }
+  tables::V8RegexpCodeTable* mutable_v8_regexp_code_table() {
+    return &v8_regexp_code_table_;
+  }
+
+  const tables::JitCodeTable& jit_code_table() const { return jit_code_table_; }
+  tables::JitCodeTable* mutable_jit_code_table() { return &jit_code_table_; }
+
+  const tables::JitFrameTable& jit_frame_table() const {
+    return jit_frame_table_;
+  }
+  tables::JitFrameTable* mutable_jit_frame_table() { return &jit_frame_table_; }
 
   const tables::SurfaceFlingerLayersSnapshotTable&
   surfaceflinger_layers_snapshot_table() const {
@@ -943,6 +986,8 @@ class TraceStorage {
       &string_pool_, &uid_track_table_};
   tables::ProcessTrackTable process_track_table_{&string_pool_, &track_table_};
   tables::ThreadTrackTable thread_track_table_{&string_pool_, &track_table_};
+  tables::LinuxDeviceTrackTable linux_device_track_table_{&string_pool_,
+                                                          &track_table_};
 
   // Track tables for counter events.
   tables::CounterTrackTable counter_track_table_{&string_pool_, &track_table_};
@@ -1004,6 +1049,8 @@ class TraceStorage {
   tables::RawTable raw_table_{&string_pool_};
   tables::FtraceEventTable ftrace_event_table_{&string_pool_, &raw_table_};
 
+  tables::MachineTable machine_table_{&string_pool_};
+
   tables::CpuTable cpu_table_{&string_pool_};
 
   tables::CpuFreqTable cpu_freq_table_{&string_pool_};
@@ -1057,6 +1104,14 @@ class TraceStorage {
   tables::V8JsScriptTable v8_js_script_table_{&string_pool_};
   tables::V8WasmScriptTable v8_wasm_script_table_{&string_pool_};
   tables::V8JsFunctionTable v8_js_function_table_{&string_pool_};
+  tables::V8JsCodeTable v8_js_code_table_{&string_pool_};
+  tables::V8InternalCodeTable v8_internal_code_table_{&string_pool_};
+  tables::V8WasmCodeTable v8_wasm_code_table_{&string_pool_};
+  tables::V8RegexpCodeTable v8_regexp_code_table_{&string_pool_};
+
+  // Jit tables
+  tables::JitCodeTable jit_code_table_{&string_pool_};
+  tables::JitFrameTable jit_frame_table_{&string_pool_};
 
   // Winscope tables
   tables::SurfaceFlingerLayersSnapshotTable
@@ -1110,6 +1165,12 @@ struct std::hash<::perfetto::trace_processor::FrameId>
     : std::hash<::perfetto::trace_processor::BaseId> {};
 template <>
 struct std::hash<::perfetto::trace_processor::tables::HeapGraphObjectTable::Id>
+    : std::hash<::perfetto::trace_processor::BaseId> {};
+template <>
+struct std::hash<::perfetto::trace_processor::tables::V8IsolateTable::Id>
+    : std::hash<::perfetto::trace_processor::BaseId> {};
+template <>
+struct std::hash<::perfetto::trace_processor::tables::JitCodeTable::Id>
     : std::hash<::perfetto::trace_processor::BaseId> {};
 
 template <>

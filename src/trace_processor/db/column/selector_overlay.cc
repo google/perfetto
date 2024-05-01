@@ -34,9 +34,6 @@
 
 namespace perfetto::trace_processor::column {
 
-SelectorOverlay::SelectorOverlay(const BitVector* selector)
-    : selector_(selector) {}
-
 SelectorOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                       const BitVector* selector)
     : inner_(std::move(inner)), selector_(selector) {}
@@ -59,8 +56,8 @@ RangeOrBitVector SelectorOverlay::ChainImpl::SearchValidated(FilterOp op,
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "SelectorOverlay::ChainImpl::Search");
 
-  // Figure out the bounds of the indices in the underlying storage and search
-  // it.
+  // Figure out the bounds of the OrderedIndices in the underlying storage and
+  // search it.
   uint32_t start_idx = selector_->IndexOfNthSet(in.start);
   uint32_t end_idx = selector_->IndexOfNthSet(in.end - 1) + 1;
 
@@ -68,6 +65,9 @@ RangeOrBitVector SelectorOverlay::ChainImpl::SearchValidated(FilterOp op,
       inner_->SearchValidated(op, sql_val, Range(start_idx, end_idx));
   if (storage_result.IsRange()) {
     Range storage_range = std::move(storage_result).TakeIfRange();
+    if (storage_range.empty()) {
+      return RangeOrBitVector(Range());
+    }
     uint32_t out_start = selector_->CountSetBits(storage_range.start);
     uint32_t out_end = selector_->CountSetBits(storage_range.end);
     return RangeOrBitVector(Range(out_start, out_end));
@@ -75,46 +75,32 @@ RangeOrBitVector SelectorOverlay::ChainImpl::SearchValidated(FilterOp op,
 
   BitVector storage_bitvector = std::move(storage_result).TakeIfBitVector();
   PERFETTO_DCHECK(storage_bitvector.size() <= selector_->size());
-
-  // TODO(b/283763282): implement ParallelExtractBits to optimize this
-  // operation.
-  BitVector::Builder res(in.end);
-  for (auto it = selector_->IterateSetBits();
-       it && it.index() < storage_bitvector.size(); it.Next()) {
-    res.Append(storage_bitvector.IsSet(it.index()));
+  storage_bitvector.SelectBits(*selector_);
+  if (storage_bitvector.size() == 0) {
+    return RangeOrBitVector(std::move(storage_bitvector));
   }
-  return RangeOrBitVector(std::move(res).Build());
+  PERFETTO_DCHECK(storage_bitvector.size() == in.end);
+  return RangeOrBitVector(std::move(storage_bitvector));
 }
 
-RangeOrBitVector SelectorOverlay::ChainImpl::IndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    Indices indices) const {
-  PERFETTO_DCHECK(
-      indices.size == 0 ||
-      *std::max_element(indices.data, indices.data + indices.size) <=
-          selector_->size());
-  // TODO(b/307482437): Use OrderedIndexSearch if arrangement orders storage.
-
+void SelectorOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
+                                                      SqlValue sql_val,
+                                                      Indices& indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "SelectorOverlay::ChainImpl::IndexSearch");
 
   // To go from TableIndexVector to StorageIndexVector we need to find index in
   // |selector_| by looking only into set bits.
-  std::vector<uint32_t> storage_iv(indices.size);
-  for (uint32_t i = 0; i < indices.size; ++i) {
-    storage_iv[i] = selector_->IndexOfNthSet(indices.data[i]);
+  for (auto& token : indices.tokens) {
+    token.index = selector_->IndexOfNthSet(token.index);
   }
-  return inner_->IndexSearchValidated(
-      op, sql_val,
-      Indices{storage_iv.data(), static_cast<uint32_t>(storage_iv.size()),
-              indices.state});
+  return inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
 Range SelectorOverlay::ChainImpl::OrderedIndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
-    Indices indices) const {
+    const OrderedIndices& indices) const {
   // To go from TableIndexVector to StorageIndexVector we need to find index in
   // |selector_| by looking only into set bits.
   std::vector<uint32_t> inner_indices(indices.size);
@@ -123,8 +109,9 @@ Range SelectorOverlay::ChainImpl::OrderedIndexSearchValidated(
   }
   return inner_->OrderedIndexSearchValidated(
       op, sql_val,
-      Indices{inner_indices.data(), static_cast<uint32_t>(inner_indices.size()),
-              indices.state});
+      OrderedIndices{inner_indices.data(),
+                     static_cast<uint32_t>(inner_indices.size()),
+                     indices.state});
 }
 
 void SelectorOverlay::ChainImpl::StableSort(SortToken* start,

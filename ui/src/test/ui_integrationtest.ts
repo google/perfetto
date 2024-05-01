@@ -25,14 +25,14 @@ import {
   waitForPerfettoIdle,
 } from './perfetto_ui_test_helper';
 
-declare let global: {__BROWSER__: Browser;};
+declare let global: {__BROWSER__: Browser};
 const browser = assertExists(global.__BROWSER__);
 const expectedScreenshotPath = path.join('test', 'data', 'ui-screenshots');
 const tmpDir = path.resolve('./ui-test-artifacts');
 const reportPath = path.join(tmpDir, 'report.txt');
 
 async function getPage(): Promise<Page> {
-  const pages = (await browser.pages());
+  const pages = await browser.pages();
   expect(pages.length).toBe(1);
   return pages[pages.length - 1];
 }
@@ -53,7 +53,7 @@ beforeAll(async () => {
 // /test/data/ui-screenshots.
 afterEach(async () => {
   let testName = expect.getState().currentTestName;
-  testName = testName.replace(/[^a-z0-9-]/gmi, '_').toLowerCase();
+  testName = testName.replace(/[^a-z0-9-]/gim, '_').toLowerCase();
   const page = await getPage();
 
   const screenshotName = `ui-${testName}.png`;
@@ -86,7 +86,7 @@ describe('android_trace_30s', () => {
   });
 
   test('expand_camera', async () => {
-    await page.click('.main-canvas');
+    await page.click('.pf-overlay');
     await page.click('h1[title="com.google.android.GoogleCamera 5506"]');
     await page.evaluate(() => {
       document.querySelector('.scrolling-panel-container')!.scrollTo(0, 400);
@@ -114,7 +114,7 @@ describe('chrome_rendering_desktop', () => {
 
   test('expand_browser_proc', async () => {
     const page = await getPage();
-    await page.click('.main-canvas');
+    await page.click('.pf-overlay');
     await page.click('h1[title="Browser 12685"]');
     await waitForPerfettoIdle(page);
   });
@@ -130,7 +130,7 @@ describe('chrome_rendering_desktop', () => {
     }
     await waitForPerfettoIdle(page);
     await page.focus('canvas');
-    await page.keyboard.type('f');  // Zoom to selection
+    await page.keyboard.type('f'); // Zoom to selection
     await waitForPerfettoIdle(page);
   });
 });
@@ -167,20 +167,23 @@ describe('routing', () => {
 
     test('open_first_trace_from_url', async () => {
       await page.goto(
-        'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/chrome_memory_snapshot.pftrace');
+        'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/chrome_memory_snapshot.pftrace',
+      );
       await waitForPerfettoIdle(page);
     });
 
     test('open_second_trace_from_url', async () => {
       await page.goto(
-        'http://localhost:10000/?testing=1#!/?url=http://localhost:10000/test/data/chrome_scroll_without_vsync.pftrace');
+        'http://localhost:10000/?testing=1#!/?url=http://localhost:10000/test/data/chrome_scroll_without_vsync.pftrace',
+      );
       await waitForPerfettoIdle(page);
     });
 
     test('access_subpage_then_go_back', async () => {
       await waitForPerfettoIdle(page);
       await page.goto(
-        'http://localhost:10000/?testing=1/#!/metrics?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
+        'http://localhost:10000/?testing=1/#!/metrics?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91',
+      );
       await page.goBack();
       await waitForPerfettoIdle(page);
     });
@@ -201,7 +204,8 @@ describe('routing', () => {
 
     test('open_trace ', async () => {
       await page.goto(
-        'http://localhost:10000/?testing=1#!/viewer?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
+        'http://localhost:10000/?testing=1#!/viewer?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91',
+      );
       await waitForPerfettoIdle(page);
     });
 
@@ -212,7 +216,8 @@ describe('routing', () => {
 
     test('open_second_trace', async () => {
       await page.goto(
-        'http://localhost:10000/?testing=1#!/viewer?local_cache_key=00000000-0000-0000-e13c-bd7db4ff646f');
+        'http://localhost:10000/?testing=1#!/viewer?local_cache_key=00000000-0000-0000-e13c-bd7db4ff646f',
+      );
       await waitForPerfettoIdle(page);
 
       // click on the 'Continue' button in the interstitial
@@ -230,7 +235,8 @@ describe('routing', () => {
 
     test('open_invalid_trace', async () => {
       await page.goto(
-        'http://localhost:10000/?testing=1#!/viewer?local_cache_key=invalid');
+        'http://localhost:10000/?testing=1#!/viewer?local_cache_key=invalid',
+      );
       await waitForPerfettoIdle(page);
     });
   });
@@ -246,7 +252,8 @@ describe('routing', () => {
 
     test('open_trace_from_url', async () => {
       await page.goto(
-        'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/chrome_memory_snapshot.pftrace');
+        'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/chrome_memory_snapshot.pftrace',
+      );
       await waitForPerfettoIdle(page);
     });
 
@@ -270,7 +277,8 @@ describe('routing', () => {
     const page = await getPage();
     await page.goto('http://localhost:10000/?testing=1');
     await page.goto(
-      'http://localhost:10000/?testing=1#!/viewer?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91');
+      'http://localhost:10000/?testing=1#!/viewer?local_cache_key=76c25a80-25dd-1eb7-2246-d7b3c7a10f91',
+    );
     await waitForPerfettoIdle(page);
     await page.goBack();
     await waitForPerfettoIdle(page);
@@ -280,7 +288,8 @@ describe('routing', () => {
     const page = await getPage();
     await page.goto('about:blank');
     await page.goto(
-      'http://localhost:10000/?testing=1#!/viewer?local_cache_key=invalid');
+      'http://localhost:10000/?testing=1#!/viewer?local_cache_key=invalid',
+    );
     await waitForPerfettoIdle(page);
   });
 });

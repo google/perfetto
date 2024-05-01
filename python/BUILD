@@ -94,6 +94,17 @@ perfetto_py_library(
 # GN target: //python:trace_processor_py
 perfetto_py_library(
     name = "trace_processor_py",
+    visibility = [
+        "//visibility:public",
+    ],
+    deps = [
+        ":trace_processor_py_no_resolvers",
+    ] + PERFETTO_CONFIG.deps.tp_resolvers_py,
+)
+
+# GN target: //python:trace_processor_py_no_resolvers
+perfetto_py_library(
+    name = "trace_processor_py_no_resolvers",
     srcs = [
         "perfetto/trace_processor/__init__.py",
         "perfetto/trace_processor/api.py",
@@ -115,6 +126,9 @@ perfetto_py_library(
            ] + PERFETTO_CONFIG.deps.pandas_py +
            PERFETTO_CONFIG.deps.protobuf_py +
            PERFETTO_CONFIG.deps.tp_vendor_py,
+    tags = [
+        "avoid_dep",
+    ],
 )
 
 # GN target: //python:trace_uri_resolver

@@ -15,24 +15,22 @@
  */
 
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
-
-#include <numeric>
-#include <optional>
+#include <cstddef>
+#include <string>
+#include <utility>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
-#include "src/trace_processor/sqlite/scoped_db.h"
-#include "src/trace_processor/sqlite/sqlite_table.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
                                      size_t argc,
@@ -54,7 +52,7 @@ base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
   {
     auto type_check = [prototype_value](sqlite3_value* value,
                                         SqlValue::Type type, const char* desc) {
-      base::Status status = sqlite_utils::TypeCheckSqliteValue(value, type);
+      base::Status status = sqlite::utils::TypeCheckSqliteValue(value, type);
       if (!status.ok()) {
         return base::ErrStatus("CREATE_VIEW_FUNCTION[prototype=%s]: %s %s",
                                sqlite3_value_text(prototype_value), desc,
@@ -100,5 +98,4 @@ base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
   return res.status();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

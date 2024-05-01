@@ -70,8 +70,9 @@ DEFAULT_ATRACE_CATEGORIES.set('view', 'View System');
 DEFAULT_ATRACE_CATEGORIES.set('webview', 'WebView');
 DEFAULT_ATRACE_CATEGORIES.set('wm', 'Window Manager');
 
-function isDataSourceDescriptor(descriptor: unknown):
-    descriptor is DataSourceDescriptor {
+function isDataSourceDescriptor(
+  descriptor: unknown,
+): descriptor is DataSourceDescriptor {
   if (descriptor instanceof Object) {
     return (descriptor as DataSourceDescriptor).name !== undefined;
   }
@@ -85,24 +86,28 @@ class AtraceAppsList implements m.ClassComponent {
     }
 
     return m(Textarea, {
-      placeholder: 'Apps to profile, one per line, e.g.:\n' +
-          'com.android.phone\n' +
-          'lmkd\n' +
-          'com.android.nfc',
+      placeholder:
+        'Apps to profile, one per line, e.g.:\n' +
+        'com.android.phone\n' +
+        'lmkd\n' +
+        'com.android.nfc',
       cssClass: '.record-apps-list',
-      set: (cfg, val) => cfg.atraceApps = val,
+      set: (cfg, val) => (cfg.atraceApps = val),
       get: (cfg) => cfg.atraceApps,
     } as TextareaAttrs);
   }
 }
 
-export class AndroidSettings implements
-    m.ClassComponent<RecordingSectionAttrs> {
+export class AndroidSettings
+  implements m.ClassComponent<RecordingSectionAttrs>
+{
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
     let atraceCategories = DEFAULT_ATRACE_CATEGORIES;
     for (const dataSource of attrs.dataSources) {
-      if (dataSource.name !== 'linux.ftrace' ||
-          !isDataSourceDescriptor(dataSource.descriptor)) {
+      if (
+        dataSource.name !== 'linux.ftrace' ||
+        !isDataSourceDescriptor(dataSource.descriptor)
+      ) {
         continue;
       }
       const atraces = dataSource.descriptor.ftraceDescriptor?.atraceCategories;
@@ -120,51 +125,55 @@ export class AndroidSettings implements
 
     return m(
       `.record-section${attrs.cssClass}`,
-      m(Probe,
-          {
-            title: 'Atrace userspace annotations',
-            img: 'rec_atrace.png',
-            descr: `Enables C++ / Java codebase annotations (ATRACE_BEGIN() /
+      m(
+        Probe,
+        {
+          title: 'Atrace userspace annotations',
+          img: 'rec_atrace.png',
+          descr: `Enables C++ / Java codebase annotations (ATRACE_BEGIN() /
                       os.Trace())`,
-            setEnabled: (cfg, val) => cfg.atrace = val,
-            isEnabled: (cfg) => cfg.atrace,
-          } as ProbeAttrs,
-          m(Dropdown, {
-            title: 'Categories',
-            cssClass: '.multicolumn.atrace-categories',
-            options: atraceCategories,
-            set: (cfg, val) => cfg.atraceCats = val,
-            get: (cfg) => cfg.atraceCats,
-          } as DropdownAttrs),
-          m(Toggle, {
-            title: 'Record events from all Android apps and services',
-            descr: '',
-            setEnabled: (cfg, val) => cfg.allAtraceApps = val,
-            isEnabled: (cfg) => cfg.allAtraceApps,
-          } as ToggleAttrs),
-          m(AtraceAppsList)),
-      m(Probe,
-          {
-            title: 'Event log (logcat)',
-            img: 'rec_logcat.png',
-            descr: `Streams the event log into the trace. If no buffer filter is
+          setEnabled: (cfg, val) => (cfg.atrace = val),
+          isEnabled: (cfg) => cfg.atrace,
+        } as ProbeAttrs,
+        m(Dropdown, {
+          title: 'Categories',
+          cssClass: '.multicolumn.atrace-categories',
+          options: atraceCategories,
+          set: (cfg, val) => (cfg.atraceCats = val),
+          get: (cfg) => cfg.atraceCats,
+        } as DropdownAttrs),
+        m(Toggle, {
+          title: 'Record events from all Android apps and services',
+          descr: '',
+          setEnabled: (cfg, val) => (cfg.allAtraceApps = val),
+          isEnabled: (cfg) => cfg.allAtraceApps,
+        } as ToggleAttrs),
+        m(AtraceAppsList),
+      ),
+      m(
+        Probe,
+        {
+          title: 'Event log (logcat)',
+          img: 'rec_logcat.png',
+          descr: `Streams the event log into the trace. If no buffer filter is
                       specified, all buffers are selected.`,
-            setEnabled: (cfg, val) => cfg.androidLogs = val,
-            isEnabled: (cfg) => cfg.androidLogs,
-          } as ProbeAttrs,
-          m(Dropdown, {
-            title: 'Buffers',
-            cssClass: '.multicolumn',
-            options: LOG_BUFFERS,
-            set: (cfg, val) => cfg.androidLogBuffers = val,
-            get: (cfg) => cfg.androidLogBuffers,
-          } as DropdownAttrs)),
+          setEnabled: (cfg, val) => (cfg.androidLogs = val),
+          isEnabled: (cfg) => cfg.androidLogs,
+        } as ProbeAttrs,
+        m(Dropdown, {
+          title: 'Buffers',
+          cssClass: '.multicolumn',
+          options: LOG_BUFFERS,
+          set: (cfg, val) => (cfg.androidLogBuffers = val),
+          get: (cfg) => cfg.androidLogBuffers,
+        } as DropdownAttrs),
+      ),
       m(Probe, {
         title: 'Frame timeline',
         img: 'rec_frame_timeline.png',
         descr: `Records expected/actual frame timings from surface_flinger.
                       Requires Android 12 (S) or above.`,
-        setEnabled: (cfg, val) => cfg.androidFrameTimeline = val,
+        setEnabled: (cfg, val) => (cfg.androidFrameTimeline = val),
         isEnabled: (cfg) => cfg.androidFrameTimeline,
       } as ProbeAttrs),
       m(Probe, {
@@ -172,25 +181,28 @@ export class AndroidSettings implements
         img: '',
         descr: `List game modes and interventions.
                     Requires Android 13 (T) or above.`,
-        setEnabled: (cfg, val) => cfg.androidGameInterventionList = val,
+        setEnabled: (cfg, val) => (cfg.androidGameInterventionList = val),
         isEnabled: (cfg) => cfg.androidGameInterventionList,
       } as ProbeAttrs),
-      m(Probe,
-          {
-            title: 'Network Tracing',
-            img: '',
-            descr: `Records detailed information on network packets.
+      m(
+        Probe,
+        {
+          title: 'Network Tracing',
+          img: '',
+          descr: `Records detailed information on network packets.
                       Requires Android 14 (U) or above.`,
-            setEnabled: (cfg, val) => cfg.androidNetworkTracing = val,
-            isEnabled: (cfg) => cfg.androidNetworkTracing,
-          } as ProbeAttrs,
-          m(Slider, {
-            title: 'Poll interval',
-            cssClass: '.thin',
-            values: [100, 250, 500, 1000, 2500],
-            unit: 'ms',
-            set: (cfg, val) => cfg.androidNetworkTracingPollMs = val,
-            get: (cfg) => cfg.androidNetworkTracingPollMs,
-          } as SliderAttrs)));
+          setEnabled: (cfg, val) => (cfg.androidNetworkTracing = val),
+          isEnabled: (cfg) => cfg.androidNetworkTracing,
+        } as ProbeAttrs,
+        m(Slider, {
+          title: 'Poll interval',
+          cssClass: '.thin',
+          values: [100, 250, 500, 1000, 2500],
+          unit: 'ms',
+          set: (cfg, val) => (cfg.androidNetworkTracingPollMs = val),
+          get: (cfg) => cfg.androidNetworkTracingPollMs,
+        } as SliderAttrs),
+      ),
+    );
   }
 }

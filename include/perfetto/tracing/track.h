@@ -22,7 +22,7 @@
 #include "perfetto/base/thread_utils.h"
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "perfetto/tracing/internal/compile_time_hash.h"
+#include "perfetto/tracing/internal/fnv1a.h"
 #include "perfetto/tracing/internal/tracing_muxer.h"
 #include "perfetto/tracing/platform.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -140,9 +140,7 @@ struct PERFETTO_EXPORT_COMPONENT Track {
   static Track MakeProcessTrack() { return Track(process_uuid, Track()); }
 
   static constexpr inline uint64_t CompileTimeHash(const char* string) {
-    return internal::CompileTimeHash()
-        .Update(string, static_cast<size_t>(base::StrEnd(string) - string))
-        .digest();
+    return internal::Fnv1a(string);
   }
 
  private:
@@ -206,19 +204,19 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
   using CounterType =
       perfetto::protos::gen::CounterDescriptor::BuiltinCounterType;
 
-  // |name| must be a string with static lifetime.
+  // |name| must outlive this object.
   constexpr explicit CounterTrack(const char* name,
                                   Track parent = MakeProcessTrack())
-      : Track(CompileTimeHash(name) ^ kCounterMagic, parent),
+      : Track(internal::Fnv1a(name) ^ kCounterMagic, parent),
         name_(name),
         category_(nullptr) {}
 
   // |unit_name| is a free-form description of the unit used by this counter. It
-  // must have static lifetime.
+  // must outlive this object.
   constexpr CounterTrack(const char* name,
                          const char* unit_name,
                          Track parent = MakeProcessTrack())
-      : Track(CompileTimeHash(name) ^ kCounterMagic, parent),
+      : Track(internal::Fnv1a(name) ^ kCounterMagic, parent),
         name_(name),
         category_(nullptr),
         unit_name_(unit_name) {}
@@ -226,7 +224,7 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
   constexpr CounterTrack(const char* name,
                          Unit unit,
                          Track parent = MakeProcessTrack())
-      : Track(CompileTimeHash(name) ^ kCounterMagic, parent),
+      : Track(internal::Fnv1a(name) ^ kCounterMagic, parent),
         name_(name),
         category_(nullptr),
         unit_(unit) {}

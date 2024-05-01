@@ -24,11 +24,12 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
+#include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/protozero/proto_ring_buffer.h"
 #include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -345,6 +346,12 @@ void Rpc::ResetTraceProcessor(const uint8_t* args, size_t len) {
   if (reset_trace_processor_args.has_analyze_trace_proto_content()) {
     config.analyze_trace_proto_content =
         reset_trace_processor_args.analyze_trace_proto_content();
+  }
+  if (reset_trace_processor_args.has_ftrace_drop_until_all_cpus_valid()) {
+    config.soft_drop_ftrace_data_before =
+        reset_trace_processor_args.ftrace_drop_until_all_cpus_valid()
+            ? SoftDropFtraceDataBefore::kAllPerCpuBuffersValid
+            : SoftDropFtraceDataBefore::kNoDrop;
   }
   ResetTraceProcessorInternal(config);
 }

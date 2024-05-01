@@ -21,9 +21,7 @@ import {
   DEFAULT_ADB_WEBSOCKET_URL,
   DEFAULT_TRACED_WEBSOCKET_URL,
 } from '../../frontend/recording/recording_ui_utils';
-import {
-  couldNotClaimInterface,
-} from '../../frontend/recording/reset_interface_modal';
+import {couldNotClaimInterface} from '../../frontend/recording/reset_interface_modal';
 import {TraceConfig} from '../../protos';
 import {Actions} from '../actions';
 import {TRACE_SUFFIX} from '../constants';
@@ -44,9 +42,7 @@ import {
   ANDROID_WEBSOCKET_TARGET_FACTORY,
   AndroidWebsocketTargetFactory,
 } from './target_factories/android_websocket_target_factory';
-import {
-  ANDROID_WEBUSB_TARGET_FACTORY,
-} from './target_factories/android_webusb_target_factory';
+import {ANDROID_WEBUSB_TARGET_FACTORY} from './target_factories/android_webusb_target_factory';
 import {
   HOST_OS_TARGET_FACTORY,
   HostOsTargetFactory,
@@ -111,11 +107,15 @@ class TracingSessionWrapper {
     const createSession = async () => {
       try {
         this.controller.maybeSetState(
-          this, RecordingState.AUTH_P2, stateGeneratioNr);
+          this,
+          RecordingState.AUTH_P2,
+          stateGeneratioNr,
+        );
         stateGeneratioNr += 1;
 
-        const session =
-            await this.target.createTracingSession(this.tracingSessionListener);
+        const session = await this.target.createTracingSession(
+          this.tracingSessionListener,
+        );
 
         // We check the `isCancelled` to see if the user has cancelled the
         // tracing session before it becomes available in TracingSessionWrapper.
@@ -126,7 +126,10 @@ class TracingSessionWrapper {
 
         this.tracingSession = session;
         this.controller.maybeSetState(
-          this, RecordingState.RECORDING, stateGeneratioNr);
+          this,
+          RecordingState.RECORDING,
+          stateGeneratioNr,
+        );
         // When the session is resolved, the traceConfig has been instantiated.
         this.tracingSession.start(assertExists(traceConfig));
       } catch (e) {
@@ -140,10 +143,14 @@ class TracingSessionWrapper {
       // If we need to reset the connection to be able to connect, we ask
       // the user if they want to reset the connection.
       this.controller.maybeSetState(
-        this, RecordingState.ASK_TO_FORCE_P2, stateGeneratioNr);
+        this,
+        RecordingState.ASK_TO_FORCE_P2,
+        stateGeneratioNr,
+      );
       stateGeneratioNr += 1;
-      couldNotClaimInterface(
-        createSession, () => this.controller.maybeClearRecordingState(this));
+      couldNotClaimInterface(createSession, () =>
+        this.controller.maybeClearRecordingState(this),
+      );
     }
   }
 
@@ -152,11 +159,17 @@ class TracingSessionWrapper {
     const createSession = async () => {
       try {
         this.controller.maybeSetState(
-          this, RecordingState.AUTH_P1, stateGeneratioNr);
+          this,
+          RecordingState.AUTH_P1,
+          stateGeneratioNr,
+        );
         stateGeneratioNr += 1;
         await this.target.fetchTargetInfo(this.tracingSessionListener);
         this.controller.maybeSetState(
-          this, RecordingState.TARGET_INFO_DISPLAYED, stateGeneratioNr);
+          this,
+          RecordingState.TARGET_INFO_DISPLAYED,
+          stateGeneratioNr,
+        );
       } catch (e) {
         this.tracingSessionListener.onError(e.message);
       }
@@ -168,12 +181,18 @@ class TracingSessionWrapper {
       // If we need to reset the connection to be able to connect, we ask
       // the user if they want to reset the connection.
       this.controller.maybeSetState(
-        this, RecordingState.ASK_TO_FORCE_P1, stateGeneratioNr);
+        this,
+        RecordingState.ASK_TO_FORCE_P1,
+        stateGeneratioNr,
+      );
       stateGeneratioNr += 1;
-      couldNotClaimInterface(
-        createSession,
-        () => this.controller.maybeSetState(
-          this, RecordingState.TARGET_SELECTED, stateGeneratioNr));
+      couldNotClaimInterface(createSession, () =>
+        this.controller.maybeSetState(
+          this,
+          RecordingState.TARGET_SELECTED,
+          stateGeneratioNr,
+        ),
+      );
     }
   }
 
@@ -201,7 +220,10 @@ class TracingSessionWrapper {
     if (this.tracingSession) {
       this.tracingSession.stop();
       this.controller.maybeSetState(
-        this, RecordingState.WAITING_FOR_TRACE_DISPLAY, stateGeneratioNr);
+        this,
+        RecordingState.WAITING_FOR_TRACE_DISPLAY,
+        stateGeneratioNr,
+      );
     } else {
       // In some cases, the tracingSession may not be available to the
       // TracingSessionWrapper when the user stops it.
@@ -257,8 +279,10 @@ export class RecordingPageController {
   }
 
   maybeSetState(
-    tracingSessionWrapper: TracingSessionWrapper, state: RecordingState,
-    stateGeneration: number): void {
+    tracingSessionWrapper: TracingSessionWrapper,
+    state: RecordingState,
+    stateGeneration: number,
+  ): void {
     if (this.tracingSessionWrapper !== tracingSessionWrapper) {
       return;
     }
@@ -277,15 +301,19 @@ export class RecordingPageController {
   }
 
   maybeOnTraceData(
-    tracingSessionWrapper: TracingSessionWrapper, trace: Uint8Array) {
+    tracingSessionWrapper: TracingSessionWrapper,
+    trace: Uint8Array,
+  ) {
     if (this.tracingSessionWrapper !== tracingSessionWrapper) {
       return;
     }
-    globals.dispatch(Actions.openTraceFromBuffer({
-      title: 'Recorded trace',
-      buffer: trace.buffer,
-      fileName: `trace_${currentDateHourAndMinute()}${TRACE_SUFFIX}`,
-    }));
+    globals.dispatch(
+      Actions.openTraceFromBuffer({
+        title: 'Recorded trace',
+        buffer: trace.buffer,
+        fileName: `trace_${currentDateHourAndMinute()}${TRACE_SUFFIX}`,
+      }),
+    );
     this.clearRecordingState();
   }
 
@@ -305,7 +333,9 @@ export class RecordingPageController {
   }
 
   maybeOnDisconnect(
-    tracingSessionWrapper: TracingSessionWrapper, errorMessage?: string) {
+    tracingSessionWrapper: TracingSessionWrapper,
+    errorMessage?: string,
+  ) {
     if (this.tracingSessionWrapper !== tracingSessionWrapper) {
       return;
     }
@@ -317,7 +347,9 @@ export class RecordingPageController {
   }
 
   maybeOnError(
-    tracingSessionWrapper: TracingSessionWrapper, errorMessage: string) {
+    tracingSessionWrapper: TracingSessionWrapper,
+    errorMessage: string,
+  ) {
     if (this.tracingSessionWrapper !== tracingSessionWrapper) {
       return;
     }
@@ -325,7 +357,7 @@ export class RecordingPageController {
     this.clearRecordingState();
   }
 
-  getTargetInfo(): TargetInfo|undefined {
+  getTargetInfo(): TargetInfo | undefined {
     if (!this.target) {
       return undefined;
     }
@@ -342,7 +374,8 @@ export class RecordingPageController {
   selectTarget(selectedTarget?: RecordingTargetV2) {
     assertTrue(
       RecordingState.NO_TARGET <= this.state &&
-        this.state < RecordingState.RECORDING);
+        this.state < RecordingState.RECORDING,
+    );
     // If the selected target exists and is the same as the previous one, we
     // don't need to do anything.
     if (selectedTarget && selectedTarget === this.target) {
@@ -366,9 +399,9 @@ export class RecordingPageController {
 
   async addAndroidDevice(): Promise<void> {
     try {
-      const target =
-          await targetFactoryRegistry.get(ANDROID_WEBUSB_TARGET_FACTORY)
-            .connectNewTarget();
+      const target = await targetFactoryRegistry
+        .get(ANDROID_WEBUSB_TARGET_FACTORY)
+        .connectNewTarget();
       this.selectTarget(target);
     } catch (e) {
       if (e instanceof RecordingError) {
@@ -382,7 +415,8 @@ export class RecordingPageController {
   onTargetSelection(targetName: string): void {
     assertTrue(
       RecordingState.NO_TARGET <= this.state &&
-        this.state < RecordingState.RECORDING);
+        this.state < RecordingState.RECORDING,
+    );
     const allTargets = targetFactoryRegistry.listTargets();
     this.selectTarget(allTargets.find((t) => t.getInfo().name === targetName));
   }
@@ -395,7 +429,9 @@ export class RecordingPageController {
     const target = this.getTarget();
     const targetInfo = target.getInfo();
     globals.logging.logEvent(
-      'Record Trace', `Record trace (${targetInfo.targetType})`);
+      'Record Trace',
+      `Record trace (${targetInfo.targetType})`,
+    );
     const traceConfig = genTraceConfig(globals.state.recordConfig, targetInfo);
 
     this.tracingSessionWrapper = this.createTracingSessionWrapper(target);
@@ -405,7 +441,8 @@ export class RecordingPageController {
   onCancel() {
     assertTrue(
       RecordingState.AUTH_P2 <= this.state &&
-        this.state <= RecordingState.RECORDING);
+        this.state <= RecordingState.RECORDING,
+    );
     // The 'Cancel' button will only be shown after a `tracingSessionWrapper`
     // is created.
     this.getTracingSessionWrapper().cancel();
@@ -414,7 +451,8 @@ export class RecordingPageController {
   onStop() {
     assertTrue(
       RecordingState.AUTH_P2 <= this.state &&
-        this.state <= RecordingState.RECORDING);
+        this.state <= RecordingState.RECORDING,
+    );
     // The 'Stop' button will only be shown after a `tracingSessionWrapper`
     // is created.
     this.getTracingSessionWrapper().stop();
@@ -453,28 +491,33 @@ export class RecordingPageController {
     }
 
     if (targetFactoryRegistry.has(ANDROID_WEBSOCKET_TARGET_FACTORY)) {
-      const websocketTargetFactory =
-          targetFactoryRegistry.get(ANDROID_WEBSOCKET_TARGET_FACTORY) as
-          AndroidWebsocketTargetFactory;
+      const websocketTargetFactory = targetFactoryRegistry.get(
+        ANDROID_WEBSOCKET_TARGET_FACTORY,
+      ) as AndroidWebsocketTargetFactory;
       websocketTargetFactory.tryEstablishWebsocket(DEFAULT_ADB_WEBSOCKET_URL);
     }
     if (targetFactoryRegistry.has(HOST_OS_TARGET_FACTORY)) {
-      const websocketTargetFactory =
-          targetFactoryRegistry.get(HOST_OS_TARGET_FACTORY) as
-          HostOsTargetFactory;
+      const websocketTargetFactory = targetFactoryRegistry.get(
+        HOST_OS_TARGET_FACTORY,
+      ) as HostOsTargetFactory;
       websocketTargetFactory.tryEstablishWebsocket(
-        DEFAULT_TRACED_WEBSOCKET_URL);
+        DEFAULT_TRACED_WEBSOCKET_URL,
+      );
     }
   }
 
   shouldShowTargetSelection(): boolean {
-    return RecordingState.NO_TARGET <= this.state &&
-        this.state < RecordingState.RECORDING;
+    return (
+      RecordingState.NO_TARGET <= this.state &&
+      this.state < RecordingState.RECORDING
+    );
   }
 
   shouldShowStopCancelButtons(): boolean {
-    return RecordingState.AUTH_P2 <= this.state &&
-        this.state <= RecordingState.RECORDING;
+    return (
+      RecordingState.AUTH_P2 <= this.state &&
+      this.state <= RecordingState.RECORDING
+    );
   }
 
   private onTargetChange() {
@@ -490,8 +533,9 @@ export class RecordingPageController {
     this.selectTarget();
   }
 
-  private createTracingSessionWrapper(target: RecordingTargetV2):
-      TracingSessionWrapper {
+  private createTracingSessionWrapper(
+    target: RecordingTargetV2,
+  ): TracingSessionWrapper {
     return new TracingSessionWrapper(target, this);
   }
 
@@ -518,7 +562,8 @@ export class RecordingPageController {
   private getTracingSessionWrapper(): TracingSessionWrapper {
     assertTrue(
       RecordingState.ASK_TO_FORCE_P2 <= this.state &&
-        this.state <= RecordingState.RECORDING);
+        this.state <= RecordingState.RECORDING,
+    );
     return assertExists(this.tracingSessionWrapper);
   }
 }

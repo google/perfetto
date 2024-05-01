@@ -21,7 +21,8 @@ import {Button} from '../widgets/button';
 import {exists} from '../base/utils';
 import {PluginDescriptor} from '../public';
 import {createPage} from './pages';
-import {defaultPlugins} from '../common/default_plugins';
+import {defaultPlugins} from '../core/default_plugins';
+import {Intent} from '../widgets/common';
 
 export const PluginsPage = createPage({
   view() {
@@ -31,7 +32,7 @@ export const PluginsPage = createPage({
       m(
         '.pf-plugins-topbar',
         m(Button, {
-          minimal: false,
+          intent: Intent.Primary,
           label: 'Disable All',
           onclick: async () => {
             for (const plugin of pluginRegistry.values()) {
@@ -41,7 +42,7 @@ export const PluginsPage = createPage({
           },
         }),
         m(Button, {
-          minimal: false,
+          intent: Intent.Primary,
           label: 'Enable All',
           onclick: async () => {
             for (const plugin of pluginRegistry.values()) {
@@ -51,7 +52,7 @@ export const PluginsPage = createPage({
           },
         }),
         m(Button, {
-          minimal: false,
+          intent: Intent.Primary,
           label: 'Restore Defaults',
           onclick: async () => {
             await pluginManager.restoreDefaults(true);
@@ -72,7 +73,8 @@ export const PluginsPage = createPage({
         Array.from(pluginRegistry.values()).map((plugin) => {
           return renderPluginRow(plugin);
         }),
-      ));
+      ),
+    );
   },
 });
 
@@ -86,12 +88,15 @@ function renderPluginRow(plugin: PluginDescriptor): m.Children {
   return [
     m('span', pluginId),
     m('span', isDefault ? 'Yes' : 'No'),
-    isEnabled ? m('.pf-tag.pf-active', 'Enabled') :
-      m('.pf-tag.pf-inactive', 'Disabled'),
-    isActive ? m('.pf-tag.pf-active', 'Active') :
-      m('.pf-tag.pf-inactive', 'Inactive'),
+    isEnabled
+      ? m('.pf-tag.pf-active', 'Enabled')
+      : m('.pf-tag.pf-inactive', 'Disabled'),
+    isActive
+      ? m('.pf-tag.pf-active', 'Active')
+      : m('.pf-tag.pf-inactive', 'Inactive'),
     m(Button, {
       label: isActive ? 'Disable' : 'Enable',
+      intent: Intent.Primary,
       onclick: async () => {
         if (isActive) {
           await pluginManager.disablePlugin(pluginId, true);
@@ -101,8 +106,6 @@ function renderPluginRow(plugin: PluginDescriptor): m.Children {
         raf.scheduleFullRedraw();
       },
     }),
-    exists(loadTime) ?
-      m('span', `${loadTime.toFixed(1)} ms`) :
-      m('span', `-`),
+    exists(loadTime) ? m('span', `${loadTime.toFixed(1)} ms`) : m('span', `-`),
   ];
 }

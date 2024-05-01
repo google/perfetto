@@ -483,3 +483,16 @@ binder/binder_command
 binder/binder_return
 perf_trace_counters/sched_switch_with_ctrs
 power/gpu_work_period
+rpm/rpm_status
+panel/panel_write_generic
+sched/sched_migrate_task
+dpu/dsi_cmd_fifo_status
+dpu/dsi_rx
+dpu/dsi_tx
+f2fs/f2fs_background_gc
+f2fs/f2fs_gc_begin
+f2fs/f2fs_gc_end
+fastrpc/fastrpc_dma_free
+fastrpc/fastrpc_dma_alloc
+fastrpc/fastrpc_dma_unmap
+fastrpc/fastrpc_dma_map

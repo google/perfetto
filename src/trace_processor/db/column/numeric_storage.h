@@ -42,13 +42,11 @@ class NumericStorageBase : public DataLayer {
 
     RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
-    RangeOrBitVector IndexSearchValidated(FilterOp,
-                                          SqlValue,
-                                          Indices) const override;
+    void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
     Range OrderedIndexSearchValidated(FilterOp,
                                       SqlValue,
-                                      Indices) const override;
+                                      const OrderedIndices&) const override;
 
     void Serialize(StorageProto*) const override;
 
@@ -63,11 +61,6 @@ class NumericStorageBase : public DataLayer {
 
     BitVector LinearSearchInternal(FilterOp op, NumericValue val, Range) const;
 
-    BitVector IndexSearchInternal(FilterOp op,
-                                  NumericValue value,
-                                  const uint32_t* indices,
-                                  uint32_t indices_count) const;
-
     Range BinarySearchIntrinsic(FilterOp op,
                                 NumericValue val,
                                 Range search_range) const;
@@ -77,7 +70,7 @@ class NumericStorageBase : public DataLayer {
     const bool is_sorted_ = false;
   };
 
-  NumericStorageBase(ColumnType type, bool is_sorted);
+  NumericStorageBase(ColumnType type, bool is_sorted, Impl impl);
   ~NumericStorageBase() override;
 
   const ColumnType storage_type_ = ColumnType::kDummy;
@@ -90,13 +83,12 @@ class NumericStorage final : public NumericStorageBase {
  public:
   PERFETTO_NO_INLINE NumericStorage(const std::vector<T>* vec,
                                     ColumnType type,
-                                    bool is_sorted)
-      : NumericStorageBase(type, is_sorted), vector_(vec) {}
+                                    bool is_sorted);
 
   // The implementation of this function is given by
   // make_chain.cc/make_chain_minimal.cc depending on whether this is a minimal
   // or full build of trace processor.
-  std::unique_ptr<DataLayerChain> MakeChain() override;
+  std::unique_ptr<DataLayerChain> MakeChain();
 
  private:
   class ChainImpl : public NumericStorageBase::ChainImpl {
@@ -152,6 +144,21 @@ class NumericStorage final : public NumericStorageBase {
    private:
     const std::vector<T>* vector_;
   };
+  Impl GetImpl() {
+    if constexpr (std::is_same_v<T, double>) {
+      return Impl::kNumericDouble;
+    } else if constexpr (std::is_same_v<T, uint32_t>) {
+      return Impl::kNumericUint32;
+    } else if constexpr (std::is_same_v<T, int32_t>) {
+      return Impl::kNumericInt32;
+    } else if constexpr (std::is_same_v<T, int64_t>) {
+      return Impl::kNumericInt64;
+    } else {
+      // false doesn't work as expression has to depend on the template
+      // parameter
+      static_assert(sizeof(T*) == 0, "T is not supported");
+    }
+  }
 
   const std::vector<T>* vector_;
 };

@@ -31,7 +31,8 @@ export class BasicTable implements m.ClassComponent<TableAttrs<any>> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     _vnode: m.Vnode<TableAttrs<any>>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    column: ColumnDescriptor<any>): m.Children {
+    column: ColumnDescriptor<any>,
+  ): m.Children {
     return m('td', column.title);
   }
 
@@ -49,13 +50,19 @@ export class BasicTable implements m.ClassComponent<TableAttrs<any>> {
           'table-layout': 'auto',
         },
       },
-      m('thead',
-        m('tr.header',
-          attrs.columns.map(
-            (column) => this.renderColumnHeader(vnode, column)))),
-      attrs.data.map(
-        (row) =>
-          m('tr',
-            attrs.columns.map((column) => m('td', column.render(row))))));
+      m(
+        'thead',
+        m(
+          'tr.header',
+          attrs.columns.map((column) => this.renderColumnHeader(vnode, column)),
+        ),
+      ),
+      attrs.data.map((row) =>
+        m(
+          'tr',
+          attrs.columns.map((column) => m('td', column.render(row))),
+        ),
+      ),
+    );
   }
 }

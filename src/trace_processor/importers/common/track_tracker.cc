@@ -19,7 +19,6 @@
 #include <optional>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -71,6 +70,7 @@ TrackId TrackTracker::InternThreadTrack(UniqueTid utid) {
 
   tables::ThreadTrackTable::Row row;
   row.utid = utid;
+  row.machine_id = context_->machine_id();
   auto id = context_->storage->mutable_thread_track_table()->Insert(row).id;
   thread_tracks_[utid] = id;
   return id;
@@ -83,6 +83,7 @@ TrackId TrackTracker::InternProcessTrack(UniquePid upid) {
 
   tables::ProcessTrackTable::Row row;
   row.upid = upid;
+  row.machine_id = context_->machine_id();
   auto id = context_->storage->mutable_process_track_table()->Insert(row).id;
   process_tracks_[upid] = id;
   return id;
@@ -103,6 +104,7 @@ TrackId TrackTracker::InternCpuTrack(StringId name, uint32_t cpu) {
 
   tables::CpuTrackTable::Row row(name);
   row.cpu = cpu;
+  row.machine_id = context_->machine_id();
   auto id = context_->storage->mutable_cpu_track_table()->Insert(row).id;
   cpu_tracks_[std::make_pair(name, cpu)] = id;
 
@@ -116,7 +118,9 @@ TrackId TrackTracker::InternGpuTrack(const tables::GpuTrackTable::Row& row) {
   if (it != gpu_tracks_.end())
     return it->second;
 
-  auto id = context_->storage->mutable_gpu_track_table()->Insert(row).id;
+  auto row_copy = row;
+  row_copy.machine_id = context_->machine_id();
+  auto id = context_->storage->mutable_gpu_track_table()->Insert(row_copy).id;
   gpu_tracks_[tuple] = id;
   return id;
 }
@@ -164,6 +168,7 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
   // the ID's scope is global.
   tables::ProcessTrackTable::Row track(name);
   track.upid = upid;
+  track.machine_id = context_->machine_id();
   TrackId id =
       context_->storage->mutable_process_track_table()->Insert(track).id;
   chrome_tracks_[tuple] = id;
@@ -180,6 +185,7 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
 
 TrackId TrackTracker::CreateGlobalAsyncTrack(StringId name, StringId source) {
   tables::TrackTable::Row row(name);
+  row.machine_id = context_->machine_id();
   auto id = context_->storage->mutable_track_table()->Insert(row).id;
   if (!source.is_null()) {
     context_->args_tracker->AddArgsTo(id).AddArg(source_key_,
@@ -193,6 +199,7 @@ TrackId TrackTracker::CreateProcessAsyncTrack(StringId name,
                                               StringId source) {
   tables::ProcessTrackTable::Row row(name);
   row.upid = upid;
+  row.machine_id = context_->machine_id();
   auto id = context_->storage->mutable_process_track_table()->Insert(row).id;
   if (!source.is_null()) {
     context_->args_tracker->AddArgsTo(id).AddArg(source_key_,
@@ -208,6 +215,7 @@ TrackId TrackTracker::InternLegacyChromeProcessInstantTrack(UniquePid upid) {
 
   tables::ProcessTrackTable::Row row;
   row.upid = upid;
+  row.machine_id = context_->machine_id();
   auto id = context_->storage->mutable_process_track_table()->Insert(row).id;
   chrome_process_instant_tracks_[upid] = id;
 
@@ -219,8 +227,10 @@ TrackId TrackTracker::InternLegacyChromeProcessInstantTrack(UniquePid upid) {
 
 TrackId TrackTracker::GetOrCreateLegacyChromeGlobalInstantTrack() {
   if (!chrome_global_instant_track_id_) {
+    tables::TrackTable::Row row;
+    row.machine_id = context_->machine_id();
     chrome_global_instant_track_id_ =
-        context_->storage->mutable_track_table()->Insert({}).id;
+        context_->storage->mutable_track_table()->Insert(row).id;
 
     context_->args_tracker->AddArgsTo(*chrome_global_instant_track_id_)
         .AddArg(source_key_, Variadic::String(chrome_source_));
@@ -234,6 +244,7 @@ TrackId TrackTracker::GetOrCreateTriggerTrack() {
   }
   tables::TrackTable::Row row;
   row.name = context_->storage->InternString("Trace Triggers");
+  row.machine_id = context_->machine_id();
   trigger_track_id_ = context_->storage->mutable_track_table()->Insert(row).id;
   return *trigger_track_id_;
 }
@@ -252,6 +263,7 @@ TrackId TrackTracker::InternGlobalCounterTrack(TrackTracker::Group group,
   row.parent_id = InternTrackForGroup(group);
   row.unit = unit;
   row.description = description;
+  row.machine_id = context_->machine_id();
   TrackId track =
       context_->storage->mutable_counter_track_table()->Insert(row).id;
   global_counter_tracks_by_name_[name] = track;
@@ -270,6 +282,7 @@ TrackId TrackTracker::InternCpuCounterTrack(StringId name, uint32_t cpu) {
 
   tables::CpuCounterTrackTable::Row row(name);
   row.cpu = cpu;
+  row.machine_id = context_->machine_id();
 
   TrackId track =
       context_->storage->mutable_cpu_counter_track_table()->Insert(row).id;
@@ -285,6 +298,7 @@ TrackId TrackTracker::InternThreadCounterTrack(StringId name, UniqueTid utid) {
 
   tables::ThreadCounterTrackTable::Row row(name);
   row.utid = utid;
+  row.machine_id = context_->machine_id();
 
   TrackId track =
       context_->storage->mutable_thread_counter_track_table()->Insert(row).id;
@@ -305,6 +319,7 @@ TrackId TrackTracker::InternProcessCounterTrack(StringId name,
   row.upid = upid;
   row.unit = unit;
   row.description = description;
+  row.machine_id = context_->machine_id();
 
   TrackId track =
       context_->storage->mutable_process_counter_track_table()->Insert(row).id;
@@ -320,6 +335,7 @@ TrackId TrackTracker::InternIrqCounterTrack(StringId name, int32_t irq) {
 
   tables::IrqCounterTrackTable::Row row(name);
   row.irq = irq;
+  row.machine_id = context_->machine_id();
 
   TrackId track =
       context_->storage->mutable_irq_counter_track_table()->Insert(row).id;
@@ -336,6 +352,7 @@ TrackId TrackTracker::InternSoftirqCounterTrack(StringId name,
 
   tables::SoftirqCounterTrackTable::Row row(name);
   row.softirq = softirq;
+  row.machine_id = context_->machine_id();
 
   TrackId track =
       context_->storage->mutable_softirq_counter_track_table()->Insert(row).id;
@@ -365,6 +382,7 @@ TrackId TrackTracker::InternEnergyCounterTrack(StringId name,
   row.consumer_id = consumer_id;
   row.consumer_type = consumer_type;
   row.ordinal = ordinal;
+  row.machine_id = context_->machine_id();
   TrackId track =
       context_->storage->mutable_energy_counter_track_table()->Insert(row).id;
   energy_counter_tracks_[std::make_pair(name, consumer_id)] = track;
@@ -382,11 +400,25 @@ TrackId TrackTracker::InternEnergyPerUidCounterTrack(StringId name,
   tables::EnergyPerUidCounterTrackTable::Row row(name);
   row.consumer_id = consumer_id;
   row.uid = uid;
+  row.machine_id = context_->machine_id();
   TrackId track =
       context_->storage->mutable_energy_per_uid_counter_track_table()
           ->Insert(row)
           .id;
   energy_per_uid_counter_tracks_[std::make_pair(name, uid)] = track;
+  return track;
+}
+
+TrackId TrackTracker::InternLinuxDeviceTrack(StringId name) {
+  if (auto it = linux_device_tracks_.find(name);
+      it != linux_device_tracks_.end()) {
+    return it->second;
+  }
+
+  tables::LinuxDeviceTrackTable::Row row(name);
+  TrackId track =
+      context_->storage->mutable_linux_device_track_table()->Insert(row).id;
+  linux_device_tracks_[name] = track;
   return track;
 }
 
@@ -398,6 +430,7 @@ TrackId TrackTracker::CreateGpuCounterTrack(StringId name,
   row.gpu_id = gpu_id;
   row.description = description;
   row.unit = unit;
+  row.machine_id = context_->machine_id();
 
   return context_->storage->mutable_gpu_counter_track_table()->Insert(row).id;
 }
@@ -410,6 +443,7 @@ TrackId TrackTracker::CreatePerfCounterTrack(StringId name,
   row.perf_session_id = perf_session_id;
   row.cpu = cpu;
   row.is_timebase = is_timebase;
+  row.machine_id = context_->machine_id();
   return context_->storage->mutable_perf_counter_track_table()->Insert(row).id;
 }
 
@@ -421,7 +455,9 @@ TrackId TrackTracker::InternTrackForGroup(TrackTracker::Group group) {
   }
 
   StringId id = context_->storage->InternString(GetNameForGroup(group));
-  TrackId track_id = context_->storage->mutable_track_table()->Insert({id}).id;
+  tables::TrackTable::Row row{id};
+  row.machine_id = context_->machine_id();
+  TrackId track_id = context_->storage->mutable_track_table()->Insert(row).id;
   group_track_ids_[group_idx] = track_id;
   return track_id;
 }

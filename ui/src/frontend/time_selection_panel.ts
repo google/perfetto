@@ -14,14 +14,8 @@
 
 import m from 'mithril';
 
-import {
-  duration,
-  Span,
-  time,
-  Time,
-  TimeSpan,
-} from '../base/time';
-import {timestampFormat, TimestampFormat} from '../common/timestamp_format';
+import {duration, Span, time, Time, TimeSpan} from '../base/time';
+import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
 
 import {
   BACKGROUND_COLOR,
@@ -38,6 +32,7 @@ import {
 import {PanelSize} from './panel';
 import {Panel} from './panel_container';
 import {renderDuration} from './widgets/duration';
+import {getLegacySelection} from '../common/state';
 
 export interface BBox {
   x: number;
@@ -53,7 +48,11 @@ export interface BBox {
 // The |bounds| bounding box gives the visible region, this is used to adjust
 // the positioning of the label to ensure it is on screen.
 function drawHBar(
-  ctx: CanvasRenderingContext2D, target: BBox, bounds: BBox, label: string) {
+  ctx: CanvasRenderingContext2D,
+  target: BBox,
+  bounds: BBox,
+  label: string,
+) {
   ctx.fillStyle = FOREGROUND_COLOR;
 
   const xLeft = Math.floor(target.x);
@@ -79,8 +78,11 @@ function drawHBar(
   // By default put the label in the middle of the H:
   let labelXLeft = Math.floor(xWidth / 2 - labelWidth / 2 + xLeft);
 
-  if (labelWidth > target.width || labelXLeft < bounds.x ||
-      (labelXLeft + labelWidth) > (bounds.x + bounds.width)) {
+  if (
+    labelWidth > target.width ||
+    labelXLeft < bounds.x ||
+    labelXLeft + labelWidth > bounds.x + bounds.width
+  ) {
     // It won't fit in the middle or would be at least partly out of bounds
     // so put it either to the left or right:
     if (xRight > bounds.x + bounds.width) {
@@ -103,7 +105,11 @@ function drawHBar(
 }
 
 function drawIBar(
-  ctx: CanvasRenderingContext2D, xPos: number, bounds: BBox, label: string) {
+  ctx: CanvasRenderingContext2D,
+  xPos: number,
+  bounds: BBox,
+  label: string,
+) {
   if (xPos < bounds.x) return;
 
   ctx.fillStyle = FOREGROUND_COLOR;
@@ -138,7 +144,7 @@ export class TimeSelectionPanel implements Panel {
 
   constructor(readonly key: string) {}
 
-  get mithril(): m.Children {
+  render(): m.Children {
     return m('.time-selection-panel');
   }
 
@@ -167,7 +173,7 @@ export class TimeSelectionPanel implements Panel {
     }
 
     const localArea = globals.timeline.selectedArea;
-    const selection = globals.state.currentSelection;
+    const selection = getLegacySelection(globals.state);
     if (localArea !== undefined) {
       const start = Time.min(localArea.start, localArea.end);
       const end = Time.max(localArea.start, localArea.end);
@@ -184,12 +190,17 @@ export class TimeSelectionPanel implements Panel {
     }
 
     for (const note of Object.values(globals.state.notes)) {
-      const noteIsSelected = selection !== null && selection.kind === 'AREA' &&
-          selection.noteId === note.id;
+      const noteIsSelected =
+        selection !== null &&
+        selection.kind === 'AREA' &&
+        selection.noteId === note.id;
       if (note.noteType === 'AREA' && !noteIsSelected) {
         const selectedArea = globals.state.areas[note.areaId];
         this.renderSpan(
-          ctx, size, new TimeSpan(selectedArea.start, selectedArea.end));
+          ctx,
+          size,
+          new TimeSpan(selectedArea.start, selectedArea.end),
+        );
       }
     }
 
@@ -205,8 +216,10 @@ export class TimeSelectionPanel implements Panel {
   }
 
   renderSpan(
-    ctx: CanvasRenderingContext2D, size: PanelSize,
-    span: Span<time, duration>) {
+    ctx: CanvasRenderingContext2D,
+    size: PanelSize,
+    span: Span<time, duration>,
+  ) {
     const {visibleTimeScale} = globals.timeline;
     const xLeft = visibleTimeScale.timeToPx(span.start);
     const xRight = visibleTimeScale.timeToPx(span.end);
@@ -220,7 +233,8 @@ export class TimeSelectionPanel implements Panel {
         height: size.height,
       },
       this.bounds(size),
-      label);
+      label,
+    );
   }
 
   private bounds(size: PanelSize): BBox {
@@ -236,19 +250,19 @@ export class TimeSelectionPanel implements Panel {
 function stringifyTimestamp(time: time): string {
   const fmt = timestampFormat();
   switch (fmt) {
-  case TimestampFormat.UTC:
-  case TimestampFormat.TraceTz:
-  case TimestampFormat.Timecode:
-    const THIN_SPACE = '\u2009';
-    return Time.toTimecode(time).toString(THIN_SPACE);
-  case TimestampFormat.Raw:
-    return time.toString();
-  case TimestampFormat.RawLocale:
-    return time.toLocaleString();
-  case TimestampFormat.Seconds:
-    return Time.formatSeconds(time);
-  default:
-    const z: never = fmt;
-    throw new Error(`Invalid timestamp ${z}`);
+    case TimestampFormat.UTC:
+    case TimestampFormat.TraceTz:
+    case TimestampFormat.Timecode:
+      const THIN_SPACE = '\u2009';
+      return Time.toTimecode(time).toString(THIN_SPACE);
+    case TimestampFormat.Raw:
+      return time.toString();
+    case TimestampFormat.RawLocale:
+      return time.toLocaleString();
+    case TimestampFormat.Seconds:
+      return Time.formatSeconds(time);
+    default:
+      const z: never = fmt;
+      throw new Error(`Invalid timestamp ${z}`);
   }
 }

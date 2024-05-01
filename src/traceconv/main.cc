@@ -31,6 +31,7 @@
 #include "src/traceconv/trace_to_profile.h"
 #include "src/traceconv/trace_to_systrace.h"
 #include "src/traceconv/trace_to_text.h"
+#include "src/traceconv/trace_unpack.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <fcntl.h>
@@ -47,7 +48,8 @@ int Usage(const char* argv0) {
   fprintf(stderr,
           "Usage: %s MODE [OPTIONS] [input file] [output file]\n"
           "modes:\n"
-          "  systrace|json|ctrace|text|profile|hprof|symbolize|deobfuscate\n"
+          "  systrace|json|ctrace|text|profile|hprof|symbolize|deobfuscate"
+          "|decompress_packets\n"
           "options:\n"
           "  [--truncate start|end]\n"
           "  [--full-sort]\n"
@@ -186,13 +188,15 @@ int Main(int argc, char** argv) {
 
   if (truncate_keep != Keep::kAll) {
     PERFETTO_ELOG(
-        "--truncate is unsupported for text|profile|symbolize format.");
+        "--truncate is unsupported for "
+        "text|profile|symbolize|decompress_packets format.");
     return 1;
   }
 
   if (full_sort) {
     PERFETTO_ELOG(
-        "--full-sort is unsupported for text|profile|symbolize format.");
+        "--full-sort is unsupported for "
+        "text|profile|symbolize|decompress_packets format.");
     return 1;
   }
 
@@ -216,6 +220,10 @@ int Main(int argc, char** argv) {
 
   if (format == "deobfuscate")
     return DeobfuscateProfile(input_stream, output_stream);
+
+  if (format == "decompress_packets")
+    return UnpackCompressedPackets(input_stream, output_stream);
+
   return Usage(argv[0]);
 }
 

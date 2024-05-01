@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 import m from 'mithril';
 
 import {Disposable} from '../base/disposable';
@@ -49,8 +48,8 @@ function runManualQuery(query: string) {
   state.queryResult = undefined;
   const engine = getEngine();
   if (engine) {
-    runQuery(undoCommonChatAppReplacements(query), engine)
-      .then((resp: QueryResponse) => {
+    runQuery(undoCommonChatAppReplacements(query), engine).then(
+      (resp: QueryResponse) => {
         addQueryResultsTab(
           {
             query: query,
@@ -66,12 +65,13 @@ function runManualQuery(query: string) {
         }
         state.queryResult = resp;
         raf.scheduleFullRedraw();
-      });
+      },
+    );
   }
   raf.scheduleDelayedFullRedraw();
 }
 
-function getEngine(): EngineProxy|undefined {
+function getEngine(): EngineProxy | undefined {
   const engineId = globals.getCurrentEngine()?.id;
   if (engineId === undefined) {
     return undefined;
@@ -113,7 +113,6 @@ class QueryInput implements m.ClassComponent {
       onUpdate: (text: string) => {
         state.enteredText = text;
       },
-
     });
   }
 }
@@ -124,16 +123,13 @@ export const QueryPage = createPage({
       '.query-page',
       m(Callout, 'Enter query and press Cmd/Ctrl + Enter'),
       m(QueryInput),
-      state.executedQuery === undefined ? null : m(QueryTable, {
-        query: state.executedQuery,
-        resp: state.queryResult,
-        onClose: () => {
-          state.executedQuery = undefined;
-          state.queryResult = undefined;
-          raf.scheduleFullRedraw();
-        },
-        fillParent: false,
-      }),
+      state.executedQuery === undefined
+        ? null
+        : m(QueryTable, {
+            query: state.executedQuery,
+            resp: state.queryResult,
+            fillParent: false,
+          }),
       m(QueryHistoryComponent, {
         runQuery: runManualQuery,
         setQuery: (q: string) => {
@@ -141,6 +137,7 @@ export const QueryPage = createPage({
           state.generation++;
           raf.scheduleFullRedraw();
         },
-      }));
+      }),
+    );
   },
 });

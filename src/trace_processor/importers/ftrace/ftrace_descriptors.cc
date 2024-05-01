@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 489> descriptors{{
+std::array<FtraceMessageDescriptor, 498> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5385,6 +5385,120 @@ std::array<FtraceMessageDescriptor, 489> descriptors{{
             {"start_time_ns", ProtoSchemaType::kUint64},
             {"end_time_ns", ProtoSchemaType::kUint64},
             {"total_active_duration_ns", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "rpm_status",
+        2,
+        {
+            {},
+            {"name", ProtoSchemaType::kString},
+            {"status", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "panel_write_generic",
+        6,
+        {
+            {},
+            {"pid", ProtoSchemaType::kInt32},
+            {"trace_name", ProtoSchemaType::kString},
+            {"trace_begin", ProtoSchemaType::kUint32},
+            {"name", ProtoSchemaType::kString},
+            {"type", ProtoSchemaType::kUint32},
+            {"value", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "sched_migrate_task",
+        7,
+        {
+            {},
+            {"comm", ProtoSchemaType::kString},
+            {"pid", ProtoSchemaType::kInt32},
+            {"prio", ProtoSchemaType::kInt32},
+            {"orig_cpu", ProtoSchemaType::kInt32},
+            {"dest_cpu", ProtoSchemaType::kInt32},
+            {"running", ProtoSchemaType::kInt32},
+            {"load", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "dpu_dsi_cmd_fifo_status",
+        2,
+        {
+            {},
+            {"header", ProtoSchemaType::kUint32},
+            {"payload", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "dpu_dsi_rx",
+        2,
+        {
+            {},
+            {"cmd", ProtoSchemaType::kUint32},
+            {"rx_buf", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "dpu_dsi_tx",
+        4,
+        {
+            {},
+            {"type", ProtoSchemaType::kUint32},
+            {"tx_buf", ProtoSchemaType::kUint32},
+            {"last", ProtoSchemaType::kUint32},
+            {"delay_ms", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "f2fs_background_gc",
+        4,
+        {
+            {},
+            {"dev", ProtoSchemaType::kUint64},
+            {"wait_ms", ProtoSchemaType::kUint32},
+            {"prefree", ProtoSchemaType::kUint32},
+            {"free", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "f2fs_gc_begin",
+        13,
+        {
+            {},
+            {"dev", ProtoSchemaType::kUint64},
+            {"sync", ProtoSchemaType::kUint32},
+            {"background", ProtoSchemaType::kUint32},
+            {"dirty_nodes", ProtoSchemaType::kInt64},
+            {"dirty_dents", ProtoSchemaType::kInt64},
+            {"dirty_imeta", ProtoSchemaType::kInt64},
+            {"free_sec", ProtoSchemaType::kUint32},
+            {"free_seg", ProtoSchemaType::kUint32},
+            {"reserved_seg", ProtoSchemaType::kInt32},
+            {"prefree_seg", ProtoSchemaType::kUint32},
+            {"gc_type", ProtoSchemaType::kInt32},
+            {"no_bg_gc", ProtoSchemaType::kUint32},
+            {"nr_free_secs", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "f2fs_gc_end",
+        11,
+        {
+            {},
+            {"dev", ProtoSchemaType::kUint64},
+            {"ret", ProtoSchemaType::kInt32},
+            {"seg_freed", ProtoSchemaType::kInt32},
+            {"sec_freed", ProtoSchemaType::kInt32},
+            {"dirty_nodes", ProtoSchemaType::kInt64},
+            {"dirty_dents", ProtoSchemaType::kInt64},
+            {"dirty_imeta", ProtoSchemaType::kInt64},
+            {"free_sec", ProtoSchemaType::kUint32},
+            {"free_seg", ProtoSchemaType::kUint32},
+            {"reserved_seg", ProtoSchemaType::kInt32},
+            {"prefree_seg", ProtoSchemaType::kUint32},
         },
     },
 }};

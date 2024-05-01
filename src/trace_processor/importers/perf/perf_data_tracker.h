@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 #include "src/trace_processor/importers/perf/perf_data_reader.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -76,13 +77,9 @@ class PerfDataTracker : public Destructible {
       uint32_t prot;
       uint32_t flags;
     };
+    protos::pbzero::Profiling::CpuMode cpu_mode;
     Numeric num;
     std::string filename;
-  };
-  struct MmapRange {
-    uint64_t start;
-    uint64_t end;
-    MappingTable::Id id;
   };
 
   PerfDataTracker(const PerfDataTracker&) = delete;
@@ -101,16 +98,13 @@ class PerfDataTracker : public Destructible {
   uint64_t common_sample_type() { return common_sample_type_; }
 
   base::StatusOr<PerfSample> ParseSample(
-      perfetto::trace_processor::perf_importer::Reader&);
-
-  base::StatusOr<MmapRange> FindMapping(uint32_t pid, uint64_t ips);
+      perfetto::trace_processor::perf_importer::PerfDataReader&);
 
  private:
   const perf_event_attr* FindAttrWithId(uint64_t id) const;
   TraceProcessorContext* context_;
   std::vector<AttrAndIds> attrs_;
 
-  base::FlatHashMap</*pid=*/uint32_t, std::vector<MmapRange>> mmap2_ranges_;
   uint64_t common_sample_type_;
 };
 }  // namespace perf_importer

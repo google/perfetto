@@ -53,7 +53,6 @@ export class NullLoadingTracker implements LoadingTracker {
   endLoading(): void {}
 }
 
-
 // This is used to skip the decoding of queryResult from protobufjs and deal
 // with it ourselves. See the comment below around `QueryResult.decode = ...`.
 interface QueryResultBypass {
@@ -64,6 +63,7 @@ export interface TraceProcessorConfig {
   cropTrackEvents: boolean;
   ingestFtraceInRawTable: boolean;
   analyzeTraceProtoContent: boolean;
+  ftraceDropUntilAllCpusValid: boolean;
 }
 
 // Abstract interface of a trace proccessor.
@@ -90,7 +90,7 @@ export abstract class Engine {
   private pendingResetTraceProcessors = new Array<Deferred<void>>();
   private pendingQueries = new Array<WritableQueryResult>();
   private pendingRestoreTables = new Array<Deferred<void>>();
-  private pendingComputeMetrics = new Array<Deferred<string|Uint8Array>>();
+  private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
   private _isMetatracingEnabled = false;
 
@@ -160,8 +160,9 @@ export abstract class Engine {
     if (rpc.seq !== this.rxSeqId + 1 && this.rxSeqId !== 0 && rpc.seq !== 0) {
       // "(ERR:rpc_seq)" is intercepted by error_dialog.ts to show a more
       // graceful and actionable error.
-      throw new Error(`RPC sequence id mismatch cur=${rpc.seq} last=${
-        this.rxSeqId} (ERR:rpc_seq)`);
+      throw new Error(
+        `RPC sequence id mismatch cur=${rpc.seq} last=${this.rxSeqId} (ERR:rpc_seq)`,
+      );
     }
 
     this.rxSeqId = rpc.seq;
@@ -169,61 +170,70 @@ export abstract class Engine {
     let isFinalResponse = true;
 
     switch (rpc.response) {
-    case TPM.TPM_APPEND_TRACE_DATA:
-      const appendResult = assertExists(rpc.appendResult);
-      const pendingPromise = assertExists(this.pendingParses.shift());
-      if (appendResult.error && appendResult.error.length > 0) {
-        pendingPromise.reject(appendResult.error);
-      } else {
-        pendingPromise.resolve();
-      }
-      break;
-    case TPM.TPM_FINALIZE_TRACE_DATA:
-      assertExists(this.pendingEOFs.shift()).resolve();
-      break;
-    case TPM.TPM_RESET_TRACE_PROCESSOR:
-      assertExists(this.pendingResetTraceProcessors.shift()).resolve();
-      break;
-    case TPM.TPM_RESTORE_INITIAL_TABLES:
-      assertExists(this.pendingRestoreTables.shift()).resolve();
-      break;
-    case TPM.TPM_QUERY_STREAMING:
-      const qRes = assertExists(rpc.queryResult) as {} as QueryResultBypass;
-      const pendingQuery = assertExists(this.pendingQueries[0]);
-      pendingQuery.appendResultBatch(qRes.rawQueryResult);
-      if (pendingQuery.isComplete()) {
-        this.pendingQueries.shift();
-      } else {
-        isFinalResponse = false;
-      }
-      break;
-    case TPM.TPM_COMPUTE_METRIC:
-      const metricRes = assertExists(rpc.metricResult) as ComputeMetricResult;
-      const pendingComputeMetric =
-            assertExists(this.pendingComputeMetrics.shift());
-      if (metricRes.error && metricRes.error.length > 0) {
-        const error =
-              new QueryError(`ComputeMetric() error: ${metricRes.error}`, {
-                query: 'COMPUTE_METRIC',
-              });
-        pendingComputeMetric.reject(error);
-      } else {
-        const result = metricRes.metricsAsPrototext ||
-              metricRes.metricsAsJson || metricRes.metrics || '';
-        pendingComputeMetric.resolve(result);
-      }
-      break;
-    case TPM.TPM_DISABLE_AND_READ_METATRACE:
-      const metatraceRes =
-            assertExists(rpc.metatrace) as DisableAndReadMetatraceResult;
-      assertExists(this.pendingReadMetatrace).resolve(metatraceRes);
-      this.pendingReadMetatrace = undefined;
-      break;
-    default:
-      console.log(
-        'Unexpected TraceProcessor response received: ', rpc.response);
-      break;
-    }  // switch(rpc.response);
+      case TPM.TPM_APPEND_TRACE_DATA:
+        const appendResult = assertExists(rpc.appendResult);
+        const pendingPromise = assertExists(this.pendingParses.shift());
+        if (appendResult.error && appendResult.error.length > 0) {
+          pendingPromise.reject(appendResult.error);
+        } else {
+          pendingPromise.resolve();
+        }
+        break;
+      case TPM.TPM_FINALIZE_TRACE_DATA:
+        assertExists(this.pendingEOFs.shift()).resolve();
+        break;
+      case TPM.TPM_RESET_TRACE_PROCESSOR:
+        assertExists(this.pendingResetTraceProcessors.shift()).resolve();
+        break;
+      case TPM.TPM_RESTORE_INITIAL_TABLES:
+        assertExists(this.pendingRestoreTables.shift()).resolve();
+        break;
+      case TPM.TPM_QUERY_STREAMING:
+        const qRes = assertExists(rpc.queryResult) as {} as QueryResultBypass;
+        const pendingQuery = assertExists(this.pendingQueries[0]);
+        pendingQuery.appendResultBatch(qRes.rawQueryResult);
+        if (pendingQuery.isComplete()) {
+          this.pendingQueries.shift();
+        } else {
+          isFinalResponse = false;
+        }
+        break;
+      case TPM.TPM_COMPUTE_METRIC:
+        const metricRes = assertExists(rpc.metricResult) as ComputeMetricResult;
+        const pendingComputeMetric = assertExists(
+          this.pendingComputeMetrics.shift(),
+        );
+        if (metricRes.error && metricRes.error.length > 0) {
+          const error = new QueryError(
+            `ComputeMetric() error: ${metricRes.error}`,
+            {
+              query: 'COMPUTE_METRIC',
+            },
+          );
+          pendingComputeMetric.reject(error);
+        } else {
+          const result =
+            metricRes.metricsAsPrototext ||
+            metricRes.metricsAsJson ||
+            metricRes.metrics ||
+            '';
+          pendingComputeMetric.resolve(result);
+        }
+        break;
+      case TPM.TPM_DISABLE_AND_READ_METATRACE:
+        const metatraceRes = assertExists(
+          rpc.metatrace,
+        ) as DisableAndReadMetatraceResult;
+        assertExists(this.pendingReadMetatrace).resolve(metatraceRes);
+        this.pendingReadMetatrace = undefined;
+        break;
+      default:
+        console.log(
+          'Unexpected TraceProcessor response received: ',
+          rpc.response,
+        );
+        break;
+    } // switch(rpc.response);
 
     if (isFinalResponse) {
       this.loadingTracker.endLoading();
@@ -234,7 +244,6 @@ export abstract class Engine {
   // The methods below are called by the various controllers in the UI and
   // deal with marshalling / unmarshaling requests to/from TraceProcessor.
 
-
   // Push trace data into the engine. The engine is supposed to automatically
   // figure out the type of the trace (JSON vs Protobuf).
   parse(data: Uint8Array): Promise<void> {
@@ -244,7 +253,7 @@ export abstract class Engine {
     rpc.request = TPM.TPM_APPEND_TRACE_DATA;
     rpc.appendTraceData = data;
     this.rpcSendRequest(rpc);
-    return asyncRes;  // Linearize with the worker.
+    return asyncRes; // Linearize with the worker.
   }
 
   // Notify the engine that we reached the end of the trace.
@@ -255,26 +264,30 @@ export abstract class Engine {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_FINALIZE_TRACE_DATA;
     this.rpcSendRequest(rpc);
-    return asyncRes;  // Linearize with the worker.
+    return asyncRes; // Linearize with the worker.
   }
 
   // Updates the TraceProcessor Config. This method creates a new
   // TraceProcessor instance, so it should be called before passing any trace
   // data.
-  resetTraceProcessor(
-    {cropTrackEvents, ingestFtraceInRawTable, analyzeTraceProtoContent}:
-          TraceProcessorConfig): Promise<void> {
+  resetTraceProcessor({
+    cropTrackEvents,
+    ingestFtraceInRawTable,
+    analyzeTraceProtoContent,
+    ftraceDropUntilAllCpusValid,
+  }: TraceProcessorConfig): Promise<void> {
     const asyncRes = defer<void>();
     this.pendingResetTraceProcessors.push(asyncRes);
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_RESET_TRACE_PROCESSOR;
-    const args = rpc.resetTraceProcessorArgs = new ResetTraceProcessorArgs();
-    args.dropTrackEventDataBefore = cropTrackEvents ?
-      ResetTraceProcessorArgs.DropTrackEventDataBefore
-        .TRACK_EVENT_RANGE_OF_INTEREST :
-      ResetTraceProcessorArgs.DropTrackEventDataBefore.NO_DROP;
+    const args = (rpc.resetTraceProcessorArgs = new ResetTraceProcessorArgs());
+    args.dropTrackEventDataBefore = cropTrackEvents
+      ? ResetTraceProcessorArgs.DropTrackEventDataBefore
+          .TRACK_EVENT_RANGE_OF_INTEREST
+      : ResetTraceProcessorArgs.DropTrackEventDataBefore.NO_DROP;
     args.ingestFtraceInRawTable = ingestFtraceInRawTable;
     args.analyzeTraceProtoContent = analyzeTraceProtoContent;
+    args.ftraceDropUntilAllCpusValid = ftraceDropUntilAllCpusValid;
     this.rpcSendRequest(rpc);
     return asyncRes;
   }
@@ -287,17 +300,19 @@ export abstract class Engine {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_RESTORE_INITIAL_TABLES;
     this.rpcSendRequest(rpc);
-    return asyncRes;  // Linearize with the worker.
+    return asyncRes; // Linearize with the worker.
   }
 
   // Shorthand for sending a compute metrics request to the engine.
-  async computeMetric(metrics: string[], format: 'json'|'prototext'|'proto'):
-      Promise<string|Uint8Array> {
-    const asyncRes = defer<string|Uint8Array>();
+  async computeMetric(
+    metrics: string[],
+    format: 'json' | 'prototext' | 'proto',
+  ): Promise<string | Uint8Array> {
+    const asyncRes = defer<string | Uint8Array>();
     this.pendingComputeMetrics.push(asyncRes);
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_COMPUTE_METRIC;
-    const args = rpc.computeMetricArgs = new ComputeMetricArgs();
+    const args = (rpc.computeMetricArgs = new ComputeMetricArgs());
     args.metricNames = metrics;
     if (format === 'json') {
       args.format = ComputeMetricArgs.ResultFormat.JSON;
@@ -331,7 +346,7 @@ export abstract class Engine {
   //
   // Optional |tag| (usually a component name) can be provided to allow
   // attributing trace processor workload to different UI components.
-  execute(sqlQuery: string, tag?: string): Promise<QueryResult>&QueryResult {
+  execute(sqlQuery: string, tag?: string): Promise<QueryResult> & QueryResult {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_QUERY_STREAMING;
     rpc.queryArgs = new QueryArgs();
@@ -414,7 +429,8 @@ export abstract class Engine {
     if (!this._cpus) {
       const cpus = [];
       const queryRes = await this.query(
-        'select distinct(cpu) as cpu from sched order by cpu;');
+        'select distinct(cpu) as cpu from sched order by cpu;',
+      );
       for (const it = queryRes.iter({cpu: NUM}); it.valid(); it.next()) {
         cpus.push(it.cpu);
       }
@@ -445,13 +461,16 @@ export abstract class Engine {
 
   async getTraceTimeBounds(): Promise<Span<time, duration>> {
     const result = await this.query(
-      `select start_ts as startTs, end_ts as endTs from trace_bounds`);
+      `select start_ts as startTs, end_ts as endTs from trace_bounds`,
+    );
     const bounds = result.firstRow({
       startTs: LONG,
       endTs: LONG,
     });
     return new TimeSpan(
-      Time.fromRaw(bounds.startTs), Time.fromRaw(bounds.endTs));
+      Time.fromRaw(bounds.startTs),
+      Time.fromRaw(bounds.endTs),
+    );
   }
 
   async getTracingMetadataTimeBounds(): Promise<Span<time, duration>> {
@@ -463,7 +482,7 @@ export abstract class Engine {
          or name = 'all_data_source_started_ns'`);
     let startBound = Time.MIN;
     let endBound = Time.MAX;
-    const it = queryRes.iter({'name': STR, 'intValue': LONG_NULL});
+    const it = queryRes.iter({name: STR, intValue: LONG_NULL});
     for (; it.valid(); it.next()) {
       const columnName = it.name;
       const timestamp = it.intValue;
@@ -500,7 +519,7 @@ export class EngineProxy implements Disposable {
     this._isAlive = true;
   }
 
-  execute(query: string, tag?: string): Promise<QueryResult>&QueryResult {
+  execute(query: string, tag?: string): Promise<QueryResult> & QueryResult {
     if (!this.isAlive) {
       throw new Error(`EngineProxy ${this.tag} was disposed.`);
     }
@@ -514,8 +533,10 @@ export class EngineProxy implements Disposable {
     return await this.engine.query(query, tag);
   }
 
-  async computeMetric(metrics: string[], format: 'json'|'prototext'|'proto'):
-      Promise<string|Uint8Array> {
+  async computeMetric(
+    metrics: string[],
+    format: 'json' | 'prototext' | 'proto',
+  ): Promise<string | Uint8Array> {
     if (!this.isAlive) {
       return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed.`));
     }

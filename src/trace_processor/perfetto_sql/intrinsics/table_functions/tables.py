@@ -154,19 +154,44 @@ DOMINATOR_TREE_TABLE = Table(
         C("in_root_node_id", CppOptional(CppUint32()), flags=ColumnFlag.HIDDEN),
     ])
 
-DFS_TABLE = Table(
+INTERVAL_INTERSECT_TABLE = Table(
     python_module=__file__,
-    class_name="DfsTable",
-    sql_name="__intrinsic_dfs",
+    class_name="IntervalIntersectTable",
+    sql_name="__intrinsic_interval_intersect",
     columns=[
+        C("ts", CppInt64()),
+        C("dur", CppInt64()),
+        C("left_id", CppUint32()),
+        C("right_id", CppUint32()),
+        C("in_left_ids", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C("in_left_tses", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C("in_left_durs", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C("in_right_ids", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C("in_right_tses", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+        C("in_right_durs", CppOptional(CppString()), flags=ColumnFlag.HIDDEN),
+    ])
+
+DFS_WEIGHT_BOUNDED_TABLE = Table(
+    python_module=__file__,
+    class_name="DfsWeightBoundedTable",
+    sql_name="__intrinsic_dfs_weight_bounded",
+    columns=[
+        C("root_node_id", CppUint32()),
         C("node_id", CppUint32()),
         C("parent_node_id", CppOptional(CppUint32())),
         C("in_source_node_ids",
-          CppOptional(CppString()),
+          CppOptional(CppUint32()),
           flags=ColumnFlag.HIDDEN),
-        C("in_dest_node_ids", CppOptional(CppString()),
+        C("in_dest_node_ids", CppOptional(CppUint32()),
           flags=ColumnFlag.HIDDEN),
-        C("in_start_node_id", CppOptional(CppUint32()),
+        C("in_edge_weights", CppOptional(CppUint32()), flags=ColumnFlag.HIDDEN),
+        C("in_root_node_ids", CppOptional(CppUint32()),
+          flags=ColumnFlag.HIDDEN),
+        C("in_root_max_weights",
+          CppOptional(CppUint32()),
+          flags=ColumnFlag.HIDDEN),
+        C("in_is_target_weight_floor",
+          CppOptional(CppUint32()),
           flags=ColumnFlag.HIDDEN),
     ])
 
@@ -178,11 +203,12 @@ ALL_TABLES = [
     CONNECTED_FLOW_TABLE,
     DESCENDANT_SLICE_BY_STACK_TABLE,
     DESCENDANT_SLICE_TABLE,
-    DFS_TABLE,
+    DFS_WEIGHT_BOUNDED_TABLE,
     DOMINATOR_TREE_TABLE,
     EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE,
     EXPERIMENTAL_COUNTER_DUR_TABLE,
     EXPERIMENTAL_SCHED_UPID_TABLE,
     EXPERIMENTAL_SLICE_LAYOUT_TABLE,
+    INTERVAL_INTERSECT_TABLE,
     TABLE_INFO_TABLE,
 ]

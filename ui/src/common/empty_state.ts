@@ -15,9 +15,7 @@
 import {Time} from '../base/time';
 import {createEmptyRecordConfig} from '../controller/record_config_types';
 import {featureFlags} from '../core/feature_flags';
-import {
-  Aggregation,
-} from '../frontend/pivot_table_types';
+import {Aggregation} from '../frontend/pivot_table_types';
 import {
   autosaveConfigStore,
   recordTargetStore,
@@ -34,13 +32,16 @@ import {
 const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
   id: 'autoloadStartedConfig',
   name: 'Auto-load last used recording config',
-  description: 'Starting a recording automatically saves its configuration. ' +
-      'This flag controls whether this config is automatically loaded.',
+  description:
+    'Starting a recording automatically saves its configuration. ' +
+    'This flag controls whether this config is automatically loaded.',
   defaultValue: true,
 });
 
 export function keyedMap<T>(
-  keyFn: (key: T) => string, ...values: T[]): Map<string, T> {
+  keyFn: (key: T) => string,
+  ...values: T[]
+): Map<string, T> {
   const result = new Map<string, T>();
 
   for (const value of values) {
@@ -61,8 +62,9 @@ export function createEmptyNonSerializableState(): NonSerializableState {
   return {
     pivotTable: {
       queryResult: null,
-      selectedPivots:
-          [{kind: 'regular', table: SqlTables.slice.name, column: 'name'}],
+      selectedPivots: [
+        {kind: 'regular', table: SqlTables.slice.name, column: 'name'},
+      ],
       selectedAggregations: [
         {
           aggregationFunction: 'SUM',
@@ -93,7 +95,6 @@ export function createEmptyState(): State {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
     traceTime: {...defaultTraceTime},
     tracks: {},
-    trackKeyByTrackId: {},
     utidToThreadSortKey: {},
     aggregatePreferences: {},
     trackGroups: {},
@@ -104,9 +105,9 @@ export function createEmptyState(): State {
     permalink: {},
     notes: {},
 
-    recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get() ?
-      autosaveConfigStore.get() :
-      createEmptyRecordConfig(),
+    recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get()
+      ? autosaveConfigStore.get()
+      : createEmptyRecordConfig(),
     displayConfigAsPbtxt: false,
     lastLoadedConfig: {type: 'NONE'},
 
@@ -123,22 +124,10 @@ export function createEmptyState(): State {
       mode: 'SEARCH',
     },
 
-    logsPagination: {
-      offset: 0,
-      count: 0,
-    },
-
-    ftracePagination: {
-      offset: 0,
-      count: 0,
-    },
-
-    ftraceFilter: {
-      excludedNames: [],
-    },
-
     status: {msg: '', timestamp: 0},
-    currentSelection: null,
+    selection: {
+      kind: 'empty',
+    },
     currentFlamegraphState: null,
     traceConversionInProgress: false,
 
@@ -168,14 +157,6 @@ export function createEmptyState(): State {
     fetchChromeCategories: false,
     chromeCategories: undefined,
     nonSerializableState: createEmptyNonSerializableState(),
-
-    logFilteringCriteria: {
-      // The first two log priorities are ignored.
-      minimumLevel: 2,
-      tags: [],
-      textEntry: '',
-      hideNonMatching: true,
-    },
 
     // Somewhere to store plugins' persistent state.
     plugins: {},

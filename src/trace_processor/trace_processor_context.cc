@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/types/trace_processor_context.h"
+#include <optional>
 
 #include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -27,16 +28,22 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
+#include "src/trace_processor/importers/proto/chrome_track_event.descriptor.h"
+#include "src/trace_processor/importers/proto/multi_machine_trace_manager.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/destructible.h"
@@ -44,8 +51,59 @@
 namespace perfetto {
 namespace trace_processor {
 
+TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
+    : config(args.config), storage(args.storage) {
+  // Init the trackers.
+  machine_tracker.reset(new MachineTracker(this, args.raw_machine_id));
+  if (!machine_id()) {
+    multi_machine_trace_manager.reset(new MultiMachineTraceManager(this));
+  }
+  track_tracker.reset(new TrackTracker(this));
+  async_track_set_tracker.reset(new AsyncTrackSetTracker(this));
+  args_tracker.reset(new ArgsTracker(this));
+  args_translation_table.reset(new ArgsTranslationTable(storage.get()));
+  slice_tracker.reset(new SliceTracker(this));
+  slice_translation_table.reset(new SliceTranslationTable(storage.get()));
+  flow_tracker.reset(new FlowTracker(this));
+  event_tracker.reset(new EventTracker(this));
+  sched_event_tracker.reset(new SchedEventTracker(this));
+  process_tracker.reset(new ProcessTracker(this));
+  clock_tracker.reset(new ClockTracker(this));
+  clock_converter.reset(new ClockConverter(this));
+  mapping_tracker.reset(new MappingTracker(this));
+  perf_sample_tracker.reset(new PerfSampleTracker(this));
+  stack_profile_tracker.reset(new StackProfileTracker(this));
+  metadata_tracker.reset(new MetadataTracker(storage.get()));
+  global_args_tracker.reset(new GlobalArgsTracker(storage.get()));
+  {
+    descriptor_pool_.reset(new DescriptorPool());
+    auto status = descriptor_pool_->AddFromFileDescriptorSet(
+        kTrackEventDescriptor.data(), kTrackEventDescriptor.size());
+
+    PERFETTO_DCHECK(status.ok());
+
+    status = descriptor_pool_->AddFromFileDescriptorSet(
+        kChromeTrackEventDescriptor.data(), kChromeTrackEventDescriptor.size());
+
+    PERFETTO_DCHECK(status.ok());
+  }
+
+  slice_tracker->SetOnSliceBeginCallback(
+      [this](TrackId track_id, SliceId slice_id) {
+        flow_tracker->ClosePendingEventsOnTrack(track_id, slice_id);
+      });
+}
+
 TraceProcessorContext::TraceProcessorContext() = default;
 TraceProcessorContext::~TraceProcessorContext() = default;
+
+std::optional<MachineId> TraceProcessorContext::machine_id() const {
+  if (!machine_tracker) {
+    // Doesn't require that |machine_tracker| is initialzed, e.g. in unit tests.
+    return std::nullopt;
+  }
+  return machine_tracker->machine_id();
+}
 
 }  // namespace trace_processor
 }  // namespace perfetto

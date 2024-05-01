@@ -66,7 +66,7 @@ KmemActivityTrigger::WorkerData::WorkerData(base::TaskRunner* task_runner)
       FtraceProcfs::CreateGuessingMountPoint("instances/mm_events/");
   if (!ftrace_procfs_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
-    PERFETTO_LOG(
+    PERFETTO_DLOG(
         "mm_events ftrace instance not found. Triggering of traces on memory "
         "pressure will not be available on this device.");
 #endif

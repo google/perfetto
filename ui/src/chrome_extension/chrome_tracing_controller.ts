@@ -32,14 +32,14 @@ import {ITraceStats, TraceConfig} from '../protos';
 
 import {DevToolsSocket} from './devtools_socket';
 
-const CHUNK_SIZE: number = 1024 * 1024 * 16;  // 16Mb
+const CHUNK_SIZE: number = 1024 * 1024 * 16; // 16Mb
 
 export class ChromeTracingController extends RpcConsumerPort {
-  private streamHandle: string|undefined = undefined;
+  private streamHandle: string | undefined = undefined;
   private uiPort: chrome.runtime.Port;
   private api: ProtocolProxyApi.ProtocolApi;
   private devtoolsSocket: DevToolsSocket;
-  private lastBufferUsageEvent: Protocol.Tracing.BufferUsageEvent|undefined;
+  private lastBufferUsageEvent: Protocol.Tracing.BufferUsageEvent | undefined;
   private tracingSessionOngoing = false;
   private tracingSessionId = 0;
 
@@ -68,28 +68,28 @@ export class ChromeTracingController extends RpcConsumerPort {
 
   handleCommand(methodName: string, requestData: Uint8Array) {
     switch (methodName) {
-    case 'EnableTracing':
-      this.enableTracing(requestData);
-      break;
-    case 'FreeBuffers':
-      this.freeBuffers();
-      break;
-    case 'ReadBuffers':
-      this.readBuffers();
-      break;
-    case 'DisableTracing':
-      this.disableTracing();
-      break;
-    case 'GetTraceStats':
-      this.getTraceStats();
-      break;
-    case 'GetCategories':
-      this.getCategories();
-      break;
-    default:
-      this.sendErrorMessage('Action not recognized');
-      console.log('Received not recognized message: ', methodName);
-      break;
+      case 'EnableTracing':
+        this.enableTracing(requestData);
+        break;
+      case 'FreeBuffers':
+        this.freeBuffers();
+        break;
+      case 'ReadBuffers':
+        this.readBuffers();
+        break;
+      case 'DisableTracing':
+        this.disableTracing();
+        break;
+      case 'GetTraceStats':
+        this.getTraceStats();
+        break;
+      case 'GetCategories':
+        this.getCategories();
+        break;
+      default:
+        this.sendErrorMessage('Action not recognized');
+        console.log('Received not recognized message: ', methodName);
+        break;
     }
   }
 
@@ -105,9 +105,10 @@ export class ChromeTracingController extends RpcConsumerPort {
   }
 
   toCamelCase(key: string, separator: string): string {
-    return key.split(separator)
+    return key
+      .split(separator)
       .map((part, index) => {
-        return (index === 0) ? part : part[0].toUpperCase() + part.slice(1);
+        return index === 0 ? part : part[0].toUpperCase() + part.slice(1);
       })
       .join('');
   }
@@ -135,18 +136,25 @@ export class ChromeTracingController extends RpcConsumerPort {
     const convertedConfig = this.convertDictKeys(config);
     // recordMode is specified as an enum with camelCase values.
     if (convertedConfig.recordMode) {
-      convertedConfig.recordMode =
-          this.toCamelCase(convertedConfig.recordMode as string, '-');
+      convertedConfig.recordMode = this.toCamelCase(
+        convertedConfig.recordMode as string,
+        '-',
+      );
     }
     return convertedConfig as Protocol.Tracing.TraceConfig;
   }
 
   // TODO(nicomazz): write unit test for this
-  extractChromeConfig(perfettoConfig: TraceConfig):
-      Protocol.Tracing.TraceConfig {
+  extractChromeConfig(
+    perfettoConfig: TraceConfig,
+  ): Protocol.Tracing.TraceConfig {
     for (const ds of perfettoConfig.dataSources) {
-      if (ds.config && ds.config.name === 'org.chromium.trace_event' &&
-          ds.config.chromeConfig && ds.config.chromeConfig.traceConfig) {
+      if (
+        ds.config &&
+        ds.config.name === 'org.chromium.trace_event' &&
+        ds.config.chromeConfig &&
+        ds.config.chromeConfig.traceConfig
+      ) {
         const chromeConfigJsonString = ds.config.chromeConfig.traceConfig;
         const config = JSON.parse(chromeConfigJsonString);
         return this.convertToDevToolsConfig(config);
@@ -166,8 +174,11 @@ export class ChromeTracingController extends RpcConsumerPort {
       return;
     }
 
-    const res = await this.api.IO.read(
-      {handle: this.streamHandle, offset, size: CHUNK_SIZE});
+    const res = await this.api.IO.read({
+      handle: this.streamHandle,
+      offset,
+      size: CHUNK_SIZE,
+    });
     if (res === undefined) return;
 
     const chunk = res.base64Encoded ? atob(res.data) : res.data;
@@ -202,8 +213,9 @@ export class ChromeTracingController extends RpcConsumerPort {
     // If the statistics are not available yet, it is 0.
     const percentFull = this.lastBufferUsageEvent?.percentFull ?? 0;
     const stats: ITraceStats = {
-      bufferStats:
-          [{bufferSize: 1000, bytesWritten: Math.round(percentFull * 1000)}],
+      bufferStats: [
+        {bufferSize: 1000, bytesWritten: Math.round(percentFull * 1000)},
+      ],
     };
     const response: GetTraceStatsResponse = {
       type: 'GetTraceStatsResponse',
@@ -227,7 +239,8 @@ export class ChromeTracingController extends RpcConsumerPort {
       if (error) {
         this.sendErrorMessage(
           `Could not attach to DevTools browser target ` +
-            `(req. Chrome >= M81): ${error}`);
+            `(req. Chrome >= M81): ${error}`,
+        );
         return;
       }
       fetchCategories();
@@ -254,7 +267,8 @@ export class ChromeTracingController extends RpcConsumerPort {
       if (error) {
         this.sendErrorMessage(
           `Could not attach to DevTools browser target ` +
-            `(req. Chrome >= M81): ${error}`);
+            `(req. Chrome >= M81): ${error}`,
+        );
         return;
       }
 
@@ -268,27 +282,35 @@ export class ChromeTracingController extends RpcConsumerPort {
       const traceConfig = TraceConfig.decode(traceConfigProto);
       if (browserSupportsPerfettoConfig()) {
         const configEncoded = base64Encode(traceConfigProto);
-        await this.api.Tracing.start(
-          {perfettoConfig: configEncoded, ...requestParams});
+        await this.api.Tracing.start({
+          perfettoConfig: configEncoded,
+          ...requestParams,
+        });
         this.tracingSessionOngoing = true;
         const tracingSessionId = ++this.tracingSessionId;
         setTimeout(
-          () => this.endTracing(tracingSessionId), traceConfig.durationMs);
+          () => this.endTracing(tracingSessionId),
+          traceConfig.durationMs,
+        );
       } else {
         console.log(
           'Used Chrome version is too old to support ' +
-            'perfettoConfig parameter. Using chrome config only instead.');
+            'perfettoConfig parameter. Using chrome config only instead.',
+        );
 
         if (hasSystemDataSourceConfig(traceConfig)) {
           this.sendErrorMessage(
             'System tracing is not supported by this Chrome version. Choose' +
-              ' the \'Chrome\' target instead to record a Chrome-only trace.');
+              " the 'Chrome' target instead to record a Chrome-only trace.",
+          );
           return;
         }
 
         const chromeConfig = this.extractChromeConfig(traceConfig);
-        await this.api.Tracing.start(
-          {traceConfig: chromeConfig, ...requestParams});
+        await this.api.Tracing.start({
+          traceConfig: chromeConfig,
+          ...requestParams,
+        });
       }
     });
   }

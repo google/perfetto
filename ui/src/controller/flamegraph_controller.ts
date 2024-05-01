@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Duration, time} from '../base/time';
+import {Duration, Time, time} from '../base/time';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {
@@ -26,6 +26,7 @@ import {
   FlamegraphState,
   FlamegraphStateViewingOption,
   ProfileType,
+  isHeapGraphDominatorTreeViewingOption,
 } from '../common/state';
 import {FlamegraphDetails, globals} from '../frontend/globals';
 import {publishFlamegraphDetails} from '../frontend/publish';
@@ -52,18 +53,18 @@ function isProfileType(s: string): s is ProfileType {
 
 function getFlamegraphType(type: ProfileType) {
   switch (type) {
-  case ProfileType.HEAP_PROFILE:
-  case ProfileType.MIXED_HEAP_PROFILE:
-  case ProfileType.NATIVE_HEAP_PROFILE:
-  case ProfileType.JAVA_HEAP_SAMPLES:
-    return 'native';
-  case ProfileType.JAVA_HEAP_GRAPH:
-    return 'graph';
-  case ProfileType.PERF_SAMPLE:
-    return 'perf';
-  default:
-    const exhaustiveCheck: never = type;
-    throw new Error(`Unhandled case: ${exhaustiveCheck}`);
+    case ProfileType.HEAP_PROFILE:
+    case ProfileType.MIXED_HEAP_PROFILE:
+    case ProfileType.NATIVE_HEAP_PROFILE:
+    case ProfileType.JAVA_HEAP_SAMPLES:
+      return 'native';
+    case ProfileType.JAVA_HEAP_GRAPH:
+      return 'graph';
+    case ProfileType.PERF_SAMPLE:
+      return 'perf';
+    default:
+      const exhaustiveCheck: never = type;
+      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
   }
 }
 
@@ -99,7 +100,8 @@ class TablesCache {
       }
       tableName = `${this.prefix}_${this.tableId++}`;
       await this.engine.query(
-        `create temp table if not exists ${tableName} as ${query}`);
+        `create temp table if not exists ${tableName} as ${query}`,
+      );
       this.cache.set(query, tableName);
     }
     return tableName;
@@ -114,6 +116,10 @@ export class FlamegraphController extends Controller<'main'> {
   private flamegraphDetails: FlamegraphDetails = {};
   private areaSelectionHandler: AreaSelectionHandler;
   private cache: TablesCache;
+  private heapGraphSelected: {upid: number; timestamp: time} = {
+    upid: -1,
+    timestamp: Time.INVALID,
+  };
 
   constructor(private args: FlamegraphControllerArgs) {
     super('main');
@@ -126,8 +132,10 @@ export class FlamegraphController extends Controller<'main'> {
     if (hasAreaChanged) {
       const upids = [];
       if (!area) {
-        this.checkCompletionAndPublishFlamegraph(
-          {...globals.flamegraphDetails, isInAreaSelection: false});
+        this.checkCompletionAndPublishFlamegraph({
+          ...globals.flamegraphDetails,
+          isInAreaSelection: false,
+        });
         return;
       }
       for (const trackId of area.tracks) {
@@ -140,17 +148,21 @@ export class FlamegraphController extends Controller<'main'> {
         }
       }
       if (upids.length === 0) {
-        this.checkCompletionAndPublishFlamegraph(
-          {...globals.flamegraphDetails, isInAreaSelection: false});
+        this.checkCompletionAndPublishFlamegraph({
+          ...globals.flamegraphDetails,
+          isInAreaSelection: false,
+        });
         return;
       }
-      globals.dispatch(Actions.openFlamegraph({
-        upids,
-        start: area.start,
-        end: area.end,
-        type: ProfileType.PERF_SAMPLE,
-        viewingOption: defaultViewingOption(ProfileType.PERF_SAMPLE),
-      }));
+      globals.dispatch(
+        Actions.openFlamegraph({
+          upids,
+          start: area.start,
+          end: area.end,
+          type: ProfileType.PERF_SAMPLE,
+          viewingOption: defaultViewingOption(ProfileType.PERF_SAMPLE),
+        }),
+      );
     }
     const selection = globals.state.currentFlamegraphState;
     if (!selection || !this.shouldRequestData(selection)) {
@@ -166,61 +178,72 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   private async assembleFlamegraphDetails(
-    selection: FlamegraphState, isInAreaSelection: boolean) {
+    selection: FlamegraphState,
+    isInAreaSelection: boolean,
+  ) {
     const selectedFlamegraphState = {...selection};
     const flamegraphMetadata = await this.getFlamegraphMetadata(
       selection.type,
       selectedFlamegraphState.start,
       selectedFlamegraphState.end,
-      selectedFlamegraphState.upids);
+      selectedFlamegraphState.upids,
+    );
     if (flamegraphMetadata !== undefined) {
       Object.assign(this.flamegraphDetails, flamegraphMetadata);
     }
 
     // TODO(hjd): Clean this up.
-    if (this.lastSelectedFlamegraphState &&
-        this.lastSelectedFlamegraphState.focusRegex !== selection.focusRegex) {
+    if (
+      this.lastSelectedFlamegraphState &&
+      this.lastSelectedFlamegraphState.focusRegex !== selection.focusRegex
+    ) {
       this.flamegraphDatasets.clear();
     }
 
     this.lastSelectedFlamegraphState = {...selection};
 
-    const expandedId = selectedFlamegraphState.expandedCallsite ?
-      selectedFlamegraphState.expandedCallsite.id :
-      -1;
-    const rootSize = selectedFlamegraphState.expandedCallsite === undefined ?
-      undefined :
-      selectedFlamegraphState.expandedCallsite.totalSize;
+    const expandedCallsite =
+      selectedFlamegraphState.expandedCallsiteByViewingOption[
+        selectedFlamegraphState.viewingOption
+      ];
+    const expandedId = expandedCallsite ? expandedCallsite.id : -1;
+    const rootSize = expandedCallsite?.totalSize;
 
-    const key = `${selectedFlamegraphState.upids};${
-      selectedFlamegraphState.start};${selectedFlamegraphState.end}`;
+    const key = `${selectedFlamegraphState.upids};${selectedFlamegraphState.start};${selectedFlamegraphState.end}`;
 
     try {
       const flamegraphData = await this.getFlamegraphData(
         key,
         /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-        selectedFlamegraphState.viewingOption ?
-        /* eslint-enable */
-          selectedFlamegraphState.viewingOption :
-          defaultViewingOption(selectedFlamegraphState.type),
+        selectedFlamegraphState.viewingOption
+          ? /* eslint-enable */
+            selectedFlamegraphState.viewingOption
+          : defaultViewingOption(selectedFlamegraphState.type),
         selection.start,
         selection.end,
         selectedFlamegraphState.upids,
         selectedFlamegraphState.type,
-        selectedFlamegraphState.focusRegex);
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (flamegraphData !== undefined && selection &&
-          selection.kind === selectedFlamegraphState.kind &&
-          selection.start === selectedFlamegraphState.start &&
-          selection.end === selectedFlamegraphState.end) {
-        const expandedFlamegraphData =
-            expandCallsites(flamegraphData, expandedId);
+        selectedFlamegraphState.focusRegex,
+      );
+      if (
+        flamegraphData !== undefined &&
+        // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+        selection &&
+        selection.kind === selectedFlamegraphState.kind &&
+        selection.start === selectedFlamegraphState.start &&
+        selection.end === selectedFlamegraphState.end
+      ) {
+        const expandedFlamegraphData = expandCallsites(
+          flamegraphData,
+          expandedId,
+        );
         this.prepareAndMergeCallsites(
           expandedFlamegraphData,
           this.lastSelectedFlamegraphState.viewingOption,
           isInAreaSelection,
           rootSize,
-          this.lastSelectedFlamegraphState.expandedCallsite);
+          expandedCallsite,
+        );
       }
     } finally {
       this.requestingData = false;
@@ -232,128 +255,169 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   private shouldRequestData(selection: FlamegraphState) {
-    return selection.kind === 'FLAMEGRAPH_STATE' &&
-        (this.lastSelectedFlamegraphState === undefined ||
-         (this.lastSelectedFlamegraphState.start !== selection.start ||
-          this.lastSelectedFlamegraphState.end !== selection.end ||
-          this.lastSelectedFlamegraphState.type !== selection.type ||
-          !FlamegraphController.areArraysEqual(
-            this.lastSelectedFlamegraphState.upids, selection.upids) ||
-          this.lastSelectedFlamegraphState.viewingOption !==
-              selection.viewingOption ||
-          this.lastSelectedFlamegraphState.focusRegex !==
-              selection.focusRegex ||
-          this.lastSelectedFlamegraphState.expandedCallsite !==
-              selection.expandedCallsite));
+    return (
+      selection.kind === 'FLAMEGRAPH_STATE' &&
+      (this.lastSelectedFlamegraphState === undefined ||
+        this.lastSelectedFlamegraphState.start !== selection.start ||
+        this.lastSelectedFlamegraphState.end !== selection.end ||
+        this.lastSelectedFlamegraphState.type !== selection.type ||
+        !FlamegraphController.areArraysEqual(
+          this.lastSelectedFlamegraphState.upids,
+          selection.upids,
+        ) ||
+        this.lastSelectedFlamegraphState.viewingOption !==
+          selection.viewingOption ||
+        this.lastSelectedFlamegraphState.focusRegex !== selection.focusRegex ||
+        this.lastSelectedFlamegraphState.expandedCallsiteByViewingOption[
+          selection.viewingOption
+        ] !==
+          selection.expandedCallsiteByViewingOption[selection.viewingOption])
+    );
   }
 
   private prepareAndMergeCallsites(
     flamegraphData: CallsiteInfo[],
-    viewingOption: FlamegraphStateViewingOption, isInAreaSelection: boolean,
-    rootSize?: number, expandedCallsite?: CallsiteInfo) {
+    viewingOption: FlamegraphStateViewingOption,
+    isInAreaSelection: boolean,
+    rootSize?: number,
+    expandedCallsite?: CallsiteInfo,
+  ) {
     this.flamegraphDetails.flamegraph = mergeCallsites(
-      flamegraphData, this.getMinSizeDisplayed(flamegraphData, rootSize));
+      flamegraphData,
+      this.getMinSizeDisplayed(flamegraphData, rootSize),
+    );
     this.flamegraphDetails.expandedCallsite = expandedCallsite;
     this.flamegraphDetails.viewingOption = viewingOption;
     this.flamegraphDetails.isInAreaSelection = isInAreaSelection;
     this.checkCompletionAndPublishFlamegraph(this.flamegraphDetails);
   }
 
-  private async checkCompletionAndPublishFlamegraph(flamegraphDetails:
-                                                        FlamegraphDetails) {
+  private async checkCompletionAndPublishFlamegraph(
+    flamegraphDetails: FlamegraphDetails,
+  ) {
     flamegraphDetails.graphIncomplete =
-        (await this.args.engine.query(`select value from stats
-       where severity = 'error' and name = 'heap_graph_non_finalized_graph'`))
-          .firstRow({value: NUM})
-          .value > 0;
+      (
+        await this.args.engine.query(`select value from stats
+       where severity = 'error' and name = 'heap_graph_non_finalized_graph'`)
+      ).firstRow({value: NUM}).value > 0;
+    flamegraphDetails.graphLoading = false;
     publishFlamegraphDetails(flamegraphDetails);
   }
 
   async getFlamegraphData(
-    baseKey: string, viewingOption: FlamegraphStateViewingOption, start: time,
-    end: time, upids: number[], type: ProfileType,
-    focusRegex: string): Promise<CallsiteInfo[]> {
+    baseKey: string,
+    viewingOption: FlamegraphStateViewingOption,
+    start: time,
+    end: time,
+    upids: number[],
+    type: ProfileType,
+    focusRegex: string,
+  ): Promise<CallsiteInfo[]> {
     let currentData: CallsiteInfo[];
     const key = `${baseKey}-${viewingOption}`;
     if (this.flamegraphDatasets.has(key)) {
       currentData = this.flamegraphDatasets.get(key)!;
     } else {
-      // TODO(hjd): Show loading state.
-
+      publishFlamegraphDetails({
+        ...globals.flamegraphDetails,
+        graphLoading: true,
+      });
       // Collecting data for drawing flamegraph for selected profile.
       // Data needs to be in following format:
       // id, name, parent_id, depth, total_size
-      const tableName =
-          await this.prepareViewsAndTables(start, end, upids, type, focusRegex);
+      const tableName = await this.prepareViewsAndTables(
+        start,
+        end,
+        upids,
+        type,
+        focusRegex,
+        viewingOption,
+      );
       currentData = await this.getFlamegraphDataFromTables(
-        tableName, viewingOption, focusRegex);
+        tableName,
+        viewingOption,
+        focusRegex,
+      );
       this.flamegraphDatasets.set(key, currentData);
     }
     return currentData;
   }
 
   async getFlamegraphDataFromTables(
-    tableName: string, viewingOption: FlamegraphStateViewingOption,
-    focusRegex: string) {
+    tableName: string,
+    viewingOption: FlamegraphStateViewingOption,
+    focusRegex: string,
+  ) {
     let orderBy = '';
-    let totalColumnName: 'cumulativeSize'|'cumulativeAllocSize'|
-        'cumulativeCount'|'cumulativeAllocCount' = 'cumulativeSize';
-    let selfColumnName: 'size'|'count' = 'size';
+    let totalColumnName:
+      | 'cumulativeSize'
+      | 'cumulativeAllocSize'
+      | 'cumulativeCount'
+      | 'cumulativeAllocCount' = 'cumulativeSize';
+    let selfColumnName: 'size' | 'count' = 'size';
     // TODO(fmayer): Improve performance so this is no longer necessary.
     // Alternatively consider collapsing frames of the same label.
     const maxDepth = 100;
     switch (viewingOption) {
-    case FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY:
-      orderBy = `where cumulative_alloc_size > 0 and depth < ${
-        maxDepth} order by depth, parent_id,
+      case FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY:
+        orderBy = `where cumulative_alloc_size > 0 and depth < ${maxDepth} order by depth, parent_id,
             cumulative_alloc_size desc, name`;
-      totalColumnName = 'cumulativeAllocSize';
-      selfColumnName = 'size';
-      break;
-    case FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY:
-      orderBy = `where cumulative_count > 0 and depth < ${
-        maxDepth} order by depth, parent_id,
+        totalColumnName = 'cumulativeAllocSize';
+        selfColumnName = 'size';
+        break;
+      case FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY:
+        orderBy = `where cumulative_count > 0 and depth < ${maxDepth} order by depth, parent_id,
             cumulative_count desc, name`;
-      totalColumnName = 'cumulativeCount';
-      selfColumnName = 'count';
-      break;
-    case FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY:
-      orderBy = `where cumulative_alloc_count > 0 and depth < ${
-        maxDepth} order by depth, parent_id,
+        totalColumnName = 'cumulativeCount';
+        selfColumnName = 'count';
+        break;
+      case FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY:
+        orderBy = `where cumulative_alloc_count > 0 and depth < ${maxDepth} order by depth, parent_id,
             cumulative_alloc_count desc, name`;
-      totalColumnName = 'cumulativeAllocCount';
-      selfColumnName = 'count';
-      break;
-    case FlamegraphStateViewingOption.PERF_SAMPLES_KEY:
-    case FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY:
-      orderBy = `where cumulative_size > 0 and depth < ${
-        maxDepth} order by depth, parent_id,
+        totalColumnName = 'cumulativeAllocCount';
+        selfColumnName = 'count';
+        break;
+      case FlamegraphStateViewingOption.PERF_SAMPLES_KEY:
+      case FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY:
+        orderBy = `where cumulative_size > 0 and depth < ${maxDepth} order by depth, parent_id,
             cumulative_size desc, name`;
-      totalColumnName = 'cumulativeSize';
-      selfColumnName = 'size';
-      break;
-    default:
-      const exhaustiveCheck: never = viewingOption;
-      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
-      break;
+        totalColumnName = 'cumulativeSize';
+        selfColumnName = 'size';
+        break;
+      case FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_COUNT_KEY:
+        orderBy = `where depth < ${maxDepth} order by depth,
+          cumulativeCount desc, name`;
+        totalColumnName = 'cumulativeCount';
+        selfColumnName = 'count';
+        break;
+      case FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_SIZE_KEY:
+        orderBy = `where depth < ${maxDepth} order by depth,
+          cumulativeSize desc, name`;
+        totalColumnName = 'cumulativeSize';
+        selfColumnName = 'size';
+        break;
+      default:
+        const exhaustiveCheck: never = viewingOption;
+        throw new Error(`Unhandled case: ${exhaustiveCheck}`);
+        break;
     }
 
     const callsites = await this.args.engine.query(`
-        SELECT
-        id as hash,
-        IFNULL(IFNULL(DEMANGLE(name), name), '[NULL]') as name,
-        IFNULL(parent_id, -1) as parentHash,
-        depth,
-        cumulative_size as cumulativeSize,
-        cumulative_alloc_size as cumulativeAllocSize,
-        cumulative_count as cumulativeCount,
-        cumulative_alloc_count as cumulativeAllocCount,
-        map_name as mapping,
-        size,
-        count,
-        IFNULL(source_file, '') as sourceFile,
-        IFNULL(line_number, -1) as lineNumber
-        from ${tableName} ${orderBy}`);
+      SELECT
+      id as hash,
+      IFNULL(IFNULL(DEMANGLE(name), name), '[NULL]') as name,
+      IFNULL(parent_id, -1) as parentHash,
+      depth,
+      cumulative_size as cumulativeSize,
+      cumulative_alloc_size as cumulativeAllocSize,
+      cumulative_count as cumulativeCount,
+      cumulative_alloc_count as cumulativeAllocCount,
+      map_name as mapping,
+      size,
+      count,
+      IFNULL(source_file, '') as sourceFile,
+      IFNULL(line_number, -1) as lineNumber
+      from ${tableName} ${orderBy}`);
 
     const flamegraphData: CallsiteInfo[] = [];
     const hashToindex: Map<number, number> = new Map();
@@ -380,12 +444,14 @@ export class FlamegraphController extends Controller<'main'> {
       const totalSize = it[totalColumnName];
       const selfSize = it[selfColumnName];
       const mapping = it.mapping;
-      const highlighted = focusRegex !== '' &&
-          name.toLocaleLowerCase().includes(focusRegex.toLocaleLowerCase());
-      const parentId =
-          hashToindex.has(+parentHash) ? hashToindex.get(+parentHash)! : -1;
+      const highlighted =
+        focusRegex !== '' &&
+        name.toLocaleLowerCase().includes(focusRegex.toLocaleLowerCase());
+      const parentId = hashToindex.has(+parentHash)
+        ? hashToindex.get(+parentHash)!
+        : -1;
 
-      let location: string|undefined;
+      let location: string | undefined;
       if (/[a-zA-Z]/i.test(it.sourceFile)) {
         location = it.sourceFile;
         if (it.lineNumber !== -1) {
@@ -418,8 +484,13 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   private async prepareViewsAndTables(
-    start: time, end: time, upids: number[], type: ProfileType,
-    focusRegex: string): Promise<string> {
+    start: time,
+    end: time,
+    upids: number[],
+    type: ProfileType,
+    focusRegex: string,
+    viewingOption: FlamegraphStateViewingOption,
+  ): Promise<string> {
     const flamegraphType = getFlamegraphType(type);
     if (type === ProfileType.PERF_SAMPLE) {
       let upid: string;
@@ -442,7 +513,16 @@ export class FlamegraphController extends Controller<'main'> {
             ${upid},
             ${upidGroup},
             '${focusRegex}'
-          )`);
+          )`,
+      );
+    }
+    if (
+      type === ProfileType.JAVA_HEAP_GRAPH &&
+      isHeapGraphDominatorTreeViewingOption(viewingOption)
+    ) {
+      return this.cache.getTableName(
+        await this.loadHeapGraphDominatorTreeQuery(upids[0], end),
+      );
     }
     return this.cache.getTableName(
       `select id, name, map_name, parent_id, depth, cumulative_size,
@@ -455,11 +535,99 @@ export class FlamegraphController extends Controller<'main'> {
             ${upids[0]},
             NULL,
             '${focusRegex}'
-          )`);
+          )`,
+    );
   }
 
-  getMinSizeDisplayed(flamegraphData: CallsiteInfo[], rootSize?: number):
-      number {
+  private async loadHeapGraphDominatorTreeQuery(upid: number, timestamp: time) {
+    const selectTreeQuery = `
+    -- cache invalidate: upid ${upid}, ts ${timestamp}
+    SELECT * FROM heap_graph_type_dominated`;
+    if (
+      this.heapGraphSelected.upid === upid &&
+      this.heapGraphSelected.timestamp === timestamp
+    ) {
+      return selectTreeQuery;
+    }
+    this.heapGraphSelected = {upid, timestamp};
+    this.args.engine.query(`
+    INCLUDE PERFETTO MODULE memory.heap_graph_dominator_tree;
+
+    -- heap graph dominator tree with objects as nodes and all relavant
+    -- object self stats and dominated stats
+    CREATE PERFETTO TABLE heap_graph_object_dominated AS
+    SELECT
+     node.id,
+     node.idom_id,
+     node.dominated_obj_count,
+     node.dominated_size_bytes + node.dominated_native_size_bytes AS dominated_size,
+     node.depth,
+     obj.type_id,
+     obj.root_type,
+     obj.self_size + obj.native_size AS self_size
+    FROM memory_heap_graph_dominator_tree node
+    JOIN heap_graph_object obj USING(id)
+    WHERE obj.upid = ${upid} AND obj.graph_sample_ts = ${timestamp}
+    -- required to accelerate the recursive cte below
+    ORDER BY idom_id;
+
+    -- calculate for each object node in the dominator tree the
+    -- HASH(path of type_id's from the super root to the object)
+    CREATE PERFETTO TABLE _dominator_tree_path_hash AS
+    WITH RECURSIVE _tree_visitor(id, path, path_hash) AS (
+      SELECT
+        id,
+        CAST(type_id AS text) || '-' || IFNULL(root_type, '') AS path,
+        HASH(
+          CAST(type_id AS text) || '-' || IFNULL(root_type, '')
+        ) AS path_hash
+      FROM heap_graph_object_dominated
+      WHERE depth = 1
+      UNION ALL
+      SELECT
+        child.id,
+        parent.path || '/' || CAST(type_id AS text) AS path,
+        HASH(parent.path || '/' || CAST(type_id AS text)) AS path_hash
+      FROM heap_graph_object_dominated child
+      JOIN _tree_visitor parent ON child.idom_id = parent.id
+    )
+    SELECT * from _tree_visitor
+    ORDER BY id;
+
+    -- merge object nodes with the same path into one "class type node", so the
+    -- end result is a tree where nodes are identified by their types and the
+    -- dominator relationships are preserved.
+    CREATE PERFETTO TABLE heap_graph_type_dominated AS
+    SELECT
+      map.path_hash as id,
+      COALESCE(cls.deobfuscated_name, cls.name, '[NULL]') || IIF(
+        node.root_type IS NOT NULL,
+        ' [' || node.root_type || ']', ''
+      ) AS name,
+      IFNULL(parent_map.path_hash, -1) AS parent_id,
+      node.depth - 1 AS depth,
+      sum(dominated_size) AS cumulative_size,
+      -1 AS cumulative_alloc_size,
+      sum(dominated_obj_count) AS cumulative_count,
+      -1 AS cumulative_alloc_count,
+      '' as map_name,
+      '' as source_file,
+      -1 as line_number,
+      sum(self_size) AS size,
+      count(*) AS count
+    FROM heap_graph_object_dominated node
+    JOIN _dominator_tree_path_hash map USING(id)
+    LEFT JOIN _dominator_tree_path_hash parent_map ON node.idom_id = parent_map.id
+    JOIN heap_graph_class cls ON node.type_id = cls.id
+    GROUP BY map.path_hash, name, parent_id, depth, map_name, source_file, line_number;`);
+
+    return selectTreeQuery;
+  }
+
+  getMinSizeDisplayed(
+    flamegraphData: CallsiteInfo[],
+    rootSize?: number,
+  ): number {
     const timeState = globals.state.frontendLocalState.visibleState;
     const dur = globals.stateVisibleTime().duration;
     // TODO(stevegolton): Does this actually do what we want???
@@ -469,18 +637,25 @@ export class FlamegraphController extends Controller<'main'> {
     if (rootSize === undefined) {
       rootSize = findRootSize(flamegraphData);
     }
-    return MIN_PIXEL_DISPLAYED * rootSize / width;
+    return (MIN_PIXEL_DISPLAYED * rootSize) / width;
   }
 
   async getFlamegraphMetadata(
-    type: ProfileType, start: time, end: time,
-    upids: number[]): Promise<FlamegraphDetails|undefined> {
+    type: ProfileType,
+    start: time,
+    end: time,
+    upids: number[],
+  ): Promise<FlamegraphDetails | undefined> {
     // Don't do anything if selection of the marker stayed the same.
-    if ((this.lastSelectedFlamegraphState !== undefined &&
-         ((this.lastSelectedFlamegraphState.start === start &&
-           this.lastSelectedFlamegraphState.end === end &&
-           FlamegraphController.areArraysEqual(
-             this.lastSelectedFlamegraphState.upids, upids))))) {
+    if (
+      this.lastSelectedFlamegraphState !== undefined &&
+      this.lastSelectedFlamegraphState.start === start &&
+      this.lastSelectedFlamegraphState.end === end &&
+      FlamegraphController.areArraysEqual(
+        this.lastSelectedFlamegraphState.upids,
+        upids,
+      )
+    ) {
       return undefined;
     }
 
@@ -489,7 +664,8 @@ export class FlamegraphController extends Controller<'main'> {
     const upidGroup = FlamegraphController.serializeUpidGroup(upids);
 
     const result = await this.args.engine.query(
-      `select pid from process where upid in (${upidGroup})`);
+      `select pid from process where upid in (${upidGroup})`,
+    );
     const it = result.iter({pid: NUM});
     const pids = [];
     for (let i = 0; it.valid(); ++i, it.next()) {

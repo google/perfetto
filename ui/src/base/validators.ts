@@ -87,14 +87,14 @@ abstract class PrimitiveValidator<T> implements Validator<T> {
   }
 }
 
-class OptionalValidator<T> implements Validator<T|undefined> {
+class OptionalValidator<T> implements Validator<T | undefined> {
   private inner: Validator<T>;
 
   constructor(inner: Validator<T>) {
     this.inner = inner;
   }
 
-  validate(input: unknown, context: ValidatorContext): T|undefined {
+  validate(input: unknown, context: ValidatorContext): T | undefined {
     if (input === undefined) {
       return undefined;
     }
@@ -129,12 +129,12 @@ class BooleanValidator extends PrimitiveValidator<boolean> {
 }
 
 // Type-level function returning resulting type of a validator.
-export type ValidatedType<T> = T extends Validator<infer S>? S : never;
+export type ValidatedType<T> = T extends Validator<infer S> ? S : never;
 
 // Type-level function traversing a record of validator and returning record
 // with the same keys and valid types.
 export type RecordValidatedType<T> = {
-  [k in keyof T]: ValidatedType<T[k]>
+  [k in keyof T]: ValidatedType<T[k]>;
 };
 
 // Combinator for validators: takes a record of validators, and returns a
@@ -144,8 +144,9 @@ export type RecordValidatedType<T> = {
 // Generic parameter T is instantiated to type of record of validators, and
 // should be provided implicitly by type inference due to verbosity of its
 // instantiations.
-class RecordValidator<T extends Record<string, Validator<unknown>>> implements
-    Validator<RecordValidatedType<T>> {
+class RecordValidator<T extends Record<string, Validator<unknown>>>
+  implements Validator<RecordValidatedType<T>>
+{
   validators: T;
 
   constructor(validators: T) {
@@ -172,8 +173,10 @@ class RecordValidator<T extends Record<string, Validator<unknown>>> implements
         // Accessing value of `k` of `o` is safe because `undefined` values are
         // considered to indicate a missing value and handled appropriately by
         // every provided validator.
-        const valid =
-            validator.validate((o as Record<string, unknown>)[k], context);
+        const valid = validator.validate(
+          (o as Record<string, unknown>)[k],
+          context,
+        );
 
         result[k] = valid as ValidatedType<T[string]>;
         context.path.pop();
@@ -247,7 +250,9 @@ export interface ValidationResult<T> {
 
 // Wrapper for running a validator initializing the context.
 export function runValidator<T>(
-  validator: Validator<T>, input: unknown): ValidationResult<T> {
+  validator: Validator<T>,
+  input: unknown,
+): ValidationResult<T> {
   const context: ValidatorContext = {
     path: [],
     invalidKeys: [],
@@ -286,14 +291,16 @@ export const requiredBool = new BooleanValidator(false, true);
 
 export const optBool = new OptionalValidator<boolean>(requiredBool);
 
-
 export function record<T extends Record<string, Validator<unknown>>>(
-  validators: T): RecordValidator<T> {
+  validators: T,
+): RecordValidator<T> {
   return new RecordValidator<T>(validators);
 }
 
 export function oneOf<T>(
-  values: readonly T[], defaultValue: T): OneOfValidator<T> {
+  values: readonly T[],
+  defaultValue: T,
+): OneOfValidator<T> {
   return new OneOfValidator<T>(values, defaultValue);
 }
 

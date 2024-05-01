@@ -27,20 +27,15 @@ module.exports = {
       'requireReturn': false,
     }],
 
-    // Max line length is 80 with 2 space tabs.
-    // This matches the the old clang-format definition for consistency.
-    'max-len': [
-      'error',
-      {
-        'code': 80,
-        'tabWidth': 2,
-        'ignoreUrls': true,
-        'ignoreTemplateLiterals': true,
-        'ignoreStrings': true,
-      },
-    ],
-
-    "indent": ["error", 2],
+    // Formatting handled by prettier
+    "indent": "off",
+    'max-len': "off",
+    "operator-linebreak": "off",
+    "quotes": "off",
+    "brace-style": "off",
+    "space-before-function-paren": "off",
+    "generator-star-spacing": "off",
+    "semi-spacing": "off",
 
     // clang-format --js used to format EOL comments after (e.g.) an if like:
     // if (foo) {  // insightful comment

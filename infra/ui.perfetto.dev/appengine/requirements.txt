@@ -1,2 +1,3 @@
-Flask==1.1.2
+Flask==2.2.5
+Jinja2==3.0.3
 requests

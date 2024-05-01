@@ -26,7 +26,7 @@ import {globals} from './globals';
 import {publishHttpRpcState} from './publish';
 
 const CURRENT_API_VERSION =
-    TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
+  TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
 
 function getPromptMessage(tpStatus: StatusResult): string {
   return `Trace Processor Native Accelerator detected on ${HttpRpcEngine.hostAndPort} with:
@@ -174,18 +174,18 @@ export async function CheckHttpRpcConnection(): Promise<void> {
       // switch.
       const result = await showDialogVersionMismatch(tpStatus, url);
       switch (result) {
-      case MismatchedVersionDialog.Dismissed:
-      case MismatchedVersionDialog.UseMatchingUi:
-        Router.navigateToVersion(tpStatus.versionCode);
-        return;
-      case MismatchedVersionDialog.UseMismatchedRpc:
-        break;
-      case MismatchedVersionDialog.UseWasm:
-        forceWasm();
-        return;
-      default:
-        const x: never = result;
-        throw new Error(`Unsupported result ${x}`);
+        case MismatchedVersionDialog.Dismissed:
+        case MismatchedVersionDialog.UseMatchingUi:
+          Router.navigateToVersion(tpStatus.versionCode);
+          return;
+        case MismatchedVersionDialog.UseMismatchedRpc:
+          break;
+        case MismatchedVersionDialog.UseWasm:
+          forceWasm();
+          return;
+        default:
+          const x: never = result;
+          throw new Error(`Unsupported result ${x}`);
       }
     }
   }
@@ -194,15 +194,15 @@ export async function CheckHttpRpcConnection(): Promise<void> {
   if (tpStatus.apiVersion < CURRENT_API_VERSION) {
     const result = await showDialogIncompatibleRPC(tpStatus);
     switch (result) {
-    case IncompatibleRpcDialogResult.Dismissed:
-    case IncompatibleRpcDialogResult.UseWasm:
-      forceWasm();
-      return;
-    case IncompatibleRpcDialogResult.UseIncompatibleRpc:
-      break;
-    default:
-      const x: never = result;
-      throw new Error(`Unsupported result ${x}`);
+      case IncompatibleRpcDialogResult.Dismissed:
+      case IncompatibleRpcDialogResult.UseWasm:
+        forceWasm();
+        return;
+      case IncompatibleRpcDialogResult.UseIncompatibleRpc:
+        break;
+      default:
+        const x: never = result;
+        throw new Error(`Unsupported result ${x}`);
     }
   }
 
@@ -213,19 +213,19 @@ export async function CheckHttpRpcConnection(): Promise<void> {
     // initialize the UI with the already-loaded trace.
     const result = await showDialogToUsePreloadedTrace(tpStatus);
     switch (result) {
-    case PreloadedDialogResult.Dismissed:
-    case PreloadedDialogResult.UseRpcWithPreloadedTrace:
-      globals.dispatch(Actions.openTraceFromHttpRpc({}));
-      return;
-    case PreloadedDialogResult.UseRpc:
-      // Resetting state is the default.
-      return;
-    case PreloadedDialogResult.UseWasm:
-      forceWasm();
-      return;
-    default:
-      const x: never = result;
-      throw new Error(`Unsupported result ${x}`);
+      case PreloadedDialogResult.Dismissed:
+      case PreloadedDialogResult.UseRpcWithPreloadedTrace:
+        globals.dispatch(Actions.openTraceFromHttpRpc({}));
+        return;
+      case PreloadedDialogResult.UseRpc:
+        // Resetting state is the default.
+        return;
+      case PreloadedDialogResult.UseWasm:
+        forceWasm();
+        return;
+      default:
+        const x: never = result;
+        throw new Error(`Unsupported result ${x}`);
     }
   }
 }
@@ -237,9 +237,10 @@ enum MismatchedVersionDialog {
   Dismissed = 'dismissed',
 }
 
-async function showDialogVersionMismatch(tpStatus: StatusResult,
-  url: string):
-            Promise<MismatchedVersionDialog> {
+async function showDialogVersionMismatch(
+  tpStatus: StatusResult,
+  url: string,
+): Promise<MismatchedVersionDialog> {
   let result = MismatchedVersionDialog.Dismissed;
   await showModal({
     title: 'Version mismatch',
@@ -275,8 +276,9 @@ enum IncompatibleRpcDialogResult {
   Dismissed = 'dismissed',
 }
 
-async function showDialogIncompatibleRPC(tpStatus: StatusResult):
-      Promise<IncompatibleRpcDialogResult> {
+async function showDialogIncompatibleRPC(
+  tpStatus: StatusResult,
+): Promise<IncompatibleRpcDialogResult> {
   let result = IncompatibleRpcDialogResult.Dismissed;
   await showModal({
     title: 'Incompatible RPC version',
@@ -307,8 +309,9 @@ enum PreloadedDialogResult {
   Dismissed = 'dismissed',
 }
 
-async function showDialogToUsePreloadedTrace(tpStatus: StatusResult):
-    Promise<PreloadedDialogResult> {
+async function showDialogToUsePreloadedTrace(
+  tpStatus: StatusResult,
+): Promise<PreloadedDialogResult> {
   let result = PreloadedDialogResult.Dismissed;
   await showModal({
     title: 'Use trace processor native acceleration?',

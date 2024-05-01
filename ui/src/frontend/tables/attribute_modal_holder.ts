@@ -46,7 +46,7 @@ export class AttributeModalHolder {
   private renderModalContents() {
     return m(ArgumentPopup, {
       knownArguments:
-          globals.state.nonSerializableState.pivotTable.argumentNames,
+        globals.state.nonSerializableState.pivotTable.argumentNames,
       onArgumentChange: (arg) => {
         this.typedArgument = arg;
       },

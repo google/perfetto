@@ -13,14 +13,7 @@
 // limitations under the License.
 
 import {sqliteString} from '../base/string_utils';
-import {
-  Duration,
-  duration,
-  Span,
-  time,
-  Time,
-  TimeSpan,
-} from '../base/time';
+import {Duration, duration, Span, time, Time, TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {OmniboxState} from '../common/state';
@@ -74,19 +67,23 @@ export class SearchController extends Controller<'main'> {
 
     const visibleState = globals.state.frontendLocalState.visibleState;
     const omniboxState = globals.state.omniboxState;
-    if (visibleState === undefined || omniboxState === undefined ||
-        omniboxState.mode === 'COMMAND') {
+    if (
+      visibleState === undefined ||
+      omniboxState === undefined ||
+      omniboxState.mode === 'COMMAND'
+    ) {
       return;
     }
     const newSpan = globals.stateVisibleTime();
     const newOmniboxState = omniboxState;
     const newResolution = visibleState.resolution;
-    if (this.previousSpan.contains(newSpan) &&
-        this.previousResolution === newResolution &&
-        this.previousOmniboxState === newOmniboxState) {
+    if (
+      this.previousSpan.contains(newSpan) &&
+      this.previousResolution === newResolution &&
+      this.previousOmniboxState === newOmniboxState
+    ) {
       return;
     }
-
 
     // TODO(hjd): We should restrict this to the start of the trace but
     // that is not easily available here.
@@ -114,28 +111,33 @@ export class SearchController extends Controller<'main'> {
     }
 
     this.updateInProgress = true;
-    const computeSummary =
-        this.update(search, newSpan.start, newSpan.end, newResolution)
-          .then((summary) => {
-            publishSearch(summary);
-          });
+    const computeSummary = this.update(
+      search,
+      newSpan.start,
+      newSpan.end,
+      newResolution,
+    ).then((summary) => {
+      publishSearch(summary);
+    });
 
     const computeResults = this.specificSearch(search).then((searchResults) => {
       publishSearchResult(searchResults);
     });
 
-    Promise.all([computeSummary, computeResults])
-      .finally(() => {
-        this.updateInProgress = false;
-        this.run();
-      });
+    Promise.all([computeSummary, computeResults]).finally(() => {
+      this.updateInProgress = false;
+      this.run();
+    });
   }
 
   onDestroy() {}
 
   private async update(
-    search: string, start: time, end: time,
-    resolution: duration): Promise<SearchSummary> {
+    search: string,
+    start: time,
+    end: time,
+    resolution: duration,
+  ): Promise<SearchSummary> {
     const searchLiteral = escapeSearchQuery(search);
 
     const quantum = resolution * 10n;
@@ -236,8 +238,8 @@ export class SearchController extends Controller<'main'> {
       from slice
       where slice.name glob ${searchLiteral}
         or (
-          0 != CAST(${(sqliteString(search))} AS INT) and
-          sliceId = CAST(${(sqliteString(search))} AS INT)
+          0 != CAST(${sqliteString(search)} AS INT) and
+          sliceId = CAST(${sqliteString(search)} AS INT)
         )
     union
     select
@@ -271,21 +273,26 @@ export class SearchController extends Controller<'main'> {
       totalResults: 0,
     };
 
-    const it = queryRes.iter(
-      {sliceId: NUM, ts: LONG, source: STR, sourceId: NUM, utid: NUM});
+    const it = queryRes.iter({
+      sliceId: NUM,
+      ts: LONG,
+      source: STR,
+      sourceId: NUM,
+      utid: NUM,
+    });
     for (; it.valid(); it.next()) {
       let trackId = undefined;
       if (it.source === 'cpu') {
         trackId = cpuToTrackId.get(it.sourceId);
       } else if (it.source === 'track') {
-        trackId = globals.state.trackKeyByTrackId[it.sourceId];
+        trackId = globals.trackManager.trackKeyByTrackId.get(it.sourceId);
       } else if (it.source === 'log') {
-        const logTracks =
-            Object.values(globals.state.tracks).filter((track) => {
-              const trackDesc =
-                  globals.trackManager.resolveTrackInfo(track.uri);
-              return (trackDesc && trackDesc.kind === 'AndroidLogTrack');
-            });
+        const logTracks = Object.values(globals.state.tracks).filter(
+          (track) => {
+            const trackDesc = globals.trackManager.resolveTrackInfo(track.uri);
+            return trackDesc && trackDesc.kind === 'AndroidLogTrack';
+          },
+        );
         if (logTracks.length > 0) {
           trackId = logTracks[0].key;
         }

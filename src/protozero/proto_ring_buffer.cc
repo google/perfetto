@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/protozero/proto_ring_buffer.h"
+#include "perfetto/ext/protozero/proto_ring_buffer.h"
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/paged_memory.h"

@@ -16,18 +16,20 @@
 
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
 
-#include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <cstdint>
 
 #include <algorithm>
 #include <iterator>
+#include <limits>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
+#include "src/traced/probes/ftrace/ftrace_config_utils.h"
 #include "src/traced/probes/ftrace/ftrace_stats.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -35,8 +37,14 @@
 namespace perfetto {
 namespace {
 
-constexpr int kDefaultPerCpuBufferSizeKb = 2 * 1024;  // 2mb
-constexpr int kMaxPerCpuBufferSizeKb = 64 * 1024;     // 64mb
+constexpr uint64_t kDefaultLowRamPerCpuBufferSizeKb = 2 * (1ULL << 10);   // 2mb
+constexpr uint64_t kDefaultHighRamPerCpuBufferSizeKb = 8 * (1ULL << 10);  // 8mb
+constexpr uint64_t kMaxPerCpuBufferSizeKb = 64 * (1ULL << 10);  // 64mb
+
+// Threshold for physical ram size used when deciding on default kernel buffer
+// sizes. We want to detect 8 GB, but the size reported through sysconf is
+// usually lower.
+constexpr uint64_t kHighMemBytes = 7 * (1ULL << 30);  // 7gb
 
 // A fake "syscall id" that indicates all syscalls should be recorded. This
 // allows us to distinguish between the case where `syscall_events` is empty
@@ -195,6 +203,9 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
         AddEventGroup(table, "g2d", &events);
         InsertEvent("g2d", "tracing_mark_write", &events);
         InsertEvent("g2d", "g2d_perf_update_qos", &events);
+
+        AddEventGroup(table, "panel", &events);
+        InsertEvent("panel", "panel_write_generic", &events);
         continue;
       }
 
@@ -452,6 +463,12 @@ std::set<GroupAndName> FtraceConfigMuxer::GetFtraceEvents(
     }
   }
 
+  // recording a subset of syscalls -> enable the backing events
+  if (request.syscall_events_size() > 0) {
+    InsertEvent("raw_syscalls", "sys_enter", &events);
+    InsertEvent("raw_syscalls", "sys_exit", &events);
+  }
+
   // function_graph tracer emits two builtin ftrace events
   if (request.enable_function_graph()) {
     InsertEvent("ftrace", "funcgraph_entry", &events);
@@ -560,39 +577,20 @@ bool FtraceConfigMuxer::SetSyscallEventFilter(
   return true;
 }
 
-// Post-conditions:
-// 1. result >= 1 (should have at least one page per CPU)
-// 2. result * 4 < kMaxTotalBufferSizeKb
-// 3. If input is 0 output is a good default number.
-size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb) {
-  if (requested_buffer_size_kb == 0)
-    requested_buffer_size_kb = kDefaultPerCpuBufferSizeKb;
-  if (requested_buffer_size_kb > kMaxPerCpuBufferSizeKb) {
-    PERFETTO_ELOG(
-        "The requested ftrace buf size (%zu KB) is too big, capping to %d KB",
-        requested_buffer_size_kb, kMaxPerCpuBufferSizeKb);
-    requested_buffer_size_kb = kMaxPerCpuBufferSizeKb;
-  }
-
-  size_t pages = requested_buffer_size_kb / (base::GetSysPageSize() / 1024);
-  if (pages == 0)
-    return 1;
-
-  return pages;
-}
-
 FtraceConfigMuxer::FtraceConfigMuxer(
     FtraceProcfs* ftrace,
+    AtraceWrapper* atrace_wrapper,
     ProtoTranslationTable* table,
     SyscallTable syscalls,
     std::map<std::string, std::vector<GroupAndName>> vendor_events,
     bool secondary_instance)
     : ftrace_(ftrace),
+      atrace_wrapper_(atrace_wrapper),
       table_(table),
       syscalls_(std::move(syscalls)),
       current_state_(),
       ds_configs_(),
-      vendor_events_(vendor_events),
+      vendor_events_(std::move(vendor_events)),
       secondary_instance_(secondary_instance) {}
 FtraceConfigMuxer::~FtraceConfigMuxer() = default;
 
@@ -629,12 +627,12 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
     // Set up the rest of the tracefs state, without starting it.
     // Notes:
     // * resizing buffers can be quite slow (up to hundreds of ms).
-    // * resizing buffers doesn't clear their existing contents, which matters
-    // to the preserve_ftrace_buffer option.
+    // * resizing buffers may truncate existing contents if the new size is
+    // smaller, which matters to the preserve_ftrace_buffer option.
     if (!request.preserve_ftrace_buffer()) {
       SetupClock(request);
+      SetupBufferSize(request);
     }
-    SetupBufferSize(request);
   }
 
   std::set<GroupAndName> events = GetFtraceEvents(request, table_);
@@ -658,7 +656,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
           "atrace_apps options as they affect global state");
       return false;
     }
-    if (IsOldAtrace() && !ds_configs_.empty()) {
+    if (!atrace_wrapper_->SupportsUserspaceOnly() && !ds_configs_.empty()) {
       PERFETTO_ELOG(
           "Concurrent atrace sessions are not supported before Android P, "
           "bailing out.");
@@ -745,7 +743,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
       request, filter.IsEventEnabled(compact_format.sched_switch.event_id),
       compact_format);
   if (errors && !compact_format.format_valid) {
-    errors->failed_ftrace_events.push_back(
+    errors->failed_ftrace_events.emplace_back(
         "perfetto/compact_sched (unexpected sched event format)");
   }
 
@@ -755,7 +753,7 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
         FtracePrintFilterConfig::Create(request.print_filter(), table_);
     if (!ftrace_print_filter.has_value()) {
       if (errors) {
-        errors->failed_ftrace_events.push_back(
+        errors->failed_ftrace_events.emplace_back(
             "ftrace/print (unexpected format for filtering)");
       }
     }
@@ -765,12 +763,11 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
   std::vector<std::string> categories(request.atrace_categories());
   ds_configs_.emplace(
       std::piecewise_construct, std::forward_as_tuple(id),
-      std::forward_as_tuple(std::move(filter), std::move(syscall_filter),
-                            compact_sched, std::move(ftrace_print_filter),
-                            std::move(apps), std::move(categories),
-                            request.symbolize_ksyms(),
-                            request.preserve_ftrace_buffer(),
-                            GetSyscallsReturningFds(syscalls_)));
+      std::forward_as_tuple(
+          std::move(filter), std::move(syscall_filter), compact_sched,
+          std::move(ftrace_print_filter), std::move(apps),
+          std::move(categories), request.symbolize_ksyms(),
+          request.drain_buffer_percent(), GetSyscallsReturningFds(syscalls_)));
   return true;
 }
 
@@ -780,16 +777,25 @@ bool FtraceConfigMuxer::ActivateConfig(FtraceConfigId id) {
     return false;
   }
 
-  // Enable tracing_on to activate ftrace ring buffer before activate the first
-  // config.
-  if (active_configs_.empty()) {
+  bool first_config = active_configs_.empty();
+  active_configs_.insert(id);
+
+  // Pick the lowest buffer_percent across the new set of active configs.
+  if (!UpdateBufferPercent()) {
+    PERFETTO_ELOG(
+        "Invalid FtraceConfig.drain_buffer_percent or "
+        "/sys/kernel/tracing/buffer_percent file permissions.");
+    // carry on, non-critical error
+  }
+
+  // Enable kernel event writer.
+  if (first_config) {
     if (!ftrace_->SetTracingOn(true)) {
       PERFETTO_ELOG("Failed to enable ftrace.");
+      active_configs_.erase(id);
       return false;
     }
   }
-
-  active_configs_.insert(id);
   return true;
 }
 
@@ -849,12 +855,16 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
     }
   }
 
+  // Update buffer_percent to the minimum of the remaining configs.
+  UpdateBufferPercent();
+
   // Even if we don't have any other active configs, we might still have idle
   // configs around. Tear down the rest of the ftrace config only if all
   // configs are removed.
   if (ds_configs_.empty()) {
     if (ftrace_->SetCpuBufferSizeInPages(1))
       current_state_.cpu_buffer_size_pages = 1;
+    ftrace_->SetBufferPercent(50);
     ftrace_->DisableAllEvents();
     ftrace_->ClearTrace();
     ftrace_->SetTracingOn(current_state_.saved_tracing_on);
@@ -945,13 +955,65 @@ void FtraceConfigMuxer::SetupClock(const FtraceConfig& config) {
 }
 
 void FtraceConfigMuxer::SetupBufferSize(const FtraceConfig& request) {
-  size_t pages = ComputeCpuBufferSizeInPages(request.buffer_size_kb());
+  int64_t phys_ram_pages = sysconf(_SC_PHYS_PAGES);
+  size_t pages = ComputeCpuBufferSizeInPages(request.buffer_size_kb(),
+                                             request.buffer_size_lower_bound(),
+                                             phys_ram_pages);
   ftrace_->SetCpuBufferSizeInPages(pages);
   current_state_.cpu_buffer_size_pages = pages;
 }
 
+// Post-conditions:
+// 1. result >= 1 (should have at least one page per CPU)
+// 2. result < kMaxTotalBufferSizeKb / (page_size / 1024)
+// 3. If input is 0 output is a good default number
+size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb,
+                                   bool buffer_size_lower_bound,
+                                   int64_t sysconf_phys_pages) {
+  uint32_t page_sz = base::GetSysPageSize();
+  uint64_t default_size_kb =
+      (sysconf_phys_pages > 0 &&
+       (static_cast<uint64_t>(sysconf_phys_pages) >= (kHighMemBytes / page_sz)))
+          ? kDefaultHighRamPerCpuBufferSizeKb
+          : kDefaultLowRamPerCpuBufferSizeKb;
+
+  size_t actual_size_kb = requested_buffer_size_kb;
+  if ((requested_buffer_size_kb == 0) ||
+      (buffer_size_lower_bound && default_size_kb > requested_buffer_size_kb)) {
+    actual_size_kb = default_size_kb;
+  }
+
+  if (actual_size_kb > kMaxPerCpuBufferSizeKb) {
+    PERFETTO_ELOG(
+        "The requested ftrace buf size (%zu KB) is too big, capping to %" PRIu64
+        " KB",
+        actual_size_kb, kMaxPerCpuBufferSizeKb);
+    actual_size_kb = kMaxPerCpuBufferSizeKb;
+  }
+
+  size_t pages = actual_size_kb / (page_sz / 1024);
+  return pages ? pages : 1;
+}
+
 size_t FtraceConfigMuxer::GetPerCpuBufferSizePages() {
   return current_state_.cpu_buffer_size_pages;
+}
+
+// If new_cfg_id is set, consider it in addition to already active configs
+// as we're trying to activate it.
+bool FtraceConfigMuxer::UpdateBufferPercent() {
+  uint32_t kUnsetPercent = std::numeric_limits<uint32_t>::max();
+  uint32_t min_percent = kUnsetPercent;
+  for (auto cfg_id : active_configs_) {
+    auto ds_it = ds_configs_.find(cfg_id);
+    if (ds_it != ds_configs_.end() && ds_it->second.buffer_percent > 0) {
+      min_percent = std::min(min_percent, ds_it->second.buffer_percent);
+    }
+  }
+  if (min_percent == kUnsetPercent)
+    return true;
+  // Let the kernel ignore values >100.
+  return ftrace_->SetBufferPercent(min_percent);
 }
 
 void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request,
@@ -980,7 +1042,6 @@ void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request,
   }
 }
 
-// static
 bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
                                     const std::vector<std::string>& categories,
                                     std::string* atrace_errors) {
@@ -989,7 +1050,7 @@ bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
   std::vector<std::string> args;
   args.push_back("atrace");  // argv0 for exec()
   args.push_back("--async_start");
-  if (!IsOldAtrace())
+  if (atrace_wrapper_->SupportsUserspaceOnly())
     args.push_back("--only_userspace");
 
   for (const auto& category : categories)
@@ -1006,7 +1067,7 @@ bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
     args.push_back(arg);
   }
 
-  bool result = RunAtrace(args, atrace_errors);
+  bool result = atrace_wrapper_->RunAtrace(args, atrace_errors);
   PERFETTO_DLOG("...done (%s)", result ? "success" : "fail");
   return result;
 }
@@ -1017,9 +1078,9 @@ void FtraceConfigMuxer::DisableAtrace() {
   PERFETTO_DLOG("Stop atrace...");
 
   std::vector<std::string> args{"atrace", "--async_stop"};
-  if (!IsOldAtrace())
+  if (atrace_wrapper_->SupportsUserspaceOnly())
     args.push_back("--only_userspace");
-  if (RunAtrace(args, /*atrace_errors=*/nullptr)) {
+  if (atrace_wrapper_->RunAtrace(args, /*atrace_errors=*/nullptr)) {
     current_state_.atrace_categories.clear();
     current_state_.atrace_apps.clear();
     current_state_.atrace_on = false;

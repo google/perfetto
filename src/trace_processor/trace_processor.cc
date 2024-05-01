@@ -16,11 +16,12 @@
 
 #include "perfetto/trace_processor/trace_processor.h"
 
-#include "src/trace_processor/sqlite/sqlite_table.h"
+#include <memory>
+
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/trace_processor_impl.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 TraceProcessor::MetatraceConfig::MetatraceConfig() = default;
 
@@ -32,12 +33,4 @@ std::unique_ptr<TraceProcessor> TraceProcessor::CreateInstance(
 
 TraceProcessor::~TraceProcessor() = default;
 
-// static
-void EnableSQLiteVtableDebugging() {
-  // This level of indirection is required to avoid clients to depend on table.h
-  // which in turn requires sqlite headers.
-  SqliteTable::debug = true;
-}
-
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

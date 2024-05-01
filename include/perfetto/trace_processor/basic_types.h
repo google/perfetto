@@ -20,14 +20,13 @@
 #include <assert.h>
 #include <math.h>
 #include <stdarg.h>
-#include <stdint.h>
-#include <functional>
+#include <cstdint>
+
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"
 #include "perfetto/base/logging.h"
 
@@ -94,7 +93,25 @@ enum class DropFtraceDataBefore {
   // trace, no data is dropped.
   // This option can be used in cases where R- traces are being considered and
   // |kTracingStart| cannot be used because the event was not present.
-  kAllDataSourcesStarted = 2,
+  kAllDataSourcesStarted = 2
+};
+
+// Specifies whether the ftrace data should be "soft-dropped" until a given
+// global timestamp, meaning we'll still populate the |ftrace_events| table
+// and some other internal storage, but won't persist derived info such as
+// slices. See also |DropFtraceDataBefore| above.
+// Note: this might behave in surprising ways for traces using >1 tracefs
+// instances, but those aren't seen in practice at the time of writing.
+enum class SoftDropFtraceDataBefore {
+  // Drop until the earliest timestamp covered by all per-cpu event bundles.
+  // In other words, the maximum of all per-cpu "valid from" timestamps.
+  // Important for correct parsing of traces where the ftrace data is written
+  // into a central perfetto buffer in ring-buffer mode (as opposed to discard
+  // mode).
+  kAllPerCpuBuffersValid = 0,
+
+  // Keep all events (though DropFtraceDataBefore still applies).
+  kNoDrop = 1
 };
 
 // Enum which encodes which timestamp source (if any) should be used to drop
@@ -126,9 +143,14 @@ struct PERFETTO_EXPORT_COMPONENT Config {
   bool ingest_ftrace_in_raw_table = true;
 
   // Indicates the event which should be used as a marker to drop ftrace data in
-  // the trace before that event. See the ennu documenetation for more details.
+  // the trace before that event. See the enum documentation for more details.
   DropFtraceDataBefore drop_ftrace_data_before =
       DropFtraceDataBefore::kTracingStarted;
+
+  // Specifies whether the ftrace data should be "soft-dropped" until a given
+  // global timestamp.
+  SoftDropFtraceDataBefore soft_drop_ftrace_data_before =
+      SoftDropFtraceDataBefore::kAllPerCpuBuffersValid;
 
   // Indicates the source of timestamp before which track events should be
   // dropped. See the enum documentation for more details.
@@ -248,8 +270,8 @@ struct SqlModule {
   //
   // It is encouraged that import key should be the path to the SQL file being
   // run, with slashes replaced by dots and without the SQL extension. For
-  // example, 'android/camera/junk.sql' would be imported by
-  // 'android.camera.junk'.
+  // example, 'android/camera/jank.sql' would be imported by
+  // 'android.camera.jank'.
   std::vector<std::pair<std::string, std::string>> files;
 
   // If true, SqlModule will override registered module with the same name. Can

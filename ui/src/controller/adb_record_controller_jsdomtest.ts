@@ -36,8 +36,7 @@ const mockIntArray = new Uint8Array();
 const enableTracingRequest = new EnableTracingRequest();
 enableTracingRequest.traceConfig = new TraceConfig();
 const enableTracingRequestProto =
-    EnableTracingRequest.encode(enableTracingRequest).finish();
-
+  EnableTracingRequest.encode(enableTracingRequest).finish();
 
 test('handleCommand', async () => {
   adbController.findDevice = () => {
@@ -65,23 +64,25 @@ test('enableTracing', async () => {
   const adbMock = new MockAdb();
   const adbController = new AdbConsumerPort(adbMock, mainCallback);
 
-  adbController.sendErrorMessage =
-      jest.fn().mockImplementation((s) => console.error(s));
+  adbController.sendErrorMessage = jest
+    .fn()
+    .mockImplementation((s) => console.error(s));
 
   const findDevice = jest.fn().mockImplementation(() => {
     return Promise.resolve({} as unknown as USBDevice);
   });
   adbController.findDevice = findDevice;
 
-  const connectToDevice =
-      jest.fn().mockImplementation((_: USBDevice) => Promise.resolve());
+  const connectToDevice = jest
+    .fn()
+    .mockImplementation((_: USBDevice) => Promise.resolve());
   adbMock.connect = connectToDevice;
 
   const stream: AdbStream = new MockAdbStream();
-  const adbShell =
-      jest.fn().mockImplementation((_: string) => Promise.resolve(stream));
+  const adbShell = jest
+    .fn()
+    .mockImplementation((_: string) => Promise.resolve(stream));
   adbMock.shell = adbShell;
-
 
   const sendMessage = jest.fn();
   adbController.sendMessage = sendMessage;
@@ -92,7 +93,6 @@ test('enableTracing', async () => {
   expect(adbShell).toBeCalledWith('CMD');
   expect(sendMessage).toHaveBeenCalledTimes(0);
 
-
   stream.onData(utf8Encode('starting tracing Wrote 123 bytes'));
   stream.onClose();
 
@@ -100,27 +100,30 @@ test('enableTracing', async () => {
   expect(sendMessage).toBeCalledWith({type: 'EnableTracingResponse'});
 });
 
-
 test('generateStartTracing', () => {
   adbController.traceDestFile = 'DEST';
   const testArray = new Uint8Array(1);
   testArray[0] = 65;
   const generatedCmd = adbController.generateStartTracingCommand(testArray);
-  expect(generatedCmd)
-    .toBe(`echo '${btoa('A')}' | base64 -d | perfetto -c - -o DEST`);
+  expect(generatedCmd).toBe(
+    `echo '${btoa('A')}' | base64 -d | perfetto -c - -o DEST`,
+  );
 });
 
 test('tracingEndedSuccessfully', () => {
   expect(
     adbController.tracingEndedSuccessfully(
-      'Connected to the Perfetto traced service, starting tracing for 10000 ms\nWrote 564 bytes into /data/misc/perfetto-traces/trace'))
-    .toBe(true);
+      'Connected to the Perfetto traced service, starting tracing for 10000 ms\nWrote 564 bytes into /data/misc/perfetto-traces/trace',
+    ),
+  ).toBe(true);
   expect(
     adbController.tracingEndedSuccessfully(
-      'Connected to the Perfetto traced service, starting tracing for 10000 ms'))
-    .toBe(false);
+      'Connected to the Perfetto traced service, starting tracing for 10000 ms',
+    ),
+  ).toBe(false);
   expect(
     adbController.tracingEndedSuccessfully(
-      'Connected to the Perfetto traced service, starting tracing for 0 ms'))
-    .toBe(false);
+      'Connected to the Perfetto traced service, starting tracing for 0 ms',
+    ),
+  ).toBe(false);
 });

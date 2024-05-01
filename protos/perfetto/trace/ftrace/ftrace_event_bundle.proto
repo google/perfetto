@@ -31,10 +31,6 @@ message FtraceEventBundle {
   // Set to true if there was data loss between the last time we've read from
   // the corresponding per-cpu kernel buffer, and the earliest event recorded
   // in this bundle.
-  // TODO(rsavitski): consider replicating in the newer FtraceError. This field
-  // has been set since the original implementation, but used only for manual
-  // debugging. Trace processor instead looks at the FtraceStats totals for the
-  // tracing session.
   optional bool lost_events = 3;
 
   // Optionally-enabled compact encoding of a batch of scheduling events. Only
@@ -116,6 +112,16 @@ message FtraceEventBundle {
     optional FtraceParseStatus status = 2;
   }
   repeated FtraceError error = 8;
+
+  // The timestamp (ftrace clock) of the last event consumed from this per-cpu
+  // kernel buffer prior to starting this bundle. In other words: the last
+  // event in the previous bundle.
+  // Lets the trace processing find an initial timestamp after which ftrace
+  // data is known to be valid across all cpus. Of particular importance when
+  // the perfetto trace buffer is a ring buffer as well, as the overwriting of
+  // oldest bundles can skew the first valid timestamp per cpu significantly.
+  // Added in: perfetto v44.
+  optional uint64 last_read_event_timestamp = 9;
 }
 
 enum FtraceClock {

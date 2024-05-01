@@ -70,7 +70,7 @@ CREATE_TABLE_FUNCTION_PATTERN = update_pattern(
     fr" \( ({ARGS}) \) "
     # Type: table definition after RETURNS.
     fr"({COMMENTS})"
-    fr" RETURNS TABLE\( ({ARGS}) \) AS ")
+    fr" RETURNS TABLE \( ({ARGS}) \) AS ")
 
 CREATE_MACRO_PATTERN = update_pattern(
     fr"CREATE (OR REPLACE)? PERFETTO MACRO ({NAME}) "
@@ -110,7 +110,16 @@ PATTERN_BY_KIND = {
 ALLOWED_PREFIXES = {
     'counters': 'counter',
     'chrome/util': 'cr',
+    'intervals': 'interval',
     'graphs': 'graph',
+    'slices': 'slice',
+}
+
+# Allows for nonstandard object names.
+OBJECT_NAME_ALLOWLIST = {
+    'graphs/partition.sql': ['tree_structural_partition_by_group'],
+    'slices/with_context.sql': ['process_slice', 'thread_slice'],
+    'slices/cpu_time.sql': ['thread_slice_cpu_time']
 }
 
 # Given a regex pattern and a string to match against, returns all the

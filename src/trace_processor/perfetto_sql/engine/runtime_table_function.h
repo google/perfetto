@@ -17,31 +17,36 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_RUNTIME_TABLE_FUNCTION_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_RUNTIME_TABLE_FUNCTION_H_
 
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <optional>
+#include <vector>
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_module.h"
+#include "src/trace_processor/sqlite/module_lifecycle_manager.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/util/sql_argument.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 class PerfettoSqlEngine;
 
-// The implementation of the SqliteTable interface for table functions defined
-// at runtime using SQL.
-class RuntimeTableFunction final
-    : public TypedSqliteTable<RuntimeTableFunction, PerfettoSqlEngine*> {
- public:
-  // The state of this function. This is separated from |RuntimeTableFunction|
-  // because |RuntimeTableFunction| is owned by Sqlite while |State| is owned by
-  // PerfettoSqlEngine.
+// The implementation of the SqliteTableLegacy interface for table functions
+// defined at runtime using SQL.
+struct RuntimeTableFunctionModule
+    : public sqlite::Module<RuntimeTableFunctionModule> {
   struct State {
+    PerfettoSqlEngine* engine;
     SqlSource sql_defn_str;
 
     FunctionPrototype prototype;
     std::vector<sql_argument::ArgumentDefinition> return_values;
 
-    std::optional<SqliteEngine::PreparedStatement> reusable_stmt;
+    std::optional<SqliteEngine::PreparedStatement> temporary_create_stmt;
 
     bool IsReturnValueColumn(size_t i) const {
       PERFETTO_DCHECK(i < TotalColumnCount());
@@ -65,44 +70,55 @@ class RuntimeTableFunction final
              kPrimaryKeyColumns;
     }
   };
-  class Cursor final : public SqliteTable::BaseCursor {
-   public:
-    explicit Cursor(RuntimeTableFunction* table, State* state);
-    ~Cursor() final;
-
-    base::Status Filter(const QueryConstraints& qc,
-                        sqlite3_value**,
-                        FilterHistory);
-    base::Status Next();
-    bool Eof();
-    base::Status Column(sqlite3_context* context, int N);
-
-   private:
-    RuntimeTableFunction* table_ = nullptr;
-    State* state_ = nullptr;
-
-    std::optional<SqliteEngine::PreparedStatement> stmt_;
-    bool return_stmt_to_state_ = false;
-
-    bool is_eof_ = false;
-    int next_call_count_ = 0;
+  struct Context {
+    std::unique_ptr<State> temporary_create_state;
+    sqlite::ModuleStateManager<RuntimeTableFunctionModule> manager;
+  };
+  struct Vtab : sqlite::Module<RuntimeTableFunctionModule>::Vtab {
+    sqlite::ModuleStateManager<RuntimeTableFunctionModule>::PerVtabState* state;
+    std::optional<SqliteEngine::PreparedStatement> reusable_stmt;
+  };
+  struct Cursor : sqlite::Module<RuntimeTableFunctionModule>::Cursor {
+    std::optional<SqliteEngine::PreparedStatement> stmt;
+    bool is_eof = false;
+    int next_call_count = 0;
   };
 
-  RuntimeTableFunction(sqlite3*, PerfettoSqlEngine*);
-  ~RuntimeTableFunction() final;
+  static constexpr bool kSupportsWrites = false;
+  static constexpr bool kDoesOverloadFunctions = false;
 
-  base::Status Init(int argc, const char* const* argv, Schema*) final;
-  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
-  int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) final;
+  static int Create(sqlite3*,
+                    void*,
+                    int,
+                    const char* const*,
+                    sqlite3_vtab**,
+                    char**);
+  static int Destroy(sqlite3_vtab*);
 
- private:
-  Schema CreateSchema();
+  static int Connect(sqlite3*,
+                     void*,
+                     int,
+                     const char* const*,
+                     sqlite3_vtab**,
+                     char**);
+  static int Disconnect(sqlite3_vtab*);
 
-  PerfettoSqlEngine* engine_ = nullptr;
-  State* state_ = nullptr;
+  static int BestIndex(sqlite3_vtab*, sqlite3_index_info*);
+
+  static int Open(sqlite3_vtab*, sqlite3_vtab_cursor**);
+  static int Close(sqlite3_vtab_cursor*);
+
+  static int Filter(sqlite3_vtab_cursor*,
+                    int,
+                    const char*,
+                    int,
+                    sqlite3_value**);
+  static int Next(sqlite3_vtab_cursor*);
+  static int Eof(sqlite3_vtab_cursor*);
+  static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);
+  static int Rowid(sqlite3_vtab_cursor*, sqlite_int64*);
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_RUNTIME_TABLE_FUNCTION_H_

@@ -17,17 +17,18 @@
 #ifndef SRC_TRACE_PROCESSOR_CONTAINERS_ROW_MAP_H_
 #define SRC_TRACE_PROCESSOR_CONTAINERS_ROW_MAP_H_
 
-#include <stdint.h>
-
-#include <memory>
+#include <algorithm>
+#include <cstdint>
+#include <iterator>
 #include <numeric>
 #include <optional>
+#include <utility>
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/bit_vector_iterators.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -82,16 +83,16 @@ class RowMap {
 
   struct Range {
     Range(OutputIndex start_index, OutputIndex end_index)
-        : start(start_index), end(end_index) {}
+        : start(start_index), end(end_index) {
+      PERFETTO_DCHECK(start_index <= end_index);
+    }
     Range() : start(0), end(0) {}
 
-    OutputIndex start = 0;  // This is an inclusive index.
-    OutputIndex end = 0;    // This is an exclusive index.
+    OutputIndex start;  // This is an inclusive index.
+    OutputIndex end;    // This is an exclusive index.
 
-    uint32_t size() const {
-      PERFETTO_DCHECK(end >= start);
-      return end - start;
-    }
+    bool empty() const { return size() == 0; }
+    uint32_t size() const { return end - start; }
     inline bool Contains(uint32_t val) const {
       return val >= start && val < end;
     }
@@ -106,29 +107,24 @@ class RowMap {
    public:
     explicit Iterator(const RowMap* rm);
 
+    Iterator(const Iterator&) = delete;
+    Iterator& operator=(const Iterator&) = delete;
+
     Iterator(Iterator&&) noexcept = default;
     Iterator& operator=(Iterator&&) = default;
 
     // Forwards the iterator to the next row of the RowMap.
-    void Next() {
-      if (std::get_if<Range>(&rm_->data_)) {
-        ++ordinal_;
-      } else if (std::get_if<BitVector>(&rm_->data_)) {
-        set_bits_it_->Next();
-      } else if (std::get_if<IndexVector>(&rm_->data_)) {
-        ++ordinal_;
-      }
-    }
+    void Next() { ++ordinal_; }
 
     // Returns if the iterator is still valid.
-    operator bool() const {
-      if (auto* range = std::get_if<Range>(&rm_->data_)) {
+    explicit operator bool() const {
+      if (const auto* range = std::get_if<Range>(&rm_->data_)) {
         return ordinal_ < range->end;
       }
       if (std::get_if<BitVector>(&rm_->data_)) {
-        return bool(*set_bits_it_);
+        return ordinal_ < results_.size();
       }
-      if (auto* vec = std::get_if<IndexVector>(&rm_->data_)) {
+      if (const auto* vec = std::get_if<IndexVector>(&rm_->data_)) {
         return ordinal_ < vec->size();
       }
       PERFETTO_FATAL("Didn't match any variant type.");
@@ -140,9 +136,9 @@ class RowMap {
         return ordinal_;
       }
       if (std::get_if<BitVector>(&rm_->data_)) {
-        return set_bits_it_->index();
+        return results_[ordinal_];
       }
-      if (auto* vec = std::get_if<IndexVector>(&rm_->data_)) {
+      if (const auto* vec = std::get_if<IndexVector>(&rm_->data_)) {
         return (*vec)[ordinal_];
       }
       PERFETTO_FATAL("Didn't match any variant type.");
@@ -150,35 +146,23 @@ class RowMap {
 
     // Returns the row of the index the iterator points to.
     InputRow row() const {
-      if (auto* range = std::get_if<Range>(&rm_->data_)) {
+      if (const auto* range = std::get_if<Range>(&rm_->data_)) {
         return ordinal_ - range->start;
       }
-      if (std::get_if<BitVector>(&rm_->data_)) {
-        return set_bits_it_->ordinal();
-      }
-      if (std::get_if<IndexVector>(&rm_->data_)) {
+      if (std::get_if<BitVector>(&rm_->data_) ||
+          std::get_if<IndexVector>(&rm_->data_)) {
         return ordinal_;
       }
       PERFETTO_FATAL("Didn't match any variant type.");
     }
 
    private:
-    Iterator(const Iterator&) = delete;
-    Iterator& operator=(const Iterator&) = delete;
-
     // Ordinal will not be used for BitVector based RowMap.
     uint32_t ordinal_ = 0;
-    // Not nullptr for BitVector based RowMap.
-    std::unique_ptr<BitVector::SetBitsIterator> set_bits_it_;
+    // Not empty for BitVector based RowMap.
+    std::vector<uint32_t> results_;
 
     const RowMap* rm_ = nullptr;
-  };
-
-  // Enum to allow users of RowMap to decide whether they want to optimize for
-  // memory usage or for speed of lookups.
-  enum class OptimizeFor {
-    kMemory,
-    kLookupSpeed,
   };
 
   // Creates an empty RowMap.
@@ -187,9 +171,7 @@ class RowMap {
 
   // Creates a RowMap containing the range of indices between |start| and |end|
   // i.e. all indices between |start| (inclusive) and |end| (exclusive).
-  RowMap(OutputIndex start,
-         OutputIndex end,
-         OptimizeFor optimize_for = OptimizeFor::kMemory);
+  RowMap(OutputIndex start, OutputIndex end);
 
   // Creates a RowMap backed by a BitVector.
   explicit RowMap(BitVector);
@@ -218,13 +200,13 @@ class RowMap {
   // Returns the size of the RowMap; that is the number of indices in the
   // RowMap.
   uint32_t size() const {
-    if (auto* range = std::get_if<Range>(&data_)) {
+    if (const auto* range = std::get_if<Range>(&data_)) {
       return range->size();
     }
-    if (auto* bv = std::get_if<BitVector>(&data_)) {
+    if (const auto* bv = std::get_if<BitVector>(&data_)) {
       return bv->CountSetBits();
     }
-    if (auto* vec = std::get_if<IndexVector>(&data_)) {
+    if (const auto* vec = std::get_if<IndexVector>(&data_)) {
       return static_cast<uint32_t>(vec->size());
     }
     NoVariantMatched();
@@ -235,13 +217,13 @@ class RowMap {
 
   // Returns the index at the given |row|.
   OutputIndex Get(InputRow row) const {
-    if (auto* range = std::get_if<Range>(&data_)) {
+    if (const auto* range = std::get_if<Range>(&data_)) {
       return GetRange(*range, row);
     }
-    if (auto* bv = std::get_if<BitVector>(&data_)) {
+    if (const auto* bv = std::get_if<BitVector>(&data_)) {
       return GetBitVector(*bv, row);
     }
-    if (auto* vec = std::get_if<IndexVector>(&data_)) {
+    if (const auto* vec = std::get_if<IndexVector>(&data_)) {
       return GetIndexVector(*vec, row);
     }
     NoVariantMatched();
@@ -249,19 +231,15 @@ class RowMap {
 
   // Returns the vector of all indices in the RowMap.
   std::vector<OutputIndex> GetAllIndices() const {
-    if (auto* range = std::get_if<Range>(&data_)) {
+    if (const auto* range = std::get_if<Range>(&data_)) {
       std::vector<uint32_t> res(range->size());
       std::iota(res.begin(), res.end(), range->start);
       return res;
     }
-    if (auto* bv = std::get_if<BitVector>(&data_)) {
-      std::vector<uint32_t> res;
-      for (auto it = bv->IterateSetBits(); it; it.Next()) {
-        res.push_back(it.index());
-      }
-      return res;
+    if (const auto* bv = std::get_if<BitVector>(&data_)) {
+      return bv->GetSetBitIndices();
     }
-    if (auto* vec = std::get_if<IndexVector>(&data_)) {
+    if (const auto* vec = std::get_if<IndexVector>(&data_)) {
       return *vec;
     }
     NoVariantMatched();
@@ -272,13 +250,13 @@ class RowMap {
 
   // Returns whether the RowMap contains the given index.
   bool Contains(OutputIndex index) const {
-    if (auto* range = std::get_if<Range>(&data_)) {
+    if (const auto* range = std::get_if<Range>(&data_)) {
       return index >= range->start && index < range->end;
     }
-    if (auto* bv = std::get_if<BitVector>(&data_)) {
+    if (const auto* bv = std::get_if<BitVector>(&data_)) {
       return index < bv->size() && bv->IsSet(index);
     }
-    if (auto* vec = std::get_if<IndexVector>(&data_)) {
+    if (const auto* vec = std::get_if<IndexVector>(&data_)) {
       return std::find(vec->begin(), vec->end(), index) != vec->end();
     }
     NoVariantMatched();
@@ -286,17 +264,17 @@ class RowMap {
 
   // Returns the first row of the given |index| in the RowMap.
   std::optional<InputRow> RowOf(OutputIndex index) const {
-    if (auto* range = std::get_if<Range>(&data_)) {
+    if (const auto* range = std::get_if<Range>(&data_)) {
       if (index < range->start || index >= range->end)
         return std::nullopt;
       return index - range->start;
     }
-    if (auto* bv = std::get_if<BitVector>(&data_)) {
+    if (const auto* bv = std::get_if<BitVector>(&data_)) {
       return index < bv->size() && bv->IsSet(index)
                  ? std::make_optional(bv->CountSetBits(index))
                  : std::nullopt;
     }
-    if (auto* vec = std::get_if<IndexVector>(&data_)) {
+    if (const auto* vec = std::get_if<IndexVector>(&data_)) {
       auto it = std::find(vec->begin(), vec->end(), index);
       return it != vec->end() ? std::make_optional(static_cast<InputRow>(
                                     std::distance(vec->begin(), it)))
@@ -371,7 +349,7 @@ class RowMap {
 
     // If the selector is empty, just return an empty RowMap.
     if (size == 0u)
-      return RowMap();
+      return {};
 
     // If the selector is just picking a single row, just return that row
     // without any additional overhead.
@@ -407,69 +385,16 @@ class RowMap {
   // Clears this RowMap by resetting it to a newly constructed state.
   void Clear() { *this = RowMap(); }
 
-  template <typename Comparator = bool(uint32_t, uint32_t)>
-  void StableSort(IndexVector* out, Comparator c) const {
-    if (auto* range = std::get_if<Range>(&data_)) {
-      std::stable_sort(out->begin(), out->end(),
-                       [range, c](uint32_t a, uint32_t b) {
-                         return c(GetRange(*range, a), GetRange(*range, b));
-                       });
-      return;
-    }
-    if (auto* bv = std::get_if<BitVector>(&data_)) {
-      std::stable_sort(out->begin(), out->end(),
-                       [&bv, c](uint32_t a, uint32_t b) {
-                         return c(GetBitVector(*bv, a), GetBitVector(*bv, b));
-                       });
-      return;
-    }
-    if (auto* vec = std::get_if<IndexVector>(&data_)) {
-      std::stable_sort(
-          out->begin(), out->end(), [vec, c](uint32_t a, uint32_t b) {
-            return c(GetIndexVector(*vec, a), GetIndexVector(*vec, b));
-          });
-      return;
-    }
-    NoVariantMatched();
-  }
-
-  // Filters the indices in |out| by keeping those which meet |p|.
-  template <typename Predicate = bool(OutputIndex)>
-  void Filter(Predicate p) {
-    if (auto* range = std::get_if<Range>(&data_)) {
-      data_ = FilterRange(p, *range);
-      return;
-    }
-    if (auto* bv = std::get_if<BitVector>(&data_)) {
-      for (auto it = bv->IterateSetBits(); it; it.Next()) {
-        if (!p(it.index()))
-          it.Clear();
-      }
-      return;
-    }
-    if (auto* vec = std::get_if<IndexVector>(&data_)) {
-      auto ret = std::remove_if(vec->begin(), vec->end(),
-                                [p](uint32_t i) { return !p(i); });
-      vec->erase(ret, vec->end());
-      return;
-    }
-    NoVariantMatched();
-  }
-
   // Converts this RowMap to an index vector in the most efficient way
   // possible.
-  std::vector<uint32_t> TakeAsIndexVector() const&& {
-    if (auto* range = std::get_if<Range>(&data_)) {
+  std::vector<uint32_t> TakeAsIndexVector() && {
+    if (const auto* range = std::get_if<Range>(&data_)) {
       std::vector<uint32_t> rm(range->size());
       std::iota(rm.begin(), rm.end(), range->start);
       return rm;
     }
-    if (auto* bv = std::get_if<BitVector>(&data_)) {
-      std::vector<uint32_t> rm(bv->CountSetBits());
-      for (auto it = bv->IterateSetBits(); it; it.Next()) {
-        rm[it.ordinal()] = it.index();
-      }
-      return rm;
+    if (const auto* bv = std::get_if<BitVector>(&data_)) {
+      return bv->GetSetBitIndices();
     }
     if (auto* vec = std::get_if<IndexVector>(&data_)) {
       return std::move(*vec);
@@ -514,58 +439,6 @@ class RowMap {
 
   explicit RowMap(Variant);
 
-  // TODO(lalitm): remove this when the coupling between RowMap and
-  // ColumnStorage Selector is broken (after filtering is moved out of here).
-  friend class ColumnStorageOverlay;
-
-  template <typename Predicate>
-  Variant FilterRange(Predicate p, Range r) {
-    uint32_t count = r.size();
-
-    // Optimization: if we are only going to scan a few indices, it's not
-    // worth the haslle of working with a BitVector.
-    constexpr uint32_t kSmallRangeLimit = 2048;
-    bool is_small_range = count < kSmallRangeLimit;
-
-    // Optimization: weif the cost of a BitVector is more than the highest
-    // possible cost an index vector could have, use the index vector.
-    uint32_t bit_vector_cost = BitVector::ApproxBytesCost(r.end);
-    uint32_t index_vector_cost_ub = sizeof(uint32_t) * count;
-
-    // If either of the conditions hold which make it better to use an
-    // index vector, use it instead. Alternatively, if we are optimizing for
-    // lookup speed, we also want to use an index vector.
-    if (is_small_range || index_vector_cost_ub <= bit_vector_cost ||
-        optimize_for_ == OptimizeFor::kLookupSpeed) {
-      // Try and strike a good balance between not making the vector too
-      // big and good performance.
-      IndexVector iv(std::min(kSmallRangeLimit, count));
-
-      uint32_t out_i = 0;
-      for (uint32_t i = 0; i < count; ++i) {
-        // If we reach the capacity add another small set of indices.
-        if (PERFETTO_UNLIKELY(out_i == iv.size()))
-          iv.resize(iv.size() + kSmallRangeLimit);
-
-        // We keep this branch free by always writing the index but only
-        // incrementing the out index if the return value is true.
-        bool value = p(i + r.start);
-        iv[out_i] = i + r.start;
-        out_i += value;
-      }
-
-      // Make the vector the correct size and as small as possible.
-      iv.resize(out_i);
-      iv.shrink_to_fit();
-
-      return std::move(iv);
-    }
-
-    // Otherwise, create a bitvector which spans the full range using
-    // |p| as the filler for the bits between start and end.
-    return BitVector::Range(r.start, r.end, p);
-  }
-
   PERFETTO_ALWAYS_INLINE static OutputIndex GetRange(Range r, InputRow row) {
     return r.start + row;
   }
@@ -591,12 +464,11 @@ class RowMap {
     bv.Set(row);
   }
 
-  PERFETTO_NORETURN void NoVariantMatched() const {
+  PERFETTO_NORETURN static void NoVariantMatched() {
     PERFETTO_FATAL("Didn't match any variant type.");
   }
 
   Variant data_;
-  OptimizeFor optimize_for_ = OptimizeFor::kMemory;
 };
 
 }  // namespace trace_processor

@@ -32,27 +32,27 @@ void sqlite_str_split(sqlite3_context* context,
                       sqlite3_value** argv) {
   PERFETTO_DCHECK(argc == 3);
   if (sqlite3_value_type(argv[1]) != SQLITE_TEXT) {
-    sqlite3_result_error(context, kDelimiterError, -1);
+    sqlite::result::Error(context, kDelimiterError);
     return;
   }
   const char* delimiter =
       reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
   const size_t delimiter_len = strlen(delimiter);
   if (delimiter_len == 0) {
-    sqlite3_result_error(context, kDelimiterError, -1);
+    sqlite::result::Error(context, kDelimiterError);
     return;
   }
   if (sqlite3_value_type(argv[2]) != SQLITE_INTEGER) {
-    sqlite3_result_error(context, kSplitFieldIndexError, -1);
+    sqlite::result::Error(context, kSplitFieldIndexError);
     return;
   }
   int fld = sqlite3_value_int(argv[2]);
   if (fld < 0) {
-    sqlite3_result_error(context, kSplitFieldIndexError, -1);
+    sqlite::result::Error(context, kSplitFieldIndexError);
     return;
   }
   if (sqlite3_value_type(argv[0]) != SQLITE_TEXT) {
-    sqlite3_result_null(context);
+    sqlite::result::Null(context);
     return;
   }
   const char* in = reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
@@ -62,7 +62,8 @@ void sqlite_str_split(sqlite3_context* context,
     if (fld == 0) {
       int size = next != nullptr ? static_cast<int>(next - in)
                                  : static_cast<int>(strlen(in));
-      sqlite3_result_text(context, in, size, sqlite_utils::kSqliteTransient);
+      sqlite::result::RawString(context, in, size,
+                                sqlite::utils::kSqliteTransient);
       return;
     } else if (next == nullptr) {
       break;
@@ -70,7 +71,7 @@ void sqlite_str_split(sqlite3_context* context,
     in = next + delimiter_len;
     --fld;
   } while (fld >= 0);
-  sqlite3_result_null(context);
+  sqlite::result::Null(context);
 }
 }  // namespace
 

@@ -66,3 +66,28 @@ SELECT
 FROM _merged_events
 ORDER BY ts
 );
+
+-- Returns whether |intervals| contains any overlapping intervals. Useful for
+-- checking if provided table/subquery can be used for intervals_intersect
+-- macro.
+CREATE PERFETTO MACRO _intervals_overlap_in_table(
+  -- Table/subquery of intervals with |ts| and |dur| columns.
+  intervals TableOrSubquery)
+-- Returns 1 if table contains overlapping intervals. Otherwise returns 0.
+RETURNS Expr AS (
+WITH ts_with_next AS (
+  SELECT
+    ts + dur AS ts_end,
+    -- The last slice will have |next_ts == NULL|, but it's not an issue as if
+    -- it's the last slice we know that it will not overlap with the next one.
+    LEAD(ts) OVER (ORDER BY ts) AS next_ts
+  FROM $intervals
+  WHERE dur != -1
+), filtered AS (
+  SELECT * FROM ts_with_next
+  WHERE ts_end > next_ts
+  LIMIT 1
+)
+SELECT count() AS has_overlaps
+FROM filtered
+);

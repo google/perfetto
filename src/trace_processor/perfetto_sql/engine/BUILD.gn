@@ -30,12 +30,17 @@ source_set("engine") {
     "perfetto_sql_preprocessor.h",
     "runtime_table_function.cc",
     "runtime_table_function.h",
+    "table_pointer_module.cc",
+    "table_pointer_module.h",
   ]
   deps = [
     "../..:metatrace",
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
+    "../../../../include/perfetto/trace_processor:basic_types",
+    "../../../../protos/perfetto/trace_processor:zero",
     "../../../base",
+    "../../containers",
     "../../db",
     "../../perfetto_sql/intrinsics/functions:interface",
     "../../perfetto_sql/intrinsics/table_functions:interface",

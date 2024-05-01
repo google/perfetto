@@ -56,7 +56,7 @@ Example usage:
   proto_filter -r perfetto.protos.Trace -s protos/perfetto/trace/trace.proto \
                -F /tmp/bytecode [--dedupe] \
                [-x protos.Message:message_field_to_pass] \
-               [-r protos.Message:string_field_to_filter]
+               [-g protos.Message:string_field_to_filter]
 
 # List the used/filtered fields from a trace file
 
@@ -77,6 +77,7 @@ Example usage:
 # Show which fields are allowed by a filter bytecode
 
   proto_filter -r perfetto.protos.Trace -s protos/perfetto/trace/trace.proto \
+               [-g protos.Message:string_field_to_filter] \
                -f /tmp/bytecode
 )";
 

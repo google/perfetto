@@ -6,7 +6,105 @@ Unreleased:
   UI:
     *
   SDK:
-    *
+    * The TRACE_EVENT macro used to reject `const char *` event names: either
+      `StaticString` or `DynamicString` needed to be specified. In the last year
+      (since https://r.android.com/2494614), TRACE_EVENT mistakenly accepted
+      `const char *` as an event name. This has been fixed now. In case your
+      code fails to compile,
+      https://perfetto.dev/docs/instrumentation/track-events#dynamic-event-names
+      explains how to fix the problem.
+
+
+v44.0 - 2024-04-10:
+  Trace Processor:
+    * New modules added to standard library: `frames.timeline`,
+      `frame.per_frame_metrics`, `sched.time_in_state`.
+  UI:
+    * Per-cpu scheduling tracks now distinguish real-time priority threads with
+      a hatched pattern and name prefix. Based on priority during switch-in.
+    * Added ftrace event cropping for traces recorded by perfetto v44+.
+      Events are ignored if they precede the earliest timestamp covered by all
+      per-cpu data streams. This should significantly improve the presentation
+      of RING_BUFFER traces, removing artifacts such as never-ending slices
+      starting at the beginning of the trace.
+    * Significantly improved trace load times.
+    * Improved counter track view modes, including log scale, expanded view, and
+      the ability for plugin authors to link scales of several counter tracks
+      together.
+    * Add dominated size and objects to Java heap graph view.
+      Added hotkey Q to open and close bottom drawer.
+    * Fixed bug where timeline header and tracks could become horizontally
+      misaligned when using browser zoom.
+    * Fixed crash when hot-reloading Sass during development.
+    * Fixed bug where crashed debug tracks could not be closed.
+    * Fixed missing flame graph details for area selections.
+    * Consistent reporting of durations for incomplete slices.
+    * Switch to using prettier for formatting TS & Sass instead of ESLint.
+  SDK:
+    * "track_event" categories are disabled by default in the C API, if they
+      don't match anything in the data source config. This behavior differs from
+      the C++ API. Configs should include either `enabled_categories: "*"` or
+      `disable_categories: "*"` to explicitly specify the desired behavior that
+      work both for C and C++.
+
+
+v43.2 - 2024-03-07:
+  UI:
+    * Added redirection to pinned UI version when using
+      `trace_processor_shell --httpd` and pinned version is available.
+
+
+v43.1 - 2024-03-05:
+  Tracing service and probes:
+    * Cherry-pick of https://r.android.com/2988674, which fixes the android x86
+      standalone build.
+
+
+v43.0 - 2024-03-05:
+  Tracing service and probes:
+    * Buffers marked as `transfer_on_clone` will be flushed independently when
+      cloning.
+    * ftrace: added drain_buffer_percent option to read kernel ring buffer
+      based on occupancy in addition to existing periodic reads. Requires Linux
+      kernel v6.1+.
+    * ftrace: changed default kernel per-cpu ring buffer sizes if a config
+      doesn't request an explicit size via buffer_size_kb. Added
+      buffer_size_lower_bound option that lets the service choose a bigger ring
+      buffer size than requested.
+    * "linux.process_stats" data source: added options to record: process age,
+      time spent running in userspace, and time spent running in kernel mode,
+      using /proc/pid/stat. See "record_process_age" and
+      "record_process_runtime" options.
+  Trace Processor:
+    * Added `decompress_packets` mode to the traceconv tool.
+    * Support memory mapped file access on Windows.
+    * Deprecated `common` standard library module, it will be removed by v45.
+      Some of the functionality have been migrated to other parts of standard
+      library.
+  UI:
+    * Added a "defaultPlugins" list to allow control over which plugins are
+      enabled by default.
+    * Added a feature to allow enabling/disabling plugins permanently from the
+      plugins page.
+    * Added plugin load times to the plugin page.
+    * Added scrolling to the pinned track area.
+    * Added commands for expanding and closing all tracks.
+    * Added {expand,collapse}GroupsByPredicate to plugin API.
+    * Added SimpleSliceTrack & SimpleCounterTrack which have the same
+      functionality of debug tracks but may be added on trace load from within
+      plugins.
+    * Added naive track crash containment, which means tracks that crash should
+      not crash the entire UI.
+    * Don't render "idle" kernel thread slices in thread state tracks.
+    * Fixed crash when using autofill in text inputs in chrome.
+    * Fixed bug where "incomplete" slices were sometimes not rendered.
+    * Fixed crash when calls to CacheStorage fail via promise rejection.
+    * Fixed bug causing slices to occasionally disappear in tracks v2.
+    * Fixes crash in tracksV2 when visible window is negative.
+    * Fix bug when toggling the sidebar without a trace loaded would either
+      crash the UI or simply not work.
+    * Various TabsV2 QoL improvements.
+    * Various AndroidLongBatteryTracing plugin improvements.
 
 
 v42.0 - 2024-02-02:

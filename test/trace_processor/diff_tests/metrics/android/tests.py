@@ -121,6 +121,12 @@ class AndroidMetrics(TestSuite):
         query=Metric('android_blocking_calls_cuj_metric'),
         out=Path('android_blocking_calls_cuj_metric.out'))
 
+  def test_android_blocking_calls_unagg(self):
+    return DiffTestBlueprint(
+        trace=Path('android_blocking_calls_cuj_metric.py'),
+        query=Metric('android_blocking_calls_unagg'),
+        out=Path('android_blocking_calls_unagg.out'))
+
   def test_android_blocking_calls_on_jank_cujs(self):
     return DiffTestBlueprint(
         trace=Path('../graphics/android_jank_cuj.py'),
@@ -188,16 +194,9 @@ class AndroidMetrics(TestSuite):
 
   def test_android_boot(self):
     return DiffTestBlueprint(
-        trace=DataPath('android_boot.pftrace'),
+        trace=DataPath('android_postboot_unlock.pftrace'),
         query=Metric('android_boot'),
-        out=TextProto(r"""
-        android_boot {
-          system_server_durations {
-            total_dur: 267193980530
-            uninterruptible_sleep_dur: 3843119529
-          }
-        }
-        """))
+        out=Path('android_boot.out'))
 
   def test_ad_services_metric(self):
     return DiffTestBlueprint(
@@ -223,3 +222,84 @@ class AndroidMetrics(TestSuite):
            }
          }
         """))
+
+  def test_android_boot_unagg(self):
+    return DiffTestBlueprint(
+      trace=DataPath('android_postboot_unlock.pftrace'),
+      query=Metric("android_boot_unagg"),
+      out=Path('android_boot_unagg.out')
+    )
+
+  def test_android_app_process_starts(self):
+    return DiffTestBlueprint(
+      trace=DataPath('android_postboot_unlock.pftrace'),
+      query=Metric("android_app_process_starts"),
+      out=Path('android_app_process_starts.out')
+    )
+
+  def test_android_garbage_collection(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric('android_garbage_collection_unagg'),
+        out=Path('android_garbage_collection_unagg.out'))
+
+  def test_android_auto_multiuser_switch(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 1000000000
+              pid: 4032
+              print {
+                buf: "S|5993|UserController.startUser-10-fg-start-mode-1|0\n"
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 2000000000
+              pid: 4065
+              print {
+                buf: "S|2608|launching: com.android.car.carlauncher|0\n"
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 3000000000
+              pid: 4032
+              print {
+                buf: "S|5993|UserController.startUser-11-fg-start-mode-1|0\n"
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 2
+            event {
+              timestamp: 6878000000
+              pid: 4065
+              print {
+                buf: "S|2609|launching: com.android.car.carlauncher|0\n"
+              }
+            }
+          }
+        }
+        """),
+       query=Metric('android_auto_multiuser'),
+       out=TextProto(r"""
+       android_auto_multiuser {
+         user_switch {
+           duration_ms: 3878
+         }
+       }
+       """))

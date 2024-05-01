@@ -80,9 +80,9 @@ export class AdbOverWebUsb implements Adb {
   private usbReadEndpoint = -1;
   private usbWriteEpEndpoint = -1;
   private filter = {
-    classCode: 255,    // USB vendor specific code
-    subclassCode: 66,  // Android vendor specific subclass
-    protocolCode: 1,   // Adb protocol
+    classCode: 255, // USB vendor specific code
+    subclassCode: 66, // Android vendor specific subclass
+    protocolCode: 1, // Adb protocol
   };
 
   async findDevice() {
@@ -95,7 +95,8 @@ export class AdbOverWebUsb implements Adb {
   async getPairedDevices() {
     try {
       return await navigator.usb.getDevices();
-    } catch (e) {  // WebUSB not available.
+    } catch (e) {
+      // WebUSB not available.
       return Promise.resolve([]);
     }
   }
@@ -120,7 +121,7 @@ export class AdbOverWebUsb implements Adb {
     await this.dev.open();
 
     const {configValue, usbInterfaceNumber, endpoints} =
-        this.findInterfaceAndEndpoint();
+      this.findInterfaceAndEndpoint();
     this.usbInterfaceNumber = usbInterfaceNumber;
 
     this.usbReadEndpoint = this.findEndpointNumber(endpoints, 'in');
@@ -136,7 +137,7 @@ export class AdbOverWebUsb implements Adb {
     // This will start a message handler loop.
     this.receiveDeviceMessages();
     // The promise will be resolved after the handshake.
-    return new Promise<void>((resolve, _) => this.onConnected = resolve);
+    return new Promise<void>((resolve, _) => (this.onConnected = resolve));
   }
 
   async disconnect(): Promise<void> {
@@ -157,8 +158,9 @@ export class AdbOverWebUsb implements Adb {
 
   async startAuthentication() {
     // USB connected, now let's authenticate.
-    const VERSION =
-        this.useChecksum ? VERSION_WITH_CHECKSUM : VERSION_NO_CHECKSUM;
+    const VERSION = this.useChecksum
+      ? VERSION_WITH_CHECKSUM
+      : VERSION_NO_CHECKSUM;
     this.state = AdbState.AUTH_STEP1;
     await this.send('CNXN', VERSION, this.maxPayload, 'host:1:UsbADB');
   }
@@ -168,26 +170,32 @@ export class AdbOverWebUsb implements Adb {
     for (const config of this.dev.configurations) {
       for (const interface_ of config.interfaces) {
         for (const alt of interface_.alternates) {
-          if (alt.interfaceClass === this.filter.classCode &&
-              alt.interfaceSubclass === this.filter.subclassCode &&
-              alt.interfaceProtocol === this.filter.protocolCode) {
+          if (
+            alt.interfaceClass === this.filter.classCode &&
+            alt.interfaceSubclass === this.filter.subclassCode &&
+            alt.interfaceProtocol === this.filter.protocolCode
+          ) {
             return {
               configValue: config.configurationValue,
               usbInterfaceNumber: interface_.interfaceNumber,
               endpoints: alt.endpoints,
             };
-          }  // if (alternate)
-        }    // for (interface.alternates)
-      }      // for (configuration.interfaces)
-    }        // for (configurations)
+          } // if (alternate)
+        } // for (interface.alternates)
+      } // for (configuration.interfaces)
+    } // for (configurations)
 
     throw Error('Cannot find interfaces and endpoints');
   }
 
   findEndpointNumber(
-    endpoints: USBEndpoint[], direction: 'out'|'in', type = 'bulk'): number {
-    const ep =
-        endpoints.find((ep) => ep.type === type && ep.direction === direction);
+    endpoints: USBEndpoint[],
+    direction: 'out' | 'in',
+    type = 'bulk',
+  ): number {
+    const ep = endpoints.find(
+      (ep) => ep.type === type && ep.direction === direction,
+    );
 
     if (ep) return ep.endpointNumber;
 
@@ -217,14 +225,14 @@ export class AdbOverWebUsb implements Adb {
       this.handleAuthentication(msg);
     } else if (msg.cmd === 'CNXN') {
       console.assert(
-        [AdbState.AUTH_STEP2, AdbState.AUTH_STEP3].includes(this.state));
+        [AdbState.AUTH_STEP2, AdbState.AUTH_STEP3].includes(this.state),
+      );
       this.state = AdbState.CONNECTED;
       this.handleConnectedMessage(msg);
-    } else if (this.state === AdbState.CONNECTED && [
-      'OKAY',
-      'WRTE',
-      'CLSE',
-    ].indexOf(msg.cmd) >= 0) {
+    } else if (
+      this.state === AdbState.CONNECTED &&
+      ['OKAY', 'WRTE', 'CLSE'].indexOf(msg.cmd) >= 0
+    ) {
       const stream = this.streams.get(msg.arg1);
       if (!stream) {
         console.warn(`Received message ${msg} for unknown stream ${msg.arg1}`);
@@ -249,8 +257,10 @@ export class AdbOverWebUsb implements Adb {
       // ending up in AUTH_STEP3.
       this.state = AdbState.AUTH_STEP2;
 
-      const signedToken =
-          await signAdbTokenWithPrivateKey(this.key.privateKey, token);
+      const signedToken = await signAdbTokenWithPrivateKey(
+        this.key.privateKey,
+        token,
+      );
       this.send('AUTH', AuthCmd.SIGNATURE, 0, new Uint8Array(signedToken));
       return;
     }
@@ -320,9 +330,14 @@ export class AdbOverWebUsb implements Adb {
   }
 
   async send(
-    cmd: CmdType, arg0: number, arg1: number, data?: Uint8Array|string) {
-    await this.sendMsg(AdbMsgImpl.create(
-      {cmd, arg0, arg1, data, useChecksum: this.useChecksum}));
+    cmd: CmdType,
+    arg0: number,
+    arg1: number,
+    data?: Uint8Array | string,
+  ) {
+    await this.sendMsg(
+      AdbMsgImpl.create({cmd, arg0, arg1, data, useChecksum: this.useChecksum}),
+    );
   }
 
   //  The header and the message data must be sent consecutively. Using 2 awaits
@@ -343,7 +358,10 @@ export class AdbOverWebUsb implements Adb {
     if (msg.dataLen > 0) {
       const resp = await this.recvRaw(msg.dataLen);
       msg.data = new Uint8Array(
-          resp.data!.buffer, resp.data!.byteOffset, resp.data!.byteLength);
+        resp.data!.buffer,
+        resp.data!.byteOffset,
+        resp.data!.byteLength,
+      );
     }
     if (this.useChecksum) {
       console.assert(AdbOverWebUsb.checksum(msg.data) === msg.dataChecksum);
@@ -362,14 +380,17 @@ export class AdbOverWebUsb implements Adb {
     };
 
     const key = await crypto.subtle.generateKey(
-      keySpec, /* extractable=*/ true, ['sign', 'verify']);
+      keySpec,
+      /* extractable=*/ true,
+      ['sign', 'verify'],
+    );
     return key;
   }
 
   static checksum(data: Uint8Array): number {
     let res = 0;
     for (let i = 0; i < data.byteLength; i++) res += data[i];
-    return res & 0xFFFFFFFF;
+    return res & 0xffffffff;
   }
 
   sendRaw(buf: Uint8Array): Promise<USBOutTransferResult> {
@@ -387,9 +408,8 @@ export class AdbOverWebUsb implements Adb {
 enum AdbStreamState {
   WAITING_INITIAL_OKAY = 0,
   CONNECTED = 1,
-  CLOSED = 2
+  CLOSED = 2,
 }
-
 
 // An AdbStream is instantiated after the creation of a shell to the device.
 // Thanks to this, we can send commands and receive their output. Messages are
@@ -427,18 +447,21 @@ export class AdbStreamImpl implements AdbStream {
     console.assert(this.state === AdbStreamState.CONNECTED);
 
     if (this.writeQueue.length > 0) {
-      console.error(`Dropping ${
-        this.writeQueue.length} queued messages due to stream closing.`);
+      console.error(
+        `Dropping ${this.writeQueue.length} queued messages due to stream closing.`,
+      );
       this.writeQueue = [];
     }
 
     this.adb.send('CLSE', this.localStreamId, this.remoteStreamId);
   }
 
-  async write(msg: string|Uint8Array) {
-    const raw = (isString(msg)) ? textEncoder.encode(msg) : msg;
-    if (this.sendInProgress ||
-        this.state === AdbStreamState.WAITING_INITIAL_OKAY) {
+  async write(msg: string | Uint8Array) {
+    const raw = isString(msg) ? textEncoder.encode(msg) : msg;
+    if (
+      this.sendInProgress ||
+      this.state === AdbStreamState.WAITING_INITIAL_OKAY
+    ) {
       this.writeQueue.push(raw);
       return;
     }
@@ -456,8 +479,10 @@ export class AdbStreamImpl implements AdbStream {
   onMessage(msg: AdbMsgImpl) {
     console.assert(msg.arg1 === this.localStreamId);
 
-    if (this.state === AdbStreamState.WAITING_INITIAL_OKAY &&
-        msg.cmd === 'OKAY') {
+    if (
+      this.state === AdbStreamState.WAITING_INITIAL_OKAY &&
+      msg.cmd === 'OKAY'
+    ) {
       this.remoteStreamId = msg.arg0;
       this.state = AdbStreamState.CONNECTED;
       this.onConnect();
@@ -483,7 +508,8 @@ export class AdbStreamImpl implements AdbStream {
       return;
     }
     console.error(
-      `Unexpected stream msg ${msg.toString()} in state ${this.state}`);
+      `Unexpected stream msg ${msg.toString()} in state ${this.state}`,
+    );
   }
 }
 
@@ -491,7 +517,7 @@ interface AdbStreamReadCallback {
   (raw: Uint8Array): void;
 }
 
-const ADB_MSG_SIZE = 6 * 4;  // 6 * int32.
+const ADB_MSG_SIZE = 6 * 4; // 6 * int32.
 
 export class AdbMsgImpl implements AdbMsg {
   cmd: CmdType;
@@ -504,8 +530,13 @@ export class AdbMsgImpl implements AdbMsg {
   useChecksum: boolean;
 
   constructor(
-    cmd: CmdType, arg0: number, arg1: number, dataLen: number,
-    dataChecksum: number, useChecksum = false) {
+    cmd: CmdType,
+    arg0: number,
+    arg1: number,
+    dataLen: number,
+    dataChecksum: number,
+    useChecksum = false,
+  ) {
     console.assert(cmd.length === 4);
     this.cmd = cmd;
     this.arg0 = arg0;
@@ -516,15 +547,28 @@ export class AdbMsgImpl implements AdbMsg {
     this.useChecksum = useChecksum;
   }
 
-
-  static create({cmd, arg0, arg1, data, useChecksum = true}: {
-    cmd: CmdType; arg0: number; arg1: number;
+  static create({
+    cmd,
+    arg0,
+    arg1,
+    data,
+    useChecksum = true,
+  }: {
+    cmd: CmdType;
+    arg0: number;
+    arg1: number;
     data?: Uint8Array | string;
     useChecksum?: boolean;
   }): AdbMsgImpl {
     const encodedData = this.encodeData(data);
-    const msg =
-        new AdbMsgImpl(cmd, arg0, arg1, encodedData.length, 0, useChecksum);
+    const msg = new AdbMsgImpl(
+      cmd,
+      arg0,
+      arg1,
+      encodedData.length,
+      0,
+      useChecksum,
+    );
     msg.data = encodedData;
     return msg;
   }
@@ -557,7 +601,7 @@ export class AdbMsgImpl implements AdbMsg {
     const dataLen = dv.getUint32(12, true);
     const dataChecksum = dv.getUint32(16, true);
     const cmdChecksum = dv.getUint32(20, true);
-    console.assert(cmdNum === (cmdChecksum ^ 0xFFFFFFFF));
+    console.assert(cmdNum === (cmdChecksum ^ 0xffffffff));
     return new AdbMsgImpl(cmd, arg0, arg1, dataLen, dataChecksum);
   }
 
@@ -573,18 +617,17 @@ export class AdbMsgImpl implements AdbMsg {
     dv.setUint32(8, this.arg1, true);
     dv.setUint32(12, rawMsg.byteLength, true);
     dv.setUint32(16, checksum, true);
-    dv.setUint32(20, dv.getUint32(0, true) ^ 0xFFFFFFFF, true);
+    dv.setUint32(20, dv.getUint32(0, true) ^ 0xffffffff, true);
 
     return buf;
   }
 
-  static encodeData(data?: Uint8Array|string): Uint8Array {
+  static encodeData(data?: Uint8Array | string): Uint8Array {
     if (data === undefined) return new Uint8Array([]);
     if (isString(data)) return textEncoder.encode(data + '\0');
     return data;
   }
 }
-
 
 function base64StringToArray(s: string) {
   const decoded = atob(s.replaceAll('-', '+').replaceAll('_', '/'));
@@ -638,10 +681,11 @@ async function encodePubKey(key: CryptoKey) {
   }
   // Exponent
   for (let i = 0; i < 4; i++) {
-    dv.setUint8(8 + (2 * MODULUS_SIZE_BYTES) + i, eArr[i]);
+    dv.setUint8(8 + 2 * MODULUS_SIZE_BYTES + i, eArr[i]);
   }
-  return btoa(String.fromCharCode(...new Uint8Array(dv.buffer))) +
-      ' perfetto@webusb';
+  return (
+    btoa(String.fromCharCode(...new Uint8Array(dv.buffer))) + ' perfetto@webusb'
+  );
 }
 
 // TODO(nicomazz): This token signature will be useful only when we save the
@@ -655,7 +699,9 @@ async function encodePubKey(key: CryptoKey) {
 // CL can work:
 // https://android-review.googlesource.com/c/platform/external/perfetto/+/1105354/18
 async function signAdbTokenWithPrivateKey(
-  _privateKey: CryptoKey, token: Uint8Array): Promise<ArrayBuffer> {
+  _privateKey: CryptoKey,
+  token: Uint8Array,
+): Promise<ArrayBuffer> {
   // This function is not implemented.
   return token.buffer;
 }

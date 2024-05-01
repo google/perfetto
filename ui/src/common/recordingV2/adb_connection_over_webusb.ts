@@ -21,10 +21,7 @@ import {CmdType} from '../../controller/adb_interfaces';
 
 import {AdbConnectionImpl} from './adb_connection_impl';
 import {AdbKeyManager, maybeStoreKey} from './auth/adb_key_manager';
-import {
-  RecordingError,
-  wrapRecordingError,
-} from './recording_error_handling';
+import {RecordingError, wrapRecordingError} from './recording_error_handling';
 import {
   ByteStream,
   OnStreamCloseCallback,
@@ -58,7 +55,7 @@ enum AuthCmd {
 function generateChecksum(data: Uint8Array): number {
   let res = 0;
   for (let i = 0; i < data.byteLength; i++) res += data[i];
-  return res & 0xFFFFFFFF;
+  return res & 0xffffffff;
 }
 
 // Message to be written to the adb connection. Contains the message itself
@@ -100,7 +97,6 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
     super();
   }
 
-
   shell(cmd: string): Promise<AdbOverWebusbStream> {
     return this.openStream('shell:' + cmd);
   }
@@ -121,8 +117,9 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
     }
   }
 
-  protected async openStream(destination: string):
-      Promise<AdbOverWebusbStream> {
+  protected async openStream(
+    destination: string,
+  ): Promise<AdbOverWebusbStream> {
     const streamId = ++this.lastStreamId;
     const connectingStream = defer<AdbOverWebusbStream>();
     this.connectingStreams.set(streamId, connectingStream);
@@ -163,7 +160,7 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
     // endpoints are found, we do not create a target, so we can not connect to
     // it, so we will never reach this logic.
     const {configurationValue, usbInterfaceNumber, endpoints} =
-        assertExists(interfaceAndEndpoint);
+      assertExists(interfaceAndEndpoint);
     this.usbInterfaceNumber = usbInterfaceNumber;
     this.usbReadEndpoint = this.findEndpointNumber(endpoints, 'in');
     this.usbWriteEpEndpoint = this.findEndpointNumber(endpoints, 'out');
@@ -174,12 +171,14 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
 
   async streamClose(stream: AdbOverWebusbStream): Promise<void> {
     const otherStreamsQueue = this.writeQueue.filter(
-      (queueElement) => queueElement.localStreamId !== stream.localStreamId);
+      (queueElement) => queueElement.localStreamId !== stream.localStreamId,
+    );
     const droppedPacketCount =
-        this.writeQueue.length - otherStreamsQueue.length;
+      this.writeQueue.length - otherStreamsQueue.length;
     if (droppedPacketCount > 0) {
-      console.debug(`Dropping ${
-        droppedPacketCount} queued messages due to stream closing.`);
+      console.debug(
+        `Dropping ${droppedPacketCount} queued messages due to stream closing.`,
+      );
       this.writeQueue = otherStreamsQueue;
     }
 
@@ -196,8 +195,8 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
     stream.signalStreamClosed();
   }
 
-  streamWrite(msg: string|Uint8Array, stream: AdbOverWebusbStream): void {
-    const raw = (isString(msg)) ? textEncoder.encode(msg) : msg;
+  streamWrite(msg: string | Uint8Array, stream: AdbOverWebusbStream): void {
+    const raw = isString(msg) ? textEncoder.encode(msg) : msg;
     if (this.writeInProgress) {
       this.writeQueue.push({message: raw, localStreamId: stream.localStreamId});
       return;
@@ -225,7 +224,8 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
     // which clears resources or notifies the user into 'wrapRecordingError'.
     await wrapRecordingError(
       this.device.releaseInterface(assertExists(this.usbInterfaceNumber)),
-      () => {});
+      () => {},
+    );
     this.usbInterfaceNumber = undefined;
   }
 
@@ -243,7 +243,8 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
     this.connectingStreams.clear();
     for (const [id, stream] of streamsToDelete) {
       stream.reject(
-        `Failed to open stream with id ${id} because adb was disconnected.`);
+        `Failed to open stream with id ${id} because adb was disconnected.`,
+      );
     }
 
     if (this.state === AdbState.DISCONNECTED) {
@@ -260,16 +261,21 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
   }
 
   private async startAdbAuth(): Promise<void> {
-    const VERSION =
-        this.useChecksum ? VERSION_WITH_CHECKSUM : VERSION_NO_CHECKSUM;
+    const VERSION = this.useChecksum
+      ? VERSION_WITH_CHECKSUM
+      : VERSION_NO_CHECKSUM;
     this.state = AdbState.AUTH_STARTED;
     await this.sendMessage('CNXN', VERSION, this.maxPayload, 'host:1:UsbADB');
   }
 
   private findEndpointNumber(
-    endpoints: USBEndpoint[], direction: 'out'|'in', type = 'bulk'): number {
-    const ep =
-        endpoints.find((ep) => ep.type === type && ep.direction === direction);
+    endpoints: USBEndpoint[],
+    direction: 'out' | 'in',
+    type = 'bulk',
+  ): number {
+    const ep = endpoints.find(
+      (ep) => ep.type === type && ep.direction === direction,
+    );
 
     if (ep) return ep.endpointNumber;
 
@@ -279,9 +285,10 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
   private async usbReceiveLoop(): Promise<void> {
     assertFalse(this.isUsbReceiveLoopRunning);
     this.isUsbReceiveLoopRunning = true;
-    for (; this.state !== AdbState.DISCONNECTED;) {
+    for (; this.state !== AdbState.DISCONNECTED; ) {
       const res = await this.wrapUsb(
-        this.device.transferIn(this.usbReadEndpoint, ADB_MSG_SIZE));
+        this.device.transferIn(this.usbReadEndpoint, ADB_MSG_SIZE),
+      );
       if (!res) {
         this.isUsbReceiveLoopRunning = false;
         return;
@@ -290,20 +297,25 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
         // Log and ignore messages with invalid status. These can occur
         // when the device is connected/disconnected repeatedly.
         console.error(
-          `Received message with unexpected status '${res.status}'`);
+          `Received message with unexpected status '${res.status}'`,
+        );
         continue;
       }
 
       const msg = AdbMsg.decodeHeader(res.data!);
       if (msg.dataLen > 0) {
         const resp = await this.wrapUsb(
-          this.device.transferIn(this.usbReadEndpoint, msg.dataLen));
+          this.device.transferIn(this.usbReadEndpoint, msg.dataLen),
+        );
         if (!resp) {
           this.isUsbReceiveLoopRunning = false;
           return;
         }
         msg.data = new Uint8Array(
-            resp.data!.buffer, resp.data!.byteOffset, resp.data!.byteLength);
+          resp.data!.buffer,
+          resp.data!.byteOffset,
+          resp.data!.byteLength,
+        );
       }
 
       if (this.useChecksum && generateChecksum(msg.data) !== msg.dataChecksum) {
@@ -315,16 +327,22 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
       // This happens for instance if we record, reload the recording page and
       // then record again. We can also receive a 'WRTE' or 'OKAY' after
       // we have sent a 'CLSE' and marked the state as disconnected.
-      if ((msg.cmd === 'CLSE' || msg.cmd === 'WRTE') &&
-          !this.getStreamForLocalStreamId(msg.arg1)) {
+      if (
+        (msg.cmd === 'CLSE' || msg.cmd === 'WRTE') &&
+        !this.getStreamForLocalStreamId(msg.arg1)
+      ) {
         continue;
       } else if (
-        msg.cmd === 'OKAY' && !this.connectingStreams.has(msg.arg1) &&
-          !this.getStreamForLocalStreamId(msg.arg1)) {
+        msg.cmd === 'OKAY' &&
+        !this.connectingStreams.has(msg.arg1) &&
+        !this.getStreamForLocalStreamId(msg.arg1)
+      ) {
         continue;
       } else if (
-        msg.cmd === 'AUTH' && msg.arg0 === AuthCmd.TOKEN &&
-          this.state === AdbState.AUTH_WITH_PUBLIC) {
+        msg.cmd === 'AUTH' &&
+        msg.arg0 === AuthCmd.TOKEN &&
+        this.state === AdbState.AUTH_WITH_PUBLIC
+      ) {
         // If we start a recording but fail because of a faulty physical
         // connection to the device, when we start a new recording, we will
         // received multiple AUTH tokens, of which we should ignore all but
@@ -344,27 +362,38 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
           // the device.
           this.state = AdbState.AUTH_WITH_PRIVATE;
           await this.sendMessage(
-            'AUTH', AuthCmd.SIGNATURE, 0, key.sign(msg.data));
+            'AUTH',
+            AuthCmd.SIGNATURE,
+            0,
+            key.sign(msg.data),
+          );
         } else {
           // If our signature with the private key is not accepted by the
           // device, we generate a new keypair and send the public key.
           this.state = AdbState.AUTH_WITH_PUBLIC;
           await this.sendMessage(
-            'AUTH', AuthCmd.RSAPUBLICKEY, 0, key.getPublicKey() + '\0');
+            'AUTH',
+            AuthCmd.RSAPUBLICKEY,
+            0,
+            key.getPublicKey() + '\0',
+          );
           this.onStatus(ALLOW_USB_DEBUGGING);
           await maybeStoreKey(key);
         }
       } else if (msg.cmd === 'CNXN') {
         assertTrue(
           [AdbState.AUTH_WITH_PRIVATE, AdbState.AUTH_WITH_PUBLIC].includes(
-            this.state));
+            this.state,
+          ),
+        );
         this.state = AdbState.CONNECTED;
         this.maxPayload = msg.arg1;
 
         const deviceVersion = msg.arg0;
 
-        if (![VERSION_WITH_CHECKSUM, VERSION_NO_CHECKSUM].includes(
-          deviceVersion)) {
+        if (
+          ![VERSION_WITH_CHECKSUM, VERSION_NO_CHECKSUM].includes(deviceVersion)
+        ) {
           throw new RecordingError(`Version ${msg.arg0} not supported.`);
         }
         this.useChecksum = deviceVersion === VERSION_WITH_CHECKSUM;
@@ -372,13 +401,15 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
 
         // This will resolve the promises awaited by
         // "ensureConnectionEstablished".
-        this.pendingConnPromises.forEach(
-          (connPromise) => connPromise.resolve());
+        this.pendingConnPromises.forEach((connPromise) =>
+          connPromise.resolve(),
+        );
         this.pendingConnPromises = [];
       } else if (msg.cmd === 'OKAY') {
         if (this.connectingStreams.has(msg.arg1)) {
-          const connectingStream =
-              assertExists(this.connectingStreams.get(msg.arg1));
+          const connectingStream = assertExists(
+            this.connectingStreams.get(msg.arg1),
+          );
           const stream = new AdbOverWebusbStream(this, msg.arg1, msg.arg0);
           this.streams.add(stream);
           this.connectingStreams.delete(msg.arg1);
@@ -386,12 +417,13 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
         } else {
           assertTrue(this.writeInProgress);
           this.writeInProgress = false;
-          for (; this.writeQueue.length;) {
+          for (; this.writeQueue.length; ) {
             // We go through the queued writes and choose the first one
             // corresponding to a stream that's still active.
             const queuedElement = assertExists(this.writeQueue.shift());
-            const queuedStream =
-                this.getStreamForLocalStreamId(queuedElement.localStreamId);
+            const queuedStream = this.getStreamForLocalStreamId(
+              queuedElement.localStreamId,
+            );
             if (queuedStream) {
               queuedStream.write(queuedElement.message);
               break;
@@ -401,19 +433,24 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
       } else if (msg.cmd === 'WRTE') {
         const stream = assertExists(this.getStreamForLocalStreamId(msg.arg1));
         await this.sendMessage(
-          'OKAY', stream.localStreamId, stream.remoteStreamId);
+          'OKAY',
+          stream.localStreamId,
+          stream.remoteStreamId,
+        );
         stream.signalStreamData(msg.data);
       } else {
         this.isUsbReceiveLoopRunning = false;
         throw new RecordingError(
-          `Unexpected message ${msg} in state ${this.state}`);
+          `Unexpected message ${msg} in state ${this.state}`,
+        );
       }
     }
     this.isUsbReceiveLoopRunning = false;
   }
 
-  private getStreamForLocalStreamId(localStreamId: number): AdbOverWebusbStream
-      |undefined {
+  private getStreamForLocalStreamId(
+    localStreamId: number,
+  ): AdbOverWebusbStream | undefined {
     for (const stream of this.streams) {
       if (stream.localStreamId === localStreamId) {
         return stream;
@@ -427,27 +464,41 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
   //  resulting in something like [header1] [header2] [data1] [data2];
   //  In this way we are waiting both promises to be resolved before continuing.
   private async sendMessage(
-    cmd: CmdType, arg0: number, arg1: number,
-    data?: Uint8Array|string): Promise<void> {
-    const msg =
-        AdbMsg.create({cmd, arg0, arg1, data, useChecksum: this.useChecksum});
+    cmd: CmdType,
+    arg0: number,
+    arg1: number,
+    data?: Uint8Array | string,
+  ): Promise<void> {
+    const msg = AdbMsg.create({
+      cmd,
+      arg0,
+      arg1,
+      data,
+      useChecksum: this.useChecksum,
+    });
 
     const msgHeader = msg.encodeHeader();
     const msgData = msg.data;
     assertTrue(
-      msgHeader.length <= this.maxPayload &&
-        msgData.length <= this.maxPayload);
+      msgHeader.length <= this.maxPayload && msgData.length <= this.maxPayload,
+    );
 
-    const sendPromises = [this.wrapUsb(
-      this.device.transferOut(this.usbWriteEpEndpoint, msgHeader.buffer))];
+    const sendPromises = [
+      this.wrapUsb(
+        this.device.transferOut(this.usbWriteEpEndpoint, msgHeader.buffer),
+      ),
+    ];
     if (msg.data.length > 0) {
-      sendPromises.push(this.wrapUsb(
-        this.device.transferOut(this.usbWriteEpEndpoint, msgData.buffer)));
+      sendPromises.push(
+        this.wrapUsb(
+          this.device.transferOut(this.usbWriteEpEndpoint, msgData.buffer),
+        ),
+      );
     }
     await Promise.all(sendPromises);
   }
 
-  private wrapUsb<T>(promise: Promise<T>): Promise<T|undefined> {
+  private wrapUsb<T>(promise: Promise<T>): Promise<T | undefined> {
     return wrapRecordingError(promise, this.reachDisconnectState.bind(this));
   }
 }
@@ -465,8 +516,10 @@ export class AdbOverWebusbStream implements ByteStream {
   remoteStreamId = -1;
 
   constructor(
-    adb: AdbConnectionOverWebusb, localStreamId: number,
-    remoteStreamId: number) {
+    adb: AdbConnectionOverWebusb,
+    localStreamId: number,
+    remoteStreamId: number,
+  ) {
     this.adbConnection = adb;
     this.localStreamId = localStreamId;
     this.remoteStreamId = remoteStreamId;
@@ -500,7 +553,6 @@ export class AdbOverWebusbStream implements ByteStream {
     this.onStreamCloseCallbacks = [];
   }
 
-
   close(): void {
     this.closeAndWaitForTeardown();
   }
@@ -510,7 +562,7 @@ export class AdbOverWebusbStream implements ByteStream {
     await this.adbConnection.streamClose(this);
   }
 
-  write(msg: string|Uint8Array): void {
+  write(msg: string | Uint8Array): void {
     this.adbConnection.streamWrite(msg, this);
   }
 
@@ -519,7 +571,7 @@ export class AdbOverWebusbStream implements ByteStream {
   }
 }
 
-const ADB_MSG_SIZE = 6 * 4;  // 6 * int32.
+const ADB_MSG_SIZE = 6 * 4; // 6 * int32.
 
 class AdbMsg {
   data: Uint8Array;
@@ -531,8 +583,13 @@ class AdbMsg {
   readonly useChecksum: boolean;
 
   constructor(
-    cmd: CmdType, arg0: number, arg1: number, dataLen: number,
-    dataChecksum: number, useChecksum = false) {
+    cmd: CmdType,
+    arg0: number,
+    arg1: number,
+    dataLen: number,
+    dataChecksum: number,
+    useChecksum = false,
+  ) {
     assertTrue(cmd.length === 4);
     this.cmd = cmd;
     this.arg0 = arg0;
@@ -543,8 +600,16 @@ class AdbMsg {
     this.useChecksum = useChecksum;
   }
 
-  static create({cmd, arg0, arg1, data, useChecksum = true}: {
-    cmd: CmdType; arg0: number; arg1: number;
+  static create({
+    cmd,
+    arg0,
+    arg1,
+    data,
+    useChecksum = true,
+  }: {
+    cmd: CmdType;
+    arg0: number;
+    arg1: number;
     data?: Uint8Array | string;
     useChecksum?: boolean;
   }): AdbMsg {
@@ -582,7 +647,7 @@ class AdbMsg {
     const dataLen = dv.getUint32(12, true);
     const dataChecksum = dv.getUint32(16, true);
     const cmdChecksum = dv.getUint32(20, true);
-    assertTrue(cmdNum === (cmdChecksum ^ 0xFFFFFFFF));
+    assertTrue(cmdNum === (cmdChecksum ^ 0xffffffff));
     return new AdbMsg(cmd, arg0, arg1, dataLen, dataChecksum);
   }
 
@@ -598,12 +663,12 @@ class AdbMsg {
     dv.setUint32(8, this.arg1, true);
     dv.setUint32(12, rawMsg.byteLength, true);
     dv.setUint32(16, checksum, true);
-    dv.setUint32(20, dv.getUint32(0, true) ^ 0xFFFFFFFF, true);
+    dv.setUint32(20, dv.getUint32(0, true) ^ 0xffffffff, true);
 
     return buf;
   }
 
-  static encodeData(data?: Uint8Array|string): Uint8Array {
+  static encodeData(data?: Uint8Array | string): Uint8Array {
     if (data === undefined) return new Uint8Array([]);
     if (isString(data)) return textEncoder.encode(data + '\0');
     return data;

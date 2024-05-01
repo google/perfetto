@@ -109,6 +109,11 @@ heap_graph_sample_protos AS (
     base_stats.upid,
     RepeatedField(JavaHeapStats_Sample(
       'ts', graph_sample_ts,
+      'process_uptime_ms',
+        CASE WHEN process.start_ts IS NOT NULL
+        THEN (graph_sample_ts - process.start_ts) / 1000000
+        ELSE NULL
+        END,
       'heap_size', total_size,
       'heap_native_size', total_native_size,
       'obj_count', total_obj_count,
@@ -120,6 +125,7 @@ heap_graph_sample_protos AS (
       'oom_score_adj', closest_anon_swap_oom.oom_score_val
     )) AS sample_protos
   FROM base_stats
+  JOIN process USING (upid)
   LEFT JOIN closest_anon_swap_oom USING (upid, graph_sample_ts)
   GROUP BY 1
 )

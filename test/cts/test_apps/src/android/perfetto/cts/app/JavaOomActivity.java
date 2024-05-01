@@ -18,22 +18,34 @@ package android.perfetto.cts.app;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.util.Log;
 
 public class JavaOomActivity extends Activity {
+    public static final String TAG = "JavaOomActivity";
+
     @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
         new Thread(() -> {
+            // Inside ART, the perfetto hprof plugin (used here to dump the heap after an OOM) will
+            // use fork(). If other threads are holding some locks, the forked process might not be
+            // able to make progress, in some rare cases. This is a known limitation of the perfetto
+            // hprof plugin. In this test, we want to minimize the chance that other threads are
+            // holding locks when we cause an OOM. Unfortunately, it looks like the best way of
+            // doing this is sleeping for 500 milliseconds, allowing other threads spawned on app
+            // startup to finish what they're doing. See b/329124210 for more details.
             try {
+                Thread.sleep(500);
+            } catch (InterruptedException ignored) {
+            }
+            try {
+                Log.i(TAG, "Before the allocation");
+                // Try to allocate a big array: it should cause ART to run out of memory.
                 byte[] alloc = new byte[Integer.MAX_VALUE];
-                // The return statement below is required to keep the allocation
-                // above when generating DEX. Without the return statement there is
-                // no way for a debugger to break where `alloc` is in scope and
-                // therefore javac will not generate local variable information for it.
-                // Without local variable information dexers (both D8 and R8) will
-                // remove the dead allocation as without local variable information it
-                // is dead even in debug mode. See b/322478366#comment3.
-                return;
+                // Use the array, otherwise R8 might optimize the allocation away. (b/322478366,
+                // b/325467497).
+                alloc[5] = 42;
+                Log.i(TAG, "After the allocation " + alloc[5]);
             } catch (OutOfMemoryError e) {
             }
         }).start();

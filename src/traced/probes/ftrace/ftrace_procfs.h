@@ -155,6 +155,9 @@ class FtraceProcfs {
   // Get all the available clocks.
   std::set<std::string> AvailableClocks();
 
+  uint32_t ReadBufferPercent();
+  bool SetBufferPercent(uint32_t percent);
+
   // Get all the enabled events.
   virtual std::vector<std::string> ReadEnabledEvents();
 

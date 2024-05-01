@@ -19,6 +19,7 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
@@ -193,7 +194,8 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     std::vector<uint8_t> vec = data_packet.SerializeAsArray();
     TraceBlob blob = TraceBlob::CopyFrom(vec.data(), vec.size());
     context_->sorter->PushTracePacket(actual_ts, state->current_generation(),
-                                      TraceBlobView(std::move(blob)));
+                                      TraceBlobView(std::move(blob)),
+                                      context_->machine_id());
   }
 
   return ModuleResult::Handled();

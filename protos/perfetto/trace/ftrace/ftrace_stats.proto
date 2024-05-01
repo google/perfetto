@@ -40,6 +40,8 @@ message FtraceCpuStats {
 
   // Size of entries currently in the kernel buffer (see |entries|) in bytes.
   // The field should be named "bytes", but is misnamed for historical reasons.
+  // This value has known inaccuracies before Linux v6.6:
+  // https://github.com/torvalds/linux/commit/45d99ea
   optional uint64 bytes_read = 5;
 
   // The timestamp for the oldest event still in the ring buffer.

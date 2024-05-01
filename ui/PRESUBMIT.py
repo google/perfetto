@@ -36,6 +36,7 @@ def RunAndReportIfLong(func, *args, **kargs):
 def CheckChange(input, output):
   results = []
   results += RunAndReportIfLong(CheckEslint, input, output)
+  results += RunAndReportIfLong(CheckPrettier, input, output)
   results += RunAndReportIfLong(CheckImports, input, output)
   results += RunAndReportIfLong(CheckAnyRachet, input, output)
   return results
@@ -79,6 +80,37 @@ def CheckEslint(input_api, output_api):
   if subprocess.call(cmd):
     s = ' '.join(cmd)
     return [output_api.PresubmitError(f"eslint errors. Run: $ {s}")]
+  return []
+
+
+def CheckPrettier(input_api, output_api):
+  path = input_api.os_path
+  ui_path = input_api.PresubmitLocalPath()
+  module_path = path.join(ui_path, 'node_modules', '.bin', 'prettier')
+  prettier_path = path.join(ui_path, 'prettier')
+
+  if not path.exists(module_path):
+    repo_root = input_api.change.RepositoryRoot()
+    install_path = path.join(repo_root, 'tools', 'install-build-deps')
+    return [
+        output_api.PresubmitError(
+            f"prettier not found. Please first run\n $ {install_path} --ui")
+    ]
+
+  def file_filter(x):
+    return input_api.FilterSourceFile(
+        x, files_to_check=[r'.*\.ts$', r'.*\.js$', r'.*\.scss$'])
+
+  files = input_api.AffectedSourceFiles(file_filter)
+
+  if not files:
+    return []
+  paths = [f.AbsoluteLocalPath() for f in files]
+
+  cmd = [prettier_path, '--check'] + paths
+  if subprocess.call(cmd):
+    s = ' '.join(cmd)
+    return [output_api.PresubmitError(f"prettier errors. Run: $ {s}")]
   return []
 
 

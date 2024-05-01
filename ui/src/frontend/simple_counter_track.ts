@@ -14,14 +14,15 @@
 
 import m from 'mithril';
 import {EngineProxy, TrackContext} from '../public';
-import {BaseCounterTrack} from './base_counter_track';
+import {BaseCounterTrack, CounterOptions} from './base_counter_track';
 import {CounterColumns, SqlDataSource} from './debug_tracks';
 import {Disposable, DisposableCallback} from '../base/disposable';
 
-export interface SimpleCounterTrackConfig {
+export type SimpleCounterTrackConfig = {
   data: SqlDataSource;
   columns: CounterColumns;
-}
+  options?: Partial<CounterOptions>;
+};
 
 export class SimpleCounterTrack extends BaseCounterTrack {
   private config: SimpleCounterTrackConfig;
@@ -30,26 +31,28 @@ export class SimpleCounterTrack extends BaseCounterTrack {
   constructor(
     engine: EngineProxy,
     ctx: TrackContext,
-    config: SimpleCounterTrackConfig) {
+    config: SimpleCounterTrackConfig,
+  ) {
     super({
       engine,
       trackKey: ctx.trackKey,
+      options: config.options,
     });
     this.config = config;
     this.sqlTableName = `__simple_counter_${this.trackKey}`;
   }
 
   async onInit(): Promise<Disposable> {
+    const trash = await super.onInit();
     await this.createTrackTable();
     return new DisposableCallback(() => {
+      trash.dispose();
       this.dropTrackTable();
     });
   }
 
   getTrackShellButtons(): m.Children {
-    return [
-      this.getCounterContextMenu(),
-    ];
+    return this.getCounterContextMenu();
   }
 
   getSqlSource(): string {

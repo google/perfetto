@@ -16,21 +16,17 @@ import {v4 as uuidv4} from 'uuid';
 
 import {Disposable, DisposableCallback} from '../../base/disposable';
 import {Actions} from '../../common/actions';
-import {
-  generateSqlWithInternalLayout,
-} from '../../common/internal_layout_utils';
-import {Selection} from '../../common/state';
+import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
+import {LegacySelection} from '../../common/state';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
-import {
-  GenericSliceDetailsTabConfigBase,
-} from '../../frontend/generic_slice_details_tab';
+import {GenericSliceDetailsTabConfigBase} from '../../frontend/generic_slice_details_tab';
 import {globals} from '../../frontend/globals';
 import {
   NamedSliceTrack,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-import {Plugin, PluginContext, PluginDescriptor} from '../../public';
+import {Plugin, PluginDescriptor} from '../../public';
 
 export interface CustomSqlImportConfig {
   modules: string[];
@@ -53,23 +49,25 @@ export interface CustomSqlDetailsPanelConfig {
 }
 
 export abstract class CustomSqlTableSliceTrack<
-    T extends NamedSliceTrackTypes> extends NamedSliceTrack<T> {
+  T extends NamedSliceTrackTypes,
+> extends NamedSliceTrack<T> {
   protected readonly tableName;
 
   constructor(args: NewTrackArgs) {
     super(args);
-    this.tableName =
-        `customsqltableslicetrack_${uuidv4().split('-').join('_')}`;
+    this.tableName = `customsqltableslicetrack_${uuidv4()
+      .split('-')
+      .join('_')}`;
   }
 
   abstract getSqlDataSource():
-    CustomSqlTableDefConfig |
-    Promise<CustomSqlTableDefConfig>;
+    | CustomSqlTableDefConfig
+    | Promise<CustomSqlTableDefConfig>;
 
   // Override by subclasses.
-  abstract getDetailsPanel(args:
-                               OnSliceClickArgs<NamedSliceTrackTypes['slice']>):
-      CustomSqlDetailsPanelConfig;
+  abstract getDetailsPanel(
+    args: OnSliceClickArgs<NamedSliceTrackTypes['slice']>,
+  ): CustomSqlDetailsPanelConfig;
 
   getSqlImports(): CustomSqlImportConfig {
     return {
@@ -86,13 +84,14 @@ export abstract class CustomSqlTableSliceTrack<
     }
 
     const sql =
-        `CREATE VIEW ${this.tableName} AS ` + generateSqlWithInternalLayout({
-          columns: columns,
-          sourceTable: config.sqlTableName,
-          ts: 'ts',
-          dur: 'dur',
-          whereClause: config.whereClause,
-        });
+      `CREATE VIEW ${this.tableName} AS ` +
+      generateSqlWithInternalLayout({
+        columns: columns,
+        sourceTable: config.sqlTableName,
+        ts: 'ts',
+        dur: 'dur',
+        whereClause: config.whereClause,
+      });
     await this.engine.query(sql);
     return DisposableCallback.from(() => {
       if (this.engine.isAlive) {
@@ -106,7 +105,7 @@ export abstract class CustomSqlTableSliceTrack<
     return `SELECT * FROM ${this.tableName}`;
   }
 
-  isSelectionHandled(selection: Selection) {
+  isSelectionHandled(selection: LegacySelection) {
     if (selection.kind !== 'GENERIC_SLICE') {
       return false;
     }
@@ -119,17 +118,19 @@ export abstract class CustomSqlTableSliceTrack<
     }
 
     const detailsPanelConfig = this.getDetailsPanel(args);
-    globals.makeSelection(Actions.selectGenericSlice({
-      id: args.slice.id,
-      sqlTableName: this.tableName,
-      start: args.slice.ts,
-      duration: args.slice.dur,
-      trackKey: this.trackKey,
-      detailsPanelConfig: {
-        kind: detailsPanelConfig.kind,
-        config: detailsPanelConfig.config,
-      },
-    }));
+    globals.makeSelection(
+      Actions.selectGenericSlice({
+        id: args.slice.id,
+        sqlTableName: this.tableName,
+        start: args.slice.ts,
+        duration: args.slice.dur,
+        trackKey: this.trackKey,
+        detailsPanelConfig: {
+          kind: detailsPanelConfig.kind,
+          config: detailsPanelConfig.config,
+        },
+      }),
+    );
   }
 
   async loadImports() {
@@ -139,9 +140,7 @@ export abstract class CustomSqlTableSliceTrack<
   }
 }
 
-class CustomSqlTrackPlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-}
+class CustomSqlTrackPlugin implements Plugin {}
 
 export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.CustomSqlTrack',

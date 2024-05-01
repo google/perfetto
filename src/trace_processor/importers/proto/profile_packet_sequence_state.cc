@@ -17,7 +17,10 @@
 #include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
 
 #include "perfetto/base/flat_set.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
@@ -27,6 +30,7 @@
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/build_id.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -36,7 +40,9 @@ const char kArtHeapName[] = "com.android.art";
 
 ProfilePacketSequenceState::ProfilePacketSequenceState(
     TraceProcessorContext* context)
-    : context_(context) {}
+    : context_(context) {
+  strings_.Insert(0, "");
+}
 
 ProfilePacketSequenceState::~ProfilePacketSequenceState() = default;
 
@@ -59,22 +65,22 @@ void ProfilePacketSequenceState::SetProfilePacketIndex(uint64_t index) {
 
 void ProfilePacketSequenceState::AddString(SourceStringId id,
                                            base::StringView str) {
+  PERFETTO_CHECK(id != 0 || str.empty());
   strings_.Insert(id, str.ToStdString());
 }
 
 void ProfilePacketSequenceState::AddMapping(SourceMappingId id,
                                             const SourceMapping& mapping) {
-  StackProfileTracker::CreateMappingParams params;
+  CreateMappingParams params;
   if (std::string* str = strings_.Find(mapping.build_id); str) {
-    params.build_id = base::StringView(*str);
+    params.build_id = BuildId::FromRaw(*str);
   } else {
     context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
     return;
   }
   params.exact_offset = mapping.exact_offset;
   params.start_offset = mapping.start_offset;
-  params.start = mapping.start;
-  params.end = mapping.end;
+  params.memory_range = AddressRange(mapping.start, mapping.end);
   params.load_bias = mapping.load_bias;
 
   std::vector<base::StringView> path_components;
@@ -84,19 +90,23 @@ void ProfilePacketSequenceState::AddMapping(SourceMappingId id,
       path_components.push_back(base::StringView(*str));
     } else {
       context_->storage->IncrementStats(stats::stackprofile_invalid_string_id);
-      return;
+      // For backward compatibility reasons we do not return an error but
+      // instead stop adding path components.
+      break;
     }
   }
-  std::string path = ProfilePacketUtils::MakeMappingName(path_components);
-  params.name = base::StringView(path);
-  MappingId mapping_id = context_->stack_profile_tracker->InternMapping(params);
-  mappings_.Insert(id, mapping_id);
+
+  params.name = ProfilePacketUtils::MakeMappingName(path_components);
+  mappings_.Insert(
+      id, &context_->mapping_tracker->InternMemoryMapping(std::move(params)));
 }
 
 void ProfilePacketSequenceState::AddFrame(SourceFrameId id,
                                           const SourceFrame& frame) {
-  MappingId* mapping_id = mappings_.Find(frame.mapping_id);
-  if (!mapping_id) {
+  VirtualMemoryMapping* mapping;
+  if (auto* ptr = mappings_.Find(frame.mapping_id); ptr) {
+    mapping = *ptr;
+  } else {
     context_->storage->IncrementStats(stats::stackprofile_invalid_mapping_id);
     return;
   }
@@ -107,9 +117,9 @@ void ProfilePacketSequenceState::AddFrame(SourceFrameId id,
     return;
   }
 
-  FrameId frame_id = context_->stack_profile_tracker->InternFrame(
-      *mapping_id, frame.rel_pc, base::StringView(*function_name));
-
+  FrameId frame_id =
+      mapping->InternFrame(frame.rel_pc, base::StringView(*function_name));
+  PERFETTO_CHECK(!mapping->is_jitted());
   frames_.Insert(id, frame_id);
 }
 
@@ -167,14 +177,13 @@ FrameId ProfilePacketSequenceState::GetDatabaseFrameIdForTesting(
 }
 
 void ProfilePacketSequenceState::AddAllocation(const SourceAllocation& alloc) {
-  auto opt_callstack_id = FindOrInsertCallstack(alloc.callstack_id);
+  const UniquePid upid = context_->process_tracker->GetOrCreateProcess(
+      static_cast<uint32_t>(alloc.pid));
+  auto opt_callstack_id = FindOrInsertCallstack(upid, alloc.callstack_id);
   if (!opt_callstack_id)
     return;
 
   CallsiteId callstack_id = *opt_callstack_id;
-
-  UniquePid upid = context_->process_tracker->GetOrCreateProcess(
-      static_cast<uint32_t>(alloc.pid));
 
   tables::HeapProfileAllocationTable::Row alloc_row{
       alloc.timestamp,
@@ -270,11 +279,13 @@ void ProfilePacketSequenceState::AddAllocation(const SourceAllocation& alloc) {
 }
 
 std::optional<CallsiteId> ProfilePacketSequenceState::FindOrInsertCallstack(
+    UniquePid upid,
     uint64_t iid) {
   if (CallsiteId* id = callstacks_.Find(iid); id) {
     return *id;
   }
-  return GetOrCreate<StackProfileSequenceState>()->FindOrInsertCallstack(iid);
+  return GetOrCreate<StackProfileSequenceState>()->FindOrInsertCallstack(upid,
+                                                                         iid);
 }
 
 }  // namespace trace_processor

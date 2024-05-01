@@ -25,9 +25,11 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
@@ -85,6 +87,21 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
 
   // Any compressed packets should have been handled by the tokenizer.
   PERFETTO_CHECK(!decoder.has_compressed_packets());
+
+  // When the trace packet is emitted from a remote machine: parse the packet
+  // using a different ProtoTraceReader instance. The packet will be parsed
+  // in the context of the remote machine.
+  if (PERFETTO_UNLIKELY(decoder.has_machine_id())) {
+    if (!context_->machine_id()) {
+      // Default context: switch to another reader instance to parse the packet.
+      PERFETTO_DCHECK(context_->multi_machine_trace_manager);
+      auto* reader = context_->multi_machine_trace_manager->GetOrCreateReader(
+          decoder.machine_id());
+      return reader->ParsePacket(std::move(packet));
+    }
+  }
+  // Assert that the packet is parsed using the right instance of reader.
+  PERFETTO_DCHECK(decoder.has_machine_id() == !!context_->machine_id());
 
   const uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto* state = GetIncrementalStateForPacketSequence(seq_id);
@@ -191,7 +208,7 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
               timestamp_clock_id);
         }
         converted_clock_id =
-            ClockTracker::SeqenceToGlobalClock(seq_id, timestamp_clock_id);
+            ClockTracker::SequenceToGlobalClock(seq_id, timestamp_clock_id);
       }
       auto trace_ts =
           context_->clock_tracker->ToTraceTime(converted_clock_id, timestamp);
@@ -239,7 +256,7 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // Use parent data and length because we want to parse this again
   // later to get the exact type of the packet.
   context_->sorter->PushTracePacket(timestamp, state->current_generation(),
-                                    std::move(packet));
+                                    std::move(packet), context_->machine_id());
 
   return util::OkStatus();
 }
@@ -352,7 +369,7 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
             "(%" PRIu64 ") but the TracePacket sequence_id is zero",
             clock_id);
       }
-      clock_id = ClockTracker::SeqenceToGlobalClock(seq_id, clk.clock_id());
+      clock_id = ClockTracker::SequenceToGlobalClock(seq_id, clk.clock_id());
     }
     int64_t unit_multiplier_ns =
         clk.unit_multiplier_ns()
@@ -407,6 +424,7 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
         clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;
     row.clock_name = GetBuiltinClockNameOrNull(clock_timestamp.clock.id);
     row.snapshot_id = *snapshot_id;
+    row.machine_id = context_->machine_id();
 
     context_->storage->mutable_clock_snapshot_table()->Insert(row);
   }

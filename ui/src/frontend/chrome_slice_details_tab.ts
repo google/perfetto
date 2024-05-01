@@ -28,11 +28,7 @@ import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Section} from '../widgets/section';
 import {Tree, TreeNode} from '../widgets/tree';
 
-import {
-  BottomTab,
-  bottomTabRegistry,
-  NewBottomTabArgs,
-} from './bottom_tab';
+import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {FlowPoint, globals} from './globals';
 import {hasArgs, renderArguments} from './slice_args';
 import {renderDetails} from './slice_details';
@@ -52,19 +48,19 @@ interface ContextMenuItem {
   run(slice: SliceDetails): void;
 }
 
-function getTidFromSlice(slice: SliceDetails): number|undefined {
+function getTidFromSlice(slice: SliceDetails): number | undefined {
   return slice.thread?.tid;
 }
 
-function getPidFromSlice(slice: SliceDetails): number|undefined {
+function getPidFromSlice(slice: SliceDetails): number | undefined {
   return slice.process?.pid;
 }
 
-function getProcessNameFromSlice(slice: SliceDetails): string|undefined {
+function getProcessNameFromSlice(slice: SliceDetails): string | undefined {
   return slice.process?.name;
 }
 
-function getThreadNameFromSlice(slice: SliceDetails): string|undefined {
+function getThreadNameFromSlice(slice: SliceDetails): string | undefined {
   return slice.thread?.name;
 }
 
@@ -92,15 +88,19 @@ const ITEMS: ContextMenuItem[] = [
   {
     name: 'Average duration of slice name',
     shouldDisplay: (slice: SliceDetails) => hasName(slice),
-    run: (slice: SliceDetails) => addQueryResultsTab({
-      query: `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
-      title: `${slice.name} average dur`,
-    }),
+    run: (slice: SliceDetails) =>
+      addQueryResultsTab({
+        query: `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
+        title: `${slice.name} average dur`,
+      }),
   },
   {
     name: 'Binder txn names + monitor contention on thread',
-    shouldDisplay: (slice) => hasProcessName(slice) && hasThreadName(slice) &&
-        hasTid(slice) && hasPid(slice),
+    shouldDisplay: (slice) =>
+      hasProcessName(slice) &&
+      hasThreadName(slice) &&
+      hasTid(slice) &&
+      hasPid(slice),
     run: (slice: SliceDetails) => {
       const engine = getEngine();
       if (engine === undefined) return;
@@ -109,12 +109,12 @@ const ITEMS: ContextMenuItem[] = [
         INCLUDE PERFETTO MODULE android.binder;
         INCLUDE PERFETTO MODULE android.monitor_contention;
       `,
-        engine)
-        .then(
-          () => addDebugSliceTrack(
-            engine,
-            {
-              sqlSource: `
+        engine,
+      ).then(() =>
+        addDebugSliceTrack(
+          engine,
+          {
+            sqlSource: `
                                 WITH merged AS (
                                   SELECT s.ts, s.dur, tx.aidl_name AS name, 0 AS depth
                                   FROM android_binder_txns tx
@@ -145,17 +145,20 @@ const ITEMS: ContextMenuItem[] = [
                                   JOIN thread ON thread.utid = thread_track.utid
                                   JOIN process ON process.upid = thread.upid
                                   WHERE process.pid = ${getPidFromSlice(slice)}
-                                        AND thread.tid = ${
-  getTidFromSlice(slice)}
+                                        AND thread.tid = ${getTidFromSlice(
+                                          slice,
+                                        )}
                                         AND short_blocked_method IS NOT NULL
                                   ORDER BY depth
                                 ) SELECT ts, dur, name FROM merged`,
-            },
-            `Binder names (${getProcessNameFromSlice(slice)}:${
-              getThreadNameFromSlice(slice)})`,
-            {ts: 'ts', dur: 'dur', name: 'name'},
-            [],
-          ));
+          },
+          `Binder names (${getProcessNameFromSlice(
+            slice,
+          )}:${getThreadNameFromSlice(slice)})`,
+          {ts: 'ts', dur: 'dur', name: 'name'},
+          [],
+        ),
+      );
     },
   },
 ];
@@ -164,7 +167,7 @@ function getSliceContextMenuItems(slice: SliceDetails) {
   return ITEMS.filter((item) => item.shouldDisplay(slice));
 }
 
-function getEngine(): EngineProxy|undefined {
+function getEngine(): EngineProxy | undefined {
   const engineId = globals.getCurrentEngine()?.id;
   if (engineId === undefined) {
     return undefined;
@@ -174,7 +177,9 @@ function getEngine(): EngineProxy|undefined {
 }
 
 async function getAnnotationSlice(
-  engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {
+  engine: EngineProxy,
+  id: number,
+): Promise<SliceDetails | undefined> {
   const query = await engine.query(`
     SELECT
       id,
@@ -204,6 +209,7 @@ async function getAnnotationSlice(
     name: it.name ?? 'null',
     ts: Time.fromRaw(it.ts),
     dur: it.dur,
+    depth: 0,
     trackId: it.trackId,
     threadDur: it.threadDur ?? undefined,
     category: it.cat ?? undefined,
@@ -211,8 +217,11 @@ async function getAnnotationSlice(
   };
 }
 
-async function getSliceDetails(engine: EngineProxy, id: number, table: string):
-    Promise<SliceDetails|undefined> {
+async function getSliceDetails(
+  engine: EngineProxy,
+  id: number,
+  table: string,
+): Promise<SliceDetails | undefined> {
   if (table === 'annotation') {
     return getAnnotationSlice(engine, id);
   } else {
@@ -225,15 +234,15 @@ interface ChromeSliceDetailsTabConfig {
   table: string;
 }
 
-export class ChromeSliceDetailsTab extends
-  BottomTab<ChromeSliceDetailsTabConfig> {
+export class ChromeSliceDetailsTab extends BottomTab<ChromeSliceDetailsTabConfig> {
   static readonly kind = 'dev.perfetto.ChromeSliceDetailsTab';
 
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
 
-  static create(args: NewBottomTabArgs<ChromeSliceDetailsTabConfig>):
-      ChromeSliceDetailsTab {
+  static create(
+    args: NewBottomTabArgs<ChromeSliceDetailsTabConfig>,
+  ): ChromeSliceDetailsTab {
     return new ChromeSliceDetailsTab(args);
   }
 
@@ -247,12 +256,16 @@ export class ChromeSliceDetailsTab extends
     const {id, table} = this.config;
     const details = await getSliceDetails(this.engine, id, table);
 
-    if (details !== undefined && details.thread !== undefined &&
-        details.dur > 0) {
+    if (
+      details !== undefined &&
+      details.thread !== undefined &&
+      details.dur > 0
+    ) {
       this.breakdownByThreadState = await breakDownIntervalByThreadState(
         this.engine,
         TimeSpan.fromTimeAndDuration(details.ts, details.dur),
-        details.thread.utid);
+        details.thread.utid,
+      );
     }
 
     this.sliceDetails = details;
@@ -290,18 +303,16 @@ export class ChromeSliceDetailsTab extends
   private renderRhs(engine: EngineProxy, slice: SliceDetails): m.Children {
     const precFlows = this.renderPrecedingFlows(slice);
     const followingFlows = this.renderFollowingFlows(slice);
-    const args = hasArgs(slice.args) &&
-        m(Section,
-          {title: 'Arguments'},
-          m(Tree, renderArguments(engine, slice.args)));
+    const args =
+      hasArgs(slice.args) &&
+      m(
+        Section,
+        {title: 'Arguments'},
+        m(Tree, renderArguments(engine, slice.args)),
+      );
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (precFlows ?? followingFlows ?? args) {
-      return m(
-        GridLayoutColumn,
-        precFlows,
-        followingFlows,
-        args,
-      );
+      return m(GridLayoutColumn, precFlows, followingFlows, args);
     } else {
       return undefined;
     }
@@ -312,17 +323,20 @@ export class ChromeSliceDetailsTab extends
     const inFlows = flows.filter(({end}) => end.sliceId === slice.id);
 
     if (inFlows.length > 0) {
-      const isRunTask = slice.name === 'ThreadControllerImpl::RunTask' ||
-          slice.name === 'ThreadPool_RunTask';
+      const isRunTask =
+        slice.name === 'ThreadControllerImpl::RunTask' ||
+        slice.name === 'ThreadPool_RunTask';
 
       return m(
         Section,
         {title: 'Preceding Flows'},
         m(
           Tree,
-          inFlows.map(
-            ({begin, dur}) => this.renderFlow(begin, dur, !isRunTask)),
-        ));
+          inFlows.map(({begin, dur}) =>
+            this.renderFlow(begin, dur, !isRunTask),
+          ),
+        ),
+      );
     } else {
       return null;
     }
@@ -333,30 +347,35 @@ export class ChromeSliceDetailsTab extends
     const outFlows = flows.filter(({begin}) => begin.sliceId === slice.id);
 
     if (outFlows.length > 0) {
-      const isPostTask = slice.name === 'ThreadPool_PostTask' ||
-          slice.name === 'SequenceManager PostTask';
+      const isPostTask =
+        slice.name === 'ThreadPool_PostTask' ||
+        slice.name === 'SequenceManager PostTask';
 
       return m(
         Section,
         {title: 'Following Flows'},
         m(
           Tree,
-          outFlows.map(
-            ({end, dur}) => this.renderFlow(end, dur, !isPostTask)),
-        ));
+          outFlows.map(({end, dur}) => this.renderFlow(end, dur, !isPostTask)),
+        ),
+      );
     } else {
       return null;
     }
   }
 
   private renderFlow(
-    flow: FlowPoint, dur: duration, includeProcessName: boolean): m.Children {
-    const description = flow.sliceChromeCustomName === undefined ?
-      flow.sliceName :
-      flow.sliceChromeCustomName;
-    const threadName = includeProcessName ?
-      `${flow.threadName} (${flow.processName})` :
-      flow.threadName;
+    flow: FlowPoint,
+    dur: duration,
+    includeProcessName: boolean,
+  ): m.Children {
+    const description =
+      flow.sliceChromeCustomName === undefined
+        ? flow.sliceName
+        : flow.sliceChromeCustomName;
+    const threadName = includeProcessName
+      ? `${flow.threadName} (${flow.processName})`
+      : flow.threadName;
 
     return m(
       TreeNode,
@@ -380,7 +399,6 @@ export class ChromeSliceDetailsTab extends
     const contextMenuItems = getSliceContextMenuItems(sliceInfo);
     if (contextMenuItems.length > 0) {
       const trigger = m(Button, {
-        minimal: true,
         compact: true,
         label: 'Contextual Options',
         rightIcon: Icons.ContextMenu,
@@ -388,14 +406,12 @@ export class ChromeSliceDetailsTab extends
       return m(
         PopupMenu2,
         {trigger},
-        contextMenuItems.map(
-          ({name, run}) =>
-            m(MenuItem, {label: name, onclick: () => run(sliceInfo)})),
+        contextMenuItems.map(({name, run}) =>
+          m(MenuItem, {label: name, onclick: () => run(sliceInfo)}),
+        ),
       );
     } else {
       return undefined;
     }
   }
 }
-
-bottomTabRegistry.register(ChromeSliceDetailsTab);

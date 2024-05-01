@@ -30,7 +30,7 @@ export const ROUTE_PREFIX = '#!';
 const DEFAULT_ROUTE = '/';
 
 const modes = ['embedded', undefined] as const;
-type Mode = typeof modes[number];
+type Mode = (typeof modes)[number];
 
 // The set of args that can be set on the route via #!/page?a=1&b2.
 // Route args are orthogonal to pages (i.e. should NOT make sense only in a
@@ -134,7 +134,7 @@ export class Router {
 
   // frontend/index.ts calls maybeOpenTraceFromRoute() + redraw here.
   // This event is decoupled for testing and to avoid circular deps.
-  onRouteChanged: (route: Route) => (void) = () => {};
+  onRouteChanged: (route: Route) => void = () => {};
 
   constructor(routes: RoutesMap) {
     assertExists(routes[DEFAULT_ROUTE]);
@@ -150,8 +150,10 @@ export class Router {
     const oldRoute = Router.parseUrl(e.oldURL);
     const newRoute = Router.parseUrl(e.newURL);
 
-    if (newRoute.args.local_cache_key === undefined &&
-        oldRoute.args.local_cache_key) {
+    if (
+      newRoute.args.local_cache_key === undefined &&
+      oldRoute.args.local_cache_key
+    ) {
       // Propagate `local_cache_key across` navigations. When a trace is loaded,
       // the URL becomes #!/viewer?local_cache_key=123. `local_cache_key` allows
       // reopening the trace from cache in the case of a reload or discard.
@@ -264,7 +266,7 @@ export class Router {
   }
 
   private static parseSearchParams(url: string): RouteArgs {
-    const query = (new URL(url)).search;
+    const query = new URL(url).search;
     const rawArgs = Router.parseQueryString(query);
     const args = runValidator(routeArgs, rawArgs).result;
 
@@ -299,8 +301,10 @@ export class Router {
     const WINDOW_MS = 1000;
     const EVENT_LIMIT = 20;
     const now = Date.now();
-    while (this.recentChanges.length > 0 &&
-           now - this.recentChanges[0] > WINDOW_MS) {
+    while (
+      this.recentChanges.length > 0 &&
+      now - this.recentChanges[0] > WINDOW_MS
+    ) {
       this.recentChanges.shift();
     }
     this.recentChanges.push(now);
@@ -314,8 +318,9 @@ export class Router {
     return url;
   }
 
-  static async isVersionAvailable(versionCode: string):
-        Promise<string|undefined> {
+  static async isVersionAvailable(
+    versionCode: string,
+  ): Promise<string | undefined> {
     if (versionCode === '') {
       return undefined;
     }
@@ -326,7 +331,9 @@ export class Router {
     try {
       r = await fetch(url, {signal: controller.signal});
     } catch (e) {
-      console.error(`No UI version for ${versionCode} at ${url}. This is an error if ${versionCode} is a released Perfetto version`);
+      console.error(
+        `No UI version for ${versionCode} at ${url}. This is an error if ${versionCode} is a released Perfetto version`,
+      );
       return undefined;
     } finally {
       clearTimeout(timeoutId);

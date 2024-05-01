@@ -1,0 +1,362 @@
+android_blocking_calls_unagg {
+  process_with_blocking_calls {
+    process {
+      name: "com.android.systemui"
+      uid: 10001
+      pid: 1000
+    }
+    blocking_calls {
+      name: "binder transaction"
+      cnt: 7
+      total_dur_ms: 20
+      max_dur_ms: 10
+      min_dur_ms: 1
+      total_dur_ns: 20000000
+      max_dur_ns: 10000000
+      min_dur_ns: 1000000
+    }
+    blocking_calls {
+      name: "monitor contention with <...>"
+      cnt: 1
+      total_dur_ms: 12
+      max_dur_ms: 12
+      min_dur_ms: 12
+      total_dur_ns: 12000000
+      max_dur_ns: 12000000
+      min_dur_ns: 12000000
+    }
+    blocking_calls {
+      name: "AIDL::java::IWindowManager::hasNavigationBar::server"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+  }
+  process_with_blocking_calls {
+   process {
+      name: "com.google.android.apps.nexuslauncher"
+      uid: 10002
+      pid: 2000
+    }
+    blocking_calls {
+      name: "binder transaction"
+      cnt: 6
+      total_dur_ms: 10
+      max_dur_ms: 3
+      min_dur_ms: 1
+      total_dur_ns: 10000000
+      max_dur_ns: 3000000
+      min_dur_ns: 1000000
+   }
+ }
+ process_with_blocking_calls {
+   process {
+     name: "com.google.android.third.process"
+     uid: 10003
+     pid: 3000
+   }
+
+   blocking_calls {
+     name: "CoroutineContinuation"
+     cnt: 2
+     total_dur_ms: 20
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 20000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "Contending for pthread mutex"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "ExpNotRow#onMeasure(BigTextStyle)"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "ExpNotRow#onMeasure(MessagingStyle)"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "Garbage Collector"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "ImageDecoder#decodeBitmap"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "ImageDecoder#decodeDrawable"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "LoadApkAssetsFd <...>"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "Lock contention on a monitor lock <...>"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "Lock contention on thread list lock <...>"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "Lock contention on thread suspend count lock <...>"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "NotificationStackScrollLayout#onMeasure"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "SuspendThreadByThreadId <...>"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "animation"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "binder transaction"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "configChanged"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "inflate"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "input"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "layout"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "measure"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "monitor contention with <...>"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "postAndWait"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "relayoutWindow <...>"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "traversal"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+}
+process_with_blocking_calls {
+   process {
+     name: "com.google.android.top.level.slices"
+     uid: 10004
+     pid: 4000
+   }
+
+   blocking_calls {
+     name: "Handler: android.os.AsyncTask"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "Handler: android.view.View"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "Handler: com.android.keyguard.KeyguardUpdateMonitor"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "Handler: com.android.systemui.broadcast.ActionReceiver"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   blocking_calls {
+     name: "Handler: com.android.systemui.qs.external.TileServiceManager"
+     cnt: 1
+     total_dur_ms: 10
+     max_dur_ms: 10
+     min_dur_ms: 10
+     total_dur_ns: 10000000
+     max_dur_ns: 10000000
+     min_dur_ns: 10000000
+   }
+   }
+}

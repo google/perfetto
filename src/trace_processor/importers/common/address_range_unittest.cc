@@ -38,6 +38,7 @@ inline void PrintTo(const AddressRange& r, std::ostream* os) {
 
 namespace {
 
+using ::testing::_;
 using ::testing::A;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
@@ -48,6 +49,11 @@ using ::testing::Ne;
 using ::testing::Pair;
 using ::testing::Pointee;
 using ::testing::SizeIs;
+
+MATCHER_P2(IteratorPointsTo, container, matcher, "") {
+  return ExplainMatchResult(Ne(container.end()), arg, result_listener) &&
+         ExplainMatchResult(matcher, *arg, result_listener);
+}
 
 auto AppendRangesTo(std::vector<AddressRange>& ranges) {
   return [&ranges](std::pair<const AddressRange, int>& e) {
@@ -115,6 +121,18 @@ TEST(AddressRange, Intersect) {
   EXPECT_THAT(AddressRange(0, 10).IntersectWith(AddressRange()), IsEmpty());
 }
 
+TEST(AddressRange, Overlap) {
+  EXPECT_FALSE(AddressRange(0, 10).Overlaps(AddressRange(5, 5)));
+  EXPECT_FALSE(AddressRange(5, 5).Overlaps(AddressRange(0, 10)));
+  EXPECT_FALSE(AddressRange(0, 10).Overlaps(AddressRange(10, 20)));
+  EXPECT_FALSE(AddressRange(10, 20).Overlaps(AddressRange(0, 10)));
+
+  EXPECT_TRUE(AddressRange(0, 10).Overlaps(AddressRange(9, 10)));
+  EXPECT_TRUE(AddressRange(10, 20).Overlaps(AddressRange(0, 11)));
+  EXPECT_TRUE(AddressRange(0, 10).Overlaps(AddressRange(5, 6)));
+  EXPECT_TRUE(AddressRange(0, 10).Overlaps(AddressRange(5, 20)));
+}
+
 TEST(AddressRangeMap, Empty) {
   AddressRangeMap<int> empty;
   EXPECT_THAT(empty, IsEmpty());
@@ -122,23 +140,41 @@ TEST(AddressRangeMap, Empty) {
 
 TEST(AddressRangeMap, EmplaceFailsForOverlaps) {
   AddressRangeMap<int> map;
-  ASSERT_TRUE(map.Emplace(AddressRange(10, 20)).second);
+  ASSERT_TRUE(map.Emplace(AddressRange(10, 20), 42));
 
-  EXPECT_FALSE(map.Emplace(AddressRange(10, 20)).second);
-  EXPECT_FALSE(map.Emplace(AddressRange(11, 19)).second);
-  EXPECT_FALSE(map.Emplace(AddressRange(0, 11)).second);
-  EXPECT_FALSE(map.Emplace(AddressRange(19, 30)).second);
-  EXPECT_THAT(map, SizeIs(1));
+  EXPECT_FALSE(map.Emplace(AddressRange(10, 20)));
+  EXPECT_FALSE(map.Emplace(AddressRange(11, 19)));
+  EXPECT_FALSE(map.Emplace(AddressRange(0, 11)));
+  EXPECT_FALSE(map.Emplace(AddressRange(19, 30)));
+  EXPECT_THAT(map, ElementsAre(Pair(AddressRange(10, 20), 42)));
 }
 
 TEST(AddressRangeMap, EmplaceSucceedsForNonOverlaps) {
   AddressRangeMap<int> map;
 
-  EXPECT_TRUE(map.Emplace(AddressRange(10, 20)).second);
-  EXPECT_TRUE(map.Emplace(AddressRange(0, 10)).second);
-  EXPECT_TRUE(map.Emplace(AddressRange(20, 30)).second);
+  EXPECT_TRUE(map.Emplace(AddressRange(10, 20)));
+  EXPECT_TRUE(map.Emplace(AddressRange(0, 10)));
+  EXPECT_TRUE(map.Emplace(AddressRange(20, 30)));
 
   EXPECT_THAT(map, SizeIs(3));
+}
+
+TEST(AddressRangeMap, EmplaceFailsForEmptyRange) {
+  AddressRangeMap<int> map;
+
+  EXPECT_FALSE(map.Emplace(AddressRange(0, 0)));
+  EXPECT_FALSE(map.Emplace(AddressRange(100, 100)));
+
+  EXPECT_THAT(map, IsEmpty());
+}
+
+TEST(AddressRangeMap, DeleteOverlapsAndEmplaceFailsForEmptyRange) {
+  AddressRangeMap<int> map;
+  EXPECT_TRUE(map.Emplace(AddressRange(0, 10), 42));
+  EXPECT_FALSE(map.Emplace(AddressRange(0, 0)));
+  EXPECT_FALSE(map.Emplace(AddressRange(100, 100)));
+
+  EXPECT_THAT(map, ElementsAre(Pair(AddressRange(0, 10), 42)));
 }
 
 TEST(AddressRangeMap, FindAddress) {
@@ -174,30 +210,33 @@ TEST(AddressRangeMap, FindAddress) {
 
 TEST(AddressRangeMap, FindRangeThatContains) {
   AddressRangeMap<int> map;
-  const auto it_1 = map.Emplace(AddressRange(0, 10), 0).first;
-  const auto it_2 = map.Emplace(AddressRange(10, 20), 1).first;
-  const auto it_3 = map.Emplace(AddressRange(25, 30), 2).first;
-  const auto end = map.end();
+  map.Emplace(AddressRange(0, 10), 0);
+  map.Emplace(AddressRange(10, 20), 1);
+  map.Emplace(AddressRange(25, 30), 2);
 
-  EXPECT_THAT(map.FindRangeThatContains({0, 10}), Eq(it_1));
-  EXPECT_THAT(map.FindRangeThatContains({0, 1}), Eq(it_1));
-  EXPECT_THAT(map.FindRangeThatContains({3, 4}), Eq(it_1));
-  EXPECT_THAT(map.FindRangeThatContains({9, 10}), Eq(it_1));
+  auto match_1 = IteratorPointsTo(map, Pair(AddressRange(0, 10), 0));
+  auto match_2 = IteratorPointsTo(map, Pair(AddressRange(10, 20), 1));
+  auto match_3 = IteratorPointsTo(map, Pair(AddressRange(25, 30), 2));
 
-  EXPECT_THAT(map.FindRangeThatContains({10, 11}), Eq(it_2));
-  EXPECT_THAT(map.FindRangeThatContains({11, 12}), Eq(it_2));
-  EXPECT_THAT(map.FindRangeThatContains({19, 20}), Eq(it_2));
-  EXPECT_THAT(map.FindRangeThatContains({10, 20}), Eq(it_2));
+  EXPECT_THAT(map.FindRangeThatContains({0, 10}), match_1);
+  EXPECT_THAT(map.FindRangeThatContains({0, 1}), match_1);
+  EXPECT_THAT(map.FindRangeThatContains({3, 4}), match_1);
+  EXPECT_THAT(map.FindRangeThatContains({9, 10}), match_1);
 
-  EXPECT_THAT(map.FindRangeThatContains({25, 26}), Eq(it_3));
-  EXPECT_THAT(map.FindRangeThatContains({26, 27}), Eq(it_3));
-  EXPECT_THAT(map.FindRangeThatContains({29, 30}), Eq(it_3));
-  EXPECT_THAT(map.FindRangeThatContains({25, 30}), Eq(it_3));
+  EXPECT_THAT(map.FindRangeThatContains({10, 11}), match_2);
+  EXPECT_THAT(map.FindRangeThatContains({11, 12}), match_2);
+  EXPECT_THAT(map.FindRangeThatContains({19, 20}), match_2);
+  EXPECT_THAT(map.FindRangeThatContains({10, 20}), match_2);
 
-  EXPECT_THAT(map.FindRangeThatContains({9, 11}), Eq(end));
-  EXPECT_THAT(map.FindRangeThatContains({20, 21}), Eq(end));
-  EXPECT_THAT(map.FindRangeThatContains({24, 25}), Eq(end));
-  EXPECT_THAT(map.FindRangeThatContains({14, 27}), Eq(end));
+  EXPECT_THAT(map.FindRangeThatContains({25, 26}), match_3);
+  EXPECT_THAT(map.FindRangeThatContains({26, 27}), match_3);
+  EXPECT_THAT(map.FindRangeThatContains({29, 30}), match_3);
+  EXPECT_THAT(map.FindRangeThatContains({25, 30}), match_3);
+
+  EXPECT_THAT(map.FindRangeThatContains({9, 11}), Eq(map.end()));
+  EXPECT_THAT(map.FindRangeThatContains({20, 21}), Eq(map.end()));
+  EXPECT_THAT(map.FindRangeThatContains({24, 25}), Eq(map.end()));
+  EXPECT_THAT(map.FindRangeThatContains({14, 27}), Eq(map.end()));
 }
 
 TEST(AddressRangeMap, DeleteOverlapsAndEmplace) {
@@ -283,6 +322,114 @@ TEST(AddressRangeMap, DeleteOverlapsAndEmplaceWithoutCallback) {
   map.DeleteOverlapsAndEmplace(AppendRangesTo(deleted), {5, 11}, 5);
   EXPECT_THAT(deleted, ElementsAre(AddressRange(0, 10), AddressRange(10, 20)));
   EXPECT_THAT(map, ElementsAre(entry(5, 11, 5), entry(25, 30, 2)));
+}
+
+TEST(AddressRangeMap, ForOverlapsEmptyRangeDoesNothing) {
+  AddressRangeMap<int> map;
+  map.Emplace(AddressRange(0, 10), 0);
+  map.Emplace(AddressRange(10, 20), 1);
+  map.Emplace(AddressRange(25, 30), 2);
+
+  MockFunction<void(AddressRangeMap<int>::value_type&)> cb;
+  EXPECT_CALL(cb, Call).Times(0);
+
+  map.ForOverlaps(AddressRange(5, 5), cb.AsStdFunction());
+}
+
+TEST(AddressRangeMap, ForOverlaps) {
+  AddressRangeMap<int> map;
+  map.Emplace(AddressRange(0, 10), 0);
+  map.Emplace(AddressRange(10, 20), 1);
+  map.Emplace(AddressRange(20, 30), 2);
+  map.Emplace(AddressRange(35, 40), 3);
+  map.Emplace(AddressRange(40, 50), 4);
+
+  MockFunction<void(AddressRangeMap<int>::value_type&)> cb;
+  EXPECT_CALL(cb, Call(Pair(AddressRange(10, 20), 1)));
+  EXPECT_CALL(cb, Call(Pair(AddressRange(20, 30), 2)));
+  EXPECT_CALL(cb, Call(Pair(AddressRange(35, 40), 3)));
+
+  map.ForOverlaps(AddressRange(15, 36), cb.AsStdFunction());
+}
+
+TEST(AddressSet, Empty) {
+  AddressSet empty;
+  EXPECT_THAT(empty, ElementsAre());
+}
+
+TEST(AddressSet, EmptyRangesAreNotAdded) {
+  AddressSet empty;
+
+  empty.Add({0, 0});
+  empty.Add({10, 10});
+
+  EXPECT_THAT(empty, ElementsAre());
+}
+
+TEST(AddressSet, NonOverlapingNonContiguousAreNotMerged) {
+  AddressSet set;
+  set.Add({0, 10});
+  set.Add({11, 20});
+
+  EXPECT_THAT(set, ElementsAre(AddressRange(0, 10), AddressRange(11, 20)));
+}
+
+TEST(AddressSet, ContiguousAreMerged) {
+  AddressSet set;
+  set.Add({0, 10});
+  set.Add({30, 40});
+  set.Add({10, 30});
+
+  EXPECT_THAT(set, ElementsAre(AddressRange(0, 40)));
+}
+
+TEST(AddressSet, OverlapsAreMerged) {
+  AddressSet set;
+  set.Add({0, 10});
+  set.Add({30, 40});
+  set.Add({5, 35});
+
+  EXPECT_THAT(set, ElementsAre(AddressRange(0, 40)));
+}
+
+TEST(AddressSet, SpliceRemove) {
+  AddressSet set;
+  set.Add({0, 10});
+  set.Remove({2, 5});
+
+  EXPECT_THAT(set, ElementsAre(AddressRange(0, 2), AddressRange(5, 10)));
+}
+
+TEST(AddressSet, PartialRemove) {
+  AddressSet set;
+  set.Add({0, 10});
+  set.Remove({0, 2});
+  set.Remove({8, 10});
+
+  EXPECT_THAT(set, ElementsAre(AddressRange(2, 8)));
+}
+
+TEST(AddressSet, MultipleRemove) {
+  AddressSet set;
+  set.Add({0, 10});
+  set.Add({12, 15});
+  set.Add({20, 30});
+  set.Remove({5, 25});
+
+  EXPECT_THAT(set, ElementsAre(AddressRange(0, 5), AddressRange(25, 30)));
+}
+
+TEST(AddressSet, RemoveEmptyRangeDoesNothing) {
+  AddressSet set;
+  set.Add({0, 10});
+  set.Add({20, 30});
+
+  set.Remove({0, 0});
+  set.Remove({2, 2});
+  set.Remove({10, 10});
+  set.Remove({11, 11});
+
+  EXPECT_THAT(set, ElementsAre(AddressRange(0, 10), AddressRange(20, 30)));
 }
 
 }  // namespace

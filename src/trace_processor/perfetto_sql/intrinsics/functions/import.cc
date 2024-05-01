@@ -16,22 +16,15 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/import.h"
 
-#include <numeric>
+#include <cstddef>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
-#include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
-#include "src/trace_processor/tp_metatrace.h"
-#include "src/trace_processor/util/sql_modules.h"
-#include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 base::Status Import::Run(Import::Context* ctx,
                          size_t argc,
@@ -48,8 +41,8 @@ base::Status Import::Run(Import::Context* ctx,
 
   // Type check
   {
-    base::Status status =
-        sqlite_utils::TypeCheckSqliteValue(import_val, SqlValue::Type::kString);
+    base::Status status = sqlite::utils::TypeCheckSqliteValue(
+        import_val, SqlValue::Type::kString);
     if (!status.ok()) {
       return base::ErrStatus("IMPORT(%s): %s", sqlite3_value_text(import_val),
                              status.c_message());
@@ -65,5 +58,4 @@ base::Status Import::Run(Import::Context* ctx,
       .status();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

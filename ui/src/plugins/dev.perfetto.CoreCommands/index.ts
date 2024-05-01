@@ -88,7 +88,7 @@ group by
 order by total_self_size desc
 limit 100;`;
 
-const coreCommands: Plugin = {
+class CoreCommandsPlugin implements Plugin {
   onActivate(ctx: PluginContext) {
     ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#ToggleLeftSidebar',
@@ -102,7 +102,7 @@ const coreCommands: Plugin = {
       },
       defaultHotkey: '!Mod+B',
     });
-  },
+  }
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
@@ -126,7 +126,9 @@ const coreCommands: Plugin = {
       name: 'Run query: cycles by p-state by CPU',
       callback: () => {
         ctx.tabs.openQuery(
-          CYCLES_PER_P_STATE_PER_CPU, 'Cycles by p-state by CPU');
+          CYCLES_PER_P_STATE_PER_CPU,
+          'Cycles by p-state by CPU',
+        );
       },
     });
 
@@ -135,7 +137,9 @@ const coreCommands: Plugin = {
       name: 'Run query: CPU Time by CPU by process',
       callback: () => {
         ctx.tabs.openQuery(
-          CPU_TIME_BY_CPU_BY_PROCESS, 'CPU Time by CPU by process');
+          CPU_TIME_BY_CPU_BY_PROCESS,
+          'CPU Time by CPU by process',
+        );
       },
     });
 
@@ -144,7 +148,9 @@ const coreCommands: Plugin = {
       name: 'Run query: heap graph bytes per type',
       callback: () => {
         ctx.tabs.openQuery(
-          HEAP_GRAPH_BYTES_PER_TYPE, 'Heap graph bytes per type');
+          HEAP_GRAPH_BYTES_PER_TYPE,
+          'Heap graph bytes per type',
+        );
       },
     });
 
@@ -243,10 +249,10 @@ const coreCommands: Plugin = {
         ctx.tabs.showTab('current_selection');
       },
     });
-  },
-};
+  }
+}
 
-function promptForTimestamp(message: string): time|undefined {
+function promptForTimestamp(message: string): time | undefined {
   const tsStr = window.prompt(message);
   if (tsStr !== null) {
     try {
@@ -260,5 +266,5 @@ function promptForTimestamp(message: string): time|undefined {
 
 export const plugin: PluginDescriptor = {
   pluginId: 'dev.perfetto.CoreCommands',
-  plugin: coreCommands,
+  plugin: CoreCommandsPlugin,
 };

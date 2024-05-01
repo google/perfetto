@@ -19,9 +19,7 @@ import {Time} from '../base/time';
 import {PrimaryTrackSortKey} from '../public';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
-import {
-  PROCESS_SCHEDULING_TRACK_KIND,
-} from '../tracks/process_summary/process_scheduling_track';
+import {PROCESS_SCHEDULING_TRACK_KIND} from '../tracks/process_summary/process_scheduling_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
 import {StateActions} from './actions';
@@ -35,29 +33,35 @@ import {
   TrackSortKey,
 } from './state';
 
-function fakeTrack(state: State, args: {
-  key: string,
-  uri?: string,
-  trackGroup?: string,
-  trackSortKey?: TrackSortKey,
-  name?: string,
-  tid?: string
-}): State {
+function fakeTrack(
+  state: State,
+  args: {
+    key: string;
+    uri?: string;
+    trackGroup?: string;
+    trackSortKey?: TrackSortKey;
+    name?: string;
+    tid?: string;
+  },
+): State {
   return produce(state, (draft) => {
     StateActions.addTrack(draft, {
       uri: args.uri || 'sometrack',
       key: args.key,
       name: args.name || 'A track',
-      trackSortKey: args.trackSortKey === undefined ?
-        PrimaryTrackSortKey.ORDINARY_TRACK :
-        args.trackSortKey,
+      trackSortKey:
+        args.trackSortKey === undefined
+          ? PrimaryTrackSortKey.ORDINARY_TRACK
+          : args.trackSortKey,
       trackGroup: args.trackGroup || SCROLLING_TRACK_GROUP,
     });
   });
 }
 
 function fakeTrackGroup(
-  state: State, args: {id: string, summaryTrackId: string}): State {
+  state: State,
+  args: {id: string; summaryTrackId: string},
+): State {
   return produce(state, (draft) => {
     StateActions.addTrackGroup(draft, {
       name: 'A group',
@@ -72,7 +76,8 @@ function pinnedAndScrollingTracks(
   state: State,
   keys: string[],
   pinnedTracks: string[],
-  scrollingTracks: string[]): State {
+  scrollingTracks: string[],
+): State {
   for (const key of keys) {
     state = fakeTrack(state, {key});
   }
@@ -128,8 +133,8 @@ test('add track to track group', () => {
     });
   });
 
-  expect(afterTrackAdd.trackGroups['123-123-123'].tracks[0]).toBe('s');
-  expect(afterTrackAdd.trackGroups['123-123-123'].tracks[1]).toBe('1');
+  expect(afterTrackAdd.trackGroups['123-123-123'].summaryTrack).toBe('s');
+  expect(afterTrackAdd.trackGroups['123-123-123'].tracks[0]).toBe('1');
 });
 
 test('reorder tracks', () => {
@@ -257,8 +262,9 @@ test('open trace', () => {
   });
 
   expect(after.engine).not.toBeUndefined();
-  expect((after.engine!!.source as TraceUrlSource).url)
-    .toBe('https://example.com/bar');
+  expect((after.engine!!.source as TraceUrlSource).url).toBe(
+    'https://example.com/bar',
+  );
   expect(after.recordConfig).toBe(recordConfig);
 });
 
@@ -284,8 +290,9 @@ test('open second trace from file', () => {
   });
 
   expect(thrice.engine).not.toBeUndefined();
-  expect((thrice.engine!!.source as TraceUrlSource).url)
-    .toBe('https://example.com/foo');
+  expect((thrice.engine!!.source as TraceUrlSource).url).toBe(
+    'https://example.com/foo',
+  );
   expect(thrice.pinnedTracks.length).toBe(0);
   expect(thrice.scrollingTracks.length).toBe(0);
 });
@@ -293,8 +300,11 @@ test('open second trace from file', () => {
 test('setEngineReady with missing engine is ignored', () => {
   const state = createEmptyState();
   produce(state, (draft) => {
-    StateActions.setEngineReady(
-      draft, {engineId: '1', ready: true, mode: 'WASM'});
+    StateActions.setEngineReady(draft, {
+      engineId: '1',
+      ready: true,
+      mode: 'WASM',
+    });
   });
 });
 
@@ -305,8 +315,11 @@ test('setEngineReady', () => {
       url: 'https://example.com/bar',
     });
     const latestEngineId = assertExists(draft.engine).id;
-    StateActions.setEngineReady(
-      draft, {engineId: latestEngineId, ready: true, mode: 'WASM'});
+    StateActions.setEngineReady(draft, {
+      engineId: latestEngineId,
+      ready: true,
+      mode: 'WASM',
+    });
   });
   expect(after.engine!!.ready).toBe(true);
 });
@@ -333,7 +346,7 @@ test('sortTracksByPriority', () => {
 
   // High Priority tracks should be sorted before Low Priority tracks:
   // 'b' appears twice because it's the summary track
-  expect(after.trackGroups['g'].tracks).toEqual(['a', 'b', 'b']);
+  expect(after.trackGroups['g'].tracks).toEqual(['a', 'b']);
 });
 
 test('sortTracksByPriorityAndKindAndName', () => {
@@ -363,12 +376,23 @@ test('sortTracksByPriorityAndKindAndName', () => {
     trackGroup: 'g',
     trackSortKey: PrimaryTrackSortKey.GPU_COMPLETION_THREAD,
   });
-  state = fakeTrack(
-    state, {key: 'e', uri: HEAP_PROFILE_TRACK_KIND, trackGroup: 'g'});
-  state = fakeTrack(
-    state, {key: 'f', uri: SLICE_TRACK_KIND, trackGroup: 'g', name: 'T2'});
-  state = fakeTrack(
-    state, {key: 'g', uri: SLICE_TRACK_KIND, trackGroup: 'g', name: 'T10'});
+  state = fakeTrack(state, {
+    key: 'e',
+    uri: HEAP_PROFILE_TRACK_KIND,
+    trackGroup: 'g',
+  });
+  state = fakeTrack(state, {
+    key: 'f',
+    uri: SLICE_TRACK_KIND,
+    trackGroup: 'g',
+    name: 'T2',
+  });
+  state = fakeTrack(state, {
+    key: 'g',
+    uri: SLICE_TRACK_KIND,
+    trackGroup: 'g',
+    name: 'T10',
+  });
 
   const after = produce(state, (draft) => {
     StateActions.sortThreadTracks(draft, {});
@@ -379,8 +403,15 @@ test('sortTracksByPriorityAndKindAndName', () => {
   // 2.Non ordinary track kinds
   // 3.Low priority
   // 4.Collated name string (ie. 'T2' will be before 'T10')
-  expect(after.trackGroups['g'].tracks)
-    .toEqual(['a', 'b', 'b', 'c', 'd', 'e', 'f', 'g']);
+  expect(after.trackGroups['g'].tracks).toEqual([
+    'a',
+    'b',
+    'c',
+    'd',
+    'e',
+    'f',
+    'g',
+  ]);
 });
 
 test('sortTracksByTidThenName', () => {
@@ -424,7 +455,7 @@ test('sortTracksByTidThenName', () => {
     StateActions.sortThreadTracks(draft, {});
   });
 
-  expect(after.trackGroups['g'].tracks).toEqual(['a', 'a', 'c', 'b']);
+  expect(after.trackGroups['g'].tracks).toEqual(['a', 'c', 'b']);
 });
 
 test('perf samples open flamegraph', () => {
@@ -440,8 +471,9 @@ test('perf samples open flamegraph', () => {
     });
   });
 
-  expect(assertExists(afterSelectingPerf.currentFlamegraphState).type)
-    .toBe(ProfileType.PERF_SAMPLE);
+  expect(assertExists(afterSelectingPerf.currentFlamegraphState).type).toBe(
+    ProfileType.PERF_SAMPLE,
+  );
 });
 
 test('heap profile opens flamegraph', () => {
@@ -456,6 +488,7 @@ test('heap profile opens flamegraph', () => {
     });
   });
 
-  expect(assertExists(afterSelectingPerf.currentFlamegraphState).type)
-    .toBe(ProfileType.JAVA_HEAP_GRAPH);
+  expect(assertExists(afterSelectingPerf.currentFlamegraphState).type).toBe(
+    ProfileType.JAVA_HEAP_GRAPH,
+  );
 });

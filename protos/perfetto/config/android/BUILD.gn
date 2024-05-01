@@ -19,12 +19,14 @@ perfetto_proto_library("@TYPE@") {
   deps = [ "../../common:@TYPE@" ]
   sources = [
     "android_game_intervention_list_config.proto",
+    "android_input_event_config.proto",
     "android_log_config.proto",
     "android_polled_state_config.proto",
     "android_sdk_sysprop_guard_config.proto",
     "android_system_property_config.proto",
     "network_trace_config.proto",
     "packages_list_config.proto",
+    "pixel_modem_config.proto",
     "protolog_config.proto",
     "surfaceflinger_layers_config.proto",
     "surfaceflinger_transactions_config.proto",

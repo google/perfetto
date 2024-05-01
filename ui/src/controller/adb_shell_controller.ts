@@ -25,7 +25,7 @@ import {Consumer} from './record_controller_interfaces';
 enum AdbShellState {
   READY,
   RECORDING,
-  FETCHING
+  FETCHING,
 }
 const DEFAULT_DESTINATION_FILE = '/data/misc/perfetto-traces/trace-by-ui';
 const textDecoder = new _TextDecoder();
@@ -45,23 +45,23 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
     console.assert(this.state === AdbConnectionState.CONNECTED);
 
     switch (method) {
-    case 'EnableTracing':
-      this.enableTracing(params);
-      break;
-    case 'ReadBuffers':
-      this.readBuffers();
-      break;
-    case 'DisableTracing':
-      this.disableTracing();
-      break;
-    case 'FreeBuffers':
-      this.freeBuffers();
-      break;
-    case 'GetTraceStats':
-      break;
-    default:
-      this.sendErrorMessage(`Method not recognized: ${method}`);
-      break;
+      case 'EnableTracing':
+        this.enableTracing(params);
+        break;
+      case 'ReadBuffers':
+        this.readBuffers();
+        break;
+      case 'DisableTracing':
+        this.disableTracing();
+        break;
+      case 'FreeBuffers':
+        this.freeBuffers();
+        break;
+      case 'GetTraceStats':
+        break;
+      default:
+        this.sendErrorMessage(`Method not recognized: ${method}`);
+        break;
     }
   }
 
@@ -107,20 +107,23 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
     console.assert(this.shellState === AdbShellState.RECORDING);
     this.shellState = AdbShellState.FETCHING;
 
-    const readTraceShell =
-        await this.adb.shell(this.generateReadTraceCommand());
+    const readTraceShell = await this.adb.shell(
+      this.generateReadTraceCommand(),
+    );
     readTraceShell.onData = (raw) =>
       this.sendMessage(this.generateChunkReadResponse(raw));
 
     readTraceShell.onClose = () => {
       this.sendMessage(
-        this.generateChunkReadResponse(new Uint8Array(), /* last */ true));
+        this.generateChunkReadResponse(new Uint8Array(), /* last */ true),
+      );
     };
   }
 
   async getPidFromShellAsString() {
-    const pidStr =
-        await this.adb.shellOutputAsString(`ps -u shell | grep perfetto`);
+    const pidStr = await this.adb.shellOutputAsString(
+      `ps -u shell | grep perfetto`,
+    );
     // We used to use awk '{print $2}' but older phones/Go phones don't have
     // awk installed. Instead we implement similar functionality here.
     const awk = pidStr.split(' ').filter((str) => str !== '');
@@ -144,8 +147,9 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
      recording. Command output: ${pid}`);
       }
       // Perfetto stops and finalizes the tracing session on SIGINT.
-      const killOutput =
-          await this.adb.shellOutputAsString(`kill -SIGINT ${pid}`);
+      const killOutput = await this.adb.shellOutputAsString(
+        `kill -SIGINT ${pid}`,
+      );
 
       if (killOutput.length !== 0) {
         throw Error(`Unable to kill perfetto: ${killOutput}`);
@@ -163,8 +167,10 @@ export class AdbConsumerPort extends AdbBaseConsumerPort {
     }
   }
 
-  generateChunkReadResponse(data: Uint8Array, last = false):
-      ReadBuffersResponse {
+  generateChunkReadResponse(
+    data: Uint8Array,
+    last = false,
+  ): ReadBuffersResponse {
     return {
       type: 'ReadBuffersResponse',
       slices: [{data, lastSliceForPacket: last}],

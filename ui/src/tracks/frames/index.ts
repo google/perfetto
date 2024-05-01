@@ -12,33 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {getTrackName} from '../../public/utils';
-import {
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../trace_processor/query_result';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
-import {
-  ActualFramesTrack as ActualFramesTrackV2,
-} from './actual_frames_track_v2';
-import {
-  ExpectedFramesTrack as ExpectedFramesTrackV2,
-} from './expected_frames_track_v2';
+import {ActualFramesTrack as ActualFramesTrackV2} from './actual_frames_track_v2';
+import {ExpectedFramesTrack as ExpectedFramesTrackV2} from './expected_frames_track_v2';
 
 export const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
 class FramesPlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     this.addExpectedFrames(ctx);
     this.addActualFrames(ctx);
@@ -56,7 +40,7 @@ class FramesPlugin implements Plugin {
           group_concat(process_track.id) as trackIds,
           count(1) as trackCount
         from process_track
-        left join process using(upid)
+        join process using(upid)
         where process_track.name = "Expected Timeline"
         group by
           process_track.upid,
@@ -64,7 +48,7 @@ class FramesPlugin implements Plugin {
       )
       select
         t.*,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from process_async_tracks t;
   `);
 
@@ -91,8 +75,13 @@ class FramesPlugin implements Plugin {
         continue;
       }
 
-      const displayName = getTrackName(
-        {name: trackName, upid, pid, processName, kind: 'ExpectedFrames'});
+      const displayName = getTrackName({
+        name: trackName,
+        upid,
+        pid,
+        processName,
+        kind: 'ExpectedFrames',
+      });
 
       ctx.registerTrack({
         uri: `perfetto.ExpectedFrames#${upid}`,
@@ -123,7 +112,7 @@ class FramesPlugin implements Plugin {
           group_concat(process_track.id) as trackIds,
           count(1) as trackCount
         from process_track
-        left join process using(upid)
+        join process using(upid)
         where process_track.name = "Actual Timeline"
         group by
           process_track.upid,
@@ -131,7 +120,7 @@ class FramesPlugin implements Plugin {
       )
       select
         t.*,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
       from process_async_tracks t;
   `);
 
@@ -158,8 +147,13 @@ class FramesPlugin implements Plugin {
       }
 
       const kind = 'ActualFrames';
-      const displayName =
-          getTrackName({name: trackName, upid, pid, processName, kind});
+      const displayName = getTrackName({
+        name: trackName,
+        upid,
+        pid,
+        processName,
+        kind,
+      });
 
       ctx.registerTrack({
         uri: `perfetto.ActualFrames#${upid}`,
@@ -167,12 +161,7 @@ class FramesPlugin implements Plugin {
         trackIds,
         kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
-          return new ActualFramesTrackV2(
-            engine,
-            maxDepth,
-            trackKey,
-            trackIds,
-          );
+          return new ActualFramesTrackV2(engine, maxDepth, trackKey, trackIds);
         },
       });
     }

@@ -15,9 +15,14 @@
 import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("sched") {
+  deps = [ "utilization" ]
   sources = [
+    "runnable.sql",
+    "states.sql",
     "thread_executing_span.sql",
+    "thread_executing_span_with_slice.sql",
     "thread_level_parallelism.sql",
     "thread_state_flattened.sql",
+    "time_in_state.sql",
   ]
 }

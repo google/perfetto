@@ -14,16 +14,12 @@
 
 import m from 'mithril';
 
-import {Actions} from '../../common/actions';
 import {BaseCounterTrack} from '../../frontend/base_counter_track';
-import {globals} from '../../frontend/globals';
-import {TrackButton} from '../../frontend/track_panel';
 import {TrackContext} from '../../public';
 import {EngineProxy} from '../../trace_processor/engine';
 import {CounterDebugTrackConfig} from '../../frontend/debug_tracks';
 import {Disposable, DisposableCallback} from '../../base/disposable';
 import {uuidv4Sql} from '../../base/uuid';
-
 
 export class DebugCounterTrack extends BaseCounterTrack {
   private config: CounterDebugTrackConfig;
@@ -50,17 +46,7 @@ export class DebugCounterTrack extends BaseCounterTrack {
   }
 
   getTrackShellButtons(): m.Children {
-    return [
-      this.getCounterContextMenu(),
-      this.config.closeable && m(TrackButton, {
-        action: () => {
-          globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
-        },
-        i: 'close',
-        tooltip: 'Close',
-        showButton: true,
-      }),
-    ];
+    return this.getCounterContextMenu();
   }
 
   getSqlSource(): string {

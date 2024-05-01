@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_SYSTEM_PROBES_PARSER_H_
 
 #include <array>
-#include <set>
 #include <vector>
 
 #include "perfetto/protozero/field.h"
@@ -51,6 +50,10 @@ class SystemProbesParser {
   TraceProcessorContext* const context_;
 
   const StringId utid_name_id_;
+  const StringId ns_unit_id_;
+  const StringId bytes_unit_id_;
+  const StringId available_chunks_unit_id_;
+
   const StringId num_forks_name_id_;
   const StringId num_irq_total_name_id_;
   const StringId num_softirq_total_name_id_;
@@ -72,14 +75,13 @@ class SystemProbesParser {
   // their StringId. Keep kProcStatsProcessSize equal to 1 + max proto field
   // id of ProcessStats::Process. Also update the value in
   // ChromeSystemProbesParser.
-  static constexpr size_t kProcStatsProcessSize = 21;
+  static constexpr size_t kProcStatsProcessSize = 23;
   std::array<StringId, kProcStatsProcessSize> proc_stats_process_names_{};
 
   // Maps a SysStats::PsiSample::PsiResource type to its StringId.
   std::array<StringId, protos::pbzero::SysStats_PsiSample_PsiResource_MAX + 1>
       sys_stats_psi_resource_names_{};
 
-  uint64_t ms_per_tick_ = 0;
   uint32_t page_size_ = 0;
 
   int64_t prev_read_amount = -1;

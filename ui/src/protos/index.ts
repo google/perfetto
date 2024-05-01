@@ -19,8 +19,7 @@ import protos from '../gen/protos';
 import AndroidLogConfig = protos.perfetto.protos.AndroidLogConfig;
 import AndroidLogId = protos.perfetto.protos.AndroidLogId;
 import AndroidPowerConfig = protos.perfetto.protos.AndroidPowerConfig;
-import BatteryCounters =
-    protos.perfetto.protos.AndroidPowerConfig.BatteryCounters;
+import BatteryCounters = protos.perfetto.protos.AndroidPowerConfig.BatteryCounters;
 import BufferConfig = protos.perfetto.protos.TraceConfig.BufferConfig;
 import ChromeConfig = protos.perfetto.protos.ChromeConfig;
 import ComputeMetricArgs = protos.perfetto.protos.ComputeMetricArgs;
@@ -28,13 +27,13 @@ import ComputeMetricResult = protos.perfetto.protos.ComputeMetricResult;
 import ConsumerPort = protos.perfetto.protos.ConsumerPort;
 import DataSourceConfig = protos.perfetto.protos.DataSourceConfig;
 import DataSourceDescriptor = protos.perfetto.protos.DataSourceDescriptor;
-import DisableAndReadMetatraceResult =
-    protos.perfetto.protos.DisableAndReadMetatraceResult;
+import DisableAndReadMetatraceResult = protos.perfetto.protos.DisableAndReadMetatraceResult;
 import DisableTracingRequest = protos.perfetto.protos.DisableTracingRequest;
 import DisableTracingResponse = protos.perfetto.protos.DisableTracingResponse;
 import EnableMetatraceArgs = protos.perfetto.protos.EnableMetatraceArgs;
 import EnableTracingRequest = protos.perfetto.protos.EnableTracingRequest;
 import EnableTracingResponse = protos.perfetto.protos.EnableTracingResponse;
+import EtwConfig = protos.perfetto.protos.EtwConfig;
 import FreeBuffersRequest = protos.perfetto.protos.FreeBuffersRequest;
 import FreeBuffersResponse = protos.perfetto.protos.FreeBuffersResponse;
 import FtraceConfig = protos.perfetto.protos.FtraceConfig;
@@ -48,8 +47,7 @@ import IDisableTracingResponse = protos.perfetto.protos.IDisableTracingResponse;
 import IEnableTracingResponse = protos.perfetto.protos.IEnableTracingResponse;
 import IFreeBuffersResponse = protos.perfetto.protos.IFreeBuffersResponse;
 import IGetTraceStatsResponse = protos.perfetto.protos.IGetTraceStatsResponse;
-import IMethodInfo =
-    protos.perfetto.protos.IPCFrame.BindServiceReply.IMethodInfo;
+import IMethodInfo = protos.perfetto.protos.IPCFrame.BindServiceReply.IMethodInfo;
 import IPCFrame = protos.perfetto.protos.IPCFrame;
 import IProcessStatsConfig = protos.perfetto.protos.IProcessStatsConfig;
 import IReadBuffersResponse = protos.perfetto.protos.IReadBuffersResponse;
@@ -57,25 +55,20 @@ import ISlice = protos.perfetto.protos.ReadBuffersResponse.ISlice;
 import ISysStatsConfig = protos.perfetto.protos.ISysStatsConfig;
 import ITraceConfig = protos.perfetto.protos.ITraceConfig;
 import ITraceStats = protos.perfetto.protos.ITraceStats;
-import JavaContinuousDumpConfig =
-    protos.perfetto.protos.JavaHprofConfig.ContinuousDumpConfig;
+import JavaContinuousDumpConfig = protos.perfetto.protos.JavaHprofConfig.ContinuousDumpConfig;
 import JavaHprofConfig = protos.perfetto.protos.JavaHprofConfig;
 import MeminfoCounters = protos.perfetto.protos.MeminfoCounters;
 import MetatraceCategories = protos.perfetto.protos.MetatraceCategories;
-import NativeContinuousDumpConfig =
-    protos.perfetto.protos.HeapprofdConfig.ContinuousDumpConfig;
-import NetworkPacketTraceConfig =
-    protos.perfetto.protos.NetworkPacketTraceConfig;
+import NativeContinuousDumpConfig = protos.perfetto.protos.HeapprofdConfig.ContinuousDumpConfig;
+import NetworkPacketTraceConfig = protos.perfetto.protos.NetworkPacketTraceConfig;
 import PerfEventConfig = protos.perfetto.protos.PerfEventConfig;
 import PerfEvents = protos.perfetto.protos.PerfEvents;
 import PerfettoMetatrace = protos.perfetto.protos.PerfettoMetatrace;
 import ProcessStatsConfig = protos.perfetto.protos.ProcessStatsConfig;
 import QueryArgs = protos.perfetto.protos.QueryArgs;
 import QueryResult = protos.perfetto.protos.QueryResult;
-import QueryServiceStateRequest =
-    protos.perfetto.protos.QueryServiceStateRequest;
-import QueryServiceStateResponse =
-    protos.perfetto.protos.QueryServiceStateResponse;
+import QueryServiceStateRequest = protos.perfetto.protos.QueryServiceStateRequest;
+import QueryServiceStateResponse = protos.perfetto.protos.QueryServiceStateResponse;
 import ReadBuffersRequest = protos.perfetto.protos.ReadBuffersRequest;
 import ReadBuffersResponse = protos.perfetto.protos.ReadBuffersResponse;
 import ResetTraceProcessorArgs = protos.perfetto.protos.ResetTraceProcessorArgs;
@@ -85,8 +78,7 @@ import SysStatsConfig = protos.perfetto.protos.SysStatsConfig;
 import Trace = protos.perfetto.protos.Trace;
 import TraceConfig = protos.perfetto.protos.TraceConfig;
 import TracePacket = protos.perfetto.protos.TracePacket;
-import TraceProcessorApiVersion =
-    protos.perfetto.protos.TraceProcessorApiVersion;
+import TraceProcessorApiVersion = protos.perfetto.protos.TraceProcessorApiVersion;
 import TraceProcessorRpc = protos.perfetto.protos.TraceProcessorRpc;
 import TraceProcessorRpcStream = protos.perfetto.protos.TraceProcessorRpcStream;
 import TrackEventConfig = protos.perfetto.protos.TrackEventConfig;
@@ -110,6 +102,7 @@ export {
   EnableMetatraceArgs,
   EnableTracingRequest,
   EnableTracingResponse,
+  EtwConfig,
   FreeBuffersRequest,
   FreeBuffersResponse,
   FtraceConfig,
@@ -159,5 +152,4 @@ export {
   TraceProcessorRpcStream,
   TrackEventConfig,
   VmstatCounters,
-
 };

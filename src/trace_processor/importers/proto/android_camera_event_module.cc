@@ -20,6 +20,7 @@
 #include "protos/perfetto/trace/android/camera_event.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -54,7 +55,7 @@ ModuleResult AndroidCameraEventModule::TokenizePacket(
           decoder.android_camera_frame_event());
   context_->sorter->PushTracePacket(
       android_camera_frame_event.request_processing_started_ns(),
-      state->current_generation(), std::move(*packet));
+      state->current_generation(), std::move(*packet), context_->machine_id());
   return ModuleResult::Handled();
 }
 

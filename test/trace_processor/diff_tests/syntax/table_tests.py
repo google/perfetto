@@ -78,6 +78,7 @@ class PerfettoTable(TestSuite):
         3,"perfetto_table_info","track_id","uint32",0,0
         4,"perfetto_table_info","value","double",0,0
         5,"perfetto_table_info","arg_set_id","uint32",1,0
+        6,"perfetto_table_info","machine_id","uint32",1,0
         """))
 
   def test_perfetto_table_info_runtime_table(self):
@@ -129,4 +130,23 @@ class PerfettoTable(TestSuite):
         out=Csv("""
         "sorted"
         1
+        """))
+
+  def test_create_perfetto_table_id_column(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        SELECT 2 AS c
+        UNION
+        SELECT 4
+        UNION
+        SELECT 6;
+
+        SELECT col_type FROM perfetto_table_info('foo')
+        WHERE name = 'c';
+        """,
+        out=Csv("""
+        "col_type"
+        "id"
         """))

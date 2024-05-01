@@ -14,14 +14,9 @@
 
 import m from 'mithril';
 
-import {
-  duration,
-  Span,
-  Time,
-  time,
-} from '../base/time';
-import {colorForCpu} from '../common/colorizer';
-import {timestampFormat, TimestampFormat} from '../common/timestamp_format';
+import {duration, Span, Time, time} from '../base/time';
+import {colorForCpu} from '../core/colorizer';
+import {timestampFormat, TimestampFormat} from '../core/timestamp_format';
 
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
@@ -69,10 +64,11 @@ export class OverviewTimelinePanel implements Panel {
       this.timeScale = TimeScale.fromHPTimeSpan(traceTime, pxSpan);
       if (this.gesture === undefined) {
         this.gesture = new DragGestureHandler(
-            dom as HTMLElement,
-            this.onDrag.bind(this),
-            this.onDragStart.bind(this),
-            this.onDragEnd.bind(this));
+          dom as HTMLElement,
+          this.onDrag.bind(this),
+          this.onDragStart.bind(this),
+          this.onDragEnd.bind(this),
+        );
       }
     } else {
       this.timeScale = undefined;
@@ -81,8 +77,10 @@ export class OverviewTimelinePanel implements Panel {
 
   oncreate(vnode: m.CVnodeDOM) {
     this.onupdate(vnode);
-    (vnode.dom as HTMLElement)
-      .addEventListener('mousemove', this.boundOnMouseMove);
+    (vnode.dom as HTMLElement).addEventListener(
+      'mousemove',
+      this.boundOnMouseMove,
+    );
   }
 
   onremove({dom}: m.CVnodeDOM) {
@@ -90,11 +88,13 @@ export class OverviewTimelinePanel implements Panel {
       this.gesture.dispose();
       this.gesture = undefined;
     }
-    (dom as HTMLElement)
-      .removeEventListener('mousemove', this.boundOnMouseMove);
+    (dom as HTMLElement).removeEventListener(
+      'mousemove',
+      this.boundOnMouseMove,
+    );
   }
 
-  get mithril(): m.Children {
+  render(): m.Children {
     return m('.overview-timeline', {
       oncreate: (vnode) => this.oncreate(vnode),
       onupdate: (vnode) => this.onupdate(vnode),
@@ -158,15 +158,17 @@ export class OverviewTimelinePanel implements Panel {
     ctx.fillRect(0, size.height - 1, this.width, 1);
 
     // Draw semi-opaque rects that occlude the non-visible time range.
-    const [vizStartPx, vizEndPx] =
-        OverviewTimelinePanel.extractBounds(this.timeScale);
+    const [vizStartPx, vizEndPx] = OverviewTimelinePanel.extractBounds(
+      this.timeScale,
+    );
 
     ctx.fillStyle = OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
     ctx.fillRect(
       TRACK_SHELL_WIDTH - 1,
       headerHeight,
       vizStartPx - TRACK_SHELL_WIDTH,
-      tracksHeight);
+      tracksHeight,
+    );
     ctx.fillRect(vizEndPx, headerHeight, this.width - vizEndPx, tracksHeight);
 
     // Draw brushes.
@@ -181,12 +183,14 @@ export class OverviewTimelinePanel implements Panel {
       vizStartPx - Math.floor(hbarWidth / 2) - 1,
       headerHeight,
       hbarWidth,
-      hbarHeight);
+      hbarHeight,
+    );
     ctx.fillRect(
       vizEndPx - Math.floor(hbarWidth / 2),
       headerHeight,
       hbarWidth,
-      hbarHeight);
+      hbarHeight,
+    );
   }
 
   private onMouseMove(e: MouseEvent) {
@@ -198,10 +202,13 @@ export class OverviewTimelinePanel implements Panel {
 
   private chooseCursor(x: number) {
     if (this.timeScale === undefined) return 'default';
-    const [startBound, endBound] =
-        OverviewTimelinePanel.extractBounds(this.timeScale);
-    if (OverviewTimelinePanel.inBorderRange(x, startBound) ||
-        OverviewTimelinePanel.inBorderRange(x, endBound)) {
+    const [startBound, endBound] = OverviewTimelinePanel.extractBounds(
+      this.timeScale,
+    );
+    if (
+      OverviewTimelinePanel.inBorderRange(x, startBound) ||
+      OverviewTimelinePanel.inBorderRange(x, endBound)
+    ) {
       return 'ew-resize';
     } else if (x < TRACK_SHELL_WIDTH) {
       return 'default';
@@ -220,8 +227,10 @@ export class OverviewTimelinePanel implements Panel {
   onDragStart(x: number) {
     if (this.timeScale === undefined) return;
     const pixelBounds = OverviewTimelinePanel.extractBounds(this.timeScale);
-    if (OverviewTimelinePanel.inBorderRange(x, pixelBounds[0]) ||
-        OverviewTimelinePanel.inBorderRange(x, pixelBounds[1])) {
+    if (
+      OverviewTimelinePanel.inBorderRange(x, pixelBounds[0]) ||
+      OverviewTimelinePanel.inBorderRange(x, pixelBounds[1])
+    ) {
       this.dragStrategy = new BorderDragStrategy(this.timeScale, pixelBounds);
     } else if (x < pixelBounds[0] || pixelBounds[1] < x) {
       this.dragStrategy = new OuterDragStrategy(this.timeScale);
@@ -258,23 +267,23 @@ function renderTimestamp(
 ): void {
   const fmt = timestampFormat();
   switch (fmt) {
-  case TimestampFormat.UTC:
-  case TimestampFormat.TraceTz:
-  case TimestampFormat.Timecode:
-    renderTimecode(ctx, time, x, y, minWidth);
-    break;
-  case TimestampFormat.Raw:
-    ctx.fillText(time.toString(), x, y, minWidth);
-    break;
-  case TimestampFormat.RawLocale:
-    ctx.fillText(time.toLocaleString(), x, y, minWidth);
-    break;
-  case TimestampFormat.Seconds:
-    ctx.fillText(Time.formatSeconds(time), x, y, minWidth);
-    break;
-  default:
-    const z: never = fmt;
-    throw new Error(`Invalid timestamp ${z}`);
+    case TimestampFormat.UTC:
+    case TimestampFormat.TraceTz:
+    case TimestampFormat.Timecode:
+      renderTimecode(ctx, time, x, y, minWidth);
+      break;
+    case TimestampFormat.Raw:
+      ctx.fillText(time.toString(), x, y, minWidth);
+      break;
+    case TimestampFormat.RawLocale:
+      ctx.fillText(time.toLocaleString(), x, y, minWidth);
+      break;
+    case TimestampFormat.Seconds:
+      ctx.fillText(Time.formatSeconds(time), x, y, minWidth);
+      break;
+    default:
+      const z: never = fmt;
+      throw new Error(`Invalid timestamp ${z}`);
   }
 }
 

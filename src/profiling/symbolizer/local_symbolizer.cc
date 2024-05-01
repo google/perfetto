@@ -19,6 +19,7 @@
 #include <fcntl.h>
 
 #include <cinttypes>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -30,10 +31,10 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/scoped_mmap.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/profiling/symbolizer/elf.h"
 #include "src/profiling/symbolizer/filesystem.h"
-#include "src/profiling/symbolizer/scoped_read_mmap.h"
 
 namespace perfetto {
 namespace profiling {
@@ -222,12 +223,12 @@ std::optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(const char* fname,
   static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
   if (size <= EI_CLASS)
     return std::nullopt;
-  ScopedReadMmap map(fname, size);
+  base::ScopedMmap map = base::ReadMmapFilePart(fname, size);
   if (!map.IsValid()) {
-    PERFETTO_PLOG("mmap");
+    PERFETTO_PLOG("Failed to mmap %s", fname);
     return std::nullopt;
   }
-  char* mem = static_cast<char*>(*map);
+  char* mem = static_cast<char*>(map.data());
 
   if (!IsElf(mem, size))
     return std::nullopt;
@@ -352,7 +353,15 @@ std::optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
     return std::nullopt;
   }
   // Openfile opens the file with an exclusive lock on windows.
-  size_t size = GetFileSize(symbol_file);
+  std::optional<uint64_t> file_size = base::GetFileSize(symbol_file);
+  if (!file_size.has_value()) {
+    PERFETTO_PLOG("Failed to get file size %s", symbol_file.c_str());
+    return std::nullopt;
+  }
+
+  static_assert(sizeof(size_t) <= sizeof(uint64_t));
+  size_t size = static_cast<size_t>(
+      std::min<uint64_t>(std::numeric_limits<size_t>::max(), *file_size));
 
   if (size == 0) {
     return std::nullopt;

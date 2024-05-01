@@ -13,8 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+-- TODO(b/329344794): Rewrite to fetch data from other tables than `raw`.
+
 -- Aggregates f2fs IO and latency stats by counter name.
-CREATE PERFETTO VIEW android_io_f2fs_counter_stats(
+CREATE PERFETTO VIEW _android_io_f2fs_counter_stats(
   -- Counter name on which all the other values are aggregated on.
   name STRING,
   -- Sum of all counter values for the counter name.
@@ -45,7 +47,7 @@ GROUP BY name
 ORDER BY sum DESC;
 
 -- Aggregates f2fs_write stats by inode and thread.
-CREATE PERFETTO VIEW android_io_f2fs_write_stats(
+CREATE PERFETTO VIEW _android_io_f2fs_write_stats(
   -- Utid of the thread.
   utid INT,
   -- Tid of the thread.
@@ -99,7 +101,7 @@ ORDER BY bytes DESC;
 
 -- Aggregates f2fs write stats. Counts distinct datapoints, total write operations,
 -- and bytes written
-CREATE PERFETTO VIEW android_io_f2fs_aggregate_write_stats(
+CREATE PERFETTO VIEW _android_io_f2fs_aggregate_write_stats(
   -- Total number of writes in the trace.
   total_write_count INT,
   -- Number of distinct processes.
@@ -109,7 +111,7 @@ CREATE PERFETTO VIEW android_io_f2fs_aggregate_write_stats(
   -- Count of distinct devices written to.
   distinct_device_count INT,
   -- Count of distinct inodes written to.
-  distict_inode_count INT,
+  distinct_inode_count INT,
   -- Count of distinct threads writing.
   distinct_thread_count INT
 ) AS
@@ -117,6 +119,6 @@ select SUM(write_count) as total_write_count,
       COUNT(DISTINCT pid) distinct_processes,
       SUM(bytes) as total_bytes_written,
       COUNT(DISTINCT dev) as distinct_device_count,
-      COUNT(DISTINCT ino) distict_inode_count,
+      COUNT(DISTINCT ino) distinct_inode_count,
       COUNT(DISTINCT tid) distinct_thread_count
-from android_io_f2fs_write_stats;
+from _android_io_f2fs_write_stats;

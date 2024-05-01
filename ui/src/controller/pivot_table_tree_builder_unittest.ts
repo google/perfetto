@@ -24,13 +24,16 @@ describe('Pivot Table tree builder', () => {
           {kind: 'regular', table: 'slice', column: 'category'},
           {kind: 'regular', table: 'slice', column: 'name'},
         ],
-        aggregationColumns: [{
-          aggregationFunction: 'AVG',
-          column: {kind: 'regular', table: 'slice', column: 'dur'},
-        }],
+        aggregationColumns: [
+          {
+            aggregationFunction: 'AVG',
+            column: {kind: 'regular', table: 'slice', column: 'dur'},
+          },
+        ],
         countIndex: 1,
       },
-      ['cat1', 'name1', 80.0, 2]);
+      ['cat1', 'name1', 80.0, 2],
+    );
 
     builder.ingestRow(['cat1', 'name2', 20.0, 1]);
     builder.ingestRow(['cat2', 'name3', 20.0, 1]);

@@ -29,13 +29,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
-#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -154,7 +149,7 @@ class ClockTracker {
 
   // Converts a sequence-scoped clock ids to a global clock id that can be
   // passed as argument to ClockTracker functions.
-  static ClockId SeqenceToGlobalClock(uint32_t seq_id, uint32_t clock_id) {
+  static ClockId SequenceToGlobalClock(uint32_t seq_id, uint32_t clock_id) {
     PERFETTO_DCHECK(IsSequenceClock(clock_id));
     return (static_cast<int64_t>(seq_id) << 32) | clock_id;
   }
