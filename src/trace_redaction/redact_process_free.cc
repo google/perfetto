@@ -51,24 +51,27 @@ base::Status RedactProcessFree::Redact(
     const protos::pbzero::FtraceEvent::Decoder&,
     protozero::ConstBytes bytes,
     protos::pbzero::FtraceEvent* event_message) const {
-  protos::pbzero::SchedProcessFreeFtraceEvent::Decoder process_free(bytes);
+  // SchedProcessFreeFtraceEvent
+  protozero::ProtoDecoder process_free_decoder(bytes);
 
-  // There must be pid. If there's no pid, dropping the event is the safest
-  // option.
-  if (!process_free.has_pid()) {
+  // There must be pid. If there's no pid, the safest option is to drop it.
+  auto pid = process_free_decoder.FindField(
+      protos::pbzero::SchedProcessFreeFtraceEvent::kPidFieldNumber);
+
+  if (!pid.valid()) {
     return base::OkStatus();
   }
 
-  // Avoid making the message until we know that we have prev and next pids.
   auto* process_free_message = event_message->set_sched_process_free();
 
-  // To read the fields, move the read head back to the start.
-  process_free.Reset();
-
-  for (auto field = process_free.ReadField(); field.valid();
-       field = process_free.ReadField()) {
-    if (field.id() !=
+  // Replace the comm with an empty string instead of dropping the comm field.
+  // The perfetto UI doesn't render things correctly if comm values are missing.
+  for (auto field = process_free_decoder.ReadField(); field.valid();
+       field = process_free_decoder.ReadField()) {
+    if (field.id() ==
         protos::pbzero::SchedProcessFreeFtraceEvent::kCommFieldNumber) {
+      process_free_message->set_comm("");
+    } else {
       proto_util::AppendField(field, process_free_message);
     }
   }
