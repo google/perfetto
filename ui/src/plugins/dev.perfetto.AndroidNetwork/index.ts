@@ -41,7 +41,7 @@ class AndroidNetwork implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidNetwork#batteryEvents',
-      name: 'Run query: Pin battery events',
+      name: 'Add track: battery events',
       callback: async (track) => {
         if (track === undefined) {
           track = prompt('Battery Track', '');
@@ -62,7 +62,7 @@ class AndroidNetwork implements Plugin {
 
     ctx.registerCommand({
       id: 'dev.perfetto.AndroidNetwork#activityTrack',
-      name: 'Run query: Visualize Network Activity',
+      name: 'Add track: network activity',
       callback: async (groupby, filter, trackName) => {
         if (groupby === undefined) {
           groupby = prompt('Group by', 'package_name');

@@ -39,6 +39,7 @@ message BlinkTaskScope {
     TASK_SCOPE_SCHEDULER_POST_TASK = 6;
     TASK_SCOPE_REQUEST_IDLE_CALLBACK = 7;
     TASK_SCOPE_XML_HTTP_REQUEST = 8;
+    TASK_SCOPE_SOFT_NAVIGATION = 9;
   }
   optional TaskScopeType type = 1;
   optional int64 scope_task_id = 2;
@@ -303,6 +304,9 @@ message RenderProcessHostCleanup {
   // Number of "pending reuse" references active in the RenderProcessHost,
   // recorded when Cleanup() was called.
   optional uint32 pending_reuse_ref_count = 5;
+  // Number of NavigationStateKeepAlive references active in the
+  // RenderProcessHost, recorded when Cleanup() was called.
+  optional uint32 navigation_state_keepalive_count = 6;
 }
 
 message ChildProcessLauncherPriority {
@@ -596,7 +600,7 @@ message ChromeThreadPoolTask {
   optional ShutdownBehavior shutdown_behavior = 4;
 }
 
-// TODO(crbug.com/1258495): Add more information.
+// TODO(crbug.com/40797026): Add more information.
 message BackForwardCacheCanStoreDocumentResult {
   enum BackForwardCacheNotRestoredReason {
     NOT_MAIN_FRAME = 1;
@@ -722,7 +726,7 @@ message RendererMainThreadTaskExecution {
     TASK_TYPE_WORKER_THREAD_TASK_QUEUE_COMPOSITOR = 48;
     TASK_TYPE_COMPOSITOR_THREAD_TASK_QUEUE_INPUT = 49;
 
-    // TODO(crbug.com/860545): Obsolete. Remove.
+    // TODO(crbug.com/40583778): Obsolete. Remove.
     TASK_TYPE_NETWORKING_WITH_URL_LOADER_ANNOTATION = 50;
 
     TASK_TYPE_WORKER_ANIMATION = 51;

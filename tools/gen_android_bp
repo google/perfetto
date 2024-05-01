@@ -121,13 +121,19 @@ target_product_available = [
 
 # Proto target groups which will be made public.
 proto_groups = {
-    'trace': [
-        '//protos/perfetto/trace:non_minimal_source_set',
-        '//protos/perfetto/trace:minimal_source_set'
-    ],
-    'config': [
-        '//protos/perfetto/config:source_set',
-    ],
+    'trace': {
+        'types': ['filegroup', 'lite'],
+        'targets': [
+            '//protos/perfetto/trace:non_minimal_source_set',
+            '//protos/perfetto/trace:minimal_source_set',
+        ]
+    },
+    'config': {
+        'types': ['lite'],
+        'targets': [
+            '//protos/perfetto/config:source_set',
+        ]
+    },
 }
 
 needs_libfts = [
@@ -762,7 +768,6 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
   # The .proto filegroup will be added to `tool_files` of rdeps so that the
   # genrules can be sandboxed.
 
-  tool_files = set()
   for proto_dep in target.proto_deps().union(target.transitive_proto_deps()):
     tool_files.add(":" + label_to_module_name(proto_dep.name))
 
@@ -956,23 +961,34 @@ def create_gen_version_module(blueprint: Blueprint, target: GnParser.Target,
 
 
 def create_proto_group_modules(blueprint, gn: GnParser, module_name: str,
-                               target_names):
-  # TODO(lalitm): today, we're only adding a Java lite module because that's
-  # the only one used in practice. In the future, if we need other target types
-  # (e.g. C++, Java full etc.) add them here.
-  bp_module_name = label_to_module_name(module_name) + '_java_protos'
-  module = Module('java_library', bp_module_name, bp_module_name)
-  module.comment = f'''GN: [{', '.join(target_names)}]'''
-  module.proto = {'type': 'lite', 'canonical_path_from_root': False}
+                               group):
+  target_names = group['targets']
+  module_types = group['types']
+  module_sources = set()
 
   for name in target_names:
     target = gn.get_target(name)
-    module.srcs.update(gn_utils.label_to_path(src) for src in target.sources)
+    module_sources.update(gn_utils.label_to_path(src) for src in target.sources)
     for dep_label in target.transitive_proto_deps():
       dep = gn.get_target(dep_label.name)
-      module.srcs.update(gn_utils.label_to_path(src) for src in dep.sources)
+      module_sources.update(gn_utils.label_to_path(src) for src in dep.sources)
 
-  blueprint.add_module(module)
+  for type in module_types:
+    if type == 'filegroup':
+      name = label_to_module_name(module_name) + '_filegroup_proto'
+      module = Module('filegroup', name, name)
+      module.comment = f'''GN: [{', '.join(target_names)}]'''
+      module.srcs = module_sources
+      blueprint.add_module(module)
+    elif type == 'lite':
+      name = label_to_module_name(module_name) + '_java_protos'
+      module = Module('java_library', name, name)
+      module.comment = f'''GN: [{', '.join(target_names)}]'''
+      module.proto = {'type': 'lite', 'canonical_path_from_root': False}
+      module.srcs = module_sources
+      blueprint.add_module(module)
+    else:
+      raise Error('Unhandled proto group type: {}'.format(group.type))
 
 
 def _get_cflags(target: GnParser.Target):
@@ -1228,8 +1244,8 @@ def main():
   # checker = gn_utils.ODRChecker(gn, target_name)
 
   # Add any proto groups to the blueprint.
-  for l_name, t_names in proto_groups.items():
-    create_proto_group_modules(blueprint, gn, l_name, t_names)
+  for name, group in proto_groups.items():
+    create_proto_group_modules(blueprint, gn, name, group)
 
   output = [
       """// Copyright (C) 2017 The Android Open Source Project

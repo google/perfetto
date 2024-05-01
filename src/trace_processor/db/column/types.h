@@ -96,6 +96,15 @@ struct Order {
   bool desc;
 };
 
+// Structured data used to determine what Trace Processor will query using
+// CEngine.
+struct Query {
+  // Query constraints.
+  std::vector<Constraint> constraints;
+  // Query order bys.
+  std::vector<Order> orders;
+};
+
 // The enum type of the column.
 // Public only to stop GCC complaining about templates being defined in a
 // non-namespace scope (see ColumnTypeHelper below).

@@ -138,20 +138,22 @@ std::string CreateTableStatementFromSchema(const Table::Schema& schema,
   return stmt;
 }
 
-base::StatusOr<SqlValue> SqliteValueToSqlValueChecked(sqlite3_value* value,
-                                                      const Constraint& cs) {
-  SqlValue v = sqlite::utils::SqliteValueToSqlValue(value);
+int SqliteValueToSqlValueChecked(SqlValue* sql_val,
+                                 sqlite3_value* value,
+                                 const Constraint& cs,
+                                 sqlite3_vtab* vtab) {
+  *sql_val = sqlite::utils::SqliteValueToSqlValue(value);
   if constexpr (regex::IsRegexSupported()) {
     if (cs.op == FilterOp::kRegex) {
       if (cs.value.type != SqlValue::kString) {
-        return base::ErrStatus("Value has to be a string");
+        return sqlite::utils::SetError(vtab, "Value has to be a string");
       }
       if (auto st = regex::Regex::Create(cs.value.AsString()); !st.ok()) {
-        return st.status();
+        return sqlite::utils::SetError(vtab, st.status().c_message());
       }
     }
   }
-  return v;
+  return SQLITE_OK;
 }
 
 int UpdateConstraintsAndOrderByFromIndex(DbSqliteModule::Cursor* c,
@@ -166,18 +168,18 @@ int UpdateConstraintsAndOrderByFromIndex(DbSqliteModule::Cursor* c,
 
   // We reuse this vector to reduce memory allocations on nested subqueries.
   uint32_t c_offset = 0;
-  c->constraints.resize(cs_count);
-  for (auto& cs : c->constraints) {
+  c->query.constraints.resize(cs_count);
+  for (auto& cs : c->query.constraints) {
     PERFETTO_CHECK(splitter.Next());
     cs.col_idx = *base::CStringToUInt32(splitter.cur_token());
     PERFETTO_CHECK(splitter.Next());
     cs.op = static_cast<FilterOp>(*base::CStringToUInt32(splitter.cur_token()));
 
-    auto value_or = SqliteValueToSqlValueChecked(argv[c_offset++], cs);
-    if (!value_or.ok()) {
-      return sqlite::utils::SetError(c->pVtab, value_or.status().c_message());
+    if (int ret = SqliteValueToSqlValueChecked(&cs.value, argv[c_offset++], cs,
+                                               c->pVtab);
+        ret != SQLITE_OK) {
+      return ret;
     }
-    cs.value = *value_or;
   }
 
   PERFETTO_CHECK(splitter.Next());
@@ -187,8 +189,8 @@ int UpdateConstraintsAndOrderByFromIndex(DbSqliteModule::Cursor* c,
   uint32_t ob_count = *base::CStringToUInt32(splitter.cur_token() + 1);
 
   // We reuse this vector to reduce memory allocations on nested subqueries.
-  c->orders.resize(ob_count);
-  for (auto& ob : c->orders) {
+  c->query.orders.resize(ob_count);
+  for (auto& ob : c->query.orders) {
     PERFETTO_CHECK(splitter.Next());
     ob.col_idx = *base::CStringToUInt32(splitter.cur_token());
     PERFETTO_CHECK(splitter.Next());
@@ -216,13 +218,13 @@ PERFETTO_ALWAYS_INLINE void TryCacheCreateSortedTable(
 
   // If we have more than one constraint, we can't cache the table using
   // this method.
-  if (cursor->constraints.size() != 1) {
+  if (cursor->query.constraints.size() != 1) {
     return;
   }
 
   // If the constraing is not an equality constraint, there's little
   // benefit to caching
-  const auto& c = cursor->constraints.front();
+  const auto& c = cursor->query.constraints.front();
   if (c.op != FilterOp::kEq) {
     return;
   }
@@ -242,7 +244,7 @@ void FilterAndSortMetatrace(const std::string& table_name,
                             DbSqliteModule::Cursor* cursor,
                             metatrace::Record* r) {
   r->AddArg("Table", table_name);
-  for (const Constraint& c : cursor->constraints) {
+  for (const Constraint& c : cursor->query.constraints) {
     SafeStringWriter writer;
     writer.AppendString(schema.columns[c.col_idx].name);
 
@@ -303,7 +305,7 @@ void FilterAndSortMetatrace(const std::string& table_name,
     r->AddArg("Constraint", writer.GetStringView());
   }
 
-  for (const auto& o : cursor->orders) {
+  for (const auto& o : cursor->query.orders) {
     SafeStringWriter writer;
     writer.AppendString(schema.columns[o.col_idx].name);
     if (o.desc)
@@ -571,12 +573,12 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
   size_t offset = c->table_function_arguments.size();
   bool is_same_idx = idx_num == c->last_idx_num;
   if (PERFETTO_LIKELY(is_same_idx)) {
-    for (auto& cs : c->constraints) {
-      auto value_or = SqliteValueToSqlValueChecked(argv[offset++], cs);
-      if (!value_or.ok()) {
-        return sqlite::utils::SetError(c->pVtab, value_or.status().c_message());
+    for (auto& cs : c->query.constraints) {
+      if (int ret = SqliteValueToSqlValueChecked(&cs.value, argv[offset++], cs,
+                                                 c->pVtab);
+          ret != SQLITE_OK) {
+        return ret;
       }
-      cs.value = *value_or;
     }
   } else {
     if (int r = UpdateConstraintsAndOrderByFromIndex(c, idx_str, argv + offset);
@@ -623,7 +625,7 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
 
   const auto* source_table =
       c->sorted_cache_table ? &*c->sorted_cache_table : c->upstream_table;
-  RowMap filter_map = source_table->QueryToRowMap(c->constraints, c->orders);
+  RowMap filter_map = source_table->QueryToRowMap(c->query);
   if (filter_map.IsRange() && filter_map.size() <= 1) {
     // Currently, our criteria where we have a special fast path is if it's
     // a single ranged row. We have this fast path for joins on id columns

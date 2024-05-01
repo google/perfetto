@@ -15,7 +15,7 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {BigintMath} from '../../base/bigint_math';
-import {assertFalse} from '../../base/logging';
+import {assertExists, assertFalse} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
 import {colorForTid} from '../../core/colorizer';
 import {LIMIT, TrackData} from '../../common/track_data';
@@ -37,7 +37,7 @@ interface Data extends TrackData {
 export interface Config {
   pidForColor: number;
   upid: number | null;
-  utid: number;
+  utid: number | null;
 }
 
 const MARGIN_TOP = 5;
@@ -70,7 +70,7 @@ export class ProcessSummaryTrack implements Track {
       `create virtual table ${this.tableName('window')} using window;`,
     );
 
-    let utids = [this.config.utid];
+    let utids: number[];
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (this.config.upid) {
       const threadQuery = await this.engine.query(
@@ -80,6 +80,8 @@ export class ProcessSummaryTrack implements Track {
       for (const it = threadQuery.iter({utid: NUM}); it.valid(); it.next()) {
         utids.push(it.utid);
       }
+    } else {
+      utids = [assertExists(this.config.utid)];
     }
 
     const trackQuery = await this.engine.query(

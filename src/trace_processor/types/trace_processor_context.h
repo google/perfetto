@@ -131,22 +131,23 @@ class TraceProcessorContext {
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
   // clang-format off
-  std::unique_ptr<Destructible> android_probes_tracker;  // AndroidProbesTracker
-  std::unique_ptr<Destructible> binder_tracker;          // BinderTracker
-  std::unique_ptr<Destructible> heap_graph_tracker;      // HeapGraphTracker
-  std::unique_ptr<Destructible> syscall_tracker;         // SyscallTracker
-  std::unique_ptr<Destructible> system_info_tracker;     // SystemInfoTracker
-  std::unique_ptr<Destructible> v4l2_tracker;            // V4l2Tracker
-  std::unique_ptr<Destructible> virtio_video_tracker;    // VirtioVideoTracker
-  std::unique_ptr<Destructible> systrace_parser;         // SystraceParser
-  std::unique_ptr<Destructible> thread_state_tracker;    // ThreadStateTracker
-  std::unique_ptr<Destructible> i2c_tracker;             // I2CTracker
-  std::unique_ptr<Destructible> perf_data_tracker;       // PerfDataTracker
-  std::unique_ptr<Destructible> content_analyzer;        // ProtoContentAnalyzer
+  std::unique_ptr<Destructible> android_probes_tracker;    // AndroidProbesTracker
+  std::unique_ptr<Destructible> binder_tracker;            // BinderTracker
+  std::unique_ptr<Destructible> heap_graph_tracker;        // HeapGraphTracker
+  std::unique_ptr<Destructible> syscall_tracker;           // SyscallTracker
+  std::unique_ptr<Destructible> system_info_tracker;       // SystemInfoTracker
+  std::unique_ptr<Destructible> v4l2_tracker;              // V4l2Tracker
+  std::unique_ptr<Destructible> virtio_video_tracker;      // VirtioVideoTracker
+  std::unique_ptr<Destructible> systrace_parser;           // SystraceParser
+  std::unique_ptr<Destructible> thread_state_tracker;      // ThreadStateTracker
+  std::unique_ptr<Destructible> i2c_tracker;               // I2CTracker
+  std::unique_ptr<Destructible> perf_data_tracker;         // PerfDataTracker
+  std::unique_ptr<Destructible> content_analyzer;          // ProtoContentAnalyzer
   std::unique_ptr<Destructible> shell_transitions_tracker; // ShellTransitionsTracker
-  std::unique_ptr<Destructible> ftrace_sched_tracker;    // FtraceSchedEventTracker
-  std::unique_ptr<Destructible> v8_tracker;              // V8Tracker
-  std::unique_ptr<Destructible> jit_tracker;             // JitTracker
+  std::unique_ptr<Destructible> protolog_messages_tracker; // ProtoLogMessagesTracker
+  std::unique_ptr<Destructible> ftrace_sched_tracker;      // FtraceSchedEventTracker
+  std::unique_ptr<Destructible> v8_tracker;                // V8Tracker
+  std::unique_ptr<Destructible> jit_tracker;               // JitTracker
   // clang-format on
 
   // These fields are trace readers which will be called by |forwarding_parser|

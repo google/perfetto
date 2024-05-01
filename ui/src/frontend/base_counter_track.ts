@@ -17,7 +17,7 @@ import m from 'mithril';
 import {searchSegment} from '../base/binary_search';
 import {Disposable, NullDisposable} from '../base/disposable';
 import {assertTrue, assertUnreachable} from '../base/logging';
-import {duration, Time, time} from '../base/time';
+import {Time, time} from '../base/time';
 import {drawTrackHoverTooltip} from '../common/canvas_utils';
 import {raf} from '../core/raf_scheduler';
 import {EngineProxy, LONG, NUM, Track} from '../public';
@@ -27,10 +27,10 @@ import {MenuItem, MenuDivider, PopupMenu2} from '../widgets/menu';
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {PanelSize} from './panel';
-import {constraintsToQuerySuffix} from './sql_utils';
 import {NewTrackArgs} from './track';
-import {CacheKey, TimelineCache} from '../core/timeline_cache';
+import {CacheKey} from '../core/timeline_cache';
 import {featureFlags} from '../core/feature_flags';
+import {uuidv4Sql} from '../base/uuid';
 
 export const COUNTER_DEBUG_MENU_ITEMS = featureFlags.register({
   id: 'counterDebugMenuItems',
@@ -128,8 +128,6 @@ class RangeSharer {
 
 interface CounterData {
   timestamps: BigInt64Array;
-  counts: Uint32Array;
-  avgValues: Float64Array;
   minDisplayValues: Float64Array;
   maxDisplayValues: Float64Array;
   lastDisplayValues: Float64Array;
@@ -142,13 +140,10 @@ const MARGIN_TOP = 3.5;
 interface CounterLimits {
   maxDisplayValue: number;
   minDisplayValue: number;
-  maxDurNs: duration;
 }
 
 interface CounterTooltipState {
   lastDisplayValue: number;
-  avgValue: number;
-  count: number;
   ts: time;
   tsEnd?: time;
 }
@@ -201,21 +196,18 @@ export type BaseCounterTrackArgs = NewTrackArgs & {
 export abstract class BaseCounterTrack implements Track {
   protected engine: EngineProxy;
   protected trackKey: string;
+  protected trackUuid = uuidv4Sql();
 
   // This is the over-skirted cached bounds:
   private countersKey: CacheKey = CacheKey.zero();
 
   private counters: CounterData = {
     timestamps: new BigInt64Array(0),
-    counts: new Uint32Array(0),
-    avgValues: new Float64Array(0),
     minDisplayValues: new Float64Array(0),
     maxDisplayValues: new Float64Array(0),
     lastDisplayValues: new Float64Array(0),
     displayValueRange: [0, 0],
   };
-
-  private cache: TimelineCache<CounterData> = new TimelineCache(5);
 
   // Cleanup hook for onInit.
   private initState?: Disposable;
@@ -427,12 +419,9 @@ export abstract class BaseCounterTrack implements Track {
 
   protected invalidate() {
     this.limits = undefined;
-    this.cache.invalidate();
     this.countersKey = CacheKey.zero();
     this.counters = {
       timestamps: new BigInt64Array(0),
-      counts: new Uint32Array(0),
-      avgValues: new Float64Array(0),
       minDisplayValues: new Float64Array(0),
       maxDisplayValues: new Float64Array(0),
       lastDisplayValues: new Float64Array(0),
@@ -462,6 +451,33 @@ export abstract class BaseCounterTrack implements Track {
 
   async onCreate(): Promise<void> {
     this.initState = await this.onInit();
+
+    const displayValueQuery = await this.engine.query(`
+        create virtual table ${this.getTableName()}
+        using __intrinsic_counter_mipmap((
+          SELECT
+            ts,
+            ${this.getValueExpression()} as value
+          FROM (${this.getSqlSource()})
+        ));
+
+        select
+          min_value as minDisplayValue,
+          max_value as maxDisplayValue
+        from ${this.getTableName()}(
+          trace_start(), trace_end(), trace_dur()
+        );
+      `);
+
+    const {minDisplayValue, maxDisplayValue} = displayValueQuery.firstRow({
+      minDisplayValue: NUM,
+      maxDisplayValue: NUM,
+    });
+
+    this.limits = {
+      minDisplayValue,
+      maxDisplayValue,
+    };
   }
 
   async onUpdate(): Promise<void> {
@@ -479,10 +495,7 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   render(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    const {
-      visibleTimeScale: timeScale,
-      // visibleWindowTime: vizTime,
-    } = globals.timeline;
+    const {visibleTimeScale: timeScale} = globals.timeline;
 
     // In any case, draw whatever we have (which might be stale/incomplete).
 
@@ -490,11 +503,17 @@ export abstract class BaseCounterTrack implements Track {
     const data = this.counters;
 
     if (data.timestamps.length === 0 || limits === undefined) {
+      checkerboardExcept(
+        ctx,
+        this.getHeight(),
+        0,
+        size.width,
+        timeScale.timeToPx(this.countersKey.start),
+        timeScale.timeToPx(this.countersKey.end),
+      );
       return;
     }
 
-    assertTrue(data.timestamps.length === data.counts.length);
-    assertTrue(data.timestamps.length === data.avgValues.length);
     assertTrue(data.timestamps.length === data.minDisplayValues.length);
     assertTrue(data.timestamps.length === data.maxDisplayValues.length);
     assertTrue(data.timestamps.length === data.lastDisplayValues.length);
@@ -520,6 +539,7 @@ export abstract class BaseCounterTrack implements Track {
       zeroY = effectiveHeight * (yMax / (yMax - yMin)) + MARGIN_TOP;
     }
 
+    // Use hue to differentiate the scale of the counter value
     const exp = Math.ceil(Math.log10(Math.max(yMax, 1)));
     const expCapped = Math.min(exp - 3, 9);
     const hue = (180 - Math.floor(expCapped * (180 / 6)) + 360) % 360;
@@ -540,11 +560,11 @@ export abstract class BaseCounterTrack implements Track {
 
     ctx.beginPath();
     const timestamp = Time.fromRaw(timestamps[0]);
-    ctx.moveTo(calculateX(timestamp), zeroY);
+    ctx.moveTo(Math.max(0, calculateX(timestamp)), zeroY);
     let lastDrawnY = zeroY;
     for (let i = 0; i < timestamps.length; i++) {
       const timestamp = Time.fromRaw(timestamps[i]);
-      const x = calculateX(timestamp);
+      const x = Math.max(0, calculateX(timestamp));
       const minY = calculateY(minValues[i]);
       const maxY = calculateY(maxValues[i]);
       const lastY = calculateY(lastValues[i]);
@@ -581,7 +601,7 @@ export abstract class BaseCounterTrack implements Track {
 
     const hover = this.hover;
     if (hover !== undefined) {
-      let text = `${hover.avgValue.toLocaleString()}`;
+      let text = `${hover.lastDisplayValue.toLocaleString()}`;
 
       const unit = this.unit;
       switch (options.yMode) {
@@ -599,14 +619,11 @@ export abstract class BaseCounterTrack implements Track {
           break;
       }
 
-      if (hover.count > 1) {
-        text += ` (avg of ${hover.count})`;
-      }
-
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
-      const xStart = Math.floor(timeScale.timeToPx(hover.ts));
+      const rawXStart = calculateX(hover.ts);
+      const xStart = Math.max(0, rawXStart);
       const xEnd =
         hover.tsEnd === undefined
           ? endPx
@@ -626,17 +643,19 @@ export abstract class BaseCounterTrack implements Track {
       ctx.stroke();
       ctx.lineWidth = 1;
 
-      // Draw change marker.
-      ctx.beginPath();
-      ctx.arc(
-        xStart,
-        y,
-        3 /* r*/,
-        0 /* start angle*/,
-        2 * Math.PI /* end angle*/,
-      );
-      ctx.fill();
-      ctx.stroke();
+      // Draw change marker if it would be visible.
+      if (rawXStart >= -6) {
+        ctx.beginPath();
+        ctx.arc(
+          xStart,
+          y,
+          3 /* r*/,
+          0 /* start angle*/,
+          2 * Math.PI /* end angle*/,
+        );
+        ctx.fill();
+        ctx.stroke();
+      }
 
       // Draw the tooltip.
       drawTrackHoverTooltip(ctx, this.mousePos, this.getHeight(), text);
@@ -644,11 +663,11 @@ export abstract class BaseCounterTrack implements Track {
 
     // Write the Y scale on the top left corner.
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.fillRect(0, 0, 42, 16);
+    ctx.fillRect(0, 0, 42, 13);
     ctx.fillStyle = '#666';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText(`${yLabel}`, 5, 14);
+    ctx.fillText(`${yLabel}`, 5, 11);
 
     // TODO(hjd): Refactor this into checkerboardExcept
     {
@@ -690,14 +709,10 @@ export abstract class BaseCounterTrack implements Track {
     const tsEnd =
       right === -1 ? undefined : Time.fromRaw(data.timestamps[right]);
     const lastDisplayValue = data.lastDisplayValues[left];
-    const count = data.counts[left];
-    const avgValue = data.avgValues[left];
     this.hover = {
       ts,
       tsEnd,
       lastDisplayValue,
-      count,
-      avgValue,
     };
   }
 
@@ -705,10 +720,13 @@ export abstract class BaseCounterTrack implements Track {
     this.hover = undefined;
   }
 
-  onDestroy(): void {
+  async onDestroy(): Promise<void> {
     if (this.initState) {
       this.initState.dispose();
       this.initState = undefined;
+    }
+    if (this.engine.isAlive) {
+      await this.engine.query(`drop table if exists ${this.getTableName()}`);
     }
   }
 
@@ -784,7 +802,6 @@ export abstract class BaseCounterTrack implements Track {
         break;
       default:
         assertUnreachable(options.yMode);
-        break;
     }
 
     if (options.yDisplay === 'log') {
@@ -800,11 +817,10 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   // The underlying table has `ts` and `value` columns.
-  private getSqlPreamble(): string {
+  private getValueExpression(): string {
     const options = this.getCounterOptions();
 
     let valueExpr;
-
     switch (options.yMode) {
       case 'value':
         valueExpr = 'value';
@@ -818,64 +834,20 @@ export abstract class BaseCounterTrack implements Track {
         break;
       default:
         assertUnreachable(options.yMode);
-        break;
     }
 
-    let displayValueExpr = valueExpr;
     if (options.yDisplay === 'log') {
-      displayValueExpr = `ifnull(ln(${displayValueExpr}), 0)`;
+      return `ifnull(ln(${valueExpr}), 0)`;
+    } else {
+      return valueExpr;
     }
+  }
 
-    return `
-      WITH data AS (
-        SELECT
-          ts,
-          ${valueExpr} as value,
-          ${displayValueExpr} as displayValue
-        FROM (${this.getSqlSource()})
-      )
-    `;
+  private getTableName(): string {
+    return `counter_${this.trackUuid}`;
   }
 
   private async maybeRequestData(rawCountersKey: CacheKey) {
-    let limits = this.limits;
-    if (limits === undefined) {
-      const maxDurQuery = await this.engine.query(`
-        ${this.getSqlPreamble()}
-        SELECT
-          max(dur) as maxDur
-        FROM (
-          SELECT
-            lead(ts, 1, ts) over (order by ts) - ts as dur
-          FROM data
-        )
-      `);
-      const maxDurRow = maxDurQuery.firstRow({
-        maxDur: LONG,
-      });
-      const maxDurNs = maxDurRow.maxDur;
-
-      const displayValueQuery = await this.engine.query(`
-        ${this.getSqlPreamble()}
-        SELECT
-          max(displayValue) as maxDisplayValue,
-          min(displayValue) as minDisplayValue
-        FROM data
-      `);
-      const displayValueRow = displayValueQuery.firstRow({
-        minDisplayValue: NUM,
-        maxDisplayValue: NUM,
-      });
-
-      const minDisplayValue = displayValueRow.minDisplayValue;
-      const maxDisplayValue = displayValueRow.maxDisplayValue;
-      limits = this.limits = {
-        minDisplayValue,
-        maxDisplayValue,
-        maxDurNs,
-      };
-    }
-
     if (rawCountersKey.isCoveredBy(this.countersKey)) {
       return; // We have the data already, no need to re-query.
     }
@@ -887,42 +859,21 @@ export abstract class BaseCounterTrack implements Track {
       );
     }
 
-    const maybeCachedCounters = this.cache.lookup(countersKey);
-    if (maybeCachedCounters) {
-      this.countersKey = countersKey;
-      this.counters = maybeCachedCounters;
-      return;
-    }
-
-    const bucketNs = countersKey.bucketSize;
-
-    const constraint = constraintsToQuerySuffix({
-      filters: [
-        `ts >= ${countersKey.start} - ${limits.maxDurNs}`,
-        `ts <= ${countersKey.end}`,
-        `value is not null`,
-      ],
-      groupBy: ['tsq'],
-      orderBy: ['tsq'],
-    });
-
     const queryRes = await this.engine.query(`
-      ${this.getSqlPreamble()}
       SELECT
-        (ts + ${bucketNs / 2n}) / ${bucketNs} * ${bucketNs} as tsq,
-        count(value) as count,
-        avg(value) as avgValue,
-        min(displayValue) as minDisplayValue,
-        max(displayValue) as maxDisplayValue,
-        value_at_max_ts(ts, displayValue) as lastDisplayValue
-      FROM data
-      ${constraint}
+        min_value as minDisplayValue,
+        max_value as maxDisplayValue,
+        last_ts as ts,
+        last_value as lastDisplayValue
+      FROM ${this.getTableName()}(
+        ${countersKey.start},
+        ${countersKey.end},
+        ${countersKey.bucketSize}
+      );
     `);
 
     const it = queryRes.iter({
-      tsq: LONG,
-      count: NUM,
-      avgValue: NUM,
+      ts: LONG,
       minDisplayValue: NUM,
       maxDisplayValue: NUM,
       lastDisplayValue: NUM,
@@ -931,8 +882,6 @@ export abstract class BaseCounterTrack implements Track {
     const numRows = queryRes.numRows();
     const data: CounterData = {
       timestamps: new BigInt64Array(numRows),
-      counts: new Uint32Array(numRows),
-      avgValues: new Float64Array(numRows),
       minDisplayValues: new Float64Array(numRows),
       maxDisplayValues: new Float64Array(numRows),
       lastDisplayValues: new Float64Array(numRows),
@@ -942,10 +891,7 @@ export abstract class BaseCounterTrack implements Track {
     let min = 0;
     let max = 0;
     for (let row = 0; it.valid(); it.next(), row++) {
-      const ts = Time.fromRaw(it.tsq);
-      data.timestamps[row] = ts;
-      data.counts[row] = it.count;
-      data.avgValues[row] = it.avgValue;
+      data.timestamps[row] = Time.fromRaw(it.ts);
       data.minDisplayValues[row] = it.minDisplayValue;
       data.maxDisplayValues[row] = it.maxDisplayValue;
       data.lastDisplayValues[row] = it.lastDisplayValue;
@@ -955,7 +901,6 @@ export abstract class BaseCounterTrack implements Track {
 
     data.displayValueRange = [min, max];
 
-    this.cache.insert(countersKey, data);
     this.countersKey = countersKey;
     this.counters = data;
 

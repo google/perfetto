@@ -26,10 +26,12 @@ class TracePacketFilter {
   virtual ~TracePacketFilter();
 
   // Checks if the context contains all neccessary parameters.
-  virtual base::Status VerifyContext(const Context& context) const = 0;
+  virtual base::Status VerifyContext(const Context& context) const;
 
-  virtual bool KeepPacket(const Context& context,
-                          const std::string& bytes) const = 0;
+  // Checks if the field should be pass onto the new packet. Checks are a
+  // logical AND, so all filters must return true.
+  virtual bool KeepField(const Context& context,
+                         const protozero::Field& field) const = 0;
 };
 
 class ScrubTracePacket : public TransformPrimitive {
@@ -43,7 +45,7 @@ class ScrubTracePacket : public TransformPrimitive {
   }
 
  private:
-  bool KeepEvent(const Context& context, const std::string& bytes) const;
+  bool KeepEvent(const Context& context, const protozero::Field& field) const;
 
   std::vector<std::unique_ptr<TracePacketFilter>> filters_;
 };

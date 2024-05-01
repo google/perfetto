@@ -62,8 +62,9 @@ void ForReferenceSet(TraceStorage* storage,
     return;
 
   auto* ref = storage->mutable_heap_graph_reference_table();
-  auto it =
-      ref->FilterToIterator({ref->reference_set_id().eq(*reference_set_id)});
+  Query q;
+  q.constraints = {ref->reference_set_id().eq(*reference_set_id)};
+  auto it = ref->FilterToIterator(q);
 
   for (; it; ++it) {
     if (!fn(it.row_reference()))
@@ -92,10 +93,10 @@ std::optional<ObjectTable::Id> GetReferredObj(const TraceStorage& storage,
                                               uint32_t ref_set_id,
                                               const std::string& field_name) {
   const auto& refs_tbl = storage.heap_graph_reference_table();
-
-  auto refs_it = refs_tbl.FilterToIterator(
-      {refs_tbl.reference_set_id().eq(ref_set_id),
-       refs_tbl.field_name().eq(NullTermStringView(field_name))});
+  Query q;
+  q.constraints = {refs_tbl.reference_set_id().eq(ref_set_id),
+                   refs_tbl.field_name().eq(NullTermStringView(field_name))};
+  auto refs_it = refs_tbl.FilterToIterator(q);
   if (!refs_it) {
     return std::nullopt;
   }
@@ -110,8 +111,10 @@ BuildSuperclassMap(UniquePid upid, int64_t ts, TraceStorage* storage) {
   // Resolve superclasses by iterating heap graph objects and identifying the
   // superClass field.
   const auto& objects_tbl = storage->heap_graph_object_table();
-  auto obj_it = objects_tbl.FilterToIterator(
-      {objects_tbl.upid().eq(upid), objects_tbl.graph_sample_ts().eq(ts)});
+  Query q;
+  q.constraints = {objects_tbl.upid().eq(upid),
+                   objects_tbl.graph_sample_ts().eq(ts)};
+  auto obj_it = objects_tbl.FilterToIterator(q);
   for (; obj_it; ++obj_it) {
     auto obj_id = obj_it.id();
     auto class_descriptor = GetClassDescriptor(*storage, obj_id);
@@ -673,14 +676,16 @@ void HeapGraphTracker::PopulateNativeSize(const SequenceState& seq) {
   };
   std::vector<Cleaner> cleaners;
 
-  auto class_it =
-      class_tbl.FilterToIterator({class_tbl.name().eq("sun.misc.Cleaner")});
+  Query q;
+  q.constraints = {class_tbl.name().eq("sun.misc.Cleaner")};
+  auto class_it = class_tbl.FilterToIterator(q);
   for (; class_it; ++class_it) {
     auto class_id = class_it.id();
-    auto obj_it = objects_tbl.FilterToIterator(
-        {objects_tbl.type_id().eq(class_id.value),
-         objects_tbl.upid().eq(seq.current_upid),
-         objects_tbl.graph_sample_ts().eq(seq.current_ts)});
+    Query query;
+    query.constraints = {objects_tbl.type_id().eq(class_id.value),
+                         objects_tbl.upid().eq(seq.current_upid),
+                         objects_tbl.graph_sample_ts().eq(seq.current_ts)};
+    auto obj_it = objects_tbl.FilterToIterator(query);
     for (; obj_it; ++obj_it) {
       ObjectTable::Id cleaner_obj_id = obj_it.id();
       std::optional<ObjectTable::Id> referent_id =

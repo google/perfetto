@@ -28,13 +28,13 @@ namespace perfetto {
 namespace trace_processor {
 
 void RegisterDefaultModules(TraceProcessorContext* context) {
-  context->modules.emplace_back(new FtraceModule());
-  context->modules.emplace_back(new EtwModule());
   // Ftrace and Etw modules are special, because they have an extra method for
   // parsing the ftrace/etw packets. So we need to store a pointer to it
   // separately.
+  context->modules.emplace_back(new FtraceModule());
   context->ftrace_module =
       static_cast<FtraceModule*>(context->modules.back().get());
+  context->modules.emplace_back(new EtwModule());
   context->etw_module = static_cast<EtwModule*>(context->modules.back().get());
 
   context->modules.emplace_back(new TrackEventModule(context));

@@ -36,6 +36,8 @@ export function maybeShowErrorDialog(err: ErrorDetails) {
   // Here we rely on the exception message from onCannotGrowMemory function
   if (
     err.message.includes('Cannot enlarge memory') ||
+    err.stack.some((entry) => entry.name.includes('_emscripten_resize_heap')) ||
+    err.stack.some((entry) => entry.name.includes('sbrk')) ||
     /^out of memory$/m.exec(err.message)
   ) {
     showOutOfMemoryDialog();

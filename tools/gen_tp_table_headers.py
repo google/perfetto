@@ -66,13 +66,16 @@ def main():
   def get_header_path(in_path: str):
     return os.path.join(args.import_prefix, get_relout_path(in_path))
 
+  def get_relin_path_from_module_path(module_path: str):
+    return module_path[module_path.rfind('/src') + 1:]
+
   modules = [
       os.path.splitext(get_relin_path(i).replace(os.sep, '.'))[0]
       for i in args.inputs
   ]
   headers: Dict[str, Header] = {}
   for table in parse_tables_from_modules(modules):
-    input_path = os.path.relpath(table.table.python_module, ROOT_DIR)
+    input_path = get_relin_path_from_module_path(table.table.python_module)
     header = headers.get(input_path, Header([]))
     header.tables.append(table)
     headers[input_path] = header
@@ -86,7 +89,7 @@ def main():
     header_relout_deps: Set[str] = set()
     for table in header.tables:
       header_relout_deps = header_relout_deps.union([
-          get_header_path(os.path.relpath(c.python_module, ROOT_DIR))
+          get_header_path(get_relin_path_from_module_path(c.python_module))
           for c in find_table_deps(table.table)
       ])
     header_relout_deps.discard(relout_path)

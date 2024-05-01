@@ -81,6 +81,8 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
@@ -747,6 +749,12 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       std::make_unique<SpanJoinOperatorModule::Context>(engine_.get()));
   engine_->sqlite_engine()->RegisterVirtualTableModule<WindowOperatorModule>(
       "window", std::make_unique<WindowOperatorModule::Context>());
+  engine_->sqlite_engine()->RegisterVirtualTableModule<CounterMipmapOperator>(
+      "__intrinsic_counter_mipmap",
+      std::make_unique<CounterMipmapOperator::Context>(engine_.get()));
+  engine_->sqlite_engine()->RegisterVirtualTableModule<SliceMipmapOperator>(
+      "__intrinsic_slice_mipmap",
+      std::make_unique<SliceMipmapOperator::Context>(engine_.get()));
 
   // Initalize the tables and views in the prelude.
   InitializePreludeTablesViews(db);

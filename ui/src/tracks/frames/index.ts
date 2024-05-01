@@ -31,26 +31,17 @@ class FramesPlugin implements Plugin {
   async addExpectedFrames(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
-      with process_async_tracks as materialized (
-        select
-          process_track.upid as upid,
-          process_track.name as trackName,
-          process.name as processName,
-          process.pid as pid,
-          group_concat(process_track.id) as trackIds,
-          count(1) as trackCount
-        from process_track
-        join process using(upid)
-        where process_track.name = "Expected Timeline"
-        group by
-          process_track.upid,
-          process_track.name
-      )
       select
-        t.*,
-        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from process_async_tracks t;
-  `);
+        upid,
+        t.name as trackName,
+        t.track_ids as trackIds,
+        process.name as processName,
+        process.pid as pid,
+        __max_layout_depth(t.track_count, t.track_ids) as maxDepth
+      from _process_track_summary_by_upid_and_name t
+      join process using(upid)
+      where t.name = "Expected Timeline"
+    `);
 
     const it = result.iter({
       upid: NUM,
@@ -58,7 +49,7 @@ class FramesPlugin implements Plugin {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
-      maxDepth: NUM_NULL,
+      maxDepth: NUM,
     });
 
     for (; it.valid(); it.next()) {
@@ -69,11 +60,6 @@ class FramesPlugin implements Plugin {
       const processName = it.processName;
       const pid = it.pid;
       const maxDepth = it.maxDepth;
-
-      if (maxDepth === null) {
-        // If there are no slices in this track, skip it.
-        continue;
-      }
 
       const displayName = getTrackName({
         name: trackName,
@@ -103,26 +89,17 @@ class FramesPlugin implements Plugin {
   async addActualFrames(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
-      with process_async_tracks as materialized (
-        select
-          process_track.upid as upid,
-          process_track.name as trackName,
-          process.name as processName,
-          process.pid as pid,
-          group_concat(process_track.id) as trackIds,
-          count(1) as trackCount
-        from process_track
-        join process using(upid)
-        where process_track.name = "Actual Timeline"
-        group by
-          process_track.upid,
-          process_track.name
-      )
       select
-        t.*,
-        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from process_async_tracks t;
-  `);
+        upid,
+        t.name as trackName,
+        t.track_ids as trackIds,
+        process.name as processName,
+        process.pid as pid,
+        __max_layout_depth(t.track_count, t.track_ids) as maxDepth
+      from _process_track_summary_by_upid_and_name t
+      join process using(upid)
+      where t.name = "Actual Timeline"
+    `);
 
     const it = result.iter({
       upid: NUM,

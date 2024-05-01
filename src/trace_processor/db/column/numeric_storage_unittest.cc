@@ -187,6 +187,11 @@ TEST(NumericStorage, SingleSearch) {
             SingleSearchResult::kMatch);
   ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0), 5),
             SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNull, SqlValue(), 0),
+            SingleSearchResult::kNoMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNotNull, SqlValue(), 0),
+            SingleSearchResult::kMatch);
 }
 
 TEST(NumericStorage, Search) {

@@ -62,8 +62,8 @@ export class TopLevelScrollTrack extends CustomSqlTableSliceTrack<NamedSliceTrac
     });
   }
 
-  onDestroy() {
-    super.onDestroy();
+  async onDestroy(): Promise<void> {
+    await super.onDestroy();
     ScrollJankPluginState.getInstance().unregisterTrack(
       TopLevelScrollTrack.kind,
     );
