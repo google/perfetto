@@ -63,6 +63,8 @@ class IdStorage final : public DataLayer {
                     SortToken* end,
                     SortDirection) const override;
 
+    void Distinct(Indices&) const override;
+
     void Serialize(StorageProto*) const override;
 
     uint32_t size() const override {

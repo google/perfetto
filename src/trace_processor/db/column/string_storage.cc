@@ -20,9 +20,9 @@
 #include <cstdint>
 #include <functional>
 #include <iterator>
-#include <memory>
 #include <optional>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -522,6 +522,8 @@ Range StringStorage::ChainImpl::OrderedIndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
     const OrderedIndices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "StringStorage::ChainImpl::OrderedIndexSearch");
   StringPool::Id val =
       (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull)
           ? StringPool::Id::Null()
@@ -619,6 +621,8 @@ Range StringStorage::ChainImpl::BinarySearchIntrinsic(
 void StringStorage::ChainImpl::StableSort(SortToken* start,
                                           SortToken* end,
                                           SortDirection direction) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "StringStorage::ChainImpl::StableSort");
   switch (direction) {
     case SortDirection::kAscending: {
       std::stable_sort(start, end,
@@ -667,6 +671,18 @@ void StringStorage::ChainImpl::StableSort(SortToken* start,
     }
   }
   PERFETTO_FATAL("For GCC");
+}
+
+void StringStorage::ChainImpl::Distinct(Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "StringStorage::ChainImpl::Distinct");
+  std::unordered_set<StringPool::Id> s;
+  indices.tokens.erase(
+      std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                     [&s, this](const Indices::Token& idx) {
+                       return !s.insert((*data_)[idx.index]).second;
+                     }),
+      indices.tokens.end());
 }
 
 void StringStorage::ChainImpl::Serialize(StorageProto* msg) const {

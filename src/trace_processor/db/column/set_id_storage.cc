@@ -22,7 +22,9 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <set>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -252,6 +254,8 @@ Range SetIdStorage::ChainImpl::OrderedIndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
     const OrderedIndices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "SetIdStorage::ChainImpl::OrderedIndexSearch");
   // OrderedIndices are monotonic non-contiguous values.
   auto res = SearchValidated(
       op, sql_val, Range(indices.data[0], indices.data[indices.size - 1] + 1));
@@ -303,6 +307,8 @@ Range SetIdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
 void SetIdStorage::ChainImpl::StableSort(SortToken* start,
                                          SortToken* end,
                                          SortDirection direction) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "SetIdStorage::ChainImpl::StableSort");
   switch (direction) {
     case SortDirection::kAscending:
       std::stable_sort(start, end,
@@ -317,6 +323,18 @@ void SetIdStorage::ChainImpl::StableSort(SortToken* start,
                        });
       break;
   }
+}
+
+void SetIdStorage::ChainImpl::Distinct(Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "SetIdStorage::ChainImpl::Distinct");
+  std::unordered_set<uint32_t> s;
+  indices.tokens.erase(
+      std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                     [&s, this](const Indices::Token& idx) {
+                       return !s.insert((*values_)[idx.index]).second;
+                     }),
+      indices.tokens.end());
 }
 
 void SetIdStorage::ChainImpl::Serialize(StorageProto* msg) const {

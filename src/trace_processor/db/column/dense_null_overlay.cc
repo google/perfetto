@@ -250,6 +250,35 @@ void DenseNullOverlay::ChainImpl::StableSort(SortToken* start,
   }
 }
 
+void DenseNullOverlay::ChainImpl::Distinct(Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "DenseNullOverlay::ChainImpl::Distinct");
+  // Find first NULL.
+  auto first_null_it = std::find_if(
+      indices.tokens.begin(), indices.tokens.end(),
+      [this](const Indices::Token& t) { return !non_null_->IsSet(t.index); });
+
+  // Save first NULL.
+  std::optional<Indices::Token> null_tok;
+  if (first_null_it != indices.tokens.end()) {
+    null_tok = *first_null_it;
+  }
+
+  // Erase all NULLs.
+  indices.tokens.erase(std::remove_if(first_null_it, indices.tokens.end(),
+                                      [this](const Indices::Token& idx) {
+                                        return !non_null_->IsSet(idx.index);
+                                      }),
+                       indices.tokens.end());
+
+  inner_->Distinct(indices);
+
+  // Add the only null as it is distinct value.
+  if (null_tok.has_value()) {
+    indices.tokens.push_back(*null_tok);
+  }
+}
+
 void DenseNullOverlay::ChainImpl::Serialize(StorageProto* storage) const {
   auto* null_overlay = storage->set_dense_null_overlay();
   non_null_->Serialize(null_overlay->set_bit_vector());

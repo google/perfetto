@@ -119,6 +119,40 @@ TEST(FakeStorage, SingleSearch) {
   }
 }
 
+TEST(FakeStorage, Search) {
+  {
+    // All passes
+    auto fake = FakeStorageChain::SearchAll(5);
+    auto ret = fake->Search(FilterOp::kEq, SqlValue(), Range(1, 3));
+    ASSERT_THAT(utils::ToIndexVectorForTests(ret), ElementsAre(1, 2));
+  }
+  {
+    // None passes
+    auto fake = FakeStorageChain::SearchNone(5);
+    auto ret = fake->Search(FilterOp::kEq, SqlValue(), Range(1, 3));
+    ASSERT_THAT(utils::ToIndexVectorForTests(ret), ElementsAre());
+  }
+  {
+    // Index vector
+    auto fake =
+        FakeStorageChain::SearchSubset(5, std::vector<uint32_t>{1, 2, 4, 5});
+    auto ret = fake->Search(FilterOp::kEq, SqlValue(), Range(0, 3));
+    ASSERT_THAT(utils::ToIndexVectorForTests(ret), ElementsAre(1, 2));
+  }
+  {
+    // BitVector
+    auto fake = FakeStorageChain::SearchSubset(5, BitVector{0, 1, 0, 1, 0});
+    auto ret = fake->Search(FilterOp::kEq, SqlValue(), Range(1, 3));
+    ASSERT_THAT(utils::ToIndexVectorForTests(ret), ElementsAre(1));
+  }
+  {
+    // Range
+    auto fake = FakeStorageChain::SearchSubset(5, Range(2, 4));
+    auto ret = fake->Search(FilterOp::kEq, SqlValue(), Range(1, 3));
+    ASSERT_THAT(utils::ToIndexVectorForTests(ret), ElementsAre(2));
+  }
+}
+
 TEST(FakeStorage, IndexSearchValidated) {
   {
     // All passes
