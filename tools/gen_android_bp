@@ -122,17 +122,10 @@ target_product_available = [
 # Proto target groups which will be made public.
 proto_groups = {
     'trace': {
-        'types': ['lite'],
+        'types': ['filegroup', 'lite'],
         'targets': [
             '//protos/perfetto/trace:non_minimal_source_set',
             '//protos/perfetto/trace:minimal_source_set',
-        ]
-    },
-    'winscope': {
-        'types': ['filegroup'],
-        'targets': [
-            '//protos/perfetto/trace:non_minimal_source_set',
-            '//protos/perfetto/trace/android:winscope_extensions:source_set',
         ]
     },
     'config': {
