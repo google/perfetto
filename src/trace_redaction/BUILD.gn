@@ -30,6 +30,8 @@ source_set("trace_redaction") {
   sources = [
     "collect_frame_cookies.cc",
     "collect_frame_cookies.h",
+    "collect_system_info.cc",
+    "collect_system_info.h",
     "collect_timeline_events.cc",
     "collect_timeline_events.h",
     "filter_ftrace_using_allowlist.cc",
@@ -126,6 +128,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "collect_frame_cookies_unittest.cc",
+    "collect_system_info_unittest.cc",
     "collect_timeline_events_unittest.cc",
     "filter_ftrace_using_allowlist_unittest.cc",
     "filter_packet_using_allowlist_unittest.cc",
@@ -157,5 +160,6 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/trace/ps:cpp",
     "../../protos/perfetto/trace/ps:zero",
     "../base:test_support",
+    "../trace_processor/util:util",
   ]
 }
