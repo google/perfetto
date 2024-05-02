@@ -150,3 +150,30 @@ class PerfettoTable(TestSuite):
         "col_type"
         "id"
         """))
+
+  def test_distinct_trivial(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        WITH trivial_count AS (
+          SELECT DISTINCT name AS c FROM slice
+        ),
+        few_results AS (
+          SELECT DISTINCT depth AS c FROM slice
+        ),
+        simple_nullable AS (
+          SELECT DISTINCT parent_id AS c FROM slice
+        ),
+        selector AS (
+          SELECT DISTINCT cpu AS c FROM ftrace_event
+        )
+        SELECT
+          (SELECT COUNT(*) FROM trivial_count) AS name,
+          (SELECT COUNT(*) FROM few_results) AS depth,
+          (SELECT COUNT(*) FROM simple_nullable) AS parent_id,
+          (SELECT COUNT(*) FROM selector) AS cpu_from_ftrace;
+        """,
+        out=Csv("""
+        "name","depth","parent_id","cpu_from_ftrace"
+        3073,8,4529,8
+        """))
