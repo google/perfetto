@@ -301,6 +301,8 @@ class FtraceParser {
   void ParsePanelWriteGeneric(int64_t timestamp,
                               uint32_t pid,
                               protozero::ConstBytes);
+  void ParseGoogleIccEvent(int64_t timestamp, protozero::ConstBytes);
+  void ParseGoogleIrmEvent(int64_t timestamp, protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -390,6 +392,8 @@ class FtraceParser {
   const StringId bytes_read_id_end_;
   const StringId android_fs_category_id_;
   const StringId android_fs_data_read_id_;
+  const StringId google_icc_event_id_;
+  const StringId google_irm_event_id_;
   const StringId runtime_status_invalid_id_;
   const StringId runtime_status_active_id_;
   const StringId runtime_status_suspending_id_;
