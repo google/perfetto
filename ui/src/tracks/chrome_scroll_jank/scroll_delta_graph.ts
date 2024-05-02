@@ -87,7 +87,7 @@ export async function getAppliedScrollDeltas(
   dur: duration,
 ): Promise<ScrollDeltaDetails[]> {
   const queryResult = await engine.query(`
-    INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets
+    INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
 
     SELECT
       ts,
