@@ -149,6 +149,12 @@ Range FakeStorageChain::OrderedIndexSearchValidated(
   PERFETTO_FATAL("For GCC");
 }
 
+void FakeStorageChain::Distinct(Indices&) const {
+  // Fake storage shouldn't implement Distinct as it's not a binary (this index
+  // passes or not) operation on a column.
+  PERFETTO_FATAL("Not implemented");
+}
+
 void FakeStorageChain::StableSort(SortToken*, SortToken*, SortDirection) const {
   PERFETTO_FATAL("Not implemented");
 }

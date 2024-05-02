@@ -766,6 +766,19 @@ TEST(NumericStorage, StableSort) {
   }
 }
 
+TEST(NumericStorage, DistinctFromIndexVector) {
+  std::vector<int64_t> data{
+      1, 100, 2, 100, 2,
+  };
+  NumericStorage<int64_t> storage(&data, ColumnType::kInt64, false);
+  auto chain = storage.MakeChain();
+
+  auto indices = Indices::CreateWithIndexPayloadForTesting(
+      {2, 1, 0, 3}, Indices::State::kNonmonotonic);
+  chain->Distinct(indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 1, 2));
+}
+
 }  // namespace
 }  // namespace column
 }  // namespace perfetto::trace_processor

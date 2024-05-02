@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -104,9 +105,9 @@ SingleSearchResult NullOverlay::ChainImpl::SingleSearch(FilterOp op,
   PERFETTO_FATAL("For GCC");
 }
 
-NullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> innner,
+NullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                   const BitVector* non_null)
-    : inner_(std::move(innner)), non_null_(non_null) {
+    : inner_(std::move(inner)), non_null_(non_null) {
   PERFETTO_DCHECK(non_null_->CountSetBits() <= inner_->size());
 }
 
@@ -279,6 +280,8 @@ Range NullOverlay::ChainImpl::OrderedIndexSearchValidated(
 void NullOverlay::ChainImpl::StableSort(SortToken* start,
                                         SortToken* end,
                                         SortDirection direction) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "NullOverlay::ChainImpl::StableSort");
   SortToken* middle = std::stable_partition(
       start, end,
       [this](const SortToken& idx) { return !non_null_->IsSet(idx.index); });
@@ -288,6 +291,40 @@ void NullOverlay::ChainImpl::StableSort(SortToken* start,
   inner_->StableSort(middle, end, direction);
   if (direction == SortDirection::kDescending) {
     std::rotate(start, middle, end);
+  }
+}
+
+void NullOverlay::ChainImpl::Distinct(Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "NullOverlay::ChainImpl::Distinct");
+  // Find first NULL.
+  auto first_null_it = std::find_if(
+      indices.tokens.begin(), indices.tokens.end(),
+      [this](const Indices::Token& t) { return !non_null_->IsSet(t.index); });
+
+  // Save first NULL.
+  std::optional<Indices::Token> null_tok;
+  if (first_null_it != indices.tokens.end()) {
+    null_tok = *first_null_it;
+  }
+
+  // Erase all NULLs.
+  indices.tokens.erase(std::remove_if(first_null_it, indices.tokens.end(),
+                                      [this](const Indices::Token& idx) {
+                                        return !non_null_->IsSet(idx.index);
+                                      }),
+                       indices.tokens.end());
+
+  // Update index of each token so they all point to inner.
+  for (auto& token : indices.tokens) {
+    token.index = non_null_->CountSetBits(token.index);
+  }
+
+  inner_->Distinct(indices);
+
+  // Add the only null as it is distinct value.
+  if (null_tok.has_value()) {
+    indices.tokens.push_back(*null_tok);
   }
 }
 

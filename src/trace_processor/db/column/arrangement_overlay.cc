@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -144,6 +145,24 @@ void ArrangementOverlay::ChainImpl::StableSort(SortToken* start,
     it->index = (*arrangement_)[it->index];
   }
   inner_->StableSort(start, end, direction);
+}
+
+void ArrangementOverlay::ChainImpl::Distinct(Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "ArrangementOverlay::ChainImpl::Distinct");
+  // TODO(mayzner): Utilize `does_arrangmeent_order_storage_`.
+  std::unordered_set<uint32_t> s;
+  indices.tokens.erase(
+      std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                     [this, &s](Indices::Token& idx) {
+                       if (s.insert(idx.index).second) {
+                         idx.index = (*arrangement_)[idx.index];
+                         return false;
+                       }
+                       return true;
+                     }),
+      indices.tokens.end());
+  inner_->Distinct(indices);
 }
 
 void ArrangementOverlay::ChainImpl::Serialize(StorageProto* storage) const {
