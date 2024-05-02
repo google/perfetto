@@ -3,6 +3,14 @@ Unreleased:
     *
   Trace Processor:
     *
+  SQL Standard library:
+    * Improved support for querying startups on Android 9 (API level 28) and
+      below. Available in `android.startup.startups` module.
+    * Added tables for querying "Time To Initial Display" and "Time To Full
+      Display" metrics for app startups. Available in new module
+      `android.startup.time_to_display`.
+    * Added table for querying hardware power rail counters in new
+      `android.power_rails` module.
   UI:
     * Add tracks to the list of searchable items.
     * Use mipmaps to improve track query performance on large traces.
@@ -460,7 +468,7 @@ v27.0 - 2022-07-01:
     * Changed sorting of process groups to take slice count and presence of
       perf profiles into account.
   SDK:
-    * 
+    *
 
 
 v26.1 - 2022-06-13:
@@ -506,7 +514,7 @@ v26.0 - 2022-06-13:
       endoint or even newer /websocket.
   UI:
     * Changed detail panel to separate slice args from generic slice properties.
-    * Automatically enabled sched_compact when generating trace configs for 
+    * Automatically enabled sched_compact when generating trace configs for
       Android S+ targets.
   SDK:
     * Added option for recording thread CPU times at the beginning and end of
