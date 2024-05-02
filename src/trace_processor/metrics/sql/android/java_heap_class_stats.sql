@@ -28,11 +28,12 @@ SELECT
 FROM memory_heap_graph_dominator_tree tree
 JOIN heap_graph_object obj USING(id)
 UNION ALL
--- tree partition below requires a single root.
+-- provide a single root required by tree partition if heap graph exists.
 SELECT
   memory_heap_graph_super_root_fn() AS id,
   NULL AS parent_id,
-  (SELECT MAX(id) + 1 FROM heap_graph_class) AS group_key;
+  (SELECT MAX(id) + 1 FROM heap_graph_class) AS group_key
+WHERE memory_heap_graph_super_root_fn() IS NOT NULL;
 
 DROP TABLE IF EXISTS _heap_object_marked_for_dominated_stats;
 CREATE PERFETTO TABLE _heap_object_marked_for_dominated_stats AS
