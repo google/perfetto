@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 504> descriptors{{
+std::array<FtraceMessageDescriptor, 506> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5563,6 +5563,28 @@ std::array<FtraceMessageDescriptor, 504> descriptors{{
             {},
             {"event", ProtoSchemaType::kString},
             {"timestamp", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "device_pm_callback_start",
+        5,
+        {
+            {},
+            {"device", ProtoSchemaType::kString},
+            {"driver", ProtoSchemaType::kString},
+            {"parent", ProtoSchemaType::kString},
+            {"pm_ops", ProtoSchemaType::kString},
+            {"event", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "device_pm_callback_end",
+        3,
+        {
+            {},
+            {"device", ProtoSchemaType::kString},
+            {"driver", ProtoSchemaType::kString},
+            {"error", ProtoSchemaType::kInt32},
         },
     },
 }};

@@ -622,5 +622,7 @@ message FtraceEvent {
     FastrpcDmaMapFtraceEvent fastrpc_dma_map = 501;
     GoogleIccEventFtraceEvent google_icc_event = 502;
     GoogleIrmEventFtraceEvent google_irm_event = 503;
+    DevicePmCallbackStartFtraceEvent device_pm_callback_start = 504;
+    DevicePmCallbackEndFtraceEvent device_pm_callback_end = 505;
   }
 }
