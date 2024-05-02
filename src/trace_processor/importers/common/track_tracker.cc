@@ -249,6 +249,18 @@ TrackId TrackTracker::GetOrCreateTriggerTrack() {
   return *trigger_track_id_;
 }
 
+TrackId TrackTracker::GetOrCreateInterconnectTrack() {
+  if (interconnect_events_track_id_) {
+    return *interconnect_events_track_id_;
+  }
+  tables::TrackTable::Row row;
+  row.name = context_->storage->InternString("Interconnect Events");
+  row.machine_id = context_->machine_id();
+  interconnect_events_track_id_ =
+      context_->storage->mutable_track_table()->Insert(row).id;
+  return *interconnect_events_track_id_;
+}
+
 TrackId TrackTracker::InternGlobalCounterTrack(TrackTracker::Group group,
                                                StringId name,
                                                SetArgsCallback callback,

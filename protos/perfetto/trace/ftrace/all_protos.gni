@@ -40,6 +40,8 @@ ftrace_proto_names = [
   "filemap.proto",
   "ftrace.proto",
   "g2d.proto",
+  "google_icc_trace.proto",
+  "google_irm_trace.proto",
   "gpu_mem.proto",
   "gpu_scheduler.proto",
   "hyp.proto",

@@ -496,3 +496,5 @@ fastrpc/fastrpc_dma_free
 fastrpc/fastrpc_dma_alloc
 fastrpc/fastrpc_dma_unmap
 fastrpc/fastrpc_dma_map
+google_icc_trace/google_icc_event
+google_irm_trace/google_irm_event
