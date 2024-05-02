@@ -52,6 +52,7 @@ perfetto_proto_library("@TYPE@") {
     "ion_metric.proto",
     "irq_runtime_metric.proto",
     "jank_cuj_metric.proto",
+    "java_heap_class_stats.proto",
     "java_heap_histogram.proto",
     "java_heap_stats.proto",
     "lmk_metric.proto",
