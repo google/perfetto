@@ -469,6 +469,14 @@ class FtraceParser {
   // slices.
   std::unordered_set<std::string> devices_with_active_rpm_slice_;
 
+  // Tracks unique identifiers ("cookies") to create separate async tracks for
+  // the Suspend/Resume UI track. The separation prevents unnestable slices from
+  // overlapping on a single trace processor track.
+  //
+  // For `suspend_resume` ftrace events, the key for this map is derived from
+  // the `val` field in the trace object.
+  base::FlatHashMap<std::string, int64_t> suspend_resume_cookie_map_;
+
   struct PairHash {
     std::size_t operator()(const std::pair<uint64_t, int64_t>& p) const {
       base::Hasher hasher;

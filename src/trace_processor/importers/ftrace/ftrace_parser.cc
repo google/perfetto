@@ -3127,6 +3127,14 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   // processor_id and device could enter suspend/resume from different
   // processor.
   auto val = (action_name == "timekeeping_freeze") ? 0 : evt.val();
+  std::string cookie_key = std::to_string(val);
+  int64_t cookie = 0;
+  if (suspend_resume_cookie_map_.Find(cookie_key) == nullptr) {
+    cookie = static_cast<int64_t>(suspend_resume_cookie_map_.size());
+    suspend_resume_cookie_map_[cookie_key] = cookie;
+  } else {
+    cookie = suspend_resume_cookie_map_[cookie_key];
+  }
 
   base::StackString<64> str("%s(%" PRIu32 ")", action_name.c_str(), val);
   std::string current_action = str.ToStdString();
@@ -3134,8 +3142,8 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   StringId slice_name_id = context_->storage->InternString(str.string_view());
 
   if (!evt.start()) {
-    TrackId end_id = context_->async_track_set_tracker->End(
-        async_track, static_cast<int64_t>(val));
+    TrackId end_id =
+        context_->async_track_set_tracker->End(async_track, cookie);
     context_->slice_tracker->End(timestamp, end_id);
     ongoing_suspend_resume_actions[current_action] = false;
     return;
@@ -3143,8 +3151,8 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
 
   // Complete the previous action before starting a new one.
   if (ongoing_suspend_resume_actions[current_action]) {
-    TrackId end_id = context_->async_track_set_tracker->End(
-        async_track, static_cast<int64_t>(val));
+    TrackId end_id =
+        context_->async_track_set_tracker->End(async_track, cookie);
     auto args_inserter = [this](ArgsTracker::BoundInserter* inserter) {
       inserter->AddArg(replica_slice_id_, Variadic::Boolean(true));
     };
@@ -3152,8 +3160,8 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
                                  kNullStringId, args_inserter);
   }
 
-  TrackId start_id = context_->async_track_set_tracker->Begin(
-      async_track, static_cast<int64_t>(val));
+  TrackId start_id =
+      context_->async_track_set_tracker->Begin(async_track, cookie);
   context_->slice_tracker->Begin(timestamp, start_id, suspend_resume_name_id_,
                                  slice_name_id);
   ongoing_suspend_resume_actions[current_action] = true;
