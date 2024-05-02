@@ -123,6 +123,13 @@ void SelectorOverlay::ChainImpl::StableSort(SortToken* start,
   inner_->StableSort(start, end, direction);
 }
 
+void SelectorOverlay::ChainImpl::Distinct(Indices& indices) const {
+  for (auto& token : indices.tokens) {
+    token.index = selector_->IndexOfNthSet(token.index);
+  }
+  inner_->Distinct(indices);
+}
+
 void SelectorOverlay::ChainImpl::Serialize(StorageProto* storage) const {
   auto* selector_overlay = storage->set_selector_overlay();
   inner_->Serialize(selector_overlay->set_storage());

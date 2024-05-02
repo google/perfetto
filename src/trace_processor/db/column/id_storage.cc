@@ -22,6 +22,7 @@
 #include <iterator>
 #include <limits>
 #include <string>
+#include <unordered_set>
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -313,6 +314,8 @@ Range IdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
 void IdStorage::ChainImpl::StableSort(SortToken* start,
                                       SortToken* end,
                                       SortDirection direction) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "IdStorage::ChainImpl::StableSort");
   switch (direction) {
     case SortDirection::kAscending:
       std::stable_sort(start, end, [](const SortToken& a, const SortToken& b) {
@@ -326,6 +329,17 @@ void IdStorage::ChainImpl::StableSort(SortToken* start,
       return;
   }
   PERFETTO_FATAL("For GCC");
+}
+
+void IdStorage::ChainImpl::Distinct(Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "IdStorage::ChainImpl::Distinct");
+  std::unordered_set<uint32_t> s;
+  indices.tokens.erase(
+      std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                     [&s](const Indices::Token& idx) {
+                       return !s.insert(idx.index).second;
+                     }),
+      indices.tokens.end());
 }
 
 void IdStorage::ChainImpl::Serialize(StorageProto* storage) const {
