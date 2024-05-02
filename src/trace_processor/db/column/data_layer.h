@@ -283,6 +283,14 @@ class DataLayerChain {
                           SortToken* end,
                           SortDirection direction) const = 0;
 
+  // Removes all indices pointing to values that are duplicates, as a result the
+  // indices will only point to distinct (not duplicated) values.
+  //
+  // Notes for implementors:
+  // * Each layer that might introduce duplicates is responsible for removing
+  // them.
+  virtual void Distinct(Indices&) const = 0;
+
   // Serializes storage data to proto format.
   virtual void Serialize(StorageProto*) const = 0;
 
