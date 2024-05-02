@@ -29,6 +29,7 @@ import {argColumn, Column, columnFromSqlTableColumn} from './column';
 import {renderCell} from './render_cell';
 import {SqlTableState} from './state';
 import {isArgSetIdColumn, SqlTableDescription} from './table_description';
+import {Intent} from '../../widgets/common';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -56,6 +57,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         m(Button, {
           label,
           icon: 'close',
+          intent: Intent.Primary,
           onclick: () => {
             this.state.removeFilter(filter);
           },
