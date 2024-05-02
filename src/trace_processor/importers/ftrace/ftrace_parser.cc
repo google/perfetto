@@ -57,6 +57,8 @@
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 #include "protos/perfetto/trace/ftrace/g2d.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
+#include "protos/perfetto/trace/ftrace/google_icc_trace.pbzero.h"
+#include "protos/perfetto/trace/ftrace/google_irm_trace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/gpu_mem.pbzero.h"
 #include "protos/perfetto/trace/ftrace/i2c.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ion.pbzero.h"
@@ -339,6 +341,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       android_fs_category_id_(context_->storage->InternString("android_fs")),
       android_fs_data_read_id_(
           context_->storage->InternString("android_fs_data_read")),
+      google_icc_event_id_(context->storage->InternString("google_icc_event")),
+      google_irm_event_id_(context->storage->InternString("google_irm_event")),
       runtime_status_invalid_id_(
           context->storage->InternString("Invalid State")),
       runtime_status_active_id_(context->storage->InternString("Active")),
@@ -1148,6 +1152,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParsePanelWriteGeneric(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kGoogleIccEventFieldNumber: {
+        ParseGoogleIccEvent(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kGoogleIrmEventFieldNumber: {
+        ParseGoogleIrmEvent(ts, fld_bytes);
+        break;
+      }
       default:
         break;
     }
@@ -1608,6 +1620,24 @@ void FtraceParser::ParseLwisTracingMarkWrite(int64_t timestamp,
   SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.func_name(), tgid, evt.value());
+}
+
+void FtraceParser::ParseGoogleIccEvent(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::GoogleIccEventFtraceEvent::Decoder evt(blob.data, blob.size);
+  TrackId track_id = context_->track_tracker->GetOrCreateInterconnectTrack();
+  StringId slice_name_id =
+      context_->storage->InternString(base::StringView(evt.event()));
+  context_->slice_tracker->Scoped(timestamp, track_id, google_icc_event_id_,
+                                  slice_name_id, 0);
+}
+
+void FtraceParser::ParseGoogleIrmEvent(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::GoogleIrmEventFtraceEvent::Decoder evt(blob.data, blob.size);
+  TrackId track_id = context_->track_tracker->GetOrCreateInterconnectTrack();
+  StringId slice_name_id =
+      context_->storage->InternString(base::StringView(evt.event()));
+  context_->slice_tracker->Scoped(timestamp, track_id, google_irm_event_id_,
+                                  slice_name_id, 0);
 }
 
 /** Parses ion heap events present in Pixel kernels. */

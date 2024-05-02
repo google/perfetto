@@ -88,6 +88,9 @@ class TrackTracker {
   // received by the service.
   TrackId GetOrCreateTriggerTrack();
 
+  // Returns the ID of the track for Google Interconnect events
+  TrackId GetOrCreateInterconnectTrack();
+
   // Interns a global counter track into the storage.
   TrackId InternGlobalCounterTrack(Group group,
                                    StringId name,
@@ -224,6 +227,7 @@ class TrackTracker {
 
   std::optional<TrackId> chrome_global_instant_track_id_;
   std::optional<TrackId> trigger_track_id_;
+  std::optional<TrackId> interconnect_events_track_id_;
 
   const StringId source_key_ = kNullStringId;
   const StringId trace_id_key_ = kNullStringId;
