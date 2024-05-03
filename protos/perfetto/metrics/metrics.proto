@@ -22,6 +22,7 @@ import "protos/perfetto/metrics/android/ad_services_metric.proto";
 import "protos/perfetto/metrics/android/android_boot.proto";
 import "protos/perfetto/metrics/android/android_boot_unagg.proto";
 import "protos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto";
+import "protos/perfetto/metrics/android/auto_metric.proto";
 import "protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto";
 import "protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto";
 import "protos/perfetto/metrics/android/android_frame_timeline_metric.proto";
@@ -298,7 +299,7 @@ message TraceMetrics {
 
   // Multiuser - metrics for switching users.
   // Specific for Android Auto
-  optional AndroidMultiuserMetric android_auto_multiuser = 64;
+  optional AndroidAutoMultiuserMetric android_auto_multiuser = 64;
 
   // All blocking calls (e.g. binder calls) for a trace.
   optional AndroidBlockingCallsUnagg android_blocking_calls_unagg = 65;

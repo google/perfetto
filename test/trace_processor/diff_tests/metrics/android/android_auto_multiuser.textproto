@@ -1,0 +1,127 @@
+packet {
+  timestamp: 1
+  process_tree {
+    processes {
+      pid: 10
+      uid: 1000010
+      cmdline: "dummy:1"
+    }
+    processes {
+      pid: 11
+      uid: 1000010
+      cmdline: "dummy:2"
+    }
+  }
+}
+packet {
+  ftrace_events {
+    event {
+      timestamp: 1000000000
+      print {
+        buf: "S|5993|UserController.startUser-10-fg-start-mode-1|0\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    event {
+      timestamp: 2000000000
+      print {
+        buf: "S|2608|launching: com.android.car.carlauncher|0\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 3000000001
+      pid: 10
+      sched_switch {
+        prev_comm: "dummy:1"
+        prev_pid: 10
+        prev_state: 2
+        next_comm: "dummy:2"
+        next_pid: 11
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 3010000000
+      pid: 11
+      sched_switch {
+        prev_comm: "dummy:2"
+        prev_pid: 11
+        prev_state: 2
+        next_comm: "dummy:1"
+        next_pid: 10
+      }
+    }
+  }
+}
+packet {
+  timestamp: 3000000001
+  process_stats {
+    processes {
+      pid: 10
+      vm_rss_kb: 1000
+    }
+  }
+}
+packet {
+  timestamp: 3000000002
+  process_stats {
+    processes {
+      pid: 10
+      vm_rss_kb: 2000
+    }
+  }
+}
+packet {
+  timestamp: 3000000001
+  process_stats {
+    processes {
+      pid: 11
+      vm_rss_kb: 1000
+    }
+  }
+}
+packet {
+  timestamp: 3000000002
+  process_stats {
+    processes {
+      pid: 11
+      vm_rss_kb: 2000
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 3000000000
+      pid: 1
+      print {
+        buf: "S|5993|UserController.startUser-11-fg-start-mode-1|0\n"
+      }
+    }
+  }
+}
+packet {
+  ftrace_events {
+    cpu: 1
+    event {
+      timestamp: 4000000000
+      pid: 1
+      print {
+        buf: "S|2609|launching: com.android.car.carlauncher|0\n"
+      }
+    }
+  }
+}
