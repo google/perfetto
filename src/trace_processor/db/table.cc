@@ -38,6 +38,10 @@
 
 namespace perfetto::trace_processor {
 
+namespace {
+using Indices = column::DataLayerChain::Indices;
+}
+
 Table::Table(StringPool* pool,
              uint32_t row_count,
              std::vector<ColumnLegacy> columns,
@@ -88,8 +92,6 @@ Table Table::CopyExceptOverlays() const {
 }
 
 RowMap Table::QueryToRowMap(const Query& q) const {
-  const auto& cs = q.constraints;
-  const auto& ob = q.orders;
   // We need to delay creation of the chains to this point because of Chrome
   // does not want the binary size overhead of including the chain
   // implementations. As they also don't query tables (instead just iterating)
@@ -102,9 +104,52 @@ RowMap Table::QueryToRowMap(const Query& q) const {
     CreateChains();
   }
 
-  RowMap rm = QueryExecutor::FilterLegacy(this, cs);
-  if (ob.empty())
+  // Apply the query constraints.
+  RowMap rm = QueryExecutor::FilterLegacy(this, q.constraints);
+
+  const auto& ob = q.orders;
+
+  // If the `orders` is empty, there is no need to sort or run DISTINCT.
+  if (ob.empty()) {
+    PERFETTO_DCHECK(q.distinct == Query::OrderType::kSort);
     return rm;
+  }
+
+  if (q.distinct != Query::OrderType::kSort) {
+    // `q.orders` should be treated here only as information on what should we
+    // run distinct on, they should not be used for subsequent sorting.
+    // TODO(mayzner): Remove the check after we implement the multi column
+    // distinct.
+    PERFETTO_DCHECK(ob.size() == 1);
+
+    std::vector<uint32_t> table_indices = std::move(rm).TakeAsIndexVector();
+
+    auto indices = Indices::Create(table_indices, Indices::State::kMonotonic);
+    ChainForColumn(ob.front().col_idx).Distinct(indices);
+
+    PERFETTO_DCHECK(indices.tokens.size() <= table_indices.size());
+    for (uint32_t i = 0; i < indices.tokens.size(); ++i) {
+      table_indices[i] = indices.tokens[i].payload;
+    }
+    table_indices.resize(indices.tokens.size());
+
+    if (q.distinct == Query::OrderType::kDistinct) {
+      return RowMap(std::move(table_indices));
+    }
+    PERFETTO_DCHECK(q.distinct == Query::OrderType::kDistinctAndSort);
+
+    // Sorting that happens later might require indices to preserve ordering.
+    // TODO(mayzner): Needs to be changed after implementing multi column
+    // distinct.
+    std::sort(table_indices.begin(), table_indices.end());
+    rm = RowMap(std::move(table_indices));
+  }
+
+  // We don't need to sort for `kUnsorted`, as the `q.orders` were only as
+  // information about which column should we run distinct on.
+  if (q.distinct == Query::OrderType::kDistinct) {
+    return rm;
+  }
 
   // Return the RowMap directly if there is a single constraint to sort the
   // table by a column which is already sorted.
