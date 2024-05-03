@@ -24,6 +24,20 @@
 
 namespace perfetto::trace_redaction {
 
+namespace {
+
+protozero::ConstChars SanitizeCommValue(const Context& context,
+                                        ProcessThreadTimeline::Slice slice,
+                                        protozero::Field field) {
+  if (NormalizeUid(slice.uid) == NormalizeUid(context.package_uid.value())) {
+    return field.as_string();
+  }
+
+  return {};
+}
+
+}  // namespace
+
 // Redact sched switch trace events in an ftrace event bundle:
 //
 //  event {
@@ -49,8 +63,8 @@ namespace perfetto::trace_redaction {
 
 base::Status RedactSchedSwitch::Redact(
     const Context& context,
-    const protos::pbzero::FtraceEvent::Decoder& event,
-    protozero::ConstBytes bytes,
+    const protos::pbzero::FtraceEventBundle::Decoder&,
+    protozero::ProtoDecoder& event,
     protos::pbzero::FtraceEvent* event_message) const {
   if (!context.package_uid.has_value()) {
     return base::ErrStatus("RedactSchedSwitch: missing package uid");
@@ -60,11 +74,31 @@ base::Status RedactSchedSwitch::Redact(
     return base::ErrStatus("RedactSchedSwitch: missing timeline");
   }
 
-  protos::pbzero::SchedSwitchFtraceEvent::Decoder sched_switch(bytes);
+  // The timestamp is needed to do the timeline look-up. If the packet has no
+  // timestamp, don't add the sched switch event. This is the safest option.
+  auto timestamp =
+      event.FindField(protos::pbzero::FtraceEvent::kTimestampFieldNumber);
+  if (!timestamp.valid()) {
+    return base::OkStatus();
+  }
+
+  auto sched_switch =
+      event.FindField(protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber);
+  if (!sched_switch.valid()) {
+    return base::ErrStatus(
+        "RedactSchedSwitch: was used for unsupported field type");
+  }
+
+  protozero::ProtoDecoder sched_switch_decoder(sched_switch.as_bytes());
+
+  auto prev_pid = sched_switch_decoder.FindField(
+      protos::pbzero::SchedSwitchFtraceEvent::kPrevPidFieldNumber);
+  auto next_pid = sched_switch_decoder.FindField(
+      protos::pbzero::SchedSwitchFtraceEvent::kNextPidFieldNumber);
 
   // There must be a prev pid and a next pid. Otherwise, the event is invalid.
   // Dropping the event is the safest option.
-  if (!sched_switch.has_prev_pid() || !sched_switch.has_next_pid()) {
+  if (!prev_pid.valid() || !next_pid.valid()) {
     return base::OkStatus();
   }
 
@@ -72,30 +106,21 @@ base::Status RedactSchedSwitch::Redact(
   auto sched_switch_message = event_message->set_sched_switch();
 
   auto prev_slice =
-      context.timeline->Search(event.timestamp(), sched_switch.prev_pid());
+      context.timeline->Search(timestamp.as_uint64(), prev_pid.as_int32());
   auto next_slice =
-      context.timeline->Search(event.timestamp(), sched_switch.next_pid());
+      context.timeline->Search(timestamp.as_uint64(), next_pid.as_int32());
 
-  // To read the fields, move the read head back to the start.
-  sched_switch.Reset();
-
-  for (auto field = sched_switch.ReadField(); field.valid();
-       field = sched_switch.ReadField()) {
+  for (auto field = sched_switch_decoder.ReadField(); field.valid();
+       field = sched_switch_decoder.ReadField()) {
     switch (field.id()) {
       case protos::pbzero::SchedSwitchFtraceEvent::kNextCommFieldNumber:
-        if (next_slice.uid == context.package_uid) {
-          sched_switch_message->set_next_comm(field.as_string());
-        } else {
-          sched_switch_message->set_next_comm("");
-        }
+        sched_switch_message->set_next_comm(
+            SanitizeCommValue(context, next_slice, field));
         break;
 
       case protos::pbzero::SchedSwitchFtraceEvent::kPrevCommFieldNumber:
-        if (prev_slice.uid == context.package_uid) {
-          sched_switch_message->set_prev_comm(field.as_string());
-        } else {
-          sched_switch_message->set_prev_comm("");
-        }
+        sched_switch_message->set_prev_comm(
+            SanitizeCommValue(context, prev_slice, field));
         break;
 
       default:
