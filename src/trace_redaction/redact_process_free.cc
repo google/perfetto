@@ -44,19 +44,18 @@ namespace perfetto::trace_redaction {
 // of this, the timeline is not needed.
 base::Status RedactProcessFree::Redact(
     const Context&,
-    const protos::pbzero::FtraceEvent::Decoder&,
-    protozero::ConstBytes bytes,
+    const protos::pbzero::FtraceEventBundle::Decoder&,
+    protozero::ProtoDecoder& event,
     protos::pbzero::FtraceEvent* event_message) const {
-  // SchedProcessFreeFtraceEvent
-  protozero::ProtoDecoder process_free_decoder(bytes);
-
-  // There must be pid. If there's no pid, the safest option is to drop it.
-  auto pid = process_free_decoder.FindField(
-      protos::pbzero::SchedProcessFreeFtraceEvent::kPidFieldNumber);
-
-  if (!pid.valid()) {
-    return base::OkStatus();
+  auto sched_process_free = event.FindField(
+      protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber);
+  if (!sched_process_free.valid()) {
+    return base::ErrStatus(
+        "RedactProcessFree: was used for unsupported field type");
   }
+
+  // SchedProcessFreeFtraceEvent
+  protozero::ProtoDecoder process_free_decoder(sched_process_free.as_bytes());
 
   auto* process_free_message = event_message->set_sched_process_free();
 

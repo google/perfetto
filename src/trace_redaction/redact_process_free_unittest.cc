@@ -29,66 +29,72 @@
 
 namespace perfetto::trace_redaction {
 
-class RedactProcessFreeTest : public testing::Test {};
+class RedactProcessFreeTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    auto* source_event = bundle.add_event();
+    source_event->set_timestamp(123456789);
+    source_event->set_pid(10);
+  }
 
-TEST_F(RedactProcessFreeTest, ClearsComm) {
-  protos::gen::FtraceEvent source_event;
-  source_event.set_timestamp(123456789);
-  source_event.set_pid(10);
+  base::Status Redact(protos::pbzero::FtraceEvent* event_message) {
+    RedactProcessFree redact;
+    Context context;
 
-  auto* process_free = source_event.mutable_sched_process_free();
+    auto bundle_str = bundle.SerializeAsString();
+    protos::pbzero::FtraceEventBundle::Decoder bundle_decoder(bundle_str);
+
+    auto event_str = bundle.event().back().SerializeAsString();
+    protos::pbzero::FtraceEvent::Decoder event_decoder(event_str);
+
+    return redact.Redact(context, bundle_decoder, event_decoder, event_message);
+  }
+
+  protos::gen::FtraceEventBundle bundle;
+};
+
+// A free event will always test as "not active". So the comm value should
+// always be replaced with an empty string.
+TEST_F(RedactProcessFreeTest, ClearsCommValue) {
+  auto* process_free =
+      bundle.mutable_event()->back().mutable_sched_process_free();
   process_free->set_comm("comm-a");
   process_free->set_pid(11);
 
-  RedactProcessFree redact;
-  Context context;
-
-  protos::pbzero::FtraceEvent::Decoder event_decoder(
-      source_event.SerializeAsString());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
 
-  auto result =
-      redact.Redact(context, event_decoder, event_decoder.sched_switch(),
-                    event_message.get());
+  auto result = Redact(event_message.get());
   ASSERT_OK(result) << result.c_message();
 
   protos::gen::FtraceEvent redacted_event;
   redacted_event.ParseFromString(event_message.SerializeAsString());
 
   // No process free event should have been added to the ftrace event.
-  ASSERT_FALSE(redacted_event.has_sched_process_free());
+  ASSERT_TRUE(redacted_event.has_sched_process_free());
+  ASSERT_TRUE(redacted_event.sched_process_free().has_comm());
+  ASSERT_TRUE(redacted_event.sched_process_free().comm().empty());
 }
 
-// Even if there is no pid in the process free event, the process free event
-// should still exist but no comm value should be present.
+// Even if there is no pid in the process free event, the comm value should be
+// replaced with an empty string.
 TEST_F(RedactProcessFreeTest, NoPidClearsEvent) {
-  protos::gen::FtraceEvent source_event;
-  source_event.set_timestamp(123456789);
-  source_event.set_pid(10);
-
-  // Don't add a pid. This should stop the process free event from being added
-  // to the event message.
-  auto* process_free = source_event.mutable_sched_process_free();
+  // Don't add a pid. This should have no change in behaviour.
+  auto* process_free =
+      bundle.mutable_event()->back().mutable_sched_process_free();
   process_free->set_comm("comm-a");
 
-  RedactProcessFree redact;
-  Context context;
-
-  protos::pbzero::FtraceEvent::Decoder event_decoder(
-      source_event.SerializeAsString());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
 
-  // Even if the process free event has been dropped, there should be no
-  // resulting error.
-  auto result =
-      redact.Redact(context, event_decoder, event_decoder.sched_switch(),
-                    event_message.get());
+  auto result = Redact(event_message.get());
   ASSERT_OK(result) << result.c_message();
 
   protos::gen::FtraceEvent redacted_event;
   redacted_event.ParseFromString(event_message.SerializeAsString());
 
-  ASSERT_FALSE(redacted_event.has_sched_process_free());
+  // No process free event should have been added to the ftrace event.
+  ASSERT_TRUE(redacted_event.has_sched_process_free());
+  ASSERT_TRUE(redacted_event.sched_process_free().has_comm());
+  ASSERT_TRUE(redacted_event.sched_process_free().comm().empty());
 }
 
 }  // namespace perfetto::trace_redaction

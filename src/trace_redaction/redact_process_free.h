@@ -31,8 +31,8 @@ class RedactProcessFree : public FtraceEventRedaction {
 
   base::Status Redact(
       const Context& context,
-      const protos::pbzero::FtraceEvent::Decoder& event,
-      protozero::ConstBytes bytes,
+      const protos::pbzero::FtraceEventBundle::Decoder& bundle,
+      protozero::ProtoDecoder& event,
       protos::pbzero::FtraceEvent* event_message) const override;
 };
 
