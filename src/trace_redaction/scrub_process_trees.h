@@ -17,19 +17,32 @@
 #ifndef SRC_TRACE_REDACTION_SCRUB_PROCESS_TREES_H_
 #define SRC_TRACE_REDACTION_SCRUB_PROCESS_TREES_H_
 
-#include <string>
-
 #include "perfetto/base/status.h"
+#include "perfetto/protozero/field.h"
+#include "src/trace_redaction/modify_process_trees.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
+
+#include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
 // Removes process names and thread names from process_trees if their pids/tids
 // are not connected to the target package.
-class ScrubProcessTrees final : public TransformPrimitive {
- public:
-  base::Status Transform(const Context& context,
-                         std::string* packet) const override;
+class ScrubProcessTrees : public ModifyProcessTree {
+ protected:
+  base::Status VerifyContext(const Context& context) const override;
+
+  void TransformProcess(
+      const Context& context,
+      const protozero::Field& timestamp,
+      const protozero::Field& process,
+      protos::pbzero::ProcessTree* process_trees) const override;
+
+  void TransformThread(
+      const Context& context,
+      const protozero::Field& timestamp,
+      const protozero::Field& thread,
+      protos::pbzero::ProcessTree* process_tree) const override;
 };
 
 }  // namespace perfetto::trace_redaction
