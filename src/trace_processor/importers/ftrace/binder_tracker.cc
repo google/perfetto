@@ -296,7 +296,7 @@ void BinderTracker::Transaction(int64_t ts,
   transaction.args_inserter = args_inserter;
   transaction.send_track_id = track_id;
   transaction.send_slice_id = insert_slice();
-  outstanding_transactions_.Insert(transaction_id, std::move(transaction));
+  outstanding_transactions_[transaction_id] = std::move(transaction);
   auto* frame = GetTidTopFrame(tid);
   if (frame) {
     if (frame->state == TxnFrame::kSndAfterBC_TRANSACTION) {
@@ -315,18 +315,16 @@ void BinderTracker::Transaction(int64_t ts,
 void BinderTracker::TransactionReceived(int64_t ts,
                                         uint32_t pid,
                                         int32_t transaction_id) {
-  const OutstandingTransaction* opt_transaction =
-      outstanding_transactions_.Find(transaction_id);
-  if (!opt_transaction) {
+  auto it = outstanding_transactions_.find(transaction_id);
+  if (it == outstanding_transactions_.end()) {
     // If we don't know what type of transaction it is, we don't know how to
     // insert the slice.
     // TODO(lalitm): maybe we should insert a dummy slice anyway - seems like
     // a questionable idea to just ignore these completely.
     return;
   }
-
-  OutstandingTransaction transaction(std::move(*opt_transaction));
-  outstanding_transactions_.Erase(transaction_id);
+  OutstandingTransaction transaction(std::move(it->second));
+  outstanding_transactions_.erase(it);
 
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);

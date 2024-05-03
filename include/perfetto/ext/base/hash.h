@@ -62,7 +62,7 @@ class Hasher {
 
   // Allow hashing anything that has a |data| field, a |size| field,
   // and has the kHashable trait (e.g., base::StringView).
-  template <typename T, typename = std::enable_if<T::kHashable>>
+  template <typename T, typename = std::enable_if_t<T::kHashable>>
   void Update(const T& t) {
     Update(t.data(), t.size());
   }
