@@ -5832,6 +5832,7 @@ genrule {
         "protos/perfetto/trace/android/view/surfacecontrol.proto",
         "protos/perfetto/trace/android/view/viewrootimpl.proto",
         "protos/perfetto/trace/android/view/windowlayoutparams.proto",
+        "protos/perfetto/trace/android/viewcapture.proto",
         "protos/perfetto/trace/android/winscope.proto",
         "protos/perfetto/trace/android/winscope_extensions.proto",
         "protos/perfetto/trace/android/winscope_extensions_impl.proto",
@@ -5871,6 +5872,7 @@ filegroup {
         "protos/perfetto/trace/android/view/surfacecontrol.proto",
         "protos/perfetto/trace/android/view/viewrootimpl.proto",
         "protos/perfetto/trace/android/view/windowlayoutparams.proto",
+        "protos/perfetto/trace/android/viewcapture.proto",
         "protos/perfetto/trace/android/winscope_extensions_impl.proto",
     ],
 }
@@ -5911,6 +5913,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/view/surfacecontrol.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/view/viewrootimpl.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/view/windowlayoutparams.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace/android/viewcapture.pbzero.cc",
         "external/perfetto/protos/perfetto/trace/android/winscope_extensions_impl.pbzero.cc",
     ],
 }
@@ -5951,6 +5954,7 @@ genrule {
         "external/perfetto/protos/perfetto/trace/android/view/surfacecontrol.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/view/viewrootimpl.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/view/windowlayoutparams.pbzero.h",
+        "external/perfetto/protos/perfetto/trace/android/viewcapture.pbzero.h",
         "external/perfetto/protos/perfetto/trace/android/winscope_extensions_impl.pbzero.h",
     ],
     export_include_dirs: [
@@ -15819,6 +15823,7 @@ filegroup {
         "protos/perfetto/trace/android/view/surfacecontrol.proto",
         "protos/perfetto/trace/android/view/viewrootimpl.proto",
         "protos/perfetto/trace/android/view/windowlayoutparams.proto",
+        "protos/perfetto/trace/android/viewcapture.proto",
         "protos/perfetto/trace/android/winscope_extensions.proto",
         "protos/perfetto/trace/android/winscope_extensions_impl.proto",
         "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto",
@@ -17339,7 +17344,7 @@ gensrcs {
     cmd: "mkdir -p $(genDir)/$(in) " +
         "&& $(location aprotoc) " +
         "--plugin=$(location protoc-gen-javastream) " +
-        "--javastream_opt=include_filter:perfetto.protos.TracePacket,perfetto.protos.ShellTransition,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogMessage,perfetto.protos.ProtoLogViewerConfig,perfetto.protos.ShellHandlerMapping,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogGroup,perfetto.protos.ProtoLogConfig,perfetto.protos.DataSourceConfig,perfetto.protos.InternedString,perfetto.protos.InternedData,perfetto.protos.ProtoLogLevel,perfetto.protos.TestEvent,perfetto.protos.TestEvent.TestPayload,perfetto.protos.TestConfig,perfetto.protos.TestConfig.DummyFields,perfetto.protos.WinscopeExtensionsImpl,perfetto.protos.InputMethodClientsTraceProto,perfetto.protos.InputMethodManagerServiceTraceProto,perfetto.protos.InputMethodServiceTraceProto " +
+        "--javastream_opt=include_filter:perfetto.protos.TracePacket,perfetto.protos.ShellTransition,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogMessage,perfetto.protos.ProtoLogViewerConfig,perfetto.protos.ShellHandlerMapping,perfetto.protos.ShellHandlerMappings,perfetto.protos.ProtoLogGroup,perfetto.protos.ProtoLogConfig,perfetto.protos.DataSourceConfig,perfetto.protos.InternedString,perfetto.protos.InternedData,perfetto.protos.ProtoLogLevel,perfetto.protos.TestEvent,perfetto.protos.TestEvent.TestPayload,perfetto.protos.TestConfig,perfetto.protos.TestConfig.DummyFields,perfetto.protos.WinscopeExtensionsImpl,perfetto.protos.InputMethodClientsTraceProto,perfetto.protos.InputMethodManagerServiceTraceProto,perfetto.protos.InputMethodServiceTraceProto,perfetto.protos.ViewCapture " +
         "--javastream_out=$(genDir)/$(in) " +
         "-Iexternal/protobuf/src " +
         "-Iexternal/perfetto " +

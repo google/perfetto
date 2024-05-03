@@ -4837,6 +4837,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/view/surfacecontrol.proto",
         "protos/perfetto/trace/android/view/viewrootimpl.proto",
         "protos/perfetto/trace/android/view/windowlayoutparams.proto",
+        "protos/perfetto/trace/android/viewcapture.proto",
         "protos/perfetto/trace/android/winscope_extensions_impl.proto",
     ],
     visibility = [
