@@ -5189,19 +5189,23 @@ message ShellHandlerMapping {
 
 // End of protos/perfetto/trace/android/shell_transition.proto
 
-// Begin of protos/perfetto/trace/android/surfaceflinger_common.proto
-
-message RegionProto {
-  // Previously: uint64 id
-  reserved 1;
-  repeated RectProto rect = 2;
-}
+// Begin of protos/perfetto/trace/android/graphics/rect.proto
 
 message RectProto {
   optional int32 left = 1;
   optional int32 top = 2;
   optional int32 right = 3;
   optional int32 bottom = 4;
+}
+
+// End of protos/perfetto/trace/android/graphics/rect.proto
+
+// Begin of protos/perfetto/trace/android/surfaceflinger_common.proto
+
+message RegionProto {
+  // Previously: uint64 id
+  reserved 1;
+  repeated RectProto rect = 2;
 }
 
 message SizeProto {
@@ -5811,6 +5815,14 @@ message DisplayState {
 }
 
 // End of protos/perfetto/trace/android/surfaceflinger_transactions.proto
+
+// Begin of protos/perfetto/trace/android/winscope_extensions.proto
+
+message WinscopeExtensions {
+  extensions 1 to 3;
+}
+
+// End of protos/perfetto/trace/android/winscope_extensions.proto
 
 // Begin of protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto
 
@@ -14805,7 +14817,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 112.
+// Next id: 113.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -14956,6 +14968,8 @@ message TracePacket {
     //   the field id is large enough.
     TestEvent for_testing = 900;
   }
+
+  optional WinscopeExtensions winscope_extensions = 112;
 
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.
