@@ -16,11 +16,15 @@
 
 #include "src/trace_redaction/redact_task_newtask.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "protos/perfetto/trace/ftrace/task.gen.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
-#include "protos/perfetto/trace/ftrace/task.gen.h"
-#include "protos/perfetto/trace/ftrace/task.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
+#include "protos/perfetto/trace/ftrace/sched.gen.h"
+#include "protos/perfetto/trace/trace.gen.h"
+#include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto::trace_redaction {
 
@@ -40,37 +44,52 @@ constexpr std::string_view kCommA = "comm-a";
 class RedactTaskNewTaskTest : public testing::Test {
  protected:
   void SetUp() override {
-    timeline_ = std::make_unique<ProcessThreadTimeline>();
-    timeline_->Append(
-        ProcessThreadTimeline::Event::Open(0, kPidA, kNoParent, kUidA));
-    timeline_->Append(
-        ProcessThreadTimeline::Event::Open(0, kPidB, kNoParent, kUidB));
-    timeline_->Sort();
+    auto* event = bundle_.add_event();
 
-    // This test breaks the rules for task_newtask and the timeline. The
-    // timeline will report the task existing before the new task event. This
-    // should not happen in the field, but it makes the test more robust.
-    protozero::HeapBuffered<protos::pbzero::FtraceEvent> event;
     event->set_timestamp(123456789);
     event->set_pid(kPidA);
 
-    auto* new_task = event->set_task_newtask();
-    new_task->set_comm(kCommA.data(), kCommA.size());
+    auto* new_task = event->mutable_task_newtask();
+    new_task->set_comm(std::string(kCommA));
     new_task->set_pid(kPidA);
+  }
 
-    event_string_ = event.SerializeAsString();
+  base::Status Redact(const Context& context,
+                      protos::pbzero::FtraceEvent* event_message) {
+    RedactTaskNewTask redact;
+
+    auto bundle_str = bundle_.SerializeAsString();
+    protos::pbzero::FtraceEventBundle::Decoder bundle_decoder(bundle_str);
+
+    auto event_str = bundle_.event().back().SerializeAsString();
+    protos::pbzero::FtraceEvent::Decoder event_decoder(event_str);
+
+    return redact.Redact(context, bundle_decoder, event_decoder, event_message);
   }
 
   const std::string& event_string() const { return event_string_; }
 
-  std::unique_ptr<ProcessThreadTimeline> timeline() {
-    return std::move(timeline_);
+  // This test breaks the rules for task_newtask and the timeline. The
+  // timeline will report the task existing before the new task event. This
+  // should not happen in the field, but it makes the test more robust.
+  std::unique_ptr<ProcessThreadTimeline> CreatePopulatedTimeline() {
+    auto timeline = std::make_unique<ProcessThreadTimeline>();
+
+    timeline->Append(
+        ProcessThreadTimeline::Event::Open(0, kPidA, kNoParent, kUidA));
+    timeline->Append(
+        ProcessThreadTimeline::Event::Open(0, kPidB, kNoParent, kUidB));
+    timeline->Sort();
+
+    return timeline;
   }
 
  private:
   std::string event_string_;
 
   std::unique_ptr<ProcessThreadTimeline> timeline_;
+
+  protos::gen::FtraceEventBundle bundle_;
 };
 
 TEST_F(RedactTaskNewTaskTest, RejectMissingPackageUid) {
@@ -82,9 +101,7 @@ TEST_F(RedactTaskNewTaskTest, RejectMissingPackageUid) {
   protos::pbzero::FtraceEvent::Decoder event_decoder(event_string());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
 
-  auto result =
-      redact.Redact(context, event_decoder, event_decoder.task_newtask(),
-                    event_message.get());
+  auto result = Redact(context, event_message.get());
   ASSERT_FALSE(result.ok());
 }
 
@@ -97,9 +114,7 @@ TEST_F(RedactTaskNewTaskTest, RejectMissingTimeline) {
   protos::pbzero::FtraceEvent::Decoder event_decoder(event_string());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
 
-  auto result =
-      redact.Redact(context, event_decoder, event_decoder.task_newtask(),
-                    event_message.get());
+  auto result = Redact(context, event_message.get());
   ASSERT_FALSE(result.ok());
 }
 
@@ -110,14 +125,12 @@ TEST_F(RedactTaskNewTaskTest, PidInPackageKeepsComm) {
   // keep its comm value.
   Context context;
   context.package_uid = kUidA;
-  context.timeline = timeline();
+  context.timeline = CreatePopulatedTimeline();
 
   protos::pbzero::FtraceEvent::Decoder event_decoder(event_string());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
 
-  auto result =
-      redact.Redact(context, event_decoder, event_decoder.task_newtask(),
-                    event_message.get());
+  auto result = Redact(context, event_message.get());
   ASSERT_TRUE(result.ok());
 
   protos::gen::FtraceEvent redacted_event;
@@ -135,14 +148,12 @@ TEST_F(RedactTaskNewTaskTest, PidOutsidePackageLosesComm) {
   // lose its comm value.
   Context context;
   context.package_uid = kUidB;
-  context.timeline = timeline();
+  context.timeline = CreatePopulatedTimeline();
 
   protos::pbzero::FtraceEvent::Decoder event_decoder(event_string());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
 
-  auto result =
-      redact.Redact(context, event_decoder, event_decoder.task_newtask(),
-                    event_message.get());
+  auto result = Redact(context, event_message.get());
   ASSERT_TRUE(result.ok());
 
   protos::gen::FtraceEvent redacted_event;
