@@ -466,7 +466,7 @@ export class App implements m.ClassComponent {
       id: 'perfetto.Search',
       name: 'Search',
       callback: () => this.enterSearchMode(true),
-      defaultHotkey: '!Mod+S',
+      defaultHotkey: '/',
     },
     {
       id: 'perfetto.ShowHelp',
