@@ -95,6 +95,8 @@ class BinderTracker : public Destructible {
   bool utid_stacks_empty() const { return utid_stacks_.size() == 0; }
 
  private:
+  TraceProcessorContext* const context_;
+
   struct OutstandingTransaction {
     bool is_reply = false;
     bool is_oneway = false;
@@ -102,10 +104,10 @@ class BinderTracker : public Destructible {
     std::optional<TrackId> send_track_id;
     std::optional<SliceId> send_slice_id;
   };
+  // TODO(rsavitski): switch back to FlatHashMap once the latter's perf is fixed
+  // for insert+erase heavy workfloads.
+  std::unordered_map<int32_t, OutstandingTransaction> outstanding_transactions_;
 
-  TraceProcessorContext* const context_;
-
-  base::FlatHashMap<int32_t, OutstandingTransaction> outstanding_transactions_;
   struct TxnFrame {
     // The state of this thread at this stack level.
     enum State : uint32_t;
