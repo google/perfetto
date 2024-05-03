@@ -176,6 +176,7 @@ def label_to_target_name_with_path(label):
   e.g., //src/perfetto:tests -> src_perfetto_tests
   """
   name = re.sub(r'^//:?', '', label)
+  name = re.sub(r'/:', '/', name)
   name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
   return name
 
