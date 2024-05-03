@@ -40,39 +40,42 @@ enum TraceType {
   kPerfDataTraceType,
 };
 
+class AndroidProbesTracker;
 class ArgsTracker;
 class ArgsTranslationTable;
 class AsyncTrackSetTracker;
-class AndroidProbesTracker;
 class ChunkedTraceReader;
-class ClockTracker;
 class ClockConverter;
+class ClockTracker;
 class DeobfuscationMappingTable;
+class DescriptorPool;
 class EtwModule;
 class EventTracker;
+class FlowTracker;
 class ForwardingTraceParser;
 class FtraceModule;
+class FuchsiaRecordParser;
 class GlobalArgsTracker;
-class StackProfileTracker;
 class HeapGraphTracker;
-class PerfSampleTracker;
+class JsonTraceParser;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
 class MultiMachineTraceManager;
 class PacketAnalyzer;
-class ProtoImporterModule;
-class TrackEventModule;
+class PerfRecordParser;
+class PerfSampleTracker;
 class ProcessTracker;
+class ProtoImporterModule;
+class ProtoTraceParser;
 class SchedEventTracker;
 class SliceTracker;
 class SliceTranslationTable;
-class FlowTracker;
-class TraceParser;
+class StackProfileTracker;
 class TraceSorter;
 class TraceStorage;
+class TrackEventModule;
 class TrackTracker;
-class DescriptorPool;
 
 using MachineId = tables::MachineTable::Id;
 
@@ -161,12 +164,14 @@ class TraceProcessorContext {
   std::unique_ptr<ChunkedTraceReader> gzip_trace_parser;
   std::unique_ptr<ChunkedTraceReader> perf_data_trace_tokenizer;
 
+  std::unique_ptr<ProtoTraceParser> proto_trace_parser;
+
   // These fields are trace parsers which will be called by |forwarding_parser|
   // once the format of the trace is discovered. They are placed here as they
   // are only available in the lib target.
-  std::unique_ptr<TraceParser> json_trace_parser;
-  std::unique_ptr<TraceParser> fuchsia_trace_parser;
-  std::unique_ptr<TraceParser> perf_data_parser;
+  std::unique_ptr<JsonTraceParser> json_trace_parser;
+  std::unique_ptr<FuchsiaRecordParser> fuchsia_record_parser;
+  std::unique_ptr<PerfRecordParser> perf_record_parser;
 
   // This field contains the list of proto descriptors that can be used by
   // reflection-based parsers.

@@ -29,13 +29,13 @@ namespace trace_processor {
 namespace perf_importer {
 
 // Parses samples from perf.data files.
-class PerfDataParser : public TraceParser {
+class PerfDataParser : public PerfRecordParser {
  public:
   explicit PerfDataParser(TraceProcessorContext*);
   ~PerfDataParser() override;
 
   // The data in TraceBlobView has to be a perf.data sample.
-  void ParseTraceBlobView(int64_t timestamp, TraceBlobView) override;
+  void ParsePerfRecord(int64_t timestamp, TraceBlobView) override;
 
  private:
   base::StatusOr<PerfDataTracker::PerfSample> ParseSample(TraceBlobView);

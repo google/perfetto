@@ -33,7 +33,7 @@
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/importers/proto/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -77,9 +77,9 @@ ProtoTraceReader* MultiMachineTraceManager::GetOrCreateReader(
   auto context = CreateContext(raw_machine_id);
   // Share the sorter, but enable for the parser.
   context->sorter = default_context_->sorter;
-  context->sorter->AddMachine(
-      context->machine_id(), std::make_unique<ProtoTraceParser>(context.get()));
+  context->sorter->AddMachineContext(context.get());
   context->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
+  context->proto_trace_parser.reset(new ProtoTraceParserImpl(context.get()));
 
   auto new_reader = std::make_unique<ProtoTraceReader>(context.get());
   remote_machine_contexts_[raw_machine_id] =

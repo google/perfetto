@@ -47,7 +47,7 @@ base::StatusOr<PerfDataTracker::PerfSample> PerfDataParser::ParseSample(
   return tracker_->ParseSample(reader);
 }
 
-void PerfDataParser::ParseTraceBlobView(int64_t ts, TraceBlobView tbv) {
+void PerfDataParser::ParsePerfRecord(int64_t ts, TraceBlobView tbv) {
   auto sample_status = ParseSample(std::move(tbv));
   if (!sample_status.ok()) {
     return;

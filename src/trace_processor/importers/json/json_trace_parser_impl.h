@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_IMPL_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_IMPL_H_
 
 #include <stdint.h>
 
@@ -37,10 +37,10 @@ class TraceProcessorContext;
 
 // Parses legacy chrome JSON traces. The support for now is extremely rough
 // and supports only explicit TRACE_EVENT_BEGIN/END events.
-class JsonTraceParser : public TraceParser {
+class JsonTraceParserImpl : public JsonTraceParser {
  public:
-  explicit JsonTraceParser(TraceProcessorContext*);
-  ~JsonTraceParser() override;
+  explicit JsonTraceParserImpl(TraceProcessorContext*);
+  ~JsonTraceParserImpl() override;
 
   // TraceParser implementation.
   void ParseJsonPacket(int64_t timestamp, std::string string_value) override;
@@ -56,4 +56,4 @@ class JsonTraceParser : public TraceParser {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_TRACE_PARSER_IMPL_H_

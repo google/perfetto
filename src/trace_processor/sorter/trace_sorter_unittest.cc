@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/proto/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 
 #include <map>
 #include <random>
@@ -40,10 +40,10 @@ using ::testing::NiceMock;
 
 constexpr std::optional<MachineId> kNullMachineId = std::nullopt;
 
-class MockTraceParser : public ProtoTraceParser {
+class MockTraceParser : public ProtoTraceParserImpl {
  public:
   explicit MockTraceParser(TraceProcessorContext* context)
-      : ProtoTraceParser(context), machine_id_(context->machine_id()) {}
+      : ProtoTraceParserImpl(context), machine_id_(context->machine_id()) {}
 
   MOCK_METHOD(void,
               MOCK_ParseFtracePacket,
@@ -90,12 +90,11 @@ class TraceSorterTest : public ::testing::Test {
   }
 
   void CreateSorter(bool full_sort = true) {
-    std::unique_ptr<MockTraceParser> parser(new MockTraceParser(&context_));
-    parser_ = parser.get();
+    parser_ = new MockTraceParser(&context_);
+    context_.proto_trace_parser.reset(parser_);
     auto sorting_mode = full_sort ? TraceSorter::SortingMode::kFullSort
                                   : TraceSorter::SortingMode::kDefault;
-    context_.sorter.reset(
-        new TraceSorter(&context_, std::move(parser), sorting_mode));
+    context_.sorter.reset(new TraceSorter(&context_, sorting_mode));
   }
 
  protected:
@@ -359,10 +358,9 @@ TEST_F(TraceSorterTest, MultiMachineSorting) {
     auto ctx = std::make_unique<TraceProcessorContext>(args);
     auto parser = std::make_unique<MockTraceParser>(ctx.get());
     extra_parsers.push_back(parser.get());
-
+    ctx->proto_trace_parser = std::move(parser);
     extra_contexts.push_back(std::move(ctx));
-    context_.sorter->AddMachine(extra_contexts.back()->machine_id(),
-                                std::move(parser));
+    context_.sorter->AddMachineContext(extra_contexts.back().get());
   }
 
   // Set up the expectation for the default machine.
