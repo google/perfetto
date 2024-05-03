@@ -13463,6 +13463,7 @@ filegroup {
         "src/trace_redaction/filter_sched_waking_events.cc",
         "src/trace_redaction/filter_task_rename.cc",
         "src/trace_redaction/find_package_uid.cc",
+        "src/trace_redaction/modify_process_trees.cc",
         "src/trace_redaction/optimize_timeline.cc",
         "src/trace_redaction/populate_allow_lists.cc",
         "src/trace_redaction/process_thread_timeline.cc",
