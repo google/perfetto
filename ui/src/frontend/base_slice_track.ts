@@ -356,8 +356,8 @@ export abstract class BaseSliceTrack<
           id
           ${extraCols ? ',' + extraCols : ''}
         from (${this.getSqlSource()})
-        where dur = -1
         group by 1
+        having dur = -1
       `);
     }
     const incomplete = new Array<CastInternal<T['slice']>>(queryRes.numRows());
