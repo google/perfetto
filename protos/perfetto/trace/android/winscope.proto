@@ -22,6 +22,7 @@ import "protos/perfetto/trace/android/protolog.proto";
 import "protos/perfetto/trace/android/shell_transition.proto";
 import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
 import "protos/perfetto/trace/android/surfaceflinger_transactions.proto";
+import "protos/perfetto/trace/android/winscope_extensions_impl.proto";
 
 // This file is used to generated descriptors for all the winscope protos.
 // List all the winscope top-level trace messages here:
@@ -30,4 +31,5 @@ message WinscopeTraceData {
   optional TransactionTraceEntry transactions = 2;
   optional ShellTransition shell_transition = 3;
   optional ProtoLogMessage protolog_message = 4;
+  optional WinscopeExtensionsImpl winscope_extensions = 5;
 }
