@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {Area, getLegacySelection} from '../common/state';
 
@@ -119,7 +120,7 @@ export function moveByFocusedFlow(direction: Direction): void {
 export function lockSliceSpan(persistent = false) {
   const range = globals.findTimeRangeOfSelection();
   const currentSelection = getLegacySelection(globals.state);
-  if (range.start !== -1n && range.end !== -1n && currentSelection !== null) {
+  if (exists(range) && currentSelection !== null) {
     const tracks = currentSelection.trackKey ? [currentSelection.trackKey] : [];
     const area: Area = {start: range.start, end: range.end, tracks};
     globals.dispatch(Actions.markArea({area, persistent}));
@@ -131,7 +132,7 @@ export function findCurrentSelection() {
   if (selection === null) return;
 
   const range = globals.findTimeRangeOfSelection();
-  if (range.start !== -1n && range.end !== -1n) {
+  if (exists(range)) {
     focusHorizontalRange(range.start, range.end);
   }
 
