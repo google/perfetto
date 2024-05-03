@@ -47,6 +47,8 @@ source_set("trace_redaction") {
     "find_package_uid.cc",
     "find_package_uid.h",
     "frame_cookie.h",
+    "modify_process_trees.cc",
+    "modify_process_trees.h",
     "optimize_timeline.cc",
     "optimize_timeline.h",
     "populate_allow_lists.cc",
