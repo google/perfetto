@@ -33,6 +33,11 @@
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
+namespace {
+
+static constexpr uint32_t kIndexOfNthSetRatio = 32;
+
+}
 
 SelectorOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                       const BitVector* selector)
@@ -124,10 +129,22 @@ void SelectorOverlay::ChainImpl::StableSort(SortToken* start,
 }
 
 void SelectorOverlay::ChainImpl::Distinct(Indices& indices) const {
-  for (auto& token : indices.tokens) {
-    token.index = selector_->IndexOfNthSet(token.index);
+  if (selector_->size() == selector_->CountSetBits()) {
+    return inner_->Distinct(indices);
   }
-  inner_->Distinct(indices);
+  if (indices.tokens.size() < selector_->size() / kIndexOfNthSetRatio) {
+    for (auto& token : indices.tokens) {
+      token.index = selector_->IndexOfNthSet(token.index);
+    }
+  } else {
+    // TODO(mayzner): once we have a reverse index for IndexOfNthSet in
+    // BitVector, this should no longer be necessary.
+    std::vector<uint32_t> lookup = selector_->GetSetBitIndices();
+    for (auto& token : indices.tokens) {
+      token.index = lookup[token.index];
+    }
+  }
+  return inner_->Distinct(indices);
 }
 
 void SelectorOverlay::ChainImpl::Serialize(StorageProto* storage) const {

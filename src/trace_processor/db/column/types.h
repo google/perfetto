@@ -99,9 +99,21 @@ struct Order {
 // Structured data used to determine what Trace Processor will query using
 // CEngine.
 struct Query {
+  enum class OrderType {
+    // Order should only be used for sorting.
+    kSort = 0,
+    // Distinct, `orders` signify which columns are supposed to be distinct and
+    // used for sorting.
+    kDistinctAndSort = 1,
+    // Distinct and `orders` signify only columns are supposed to be distinct,
+    // don't need additional sorting.
+    kDistinct = 2
+  };
+  OrderType distinct = OrderType::kSort;
   // Query constraints.
   std::vector<Constraint> constraints;
-  // Query order bys.
+  // Query order bys. Check distinct to know whether they should be used for
+  // sorting.
   std::vector<Order> orders;
 };
 

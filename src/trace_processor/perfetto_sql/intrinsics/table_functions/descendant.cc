@@ -137,8 +137,9 @@ base::StatusOr<std::unique_ptr<Table>> Descendant::ComputeTable(
           start_id_uint, slices, std::move(descendants));
     }
     case Type::kSliceByStack: {
-      auto sbs_cs = {slices.stack_id().eq(start_id)};
-      for (auto it = slices.FilterToIterator(Query{sbs_cs, {}}); it; ++it) {
+      Query q;
+      q.constraints = {slices.stack_id().eq(start_id)};
+      for (auto it = slices.FilterToIterator(q); it; ++it) {
         RETURN_IF_ERROR(GetDescendants(slices, it.id(), descendants));
       }
       return ExtendWithStartId<tables::DescendantSliceByStackTable>(
