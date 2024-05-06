@@ -723,6 +723,7 @@ button.query-ctrl {
     .shell {
       border-right: 1px solid var(--main-foreground-color);
       background-color: var(--collapsed-background);
+      overflow: hidden;
     }
     .track-button {
       color: rgb(60, 86, 136);

@@ -184,53 +184,56 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               }) :
               ''));
   }
+  resize = (e: MouseEvent): void => {
+    e.stopPropagation();
+    e.preventDefault();
+    let y = e.offsetY;
+    let previousClientY = e.clientY;
+    const mouseMoveEvent = (evMove: MouseEvent): void => {
+        evMove.preventDefault();
+        y += (evMove.clientY -previousClientY);
+        previousClientY = evMove.clientY;
+        if (this.attrs && this.initialHeight) {
+          const newMultiplier = y / this.initialHeight;
+          if (newMultiplier < 1) {
+            this.attrs.trackState.scaleFactor = 1;
+          } else {
+            this.attrs.trackState.scaleFactor = newMultiplier;
+          }
+          globals.rafScheduler.scheduleFullRedraw();
+        }
+    };
+    const mouseUpEvent = (): void => {
+        document.removeEventListener('mousemove', mouseMoveEvent);
+        document.removeEventListener('mouseup', mouseUpEvent);
+    };
+    document.addEventListener('mousemove', mouseMoveEvent);
+    document.addEventListener('mouseup', mouseUpEvent);
+    document.removeEventListener('mousedown', this.resize);
+    };
 
   onmousemove(e: MouseEvent) {
     if (this.attrs?.track.supportsResizing) {
       if (e.currentTarget instanceof HTMLElement &&
         e.offsetY >= e.currentTarget.scrollHeight - 5) {
+            document.addEventListener('mousedown', this.resize);
           e.currentTarget.style.cursor = 'row-resize';
+          return;
       } else if (e.currentTarget instanceof HTMLElement) {
         e.currentTarget.style.cursor = 'unset';
       }
     }
+    document.removeEventListener('mousedown', this.resize);
   }
   onmouseleave(e: MouseEvent) {
     if (this.attrs?.track.supportsResizing &&
         e.currentTarget instanceof HTMLElement) {
       e.currentTarget.style.cursor = 'unset';
+      document.removeEventListener('mousedown', this.resize);
     }
   }
 
   ondragstart(e: DragEvent) {
-    if (this.attrs?.track.supportsResizing &&
-      e.target instanceof HTMLElement &&
-      e.offsetY >= e.target.scrollHeight - 5) {
-        e.stopPropagation();
-        e.preventDefault();
-        let y = e.offsetY;
-        let previousClientY = e.clientY;
-        const mouseMoveEvent = (evMove: MouseEvent): void => {
-            evMove.preventDefault();
-            y += (evMove.clientY -previousClientY);
-            previousClientY = evMove.clientY;
-            if (this.attrs && this.initialHeight) {
-              const newMultiplier = y / this.initialHeight;
-              if (newMultiplier < 1) {
-                this.attrs.trackState.scaleFactor = 1;
-              } else {
-                this.attrs.trackState.scaleFactor = newMultiplier;
-              }
-              globals.rafScheduler.scheduleFullRedraw();
-            }
-        };
-        const mouseUpEvent = (): void => {
-            document.removeEventListener('mousemove', mouseMoveEvent);
-            document.removeEventListener('mouseup', mouseUpEvent);
-        };
-        document.addEventListener('mousemove', mouseMoveEvent);
-        document.addEventListener('mouseup', mouseUpEvent);
-    } else {
       const dataTransfer = e.dataTransfer;
       if (dataTransfer === null) return;
       this.dragging = true;
@@ -239,7 +242,6 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         dataTransfer.effectAllowed = 'move';
         dataTransfer.setData('perfetto/track/' + this.attrs!.trackState.id, `${this.attrs!.trackState.id}`);
         dataTransfer.setDragImage(new Image(), 0, 0);
-    }
   }
 
   ondragend() {

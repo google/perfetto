@@ -99,6 +99,33 @@ export class TrackGroupPanel extends Panel<Attrs> {
   get summaryTrackState(): TrackState {
     return assertExists(globals.state.tracks[this.trackGroupState.tracks[0]]);
   }
+  resize = (e: MouseEvent): void => {
+    e.stopPropagation();
+    e.preventDefault();
+    let y = e.offsetY;
+    let previousClientY = e.clientY;
+    const mouseMoveEvent = (evMove: MouseEvent): void => {
+      evMove.preventDefault();
+      y += (evMove.clientY -previousClientY);
+      previousClientY = evMove.clientY;
+      if (this.attrs && this.initialHeight) {
+        const newMultiplier = y / this.initialHeight;
+        if (newMultiplier < 1) {
+          this.summaryTrackState.scaleFactor = 1;
+        } else {
+          this.summaryTrackState.scaleFactor = newMultiplier;
+        }
+        globals.rafScheduler.scheduleFullRedraw();
+      }
+    };
+    const mouseUpEvent = (): void => {
+        document.removeEventListener('mousemove', mouseMoveEvent);
+        document.removeEventListener('mouseup', mouseUpEvent);
+    };
+    document.addEventListener('mousemove', mouseMoveEvent);
+    document.addEventListener('mouseup', mouseUpEvent);
+    document.removeEventListener('mousedown', this.resize);
+    };
 
   onmousemove(e: MouseEvent) {
     if (this.summaryTrack && this.summaryTrack.supportsResizing) {
@@ -106,16 +133,20 @@ export class TrackGroupPanel extends Panel<Attrs> {
           e.offsetY >=
           e.currentTarget.scrollHeight - MOUSE_TARGETING_THRESHOLD_PX
           ) {
+            document.addEventListener('mousedown', this.resize);
           e.currentTarget.style.cursor = 'row-resize';
+          return;
       } else if (e.currentTarget instanceof HTMLElement) {
         e.currentTarget.style.cursor = 'unset';
       }
     }
+    document.removeEventListener('mousedown', this.resize);
   }
   onmouseleave(e: MouseEvent) {
     if (this.summaryTrack && this.summaryTrack.supportsResizing &&
         e.currentTarget instanceof HTMLElement) {
       e.currentTarget.style.cursor = 'unset';
+      document.removeEventListener('mousedown', this.resize);
     }
   }
 
@@ -241,34 +272,6 @@ export class TrackGroupPanel extends Panel<Attrs> {
             null);
   }
   ondragstart(e: DragEvent) {
-    if (this.summaryTrack && this.summaryTrack.supportsResizing &&
-      e.target instanceof HTMLElement &&
-      e.offsetY >= e.target.scrollHeight - MOUSE_TARGETING_THRESHOLD_PX) {
-        e.stopPropagation();
-        e.preventDefault();
-        let y = e.offsetY;
-        let previousClientY = e.clientY;
-        const mouseMoveEvent = (evMove: MouseEvent): void => {
-            evMove.preventDefault();
-            y += (evMove.clientY -previousClientY);
-            previousClientY = evMove.clientY;
-            if (this.attrs && this.initialHeight) {
-              const newMultiplier = y / this.initialHeight;
-              if (newMultiplier < 1) {
-                this.summaryTrackState.scaleFactor = 1;
-              } else {
-                this.summaryTrackState.scaleFactor = newMultiplier;
-              }
-              globals.rafScheduler.scheduleFullRedraw();
-            }
-        };
-        const mouseUpEvent = (): void => {
-            document.removeEventListener('mousemove', mouseMoveEvent);
-            document.removeEventListener('mouseup', mouseUpEvent);
-        };
-        document.addEventListener('mousemove', mouseMoveEvent);
-        document.addEventListener('mouseup', mouseUpEvent);
-    } else {
       const dataTransfer = e.dataTransfer;
       if (dataTransfer === null) return;
       this.dragging = true;
@@ -277,7 +280,6 @@ export class TrackGroupPanel extends Panel<Attrs> {
       dataTransfer.effectAllowed = 'move';
       dataTransfer.setData('perfetto/track/' + this.trackGroupId, `${this.trackGroupId}`);
       dataTransfer.setDragImage(new Image(), 0, 0);
-    }
   }
 
   ondragend() {
