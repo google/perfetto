@@ -15,13 +15,11 @@
  */
 
 #include <emscripten/emscripten.h>
+#include <cstdint>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/rpc.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 Rpc* g_trace_processor_rpc;
@@ -60,8 +58,7 @@ void trace_processor_on_rpc_request(uint32_t size) {
 }
 
 }  // extern "C"
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 int main(int, char**) {
   // This is unused but is needed for the following reasons:

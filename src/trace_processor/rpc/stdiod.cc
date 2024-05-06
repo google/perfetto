@@ -16,10 +16,12 @@
 
 #include "src/trace_processor/rpc/stdiod.h"
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <unistd.h>
-#endif
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <utility>
 
+#include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
@@ -27,13 +29,16 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/rpc/rpc.h"
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <unistd.h>
+#endif
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && !defined(STDIN_FILENO)
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
 #endif
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 base::Status RunStdioRpcServer(std::unique_ptr<TraceProcessor> tp) {
   Rpc rpc(std::move(tp));
@@ -57,5 +62,4 @@ base::Status RunStdioRpcServer(std::unique_ptr<TraceProcessor> tp) {
   }
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
