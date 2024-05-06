@@ -9920,6 +9920,33 @@ message CdevUpdateFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/thermal.proto
 
+// Begin of protos/perfetto/trace/ftrace/thermal_exynos.proto
+
+message ThermalExynosAcpmBulkFtraceEvent {
+  optional uint32 tz_id = 1;
+  optional uint32 current_temp = 2;
+  optional uint32 ctrl_temp = 3;
+  optional uint32 cdev_state = 4;
+  optional int32 pid_et_p = 5;
+  optional int32 pid_power_range = 6;
+  optional int32 pid_p = 7;
+  optional int32 pid_i = 8;
+  optional int32 k_p = 9;
+  optional int32 k_i = 10;
+  optional uint64 timestamp = 11;
+}
+message ThermalExynosAcpmHighOverheadFtraceEvent {
+  optional int32 tz_id = 1;
+  optional uint32 current_temp = 2;
+  optional uint32 ctrl_temp = 3;
+  optional uint32 cdev_state = 4;
+  optional int32 pid_et_p = 5;
+  optional int32 k_p = 6;
+  optional int32 k_i = 7;
+}
+
+// End of protos/perfetto/trace/ftrace/thermal_exynos.proto
+
 // Begin of protos/perfetto/trace/ftrace/trusty.proto
 
 message TrustySmcFtraceEvent {
@@ -10811,6 +10838,9 @@ message FtraceEvent {
     GoogleIrmEventFtraceEvent google_irm_event = 503;
     DevicePmCallbackStartFtraceEvent device_pm_callback_start = 504;
     DevicePmCallbackEndFtraceEvent device_pm_callback_end = 505;
+    ThermalExynosAcpmBulkFtraceEvent thermal_exynos_acpm_bulk = 506;
+    ThermalExynosAcpmHighOverheadFtraceEvent thermal_exynos_acpm_high_overhead =
+        507;
   }
 }
 
