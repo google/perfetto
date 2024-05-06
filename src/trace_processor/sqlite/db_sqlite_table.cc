@@ -156,27 +156,29 @@ int SqliteValueToSqlValueChecked(SqlValue* sql_val,
   return SQLITE_OK;
 }
 
-int UpdateConstraintsAndOrderByFromIndex(DbSqliteModule::Cursor* c,
-                                         const char* idx_str,
-                                         sqlite3_value** argv) {
+int ReadIdxStr(DbSqliteModule::Cursor* cursor,
+               const char* idx_str,
+               sqlite3_value** argv) {
   base::StringSplitter splitter(idx_str, ',');
+
   PERFETTO_CHECK(splitter.Next());
   PERFETTO_DCHECK(splitter.cur_token_size() >= 2);
   PERFETTO_DCHECK(splitter.cur_token()[0] == 'C');
 
-  uint32_t cs_count = *base::CStringToUInt32(splitter.cur_token() + 1);
+  Query q;
 
-  // We reuse this vector to reduce memory allocations on nested subqueries.
+  uint32_t cs_count = *base::CStringToUInt32(splitter.cur_token() + 1);
   uint32_t c_offset = 0;
-  c->query.constraints.resize(cs_count);
-  for (auto& cs : c->query.constraints) {
+  q.constraints.resize(cs_count);
+
+  for (auto& cs : q.constraints) {
     PERFETTO_CHECK(splitter.Next());
     cs.col_idx = *base::CStringToUInt32(splitter.cur_token());
     PERFETTO_CHECK(splitter.Next());
     cs.op = static_cast<FilterOp>(*base::CStringToUInt32(splitter.cur_token()));
 
     if (int ret = SqliteValueToSqlValueChecked(&cs.value, argv[c_offset++], cs,
-                                               c->pVtab);
+                                               cursor->pVtab);
         ret != SQLITE_OK) {
       return ret;
     }
@@ -188,14 +190,21 @@ int UpdateConstraintsAndOrderByFromIndex(DbSqliteModule::Cursor* c,
 
   uint32_t ob_count = *base::CStringToUInt32(splitter.cur_token() + 1);
 
-  // We reuse this vector to reduce memory allocations on nested subqueries.
-  c->query.orders.resize(ob_count);
-  for (auto& ob : c->query.orders) {
+  q.orders.resize(ob_count);
+  for (auto& ob : q.orders) {
     PERFETTO_CHECK(splitter.Next());
     ob.col_idx = *base::CStringToUInt32(splitter.cur_token());
     PERFETTO_CHECK(splitter.Next());
     ob.desc = *base::CStringToUInt32(splitter.cur_token());
   }
+
+  PERFETTO_CHECK(splitter.Next());
+  PERFETTO_DCHECK(splitter.cur_token_size() == 2);
+  PERFETTO_DCHECK(splitter.cur_token()[0] == 'D');
+  q.distinct = static_cast<Query::OrderType>(
+      *base::CStringToUInt32(splitter.cur_token() + 1));
+
+  cursor->query = std::move(q);
   return SQLITE_OK;
 }
 
@@ -488,7 +497,19 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
     ob_idxes.resize(ob_idxes.size() - static_cast<uint32_t>(pop_count));
   }
 
-  std::string cs_idx_str;
+  // Create index string. It contains information query Trace Processor will
+  // have to run. It can be split into 3 segments: C (constraints), O (orders)
+  // and D (distinct). It can be directly mapped into `Query` type. The number
+  // after C and O signifies how many constraints/orders there are. The number
+  // after D maps to the Query::Distinct enum value.
+  // "C2,0,0,2,1,O1,0,1,D1" maps to:
+  // - two constraints: kEq on first column and kNe on third column
+  // - one order by: descending on first column
+  // - kUnsorted distinct.
+
+  // Constraints:
+  std::string idx_str = "C";
+  idx_str += std::to_string(cs_idxes.size());
   for (int i : cs_idxes) {
     const auto& c = info->aConstraint[i];
     auto& o = info->aConstraintUsage[i];
@@ -498,16 +519,14 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
     auto op = SqliteOpToFilterOp(c.op);
     PERFETTO_DCHECK(op);
 
-    cs_idx_str += ',';
-    cs_idx_str += std::to_string(c.iColumn);
-    cs_idx_str += ',';
-    cs_idx_str += std::to_string(static_cast<uint32_t>(*op));
+    idx_str += ',';
+    idx_str += std::to_string(c.iColumn);
+    idx_str += ',';
+    idx_str += std::to_string(static_cast<uint32_t>(*op));
   }
-
-  std::string idx_str = "C";
-  idx_str += std::to_string(cs_idxes.size());
-  idx_str += cs_idx_str;
   idx_str += ",";
+
+  // Orders:
   idx_str += "O";
   idx_str += std::to_string(ob_idxes.size());
   for (int i : ob_idxes) {
@@ -516,9 +535,36 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
     idx_str += ',';
     idx_str += std::to_string(info->aOrderBy[i].desc);
   }
+  idx_str += ",";
+
+  // Distinct:
+  idx_str += "D";
+  if (ob_idxes.size() == 1) {
+    switch (sqlite3_vtab_distinct(info)) {
+      case 0:
+      case 1:
+        idx_str += std::to_string(static_cast<int>(Query::OrderType::kSort));
+        break;
+      case 2:
+        idx_str +=
+            std::to_string(static_cast<int>(Query::OrderType::kDistinct));
+        break;
+      case 3:
+        idx_str += std::to_string(
+            static_cast<int>(Query::OrderType::kDistinctAndSort));
+        break;
+      default:
+        PERFETTO_FATAL("Invalid sqlite3_vtab_distinct result");
+    }
+  } else {
+    // TODO(mayzner): Remove this if condition after implementing multicolumn
+    // distinct.
+    idx_str += std::to_string(static_cast<int>(Query::OrderType::kSort));
+  }
+
+  info->idxStr = sqlite3_mprintf("%s", idx_str.c_str());
 
   info->idxNum = t->best_index_num++;
-  info->idxStr = sqlite3_mprintf("%s", idx_str.c_str());
   info->needToFreeIdxStr = true;
 
   // We can sort on any column correctly.
@@ -581,8 +627,7 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
       }
     }
   } else {
-    if (int r = UpdateConstraintsAndOrderByFromIndex(c, idx_str, argv + offset);
-        r != SQLITE_OK) {
+    if (int r = ReadIdxStr(c, idx_str, argv + offset); r != SQLITE_OK) {
       return r;
     }
     c->last_idx_num = idx_num;
