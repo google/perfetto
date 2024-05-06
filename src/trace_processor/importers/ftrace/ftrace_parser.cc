@@ -85,7 +85,6 @@
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
 #include "protos/perfetto/trace/ftrace/tcp.pbzero.h"
-#include "protos/perfetto/trace/ftrace/thermal.pbzero.h"
 #include "protos/perfetto/trace/ftrace/trusty.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ufs.pbzero.h"
 #include "protos/perfetto/trace/ftrace/vmscan.pbzero.h"
@@ -244,6 +243,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       mali_gpu_event_tracker_(context),
       pkvm_hyp_cpu_tracker_(context),
       gpu_work_period_tracker_(context),
+      thermal_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -874,11 +874,20 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kThermalTemperatureFieldNumber: {
-        ParseThermalTemperature(ts, fld_bytes);
+        thermal_tracker_.ParseThermalTemperature(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kThermalExynosAcpmBulkFieldNumber: {
+        thermal_tracker_.ParseThermalExynosAcpmBulk(fld_bytes);
+        break;
+      }
+      case FtraceEvent::kThermalExynosAcpmHighOverheadFieldNumber: {
+        thermal_tracker_.ParseThermalExynosAcpmHighOverhead(
+            ts, fld_bytes);
         break;
       }
       case FtraceEvent::kCdevUpdateFieldNumber: {
-        ParseCdevUpdate(ts, fld_bytes);
+        thermal_tracker_.ParseCdevUpdate(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kSchedBlockedReasonFieldNumber: {
@@ -2379,32 +2388,6 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
   }
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(gpu_mem_total.size()), track);
-}
-
-void FtraceParser::ParseThermalTemperature(int64_t timestamp,
-                                           protozero::ConstBytes blob) {
-  protos::pbzero::ThermalTemperatureFtraceEvent::Decoder event(blob.data,
-                                                               blob.size);
-  base::StringView thermal_zone = event.thermal_zone();
-  base::StackString<255> counter_name(
-      "%.*s Temperature", int(thermal_zone.size()), thermal_zone.data());
-  StringId name = context_->storage->InternString(counter_name.string_view());
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-      TrackTracker::Group::kThermals, name);
-  context_->event_tracker->PushCounter(timestamp, event.temp(), track);
-}
-
-void FtraceParser::ParseCdevUpdate(int64_t timestamp,
-                                   protozero::ConstBytes blob) {
-  protos::pbzero::CdevUpdateFtraceEvent::Decoder event(blob.data, blob.size);
-  base::StringView type = event.type();
-  base::StackString<255> counter_name("%.*s Cooling Device", int(type.size()),
-                                      type.data());
-  StringId name = context_->storage->InternString(counter_name.string_view());
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-      TrackTracker::Group::kThermals, name);
-  context_->event_tracker->PushCounter(
-      timestamp, static_cast<double>(event.target()), track);
 }
 
 void FtraceParser::ParseSchedBlockedReason(

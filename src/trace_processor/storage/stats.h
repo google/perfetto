@@ -74,6 +74,8 @@ namespace stats {
        "enable. See ftrace_setup_errors in the metadata table for details."),  \
   F(ftrace_abi_errors_skipped_zero_data_length,                                \
                                           kSingle,  kInfo,     kAnalysis, ""), \
+  F(ftrace_thermal_exynos_acpm_unknown_tz_id,                                  \
+                                          kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_non_numeric_counters,         kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_timestamp_overflow,           kSingle,  kError,    kAnalysis, ""), \
   F(fuchsia_invalid_event,                kSingle,  kError,    kAnalysis, ""), \
@@ -362,7 +364,7 @@ enum Source {
   // being reflected in the stats table.
   kTrace,
 
-  // The counter is genrated when importing / processing the trace in the trace
+  // The counter is generated when importing / processing the trace in the trace
   // processor.
   kAnalysis
 };

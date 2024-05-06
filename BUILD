@@ -1588,6 +1588,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h",
         "src/trace_processor/importers/ftrace/rss_stat_tracker.cc",
         "src/trace_processor/importers/ftrace/rss_stat_tracker.h",
+        "src/trace_processor/importers/ftrace/thermal_tracker.cc",
+        "src/trace_processor/importers/ftrace/thermal_tracker.h",
         "src/trace_processor/importers/ftrace/v4l2_tracker.cc",
         "src/trace_processor/importers/ftrace/v4l2_tracker.h",
         "src/trace_processor/importers/ftrace/virtio_gpu_tracker.cc",
