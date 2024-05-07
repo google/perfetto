@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/json/json_trace_parser.h"
+#include "src/trace_processor/importers/json/json_trace_parser_impl.h"
 
 #include <cstdint>
 #include <cstring>
@@ -62,17 +62,17 @@ std::optional<uint64_t> MaybeExtractFlowIdentifier(const Json::Value& value,
 }  // namespace
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 
-JsonTraceParser::JsonTraceParser(TraceProcessorContext* context)
+JsonTraceParserImpl::JsonTraceParserImpl(TraceProcessorContext* context)
     : context_(context), systrace_line_parser_(context) {}
 
-JsonTraceParser::~JsonTraceParser() = default;
+JsonTraceParserImpl::~JsonTraceParserImpl() = default;
 
-void JsonTraceParser::ParseSystraceLine(int64_t, SystraceLine line) {
+void JsonTraceParserImpl::ParseSystraceLine(int64_t, SystraceLine line) {
   systrace_line_parser_.ParseLine(line);
 }
 
-void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
-                                      std::string string_value) {
+void JsonTraceParserImpl::ParseJsonPacket(int64_t timestamp,
+                                          std::string string_value) {
   PERFETTO_DCHECK(json::IsJsonSupported());
 
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
@@ -391,7 +391,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 }
 
-void JsonTraceParser::MaybeAddFlow(TrackId track_id, const Json::Value& event) {
+void JsonTraceParserImpl::MaybeAddFlow(TrackId track_id,
+                                       const Json::Value& event) {
   PERFETTO_DCHECK(json::IsJsonSupported());
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
   auto opt_bind_id = MaybeExtractFlowIdentifier(event, /* version2 = */ true);

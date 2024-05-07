@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_PARSER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_PARSER_IMPL_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_PARSER_IMPL_H_
 
 #include <stdint.h>
 
@@ -40,11 +40,11 @@ namespace trace_processor {
 class PacketSequenceState;
 class TraceProcessorContext;
 
-class ProtoTraceParser : public TraceParser {
+class ProtoTraceParserImpl : public ProtoTraceParser {
  public:
   using ConstBytes = protozero::ConstBytes;
-  explicit ProtoTraceParser(TraceProcessorContext*);
-  ~ProtoTraceParser() override;
+  explicit ProtoTraceParserImpl(TraceProcessorContext*);
+  ~ProtoTraceParserImpl() override;
 
   void ParseTrackEvent(int64_t ts, TrackEventData data) override;
   void ParseTracePacket(int64_t ts, TracePacketData data) override;
@@ -87,4 +87,4 @@ class ProtoTraceParser : public TraceParser {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_PARSER_IMPL_H_

@@ -136,7 +136,7 @@ base::Status PerfDataTokenizer::Parse(TraceBlobView blob) {
         if (!ValidateSample(*sample_status)) {
           continue;
         }
-        context_->sorter->PushTraceBlobView(
+        context_->sorter->PushPerfRecord(
             static_cast<int64_t>(*sample_status->ts), std::move(tbv));
         break;
       }

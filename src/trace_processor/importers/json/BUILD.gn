@@ -31,8 +31,8 @@ source_set("minimal") {
 
 source_set("full") {
   sources = [
-    "json_trace_parser.cc",
-    "json_trace_parser.h",
+    "json_trace_parser_impl.cc",
+    "json_trace_parser_impl.h",
     "json_trace_tokenizer.cc",
     "json_trace_tokenizer.h",
   ]

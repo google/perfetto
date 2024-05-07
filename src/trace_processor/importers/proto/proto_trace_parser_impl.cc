@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/proto/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 
 #include <string.h>
 
@@ -54,7 +54,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
+ProtoTraceParserImpl::ProtoTraceParserImpl(TraceProcessorContext* context)
     : context_(context),
       metatrace_id_(context->storage->InternString("metatrace")),
       data_name_id_(context->storage->InternString("data")),
@@ -67,9 +67,9 @@ ProtoTraceParser::ProtoTraceParser(TraceProcessorContext* context)
       missing_metatrace_interned_string_id_(
           context->storage->InternString("MISSING STRING")) {}
 
-ProtoTraceParser::~ProtoTraceParser() = default;
+ProtoTraceParserImpl::~ProtoTraceParserImpl() = default;
 
-void ProtoTraceParser::ParseTracePacket(int64_t ts, TracePacketData data) {
+void ProtoTraceParserImpl::ParseTracePacket(int64_t ts, TracePacketData data) {
   const TraceBlobView& blob = data.packet;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   // TODO(eseckler): Propagate statuses from modules.
@@ -106,14 +106,14 @@ void ProtoTraceParser::ParseTracePacket(int64_t ts, TracePacketData data) {
   }
 }
 
-void ProtoTraceParser::ParseTrackEvent(int64_t ts, TrackEventData data) {
+void ProtoTraceParserImpl::ParseTrackEvent(int64_t ts, TrackEventData data) {
   const TraceBlobView& blob = data.trace_packet_data.packet;
   protos::pbzero::TracePacket::Decoder packet(blob.data(), blob.length());
   context_->track_module->ParseTrackEventData(packet, ts, data);
   context_->args_tracker->Flush();
 }
 
-void ProtoTraceParser::ParseEtwEvent(uint32_t cpu,
+void ProtoTraceParserImpl::ParseEtwEvent(uint32_t cpu,
                                      int64_t ts,
                                      TracePacketData data) {
   PERFETTO_DCHECK(context_->etw_module);
@@ -125,7 +125,7 @@ void ProtoTraceParser::ParseEtwEvent(uint32_t cpu,
   context_->args_tracker->Flush();
 }
 
-void ProtoTraceParser::ParseFtraceEvent(uint32_t cpu,
+void ProtoTraceParserImpl::ParseFtraceEvent(uint32_t cpu,
                                         int64_t ts,
                                         TracePacketData data) {
   PERFETTO_DCHECK(context_->ftrace_module);
@@ -137,7 +137,7 @@ void ProtoTraceParser::ParseFtraceEvent(uint32_t cpu,
   context_->args_tracker->Flush();
 }
 
-void ProtoTraceParser::ParseInlineSchedSwitch(uint32_t cpu,
+void ProtoTraceParserImpl::ParseInlineSchedSwitch(uint32_t cpu,
                                               int64_t ts,
                                               InlineSchedSwitch data) {
   PERFETTO_DCHECK(context_->ftrace_module);
@@ -149,7 +149,7 @@ void ProtoTraceParser::ParseInlineSchedSwitch(uint32_t cpu,
   context_->args_tracker->Flush();
 }
 
-void ProtoTraceParser::ParseInlineSchedWaking(uint32_t cpu,
+void ProtoTraceParserImpl::ParseInlineSchedWaking(uint32_t cpu,
                                               int64_t ts,
                                               InlineSchedWaking data) {
   PERFETTO_DCHECK(context_->ftrace_module);
@@ -161,7 +161,7 @@ void ProtoTraceParser::ParseInlineSchedWaking(uint32_t cpu,
   context_->args_tracker->Flush();
 }
 
-void ProtoTraceParser::ParseTraceStats(ConstBytes blob) {
+void ProtoTraceParserImpl::ParseTraceStats(ConstBytes blob) {
   protos::pbzero::TraceStats::Decoder evt(blob.data, blob.size);
   auto* storage = context_->storage.get();
   storage->SetStats(stats::traced_producers_connected,
@@ -263,7 +263,7 @@ void ProtoTraceParser::ParseTraceStats(ConstBytes blob) {
   }
 }
 
-void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
+void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   TraceStorage* storage = context_->storage.get();
   protos::pbzero::ChromeEventBundle::Decoder bundle(blob.data, blob.size);
   ArgsTracker args(context_);
@@ -348,7 +348,7 @@ void ProtoTraceParser::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   }
 }
 
-void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
+void ProtoTraceParserImpl::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
   protos::pbzero::PerfettoMetatrace::Decoder event(blob.data, blob.size);
   auto utid = context_->process_tracker->GetOrCreateThread(event.thread_id());
 
@@ -471,7 +471,7 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     context_->storage->IncrementStats(stats::metatrace_overruns);
 }
 
-StringId ProtoTraceParser::GetMetatraceInternedString(uint64_t iid) {
+StringId ProtoTraceParserImpl::GetMetatraceInternedString(uint64_t iid) {
   StringId* maybe_id = metatrace_interned_strings_.Find(iid);
   if (!maybe_id)
     return missing_metatrace_interned_string_id_;

@@ -1657,8 +1657,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_json_full",
     srcs = [
-        "src/trace_processor/importers/json/json_trace_parser.cc",
-        "src/trace_processor/importers/json/json_trace_parser.h",
+        "src/trace_processor/importers/json/json_trace_parser_impl.cc",
+        "src/trace_processor/importers/json/json_trace_parser_impl.h",
         "src/trace_processor/importers/json/json_trace_tokenizer.cc",
         "src/trace_processor/importers/json/json_trace_tokenizer.h",
     ],
@@ -1889,8 +1889,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/profile_packet_utils.cc",
         "src/trace_processor/importers/proto/profile_packet_utils.h",
         "src/trace_processor/importers/proto/proto_incremental_state.h",
-        "src/trace_processor/importers/proto/proto_trace_parser.cc",
-        "src/trace_processor/importers/proto/proto_trace_parser.h",
+        "src/trace_processor/importers/proto/proto_trace_parser_impl.cc",
+        "src/trace_processor/importers/proto/proto_trace_parser_impl.h",
         "src/trace_processor/importers/proto/proto_trace_reader.cc",
         "src/trace_processor/importers/proto/proto_trace_reader.h",
         "src/trace_processor/importers/proto/proto_trace_tokenizer.cc",
