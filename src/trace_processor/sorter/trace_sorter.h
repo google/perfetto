@@ -33,6 +33,7 @@
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
 
@@ -92,22 +93,22 @@ class TraceSorter {
     kFullSort,
   };
 
-  TraceSorter(TraceProcessorContext* context,
-              std::unique_ptr<TraceParser> parser,
-              SortingMode);
+  TraceSorter(TraceProcessorContext* context, SortingMode sorting_mode);
+
   ~TraceSorter();
 
-  inline void AddMachine(std::optional<MachineId> machine_id,
-                         std::unique_ptr<TraceParser> parser) {
-    sorter_data_by_machine_.emplace_back(machine_id, std::move(parser));
+  SortingMode sorting_mode() const { return sorting_mode_; }
+
+  inline void AddMachineContext(TraceProcessorContext* context) {
+    sorter_data_by_machine_.emplace_back(context);
   }
 
-  inline void PushTraceBlobView(
+  inline void PushPerfRecord(
       int64_t timestamp,
-      TraceBlobView tbv,
+      TraceBlobView record,
       std::optional<MachineId> machine_id = std::nullopt) {
-    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(tbv));
-    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTraceBlobView, id,
+    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(record));
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kPerfRecord, id,
                          machine_id);
   }
 
@@ -246,7 +247,7 @@ class TraceSorter {
   struct TimestampedEvent {
     enum class Type : uint8_t {
       kFtraceEvent,
-      kTraceBlobView,
+      kPerfRecord,
       kTracePacket,
       kInlineSchedSwitch,
       kInlineSchedWaking,
@@ -291,6 +292,7 @@ class TraceSorter {
              std::tie(evt.ts, evt.chunk_index, evt.chunk_offset);
     }
   };
+
   static_assert(sizeof(TimestampedEvent) == 16,
                 "TimestampedEvent must be equal to 16 bytes");
   static_assert(std::is_trivially_copyable<TimestampedEvent>::value,
@@ -385,9 +387,14 @@ class TraceSorter {
     append_max_ts_ = std::max(append_max_ts_, queue->max_ts_);
   }
 
-  void ParseTracePacket(TraceParser*, const TimestampedEvent&);
-  void ParseFtracePacket(TraceParser*, uint32_t cpu, const TimestampedEvent&);
-  void ParseEtwPacket(TraceParser*, uint32_t cpu, const TimestampedEvent&);
+  void ParseTracePacket(TraceProcessorContext& context,
+                        const TimestampedEvent&);
+  void ParseFtracePacket(TraceProcessorContext& context,
+                         uint32_t cpu,
+                         const TimestampedEvent&);
+  void ParseEtwPacket(TraceProcessorContext& context,
+                      uint32_t cpu,
+                      const TimestampedEvent&);
 
   void MaybeExtractEvent(size_t machine_idx,
                          size_t queue_idx,
@@ -399,23 +406,23 @@ class TraceSorter {
   }
 
   struct TraceSorterData {
-    TraceSorterData(std::optional<MachineId> _machine_id,
-                    std::unique_ptr<TraceParser> _parser)
-        : machine_id(_machine_id), parser(std::move(_parser)) {}
+    explicit TraceSorterData(TraceProcessorContext* _machine_context)
+        : machine_id(_machine_context->machine_id()),
+          machine_context(_machine_context) {}
     std::optional<MachineId> machine_id;
-    std::unique_ptr<TraceParser> parser;
     // queues_[0] is the general (non-ftrace) queue.
     // queues_[1] is the ftrace queue for CPU(0).
     // queues_[x] is the ftrace queue for CPU(x - 1).
+    TraceProcessorContext* machine_context;
     std::vector<Queue> queues;
   };
   std::vector<TraceSorterData> sorter_data_by_machine_;
 
-  TraceProcessorContext* context_ = nullptr;
-
   // Whether we should ignore incremental extraction and just wait for
   // forced extractionn at the end of the trace.
   SortingMode sorting_mode_ = SortingMode::kDefault;
+
+  std::shared_ptr<TraceStorage> storage_;
 
   // Buffer for storing tokenized objects while the corresponding events are
   // being sorted.

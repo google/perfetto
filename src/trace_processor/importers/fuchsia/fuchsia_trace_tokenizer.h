@@ -32,6 +32,7 @@ class TraceProcessorContext;
 // https://fuchsia.googlesource.com/fuchsia/+/HEAD/docs/development/tracing/trace-format/README.md
 class FuchsiaTraceTokenizer : public ChunkedTraceReader {
  public:
+  static constexpr TraceType kTraceType = TraceType::kFuchsiaTraceType;
   explicit FuchsiaTraceTokenizer(TraceProcessorContext*);
   ~FuchsiaTraceTokenizer() override;
 

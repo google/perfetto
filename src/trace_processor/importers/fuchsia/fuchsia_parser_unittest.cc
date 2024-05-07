@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 
@@ -34,7 +35,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
-#include "src/trace_processor/importers/proto/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -253,8 +254,10 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.clock_tracker.reset(new ClockTracker(&context_));
     clock_ = context_.clock_tracker.get();
     context_.flow_tracker.reset(new FlowTracker(&context_));
-    context_.sorter.reset(new TraceSorter(&context_, CreateParser(),
-                                          TraceSorter::SortingMode::kFullSort));
+    context_.fuchsia_record_parser.reset(new FuchsiaTraceParser(&context_));
+    context_.proto_trace_parser.reset(new ProtoTraceParserImpl(&context_));
+    context_.sorter.reset(
+        new TraceSorter(&context_, TraceSorter::SortingMode::kFullSort));
     context_.descriptor_pool_.reset(new DescriptorPool());
 
     RegisterDefaultModules(&context_);
@@ -285,9 +288,6 @@ class FuchsiaTraceParserTest : public ::testing::Test {
 
  protected:
   std::vector<uint64_t> trace_bytes_;
-  std::unique_ptr<TraceParser> CreateParser() {
-    return std::unique_ptr<TraceParser>(new FuchsiaTraceParser(&context_));
-  }
 
   TraceProcessorContext context_;
   MockEventTracker* event_;

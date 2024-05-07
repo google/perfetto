@@ -19,7 +19,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -82,8 +81,7 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
 
           // JSON traces have no guarantees about the order of events in them.
           context_->sorter.reset(
-              new TraceSorter(context_, std::move(context_->json_trace_parser),
-                              TraceSorter::SortingMode::kFullSort));
+              new TraceSorter(context_, TraceSorter::SortingMode::kFullSort));
           break;
         }
         return base::ErrStatus("JSON support is disabled");
@@ -92,10 +90,7 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
         PERFETTO_DLOG("Proto trace detected");
         auto sorting_mode = ConvertSortingMode(context_->config.sorting_mode);
         reader_.reset(new ProtoTraceReader(context_));
-        context_->sorter.reset(new TraceSorter(
-            context_,
-            std::unique_ptr<TraceParser>(new ProtoTraceParser(context_)),
-            sorting_mode));
+        context_->sorter.reset(new TraceSorter(context_, sorting_mode));
         context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
         break;
       }
@@ -109,14 +104,13 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
       }
       case kFuchsiaTraceType: {
         PERFETTO_DLOG("Fuchsia trace detected");
-        if (context_->fuchsia_trace_parser &&
+        if (context_->fuchsia_record_parser &&
             context_->fuchsia_trace_tokenizer) {
           reader_ = std::move(context_->fuchsia_trace_tokenizer);
 
           // Fuschia traces can have massively out of order events.
-          context_->sorter.reset(new TraceSorter(
-              context_, std::move(context_->fuchsia_trace_parser),
-              TraceSorter::SortingMode::kFullSort));
+          context_->sorter.reset(
+              new TraceSorter(context_, TraceSorter::SortingMode::kFullSort));
           break;
         }
         return base::ErrStatus("Fuchsia support is disabled");
@@ -151,11 +145,11 @@ base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
                                kNoZlibErr);
       case kPerfDataTraceType:
         PERFETTO_DLOG("perf data detected");
-        if (context_->perf_data_trace_tokenizer && context_->perf_data_parser) {
+        if (context_->perf_data_trace_tokenizer &&
+            context_->perf_record_parser) {
           reader_ = std::move(context_->perf_data_trace_tokenizer);
           context_->sorter.reset(
-              new TraceSorter(context_, std::move(context_->perf_data_parser),
-                              TraceSorter::SortingMode::kDefault));
+              new TraceSorter(context_, TraceSorter::SortingMode::kDefault));
           break;
         }
         return base::ErrStatus("perf.data parsing support is disabled.");
