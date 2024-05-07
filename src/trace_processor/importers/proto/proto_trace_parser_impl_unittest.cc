@@ -34,7 +34,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_sched_event_tracker.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
-#include "src/trace_processor/importers/proto/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -271,7 +271,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     clock_ = new ClockTracker(&context_);
     context_.clock_tracker.reset(clock_);
     context_.flow_tracker.reset(new FlowTracker(&context_));
-    context_.sorter.reset(new TraceSorter(&context_, CreateParser(),
+    context_.proto_trace_parser.reset(new ProtoTraceParserImpl(&context_));
+    context_.sorter.reset(new TraceSorter(&context_,
                                           TraceSorter::SortingMode::kFullSort));
     context_.descriptor_pool_.reset(new DescriptorPool());
 
@@ -315,10 +316,6 @@ class ProtoTraceParserTest : public ::testing::Test {
   }
 
  protected:
-  std::unique_ptr<TraceParser> CreateParser() {
-    return std::unique_ptr<TraceParser>(new ProtoTraceParser(&context_));
-  }
-
   protozero::HeapBuffered<protos::pbzero::Trace> trace_;
   TraceProcessorContext context_;
   MockEventTracker* event_;
