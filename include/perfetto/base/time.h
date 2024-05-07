@@ -40,8 +40,6 @@
 #if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
 #if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
 #include <intrin.h>
-#else
-#include <x86intrin.h>
 #endif
 #endif
 
@@ -282,7 +280,15 @@ inline int64_t MkTime(int year, int month, int day, int h, int m, int s) {
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ARCH_CPU_X86_64)
 inline uint64_t Rdtsc() {
+#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
   return static_cast<uint64_t>(__rdtsc());
+#else
+  // Use inline asm for clang and gcc: rust ffi bindgen crashes in using
+  // intrinsics on ChromeOS.
+  uint64_t low, high;
+  __asm__ volatile("rdtsc" : "=a"(low), "=d"(high));
+  return (high << 32) | low;
+#endif
 }
 #endif
 
