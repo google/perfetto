@@ -38,6 +38,7 @@ cc_test {
     "liblog",
   ],
   test_suites: [
+    "cts",
     "mts-art",
     "vts10",
     "general-tests",
