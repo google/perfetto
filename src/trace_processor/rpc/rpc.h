@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
@@ -81,8 +82,11 @@ class Rpc {
   // with Wasm, where size_t = uint32_t.
   // (nullptr, 0) has the semantic of "close the channel" and is issued when an
   // unrecoverable wire-protocol framing error is detected.
-  using RpcResponseFunction = void (*)(const void* /*data*/, uint32_t /*len*/);
-  void SetRpcResponseFunction(RpcResponseFunction f) { rpc_response_fn_ = f; }
+  using RpcResponseFunction =
+      std::function<void(const void* /*data*/, uint32_t /*len*/)>;
+  void SetRpcResponseFunction(RpcResponseFunction f) {
+    rpc_response_fn_ = std::move(f);
+  }
 
   // 2. TraceProcessor legacy RPC endpoints.
   // The methods below are exposed for the old RPC interfaces, where each RPC
