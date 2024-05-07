@@ -4658,7 +4658,7 @@ perfetto_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/android:winscope_common:source_set
+# GN target: //protos/perfetto/trace/android:winscope_common_source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_winscope_common_protos",
     srcs = [
@@ -4671,7 +4671,7 @@ perfetto_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/android:winscope_common:zero
+# GN target: //protos/perfetto/trace/android:winscope_common_zero
 perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_android_winscope_common_zero",
     deps = [
@@ -4691,7 +4691,7 @@ perfetto_proto_descriptor(
     ],
 )
 
-# GN target: //protos/perfetto/trace/android:winscope_extensions:source_set
+# GN target: //protos/perfetto/trace/android:winscope_extensions_source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_winscope_extensions_protos",
     srcs = [
@@ -4730,7 +4730,7 @@ perfetto_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/android:winscope_extensions:zero
+# GN target: //protos/perfetto/trace/android:winscope_extensions_zero
 perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_android_winscope_extensions_zero",
     deps = [
@@ -4739,7 +4739,7 @@ perfetto_cc_protozero_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/android:winscope_regular:source_set
+# GN target: //protos/perfetto/trace/android:winscope_regular_source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_winscope_regular_protos",
     srcs = [
@@ -4758,7 +4758,7 @@ perfetto_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/trace/android:winscope_regular:zero
+# GN target: //protos/perfetto/trace/android:winscope_regular_zero
 perfetto_cc_protozero_library(
     name = "protos_perfetto_trace_android_winscope_regular_zero",
     deps = [
