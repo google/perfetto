@@ -47,8 +47,8 @@ export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
   ids: Float64Array;
-  starts: BigInt64Array;
-  ends: BigInt64Array;
+  startQs: BigInt64Array;
+  endQs: BigInt64Array;
   utids: Uint32Array;
   flags: Uint8Array;
   lastRowId: number;
@@ -112,8 +112,8 @@ class CpuSliceTrack implements Track {
 
     const queryRes = await this.engine.query(`
       select
-        (z.ts / ${resolution}) * ${resolution} as ts,
-        max(z.dur, ${resolution}) as dur,
+        (z.ts / ${resolution}) * ${resolution} as tsQ,
+        (((z.ts + z.dur) / ${resolution}) + 1) * ${resolution} as tsEndQ,
         s.utid,
         s.id,
         s.dur = -1 as isIncomplete,
@@ -130,26 +130,23 @@ class CpuSliceTrack implements Track {
       length: numRows,
       lastRowId: this.lastRowId,
       ids: new Float64Array(numRows),
-      starts: new BigInt64Array(numRows),
-      ends: new BigInt64Array(numRows),
+      startQs: new BigInt64Array(numRows),
+      endQs: new BigInt64Array(numRows),
       utids: new Uint32Array(numRows),
       flags: new Uint8Array(numRows),
     };
 
     const it = queryRes.iter({
-      ts: LONG,
-      dur: LONG,
+      tsQ: LONG,
+      tsEndQ: LONG,
       utid: NUM,
       id: NUM,
       isIncomplete: NUM,
       isRealtime: NUM,
     });
     for (let row = 0; it.valid(); it.next(), row++) {
-      const start = it.ts;
-      const dur = it.dur;
-
-      slices.starts[row] = start;
-      slices.ends[row] = start + dur;
+      slices.startQs[row] = it.tsQ;
+      slices.endQs[row] = it.tsEndQ;
       slices.utids[row] = it.utid;
       slices.ids[row] = it.id;
 
@@ -201,8 +198,8 @@ class CpuSliceTrack implements Track {
   renderSlices(ctx: CanvasRenderingContext2D, data: Data): void {
     const {visibleTimeScale, visibleTimeSpan, visibleWindowTime} =
       globals.timeline;
-    assertTrue(data.starts.length === data.ends.length);
-    assertTrue(data.starts.length === data.utids.length);
+    assertTrue(data.startQs.length === data.endQs.length);
+    assertTrue(data.startQs.length === data.utids.length);
 
     const visWindowEndPx = visibleTimeScale.hpTimeToPx(visibleWindowTime.end);
 
@@ -213,15 +210,15 @@ class CpuSliceTrack implements Track {
     const startTime = visibleTimeSpan.start;
     const endTime = visibleTimeSpan.end;
 
-    const rawStartIdx = data.ends.findIndex((end) => end >= startTime);
+    const rawStartIdx = data.endQs.findIndex((end) => end >= startTime);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
 
-    const [, rawEndIdx] = searchSegment(data.starts, endTime);
-    const endIdx = rawEndIdx === -1 ? data.starts.length : rawEndIdx;
+    const [, rawEndIdx] = searchSegment(data.startQs, endTime);
+    const endIdx = rawEndIdx === -1 ? data.startQs.length : rawEndIdx;
 
     for (let i = startIdx; i < endIdx; i++) {
-      const tStart = Time.fromRaw(data.starts[i]);
-      let tEnd = Time.fromRaw(data.ends[i]);
+      const tStart = Time.fromRaw(data.startQs[i]);
+      let tEnd = Time.fromRaw(data.endQs[i]);
       const utid = data.utids[i];
 
       // If the last slice is incomplete, it should end with the end of the
@@ -320,8 +317,8 @@ class CpuSliceTrack implements Track {
     if (selection !== null && selection.kind === 'SLICE') {
       const [startIndex, endIndex] = searchEq(data.ids, selection.id);
       if (startIndex !== endIndex) {
-        const tStart = Time.fromRaw(data.starts[startIndex]);
-        const tEnd = Time.fromRaw(data.ends[startIndex]);
+        const tStart = Time.fromRaw(data.startQs[startIndex]);
+        const tEnd = Time.fromRaw(data.endQs[startIndex]);
         const utid = data.utids[startIndex];
         const color = colorForThread(globals.threads.get(utid));
         const rectStart = visibleTimeScale.timeToPx(tStart);
@@ -413,9 +410,9 @@ class CpuSliceTrack implements Track {
     const t = visibleTimeScale.pxToHpTime(pos.x);
     let hoveredUtid = -1;
 
-    for (let i = 0; i < data.starts.length; i++) {
-      const tStart = Time.fromRaw(data.starts[i]);
-      const tEnd = Time.fromRaw(data.ends[i]);
+    for (let i = 0; i < data.startQs.length; i++) {
+      const tStart = Time.fromRaw(data.startQs[i]);
+      const tEnd = Time.fromRaw(data.endQs[i]);
       const utid = data.utids[i];
       if (t.gte(tStart) && t.lt(tEnd)) {
         hoveredUtid = utid;
@@ -442,7 +439,7 @@ class CpuSliceTrack implements Track {
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);
-    const index = search(data.starts, time.toTime());
+    const index = search(data.startQs, time.toTime());
     const id = index === -1 ? undefined : data.ids[index];
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!id || this.utidHoveredInThisTrack === -1) return false;
