@@ -792,12 +792,20 @@ class TrackDecider {
 
   async addUserAsyncSliceTracks(engine: EngineProxy): Promise<void> {
     const result = await engine.query(`
+      with grouped_packages as materialized (
+        select
+          uid,
+          group_concat(package_name, ',') as package_name,
+          count() as cnt
+        from package_list
+        group by uid
+      )
       select
         t.name as name,
         t.uid as uid,
-        package_list.package_name as packageName
+        iif(g.cnt = 1, g.package_name, 'UID ' || g.uid) as packageName
       from _uid_track_track_summary_by_uid_and_name t
-      join package_list using (uid)
+      join grouped_packages g using (uid)
     `);
 
     const it = result.iter({
