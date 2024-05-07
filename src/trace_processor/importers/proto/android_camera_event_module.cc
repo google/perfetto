@@ -17,16 +17,17 @@
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
 
 #include "perfetto/ext/base/string_utils.h"
-#include "protos/perfetto/trace/android/camera_event.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
+
+#include "protos/perfetto/trace/android/camera_event.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -45,7 +46,7 @@ ModuleResult AndroidCameraEventModule::TokenizePacket(
     const protos::pbzero::TracePacket::Decoder& decoder,
     TraceBlobView* packet,
     int64_t /*packet_timestamp*/,
-    PacketSequenceState* state,
+    RefPtr<PacketSequenceStateGeneration> state,
     uint32_t field_id) {
   if (field_id != TracePacket::kAndroidCameraFrameEventFieldNumber) {
     return ModuleResult::Ignored();
@@ -55,7 +56,7 @@ ModuleResult AndroidCameraEventModule::TokenizePacket(
           decoder.android_camera_frame_event());
   context_->sorter->PushTracePacket(
       android_camera_frame_event.request_processing_started_ns(),
-      state->current_generation(), std::move(*packet), context_->machine_id());
+      std::move(state), std::move(*packet), context_->machine_id());
   return ModuleResult::Handled();
 }
 
