@@ -636,5 +636,14 @@ void BM_QEDistinctSortedWithArrangement(benchmark::State& state) {
 }
 BENCHMARK(BM_QEDistinctSortedWithArrangement);
 
+void BM_QEOffsetLimit(benchmark::State& state) {
+  FtraceEventTableForBenchmark table(state);
+  Query q;
+  q.limit = 10;
+  q.offset = 100;
+  BenchmarkFtraceEventTableQuery(state, table, q);
+}
+BENCHMARK(BM_QEOffsetLimit);
+
 }  // namespace
 }  // namespace perfetto::trace_processor

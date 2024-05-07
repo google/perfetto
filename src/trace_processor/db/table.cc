@@ -107,69 +107,26 @@ RowMap Table::QueryToRowMap(const Query& q) const {
   // Apply the query constraints.
   RowMap rm = QueryExecutor::FilterLegacy(this, q.constraints);
 
-  const auto& ob = q.orders;
-
-  // If the `orders` is empty, there is no need to sort or run DISTINCT.
-  if (ob.empty()) {
-    PERFETTO_DCHECK(q.distinct == Query::OrderType::kSort);
-    return rm;
-  }
-
   if (q.distinct != Query::OrderType::kSort) {
-    // `q.orders` should be treated here only as information on what should we
-    // run distinct on, they should not be used for subsequent sorting.
-    // TODO(mayzner): Remove the check after we implement the multi column
-    // distinct.
-    PERFETTO_DCHECK(ob.size() == 1);
-
-    std::vector<uint32_t> table_indices = std::move(rm).TakeAsIndexVector();
-
-    auto indices = Indices::Create(table_indices, Indices::State::kMonotonic);
-    ChainForColumn(ob.front().col_idx).Distinct(indices);
-
-    PERFETTO_DCHECK(indices.tokens.size() <= table_indices.size());
-    for (uint32_t i = 0; i < indices.tokens.size(); ++i) {
-      table_indices[i] = indices.tokens[i].payload;
-    }
-    table_indices.resize(indices.tokens.size());
-
-    if (q.distinct == Query::OrderType::kDistinct) {
-      return RowMap(std::move(table_indices));
-    }
-    PERFETTO_DCHECK(q.distinct == Query::OrderType::kDistinctAndSort);
-
-    // Sorting that happens later might require indices to preserve ordering.
-    // TODO(mayzner): Needs to be changed after implementing multi column
-    // distinct.
-    std::sort(table_indices.begin(), table_indices.end());
-    rm = RowMap(std::move(table_indices));
+    ApplyDistinct(q, &rm);
   }
 
-  // We don't need to sort for `kUnsorted`, as the `q.orders` were only as
-  // information about which column should we run distinct on.
-  if (q.distinct == Query::OrderType::kDistinct) {
+  if (q.distinct != Query::OrderType::kDistinct && !q.orders.empty()) {
+    ApplySort(q, &rm);
+  }
+
+  if (!q.limit.has_value() && q.offset == 0) {
     return rm;
   }
 
-  // Return the RowMap directly if there is a single constraint to sort the
-  // table by a column which is already sorted.
-  const auto& first_col = columns_[ob.front().col_idx];
-  if (ob.size() == 1 && first_col.IsSorted() && !ob.front().desc)
-    return rm;
+  uint32_t end = rm.size();
+  uint32_t start = std::min(q.offset, end);
 
-  // Build an index vector with all the indices for the first |size_| rows.
-  std::vector<uint32_t> idx = std::move(rm).TakeAsIndexVector();
-  if (ob.size() == 1 && first_col.IsSorted()) {
-    // We special case a single constraint in descending order as this
-    // happens any time the |max| function is used in SQLite. We can be
-    // more efficient as this column is already sorted so we simply need
-    // to reverse the order of this column.
-    PERFETTO_DCHECK(ob.front().desc);
-    std::reverse(idx.begin(), idx.end());
-  } else {
-    QueryExecutor::SortLegacy(this, ob, idx);
+  if (q.limit) {
+    end = std::min(end, *q.limit + q.offset);
   }
-  return RowMap(std::move(idx));
+
+  return rm.SelectRows(RowMap(start, end));
 }
 
 Table Table::Sort(const std::vector<Order>& ob) const {
@@ -248,6 +205,60 @@ void Table::CreateChains() const {
           column::DataLayer::ChainCreationArgs{columns_[i].IsSorted()});
     }
   }
+}
+
+void Table::ApplyDistinct(const Query& q, RowMap* rm) const {
+  auto& ob = q.orders;
+  PERFETTO_DCHECK(!ob.empty());
+
+  // `q.orders` should be treated here only as information on what should we
+  // run distinct on, they should not be used for subsequent sorting.
+  // TODO(mayzner): Remove the check after we implement the multi column
+  // distinct.
+  PERFETTO_DCHECK(ob.size() == 1);
+
+  std::vector<uint32_t> table_indices = std::move(*rm).TakeAsIndexVector();
+  auto indices = Indices::Create(table_indices, Indices::State::kMonotonic);
+  ChainForColumn(ob.front().col_idx).Distinct(indices);
+  PERFETTO_DCHECK(indices.tokens.size() <= table_indices.size());
+
+  for (uint32_t i = 0; i < indices.tokens.size(); ++i) {
+    table_indices[i] = indices.tokens[i].payload;
+  }
+  table_indices.resize(indices.tokens.size());
+
+  // Sorting that happens later might require indices to preserve ordering.
+  // TODO(mayzner): Needs to be changed after implementing multi column
+  // distinct.
+  if (q.distinct == Query::OrderType::kDistinctAndSort) {
+    std::sort(table_indices.begin(), table_indices.end());
+  }
+
+  *rm = RowMap(std::move(table_indices));
+}
+
+void Table::ApplySort(const Query& q, RowMap* rm) const {
+  const auto& ob = q.orders;
+  // Return the RowMap directly if there is a single constraint to sort the
+  // table by a column which is already sorted.
+  const auto& first_col = columns_[ob.front().col_idx];
+  if (ob.size() == 1 && first_col.IsSorted() && !ob.front().desc)
+    return;
+
+  // Build an index vector with all the indices for the first |size_| rows.
+  std::vector<uint32_t> idx = std::move(*rm).TakeAsIndexVector();
+  if (ob.size() == 1 && first_col.IsSorted()) {
+    // We special case a single constraint in descending order as this
+    // happens any time the |max| function is used in SQLite. We can be
+    // more efficient as this column is already sorted so we simply need
+    // to reverse the order of this column.
+    PERFETTO_DCHECK(ob.front().desc);
+    std::reverse(idx.begin(), idx.end());
+  } else {
+    QueryExecutor::SortLegacy(this, ob, idx);
+  }
+
+  *rm = RowMap(std::move(idx));
 }
 
 }  // namespace perfetto::trace_processor
