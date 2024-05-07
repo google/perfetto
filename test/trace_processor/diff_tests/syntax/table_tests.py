@@ -83,7 +83,7 @@ class PerfettoTable(TestSuite):
 
   def test_perfetto_table_info_runtime_table(self):
     return DiffTestBlueprint(
-        trace=DataPath('android_boot.pftrace'),
+        trace=TextProto(''),
         query="""
         CREATE PERFETTO TABLE foo AS
         SELECT * FROM
@@ -134,7 +134,7 @@ class PerfettoTable(TestSuite):
 
   def test_create_perfetto_table_id_column(self):
     return DiffTestBlueprint(
-        trace=DataPath('android_boot.pftrace'),
+        trace=TextProto(''),
         query="""
         CREATE PERFETTO TABLE foo AS
         SELECT 2 AS c
@@ -176,4 +176,78 @@ class PerfettoTable(TestSuite):
         out=Csv("""
         "name","depth","parent_id","cpu_from_ftrace"
         3073,8,4529,8
+        """))
+
+  def test_limit(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        WITH data(a, b) AS (
+          VALUES
+            (0, 1),
+            (1, 10),
+            (2, 20),
+            (3, 30),
+            (4, 40),
+            (5, 50)
+        )
+        SELECT * FROM data LIMIT 3;
+        """,
+        out=Csv("""
+        "a","b"
+        0,1
+        1,10
+        2,20
+        """))
+
+  def test_limit_and_offset_in_bounds(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        WITH data(a, b) AS (
+          VALUES
+            (0, 1),
+            (1, 10),
+            (2, 20),
+            (3, 30),
+            (4, 40),
+            (5, 50),
+            (6, 60),
+            (7, 70),
+            (8, 80),
+            (9, 90)
+        )
+        SELECT * FROM data LIMIT 2 OFFSET 3;
+        """,
+        out=Csv("""
+        "a","b"
+        3,30
+        4,40
+        """))
+
+  def test_limit_and_offset_not_in_bounds(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        WITH data(a, b) AS (
+          VALUES
+            (0, 1),
+            (1, 10),
+            (2, 20),
+            (3, 30),
+            (4, 40),
+            (5, 50),
+            (6, 60),
+            (7, 70),
+            (8, 80),
+            (9, 90)
+        )
+        SELECT * FROM data LIMIT 5 OFFSET 6;
+        """,
+        out=Csv("""
+        "a","b"
+        6,60
+        7,70
+        8,80
+        9,90
         """))

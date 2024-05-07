@@ -17,6 +17,7 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_TYPES_H_
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -115,6 +116,12 @@ struct Query {
   // Query order bys. Check distinct to know whether they should be used for
   // sorting.
   std::vector<Order> orders;
+
+  // LIMIT value.
+  std::optional<uint32_t> limit;
+
+  // OFFSET value. Can be "!= 0" only if `limit` has value.
+  uint32_t offset = 0;
 };
 
 // The enum type of the column.

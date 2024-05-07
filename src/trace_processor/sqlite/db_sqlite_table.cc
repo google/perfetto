@@ -156,21 +156,24 @@ int SqliteValueToSqlValueChecked(SqlValue* sql_val,
   return SQLITE_OK;
 }
 
-int ReadIdxStr(DbSqliteModule::Cursor* cursor,
-               const char* idx_str,
-               sqlite3_value** argv) {
+inline uint32_t ReadLetterAndInt(char letter, base::StringSplitter* splitter) {
+  PERFETTO_CHECK(splitter->Next());
+  PERFETTO_DCHECK(splitter->cur_token_size() >= 2);
+  PERFETTO_DCHECK(splitter->cur_token()[0] == letter);
+  return *base::CStringToUInt32(splitter->cur_token() + 1);
+}
+
+int ReadIdxStrAndUpdateCursor(DbSqliteModule::Cursor* cursor,
+                              const char* idx_str,
+                              sqlite3_value** argv) {
   base::StringSplitter splitter(idx_str, ',');
 
-  PERFETTO_CHECK(splitter.Next());
-  PERFETTO_DCHECK(splitter.cur_token_size() >= 2);
-  PERFETTO_DCHECK(splitter.cur_token()[0] == 'C');
+  uint32_t cs_count = ReadLetterAndInt('C', &splitter);
 
   Query q;
-
-  uint32_t cs_count = *base::CStringToUInt32(splitter.cur_token() + 1);
-  uint32_t c_offset = 0;
   q.constraints.resize(cs_count);
 
+  uint32_t c_offset = 0;
   for (auto& cs : q.constraints) {
     PERFETTO_CHECK(splitter.Next());
     cs.col_idx = *base::CStringToUInt32(splitter.cur_token());
@@ -184,11 +187,7 @@ int ReadIdxStr(DbSqliteModule::Cursor* cursor,
     }
   }
 
-  PERFETTO_CHECK(splitter.Next());
-  PERFETTO_DCHECK(splitter.cur_token_size() >= 2);
-  PERFETTO_DCHECK(splitter.cur_token()[0] == 'O');
-
-  uint32_t ob_count = *base::CStringToUInt32(splitter.cur_token() + 1);
+  uint32_t ob_count = ReadLetterAndInt('O', &splitter);
 
   q.orders.resize(ob_count);
   for (auto& ob : q.orders) {
@@ -198,11 +197,28 @@ int ReadIdxStr(DbSqliteModule::Cursor* cursor,
     ob.desc = *base::CStringToUInt32(splitter.cur_token());
   }
 
-  PERFETTO_CHECK(splitter.Next());
-  PERFETTO_DCHECK(splitter.cur_token_size() == 2);
-  PERFETTO_DCHECK(splitter.cur_token()[0] == 'D');
-  q.distinct = static_cast<Query::OrderType>(
-      *base::CStringToUInt32(splitter.cur_token() + 1));
+  // DISTINCT
+  q.distinct = static_cast<Query::OrderType>(ReadLetterAndInt('D', &splitter));
+
+  // LIMIT
+  if (ReadLetterAndInt('L', &splitter)) {
+    auto val_op = sqlite::utils::SqliteValueToSqlValue(argv[c_offset++]);
+    if (val_op.type != SqlValue::kLong) {
+      return sqlite::utils::SetError(cursor->pVtab,
+                                     "LIMIT value has to be an INT");
+    }
+    q.limit = val_op.AsLong();
+  }
+
+  // OFFSET
+  if (ReadLetterAndInt('O', &splitter)) {
+    auto val_op = sqlite::utils::SqliteValueToSqlValue(argv[c_offset++]);
+    if (val_op.type != SqlValue::kLong) {
+      return sqlite::utils::SetError(cursor->pVtab,
+                                     "OFFSET value has to be an INT");
+    }
+    q.offset = static_cast<uint32_t>(val_op.AsLong());
+  }
 
   cursor->query = std::move(q);
   return SQLITE_OK;
@@ -424,6 +440,13 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   }
 
   std::vector<int> cs_idxes;
+
+  // Limit and offset are a nonstandard type of constraint. We can check if they
+  // are present in the query here, but we won't save them as standard
+  // constraints and only add them to `idx_str` later.
+  int limit = -1;
+  int offset = -1;
+
   cs_idxes.reserve(static_cast<uint32_t>(info->nConstraint));
   for (int i = 0; i < info->nConstraint; ++i) {
     const auto& c = info->aConstraint[i];
@@ -431,6 +454,11 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
       continue;
     }
     if (std::optional<FilterOp> opt_op = SqliteOpToFilterOp(c.op); !opt_op) {
+      if (c.op == SQLITE_INDEX_CONSTRAINT_LIMIT) {
+        limit = i;
+      } else if (c.op == SQLITE_INDEX_CONSTRAINT_OFFSET) {
+        offset = i;
+      }
       continue;
     }
     cs_idxes.push_back(i);
@@ -502,10 +530,13 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   // and D (distinct). It can be directly mapped into `Query` type. The number
   // after C and O signifies how many constraints/orders there are. The number
   // after D maps to the Query::Distinct enum value.
-  // "C2,0,0,2,1,O1,0,1,D1" maps to:
-  // - two constraints: kEq on first column and kNe on third column
-  // - one order by: descending on first column
-  // - kUnsorted distinct.
+  // "C2,0,0,2,1,O1,0,1,D1,L0,O1" maps to:
+  // - "C2,0,0,2,1" - two constraints: kEq on first column and kNe on third
+  //   column.
+  // - "O1,0,1" - one order by: descending on first column.
+  // - "D1" - kUnsorted distinct.
+  // - "L1" - LIMIT set. "L0" if no limit.
+  // - "O1" - OFFSET set. Can only be set if "L1".
 
   // Constraints:
   std::string idx_str = "C";
@@ -560,6 +591,30 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
     // TODO(mayzner): Remove this if condition after implementing multicolumn
     // distinct.
     idx_str += std::to_string(static_cast<int>(Query::OrderType::kSort));
+  }
+  idx_str += ",";
+
+  // LIMIT. Save as "L1" if limit is present and "L0" if not.
+  idx_str += "L";
+  if (limit == -1) {
+    idx_str += "0";
+  } else {
+    auto& o = info->aConstraintUsage[limit];
+    o.omit = true;
+    o.argvIndex = argv_index++;
+    idx_str += "1";
+  }
+  idx_str += ",";
+
+  // OFFSET. Save as "O1" if offset is present and "O0" if not.
+  idx_str += "O";
+  if (offset == -1) {
+    idx_str += "0";
+  } else {
+    auto& o = info->aConstraintUsage[offset];
+    o.omit = true;
+    o.argvIndex = argv_index++;
+    idx_str += "1";
   }
 
   info->idxStr = sqlite3_mprintf("%s", idx_str.c_str());
@@ -627,7 +682,8 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
       }
     }
   } else {
-    if (int r = ReadIdxStr(c, idx_str, argv + offset); r != SQLITE_OK) {
+    if (int r = ReadIdxStrAndUpdateCursor(c, idx_str, argv + offset);
+        r != SQLITE_OK) {
       return r;
     }
     c->last_idx_num = idx_num;
