@@ -5629,7 +5629,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_common:cpp
+// GN: //protos/perfetto/trace/android:winscope_common_cpp
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_cpp",
     srcs: [
@@ -5639,7 +5639,7 @@ filegroup {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_common:cpp
+// GN: //protos/perfetto/trace/android:winscope_common_cpp
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_cpp_gen",
     srcs: [
@@ -5657,7 +5657,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_common:cpp
+// GN: //protos/perfetto/trace/android:winscope_common_cpp
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_cpp_gen_headers",
     srcs: [
@@ -5679,7 +5679,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_common:lite
+// GN: //protos/perfetto/trace/android:winscope_common_lite
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_lite",
     srcs: [
@@ -5689,7 +5689,7 @@ filegroup {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_common:lite
+// GN: //protos/perfetto/trace/android:winscope_common_lite
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_lite_gen",
     srcs: [
@@ -5706,7 +5706,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_common:lite
+// GN: //protos/perfetto/trace/android:winscope_common_lite
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_lite_gen_headers",
     srcs: [
@@ -5727,7 +5727,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_common:zero
+// GN: //protos/perfetto/trace/android:winscope_common_zero
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_zero",
     srcs: [
@@ -5737,7 +5737,7 @@ filegroup {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_common:zero
+// GN: //protos/perfetto/trace/android:winscope_common_zero
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_zero_gen",
     srcs: [
@@ -5755,7 +5755,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_common:zero
+// GN: //protos/perfetto/trace/android:winscope_common_zero
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_common_zero_gen_headers",
     srcs: [
@@ -5841,7 +5841,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_extensions:zero
+// GN: //protos/perfetto/trace/android:winscope_extensions_zero
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_winscope_extensions_zero",
     srcs: [
@@ -5871,7 +5871,7 @@ filegroup {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_extensions:zero
+// GN: //protos/perfetto/trace/android:winscope_extensions_zero
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_extensions_zero_gen",
     srcs: [
@@ -5911,7 +5911,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_extensions:zero
+// GN: //protos/perfetto/trace/android:winscope_extensions_zero
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_extensions_zero_gen_headers",
     srcs: [
@@ -5955,7 +5955,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_regular:cpp
+// GN: //protos/perfetto/trace/android:winscope_regular_cpp
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_winscope_regular_cpp",
     srcs: [
@@ -5967,7 +5967,7 @@ filegroup {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_regular:cpp
+// GN: //protos/perfetto/trace/android:winscope_regular_cpp
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_regular_cpp_gen",
     srcs: [
@@ -5989,7 +5989,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_regular:cpp
+// GN: //protos/perfetto/trace/android:winscope_regular_cpp
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_regular_cpp_gen_headers",
     srcs: [
@@ -6015,7 +6015,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_regular:lite
+// GN: //protos/perfetto/trace/android:winscope_regular_lite
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_winscope_regular_lite",
     srcs: [
@@ -6027,7 +6027,7 @@ filegroup {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_regular:lite
+// GN: //protos/perfetto/trace/android:winscope_regular_lite
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_regular_lite_gen",
     srcs: [
@@ -6048,7 +6048,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_regular:lite
+// GN: //protos/perfetto/trace/android:winscope_regular_lite
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_regular_lite_gen_headers",
     srcs: [
@@ -6073,7 +6073,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_regular:zero
+// GN: //protos/perfetto/trace/android:winscope_regular_zero
 filegroup {
     name: "perfetto_protos_perfetto_trace_android_winscope_regular_zero",
     srcs: [
@@ -6085,7 +6085,7 @@ filegroup {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_regular:zero
+// GN: //protos/perfetto/trace/android:winscope_regular_zero
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_regular_zero_gen",
     srcs: [
@@ -6107,7 +6107,7 @@ genrule {
     ],
 }
 
-// GN: //protos/perfetto/trace/android:winscope_regular:zero
+// GN: //protos/perfetto/trace/android:winscope_regular_zero
 genrule {
     name: "perfetto_protos_perfetto_trace_android_winscope_regular_zero_gen_headers",
     srcs: [
@@ -15594,7 +15594,7 @@ cc_library_static {
     ],
 }
 
-// GN: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace/android:winscope_extensions:source_set]
+// GN: [//protos/perfetto/trace:non_minimal_source_set, //protos/perfetto/trace/android:winscope_extensions_source_set]
 filegroup {
     name: "perfetto_winscope_filegroup_proto",
     srcs: [
