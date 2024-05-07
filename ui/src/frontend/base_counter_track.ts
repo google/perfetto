@@ -451,33 +451,7 @@ export abstract class BaseCounterTrack implements Track {
 
   async onCreate(): Promise<void> {
     this.initState = await this.onInit();
-
-    const displayValueQuery = await this.engine.query(`
-        create virtual table ${this.getTableName()}
-        using __intrinsic_counter_mipmap((
-          SELECT
-            ts,
-            ${this.getValueExpression()} as value
-          FROM (${this.getSqlSource()})
-        ));
-
-        select
-          min_value as minDisplayValue,
-          max_value as maxDisplayValue
-        from ${this.getTableName()}(
-          trace_start(), trace_end(), trace_dur()
-        );
-      `);
-
-    const {minDisplayValue, maxDisplayValue} = displayValueQuery.firstRow({
-      minDisplayValue: NUM,
-      maxDisplayValue: NUM,
-    });
-
-    this.limits = {
-      minDisplayValue,
-      maxDisplayValue,
-    };
+    this.limits = await this.createTableAndFetchLimits(false);
   }
 
   async onUpdate(): Promise<void> {
@@ -498,7 +472,6 @@ export abstract class BaseCounterTrack implements Track {
     const {visibleTimeScale: timeScale} = globals.timeline;
 
     // In any case, draw whatever we have (which might be stale/incomplete).
-
     const limits = this.limits;
     const data = this.counters;
 
@@ -859,6 +832,10 @@ export abstract class BaseCounterTrack implements Track {
       );
     }
 
+    if (this.limits === undefined) {
+      this.limits = await this.createTableAndFetchLimits(true);
+    }
+
     const queryRes = await this.engine.query(`
       SELECT
         min_value as minDisplayValue,
@@ -905,6 +882,38 @@ export abstract class BaseCounterTrack implements Track {
     this.counters = data;
 
     raf.scheduleRedraw();
+  }
+
+  private async createTableAndFetchLimits(
+    dropTable: boolean,
+  ): Promise<CounterLimits> {
+    const dropQuery = dropTable ? `drop table ${this.getTableName()};` : '';
+    const displayValueQuery = await this.engine.query(`
+      ${dropQuery}
+      create virtual table ${this.getTableName()}
+      using __intrinsic_counter_mipmap((
+        select
+          ts,
+          ${this.getValueExpression()} as value
+        from (${this.getSqlSource()})
+      ));
+      select
+        min_value as minDisplayValue,
+        max_value as maxDisplayValue
+      from ${this.getTableName()}(
+        trace_start(), trace_end(), trace_dur()
+      );
+    `);
+
+    const {minDisplayValue, maxDisplayValue} = displayValueQuery.firstRow({
+      minDisplayValue: NUM,
+      maxDisplayValue: NUM,
+    });
+
+    return {
+      minDisplayValue,
+      maxDisplayValue,
+    };
   }
 
   get unit(): string {
