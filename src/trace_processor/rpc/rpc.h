@@ -17,25 +17,23 @@
 #ifndef SRC_TRACE_PROCESSOR_RPC_RPC_H_
 #define SRC_TRACE_PROCESSOR_RPC_RPC_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <string>
 #include <vector>
 
-#include <stddef.h>
-#include <stdint.h>
-
+#include "perfetto/base/status.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "perfetto/trace_processor/status.h"
 
 namespace perfetto {
 
-namespace protos {
-namespace pbzero {
+namespace protos::pbzero {
 class ComputeMetricResult;
 class DisableAndReadMetatraceResult;
-}  // namespace pbzero
-}  // namespace protos
+}  // namespace protos::pbzero
 
 namespace trace_processor {
 
@@ -100,12 +98,12 @@ class Rpc {
   // The methods of this class are mirrors (modulo {un,}marshalling of args) of
   // the corresponding names in trace_processor.h . See that header for docs.
 
-  util::Status Parse(const uint8_t* data, size_t len);
+  base::Status Parse(const uint8_t*, size_t);
   void NotifyEndOfFile();
-  void ResetTraceProcessor(const uint8_t* args, size_t len);
+  void ResetTraceProcessor(const uint8_t*, size_t);
   std::string GetCurrentTraceName();
-  std::vector<uint8_t> ComputeMetric(const uint8_t* data, size_t len);
-  void EnableMetatrace(const uint8_t* data, size_t len);  // EnableMetatraceArgs
+  std::vector<uint8_t> ComputeMetric(const uint8_t*, size_t);
+  void EnableMetatrace(const uint8_t*, size_t);
   std::vector<uint8_t> DisableAndReadMetatrace();
   std::vector<uint8_t> GetStatus();
 
@@ -122,22 +120,17 @@ class Rpc {
   //   ...
   //   callback(..., has_more=false)
   //   (Query() returns at this point).
-  // TODO(primiano): long-term this API should change and be turned into a
-  // bidirectional streaming api (see go/imperative-metrics). The problem with
-  // the current design is that it holds the callstack until the query is done
-  // and makes nested query hard as they cause re-entrancy. It's okay for now
-  // but will change soon.
   using QueryResultBatchCallback = std::function<
       void(const uint8_t* /*buf*/, size_t /*len*/, bool /*has_more*/)>;
-  void Query(const uint8_t* args, size_t len, QueryResultBatchCallback);
+  void Query(const uint8_t*, size_t, const QueryResultBatchCallback&);
 
  private:
-  void ParseRpcRequest(const uint8_t* data, size_t len);
-  void ResetTraceProcessorInternal(const Config& config);
+  void ParseRpcRequest(const uint8_t*, size_t);
+  void ResetTraceProcessorInternal(const Config&);
   void MaybePrintProgress();
-  Iterator QueryInternal(const uint8_t* args, size_t len);
-  void ComputeMetricInternal(const uint8_t* args,
-                             size_t len,
+  Iterator QueryInternal(const uint8_t*, size_t);
+  void ComputeMetricInternal(const uint8_t*,
+                             size_t,
                              protos::pbzero::ComputeMetricResult*);
   void DisableAndReadMetatraceInternal(
       protos::pbzero::DisableAndReadMetatraceResult*);
