@@ -13,8 +13,11 @@
 // limitations under the License.
 
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {
+  ChromeSliceTrack,
+  SLICE_TRACK_KIND,
+} from '../chrome_slices/chrome_slice_track';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
-import {ChromeSliceTrack, SLICE_TRACK_KIND} from '../chrome_slices/';
 import {COUNTER_TRACK_KIND, TraceProcessorCounterTrack} from '../counter';
 
 class AnnotationPlugin implements Plugin {
@@ -49,7 +52,15 @@ class AnnotationPlugin implements Plugin {
           metric: true,
         },
         trackFactory: ({trackKey}) => {
-          return new ChromeSliceTrack(engine, 0, trackKey, id, 'annotation');
+          return new ChromeSliceTrack(
+            {
+              engine: ctx.engine,
+              trackKey,
+            },
+            id,
+            0,
+            'annotation_slice',
+          );
         },
       });
     }

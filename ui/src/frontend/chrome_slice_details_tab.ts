@@ -222,7 +222,7 @@ async function getSliceDetails(
   id: number,
   table: string,
 ): Promise<SliceDetails | undefined> {
-  if (table === 'annotation') {
+  if (table === 'annotation_slice') {
     return getAnnotationSlice(engine, id);
   } else {
     return getSlice(engine, asSliceSqlId(id));
