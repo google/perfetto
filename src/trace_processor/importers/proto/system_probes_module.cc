@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/proto/system_probes_module.h"
 #include "perfetto/base/build_config.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/system_probes_parser.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -38,7 +39,7 @@ ModuleResult SystemProbesModule::TokenizePacket(
     const protos::pbzero::TracePacket::Decoder& decoder,
     TraceBlobView*,
     int64_t,
-    PacketSequenceState*,
+    RefPtr<PacketSequenceStateGeneration>,
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kSystemInfoFieldNumber:

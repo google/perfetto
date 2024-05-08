@@ -18,8 +18,8 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_MODULE_H_
 
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
-#include "src/trace_processor/importers/proto/proto_incremental_state.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -37,7 +37,7 @@ class ProfileModule : public ProtoImporterModule {
       const protos::pbzero::TracePacket::Decoder& decoder,
       TraceBlobView* packet,
       int64_t packet_timestamp,
-      PacketSequenceState* state,
+      RefPtr<PacketSequenceStateGeneration> state,
       uint32_t field_id) override;
 
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
@@ -50,7 +50,7 @@ class ProfileModule : public ProtoImporterModule {
  private:
   // chrome stack sampling:
   ModuleResult TokenizeStreamingProfilePacket(
-      PacketSequenceState*,
+      RefPtr<PacketSequenceStateGeneration>,
       TraceBlobView* packet,
       protozero::ConstBytes streaming_profile_packet);
   void ParseStreamingProfilePacket(
@@ -65,7 +65,7 @@ class ProfileModule : public ProtoImporterModule {
 
   // heap profiling:
   void ParseProfilePacket(int64_t ts,
-                          PacketSequenceState*,
+                          PacketSequenceStateGeneration*,
                           protozero::ConstBytes);
   void ParseDeobfuscationMapping(int64_t ts,
                                  PacketSequenceStateGeneration*,

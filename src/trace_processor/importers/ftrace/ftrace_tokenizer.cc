@@ -23,7 +23,6 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -107,7 +106,7 @@ uint64_t TryFastParseFtraceEventId(const uint8_t* start, const uint8_t* end) {
 PERFETTO_ALWAYS_INLINE
 base::Status FtraceTokenizer::TokenizeFtraceBundle(
     TraceBlobView bundle,
-    PacketSequenceState* state,
+    RefPtr<PacketSequenceStateGeneration> state,
     uint32_t packet_sequence_id) {
   protos::pbzero::FtraceEventBundle::Decoder decoder(bundle.data(),
                                                      bundle.length());
@@ -204,10 +203,11 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
 }
 
 PERFETTO_ALWAYS_INLINE
-void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
-                                          ClockTracker::ClockId clock_id,
-                                          TraceBlobView event,
-                                          PacketSequenceState* state) {
+void FtraceTokenizer::TokenizeFtraceEvent(
+    uint32_t cpu,
+    ClockTracker::ClockId clock_id,
+    TraceBlobView event,
+    RefPtr<PacketSequenceStateGeneration> state) {
   constexpr auto kTimestampFieldNumber =
       protos::pbzero::FtraceEvent::kTimestampFieldNumber;
   constexpr auto kTimestampFieldTag = MakeTagVarInt(kTimestampFieldNumber);
@@ -281,8 +281,7 @@ void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
   }
 
   context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
-                                    state->current_generation(),
-                                    context_->machine_id());
+                                    std::move(state), context_->machine_id());
 }
 
 PERFETTO_ALWAYS_INLINE
@@ -427,9 +426,10 @@ void FtraceTokenizer::HandleFtraceClockSnapshot(int64_t ftrace_ts,
                                     boot_ts)});
 }
 
-void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
-                                                  TraceBlobView event,
-                                                  PacketSequenceState* state) {
+void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
+    uint32_t cpu,
+    TraceBlobView event,
+    RefPtr<PacketSequenceStateGeneration> state) {
   // Special handling of valid gpu_work_period tracepoint events which contain
   // timestamp values for the GPU time period nested inside the event data.
   const uint8_t* data = event.data();
@@ -465,8 +465,7 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
   }
 
   context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
-                                    state->current_generation(),
-                                    context_->machine_id());
+                                    std::move(state), context_->machine_id());
 }
 
 }  // namespace trace_processor

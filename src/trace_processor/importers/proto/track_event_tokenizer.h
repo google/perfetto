@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "perfetto/protozero/proto_decoder.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -36,7 +37,6 @@ class TracePacket_Decoder;
 
 namespace trace_processor {
 
-class PacketSequenceState;
 class TraceProcessorContext;
 class TraceBlobView;
 class TrackEventTracker;
@@ -47,24 +47,24 @@ class TrackEventTokenizer {
   explicit TrackEventTokenizer(TraceProcessorContext*, TrackEventTracker*);
 
   ModuleResult TokenizeRangeOfInterestPacket(
-      PacketSequenceState* state,
+      RefPtr<PacketSequenceStateGeneration> state,
       const protos::pbzero::TracePacket_Decoder&,
       int64_t packet_timestamp);
   ModuleResult TokenizeTrackDescriptorPacket(
-      PacketSequenceState* state,
+      RefPtr<PacketSequenceStateGeneration> state,
       const protos::pbzero::TracePacket_Decoder&,
       int64_t packet_timestamp);
   ModuleResult TokenizeThreadDescriptorPacket(
-      PacketSequenceState* state,
+      RefPtr<PacketSequenceStateGeneration> state,
       const protos::pbzero::TracePacket_Decoder&);
-  void TokenizeTrackEventPacket(PacketSequenceState* state,
+  void TokenizeTrackEventPacket(RefPtr<PacketSequenceStateGeneration> state,
                                 const protos::pbzero::TracePacket_Decoder&,
                                 TraceBlobView* packet,
                                 int64_t packet_timestamp);
 
  private:
   void TokenizeThreadDescriptor(
-      PacketSequenceState* state,
+      PacketSequenceStateGeneration& state,
       const protos::pbzero::ThreadDescriptor_Decoder&);
   template <typename T>
   base::Status AddExtraCounterValues(

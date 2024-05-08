@@ -20,6 +20,7 @@
 #include "src/trace_processor/importers/etw/etw_tokenizer.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -35,13 +36,13 @@ ModuleResult EtwModuleImpl::TokenizePacket(
     const protos::pbzero::TracePacket::Decoder& decoder,
     TraceBlobView* packet,
     int64_t /*packet_timestamp*/,
-    PacketSequenceState* seq_state,
+    RefPtr<PacketSequenceStateGeneration> seq_state,
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kEtwEventsFieldNumber: {
       auto etw_field = decoder.etw_events();
       tokenizer_.TokenizeEtwBundle(
-          packet->slice(etw_field.data, etw_field.size), seq_state);
+          packet->slice(etw_field.data, etw_field.size), std::move(seq_state));
       return ModuleResult::Handled();
     }
   }
