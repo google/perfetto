@@ -55,6 +55,7 @@ import {ServiceWorkerController} from './service_worker_controller';
 import {SliceSqlId} from './sql_types';
 import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
+import {exists} from '../base/utils';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -786,46 +787,25 @@ class Globals {
     return Time.sub(ts, this.timestampOffset());
   }
 
-  findTimeRangeOfSelection(): {start: time; end: time} {
+  findTimeRangeOfSelection(): {start: time; end: time} | undefined {
     const selection = getLegacySelection(this.state);
-    let start = Time.INVALID;
-    let end = Time.INVALID;
     if (selection === null) {
-      return {start, end};
-    } else if (
-      selection.kind === 'SLICE' ||
-      selection.kind === 'CHROME_SLICE'
-    ) {
+      return undefined;
+    }
+
+    if (selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
       const slice = this.sliceDetails;
-      if (slice.ts && slice.dur !== undefined && slice.dur > 0) {
-        start = slice.ts;
-        end = Time.add(start, slice.dur);
-      } else if (slice.ts) {
-        start = slice.ts;
-        // This will handle either:
-        // a)slice.dur === -1 -> unfinished slice
-        // b)slice.dur === 0  -> instant event
-        end =
-          slice.dur === -1n
-            ? Time.add(start, INCOMPLETE_SLICE_DURATION)
-            : Time.add(start, INSTANT_FOCUS_DURATION);
-      }
+      return findTimeRangeOfSlice(slice);
     } else if (selection.kind === 'THREAD_STATE') {
       const threadState = this.threadStateDetails;
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (threadState.ts && threadState.dur) {
-        start = threadState.ts;
-        end = Time.add(start, threadState.dur);
-      }
+      return findTimeRangeOfSlice(threadState);
     } else if (selection.kind === 'COUNTER') {
-      start = selection.leftTs;
-      end = selection.rightTs;
+      return {start: selection.leftTs, end: selection.rightTs};
     } else if (selection.kind === 'AREA') {
       const selectedArea = this.state.areas[selection.areaId];
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (selectedArea) {
-        start = selectedArea.start;
-        end = selectedArea.end;
+        return {start: selectedArea.start, end: selectedArea.end};
       }
     } else if (selection.kind === 'NOTE') {
       const selectedNote = this.state.notes[selection.id];
@@ -833,25 +813,55 @@ class Globals {
       // above in the AREA case.
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (selectedNote && selectedNote.noteType === 'DEFAULT') {
-        start = selectedNote.timestamp;
-        end = Time.add(selectedNote.timestamp, INSTANT_FOCUS_DURATION);
+        return {
+          start: selectedNote.timestamp,
+          end: Time.add(selectedNote.timestamp, INSTANT_FOCUS_DURATION),
+        };
       }
     } else if (selection.kind === 'LOG') {
       // TODO(hjd): Make focus selection work for logs.
     } else if (selection.kind === 'GENERIC_SLICE') {
-      start = selection.start;
-      if (selection.duration > 0) {
-        end = Time.add(start, selection.duration);
-      } else {
-        end = Time.add(start, INSTANT_FOCUS_DURATION);
-      }
+      return findTimeRangeOfSlice({
+        ts: selection.start,
+        dur: selection.duration,
+      });
     }
 
-    return {start, end};
+    return undefined;
   }
 
   panToTimestamp(ts: time): void {
     horizontalScrollToTs(ts);
+  }
+}
+
+interface SliceLike {
+  ts: time;
+  dur: duration;
+}
+
+// Returns the start and end points of a slice-like object If slice is instant
+// or incomplete, dummy time will be returned which instead.
+function findTimeRangeOfSlice(slice: Partial<SliceLike>): {
+  start: time;
+  end: time;
+} {
+  if (exists(slice.ts) && exists(slice.dur)) {
+    if (slice.dur === -1n) {
+      return {
+        start: slice.ts,
+        end: Time.add(slice.ts, INCOMPLETE_SLICE_DURATION),
+      };
+    } else if (slice.dur === 0n) {
+      return {
+        start: slice.ts,
+        end: Time.add(slice.ts, INSTANT_FOCUS_DURATION),
+      };
+    } else {
+      return {start: slice.ts, end: Time.add(slice.ts, slice.dur)};
+    }
+  } else {
+    return {start: Time.INVALID, end: Time.INVALID};
   }
 }
 
