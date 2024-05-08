@@ -51,6 +51,33 @@ const DEFAULT_NETWORK = `
       end as name
   from diff where keep is null or keep`;
 
+const RADIO_TRANSPORT_TYPE = `
+  create or replace perfetto view radio_transport_data_conn as
+  select ts, safe_dur AS dur, value_name as data_conn, value AS data_conn_val
+  from android_battery_stats_state
+  where track_name = "battery_stats.data_conn";
+
+  create or replace perfetto view radio_transport_nr_state as
+  select ts, safe_dur AS dur, value AS nr_state_val
+  from android_battery_stats_state
+  where track_name = "battery_stats.nr_state";
+
+  drop table if exists radio_transport_join;
+  create virtual table radio_transport_join
+  using span_left_join(radio_transport_data_conn, radio_transport_nr_state);
+
+  create or replace perfetto view radio_transport as
+  select
+    ts, dur,
+    case data_conn_val
+      -- On LTE with NR connected is 5G NSA.
+      when 13 then iif(nr_state_val = 3, '5G (NSA)', data_conn)
+      -- On NR with NR state present, is 5G SA.
+      when 20 then iif(nr_state_val is null, '5G (SA or NSA)', '5G (SA)')
+      else data_conn
+    end as name
+  from radio_transport_join;`;
+
 const TETHERING = `
   with base as (
       select
@@ -1144,7 +1171,7 @@ class AndroidLongBatteryTracing implements Plugin {
     this.addSliceTrack(
       ctx,
       name,
-      `SELECT ts, dur, value_name AS name
+      `SELECT ts, safe_dur AS dur, value_name AS name
     FROM android_battery_stats_state
     WHERE track_name = "${track}"`,
       groupName,
@@ -1165,7 +1192,7 @@ class AndroidLongBatteryTracing implements Plugin {
     this.addSliceTrack(
       ctx,
       name,
-      `SELECT ts, dur, str_value AS name
+      `SELECT ts, safe_dur AS dur, str_value AS name
     FROM android_battery_stats_event_slices
     WHERE track_name = "${track}"`,
       groupName,
@@ -1201,7 +1228,7 @@ class AndroidLongBatteryTracing implements Plugin {
       'Device State: Long wakelocks',
       `SELECT
             ts - 60000000000 as ts,
-            dur + 60000000000 as dur,
+            safe_dur + 60000000000 as dur,
             str_value AS name,
             ifnull(
             (select package_name from package_list where uid = int_value % 100000),
@@ -1236,6 +1263,7 @@ class AndroidLongBatteryTracing implements Plugin {
 
     const e = ctx.engine;
     await e.query(NETWORK_SUMMARY);
+    await e.query(RADIO_TRANSPORT_TYPE);
 
     this.addSliceTrack(ctx, 'Default network', DEFAULT_NETWORK, groupName);
 
@@ -1295,12 +1323,11 @@ class AndroidLongBatteryTracing implements Plugin {
       groupName,
       features,
     );
-    this.addBatteryStatsState(
+    this.addSliceTrack(
       ctx,
       'Cellular connection',
-      'battery_stats.data_conn',
+      `select ts, dur, name from radio_transport`,
       groupName,
-      features,
     );
     this.addBatteryStatsState(
       ctx,
