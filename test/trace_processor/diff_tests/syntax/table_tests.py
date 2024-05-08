@@ -156,16 +156,16 @@ class PerfettoTable(TestSuite):
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
         WITH trivial_count AS (
-          SELECT DISTINCT name AS c FROM slice
+          SELECT DISTINCT name FROM slice
         ),
         few_results AS (
-          SELECT DISTINCT depth AS c FROM slice
+          SELECT DISTINCT depth FROM slice
         ),
         simple_nullable AS (
-          SELECT DISTINCT parent_id AS c FROM slice
+          SELECT DISTINCT parent_id FROM slice
         ),
         selector AS (
-          SELECT DISTINCT cpu AS c FROM ftrace_event
+          SELECT DISTINCT cpu FROM ftrace_event
         )
         SELECT
           (SELECT COUNT(*) FROM trivial_count) AS name,
@@ -250,4 +250,50 @@ class PerfettoTable(TestSuite):
         7,70
         8,80
         9,90
+        """))
+
+  def test_max(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        CREATE PERFETTO MACRO max(col ColumnName)
+        RETURNS TableOrSubquery AS (
+          SELECT id, $col
+          FROM slice
+          ORDER BY $col DESC
+          LIMIT 1
+        );
+
+        SELECT
+          (SELECT id FROM max!(id)) AS id,
+          (SELECT id FROM max!(dur)) AS numeric,
+          (SELECT id FROM max!(name)) AS string,
+          (SELECT id FROM max!(parent_id)) AS nullable;
+        """,
+        out=Csv("""
+        "id","numeric","string","nullable"
+        20745,2698,148,20729
+        """))
+
+  def test_min(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        CREATE PERFETTO MACRO min(col ColumnName)
+        RETURNS TableOrSubquery AS (
+          SELECT id, $col
+          FROM slice
+          ORDER BY $col ASC
+          LIMIT 1
+        );
+
+        SELECT
+          (SELECT id FROM min!(id)) AS id,
+          (SELECT id FROM min!(dur)) AS numeric,
+          (SELECT id FROM min!(name)) AS string,
+          (SELECT id FROM min!(parent_id)) AS nullable;
+        """,
+        out=Csv("""
+        "id","numeric","string","nullable"
+        0,3111,460,0
         """))
