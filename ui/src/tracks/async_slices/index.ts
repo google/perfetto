@@ -151,7 +151,7 @@ class AsyncSlicePlugin implements Plugin {
         __max_layout_depth(t.track_count, t.track_ids) as maxDepth,
         iif(g.cnt = 1, g.package_name, 'UID ' || g.uid) as packageName
       from _uid_track_track_summary_by_uid_and_name t
-      join grouped_packages g using (uid)
+      left join grouped_packages g using (uid)
     `);
 
     const it = result.iter({
@@ -165,8 +165,8 @@ class AsyncSlicePlugin implements Plugin {
     for (; it.valid(); it.next()) {
       const kind = ASYNC_SLICE_TRACK_KIND;
       const rawName = it.name === null ? undefined : it.name;
-      const userName = it.packageName === null ? undefined : it.packageName;
       const uid = it.uid === null ? undefined : it.uid;
+      const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
       const rawTrackIds = it.trackIds;
       const trackIds = rawTrackIds.split(',').map((v) => Number(v));
       const maxDepth = it.maxDepth;

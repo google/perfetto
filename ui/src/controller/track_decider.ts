@@ -805,7 +805,7 @@ class TrackDecider {
         t.uid as uid,
         iif(g.cnt = 1, g.package_name, 'UID ' || g.uid) as packageName
       from _uid_track_track_summary_by_uid_and_name t
-      join grouped_packages g using (uid)
+      left join grouped_packages g using (uid)
     `);
 
     const it = result.iter({
@@ -823,7 +823,7 @@ class TrackDecider {
       }
       const rawName = it.name;
       const uid = it.uid === null ? undefined : it.uid;
-      const userName = it.packageName === null ? `UID: ${uid}` : it.packageName;
+      const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
 
       const groupUuid = `uid-track-group${rawName}`;
       if (groupMap.get(rawName) === undefined) {
