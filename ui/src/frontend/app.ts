@@ -20,7 +20,7 @@ import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
-import {duration, Span, Time, time, TimeSpan} from '../base/time';
+import {duration, Span, time, TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
 import {getLegacySelection} from '../common/state';
 import {runQuery} from '../common/queries';
@@ -62,6 +62,7 @@ import {
   lockSliceSpan,
   moveByFocusedFlow,
 } from './keyboard_event_handler';
+import {exists} from '../base/utils';
 
 function renderPermalink(): m.Children {
   const permalink = globals.state.permalink;
@@ -1009,7 +1010,7 @@ export class App implements m.ClassComponent {
 // there is no current selection.
 function getTimeSpanOfSelectionOrVisibleWindow(): Span<time, duration> {
   const range = globals.findTimeRangeOfSelection();
-  if (range.end !== Time.INVALID && range.start !== Time.INVALID) {
+  if (exists(range)) {
     return new TimeSpan(range.start, range.end);
   } else {
     return globals.stateVisibleTime();
