@@ -24,6 +24,7 @@ import {EngineProxy, Track} from '../../public';
 import {LONG, STR} from '../../trace_processor/query_result';
 import {FtraceFilter} from './common';
 import {Store} from '../../public';
+import {Monitor} from '../../base/monitor';
 
 const MARGIN = 2;
 const RECT_HEIGHT = 18;
@@ -43,14 +44,20 @@ export class FtraceRawTrack implements Track {
   private engine: EngineProxy;
   private cpu: number;
   private store: Store<FtraceFilter>;
+  private readonly monitor: Monitor;
 
   constructor(engine: EngineProxy, cpu: number, store: Store<FtraceFilter>) {
     this.engine = engine;
     this.cpu = cpu;
     this.store = store;
+
+    this.monitor = new Monitor([() => store.state]);
   }
 
   async onUpdate(): Promise<void> {
+    this.monitor.ifStateChanged(() => {
+      this.fetcher.invalidate();
+    });
     await this.fetcher.requestDataForCurrentTime();
   }
 
