@@ -27,6 +27,7 @@ AMALGAMATION_MAP = {
     'python/tools/trace_processor.py': 'tools/trace_processor',
     'python/tools/cpu_profile.py': 'tools/cpu_profile',
     'python/tools/heap_profile.py': 'tools/heap_profile',
+    'python/tools/install_test_reporter_app.py': 'tools/install_test_reporter_app',
 }
 
 
