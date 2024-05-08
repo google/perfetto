@@ -35,7 +35,6 @@ import {
   getScrollJankTracks,
 } from '../tracks/chrome_scroll_jank';
 import {decideTracks as scrollJankDecideTracks} from '../tracks/chrome_scroll_jank/chrome_tasks_scroll_jank_track';
-import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {COUNTER_TRACK_KIND} from '../tracks/counter';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
@@ -43,6 +42,7 @@ import {
 } from '../tracks/frames';
 import {decideTracks as screenshotDecideTracks} from '../tracks/screenshots';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
+import {SLICE_TRACK_KIND} from '../tracks/chrome_slices/chrome_slice_track';
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';
