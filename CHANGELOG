@@ -2,7 +2,8 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Optimised single column `DISTINCT` queries.
+    * Optimised `LIMIT` and `OFFSET` queries.
   SQL Standard library:
     * Improved support for querying startups on Android 9 (API level 28) and
       below. Available in `android.startup.startups` module.
