@@ -22,7 +22,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -41,8 +41,9 @@ using protos::pbzero::BuiltinClock;
 using protos::pbzero::EtwTraceEventBundle;
 
 PERFETTO_ALWAYS_INLINE
-base::Status EtwTokenizer::TokenizeEtwBundle(TraceBlobView bundle,
-                                             PacketSequenceState* state) {
+base::Status EtwTokenizer::TokenizeEtwBundle(
+    TraceBlobView bundle,
+    RefPtr<PacketSequenceStateGeneration> state) {
   protos::pbzero::EtwTraceEventBundle::Decoder decoder(bundle.data(),
                                                        bundle.length());
   // Cpu id can either be in the etw bundle or inside the individual
@@ -61,7 +62,7 @@ PERFETTO_ALWAYS_INLINE
 base::Status EtwTokenizer::TokenizeEtwEvent(
     std::optional<uint32_t> fallback_cpu,
     TraceBlobView event,
-    PacketSequenceState* state) {
+    RefPtr<PacketSequenceStateGeneration> state) {
   const uint8_t* data = event.data();
   const size_t length = event.length();
   ProtoDecoder decoder(data, length);
@@ -104,7 +105,7 @@ base::Status EtwTokenizer::TokenizeEtwEvent(
   }
 
   context_->sorter->PushEtwEvent(cpu, *timestamp, std::move(event),
-                                 state->current_generation());
+                                 std::move(state));
 
   return base::OkStatus();
 }

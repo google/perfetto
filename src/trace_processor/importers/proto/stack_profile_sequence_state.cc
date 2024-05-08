@@ -63,10 +63,10 @@ StackProfileSequenceState::~StackProfileSequenceState() = default;
 
 VirtualMemoryMapping* StackProfileSequenceState::FindOrInsertMapping(
     uint64_t iid) {
-  if (state()->pid_and_tid_valid()) {
+  if (pid_and_tid_valid()) {
     return FindOrInsertMappingImpl(
         context_->process_tracker->GetOrCreateProcess(
-            static_cast<uint32_t>(state()->pid())),
+            static_cast<uint32_t>(pid())),
         iid);
   }
 

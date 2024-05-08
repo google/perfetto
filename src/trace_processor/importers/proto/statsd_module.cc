@@ -23,7 +23,7 @@
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -216,11 +216,12 @@ StatsdModule::StatsdModule(TraceProcessorContext* context)
 
 StatsdModule::~StatsdModule() = default;
 
-ModuleResult StatsdModule::TokenizePacket(const TracePacket::Decoder& decoder,
-                                          TraceBlobView* /*packet*/,
-                                          int64_t packet_timestamp,
-                                          PacketSequenceState* state,
-                                          uint32_t field_id) {
+ModuleResult StatsdModule::TokenizePacket(
+    const TracePacket::Decoder& decoder,
+    TraceBlobView* /*packet*/,
+    int64_t packet_timestamp,
+    RefPtr<PacketSequenceStateGeneration> state,
+    uint32_t field_id) {
   if (field_id != TracePacket::kStatsdAtomFieldNumber) {
     return ModuleResult::Ignored();
   }
@@ -246,9 +247,9 @@ ModuleResult StatsdModule::TokenizePacket(const TracePacket::Decoder& decoder,
     std::vector<uint8_t> vec = forged.SerializeAsArray();
     TraceBlob blob = TraceBlob::CopyFrom(vec.data(), vec.size());
 
-    context_->sorter->PushTracePacket(
-        atom_timestamp, state->current_generation(),
-        TraceBlobView(std::move(blob)), context_->machine_id());
+    context_->sorter->PushTracePacket(atom_timestamp, state,
+                                      TraceBlobView(std::move(blob)),
+                                      context_->machine_id());
   }
 
   return ModuleResult::Handled();

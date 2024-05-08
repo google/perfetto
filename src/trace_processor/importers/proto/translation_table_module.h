@@ -21,6 +21,7 @@
 #include <optional>
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -37,7 +38,7 @@ class TranslationTableModule : public ProtoImporterModule {
       const protos::pbzero::TracePacket_Decoder& decoder,
       TraceBlobView* packet,
       int64_t packet_timestamp,
-      PacketSequenceState* state,
+      RefPtr<PacketSequenceStateGeneration> state,
       uint32_t field_id) override;
 
  private:

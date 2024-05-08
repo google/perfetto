@@ -72,6 +72,7 @@ source_set("minimal") {
   deps = [
     ":packet_sequence_state_generation_hdr",
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config:zero",
     "../../../../protos/perfetto/trace:zero",
@@ -201,7 +202,9 @@ source_set("proto_importer_module") {
     "proto_importer_module.h",
   ]
   deps = [
+    ":packet_sequence_state_generation_hdr",
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../base",
     "../../types",
     "../common:trace_parser_hdr",

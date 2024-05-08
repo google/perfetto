@@ -24,6 +24,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/sched_tables_py.h"
@@ -66,7 +67,7 @@ class StatsdModule : public ProtoImporterModule {
   ModuleResult TokenizePacket(const protos::pbzero::TracePacket::Decoder&,
                               TraceBlobView* packet,
                               int64_t packet_timestamp,
-                              PacketSequenceState* state,
+                              RefPtr<PacketSequenceStateGeneration> state,
                               uint32_t field_id) override;
 
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,

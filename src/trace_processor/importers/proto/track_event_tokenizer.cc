@@ -17,13 +17,14 @@
 #include "src/trace_processor/importers/proto/track_event_tokenizer.h"
 
 #include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -58,7 +59,7 @@ TrackEventTokenizer::TrackEventTokenizer(TraceProcessorContext* context,
           context_->storage->InternString("thread_instruction_count")) {}
 
 ModuleResult TrackEventTokenizer::TokenizeRangeOfInterestPacket(
-    PacketSequenceState* /*state*/,
+    RefPtr<PacketSequenceStateGeneration> /*state*/,
     const protos::pbzero::TracePacket::Decoder& packet,
     int64_t /*packet_timestamp*/) {
   protos::pbzero::TrackEventRangeOfInterest::Decoder range_of_interest(
@@ -75,7 +76,7 @@ ModuleResult TrackEventTokenizer::TokenizeRangeOfInterestPacket(
 }
 
 ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
-    PacketSequenceState* state,
+    RefPtr<PacketSequenceStateGeneration> state,
     const protos::pbzero::TracePacket::Decoder& packet,
     int64_t packet_timestamp) {
   auto track_descriptor_field = packet.track_descriptor();
@@ -109,7 +110,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     }
 
     if (state->IsIncrementalStateValid()) {
-      TokenizeThreadDescriptor(state, thread);
+      TokenizeThreadDescriptor(*state, thread);
     }
 
     track_event_tracker_->ReserveDescriptorThreadTrack(
@@ -181,7 +182,7 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
 }
 
 ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
-    PacketSequenceState* state,
+    RefPtr<PacketSequenceStateGeneration> state,
     const protos::pbzero::TracePacket::Decoder& packet) {
   if (PERFETTO_UNLIKELY(!packet.has_trusted_packet_sequence_id())) {
     PERFETTO_ELOG("ThreadDescriptor packet without trusted_packet_sequence_id");
@@ -200,25 +201,25 @@ ModuleResult TrackEventTokenizer::TokenizeThreadDescriptorPacket(
   }
 
   protos::pbzero::ThreadDescriptor::Decoder thread(packet.thread_descriptor());
-  TokenizeThreadDescriptor(state, thread);
+  TokenizeThreadDescriptor(*state, thread);
 
   // Let ProtoTraceReader forward the packet to the parser.
   return ModuleResult::Ignored();
 }
 
 void TrackEventTokenizer::TokenizeThreadDescriptor(
-    PacketSequenceState* state,
+    PacketSequenceStateGeneration& state,
     const protos::pbzero::ThreadDescriptor::Decoder& thread) {
   // TODO(eseckler): Remove support for legacy thread descriptor-based default
   // tracks and delta timestamps.
-  state->SetThreadDescriptor(thread.pid(), thread.tid(),
-                             thread.reference_timestamp_us() * 1000,
-                             thread.reference_thread_time_us() * 1000,
-                             thread.reference_thread_instruction_count());
+  state.SetThreadDescriptor(thread.pid(), thread.tid(),
+                            thread.reference_timestamp_us() * 1000,
+                            thread.reference_thread_time_us() * 1000,
+                            thread.reference_thread_instruction_count());
 }
 
 void TrackEventTokenizer::TokenizeTrackEventPacket(
-    PacketSequenceState* state,
+    RefPtr<PacketSequenceStateGeneration> state,
     const protos::pbzero::TracePacket::Decoder& packet,
     TraceBlobView* packet_blob,
     int64_t packet_timestamp) {
@@ -232,10 +233,10 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
   protos::pbzero::TrackEvent::Decoder event(field.data, field.size);
 
   protos::pbzero::TrackEventDefaults::Decoder* defaults =
-      state->current_generation()->GetTrackEventDefaults();
+      state->GetTrackEventDefaults();
 
   int64_t timestamp;
-  TrackEventData data(std::move(*packet_blob), state->current_generation());
+  TrackEventData data(std::move(*packet_blob), state);
 
   // TODO(eseckler): Remove handling of timestamps relative to ThreadDescriptors
   // once all producers have switched to clock-domain timestamps (e.g.
