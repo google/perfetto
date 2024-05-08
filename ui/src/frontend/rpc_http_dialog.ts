@@ -130,7 +130,7 @@ Trace processor RPC API: ${tpStatus.apiVersion}
 //    |  |                                       |No             |Yes        |
 //    |  |                                       |  +---------------------+  |
 //    |  |                                       |  | Dialog: Preloaded?  |  |
-//    |  |                                       +--+ YES, use loaded trace  |
+//    |  |                                       |  + YES, use loaded trace  |
 //    |  |                                 +--------| YES, but reset state|  |
 //    |  |  +---------------------------------------| NO, Use builtin Wasm|  |
 //    |  |  |                              |     |  +---------------------+  |

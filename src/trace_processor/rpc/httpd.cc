@@ -68,28 +68,28 @@ class Httpd : public base::HttpRequestHandler {
   base::HttpServer http_srv_;
 };
 
-base::HttpServerConnection* g_cur_conn;
-
 base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
   return {reinterpret_cast<const char*>(v.data()), v.size()};
 }
 
 // Used both by websockets and /rpc chunked HTTP endpoints.
-void SendRpcChunk(const void* data, uint32_t len) {
+void SendRpcChunk(base::HttpServerConnection* conn,
+                  const void* data,
+                  uint32_t len) {
   if (data == nullptr) {
     // Unrecoverable RPC error case.
-    if (!g_cur_conn->is_websocket())
-      g_cur_conn->SendResponseBody("0\r\n\r\n", 5);
-    g_cur_conn->Close();
+    if (!conn->is_websocket())
+      conn->SendResponseBody("0\r\n\r\n", 5);
+    conn->Close();
     return;
   }
-  if (g_cur_conn->is_websocket()) {
-    g_cur_conn->SendWebsocketMessage(data, len);
+  if (conn->is_websocket()) {
+    conn->SendWebsocketMessage(data, len);
   } else {
     base::StackString<32> chunk_hdr("%x\r\n", len);
-    g_cur_conn->SendResponseBody(chunk_hdr.c_str(), chunk_hdr.len());
-    g_cur_conn->SendResponseBody(data, len);
-    g_cur_conn->SendResponseBody("\r\n", 2);
+    conn->SendResponseBody(chunk_hdr.c_str(), chunk_hdr.len());
+    conn->SendResponseBody(data, len);
+    conn->SendResponseBody("\r\n", 2);
   }
 }
 
@@ -165,13 +165,13 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     // Start the chunked reply.
     conn.SendResponseHeaders("200 OK", chunked_headers,
                              base::HttpServerConnection::kOmitContentLength);
-    PERFETTO_CHECK(g_cur_conn == nullptr);
-    g_cur_conn = req.conn;
-    global_trace_processor_rpc_.SetRpcResponseFunction(SendRpcChunk);
+    global_trace_processor_rpc_.SetRpcResponseFunction(
+        [&](const void* data, uint32_t len) {
+          SendRpcChunk(&conn, data, len);
+        });
     // OnRpcRequest() will call SendRpcChunk() one or more times.
     global_trace_processor_rpc_.OnRpcRequest(req.body.data(), req.body.size());
     global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
-    g_cur_conn = nullptr;
 
     // Terminate chunked stream.
     conn.SendResponseBody("0\r\n\r\n", 5);
@@ -249,13 +249,13 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
-  PERFETTO_CHECK(g_cur_conn == nullptr);
-  g_cur_conn = msg.conn;
-  global_trace_processor_rpc_.SetRpcResponseFunction(SendRpcChunk);
+  global_trace_processor_rpc_.SetRpcResponseFunction(
+      [&](const void* data, uint32_t len) {
+        SendRpcChunk(msg.conn, data, len);
+      });
   // OnRpcRequest() will call SendRpcChunk() one or more times.
   global_trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
   global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
-  g_cur_conn = nullptr;
 }
 
 }  // namespace
