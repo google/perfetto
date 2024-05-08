@@ -80,6 +80,10 @@ export class TimelineFetcher<Data> implements Disposable {
     return this.data_;
   }
 
+  invalidate() {
+    this.data_ = undefined;
+  }
+
   dispose() {
     this.data_ = undefined;
   }
