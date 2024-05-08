@@ -16,12 +16,21 @@
 
 #include "src/trace_processor/importers/common/process_tracker.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <optional>
 #include <utility>
+#include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 ProcessTracker::ProcessTracker(TraceProcessorContext* context)
     : context_(context), args_tracker_(context) {
@@ -187,11 +196,8 @@ bool ProcessTracker::IsThreadAlive(UniqueTid utid) {
 
   // If the process has been replaced in |pids_|, this thread is dead.
   uint32_t current_pid = processes->pid()[current_upid];
-  auto pid_it = pids_.Find(current_pid);
-  if (pid_it && *pid_it != current_upid)
-    return false;
-
-  return true;
+  auto* pid_it = pids_.Find(current_pid);
+  return !pid_it || *pid_it == current_upid;
 }
 
 std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(
@@ -200,7 +206,7 @@ std::optional<UniqueTid> ProcessTracker::GetThreadOrNull(
   auto* threads = context_->storage->mutable_thread_table();
   auto* processes = context_->storage->mutable_process_table();
 
-  auto vector_it = tids_.Find(tid);
+  auto* vector_it = tids_.Find(tid);
   if (!vector_it)
     return std::nullopt;
 
@@ -576,5 +582,4 @@ void ProcessTracker::UpdateNamespacedThread(uint32_t pid,
   namespaced_threads_[tid] = {pid, tid, std::move(nstid)};
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
