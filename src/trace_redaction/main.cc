@@ -32,6 +32,7 @@
 #include "src/trace_redaction/redact_process_free.h"
 #include "src/trace_redaction/redact_sched_switch.h"
 #include "src/trace_redaction/redact_task_newtask.h"
+#include "src/trace_redaction/remap_scheduling_events.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
 #include "src/trace_redaction/scrub_process_stats.h"
 #include "src/trace_redaction/scrub_process_trees.h"
@@ -87,6 +88,23 @@ static base::Status Main(std::string_view input,
       ->emplace_back<RedactTaskNewTask::kFieldId, RedactTaskNewTask>();
   redact_ftrace_events
       ->emplace_back<RedactProcessFree::kFieldId, RedactProcessFree>();
+
+  // This set of transformations will change pids. This will break the
+  // connections between pids and the timeline (the synth threads are not in the
+  // timeline). If a transformation uses the timeline, it must be before this
+  // transformation.
+  auto* redact_sched_events = redactor.emplace_transform<RedactFtraceEvent>();
+  redact_sched_events->emplace_back<ThreadMergeRemapFtraceEventPid::kFieldId,
+                                    ThreadMergeRemapFtraceEventPid>();
+  redact_sched_events->emplace_back<ThreadMergeRemapSchedSwitchPid::kFieldId,
+                                    ThreadMergeRemapSchedSwitchPid>();
+  redact_sched_events->emplace_back<ThreadMergeRemapSchedWakingPid::kFieldId,
+                                    ThreadMergeRemapSchedWakingPid>();
+  redact_sched_events->emplace_back<
+      ThreadMergeDropField::kTaskNewtaskFieldNumber, ThreadMergeDropField>();
+  redact_sched_events
+      ->emplace_back<ThreadMergeDropField::kSchedProcessFreeFieldNumber,
+                     ThreadMergeDropField>();
 
   Context context;
   context.package_name = package_name;
