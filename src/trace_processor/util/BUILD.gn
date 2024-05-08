@@ -291,6 +291,7 @@ source_set("unittests") {
     "../../protozero:testing_messages_zero",
     "../importers/proto:gen_cc_track_event_descriptor",
     "../importers/proto:minimal",
+    "../importers/proto:packet_sequence_state_generation_hdr",
     "../storage",
     "../types",
   ]

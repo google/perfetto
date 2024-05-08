@@ -24,7 +24,6 @@
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
-#include "src/trace_processor/types/destructible.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -34,7 +33,7 @@ class V8Tracker;
 
 // Helper class to deal with V8 related interned data.
 class V8SequenceState final
-    : public PacketSequenceStateGeneration::InternedDataTracker {
+    : public PacketSequenceStateGeneration::CustomState {
  public:
   explicit V8SequenceState(TraceProcessorContext* context);
 

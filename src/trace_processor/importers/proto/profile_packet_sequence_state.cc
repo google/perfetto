@@ -283,8 +283,8 @@ std::optional<CallsiteId> ProfilePacketSequenceState::FindOrInsertCallstack(
   if (CallsiteId* id = callstacks_.Find(iid); id) {
     return *id;
   }
-  return GetOrCreate<StackProfileSequenceState>()->FindOrInsertCallstack(upid,
-                                                                         iid);
+  return GetCustomState<StackProfileSequenceState>()->FindOrInsertCallstack(
+      upid, iid);
 }
 
 }  // namespace trace_processor
