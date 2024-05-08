@@ -106,10 +106,10 @@ class AndroidStdlib(TestSuite):
         ORDER BY ts, track_name;
         """,
         out=Csv("""
-        "ts","dur","track_name","value","value_name"
-        1000,-1,"battery_stats.audio",1,"active"
-        1000,3000,"battery_stats.data_conn",13,"4G (LTE)"
-        4000,-1,"battery_stats.data_conn",20,"5G (NR)"
+        "ts","dur","safe_dur","track_name","value","value_name"
+        1000,-1,3000,"battery_stats.audio",1,"active"
+        1000,3000,3000,"battery_stats.data_conn",13,"4G (LTE)"
+        4000,-1,0,"battery_stats.data_conn",20,"5G (NR)"
         """))
 
   def test_anrs(self):
