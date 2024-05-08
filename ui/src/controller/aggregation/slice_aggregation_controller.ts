@@ -17,7 +17,7 @@ import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
 import {ASYNC_SLICE_TRACK_KIND} from '../../tracks/async_slices';
-import {SLICE_TRACK_KIND} from '../../tracks/chrome_slices';
+import {SLICE_TRACK_KIND} from '../../tracks/chrome_slices/chrome_slice_track';
 
 import {AggregationController} from './aggregation_controller';
 
