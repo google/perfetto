@@ -332,18 +332,6 @@ class PERFETTO_EXPORT_COMPONENT TrackRegistry {
 
   void EraseTrack(Track);
 
-  // Store metadata for |track| in the registry. |fill_function| is called
-  // synchronously to record additional properties for the track.
-  template <typename TrackType>
-  void UpdateTrack(
-      const TrackType& track,
-      std::function<void(protos::pbzero::TrackDescriptor*)> fill_function) {
-    UpdateTrackImpl(track, [&](protos::pbzero::TrackDescriptor* desc) {
-      track.Serialize(desc);
-      fill_function(desc);
-    });
-  }
-
   // This variant lets the user supply a serialized track descriptor directly.
   void UpdateTrack(Track, const std::string& serialized_desc);
 
@@ -380,10 +368,6 @@ class PERFETTO_EXPORT_COMPONENT TrackRegistry {
       protozero::MessageHandle<protos::pbzero::TracePacket> packet);
 
  private:
-  void UpdateTrackImpl(
-      Track,
-      std::function<void(protos::pbzero::TrackDescriptor*)> fill_function);
-
   std::mutex mutex_;
   std::map<uint64_t /* uuid */, SerializedTrackDescriptor> tracks_;
 
