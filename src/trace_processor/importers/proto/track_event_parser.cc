@@ -30,6 +30,7 @@
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/json/json_utils.h"
@@ -1528,7 +1529,9 @@ void TrackEventParser::ParseTrackDescriptor(
   // Override the name with the most recent name seen (after sorting by ts).
   if (decoder.has_name()) {
     auto* tracks = context_->storage->mutable_track_table();
-    StringId name_id = context_->storage->InternString(decoder.name());
+    const StringId raw_name_id = context_->storage->InternString(decoder.name());
+    const StringId name_id =
+      context_->process_track_translation_table->TranslateName(raw_name_id);
     tracks->mutable_name()->Set(*tracks->id().IndexOf(track_id), name_id);
   }
 }

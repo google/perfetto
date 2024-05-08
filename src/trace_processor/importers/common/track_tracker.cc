@@ -19,7 +19,9 @@
 #include <optional>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -140,7 +142,7 @@ TrackId TrackTracker::InternGpuWorkPeriodTrack(
 }
 
 TrackId TrackTracker::InternLegacyChromeAsyncTrack(
-    StringId name,
+    StringId raw_name,
     uint32_t upid,
     int64_t trace_id,
     bool trace_id_is_process_scoped,
@@ -151,6 +153,8 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
   tuple.trace_id = trace_id;
   tuple.source_scope = source_scope;
 
+  const StringId name =
+      context_->process_track_translation_table->TranslateName(raw_name);
   auto it = chrome_tracks_.find(tuple);
   if (it != chrome_tracks_.end()) {
     if (name != kNullStringId) {
@@ -194,9 +198,11 @@ TrackId TrackTracker::CreateGlobalAsyncTrack(StringId name, StringId source) {
   return id;
 }
 
-TrackId TrackTracker::CreateProcessAsyncTrack(StringId name,
+TrackId TrackTracker::CreateProcessAsyncTrack(StringId raw_name,
                                               UniquePid upid,
                                               StringId source) {
+  const StringId name =
+      context_->process_track_translation_table->TranslateName(raw_name);
   tables::ProcessTrackTable::Row row(name);
   row.upid = upid;
   row.machine_id = context_->machine_id();
@@ -318,10 +324,12 @@ TrackId TrackTracker::InternThreadCounterTrack(StringId name, UniqueTid utid) {
   return track;
 }
 
-TrackId TrackTracker::InternProcessCounterTrack(StringId name,
+TrackId TrackTracker::InternProcessCounterTrack(StringId raw_name,
                                                 UniquePid upid,
                                                 StringId unit,
                                                 StringId description) {
+  const StringId name =
+      context_->process_track_translation_table->TranslateName(raw_name);
   auto it = upid_counter_tracks_.find(std::make_pair(name, upid));
   if (it != upid_counter_tracks_.end()) {
     return it->second;

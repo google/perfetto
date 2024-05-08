@@ -29,6 +29,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
@@ -79,6 +80,8 @@ class ExportJsonTest : public ::testing::Test {
     context_.metadata_tracker.reset(
         new MetadataTracker(context_.storage.get()));
     context_.process_tracker.reset(new ProcessTracker(&context_));
+    context_.process_track_translation_table.reset(
+        new ProcessTrackTranslationTable(context_.storage.get()));
   }
 
   std::string ToJson(ArgumentFilterPredicate argument_filter = nullptr,

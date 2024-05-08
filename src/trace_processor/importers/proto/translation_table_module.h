@@ -46,6 +46,7 @@ class TranslationTableModule : public ProtoImporterModule {
   void ParseChromeUserEventRules(protozero::ConstBytes bytes);
   void ParseChromePerformanceMarkRules(protozero::ConstBytes bytes);
   void ParseSliceNameRules(protozero::ConstBytes bytes);
+  void ParseProcessTrackNameRules(protozero::ConstBytes bytes);
 
   TraceProcessorContext* context_;
 };
