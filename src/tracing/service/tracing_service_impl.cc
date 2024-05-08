@@ -2842,6 +2842,13 @@ bool TracingServiceImpl::IsInitiatorPrivileged(
     // Check for DUMP or PACKAGE_USAGE_STATS: https://bit.ly/3ep0NrR
     return true;
   }
+  if (tracing_session.consumer_uid == 1000 /* AID_SYSTEM */) {
+    // AID_SYSTEM is considered a privileged initiator so that system_server can
+    // profile apps that are not profileable by shell. Other AID_SYSTEM
+    // processes are not allowed by SELinux to connect to the consumer socket or
+    // to exec perfetto.
+    return true;
+  }
 #else
   base::ignore_result(tracing_session);
 #endif
