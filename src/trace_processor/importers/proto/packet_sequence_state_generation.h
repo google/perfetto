@@ -19,6 +19,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <tuple>
@@ -84,7 +85,9 @@ class PacketSequenceStateGeneration : public RefCounted {
       return generation_->GetOrCreate<T>();
     }
 
-    PacketSequenceState* state() const { return generation_->state(); }
+    bool pid_and_tid_valid() const { return generation_->pid_and_tid_valid(); }
+    int32_t pid() const { return generation_->pid(); }
+    int32_t tid() const { return generation_->tid(); }
 
    private:
     friend PacketSequenceStateGeneration;
@@ -102,6 +105,10 @@ class PacketSequenceStateGeneration : public RefCounted {
     // methods of this class to get any interned data.
     PacketSequenceStateGeneration* generation_ = nullptr;
   };
+
+  bool pid_and_tid_valid() const;
+  int32_t pid() const;
+  int32_t tid() const;
 
   // Returns |nullptr| if the message with the given |iid| was not found (also
   // records a stat in this case).
@@ -141,14 +148,27 @@ class PacketSequenceStateGeneration : public RefCounted {
     return nullptr;
   }
 
-  PacketSequenceState* state() const { return state_; }
-  size_t generation_index() const { return generation_index_; }
-
   // Extension point for custom sequence state. To add new per sequence state
   // just subclass ´PacketSequenceStateGeneration´ and get your sequence bound
   // instance by calling this method.
   template <typename T>
   std::remove_cv_t<T>* GetOrCreate();
+
+  // TODO(carlscab): All this should be tracked in a dedicated class
+  // TrackEventSequenceState or something attached to the "incremental state".
+  int64_t IncrementAndGetTrackEventTimeNs(int64_t delta_ns);
+  int64_t IncrementAndGetTrackEventThreadTimeNs(int64_t delta_ns);
+  int64_t IncrementAndGetTrackEventThreadInstructionCount(int64_t delta);
+  bool track_event_timestamps_valid() const;
+  void SetThreadDescriptor(int32_t pid,
+                           int32_t tid,
+                           int64_t timestamp_ns,
+                           int64_t thread_timestamp_ns,
+                           int64_t thread_instruction_count);
+
+  // TODO(carlscab): Nobody other than `ProtoTraceReader` should care about
+  // this. Remove.
+  bool IsIncrementalStateValid() const;
 
  private:
   friend class PacketSequenceState;
@@ -175,12 +195,10 @@ class PacketSequenceStateGeneration : public RefCounted {
     }
   }
 
-  PacketSequenceStateGeneration(PacketSequenceState* state,
-                                size_t generation_index)
-      : state_(state), generation_index_(generation_index) {}
+  explicit PacketSequenceStateGeneration(PacketSequenceState* state)
+      : state_(state) {}
 
   PacketSequenceStateGeneration(PacketSequenceState* state,
-                                size_t generation_index,
                                 PacketSequenceStateGeneration* prev_gen,
                                 TraceBlobView defaults);
 
@@ -194,8 +212,9 @@ class PacketSequenceStateGeneration : public RefCounted {
     trace_packet_defaults_ = InternedMessageView(std::move(defaults));
   }
 
+  // TODO(carlscab): This is dangerous given that PacketSequenceStateGeneration
+  // is refcounted and PacketSequenceState is not.
   PacketSequenceState* state_;
-  size_t generation_index_;
   InternedFieldMap interned_data_;
   std::optional<InternedMessageView> trace_packet_defaults_;
   std::array<RefPtr<InternedDataTracker>,

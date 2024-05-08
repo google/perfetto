@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/config.descriptor.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 
@@ -52,7 +53,7 @@ ModuleResult MetadataModule::TokenizePacket(
     const protos::pbzero::TracePacket::Decoder& decoder,
     TraceBlobView*,
     int64_t,
-    PacketSequenceState*,
+    RefPtr<PacketSequenceStateGeneration>,
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kUiStateFieldNumber: {

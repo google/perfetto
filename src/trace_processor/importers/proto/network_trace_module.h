@@ -20,13 +20,15 @@
 #include <cstdint>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/android/network_trace.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+
+#include "protos/perfetto/trace/android/network_trace.pbzero.h"
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -45,7 +47,7 @@ class NetworkTraceModule : public ProtoImporterModule {
       const protos::pbzero::TracePacket::Decoder& decoder,
       TraceBlobView* packet,
       int64_t ts,
-      PacketSequenceState* state,
+      RefPtr<PacketSequenceStateGeneration> state,
       uint32_t field_id) override;
 
   void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
@@ -65,7 +67,8 @@ class NetworkTraceModule : public ProtoImporterModule {
 
   // Helper to simplify pushing a TracePacket to the sorter. The caller fills in
   // the packet buffer and uses this to push for sorting and reset the buffer.
-  void PushPacketBufferForSort(int64_t timestamp, PacketSequenceState* state);
+  void PushPacketBufferForSort(int64_t timestamp,
+                               RefPtr<PacketSequenceStateGeneration> state);
 
   TraceProcessorContext* context_;
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet_buffer_;

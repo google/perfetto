@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
+#include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -29,7 +31,7 @@ ModuleResult ProtoImporterModule::TokenizePacket(
     const protos::pbzero::TracePacket_Decoder&,
     TraceBlobView* /*packet*/,
     int64_t /*packet_timestamp*/,
-    PacketSequenceState*,
+    RefPtr<PacketSequenceStateGeneration> /*sequence_state*/,
     uint32_t /*field_id*/) {
   return ModuleResult::Ignored();
 }

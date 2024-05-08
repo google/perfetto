@@ -23,7 +23,7 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 #include "src/trace_processor/importers/proto/android_probes_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 
 #include "protos/perfetto/common/android_energy_consumer_descriptor.pbzero.h"
@@ -104,7 +104,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
     const protos::pbzero::TracePacket_Decoder&,
     TraceBlobView* packet,
     int64_t packet_timestamp,
-    PacketSequenceState* state,
+    RefPtr<PacketSequenceStateGeneration> state,
     uint32_t field_id) {
   protos::pbzero::TracePacket::Decoder decoder(packet->data(),
                                                packet->length());
@@ -193,7 +193,7 @@ ModuleResult AndroidProbesModule::TokenizePacket(
 
     std::vector<uint8_t> vec = data_packet.SerializeAsArray();
     TraceBlob blob = TraceBlob::CopyFrom(vec.data(), vec.size());
-    context_->sorter->PushTracePacket(actual_ts, state->current_generation(),
+    context_->sorter->PushTracePacket(actual_ts, state,
                                       TraceBlobView(std::move(blob)),
                                       context_->machine_id());
   }

@@ -51,6 +51,7 @@ source_set("full") {
     "../common:parser_types",
     "../i2c:full",
     "../proto:minimal",
+    "../proto:packet_sequence_state_generation_hdr",
     "../syscalls:full",
   ]
 }

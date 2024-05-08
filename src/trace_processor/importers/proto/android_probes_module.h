@@ -19,6 +19,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
 #include "protos/perfetto/config/trace_config.pbzero.h"
@@ -34,7 +35,7 @@ class AndroidProbesModule : public ProtoImporterModule {
   ModuleResult TokenizePacket(const protos::pbzero::TracePacket_Decoder&,
                               TraceBlobView* packet,
                               int64_t packet_timestamp,
-                              PacketSequenceState*,
+                              RefPtr<PacketSequenceStateGeneration>,
                               uint32_t field_id) override;
 
   void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,

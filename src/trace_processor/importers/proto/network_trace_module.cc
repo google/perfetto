@@ -21,7 +21,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/tcp_state.h"
@@ -78,18 +78,17 @@ ModuleResult NetworkTraceModule::TokenizePacket(
     const protos::pbzero::TracePacket::Decoder& decoder,
     TraceBlobView*,
     int64_t ts,
-    PacketSequenceState* state,
+    RefPtr<PacketSequenceStateGeneration> state,
     uint32_t field_id) {
   if (field_id != TracePacket::kNetworkPacketBundleFieldNumber) {
     return ModuleResult::Ignored();
   }
 
-  auto seq_state = state->current_generation();
   NetworkPacketBundle::Decoder evt(decoder.network_packet_bundle());
 
   ConstBytes context = evt.ctx();
   if (evt.has_iid()) {
-    auto* interned = seq_state->LookupInternedMessage<
+    auto* interned = state->LookupInternedMessage<
         protos::pbzero::InternedData::kPacketContextFieldNumber,
         protos::pbzero::NetworkPacketContext>(evt.iid());
     if (!interned) {
@@ -258,11 +257,12 @@ void NetworkTraceModule::ParseNetworkPacketBundle(int64_t ts, ConstBytes blob) {
   });
 }
 
-void NetworkTraceModule::PushPacketBufferForSort(int64_t timestamp,
-                                                 PacketSequenceState* state) {
+void NetworkTraceModule::PushPacketBufferForSort(
+    int64_t timestamp,
+    RefPtr<PacketSequenceStateGeneration> state) {
   std::vector<uint8_t> v = packet_buffer_.SerializeAsArray();
   context_->sorter->PushTracePacket(
-      timestamp, state->current_generation(),
+      timestamp, std::move(state),
       TraceBlobView(TraceBlob::CopyFrom(v.data(), v.size())));
   packet_buffer_.Reset();
 }
