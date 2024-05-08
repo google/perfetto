@@ -243,7 +243,7 @@ async function main() {
     scanDir('ui/src/test/diff_viewer');
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
-    generateImports('ui/src/tracks', 'all_tracks.ts');
+    generateImports('ui/src/core_plugins', 'all_core_plugins.ts');
     generateImports('ui/src/plugins', 'all_plugins.ts');
     compileProtos();
     genVersion();

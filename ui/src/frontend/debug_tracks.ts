@@ -17,7 +17,7 @@ import {Actions, DeferredAction} from '../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../common/state';
 import {globals} from './globals';
 import {EngineProxy, PrimaryTrackSortKey} from '../public';
-import {DebugTrackV2Config} from '../tracks/debug/slice_track';
+import {DebugTrackV2Config} from '../core_plugins/debug/slice_track';
 
 export const ARG_PREFIX = 'arg_';
 export const DEBUG_SLICE_TRACK_URI = 'perfetto.DebugSlices';
