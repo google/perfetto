@@ -20,11 +20,7 @@ import {
 import {NewTrackArgs} from '../../frontend/track';
 import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
-
-import {
-  ENABLE_CHROME_SCROLL_JANK_PLUGIN,
-  ScrollJankTracks as DecideTracksResult,
-} from './index';
+import {DecideTracksResult, ENABLE_CHROME_SCROLL_JANK_PLUGIN} from './common';
 
 interface ChromeTasksScrollJankTrackConfig {}
 
