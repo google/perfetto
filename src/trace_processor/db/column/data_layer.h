@@ -120,9 +120,9 @@ class DataLayerChain {
     };
     static Indices Create(const std::vector<uint32_t>& raw, State state) {
       std::vector<Token> tokens;
-      tokens.reserve(tokens.size());
-      for (uint32_t r : raw) {
-        tokens.push_back(Token{r, r});
+      tokens.reserve(raw.size());
+      for (auto r : raw) {
+        tokens.push_back({r, r});
       }
       return Indices{std::move(tokens), state};
     }
@@ -130,7 +130,7 @@ class DataLayerChain {
         const std::vector<uint32_t>& raw,
         State state) {
       std::vector<Token> tokens;
-      tokens.reserve(tokens.size());
+      tokens.reserve(raw.size());
       for (uint32_t i = 0; i < raw.size(); ++i) {
         tokens.push_back(Token{raw[i], i});
       }
