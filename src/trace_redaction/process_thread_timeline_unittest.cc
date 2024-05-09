@@ -38,26 +38,6 @@ class SliceTestParams {
   uint64_t uid_;
 };
 
-class DepthTestParams {
- public:
-  DepthTestParams(uint64_t ts,
-                  int32_t pid,
-                  std::optional<size_t> raw_depth,
-                  std::optional<size_t> flat_depth)
-      : ts_(ts), pid_(pid), raw_depth_(raw_depth), flat_depth_(flat_depth) {}
-
-  uint64_t ts() const { return ts_; }
-  int32_t pid() const { return pid_; }
-  std::optional<size_t> raw_depth() const { return raw_depth_; }
-  std::optional<size_t> flat_depth() const { return flat_depth_; }
-
- private:
-  uint64_t ts_;
-  int32_t pid_;
-  std::optional<size_t> raw_depth_;
-  std::optional<size_t> flat_depth_;
-};
-
 constexpr uint64_t kTimeA = 0;
 constexpr uint64_t kTimeB = 10;
 constexpr uint64_t kTimeC = 20;
@@ -65,12 +45,9 @@ constexpr uint64_t kTimeD = 30;
 constexpr uint64_t kTimeE = 40;
 constexpr uint64_t kTimeF = 50;
 constexpr uint64_t kTimeG = 60;
-constexpr uint64_t kTimeH = 70;
-constexpr uint64_t kTimeI = 70;
 
 constexpr int32_t kPidA = 1;
 constexpr int32_t kPidB = 2;
-constexpr int32_t kPidC = 3;
 
 constexpr uint64_t kNoPackage = 0;
 
@@ -95,7 +72,6 @@ TEST_P(TimelineEventsOpenAndCloseSingleTest, PidsEndOnClose) {
   timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeD, kPidB));
 
   timeline_.Sort();
-  timeline_.Flatten();
 
   auto slice = timeline_.Search(params.ts(), params.pid());
   ASSERT_EQ(slice.pid, params.pid());
@@ -223,103 +199,5 @@ INSTANTIATE_TEST_SUITE_P(
                     SliceTestParams(kTimeC, kPidB, kUidA),
                     SliceTestParams(kTimeD, kPidB, kUidA),
                     SliceTestParams(kTimeE, kPidB, kNoPackage)));
-
-class TimelineEventsFlattenTest
-    : public testing::Test,
-      public testing::WithParamInterface<DepthTestParams> {
- protected:
-  ProcessThreadTimeline timeline_;
-};
-
-TEST_P(TimelineEventsFlattenTest, BeforeFlatten) {
-  auto params = GetParam();
-
-  // |---------- PID_A ----------|
-  //      |----- PID_B -----|
-  //         |-- PID_C --|
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeB, kPidA, 0, kUidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeC, kPidB, kPidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeD, kPidC, kPidB));
-
-  // Time E is when all spans are valid.
-
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeF, kPidC));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeG, kPidB));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeH, kPidA));
-
-  timeline_.Sort();
-
-  auto depth = timeline_.GetDepth(params.ts(), params.pid());
-  ASSERT_EQ(depth, params.raw_depth());
-}
-
-TEST_P(TimelineEventsFlattenTest, AfterFlatten) {
-  auto params = GetParam();
-
-  // |---------- PID_A ----------|
-  //      |----- PID_B -----|
-  //         |-- PID_C --|
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeB, kPidA, 0, kUidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeC, kPidB, kPidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeD, kPidC, kPidB));
-
-  // Time E is when all spans are valid.
-
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeF, kPidC));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeG, kPidB));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeH, kPidA));
-
-  timeline_.Sort();
-  timeline_.Flatten();
-
-  auto depth = timeline_.GetDepth(params.ts(), params.pid());
-  ASSERT_EQ(depth, params.flat_depth());
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    AcrossWholeTimeline,
-    TimelineEventsFlattenTest,
-    testing::Values(
-        // Pid A
-        DepthTestParams(kTimeA, kPidA, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeB, kPidA, 0, 0),
-        DepthTestParams(kTimeC, kPidA, 0, 0),
-        DepthTestParams(kTimeD, kPidA, 0, 0),
-        DepthTestParams(kTimeE, kPidA, 0, 0),
-        DepthTestParams(kTimeF, kPidA, 0, 0),
-        DepthTestParams(kTimeG, kPidA, 0, 0),
-        DepthTestParams(kTimeH,
-                        kPidA,
-                        std::nullopt,
-                        std::nullopt),  // pid A ends
-        DepthTestParams(kTimeI, kPidA, std::nullopt, std::nullopt),
-
-        // Pid B
-        DepthTestParams(kTimeA, kPidB, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeB, kPidB, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeC, kPidB, 1, 0),
-        DepthTestParams(kTimeD, kPidB, 1, 0),
-        DepthTestParams(kTimeE, kPidB, 1, 0),
-        DepthTestParams(kTimeF, kPidB, 1, 0),
-        DepthTestParams(kTimeG,
-                        kPidB,
-                        std::nullopt,
-                        std::nullopt),  // pid B ends
-        DepthTestParams(kTimeH, kPidB, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeI, kPidB, std::nullopt, std::nullopt),
-
-        // Pid C
-        DepthTestParams(kTimeA, kPidC, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeB, kPidC, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeC, kPidC, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeD, kPidC, 2, 0),
-        DepthTestParams(kTimeE, kPidC, 2, 0),
-        DepthTestParams(kTimeF,
-                        kPidC,
-                        std::nullopt,
-                        std::nullopt),  // pid C ends
-        DepthTestParams(kTimeG, kPidC, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeH, kPidC, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeI, kPidC, std::nullopt, std::nullopt)));
 
 }  // namespace perfetto::trace_redaction

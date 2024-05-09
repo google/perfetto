@@ -49,8 +49,6 @@ source_set("trace_redaction") {
     "frame_cookie.h",
     "modify_process_trees.cc",
     "modify_process_trees.h",
-    "optimize_timeline.cc",
-    "optimize_timeline.h",
     "populate_allow_lists.cc",
     "populate_allow_lists.h",
     "process_thread_timeline.cc",
