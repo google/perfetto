@@ -2,6 +2,15 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v45.0 - 2024-05-09:
+  Trace Processor:
     * Optimised single column `DISTINCT` queries.
     * Optimised `LIMIT` and `OFFSET` queries.
   SQL Standard library:
