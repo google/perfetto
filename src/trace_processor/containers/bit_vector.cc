@@ -475,11 +475,14 @@ std::vector<uint32_t> BitVector::GetSetBitIndices() const {
   if (set_bits == 0) {
     return {};
   }
-  std::vector<uint32_t> res;
-  res.reserve(set_bits);
+  std::vector<uint32_t> res(set_bits);
+
+  // After measuring we discovered that not doing `push_back` creates a tangible
+  // performance improvement due to compiler unrolling the inner loop.
+  uint32_t res_idx = 0;
   for (uint32_t i = 0; i < size_; i += BitWord::kBits) {
     for (uint64_t word = words_[i / BitWord::kBits]; word; word &= word - 1) {
-      res.push_back(i + Tzcnt(word));
+      res[res_idx++] = i + Tzcnt(word);
     }
   }
   return res;
