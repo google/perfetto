@@ -744,6 +744,8 @@ class TracingServiceImpl : public TracingService {
   TracingServiceImpl(const TracingServiceImpl&) = delete;
   TracingServiceImpl& operator=(const TracingServiceImpl&) = delete;
 
+  bool IsInitiatorPrivileged(const TracingSession&);
+
   DataSourceInstance* SetupDataSource(const TraceConfig::DataSource&,
                                       const TraceConfig::ProducerConfig&,
                                       const RegisteredDataSource&,

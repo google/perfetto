@@ -2824,6 +2824,37 @@ void TracingServiceImpl::UnregisterDataSource(ProducerID producer_id,
       name.c_str(), producer_id);
 }
 
+bool TracingServiceImpl::IsInitiatorPrivileged(
+    const TracingSession& tracing_session) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  if (tracing_session.consumer_uid == 1066 /* AID_STATSD */ &&
+      tracing_session.config.statsd_metadata().triggering_config_uid() !=
+          2000 /* AID_SHELL */
+      && tracing_session.config.statsd_metadata().triggering_config_uid() !=
+             0 /* AID_ROOT */) {
+    // StatsD can be triggered either by shell, root or an app that has DUMP and
+    // USAGE_STATS permission. When triggered by shell or root, we do not want
+    // to consider the trace a trusted system trace, as it was initiated by the
+    // user. Otherwise, it has to come from an app with DUMP and
+    // PACKAGE_USAGE_STATS, which has to be preinstalled and trusted by the
+    // system.
+    // Check for shell / root: https://bit.ly/3b7oZNi
+    // Check for DUMP or PACKAGE_USAGE_STATS: https://bit.ly/3ep0NrR
+    return true;
+  }
+  if (tracing_session.consumer_uid == 1000 /* AID_SYSTEM */) {
+    // AID_SYSTEM is considered a privileged initiator so that system_server can
+    // profile apps that are not profileable by shell. Other AID_SYSTEM
+    // processes are not allowed by SELinux to connect to the consumer socket or
+    // to exec perfetto.
+    return true;
+  }
+#else
+  base::ignore_result(tracing_session);
+#endif
+  return false;
+}
+
 TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
     const TraceConfig::DataSource& cfg_data_source,
     const TraceConfig::ProducerConfig& producer_config,
@@ -2900,19 +2931,7 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   ds_config.set_stop_timeout_ms(tracing_session->data_source_stop_timeout_ms());
   ds_config.set_enable_extra_guardrails(
       tracing_session->config.enable_extra_guardrails());
-  if (tracing_session->consumer_uid == 1066 /* AID_STATSD */ &&
-      tracing_session->config.statsd_metadata().triggering_config_uid() !=
-          2000 /* AID_SHELL */
-      && tracing_session->config.statsd_metadata().triggering_config_uid() !=
-             0 /* AID_ROOT */) {
-    // StatsD can be triggered either by shell, root or an app that has DUMP and
-    // USAGE_STATS permission. When triggered by shell or root, we do not want
-    // to consider the trace a trusted system trace, as it was initiated by the
-    // user. Otherwise, it has to come from an app with DUMP and
-    // PACKAGE_USAGE_STATS, which has to be preinstalled and trusted by the
-    // system.
-    // Check for shell / root: https://bit.ly/3b7oZNi
-    // Check for DUMP or PACKAGE_USAGE_STATS: https://bit.ly/3ep0NrR
+  if (IsInitiatorPrivileged(*tracing_session)) {
     ds_config.set_session_initiator(
         DataSourceConfig::SESSION_INITIATOR_TRUSTED_SYSTEM);
   } else {
