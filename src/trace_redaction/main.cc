@@ -25,7 +25,6 @@
 #include "src/trace_redaction/filter_sched_waking_events.h"
 #include "src/trace_redaction/filter_task_rename.h"
 #include "src/trace_redaction/find_package_uid.h"
-#include "src/trace_redaction/optimize_timeline.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/redact_ftrace_event.h"
@@ -58,7 +57,6 @@ static base::Status Main(std::string_view input,
   // Add all builders.
   redactor.emplace_build<PopulateAllowlists>();
   redactor.emplace_build<AllowSuspendResume>();
-  redactor.emplace_build<OptimizeTimeline>();
   redactor.emplace_build<ReduceFrameCookies>();
   redactor.emplace_build<BuildSyntheticThreads>();
 
