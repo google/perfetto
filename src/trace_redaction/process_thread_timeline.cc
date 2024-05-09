@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <optional>
+
 #include "perfetto/base/logging.h"
 
 namespace perfetto::trace_redaction {
@@ -30,7 +30,7 @@ constexpr size_t kMaxSearchDepth = 10;
 
 bool OrderByPid(const ProcessThreadTimeline::Event& left,
                 const ProcessThreadTimeline::Event& right) {
-  return left.pid() < right.pid();
+  return left.pid < right.pid;
 }
 
 }  // namespace
@@ -49,24 +49,18 @@ ProcessThreadTimeline::Slice ProcessThreadTimeline::Search(uint64_t ts,
                                                            int32_t pid) const {
   PERFETTO_CHECK(mode_ == Mode::kRead);
 
-  Slice s;
-  s.pid = pid;
-  s.uid = 0;
-
   auto e = Search(0, ts, pid);
-  if (e.has_value()) {
-    s.uid = e->uid();
-  }
 
-  return s;
+  return {pid, e.type == Event::Type::kOpen ? e.uid : Event::kUnknownUid};
 }
 
-std::optional<ProcessThreadTimeline::Event>
-ProcessThreadTimeline::Search(size_t depth, uint64_t ts, int32_t pid) const {
+ProcessThreadTimeline::Event ProcessThreadTimeline::Search(size_t depth,
+                                                           uint64_t ts,
+                                                           int32_t pid) const {
   PERFETTO_DCHECK(mode_ == Mode::kRead);
 
   if (depth >= kMaxSearchDepth) {
-    return std::nullopt;
+    return {};
   }
 
   auto event = FindPreviousEvent(ts, pid);
@@ -75,15 +69,21 @@ ProcessThreadTimeline::Search(size_t depth, uint64_t ts, int32_t pid) const {
     return event;
   }
 
-  if (event->uid() != 0) {
+  if (event.uid != Event::kUnknownUid) {
     return event;
   }
 
-  return Search(depth + 1, ts, event->ppid());
+  // If there is no parent, there is no reason to keep searching.
+  if (event.ppid == Event::kUnknownPid) {
+    return {};
+  }
+
+  return Search(depth + 1, ts, event.ppid);
 }
 
-std::optional<ProcessThreadTimeline::Event>
-ProcessThreadTimeline::FindPreviousEvent(uint64_t ts, int32_t pid) const {
+ProcessThreadTimeline::Event ProcessThreadTimeline::FindPreviousEvent(
+    uint64_t ts,
+    int32_t pid) const {
   PERFETTO_DCHECK(mode_ == Mode::kRead);
 
   Event fake = Event::Close(ts, pid);
@@ -98,11 +98,11 @@ ProcessThreadTimeline::FindPreviousEvent(uint64_t ts, int32_t pid) const {
 
   // `pid` was not found in `events_`.
   if (at == events_.end()) {
-    return std::nullopt;
+    return {};
   }
 
   // "no best option".
-  std::optional<Event> best;
+  Event best = {};
 
   // Run through all events (related to this pid) and find the last event that
   // comes before ts. If the events were in order by time, the search could be
@@ -114,8 +114,8 @@ ProcessThreadTimeline::FindPreviousEvent(uint64_t ts, int32_t pid) const {
   //
   // 3. The performance gains are minimal or non-existant because of the small
   //    number of events.
-  for (; at != events_.end() && at->pid() == pid; ++at) {
-    if (at->ts() > ts) {
+  for (; at != events_.end() && at->pid == pid; ++at) {
+    if (at->ts > ts) {
       continue;  // Ignore events in the future.
     }
 
@@ -131,26 +131,19 @@ ProcessThreadTimeline::FindPreviousEvent(uint64_t ts, int32_t pid) const {
     //     -62         -29             0
     //
     // This means that the latest ts value under ts is the closest to ts.
-    if (!best.has_value() || at->ts() > best->ts()) {
+    if (!best.valid() || at->ts > best.ts) {
       best = *at;
     }
   }
 
-  if (best.has_value() &&
-      best->type() != ProcessThreadTimeline::Event::Type::kOpen) {
-    return std::nullopt;
-  }
-
-  return best;
+  Event invalid = {};
+  return best.type == ProcessThreadTimeline::Event::Type::kOpen ? best
+                                                                : invalid;
 }
 
-bool ProcessThreadTimeline::TestEvent(std::optional<Event> event) const {
-  if (!event.has_value()) {
-    return false;
-  }
-
+bool ProcessThreadTimeline::TestEvent(Event event) const {
   // The thread/process was freed. It won't exist until a new open event.
-  if (event->type() != Event::Type::kOpen) {
+  if (event.type != Event::Type::kOpen) {
     return false;
   }
 
@@ -158,11 +151,7 @@ bool ProcessThreadTimeline::TestEvent(std::optional<Event> event) const {
   // event will have no parent but will have the uid. So, to avoid make the
   // tests fragile and without taking on any risk, the uid should be checked
   // before the ppid.
-  if (event->uid() != 0) {
-    return true;
-  }
-
-  return event->ppid() != 0;
+  return event.uid != Event::kUnknownUid || event.ppid != Event::kUnknownPid;
 }
 
 }  // namespace perfetto::trace_redaction
