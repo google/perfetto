@@ -198,7 +198,8 @@ int ReadIdxStrAndUpdateCursor(DbSqliteModule::Cursor* cursor,
   }
 
   // DISTINCT
-  q.distinct = static_cast<Query::OrderType>(ReadLetterAndInt('D', &splitter));
+  q.order_type =
+      static_cast<Query::OrderType>(ReadLetterAndInt('D', &splitter));
 
   // LIMIT
   if (ReadLetterAndInt('L', &splitter)) {

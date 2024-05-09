@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -34,6 +35,32 @@
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto::trace_processor::column {
+namespace {
+using Indices = DataLayerChain::Indices;
+
+std::optional<Token> RemoveAllNullsAndReturnTheFirstOne(
+    Indices& indices,
+    const BitVector& non_null) {
+  // Find first NULL.
+  auto first_null_it = std::find_if(
+      indices.tokens.begin(), indices.tokens.end(),
+      [&non_null](const Token& t) { return !non_null.IsSet(t.index); });
+
+  // Save first NULL.
+  std::optional<Token> null_tok;
+  if (first_null_it != indices.tokens.end()) {
+    null_tok = *first_null_it;
+  }
+
+  // Erase all NULLs.
+  indices.tokens.erase(std::remove_if(first_null_it, indices.tokens.end(),
+                                      [&non_null](const Token& idx) {
+                                        return !non_null.IsSet(idx.index);
+                                      }),
+                       indices.tokens.end());
+  return null_tok;
+}
+}  // namespace
 
 DenseNullOverlay::ChainImpl::ChainImpl(std::unique_ptr<DataLayerChain> inner,
                                        const BitVector* non_null)
@@ -147,7 +174,7 @@ void DenseNullOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
     // non-null indices.
     auto non_null_it = std::stable_partition(
         indices.tokens.begin(), indices.tokens.end(),
-        [this](const Indices::Token& t) { return !non_null_->IsSet(t.index); });
+        [this](const Token& t) { return !non_null_->IsSet(t.index); });
 
     // IndexSearch |inner_| with a vector containing a copy of the non-null
     // indices.
@@ -164,17 +191,15 @@ void DenseNullOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
     // Merge the two sorted index ranges together using the payload as the
     // comparator. This is a required post-condition of IndexSearch.
     std::inplace_merge(indices.tokens.begin(), new_non_null_it,
-                       indices.tokens.end(),
-                       Indices::Token::PayloadComparator());
+                       indices.tokens.end(), Token::PayloadComparator());
     return;
   }
 
   auto keep_only_non_null = [this, &indices]() {
     indices.tokens.erase(
-        std::remove_if(indices.tokens.begin(), indices.tokens.end(),
-                       [this](const Indices::Token& idx) {
-                         return !non_null_->IsSet(idx.index);
-                       }),
+        std::remove_if(
+            indices.tokens.begin(), indices.tokens.end(),
+            [this](const Token& idx) { return !non_null_->IsSet(idx.index); }),
         indices.tokens.end());
     return;
   };
@@ -253,23 +278,8 @@ void DenseNullOverlay::ChainImpl::StableSort(SortToken* start,
 void DenseNullOverlay::ChainImpl::Distinct(Indices& indices) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "DenseNullOverlay::ChainImpl::Distinct");
-  // Find first NULL.
-  auto first_null_it = std::find_if(
-      indices.tokens.begin(), indices.tokens.end(),
-      [this](const Indices::Token& t) { return !non_null_->IsSet(t.index); });
-
-  // Save first NULL.
-  std::optional<Indices::Token> null_tok;
-  if (first_null_it != indices.tokens.end()) {
-    null_tok = *first_null_it;
-  }
-
-  // Erase all NULLs.
-  indices.tokens.erase(std::remove_if(first_null_it, indices.tokens.end(),
-                                      [this](const Indices::Token& idx) {
-                                        return !non_null_->IsSet(idx.index);
-                                      }),
-                       indices.tokens.end());
+  std::optional<Token> null_tok =
+      RemoveAllNullsAndReturnTheFirstOne(indices, *non_null_);
 
   inner_->Distinct(indices);
 
@@ -277,6 +287,31 @@ void DenseNullOverlay::ChainImpl::Distinct(Indices& indices) const {
   if (null_tok.has_value()) {
     indices.tokens.push_back(*null_tok);
   }
+}
+
+std::optional<Token> DenseNullOverlay::ChainImpl::MaxElement(
+    Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "DenseNullOverlay::ChainImpl::MaxElement");
+  std::optional<Token> null_tok =
+      RemoveAllNullsAndReturnTheFirstOne(indices, *non_null_);
+
+  std::optional<Token> max_val = inner_->MaxElement(indices);
+
+  return max_val ? max_val : null_tok;
+}
+
+std::optional<Token> DenseNullOverlay::ChainImpl::MinElement(
+    Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "DenseNullOverlay::ChainImpl::MinElement");
+  // Return the first NULL if found.
+  auto first_null_it = std::find_if(
+      indices.tokens.begin(), indices.tokens.end(),
+      [this](const Token& t) { return !non_null_->IsSet(t.index); });
+
+  return (first_null_it == indices.tokens.end()) ? inner_->MinElement(indices)
+                                                 : *first_null_it;
 }
 
 void DenseNullOverlay::ChainImpl::Serialize(StorageProto* storage) const {

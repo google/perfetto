@@ -16,9 +16,11 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_NUMERIC_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_NUMERIC_STORAGE_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <unordered_set>
@@ -110,10 +112,37 @@ class NumericStorage final : public NumericStorageBase {
       std::unordered_set<T> s;
       indices.tokens.erase(
           std::remove_if(indices.tokens.begin(), indices.tokens.end(),
-                         [&s, this](const Indices::Token& idx) {
+                         [&s, this](const Token& idx) {
                            return !s.insert((*vector_)[idx.index]).second;
                          }),
           indices.tokens.end());
+    }
+
+    std::optional<Token> MaxElement(Indices& indices) const override {
+      auto tok =
+          std::max_element(indices.tokens.begin(), indices.tokens.end(),
+                           [this](const Token& t1, const Token& t2) {
+                             return (*vector_)[t1.index] < (*vector_)[t2.index];
+                           });
+
+      if (tok == indices.tokens.end()) {
+        return std::nullopt;
+      }
+
+      return *tok;
+    }
+
+    std::optional<Token> MinElement(Indices& indices) const override {
+      auto tok =
+          std::min_element(indices.tokens.begin(), indices.tokens.end(),
+                           [this](const Token& t1, const Token& t2) {
+                             return (*vector_)[t1.index] < (*vector_)[t2.index];
+                           });
+      if (tok == indices.tokens.end()) {
+        return std::nullopt;
+      }
+
+      return *tok;
     }
 
     void StableSort(SortToken* start,

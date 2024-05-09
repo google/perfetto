@@ -94,6 +94,9 @@ class FakeStorageChain : public DataLayerChain {
 
   void Distinct(Indices&) const override;
 
+  std::optional<Token> MaxElement(Indices&) const override;
+  std::optional<Token> MinElement(Indices&) const override;
+
   void Serialize(StorageProto*) const override;
 
   uint32_t size() const override { return size_; }

@@ -101,8 +101,7 @@ void IndexSearchWithComparator(ValType val,
                                DataLayerChain::Indices& indices,
                                Comparator comparator) {
   auto it = std::remove_if(indices.tokens.begin(), indices.tokens.end(),
-                           [&comparator, data_ptr,
-                            &val](const DataLayerChain::Indices::Token& token) {
+                           [&comparator, data_ptr, &val](const Token& token) {
                              return !comparator(*(data_ptr + token.index), val);
                            });
   indices.tokens.erase(it, indices.tokens.end());

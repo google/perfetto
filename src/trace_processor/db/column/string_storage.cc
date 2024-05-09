@@ -679,10 +679,40 @@ void StringStorage::ChainImpl::Distinct(Indices& indices) const {
   std::unordered_set<StringPool::Id> s;
   indices.tokens.erase(
       std::remove_if(indices.tokens.begin(), indices.tokens.end(),
-                     [&s, this](const Indices::Token& idx) {
+                     [&s, this](const Token& idx) {
                        return !s.insert((*data_)[idx.index]).second;
                      }),
       indices.tokens.end());
+}
+
+std::optional<Token> StringStorage::ChainImpl::MaxElement(
+    Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "StringStorage::ChainImpl::MaxElement");
+  auto tok = std::max_element(indices.tokens.begin(), indices.tokens.end(),
+                              [this](const Token& lhs, const Token& rhs) {
+                                return LessForTokens(lhs, rhs);
+                              });
+  if (tok == indices.tokens.end()) {
+    return std::nullopt;
+  }
+
+  return *tok;
+}
+
+std::optional<Token> StringStorage::ChainImpl::MinElement(
+    Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "StringStorage::ChainImpl::MinElement");
+  auto tok = std::min_element(indices.tokens.begin(), indices.tokens.end(),
+                              [this](const Token& lhs, const Token& rhs) {
+                                return LessForTokens(lhs, rhs);
+                              });
+  if (tok == indices.tokens.end()) {
+    return std::nullopt;
+  }
+
+  return *tok;
 }
 
 void StringStorage::ChainImpl::Serialize(StorageProto* msg) const {
