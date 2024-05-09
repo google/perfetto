@@ -129,10 +129,6 @@ class ProcessThreadTimeline {
   //  events_for(pid).before(ts).sort_by_time().last()
   Event FindPreviousEvent(uint64_t ts, int32_t pid) const;
 
-  Event Search(size_t depth, uint64_t ts, int32_t pid) const;
-
-  bool TestEvent(Event event) const;
-
   std::vector<Event> events_;
 
   Mode mode_ = Mode::kRead;

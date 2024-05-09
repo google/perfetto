@@ -47,38 +47,33 @@ void ProcessThreadTimeline::Sort() {
 
 ProcessThreadTimeline::Slice ProcessThreadTimeline::Search(uint64_t ts,
                                                            int32_t pid) const {
-  PERFETTO_CHECK(mode_ == Mode::kRead);
-
-  auto e = Search(0, ts, pid);
-
-  return {pid, e.type == Event::Type::kOpen ? e.uid : Event::kUnknownUid};
-}
-
-ProcessThreadTimeline::Event ProcessThreadTimeline::Search(size_t depth,
-                                                           uint64_t ts,
-                                                           int32_t pid) const {
   PERFETTO_DCHECK(mode_ == Mode::kRead);
-
-  if (depth >= kMaxSearchDepth) {
-    return {};
-  }
 
   auto event = FindPreviousEvent(ts, pid);
 
-  if (!TestEvent(event)) {
-    return event;
+  for (size_t d = 0; d < kMaxSearchDepth; ++d) {
+    // The thread/process was freed. It won't exist until a new open event.
+    if (event.type != Event::Type::kOpen) {
+      return {pid, Event::kUnknownUid};
+    }
+
+    // System processes all have uids equal to zero, so everything eventually
+    // has a uid. This means that all threads should find a process and a uid.
+    // However, if a thread does not have a process (this should not happen)
+    // that thread will be treated as invalid.
+    if (event.uid != Event::kUnknownUid) {
+      return {pid, event.uid};
+    }
+
+    // If there is no parent, there is no reason to keep searching.
+    if (event.ppid == Event::kUnknownPid) {
+      return {pid, Event::kUnknownUid};
+    }
+
+    event = FindPreviousEvent(ts, event.ppid);
   }
 
-  if (event.uid != Event::kUnknownUid) {
-    return event;
-  }
-
-  // If there is no parent, there is no reason to keep searching.
-  if (event.ppid == Event::kUnknownPid) {
-    return {};
-  }
-
-  return Search(depth + 1, ts, event.ppid);
+  return {pid, Event::kUnknownUid};
 }
 
 ProcessThreadTimeline::Event ProcessThreadTimeline::FindPreviousEvent(
@@ -139,19 +134,6 @@ ProcessThreadTimeline::Event ProcessThreadTimeline::FindPreviousEvent(
   Event invalid = {};
   return best.type == ProcessThreadTimeline::Event::Type::kOpen ? best
                                                                 : invalid;
-}
-
-bool ProcessThreadTimeline::TestEvent(Event event) const {
-  // The thread/process was freed. It won't exist until a new open event.
-  if (event.type != Event::Type::kOpen) {
-    return false;
-  }
-
-  // It is a rare case in production, but a common case in tests, the top-level
-  // event will have no parent but will have the uid. So, to avoid make the
-  // tests fragile and without taking on any risk, the uid should be checked
-  // before the ppid.
-  return event.uid != Event::kUnknownUid || event.ppid != Event::kUnknownPid;
 }
 
 }  // namespace perfetto::trace_redaction
