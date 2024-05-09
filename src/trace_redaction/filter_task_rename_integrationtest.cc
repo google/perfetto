@@ -24,7 +24,6 @@
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/filter_task_rename.h"
 #include "src/trace_redaction/find_package_uid.h"
-#include "src/trace_redaction/optimize_timeline.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redaction_integration_fixture.h"
 #include "src/trace_redaction/trace_redactor.h"
@@ -57,7 +56,6 @@ class RenameEventsTraceRedactorIntegrationTest
     // registered primitives are there to generate the timeline.
     trace_redactor()->emplace_collect<FindPackageUid>();
     trace_redactor()->emplace_collect<CollectTimelineEvents>();
-    trace_redactor()->emplace_build<OptimizeTimeline>();
 
     auto scrub_ftrace_events =
         trace_redactor()->emplace_transform<ScrubFtraceEvents>();

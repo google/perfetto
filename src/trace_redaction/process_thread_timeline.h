@@ -18,7 +18,6 @@
 #define SRC_TRACE_REDACTION_PROCESS_THREAD_TIMELINE_H_
 
 #include <cstdint>
-#include <list>
 #include <optional>
 #include <vector>
 
@@ -121,22 +120,6 @@ class ProcessThreadTimeline {
   // subset of events will, on average, be trivally small.
   void Sort();
 
-  // OPTIONAL: minimizes the distance between the leaf nodes and the package
-  // nodes (a node with a uid value not equal to zero).
-  void Flatten();
-
-  // OPTIONAL: Removes events from the timeline that:
-  //
-  //  1. Reduces the number of events in the timeline to shrink the search
-  //  space.
-  //
-  //  2. Does not invalidate the timeline.
-  //
-  // This can only be called after calling Sort(). Calling Reduce() before
-  // Sort() has undefined behaviour. Calling Reduce() after AppendOpen() if
-  // AppendClose() (without a call to Sort() call) has undefined behaviour.
-  void Reduce(uint64_t package_uid);
-
   // Returns a snapshot that contains a process's pid and ppid, but contains the
   // first uid found in its parent-child chain. If a uid cannot be found, uid=0
   // is returned.
@@ -144,27 +127,18 @@ class ProcessThreadTimeline {
   // `Sort()` must be called before this.
   Slice Search(uint64_t ts, int32_t pid) const;
 
-  // Finds the distance between pid and its uid.
-  //
-  // Returns -1 it pid has no connection to a uid.
-  // Returns 0 if pid has an immediately connection to a uid.
-  //
-  // Return n where:  n is the number of pids between the given pid and the pid
-  //                  connected to the uid. For example, assume D() is a
-  //                  function that measures the distance between two nodes in
-  //                  the same chain:
-  //
-  //                    | pid | depth
-  //                    | a   : 0
-  //                    | b   : 1
-  //                    | c   : 2 --> uid = 98
-  //
-  //                    D(a) = 2
-  //                    D(b) = 1
-  //                    D(c) = 0
-  std::optional<size_t> GetDepth(uint64_t ts, int32_t pid) const;
-
  private:
+  enum class Mode {
+    // The timeline can safely be queried. If the timeline is in read mode, and
+    // a user writes to the timeline, the timeline will change to write mode.
+    kRead,
+
+    // The timeline change be changed. If the timeline is not in write mode,
+    // reading from the timeline will throw an error. Sort() must be called to
+    // change the timeline from write to read mode.
+    kWrite
+  };
+
   // Effectively this is the same as:
   //
   //  events_for(pid).before(ts).sort_by_time().last()
@@ -172,14 +146,11 @@ class ProcessThreadTimeline {
 
   std::optional<Event> Search(size_t depth, uint64_t ts, int32_t pid) const;
 
-  std::optional<size_t> GetDepth(size_t depth, uint64_t ts, int32_t pid) const;
-
   bool TestEvent(std::optional<Event> event) const;
 
-  // The number of events are unclear. Use a list when in "write-only" mode and
-  // then change to a vector for "read-only" mode.
-  std::list<Event> write_only_events_;
-  std::vector<Event> read_only_events_;
+  std::vector<Event> events_;
+
+  Mode mode_ = Mode::kRead;
 };
 
 }  // namespace perfetto::trace_redaction

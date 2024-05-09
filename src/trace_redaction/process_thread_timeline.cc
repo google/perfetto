@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include "perfetto/base/logging.h"
 
 namespace perfetto::trace_redaction {
 namespace {
@@ -35,57 +36,19 @@ bool OrderByPid(const ProcessThreadTimeline::Event& left,
 }  // namespace
 
 void ProcessThreadTimeline::Append(const Event& event) {
-  write_only_events_.push_back(event);
+  events_.push_back(event);
+  mode_ = Mode::kWrite;
 }
 
 void ProcessThreadTimeline::Sort() {
-  write_only_events_.sort(OrderByPid);
-
-  // Copy all events that don't match adjacent events. This should reduce the
-  // number of events because process trees may contain the same data
-  // back-to-back.
-  read_only_events_.reserve(write_only_events_.size());
-
-  for (auto event : write_only_events_) {
-    if (read_only_events_.empty() || event != read_only_events_.back()) {
-      read_only_events_.push_back(event);
-    }
-  }
-
-  // Events have been moved from the write-only list to the read-only vector.
-  // The resources backing the write-only list can be release.
-  write_only_events_.clear();
-}
-
-void ProcessThreadTimeline::Flatten() {
-  // Union-find-like action to collapse the tree.
-  for (auto& event : read_only_events_) {
-    if (event.type() != Event::Type::kOpen) {
-      continue;
-    }
-
-    auto event_with_package = Search(0, event.ts(), event.pid());
-
-    if (event_with_package.has_value()) {
-      event = Event::Open(event.ts(), event.pid(), event.ppid(),
-                          event_with_package->uid());
-    }
-  }
-}
-
-void ProcessThreadTimeline::Reduce(uint64_t package_uid) {
-  auto remove_open_events = [package_uid](const Event& event) {
-    return event.uid() != package_uid && event.type() == Event::Type::kOpen;
-  };
-
-  read_only_events_.erase(
-      std::remove_if(read_only_events_.begin(), read_only_events_.end(),
-                     remove_open_events),
-      read_only_events_.end());
+  std::sort(events_.begin(), events_.end(), OrderByPid);
+  mode_ = Mode::kRead;
 }
 
 ProcessThreadTimeline::Slice ProcessThreadTimeline::Search(uint64_t ts,
                                                            int32_t pid) const {
+  PERFETTO_CHECK(mode_ == Mode::kRead);
+
   Slice s;
   s.pid = pid;
   s.uid = 0;
@@ -100,6 +63,8 @@ ProcessThreadTimeline::Slice ProcessThreadTimeline::Search(uint64_t ts,
 
 std::optional<ProcessThreadTimeline::Event>
 ProcessThreadTimeline::Search(size_t depth, uint64_t ts, int32_t pid) const {
+  PERFETTO_DCHECK(mode_ == Mode::kRead);
+
   if (depth >= kMaxSearchDepth) {
     return std::nullopt;
   }
@@ -117,33 +82,10 @@ ProcessThreadTimeline::Search(size_t depth, uint64_t ts, int32_t pid) const {
   return Search(depth + 1, ts, event->ppid());
 }
 
-std::optional<size_t> ProcessThreadTimeline::GetDepth(uint64_t ts,
-                                                      int32_t pid) const {
-  return GetDepth(0, ts, pid);
-}
-
-std::optional<size_t> ProcessThreadTimeline::GetDepth(size_t depth,
-                                                      uint64_t ts,
-                                                      int32_t pid) const {
-  if (depth >= kMaxSearchDepth) {
-    return std::nullopt;
-  }
-
-  auto event = FindPreviousEvent(ts, pid);
-
-  if (!TestEvent(event)) {
-    return std::nullopt;
-  }
-
-  if (event->uid() != 0) {
-    return depth;
-  }
-
-  return GetDepth(depth + 1, ts, event->ppid());
-}
-
 std::optional<ProcessThreadTimeline::Event>
 ProcessThreadTimeline::FindPreviousEvent(uint64_t ts, int32_t pid) const {
+  PERFETTO_DCHECK(mode_ == Mode::kRead);
+
   Event fake = Event::Close(ts, pid);
 
   // Events are in ts-order within each pid-group. See Optimize(), Because each
@@ -152,11 +94,10 @@ ProcessThreadTimeline::FindPreviousEvent(uint64_t ts, int32_t pid) const {
   //
   // Find the first process event. Then perform a linear search. There won't be
   // many events per process.
-  auto at = std::lower_bound(read_only_events_.begin(), read_only_events_.end(),
-                             fake, OrderByPid);
+  auto at = std::lower_bound(events_.begin(), events_.end(), fake, OrderByPid);
 
-  // `pid` was not found in `read_only_events_`.
-  if (at == read_only_events_.end()) {
+  // `pid` was not found in `events_`.
+  if (at == events_.end()) {
     return std::nullopt;
   }
 
@@ -173,7 +114,7 @@ ProcessThreadTimeline::FindPreviousEvent(uint64_t ts, int32_t pid) const {
   //
   // 3. The performance gains are minimal or non-existant because of the small
   //    number of events.
-  for (; at != read_only_events_.end() && at->pid() == pid; ++at) {
+  for (; at != events_.end() && at->pid() == pid; ++at) {
     if (at->ts() > ts) {
       continue;  // Ignore events in the future.
     }
