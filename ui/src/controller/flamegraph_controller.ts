@@ -32,7 +32,7 @@ import {FlamegraphDetails, globals} from '../frontend/globals';
 import {publishFlamegraphDetails} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';
 import {NUM, STR} from '../trace_processor/query_result';
-import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../tracks/perf_samples_profile';
+import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../core_plugins/perf_samples_profile';
 
 import {AreaSelectionHandler} from './area_selection_handler';
 import {Controller} from './controller';

@@ -15,6 +15,7 @@
 // Keep this import first.
 import '../base/static_initializers';
 import '../gen/all_plugins';
+import '../gen/all_core_plugins';
 
 import {Draft} from 'immer';
 import m from 'mithril';

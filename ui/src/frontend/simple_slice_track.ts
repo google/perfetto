@@ -17,12 +17,12 @@ import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
-} from '../tracks/custom_sql_table_slices';
+} from '../core_plugins/custom_sql_table_slices';
 import {NamedSliceTrackTypes} from './named_slice_track';
 import {ARG_PREFIX, SliceColumns, SqlDataSource} from './debug_tracks';
 import {uuidv4Sql} from '../base/uuid';
 import {DisposableCallback} from '../base/disposable';
-import {DebugSliceDetailsTab} from '../tracks/debug/details_tab';
+import {DebugSliceDetailsTab} from '../core_plugins/debug/details_tab';
 
 export interface SimpleSliceTrackConfig {
   data: SqlDataSource;

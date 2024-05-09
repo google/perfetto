@@ -22,7 +22,7 @@ import {QueryError} from '../trace_processor/query_result';
 import {
   AddDebugTrackMenu,
   uuidToViewName,
-} from '../tracks/debug/add_debug_track_menu';
+} from '../core_plugins/debug/add_debug_track_menu';
 import {Button} from '../widgets/button';
 import {PopupMenu2} from '../widgets/menu';
 import {PopupPosition} from '../widgets/popup';
