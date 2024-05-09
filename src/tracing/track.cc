@@ -212,18 +212,6 @@ void TrackRegistry::UpdateTrack(Track track,
   tracks_[track.uuid] = std::move(serialized_desc);
 }
 
-void TrackRegistry::UpdateTrackImpl(
-    Track track,
-    std::function<void(protos::pbzero::TrackDescriptor*)> fill_function) {
-  constexpr size_t kInitialSliceSize = 32;
-  constexpr size_t kMaximumSliceSize = 4096;
-  protozero::HeapBuffered<protos::pbzero::TrackDescriptor> new_descriptor(
-      kInitialSliceSize, kMaximumSliceSize);
-  fill_function(new_descriptor.get());
-  auto serialized_desc = new_descriptor.SerializeAsString();
-  UpdateTrack(track, serialized_desc);
-}
-
 void TrackRegistry::EraseTrack(Track track) {
   std::lock_guard<std::mutex> lock(mutex_);
   tracks_.erase(track.uuid);
