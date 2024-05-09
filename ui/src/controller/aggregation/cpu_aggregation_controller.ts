@@ -17,7 +17,7 @@ import {ColumnDef} from '../../common/aggregation_data';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
-import {CPU_SLICE_TRACK_KIND} from '../../tracks/cpu_slices';
+import {CPU_SLICE_TRACK_KIND} from '../../core_plugins/cpu_slices';
 
 import {AggregationController} from './aggregation_controller';
 

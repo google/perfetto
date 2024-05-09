@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {translateState} from '../common/thread_state';
-import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
+import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
 import {Anchor} from '../widgets/anchor';
 import {DetailsShell} from '../widgets/details_shell';
 import {GridLayout} from '../widgets/grid_layout';

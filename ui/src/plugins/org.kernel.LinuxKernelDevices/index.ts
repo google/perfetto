@@ -19,8 +19,8 @@ import {
   PluginDescriptor,
   STR_NULL,
 } from '../../public';
-import {ASYNC_SLICE_TRACK_KIND} from '../../tracks/async_slices';
-import {AsyncSliceTrackV2} from '../../tracks/async_slices/async_slice_track_v2';
+import {ASYNC_SLICE_TRACK_KIND} from '../../core_plugins/async_slices';
+import {AsyncSliceTrackV2} from '../../core_plugins/async_slices/async_slice_track_v2';
 
 // This plugin renders visualizations of runtime power state transitions for
 // Linux kernel devices (devices managed by Linux drivers).
