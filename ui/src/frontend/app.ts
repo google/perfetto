@@ -33,7 +33,7 @@ import {
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
-import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
+import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
