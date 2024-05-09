@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -116,25 +117,6 @@ class DataLayerChain {
       kNonmonotonic,
       // Data is in monotonic order.
       kMonotonic,
-    };
-    // Contains an index to an element in the chain and an opaque payload class
-    // which can be set to whatever the user of the chain requires.
-    struct Token {
-      // An index pointing to an element in this chain. Indicates the element
-      // at this index should be filtered.
-      uint32_t index;
-
-      // An opaque value which can be set to some value meaningful to the
-      // caller. While the exact meaning of |payload| should not be depended
-      // upon, implementations are free to make assumptions that |payload| will
-      // be strictly monotonic.
-      uint32_t payload;
-
-      struct PayloadComparator {
-        bool operator()(const Token& a, const Token& b) {
-          return a.payload < b.payload;
-        }
-      };
     };
     static Indices Create(const std::vector<uint32_t>& raw, State state) {
       std::vector<Token> tokens;
@@ -290,6 +272,16 @@ class DataLayerChain {
   // * Each layer that might introduce duplicates is responsible for removing
   // them.
   virtual void Distinct(Indices&) const = 0;
+
+  // After calling this function Indices will have at most one element. If
+  // present it will point to the first index with the largest value in the
+  // chain.
+  virtual std::optional<Token> MaxElement(Indices&) const = 0;
+
+  // After calling this function Indices will have at most one element. If
+  // present it will point to the first index with the smallest value in the
+  // chain.
+  virtual std::optional<Token> MinElement(Indices&) const = 0;
 
   // Serializes storage data to proto format.
   virtual void Serialize(StorageProto*) const = 0;

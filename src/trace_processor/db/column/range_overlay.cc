@@ -151,6 +151,24 @@ void RangeOverlay::ChainImpl::Distinct(Indices& indices) const {
   inner_->Distinct(indices);
 }
 
+std::optional<Token> RangeOverlay::ChainImpl::MaxElement(
+    Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "RangeOverlay::MaxElement");
+  for (auto& token : indices.tokens) {
+    token.index += range_->start;
+  }
+  return inner_->MaxElement(indices);
+}
+
+std::optional<Token> RangeOverlay::ChainImpl::MinElement(
+    Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "RangeOverlay::MinElement");
+  for (auto& token : indices.tokens) {
+    token.index += range_->start;
+  }
+  return inner_->MinElement(indices);
+}
+
 void RangeOverlay::ChainImpl::Serialize(StorageProto*) const {
   PERFETTO_FATAL("Not implemented");
 }

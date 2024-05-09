@@ -110,7 +110,7 @@ struct Query {
     // don't need additional sorting.
     kDistinct = 2
   };
-  OrderType distinct = OrderType::kSort;
+  OrderType order_type = OrderType::kSort;
   // Query constraints.
   std::vector<Constraint> constraints;
   // Query order bys. Check distinct to know whether they should be used for
@@ -140,6 +140,26 @@ enum class ColumnType {
 
   // Types which don't have any data backing them.
   kDummy,
+};
+
+// Contains an index to an element in the chain and an opaque payload class
+// which can be set to whatever the user of the chain requires.
+struct Token {
+  // An index pointing to an element in this chain. Indicates the element
+  // at this index should be filtered.
+  uint32_t index;
+
+  // An opaque value which can be set to some value meaningful to the
+  // caller. While the exact meaning of |payload| should not be depended
+  // upon, implementations are free to make assumptions that |payload| will
+  // be strictly monotonic.
+  uint32_t payload;
+
+  struct PayloadComparator {
+    bool operator()(const Token& a, const Token& b) {
+      return a.payload < b.payload;
+    }
+  };
 };
 
 }  // namespace perfetto::trace_processor

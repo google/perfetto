@@ -557,7 +557,7 @@ BENCHMARK(BM_QEFtraceEventSortSelectorNumericDesc);
 void BM_QEDistinctWithSparseSelector(benchmark::State& state) {
   ExpectedFrameTimelineTableForBenchmark table(state);
   Query q;
-  q.distinct = Query::OrderType::kDistinct;
+  q.order_type = Query::OrderType::kDistinct;
   q.orders = {table.table_.track_id().descending()};
   BenchmarkExpectedFrameTableQuery(state, table, q);
 }
@@ -566,7 +566,7 @@ BENCHMARK(BM_QEDistinctWithSparseSelector);
 void BM_QEDistinctWithDenseSelector(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
   Query q;
-  q.distinct = Query::OrderType::kDistinct;
+  q.order_type = Query::OrderType::kDistinct;
   q.orders = {table.table_.cpu().descending()};
   BenchmarkFtraceEventTableQuery(state, table, q);
 }
@@ -575,7 +575,7 @@ BENCHMARK(BM_QEDistinctWithDenseSelector);
 void BM_QEDistinctSortedWithSparseSelector(benchmark::State& state) {
   ExpectedFrameTimelineTableForBenchmark table(state);
   Query q;
-  q.distinct = Query::OrderType::kDistinctAndSort;
+  q.order_type = Query::OrderType::kDistinctAndSort;
   q.orders = {table.table_.track_id().descending()};
   BenchmarkExpectedFrameTableQuery(state, table, q);
 }
@@ -584,7 +584,7 @@ BENCHMARK(BM_QEDistinctSortedWithSparseSelector);
 void BM_QEDistinctSortedWithDenseSelector(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
   Query q;
-  q.distinct = Query::OrderType::kDistinctAndSort;
+  q.order_type = Query::OrderType::kDistinctAndSort;
   q.orders = {table.table_.cpu().descending()};
   BenchmarkFtraceEventTableQuery(state, table, q);
 }
@@ -596,7 +596,7 @@ void BM_QEDistinctWithArrangement(benchmark::State& state) {
   Table slice_sorted_with_duration = table.table_.Sort({order});
 
   Query q;
-  q.distinct = Query::OrderType::kDistinct;
+  q.order_type = Query::OrderType::kDistinct;
   q.orders = {table.table_.track_id().descending()};
 
   for (auto _ : state) {
@@ -619,7 +619,7 @@ void BM_QEDistinctSortedWithArrangement(benchmark::State& state) {
   Table slice_sorted_with_duration = table.table_.Sort({order});
 
   Query q;
-  q.distinct = Query::OrderType::kDistinctAndSort;
+  q.order_type = Query::OrderType::kDistinctAndSort;
   q.orders = {table.table_.track_id().descending()};
 
   for (auto _ : state) {
@@ -644,6 +644,15 @@ void BM_QEOffsetLimit(benchmark::State& state) {
   BenchmarkFtraceEventTableQuery(state, table, q);
 }
 BENCHMARK(BM_QEOffsetLimit);
+
+void BM_QEMax(benchmark::State& state) {
+  FtraceEventTableForBenchmark table(state);
+  Query q;
+  q.limit = 1;
+  q.orders = {table.table_.utid().descending()};
+  BenchmarkFtraceEventTableQuery(state, table, q);
+}
+BENCHMARK(BM_QEMax);
 
 }  // namespace
 }  // namespace perfetto::trace_processor

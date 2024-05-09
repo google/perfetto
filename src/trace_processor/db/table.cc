@@ -107,11 +107,33 @@ RowMap Table::QueryToRowMap(const Query& q) const {
   // Apply the query constraints.
   RowMap rm = QueryExecutor::FilterLegacy(this, q.constraints);
 
-  if (q.distinct != Query::OrderType::kSort) {
+  if (q.order_type != Query::OrderType::kSort) {
     ApplyDistinct(q, &rm);
   }
 
-  if (q.distinct != Query::OrderType::kDistinct && !q.orders.empty()) {
+  // Fastpath for one sort, no distinct and limit 1. This type of query means we
+  // need to run Max/Min on orderby column and there is no need for sorting.
+  if (q.order_type == Query::OrderType::kSort && q.orders.size() == 1 &&
+      q.limit.has_value() && *q.limit == 1) {
+    Order o = q.orders.front();
+    std::vector<uint32_t> table_indices = std::move(rm).TakeAsIndexVector();
+    auto indices = Indices::Create(table_indices, Indices::State::kMonotonic);
+    std::optional<Token> ret_tok;
+
+    if (o.desc) {
+      ret_tok = ChainForColumn(o.col_idx).MaxElement(indices);
+    } else {
+      ret_tok = ChainForColumn(o.col_idx).MinElement(indices);
+    }
+
+    if (!ret_tok.has_value()) {
+      return RowMap();
+    }
+
+    return RowMap(std::vector<uint32_t>{ret_tok->payload});
+  }
+
+  if (q.order_type != Query::OrderType::kDistinct && !q.orders.empty()) {
     ApplySort(q, &rm);
   }
 
@@ -230,7 +252,7 @@ void Table::ApplyDistinct(const Query& q, RowMap* rm) const {
   // Sorting that happens later might require indices to preserve ordering.
   // TODO(mayzner): Needs to be changed after implementing multi column
   // distinct.
-  if (q.distinct == Query::OrderType::kDistinctAndSort) {
+  if (q.order_type == Query::OrderType::kDistinctAndSort) {
     std::sort(table_indices.begin(), table_indices.end());
   }
 
