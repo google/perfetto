@@ -14941,6 +14941,7 @@ message TracePacket {
     ShellHandlerMappings shell_handler_mappings = 97;
     ProtoLogMessage protolog_message = 104;
     ProtoLogViewerConfig protolog_viewer_config = 105;
+    WinscopeExtensions winscope_extensions = 112;
 
     // Events from the Windows etw infrastructure.
     EtwTraceEventBundle etw_events = 95;
@@ -14968,8 +14969,6 @@ message TracePacket {
     //   the field id is large enough.
     TestEvent for_testing = 900;
   }
-
-  optional WinscopeExtensions winscope_extensions = 112;
 
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.
