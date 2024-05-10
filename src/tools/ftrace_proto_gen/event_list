@@ -500,3 +500,5 @@ google_icc_trace/google_icc_event
 google_irm_trace/google_irm_event
 power/device_pm_callback_start
 power/device_pm_callback_end
+thermal_exynos/thermal_exynos_acpm_bulk
+thermal_exynos/thermal_exynos_acpm_high_overhead
