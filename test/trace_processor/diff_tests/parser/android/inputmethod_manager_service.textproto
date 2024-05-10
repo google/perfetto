@@ -1,0 +1,97 @@
+packet {
+    clock_snapshot {
+        primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+        clocks {
+            clock_id: 6
+            timestamp: 39116317767
+        }
+        clocks {
+            clock_id: 2
+            timestamp: 1711013588124000018
+        }
+        clocks {
+            clock_id: 4
+            timestamp: 39115297096
+        }
+        clocks {
+            clock_id: 1
+            timestamp: 1711013588125020892
+        }
+        clocks {
+            clock_id: 3
+            timestamp: 39116318011
+        }
+        clocks {
+            clock_id: 5
+            timestamp: 39116318093
+        }
+    }
+    trusted_uid: 9999
+    trusted_packet_sequence_id: 1
+}
+
+packet {
+    first_packet_on_sequence: true
+    timestamp: 39998329771
+    winscope_extensions {
+        [perfetto.protos.WinscopeExtensionsImpl.inputmethod_manager_service] {
+            where: "InputMethodManagerService#startInputOrWindowGainedFocus"
+            input_method_manager_service {
+                cur_method_id: "com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME"
+                cur_seq: 1
+                cur_client: "ClientState{6c16bdd mUid=10254 mPid=2790 mSelfReportedDisplayId=0}"
+                cur_focused_window_name: "a74954b com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity"
+                cur_focused_window_soft_input_mode: "STATE_UNSPECIFIED|ADJUST_NOTHING|IS_FORWARD_NAVIGATION"
+                last_ime_target_window_name: "a74954b com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity"
+                cur_focused_window_soft_input_mode: "STATE_UNSPECIFIED|ADJUST_NOTHING|IS_FORWARD_NAVIGATION"
+                cur_attribute {
+                    package_name: "com.google.android.apps.nexuslauncher"
+                }
+                cur_id: "com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME"
+                cur_token: "android.os.Binder@3abdbc4"
+                system_ready: true
+                have_connection: true
+                bound_to_method: true
+                is_interactive: true
+            }
+        }
+    }
+    trusted_uid: 1000
+    trusted_packet_sequence_id: 4
+    trusted_pid: 1678
+    previous_packet_dropped: true
+}
+
+packet {
+    timestamp: 40003054136
+    winscope_extensions {
+        [perfetto.protos.WinscopeExtensionsImpl.inputmethod_manager_service] {
+            where: "InputMethodManagerService#showSoftInput"
+            input_method_manager_service {
+                cur_method_id: "com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME"
+                cur_seq: 2
+                cur_client: "ClientState{6c16bdd mUid=10254 mPid=2790 mSelfReportedDisplayId=0}"
+                cur_focused_window_name: "a74954b com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity"
+                cur_focused_window_soft_input_mode: "STATE_UNSPECIFIED|ADJUST_NOTHING|IS_FORWARD_NAVIGATION"
+                last_ime_target_window_name: "a74954b com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity"
+                cur_focused_window_soft_input_mode: "STATE_UNSPECIFIED|ADJUST_NOTHING|IS_FORWARD_NAVIGATION"
+                cur_attribute {
+                    input_type: 1
+                    ime_options: 33554435
+                    private_ime_options: "com.google.android.inputmethod.latin.appSupportsSmartComposeAndDel,com.google.android.inputmethod.latin.canary.appSupportsSmartComposeAndDel,com.google.android.inputmethod.latin.dev.appSupportsSmartComposeAndDel"
+                    package_name: "com.google.android.apps.nexuslauncher"
+                    field_id: 2131362278
+                }
+                cur_id: "com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME"
+                cur_token: "android.os.Binder@3abdbc4"
+                system_ready: true
+                have_connection: true
+                bound_to_method: true
+                is_interactive: true
+            }
+        }
+    }
+    trusted_uid: 1000
+    trusted_packet_sequence_id: 4
+    trusted_pid: 1678
+}
