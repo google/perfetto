@@ -12352,6 +12352,7 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/proto/additional_modules.cc",
         "src/trace_processor/importers/proto/android_camera_event_module.cc",
+        "src/trace_processor/importers/proto/android_input_event_module.cc",
         "src/trace_processor/importers/proto/android_probes_module.cc",
         "src/trace_processor/importers/proto/android_probes_parser.cc",
         "src/trace_processor/importers/proto/android_probes_tracker.cc",
