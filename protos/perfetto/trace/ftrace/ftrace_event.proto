@@ -78,6 +78,7 @@ import "protos/perfetto/trace/ftrace/systrace.proto";
 import "protos/perfetto/trace/ftrace/task.proto";
 import "protos/perfetto/trace/ftrace/tcp.proto";
 import "protos/perfetto/trace/ftrace/thermal.proto";
+import "protos/perfetto/trace/ftrace/thermal_exynos.proto";
 import "protos/perfetto/trace/ftrace/trusty.proto";
 import "protos/perfetto/trace/ftrace/ufs.proto";
 import "protos/perfetto/trace/ftrace/v4l2.proto";
@@ -624,5 +625,8 @@ message FtraceEvent {
     GoogleIrmEventFtraceEvent google_irm_event = 503;
     DevicePmCallbackStartFtraceEvent device_pm_callback_start = 504;
     DevicePmCallbackEndFtraceEvent device_pm_callback_end = 505;
+    ThermalExynosAcpmBulkFtraceEvent thermal_exynos_acpm_bulk = 506;
+    ThermalExynosAcpmHighOverheadFtraceEvent thermal_exynos_acpm_high_overhead =
+        507;
   }
 }
