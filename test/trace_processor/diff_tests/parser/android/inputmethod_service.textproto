@@ -1,0 +1,94 @@
+packet {
+  trusted_uid: 9999
+  clock_snapshot {
+    clocks {
+      clock_id: 6
+      timestamp: 61175548939
+    }
+    clocks {
+      clock_id: 2
+      timestamp: 1710950518184000029
+    }
+    clocks {
+      clock_id: 4
+      timestamp: 61168655343
+    }
+    clocks {
+      clock_id: 1
+      timestamp: 1710950518190893869
+    }
+    clocks {
+      clock_id: 3
+      timestamp: 61175549223
+    }
+    clocks {
+      clock_id: 5
+      timestamp: 61175549468
+    }
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+  }
+  trusted_packet_sequence_id: 1
+}
+
+packet {
+  trusted_uid: 10215
+  timestamp: 61829562285
+  trusted_packet_sequence_id: 4
+  previous_packet_dropped: true
+  trusted_pid: 4233
+  first_packet_on_sequence: true
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.inputmethod_service] {
+      where: "InputMethodService#doFinishInput"
+      input_method_service {
+        soft_input_window {
+          window_state: 2
+        }
+        configuration: "{1.0 ?mcc0mnc [en_US] ldltr sw411dp w411dp h842dp 420dpi nrml long hdr widecg port night finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 128 - 1080, 2337) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.11 fontWeightAdjustment=0}"
+        token: "android.os.BinderProxy@50043d1"
+        input_binding: "InputBinding{android.os.BinderProxy@cbb5415 / uid 10254 / pid 2812}"
+        input_started: true
+        input_editor_info {
+          package_name: "com.google.android.apps.nexuslauncher"
+        }
+        candidates_visibility: 4
+        last_computed_insets {
+          content_top_insets: 126
+          touchable_insets: 2
+          touchable_region: "SkRegion()"
+        }
+        settings_observer: "SettingsObserver{mShowImeWithHardKeyboard=1}"
+      }
+    }
+  }
+}
+
+packet {
+  trusted_uid: 10215
+  timestamp: 61831101307
+  trusted_packet_sequence_id: 4
+  trusted_pid: 4233
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.inputmethod_service] {
+      where: "InputMethodService#doStartInput"
+      input_method_service {
+        soft_input_window {
+          window_state: 2
+        }
+        configuration: "{1.0 ?mcc0mnc [en_US] ldltr sw411dp w411dp h842dp 420dpi nrml long hdr widecg port night finger -keyb/v/h -nav/h winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 128 - 1080, 2337) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mDisplayWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.11 fontWeightAdjustment=0}"
+        token: "android.os.BinderProxy@50043d1"
+        input_binding: "InputBinding{android.os.BinderProxy@cbb5415 / uid 10254 / pid 2812}"
+        input_editor_info {
+          package_name: "com.google.android.apps.nexuslauncher"
+        }
+        candidates_visibility: 4
+        last_computed_insets {
+          content_top_insets: 126
+          touchable_insets: 2
+          touchable_region: "SkRegion()"
+        }
+        settings_observer: "SettingsObserver{mShowImeWithHardKeyboard=1}"
+      }
+    }
+  }
+}

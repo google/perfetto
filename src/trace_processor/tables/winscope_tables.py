@@ -20,6 +20,54 @@ from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppUint32
 from python.generators.trace_processor_table.public import CppString
 
+INPUTMETHOD_CLIENTS_TABLE = Table(
+    python_module=__file__,
+    class_name='InputMethodClientsTable',
+    sql_name='__intrinsic_inputmethod_clients',
+    columns=[
+        C('ts', CppInt64()),
+        C('arg_set_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='InputMethod clients',
+        group='Winscope',
+        columns={
+            'ts': 'The timestamp the dump was triggered',
+            'arg_set_id': 'Extra args parsed from the proto message',
+        }))
+
+INPUTMETHOD_MANAGER_SERVICE_TABLE = Table(
+    python_module=__file__,
+    class_name='InputMethodManagerServiceTable',
+    sql_name='__intrinsic_inputmethod_manager_service',
+    columns=[
+        C('ts', CppInt64()),
+        C('arg_set_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='InputMethod manager service',
+        group='Winscope',
+        columns={
+            'ts': 'The timestamp the dump was triggered',
+            'arg_set_id': 'Extra args parsed from the proto message',
+        }))
+
+INPUTMETHOD_SERVICE_TABLE = Table(
+    python_module=__file__,
+    class_name='InputMethodServiceTable',
+    sql_name='__intrinsic_inputmethod_service',
+    columns=[
+        C('ts', CppInt64()),
+        C('arg_set_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='InputMethod service',
+        group='Winscope',
+        columns={
+            'ts': 'The timestamp the dump was triggered',
+            'arg_set_id': 'Extra args parsed from the proto message',
+        }))
+
 SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     python_module=__file__,
     class_name='SurfaceFlingerLayersSnapshotTable',
@@ -128,6 +176,9 @@ PROTOLOG_TABLE = Table(
 # Keep this list sorted.
 ALL_TABLES = [
     PROTOLOG_TABLE,
+    INPUTMETHOD_CLIENTS_TABLE,
+    INPUTMETHOD_MANAGER_SERVICE_TABLE,
+    INPUTMETHOD_SERVICE_TABLE,
     SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE,
     SURFACE_FLINGER_LAYER_TABLE,
     SURFACE_FLINGER_TRANSACTIONS_TABLE,
