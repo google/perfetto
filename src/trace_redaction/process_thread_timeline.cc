@@ -83,12 +83,9 @@ ProcessThreadTimeline::Event ProcessThreadTimeline::FindPreviousEvent(
 
   Event fake = Event::Close(ts, pid);
 
-  // Events are in ts-order within each pid-group. See Optimize(), Because each
-  // group is small (the vast majority will have two events [start + event, no
-  // reuse]).
-  //
-  // Find the first process event. Then perform a linear search. There won't be
-  // many events per process.
+  // Events are sorted by pid, creating islands of data. This search is to put
+  // the cursor at the start of pid's island. Each island will be small (a
+  // couple of items), so searching within the islands should be cheap.
   auto at = std::lower_bound(events_.begin(), events_.end(), fake, OrderByPid);
 
   // `pid` was not found in `events_`.
@@ -110,10 +107,13 @@ ProcessThreadTimeline::Event ProcessThreadTimeline::FindPreviousEvent(
   // 3. The performance gains are minimal or non-existant because of the small
   //    number of events.
   for (; at != events_.end() && at->pid == pid; ++at) {
+    // This event is after "now" and can safely be ignored.
     if (at->ts > ts) {
-      continue;  // Ignore events in the future.
+      continue;
     }
 
+    // `at` is know to be before now. So it is always safe to accept an event.
+    //
     // All ts values are positive. However, ts_at and ts_best are both less than
     // ts (see early condition), meaning they can be considered negative values.
     //
@@ -126,14 +126,20 @@ ProcessThreadTimeline::Event ProcessThreadTimeline::FindPreviousEvent(
     //     -62         -29             0
     //
     // This means that the latest ts value under ts is the closest to ts.
-    if (!best.valid() || at->ts > best.ts) {
+
+    if (best.type == Event::Type::kInvalid || at->ts > best.ts) {
+      best = *at;
+    }
+
+    // This handles the rare edge case where an open and close event occur at
+    // the same time. The close event must get priority. This is done by
+    // allowing close events to use ">=" where as other events can only use ">".
+    if (at->type == Event::Type::kClose && at->ts == best.ts) {
       best = *at;
     }
   }
 
-  Event invalid = {};
-  return best.type == ProcessThreadTimeline::Event::Type::kOpen ? best
-                                                                : invalid;
+  return best;
 }
 
 }  // namespace perfetto::trace_redaction
