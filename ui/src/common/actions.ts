@@ -616,7 +616,10 @@ export const StateActions = {
     const coll = new Intl.Collator([], {sensitivity: 'base', numeric: true});
     for (const group of Object.values(state.trackGroups)) {
       group.sortOrder.sort((a: string, b: string) => {
-        if (state.tracks[a] && state.tracks[b]) {
+        if (state.tracks[a] && state.tracks[b] &&
+          // Check if sort key for tracks are ThreadTrackSortKeys
+          ThreadTrackSortKey.is(state.tracks[a].trackSortKey) &&
+          ThreadTrackSortKey.is(state.tracks[b].trackSortKey)) {
           const aRank = getFullKey(a);
           const bRank = getFullKey(b);
           for (let i = 0; i < aRank.length; i++) {

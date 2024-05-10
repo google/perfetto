@@ -547,7 +547,7 @@ async function globalTrackProvider(engine: EngineProxy): Promise<TrackInfo[]> {
       from gpu_counter_track
       where name != 'gpufreq'
     )
-    order by name
+    order by id
   `);
 
   // Add global or GPU counter tracks that are not bound to any pid/tid.
