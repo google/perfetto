@@ -112,6 +112,9 @@ class ProcessThreadTimeline {
   // `Sort()` must be called before this.
   Slice Search(uint64_t ts, int32_t pid) const;
 
+  // Finds the pid's last event before ts.
+  Event FindPreviousEvent(uint64_t ts, int32_t pid) const;
+
  private:
   enum class Mode {
     // The timeline can safely be queried. If the timeline is in read mode, and
@@ -123,11 +126,6 @@ class ProcessThreadTimeline {
     // change the timeline from write to read mode.
     kWrite
   };
-
-  // Effectively this is the same as:
-  //
-  //  events_for(pid).before(ts).sort_by_time().last()
-  Event FindPreviousEvent(uint64_t ts, int32_t pid) const;
 
   std::vector<Event> events_;
 
