@@ -45,8 +45,9 @@ void ProcessThreadTimeline::Sort() {
   mode_ = Mode::kRead;
 }
 
-ProcessThreadTimeline::Slice ProcessThreadTimeline::Search(uint64_t ts,
-                                                           int32_t pid) const {
+bool ProcessThreadTimeline::PidConnectsToUid(uint64_t ts,
+                                             int32_t pid,
+                                             uint64_t uid) const {
   PERFETTO_DCHECK(mode_ == Mode::kRead);
 
   auto event = FindPreviousEvent(ts, pid);
@@ -54,26 +55,23 @@ ProcessThreadTimeline::Slice ProcessThreadTimeline::Search(uint64_t ts,
   for (size_t d = 0; d < kMaxSearchDepth; ++d) {
     // The thread/process was freed. It won't exist until a new open event.
     if (event.type != Event::Type::kOpen) {
-      return {pid, Event::kUnknownUid};
+      return false;
     }
 
-    // System processes all have uids equal to zero, so everything eventually
-    // has a uid. This means that all threads should find a process and a uid.
-    // However, if a thread does not have a process (this should not happen)
-    // that thread will be treated as invalid.
-    if (event.uid != Event::kUnknownUid) {
-      return {pid, event.uid};
+    // TODO(vaage): Normalize the uid values.
+    if (event.uid == uid) {
+      return true;
     }
 
-    // If there is no parent, there is no reason to keep searching.
+    // If there is no parent, there is no way to keep searching.
     if (event.ppid == Event::kUnknownPid) {
-      return {pid, Event::kUnknownUid};
+      return false;
     }
 
     event = FindPreviousEvent(ts, event.ppid);
   }
 
-  return {pid, Event::kUnknownUid};
+  return false;
 }
 
 ProcessThreadTimeline::Event ProcessThreadTimeline::FindPreviousEvent(

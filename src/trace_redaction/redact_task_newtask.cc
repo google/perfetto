@@ -26,18 +26,19 @@ namespace perfetto::trace_redaction {
 
 namespace {
 
-protozero::ConstChars SanitizeCommValue(const Context& context,
-                                        ProcessThreadTimeline::Slice slice,
-                                        protozero::Field field) {
-  if (NormalizeUid(slice.uid) == NormalizeUid(context.package_uid.value())) {
-    return field.as_string();
+// TODO(vaage): Merge with RedactComm in redact_sched_switch.cc.
+protozero::ConstChars RedactComm(const Context& context,
+                                 uint64_t ts,
+                                 int32_t pid,
+                                 protozero::ConstChars comm) {
+  if (context.timeline->PidConnectsToUid(ts, pid, *context.package_uid)) {
+    return comm;
   }
 
   return {};
 }
 
 }  // namespace
-
 // Redact sched switch trace events in an ftrace event bundle:
 //
 // event {
@@ -93,8 +94,6 @@ base::Status RedactTaskNewTask::Redact(
   // Avoid making the message until we know that we have prev and next pids.
   auto* new_task_message = event_message->set_task_newtask();
 
-  auto slice = context.timeline->Search(timestamp.as_uint64(), pid.as_int32());
-
   for (auto field = new_task_decoder.ReadField(); field.valid();
        field = new_task_decoder.ReadField()) {
     // Perfetto view (ui.perfetto.dev) crashes if the comm value is missing.
@@ -102,7 +101,8 @@ base::Status RedactTaskNewTask::Redact(
     // This appears to work.
     if (field.id() ==
         protos::pbzero::TaskNewtaskFtraceEvent::kCommFieldNumber) {
-      new_task_message->set_comm(SanitizeCommValue(context, slice, field));
+      new_task_message->set_comm(RedactComm(context, timestamp.as_uint64(),
+                                            pid.as_int32(), field.as_string()));
     } else {
       proto_util::AppendField(field, new_task_message);
     }

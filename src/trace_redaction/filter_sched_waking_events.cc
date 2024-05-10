@@ -59,14 +59,9 @@ bool FilterSchedWakingEvents::KeepEvent(const Context& context,
   auto outer_pid =
       event_decoder.FindField(protos::pbzero::FtraceEvent::kPidFieldNumber);
 
-  if (!outer_pid.valid()) {
-    return false;  // Remove
-  }
-
-  auto outer_slice = context.timeline->Search(
-      timestamp.as_uint64(), static_cast<int32_t>(outer_pid.as_uint32()));
-
-  if (outer_slice.uid != context.package_uid.value()) {
+  if (!outer_pid.valid() ||
+      !context.timeline->PidConnectsToUid(
+          timestamp.as_uint64(), outer_pid.as_int32(), *context.package_uid)) {
     return false;  // Remove
   }
 
@@ -75,13 +70,13 @@ bool FilterSchedWakingEvents::KeepEvent(const Context& context,
   auto inner_pid = waking_decoder.FindField(
       protos::pbzero::SchedWakingFtraceEvent::kPidFieldNumber);
 
-  if (!inner_pid.valid()) {
+  if (!inner_pid.valid() ||
+      !context.timeline->PidConnectsToUid(
+          timestamp.as_uint64(), inner_pid.as_int32(), *context.package_uid)) {
     return false;  // Remove
   }
 
-  auto inner_slice =
-      context.timeline->Search(timestamp.as_uint64(), inner_pid.as_int32());
-  return inner_slice.uid == context.package_uid.value();
+  return true;
 }
 
 }  // namespace perfetto::trace_redaction

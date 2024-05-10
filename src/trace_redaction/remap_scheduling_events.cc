@@ -32,14 +32,18 @@ int32_t RemapPid(const Context& context,
   PERFETTO_DCHECK(context.package_uid.value());
   PERFETTO_DCHECK(cpu < context.synthetic_threads->tids.size());
 
-  auto slice = context.timeline->Search(timestamp, pid);
+  // PID 0 is used for CPU idle. If it was to get re-mapped, threading
+  // information get corrupted.
+  if (pid == 0) {
+    return 0;
+  }
 
-  auto expected_uid = NormalizeUid(slice.uid);
-  auto actual_uid = NormalizeUid(context.package_uid.value());
+  if (context.timeline->PidConnectsToUid(timestamp, pid,
+                                         *context.package_uid)) {
+    return pid;
+  }
 
-  return !pid || expected_uid == actual_uid
-             ? pid
-             : context.synthetic_threads->tids[cpu];
+  return context.synthetic_threads->tids[cpu];
 }
 }  // namespace
 
