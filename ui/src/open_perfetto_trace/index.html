@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang='en-us'>
+<head>
+  <script src="open_perfetto_trace_bundle.js"></script>
+  <style type="text/css">
+  html { font-family: Roboto, sans-serif; }
+  main {display: flex; flex-direction: column; max-width: 800px;}
+  main > * { margin: 5px; }
+  </style>
+</head>
+<body>
+
+
+<main>
+  <select id='trace_source' size='5'>
+    <option>https://storage.googleapis.com/perfetto-misc/example_android_trace_15s</option>
+    <option selected>https://storage.googleapis.com/perfetto-misc/chrome_example_wikipedia.perfetto_trace.gz</option>
+  </select>
+  <label>Or select a local file: <input type="file" id="file"></label>
+  <input type='button' value='Fetch and open selected trace' id='fetch'>
+  <label><input type='checkbox' id='show_progress' checked="checked">Show progress dialog</label>
+  <label><input type='checkbox' id='new_tab'>Open in new tab</label>
+  <label><input type='checkbox' id='hide_sidebar'>Hide sidebar in Perfetto UI</label>
+
+</main>
+
+<script type='text/javascript'>
+
+function getCheckbox(id) {
+  return document.getElementById(id).checked;
+}
+
+document.getElementById('fetch').addEventListener('click', () => {
+  const opts = {};
+
+  if (location.host.startsWith('127.0.0.1') ||
+      location.host.startsWith('localhost')) {
+        opts.uiUrl = `${location.protocol}//${location.host}`;
+  }
+
+  opts.statusDialog = getCheckbox('show_progress');
+  opts.newTab = getCheckbox('new_tab');
+  opts.hideSidebar = getCheckbox('hide_sidebar');
+
+  const fileInput = document.getElementById('file');
+  let traceSource;
+  if (fileInput.files.length > 0) {
+    traceSource = fileInput.files[0]
+  } else {
+    traceSource = document.getElementById('trace_source').value;
+  }
+
+  open_perfetto_trace(traceSource, opts);
+});
+
+</script>
+</body>
+</html>
+

@@ -18,7 +18,7 @@ import '../base/static_initializers';
 import m from 'mithril';
 
 import {defer} from '../base/deferred';
-import {reportError, setErrorHandler} from '../base/logging';
+import {reportError, addErrorHandler, ErrorDetails} from '../base/logging';
 import {initLiveReloadIfLocalhost} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {setScheduleFullRedraw} from '../widgets/raf';
@@ -92,7 +92,7 @@ function main() {
   document.head.append(css);
 
   // Add Error handlers for JS error and for uncaught exceptions in promises.
-  setErrorHandler((err: string) => console.log(err));
+  addErrorHandler((err: ErrorDetails) => console.log(err.message, err.stack));
   window.addEventListener('error', (e) => reportError(e));
   window.addEventListener('unhandledrejection', (e) => reportError(e));
 

@@ -97,10 +97,15 @@ const maybeBigtrace = process.env['ENABLE_BIGTRACE'] ?
     [defBundle('tsc/bigtrace', 'bigtrace', 'dist_version/bigtrace')] :
     [];
 
+const maybeOpenPerfettoTrace = process.env['ENABLE_OPEN_PERFETTO_TRACE'] ?
+    [defBundle('tsc', 'open_perfetto_trace', 'dist/open_perfetto_trace')] :
+    [];
+
+
 export default [
   defBundle('tsc', 'frontend', 'dist_version'),
   defBundle('tsc', 'engine', 'dist_version'),
   defBundle('tsc', 'traceconv', 'dist_version'),
   defBundle('tsc', 'chrome_extension', 'chrome_extension'),
   defServiceWorkerBundle(),
-].concat(maybeBigtrace);
+].concat(maybeBigtrace).concat(maybeOpenPerfettoTrace);

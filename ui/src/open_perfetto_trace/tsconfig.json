@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": [ "." ],
+  "exclude": [
+    "../gen/"
+  ],
+  "compilerOptions": {
+    "outDir": "../../out/tsc/open_perfetto_trace",
+    "lib": [
+      "dom",                               // Need to be explicitly mentioned now since we're overriding default included libs.
+      "es2021",                            // Need this to use Promise.allSettled, replaceAll, etc
+    ],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+  }
+}
