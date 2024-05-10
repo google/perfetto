@@ -14,9 +14,8 @@
 
 import {v4 as uuidv4} from 'uuid';
 
-import {Actions, AddTrackArgs, DeferredAction} from '../../common/actions';
+import {Actions, DeferredAction} from '../../common/actions';
 import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
-import {ObjectByKey} from '../../common/state';
 import {featureFlags} from '../../core/feature_flags';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {
@@ -27,7 +26,6 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {Engine, EngineProxy} from '../../trace_processor/engine';
-import {CustomSqlDetailsPanelConfig} from '../custom_sql_table_slices';
 
 import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
@@ -48,13 +46,13 @@ import {
   CHROME_TOPLEVEL_SCROLLS_KIND,
   TopLevelScrollTrack,
 } from './scroll_track';
-
-export const ENABLE_CHROME_SCROLL_JANK_PLUGIN = featureFlags.register({
-  id: 'enableChromeScrollJankPlugin',
-  name: 'Enable Chrome Scroll Jank plugin',
-  description: 'Adds new tracks for scroll jank in Chrome',
-  defaultValue: false,
-});
+import {
+  ENABLE_CHROME_SCROLL_JANK_PLUGIN,
+  DecideTracksResult,
+  SCROLL_JANK_GROUP_ID,
+  ScrollJankV3TrackKind,
+  CHROME_EVENT_LATENCY_TRACK_KIND,
+} from './common';
 
 export const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
   id: 'enableScrollJankPluginV2',
@@ -63,66 +61,15 @@ export const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
   defaultValue: false,
 });
 
-export const SCROLL_JANK_GROUP_ID = 'chrome-scroll-jank-track-group';
-
-export type ScrollJankTracks = {
-  tracksToAdd: AddTrackArgs[];
-};
-
 export type ScrollJankTrackGroup = {
-  tracks: ScrollJankTracks;
+  tracks: DecideTracksResult;
   addTrackGroup: DeferredAction;
 };
-
-export interface ScrollJankTrackSpec {
-  key: string;
-  sqlTableName: string;
-  detailsPanelConfig: CustomSqlDetailsPanelConfig;
-}
-
-// Global state for the scroll jank plugin.
-export class ScrollJankPluginState {
-  private static instance?: ScrollJankPluginState;
-  private tracks: ObjectByKey<ScrollJankTrackSpec>;
-
-  private constructor() {
-    this.tracks = {};
-  }
-
-  public static getInstance(): ScrollJankPluginState {
-    if (!ScrollJankPluginState.instance) {
-      ScrollJankPluginState.instance = new ScrollJankPluginState();
-    }
-
-    return ScrollJankPluginState.instance;
-  }
-
-  public registerTrack(args: {
-    kind: string;
-    trackKey: string;
-    tableName: string;
-    detailsPanelConfig: CustomSqlDetailsPanelConfig;
-  }): void {
-    this.tracks[args.kind] = {
-      key: args.trackKey,
-      sqlTableName: args.tableName,
-      detailsPanelConfig: args.detailsPanelConfig,
-    };
-  }
-
-  public unregisterTrack(kind: string): void {
-    delete this.tracks[kind];
-  }
-
-  public getTrack(kind: string): ScrollJankTrackSpec | undefined {
-    return this.tracks[kind];
-  }
-}
 
 export async function getScrollJankTracks(
   engine: Engine,
 ): Promise<ScrollJankTrackGroup> {
-  const result: ScrollJankTracks = {
+  const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
@@ -315,7 +262,7 @@ class ChromeScrollJankPlugin implements Plugin {
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#eventLatency',
       displayName: 'Chrome Scroll Input Latencies',
-      kind: EventLatencyTrack.kind,
+      kind: CHROME_EVENT_LATENCY_TRACK_KIND,
       trackFactory: ({trackKey}) => {
         return new EventLatencyTrack({engine: ctx.engine, trackKey}, baseTable);
       },
@@ -352,7 +299,7 @@ class ChromeScrollJankPlugin implements Plugin {
     ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#scrollJankV3',
       displayName: 'Chrome Scroll Janks',
-      kind: ScrollJankV3Track.kind,
+      kind: ScrollJankV3TrackKind,
       trackFactory: ({trackKey}) => {
         return new ScrollJankV3Track({
           engine: ctx.engine,

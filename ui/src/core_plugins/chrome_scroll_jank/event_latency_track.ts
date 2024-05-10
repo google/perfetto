@@ -23,13 +23,14 @@ import {
 } from '../custom_sql_table_slices';
 
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
-import {
-  SCROLL_JANK_GROUP_ID,
-  ScrollJankPluginState,
-  ScrollJankTracks as DecideTracksResult,
-} from './index';
 import {JANK_COLOR} from './jank_colors';
 import {getLegacySelection} from '../../common/state';
+import {
+  CHROME_EVENT_LATENCY_TRACK_KIND,
+  DecideTracksResult,
+  SCROLL_JANK_GROUP_ID,
+  ScrollJankPluginState,
+} from './common';
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
@@ -37,16 +38,11 @@ export interface EventLatencyTrackTypes extends NamedSliceTrackTypes {
   config: {baseTable: string};
 }
 
-const CHROME_EVENT_LATENCY_TRACK_KIND =
-  'org.chromium.ScrollJank.event_latencies';
-
 export class EventLatencyTrack extends CustomSqlTableSliceTrack<EventLatencyTrackTypes> {
-  static readonly kind = CHROME_EVENT_LATENCY_TRACK_KIND;
-
   constructor(args: NewTrackArgs, private baseTable: string) {
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
-      kind: EventLatencyTrack.kind,
+      kind: CHROME_EVENT_LATENCY_TRACK_KIND,
       trackKey: this.trackKey,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
@@ -55,7 +51,9 @@ export class EventLatencyTrack extends CustomSqlTableSliceTrack<EventLatencyTrac
 
   async onDestroy(): Promise<void> {
     await super.onDestroy();
-    ScrollJankPluginState.getInstance().unregisterTrack(EventLatencyTrack.kind);
+    ScrollJankPluginState.getInstance().unregisterTrack(
+      CHROME_EVENT_LATENCY_TRACK_KIND,
+    );
   }
 
   getSqlSource(): string {

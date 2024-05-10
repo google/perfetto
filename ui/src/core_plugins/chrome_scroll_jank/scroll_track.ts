@@ -20,12 +20,12 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
-
 import {
+  DecideTracksResult,
   SCROLL_JANK_GROUP_ID,
   ScrollJankPluginState,
-  ScrollJankTracks as DecideTracksResult,
-} from './index';
+} from './common';
+
 import {ScrollDetailsPanel} from './scroll_details_panel';
 
 export const CHROME_TOPLEVEL_SCROLLS_KIND =

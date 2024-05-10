@@ -28,9 +28,12 @@ import {EngineProxy} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 
-import {EventLatencyTrack} from './event_latency_track';
-import {ScrollJankPluginState, ScrollJankTrackSpec} from './index';
-import {ScrollJankV3Track} from './scroll_jank_v3_track';
+import {
+  CHROME_EVENT_LATENCY_TRACK_KIND,
+  ScrollJankPluginState,
+  ScrollJankTrackSpec,
+  ScrollJankV3TrackKind,
+} from './common';
 
 interface BasicSlice {
   // ID of slice.
@@ -76,10 +79,10 @@ export async function getScrollJankSlices(
   id: number,
 ): Promise<ScrollJankSlice[]> {
   const track = ScrollJankPluginState.getInstance().getTrack(
-    ScrollJankV3Track.kind,
+    ScrollJankV3TrackKind,
   );
   if (track == undefined) {
-    throw new Error(`${ScrollJankV3Track.kind} track is not registered.`);
+    throw new Error(`${ScrollJankV3TrackKind} track is not registered.`);
   }
 
   const slices = await getSlicesFromTrack(engine, track, {
@@ -94,10 +97,12 @@ export async function getEventLatencySlice(
   id: number,
 ): Promise<EventLatencySlice | undefined> {
   const track = ScrollJankPluginState.getInstance().getTrack(
-    EventLatencyTrack.kind,
+    CHROME_EVENT_LATENCY_TRACK_KIND,
   );
   if (track == undefined) {
-    throw new Error(`${EventLatencyTrack.kind} track is not registered.`);
+    throw new Error(
+      `${CHROME_EVENT_LATENCY_TRACK_KIND} track is not registered.`,
+    );
   }
 
   const slices = await getSlicesFromTrack(engine, track, {
@@ -135,10 +140,12 @@ export async function getEventLatencyDescendantSlice(
   }
 
   const eventLatencyTrack = ScrollJankPluginState.getInstance().getTrack(
-    EventLatencyTrack.kind,
+    CHROME_EVENT_LATENCY_TRACK_KIND,
   );
   if (eventLatencyTrack == undefined) {
-    throw new Error(`${EventLatencyTrack.kind} track is not registered.`);
+    throw new Error(
+      `${CHROME_EVENT_LATENCY_TRACK_KIND} track is not registered.`,
+    );
   }
 
   if (result.length > 1) {
