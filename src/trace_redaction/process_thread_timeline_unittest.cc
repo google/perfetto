@@ -49,155 +49,172 @@ constexpr uint64_t kTimeG = 60;
 constexpr int32_t kPidA = 1;
 constexpr int32_t kPidB = 2;
 
-constexpr uint64_t kNoPackage = 0;
-
-constexpr int32_t kUidA = 98;
-constexpr int32_t kUidB = 99;
+constexpr uint64_t kUidA = 98;
+constexpr uint64_t kUidB = 99;
 
 }  // namespace
 
-class TimelineEventsTest : public testing::Test,
-                           public testing::WithParamInterface<SliceTestParams> {
+// |--- PID A --- >
+class TimelineEventsOpenTest : public testing::Test {
  protected:
+  void SetUp() {
+    timeline_.Append(
+        ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA));
+    timeline_.Sort();
+  }
+
   ProcessThreadTimeline timeline_;
 };
 
-class TimelineEventsOpenAndCloseSingleTest : public TimelineEventsTest {};
-
-TEST_P(TimelineEventsOpenAndCloseSingleTest, PidsEndOnClose) {
-  auto params = GetParam();
-
-  timeline_.Append(
-      ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeD, kPidB));
-
-  timeline_.Sort();
-
-  auto slice = timeline_.Search(params.ts(), params.pid());
-  ASSERT_EQ(slice.pid, params.pid());
-  ASSERT_EQ(slice.uid, params.uid());
+TEST_F(TimelineEventsOpenTest, ReturnsNothingBeforeStart) {
+  auto slice = timeline_.Search(kTimeA, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
 }
 
-INSTANTIATE_TEST_SUITE_P(AcrossWholeTimeline,
-                         TimelineEventsOpenAndCloseSingleTest,
-                         testing::Values(
-                             // No UID found before opening event.
-                             SliceTestParams(kTimeA, kPidB, kNoPackage),
+TEST_F(TimelineEventsOpenTest, ReturnsSomethingAtStart) {
+  auto slice = timeline_.Search(kTimeB, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, kUidA);
+}
 
-                             // UID found when opening event starts.
-                             SliceTestParams(kTimeB, kPidB, kUidA),
+TEST_F(TimelineEventsOpenTest, ReturnsSomethingAfterStart) {
+  auto slice = timeline_.Search(kTimeC, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, kUidA);
+}
 
-                             // UID found between opening and close events.
-                             SliceTestParams(kTimeC, kPidB, kUidA),
+// |--- PID A --- |
+class TimelineEventsCloseTest : public testing::Test {
+ protected:
+  void SetUp() {
+    // An open event must exist in order for a close event to exist.
+    timeline_.Append(
+        ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA));
+    timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeD, kPidB));
+    timeline_.Sort();
+  }
 
-                             // UID is no longer found at the close event.
-                             SliceTestParams(kTimeD, kPidB, kNoPackage),
+  ProcessThreadTimeline timeline_;
+};
 
-                             // UID is no longer found after the close event.
-                             SliceTestParams(kTimeE, kPidB, kNoPackage)));
+TEST_F(TimelineEventsCloseTest, ReturnsSomethingBeforeClose) {
+  auto slice = timeline_.Search(kTimeC, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, kUidA);
+}
 
-class TimelineEventsOpenAfterOpenTest : public TimelineEventsTest {};
+TEST_F(TimelineEventsCloseTest, ReturnsNothingAtClose) {
+  auto slice = timeline_.Search(kTimeD, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
+}
 
+TEST_F(TimelineEventsCloseTest, ReturnsNothingAfterClose) {
+  auto slice = timeline_.Search(kTimeE, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
+}
+
+// Two start events can occur (normally with process trees). The timeline is
+// expected to treat this case as if there was a close event between the two
+// open events.
+//
 // |--- PID A --- >
 //                 |--- PID A --- >
-TEST_P(TimelineEventsOpenAfterOpenTest, FindsUid) {
-  auto params = GetParam();
+class TimelineEventsOpenAfterOpenTest : public testing::Test {
+ protected:
+  void SetUp() {
+    timeline_.Append(
+        ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA));
+    timeline_.Append(
+        ProcessThreadTimeline::Event::Open(kTimeD, kPidB, kPidA, kUidB));
+    timeline_.Sort();
+  }
 
-  timeline_.Append(
-      ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA));
-  timeline_.Append(
-      ProcessThreadTimeline::Event::Open(kTimeD, kPidB, kPidA, kUidB));
+  ProcessThreadTimeline timeline_;
+};
 
-  timeline_.Sort();
-
-  auto slice = timeline_.Search(params.ts(), params.pid());
-  ASSERT_EQ(slice.pid, params.pid());
-  ASSERT_EQ(slice.uid, params.uid());
+TEST_F(TimelineEventsOpenAfterOpenTest, ReturnsFirstBeforeSwitch) {
+  auto slice = timeline_.Search(kTimeC, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, kUidA);
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    AcrossWholeTimeline,
-    TimelineEventsOpenAfterOpenTest,
-    testing::Values(SliceTestParams(kTimeA, kPidB, kNoPackage),
-                    SliceTestParams(kTimeB, kPidB, kUidA),
-                    SliceTestParams(kTimeC, kPidB, kUidA),
-                    SliceTestParams(kTimeD, kPidB, kUidB),
-                    SliceTestParams(kTimeE, kPidB, kUidB)));
-
-class TimelineEventsOverlappingRangesTest : public TimelineEventsTest {};
-
-TEST_P(TimelineEventsOverlappingRangesTest, FindsUid) {
-  auto params = GetParam();
-
-  // |----- PID_A -----|
-  //          |----- PID_B -----|
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeA, kPidA, 0, kUidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeC, kPidB, 0, kUidB));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeE, kPidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeG, kPidB));
-
-  timeline_.Sort();
-
-  auto slice = timeline_.Search(params.ts(), params.pid());
-  ASSERT_EQ(slice.pid, params.pid());
-  ASSERT_EQ(slice.uid, params.uid());
+TEST_F(TimelineEventsOpenAfterOpenTest, ReturnsSecondAtSwitch) {
+  auto slice = timeline_.Search(kTimeD, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, kUidB);
 }
 
-INSTANTIATE_TEST_SUITE_P(AcrossWholeTimeline,
-                         TimelineEventsOverlappingRangesTest,
-                         testing::Values(
-                             // When pid A starts and before pid B starts.
-                             SliceTestParams(kTimeA, kPidA, kUidA),
-                             SliceTestParams(kTimeA, kPidB, kNoPackage),
-
-                             // After pid A starts and before pid B starts.
-                             SliceTestParams(kTimeB, kPidA, kUidA),
-                             SliceTestParams(kTimeB, kPidB, kNoPackage),
-
-                             // After pid A starts and when pid B starts.
-                             SliceTestParams(kTimeC, kPidA, kUidA),
-                             SliceTestParams(kTimeC, kPidB, kUidB),
-
-                             // After pid A and pid starts.
-                             SliceTestParams(kTimeD, kPidA, kUidA),
-                             SliceTestParams(kTimeD, kPidB, kUidB),
-
-                             // When pid A closes but before pid B closes.
-                             SliceTestParams(kTimeE, kPidA, kNoPackage),
-                             SliceTestParams(kTimeE, kPidB, kUidB),
-
-                             // After pid A closes but before pid B closes.
-                             SliceTestParams(kTimeF, kPidA, kNoPackage),
-                             SliceTestParams(kTimeF, kPidB, kUidB),
-
-                             // After pid A closes and when pid B closes.
-                             SliceTestParams(kTimeG, kPidA, kNoPackage),
-                             SliceTestParams(kTimeG, kPidB, kNoPackage)));
-
-class TimelineEventsParentChildTest : public TimelineEventsTest {};
-
-TEST_P(TimelineEventsParentChildTest, FindsUid) {
-  auto params = GetParam();
-
-  // |------------- PID_A ------------->
-  //         |----- PID_B -----|
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeA, kPidA, 0, kUidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeC, kPidB, kPidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeE, kPidB));
-
-  timeline_.Sort();
-
-  auto slice = timeline_.Search(params.ts(), params.pid());
-  ASSERT_EQ(slice.pid, params.pid());
-  ASSERT_EQ(slice.uid, params.uid());
+TEST_F(TimelineEventsOpenAfterOpenTest, ReturnsSecondAfterSwitch) {
+  auto slice = timeline_.Search(kTimeE, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, kUidB);
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    AcrossWholeTimeline,
-    TimelineEventsParentChildTest,
-    testing::Values(SliceTestParams(kTimeB, kPidB, kNoPackage),
-                    SliceTestParams(kTimeC, kPidB, kUidA),
-                    SliceTestParams(kTimeD, kPidB, kUidA),
-                    SliceTestParams(kTimeE, kPidB, kNoPackage)));
+// |----- PID_A -----|
+//          |----- PID_B -----|
+class TimelineEventsOverlappingRangesTest : public testing::Test {
+ protected:
+  void SetUp() {
+    timeline_.Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidA, 0, kUidA));
+    timeline_.Append(
+        ProcessThreadTimeline::Event::Open(kTimeC, kPidB, 0, kUidB));
+    timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeE, kPidA));
+    timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeG, kPidB));
+    timeline_.Sort();
+  }
+
+  ProcessThreadTimeline timeline_;
+};
+
+TEST_F(TimelineEventsOverlappingRangesTest, FindProcessADuringOverlap) {
+  auto slice = timeline_.Search(kTimeD, kPidA);
+  ASSERT_EQ(slice.pid, kPidA);
+  ASSERT_EQ(slice.uid, kUidA);
+}
+
+TEST_F(TimelineEventsOverlappingRangesTest, FindProcessBDuringOverlap) {
+  auto slice = timeline_.Search(kTimeD, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, kUidB);
+}
+
+// |------------- PID_A ------------->
+//         |----- PID_B -----|
+class TimelineEventsParentChildTest : public testing::Test {
+ protected:
+  void SetUp() {
+    // PID A's parent (0) does not exist on the timeline. In production, this is
+    // what happens as the root process (0) doesn't exist.
+    timeline_.Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidA, 0, kUidA));
+    timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeC, kPidB, kPidA));
+    timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeE, kPidB));
+    timeline_.Sort();
+  }
+
+  ProcessThreadTimeline timeline_;
+};
+
+TEST_F(TimelineEventsParentChildTest, InvalidBeforeBStarts) {
+  auto slice = timeline_.Search(kTimeB, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
+}
+
+TEST_F(TimelineEventsParentChildTest, ValidAfterBStarts) {
+  auto slice = timeline_.Search(kTimeD, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, kUidA);
+}
+
+TEST_F(TimelineEventsParentChildTest, InvalidAfterBEnds) {
+  auto slice = timeline_.Search(kTimeF, kPidB);
+  ASSERT_EQ(slice.pid, kPidB);
+  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
+}
 
 }  // namespace perfetto::trace_redaction
