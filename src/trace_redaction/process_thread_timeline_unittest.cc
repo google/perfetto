@@ -45,175 +45,182 @@ constexpr uint64_t kTimeD = 30;
 constexpr uint64_t kTimeE = 40;
 constexpr uint64_t kTimeF = 50;
 constexpr uint64_t kTimeG = 60;
+constexpr uint64_t kTimeH = 70;
 
 constexpr int32_t kPidA = 1;
 constexpr int32_t kPidB = 2;
+constexpr int32_t kPidC = 3;
+constexpr int32_t kPidD = 4;
 
-constexpr uint64_t kUidA = 98;
-constexpr uint64_t kUidB = 99;
+constexpr uint64_t kUidA = 97;
+constexpr uint64_t kUidC = 99;
 
 }  // namespace
 
-// |--- PID A --- >
-class TimelineEventsOpenTest : public testing::Test {
+// B        C        D   E   F        G        H
+// *        *        *   *   *        *        *
+// |----- PID B -----|   .   |----- PID B -----|
+//          |--------- PID C ---------|
+//          | <- PID D (no duration)
+class ProcessThreadTimelineTest : public testing::Test {
  protected:
   void SetUp() {
-    timeline_.Append(
-        ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA));
+    for (auto e : pid_b_events_) {
+      timeline_.Append(e);
+    }
+
+    for (auto e : pid_c_events_) {
+      timeline_.Append(e);
+    }
+
+    for (auto e : pid_d_events_) {
+      timeline_.Append(e);
+    }
+
     timeline_.Sort();
   }
+
+  ProcessThreadTimeline::Event invalid_ = {};
+
+  std::array<ProcessThreadTimeline::Event, 4> pid_b_events_ = {
+      ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA),
+      ProcessThreadTimeline::Event::Close(kTimeD, kPidB),
+      ProcessThreadTimeline::Event::Open(kTimeF, kPidB, kPidA, kUidA),
+      ProcessThreadTimeline::Event::Close(kTimeH, kPidB),
+  };
+
+  std::array<ProcessThreadTimeline::Event, 2> pid_c_events_ = {
+      ProcessThreadTimeline::Event::Open(kTimeC, kPidC, kPidA, kUidA),
+      ProcessThreadTimeline::Event::Close(kTimeG, kPidC),
+  };
+
+  // A process with no duration.
+  std::array<ProcessThreadTimeline::Event, 2> pid_d_events_{
+      ProcessThreadTimeline::Event::Open(kTimeC, kPidD, kPidA, kUidA),
+      ProcessThreadTimeline::Event::Close(kTimeC, kPidD),
+  };
 
   ProcessThreadTimeline timeline_;
 };
 
-TEST_F(TimelineEventsOpenTest, ReturnsNothingBeforeStart) {
-  auto slice = timeline_.Search(kTimeA, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
+TEST_F(ProcessThreadTimelineTest, NoEventBeforeFirstSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeA, kPidB);
+  ASSERT_EQ(event, invalid_);
 }
 
-TEST_F(TimelineEventsOpenTest, ReturnsSomethingAtStart) {
-  auto slice = timeline_.Search(kTimeB, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, kUidA);
+TEST_F(ProcessThreadTimelineTest, OpenEventAtStartOfFirstSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeB, kPidB);
+  ASSERT_EQ(event, pid_b_events_[0]);
 }
 
-TEST_F(TimelineEventsOpenTest, ReturnsSomethingAfterStart) {
-  auto slice = timeline_.Search(kTimeC, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, kUidA);
+TEST_F(ProcessThreadTimelineTest, OpenEventWithinFirstSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeC, kPidB);
+  ASSERT_EQ(event, pid_b_events_[0]);
 }
 
-// |--- PID A --- |
-class TimelineEventsCloseTest : public testing::Test {
- protected:
-  void SetUp() {
-    // An open event must exist in order for a close event to exist.
-    timeline_.Append(
-        ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA));
-    timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeD, kPidB));
-    timeline_.Sort();
-  }
-
-  ProcessThreadTimeline timeline_;
-};
-
-TEST_F(TimelineEventsCloseTest, ReturnsSomethingBeforeClose) {
-  auto slice = timeline_.Search(kTimeC, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, kUidA);
+TEST_F(ProcessThreadTimelineTest, CloseEventAtEndOfFirstSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeD, kPidB);
+  ASSERT_EQ(event, pid_b_events_[1]);
 }
 
-TEST_F(TimelineEventsCloseTest, ReturnsNothingAtClose) {
-  auto slice = timeline_.Search(kTimeD, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
+TEST_F(ProcessThreadTimelineTest, CloseEventBetweenSpans) {
+  auto event = timeline_.FindPreviousEvent(kTimeE, kPidB);
+  ASSERT_EQ(event, pid_b_events_[1]);
 }
 
-TEST_F(TimelineEventsCloseTest, ReturnsNothingAfterClose) {
-  auto slice = timeline_.Search(kTimeE, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
+TEST_F(ProcessThreadTimelineTest, OpenEventAtStartOfSecondSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeF, kPidB);
+  ASSERT_EQ(event, pid_b_events_[2]);
 }
 
-// Two start events can occur (normally with process trees). The timeline is
-// expected to treat this case as if there was a close event between the two
-// open events.
+TEST_F(ProcessThreadTimelineTest, OpenEventWithinSecondSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeG, kPidB);
+  ASSERT_EQ(event, pid_b_events_[2]);
+}
+
+TEST_F(ProcessThreadTimelineTest, CloseEventAtEndOfSecondSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeH, kPidB);
+  ASSERT_EQ(event, pid_b_events_[3]);
+}
+
+// Pid B is active. But Pid C is not active. At this point, Pid C should report
+// as invalid event though another pid is active.
+TEST_F(ProcessThreadTimelineTest, InvalidEventWhenAnotherSpanIsActive) {
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeB, kPidB), pid_b_events_[0]);
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeB, kPidC), invalid_);
+}
+
+// When both pids are active, they should both report as active (using their
+// open events).
+TEST_F(ProcessThreadTimelineTest, ConcurrentSpansBothReportAsActive) {
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeC, kPidB), pid_b_events_[0]);
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeC, kPidC), pid_c_events_[0]);
+}
+
+// There are three test cases here:
 //
-// |--- PID A --- >
-//                 |--- PID A --- >
-class TimelineEventsOpenAfterOpenTest : public testing::Test {
+// 1. Before open/close
+// 2. At open/close
+// 3. After open/close
+//
+// Normally these would be tree different test cases, but the naming gets
+// complicated, so it is easier to do it in one case.
+TEST_F(ProcessThreadTimelineTest, ZeroDuration) {
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeB, kPidD), invalid_);
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeC, kPidD), pid_d_events_[1]);
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeD, kPidD), pid_d_events_[1]);
+}
+
+// |----- UID A -----| |----- UID C -----|
+//  |---- PID A ----|   |---- PID C ----|
+//    |-- PID B --|
+//
+// NOTE: The notation above does not represent time, it represent relationship.
+// For example, PID B is a child of PID A.
+class ProcessThreadTimelineIsConnectedTest : public testing::Test {
  protected:
   void SetUp() {
-    timeline_.Append(
-        ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA));
-    timeline_.Append(
-        ProcessThreadTimeline::Event::Open(kTimeD, kPidB, kPidA, kUidB));
+    timeline_.Append(ProcessThreadTimeline::Event::Open(
+        kTimeB, kPidA, ProcessThreadTimeline::Event::kUnknownPid, kUidA));
+    timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA));
+    timeline_.Append(ProcessThreadTimeline::Event::Open(
+        kTimeB, kPidC, ProcessThreadTimeline::Event::kUnknownPid, kUidC));
     timeline_.Sort();
   }
 
   ProcessThreadTimeline timeline_;
 };
 
-TEST_F(TimelineEventsOpenAfterOpenTest, ReturnsFirstBeforeSwitch) {
-  auto slice = timeline_.Search(kTimeC, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, kUidA);
-}
+// PID A is directly connected to UID A.
+TEST_F(ProcessThreadTimelineIsConnectedTest, DirectPidAndUid) {
+  auto slice = timeline_.Search(kTimeB, kPidA);
 
-TEST_F(TimelineEventsOpenAfterOpenTest, ReturnsSecondAtSwitch) {
-  auto slice = timeline_.Search(kTimeD, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, kUidB);
-}
-
-TEST_F(TimelineEventsOpenAfterOpenTest, ReturnsSecondAfterSwitch) {
-  auto slice = timeline_.Search(kTimeE, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, kUidB);
-}
-
-// |----- PID_A -----|
-//          |----- PID_B -----|
-class TimelineEventsOverlappingRangesTest : public testing::Test {
- protected:
-  void SetUp() {
-    timeline_.Append(
-        ProcessThreadTimeline::Event::Open(kTimeA, kPidA, 0, kUidA));
-    timeline_.Append(
-        ProcessThreadTimeline::Event::Open(kTimeC, kPidB, 0, kUidB));
-    timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeE, kPidA));
-    timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeG, kPidB));
-    timeline_.Sort();
-  }
-
-  ProcessThreadTimeline timeline_;
-};
-
-TEST_F(TimelineEventsOverlappingRangesTest, FindProcessADuringOverlap) {
-  auto slice = timeline_.Search(kTimeD, kPidA);
   ASSERT_EQ(slice.pid, kPidA);
   ASSERT_EQ(slice.uid, kUidA);
 }
 
-TEST_F(TimelineEventsOverlappingRangesTest, FindProcessBDuringOverlap) {
-  auto slice = timeline_.Search(kTimeD, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, kUidB);
-}
-
-// |------------- PID_A ------------->
-//         |----- PID_B -----|
-class TimelineEventsParentChildTest : public testing::Test {
- protected:
-  void SetUp() {
-    // PID A's parent (0) does not exist on the timeline. In production, this is
-    // what happens as the root process (0) doesn't exist.
-    timeline_.Append(
-        ProcessThreadTimeline::Event::Open(kTimeA, kPidA, 0, kUidA));
-    timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeC, kPidB, kPidA));
-    timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeE, kPidB));
-    timeline_.Sort();
-  }
-
-  ProcessThreadTimeline timeline_;
-};
-
-TEST_F(TimelineEventsParentChildTest, InvalidBeforeBStarts) {
+// PID B is indirectly connected to UID A through PID A.
+TEST_F(ProcessThreadTimelineIsConnectedTest, IndirectPidAndUid) {
   auto slice = timeline_.Search(kTimeB, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
-}
 
-TEST_F(TimelineEventsParentChildTest, ValidAfterBStarts) {
-  auto slice = timeline_.Search(kTimeD, kPidB);
   ASSERT_EQ(slice.pid, kPidB);
   ASSERT_EQ(slice.uid, kUidA);
 }
 
-TEST_F(TimelineEventsParentChildTest, InvalidAfterBEnds) {
-  auto slice = timeline_.Search(kTimeF, kPidB);
-  ASSERT_EQ(slice.pid, kPidB);
+// PID D is not in the timeline, so it shouldn't be connected to anything.
+TEST_F(ProcessThreadTimelineIsConnectedTest, MissingPid) {
+  auto slice = timeline_.Search(kTimeB, kPidD);
+
+  ASSERT_EQ(slice.pid, kPidD);
+  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
+}
+
+// Even through there is a connection between PID A and UID A, the query is too
+// soon (events are at TIME B, but the query is at TIME A).
+TEST_F(ProcessThreadTimelineIsConnectedTest, PrematureDirectPidAndUid) {
+  auto slice = timeline_.Search(kTimeA, kPidA);
+
+  ASSERT_EQ(slice.pid, kPidA);
   ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
 }
 
