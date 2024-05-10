@@ -394,18 +394,24 @@ export class PluginManager {
 
   // Must only be called once on startup
   async initialize(): Promise<void> {
-    for (const plugin of pluginRegistry.values()) {
-      const id = `plugin_${plugin.pluginId}`;
-      const name = `Plugin: ${plugin.pluginId}`;
+    // Shuffle the order of plugins to weed out any implicit inter-plugin
+    // dependencies.
+    const pluginsShuffled = Array.from(pluginRegistry.values())
+      .map(({pluginId}) => ({pluginId, sort: Math.random()}))
+      .sort((a, b) => a.sort - b.sort);
+
+    for (const {pluginId} of pluginsShuffled) {
+      const flagId = `plugin_${pluginId}`;
+      const name = `Plugin: ${pluginId}`;
       const flag = featureFlags.register({
-        id,
+        id: flagId,
         name,
-        description: `Overrides '${id}' plugin.`,
-        defaultValue: defaultPlugins.includes(plugin.pluginId),
+        description: `Overrides '${pluginId}' plugin.`,
+        defaultValue: defaultPlugins.includes(pluginId),
       });
-      this.flags.set(plugin.pluginId, flag);
+      this.flags.set(pluginId, flag);
       if (flag.get()) {
-        await this.activatePlugin(plugin.pluginId);
+        await this.activatePlugin(pluginId);
       }
     }
   }
@@ -526,15 +532,21 @@ export class PluginManager {
     beforeEach?: (id: string) => void,
   ): Promise<void> {
     this.engine = engine;
-    const plugins = Array.from(this._plugins.entries());
+
+    // Shuffle the order of plugins to weed out any implicit inter-plugin
+    // dependencies.
+    const pluginsShuffled = Array.from(this._plugins.entries())
+      .map(([id, plugin]) => ({id, plugin, sort: Math.random()}))
+      .sort((a, b) => a.sort - b.sort);
+
     // Awaiting all plugins in parallel will skew timing data as later plugins
     // will spend most of their time waiting for earlier plugins to load.
     // Running in parallel will have very little performance benefit assuming
     // most plugins use the same engine, which can only process one query at a
     // time.
-    for (const [id, pluginDetails] of plugins) {
+    for (const {id, plugin} of pluginsShuffled) {
       beforeEach?.(id);
-      await doPluginTraceLoad(pluginDetails, engine, id);
+      await doPluginTraceLoad(plugin, engine, id);
     }
   }
 
