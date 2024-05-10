@@ -35,6 +35,8 @@ class ProcessSummaryPlugin implements Plugin {
 
   private async addProcessTrackGroups(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
+      INCLUDE PERFETTO MODULE android.process_metadata;
+
       select *
       from (
         select
