@@ -29,6 +29,15 @@ DFS_TABLE = Table(
         C("parent_node_id", CppOptional(CppUint32())),
     ])
 
+DOMINATOR_TREE_TABLE = Table(
+    python_module=__file__,
+    class_name="DominatorTreeTable",
+    sql_name="__intrinsic_dominator_tree",
+    columns=[
+        C("node_id", CppUint32()),
+        C("dominator_node_id", CppOptional(CppUint32())),
+    ])
+
 STRUCTURAL_TREE_PARTITION_TABLE = Table(
     python_module=__file__,
     class_name="StructuralTreePartitionTable",
@@ -42,5 +51,6 @@ STRUCTURAL_TREE_PARTITION_TABLE = Table(
 # Keep this list sorted.
 ALL_TABLES = [
     DFS_TABLE,
+    DOMINATOR_TREE_TABLE,
     STRUCTURAL_TREE_PARTITION_TABLE,
 ]
