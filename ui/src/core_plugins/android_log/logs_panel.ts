@@ -103,11 +103,14 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
       m(VirtualTable, {
         className: 'pf-android-logs-table',
         columns: [
-          {header: 'Timestamp', width: '7rem'},
-          {header: 'Level', width: '4rem'},
-          {header: 'Tag', width: '13rem'},
-          ...(hasProcessNames ? [{header: 'Process', width: '18rem'}] : []),
-          {header: 'Message', width: '42rem'},
+          {header: 'Timestamp', width: '13em'},
+          {header: 'Level', width: '4em'},
+          {header: 'Tag', width: '13em'},
+          ...(hasProcessNames ? [{header: 'Process', width: '18em'}] : []),
+          // '' means column width can vary depending on the content.
+          // This works as this is the last column, but using this for other
+          // columns will pull the columns to the right out of line.
+          {header: 'Message', width: ''},
         ],
         rows: this.renderRows(hasProcessNames),
         firstRowOffset: this.entries?.offset ?? 0,
