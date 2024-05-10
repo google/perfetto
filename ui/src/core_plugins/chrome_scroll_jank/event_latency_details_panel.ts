@@ -56,7 +56,7 @@ import {
   getSliceForTrack,
   ScrollJankSlice,
 } from './scroll_jank_slice';
-import {ScrollJankV3Track} from './scroll_jank_v3_track';
+import {ScrollJankV3TrackKind} from './common';
 
 // Given a node in the slice tree, return a path from root to it.
 function getPath(slice: SliceTreeNode): string[] {
@@ -409,7 +409,7 @@ export class EventLatencySliceDetailsPanel extends BottomTab<GenericSliceDetails
           left: this.jankySlice
             ? getSliceForTrack(
                 this.jankySlice,
-                ScrollJankV3Track.kind,
+                ScrollJankV3TrackKind,
                 'Jank Interval',
               )
             : 'Jank Interval',
