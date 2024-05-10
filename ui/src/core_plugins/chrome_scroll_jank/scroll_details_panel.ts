@@ -48,7 +48,7 @@ import {
   getSliceForTrack,
   ScrollJankSlice,
 } from './scroll_jank_slice';
-import {ScrollJankV3Track} from './scroll_jank_v3_track';
+import {ScrollJankV3TrackKind} from './common';
 
 interface Data {
   // Scroll ID.
@@ -328,7 +328,7 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
         data.push({
           jankLink: getSliceForTrack(
             jankSlice.jankSlice,
-            ScrollJankV3Track.kind,
+            ScrollJankV3TrackKind,
             jankSlice.cause,
           ),
           dur: m(DurationWidget, {dur: jankSlice.delayDur}),

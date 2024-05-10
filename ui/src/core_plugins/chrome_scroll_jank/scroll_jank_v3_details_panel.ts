@@ -33,13 +33,13 @@ import {SqlRef} from '../../widgets/sql_ref';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
 
-import {EventLatencyTrack} from './event_latency_track';
 import {
   EventLatencySlice,
   getEventLatencyDescendantSlice,
   getEventLatencySlice,
   getSliceForTrack,
 } from './scroll_jank_slice';
+import {CHROME_EVENT_LATENCY_TRACK_KIND} from './common';
 
 interface Data {
   name: string;
@@ -269,7 +269,7 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
       result['Janked Event Latency stage'] = exists(this.causeSliceDetails)
         ? getSliceForTrack(
             this.causeSliceDetails,
-            EventLatencyTrack.kind,
+            CHROME_EVENT_LATENCY_TRACK_KIND,
             this.data.jankCause,
           )
         : sqlValueToString(this.data.jankCause);
@@ -278,7 +278,7 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
         result['Sub-cause of Jank'] = exists(this.subcauseSliceDetails)
           ? getSliceForTrack(
               this.subcauseSliceDetails,
-              EventLatencyTrack.kind,
+              CHROME_EVENT_LATENCY_TRACK_KIND,
               this.data.jankSubcause,
             )
           : sqlValueToString(this.data.jankSubcause);
@@ -290,7 +290,7 @@ export class ScrollJankV3DetailsPanel extends BottomTab<GenericSliceDetailsTabCo
           m(TreeNode, {
             left: getSliceForTrack(
               this.eventLatencySliceDetails,
-              EventLatencyTrack.kind,
+              CHROME_EVENT_LATENCY_TRACK_KIND,
               'Input EventLatency in context of ScrollUpdates',
             ),
             right: '',

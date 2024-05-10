@@ -23,26 +23,25 @@ import {
 } from '../custom_sql_table_slices';
 
 import {EventLatencyTrackTypes} from './event_latency_track';
-import {
-  SCROLL_JANK_GROUP_ID,
-  ScrollJankPluginState,
-  ScrollJankTracks as DecideTracksResult,
-} from './index';
 import {JANK_COLOR} from './jank_colors';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 import {getColorForSlice} from '../../core/colorizer';
 import {getLegacySelection} from '../../common/state';
+import {
+  DecideTracksResult,
+  SCROLL_JANK_GROUP_ID,
+  ScrollJankPluginState,
+  ScrollJankV3TrackKind,
+} from './common';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
 
 export class ScrollJankV3Track extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
-  static readonly kind = 'org.chromium.ScrollJank.scroll_jank_v3_track';
-
   constructor(args: NewTrackArgs) {
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
-      kind: ScrollJankV3Track.kind,
+      kind: ScrollJankV3TrackKind,
       trackKey: this.trackKey,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
@@ -78,7 +77,7 @@ export class ScrollJankV3Track extends CustomSqlTableSliceTrack<NamedSliceTrackT
 
   async onDestroy(): Promise<void> {
     await super.onDestroy();
-    ScrollJankPluginState.getInstance().unregisterTrack(ScrollJankV3Track.kind);
+    ScrollJankPluginState.getInstance().unregisterTrack(ScrollJankV3TrackKind);
   }
 
   rowToSlice(row: NamedRow): Slice {
