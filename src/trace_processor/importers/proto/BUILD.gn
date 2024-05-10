@@ -18,6 +18,8 @@ source_set("minimal") {
   sources = [
     "active_chrome_processes_tracker.cc",
     "active_chrome_processes_tracker.h",
+    "args_parser.cc",
+    "args_parser.h",
     "chrome_string_lookup.cc",
     "chrome_string_lookup.h",
     "chrome_system_probes_module.cc",

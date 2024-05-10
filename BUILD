@@ -1744,8 +1744,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h",
-        "src/trace_processor/importers/proto/winscope/winscope_args_parser.cc",
-        "src/trace_processor/importers/proto/winscope/winscope_args_parser.h",
         "src/trace_processor/importers/proto/winscope/winscope_module.cc",
         "src/trace_processor/importers/proto/winscope/winscope_module.h",
     ],
@@ -1874,6 +1872,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/proto/active_chrome_processes_tracker.cc",
         "src/trace_processor/importers/proto/active_chrome_processes_tracker.h",
+        "src/trace_processor/importers/proto/args_parser.cc",
+        "src/trace_processor/importers/proto/args_parser.h",
         "src/trace_processor/importers/proto/chrome_string_lookup.cc",
         "src/trace_processor/importers/proto/chrome_string_lookup.h",
         "src/trace_processor/importers/proto/chrome_system_probes_module.cc",
