@@ -76,8 +76,7 @@ static int RelayServiceMain(int argc, char** argv) {
        OPT_SET_SOCKET_PERMISSIONS},
       {nullptr, 0, nullptr, 0}};
 
-  std::string listen_socket_group, consumer_socket_group,
-      listen_socket_mode_bits, consumer_socket_mode;
+  std::string listen_socket_group, listen_socket_mode_bits;
 
   for (;;) {
     int option = getopt_long(argc, argv, "", long_options, nullptr);

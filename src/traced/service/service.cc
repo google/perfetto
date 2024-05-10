@@ -21,6 +21,7 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
@@ -164,6 +165,11 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     if (!producer_socket_group.empty()) {
       auto status = base::OkStatus();
       for (const auto& producer_socket : producer_sockets) {
+        if (base::GetSockFamily(producer_socket.c_str()) !=
+            base::SockFamily::kUnix) {
+          // Socket permissions is only available to unix sockets.
+          continue;
+        }
         status = base::SetFilePermissions(
             producer_socket, producer_socket_group, producer_socket_mode);
         if (!status.ok()) {
