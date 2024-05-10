@@ -50,6 +50,9 @@ from diff_tests.parser.android_fs.tests import AndroidFs
 from diff_tests.parser.android.tests import AndroidParser
 from diff_tests.parser.android.tests_bugreport import AndroidBugreport
 from diff_tests.parser.android.tests_games import AndroidGames
+from diff_tests.parser.android.tests_inputmethod_clients import InputMethodClients
+from diff_tests.parser.android.tests_inputmethod_manager_service import InputMethodManagerService
+from diff_tests.parser.android.tests_inputmethod_service import InputMethodService
 from diff_tests.parser.android.tests_protolog import ProtoLog
 from diff_tests.parser.android.tests_shell_transitions import ShellTransitions
 from diff_tests.parser.android.tests_surfaceflinger_layers import SurfaceFlingerLayers
@@ -183,6 +186,12 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
                            'SmokeComputeMetrics').fetch(),
       *SmokeJson(index_path, 'parser/smoke', 'SmokeJson').fetch(),
       *SmokeSchedEvents(index_path, 'parser/smoke', 'SmokeSchedEvents').fetch(),
+      *InputMethodClients(index_path, 'parser/android',
+                            'InputMethodClients').fetch(),
+      *InputMethodManagerService(index_path, 'parser/android',
+                            'InputMethodManagerService').fetch(),
+      *InputMethodService(index_path, 'parser/android',
+                            'InputMethodService').fetch(),
       *SurfaceFlingerLayers(index_path, 'parser/android',
                             'SurfaceFlingerLayers').fetch(),
       *SurfaceFlingerTransactions(index_path, 'parser/android',

@@ -797,6 +797,29 @@ class TraceStorage {
   }
   tables::JitFrameTable* mutable_jit_frame_table() { return &jit_frame_table_; }
 
+  const tables::InputMethodClientsTable& inputmethod_clients_table() const {
+    return inputmethod_clients_table_;
+  }
+  tables::InputMethodClientsTable* mutable_inputmethod_clients_table() {
+    return &inputmethod_clients_table_;
+  }
+
+  const tables::InputMethodManagerServiceTable&
+  inputmethod_manager_service_table() const {
+    return inputmethod_manager_service_table_;
+  }
+  tables::InputMethodManagerServiceTable*
+  mutable_inputmethod_manager_service_table() {
+    return &inputmethod_manager_service_table_;
+  }
+
+  const tables::InputMethodServiceTable& inputmethod_service_table() const {
+    return inputmethod_service_table_;
+  }
+  tables::InputMethodServiceTable* mutable_inputmethod_service_table() {
+    return &inputmethod_service_table_;
+  }
+
   const tables::SurfaceFlingerLayersSnapshotTable&
   surfaceflinger_layers_snapshot_table() const {
     return surfaceflinger_layers_snapshot_table_;
@@ -1115,6 +1138,10 @@ class TraceStorage {
   tables::JitFrameTable jit_frame_table_{&string_pool_};
 
   // Winscope tables
+  tables::InputMethodClientsTable inputmethod_clients_table_{&string_pool_};
+  tables::InputMethodManagerServiceTable inputmethod_manager_service_table_{
+      &string_pool_};
+  tables::InputMethodServiceTable inputmethod_service_table_{&string_pool_};
   tables::SurfaceFlingerLayersSnapshotTable
       surfaceflinger_layers_snapshot_table_{&string_pool_};
   tables::SurfaceFlingerLayerTable surfaceflinger_layer_table_{&string_pool_};

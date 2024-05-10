@@ -298,6 +298,21 @@ namespace stats {
   F(v8_unknown_code_type,                 kSingle,  kError,    kAnalysis, ""), \
   F(v8_code_load_missing_code_range,      kSingle,  kError,    kAnalysis,      \
       "V8 load had no code range or an empty one. Event ignored."),            \
+  F(winscope_inputmethod_clients_parse_errors,                                 \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "InputMethod clients packet has unknown fields, which results in "       \
+      "some arguments missing. You may need a newer version of trace "         \
+      "processor to parse them."),                                             \
+  F(winscope_inputmethod_manager_service_parse_errors,                         \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "InputMethod manager service packet has unknown fields, which results "  \
+      "in some arguments missing. You may need a newer version of trace "      \
+      "processor to parse them."),                                             \
+  F(winscope_inputmethod_service_parse_errors,                                 \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "InputMethod service packet has unknown fields, which results in "       \
+      "some arguments missing. You may need a newer version of trace "         \
+      "processor to parse them."),                                             \
   F(winscope_sf_layers_parse_errors,      kSingle,  kInfo,     kAnalysis,      \
       "SurfaceFlinger layers snapshot has unknown fields, which results in "   \
       "some arguments missing. You may need a newer version of trace "         \
