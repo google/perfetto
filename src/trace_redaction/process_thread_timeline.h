@@ -18,7 +18,7 @@
 #define SRC_TRACE_REDACTION_PROCESS_THREAD_TIMELINE_H_
 
 #include <cstdint>
-#include <optional>
+#include <limits>
 #include <vector>
 
 namespace perfetto::trace_redaction {
@@ -26,38 +26,24 @@ namespace perfetto::trace_redaction {
 class ProcessThreadTimeline {
  public:
   // Opened and closed events are used to mark the start and end of lifespans.
-  class Event {
+  struct Event {
    public:
+    static constexpr auto kUnknownPid = std::numeric_limits<int32_t>::max();
+    static constexpr auto kUnknownUid = std::numeric_limits<uint64_t>::max();
+
     enum class Type { kInvalid, kOpen, kClose };
 
-    Event()
-        : type_(ProcessThreadTimeline::Event::Type::kInvalid),
-          ts_(0),
-          pid_(0),
-          ppid_(0),
-          uid_(0) {}
-
-    Type type() const { return type_; }
-
-    uint64_t ts() const { return ts_; }
-
-    int32_t pid() const { return pid_; }
-
-    int32_t ppid() const { return ppid_; }
-
-    uint64_t uid() const { return uid_; }
-
     bool operator==(const Event& o) const {
-      switch (type_) {
+      switch (type) {
         case Type::kOpen:
-          return o.type_ == Type::kOpen && ts_ == o.ts_ && pid_ == o.pid_ &&
-                 ppid_ == o.ppid_ && uid_ == o.uid_;
+          return o.type == Type::kOpen && ts == o.ts && pid == o.pid &&
+                 ppid == o.ppid && uid == o.uid;
 
         case Type::kClose:
-          return o.type_ == Type::kClose && ts_ == o.ts_ && pid_ == o.pid_;
+          return o.type == Type::kClose && ts == o.ts && pid == o.pid;
 
         case Type::kInvalid:
-          return o.type_ == Type::kInvalid;
+          return o.type == Type::kInvalid;
       }
 
       return false;
@@ -65,36 +51,35 @@ class ProcessThreadTimeline {
 
     bool operator!=(const Event& o) const { return !(*this == o); }
 
+    bool valid() const { return type != Type::kInvalid; }
+
     static Event Open(uint64_t ts, int32_t pid, int32_t ppid, uint64_t uid) {
-      return Event(ProcessThreadTimeline::Event::Type::kOpen, ts, pid, ppid,
-                   uid);
+      return {Type::kOpen, ts, pid, ppid, uid};
     }
 
     static Event Open(uint64_t ts, int32_t pid, int32_t ppid) {
-      return Event(ProcessThreadTimeline::Event::Type::kOpen, ts, pid, ppid, 0);
+      return {Type::kOpen, ts, pid, ppid, kUnknownUid};
     }
 
     static Event Close(uint64_t ts, int32_t pid) {
-      return Event(ProcessThreadTimeline::Event::Type::kClose, ts, pid, 0, 0);
+      return {Type::kClose, ts, pid, kUnknownPid, kUnknownUid};
     }
 
-   private:
-    Event(Type type, uint64_t ts, int32_t pid, int32_t ppid, uint64_t uid)
-        : type_(type), ts_(ts), pid_(pid), ppid_(ppid), uid_(uid) {}
+    Type type = Type::kInvalid;
 
-    Type type_ = Type::kInvalid;
+    // The time when the event occured. Undefined when type is kInvalid.
+    uint64_t ts = 0;
 
-    // Valid: open & close
-    uint64_t ts_ = 0;
+    // The subject of the event. Undefined when type is kInvalid.
+    int32_t pid = kUnknownPid;
 
-    // Valid: open & close
-    int32_t pid_ = -1;
+    // The parent of the subject. kUnknownPid if the parent is unknown.
+    // Undefined when type is kClose or kInvalid.
+    int32_t ppid = kUnknownPid;
 
-    // Valid: open
-    int32_t ppid_ = -1;
-
-    // Valid: open
-    uint64_t uid_ = 0;
+    // The package containing the subject. kUnknownUid if the package is
+    // unknown. Undefined when type is kClose or kInvalid.
+    uint64_t uid = kUnknownUid;
   };
 
   // The state of a process at a specific point in time.
@@ -142,11 +127,7 @@ class ProcessThreadTimeline {
   // Effectively this is the same as:
   //
   //  events_for(pid).before(ts).sort_by_time().last()
-  std::optional<Event> FindPreviousEvent(uint64_t ts, int32_t pid) const;
-
-  std::optional<Event> Search(size_t depth, uint64_t ts, int32_t pid) const;
-
-  bool TestEvent(std::optional<Event> event) const;
+  Event FindPreviousEvent(uint64_t ts, int32_t pid) const;
 
   std::vector<Event> events_;
 
