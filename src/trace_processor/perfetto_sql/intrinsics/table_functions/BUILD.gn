@@ -27,8 +27,6 @@ source_set("table_functions") {
     "descendant.h",
     "dfs_weight_bounded.cc",
     "dfs_weight_bounded.h",
-    "dominator_tree.cc",
-    "dominator_tree.h",
     "experimental_annotated_stack.cc",
     "experimental_annotated_stack.h",
     "experimental_counter_dur.cc",

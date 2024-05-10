@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dominator_tree.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -25,18 +25,10 @@
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/status_or.h"
-#include "perfetto/protozero/proto_decoder.h"
-#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "protos/perfetto/trace_processor/metrics_impl.pbzero.h"
-#include "src/trace_processor/containers/string_pool.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/table.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
-#include "src/trace_processor/util/status_macros.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 
 namespace perfetto::trace_processor {
 namespace tables {
@@ -46,9 +38,6 @@ DominatorTreeTable::~DominatorTreeTable() = default;
 namespace {
 
 class Forest;
-using NodeIterator = protozero::PackedRepeatedFieldIterator<
-    protozero::proto_utils::ProtoWireType::kFixed64,
-    int64_t>;
 
 // Represents a node in the graph which the dominator tree is being computed on.
 struct Node {
@@ -67,30 +56,6 @@ struct TreeNumber {
 // algorithm.
 class Graph {
  public:
-  static base::StatusOr<Graph> Create(
-      protos::pbzero::RepeatedBuilderResult::Decoder& source,
-      protos::pbzero::RepeatedBuilderResult::Decoder& dest) {
-    bool parse_error = false;
-    auto source_node_ids = source.int_values(&parse_error);
-    auto dest_node_ids = dest.int_values(&parse_error);
-    Graph graph;
-    for (; source_node_ids && dest_node_ids;
-         ++source_node_ids, ++dest_node_ids) {
-      graph.AddEdge(Node{static_cast<uint32_t>(*source_node_ids)},
-                    Node{static_cast<uint32_t>(*dest_node_ids)});
-    }
-    if (parse_error) {
-      return base::ErrStatus("Failed while parsing source or dest ids");
-    }
-    if (static_cast<bool>(source_node_ids) !=
-        static_cast<bool>(dest_node_ids)) {
-      return base::ErrStatus(
-          "dominator_tree: length of source and destination columns is not the "
-          "same");
-    }
-    return graph;
-  }
-
   // Lengauer-Tarjan Dominators: Step 1.
   void RunDfs(Node root_node);
 
@@ -100,9 +65,15 @@ class Graph {
   // Lengauer-Tarjan Dominators: Step 4.
   void ComputeDominators();
 
+  void AddEdge(Node source, Node dest) {
+    state_by_node_.resize(std::max<size_t>(
+        state_by_node_.size(), std::max(source.id + 1, dest.id + 1)));
+    GetStateForNode(source).successors.push_back(dest);
+    GetStateForNode(dest).predecessors.push_back(source);
+  }
+
   // Converts the dominator tree to a table.
-  std::unique_ptr<Table> ToTable(StringPool* pool, Node root_node) && {
-    auto table = std::make_unique<tables::DominatorTreeTable>(pool);
+  void ToTable(tables::DominatorTreeTable* table, Node root_node) {
     for (uint32_t i = 0; i < node_count_in_tree(); ++i) {
       Node v = GetNodeForTreeNumber(TreeNumber{i});
       NodeState& v_state = GetStateForNode(v);
@@ -113,7 +84,6 @@ class Graph {
                                 : std::make_optional(v_state.dominator.id);
       table->Insert(r);
     }
-    return std::move(table);
   }
 
   // Returns the TreeNumber for a given Node.
@@ -146,13 +116,6 @@ class Graph {
     std::optional<TreeNumber> semi_dominator;
     Node dominator{0};
   };
-
-  void AddEdge(Node source, Node dest) {
-    state_by_node_.resize(std::max<size_t>(
-        state_by_node_.size(), std::max(source.id + 1, dest.id + 1)));
-    GetStateForNode(source).successors.push_back(dest);
-    GetStateForNode(dest).predecessors.push_back(source);
-  }
 
   const NodeState& GetStateForNode(Node v) const {
     return state_by_node_[v.id];
@@ -310,94 +273,55 @@ void Graph::ComputeDominators() {
   }
 }
 
+struct AggCtx : SqliteAggregateContext<AggCtx> {
+  Graph graph;
+  std::optional<uint32_t> start_id;
+};
+
 }  // namespace
 
-DominatorTree::DominatorTree(StringPool* pool) : pool_(pool) {}
-DominatorTree::~DominatorTree() = default;
-
-Table::Schema DominatorTree::CreateSchema() {
-  return tables::DominatorTreeTable::ComputeStaticSchema();
+void DominatorTree::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+  if (argc != kArgCount) {
+    return sqlite::result::Error(
+        ctx, "dominator_tree: incorrect number of arguments");
+  }
+  auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
+  auto source = static_cast<uint32_t>(sqlite3_value_int64(argv[0]));
+  auto dest = static_cast<uint32_t>(sqlite3_value_int64(argv[1]));
+  agg_ctx.graph.AddEdge(Node{source}, Node{dest});
+  if (PERFETTO_UNLIKELY(!agg_ctx.start_id)) {
+    agg_ctx.start_id = static_cast<uint32_t>(sqlite3_value_int64(argv[2]));
+  }
 }
 
-std::string DominatorTree::TableName() {
-  return tables::DominatorTreeTable::Name();
-}
+void DominatorTree::Final(sqlite3_context* ctx) {
+  auto raw_agg_ctx = AggCtx::GetContextOrNullForFinal(ctx);
+  auto table = std::make_unique<tables::DominatorTreeTable>(GetUserData(ctx));
+  if (auto* agg_ctx = raw_agg_ctx.get(); agg_ctx) {
+    Node start_node{static_cast<uint32_t>(*agg_ctx->start_id)};
+    Graph& graph = agg_ctx->graph;
+    if (start_node.id >= graph.node_id_range()) {
+      return sqlite::result::Error(
+          ctx, "dominator_tree: root node is not in the graph");
+    }
+    Forest forest(graph.node_id_range());
 
-uint32_t DominatorTree::EstimateRowCount() {
-  // TODO(lalitm): improve this estimate.
-  return 1024;
-}
-
-base::StatusOr<std::unique_ptr<Table>> DominatorTree::ComputeTable(
-    const std::vector<SqlValue>& arguments) {
-  PERFETTO_CHECK(arguments.size() == 3);
-
-  const SqlValue& raw_source_ids = arguments[0];
-  const SqlValue& raw_dest_ids = arguments[1];
-  const SqlValue& raw_start_node = arguments[2];
-  if (raw_source_ids.is_null() && raw_dest_ids.is_null() &&
-      raw_start_node.is_null()) {
-    return std::unique_ptr<Table>(
-        std::make_unique<tables::DominatorTreeTable>(pool_));
+    // Execute the Lengauer-Tarjan Dominators algorithm to compute the dominator
+    // tree.
+    graph.RunDfs(start_node);
+    if (graph.node_count_in_tree() <= 1) {
+      return sqlite::result::Error(
+          ctx,
+          "dominator_tree: non empty graph must contain root and another node");
+    }
+    graph.ComputeSemiDominatorAndPartialDominator(forest);
+    graph.ComputeDominators();
+    graph.ToTable(table.get(), start_node);
   }
-  if (raw_source_ids.is_null() || raw_dest_ids.is_null() ||
-      raw_start_node.is_null()) {
-    return base::ErrStatus(
-        "dominator_tree: either all arguments should be null or none should "
-        "be");
-  }
-  if (raw_source_ids.type != SqlValue::kBytes) {
-    return base::ErrStatus(
-        "dominator_tree: source_ids should be a repeated field");
-  }
-  if (raw_dest_ids.type != SqlValue::kBytes) {
-    return base::ErrStatus(
-        "dominator_tree: dest_ids should be a repeated field");
-  }
-  if (raw_start_node.type != SqlValue::kLong) {
-    return base::ErrStatus("dominator_tree: root_id should be an integer");
-  }
-
-  protos::pbzero::ProtoBuilderResult::Decoder proto_source_ids(
-      static_cast<const uint8_t*>(raw_source_ids.AsBytes()),
-      raw_source_ids.bytes_count);
-  if (!proto_source_ids.is_repeated()) {
-    return base::ErrStatus(
-        "dominator_tree: source_ids is not generated by RepeatedField "
-        "function");
-  }
-  protos::pbzero::RepeatedBuilderResult::Decoder source_ids(
-      proto_source_ids.repeated());
-
-  protos::pbzero::ProtoBuilderResult::Decoder proto_dest_ids(
-      static_cast<const uint8_t*>(raw_dest_ids.AsBytes()),
-      raw_dest_ids.bytes_count);
-  if (!proto_dest_ids.is_repeated()) {
-    return base::ErrStatus(
-        "dominator_tree: dest_ids is not generated by RepeatedField function");
-  }
-  protos::pbzero::RepeatedBuilderResult::Decoder dest_ids(
-      proto_dest_ids.repeated());
-
-  Node start_node{static_cast<uint32_t>(raw_start_node.AsLong())};
-  ASSIGN_OR_RETURN(Graph graph, Graph::Create(source_ids, dest_ids));
-  if (start_node.id >= graph.node_id_range()) {
-    return base::ErrStatus("dominator_tree: root node is not in the graph");
-  }
-  Forest forest(graph.node_id_range());
-
-  // Execute the Lengauer-Tarjan Dominators algorithm to compute the dominator
-  // tree.
-  graph.RunDfs(start_node);
-  if (graph.node_count_in_tree() <= 1) {
-    return base::ErrStatus(
-        "dominator_tree: non empty graph must contain root and another node");
-  }
-  graph.ComputeSemiDominatorAndPartialDominator(forest);
-  graph.ComputeDominators();
-
   // Take the computed dominator tree and convert it to a table.
-  return std::move(graph).ToTable(pool_, start_node);
+  return sqlite::result::RawPointer(
+      ctx, table.release(), "TABLE",
+      [](void* ptr) { delete static_cast<tables::DominatorTreeTable*>(ptr); });
 }
 
 }  // namespace perfetto::trace_processor
