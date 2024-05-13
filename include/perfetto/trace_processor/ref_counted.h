@@ -144,6 +144,9 @@ class RefPtr {
     return !(*this == rhs);
   }
 
+  bool operator==(nullptr_t) const noexcept { return ptr_ == nullptr; }
+  bool operator!=(nullptr_t) const noexcept { return ptr_ != nullptr; }
+
   T* get() const { return ptr_; }
   T* operator->() const { return ptr_; }
   T& operator*() const { return *ptr_; }
