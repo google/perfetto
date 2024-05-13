@@ -59,8 +59,8 @@ class ProfilingHeapProfiling(TestSuite):
         """,
         out=Csv("""
         "id","type","ts","upid","heap_name","callsite_id","count","size"
-        0,"heap_profile_allocation",-10,2,"malloc",2,0,1000
-        1,"heap_profile_allocation",-10,2,"malloc",3,0,90
+        0,"heap_profile_allocation",-10,2,"unknown",2,0,1000
+        1,"heap_profile_allocation",-10,2,"unknown",3,0,90
         """))
 
   def test_heap_profile_dump_max(self):
@@ -71,6 +71,6 @@ class ProfilingHeapProfiling(TestSuite):
         """,
         out=Csv("""
         "id","type","ts","upid","heap_name","callsite_id","count","size"
-        0,"heap_profile_allocation",-10,2,"malloc",2,6,1000
-        1,"heap_profile_allocation",-10,2,"malloc",3,1,90
+        0,"heap_profile_allocation",-10,2,"unknown",2,6,1000
+        1,"heap_profile_allocation",-10,2,"unknown",3,1,90
         """))

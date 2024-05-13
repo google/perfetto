@@ -361,10 +361,10 @@ class ProfilingHeapGraph(TestSuite):
         """,
         out=Csv("""
         "id","type","ts","upid","heap_name","callsite_id","count","size"
-        0,"heap_profile_allocation",0,0,"malloc",0,1,1
-        1,"heap_profile_allocation",0,0,"malloc",0,-1,-1
-        2,"heap_profile_allocation",1,0,"malloc",0,1,1
-        3,"heap_profile_allocation",1,0,"malloc",0,-1,-1
+        0,"heap_profile_allocation",0,0,"unknown",0,1,1
+        1,"heap_profile_allocation",0,0,"unknown",0,-1,-1
+        2,"heap_profile_allocation",1,0,"unknown",0,1,1
+        3,"heap_profile_allocation",1,0,"unknown",0,-1,-1
         """))
 
   def test_heap_profile_tracker_twoheaps(self):
@@ -375,8 +375,8 @@ class ProfilingHeapGraph(TestSuite):
         """,
         out=Csv("""
         "id","type","ts","upid","heap_name","callsite_id","count","size"
-        0,"heap_profile_allocation",0,0,"malloc",0,1,1
-        1,"heap_profile_allocation",0,0,"malloc",0,-1,-1
+        0,"heap_profile_allocation",0,0,"libc.malloc",0,1,1
+        1,"heap_profile_allocation",0,0,"libc.malloc",0,-1,-1
         2,"heap_profile_allocation",0,0,"custom",0,1,1
         3,"heap_profile_allocation",0,0,"custom",0,-1,-1
         """))

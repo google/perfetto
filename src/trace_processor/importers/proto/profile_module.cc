@@ -408,7 +408,10 @@ void ProfileModule::ParseProfilePacket(
         src_allocation.heap_name =
             context_->storage->InternString(entry.heap_name());
       } else {
-        src_allocation.heap_name = context_->storage->InternString("malloc");
+        // After aosp/1348782 there should be a heap name associated with all
+        // allocations - absence of one is likely a bug (for traces captured
+        // in older builds, this was the native heap profiler (libc.malloc)).
+        src_allocation.heap_name = context_->storage->InternString("unknown");
       }
       src_allocation.timestamp = timestamp;
       src_allocation.callstack_id = sample.callstack_id();
