@@ -16,7 +16,7 @@ import {uuidv4} from '../base/uuid';
 import {Actions, DeferredAction} from '../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../common/state';
 import {globals} from './globals';
-import {EngineProxy, PrimaryTrackSortKey} from '../public';
+import {Engine, PrimaryTrackSortKey} from '../public';
 import {DebugTrackV2Config} from '../core_plugins/debug/slice_track';
 
 export const ARG_PREFIX = 'arg_';
@@ -55,7 +55,7 @@ export interface SqlDataSource {
 // once or want to tweak the actions once produced. Otherwise, use
 // addDebugSliceTrack().
 export async function createDebugSliceTrackActions(
-  _engine: EngineProxy,
+  _engine: Engine,
   data: SqlDataSource,
   trackName: string,
   sliceColumns: SliceColumns,
@@ -90,7 +90,7 @@ export async function createDebugSliceTrackActions(
 }
 
 export async function addPivotDebugSliceTracks(
-  engine: EngineProxy,
+  engine: Engine,
   data: SqlDataSource,
   trackName: string,
   sliceColumns: SliceColumns,
@@ -129,7 +129,7 @@ export async function addPivotDebugSliceTracks(
 // Adds a debug track immediately. Use createDebugSliceTrackActions() if you
 // want to create many tracks at once.
 export async function addDebugSliceTrack(
-  engine: EngineProxy,
+  engine: Engine,
   data: SqlDataSource,
   trackName: string,
   sliceColumns: SliceColumns,

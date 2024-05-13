@@ -20,7 +20,7 @@ import {assertTrue, assertUnreachable} from '../base/logging';
 import {Time, time} from '../base/time';
 import {drawTrackHoverTooltip} from '../common/canvas_utils';
 import {raf} from '../core/raf_scheduler';
-import {EngineProxy, LONG, NUM, Track} from '../public';
+import {Engine, LONG, NUM, Track} from '../public';
 import {Button} from '../widgets/button';
 import {MenuItem, MenuDivider, PopupMenu2} from '../widgets/menu';
 
@@ -194,7 +194,7 @@ export type BaseCounterTrackArgs = NewTrackArgs & {
 };
 
 export abstract class BaseCounterTrack implements Track {
-  protected engine: EngineProxy;
+  protected engine: Engine;
   protected trackKey: string;
   protected trackUuid = uuidv4Sql();
 

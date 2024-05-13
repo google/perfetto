@@ -44,7 +44,7 @@ import {
 } from '../frontend/publish';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Router} from '../frontend/router';
-import {Engine} from '../trace_processor/engine';
+import {Engine, EngineBase} from '../trace_processor/engine';
 import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 import {
   LONG,
@@ -224,7 +224,7 @@ async function defineMaxLayoutDepthSqlFunction(engine: Engine): Promise<void> {
 // trace opened in the UI (for now only one trace is supported).
 export class TraceController extends Controller<States> {
   private readonly engineId: string;
-  private engine?: Engine;
+  private engine?: EngineBase;
 
   constructor(engineId: string) {
     super('init');
@@ -766,7 +766,7 @@ export class TraceController extends Controller<States> {
 
   private async listTracks() {
     this.updateStatus('Loading tracks');
-    const engine = assertExists<Engine>(this.engine);
+    const engine = assertExists(this.engine);
     const actions = await decideTracks(engine);
     globals.dispatchMultiple(actions);
   }
@@ -918,7 +918,7 @@ export class TraceController extends Controller<States> {
   }
 
   async initialiseHelperViews() {
-    const engine = assertExists<Engine>(this.engine);
+    const engine = assertExists(this.engine);
 
     this.updateStatus('Creating annotation counter track table');
     // Create the helper tables for all the annotations related data.

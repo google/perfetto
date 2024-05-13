@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {STR} from '../trace_processor/query_result';
 
-const CACHED_SCHEMAS = new WeakMap<EngineProxy, DatabaseSchema>();
+const CACHED_SCHEMAS = new WeakMap<Engine, DatabaseSchema>();
 
 export class SchemaError extends Error {
   constructor(message: string) {
@@ -40,7 +40,7 @@ interface ColumnInfo {
 }
 
 async function getColumns(
-  engine: EngineProxy,
+  engine: Engine,
   table: string,
 ): Promise<ColumnInfo[]> {
   const result = await engine.query(`PRAGMA table_info(${table});`);
@@ -83,7 +83,7 @@ export class DatabaseSchema {
 
 // Deliberately not exported. Users should call getSchema below and
 // participate in cacheing.
-async function createSchema(engine: EngineProxy): Promise<DatabaseSchema> {
+async function createSchema(engine: Engine): Promise<DatabaseSchema> {
   const tables: TableInfo[] = [];
   const result = await engine.query(`SELECT name from perfetto_tables;`);
   const it = result.iter({
@@ -108,7 +108,7 @@ async function createSchema(engine: EngineProxy): Promise<DatabaseSchema> {
 // The schemas are per-engine (i.e. they can't be statically determined
 // at build time) since we might be in httpd mode and not-running
 // against the version of trace_processor we build with.
-export async function getSchema(engine: EngineProxy): Promise<DatabaseSchema> {
+export async function getSchema(engine: Engine): Promise<DatabaseSchema> {
   const schema = CACHED_SCHEMAS.get(engine);
   if (schema === undefined) {
     const newSchema = await createSchema(engine);

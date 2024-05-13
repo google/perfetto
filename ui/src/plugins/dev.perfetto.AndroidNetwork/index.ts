@@ -14,14 +14,14 @@
 
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {addDebugSliceTrack} from '../../public';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 
 class AndroidNetwork implements Plugin {
   // Adds a debug track using the provided query and given columns. The columns
   // must be start with ts, dur, and a name column. The name column and all
   // following columns are shown as arguments in slice details.
   async addSimpleTrack(
-    engine: EngineProxy,
+    engine: Engine,
     trackName: string,
     tableOrQuery: string,
     columns: string[],

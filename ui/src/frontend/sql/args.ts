@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 import {
   LONG_NULL,
   NUM,
@@ -42,7 +42,7 @@ export interface Arg {
 }
 
 export async function getArgs(
-  engine: EngineProxy,
+  engine: Engine,
   argSetId: ArgSetId,
 ): Promise<Arg[]> {
   const query = await engine.query(`

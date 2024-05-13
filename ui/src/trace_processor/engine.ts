@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {defer, Deferred} from '../base/deferred';
-import {Disposable} from '../base/disposable';
 import {assertExists, assertTrue} from '../base/logging';
 import {duration, Span, Time, time, TimeSpan} from '../base/time';
 import {
@@ -42,6 +41,7 @@ import {
 } from './query_result';
 
 import TPM = TraceProcessorRpc.TraceProcessorMethod;
+import {Disposable} from '../base/disposable';
 
 export interface LoadingTracker {
   beginLoading(): void;
@@ -66,6 +66,19 @@ export interface TraceProcessorConfig {
   ftraceDropUntilAllCpusValid: boolean;
 }
 
+export interface Engine {
+  execute(sqlQuery: string, tag?: string): Promise<QueryResult> & QueryResult;
+  query(sqlQuery: string, tag?: string): Promise<QueryResult>;
+  getCpus(): Promise<number[]>;
+  getNumberOfGpus(): Promise<number>;
+  getTracingMetadataTimeBounds(): Promise<Span<time, duration>>;
+  computeMetric(
+    metrics: string[],
+    format: 'json' | 'prototext' | 'proto',
+  ): Promise<string | Uint8Array>;
+  readonly isAlive: boolean;
+}
+
 // Abstract interface of a trace proccessor.
 // This is the TypeScript equivalent of src/trace_processor/rpc.h.
 // There are two concrete implementations:
@@ -77,7 +90,7 @@ export interface TraceProcessorConfig {
 // 1. Implement the abstract rpcSendRequestBytes() function, sending the
 //    proto-encoded TraceProcessorRpc requests to the TraceProcessor instance.
 // 2. Call onRpcResponseBytes() when response data is received.
-export abstract class Engine {
+export abstract class EngineBase implements Engine {
   abstract readonly id: string;
   private _cpus?: number[];
   private _numGpus?: number;
@@ -93,6 +106,7 @@ export abstract class Engine {
   private pendingComputeMetrics = new Array<Deferred<string | Uint8Array>>();
   private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
   private _isMetatracingEnabled = false;
+  readonly isAlive = false;
 
   constructor(tracker?: LoadingTracker) {
     this.loadingTracker = tracker ? tracker : new NullLoadingTracker();
@@ -502,10 +516,9 @@ export abstract class Engine {
   }
 }
 
-// Lightweight wrapper over Engine exposing only `query` method and annotating
-// all queries going through it with a tag.
-export class EngineProxy implements Disposable {
-  private engine: Engine;
+// Lightweight engine proxy which annotates all queries with a tag
+export class EngineProxy implements Engine, Disposable {
+  private engine: EngineBase;
   private tag: string;
   private _isAlive: boolean;
 
@@ -513,7 +526,7 @@ export class EngineProxy implements Disposable {
     return this._isAlive;
   }
 
-  constructor(engine: Engine, tag: string) {
+  constructor(engine: EngineBase, tag: string) {
     this.engine = engine;
     this.tag = tag;
     this._isAlive = true;
@@ -555,6 +568,10 @@ export class EngineProxy implements Disposable {
       return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed.`));
     }
     return this.engine.getNumberOfGpus();
+  }
+
+  async getTracingMetadataTimeBounds(): Promise<Span<time, bigint>> {
+    return this.engine.getTracingMetadataTimeBounds();
   }
 
   get engineId(): string {

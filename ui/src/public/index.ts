@@ -20,10 +20,10 @@ import {Migrate, Store} from '../base/store';
 import {ColorScheme} from '../core/colorizer';
 import {LegacySelection} from '../common/state';
 import {PanelSize} from '../frontend/panel';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {UntypedEventSet} from '../core/event_set';
 
-export {EngineProxy} from '../trace_processor/engine';
+export {Engine} from '../trace_processor/engine';
 export {
   LONG,
   LONG_NULL,
@@ -344,7 +344,7 @@ export interface DetailsPanel {
 // currently loaded trace. Passed to trace-relevant hooks on a plugin instead of
 // PluginContext.
 export interface PluginContextTrace extends PluginContext {
-  readonly engine: EngineProxy;
+  readonly engine: Engine;
 
   // Control over the main timeline.
   timeline: {

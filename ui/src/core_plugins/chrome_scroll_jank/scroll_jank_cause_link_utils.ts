@@ -24,7 +24,7 @@ import {
   verticalScrollToTrack,
 } from '../../frontend/scroll_helper';
 import {SliceSqlId} from '../../frontend/sql_types';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM, STR} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 
@@ -53,7 +53,7 @@ export interface EventLatencyCauseThreadTracks {
 }
 
 export async function getScrollJankCauseStage(
-  engine: EngineProxy,
+  engine: Engine,
   eventLatencyId: SliceSqlId,
 ): Promise<EventLatencyStage | undefined> {
   const queryResult = await engine.query(`
@@ -95,7 +95,7 @@ export async function getScrollJankCauseStage(
 }
 
 export async function getEventLatencyCauseTracks(
-  engine: EngineProxy,
+  engine: Engine,
   scrollJankCauseStage: EventLatencyStage,
 ): Promise<EventLatencyCauseThreadTracks[]> {
   const threadTracks: EventLatencyCauseThreadTracks[] = [];
@@ -130,7 +130,7 @@ export async function getEventLatencyCauseTracks(
 }
 
 async function getChromeCauseTracks(
-  engine: EngineProxy,
+  engine: Engine,
   eventLatencySliceId: number,
   processName: CauseProcess,
   threadName: CauseThread,

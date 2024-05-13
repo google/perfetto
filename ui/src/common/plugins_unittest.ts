@@ -14,12 +14,12 @@
 
 import {globals} from '../frontend/globals';
 import {Plugin} from '../public';
-import {Engine} from '../trace_processor/engine';
+import {EngineBase} from '../trace_processor/engine';
 
 import {createEmptyState} from './empty_state';
 import {PluginManager, PluginRegistry} from './plugins';
 
-class FakeEngine extends Engine {
+class FakeEngine extends EngineBase {
   id: string = 'TestEngine';
 
   rpcSendRequestBytes(_data: Uint8Array) {}

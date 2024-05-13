@@ -33,7 +33,7 @@ import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {SliceDetailsPanel} from '../../frontend/slice_details_panel';
 import {
-  EngineProxy,
+  Engine,
   Plugin,
   PluginContextTrace,
   PluginDescriptor,
@@ -67,12 +67,12 @@ class CpuSliceTrack implements Track {
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
   private lastRowId = -1;
-  private engine: EngineProxy;
+  private engine: Engine;
   private cpu: number;
   private trackKey: string;
   private trackUuid = uuidv4Sql();
 
-  constructor(engine: EngineProxy, trackKey: string, cpu: number) {
+  constructor(engine: Engine, trackKey: string, cpu: number) {
     this.engine = engine;
     this.trackKey = trackKey;
     this.cpu = cpu;
@@ -490,7 +490,7 @@ class CpuSlices implements Plugin {
     });
   }
 
-  async guessCpuSizes(engine: EngineProxy): Promise<Map<number, string>> {
+  async guessCpuSizes(engine: Engine): Promise<Map<number, string>> {
     const cpuToSize = new Map<number, string>();
     await engine.query(`
       INCLUDE PERFETTO MODULE cpu.size;

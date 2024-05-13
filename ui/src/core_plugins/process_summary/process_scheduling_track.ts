@@ -25,7 +25,7 @@ import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
-import {EngineProxy, Track} from '../../public';
+import {Engine, Track} from '../../public';
 import {LONG, NUM, QueryResult} from '../../trace_processor/query_result';
 import {uuidv4Sql} from '../../base/uuid';
 
@@ -57,11 +57,11 @@ export class ProcessSchedulingTrack implements Track {
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private maxCpu = 0;
-  private engine: EngineProxy;
+  private engine: Engine;
   private trackUuid = uuidv4Sql();
   private config: Config;
 
-  constructor(engine: EngineProxy, config: Config) {
+  constructor(engine: Engine, config: Config) {
     this.engine = engine;
     this.config = config;
   }

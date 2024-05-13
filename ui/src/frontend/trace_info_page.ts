@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {QueryResponse, runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 
 import {globals} from './globals';
 import {createPage} from './pages';
@@ -29,7 +29,7 @@ interface StatsSectionAttrs {
   queryId: string;
 }
 
-function getEngine(name: string): EngineProxy | undefined {
+function getEngine(name: string): Engine | undefined {
   const currentEngine = globals.getCurrentEngine();
   if (currentEngine === undefined) return undefined;
   const engineId = currentEngine.id;
