@@ -126,7 +126,7 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
 
   auto seq_it = seq_state_.find(seq_id);
   if (seq_it == seq_state_.end()) {
-    seq_it = seq_state_.emplace(seq_id, next_perf_session_id_++).first;
+    seq_it = seq_state_.emplace(seq_id, CreatePerfSession()).first;
   }
   SequenceState* seq_state = &seq_it->second;
   uint32_t session_id = seq_state->perf_session_id;
