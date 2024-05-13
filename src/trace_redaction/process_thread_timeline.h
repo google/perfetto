@@ -82,15 +82,6 @@ class ProcessThreadTimeline {
     uint64_t uid = kUnknownUid;
   };
 
-  // The state of a process at a specific point in time.
-  struct Slice {
-    int32_t pid = -1;
-
-    // It is safe to use 0 as the invalid value because that's effectively
-    // what happening in the trace.
-    uint64_t uid = 0;
-  };
-
   ProcessThreadTimeline() = default;
 
   ProcessThreadTimeline(const ProcessThreadTimeline&) = delete;
@@ -105,12 +96,8 @@ class ProcessThreadTimeline {
   // subset of events will, on average, be trivally small.
   void Sort();
 
-  // Returns a snapshot that contains a process's pid and ppid, but contains the
-  // first uid found in its parent-child chain. If a uid cannot be found, uid=0
-  // is returned.
-  //
-  // `Sort()` must be called before this.
-  Slice Search(uint64_t ts, int32_t pid) const;
+  // Returns true if a process/thread is connected to a package.
+  bool PidConnectsToUid(uint64_t ts, int32_t pid, uint64_t uid) const;
 
   // Finds the pid's last event before ts.
   Event FindPreviousEvent(uint64_t ts, int32_t pid) const;
