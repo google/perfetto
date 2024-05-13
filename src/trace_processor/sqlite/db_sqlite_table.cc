@@ -143,10 +143,10 @@ base::StatusOr<SqlValue> SqliteValueToSqlValueChecked(sqlite3_value* value,
   SqlValue v = sqlite::utils::SqliteValueToSqlValue(value);
   if constexpr (regex::IsRegexSupported()) {
     if (cs.op == FilterOp::kRegex) {
-      if (cs.value.type != SqlValue::kString) {
+      if (v.type != SqlValue::kString) {
         return base::ErrStatus("Value has to be a string");
       }
-      if (auto st = regex::Regex::Create(cs.value.AsString()); !st.ok()) {
+      if (auto st = regex::Regex::Create(v.AsString()); !st.ok()) {
         return st.status();
       }
     }
