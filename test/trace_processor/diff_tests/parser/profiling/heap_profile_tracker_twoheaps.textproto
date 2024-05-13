@@ -39,7 +39,7 @@ packet {
     index: 0
     continued: false
     process_dumps {
-      heap_name: "malloc"
+      heap_name: "libc.malloc"
       samples {
         callstack_id: 1
         self_allocated: 1
