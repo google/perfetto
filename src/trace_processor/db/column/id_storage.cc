@@ -21,7 +21,9 @@
 #include <functional>
 #include <iterator>
 #include <limits>
+#include <optional>
 #include <string>
+#include <unordered_set>
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -42,10 +44,9 @@ namespace {
 template <typename Comparator>
 void IndexSearchWithComparator(uint32_t val, DataLayerChain::Indices& indices) {
   indices.tokens.erase(
-      std::remove_if(indices.tokens.begin(), indices.tokens.end(),
-                     [val](const DataLayerChain::Indices::Token& idx) {
-                       return !Comparator()(idx.index, val);
-                     }),
+      std::remove_if(
+          indices.tokens.begin(), indices.tokens.end(),
+          [val](const Token& idx) { return !Comparator()(idx.index, val); }),
       indices.tokens.end());
 }
 
@@ -313,6 +314,8 @@ Range IdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
 void IdStorage::ChainImpl::StableSort(SortToken* start,
                                       SortToken* end,
                                       SortDirection direction) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "IdStorage::ChainImpl::StableSort");
   switch (direction) {
     case SortDirection::kAscending:
       std::stable_sort(start, end, [](const SortToken& a, const SortToken& b) {
@@ -326,6 +329,38 @@ void IdStorage::ChainImpl::StableSort(SortToken* start,
       return;
   }
   PERFETTO_FATAL("For GCC");
+}
+
+void IdStorage::ChainImpl::Distinct(Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "IdStorage::ChainImpl::Distinct");
+  std::unordered_set<uint32_t> s;
+  indices.tokens.erase(
+      std::remove_if(
+          indices.tokens.begin(), indices.tokens.end(),
+          [&s](const Token& idx) { return !s.insert(idx.index).second; }),
+      indices.tokens.end());
+}
+
+std::optional<Token> IdStorage::ChainImpl::MaxElement(Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "IdStorage::ChainImpl::MaxElement");
+  auto tok = std::max_element(
+      indices.tokens.begin(), indices.tokens.end(),
+      [](const Token& a, const Token& b) { return a.index < b.index; });
+  return (tok == indices.tokens.end()) ? std::nullopt
+                                       : std::make_optional(*tok);
+}
+
+std::optional<Token> IdStorage::ChainImpl::MinElement(Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "IdStorage::ChainImpl::MinElement");
+  auto tok = std::min_element(
+      indices.tokens.begin(), indices.tokens.end(),
+      [](const Token& a, const Token& b) { return a.index > b.index; });
+  if (tok == indices.tokens.end()) {
+    return std::nullopt;
+  }
+  return *tok;
 }
 
 void IdStorage::ChainImpl::Serialize(StorageProto* storage) const {

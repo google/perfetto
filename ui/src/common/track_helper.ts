@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath} from '../base/bigint_math';
 import {Disposable} from '../base/disposable';
 import {duration, Time, time, TimeSpan} from '../base/time';
 export {Store} from '../base/store';
@@ -62,9 +63,14 @@ export class TimelineFetcher<Data> implements Disposable {
   async requestData(timespan: TimeSpan, resolution: duration): Promise<void> {
     if (this.shouldLoadNewData(timespan, resolution)) {
       // Over request data, one page worth to the left and right.
-      const start = Time.sub(timespan.start, timespan.duration);
-      const end = Time.add(timespan.end, timespan.duration);
-      this.latestTimespan = new TimeSpan(start, end);
+      const start = timespan.start - timespan.duration;
+      const end = timespan.end + timespan.duration;
+
+      // Quantize up and down to the bounds of |resolution|.
+      const startQ = Time.fromRaw(BigintMath.quantFloor(start, resolution));
+      const endQ = Time.fromRaw(BigintMath.quantCeil(end, resolution));
+
+      this.latestTimespan = new TimeSpan(startQ, endQ);
       this.latestResolution = resolution;
       await this.loadData();
     }
@@ -72,6 +78,10 @@ export class TimelineFetcher<Data> implements Disposable {
 
   get data(): Data | undefined {
     return this.data_;
+  }
+
+  invalidate() {
+    this.data_ = undefined;
   }
 
   dispose() {

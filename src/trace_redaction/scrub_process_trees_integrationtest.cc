@@ -21,7 +21,6 @@
 #include "src/base/test/status_matchers.h"
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/find_package_uid.h"
-#include "src/trace_redaction/optimize_timeline.h"
 #include "src/trace_redaction/scrub_process_trees.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redaction_integration_fixture.h"
@@ -45,20 +44,8 @@ class ScrubProcessTreesIntegrationTest
       protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    // ScrubProcessTrees depends on:
-    //    - FindPackageUid    (creates: uid)
-    //    - OptimizeTimeline  (creates: optimized timeline)
-    //
-    // OptimizeTimeline depends on:
-    //    - FindPackageUid (uses: uid)
-    //    - CollectTimelineEvents  (uses: timeline)
-    //
-    // CollectTimelineEvents depends on.... nothing
-    // FindPackageUid depends on... nothing
-
     trace_redactor()->emplace_collect<FindPackageUid>();
     trace_redactor()->emplace_collect<CollectTimelineEvents>();
-    trace_redactor()->emplace_build<OptimizeTimeline>();
     trace_redactor()->emplace_transform<ScrubProcessTrees>();
 
     // In this case, the process and package have the same name.

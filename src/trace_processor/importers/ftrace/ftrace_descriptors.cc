@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 502> descriptors{{
+std::array<FtraceMessageDescriptor, 508> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5545,6 +5545,78 @@ std::array<FtraceMessageDescriptor, 502> descriptors{{
             {"len", ProtoSchemaType::kUint64},
             {"attr", ProtoSchemaType::kUint32},
             {"mflags", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "google_icc_event",
+        2,
+        {
+            {},
+            {"event", ProtoSchemaType::kString},
+            {"timestamp", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "google_irm_event",
+        2,
+        {
+            {},
+            {"event", ProtoSchemaType::kString},
+            {"timestamp", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "device_pm_callback_start",
+        5,
+        {
+            {},
+            {"device", ProtoSchemaType::kString},
+            {"driver", ProtoSchemaType::kString},
+            {"parent", ProtoSchemaType::kString},
+            {"pm_ops", ProtoSchemaType::kString},
+            {"event", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "device_pm_callback_end",
+        3,
+        {
+            {},
+            {"device", ProtoSchemaType::kString},
+            {"driver", ProtoSchemaType::kString},
+            {"error", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "thermal_exynos_acpm_bulk",
+        11,
+        {
+            {},
+            {"tz_id", ProtoSchemaType::kUint32},
+            {"current_temp", ProtoSchemaType::kUint32},
+            {"ctrl_temp", ProtoSchemaType::kUint32},
+            {"cdev_state", ProtoSchemaType::kUint32},
+            {"pid_et_p", ProtoSchemaType::kInt32},
+            {"pid_power_range", ProtoSchemaType::kInt32},
+            {"pid_p", ProtoSchemaType::kInt32},
+            {"pid_i", ProtoSchemaType::kInt32},
+            {"k_p", ProtoSchemaType::kInt32},
+            {"k_i", ProtoSchemaType::kInt32},
+            {"timestamp", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "thermal_exynos_acpm_high_overhead",
+        7,
+        {
+            {},
+            {"tz_id", ProtoSchemaType::kInt32},
+            {"current_temp", ProtoSchemaType::kUint32},
+            {"ctrl_temp", ProtoSchemaType::kUint32},
+            {"cdev_state", ProtoSchemaType::kUint32},
+            {"pid_et_p", ProtoSchemaType::kInt32},
+            {"k_p", ProtoSchemaType::kInt32},
+            {"k_i", ProtoSchemaType::kInt32},
         },
     },
 }};

@@ -49,7 +49,7 @@
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
-#include "src/trace_processor/importers/json/json_trace_parser.h"
+#include "src/trace_processor/importers/json/json_trace_parser_impl.h"
 #include "src/trace_processor/importers/json/json_trace_tokenizer.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
@@ -71,6 +71,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/dfs.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/import.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
@@ -89,7 +90,6 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dfs_weight_bounded.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/dominator_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.h"
@@ -341,14 +341,14 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
   context_.fuchsia_trace_tokenizer =
       std::make_unique<FuchsiaTraceTokenizer>(&context_);
-  context_.fuchsia_trace_parser =
+  context_.fuchsia_record_parser =
       std::make_unique<FuchsiaTraceParser>(&context_);
   context_.ninja_log_parser = std::make_unique<NinjaLogParser>(&context_);
   context_.systrace_trace_parser =
       std::make_unique<SystraceTraceParser>(&context_);
   context_.perf_data_trace_tokenizer =
       std::make_unique<perf_importer::PerfDataTokenizer>(&context_);
-  context_.perf_data_parser =
+  context_.perf_record_parser =
       std::make_unique<perf_importer::PerfDataParser>(&context_);
 
   if (util::IsGzipSupported()) {
@@ -360,7 +360,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   if (json::IsJsonSupported()) {
     context_.json_trace_tokenizer =
         std::make_unique<JsonTraceTokenizer>(&context_);
-    context_.json_trace_parser = std::make_unique<JsonTraceParser>(&context_);
+    context_.json_trace_parser =
+        std::make_unique<JsonTraceParserImpl>(&context_);
   }
 
   if (context_.config.analyze_trace_proto_content) {
@@ -872,6 +873,10 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->jit_code_table());
   RegisterStaticTable(storage->jit_frame_table());
 
+  RegisterStaticTable(storage->inputmethod_clients_table());
+  RegisterStaticTable(storage->inputmethod_manager_service_table());
+  RegisterStaticTable(storage->inputmethod_service_table());
+
   RegisterStaticTable(storage->surfaceflinger_layers_snapshot_table());
   RegisterStaticTable(storage->surfaceflinger_layer_table());
   RegisterStaticTable(storage->surfaceflinger_transactions_table());
@@ -929,8 +934,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       std::make_unique<ExperimentalAnnotatedStack>(&context_));
   engine_->RegisterStaticTableFunction(
       std::make_unique<ExperimentalFlatSlice>(&context_));
-  engine_->RegisterStaticTableFunction(
-      std::make_unique<DominatorTree>(context_.storage->mutable_string_pool()));
   engine_->RegisterStaticTableFunction(std::make_unique<IntervalIntersect>(
       context_.storage->mutable_string_pool()));
   engine_->RegisterStaticTableFunction(std::make_unique<DfsWeightBounded>(
@@ -939,6 +942,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // Value table aggregate functions.
   engine_->RegisterSqliteAggregateFunction<Dfs>(
       Dfs::kName, Dfs::kArgCount, context_.storage->mutable_string_pool());
+  engine_->RegisterSqliteAggregateFunction<DominatorTree>(
+      DominatorTree::kName, DominatorTree::kArgCount,
+      context_.storage->mutable_string_pool());
   engine_->RegisterSqliteAggregateFunction<StructuralTreePartition>(
       StructuralTreePartition::kName, StructuralTreePartition::kArgCount,
       context_.storage->mutable_string_pool());

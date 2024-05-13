@@ -26,12 +26,13 @@ namespace perfetto::trace_redaction {
 // sched switch events.
 class RedactSchedSwitch : public FtraceEventRedaction {
  public:
-  RedactSchedSwitch();
+  static constexpr auto kFieldId =
+      protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber;
 
   base::Status Redact(
       const Context& context,
-      const protos::pbzero::FtraceEvent::Decoder& event,
-      protozero::ConstBytes bytes,
+      const protos::pbzero::FtraceEventBundle::Decoder& bundle,
+      protozero::ProtoDecoder& event,
       protos::pbzero::FtraceEvent* event_message) const override;
 };
 

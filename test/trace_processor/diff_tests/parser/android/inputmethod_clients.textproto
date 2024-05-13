@@ -1,0 +1,247 @@
+packet {
+  trusted_uid: 9999
+  clock_snapshot {
+    clocks {
+      clock_id: 6
+      timestamp: 118567353207
+    }
+    clocks {
+      clock_id: 2
+      timestamp: 1710943499588000057
+    }
+    clocks {
+      clock_id: 4
+      timestamp: 118562961198
+    }
+    clocks {
+      clock_id: 1
+      timestamp: 1710943499592392595
+    }
+    clocks {
+      clock_id: 3
+      timestamp: 118567353939
+    }
+    clocks {
+      clock_id: 5
+      timestamp: 118567354265
+    }
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+  }
+  trusted_packet_sequence_id: 1
+}
+
+packet {
+  trusted_uid: 10254
+  timestamp: 119232512509
+  trusted_packet_sequence_id: 2
+  previous_packet_dropped: true
+  trusted_pid: 2798
+  first_packet_on_sequence: true
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.inputmethod_clients] {
+      where: "InputMethodManager#showSoftInput"
+      client {
+        input_method_manager {
+          cur_id: "com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME"
+          active: true
+          served_view: "com.google.android.apps.nexuslauncher.search.SearchEditText{ba34590 VFED..CL. .F....ID 0,0-688,151 #7f0a01e6 app:id/input aid=1073741824}"
+          next_served_view: "com.google.android.apps.nexuslauncher.search.SearchEditText{ba34590 VFED..CL. .F....ID 0,0-688,151 #7f0a01e6 app:id/input aid=1073741824}"
+        }
+        view_root_impl {
+          view: "com.android.internal.policy.DecorView{1cd90e0 V.E...... R.....ID 0,0-1080,2400 aid=0}[NexusLauncherActivity]"
+          app_visible: true
+          width: 1080
+          height: 2400
+          added: true
+          win_frame {
+            right: 1080
+            bottom: 2400
+          }
+          last_window_insets: "WindowInsets{\n    statusBars=Insets{left=0, top=128, right=0, bottom=0} max=Insets{left=0, top=128, right=0, bottom=0} vis=true boundingRects=[Rect(0, 0 - 1080, 128)] maxBoundingRects=[Rect(0, 0 - 1080, 128)]\n    navigationBars=Insets{left=0, top=0, right=0, bottom=63} max=Insets{left=0, top=0, right=0, bottom=63} vis=true boundingRects=[Rect(0, 2337 - 1080, 2400)] maxBoundingRects=[Rect(0, 2337 - 1080, 2400)]\n    captionBar=null max=null vis=false boundingRects=null maxBoundingRects=null\n    ime=null max=null vis=false boundingRects=null maxBoundingRects=null\n    systemGestures=Insets{left=78, top=160, right=78, bottom=84} max=Insets{left=78, top=160, right=78, bottom=84} vis=true boundingRects=[Rect(0, 0 - 1080, 160), Rect(1002, 0 - 1080, 2400), Rect(0, 2316 - 1080, 2400), Rect(0, 0 - 78, 2400)] maxBoundingRects=[Rect(0, 0 - 1080, 160), Rect(1002, 0 - 1080, 2400), Rect(0, 2316 - 1080, 2400), Rect(0, 0 - 78, 2400)]\n    mandatorySystemGestures=Insets{left=0, top=160, right=0, bottom=84} max=Insets{left=0, top=160, right=0, bottom=84} vis=true boundingRects=[Rect(0, 0 - 1080, 160), Rect(0, 2316 - 1080, 2400)] maxBoundingRects=[Rect(0, 0 - 1080, 160), Rect(0, 2316 - 1080, 2400)]\n    tappableElement=Insets{left=0, top=128, right=0, bottom=0} max=Insets{left=0, top=128, right=0, bottom=0} vis=true boundingRects=[Rect(0, 0 - 1080, 128)] maxBoundingRects=[Rect(0, 0 - 1080, 128)]\n    displayCutout=Insets{left=0, top=128, right=0, bottom=0} max=Insets{left=0, top=128, right=0, bottom=0} vis=true boundingRects=[Rect(0, 0 - 1080, 128)] maxBoundingRects=[Rect(0, 0 - 1080, 128)]\n    windowDecor=null max=null vis=false boundingRects=null maxBoundingRects=null\n    systemOverlays=null max=null vis=false boundingRects=null maxBoundingRects=null\n    cutout=DisplayCutout{insets=Rect(0, 128 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(492, 0 - 610, 128), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=1080 displayHeight=2400 physicalDisplayWidth=1080 physicalDisplayHeight=2400 density={2.625} cutoutSpec={M 507,64 a 33,33 0 1 0 66,0 33,33 0 1 0 -66,0 Z @left} rotation={0} scale={1.0} physicalPixelDisplaySizeRatio={1.0}}} sideOverrides={}}\n    roundedCorners=RoundedCorners{[RoundedCorner{position=TopLeft, radius=28, center=Point(28, 28)}, RoundedCorner{position=TopRight, radius=28, center=Point(1052, 28)}, RoundedCorner{position=BottomRight, radius=28, center=Point(1052, 2372)}, RoundedCorner{position=BottomLeft, radius=28, center=Point(28, 2372)}]}\n    privacyIndicatorBounds=PrivacyIndicatorBounds {static bounds=Rect(827, 0 - 1043, 128) rotation=0}\n    displayShape=DisplayShape{ spec=-2047108559 displayWidth=1080 displayHeight=2400 physicalPixelDisplaySizeRatio=1.0 rotation=0 offsetX=0 offsetY=0 scale=1.0}\n    forceConsumingTypes=\n    suppressScrimTypes=navigationBars\n    compatInsetsTypes=statusBars navigationBars captionBar displayCutout systemOverlays\n    compatIgnoreVisibility=true\n    systemWindowInsetsConsumed=false\n    stableInsetsConsumed=false\n    displayCutoutConsumed=false\n    \n    frameWidth=1080\n    frameHeight=2400}"
+          soft_input_mode: "STATE_UNSPECIFIED|ADJUST_NOTHING|IS_FORWARD_NAVIGATION"
+          window_attributes {
+            type: 1
+            width: -1
+            height: -1
+            soft_input_mode: 48
+            format: TRANSPARENT
+            window_animations: 16974588
+            alpha: 1
+            screen_brightness: -1
+            button_brightness: -1
+            user_activity_timeout: -1
+            flags: 2173763840
+            private_flags: 268468800
+            subtree_system_ui_visibility_flags: 1792
+            behavior: 1
+          }
+        }
+        insets_controller {
+          state {
+            sources {
+              visible_frame {
+                top: 2274
+                right: 1080
+                bottom: 2400
+              }
+              type_number: 8
+            }
+            display_frame {
+              right: 1080
+              bottom: 2400
+            }
+            display_cutout {
+              insets {
+                top: 128
+              }
+              bound_top {
+                left: 492
+                right: 610
+                bottom: 128
+              }
+              side_overrides: -1
+              side_overrides: -1
+              side_overrides: -1
+              side_overrides: -1
+            }
+          }
+        }
+        ime_insets_source_consumer {
+          insets_source_consumer {
+            has_window_focus: true
+            is_requested_visible: true
+            source_control {
+              position {
+                y: 128
+              }
+              leash {
+                hash_code: 135479902
+                name: "Surface(name=cff3eb3 InputMethod)/@0xf85eda5 - animation-leash of insets_animation"
+                layerId: 105
+              }
+              type_number: 8
+            }
+            type_number: 8
+          }
+        }
+        editor_info {
+          input_type: 1
+          ime_options: 33554435
+          private_ime_options: "com.google.android.inputmethod.latin.appSupportsSmartComposeAndDel,com.google.android.inputmethod.latin.canary.appSupportsSmartComposeAndDel,com.google.android.inputmethod.latin.dev.appSupportsSmartComposeAndDel"
+          package_name: "com.google.android.apps.nexuslauncher"
+          field_id: 2131362278
+        }
+        ime_focus_controller {
+          has_ime_focus: true
+        }
+      }
+    }
+  }
+}
+
+packet {
+  trusted_uid: 10254
+  timestamp: 119237883196
+  trusted_packet_sequence_id: 2
+  trusted_pid: 2798
+
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.inputmethod_clients] {
+      where: "InputMethodManager#showSoftInput"
+      client {
+        input_method_manager {
+          cur_id: "com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME"
+          active: true
+          served_view: "com.google.android.apps.nexuslauncher.search.SearchEditText{ba34590 VFED..CL. .F....ID 0,0-688,151 #7f0a01e6 app:id/input aid=1073741824}"
+          next_served_view: "com.google.android.apps.nexuslauncher.search.SearchEditText{ba34590 VFED..CL. .F....ID 0,0-688,151 #7f0a01e6 app:id/input aid=1073741824}"
+        }
+        view_root_impl {
+          view: "com.android.internal.policy.DecorView{1cd90e0 V.E...... R.....ID 0,0-1080,2400 aid=0}[NexusLauncherActivity]"
+          app_visible: true
+          width: 1080
+          height: 2400
+          added: true
+          win_frame {
+            right: 1080
+            bottom: 2400
+          }
+          last_window_insets: "WindowInsets{\n    statusBars=Insets{left=0, top=128, right=0, bottom=0} max=Insets{left=0, top=128, right=0, bottom=0} vis=true boundingRects=[Rect(0, 0 - 1080, 128)] maxBoundingRects=[Rect(0, 0 - 1080, 128)]\n    navigationBars=Insets{left=0, top=0, right=0, bottom=63} max=Insets{left=0, top=0, right=0, bottom=63} vis=true boundingRects=[Rect(0, 2337 - 1080, 2400)] maxBoundingRects=[Rect(0, 2337 - 1080, 2400)]\n    captionBar=null max=null vis=false boundingRects=null maxBoundingRects=null\n    ime=null max=null vis=false boundingRects=null maxBoundingRects=null\n    systemGestures=Insets{left=78, top=160, right=78, bottom=84} max=Insets{left=78, top=160, right=78, bottom=84} vis=true boundingRects=[Rect(0, 0 - 1080, 160), Rect(1002, 0 - 1080, 2400), Rect(0, 2316 - 1080, 2400), Rect(0, 0 - 78, 2400)] maxBoundingRects=[Rect(0, 0 - 1080, 160), Rect(1002, 0 - 1080, 2400), Rect(0, 2316 - 1080, 2400), Rect(0, 0 - 78, 2400)]\n    mandatorySystemGestures=Insets{left=0, top=160, right=0, bottom=84} max=Insets{left=0, top=160, right=0, bottom=84} vis=true boundingRects=[Rect(0, 0 - 1080, 160), Rect(0, 2316 - 1080, 2400)] maxBoundingRects=[Rect(0, 0 - 1080, 160), Rect(0, 2316 - 1080, 2400)]\n    tappableElement=Insets{left=0, top=128, right=0, bottom=0} max=Insets{left=0, top=128, right=0, bottom=0} vis=true boundingRects=[Rect(0, 0 - 1080, 128)] maxBoundingRects=[Rect(0, 0 - 1080, 128)]\n    displayCutout=Insets{left=0, top=128, right=0, bottom=0} max=Insets{left=0, top=128, right=0, bottom=0} vis=true boundingRects=[Rect(0, 0 - 1080, 128)] maxBoundingRects=[Rect(0, 0 - 1080, 128)]\n    windowDecor=null max=null vis=false boundingRects=null maxBoundingRects=null\n    systemOverlays=null max=null vis=false boundingRects=null maxBoundingRects=null\n    cutout=DisplayCutout{insets=Rect(0, 128 - 0, 0) waterfall=Insets{left=0, top=0, right=0, bottom=0} boundingRect={Bounds=[Rect(0, 0 - 0, 0), Rect(492, 0 - 610, 128), Rect(0, 0 - 0, 0), Rect(0, 0 - 0, 0)]} cutoutPathParserInfo={CutoutPathParserInfo{displayWidth=1080 displayHeight=2400 physicalDisplayWidth=1080 physicalDisplayHeight=2400 density={2.625} cutoutSpec={M 507,64 a 33,33 0 1 0 66,0 33,33 0 1 0 -66,0 Z @left} rotation={0} scale={1.0} physicalPixelDisplaySizeRatio={1.0}}} sideOverrides={}}\n    roundedCorners=RoundedCorners{[RoundedCorner{position=TopLeft, radius=28, center=Point(28, 28)}, RoundedCorner{position=TopRight, radius=28, center=Point(1052, 28)}, RoundedCorner{position=BottomRight, radius=28, center=Point(1052, 2372)}, RoundedCorner{position=BottomLeft, radius=28, center=Point(28, 2372)}]}\n    privacyIndicatorBounds=PrivacyIndicatorBounds {static bounds=Rect(827, 0 - 1043, 128) rotation=0}\n    displayShape=DisplayShape{ spec=-2047108559 displayWidth=1080 displayHeight=2400 physicalPixelDisplaySizeRatio=1.0 rotation=0 offsetX=0 offsetY=0 scale=1.0}\n    forceConsumingTypes=\n    suppressScrimTypes=navigationBars\n    compatInsetsTypes=statusBars navigationBars captionBar displayCutout systemOverlays\n    compatIgnoreVisibility=true\n    systemWindowInsetsConsumed=false\n    stableInsetsConsumed=false\n    displayCutoutConsumed=false\n    \n    frameWidth=1080\n    frameHeight=2400}"
+          soft_input_mode: "STATE_UNSPECIFIED|ADJUST_NOTHING|IS_FORWARD_NAVIGATION"
+          window_attributes {
+            type: 1
+            width: -1
+            height: -1
+            soft_input_mode: 48
+            format: TRANSPARENT
+            window_animations: 16974588
+            alpha: 1
+            screen_brightness: -1
+            button_brightness: -1
+            user_activity_timeout: -1
+            flags: 2173763840
+            private_flags: 268468800
+            subtree_system_ui_visibility_flags: 1792
+            behavior: 1
+          }
+        }
+        insets_controller {
+          state {
+            sources {
+              visible_frame {
+                top: 2274
+                right: 1080
+                bottom: 2400
+              }
+              type_number: 8
+            }
+            display_frame {
+              right: 1080
+              bottom: 2400
+            }
+            display_cutout {
+              insets {
+                top: 128
+              }
+              bound_top {
+                left: 492
+                right: 610
+                bottom: 128
+              }
+              side_overrides: -1
+              side_overrides: -1
+              side_overrides: -1
+              side_overrides: -1
+            }
+          }
+        }
+        ime_insets_source_consumer {
+          insets_source_consumer {
+            has_window_focus: true
+            source_control {
+              position {
+                y: 128
+              }
+              leash {
+                hash_code: 135479902
+                name: "Surface(name=cff3eb3 InputMethod)/@0xf85eda5 - animation-leash of insets_animation"
+                layerId: 105
+              }
+              type_number: 8
+            }
+            type_number: 8
+          }
+        }
+        editor_info {
+          input_type: 1
+          ime_options: 33554435
+          private_ime_options: "com.google.android.inputmethod.latin.appSupportsSmartComposeAndDel,com.google.android.inputmethod.latin.canary.appSupportsSmartComposeAndDel,com.google.android.inputmethod.latin.dev.appSupportsSmartComposeAndDel"
+          package_name: "com.google.android.apps.nexuslauncher"
+          field_id: 2131362278
+        }
+        ime_focus_controller {
+          has_ime_focus: true
+        }
+      }
+    }
+  }
+}

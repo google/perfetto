@@ -81,9 +81,6 @@ export abstract class NamedSliceTrack<
         kind: 'CHROME_SLICE',
         id: args.slice.id,
         trackKey: this.trackKey,
-        // |table| here can be either 'slice' or 'annotation'. The
-        // AnnotationSliceTrack overrides the onSliceClick and sets this to
-        // 'annotation'
         table: 'slice',
       },
       {

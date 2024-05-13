@@ -417,6 +417,17 @@ TEST(SetIdStorage, StableSort) {
   }
 }
 
+TEST(SetIdStorage, Distinct) {
+  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
+  SetIdStorage storage(&storage_data);
+  auto chain = storage.MakeChain();
+
+  auto indices = Indices::CreateWithIndexPayloadForTesting(
+      {10, 9, 0, 1, 4}, Indices::State::kNonmonotonic);
+  chain->Distinct(indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 2, 4));
+}
+
 }  // namespace
 }  // namespace column
 }  // namespace perfetto::trace_processor

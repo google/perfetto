@@ -24,7 +24,6 @@
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/filter_sched_waking_events.h"
 #include "src/trace_redaction/find_package_uid.h"
-#include "src/trace_redaction/optimize_timeline.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redaction_integration_fixture.h"
@@ -50,7 +49,6 @@ class RedactSchedWakingIntegrationTest
   void SetUp() override {
     trace_redactor()->emplace_collect<FindPackageUid>();
     trace_redactor()->emplace_collect<CollectTimelineEvents>();
-    trace_redactor()->emplace_build<OptimizeTimeline>();
 
     auto* ftrace_filter =
         trace_redactor()->emplace_transform<ScrubFtraceEvents>();

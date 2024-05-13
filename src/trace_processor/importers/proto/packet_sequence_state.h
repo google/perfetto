@@ -35,8 +35,7 @@ class PacketSequenceState {
  public:
   explicit PacketSequenceState(TraceProcessorContext* context)
       : context_(context) {
-    current_generation_.reset(
-        new PacketSequenceStateGeneration(this, generation_index_++));
+    current_generation_.reset(new PacketSequenceStateGeneration(this));
   }
 
   int64_t IncrementAndGetTrackEventTimeNs(int64_t delta_ns) {
@@ -75,8 +74,7 @@ class PacketSequenceState {
     // sequence. Add a new generation with the updated defaults but the
     // current generation's interned data state.
     current_generation_.reset(new PacketSequenceStateGeneration(
-        this, generation_index_++, current_generation_.get(),
-        std::move(defaults)));
+        this, current_generation_.get(), std::move(defaults)));
   }
 
   void SetThreadDescriptor(int32_t pid,
@@ -101,8 +99,7 @@ class PacketSequenceState {
   // Starts a new generation with clean-slate incremental state and defaults.
   void OnIncrementalStateCleared() {
     packet_loss_ = false;
-    current_generation_.reset(
-        new PacketSequenceStateGeneration(this, generation_index_++));
+    current_generation_.reset(new PacketSequenceStateGeneration(this));
   }
 
   bool IsIncrementalStateValid() const { return !packet_loss_; }
@@ -125,8 +122,6 @@ class PacketSequenceState {
 
  private:
   TraceProcessorContext* context_;
-
-  size_t generation_index_ = 0;
 
   // If true, incremental state on the sequence is considered invalid until we
   // see the next packet with incremental_state_cleared. We assume that we

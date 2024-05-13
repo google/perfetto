@@ -16,9 +16,6 @@
 
 #include "src/trace_redaction/scrub_process_trees.h"
 
-#include <cstdint>
-#include <string>
-
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -29,149 +26,90 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
+
 namespace {
 
-constexpr auto kThreadsFieldNumber =
-    protos::pbzero::ProcessTree::kThreadsFieldNumber;
-constexpr auto kTimestampFieldNumber =
-    protos::pbzero::TracePacket::kTimestampFieldNumber;
-constexpr auto kProcessTreeFieldNumber =
-    protos::pbzero::TracePacket::kProcessTreeFieldNumber;
-constexpr auto kProcessesFieldNumber =
-    protos::pbzero::ProcessTree::kProcessesFieldNumber;
-
-// Skips the cmdline fields.
-void ClearProcessName(protozero::ConstBytes bytes,
-                      protos::pbzero::ProcessTree::Process* message) {
-  protozero::ProtoDecoder decoder(bytes);
-
-  for (auto field = decoder.ReadField(); field; field = decoder.ReadField()) {
-    if (field.id() !=
-        protos::pbzero::ProcessTree::Process::kCmdlineFieldNumber) {
-      proto_util::AppendField(field, message);
-    }
-  }
-}
-
-void ScrubProcess(protozero::Field field,
-                  const ProcessThreadTimeline& timeline,
-                  uint64_t now,
-                  uint64_t uid,
-                  protos::pbzero::ProcessTree* message) {
-  if (field.id() != kProcessesFieldNumber) {
-    PERFETTO_FATAL(
-        "ScrubProcess() should only be called with a ProcessTree::Processes");
+// Appends a value to the message if (and only if) the pid belongs to the target
+// package.
+void TryAppendPid(const Context& context,
+                  const protozero::Field& timestamp,
+                  const protozero::Field& pid,
+                  const protozero::Field& value,
+                  protozero::Message* message) {
+  // All valid processes with have a time and pid/tid values. However, if
+  // they're missing values, the trace is corrupt. To avoid making this work by
+  // dropping too much data, drop the cmdline for all processes.
+  if (!timestamp.valid() || !pid.valid()) {
+    return;
   }
 
-  protos::pbzero::ProcessTree::Process::Decoder decoder(field.as_bytes());
-  auto slice = timeline.Search(now, decoder.pid());
+  auto slice = context.timeline->Search(timestamp.as_uint64(), pid.as_int32());
 
-  if (NormalizeUid(slice.uid) == NormalizeUid(uid)) {
-    proto_util::AppendField(field, message);
-  } else {
-    ClearProcessName(field.as_bytes(), message->add_processes());
-  }
-}
-
-// The thread name is unused, but it's safer to remove it.
-void ClearThreadName(protozero::ConstBytes bytes,
-                     protos::pbzero::ProcessTree::Thread* message) {
-  protozero::ProtoDecoder decoder(bytes);
-
-  for (auto field = decoder.ReadField(); field; field = decoder.ReadField()) {
-    if (field.id() != protos::pbzero::ProcessTree::Thread::kNameFieldNumber) {
-      proto_util::AppendField(field, message);
-    }
-  }
-}
-
-void ScrubThread(protozero::Field field,
-                 const ProcessThreadTimeline& timeline,
-                 uint64_t now,
-                 uint64_t uid,
-                 protos::pbzero::ProcessTree* message) {
-  if (field.id() != kThreadsFieldNumber) {
-    PERFETTO_FATAL(
-        "ScrubThread() should only be called with a ProcessTree::Threads");
+  // Only keep the target process cmdline.
+  if (NormalizeUid(slice.uid) != NormalizeUid(context.package_uid.value())) {
+    return;
   }
 
-  protos::pbzero::ProcessTree::Thread::Decoder thread_decoder(field.as_bytes());
-  auto slice = timeline.Search(now, thread_decoder.tid());
-
-  if (NormalizeUid(slice.uid) == NormalizeUid(uid)) {
-    proto_util::AppendField(field, message);
-  } else {
-    ClearThreadName(field.as_bytes(), message->add_threads());
-  }
+  proto_util::AppendField(value, message);
 }
 
 }  // namespace
 
-base::Status ScrubProcessTrees::Transform(const Context& context,
-                                          std::string* packet) const {
+base::Status ScrubProcessTrees::VerifyContext(const Context& context) const {
   if (!context.package_uid.has_value()) {
     return base::ErrStatus("ScrubProcessTrees: missing package uid.");
   }
 
-  if (context.timeline == nullptr) {
+  if (!context.timeline) {
     return base::ErrStatus("ScrubProcessTrees: missing timeline.");
   }
 
-  protozero::ProtoDecoder decoder(*packet);
-
-  if (!decoder.FindField(kProcessTreeFieldNumber).valid()) {
-    return base::OkStatus();
-  }
-
-  auto timestamp_field = decoder.FindField(kTimestampFieldNumber);
-
-  if (!timestamp_field.valid()) {
-    return base::ErrStatus("ScrubProcessTrees: trace packet missing timestamp");
-  }
-
-  auto timestamp = timestamp_field.as_uint64();
-
-  auto uid = context.package_uid.value();
-
-  const auto& timeline = *context.timeline.get();
-
-  protozero::HeapBuffered<protos::pbzero::TracePacket> message;
-
-  for (auto packet_field = decoder.ReadField(); packet_field.valid();
-       packet_field = decoder.ReadField()) {
-    if (packet_field.id() != kProcessTreeFieldNumber) {
-      proto_util::AppendField(packet_field, message.get());
-      continue;
-    }
-
-    auto* process_tree_message = message->set_process_tree();
-
-    protozero::ProtoDecoder process_tree_decoder(packet_field.as_bytes());
-
-    for (auto process_tree_field = process_tree_decoder.ReadField();
-         process_tree_field.valid();
-         process_tree_field = process_tree_decoder.ReadField()) {
-      switch (process_tree_field.id()) {
-        case kProcessesFieldNumber:
-          ScrubProcess(process_tree_field, timeline, timestamp, uid,
-                       process_tree_message);
-          break;
-
-        case kThreadsFieldNumber:
-          ScrubThread(process_tree_field, timeline, timestamp, uid,
-                      process_tree_message);
-          break;
-
-        default:
-          proto_util::AppendField(process_tree_field, process_tree_message);
-          break;
-      }
-    }
-  }
-
-  packet->assign(message.SerializeAsString());
-
   return base::OkStatus();
+}
+
+void ScrubProcessTrees::TransformProcess(
+    const Context& context,
+    const protozero::Field& timestamp,
+    const protozero::Field& process,
+    protos::pbzero::ProcessTree* process_tree) const {
+  protozero::ProtoDecoder decoder(process.as_bytes());
+
+  auto pid =
+      decoder.FindField(protos::pbzero::ProcessTree::Process::kPidFieldNumber);
+
+  auto* process_message = process_tree->add_processes();
+
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() ==
+        protos::pbzero::ProcessTree::Process::kCmdlineFieldNumber) {
+      TryAppendPid(context, timestamp, pid, field, process_message);
+    } else {
+      proto_util::AppendField(field, process_message);
+    }
+  }
+}
+
+void ScrubProcessTrees::TransformThread(
+    const Context& context,
+    const protozero::Field& timestamp,
+    const protozero::Field& thread,
+    protos::pbzero::ProcessTree* process_tree) const {
+  protozero::ProtoDecoder decoder(thread.as_bytes());
+
+  auto tid =
+      decoder.FindField(protos::pbzero::ProcessTree::Thread::kTidFieldNumber);
+
+  auto* thread_message = process_tree->add_threads();
+
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() == protos::pbzero::ProcessTree::Thread::kNameFieldNumber) {
+      TryAppendPid(context, timestamp, tid, field, thread_message);
+    } else {
+      proto_util::AppendField(field, thread_message);
+    }
+  }
 }
 
 }  // namespace perfetto::trace_redaction

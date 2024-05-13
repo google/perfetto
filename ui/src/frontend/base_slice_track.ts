@@ -356,8 +356,8 @@ export abstract class BaseSliceTrack<
           id
           ${extraCols ? ',' + extraCols : ''}
         from (${this.getSqlSource()})
-        where dur = -1
         group by 1
+        having dur = -1
       `);
     }
     const incomplete = new Array<CastInternal<T['slice']>>(queryRes.numRows());
@@ -687,11 +687,12 @@ export abstract class BaseSliceTrack<
       );
     }
 
+    const resolution = rawSlicesKey.bucketSize;
     const extraCols = this.extraSqlColumns.join(',');
     const queryRes = await this.engine.query(`
       SELECT
-        (z.ts / ${rawSlicesKey.bucketSize}) * ${rawSlicesKey.bucketSize} as tsQ,
-        max(z.dur, ${rawSlicesKey.bucketSize}) as durQ,
+        (z.ts / ${resolution}) * ${resolution} as tsQ,
+        ((z.dur / ${resolution}) + 1) * ${resolution} as durQ,
         s.ts as ts,
         s.dur as dur,
         s.id,

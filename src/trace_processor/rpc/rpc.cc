@@ -16,30 +16,36 @@
 
 #include "src/trace_processor/rpc/rpc.h"
 
-#include <string.h>
-
+#include <cinttypes>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
-#include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/protozero/proto_ring_buffer.h"
 #include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/metatrace_config.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/tp_metatrace.h"
 
+#include "protos/perfetto/trace_processor/metatrace_categories.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 namespace {
 // Writes a "Loading trace ..." update every N bytes.
-constexpr size_t kProgressUpdateBytes = 50 * 1000 * 1000;
+constexpr size_t kProgressUpdateBytes = 50ul * 1000 * 1000;
 using TraceProcessorRpcStream = protos::pbzero::TraceProcessorRpcStream;
 using RpcProto = protos::pbzero::TraceProcessorRpc;
 
@@ -194,7 +200,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
         result->set_error(kErrFieldNotSet);
       } else {
         protozero::ConstBytes byte_range = req.append_trace_data();
-        util::Status res = Parse(byte_range.data, byte_range.size);
+        base::Status res = Parse(byte_range.data, byte_range.size);
         if (!res.ok()) {
           result->set_error(res.message());
         }
@@ -295,7 +301,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
   }  // switch(req_type)
 }
 
-util::Status Rpc::Parse(const uint8_t* data, size_t len) {
+base::Status Rpc::Parse(const uint8_t* data, size_t len) {
   PERFETTO_TP_TRACE(
       metatrace::Category::API_TIMELINE, "RPC_PARSE",
       [&](metatrace::Record* r) { r->AddArg("length", std::to_string(len)); });
@@ -310,7 +316,7 @@ util::Status Rpc::Parse(const uint8_t* data, size_t len) {
   MaybePrintProgress();
 
   if (len == 0)
-    return util::OkStatus();
+    return base::OkStatus();
 
   // TraceProcessor needs take ownership of the memory chunk.
   std::unique_ptr<uint8_t[]> data_copy(new uint8_t[len]);
@@ -372,7 +378,7 @@ void Rpc::MaybePrintProgress() {
 
 void Rpc::Query(const uint8_t* args,
                 size_t len,
-                QueryResultBatchCallback result_callback) {
+                const QueryResultBatchCallback& result_callback) {
   auto it = QueryInternal(args, len);
   QueryResultSerializer serializer(std::move(it));
 
@@ -396,7 +402,7 @@ Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
                       }
                     });
 
-  return trace_processor_->ExecuteQuery(sql.c_str());
+  return trace_processor_->ExecuteQuery(sql);
 }
 
 void Rpc::RestoreInitialTables() {
@@ -432,7 +438,7 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
   switch (args.format()) {
     case protos::pbzero::ComputeMetricArgs::BINARY_PROTOBUF: {
       std::vector<uint8_t> metrics_proto;
-      util::Status status =
+      base::Status status =
           trace_processor_->ComputeMetric(metric_names, &metrics_proto);
       if (status.ok()) {
         result->set_metrics(metrics_proto.data(), metrics_proto.size());
@@ -443,7 +449,7 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
     }
     case protos::pbzero::ComputeMetricArgs::TEXTPROTO: {
       std::string metrics_string;
-      util::Status status = trace_processor_->ComputeMetricText(
+      base::Status status = trace_processor_->ComputeMetricText(
           metric_names, TraceProcessor::MetricResultFormat::kProtoText,
           &metrics_string);
       if (status.ok()) {
@@ -455,7 +461,7 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
     }
     case protos::pbzero::ComputeMetricArgs::JSON: {
       std::string metrics_string;
-      util::Status status = trace_processor_->ComputeMetricText(
+      base::Status status = trace_processor_->ComputeMetricText(
           metric_names, TraceProcessor::MetricResultFormat::kJson,
           &metrics_string);
       if (status.ok()) {
@@ -486,7 +492,7 @@ std::vector<uint8_t> Rpc::DisableAndReadMetatrace() {
 void Rpc::DisableAndReadMetatraceInternal(
     protos::pbzero::DisableAndReadMetatraceResult* result) {
   std::vector<uint8_t> trace_proto;
-  util::Status status = trace_processor_->DisableAndReadMetatrace(&trace_proto);
+  base::Status status = trace_processor_->DisableAndReadMetatrace(&trace_proto);
   if (status.ok()) {
     result->set_metatrace(trace_proto.data(), trace_proto.size());
   } else {
@@ -498,13 +504,11 @@ std::vector<uint8_t> Rpc::GetStatus() {
   protozero::HeapBuffered<protos::pbzero::StatusResult> status;
   status->set_loaded_trace_name(trace_processor_->GetCurrentTraceName());
   status->set_human_readable_version(base::GetVersionString());
-  const char* version_code = base::GetVersionCode();
-  if (version_code) {
+  if (const char* version_code = base::GetVersionCode(); version_code) {
     status->set_version_code(version_code);
   }
   status->set_api_version(protos::pbzero::TRACE_PROCESSOR_CURRENT_API_VERSION);
   return status.SerializeAsArray();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

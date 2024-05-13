@@ -21,6 +21,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -29,19 +30,17 @@
 namespace perfetto {
 namespace trace_processor {
 
-class PacketSequenceState;
-
 class EtwTokenizer {
  public:
   explicit EtwTokenizer(TraceProcessorContext* context) : context_(context) {}
 
   base::Status TokenizeEtwBundle(TraceBlobView bundle,
-                                 PacketSequenceState* state);
+                                 RefPtr<PacketSequenceStateGeneration> state);
 
  private:
   base::Status TokenizeEtwEvent(std::optional<uint32_t> fallback_cpu,
                                 TraceBlobView event,
-                                PacketSequenceState* state);
+                                RefPtr<PacketSequenceStateGeneration> state);
 
   TraceProcessorContext* context_;
 };

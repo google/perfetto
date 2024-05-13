@@ -503,5 +503,22 @@ TEST(StringStorage, StableSort) {
   }
 }
 
+TEST(StringStorage, DistinctFromIndexVector) {
+  std::vector<std::string> strings{"cheese", "pasta", "cheese",
+                                   "fries",  "pasta", "fries"};
+  std::vector<StringPool::Id> ids(2, StringPool::Id::Null());
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  StringStorage storage(&pool, &ids);
+  auto chain = storage.MakeChain();
+
+  auto indices = Indices::CreateWithIndexPayloadForTesting(
+      {1, 0, 6, 3}, Indices::State::kNonmonotonic);
+  chain->Distinct(indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 2));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::column

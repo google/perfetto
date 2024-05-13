@@ -21,6 +21,7 @@
 #include "src/trace_processor/importers/etw/etw_module.h"
 #include "src/trace_processor/importers/etw/etw_parser.h"
 #include "src/trace_processor/importers/etw/etw_tokenizer.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -38,7 +39,7 @@ class EtwModuleImpl : public EtwModule {
       const protos::pbzero::TracePacket::Decoder& decoder,
       TraceBlobView* packet,
       int64_t packet_timestamp,
-      PacketSequenceState* state,
+      RefPtr<PacketSequenceStateGeneration> state,
       uint32_t field_id) override;
 
   void ParseEtwEventData(uint32_t cpu,

@@ -78,11 +78,15 @@ CREATE PERFETTO MACRO graph_dominator_tree(
 -- |node_id|.
 RETURNS TableOrSubquery AS
 (
-  WITH __temp_graph_table AS (SELECT * FROM $graph_table)
-  SELECT dt.node_id, dt.dominator_node_id
-  FROM __intrinsic_dominator_tree(
-    (SELECT RepeatedField(source_node_id) FROM __temp_graph_table),
-    (SELECT RepeatedField(dest_node_id) FROM __temp_graph_table),
-    $root_node_id
-  ) dt
+  -- Rename the generic columns of __intrinsic_table_ptr to the actual columns.
+  SELECT c0 AS node_id, c1 AS dominator_node_id
+  FROM __intrinsic_table_ptr((
+    -- Aggregate function to perform a DFS on the nodes on the input graph.
+    SELECT __intrinsic_dominator_tree(g.source_node_id, g.dest_node_id, $root_node_id)
+    FROM $graph_table g
+  ))
+  -- Bind the dynamic columns in the |__intrinsic_table_ptr| to the columns of
+  -- the dominator tree table.
+  WHERE __intrinsic_table_ptr_bind(c0, 'node_id')
+    AND __intrinsic_table_ptr_bind(c1, 'dominator_node_id')
 );

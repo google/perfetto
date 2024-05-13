@@ -5189,19 +5189,23 @@ message ShellHandlerMapping {
 
 // End of protos/perfetto/trace/android/shell_transition.proto
 
-// Begin of protos/perfetto/trace/android/surfaceflinger_common.proto
-
-message RegionProto {
-  // Previously: uint64 id
-  reserved 1;
-  repeated RectProto rect = 2;
-}
+// Begin of protos/perfetto/trace/android/graphics/rect.proto
 
 message RectProto {
   optional int32 left = 1;
   optional int32 top = 2;
   optional int32 right = 3;
   optional int32 bottom = 4;
+}
+
+// End of protos/perfetto/trace/android/graphics/rect.proto
+
+// Begin of protos/perfetto/trace/android/surfaceflinger_common.proto
+
+message RegionProto {
+  // Previously: uint64 id
+  reserved 1;
+  repeated RectProto rect = 2;
 }
 
 message SizeProto {
@@ -5811,6 +5815,14 @@ message DisplayState {
 }
 
 // End of protos/perfetto/trace/android/surfaceflinger_transactions.proto
+
+// Begin of protos/perfetto/trace/android/winscope_extensions.proto
+
+message WinscopeExtensions {
+  extensions 1 to 3;
+}
+
+// End of protos/perfetto/trace/android/winscope_extensions.proto
 
 // Begin of protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto
 
@@ -8517,6 +8529,24 @@ message GenericFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/generic.proto
 
+// Begin of protos/perfetto/trace/ftrace/google_icc_trace.proto
+
+message GoogleIccEventFtraceEvent {
+  optional string event = 1;
+  optional uint64 timestamp = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/google_icc_trace.proto
+
+// Begin of protos/perfetto/trace/ftrace/google_irm_trace.proto
+
+message GoogleIrmEventFtraceEvent {
+  optional string event = 1;
+  optional uint64 timestamp = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/google_irm_trace.proto
+
 // Begin of protos/perfetto/trace/ftrace/gpu_mem.proto
 
 message GpuMemTotalFtraceEvent {
@@ -9497,6 +9527,18 @@ message GpuWorkPeriodFtraceEvent {
   optional uint64 end_time_ns = 4;
   optional uint64 total_active_duration_ns = 5;
 }
+message DevicePmCallbackStartFtraceEvent {
+  optional string device = 1;
+  optional string driver = 2;
+  optional string parent = 3;
+  optional string pm_ops = 4;
+  optional int32 event = 5;
+}
+message DevicePmCallbackEndFtraceEvent {
+  optional string device = 1;
+  optional string driver = 2;
+  optional int32 error = 3;
+}
 
 // End of protos/perfetto/trace/ftrace/power.proto
 
@@ -9877,6 +9919,33 @@ message CdevUpdateFtraceEvent {
 }
 
 // End of protos/perfetto/trace/ftrace/thermal.proto
+
+// Begin of protos/perfetto/trace/ftrace/thermal_exynos.proto
+
+message ThermalExynosAcpmBulkFtraceEvent {
+  optional uint32 tz_id = 1;
+  optional uint32 current_temp = 2;
+  optional uint32 ctrl_temp = 3;
+  optional uint32 cdev_state = 4;
+  optional int32 pid_et_p = 5;
+  optional int32 pid_power_range = 6;
+  optional int32 pid_p = 7;
+  optional int32 pid_i = 8;
+  optional int32 k_p = 9;
+  optional int32 k_i = 10;
+  optional uint64 timestamp = 11;
+}
+message ThermalExynosAcpmHighOverheadFtraceEvent {
+  optional int32 tz_id = 1;
+  optional uint32 current_temp = 2;
+  optional uint32 ctrl_temp = 3;
+  optional uint32 cdev_state = 4;
+  optional int32 pid_et_p = 5;
+  optional int32 k_p = 6;
+  optional int32 k_i = 7;
+}
+
+// End of protos/perfetto/trace/ftrace/thermal_exynos.proto
 
 // Begin of protos/perfetto/trace/ftrace/trusty.proto
 
@@ -10765,6 +10834,13 @@ message FtraceEvent {
     FastrpcDmaAllocFtraceEvent fastrpc_dma_alloc = 499;
     FastrpcDmaUnmapFtraceEvent fastrpc_dma_unmap = 500;
     FastrpcDmaMapFtraceEvent fastrpc_dma_map = 501;
+    GoogleIccEventFtraceEvent google_icc_event = 502;
+    GoogleIrmEventFtraceEvent google_irm_event = 503;
+    DevicePmCallbackStartFtraceEvent device_pm_callback_start = 504;
+    DevicePmCallbackEndFtraceEvent device_pm_callback_end = 505;
+    ThermalExynosAcpmBulkFtraceEvent thermal_exynos_acpm_bulk = 506;
+    ThermalExynosAcpmHighOverheadFtraceEvent thermal_exynos_acpm_high_overhead =
+        507;
   }
 }
 
@@ -14771,7 +14847,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 112.
+// Next id: 113.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -14895,6 +14971,7 @@ message TracePacket {
     ShellHandlerMappings shell_handler_mappings = 97;
     ProtoLogMessage protolog_message = 104;
     ProtoLogViewerConfig protolog_viewer_config = 105;
+    WinscopeExtensions winscope_extensions = 112;
 
     // Events from the Windows etw infrastructure.
     EtwTraceEventBundle etw_events = 95;

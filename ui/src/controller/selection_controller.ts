@@ -37,7 +37,7 @@ import {
   STR_NULL,
   timeFromSql,
 } from '../trace_processor/query_result';
-import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
+import {SLICE_TRACK_KIND} from '../core_plugins/chrome_slices/chrome_slice_track';
 
 import {Controller} from './controller';
 

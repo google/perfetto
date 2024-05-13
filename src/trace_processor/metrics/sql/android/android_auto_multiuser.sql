@@ -14,51 +14,26 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE android.startup.startups;
-
--- Collect the last ts for user switch event.
--- The metric should represent time elapsed between
--- the latest user start and the latest carlauncher startup.
-DROP VIEW IF EXISTS auto_multiuser_events;
-CREATE PERFETTO VIEW auto_multiuser_events AS
-SELECT
-  user_start_time_ns AS event_start_time_ns,
-  launcher_end_time_ns AS event_end_time_ns
-FROM
-  (
-    SELECT MAX(slice.ts) as user_start_time_ns
-    FROM slice
-    WHERE (
-        slice.name GLOB "UserController.startUser*"
-        AND slice.name NOT GLOB "UserController.startUser-10*"
-    )
-  ),
-  (
-    SELECT ts_end AS launcher_end_time_ns
-    FROM android_startups
-    WHERE (package = 'com.android.car.carlauncher')
-  );
-
--- Precompute user switch duration time.
--- Take only positive duration values(user start ts < carlauncher start ts)
--- If there are potential duplicates in carlauncher startup,
--- take the smallest value. It represents the closest carlaucnher startup
-DROP TABLE IF EXISTS android_auto_multiuser_timing;
-CREATE PERFETTO TABLE android_auto_multiuser_timing AS
-SELECT
-  cast_int!((event_end_time_ns - event_start_time_ns) / 1e6 + 0.5) as duration_ms
-FROM
-  auto_multiuser_events
-WHERE duration_ms > 0
-ORDER BY duration_ms ASC
-LIMIT 1;
+INCLUDE PERFETTO MODULE android.auto.multiuser;
+INCLUDE PERFETTO MODULE time.conversion;
 
 DROP VIEW IF EXISTS android_auto_multiuser_output;
 CREATE PERFETTO VIEW android_auto_multiuser_output AS
-SELECT AndroidMultiuserMetric (
-    'user_switch', AndroidMultiuserMetric_EventData(
-        'duration_ms', (
-            SELECT duration_ms FROM android_auto_multiuser_timing
+SELECT AndroidAutoMultiuserMetric(
+    'user_switch', (
+        SELECT RepeatedField(
+            AndroidAutoMultiuserMetric_EventData(
+                'user_id', cast_int!(event_start_user_id),
+                'start_event', event_start_name,
+                'end_event', event_end_name,
+                'duration_ms', time_to_ms(duration),
+                'previous_user_info', AndroidAutoMultiuserMetric_EventData_UserData(
+                    'user_id', user_id,
+                    'total_cpu_time_ms', time_to_ms(total_cpu_time),
+                    'total_memory_usage_kb', total_memory_usage_kb
+                )
+            )
         )
+        FROM android_auto_multiuser_timing_with_previous_user_resource_usage
     )
 );

@@ -22,7 +22,9 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <set>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -252,6 +254,8 @@ Range SetIdStorage::ChainImpl::OrderedIndexSearchValidated(
     FilterOp op,
     SqlValue sql_val,
     const OrderedIndices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "SetIdStorage::ChainImpl::OrderedIndexSearch");
   // OrderedIndices are monotonic non-contiguous values.
   auto res = SearchValidated(
       op, sql_val, Range(indices.data[0], indices.data[indices.size - 1] + 1));
@@ -303,6 +307,8 @@ Range SetIdStorage::ChainImpl::BinarySearchIntrinsic(FilterOp op,
 void SetIdStorage::ChainImpl::StableSort(SortToken* start,
                                          SortToken* end,
                                          SortDirection direction) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "SetIdStorage::ChainImpl::StableSort");
   switch (direction) {
     case SortDirection::kAscending:
       std::stable_sort(start, end,
@@ -317,6 +323,51 @@ void SetIdStorage::ChainImpl::StableSort(SortToken* start,
                        });
       break;
   }
+}
+
+void SetIdStorage::ChainImpl::Distinct(Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "SetIdStorage::ChainImpl::Distinct");
+  std::unordered_set<uint32_t> s;
+  indices.tokens.erase(
+      std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                     [&s, this](const Token& idx) {
+                       return !s.insert((*values_)[idx.index]).second;
+                     }),
+      indices.tokens.end());
+}
+
+std::optional<Token> SetIdStorage::ChainImpl::MaxElement(
+    Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "SetIdStorage::ChainImpl::MaxElement");
+
+  auto tok =
+      std::max_element(indices.tokens.begin(), indices.tokens.end(),
+                       [this](const Token& t1, const Token& t2) {
+                         return (*values_)[t1.index] < (*values_)[t2.index];
+                       });
+
+  if (tok == indices.tokens.end()) {
+    return std::nullopt;
+  }
+  return *tok;
+}
+
+std::optional<Token> SetIdStorage::ChainImpl::MinElement(
+    Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "SetIdStorage::ChainImpl::MinElement");
+  auto tok =
+      std::min_element(indices.tokens.begin(), indices.tokens.end(),
+                       [this](const Token& t1, const Token& t2) {
+                         return (*values_)[t1.index] < (*values_)[t2.index];
+                       });
+  if (tok == indices.tokens.end()) {
+    return std::nullopt;
+  }
+
+  return *tok;
 }
 
 void SetIdStorage::ChainImpl::Serialize(StorageProto* msg) const {

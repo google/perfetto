@@ -51,8 +51,8 @@ source_set("minimal") {
     "profile_packet_utils.cc",
     "profile_packet_utils.h",
     "proto_incremental_state.h",
-    "proto_trace_parser.cc",
-    "proto_trace_parser.h",
+    "proto_trace_parser_impl.cc",
+    "proto_trace_parser_impl.h",
     "proto_trace_reader.cc",
     "proto_trace_reader.h",
     "proto_trace_tokenizer.cc",
@@ -72,6 +72,7 @@ source_set("minimal") {
   deps = [
     ":packet_sequence_state_generation_hdr",
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../../protos/perfetto/common:zero",
     "../../../../protos/perfetto/config:zero",
     "../../../../protos/perfetto/trace:zero",
@@ -201,7 +202,9 @@ source_set("proto_importer_module") {
     "proto_importer_module.h",
   ]
   deps = [
+    ":packet_sequence_state_generation_hdr",
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../base",
     "../../types",
     "../common:trace_parser_hdr",
@@ -253,7 +256,7 @@ source_set("unittests") {
     "network_trace_module_unittest.cc",
     "perf_sample_tracker_unittest.cc",
     "profile_packet_sequence_state_unittest.cc",
-    "proto_trace_parser_unittest.cc",
+    "proto_trace_parser_impl_unittest.cc",
     "string_encoding_utils_unittests.cc",
   ]
   deps = [

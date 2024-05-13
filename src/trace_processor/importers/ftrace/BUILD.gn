@@ -51,6 +51,8 @@ source_set("full") {
     "pkvm_hyp_cpu_tracker.h",
     "rss_stat_tracker.cc",
     "rss_stat_tracker.h",
+    "thermal_tracker.cc",
+    "thermal_tracker.h",
     "v4l2_tracker.cc",
     "v4l2_tracker.h",
     "virtio_gpu_tracker.cc",

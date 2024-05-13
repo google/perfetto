@@ -19,7 +19,7 @@ import {translateState} from '../../common/thread_state';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {THREAD_STATE_TRACK_KIND} from '../../tracks/thread_state';
+import {THREAD_STATE_TRACK_KIND} from '../../core_plugins/thread_state';
 
 import {AggregationController} from './aggregation_controller';
 

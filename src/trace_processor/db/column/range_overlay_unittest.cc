@@ -126,5 +126,20 @@ TEST(RangeOverlay, StableSort) {
   ASSERT_THAT(utils::ExtractPayloadForTesting(tokens), ElementsAre(1, 2, 0));
 }
 
+TEST(RangeOverlay, Distinct) {
+  std::vector<uint32_t> numeric_data{100, 99, 2, 0, 1};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
+  // 99, 2, 0, 1
+  Range range(1, 4);
+  RangeOverlay storage(&range);
+  auto chain = storage.MakeChain(numeric.MakeChain());
+
+  auto indices = Indices::CreateWithIndexPayloadForTesting(
+      {0, 0, 0}, Indices::State::kNonmonotonic);
+  chain->Distinct(indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0));
+}
+
 }  // namespace
 }  // namespace perfetto::trace_processor::column

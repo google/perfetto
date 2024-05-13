@@ -136,6 +136,9 @@ V8WasmCodeTable::~V8WasmCodeTable() = default;
 V8RegexpCodeTable::~V8RegexpCodeTable() = default;
 
 // winscope_tables_py.h
+InputMethodClientsTable::~InputMethodClientsTable() = default;
+InputMethodManagerServiceTable::~InputMethodManagerServiceTable() = default;
+InputMethodServiceTable::~InputMethodServiceTable() = default;
 SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =
     default;
 SurfaceFlingerLayerTable::~SurfaceFlingerLayerTable() = default;

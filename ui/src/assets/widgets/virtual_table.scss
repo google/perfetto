@@ -67,6 +67,8 @@
 
         .pf-vtable-puck {
           .pf-vtable-row {
+            display: flex;
+            align-items: center;
             white-space: nowrap;
             padding-inline: 4px;
 

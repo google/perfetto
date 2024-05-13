@@ -32,21 +32,34 @@ struct InlineSchedWaking;
 struct TracePacketData;
 struct TrackEventData;
 
-class TraceParser {
+class ProtoTraceParser {
  public:
-  virtual ~TraceParser();
+  virtual ~ProtoTraceParser();
+  virtual void ParseTracePacket(int64_t, TracePacketData) = 0;
+  virtual void ParseTrackEvent(int64_t, TrackEventData) = 0;
+  virtual void ParseEtwEvent(uint32_t, int64_t, TracePacketData) = 0;
+  virtual void ParseFtraceEvent(uint32_t, int64_t, TracePacketData) = 0;
+  virtual void ParseInlineSchedSwitch(uint32_t, int64_t, InlineSchedSwitch) = 0;
+  virtual void ParseInlineSchedWaking(uint32_t, int64_t, InlineSchedWaking) = 0;
+};
 
-  virtual void ParseTraceBlobView(int64_t, TraceBlobView);
-  virtual void ParseTracePacket(int64_t, TracePacketData);
-  virtual void ParseJsonPacket(int64_t, std::string);
-  virtual void ParseFuchsiaRecord(int64_t, FuchsiaRecord);
-  virtual void ParseTrackEvent(int64_t, TrackEventData);
-  virtual void ParseSystraceLine(int64_t, SystraceLine);
+class JsonTraceParser {
+ public:
+  virtual ~JsonTraceParser();
+  virtual void ParseJsonPacket(int64_t, std::string) = 0;
+  virtual void ParseSystraceLine(int64_t, SystraceLine) = 0;
+};
 
-  virtual void ParseEtwEvent(uint32_t, int64_t, TracePacketData);
-  virtual void ParseFtraceEvent(uint32_t, int64_t, TracePacketData);
-  virtual void ParseInlineSchedSwitch(uint32_t, int64_t, InlineSchedSwitch);
-  virtual void ParseInlineSchedWaking(uint32_t, int64_t, InlineSchedWaking);
+class FuchsiaRecordParser {
+ public:
+  virtual ~FuchsiaRecordParser();
+  virtual void ParseFuchsiaRecord(int64_t, FuchsiaRecord) = 0;
+};
+
+class PerfRecordParser {
+ public:
+  virtual ~PerfRecordParser();
+  virtual void ParsePerfRecord(int64_t, TraceBlobView) = 0;
 };
 
 }  // namespace trace_processor

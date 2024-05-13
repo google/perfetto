@@ -114,7 +114,14 @@ export class HistoryItemComponent
           m(Icon, {icon: 'delete'}),
         ),
       ),
-      m('pre', query),
+      m(
+        'pre',
+        {
+          onclick: () => vnode.attrs.setQuery(query),
+          ondblclick: () => vnode.attrs.runQuery(query),
+        },
+        query,
+      ),
     );
   }
 }

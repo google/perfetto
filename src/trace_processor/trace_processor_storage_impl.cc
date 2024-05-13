@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/trace_processor_storage_impl.h"
+#include <memory>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/uuid.h"
@@ -40,6 +41,7 @@
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
@@ -50,6 +52,8 @@ namespace trace_processor {
 
 TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
     : context_({cfg, std::make_shared<TraceStorage>(cfg)}) {
+  context_.proto_trace_parser =
+      std::make_unique<ProtoTraceParserImpl>(&context_);
   RegisterDefaultModules(&context_);
 }
 

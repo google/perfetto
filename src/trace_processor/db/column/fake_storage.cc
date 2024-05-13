@@ -95,7 +95,7 @@ void FakeStorageChain::IndexSearchValidated(FilterOp,
     case kRange:
       indices.tokens.erase(
           std::remove_if(indices.tokens.begin(), indices.tokens.end(),
-                         [this](const Indices::Token& token) {
+                         [this](const Token& token) {
                            return !range_.Contains(token.index);
                          }),
           indices.tokens.end());
@@ -103,7 +103,7 @@ void FakeStorageChain::IndexSearchValidated(FilterOp,
     case kBitVector:
       indices.tokens.erase(
           std::remove_if(indices.tokens.begin(), indices.tokens.end(),
-                         [this](const Indices::Token& token) {
+                         [this](const Token& token) {
                            return !bit_vector_.IsSet(token.index);
                          }),
           indices.tokens.end());
@@ -147,6 +147,19 @@ Range FakeStorageChain::OrderedIndexSearchValidated(
           static_cast<uint32_t>(std::distance(indices.data, first_non_set))};
   }
   PERFETTO_FATAL("For GCC");
+}
+
+void FakeStorageChain::Distinct(Indices&) const {
+  // Fake storage shouldn't implement Distinct as it's not a binary (this index
+  // passes or not) operation on a column.
+  PERFETTO_FATAL("Not implemented");
+}
+
+std::optional<Token> FakeStorageChain::MaxElement(Indices&) const {
+  PERFETTO_FATAL("Not implemented");
+}
+std::optional<Token> FakeStorageChain::MinElement(Indices&) const {
+  PERFETTO_FATAL("Not implemented");
 }
 
 void FakeStorageChain::StableSort(SortToken*, SortToken*, SortDirection) const {

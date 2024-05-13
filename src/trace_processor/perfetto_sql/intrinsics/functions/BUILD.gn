@@ -28,6 +28,8 @@ source_set("functions") {
     "create_view_function.h",
     "dfs.cc",
     "dfs.h",
+    "dominator_tree.cc",
+    "dominator_tree.h",
     "import.cc",
     "import.h",
     "layout_functions.cc",

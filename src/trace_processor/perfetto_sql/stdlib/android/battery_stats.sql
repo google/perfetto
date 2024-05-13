@@ -119,8 +119,10 @@ SELECT
 CREATE PERFETTO VIEW android_battery_stats_state(
   -- Timestamp in nanoseconds.
   ts INT,
-  -- The duration the state was active.
+  -- The duration the state was active, may be negative for incomplete slices.
   dur INT,
+  -- The same as `dur`, but extends to trace end for incomplete slices.
+  safe_dur INT,
   -- The name of the counter track.
   track_name STRING,
   -- The counter value as a number.
@@ -131,6 +133,7 @@ CREATE PERFETTO VIEW android_battery_stats_state(
 SELECT
   ts,
   IFNULL(LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur,
+  LEAD(ts, 1, TRACE_END()) OVER (PARTITION BY name ORDER BY ts) - ts AS safe_dur,
   name AS track_name,
   CAST(value AS INT64) AS value,
   android_battery_stats_counter_to_string(name, value) AS value_name
@@ -160,8 +163,10 @@ WHERE counter_track.name GLOB 'battery_stats.*';
 CREATE PERFETTO VIEW android_battery_stats_event_slices(
   -- Timestamp in nanoseconds.
   ts INT,
-  -- The duration the state was active.
+  -- The duration the state was active, may be negative for incomplete slices.
   dur INT,
+  -- The same as `dur`, but extends to trace end for incomplete slices.
+  safe_dur INT,
   -- The name of the counter track.
   track_name STRING,
   -- String value.
@@ -208,6 +213,7 @@ WITH
 SELECT
   ts,
   IFNULL(end_ts-ts, -1) AS dur,
+  IFNULL(end_ts, TRACE_END()) - ts AS safe_dur,
   track_name,
   str_split(key, '"', 1) AS str_value,
   CAST(str_split(key, ':', 0) AS INT64) AS int_value

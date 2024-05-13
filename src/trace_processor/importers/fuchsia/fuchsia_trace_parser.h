@@ -24,22 +24,18 @@
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_utils.h"
-#include "src/trace_processor/importers/proto/proto_trace_parser.h"
 
 namespace perfetto {
 namespace trace_processor {
 
 class TraceProcessorContext;
 
-class FuchsiaTraceParser : public TraceParser {
+class FuchsiaTraceParser : public FuchsiaRecordParser {
  public:
   explicit FuchsiaTraceParser(TraceProcessorContext*);
   ~FuchsiaTraceParser() override;
 
-  // TraceParser implementation
   void ParseFuchsiaRecord(int64_t timestamp, FuchsiaRecord fr) override;
-  void ParseTrackEvent(int64_t, TrackEventData) override;
-  void ParseTracePacket(int64_t ts, TracePacketData data) override;
 
   struct Arg {
     StringId name;
@@ -59,7 +55,6 @@ class FuchsiaTraceParser : public TraceParser {
 
  private:
   TraceProcessorContext* const context_;
-  std::unique_ptr<ProtoTraceParser> proto_parser_;
 };
 
 }  // namespace trace_processor

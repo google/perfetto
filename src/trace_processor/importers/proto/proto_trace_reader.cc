@@ -236,13 +236,13 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
       for (ProtoImporterModule* global_module :
            context_->modules_for_all_fields) {
         ModuleResult res = global_module->TokenizePacket(
-            decoder, &packet, timestamp, state, field_id);
+            decoder, &packet, timestamp, state->current_generation(), field_id);
         if (!res.ignored())
           return res.ToStatus();
       }
       for (ProtoImporterModule* module : modules[field_id]) {
-        ModuleResult res = module->TokenizePacket(decoder, &packet, timestamp,
-                                                  state, field_id);
+        ModuleResult res = module->TokenizePacket(
+            decoder, &packet, timestamp, state->current_generation(), field_id);
         if (!res.ignored())
           return res.ToStatus();
       }

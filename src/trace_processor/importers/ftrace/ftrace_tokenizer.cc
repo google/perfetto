@@ -23,7 +23,6 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/storage/stats.h"
@@ -35,6 +34,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
+#include "protos/perfetto/trace/ftrace/thermal_exynos.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -107,7 +107,7 @@ uint64_t TryFastParseFtraceEventId(const uint8_t* start, const uint8_t* end) {
 PERFETTO_ALWAYS_INLINE
 base::Status FtraceTokenizer::TokenizeFtraceBundle(
     TraceBlobView bundle,
-    PacketSequenceState* state,
+    RefPtr<PacketSequenceStateGeneration> state,
     uint32_t packet_sequence_id) {
   protos::pbzero::FtraceEventBundle::Decoder decoder(bundle.data(),
                                                      bundle.length());
@@ -204,10 +204,11 @@ base::Status FtraceTokenizer::TokenizeFtraceBundle(
 }
 
 PERFETTO_ALWAYS_INLINE
-void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
-                                          ClockTracker::ClockId clock_id,
-                                          TraceBlobView event,
-                                          PacketSequenceState* state) {
+void FtraceTokenizer::TokenizeFtraceEvent(
+    uint32_t cpu,
+    ClockTracker::ClockId clock_id,
+    TraceBlobView event,
+    RefPtr<PacketSequenceStateGeneration> state) {
   constexpr auto kTimestampFieldNumber =
       protos::pbzero::FtraceEvent::kTimestampFieldNumber;
   constexpr auto kTimestampFieldTag = MakeTagVarInt(kTimestampFieldNumber);
@@ -265,7 +266,12 @@ void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
 
   if (PERFETTO_UNLIKELY(
           event_id == protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber)) {
-    TokenizeFtraceGpuWorkPeriod(cpu, std::move(event), state);
+    TokenizeFtraceGpuWorkPeriod(cpu, std::move(event), std::move(state));
+    return;
+  } else if (PERFETTO_UNLIKELY(event_id ==
+                               protos::pbzero::FtraceEvent::
+                                   kThermalExynosAcpmBulkFieldNumber)) {
+    TokenizeFtraceThermalExynosAcpmBulk(cpu, std::move(event), std::move(state));
     return;
   }
 
@@ -281,8 +287,7 @@ void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
   }
 
   context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
-                                    state->current_generation(),
-                                    context_->machine_id());
+                                    std::move(state), context_->machine_id());
 }
 
 PERFETTO_ALWAYS_INLINE
@@ -427,9 +432,10 @@ void FtraceTokenizer::HandleFtraceClockSnapshot(int64_t ftrace_ts,
                                     boot_ts)});
 }
 
-void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
-                                                  TraceBlobView event,
-                                                  PacketSequenceState* state) {
+void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
+    uint32_t cpu,
+    TraceBlobView event,
+    RefPtr<PacketSequenceStateGeneration> state) {
   // Special handling of valid gpu_work_period tracepoint events which contain
   // timestamp values for the GPU time period nested inside the event data.
   const uint8_t* data = event.data();
@@ -465,8 +471,35 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
   }
 
   context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
-                                    state->current_generation(),
-                                    context_->machine_id());
+                                    std::move(state), context_->machine_id());
+}
+
+void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
+    uint32_t cpu, TraceBlobView event,
+    RefPtr<PacketSequenceStateGeneration> state) {
+  // Special handling of valid thermal_exynos_acpm_bulk tracepoint events which
+  // contains the right timestamp value nested inside the event data.
+  const uint8_t* data = event.data();
+  const size_t length = event.length();
+
+  ProtoDecoder decoder(data, length);
+  auto ts_field = decoder.FindField(
+      protos::pbzero::FtraceEvent::kThermalExynosAcpmBulkFieldNumber);
+  if (!ts_field.valid()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return;
+  }
+
+  protos::pbzero::ThermalExynosAcpmBulkFtraceEvent::Decoder
+      thermal_exynos_acpm_bulk_event(ts_field.data(), ts_field.size());
+  if (!thermal_exynos_acpm_bulk_event.has_timestamp()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return;
+  }
+  int64_t timestamp =
+      static_cast<int64_t>(thermal_exynos_acpm_bulk_event.timestamp());
+  context_->sorter->PushFtraceEvent(cpu, timestamp, std::move(event),
+                                    std::move(state), context_->machine_id());
 }
 
 }  // namespace trace_processor

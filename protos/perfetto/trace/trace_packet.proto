@@ -35,6 +35,7 @@ import "protos/perfetto/trace/android/protolog.proto";
 import "protos/perfetto/trace/android/shell_transition.proto";
 import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
 import "protos/perfetto/trace/android/surfaceflinger_transactions.proto";
+import "protos/perfetto/trace/android/winscope_extensions.proto";
 import "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_trace_event.proto";
@@ -104,7 +105,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 112.
+// Next id: 113.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -228,6 +229,7 @@ message TracePacket {
     ShellHandlerMappings shell_handler_mappings = 97;
     ProtoLogMessage protolog_message = 104;
     ProtoLogViewerConfig protolog_viewer_config = 105;
+    WinscopeExtensions winscope_extensions = 112;
 
     // Events from the Windows etw infrastructure.
     EtwTraceEventBundle etw_events = 95;

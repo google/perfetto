@@ -57,6 +57,8 @@
 #include "protos/perfetto/trace/ftrace/ftrace_stats.pbzero.h"
 #include "protos/perfetto/trace/ftrace/g2d.pbzero.h"
 #include "protos/perfetto/trace/ftrace/generic.pbzero.h"
+#include "protos/perfetto/trace/ftrace/google_icc_trace.pbzero.h"
+#include "protos/perfetto/trace/ftrace/google_irm_trace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/gpu_mem.pbzero.h"
 #include "protos/perfetto/trace/ftrace/i2c.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ion.pbzero.h"
@@ -83,7 +85,6 @@
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
 #include "protos/perfetto/trace/ftrace/tcp.pbzero.h"
-#include "protos/perfetto/trace/ftrace/thermal.pbzero.h"
 #include "protos/perfetto/trace/ftrace/trusty.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ufs.pbzero.h"
 #include "protos/perfetto/trace/ftrace/vmscan.pbzero.h"
@@ -242,6 +243,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       mali_gpu_event_tracker_(context),
       pkvm_hyp_cpu_tracker_(context),
       gpu_work_period_tracker_(context),
+      thermal_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -339,6 +341,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       android_fs_category_id_(context_->storage->InternString("android_fs")),
       android_fs_data_read_id_(
           context_->storage->InternString("android_fs_data_read")),
+      google_icc_event_id_(context->storage->InternString("google_icc_event")),
+      google_irm_event_id_(context->storage->InternString("google_irm_event")),
       runtime_status_invalid_id_(
           context->storage->InternString("Invalid State")),
       runtime_status_active_id_(context->storage->InternString("Active")),
@@ -870,11 +874,20 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kThermalTemperatureFieldNumber: {
-        ParseThermalTemperature(ts, fld_bytes);
+        thermal_tracker_.ParseThermalTemperature(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kThermalExynosAcpmBulkFieldNumber: {
+        thermal_tracker_.ParseThermalExynosAcpmBulk(fld_bytes);
+        break;
+      }
+      case FtraceEvent::kThermalExynosAcpmHighOverheadFieldNumber: {
+        thermal_tracker_.ParseThermalExynosAcpmHighOverhead(
+            ts, fld_bytes);
         break;
       }
       case FtraceEvent::kCdevUpdateFieldNumber: {
-        ParseCdevUpdate(ts, fld_bytes);
+        thermal_tracker_.ParseCdevUpdate(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kSchedBlockedReasonFieldNumber: {
@@ -1146,6 +1159,14 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kPanelWriteGenericFieldNumber: {
         ParsePanelWriteGeneric(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kGoogleIccEventFieldNumber: {
+        ParseGoogleIccEvent(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kGoogleIrmEventFieldNumber: {
+        ParseGoogleIrmEvent(ts, fld_bytes);
         break;
       }
       default:
@@ -1608,6 +1629,24 @@ void FtraceParser::ParseLwisTracingMarkWrite(int64_t timestamp,
   SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.func_name(), tgid, evt.value());
+}
+
+void FtraceParser::ParseGoogleIccEvent(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::GoogleIccEventFtraceEvent::Decoder evt(blob.data, blob.size);
+  TrackId track_id = context_->track_tracker->GetOrCreateInterconnectTrack();
+  StringId slice_name_id =
+      context_->storage->InternString(base::StringView(evt.event()));
+  context_->slice_tracker->Scoped(timestamp, track_id, google_icc_event_id_,
+                                  slice_name_id, 0);
+}
+
+void FtraceParser::ParseGoogleIrmEvent(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::GoogleIrmEventFtraceEvent::Decoder evt(blob.data, blob.size);
+  TrackId track_id = context_->track_tracker->GetOrCreateInterconnectTrack();
+  StringId slice_name_id =
+      context_->storage->InternString(base::StringView(evt.event()));
+  context_->slice_tracker->Scoped(timestamp, track_id, google_irm_event_id_,
+                                  slice_name_id, 0);
 }
 
 /** Parses ion heap events present in Pixel kernels. */
@@ -2349,32 +2388,6 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
   }
   context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(gpu_mem_total.size()), track);
-}
-
-void FtraceParser::ParseThermalTemperature(int64_t timestamp,
-                                           protozero::ConstBytes blob) {
-  protos::pbzero::ThermalTemperatureFtraceEvent::Decoder event(blob.data,
-                                                               blob.size);
-  base::StringView thermal_zone = event.thermal_zone();
-  base::StackString<255> counter_name(
-      "%.*s Temperature", int(thermal_zone.size()), thermal_zone.data());
-  StringId name = context_->storage->InternString(counter_name.string_view());
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-      TrackTracker::Group::kThermals, name);
-  context_->event_tracker->PushCounter(timestamp, event.temp(), track);
-}
-
-void FtraceParser::ParseCdevUpdate(int64_t timestamp,
-                                   protozero::ConstBytes blob) {
-  protos::pbzero::CdevUpdateFtraceEvent::Decoder event(blob.data, blob.size);
-  base::StringView type = event.type();
-  base::StackString<255> counter_name("%.*s Cooling Device", int(type.size()),
-                                      type.data());
-  StringId name = context_->storage->InternString(counter_name.string_view());
-  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-      TrackTracker::Group::kThermals, name);
-  context_->event_tracker->PushCounter(
-      timestamp, static_cast<double>(event.target()), track);
 }
 
 void FtraceParser::ParseSchedBlockedReason(

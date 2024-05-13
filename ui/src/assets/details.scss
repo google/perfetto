@@ -453,11 +453,16 @@
   font-size: 11px;
   font-family: var(--monospace-font);
 
-  .colour {
-    display: inline-block;
-    height: 10px;
-    width: 10px;
-    margin-right: 4px;
+  .pf-ftrace-namebox {
+    display: flex;
+    align-items: center;
+
+    .pf-ftrace-colorbox {
+      display: inline-block;
+      height: 10px;
+      width: 10px;
+      margin-right: 4px;
+    }
   }
 }
 

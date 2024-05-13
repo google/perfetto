@@ -20,7 +20,6 @@
 #include "perfetto/base/status.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_redaction/collect_timeline_events.h"
-#include "src/trace_redaction/optimize_timeline.h"
 #include "src/trace_redaction/scrub_process_stats.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redaction_integration_fixture.h"
@@ -38,7 +37,6 @@ class ScrubProcessStatsTest : public testing::Test,
  protected:
   void SetUp() override {
     trace_redactor()->emplace_collect<CollectTimelineEvents>();
-    trace_redactor()->emplace_build<OptimizeTimeline>();
     trace_redactor()->emplace_transform<ScrubProcessStats>();
 
     // Package "com.Unity.com.unity.multiplayer.samples.coop";

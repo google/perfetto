@@ -24,7 +24,6 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/v8_sequence_state.h"
 #include "src/trace_processor/importers/proto/v8_tracker.h"
@@ -58,11 +57,12 @@ V8Module::V8Module(TraceProcessorContext* context)
 
 V8Module::~V8Module() = default;
 
-ModuleResult V8Module::TokenizePacket(const TracePacket::Decoder&,
-                                      TraceBlobView* /*packet*/,
-                                      int64_t /*packet_timestamp*/,
-                                      PacketSequenceState* /*state*/,
-                                      uint32_t /*field_id*/) {
+ModuleResult V8Module::TokenizePacket(
+    const TracePacket::Decoder&,
+    TraceBlobView* /*packet*/,
+    int64_t /*packet_timestamp*/,
+    RefPtr<PacketSequenceStateGeneration> /*state*/,
+    uint32_t /*field_id*/) {
   return ModuleResult::Ignored();
 }
 
