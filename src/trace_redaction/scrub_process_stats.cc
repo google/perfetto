@@ -57,9 +57,6 @@ base::Status ScrubProcessStats::Transform(const Context& context,
   PERFETTO_DCHECK(time_field.valid());
   auto time = time_field.as_uint64();
 
-  auto* timeline = context.timeline.get();
-  auto uid = context.package_uid.value();
-
   for (auto packet_field = packet_decoder.ReadField(); packet_field.valid();
        packet_field = packet_decoder.ReadField()) {
     if (packet_field.id() !=
@@ -83,8 +80,9 @@ base::Status ScrubProcessStats::Transform(const Context& context,
         protozero::ProtoDecoder process_decoder(process_stats_field.as_bytes());
         auto pid = process_decoder.FindField(
             protos::pbzero::ProcessStats::Process::kPidFieldNumber);
-        keep_field =
-            pid.valid() && timeline->Search(time, pid.as_int32()).uid == uid;
+
+        keep_field = context.timeline->PidConnectsToUid(time, pid.as_int32(),
+                                                        *context.package_uid);
       } else {
         keep_field = true;
       }

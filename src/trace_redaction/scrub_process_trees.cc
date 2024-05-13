@@ -43,14 +43,10 @@ void TryAppendPid(const Context& context,
     return;
   }
 
-  auto slice = context.timeline->Search(timestamp.as_uint64(), pid.as_int32());
-
-  // Only keep the target process cmdline.
-  if (NormalizeUid(slice.uid) != NormalizeUid(context.package_uid.value())) {
-    return;
+  if (context.timeline->PidConnectsToUid(timestamp.as_uint64(), pid.as_int32(),
+                                         *context.package_uid)) {
+    proto_util::AppendField(value, message);
   }
-
-  proto_util::AppendField(value, message);
 }
 
 }  // namespace

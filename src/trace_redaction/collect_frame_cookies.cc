@@ -148,18 +148,12 @@ base::Status ReduceFrameCookies::Build(Context* context) const {
     return base::OkStatus();
   }
 
-  const auto* timeline = context->timeline.get();
-  auto uid = context->package_uid.value();
-
-  auto& package_frame_cookies = context->package_frame_cookies;
-
   // Filter the global cookies down to cookies that belong to the target package
   // (uid).
   for (const auto& cookie : context->global_frame_cookies) {
-    auto cookie_slice = timeline->Search(cookie.ts, cookie.pid);
-
-    if (cookie_slice.uid == uid) {
-      package_frame_cookies.insert(cookie.cookie);
+    if (context->timeline->PidConnectsToUid(cookie.ts, cookie.pid,
+                                            *context->package_uid)) {
+      context->package_frame_cookies.insert(cookie.cookie);
     }
   }
 
