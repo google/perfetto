@@ -25,6 +25,8 @@ source_set("perf") {
     "perf_data_tracker.cc",
     "perf_data_tracker.h",
     "perf_event.h",
+    "perf_file.h",
+    "reader.h",
   ]
   deps = [
     "../../../../gn:default_deps",
@@ -43,6 +45,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "perf_data_reader_unittest.cc",
     "perf_data_tracker_unittest.cc",
+    "reader_unittest.cc",
   ]
   deps = [
     ":perf",
