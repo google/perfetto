@@ -35,6 +35,7 @@
 #include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
 #include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
+#include "src/trace_processor/importers/ftrace/thermal_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -201,8 +202,6 @@ class FtraceParser {
                          protozero::ConstBytes);
   void ParseSoftIrqExit(uint32_t cpu, int64_t timestamp, protozero::ConstBytes);
   void ParseGpuMemTotal(int64_t timestamp, protozero::ConstBytes);
-  void ParseThermalTemperature(int64_t timestamp, protozero::ConstBytes);
-  void ParseCdevUpdate(int64_t timestamp, protozero::ConstBytes);
   void ParseSchedBlockedReason(protozero::ConstBytes,
                                PacketSequenceStateGeneration*);
   void ParseFastRpcDmaStat(int64_t timestamp,
@@ -312,6 +311,7 @@ class FtraceParser {
   MaliGpuEventTracker mali_gpu_event_tracker_;
   PkvmHypervisorCpuTracker pkvm_hyp_cpu_tracker_;
   GpuWorkPeriodTracker gpu_work_period_tracker_;
+  ThermalTracker thermal_tracker_;
 
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;

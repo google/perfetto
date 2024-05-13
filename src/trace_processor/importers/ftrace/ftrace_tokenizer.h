@@ -64,6 +64,9 @@ class FtraceTokenizer {
   void TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
                                    TraceBlobView event,
                                    RefPtr<PacketSequenceStateGeneration> state);
+  void TokenizeFtraceThermalExynosAcpmBulk(uint32_t cpu,
+                                   TraceBlobView event,
+                                   RefPtr<PacketSequenceStateGeneration> state);
 
   void DlogWithLimit(const base::Status& status) {
     static std::atomic<uint32_t> dlog_count(0);
