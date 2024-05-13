@@ -14,6 +14,27 @@
 
 import("../../../../gn/test.gni")
 
+source_set("record") {
+  sources = [
+    "perf_event.h",
+    "perf_event_attr.cc",
+    "perf_event_attr.h",
+    "perf_session.cc",
+    "perf_session.h",
+    "reader.h",
+    "record.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace/profiling:zero",
+    "../../sorter",
+    "../../storage",
+    "../../tables:tables_python",
+    "../../types",
+    "../common",
+    "../common:parser_types",
+  ]
+}
 source_set("perf") {
   sources = [
     "perf_data_parser.cc",
@@ -24,19 +45,20 @@ source_set("perf") {
     "perf_data_tokenizer.h",
     "perf_data_tracker.cc",
     "perf_data_tracker.h",
-    "perf_event.h",
     "perf_file.h",
     "reader.h",
   ]
+  public_deps = [ ":record" ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../protos/perfetto/trace/profiling:zero",
-    "../../importers/common",
-    "../../importers/common:parser_types",
     "../../sorter",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
+    "../common",
+    "../common:parser_types",
+    "../proto:minimal",
   ]
 }
 
@@ -45,6 +67,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "perf_data_reader_unittest.cc",
     "perf_data_tracker_unittest.cc",
+    "perf_session_unittest.cc",
     "reader_unittest.cc",
   ]
   deps = [
