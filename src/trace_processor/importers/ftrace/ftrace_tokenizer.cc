@@ -34,6 +34,7 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
+#include "protos/perfetto/trace/ftrace/thermal_exynos.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -265,7 +266,12 @@ void FtraceTokenizer::TokenizeFtraceEvent(
 
   if (PERFETTO_UNLIKELY(
           event_id == protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber)) {
-    TokenizeFtraceGpuWorkPeriod(cpu, std::move(event), state);
+    TokenizeFtraceGpuWorkPeriod(cpu, std::move(event), std::move(state));
+    return;
+  } else if (PERFETTO_UNLIKELY(event_id ==
+                               protos::pbzero::FtraceEvent::
+                                   kThermalExynosAcpmBulkFieldNumber)) {
+    TokenizeFtraceThermalExynosAcpmBulk(cpu, std::move(event), std::move(state));
     return;
   }
 
@@ -465,6 +471,34 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
   }
 
   context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
+                                    std::move(state), context_->machine_id());
+}
+
+void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
+    uint32_t cpu, TraceBlobView event,
+    RefPtr<PacketSequenceStateGeneration> state) {
+  // Special handling of valid thermal_exynos_acpm_bulk tracepoint events which
+  // contains the right timestamp value nested inside the event data.
+  const uint8_t* data = event.data();
+  const size_t length = event.length();
+
+  ProtoDecoder decoder(data, length);
+  auto ts_field = decoder.FindField(
+      protos::pbzero::FtraceEvent::kThermalExynosAcpmBulkFieldNumber);
+  if (!ts_field.valid()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return;
+  }
+
+  protos::pbzero::ThermalExynosAcpmBulkFtraceEvent::Decoder
+      thermal_exynos_acpm_bulk_event(ts_field.data(), ts_field.size());
+  if (!thermal_exynos_acpm_bulk_event.has_timestamp()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return;
+  }
+  int64_t timestamp =
+      static_cast<int64_t>(thermal_exynos_acpm_bulk_event.timestamp());
+  context_->sorter->PushFtraceEvent(cpu, timestamp, std::move(event),
                                     std::move(state), context_->machine_id());
 }
 
