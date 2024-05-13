@@ -1707,6 +1707,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/perf/perf_data_tracker.cc",
         "src/trace_processor/importers/perf/perf_data_tracker.h",
         "src/trace_processor/importers/perf/perf_event.h",
+        "src/trace_processor/importers/perf/perf_file.h",
+        "src/trace_processor/importers/perf/reader.h",
     ],
 )
 

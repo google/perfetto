@@ -254,10 +254,23 @@ source_set("profile_builder") {
   ]
 }
 
+source_set("file_buffer") {
+  sources = [
+    "file_buffer.cc",
+    "file_buffer.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base",
+    "../../../include/perfetto/trace_processor:storage",
+  ]
+}
+
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
     "debug_annotation_parser_unittest.cc",
+    "file_buffer_unittest.cc",
     "glob_unittest.cc",
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
@@ -271,6 +284,7 @@ source_set("unittests") {
   deps = [
     ":bump_allocator",
     ":descriptors",
+    ":file_buffer",
     ":glob",
     ":gzip",
     ":proto_profiler",
