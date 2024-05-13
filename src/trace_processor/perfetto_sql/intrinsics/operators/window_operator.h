@@ -63,15 +63,6 @@ struct WindowOperatorModule : sqlite::Module<WindowOperatorModule> {
 
     FilterType filter_type = FilterType::kReturnAll;
   };
-  enum Column {
-    kRowId = 0,
-    kQuantum = 1,
-    kWindowStart = 2,
-    kWindowDur = 3,
-    kTs = 4,
-    kDuration = 5,
-    kQuantumTs = 6
-  };
 
   static constexpr auto kType = kCreateOnly;
   static constexpr bool kDoesOverloadFunctions = false;
@@ -108,6 +99,10 @@ struct WindowOperatorModule : sqlite::Module<WindowOperatorModule> {
   static int Rowid(sqlite3_vtab_cursor*, sqlite_int64*);
 
   static int Update(sqlite3_vtab*, int, sqlite3_value**, sqlite_int64*);
+
+  // This needs to happen at the end as it depends on the functions
+  // defined above.
+  static constexpr sqlite3_module kModule = CreateModule();
 };
 
 }  // namespace perfetto::trace_processor

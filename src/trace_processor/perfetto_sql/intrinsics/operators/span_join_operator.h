@@ -469,6 +469,10 @@ struct SpanJoinOperatorModule : public sqlite::Module<SpanJoinOperatorModule> {
                           const char*,
                           FindFunctionFn**,
                           void**);
+
+  // This needs to happen at the end as it depends on the functions
+  // defined above.
+  static constexpr sqlite3_module kModule = CreateModule();
 };
 
 }  // namespace perfetto::trace_processor

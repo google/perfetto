@@ -65,6 +65,10 @@ struct StatsModule : sqlite::Module<StatsModule> {
   static int Eof(sqlite3_vtab_cursor*);
   static int Column(sqlite3_vtab_cursor*, sqlite3_context*, int);
   static int Rowid(sqlite3_vtab_cursor*, sqlite_int64*);
+
+  // This needs to happen at the end as it depends on the functions
+  // defined above.
+  static constexpr sqlite3_module kModule = CreateModule();
 };
 
 }  // namespace perfetto::trace_processor

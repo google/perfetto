@@ -19,6 +19,8 @@
 
 #include <sqlite3.h>
 
+#include "perfetto/base/logging.h"
+
 namespace perfetto::trace_processor::sqlite {
 
 // Prototype for a virtual table (vtab) module which can be registered with
@@ -47,44 +49,6 @@ struct Module {
   //
   // Setting this to true requires that the |FindFunction| function is defined.
   static constexpr bool kDoesOverloadFunctions = true;
-
-  // sqlite3_module object corresponding to the module. Used to pass information
-  // about this module to SQLite.
-  //
-  // Note: this has to be defined here to allow referencing the functions
-  // defined above.
-  static constexpr sqlite3_module kModule = []() {
-    sqlite3_module module{};
-    module.xBestIndex = &Impl::BestIndex;
-    module.xOpen = &Impl::Open;
-    module.xClose = &Impl::Close;
-    module.xFilter = &Impl::Filter;
-    module.xNext = &Impl::Next;
-    module.xEof = &Impl::Eof;
-    module.xColumn = &Impl::Column;
-    module.xRowid = &Impl::Rowid;
-    if constexpr (Impl::kType == kCreateOnly) {
-      module.xCreate = &Impl::Create;
-      module.xDestroy = &Impl::Destroy;
-      module.xConnect = &Impl::Connect;
-      module.xDisconnect = &Impl::Disconnect;
-    } else {
-      module.xCreate = nullptr;
-      module.xDestroy = [](sqlite3_vtab*) -> int {
-        __builtin_trap();
-        __builtin_unreachable();
-      };
-      module.xConnect = &Impl::Connect;
-      module.xDisconnect = &Impl::Disconnect;
-    }
-    if constexpr (Impl::kSupportsWrites) {
-      module.xUpdate = &Impl::Update;
-    }
-    if constexpr (Impl::kDoesOverloadFunctions) {
-      module.xFindFunction = &Impl::FindFunction;
-    }
-    return module;
-  }();
 
   // Specifies the type of context for the module. Implementations should define
   // this type to match the context type which is expected to be passed into
@@ -227,6 +191,40 @@ struct Module {
   // Helper function to cast the cursor pointer to the correct type.
   static auto GetCursor(sqlite3_vtab_cursor* cursor) {
     return static_cast<typename Impl::Cursor*>(cursor);
+  }
+
+  // Returns sqlite3_module object corresponding to the module. Used to pass
+  // information about this module to SQLite.
+  static constexpr sqlite3_module CreateModule() {
+    sqlite3_module module{};
+    module.xBestIndex = &Impl::BestIndex;
+    module.xOpen = &Impl::Open;
+    module.xClose = &Impl::Close;
+    module.xFilter = &Impl::Filter;
+    module.xNext = &Impl::Next;
+    module.xEof = &Impl::Eof;
+    module.xColumn = &Impl::Column;
+    module.xRowid = &Impl::Rowid;
+    if constexpr (Impl::kType == kCreateOnly) {
+      module.xCreate = &Impl::Create;
+      module.xDestroy = &Impl::Destroy;
+      module.xConnect = &Impl::Connect;
+      module.xDisconnect = &Impl::Disconnect;
+    } else {
+      module.xCreate = nullptr;
+      module.xDestroy = [](sqlite3_vtab*) -> int {
+        PERFETTO_FATAL("Should not be reachable");
+      };
+      module.xConnect = &Impl::Connect;
+      module.xDisconnect = &Impl::Disconnect;
+    }
+    if constexpr (Impl::kSupportsWrites) {
+      module.xUpdate = &Impl::Update;
+    }
+    if constexpr (Impl::kDoesOverloadFunctions) {
+      module.xFindFunction = &Impl::FindFunction;
+    }
+    return module;
   }
 };
 
