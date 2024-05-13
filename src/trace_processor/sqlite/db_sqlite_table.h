@@ -158,6 +158,10 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
                                 sqlite3_index_info* info,
                                 const std::vector<int>&,
                                 const std::vector<int>&);
+
+  // This needs to happen at the end as it depends on the functions
+  // defined above.
+  static constexpr sqlite3_module kModule = CreateModule();
 };
 
 }  // namespace perfetto::trace_processor

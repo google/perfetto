@@ -42,6 +42,16 @@ constexpr char kSchema[] = R"(
   )";
 }
 
+enum Column {
+  kRowId = 0,
+  kQuantum = 1,
+  kWindowStart = 2,
+  kWindowDur = 3,
+  kTs = 4,
+  kDuration = 5,
+  kQuantumTs = 6
+};
+
 int WindowOperatorModule::Create(sqlite3* db,
                                  void* raw_ctx,
                                  int argc,
