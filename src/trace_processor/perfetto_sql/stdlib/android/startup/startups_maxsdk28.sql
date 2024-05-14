@@ -37,11 +37,12 @@ maybe_hot AS (
     sl.ts,
     rs.ts + rs.dur AS ts_end,
     -- We use the process name as the package as we have no better option.
-    process_name AS package,
+    COALESCE(process_name, thread_name, 'unknown') AS package,
     "hot" AS startup_type
   FROM thread_slice sl
   JOIN android_first_frame_after(sl.ts) rs
   WHERE name = 'activityResume'
+  AND sl.is_main_thread
   -- Remove any launches here where the activityResume slices happens during
   -- a warm/cold startup.
   AND NOT EXISTS (
