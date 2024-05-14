@@ -29,7 +29,7 @@ import {EngineMode} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
-import {Engine} from '../trace_processor/engine';
+import {EngineBase} from '../trace_processor/engine';
 import {showModal} from '../widgets/modal';
 
 import {Animation} from './animation';
@@ -566,7 +566,7 @@ function downloadTrace(e: Event) {
   downloadUrl(fileName, url);
 }
 
-function getCurrentEngine(): Engine | undefined {
+function getCurrentEngine(): EngineBase | undefined {
   const engineId = globals.getCurrentEngine()?.id;
   if (engineId === undefined) return undefined;
   return globals.engines.get(engineId);

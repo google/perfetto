@@ -24,7 +24,7 @@ import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {TimeScale} from '../../frontend/time_scale';
 import {
-  EngineProxy,
+  Engine,
   Plugin,
   PluginContextTrace,
   PluginDescriptor,
@@ -50,9 +50,9 @@ class PerfSamplesProfileTrack implements Track {
   private hoveredTs: time | undefined = undefined;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
   private upid: number;
-  private engine: EngineProxy;
+  private engine: Engine;
 
-  constructor(engine: EngineProxy, upid: number) {
+  constructor(engine: Engine, upid: number) {
     this.upid = upid;
     this.engine = engine;
   }

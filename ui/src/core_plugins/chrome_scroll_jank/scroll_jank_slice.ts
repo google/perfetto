@@ -24,7 +24,7 @@ import {
   constraintsToQuerySuffix,
   SQLConstraints,
 } from '../../frontend/sql_utils';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 
@@ -45,7 +45,7 @@ interface BasicSlice {
 }
 
 async function getSlicesFromTrack(
-  engine: EngineProxy,
+  engine: Engine,
   track: ScrollJankTrackSpec,
   constraints: SQLConstraints,
 ): Promise<BasicSlice[]> {
@@ -75,7 +75,7 @@ async function getSlicesFromTrack(
 
 export type ScrollJankSlice = BasicSlice;
 export async function getScrollJankSlices(
-  engine: EngineProxy,
+  engine: Engine,
   id: number,
 ): Promise<ScrollJankSlice[]> {
   const track = ScrollJankPluginState.getInstance().getTrack(
@@ -93,7 +93,7 @@ export async function getScrollJankSlices(
 
 export type EventLatencySlice = BasicSlice;
 export async function getEventLatencySlice(
-  engine: EngineProxy,
+  engine: Engine,
   id: number,
 ): Promise<EventLatencySlice | undefined> {
   const track = ScrollJankPluginState.getInstance().getTrack(
@@ -112,7 +112,7 @@ export async function getEventLatencySlice(
 }
 
 export async function getEventLatencyDescendantSlice(
-  engine: EngineProxy,
+  engine: Engine,
   id: number,
   descendant: string | undefined,
 ): Promise<EventLatencySlice | undefined> {

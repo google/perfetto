@@ -25,7 +25,7 @@ import {
 import {pluginManager, PluginManager} from '../common/plugins';
 import {raf} from '../core/raf_scheduler';
 import {MetricVisualisation} from '../public';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {STR} from '../trace_processor/query_result';
 import {Select} from '../widgets/select';
 import {Spinner} from '../widgets/spinner';
@@ -37,7 +37,7 @@ import {createPage} from './pages';
 type Format = 'json' | 'prototext' | 'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
 
-function getEngine(): EngineProxy | undefined {
+function getEngine(): Engine | undefined {
   const engineId = globals.getCurrentEngine()?.id;
   if (engineId === undefined) {
     return undefined;
@@ -46,7 +46,7 @@ function getEngine(): EngineProxy | undefined {
   return engine;
 }
 
-async function getMetrics(engine: EngineProxy): Promise<string[]> {
+async function getMetrics(engine: Engine): Promise<string[]> {
   const metrics: string[] = [];
   const metricsResult = await engine.query('select name from trace_metrics');
   for (const it = metricsResult.iter({name: STR}); it.valid(); it.next()) {
@@ -56,7 +56,7 @@ async function getMetrics(engine: EngineProxy): Promise<string[]> {
 }
 
 async function getMetric(
-  engine: EngineProxy,
+  engine: Engine,
   metric: string,
   format: Format,
 ): Promise<string> {
@@ -69,7 +69,7 @@ async function getMetric(
 }
 
 class MetricsController {
-  engine: EngineProxy;
+  engine: Engine;
   plugins: PluginManager;
   private _metrics: string[];
   private _selected?: string;
@@ -78,7 +78,7 @@ class MetricsController {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _json: any;
 
-  constructor(plugins: PluginManager, engine: EngineProxy) {
+  constructor(plugins: PluginManager, engine: Engine) {
     this.plugins = plugins;
     this.engine = engine;
     this._metrics = [];

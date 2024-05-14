@@ -19,11 +19,11 @@ import {assertExists, assertFalse} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
 import {colorForTid} from '../../core/colorizer';
 import {LIMIT, TrackData} from '../../common/track_data';
-import {EngineProxy, TimelineFetcher} from '../../common/track_helper';
+import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
-import {Track} from '../../public';
+import {Engine, Track} from '../../public';
 import {NUM} from '../../trace_processor/query_result';
 
 export const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
@@ -47,11 +47,11 @@ const SUMMARY_HEIGHT = TRACK_HEIGHT - MARGIN_TOP;
 
 export class ProcessSummaryTrack implements Track {
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
-  private engine: EngineProxy;
+  private engine: Engine;
   private uuid = uuidv4();
   private config: Config;
 
-  constructor(engine: EngineProxy, config: Config) {
+  constructor(engine: Engine, config: Config) {
     this.engine = engine;
     this.config = config;
   }

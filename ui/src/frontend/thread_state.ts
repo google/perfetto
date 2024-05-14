@@ -19,7 +19,7 @@ import {duration, Time, time} from '../base/time';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {translateState} from '../common/thread_state';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../trace_processor/query_result';
 import {CPU_SLICE_TRACK_KIND} from '../core_plugins/cpu_slices';
 import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
@@ -59,7 +59,7 @@ export interface ThreadState {
 // Gets a list of thread state objects from Trace Processor with given
 // constraints.
 export async function getThreadStateFromConstraints(
-  engine: EngineProxy,
+  engine: Engine,
   constraints: SQLConstraints,
 ): Promise<ThreadState[]> {
   const query = await engine.query(`
@@ -120,7 +120,7 @@ export async function getThreadStateFromConstraints(
 }
 
 export async function getThreadState(
-  engine: EngineProxy,
+  engine: Engine,
   id: number,
 ): Promise<ThreadState | undefined> {
   const result = await getThreadStateFromConstraints(engine, {

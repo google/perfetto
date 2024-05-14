@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {FtraceExplorer, FtraceExplorerCache} from './ftrace_explorer';
 import {
-  EngineProxy,
+  Engine,
   Plugin,
   PluginContextTrace,
   PluginDescriptor,
@@ -108,7 +108,7 @@ class FtraceRawPlugin implements Plugin {
     this.trash.dispose();
   }
 
-  private async lookupCpuCores(engine: EngineProxy): Promise<number[]> {
+  private async lookupCpuCores(engine: Engine): Promise<number[]> {
     const query = 'select distinct cpu from ftrace_event';
 
     const result = await engine.query(query);

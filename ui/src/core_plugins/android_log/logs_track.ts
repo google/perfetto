@@ -14,11 +14,11 @@
 
 import {Time, duration, time} from '../../base/time';
 import {LIMIT, TrackData} from '../../common/track_data';
-import {LONG, NUM, TimelineFetcher} from '../../common/track_helper';
+import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
-import {EngineProxy, Track} from '../../public';
+import {Engine, LONG, NUM, Track} from '../../public';
 
 export interface Data extends TrackData {
   // Total number of log events within [start, end], before any quantization.
@@ -52,7 +52,7 @@ interface LevelCfg {
 export class AndroidLogTrack implements Track {
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
-  constructor(private engine: EngineProxy) {}
+  constructor(private engine: Engine) {}
 
   async onUpdate(): Promise<void> {
     await this.fetcher.requestDataForCurrentTime();

@@ -25,7 +25,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {Engine, EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 
 import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
@@ -329,7 +329,7 @@ class ChromeScrollJankPlugin implements Plugin {
   }
 }
 
-async function isChromeTrace(engine: EngineProxy) {
+async function isChromeTrace(engine: Engine) {
   const queryResult = await engine.query(`
       select utid, upid
       from thread

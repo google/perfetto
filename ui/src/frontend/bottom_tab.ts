@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 
 export interface NewBottomTabArgs<Config> {
-  engine: EngineProxy;
+  engine: Engine;
   tag?: string;
   uuid: string;
   config: Config;
@@ -43,7 +43,7 @@ export abstract class BottomTabBase<Config = {}> {
   // Config for this details panel. Should be serializable.
   protected readonly config: Config;
   // Engine for running queries and fetching additional data.
-  protected readonly engine: EngineProxy;
+  protected readonly engine: Engine;
   // Optional tag, which is used to ensure that only one tab
   // with the same tag can exist - adding a new tab with the same tag
   // (e.g. 'current_selection') would close the previous one. This

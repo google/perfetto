@@ -18,7 +18,7 @@ import {Brand} from '../../../base/brand';
 import {Time} from '../../../base/time';
 import {exists} from '../../../base/utils';
 import {raf} from '../../../core/raf_scheduler';
-import {EngineProxy} from '../../../public';
+import {Engine} from '../../../public';
 import {Row, SqlValue} from '../../../trace_processor/query_result';
 import {Anchor} from '../../../widgets/anchor';
 import {renderError} from '../../../widgets/error';
@@ -202,7 +202,7 @@ export type ValueDesc =
 // Class responsible for fetching the data and rendering the data.
 export class Details {
   constructor(
-    private engine: EngineProxy,
+    private engine: Engine,
     private sqlTable: string,
     private id: number,
     schema: {[key: string]: ValueDesc},
@@ -278,14 +278,14 @@ export type RenderedValue = {
 // async `fetch` step for fetching data and sync `render` step for generating
 // the vdom.
 export type SqlIdRefRenderer = {
-  fetch: (engine: EngineProxy, id: bigint) => Promise<{} | undefined>;
+  fetch: (engine: Engine, id: bigint) => Promise<{} | undefined>;
   render: (data: {}) => RenderedValue;
 };
 
 // Type-safe helper to create a SqlIdRefRenderer, which ensures that the
 // type returned from the fetch is the same type that renderer takes.
 export function createSqlIdRefRenderer<Data extends {}>(
-  fetch: (engine: EngineProxy, id: bigint) => Promise<Data>,
+  fetch: (engine: Engine, id: bigint) => Promise<Data>,
   render: (data: Data) => RenderedValue,
 ): SqlIdRefRenderer {
   return {fetch, render: render as (data: {}) => RenderedValue};
@@ -451,7 +451,7 @@ class DataController {
   data?: Data;
 
   constructor(
-    private engine: EngineProxy,
+    private engine: Engine,
     private sqlTable: string,
     private id: number,
     public sqlIdRefRenderers: {[table: string]: SqlIdRefRenderer},
@@ -652,7 +652,7 @@ function resolve(schema: ValueDesc, data: DataController): ResolvedValue {
 
 // Generate the vdom for a given value using the fetched `data`.
 function renderValue(
-  engine: EngineProxy,
+  engine: Engine,
   key: string,
   value: ResolvedValue,
   data: Data,

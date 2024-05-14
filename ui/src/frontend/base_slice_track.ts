@@ -32,7 +32,7 @@ import {
 } from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {EngineProxy, Slice, SliceRect, Track} from '../public';
+import {Engine, Slice, SliceRect, Track} from '../public';
 import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
@@ -175,7 +175,7 @@ export abstract class BaseSliceTrack<
 > implements Track
 {
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
-  protected engine: EngineProxy;
+  protected engine: Engine;
   protected trackKey: string;
   protected trackUuid = uuidv4Sql();
 
