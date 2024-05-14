@@ -22,12 +22,7 @@ import {
 } from '../frontend/record_config';
 import {SqlTables} from '../frontend/sql_table/well_known_tables';
 
-import {
-  defaultTraceTime,
-  NonSerializableState,
-  State,
-  STATE_VERSION,
-} from './state';
+import {NonSerializableState, State, STATE_VERSION} from './state';
 
 const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
   id: 'autoloadStartedConfig',
@@ -92,7 +87,6 @@ export function createEmptyState(): State {
     version: STATE_VERSION,
     nextId: '-1',
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
-    traceTime: {...defaultTraceTime},
     tracks: {},
     utidToThreadSortKey: {},
     aggregatePreferences: {},
@@ -112,7 +106,8 @@ export function createEmptyState(): State {
 
     frontendLocalState: {
       visibleState: {
-        ...defaultTraceTime,
+        start: Time.ZERO,
+        end: Time.ZERO,
         lastUpdate: 0,
         resolution: 0n,
       },
