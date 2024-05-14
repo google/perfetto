@@ -234,6 +234,112 @@ message AndroidStartupMetric {
     optional string details = 2;
   }
 
+  // Contains information for slow startup causes.
+  message SlowStartReason {
+    // Points to reason description and solution.
+    enum ReasonId {
+      REASON_ID_UNSPECIFIED = 0;
+      NO_BASELINE_OR_CLOUD_PROFILES = 1;
+      RUN_FROM_APK = 2;
+      UNLOCK_RUNNING = 3;
+      APP_IN_DEBUGGABLE_MODE = 4;
+      GC_ACTIVITY = 5;
+      DEX2OAT_RUNNING = 6;
+      INSTALLD_RUNNING = 7;
+      MAIN_THREAD_TIME_SPENT_IN_RUNNABLE = 8;
+      MAIN_THREAD_TIME_SPENT_IN_INTERRUPTIBLE_SLEEP = 9;
+      MAIN_THREAD_TIME_SPENT_IN_BLOCKING_IO = 10;
+      MAIN_THREAD_TIME_SPENT_IN_OPEN_DEX_FILES_FROM_OAT = 11;
+      TIME_SPENT_IN_BIND_APPLICATION = 12;
+      TIME_SPENT_IN_VIEW_INFLATION = 13;
+      TIME_SPENT_IN_RESOURCES_MANAGER_GET_RESOURCES = 14;
+      TIME_SPENT_VERIFYING_CLASSES = 15;
+      POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS = 16;
+      JIT_ACTIVITY = 17;
+      MAIN_THREAD_LOCK_CONTENTION = 18;
+      MAIN_THREAD_MONITOR_CONTENTION = 19;
+      JIT_COMPILED_METHODS = 20;
+      BROADCAST_DISPATCHED_COUNT = 21;
+      BROADCAST_RECEIVED_COUNT = 22;
+      STARTUP_RUNNING_CONCURRENT = 23;
+      MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKED = 24;
+    }
+    optional ReasonId reason_id = 1;
+
+    // Brief description for human readability.
+    optional string reason = 2;
+
+    // Expected value (inherited from threshold definition).
+    optional ThresholdValue expected_value = 3;
+
+    // Actual value, can be used to decide severity level.
+    optional ActualValue actual_value = 4;
+
+    // Launch duration
+    optional int64 launch_dur = 5;
+
+    // Sum of durations of slices and thread states in trace_slices_or_threads.
+    // Can be used to decide if a couple of top slices or threads caused the issue.
+    optional int64 duration = 6;
+
+    // Information of a subset of slice and thread sections to focused on,
+    // sorted by the duration in descending order.
+    // By checking out the top slices/threads, developers can identify specific
+    // slices or threads for further investigation.
+    repeated TraceSliceSection trace_slice_sections = 7;
+    repeated TraceThreadSection trace_thread_sections = 8;
+
+    // Details specific for a reason.
+    optional string additional_info = 9;
+  }
+
+  message ThresholdValue {
+    // Expected value. 1 for true and 0 for false for booleans.
+    optional int64  value = 1;
+
+    // Expected value unit. Enum, e.g. "ns", "%"
+    enum ThresholdUnit {
+      THRESHOLD_UNIT_UNSPECIFIED = 0;
+      NS = 1;
+      PERCENTAGE = 2;
+      TRUE_OR_FALSE = 3;
+    }
+    optional ThresholdUnit unit = 2;
+
+    // For numeric threshold values only. When higher_expected is true,
+    // an app startup is considered performant if actual value is higher
+    // than the threshold.
+    optional bool higher_expected = 3;
+  }
+
+  message ActualValue {
+    // Actual value. 1 for true and 0 for false for booleans.
+    optional int64 value = 1;
+
+    // Actual duration for percentage thresholds only.
+    // E.g. if the threashold is 20% and the launch_duration is 1000ms,
+    // then the actual duration is more than 200ms.
+    optional int64 dur = 2;
+  }
+
+  // Contains information for a section of a slice.
+  message TraceSliceSection {
+    optional int64 start_timestamp = 1;
+
+    optional int64 end_timestamp = 2;
+
+    optional uint32 slice_id = 3;
+  }
+
+  // Contains information for a section of a thread.
+  message TraceThreadSection {
+     optional int64 start_timestamp = 1;
+
+     optional int64 end_timestamp = 2;
+
+     optional uint32 thread_utid = 3;
+  }
+
   // Next id: 22
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
