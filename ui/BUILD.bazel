@@ -1,6 +1,0 @@
-load("@perfetto_cfg//:perfetto_cfg.bzl", "PERFETTO_CONFIG")
-
-exports_files(
-    ["src/assets/favicon.png"],
-    visibility = PERFETTO_CONFIG.public_visibility,
-)
