@@ -15,6 +15,7 @@
 @import "theme";
 
 .pf-text-input {
+  color: $pf-minimal-foreground;
   font-family: $pf-font;
   font-size: inherit;
   outline: none; // Disable the default outline
