@@ -44,7 +44,7 @@ import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
 import {TrackManager} from '../common/track_cache';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
-import {Engine} from '../trace_processor/engine';
+import {EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 
 import {Analytics, initAnalytics} from './analytics';
@@ -290,7 +290,7 @@ class Globals {
     count: new Uint8Array(0),
   };
 
-  engines = new Map<string, Engine>();
+  engines = new Map<string, EngineBase>();
 
   initialize(dispatch: Dispatch, router: Router) {
     this._dispatch = dispatch;

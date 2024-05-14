@@ -32,7 +32,7 @@ import {
 } from '../core/timestamp_format';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
@@ -155,7 +155,7 @@ export class App implements m.ClassComponent {
     this.trash.add(new AggregationsTabs());
   }
 
-  private getEngine(): EngineProxy | undefined {
+  private getEngine(): Engine | undefined {
     const engineId = globals.getCurrentEngine()?.id;
     if (engineId === undefined) {
       return undefined;

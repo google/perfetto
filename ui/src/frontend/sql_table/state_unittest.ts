@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine, EngineProxy} from '../../trace_processor/engine';
+import {EngineBase} from '../../trace_processor/engine';
 
 import {Column} from './column';
 import {SqlTableState} from './state';
@@ -44,14 +44,14 @@ const table: SqlTableDescription = {
   ],
 };
 
-class FakeEngine extends Engine {
+class FakeEngine extends EngineBase {
   id: string = 'TestEngine';
 
   rpcSendRequestBytes(_data: Uint8Array) {}
 }
 
 test('sqlTableState: columnManupulation', () => {
-  const engine = new EngineProxy(new FakeEngine(), 'test');
+  const engine = new FakeEngine();
   const state = new SqlTableState(engine, table);
 
   const idColumn = {
@@ -88,7 +88,7 @@ test('sqlTableState: columnManupulation', () => {
 });
 
 test('sqlTableState: sortedColumns', () => {
-  const engine = new EngineProxy(new FakeEngine(), 'test');
+  const engine = new FakeEngine();
   const state = new SqlTableState(engine, table);
 
   // Verify that we have two columns: "id" and "name" and
@@ -139,7 +139,7 @@ function normalize(s: string): string {
 }
 
 test('sqlTableState: sqlStatement', () => {
-  const engine = new EngineProxy(new FakeEngine(), 'test');
+  const engine = new FakeEngine();
   const state = new SqlTableState(engine, table);
 
   // Check the generated SQL statement.

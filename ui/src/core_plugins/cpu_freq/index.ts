@@ -24,7 +24,7 @@ import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {
-  EngineProxy,
+  Engine,
   Plugin,
   PluginContextTrace,
   PluginDescriptor,
@@ -62,11 +62,11 @@ class CpuFreqTrack implements Track {
   private hoveredIdle: number | undefined = undefined;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
 
-  private engine: EngineProxy;
+  private engine: Engine;
   private config: Config;
   private trackUuid = uuidv4Sql();
 
-  constructor(config: Config, engine: EngineProxy) {
+  constructor(config: Config, engine: Engine) {
     this.config = config;
     this.engine = engine;
   }

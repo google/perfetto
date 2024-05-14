@@ -21,7 +21,7 @@ import {DetailsShell} from '../../widgets/details_shell';
 
 import {globals} from '../../frontend/globals';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {EngineProxy, LONG, NUM, NUM_NULL, Store, STR} from '../../public';
+import {Engine, LONG, NUM, NUM_NULL, Store, STR} from '../../public';
 import {Monitor} from '../../base/monitor';
 import {AsyncLimiter} from '../../base/async_limiter';
 import {escapeGlob, escapeQuery} from '../../trace_processor/query_utils';
@@ -43,7 +43,7 @@ export interface LogFilteringCriteria {
 
 export interface LogPanelAttrs {
   filterStore: Store<LogFilteringCriteria>;
-  engine: EngineProxy;
+  engine: Engine;
 }
 
 interface Pagination {
@@ -384,7 +384,7 @@ export class LogsFilters implements m.ClassComponent<LogsFiltersAttrs> {
 }
 
 async function updateLogEntries(
-  engine: EngineProxy,
+  engine: Engine,
   span: Span<time, duration>,
   pagination: Pagination,
 ): Promise<LogEntries> {
@@ -450,10 +450,7 @@ async function updateLogEntries(
   };
 }
 
-async function updateLogView(
-  engine: EngineProxy,
-  filter: LogFilteringCriteria,
-) {
+async function updateLogView(engine: Engine, filter: LogFilteringCriteria) {
   await engine.query('drop view if exists filtered_logs');
 
   const globMatch = composeGlobMatch(filter.hideNonMatching, filter.textEntry);

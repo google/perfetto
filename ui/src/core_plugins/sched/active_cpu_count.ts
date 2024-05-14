@@ -25,7 +25,7 @@ import {
 } from '../../frontend/base_counter_track';
 import {CloseTrackButton} from '../../frontend/close_track_button';
 import {globals} from '../../frontend/globals';
-import {EngineProxy, PrimaryTrackSortKey, TrackContext} from '../../public';
+import {Engine, PrimaryTrackSortKey, TrackContext} from '../../public';
 
 export function addActiveCPUCountTrack(cpuType?: string) {
   const cpuTypeName = cpuType === undefined ? '' : ` ${cpuType} `;
@@ -56,7 +56,7 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
 
   static readonly kind = 'dev.perfetto.Sched.ActiveCPUCount';
 
-  constructor(ctx: TrackContext, engine: EngineProxy) {
+  constructor(ctx: TrackContext, engine: Engine) {
     super({
       engine,
       trackKey: ctx.trackKey,

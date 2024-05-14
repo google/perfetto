@@ -17,7 +17,7 @@ import {SortDirection} from '../../base/comparison_utils';
 import {isString} from '../../base/object_utils';
 import {sqliteString} from '../../base/string_utils';
 import {raf} from '../../core/raf_scheduler';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 import {NUM, Row} from '../../trace_processor/query_result';
 import {
   constraintsToQueryPrefix,
@@ -76,7 +76,7 @@ interface RowCount {
 }
 
 export class SqlTableState {
-  private readonly engine_: EngineProxy;
+  private readonly engine_: Engine;
   private readonly table_: SqlTableDescription;
   private readonly additionalImports: string[];
 
@@ -95,7 +95,7 @@ export class SqlTableState {
   private rowCount?: RowCount;
 
   constructor(
-    engine: EngineProxy,
+    engine: Engine,
     table: SqlTableDescription,
     filters?: Filter[],
     imports?: string[],

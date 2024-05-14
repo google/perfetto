@@ -24,7 +24,7 @@ import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {TimeScale} from '../../frontend/time_scale';
 import {
-  EngineProxy,
+  Engine,
   Plugin,
   PluginContextTrace,
   PluginDescriptor,
@@ -54,10 +54,10 @@ class CpuProfileTrack implements Track {
   private markerWidth = (this.getHeight() - MARGIN_TOP - BAR_HEIGHT) / 2;
   private hoveredTs: time | undefined = undefined;
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
-  private engine: EngineProxy;
+  private engine: Engine;
   private utid: number;
 
-  constructor(engine: EngineProxy, utid: number) {
+  constructor(engine: Engine, utid: number) {
     this.engine = engine;
     this.utid = utid;
   }

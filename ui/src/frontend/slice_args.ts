@@ -22,7 +22,7 @@ import {exists} from '../base/utils';
 import {Actions, AddTrackArgs} from '../common/actions';
 import {InThreadTrackSortKey} from '../common/state';
 import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {NUM} from '../trace_processor/query_result';
 import {
   VISUALISED_ARGS_SLICE_TRACK_URI,
@@ -39,7 +39,7 @@ import {SqlTables} from './sql_table/well_known_tables';
 import {assertExists} from '../base/logging';
 
 // Renders slice arguments (key/value pairs) as a subtree.
-export function renderArguments(engine: EngineProxy, args: Arg[]): m.Children {
+export function renderArguments(engine: Engine, args: Arg[]): m.Children {
   if (args.length > 0) {
     const tree = convertArgsToTree(args);
     return renderArgTreeNodes(engine, tree);
@@ -52,10 +52,7 @@ export function hasArgs(args?: Arg[]): args is Arg[] {
   return exists(args) && args.length > 0;
 }
 
-function renderArgTreeNodes(
-  engine: EngineProxy,
-  args: ArgNode<Arg>[],
-): m.Children {
+function renderArgTreeNodes(engine: Engine, args: ArgNode<Arg>[]): m.Children {
   return args.map((arg) => {
     const {key, value, children} = arg;
     if (children && children.length === 1) {
@@ -80,11 +77,7 @@ function renderArgTreeNodes(
   });
 }
 
-function renderArgKey(
-  engine: EngineProxy,
-  key: string,
-  value?: Arg,
-): m.Children {
+function renderArgKey(engine: Engine, key: string, value?: Arg): m.Children {
   if (value === undefined) {
     return key;
   } else {
@@ -125,7 +118,7 @@ function renderArgKey(
   }
 }
 
-async function addVisualisedArg(engine: EngineProxy, argName: string) {
+async function addVisualisedArg(engine: Engine, argName: string) {
   const escapedArgName = argName.replace(/[^a-zA-Z]/g, '_');
   const tableName = `__arg_visualisation_helper_${escapedArgName}_slice`;
 

@@ -20,7 +20,7 @@ import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {TrackData} from '../../common/track_data';
 import {PanelSize} from '../../frontend/panel';
-import {EngineProxy, Track} from '../../public';
+import {Engine, Track} from '../../public';
 import {LONG, STR} from '../../trace_processor/query_result';
 import {FtraceFilter} from './common';
 import {Store} from '../../public';
@@ -41,12 +41,12 @@ export interface Config {
 
 export class FtraceRawTrack implements Track {
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
-  private engine: EngineProxy;
+  private engine: Engine;
   private cpu: number;
   private store: Store<FtraceFilter>;
   private readonly monitor: Monitor;
 
-  constructor(engine: EngineProxy, cpu: number, store: Store<FtraceFilter>) {
+  constructor(engine: Engine, cpu: number, store: Store<FtraceFilter>) {
     this.engine = engine;
     this.cpu = cpu;
     this.store = store;

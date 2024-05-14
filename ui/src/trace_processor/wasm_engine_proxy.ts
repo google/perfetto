@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertExists, assertTrue} from '../base/logging';
-import {Engine, LoadingTracker} from '../trace_processor/engine';
+import {EngineBase, LoadingTracker} from '../trace_processor/engine';
 
 let bundlePath: string;
 let idleWasmWorker: Worker;
@@ -47,7 +47,7 @@ export function resetEngineWorker(): MessagePort {
  * This implementation of Engine uses a WASM backend hosted in a separate
  * worker thread.
  */
-export class WasmEngineProxy extends Engine {
+export class WasmEngineProxy extends EngineBase {
   readonly id: string;
   private port: MessagePort;
 
