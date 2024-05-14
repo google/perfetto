@@ -3,7 +3,7 @@
 # FROM: infra/ui.perfetto.dev/cloudbuild.yaml
 # TO: TWO trigger configs inline YAML in Google Cloud Console > Cloud Build.
 steps:
-- name: gcr.io/$PROJECT_ID/perfetto-ui-builder
+- name: europe-docker.pkg.dev/perfetto-ui/builder/perfetto-ui-builder
   args:
   - /ui_builder_entrypoint.sh
   - $BRANCH_NAME
