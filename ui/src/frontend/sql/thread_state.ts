@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {duration, TimeSpan} from '../../base/time';
-import {EngineProxy} from '../../public';
+import {Engine} from '../../public';
 import {
   LONG,
   NUM_NULL,
@@ -67,7 +67,7 @@ export interface BreakdownByThreadState {
 // Compute a breakdown of thread states for a given thread for a given time
 // interval.
 export async function breakDownIntervalByThreadState(
-  engine: EngineProxy,
+  engine: Engine,
   range: TimeSpan,
   utid: Utid,
 ): Promise<BreakdownByThreadState> {

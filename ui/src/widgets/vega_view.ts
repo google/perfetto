@@ -20,7 +20,7 @@ import {Disposable} from '../base/disposable';
 import {getErrorMessage} from '../base/errors';
 import {isString, shallowEquals} from '../base/object_utils';
 import {SimpleResizeObserver} from '../base/resize_observer';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {QueryError} from '../trace_processor/query_result';
 import {scheduleFullRedraw} from '../widgets/raf';
 import {Spinner} from '../widgets/spinner';
@@ -45,7 +45,7 @@ export interface VegaViewData {
 interface VegaViewAttrs {
   spec: string;
   data: VegaViewData;
-  engine?: EngineProxy;
+  engine?: Engine;
 }
 
 // VegaWrapper is in exactly one of these states:
@@ -62,10 +62,10 @@ enum Status {
 }
 
 class EngineLoader implements vega.Loader {
-  private engine?: EngineProxy;
+  private engine?: Engine;
   private loader: vega.Loader;
 
-  constructor(engine: EngineProxy | undefined) {
+  constructor(engine: Engine | undefined) {
     this.engine = engine;
     this.loader = vega.loader();
   }
@@ -125,7 +125,7 @@ class VegaWrapper {
   private pending?: Promise<vega.View>;
   private _status: Status;
   private _error?: string;
-  private _engine?: EngineProxy;
+  private _engine?: Engine;
 
   constructor(dom: Element) {
     this.dom = dom;
@@ -155,7 +155,7 @@ class VegaWrapper {
     this.updateView();
   }
 
-  set engine(engine: EngineProxy | undefined) {
+  set engine(engine: Engine | undefined) {
     this._engine = engine;
   }
 

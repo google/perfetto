@@ -20,7 +20,7 @@ import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
-import {EngineProxy, Slice, STR_NULL} from '../../public';
+import {Engine, Slice, STR_NULL} from '../../public';
 
 // color named and defined based on Material Design color palettes
 // 500 colors indicate a timeline slice is not a partial jank (not a jank or
@@ -54,7 +54,7 @@ export interface ActualFrameTrackTypes extends NamedSliceTrackTypes {
 
 export class ActualFramesTrack extends NamedSliceTrack<ActualFrameTrackTypes> {
   constructor(
-    engine: EngineProxy,
+    engine: Engine,
     maxDepth: number,
     trackKey: string,
     private trackIds: number[],

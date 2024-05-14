@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {Row} from '../trace_processor/query_result';
 
 const MAX_DISPLAY_ROWS = 10000;
@@ -36,7 +36,7 @@ export interface QueryRunParams {
 
 export async function runQuery(
   sqlQuery: string,
-  engine: EngineProxy,
+  engine: Engine,
   params?: QueryRunParams,
 ): Promise<QueryResponse> {
   const startMs = performance.now();

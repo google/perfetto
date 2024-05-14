@@ -28,7 +28,7 @@ import {PopupPosition} from '../../widgets/popup';
 import {globals} from '../../frontend/globals';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {FtraceFilter, FtraceStat} from './common';
-import {EngineProxy, LONG, NUM, Store, STR, STR_NULL} from '../../public';
+import {Engine, LONG, NUM, Store, STR, STR_NULL} from '../../public';
 import {raf} from '../../core/raf_scheduler';
 import {AsyncLimiter} from '../../base/async_limiter';
 import {Monitor} from '../../base/monitor';
@@ -40,7 +40,7 @@ const ROW_H = 20;
 interface FtraceExplorerAttrs {
   cache: FtraceExplorerCache;
   filterStore: Store<FtraceFilter>;
-  engine: EngineProxy;
+  engine: Engine;
 }
 
 interface FtraceEvent {
@@ -69,7 +69,7 @@ export interface FtraceExplorerCache {
   counters: FtraceStat[];
 }
 
-async function getFtraceCounters(engine: EngineProxy): Promise<FtraceStat[]> {
+async function getFtraceCounters(engine: Engine): Promise<FtraceStat[]> {
   // TODO(stevegolton): this is an extraordinarily slow query on large traces
   // as it goes through every ftrace event which can be a lot on big traces.
   // Consider if we can have some different UX which avoids needing these
@@ -264,7 +264,7 @@ export class FtraceExplorer implements m.ClassComponent<FtraceExplorerAttrs> {
 }
 
 async function lookupFtraceEvents(
-  engine: EngineProxy,
+  engine: Engine,
   offset: number,
   count: number,
   filter: FtraceFilter,

@@ -15,14 +15,14 @@
 import m from 'mithril';
 
 import {raf} from '../core/raf_scheduler';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {Editor} from '../widgets/editor';
 import {VegaView} from '../widgets/vega_view';
 
 import {globals} from './globals';
 import {createPage} from './pages';
 
-function getEngine(): EngineProxy | undefined {
+function getEngine(): Engine | undefined {
   const engineId = globals.getCurrentEngine()?.id;
   if (engineId === undefined) {
     return undefined;
@@ -32,7 +32,7 @@ function getEngine(): EngineProxy | undefined {
 }
 
 let SPEC = '';
-let ENGINE: EngineProxy | undefined = undefined;
+let ENGINE: Engine | undefined = undefined;
 
 export const VizPage = createPage({
   oncreate() {

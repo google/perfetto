@@ -20,10 +20,10 @@ import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {getSlice, SliceDetails} from '../../frontend/sql/slice';
 import {asSliceSqlId} from '../../frontend/sql_types';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 
 async function getSliceDetails(
-  engine: EngineProxy,
+  engine: Engine,
   id: number,
 ): Promise<SliceDetails | undefined> {
   return getSlice(engine, asSliceSqlId(id));
