@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {BigintMath} from '../base/bigint_math';
-import {duration, Time, time} from '../base/time';
+import {duration, time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
@@ -150,7 +150,8 @@ export const MAX_TIME = 180;
 // 51. Changed structure of FlamegraphState.expandedCallsiteByViewingOption.
 // 52. Update track group state - don't make the summary track the first track.
 // 53. Remove android log state.
-export const STATE_VERSION = 53;
+// 54. Remove traceTime.
+export const STATE_VERSION = 54;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -315,11 +316,6 @@ export interface PermalinkConfig {
   isRecordingConfig?: boolean; // this permalink request is for a recording config only
 }
 
-export interface TraceTime {
-  start: time;
-  end: time;
-}
-
 export interface FrontendLocalState {
   visibleState: VisibleState;
 }
@@ -479,7 +475,6 @@ export interface State {
    */
   newEngineMode: NewEngineMode;
   engine?: EngineConfig;
-  traceTime: TraceTime;
   traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectByKey<TrackState>;
@@ -557,11 +552,6 @@ export interface State {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   plugins: {[key: string]: any};
 }
-
-export const defaultTraceTime = {
-  start: Time.ZERO,
-  end: Time.fromSeconds(10),
-};
 
 export declare type RecordMode =
   | 'STOP_WHEN_FULL'
