@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {time} from '../base/time';
 import {Actions} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
@@ -32,6 +31,7 @@ import {
   SliceDetails,
   ThreadDesc,
   ThreadStateDetails,
+  TraceTime,
 } from './globals';
 import {findCurrentSelection} from './keyboard_event_handler';
 
@@ -96,14 +96,8 @@ export function publishHasFtrace(value: boolean): void {
   globals.publishRedraw();
 }
 
-export function publishRealtimeOffset(
-  offset: time,
-  utcOffset: time,
-  traceTzOffset: time,
-) {
-  globals.realtimeOffset = offset;
-  globals.utcOffset = utcOffset;
-  globals.traceTzOffset = traceTzOffset;
+export function publishTraceDetails(details: TraceTime): void {
+  globals.traceTime = details;
   globals.publishRedraw();
 }
 

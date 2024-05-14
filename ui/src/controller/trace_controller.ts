@@ -26,21 +26,22 @@ import {
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {pluginManager} from '../common/plugins';
+import {EngineMode, PendingDeeplinkState, ProfileType} from '../common/state';
+import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {
   defaultTraceTime,
-  EngineMode,
-  PendingDeeplinkState,
-  ProfileType,
-} from '../common/state';
-import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../core/feature_flags';
-import {globals, QuantizedLoad, ThreadDesc} from '../frontend/globals';
+  globals,
+  QuantizedLoad,
+  ThreadDesc,
+  TraceTime,
+} from '../frontend/globals';
 import {
   clearOverviewData,
   publishHasFtrace,
   publishMetricError,
   publishOverviewData,
-  publishRealtimeOffset,
   publishThreads,
+  publishTraceDetails,
 } from '../frontend/publish';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Router} from '../frontend/router';
@@ -450,13 +451,8 @@ export class TraceController extends Controller<States> {
     // traceUuid will be '' if the trace is not cacheable (URL or RPC).
     const traceUuid = await this.cacheCurrentTrace();
 
-    const traceTime = await this.engine.getTraceTimeBounds();
-    const start = traceTime.start;
-    const end = traceTime.end;
-    const traceTimeState = {
-      start,
-      end,
-    };
+    const traceDetails = await getTraceTimeDetails(this.engine);
+    publishTraceDetails(traceDetails);
 
     const shownJsonWarning =
       window.localStorage.getItem(SHOWN_JSON_WARNING_KEY) !== null;
@@ -485,12 +481,11 @@ export class TraceController extends Controller<States> {
     const actions: DeferredAction[] = [
       Actions.setOmnibox(emptyOmniboxState),
       Actions.setTraceUuid({traceUuid}),
-      Actions.setTraceTime(traceTimeState),
     ];
 
     const visibleTimeSpan = await computeVisibleTime(
-      traceTime.start,
-      traceTime.end,
+      traceDetails.start,
+      traceDetails.end,
       isJsonTrace,
       this.engine,
     );
@@ -530,7 +525,9 @@ export class TraceController extends Controller<States> {
     this.decideTabs();
 
     await this.listThreads();
-    await this.loadTimelineOverview(traceTime);
+    await this.loadTimelineOverview(
+      new TimeSpan(traceDetails.start, traceDetails.end),
+    );
 
     {
       // Check if we have any ftrace events at all
@@ -544,82 +541,12 @@ export class TraceController extends Controller<States> {
       publishHasFtrace(res.numRows() > 0);
     }
 
-    {
-      // Find the first REALTIME or REALTIME_COARSE clock snapshot.
-      // Prioritize REALTIME over REALTIME_COARSE.
-      const query = `select
-            ts,
-            clock_value as clockValue,
-            clock_name as clockName
-          from clock_snapshot
-          where
-            snapshot_id = 0 AND
-            clock_name in ('REALTIME', 'REALTIME_COARSE')
-          `;
-      const result = await assertExists(this.engine).query(query);
-      const it = result.iter({
-        ts: LONG,
-        clockValue: LONG,
-        clockName: STR,
-      });
-
-      let snapshot = {
-        clockName: '',
-        ts: Time.ZERO,
-        clockValue: Time.ZERO,
-      };
-
-      // Find the most suitable snapshot
-      for (let row = 0; it.valid(); it.next(), row++) {
-        if (it.clockName === 'REALTIME') {
-          snapshot = {
-            clockName: it.clockName,
-            ts: Time.fromRaw(it.ts),
-            clockValue: Time.fromRaw(it.clockValue),
-          };
-          break;
-        } else if (it.clockName === 'REALTIME_COARSE') {
-          if (snapshot.clockName !== 'REALTIME') {
-            snapshot = {
-              clockName: it.clockName,
-              ts: Time.fromRaw(it.ts),
-              clockValue: Time.fromRaw(it.clockValue),
-            };
-          }
-        }
-      }
-
-      // The max() is so the query returns NULL if the tz info doesn't exist.
-      const queryTz = `select max(int_value) as tzOffMin from metadata
-          where name = 'timezone_off_mins'`;
-      const resTz = await assertExists(this.engine).query(queryTz);
-      const tzOffMin = resTz.firstRow({tzOffMin: NUM_NULL}).tzOffMin ?? 0;
-
-      // This is the offset between the unix epoch and ts in the ts domain.
-      // I.e. the value of ts at the time of the unix epoch - usually some large
-      // negative value.
-      const realtimeOffset = Time.sub(snapshot.ts, snapshot.clockValue);
-
-      // Find the previous closest midnight from the trace start time.
-      const utcOffset = Time.getLatestMidnight(
-        globals.state.traceTime.start,
-        realtimeOffset,
-      );
-
-      const traceTzOffset = Time.getLatestMidnight(
-        globals.state.traceTime.start,
-        Time.sub(realtimeOffset, Time.fromSeconds(tzOffMin * 60)),
-      );
-
-      publishRealtimeOffset(realtimeOffset, utcOffset, traceTzOffset);
-    }
-
     globals.dispatch(Actions.sortThreadTracks({}));
     globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 
     await this.selectFirstHeapProfile();
     if (PERF_SAMPLE_FLAG.get()) {
-      await this.selectPerfSample();
+      await this.selectPerfSample(traceDetails);
     }
 
     const pendingDeeplink = globals.state.pendingDeeplink;
@@ -663,7 +590,7 @@ export class TraceController extends Controller<States> {
     return engineMode;
   }
 
-  private async selectPerfSample() {
+  private async selectPerfSample(traceTime: {start: time; end: time}) {
     const query = `select upid
         from perf_sample
         join thread using (utid)
@@ -673,8 +600,8 @@ export class TraceController extends Controller<States> {
     if (profile.numRows() !== 1) return;
     const row = profile.firstRow({upid: NUM});
     const upid = row.upid;
-    const leftTs = globals.state.traceTime.start;
-    const rightTs = globals.state.traceTime.end;
+    const leftTs = traceTime.start;
+    const rightTs = traceTime.end;
     globals.dispatch(
       Actions.selectPerfSamples({
         id: 0,
@@ -1216,4 +1143,78 @@ async function computeVisibleTime(
     visibleStart = Time.min(ftraceBounds.start, visibleEnd);
   }
   return HighPrecisionTimeSpan.fromTime(visibleStart, visibleEnd);
+}
+
+async function getTraceTimeDetails(engine: Engine): Promise<TraceTime> {
+  const traceTime = await engine.getTraceTimeBounds();
+
+  // Find the first REALTIME or REALTIME_COARSE clock snapshot.
+  // Prioritize REALTIME over REALTIME_COARSE.
+  const query = `select
+          ts,
+          clock_value as clockValue,
+          clock_name as clockName
+        from clock_snapshot
+        where
+          snapshot_id = 0 AND
+          clock_name in ('REALTIME', 'REALTIME_COARSE')
+        `;
+  const result = await engine.query(query);
+  const it = result.iter({
+    ts: LONG,
+    clockValue: LONG,
+    clockName: STR,
+  });
+
+  let snapshot = {
+    clockName: '',
+    ts: Time.ZERO,
+    clockValue: Time.ZERO,
+  };
+
+  // Find the most suitable snapshot
+  for (let row = 0; it.valid(); it.next(), row++) {
+    if (it.clockName === 'REALTIME') {
+      snapshot = {
+        clockName: it.clockName,
+        ts: Time.fromRaw(it.ts),
+        clockValue: Time.fromRaw(it.clockValue),
+      };
+      break;
+    } else if (it.clockName === 'REALTIME_COARSE') {
+      if (snapshot.clockName !== 'REALTIME') {
+        snapshot = {
+          clockName: it.clockName,
+          ts: Time.fromRaw(it.ts),
+          clockValue: Time.fromRaw(it.clockValue),
+        };
+      }
+    }
+  }
+
+  // The max() is so the query returns NULL if the tz info doesn't exist.
+  const queryTz = `select max(int_value) as tzOffMin from metadata
+        where name = 'timezone_off_mins'`;
+  const resTz = await assertExists(engine).query(queryTz);
+  const tzOffMin = resTz.firstRow({tzOffMin: NUM_NULL}).tzOffMin ?? 0;
+
+  // This is the offset between the unix epoch and ts in the ts domain.
+  // I.e. the value of ts at the time of the unix epoch - usually some large
+  // negative value.
+  const realtimeOffset = Time.sub(snapshot.ts, snapshot.clockValue);
+
+  // Find the previous closest midnight from the trace start time.
+  const utcOffset = Time.getLatestMidnight(traceTime.start, realtimeOffset);
+
+  const traceTzOffset = Time.getLatestMidnight(
+    traceTime.start,
+    Time.sub(realtimeOffset, Time.fromSeconds(tzOffMin * 60)),
+  );
+
+  return {
+    ...traceTime,
+    realtimeOffset,
+    utcOffset,
+    traceTzOffset,
+  };
 }

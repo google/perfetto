@@ -620,8 +620,8 @@ export class App implements m.ClassComponent {
         if (selection !== null && selection.kind === 'AREA') {
           const area = globals.state.areas[selection.areaId];
           const coversEntireTimeRange =
-            globals.state.traceTime.start === area.start &&
-            globals.state.traceTime.end === area.end;
+            globals.traceTime.start === area.start &&
+            globals.traceTime.end === area.end;
           if (!coversEntireTimeRange) {
             // If the current selection is an area which does not cover the
             // entire time range, preserve the list of selected tracks and
@@ -636,7 +636,7 @@ export class App implements m.ClassComponent {
           // If the current selection is not an area, select all.
           tracksToSelect = Object.keys(globals.state.tracks);
         }
-        const {start, end} = globals.state.traceTime;
+        const {start, end} = globals.traceTime;
         globals.dispatch(
           Actions.selectArea({
             area: {
