@@ -57,16 +57,16 @@ export class TimeAxisPanel implements Panel {
         break;
       case TimestampFormat.UTC:
         const offsetDate = Time.toDate(
-          globals.utcOffset,
-          globals.realtimeOffset,
+          globals.traceTime.utcOffset,
+          globals.traceTime.realtimeOffset,
         );
         const dateStr = toISODateOnly(offsetDate);
         ctx.fillText(`UTC ${dateStr}`, 6, 10);
         break;
       case TimestampFormat.TraceTz:
         const offsetTzDate = Time.toDate(
-          globals.traceTzOffset,
-          globals.realtimeOffset,
+          globals.traceTime.traceTzOffset,
+          globals.traceTime.realtimeOffset,
         );
         const dateTzStr = toISODateOnly(offsetTzDate);
         ctx.fillText(dateTzStr, 6, 10);
