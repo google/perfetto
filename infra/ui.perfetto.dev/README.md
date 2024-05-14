@@ -22,17 +22,15 @@ Google Cloud Build when auto-triggering new ui builds.
 Cloud Build invokes the equivalent of:
 
 ```bash
-docker run gcr.io/perfetto-ui/perfetto-ui-builder \
-    ui/release/builder_entrypoint.sh
+docker run gcr.io/perfetto-ui/perfetto-ui-builder /ui_builder_entrypoint.sh
 ```
 
-NOTE: the `builder_entrypoint.sh` script is not bundled in the docker container
-and is taken from the HEAD if the checked out repo.
+NOTE: the `ui_builder_entrypoint.sh` script is bundled in the docker container.
+The container needs to be re-built and re-pushed if the script changes.
 
 To update the container:
 
 ```bash
-cd infra/ui.perfetto.dev/builder
-docker build -t gcr.io/perfetto-ui/perfetto-ui-builder .
-docker push gcr.io/perfetto-ui/perfetto-ui-builder .
+docker build -t gcr.io/perfetto-ui/perfetto-ui-builder infra/ui.perfetto.dev/builder
+docker push gcr.io/perfetto-ui/perfetto-ui-builder
 ```

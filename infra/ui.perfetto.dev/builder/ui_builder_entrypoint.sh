@@ -17,8 +17,6 @@
 
 set -exu
 
-CUR_DUR=$(dirname ${BASH_SOURCE[0]})
-
 env
 pwd
 mount
@@ -30,6 +28,7 @@ mount
 # support yet triggering from Gerrit.
 
 cd /workspace/
+mkdir /workspace/tmp
 
 ls -A1 | xargs rm -rf
 UPSTREAM="https://android.googlesource.com/platform/external/perfetto.git"
@@ -38,7 +37,8 @@ git clone $UPSTREAM upstream
 cd upstream/
 
 # infra/ui.perfetto.dev/cloudbuild_release.yaml sets $1 to the branch
-# name.
+# name when triggering from a release branch. Otherwise $1 is "" when triggering
+# from main.
 EXTRA_ARGS=""
 if [[ ! -z $1 ]]; then
   git checkout $1
@@ -46,6 +46,5 @@ if [[ ! -z $1 ]]; then
 fi
 
 git rev-parse HEAD
-mkdir /workspace/tmp
-python3 -u "$CUR_DUR/build_all_channels.py" \
+python3 -u "ui/release/build_all_channels.py" \
         --upload --tmp=/workspace/tmp $EXTRA_ARGS
