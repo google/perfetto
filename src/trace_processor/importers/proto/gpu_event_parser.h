@@ -25,7 +25,6 @@
 #include "protos/perfetto/trace/android/gpu_mem_event.pbzero.h"
 #include "protos/perfetto/trace/gpu/gpu_render_stage_event.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/importers/proto/vulkan_memory_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 

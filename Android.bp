@@ -12394,6 +12394,7 @@ filegroup {
         "src/trace_processor/importers/proto/stack_profile_sequence_state.cc",
         "src/trace_processor/importers/proto/track_event_module.cc",
         "src/trace_processor/importers/proto/track_event_parser.cc",
+        "src/trace_processor/importers/proto/track_event_sequence_state.cc",
         "src/trace_processor/importers/proto/track_event_tokenizer.cc",
         "src/trace_processor/importers/proto/track_event_tracker.cc",
     ],
