@@ -92,6 +92,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
   StringId name_id = kNullStringId;
   if (track.has_name())
     name_id = context_->storage->InternString(track.name());
+  else if (track.has_static_name())
+    name_id = context_->storage->InternString(track.static_name());
 
   if (packet.has_trusted_pid()) {
     context_->process_tracker->UpdateTrustedPid(
