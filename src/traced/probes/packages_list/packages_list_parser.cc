@@ -16,6 +16,8 @@
 
 #include "src/traced/probes/packages_list/packages_list_parser.h"
 
+#include <stdlib.h>
+
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 

@@ -876,7 +876,10 @@ if (use_custom_libcxx) {
       libs = [ "atomic" ]
     }
 
-    inputs = [ "libcxx_config/__config_site" ]
+    inputs = [
+      "libcxx_config/__assertion_handler",
+      "libcxx_config/__config_site",
+    ]
 
     sources = [
       "libcxx/src/algorithm.cpp",
@@ -884,12 +887,17 @@ if (use_custom_libcxx) {
       "libcxx/src/atomic.cpp",
       "libcxx/src/barrier.cpp",
       "libcxx/src/bind.cpp",
+      "libcxx/src/call_once.cpp",
       "libcxx/src/charconv.cpp",
       "libcxx/src/chrono.cpp",
       "libcxx/src/condition_variable.cpp",
       "libcxx/src/condition_variable_destructor.cpp",
+      "libcxx/src/error_category.cpp",
       "libcxx/src/exception.cpp",
-      "libcxx/src/format.cpp",
+      "libcxx/src/filesystem/directory_iterator.cpp",
+      "libcxx/src/filesystem/filesystem_error.cpp",
+      "libcxx/src/filesystem/operations.cpp",
+      "libcxx/src/filesystem/path.cpp",
       "libcxx/src/functional.cpp",
       "libcxx/src/future.cpp",
       "libcxx/src/hash.cpp",
@@ -901,7 +909,8 @@ if (use_custom_libcxx) {
       "libcxx/src/memory.cpp",
       "libcxx/src/mutex.cpp",
       "libcxx/src/mutex_destructor.cpp",
-      "libcxx/src/new.cpp",
+      "libcxx/src/new_handler.cpp",
+      "libcxx/src/new_helpers.cpp",
       "libcxx/src/optional.cpp",
       "libcxx/src/random.cpp",
       "libcxx/src/random_shuffle.cpp",
@@ -916,12 +925,23 @@ if (use_custom_libcxx) {
       "libcxx/src/system_error.cpp",
       "libcxx/src/thread.cpp",
       "libcxx/src/typeinfo.cpp",
-      "libcxx/src/utility.cpp",
       "libcxx/src/valarray.cpp",
       "libcxx/src/variant.cpp",
       "libcxx/src/vector.cpp",
       "libcxx/src/verbose_abort.cpp",
     ]
+    if (!using_sanitizer) {
+      # In {a,t,m}san configurations, operator new and operator delete will be
+      # provided by the sanitizer runtime library.  Since libc++ defines these
+      # symbols with weak linkage, and the *san runtime uses strong linkage, it
+      # should technically be OK to include this file, but it's removed to be
+      # explicit.
+      # We need using_sanitizer rather than is_asan || is_msan ... because in
+      # perfetto, when cross-compiling, we build only targets with sanitizers,
+      # but not host artifacts, and using_sanitizer is only true for the
+      # target toolchain, while is_asan is globally true on all toolchains.
+      sources += [ "libcxx/src/new.cpp" ]
+    }
 
     include_dirs = [ "libcxx/src" ]
     if (is_win) {
@@ -1543,7 +1563,7 @@ source_set("llvm_demangle") {
     "llvm-project/llvm/include/llvm/Demangle/ItaniumDemangle.h",
     "llvm-project/llvm/include/llvm/Demangle/MicrosoftDemangle.h",
     "llvm-project/llvm/include/llvm/Demangle/MicrosoftDemangleNodes.h",
-    "llvm-project/llvm/include/llvm/Demangle/StringView.h",
+    "llvm-project/llvm/include/llvm/Demangle/StringViewExtras.h",
     "llvm-project/llvm/include/llvm/Demangle/Utility.h",
     "llvm-project/llvm/lib/Demangle/DLangDemangle.cpp",
     "llvm-project/llvm/lib/Demangle/Demangle.cpp",
