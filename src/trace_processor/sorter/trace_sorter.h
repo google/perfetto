@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
+#include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
 #include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -105,7 +106,7 @@ class TraceSorter {
 
   inline void PushPerfRecord(
       int64_t timestamp,
-      TraceBlobView record,
+      perf_importer::Record record,
       std::optional<MachineId> machine_id = std::nullopt) {
     TraceTokenBuffer::Id id = token_buffer_.Append(std::move(record));
     AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kPerfRecord, id,

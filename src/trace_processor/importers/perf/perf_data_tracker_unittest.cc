@@ -17,6 +17,7 @@
 #include "src/trace_processor/importers/perf/perf_data_tracker.h"
 
 #include <stddef.h>
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -28,6 +29,7 @@
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/importers/perf/reader.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -48,22 +50,6 @@ class PerfDataTrackerUnittest : public testing::Test {
  protected:
   TraceProcessorContext context_;
 };
-
-TEST_F(PerfDataTrackerUnittest, ComputeCommonSampleType) {
-  PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
-
-  PerfDataTracker::AttrAndIds attr_and_ids;
-  attr_and_ids.attr.sample_type =
-      PERF_SAMPLE_CALLCHAIN | PERF_SAMPLE_CPU | PERF_SAMPLE_TIME;
-  tracker->PushAttrAndIds(attr_and_ids);
-
-  attr_and_ids.attr.sample_type = PERF_SAMPLE_ADDR | PERF_SAMPLE_CPU;
-  tracker->PushAttrAndIds(attr_and_ids);
-
-  tracker->ComputeCommonSampleType();
-  EXPECT_TRUE(tracker->common_sample_type() & PERF_SAMPLE_CPU);
-  EXPECT_FALSE(tracker->common_sample_type() & PERF_SAMPLE_CALLCHAIN);
-}
 
 TEST_F(PerfDataTrackerUnittest, FindMapping) {
   PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
@@ -112,18 +98,15 @@ TEST_F(PerfDataTrackerUnittest, FindMappingFalse) {
 TEST_F(PerfDataTrackerUnittest, ParseSampleTrivial) {
   PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
-  PerfDataTracker::AttrAndIds attr_and_ids;
-  attr_and_ids.attr.sample_type = PERF_SAMPLE_TIME;
-  tracker->PushAttrAndIds(attr_and_ids);
-  tracker->ComputeCommonSampleType();
+  uint64_t sample_type = PERF_SAMPLE_TIME;
 
   uint64_t ts = 100;
 
   TraceBlob blob =
       TraceBlob::CopyFrom(static_cast<const void*>(&ts), sizeof(uint64_t));
-  PerfDataReader reader(TraceBlobView(std::move(blob)));
+  Reader reader(TraceBlobView(std::move(blob)));
 
-  auto parsed_sample = tracker->ParseSample(reader);
+  auto parsed_sample = tracker->ParseSample(reader, sample_type);
   EXPECT_TRUE(parsed_sample.ok());
   EXPECT_EQ(parsed_sample->ts, 100u);
 }
@@ -131,10 +114,7 @@ TEST_F(PerfDataTrackerUnittest, ParseSampleTrivial) {
 TEST_F(PerfDataTrackerUnittest, ParseSampleCallchain) {
   PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
-  PerfDataTracker::AttrAndIds attr_and_ids;
-  attr_and_ids.attr.sample_type = PERF_SAMPLE_CALLCHAIN;
-  tracker->PushAttrAndIds(attr_and_ids);
-  tracker->ComputeCommonSampleType();
+  uint64_t sample_type = PERF_SAMPLE_CALLCHAIN;
 
   struct Sample {
     uint64_t callchain_size;         /* if PERF_SAMPLE_CALLCHAIN */
@@ -149,9 +129,9 @@ TEST_F(PerfDataTrackerUnittest, ParseSampleCallchain) {
   memcpy(blob.data(), &sample.callchain_size, sizeof(uint64_t));
   memcpy(blob.data() + sizeof(uint64_t), sample.callchain.data(),
          sizeof(uint64_t) * 3);
-  PerfDataReader reader(TraceBlobView(std::move(blob)));
+  Reader reader(TraceBlobView(std::move(blob)));
 
-  auto parsed_sample = tracker->ParseSample(reader);
+  auto parsed_sample = tracker->ParseSample(reader, sample_type);
   EXPECT_TRUE(parsed_sample.ok());
   EXPECT_EQ(parsed_sample->callchain.size(), 3u);
 }
@@ -159,11 +139,8 @@ TEST_F(PerfDataTrackerUnittest, ParseSampleCallchain) {
 TEST_F(PerfDataTrackerUnittest, ParseSampleWithoutId) {
   PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
-  PerfDataTracker::AttrAndIds attr_and_ids;
-  attr_and_ids.attr.sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME |
-                                  PERF_SAMPLE_CPU | PERF_SAMPLE_CALLCHAIN;
-  tracker->PushAttrAndIds(attr_and_ids);
-  tracker->ComputeCommonSampleType();
+  uint64_t sample_type = PERF_SAMPLE_TID | PERF_SAMPLE_TIME | PERF_SAMPLE_CPU |
+                         PERF_SAMPLE_CALLCHAIN;
 
   struct Sample {
     uint32_t pid;            /* if PERF_SAMPLE_TID */
@@ -185,10 +162,10 @@ TEST_F(PerfDataTrackerUnittest, ParseSampleWithoutId) {
   memcpy(blob.data(), &sample, sizeof(Sample));
   memcpy(blob.data() + sizeof(Sample), callchain.data(), sizeof(uint64_t) * 3);
 
-  PerfDataReader reader(TraceBlobView(std::move(blob)));
-  EXPECT_TRUE(reader.CanReadSize(sizeof(Sample)));
+  Reader reader(TraceBlobView(std::move(blob)));
+  EXPECT_TRUE(reader.size_left() >= sizeof(Sample));
 
-  auto parsed_sample = tracker->ParseSample(reader);
+  auto parsed_sample = tracker->ParseSample(reader, sample_type);
   EXPECT_TRUE(parsed_sample.ok());
   EXPECT_EQ(parsed_sample->callchain.size(), 3u);
   EXPECT_EQ(sample.ts, parsed_sample->ts);
@@ -197,13 +174,9 @@ TEST_F(PerfDataTrackerUnittest, ParseSampleWithoutId) {
 TEST_F(PerfDataTrackerUnittest, ParseSampleWithId) {
   PerfDataTracker* tracker = PerfDataTracker::GetOrCreate(&context_);
 
-  PerfDataTracker::AttrAndIds attr_and_ids;
-  attr_and_ids.attr.sample_type = PERF_SAMPLE_CPU | PERF_SAMPLE_TID |
-                                  PERF_SAMPLE_IDENTIFIER | PERF_SAMPLE_ID |
-                                  PERF_SAMPLE_CALLCHAIN | PERF_SAMPLE_TIME;
-  attr_and_ids.ids.push_back(10);
-  tracker->PushAttrAndIds(attr_and_ids);
-  tracker->ComputeCommonSampleType();
+  uint64_t sample_type = PERF_SAMPLE_CPU | PERF_SAMPLE_TID |
+                         PERF_SAMPLE_IDENTIFIER | PERF_SAMPLE_ID |
+                         PERF_SAMPLE_CALLCHAIN | PERF_SAMPLE_TIME;
 
   struct Sample {
     uint64_t identifier;     /* if PERF_SAMPLE_IDENTIFIER */
@@ -229,9 +202,9 @@ TEST_F(PerfDataTrackerUnittest, ParseSampleWithId) {
   memcpy(blob.data(), &sample, sizeof(Sample));
   memcpy(blob.data() + sizeof(Sample), callchain.data(), sizeof(uint64_t) * 3);
 
-  PerfDataReader reader(TraceBlobView(std::move(blob)));
+  Reader reader(TraceBlobView(std::move(blob)));
 
-  auto parsed_sample = tracker->ParseSample(reader);
+  auto parsed_sample = tracker->ParseSample(reader, sample_type);
   EXPECT_TRUE(parsed_sample.ok());
   EXPECT_EQ(parsed_sample->callchain.size(), 3u);
   EXPECT_EQ(100u, parsed_sample->ts);

@@ -20,14 +20,17 @@
 #include <string>
 #include <vector>
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/perf/perf_data_reader.h"
 #include "src/trace_processor/importers/perf/perf_data_tracker.h"
+#include "src/trace_processor/importers/perf/reader.h"
+#include "src/trace_processor/importers/perf/record.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -41,18 +44,39 @@ PerfDataParser::PerfDataParser(TraceProcessorContext* context)
 
 PerfDataParser::~PerfDataParser() = default;
 
-base::StatusOr<PerfDataTracker::PerfSample> PerfDataParser::ParseSample(
-    TraceBlobView tbv) {
-  perf_importer::PerfDataReader reader(std::move(tbv));
-  return tracker_->ParseSample(reader);
+void PerfDataParser::ParsePerfRecord(int64_t ts, Record record) {
+  if (base::Status status = ParseRecord(ts, std::move(record)); !status.ok()) {
+    context_->storage->IncrementStats(stats::perf_record_skipped);
+  }
 }
 
-void PerfDataParser::ParsePerfRecord(int64_t ts, TraceBlobView tbv) {
-  auto sample_status = ParseSample(std::move(tbv));
-  if (!sample_status.ok()) {
-    return;
+base::Status PerfDataParser::ParseRecord(int64_t ts, Record record) {
+  switch (record.header.type) {
+    case PERF_RECORD_SAMPLE:
+      return ParseSample(ts, std::move(record));
+
+    case PERF_RECORD_MMAP2:
+      return ParseMmap2(std::move(record));
+
+    case PERF_RECORD_AUX:
+    case PERF_RECORD_AUXTRACE:
+    case PERF_RECORD_AUXTRACE_INFO:
+      // These should be dealt with at tokenization time
+      PERFETTO_CHECK(false);
+
+    default:
+      PERFETTO_ELOG("Unknown PERF_RECORD with type %" PRIu32,
+                    record.header.type);
   }
-  PerfDataTracker::PerfSample sample = *sample_status;
+  return base::OkStatus();
+}
+
+base::Status PerfDataParser::ParseSample(int64_t ts, Record record) {
+  PERFETTO_CHECK(record.attr);
+
+  Reader reader(record.payload.copy());
+  ASSIGN_OR_RETURN(PerfDataTracker::PerfSample sample,
+                   tracker_->ParseSample(reader, record.attr->sample_type()));
 
   // The sample has been validated in tokenizer so callchain shouldn't be empty.
   PERFETTO_CHECK(!sample.callchain.empty());
@@ -63,12 +87,14 @@ void PerfDataParser::ParsePerfRecord(int64_t ts, TraceBlobView tbv) {
   if (context_->mapping_tracker->FindUserMappingForAddress(
           upid, sample.callchain.front())) {
     context_->storage->IncrementStats(stats::perf_samples_skipped);
-    return;
+    return base::ErrStatus(
+        "Expected kernel mapping for first instruction pointer, but user space "
+        "found.");
   }
 
   if (sample.callchain.size() == 1) {
     context_->storage->IncrementStats(stats::perf_samples_skipped);
-    return;
+    return base::ErrStatus("Invalid callchain size of 1.");
   }
 
   std::vector<FramesTable::Row> frame_rows;
@@ -78,7 +104,9 @@ void PerfDataParser::ParsePerfRecord(int64_t ts, TraceBlobView tbv) {
             upid, sample.callchain[i]);
     if (!mapping) {
       context_->storage->IncrementStats(stats::perf_samples_skipped);
-      return;
+      return base::ErrStatus("Did not find mapping for address %" PRIu64
+                             " in process with upid %" PRIu32,
+                             sample.callchain[i], upid);
     }
     FramesTable::Row new_row;
     std::string mock_name =
@@ -125,6 +153,25 @@ void PerfDataParser::ParsePerfRecord(int64_t ts, TraceBlobView tbv) {
     perf_sample_row.utid = utid;
   }
   context_->storage->mutable_perf_sample_table()->Insert(perf_sample_row);
+
+  return base::OkStatus();
+}
+
+base::Status PerfDataParser::ParseMmap2(Record record) {
+  Reader reader(record.payload.copy());
+  PerfDataTracker::Mmap2Record mmap2;
+  reader.Read(mmap2.num);
+  std::vector<char> filename_buffer(reader.size_left());
+  reader.ReadVector(filename_buffer);
+  if (filename_buffer.back() != '\0') {
+    return base::ErrStatus(
+        "Invalid MMAP2 record: filename is not null terminated.");
+  }
+  mmap2.filename = std::string(filename_buffer.begin(), filename_buffer.end());
+  PERFETTO_CHECK(reader.size_left() == 0);
+  mmap2.cpu_mode = record.GetCpuMode();
+  tracker_->PushMmap2Record(std::move(mmap2));
+  return base::OkStatus();
 }
 
 }  // namespace perf_importer
