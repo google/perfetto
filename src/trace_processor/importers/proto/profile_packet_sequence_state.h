@@ -34,7 +34,7 @@ class VirtualMemoryMapping;
 
 // Keeps sequence specific state for profile packets.
 class ProfilePacketSequenceState final
-    : public PacketSequenceStateGeneration::InternedDataTracker {
+    : public PacketSequenceStateGeneration::CustomState {
  public:
   using SourceStringId = uint64_t;
 
