@@ -2202,7 +2202,8 @@ message AndroidStartupMetric {
     // The actual duration of the process start (based on the zygote slice).
     optional Slice time_during_start_process = 11;
 
-    // The duration from launch to first running state thread of startup process.
+    // The duration from launch to first running state thread of startup
+    // process.
     optional Slice time_to_running_state = 35;
 
     optional Slice to_post_fork = 18;
@@ -2316,11 +2317,11 @@ message AndroidStartupMetric {
   message SystemState {
     // Whether the dex2oat64 process was running concurrent to the startup.
     // Deprecated as of 10/2022.
-    optional bool dex2oat_running = 1 [deprecated=true];
+    optional bool dex2oat_running = 1 [deprecated = true];
 
     // Whether the installd process was running concurrent to the startup.
     // Deprecated as of 10/2022.
-    optional bool installd_running = 2 [deprecated=true];
+    optional bool installd_running = 2 [deprecated = true];
 
     // The number of broadcasts dispatched by the system during the app
     // launch.
@@ -2395,7 +2396,8 @@ message AndroidStartupMetric {
     optional int64 launch_dur = 5;
 
     // Sum of durations of slices and thread states in trace_slices_or_threads.
-    // Can be used to decide if a couple of top slices or threads caused the issue.
+    // Can be used to decide if a couple of top slices or threads caused the
+    // issue.
     optional int64 duration = 6;
 
     // Information of a subset of slice and thread sections to focused on,
@@ -2411,7 +2413,7 @@ message AndroidStartupMetric {
 
   message ThresholdValue {
     // Expected value. 1 for true and 0 for false for booleans.
-    optional int64  value = 1;
+    optional int64 value = 1;
 
     // Expected value unit. Enum, e.g. "ns", "%"
     enum ThresholdUnit {
@@ -2449,14 +2451,14 @@ message AndroidStartupMetric {
 
   // Contains information for a section of a thread.
   message TraceThreadSection {
-     optional int64 start_timestamp = 1;
+    optional int64 start_timestamp = 1;
 
-     optional int64 end_timestamp = 2;
+    optional int64 end_timestamp = 2;
 
-     optional uint32 thread_utid = 3;
+    optional uint32 thread_utid = 3;
   }
 
-  // Next id: 22
+  // Next id: 24
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -2485,6 +2487,17 @@ message AndroidStartupMetric {
     // error. If > 1, the process died during startup and the system respawned
     // it.
     optional uint32 activity_hosting_process_count = 6;
+
+    // Time it takes to display the first frame of the app`s UI.
+    // Details:
+    // https://developer.android.com/topic/performance/vitals/launch-time#time-initial
+    optional int64 time_to_initial_display = 22;
+
+    // Time to full display (TTFD) is the time ittakes for an app to become
+    // interactive for the user.
+    // Datails:
+    // https://developer.android.com/topic/performance/vitals/launch-time#time-full
+    optional int64 time_to_full_display = 23;
 
     // Contains timestamps of important events which happened during
     // the startup.
