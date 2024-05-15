@@ -1145,7 +1145,7 @@ async function computeVisibleTime(
   return HighPrecisionTimeSpan.fromTime(visibleStart, visibleEnd);
 }
 
-async function getTraceTimeDetails(engine: Engine): Promise<TraceTime> {
+async function getTraceTimeDetails(engine: EngineBase): Promise<TraceTime> {
   const traceTime = await engine.getTraceTimeBounds();
 
   // Find the first REALTIME or REALTIME_COARSE clock snapshot.
