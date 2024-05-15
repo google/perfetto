@@ -225,7 +225,7 @@ class PreludePprofFunctions(TestSuite):
                 android.app.ActivityThread.main [aot] (0x717454cc)
                 art_quick_invoke_static_stub [common-frame] (0x724db2de00)
                 _jobject* art::InvokeMethod<(art::PointerSize)8>(art::ScopedObjectAccessAlreadyRunnable const&, _jobject*, _jobject*, _jobject*, unsigned long) [common-frame] (0x724db545ec)
-                art::Method_invoke(_JNIEnv*, _jobject*, _jobject*, _jobjectArray*) (.__uniq.165753521025965369065708152063621506277) (0x724db53ad0)
+                art::Method_invoke(_JNIEnv*, _jobject*, _jobject*, _jobjectArray*) (0x724db53ad0)
                 art_jni_trampoline [common-frame] (0x6ff5c578)
                 com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run [aot] (0x71c4ab6c)
                 com.android.internal.os.ZygoteInit.main [aot] (0x71c54c7c)

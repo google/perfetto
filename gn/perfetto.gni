@@ -312,8 +312,10 @@ declare_args() {
   # Enables function name demangling using sources from llvm. Otherwise
   # trace_processor falls back onto using the c++ runtime demangler, which
   # typically handles only itanium mangling.
+  # llvm-demangle is incompatible with GCC and can be used only when building
+  # with clang.
   enable_perfetto_llvm_demangle =
-      enable_perfetto_trace_processor && perfetto_build_standalone
+      is_clang && enable_perfetto_trace_processor && perfetto_build_standalone
 
   # Enables gRPC in the Perfetto codebase. gRPC significantly increases build
   # times and the general footprint of Perfetto. As it only required for
