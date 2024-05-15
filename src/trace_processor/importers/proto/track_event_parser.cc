@@ -1622,9 +1622,10 @@ void TrackEventParser::ParseTrackDescriptor(
   }
 
   // Override the name with the most recent name seen (after sorting by ts).
-  if (decoder.has_name()) {
+  if (decoder.has_name() || decoder.has_static_name()) {
     auto* tracks = context_->storage->mutable_track_table();
-    StringId name_id = context_->storage->InternString(decoder.name());
+    StringId name_id = context_->storage->InternString(
+        decoder.has_name() ? decoder.name() : decoder.static_name());
     tracks->mutable_name()->Set(*tracks->id().IndexOf(track_id), name_id);
   }
 }
