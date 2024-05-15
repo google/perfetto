@@ -1,0 +1,98 @@
+android_startup {
+    startup {
+        startup_id: 1
+        package_name: "androidx.benchmark.integration.macrobenchmark.target"
+        process_name: "androidx.benchmark.integration.macrobenchmark.target"
+        zygote_new_process: false
+        to_first_frame {
+        dur_ns: 64748027
+        main_thread_by_task_state {
+        running_dur_ns: 18635782
+        runnable_dur_ns: 4030310
+        uninterruptible_sleep_dur_ns: 0
+        interruptible_sleep_dur_ns: 42081935
+        uninterruptible_io_sleep_dur_ns: 0
+        uninterruptible_non_io_sleep_dur_ns: 0
+    }
+    other_processes_spawned_count: 3
+    time_activity_manager {
+        dur_ns: 9369168
+        dur_ms: 9.369168
+    }
+    time_activity_start {
+        dur_ns: 10707813
+        dur_ms: 10.707813
+    }
+    time_activity_resume {
+    dur_ns: 11126928
+    dur_ms: 11.126928
+    }
+    time_choreographer {
+        dur_ns: 21174429
+        dur_ms: 21.174429
+    }
+    dur_ms: 64.748027
+    time_inflate {
+        dur_ns: 2598178
+        dur_ms: 2.598178
+    }
+    time_get_resources {
+        dur_ns: 285520
+        dur_ms: 0.28552
+    }
+    mcycles_by_core_type {
+        little: 238
+        big: 293
+        bigger: 83
+    }
+    time_jit_thread_pool_on_cpu {
+        dur_ns: 15833
+        dur_ms: 0.015833
+    }
+    time_to_running_state {
+        dur_ns: 2552657
+        dur_ms: 2.552657
+    }
+    }
+    activity_hosting_process_count: 1
+    process {
+        name: "androidx.benchmark.integration.macrobenchmark.target"
+        uid: 10246
+        pid: 22871
+    }
+    report_fully_drawn {
+        dur_ns: 543742658
+        dur_ms: 543.742658
+    }
+    activities {
+        name: "androidx.benchmark.integration.macrobenchmark.target.TrivialStartupFullyDrawnActivity"
+        method: "performCreate"
+        ts_method_start: 186982074137030
+    }
+    activities {
+        name: "androidx.benchmark.integration.macrobenchmark.target.TrivialStartupFullyDrawnActivity"
+        method: "performResume"
+        ts_method_start: 186982080918073
+    }
+    event_timestamps {
+    intent_received: 186982050780778
+    first_frame: 186982115528805
+    }
+    system_state {
+        dex2oat_running: false
+        installd_running: false
+        broadcast_dispatched_count: 0
+        broadcast_received_count: 0
+        most_active_non_launch_processes: "system_server"
+        most_active_non_launch_processes: "/system/bin/surfaceflinger"
+        most_active_non_launch_processes: "com.android.systemui"
+        most_active_non_launch_processes: "/vendor/bin/hw/vendor.qti.hardware.display.allocator-service"
+        most_active_non_launch_processes: "/vendor/bin/hw/android.hardware.graphics.composer@2.4-service-sm8150"
+        installd_dur_ns: 0
+        dex2oat_dur_ns: 0
+    }
+    startup_type: "warm"
+    time_to_initial_display: 62373965
+    time_to_full_display: 555968701
+    }
+}

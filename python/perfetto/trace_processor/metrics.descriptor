@@ -992,8 +992,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-¡A
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ÿ@
+‰B
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"‡A
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupó
 TaskStateBreakdown$
@@ -1144,7 +1144,7 @@ PERCENTAGE
 start_timestamp (RstartTimestamp#
 end_timestamp (RendTimestamp
 thread_utid (R
-threadUtidŒ
+threadUtidô
 Startup
 
 startup_id (R	startupId!
@@ -1156,7 +1156,9 @@ activities (2..perfetto.protos.AndroidStartupMetric.ActivityR
 activitiesq
 long_binder_transactions (27.perfetto.protos.AndroidStartupMetric.BinderTransactionRlongBinderTransactions,
 zygote_new_process (RzygoteNewProcessC
-activity_hosting_process_count (RactivityHostingProcessCount`
+activity_hosting_process_count (RactivityHostingProcessCount5
+time_to_initial_display (RtimeToInitialDisplay/
+time_to_full_display (RtimeToFullDisplay`
 event_timestamps (25.perfetto.protos.AndroidStartupMetric.EventTimestampsReventTimestampsX
 to_first_frame (22.perfetto.protos.AndroidStartupMetric.ToFirstFrameRtoFirstFrameA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocessB

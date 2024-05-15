@@ -103,7 +103,7 @@ class Startups(TestSuite):
         SELECT * FROM android_startup_time_to_display;
         """,
         out=Csv("""
-        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        "startup_id","time_to_initial_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
         1,33198906,"[NULL]",1,"[NULL]",355
         2,35039927,537343160,4,5,383
         """))
@@ -116,7 +116,7 @@ class Startups(TestSuite):
         SELECT * FROM android_startup_time_to_display;
         """,
         out=Csv("""
-        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        "startup_id","time_to_initial_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
         1,34629656,"[NULL]",1,"[NULL]",355
         2,108563770,581026583,4,5,388
         """))
@@ -129,7 +129,7 @@ class Startups(TestSuite):
         SELECT * FROM android_startup_time_to_display;
         """,
         out=Csv("""
-        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        "startup_id","time_to_initial_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
         1,264869885,715406822,65,66,396
         """))
 
@@ -141,7 +141,7 @@ class Startups(TestSuite):
         SELECT * FROM android_startup_time_to_display;
         """,
         out=Csv("""
-        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        "startup_id","time_to_initial_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
         1,40534066,542222554,5872867,5872953,184
         """))
 
@@ -153,7 +153,7 @@ class Startups(TestSuite):
         SELECT * FROM android_startup_time_to_display;
         """,
         out=Csv("""
-        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        "startup_id","time_to_initial_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
         1,62373965,555968701,5873800,5873889,185
         """))
 
@@ -165,6 +165,6 @@ class Startups(TestSuite):
         SELECT * FROM android_startup_time_to_display;
         """,
         out=Csv("""
-        "startup_id","time_to_inital_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
+        "startup_id","time_to_initial_display","time_to_full_display","ttid_frame_id","ttfd_frame_id","upid"
         1,143980066,620815843,5873276,5873353,229
         """))
