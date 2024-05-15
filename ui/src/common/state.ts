@@ -635,11 +635,12 @@ export function getDefaultRecordingTargets(): RecordingTarget[] {
 }
 
 export function getBuiltinChromeCategoryList(): string[] {
-  // List of static Chrome categories, last updated at 2024-04-15 from HEAD of
+  // List of static Chrome categories, last updated at 2024-05-15 from HEAD of
   // Chromium's //base/trace_event/builtin_categories.h.
   return [
     'accessibility',
     'AccountFetcherService',
+    'android.adpf',
     'android.ui.jank',
     'android_webview',
     'android_webview.timeline',
