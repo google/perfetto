@@ -103,7 +103,7 @@ class InternedMessageView {
     return submessage_view;
   }
 
-  const TraceBlobView& message() { return message_; }
+  const TraceBlobView& message() const { return message_; }
 
  private:
   using SubMessageViewMap =

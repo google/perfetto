@@ -19,10 +19,11 @@
 #include <optional>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
@@ -34,17 +35,18 @@ class TraceTokenBufferUnittest : public testing::Test {
  protected:
   TraceTokenBuffer store;
   TraceProcessorContext context;
-  PacketSequenceState state{&context};
+  RefPtr<PacketSequenceStateGeneration> state =
+      PacketSequenceStateGeneration::CreateFirst(&context);
 };
 
 TEST_F(TraceTokenBufferUnittest, TracePacketDataInOut) {
   TraceBlobView tbv(TraceBlob::Allocate(1024));
-  TracePacketData tpd{tbv.copy(), state.current_generation()};
+  TracePacketData tpd{tbv.copy(), state};
 
   TraceTokenBuffer::Id id = store.Append(std::move(tpd));
   TracePacketData extracted = store.Extract<TracePacketData>(id);
   ASSERT_EQ(extracted.packet, tbv);
-  ASSERT_EQ(extracted.sequence_state, state.current_generation());
+  ASSERT_EQ(extracted.sequence_state, state);
 }
 
 TEST_F(TraceTokenBufferUnittest, PacketAppendMultipleBlobs) {
@@ -53,14 +55,14 @@ TEST_F(TraceTokenBufferUnittest, PacketAppendMultipleBlobs) {
   TraceBlobView tbv_3(TraceBlob::Allocate(4096));
 
   TraceTokenBuffer::Id id_1 =
-      store.Append(TracePacketData{tbv_1.copy(), state.current_generation()});
+      store.Append(TracePacketData{tbv_1.copy(), state});
   TraceTokenBuffer::Id id_2 =
-      store.Append(TracePacketData{tbv_2.copy(), state.current_generation()});
+      store.Append(TracePacketData{tbv_2.copy(), state});
   ASSERT_EQ(store.Extract<TracePacketData>(id_1).packet, tbv_1);
   ASSERT_EQ(store.Extract<TracePacketData>(id_2).packet, tbv_2);
 
   TraceTokenBuffer::Id id_3 =
-      store.Append(TracePacketData{tbv_3.copy(), state.current_generation()});
+      store.Append(TracePacketData{tbv_3.copy(), state});
   ASSERT_EQ(store.Extract<TracePacketData>(id_3).packet, tbv_3);
 }
 
@@ -71,14 +73,14 @@ TEST_F(TraceTokenBufferUnittest, BlobSharing) {
   TraceBlobView tbv_3 = root.slice_off(1536, 512);
 
   TraceTokenBuffer::Id id_1 =
-      store.Append(TracePacketData{tbv_1.copy(), state.current_generation()});
+      store.Append(TracePacketData{tbv_1.copy(), state});
   TraceTokenBuffer::Id id_2 =
-      store.Append(TracePacketData{tbv_2.copy(), state.current_generation()});
+      store.Append(TracePacketData{tbv_2.copy(), state});
   ASSERT_EQ(store.Extract<TracePacketData>(id_1).packet, tbv_1);
   ASSERT_EQ(store.Extract<TracePacketData>(id_2).packet, tbv_2);
 
   TraceTokenBuffer::Id id_3 =
-      store.Append(TracePacketData{tbv_3.copy(), state.current_generation()});
+      store.Append(TracePacketData{tbv_3.copy(), state});
   ASSERT_EQ(store.Extract<TracePacketData>(id_3).packet, tbv_3);
 }
 
@@ -88,13 +90,11 @@ TEST_F(TraceTokenBufferUnittest, SequenceStateSharing) {
   TraceBlobView tbv_2 = root.slice_off(1024, 512);
 
   TraceTokenBuffer::Id id_1 =
-      store.Append(TracePacketData{tbv_1.copy(), state.current_generation()});
+      store.Append(TracePacketData{tbv_1.copy(), state});
   TraceTokenBuffer::Id id_2 =
-      store.Append(TracePacketData{tbv_2.copy(), state.current_generation()});
-  ASSERT_EQ(store.Extract<TracePacketData>(id_1).sequence_state,
-            state.current_generation());
-  ASSERT_EQ(store.Extract<TracePacketData>(id_2).sequence_state,
-            state.current_generation());
+      store.Append(TracePacketData{tbv_2.copy(), state});
+  ASSERT_EQ(store.Extract<TracePacketData>(id_1).sequence_state, state);
+  ASSERT_EQ(store.Extract<TracePacketData>(id_2).sequence_state, state);
 }
 
 TEST_F(TraceTokenBufferUnittest, ManySequenceState) {
@@ -103,10 +103,9 @@ TEST_F(TraceTokenBufferUnittest, ManySequenceState) {
   std::array<TraceTokenBuffer::Id, 1024> ids;
   std::array<PacketSequenceStateGeneration*, 1024> refs;
   for (uint32_t i = 0; i < 1024; ++i) {
-    refs[i] = state.current_generation().get();
-    ids[i] = store.Append(
-        TracePacketData{root.slice_off(i, 1), state.current_generation()});
-    state.OnIncrementalStateCleared();
+    refs[i] = state.get();
+    ids[i] = store.Append(TracePacketData{root.slice_off(i, 1), state});
+    state = state->OnNewTracePacketDefaults(TraceBlobView());
   }
 
   for (uint32_t i = 0; i < 1024; ++i) {
@@ -120,22 +119,22 @@ TEST_F(TraceTokenBufferUnittest, PacketLargeOffset) {
 
   TraceBlobView slice_1 = tbv.slice_off(0, 1024ul);
   TraceTokenBuffer::Id id_1 =
-      store.Append(TracePacketData{slice_1.copy(), state.current_generation()});
+      store.Append(TracePacketData{slice_1.copy(), state});
   TracePacketData out_1 = store.Extract<TracePacketData>(id_1);
   ASSERT_EQ(out_1.packet, slice_1);
-  ASSERT_EQ(out_1.sequence_state, state.current_generation());
+  ASSERT_EQ(out_1.sequence_state, state);
 
   TraceBlobView slice_2 = tbv.slice_off(128ul * 1024, 1024ul);
   TraceTokenBuffer::Id id_2 =
-      store.Append(TracePacketData{slice_2.copy(), state.current_generation()});
+      store.Append(TracePacketData{slice_2.copy(), state});
   TracePacketData out_2 = store.Extract<TracePacketData>(id_2);
   ASSERT_EQ(out_2.packet, slice_2);
-  ASSERT_EQ(out_2.sequence_state, state.current_generation());
+  ASSERT_EQ(out_2.sequence_state, state);
 }
 
 TEST_F(TraceTokenBufferUnittest, TrackEventDataInOut) {
   TraceBlobView tbv(TraceBlob::Allocate(1234));
-  TrackEventData ted(tbv.copy(), state.current_generation());
+  TrackEventData ted(tbv.copy(), state);
   ted.thread_instruction_count = 123;
   ted.extra_counter_values = {10, 2, 0, 0, 0, 0, 0, 0};
   auto counter_array = ted.extra_counter_values;
@@ -143,8 +142,7 @@ TEST_F(TraceTokenBufferUnittest, TrackEventDataInOut) {
   TraceTokenBuffer::Id id = store.Append(std::move(ted));
   TrackEventData extracted = store.Extract<TrackEventData>(id);
   ASSERT_EQ(extracted.trace_packet_data.packet, tbv);
-  ASSERT_EQ(extracted.trace_packet_data.sequence_state,
-            state.current_generation());
+  ASSERT_EQ(extracted.trace_packet_data.sequence_state, state);
   ASSERT_EQ(extracted.thread_instruction_count, 123);
   ASSERT_EQ(extracted.thread_timestamp, std::nullopt);
   ASSERT_DOUBLE_EQ(extracted.counter_value, 0.0);
