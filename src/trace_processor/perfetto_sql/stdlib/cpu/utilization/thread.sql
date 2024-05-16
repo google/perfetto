@@ -68,3 +68,31 @@ RETURNS TABLE (
   unnormalized_utilization DOUBLE
 ) AS
 SELECT * FROM cpu_thread_utilization_per_period(time_from_s(1), $utid);
+
+-- Aggregated CPU statistics for each thread.
+CREATE PERFETTO TABLE cpu_cycles_per_thread(
+  -- Unique thread id
+  utid INT,
+  -- Sum of CPU millicycles
+  millicycles INT,
+  -- Sum of CPU megacycles
+  megacycles INT,
+  -- Total runtime duration
+  runtime INT,
+  -- Minimum CPU frequency in kHz
+  min_freq INT,
+  -- Maximum CPU frequency in kHz
+  max_freq INT,
+  -- Average CPU frequency in kHz
+  avg_freq INT
+) AS
+SELECT
+  utid,
+  cast_int!(SUM(dur * freq) / 1000) AS millicycles,
+  cast_int!(SUM(dur * freq) / 1000 / 1e9) AS megacycles,
+  SUM(dur) AS runtime,
+  MIN(freq) AS min_freq,
+  MAX(freq) AS max_freq,
+  cast_int!(SUM((dur * freq) / 1000) / SUM(dur / 1000)) AS avg_freq
+FROM _cpu_freq_per_thread
+GROUP BY utid;

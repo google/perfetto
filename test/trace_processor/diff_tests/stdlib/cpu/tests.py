@@ -18,7 +18,7 @@ from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
 
-class CpuStdlib(TestSuite):
+class Cpu(TestSuite):
 
   def test_cpu_utilization_per_second(self):
     return DiffTestBlueprint(
@@ -121,6 +121,68 @@ class CpuStdlib(TestSuite):
         91000000000,0.000025,0.000201
         92000000000,0.000009,0.000071
         """))
+
+  def test_cpu_cycles_per_cpu(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=("""
+             INCLUDE PERFETTO MODULE cpu.utilization.system;
+
+             SELECT
+               *
+             FROM cpu_cycles_per_cpu;
+             """),
+        out=Csv("""
+          "cpu","cpu_type","millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+          0,"little",4007488375822,4007,2260291804,930000,1803000,1775516
+          1,"little",3985923237512,3985,2247149674,930000,1803000,1776869
+          2,"little",4047926756581,4047,2276274170,930000,1803000,1781496
+          3,"little",3992276081242,3992,2248956757,930000,1803000,1778975
+          4,"mid",5134318459625,5134,2203887266,553000,2348000,2335531
+          5,"mid",5615703220380,5615,2438499077,553000,2348000,2308698
+          6,"big",4715590442538,4715,1737264802,500000,2850000,2725191
+          7,"big",4594701918170,4594,1719270548,500000,2850000,2685290
+            """))
+
+  def test_cpu_cycles_per_thread(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+             INCLUDE PERFETTO MODULE cpu.utilization.thread;
+
+             SELECT
+               AVG(millicycles) AS millicycles,
+               AVG(megacycles) AS megacycles,
+               AVG(runtime) AS runtime,
+               AVG(min_freq) AS min_freq,
+               AVG(max_freq) AS max_freq,
+               AVG(avg_freq) AS avg_freq
+             FROM cpu_cycles_per_thread;
+             """),
+        out=Csv("""
+            "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+            25048302186.035053,24.624742,16080173.697531,1402708.453608,1648468.453608,1582627.707216
+            """))
+
+  def test_cpu_cycles_per_process(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_cpu_eos.pb'),
+        query=("""
+             INCLUDE PERFETTO MODULE cpu.utilization.process;
+
+             SELECT
+               AVG(millicycles) AS millicycles,
+               AVG(megacycles) AS megacycles,
+               AVG(runtime) AS runtime,
+               AVG(min_freq) AS min_freq,
+               AVG(max_freq) AS max_freq,
+               AVG(avg_freq) AS avg_freq
+             FROM cpu_cycles_per_process;
+             """),
+        out=Csv("""
+            "millicycles","megacycles","runtime","min_freq","max_freq","avg_freq"
+            83208401098.424652,82.753425,53163023.244898,1189742.465753,1683945.205479,1534667.547945
+            """))
 
   # Test CPU frequency counter grouping.
   def test_cpu_eos_counters_freq(self):
