@@ -127,7 +127,7 @@ const RULES = [
     f: copyUiTestArtifactsAssets,
   },
   {r: /.*\/dist\/.+\/(?!manifest\.json).*/, f: genServiceWorkerManifestJson},
-  {r: /.*\/dist\/.*/, f: notifyLiveServer},
+  {r: /.*\/dist\/.*[.](js|html|css|wasm)$/, f: notifyLiveServer},
 ];
 
 const tasks = [];
