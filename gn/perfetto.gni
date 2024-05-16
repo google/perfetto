@@ -340,6 +340,11 @@ declare_args() {
   # rerunning gn.
   enable_perfetto_site = false
 
+  # Check that the merged perfetto_trace.proto can be translated to a C++ lite
+  # proto and compiled. This is disabled by default because it's expensive (it
+  # can take a couple of minutes).
+  enable_perfetto_merged_protos_check = false
+
   # Skip buildtools dependency checks (needed for ChromeOS).
   skip_buildtools_check = false
 
