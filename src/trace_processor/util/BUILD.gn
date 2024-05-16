@@ -266,6 +266,17 @@ source_set("file_buffer") {
   ]
 }
 
+source_set("trace_type") {
+  sources = [
+    "trace_type.cc",
+    "trace_type.h",
+  ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../../include/perfetto/ext/base",
+  ]
+}
+
 source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
