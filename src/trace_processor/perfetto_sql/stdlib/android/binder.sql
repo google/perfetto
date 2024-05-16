@@ -477,7 +477,7 @@ FROM all_binder
 LEFT JOIN android_process_metadata client_process_metadata
   ON all_binder.client_upid = client_process_metadata.upid
 LEFT JOIN android_process_metadata server_process_metadata
-  ON all_binder.server_upid = client_process_metadata.upid;
+  ON all_binder.server_upid = server_process_metadata.upid;
 
 -- Returns a DAG of all outgoing binder txns from a process.
 -- The roots of the graph are the threads making the txns and the graph flows from:
