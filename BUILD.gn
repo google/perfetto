@@ -166,9 +166,6 @@ if (perfetto_build_standalone) {
     # Used to evaluate the Python folder for Bazel script generation.
     "python:trace_processor_py",
 
-    # For syntax-checking the protos.
-    "protos/perfetto/trace:merged_trace_lite",
-
     # For checking all generated xxx.gen.{cc,h} files without waiting for
     # embedders to try to use them and fail.
     "protos/perfetto/config:cpp",
@@ -183,6 +180,11 @@ if (perfetto_build_standalone) {
   if (is_linux || is_android || is_mac) {
     all_targets += [ "src/tracebox" ]
   }
+}
+
+if (enable_perfetto_merged_protos_check) {
+  # For syntax-checking the protos.
+  all_targets += [ "protos/perfetto/trace:merged_trace_lite" ]
 }
 
 # The CTS code is built (but not ran) also in standalone builds. This is to
