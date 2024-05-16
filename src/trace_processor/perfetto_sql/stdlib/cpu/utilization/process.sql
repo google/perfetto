@@ -13,18 +13,18 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE sched.utilization.general;
+INCLUDE PERFETTO MODULE cpu.utilization.general;
 INCLUDE PERFETTO MODULE time.conversion;
 
--- Returns a table of thread utilization per given period.
+-- Returns a table of process utilization per given period.
 -- Utilization is calculated as sum of average utilization of each CPU in each
 -- period, which is defined as a multiply of |interval|. For this reason
 -- first and last period might have lower then real utilization.
-CREATE PERFETTO FUNCTION sched_thread_utilization_per_period(
+CREATE PERFETTO FUNCTION cpu_process_utilization_per_period(
     -- Length of the period on which utilization should be averaged.
     interval INT,
-    -- Utid of the thread.
-    utid INT
+    -- Upid of the process.
+    upid INT
 )
 RETURNS TABLE(
   -- Timestamp of start of a second.
@@ -38,22 +38,24 @@ RETURNS TABLE(
   -- [0, cpu_count] range.
   unnormalized_utilization DOUBLE
 ) AS
-WITH sched_for_utid AS (
+WITH sched_for_upid AS (
   SELECT
     ts,
     ts_end,
     utid
   FROM sched
-  WHERE utid = $utid
-) SELECT * FROM _sched_avg_utilization_per_period!($interval, sched_for_utid);
+  JOIN thread USING (utid)
+  JOIN process USING (upid)
+  WHERE upid = $upid AND utid != 0)
+SELECT * FROM _cpu_avg_utilization_per_period!($interval, sched_for_upid);
 
--- Returns a table of thread utilization per second.
+-- Returns a table of process utilization per second.
 -- Utilization is calculated as sum of average utilization of each CPU in each
 -- period, which is defined as a multiply of |interval|. For this reason
 -- first and last period might have lower then real utilization.
-CREATE PERFETTO FUNCTION sched_thread_utilization_per_second(
-  -- Utid of the thread.
-  utid INT
+CREATE PERFETTO FUNCTION cpu_process_utilization_per_second(
+  -- Upid of the process.
+  upid INT
 )
 RETURNS TABLE (
   -- Timestamp of start of a second.
@@ -67,4 +69,4 @@ RETURNS TABLE (
   -- [0, cpu_count] range.
   unnormalized_utilization DOUBLE
 ) AS
-SELECT * FROM sched_thread_utilization_per_period(time_from_s(1), $utid);
+SELECT * FROM cpu_process_utilization_per_period(time_from_s(1), $upid);

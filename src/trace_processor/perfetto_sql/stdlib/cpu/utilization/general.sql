@@ -58,7 +58,7 @@ ON (p.ts <= i.ts AND i.ts < p.ts_end));
 -- Utilization is calculated as sum of average utilization of each CPU in each
 -- period, which is defined as a multiply of |interval|. For this reason
 -- first and last period might have lower then real utilization.
-CREATE PERFETTO MACRO _sched_avg_utilization_per_period(
+CREATE PERFETTO MACRO _cpu_avg_utilization_per_period(
   -- Length of the period on which utilization should be averaged.
   interval Expr,
   -- Either sched table or its filtered down version.
