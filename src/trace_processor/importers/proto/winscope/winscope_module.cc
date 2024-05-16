@@ -17,8 +17,8 @@
 #include "src/trace_processor/importers/proto/winscope/winscope_module.h"
 #include "protos/perfetto/trace/android/winscope_extensions.pbzero.h"
 #include "protos/perfetto/trace/android/winscope_extensions_impl.pbzero.h"
+#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
-#include "src/trace_processor/importers/proto/winscope/winscope_args_parser.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -109,7 +109,7 @@ void WinscopeModule::ParseInputMethodClientsData(int64_t timestamp,
 
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(rowId);
-  WinscopeArgsParser writer(inserter, *context_->storage.get());
+  ArgsParser writer(timestamp, inserter, *context_->storage.get());
   base::Status status =
       args_parser_.ParseMessage(blob, kInputMethodClientsProtoName,
                                 nullptr /* parse all fields */, writer);
@@ -130,7 +130,7 @@ void WinscopeModule::ParseInputMethodManagerServiceData(
 
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(rowId);
-  WinscopeArgsParser writer(inserter, *context_->storage.get());
+  ArgsParser writer(timestamp, inserter, *context_->storage.get());
   base::Status status =
       args_parser_.ParseMessage(blob, kInputMethodManagerServiceProtoName,
                                 nullptr /* parse all fields */, writer);
@@ -149,7 +149,7 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
 
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(rowId);
-  WinscopeArgsParser writer(inserter, *context_->storage.get());
+  ArgsParser writer(timestamp, inserter, *context_->storage.get());
   base::Status status =
       args_parser_.ParseMessage(blob, kInputMethodServiceProtoName,
                                 nullptr /* parse all fields */, writer);

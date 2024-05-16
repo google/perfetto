@@ -28,8 +28,6 @@ source_set("full") {
     "surfaceflinger_layers_parser.h",
     "surfaceflinger_transactions_parser.cc",
     "surfaceflinger_transactions_parser.h",
-    "winscope_args_parser.cc",
-    "winscope_args_parser.h",
     "winscope_module.cc",
     "winscope_module.h",
   ]
