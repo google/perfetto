@@ -44,11 +44,9 @@ The intended usage is:
 import hashlib
 import os
 import platform
+import random
 import subprocess
 import sys
-import threading
-
-DOWNLOAD_LOCK = threading.Lock()
 
 
 def download_or_get_cached(file_name, url, sha256):
@@ -65,36 +63,30 @@ def download_or_get_cached(file_name, url, sha256):
   sha256_path = os.path.join(dir, file_name + '.sha256')
   needs_download = True
 
-  try:
-    # In BatchTraceProcessor, many threads can be trying to execute the below
-    # code in parallel. For this reason, protect the whole operation with a
-    # lock.
-    DOWNLOAD_LOCK.acquire()
+  # Avoid recomputing the SHA-256 on each invocation. The SHA-256 of the last
+  # download is cached into file_name.sha256, just check if that matches.
+  if os.path.exists(bin_path) and os.path.exists(sha256_path):
+    with open(sha256_path, 'rb') as f:
+      digest = f.read().decode()
+      if digest == sha256:
+        needs_download = False
 
-    # Avoid recomputing the SHA-256 on each invocation. The SHA-256 of the last
-    # download is cached into file_name.sha256, just check if that matches.
-    if os.path.exists(bin_path) and os.path.exists(sha256_path):
-      with open(sha256_path, 'rb') as f:
-        digest = f.read().decode()
-        if digest == sha256:
-          needs_download = False
-
-    if needs_download:
-      # Either the filed doesn't exist or the SHA256 doesn't match.
-      tmp_path = bin_path + '.tmp'
-      print('Downloading ' + url)
-      subprocess.check_call(['curl', '-f', '-L', '-#', '-o', tmp_path, url])
-      with open(tmp_path, 'rb') as fd:
-        actual_sha256 = hashlib.sha256(fd.read()).hexdigest()
-      if actual_sha256 != sha256:
-        raise Exception('Checksum mismatch for %s (actual: %s, expected: %s)' %
-                        (url, actual_sha256, sha256))
-      os.chmod(tmp_path, 0o755)
-      os.replace(tmp_path, bin_path)
-      with open(sha256_path, 'w') as f:
-        f.write(sha256)
-  finally:
-    DOWNLOAD_LOCK.release()
+  if needs_download:  # The file doesn't exist or the SHA256 doesn't match.
+    # Use a unique random file to guard against concurrent executions.
+    # See https://github.com/google/perfetto/issues/786 .
+    tmp_path = '%s.%d.tmp' % (bin_path, random.randint(0, 100000))
+    print('Downloading ' + url)
+    subprocess.check_call(['curl', '-f', '-L', '-#', '-o', tmp_path, url])
+    with open(tmp_path, 'rb') as fd:
+      actual_sha256 = hashlib.sha256(fd.read()).hexdigest()
+    if actual_sha256 != sha256:
+      raise Exception('Checksum mismatch for %s (actual: %s, expected: %s)' %
+                      (url, actual_sha256, sha256))
+    os.chmod(tmp_path, 0o755)
+    os.replace(tmp_path, bin_path)
+    with open(tmp_path, 'w') as f:
+      f.write(sha256)
+    os.replace(tmp_path, sha256_path)
   return bin_path
 
 
