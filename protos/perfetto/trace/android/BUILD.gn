@@ -58,6 +58,10 @@ perfetto_proto_library("winscope_regular_@TYPE@") {
 
 # Winscope messages added to TracePacket as extensions
 perfetto_proto_library("winscope_extensions_@TYPE@") {
+  proto_generators = [
+    "zero",
+    "source_set",
+  ]
   public_deps = [ ":winscope_common_@TYPE@" ]
   sources = [
     "inputmethodeditor.proto",

@@ -75,6 +75,10 @@ struct PerfettoDsParams {
 
   // How to behave when running out of shared memory buffer space.
   enum PerfettoDsBufferExhaustedPolicy buffer_exhausted_policy;
+
+  // When true the data source is expected to ack the stop request through the
+  // NotifyDataSourceStopped() IPC.
+  bool will_notify_on_stop;
 };
 
 static inline struct PerfettoDsParams PerfettoDsParamsDefault(void) {
@@ -88,7 +92,8 @@ static inline struct PerfettoDsParams PerfettoDsParamsDefault(void) {
                                  PERFETTO_NULL,
                                  PERFETTO_NULL,
                                  PERFETTO_NULL,
-                                 PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP};
+                                 PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP,
+                                 true};
   return ret;
 }
 
@@ -112,6 +117,7 @@ static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
     PerfettoPbMsgInit(&desc.msg, &writer);
 
     perfetto_protos_DataSourceDescriptor_set_cstr_name(&desc, data_source_name);
+    perfetto_protos_DataSourceDescriptor_set_will_notify_on_stop(&desc, params.will_notify_on_stop);
 
     desc_size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
     desc_buf = malloc(desc_size);

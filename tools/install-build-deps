@@ -195,15 +195,15 @@ BUILD_DEPS_HOST = [
     Dependency(
         'buildtools/libcxx',
         'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxx.git',
-        'f8571eaba606bde2eb8cd34b30104ca33e7c207e', 'all', 'all'),
+        '852bc6746f45add53fec19f3a29280e69e358d44', 'all', 'all'),
     Dependency(
         'buildtools/libcxxabi',
         'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libcxxabi.git',
-        '8dd405113a4f3694e910b79785dd7fb7535a888a', 'all', 'all'),
+        'a37a3aa431f132b02a58656f13984d51098330a2', 'all', 'all'),
     Dependency(
         'buildtools/libunwind',
         'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/libunwind.git',
-        'aabcd8753678f1536e15eb6385a948470debdae4', 'all', 'all'),
+        '419b03c0b8f20d6da9ddcb0d661a94a97cdd7dad', 'all', 'all'),
 
     # Keep in sync with chromium DEPS.
     Dependency(
@@ -259,8 +259,8 @@ BUILD_DEPS_HOST = [
     # If updating the version, also update bazel/deps.bzl.
     Dependency(
         'buildtools/llvm-project.tgz',
-        'https://storage.googleapis.com/perfetto/llvm-project-3b4c59c156919902c785ce3cbae0eee2ee53064d.tgz',
-        'f4a52e7f36edd7cacc844d5ae0e5f60b6f57c5afc40683e99f295886c9ce8ff4',
+        'https://storage.googleapis.com/perfetto/llvm-project-617a15a9eac96088ae5e9134248d8236e34b91b1.tgz',
+        '7e2541446a27f2a09a84520da7bc93cd71749ba0f17318f2d5291fbf45b97956',
         'all', 'all'),
 
     # These dependencies are for libunwindstack, which is used by src/profiling.

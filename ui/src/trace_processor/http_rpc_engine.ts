@@ -15,7 +15,7 @@
 import {fetchWithTimeout} from '../base/http_utils';
 import {assertExists} from '../base/logging';
 import {StatusResult} from '../protos';
-import {Engine, LoadingTracker} from '../trace_processor/engine';
+import {EngineBase, LoadingTracker} from '../trace_processor/engine';
 
 const RPC_CONNECT_TIMEOUT_MS = 2000;
 
@@ -25,7 +25,7 @@ export interface HttpRpcState {
   failure?: string;
 }
 
-export class HttpRpcEngine extends Engine {
+export class HttpRpcEngine extends EngineBase {
   readonly id: string;
   errorHandler: (err: string) => void = () => {};
   private requestQueue = new Array<Uint8Array>();

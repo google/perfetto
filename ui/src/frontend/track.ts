@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 
 export interface NewTrackArgs {
   trackKey: string;
-  engine: EngineProxy;
+  engine: Engine;
 }

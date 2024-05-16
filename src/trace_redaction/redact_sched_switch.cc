@@ -26,11 +26,13 @@ namespace perfetto::trace_redaction {
 
 namespace {
 
-protozero::ConstChars SanitizeCommValue(const Context& context,
-                                        ProcessThreadTimeline::Slice slice,
-                                        protozero::Field field) {
-  if (NormalizeUid(slice.uid) == NormalizeUid(context.package_uid.value())) {
-    return field.as_string();
+// TODO(vaage): Merge with RedactComm in redact_task_newtask.cc.
+protozero::ConstChars RedactComm(const Context& context,
+                                 uint64_t ts,
+                                 int32_t pid,
+                                 protozero::ConstChars comm) {
+  if (context.timeline->PidConnectsToUid(ts, pid, *context.package_uid)) {
+    return comm;
   }
 
   return {};
@@ -105,22 +107,19 @@ base::Status RedactSchedSwitch::Redact(
   // Avoid making the message until we know that we have prev and next pids.
   auto sched_switch_message = event_message->set_sched_switch();
 
-  auto prev_slice =
-      context.timeline->Search(timestamp.as_uint64(), prev_pid.as_int32());
-  auto next_slice =
-      context.timeline->Search(timestamp.as_uint64(), next_pid.as_int32());
-
   for (auto field = sched_switch_decoder.ReadField(); field.valid();
        field = sched_switch_decoder.ReadField()) {
     switch (field.id()) {
       case protos::pbzero::SchedSwitchFtraceEvent::kNextCommFieldNumber:
         sched_switch_message->set_next_comm(
-            SanitizeCommValue(context, next_slice, field));
+            RedactComm(context, timestamp.as_uint64(), next_pid.as_int32(),
+                       field.as_string()));
         break;
 
       case protos::pbzero::SchedSwitchFtraceEvent::kPrevCommFieldNumber:
         sched_switch_message->set_prev_comm(
-            SanitizeCommValue(context, prev_slice, field));
+            RedactComm(context, timestamp.as_uint64(), prev_pid.as_int32(),
+                       field.as_string()));
         break;
 
       default:

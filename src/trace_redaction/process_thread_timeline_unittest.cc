@@ -193,35 +193,29 @@ class ProcessThreadTimelineIsConnectedTest : public testing::Test {
 
 // PID A is directly connected to UID A.
 TEST_F(ProcessThreadTimelineIsConnectedTest, DirectPidAndUid) {
-  auto slice = timeline_.Search(kTimeB, kPidA);
-
-  ASSERT_EQ(slice.pid, kPidA);
-  ASSERT_EQ(slice.uid, kUidA);
+  ASSERT_TRUE(timeline_.PidConnectsToUid(kTimeB, kPidA, kUidA));
 }
 
 // PID B is indirectly connected to UID A through PID A.
 TEST_F(ProcessThreadTimelineIsConnectedTest, IndirectPidAndUid) {
-  auto slice = timeline_.Search(kTimeB, kPidB);
+  ASSERT_TRUE(timeline_.PidConnectsToUid(kTimeB, kPidB, kUidA));
+}
 
-  ASSERT_EQ(slice.pid, kPidB);
-  ASSERT_EQ(slice.uid, kUidA);
+// UID A and UID C are valid packages. However, PID B is connected to UID A, not
+// UID C.
+TEST_F(ProcessThreadTimelineIsConnectedTest, NotConnectedToOtherUid) {
+  ASSERT_FALSE(timeline_.PidConnectsToUid(kTimeB, kPidB, kUidC));
 }
 
 // PID D is not in the timeline, so it shouldn't be connected to anything.
 TEST_F(ProcessThreadTimelineIsConnectedTest, MissingPid) {
-  auto slice = timeline_.Search(kTimeB, kPidD);
-
-  ASSERT_EQ(slice.pid, kPidD);
-  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
+  ASSERT_FALSE(timeline_.PidConnectsToUid(kTimeB, kPidD, kUidA));
 }
 
 // Even through there is a connection between PID A and UID A, the query is too
 // soon (events are at TIME B, but the query is at TIME A).
 TEST_F(ProcessThreadTimelineIsConnectedTest, PrematureDirectPidAndUid) {
-  auto slice = timeline_.Search(kTimeA, kPidA);
-
-  ASSERT_EQ(slice.pid, kPidA);
-  ASSERT_EQ(slice.uid, ProcessThreadTimeline::Event::kUnknownUid);
+  ASSERT_FALSE(timeline_.PidConnectsToUid(kTimeA, kPidA, kUidA));
 }
 
 }  // namespace perfetto::trace_redaction

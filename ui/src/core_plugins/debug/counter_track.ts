@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {BaseCounterTrack} from '../../frontend/base_counter_track';
 import {TrackContext} from '../../public';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 import {CounterDebugTrackConfig} from '../../frontend/debug_tracks';
 import {Disposable, DisposableCallback} from '../../base/disposable';
 import {uuidv4Sql} from '../../base/uuid';
@@ -25,7 +25,7 @@ export class DebugCounterTrack extends BaseCounterTrack {
   private config: CounterDebugTrackConfig;
   private sqlTableName: string;
 
-  constructor(engine: EngineProxy, ctx: TrackContext) {
+  constructor(engine: Engine, ctx: TrackContext) {
     super({
       engine,
       trackKey: ctx.trackKey,

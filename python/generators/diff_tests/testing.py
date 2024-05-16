@@ -270,12 +270,14 @@ def PrintProfileProto(profile):
   locations = {l.id: l for l in profile.location}
   functions = {f.id: f for f in profile.function}
   samples = []
+  # Strips trailing annotations like (.__uniq.1657) from the function name.
+  filter_fname = lambda x: re.sub(' [(\[].*?uniq.*?[)\]]$', '', x)
   for s in profile.sample:
     stack = []
     for location in [locations[id] for id in s.location_id]:
       for function in [functions[l.function_id] for l in location.line]:
         stack.append("{name} ({address})".format(
-            name=profile.string_table[function.name],
+            name=filter_fname(profile.string_table[function.name]),
             address=hex(location.address)))
       if len(location.line) == 0:
         stack.append("({address})".format(address=hex(location.address)))

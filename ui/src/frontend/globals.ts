@@ -44,7 +44,7 @@ import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
 import {TrackManager} from '../common/track_cache';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
-import {Engine} from '../trace_processor/engine';
+import {EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 
 import {Analytics, initAnalytics} from './analytics';
@@ -221,6 +221,32 @@ export interface LegacySelectionArgs {
   pendingScrollId: number | undefined;
 }
 
+export interface TraceTime {
+  readonly start: time;
+  readonly end: time;
+
+  // This is the ts value at the time of the Unix epoch.
+  // Normally some large negative value, because the unix epoch is normally in
+  // the past compared to ts=0.
+  readonly realtimeOffset: time;
+
+  // This is the timestamp that we should use for our offset when in UTC mode.
+  // Usually the most recent UTC midnight compared to the trace start time.
+  readonly utcOffset: time;
+
+  // Trace TZ is like UTC but keeps into account also the timezone_off_mins
+  // recorded into the trace, to show timestamps in the device local time.
+  readonly traceTzOffset: time;
+}
+
+export const defaultTraceTime: TraceTime = {
+  start: Time.ZERO,
+  end: Time.fromSeconds(10),
+  realtimeOffset: Time.ZERO,
+  utcOffset: Time.ZERO,
+  traceTzOffset: Time.ZERO,
+};
+
 /**
  * Global accessors for state/dispatch in the frontend.
  */
@@ -260,9 +286,6 @@ class Globals {
   private _embeddedMode?: boolean = undefined;
   private _hideSidebar?: boolean = undefined;
   private _cmdManager = new CommandManager();
-  private _realtimeOffset = Time.ZERO;
-  private _utcOffset = Time.ZERO;
-  private _traceTzOffset = Time.ZERO;
   private _tabManager = new TabManager();
   private _trackManager = new TrackManager(this._store);
   private _selectionManager = new SelectionManager(this._store);
@@ -272,6 +295,8 @@ class Globals {
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
   showPanningHint = false;
+
+  traceTime = defaultTraceTime;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -290,7 +315,7 @@ class Globals {
     count: new Uint8Array(0),
   };
 
-  engines = new Map<string, Engine>();
+  engines = new Map<string, EngineBase>();
 
   initialize(dispatch: Dispatch, router: Router) {
     this._dispatch = dispatch;
@@ -691,19 +716,19 @@ class Globals {
 
   // Get a timescale that covers the entire trace
   getTraceTimeScale(pxSpan: PxSpan): TimeScale {
-    const {start, end} = this.state.traceTime;
+    const {start, end} = this.traceTime;
     const traceTime = HighPrecisionTimeSpan.fromTime(start, end);
     return TimeScale.fromHPTimeSpan(traceTime, pxSpan);
   }
 
   // Get the trace time bounds
   stateTraceTime(): Span<HighPrecisionTime> {
-    const {start, end} = this.state.traceTime;
+    const {start, end} = this.traceTime;
     return HighPrecisionTimeSpan.fromTime(start, end);
   }
 
   stateTraceTimeTP(): Span<time, duration> {
-    const {start, end} = this.state.traceTime;
+    const {start, end} = this.traceTime;
     return new TimeSpan(start, end);
   }
 
@@ -723,37 +748,6 @@ class Globals {
     return assertExists(this._cmdManager);
   }
 
-  // This is the ts value at the time of the Unix epoch.
-  // Normally some large negative value, because the unix epoch is normally in
-  // the past compared to ts=0.
-  get realtimeOffset(): time {
-    return this._realtimeOffset;
-  }
-
-  set realtimeOffset(time: time) {
-    this._realtimeOffset = time;
-  }
-
-  // This is the timestamp that we should use for our offset when in UTC mode.
-  // Usually the most recent UTC midnight compared to the trace start time.
-  get utcOffset(): time {
-    return this._utcOffset;
-  }
-
-  set utcOffset(offset: time) {
-    this._utcOffset = offset;
-  }
-
-  // Trace TZ is like UTC but keeps into account also the timezone_off_mins
-  // recorded into the trace, to show timestamps in the device local time.
-  get traceTzOffset(): time {
-    return this._traceTzOffset;
-  }
-
-  set traceTzOffset(offset: time) {
-    this._traceTzOffset = offset;
-  }
-
   get tabManager() {
     return this._tabManager;
   }
@@ -768,14 +762,14 @@ class Globals {
     switch (fmt) {
       case TimestampFormat.Timecode:
       case TimestampFormat.Seconds:
-        return this.state.traceTime.start;
+        return this.traceTime.start;
       case TimestampFormat.Raw:
       case TimestampFormat.RawLocale:
         return Time.ZERO;
       case TimestampFormat.UTC:
-        return this.utcOffset;
+        return this.traceTime.utcOffset;
       case TimestampFormat.TraceTz:
-        return this.traceTzOffset;
+        return this.traceTime.traceTzOffset;
       default:
         const x: never = fmt;
         throw new Error(`Unsupported format ${x}`);

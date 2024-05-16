@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/json/json_utils.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
@@ -197,7 +198,7 @@ std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   // Interned mapping_id loses it's meaning when the sequence ends. So we need
   // to get an id from stack_profile_mapping table.
   auto mapping = delegate.seq_state()
-                     ->GetOrCreate<StackProfileSequenceState>()
+                     ->GetCustomState<StackProfileSequenceState>()
                      ->FindOrInsertMapping(decoder->mapping_id());
   if (!mapping) {
     return std::nullopt;
@@ -1621,9 +1622,10 @@ void TrackEventParser::ParseTrackDescriptor(
   }
 
   // Override the name with the most recent name seen (after sorting by ts).
-  if (decoder.has_name()) {
+  if (decoder.has_name() || decoder.has_static_name()) {
     auto* tracks = context_->storage->mutable_track_table();
-    StringId name_id = context_->storage->InternString(decoder.name());
+    StringId name_id = context_->storage->InternString(
+        decoder.has_name() ? decoder.name() : decoder.static_name());
     tracks->mutable_name()->Set(*tracks->id().IndexOf(track_id), name_id);
   }
 }

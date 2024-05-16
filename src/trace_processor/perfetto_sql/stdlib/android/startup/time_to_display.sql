@@ -142,7 +142,7 @@ CREATE PERFETTO TABLE android_startup_time_to_display(
   -- Startup id.
   startup_id INT,
   -- Time to initial display (TTID)
-  time_to_inital_display INT,
+  time_to_initial_display INT,
   -- Time to full display (TTFD)
   time_to_full_display INT,
   -- `android_frames.frame_id` of frame for initial display
@@ -154,7 +154,7 @@ CREATE PERFETTO TABLE android_startup_time_to_display(
 ) AS
 SELECT
   startup_id,
-  ttid AS time_to_inital_display,
+  ttid AS time_to_initial_display,
   ttfd AS time_to_full_display,
   _ttid.frame_id AS ttid_frame_id,
   _ttfd.frame_id AS ttfd_frame_id,

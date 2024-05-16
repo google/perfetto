@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {isString} from '../../base/object_utils';
 import {Icons} from '../../base/semantic_icons';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 import {Row} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {BasicTable} from '../../widgets/basic_table';
@@ -29,6 +29,7 @@ import {argColumn, Column, columnFromSqlTableColumn} from './column';
 import {renderCell} from './render_cell';
 import {SqlTableState} from './state';
 import {isArgSetIdColumn, SqlTableDescription} from './table_description';
+import {Intent} from '../../widgets/common';
 
 export interface SqlTableConfig {
   readonly state: SqlTableState;
@@ -36,7 +37,7 @@ export interface SqlTableConfig {
 
 export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   private readonly table: SqlTableDescription;
-  private readonly engine: EngineProxy;
+  private readonly engine: Engine;
 
   private state: SqlTableState;
 
@@ -56,6 +57,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
         m(Button, {
           label,
           icon: 'close',
+          intent: Intent.Primary,
           onclick: () => {
             this.state.removeFilter(filter);
           },

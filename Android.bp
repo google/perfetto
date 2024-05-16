@@ -2416,6 +2416,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_ninja_ninja",
         ":perfetto_src_trace_processor_importers_perf_perf",
+        ":perfetto_src_trace_processor_importers_perf_record",
         ":perfetto_src_trace_processor_importers_proto_full",
         ":perfetto_src_trace_processor_importers_proto_minimal",
         ":perfetto_src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -11870,6 +11871,7 @@ filegroup {
     srcs: [
         "src/trace_processor/containers/bit_vector_unittest.cc",
         "src/trace_processor/containers/implicit_segment_forest_unittest.cc",
+        "src/trace_processor/containers/interval_tree_unittest.cc",
         "src/trace_processor/containers/null_term_string_view_unittest.cc",
         "src/trace_processor/containers/row_map_unittest.cc",
         "src/trace_processor/containers/string_pool_unittest.cc",
@@ -12241,12 +12243,22 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/importers/perf:record
+filegroup {
+    name: "perfetto_src_trace_processor_importers_perf_record",
+    srcs: [
+        "src/trace_processor/importers/perf/perf_event_attr.cc",
+        "src/trace_processor/importers/perf/perf_session.cc",
+    ],
+}
+
 // GN: //src/trace_processor/importers/perf:unittests
 filegroup {
     name: "perfetto_src_trace_processor_importers_perf_unittests",
     srcs: [
         "src/trace_processor/importers/perf/perf_data_reader_unittest.cc",
         "src/trace_processor/importers/perf/perf_data_tracker_unittest.cc",
+        "src/trace_processor/importers/perf/perf_session_unittest.cc",
         "src/trace_processor/importers/perf/reader_unittest.cc",
     ],
 }
@@ -12382,6 +12394,7 @@ filegroup {
         "src/trace_processor/importers/proto/stack_profile_sequence_state.cc",
         "src/trace_processor/importers/proto/track_event_module.cc",
         "src/trace_processor/importers/proto/track_event_parser.cc",
+        "src/trace_processor/importers/proto/track_event_sequence_state.cc",
         "src/trace_processor/importers/proto/track_event_tokenizer.cc",
         "src/trace_processor/importers/proto/track_event_tracker.cc",
     ],
@@ -14989,6 +15002,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_memory_tracker_unittests",
         ":perfetto_src_trace_processor_importers_ninja_ninja",
         ":perfetto_src_trace_processor_importers_perf_perf",
+        ":perfetto_src_trace_processor_importers_perf_record",
         ":perfetto_src_trace_processor_importers_perf_unittests",
         ":perfetto_src_trace_processor_importers_proto_full",
         ":perfetto_src_trace_processor_importers_proto_minimal",
@@ -15984,6 +15998,7 @@ cc_binary {
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_ninja_ninja",
         ":perfetto_src_trace_processor_importers_perf_perf",
+        ":perfetto_src_trace_processor_importers_perf_record",
         ":perfetto_src_trace_processor_importers_proto_full",
         ":perfetto_src_trace_processor_importers_proto_minimal",
         ":perfetto_src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -16368,6 +16383,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_ninja_ninja",
         ":perfetto_src_trace_processor_importers_perf_perf",
+        ":perfetto_src_trace_processor_importers_perf_record",
         ":perfetto_src_trace_processor_importers_proto_full",
         ":perfetto_src_trace_processor_importers_proto_minimal",
         ":perfetto_src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",

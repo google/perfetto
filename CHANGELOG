@@ -2,7 +2,8 @@ Unreleased:
   Tracing service and probes:
     *
   Trace Processor:
-    *
+    * Added "time to initial display" and "time to full display" metrics to
+      the Android startup metric.
   UI:
     *
   SDK:

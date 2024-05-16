@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {duration, Time, time} from '../../base/time';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {VegaView} from '../../widgets/vega_view';
 
@@ -45,7 +45,7 @@ export interface JankIntervalPlotDetails {
 }
 
 export async function getUserScrollDeltas(
-  engine: EngineProxy,
+  engine: Engine,
   startTs: time,
   dur: duration,
 ): Promise<ScrollDeltaDetails[]> {
@@ -82,7 +82,7 @@ export async function getUserScrollDeltas(
 }
 
 export async function getAppliedScrollDeltas(
-  engine: EngineProxy,
+  engine: Engine,
   startTs: time,
   dur: duration,
 ): Promise<ScrollDeltaDetails[]> {
@@ -123,7 +123,7 @@ export async function getAppliedScrollDeltas(
 }
 
 export async function getJankIntervals(
-  engine: EngineProxy,
+  engine: Engine,
   startTs: time,
   dur: duration,
 ): Promise<JankIntervalPlotDetails[]> {

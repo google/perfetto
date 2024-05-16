@@ -40,3 +40,9 @@ class Startup(TestSuite):
         trace=Path('android_startup_unlock.py'),
         query=Metric('android_startup'),
         out=Path('android_startup_unlock.out'))
+
+  def test_ttid_and_ttfd(self):
+    return DiffTestBlueprint(
+        trace=DataPath('api31_startup_warm.perfetto-trace'),
+        query=Metric('android_startup'),
+        out=Path('ttid_and_ttfd.out'))

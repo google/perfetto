@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineProxy, TrackContext} from '../public';
+import {Engine, TrackContext} from '../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
@@ -35,7 +35,7 @@ export class SimpleSliceTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTy
   private sqlTableName: string;
 
   constructor(
-    engine: EngineProxy,
+    engine: Engine,
     ctx: TrackContext,
     config: SimpleSliceTrackConfig,
   ) {

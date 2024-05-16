@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {BigintMath} from '../base/bigint_math';
-import {duration, Time, time} from '../base/time';
+import {duration, time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
@@ -150,7 +150,8 @@ export const MAX_TIME = 180;
 // 51. Changed structure of FlamegraphState.expandedCallsiteByViewingOption.
 // 52. Update track group state - don't make the summary track the first track.
 // 53. Remove android log state.
-export const STATE_VERSION = 53;
+// 54. Remove traceTime.
+export const STATE_VERSION = 54;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -315,11 +316,6 @@ export interface PermalinkConfig {
   isRecordingConfig?: boolean; // this permalink request is for a recording config only
 }
 
-export interface TraceTime {
-  start: time;
-  end: time;
-}
-
 export interface FrontendLocalState {
   visibleState: VisibleState;
 }
@@ -479,7 +475,6 @@ export interface State {
    */
   newEngineMode: NewEngineMode;
   engine?: EngineConfig;
-  traceTime: TraceTime;
   traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;
   tracks: ObjectByKey<TrackState>;
@@ -557,11 +552,6 @@ export interface State {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   plugins: {[key: string]: any};
 }
-
-export const defaultTraceTime = {
-  start: Time.ZERO,
-  end: Time.fromSeconds(10),
-};
 
 export declare type RecordMode =
   | 'STOP_WHEN_FULL'
@@ -645,11 +635,13 @@ export function getDefaultRecordingTargets(): RecordingTarget[] {
 }
 
 export function getBuiltinChromeCategoryList(): string[] {
-  // List of static Chrome categories, last updated at 2023-05-30 from HEAD of
+  // List of static Chrome categories, last updated at 2024-05-15 from HEAD of
   // Chromium's //base/trace_event/builtin_categories.h.
   return [
     'accessibility',
     'AccountFetcherService',
+    'android.adpf',
+    'android.ui.jank',
     'android_webview',
     'android_webview.timeline',
     'aogh',
@@ -686,6 +678,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'compositor',
     'content',
     'content_capture',
+    'interactions',
     'delegated_ink_trails',
     'device',
     'devtools',
@@ -713,6 +706,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'gpu.angle',
     'gpu.angle.texture_metrics',
     'gpu.capture',
+    'graphics.pipeline',
     'headless',
     'history',
     'hwoverlays',
@@ -720,6 +714,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'ime',
     'IndexedDB',
     'input',
+    'input.scrolling',
     'io',
     'ipc',
     'Java',
@@ -739,7 +734,9 @@ export function getBuiltinChromeCategoryList(): string[] {
     'mus',
     'native',
     'navigation',
+    'navigation.debug',
     'net',
+    'network.scheduler',
     'netlog',
     'offline_pages',
     'omnibox',
@@ -802,19 +799,19 @@ export function getBuiltinChromeCategoryList(): string[] {
     'webengine.fidl',
     'weblayer',
     'WebCore',
+    'webnn',
     'webrtc',
     'webrtc_stats',
     'xr',
     'disabled-by-default-android_view_hierarchy',
     'disabled-by-default-animation-worklet',
     'disabled-by-default-audio',
-    'disabled-by-default-audio-worklet',
     'disabled-by-default-audio.latency',
+    'disabled-by-default-audio-worklet',
     'disabled-by-default-base',
     'disabled-by-default-blink.debug',
     'disabled-by-default-blink.debug.display_lock',
     'disabled-by-default-blink.debug.layout',
-    'disabled-by-default-blink.debug.layout.scrollbars',
     'disabled-by-default-blink.debug.layout.trees',
     'disabled-by-default-blink.feature_usage',
     'disabled-by-default-blink.image_decoding',
@@ -842,6 +839,9 @@ export function getBuiltinChromeCategoryList(): string[] {
     'disabled-by-default-devtools.timeline.layers',
     'disabled-by-default-devtools.timeline.picture',
     'disabled-by-default-devtools.timeline.stack',
+    'disabled-by-default-devtools.target-rundown',
+    'disabled-by-default-devtools.v8-source-rundown',
+    'disabled-by-default-devtools.v8-source-rundown-sources',
     'disabled-by-default-file',
     'disabled-by-default-fonts',
     'disabled-by-default-gpu_cmd_queue',
@@ -849,6 +849,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'disabled-by-default-gpu.debug',
     'disabled-by-default-gpu.decoder',
     'disabled-by-default-gpu.device',
+    'disabled-by-default-gpu.graphite.dawn',
     'disabled-by-default-gpu.service',
     'disabled-by-default-gpu.vulkan.vma',
     'disabled-by-default-histogram_samples',
@@ -874,7 +875,9 @@ export function getBuiltinChromeCategoryList(): string[] {
     'disabled-by-default-skia.gpu',
     'disabled-by-default-skia.gpu.cache',
     'disabled-by-default-skia.shaders',
+    'disabled-by-default-skottie',
     'disabled-by-default-SyncFileSystem',
+    'disabled-by-default-system_power',
     'disabled-by-default-system_stats',
     'disabled-by-default-thread_pool_diagnostics',
     'disabled-by-default-toplevel.ipc',
@@ -893,6 +896,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'disabled-by-default-v8.wasm.detailed',
     'disabled-by-default-v8.wasm.turbofan',
     'disabled-by-default-video_and_image_capture',
+    'disabled-by-default-display.framedisplayed',
     'disabled-by-default-viz.gpu_composite_time',
     'disabled-by-default-viz.debug.overlay_planes',
     'disabled-by-default-viz.hit_testing_flow',
@@ -901,8 +905,10 @@ export function getBuiltinChromeCategoryList(): string[] {
     'disabled-by-default-viz.surface_id_flow',
     'disabled-by-default-viz.surface_lifetime',
     'disabled-by-default-viz.triangles',
+    'disabled-by-default-viz.visual_debugger',
     'disabled-by-default-webaudio.audionode',
     'disabled-by-default-webgpu',
+    'disabled-by-default-webnn',
     'disabled-by-default-webrtc',
     'disabled-by-default-worker.scheduler',
     'disabled-by-default-xr.debug',

@@ -18,6 +18,7 @@
 
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "perfetto/trace_processor/ref_counted.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
@@ -27,7 +28,8 @@
 #include "protos/perfetto/trace/track_event/debug_annotation.pbzero.h"
 #include "protos/perfetto/trace/track_event/source_location.pbzero.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_builder.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/test_messages.descriptor.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -54,13 +56,13 @@ base::Status ParseDebugAnnotation(
 class DebugAnnotationParserTest : public ::testing::Test,
                                   public ProtoToArgsParser::Delegate {
  protected:
-  DebugAnnotationParserTest() : sequence_state_(&context_) {
-    context_.storage.reset(new TraceStorage());
-  }
+  DebugAnnotationParserTest() { context_.storage.reset(new TraceStorage()); }
 
   const std::vector<std::string>& args() const { return args_; }
 
-  PacketSequenceState* mutable_seq_state() { return &sequence_state_; }
+  void InternMessage(uint32_t field_id, TraceBlobView message) {
+    state_builder_.InternMessage(field_id, std::move(message));
+  }
 
  private:
   using Key = ProtoToArgsParser::Key;
@@ -132,23 +134,19 @@ class DebugAnnotationParserTest : public ::testing::Test,
 
   InternedMessageView* GetInternedMessageView(uint32_t field_id,
                                               uint64_t iid) override {
-    if (field_id !=
-        protos::pbzero::InternedData::kDebugAnnotationStringValuesFieldNumber) {
-      return nullptr;
-    }
-    return sequence_state_.current_generation()->GetInternedMessageView(
-        field_id, iid);
+    return state_builder_.current_generation()->GetInternedMessageView(field_id,
+                                                                       iid);
   }
 
   PacketSequenceStateGeneration* seq_state() final {
-    return sequence_state_.current_generation().get();
+    return state_builder_.current_generation().get();
   }
 
   std::vector<std::string> args_;
   std::map<std::string, size_t> array_indices_;
 
   TraceProcessorContext context_;
-  PacketSequenceState sequence_state_;
+  PacketSequenceStateBuilder state_builder_{&context_};
 };
 
 // This test checks that in when an array is nested inside a dict which is
@@ -303,7 +301,7 @@ TEST_F(DebugAnnotationParserTest, InternedString) {
   string->set_str("foo");
   std::vector<uint8_t> data_serialized = string.SerializeAsArray();
 
-  mutable_seq_state()->InternMessage(
+  InternMessage(
       protos::pbzero::InternedData::kDebugAnnotationStringValuesFieldNumber,
       TraceBlobView(
           TraceBlob::CopyFrom(data_serialized.data(), data_serialized.size())));

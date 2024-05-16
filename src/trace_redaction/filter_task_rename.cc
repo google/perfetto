@@ -67,8 +67,8 @@ bool FilterTaskRename::KeepEvent(const Context& context,
     return false;
   }
 
-  auto slice = context.timeline->Search(timestamp.as_uint64(), pid.as_int32());
-  return slice.uid == context.package_uid.value();
+  return context.timeline->PidConnectsToUid(
+      timestamp.as_uint64(), pid.as_int32(), *context.package_uid);
 }
 
 }  // namespace perfetto::trace_redaction

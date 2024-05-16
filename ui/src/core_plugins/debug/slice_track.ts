@@ -14,7 +14,7 @@
 
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {TrackContext} from '../../public';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
@@ -40,7 +40,7 @@ export class DebugTrackV2 extends CustomSqlTableSliceTrack<NamedSliceTrackTypes>
   private config: DebugTrackV2Config;
   private sqlTableName: string;
 
-  constructor(engine: EngineProxy, ctx: TrackContext) {
+  constructor(engine: Engine, ctx: TrackContext) {
     super({
       engine,
       trackKey: ctx.trackKey,

@@ -16,13 +16,13 @@ import {HSLColor} from '../../core/color';
 import {makeColorScheme} from '../../core/colorizer';
 import {NamedRow, NamedSliceTrack} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
-import {EngineProxy, Slice} from '../../public';
+import {Engine, Slice} from '../../public';
 
 const GREEN = makeColorScheme(new HSLColor('#4CAF50')); // Green 500
 
 export class ExpectedFramesTrack extends NamedSliceTrack {
   constructor(
-    engine: EngineProxy,
+    engine: Engine,
     maxDepth: number,
     trackKey: string,
     private trackIds: number[],

@@ -32,7 +32,7 @@ import {
 } from '../core/timestamp_format';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
@@ -155,7 +155,7 @@ export class App implements m.ClassComponent {
     this.trash.add(new AggregationsTabs());
   }
 
-  private getEngine(): EngineProxy | undefined {
+  private getEngine(): Engine | undefined {
     const engineId = globals.getCurrentEngine()?.id;
     if (engineId === undefined) {
       return undefined;
@@ -620,8 +620,8 @@ export class App implements m.ClassComponent {
         if (selection !== null && selection.kind === 'AREA') {
           const area = globals.state.areas[selection.areaId];
           const coversEntireTimeRange =
-            globals.state.traceTime.start === area.start &&
-            globals.state.traceTime.end === area.end;
+            globals.traceTime.start === area.start &&
+            globals.traceTime.end === area.end;
           if (!coversEntireTimeRange) {
             // If the current selection is an area which does not cover the
             // entire time range, preserve the list of selected tracks and
@@ -636,7 +636,7 @@ export class App implements m.ClassComponent {
           // If the current selection is not an area, select all.
           tracksToSelect = Object.keys(globals.state.tracks);
         }
-        const {start, end} = globals.state.traceTime;
+        const {start, end} = globals.traceTime;
         globals.dispatch(
           Actions.selectArea({
             area: {

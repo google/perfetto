@@ -21,7 +21,6 @@ import {globals} from '../frontend/globals';
 import {
   Command,
   DetailsPanel,
-  EngineProxy,
   MetricVisualisation,
   Migrate,
   Plugin,
@@ -36,7 +35,7 @@ import {
   GroupPredicate,
   TrackRef,
 } from '../public';
-import {Engine} from '../trace_processor/engine';
+import {EngineBase, Engine} from '../trace_processor/engine';
 
 import {Actions} from './actions';
 import {SCROLLING_TRACK_GROUP} from './state';
@@ -103,9 +102,12 @@ export class PluginContextImpl implements PluginContext, Disposable {
 class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   private trash = new Trash();
   private alive = true;
+  readonly engine: Engine;
 
-  constructor(private ctx: PluginContext, readonly engine: EngineProxy) {
-    this.trash.add(engine);
+  constructor(private ctx: PluginContext, engine: EngineBase) {
+    const engineProxy = engine.getProxy(ctx.pluginId);
+    this.trash.add(engineProxy);
+    this.engine = engineProxy;
   }
 
   registerCommand(cmd: Command): void {
@@ -380,7 +382,7 @@ function makePlugin(info: PluginDescriptor): Plugin {
 export class PluginManager {
   private registry: PluginRegistry;
   private _plugins: Map<string, PluginDetails>;
-  private engine?: Engine;
+  private engine?: EngineBase;
   private flags = new Map<string, Flag>();
 
   constructor(registry: PluginRegistry) {
@@ -466,7 +468,7 @@ export class PluginManager {
     // If a trace is already loaded when plugin is activated, make sure to
     // call onTraceLoad().
     if (this.engine) {
-      await doPluginTraceLoad(pluginDetails, this.engine, id);
+      await doPluginTraceLoad(pluginDetails, this.engine);
     }
 
     this._plugins.set(id, pluginDetails);
@@ -528,7 +530,7 @@ export class PluginManager {
   }
 
   async onTraceLoad(
-    engine: Engine,
+    engine: EngineBase,
     beforeEach?: (id: string) => void,
   ): Promise<void> {
     this.engine = engine;
@@ -546,7 +548,7 @@ export class PluginManager {
     // time.
     for (const {id, plugin} of pluginsShuffled) {
       beforeEach?.(id);
-      await doPluginTraceLoad(plugin, engine, id);
+      await doPluginTraceLoad(plugin, engine);
     }
   }
 
@@ -571,14 +573,11 @@ export class PluginManager {
 
 async function doPluginTraceLoad(
   pluginDetails: PluginDetails,
-  engine: Engine,
-  pluginId: string,
+  engine: EngineBase,
 ): Promise<void> {
   const {plugin, context} = pluginDetails;
 
-  const engineProxy = engine.getProxy(pluginId);
-
-  const traceCtx = new PluginContextTraceImpl(context, engineProxy);
+  const traceCtx = new PluginContextTraceImpl(context, engine);
   pluginDetails.traceContext = traceCtx;
 
   const startTime = performance.now();

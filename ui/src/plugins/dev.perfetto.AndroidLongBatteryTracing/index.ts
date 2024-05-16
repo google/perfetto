@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 import {
   SimpleSliceTrack,
   SimpleSliceTrackConfig,
@@ -1694,7 +1694,7 @@ class AndroidLongBatteryTracing implements Plugin {
     );
   }
 
-  async findFeatures(e: EngineProxy): Promise<Set<string>> {
+  async findFeatures(e: Engine): Promise<Set<string>> {
     const features = new Set<string>();
 
     const addFeatures = async (q: string) => {

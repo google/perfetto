@@ -92,6 +92,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
   StringId name_id = kNullStringId;
   if (track.has_name())
     name_id = context_->storage->InternString(track.name());
+  else if (track.has_static_name())
+    name_id = context_->storage->InternString(track.static_name());
 
   if (packet.has_trusted_pid()) {
     context_->process_tracker->UpdateTrustedPid(
@@ -212,10 +214,7 @@ void TrackEventTokenizer::TokenizeThreadDescriptor(
     const protos::pbzero::ThreadDescriptor::Decoder& thread) {
   // TODO(eseckler): Remove support for legacy thread descriptor-based default
   // tracks and delta timestamps.
-  state.SetThreadDescriptor(thread.pid(), thread.tid(),
-                            thread.reference_timestamp_us() * 1000,
-                            thread.reference_thread_time_us() * 1000,
-                            thread.reference_thread_instruction_count());
+  state.SetThreadDescriptor(thread);
 }
 
 void TrackEventTokenizer::TokenizeTrackEventPacket(

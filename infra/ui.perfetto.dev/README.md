@@ -22,17 +22,28 @@ Google Cloud Build when auto-triggering new ui builds.
 Cloud Build invokes the equivalent of:
 
 ```bash
-docker run gcr.io/perfetto-ui/perfetto-ui-builder \
-    ui/release/builder_entrypoint.sh
+docker run europe-docker.pkg.dev/perfetto-ui/builder/perfetto-ui-builder \
+    /ui_builder_entrypoint.sh
 ```
 
-NOTE: the `builder_entrypoint.sh` script is not bundled in the docker container
-and is taken from the HEAD if the checked out repo.
+NOTE: the `ui_builder_entrypoint.sh` script is bundled in the docker container.
+The container needs to be re-built and re-pushed if the script changes.
 
 To update the container:
 
+Prerequisite:
+Install the Google Cloud SDK from https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz 
+
+
 ```bash
-cd infra/ui.perfetto.dev/builder
-docker build -t gcr.io/perfetto-ui/perfetto-ui-builder .
-docker push gcr.io/perfetto-ui/perfetto-ui-builder .
+# Obtain a temporary token to impersonate the service account as per
+# https://cloud.google.com/artifact-registry/docs/docker/authentication
+# You need to be a member of perfetto-cloud-infra.prod to do this.
+gcloud auth print-access-token \
+    --impersonate-service-account perfetto-ui-dev@perfetto-ui.iam.gserviceaccount.com | docker login \
+    -u oauth2accesstoken \
+    --password-stdin https://europe-docker.pkg.dev
+
+docker build -t europe-docker.pkg.dev/perfetto-ui/builder/perfetto-ui-builder infra/ui.perfetto.dev/builder
+docker push europe-docker.pkg.dev/perfetto-ui/builder/perfetto-ui-builder
 ```

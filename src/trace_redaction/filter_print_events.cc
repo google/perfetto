@@ -41,9 +41,6 @@ bool FilterPrintEvents::KeepEvent(const Context& context,
   PERFETTO_DCHECK(context.timeline);
   PERFETTO_DCHECK(context.package_uid.has_value());
 
-  const auto* timeline = context.timeline.get();
-  auto package_uid = context.package_uid;
-
   protozero::ProtoDecoder event(bytes);
 
   // This is not a print packet. Keep the packet.
@@ -56,9 +53,9 @@ bool FilterPrintEvents::KeepEvent(const Context& context,
       event.FindField(protos::pbzero::FtraceEvent::kTimestampFieldNumber);
   auto pid = event.FindField(protos::pbzero::FtraceEvent::kPidFieldNumber);
 
-  // Pid + Time --> UID, if the uid matches the target package, keep the event.
   return pid.valid() && time.valid() &&
-         timeline->Search(time.as_uint64(), pid.as_int32()).uid == package_uid;
+         context.timeline->PidConnectsToUid(time.as_uint64(), pid.as_int32(),
+                                            *context.package_uid);
 }
 
 }  // namespace perfetto::trace_redaction
