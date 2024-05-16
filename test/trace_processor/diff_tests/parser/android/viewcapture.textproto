@@ -1,0 +1,128 @@
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+    clocks {
+      clock_id: 6
+      timestamp: 448243204726
+    }
+    clocks {
+      clock_id: 2
+      timestamp: 1716366701256000218
+    }
+    clocks {
+      clock_id: 4
+      timestamp: 448237110366
+    }
+    clocks {
+      clock_id: 1
+      timestamp: 1716366701262094741
+    }
+    clocks {
+      clock_id: 3
+      timestamp: 448243204971
+    }
+    clocks {
+      clock_id: 5
+      timestamp: 448243205052
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+
+packet {
+  first_packet_on_sequence: true
+  timestamp: 448881087865
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.viewcapture] {
+      package_name_iid: 1
+      window_name_iid: 1
+      views {
+        parent_id: -1
+        hashcode: 182652084
+        view_id_iid: 1
+        class_name_iid: 1
+        width: 1080
+        height: 2400
+        scale_x: 1.000000
+        scale_y: 1.000000
+        alpha: 1.000000
+        will_not_draw: true
+      }
+      views {
+        id: 1
+        hashcode: 130248925
+        view_id_iid: 3
+        class_name_iid: 2
+        width: 1080
+        height: 2400
+        scale_x: 1.000000
+        scale_y: 1.000000
+        alpha: 1.000000
+        will_not_draw: true
+      }
+    }
+  }
+  sequence_flags: 3
+  interned_data {
+    viewcapture_class_name {
+      iid: 1
+      str: "com.android.internal.policy.PhoneWindow@6cec234"
+    }
+    viewcapture_class_name {
+      iid: 2
+      str: "com.android.internal.policy.DecorView"
+    }
+    viewcapture_package_name {
+      iid: 1
+      str: "com.google.android.apps.nexuslauncher"
+    }
+    viewcapture_view_id {
+      iid: 1
+      str: "NO_ID"
+    }
+  }
+  trusted_uid: 10230
+  trusted_packet_sequence_id: 2
+  trusted_pid: 2688
+  previous_packet_dropped: true
+}
+
+packet {
+  timestamp: 448883575576
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.viewcapture] {
+      package_name_iid: 1
+      window_name_iid: 1
+      views {
+        parent_id: -1
+        hashcode: 182652084
+        view_id_iid: 1
+        class_name_iid: 1
+        width: 1080
+        height: 2400
+        scale_x: 1.000000
+        scale_y: 1.000000
+        alpha: 1.000000
+        will_not_draw: true
+      }
+      views {
+        id: 1
+        hashcode: 130248925
+        view_id_iid: 1
+        # triggers de-interning error because of unavailable iid-to-string mapping
+        class_name_iid: 3
+        width: 1080
+        height: 2400
+        scale_x: 1.000000
+        scale_y: 1.000000
+        alpha: 1.000000
+        will_not_draw: true
+      }
+    }
+  }
+  sequence_flags: 2
+  trusted_uid: 10230
+  trusted_packet_sequence_id: 2
+  trusted_pid: 2688
+}

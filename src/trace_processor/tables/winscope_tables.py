@@ -117,6 +117,22 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
             'arg_set_id': 'Extra args parsed from the proto message',
         }))
 
+VIEWCAPTURE_TABLE = Table(
+    python_module=__file__,
+    class_name='ViewCaptureTable',
+    sql_name='__intrinsic_viewcapture',
+    columns=[
+        C('ts', CppInt64()),
+        C('arg_set_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='ViewCapture',
+        group='Winscope',
+        columns={
+            'ts': 'The timestamp the views were captured',
+            'arg_set_id': 'Extra args parsed from the proto message',
+        }))
+
 WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
     python_module=__file__,
     class_name='WindowManagerShellTransitionsTable',
@@ -182,6 +198,7 @@ ALL_TABLES = [
     SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE,
     SURFACE_FLINGER_LAYER_TABLE,
     SURFACE_FLINGER_TRANSACTIONS_TABLE,
+    VIEWCAPTURE_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE,
 ]
