@@ -33,6 +33,7 @@ export const defaultPlugins = [
   'dev.perfetto.CoreCommands',
   'dev.perfetto.LargeScreensPerf',
   'dev.perfetto.RestorePinnedTrack',
+  'dev.perfetto.TimelineSync',
   'perfetto.AndroidLog',
   'perfetto.Annotation',
   'perfetto.AsyncSlices',
