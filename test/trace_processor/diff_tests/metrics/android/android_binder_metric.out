@@ -396,6 +396,8 @@ android_binder {
     is_sync: true
     client_monotonic_dur: 95231
     server_monotonic_dur: 69578
+    server_package_version_code: 33
+    is_server_package_debuggable: false
     thread_states {
       thread_state_type: "binder_reply"
       thread_state: "Running"
@@ -440,6 +442,8 @@ android_binder {
     is_sync: true
     client_monotonic_dur: 43573
     server_monotonic_dur: 27121
+    server_package_version_code: 33
+    is_server_package_debuggable: false
     thread_states {
       thread_state_type: "binder_reply"
       thread_state: "Running"
@@ -1721,6 +1725,8 @@ android_binder {
     is_sync: true
     client_monotonic_dur: 56472
     server_monotonic_dur: 10317
+    server_package_version_code: 33
+    is_server_package_debuggable: false
     thread_states {
       thread_state_type: "binder_reply"
       thread_state: "Running"
@@ -25033,7 +25039,9 @@ android_binder {
     client_monotonic_dur: 491565
     server_monotonic_dur: 252231
     client_package_version_code: 33
+    server_package_version_code: 33
     is_client_package_debuggable: false
+    is_server_package_debuggable: false
     thread_states {
       thread_state_type: "binder_reply"
       thread_state: "Running"
@@ -25094,7 +25102,9 @@ android_binder {
     client_monotonic_dur: 1359588
     server_monotonic_dur: 1280511
     client_package_version_code: 33
+    server_package_version_code: 33
     is_client_package_debuggable: false
+    is_server_package_debuggable: false
     thread_states {
       thread_state_type: "binder_reply"
       thread_state: "R"
@@ -40764,6 +40774,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -40787,6 +40799,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -40810,6 +40824,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "system_server"
@@ -40830,6 +40846,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "system_server"
@@ -40850,6 +40868,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -40873,6 +40893,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -40896,6 +40918,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -40919,6 +40943,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -40942,6 +40968,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -40965,6 +40993,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -40988,6 +41018,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41011,6 +41043,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41034,6 +41068,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41057,6 +41093,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidStateChanged::server"
@@ -41080,6 +41118,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidStateChanged::server"
@@ -41103,6 +41143,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41126,6 +41168,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidStateChanged::server"
@@ -41149,6 +41193,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidStateChanged::server"
@@ -41172,6 +41218,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "system_server"
@@ -41295,6 +41343,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41318,6 +41368,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41341,6 +41393,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41364,6 +41418,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41387,6 +41443,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41410,6 +41468,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41433,6 +41493,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41456,6 +41518,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41479,6 +41543,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41502,6 +41568,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -41525,6 +41593,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "system_server"
@@ -42928,6 +42998,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::setProcessState::server"
@@ -43148,6 +43220,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IRemoteSessionCallback::onSessionChanged::server"
@@ -43171,6 +43245,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "system_server"
@@ -43191,6 +43267,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -43214,6 +43292,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onStorageStateChanged::server"
@@ -43237,6 +43317,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -43260,6 +43342,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onStorageStateChanged::server"
@@ -43283,6 +43367,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleRegisteredReceiver::server"
@@ -43306,6 +43392,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleRegisteredReceiver::server"
@@ -43329,6 +43417,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleRegisteredReceiver::server"
@@ -43352,6 +43442,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IVoldListener::onVolumeStateChanged::server"
@@ -43740,6 +43832,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "system_server"
@@ -43760,6 +43854,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onDiskScanned::server"
@@ -43783,6 +43879,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IPhoneStateListener::onSignalStrengthsChanged::server"
@@ -43806,6 +43904,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -43829,6 +43929,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::INotificationListener::onNotificationRemoved::server"
@@ -43852,6 +43954,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -43872,6 +43976,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -43892,6 +43998,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -43912,6 +44020,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IPackageManager::notifyDexLoad::server"
@@ -44944,6 +45054,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidStateChanged::server"
@@ -44967,6 +45079,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidStateChanged::server"
@@ -44990,6 +45104,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidGone::server"
@@ -45013,6 +45129,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidStateChanged::server"
@@ -45036,6 +45154,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IUidObserver::onUidStateChanged::server"
@@ -45059,6 +45179,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::bindApplication::server"
@@ -45082,6 +45204,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::setProcessState::server"
@@ -45105,6 +45229,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleCreateService::server"
@@ -45128,6 +45254,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleBindService::server"
@@ -45151,6 +45279,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::setProcessState::server"
@@ -45174,6 +45304,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onDiskScanned::server"
@@ -45197,6 +45329,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IExternalStorageService::notifyVolumeStateChanged::server"
@@ -45220,6 +45354,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleCreateService::server"
@@ -45243,6 +45379,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleBindService::server"
@@ -45266,6 +45404,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IExternalStorageService::notifyVolumeStateChanged::server"
@@ -45289,6 +45429,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -45312,6 +45454,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onStorageStateChanged::server"
@@ -45335,6 +45479,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleReceiver::server"
@@ -45358,6 +45504,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleReceiver::server"
@@ -45381,6 +45529,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IExternalStorageService::startSession::server"
@@ -45404,6 +45554,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IExternalStorageService::notifyVolumeStateChanged::server"
@@ -45427,6 +45579,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -45450,6 +45604,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IExternalStorageService::startSession::server"
@@ -45473,6 +45629,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IExternalStorageService::notifyVolumeStateChanged::server"
@@ -45496,6 +45654,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -45519,6 +45679,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IExternalStorageService::notifyVolumeStateChanged::server"
@@ -45542,6 +45704,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -45565,6 +45729,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onStorageStateChanged::server"
@@ -45588,6 +45754,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IJobService::startJob::server"
@@ -45611,6 +45779,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -45634,6 +45804,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onStorageStateChanged::server"
@@ -45657,6 +45829,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IExternalStorageService::notifyVolumeStateChanged::server"
@@ -45680,6 +45854,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -45703,6 +45879,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onStorageStateChanged::server"
@@ -45726,6 +45904,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IExternalStorageService::endSession::server"
@@ -45749,6 +45929,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IExternalStorageService::endSession::server"
@@ -45772,6 +45954,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleUnbindService::server"
@@ -45795,6 +45979,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleStopService::server"
@@ -45818,6 +46004,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::setProcessState::server"
@@ -45841,6 +46029,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::setProcessState::server"
@@ -45864,6 +46054,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleCreateService::server"
@@ -45887,6 +46079,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleBindService::server"
@@ -45910,6 +46104,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IMediaMetricsService::submitBuffer::cppServer"
@@ -47970,6 +48166,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IPhoneStateListener::onSignalStrengthsChanged::server"
@@ -47993,6 +48191,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::INotificationListener::onNotificationRemoved::server"
@@ -48016,6 +48216,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 309999900
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::INotificationListener::onNotificationEnqueuedWithChannel::server"
@@ -48039,6 +48241,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 309999900
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::INotificationListener::onNotificationEnqueuedWithChannel::server"
@@ -48062,6 +48266,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 309999900
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::INotificationListener::onNotificationPosted::server"
@@ -48085,6 +48291,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 309999900
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::INotificationListener::onNotificationPosted::server"
@@ -48108,6 +48316,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 309999900
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -48614,6 +48824,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -48634,6 +48846,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -48654,6 +48868,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -48674,6 +48890,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -48697,6 +48915,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -48720,6 +48940,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onStorageStateChanged::server"
@@ -48743,6 +48965,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onVolumeStateChanged::server"
@@ -48766,6 +48990,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IStorageEventListener::onStorageStateChanged::server"
@@ -48789,6 +49015,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::INotificationListener::onNotificationPosted::server"
@@ -48812,6 +49040,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::INotificationListener::onNotificationPosted::server"
@@ -48835,6 +49065,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -48855,6 +49087,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -48875,6 +49109,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -48895,6 +49131,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -48915,6 +49153,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -48935,6 +49175,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -48955,6 +49197,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "/system/bin/surfaceflinger"
@@ -48975,6 +49219,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::bindApplication::server"
@@ -48998,6 +49244,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleReceiver::server"
@@ -49021,6 +49269,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleReceiver::server"
@@ -49044,6 +49294,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleReceiver::server"
@@ -49067,6 +49319,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::setProcessState::server"
@@ -49090,6 +49344,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::scheduleReceiver::server"
@@ -49113,6 +49369,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IApplicationThread::setProcessState::server"
@@ -49136,6 +49394,8 @@ android_binder {
     is_sync: false
     client_monotonic_dur: 0
     server_monotonic_dur: 0
+    server_package_version_code: 33
+    is_server_package_debuggable: false
   }
   unaggregated_txn_breakdown {
     client_process: "system_server"
