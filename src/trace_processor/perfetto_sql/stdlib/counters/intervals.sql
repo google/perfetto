@@ -49,7 +49,12 @@ CREATE PERFETTO MACRO counter_leading_intervals(
 RETURNS TableOrSubquery AS
 (
   WITH base AS (
-    SELECT id, ts, track_id, value, LAG(value) OVER (PARTITION BY track_id ORDER BY ts) AS lag_value
+    SELECT
+      id,
+      ts,
+      track_id,
+      value,
+      LAG(value) OVER (PARTITION BY track_id ORDER BY ts) AS lag_value
     FROM $counter_table
   )
   SELECT

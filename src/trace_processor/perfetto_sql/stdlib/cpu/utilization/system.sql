@@ -14,6 +14,8 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE cpu.utilization.general;
+INCLUDE PERFETTO MODULE cpu.size;
+
 INCLUDE PERFETTO MODULE time.conversion;
 
 -- The purpose of this module is to provide high level aggregates of system
@@ -65,3 +67,74 @@ SELECT
   utilization,
   unnormalized_utilization
 FROM cpu_utilization_per_period(time_from_s(1));
+
+-- Aggregated CPU statistics for runtime of each thread on a CPU.
+CREATE PERFETTO TABLE _cpu_cycles_raw(
+  -- The id of CPU
+  cpu INT,
+  -- Unique thread id
+  utid INT,
+  -- Sum of CPU millicycles
+  millicycles INT,
+  -- Sum of CPU megacycles
+  megacycles INT,
+  -- Total runtime duration
+  runtime INT,
+  -- Minimum CPU frequency in kHz
+  min_freq INT,
+  -- Maximum CPU frequency in kHz
+  max_freq INT,
+  -- Average CPU frequency in kHz
+  avg_freq INT
+) AS
+SELECT
+  cpu,
+  utid,
+  -- We divide by 1e3 here as dur is in ns and freq in khz. In total
+  -- this means we need to divide the duration by 1e9 and multiply the
+  -- frequency by 1e3 then multiply again by 1e3 to get millicycles
+  -- i.e. divide by 1e3 in total.
+  -- We use millicycles as we want to preserve this level of precision
+  -- for future calculations.
+  cast_int!(SUM(dur * freq) / 1000) AS millicycles,
+  cast_int!(SUM(dur * freq) / 1000 / 1e9) AS megacycles,
+  SUM(dur) AS runtime,
+  MIN(freq) AS min_freq,
+  MAX(freq) AS max_freq,
+  -- We choose to work in micros space in both the numerator and
+  -- denominator as this gives us good enough precision without risking
+  -- overflows.
+  cast_int!(SUM((dur * freq) / 1000) / SUM(dur / 1000)) AS avg_freq
+FROM _cpu_freq_per_thread
+GROUP BY utid, cpu;
+
+-- Aggregated CPU statistics for each CPU.
+CREATE PERFETTO TABLE cpu_cycles_per_cpu(
+  -- The id of CPU
+  cpu INT,
+  -- CPU type
+  cpu_type STRING,
+  -- Sum of CPU millicycles
+  millicycles INT,
+  -- Sum of CPU megacycles
+  megacycles INT,
+  -- Total runtime of all threads running on CPU
+  runtime INT,
+  -- Minimum CPU frequency in kHz
+  min_freq INT,
+  -- Maximum CPU frequency in kHz
+  max_freq INT,
+  -- Average CPU frequency in kHz
+  avg_freq INT
+) AS
+SELECT
+  cpu,
+  cpu_guess_core_type(cpu) AS cpu_type,
+  cast_int!(SUM(dur * freq) / 1000) AS millicycles,
+  cast_int!(SUM(dur * freq) / 1000 / 1e9) AS megacycles,
+  SUM(dur) AS runtime,
+  MIN(freq) AS min_freq,
+  MAX(freq) AS max_freq,
+  cast_int!(SUM((dur * freq) / 1000) / SUM(dur / 1000)) AS avg_freq
+FROM _cpu_freq_per_thread
+GROUP BY cpu;
