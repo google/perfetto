@@ -18,8 +18,8 @@
 
 #include "protos/perfetto/trace/android/surfaceflinger_layers.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
-#include "src/trace_processor/importers/proto/winscope/winscope_args_parser.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -44,7 +44,7 @@ void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
           .id;
 
   auto inserter = context_->args_tracker->AddArgsTo(snapshot_id);
-  WinscopeArgsParser writer(inserter, *context_->storage.get());
+  ArgsParser writer(timestamp, inserter, *context_->storage);
   base::Status status =
       args_parser_.ParseMessage(blob, kLayersSnapshotProtoName,
                                 &kLayersSnapshotFieldsToArgsParse, writer);
@@ -55,11 +55,12 @@ void SurfaceFlingerLayersParser::Parse(int64_t timestamp,
   protos::pbzero::LayersProto::Decoder layers_decoder(
       snapshot_decoder.layers().data, snapshot_decoder.layers().size);
   for (auto it = layers_decoder.layers(); it; ++it) {
-    ParseLayer(*it, snapshot_id);
+    ParseLayer(timestamp, *it, snapshot_id);
   }
 }
 
 void SurfaceFlingerLayersParser::ParseLayer(
+    int64_t timestamp,
     protozero::ConstBytes blob,
     tables::SurfaceFlingerLayersSnapshotTable::Id snapshot_id) {
   tables::SurfaceFlingerLayerTable::Row layer;
@@ -69,7 +70,7 @@ void SurfaceFlingerLayersParser::ParseLayer(
 
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(layerId);
-  WinscopeArgsParser writer(inserter, *context_->storage.get());
+  ArgsParser writer(timestamp, inserter, *context_->storage);
   base::Status status = args_parser_.ParseMessage(
       blob, kLayerProtoName, nullptr /* parse all fields */, writer);
   if (!status.ok()) {
