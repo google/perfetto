@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE sched.utilization.general;
+INCLUDE PERFETTO MODULE cpu.utilization.general;
 INCLUDE PERFETTO MODULE time.conversion;
 
 -- The purpose of this module is to provide high level aggregates of system
@@ -23,7 +23,7 @@ INCLUDE PERFETTO MODULE time.conversion;
 -- Utilization is calculated as sum of average utilization of each CPU in each
 -- period, which is defined as a multiply of |interval|. For this reason
 -- first and last period might have lower then real utilization.
-CREATE PERFETTO FUNCTION sched_utilization_per_period(
+CREATE PERFETTO FUNCTION cpu_utilization_per_period(
   -- Length of the period on which utilization should be averaged.
   interval INT)
 RETURNS TABLE (
@@ -39,7 +39,7 @@ RETURNS TABLE (
   unnormalized_utilization DOUBLE
 ) AS
 SELECT *
-FROM _sched_avg_utilization_per_period!(
+FROM _cpu_avg_utilization_per_period!(
   $interval,
   (SELECT * FROM sched WHERE utid != 0)
 );
@@ -48,7 +48,7 @@ FROM _sched_avg_utilization_per_period!(
 -- Utilization is calculated by sum of average utilization of each CPU every
 -- second. For this reason first and last second might have lower then real
 -- utilization.
-CREATE PERFETTO TABLE sched_utilization_per_second(
+CREATE PERFETTO TABLE cpu_utilization_per_second(
   -- Timestamp of start of a second.
   ts INT,
   -- Sum of average utilization over period.
@@ -64,4 +64,4 @@ SELECT
   ts,
   utilization,
   unnormalized_utilization
-FROM sched_utilization_per_period(time_from_s(1));
+FROM cpu_utilization_per_period(time_from_s(1));

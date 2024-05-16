@@ -2532,6 +2532,17 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/cpu/utilization:utilization
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_cpu_utilization_utilization",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/cpu/utilization/general.sql",
+        "src/trace_processor/perfetto_sql/stdlib/cpu/utilization/process.sql",
+        "src/trace_processor/perfetto_sql/stdlib/cpu/utilization/system.sql",
+        "src/trace_processor/perfetto_sql/stdlib/cpu/utilization/thread.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/cpu:cpu
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_cpu_cpu",
@@ -2608,17 +2619,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/prelude/casts.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/trace_bounds.sql",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/stdlib/sched/utilization:utilization
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_sched_utilization_utilization",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/sched/utilization/general.sql",
-        "src/trace_processor/perfetto_sql/stdlib/sched/utilization/process.sql",
-        "src/trace_processor/perfetto_sql/stdlib/sched/utilization/system.sql",
-        "src/trace_processor/perfetto_sql/stdlib/sched/utilization/thread.sql",
     ],
 )
 
@@ -2706,6 +2706,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_common_common",
         ":src_trace_processor_perfetto_sql_stdlib_counters_counters",
         ":src_trace_processor_perfetto_sql_stdlib_cpu_cpu",
+        ":src_trace_processor_perfetto_sql_stdlib_cpu_utilization_utilization",
         ":src_trace_processor_perfetto_sql_stdlib_deprecated_v42_common_common",
         ":src_trace_processor_perfetto_sql_stdlib_graphs_graphs",
         ":src_trace_processor_perfetto_sql_stdlib_intervals_intervals",
@@ -2714,7 +2715,6 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_pkvm_pkvm",
         ":src_trace_processor_perfetto_sql_stdlib_prelude_prelude",
         ":src_trace_processor_perfetto_sql_stdlib_sched_sched",
-        ":src_trace_processor_perfetto_sql_stdlib_sched_utilization_utilization",
         ":src_trace_processor_perfetto_sql_stdlib_slices_slices",
         ":src_trace_processor_perfetto_sql_stdlib_stack_trace_stack_trace",
         ":src_trace_processor_perfetto_sql_stdlib_time_time",
