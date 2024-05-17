@@ -20,6 +20,47 @@ SELECT uid, COUNT(1) AS cnt
 FROM package_list
 GROUP BY 1;
 
+CREATE PERFETTO FUNCTION _android_package_for_process(
+  uid INT,
+  uid_count INT,
+  process_name STRING
+)
+RETURNS TABLE(
+  package_name STRING,
+  version_code INT,
+  debuggable BOOL
+)
+AS
+WITH min_distance AS (
+  SELECT
+    -- SQLite allows omitting the group-by for the MIN: the other columns
+    -- will match the row with the minimum value.
+    MIN(LENGTH($process_name) - LENGTH(package_name)),
+    package_name,
+    version_code,
+    debuggable
+  FROM package_list
+  WHERE (
+    (
+      $uid = uid
+      AND (
+        -- unique match
+        $uid_count = 1
+        -- or process name is a prefix the package name
+        OR $process_name GLOB package_name || '*'
+      )
+    )
+    OR
+    (
+      -- isolated processes can only be matched based on the name
+      $uid >= 90000 AND $uid < 100000
+      AND STR_SPLIT($process_name, ':', 0) GLOB package_name || '*'
+    )
+  )
+)
+SELECT package_name, version_code, debuggable
+FROM min_distance;
+
 -- Data about packages running on the process.
 CREATE PERFETTO TABLE android_process_metadata(
   -- Process upid.
@@ -57,21 +98,6 @@ SELECT
   plist.debuggable
 FROM process
 LEFT JOIN _uid_package_count ON process.android_appid = _uid_package_count.uid
-LEFT JOIN package_list plist
-  ON (
-    (
-      process.android_appid = plist.uid
-      AND _uid_package_count.uid = plist.uid
-      AND (
-        -- unique match
-        _uid_package_count.cnt = 1
-        -- or process name starts with the package name
-        OR process.name GLOB plist.package_name || '*')
-    )
-    OR
-    (
-      -- isolated processes can only be matched based on the name
-      process.android_appid >= 90000 AND process.android_appid < 100000
-      AND STR_SPLIT(process.name, ':', 0) = plist.package_name
-    )
-  );
+LEFT JOIN _android_package_for_process(
+  process.android_appid, _uid_package_count.cnt, process.name
+) AS plist;
