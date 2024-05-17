@@ -21,10 +21,7 @@
 #include <cstring>
 #include <optional>
 
-#include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
-#include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::perf_importer {
 
@@ -93,36 +90,11 @@ std::optional<size_t> IdOffsetFromEndOfNonSampleRecord(
 }
 }  // namespace
 
-PerfEventAttr::PerfEventAttr(TraceProcessorContext* context,
-                             uint32_t perf_session_id,
-                             perf_event_attr attr)
-    : context_(context),
-      perf_session_id_(perf_session_id),
-      attr_(std::move(attr)),
+PerfEventAttr::PerfEventAttr(perf_event_attr attr)
+    : attr_(std::move(attr)),
       time_offset_from_start_(TimeOffsetFromStartOfSampleRecord(attr_)),
       time_offset_from_end_(TimeOffsetFromEndOfNonSampleRecord(attr_)),
       id_offset_from_start_(IdOffsetFromStartOfSampleRecord(attr_)),
       id_offset_from_end_(IdOffsetFromEndOfNonSampleRecord(attr_)) {}
-
-PerfEventAttr::~PerfEventAttr() = default;
-
-PerfCounter& PerfEventAttr::GetOrCreateCounter(uint32_t cpu) const {
-  auto it = counters_.find(cpu);
-  if (it == counters_.end()) {
-    it = counters_.emplace(cpu, CreateCounter(cpu)).first;
-  }
-  return it->second;
-}
-
-PerfCounter PerfEventAttr::CreateCounter(uint32_t cpu) const {
-  return PerfCounter(context_->storage->mutable_counter_table(),
-                     context_->storage->mutable_perf_counter_track_table()
-                         ->Insert({context_->storage->InternString(""),
-                                   std::nullopt, std::nullopt, std::nullopt,
-                                   context_->storage->InternString(""),
-                                   context_->storage->InternString(""),
-                                   perf_session_id_, cpu, is_timebase()})
-                         .row_reference);
-}
 
 }  // namespace perfetto::trace_processor::perf_importer
