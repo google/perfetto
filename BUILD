@@ -1707,15 +1707,13 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/perf/attrs_section_reader.cc",
         "src/trace_processor/importers/perf/attrs_section_reader.h",
-        "src/trace_processor/importers/perf/mmap_record.cc",
-        "src/trace_processor/importers/perf/mmap_record.h",
         "src/trace_processor/importers/perf/perf_data_tokenizer.cc",
         "src/trace_processor/importers/perf/perf_data_tokenizer.h",
+        "src/trace_processor/importers/perf/perf_data_tracker.cc",
+        "src/trace_processor/importers/perf/perf_data_tracker.h",
         "src/trace_processor/importers/perf/perf_file.h",
         "src/trace_processor/importers/perf/record_parser.cc",
         "src/trace_processor/importers/perf/record_parser.h",
-        "src/trace_processor/importers/perf/sample.cc",
-        "src/trace_processor/importers/perf/sample.h",
     ],
 )
 
@@ -1723,8 +1721,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_perf_record",
     srcs = [
-        "src/trace_processor/importers/perf/perf_counter.cc",
-        "src/trace_processor/importers/perf/perf_counter.h",
         "src/trace_processor/importers/perf/perf_event.h",
         "src/trace_processor/importers/perf/perf_event_attr.cc",
         "src/trace_processor/importers/perf/perf_event_attr.h",
