@@ -41,12 +41,12 @@ MATCHER_P(IsOkAndHolds, matcher, "") {
 }
 
 TEST(PerfSessionTest, NoAttrBuildFails) {
-  PerfSession::Builder builder(nullptr, 0);
+  PerfSession::Builder builder(0);
   EXPECT_FALSE(builder.Build().ok());
 }
 
 TEST(PerfSessionTest, OneAttrAndNoIdBuildSucceeds) {
-  PerfSession::Builder builder(nullptr, 0);
+  PerfSession::Builder builder(0);
   perf_event_attr attr;
   attr.sample_id_all = false;
   attr.sample_type = PERF_SAMPLE_CALLCHAIN | PERF_SAMPLE_CPU | PERF_SAMPLE_TIME;
@@ -61,7 +61,7 @@ TEST(PerfSessionTest, OneAttrAndNoIdBuildSucceeds) {
 }
 
 TEST(PerfSessionTest, MultipleAttrsAndNoIdBuildFails) {
-  PerfSession::Builder builder(nullptr, 0);
+  PerfSession::Builder builder(0);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_CALLCHAIN | PERF_SAMPLE_CPU | PERF_SAMPLE_TIME;
@@ -71,7 +71,7 @@ TEST(PerfSessionTest, MultipleAttrsAndNoIdBuildFails) {
 }
 
 TEST(PerfSessionTest, MultipleIdsSameAttrAndNoIdCanExtractAttrFromRecord) {
-  PerfSession::Builder builder(nullptr, 0);
+  PerfSession::Builder builder(0);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_CPU | PERF_SAMPLE_TIME;
@@ -95,7 +95,7 @@ TEST(PerfSessionTest, MultipleIdsSameAttrAndNoIdCanExtractAttrFromRecord) {
 }
 
 TEST(PerfSessionTest, NoCommonSampleIdAllBuildFails) {
-  PerfSession::Builder builder(nullptr, 0);
+  PerfSession::Builder builder(0);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IDENTIFIER;
@@ -111,7 +111,7 @@ TEST(PerfSessionTest, NoCommonSampleIdAllBuildFails) {
 }
 
 TEST(PerfSessionTest, NoCommonOffsetForSampleBuildFails) {
-  PerfSession::Builder builder(nullptr, 0);
+  PerfSession::Builder builder(0);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_ID;
@@ -122,7 +122,7 @@ TEST(PerfSessionTest, NoCommonOffsetForSampleBuildFails) {
 }
 
 TEST(PerfSessionTest, NoCommonOffsetForNonSampleBuildFails) {
-  PerfSession::Builder builder(nullptr, 0);
+  PerfSession::Builder builder(0);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_ID | PERF_SAMPLE_TID;
@@ -138,7 +138,7 @@ TEST(PerfSessionTest, NoCommonOffsetForNonSampleBuildFails) {
 }
 
 TEST(PerfSessionTest, NoCommonOffsetForNonSampleAndNoSampleIdAllBuildSucceeds) {
-  PerfSession::Builder builder(nullptr, 0);
+  PerfSession::Builder builder(0);
   perf_event_attr attr;
   attr.sample_id_all = false;
   attr.sample_type = PERF_SAMPLE_IDENTIFIER | PERF_SAMPLE_TID;
@@ -149,7 +149,7 @@ TEST(PerfSessionTest, NoCommonOffsetForNonSampleAndNoSampleIdAllBuildSucceeds) {
 }
 
 TEST(PerfSessionTest, MultiplesessionBuildSucceeds) {
-  PerfSession::Builder builder(nullptr, 0);
+  PerfSession::Builder builder(0);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_ID;
@@ -159,7 +159,7 @@ TEST(PerfSessionTest, MultiplesessionBuildSucceeds) {
 }
 
 TEST(PerfSessionTest, FindAttrInRecordWithId) {
-  PerfSession::Builder builder(nullptr, 0);
+  PerfSession::Builder builder(0);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_ID;
@@ -194,7 +194,7 @@ TEST(PerfSessionTest, FindAttrInRecordWithId) {
 }
 
 TEST(PerfSessionTest, FindAttrInRecordWithIdentifier) {
-  PerfSession::Builder builder(nullptr, 0);
+  PerfSession::Builder builder(0);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IDENTIFIER | PERF_SAMPLE_IP;
