@@ -46,7 +46,6 @@
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
-#include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
 #include "src/trace_processor/importers/gzip/gzip_trace_parser.h"
@@ -111,7 +110,6 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
-#include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -341,34 +339,27 @@ void InitializePreludeTablesViews(sqlite3* db) {
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     : TraceProcessorStorageImpl(cfg), config_(cfg) {
-  context_.reader_registry->RegisterTraceReader<FuchsiaTraceTokenizer>(
-      kFuchsiaTraceType);
+  context_.fuchsia_trace_tokenizer =
+      std::make_unique<FuchsiaTraceTokenizer>(&context_);
   context_.fuchsia_record_parser =
       std::make_unique<FuchsiaTraceParser>(&context_);
-
-  context_.reader_registry->RegisterTraceReader<SystraceTraceParser>(
-      kSystraceTraceType);
-  context_.reader_registry->RegisterTraceReader<NinjaLogParser>(
-      kNinjaLogTraceType);
-
-  context_.reader_registry
-      ->RegisterTraceReader<perf_importer::PerfDataTokenizer>(
-          kPerfDataTraceType);
+  context_.ninja_log_parser = std::make_unique<NinjaLogParser>(&context_);
+  context_.systrace_trace_parser =
+      std::make_unique<SystraceTraceParser>(&context_);
+  context_.perf_data_trace_tokenizer =
+      std::make_unique<perf_importer::PerfDataTokenizer>(&context_);
   context_.perf_record_parser =
       std::make_unique<perf_importer::PerfDataParser>(&context_);
 
   if (util::IsGzipSupported()) {
-    context_.reader_registry->RegisterTraceReader<GzipTraceParser>(
-        kGzipTraceType);
-    context_.reader_registry->RegisterTraceReader<GzipTraceParser>(
-        kCtraceTraceType);
-    context_.reader_registry->RegisterTraceReader<AndroidBugreportParser>(
-        kAndroidBugreportTraceType);
+    context_.gzip_trace_parser = std::make_unique<GzipTraceParser>(&context_);
+    context_.android_bugreport_parser =
+        std::make_unique<AndroidBugreportParser>(&context_);
   }
 
   if (json::IsJsonSupported()) {
-    context_.reader_registry->RegisterTraceReader<JsonTraceTokenizer>(
-        kJsonTraceType);
+    context_.json_trace_tokenizer =
+        std::make_unique<JsonTraceTokenizer>(&context_);
     context_.json_trace_parser =
         std::make_unique<JsonTraceParserImpl>(&context_);
   }

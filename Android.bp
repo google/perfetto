@@ -2457,7 +2457,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
-        ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_traced_probes_android_game_intervention_list_android_game_intervention_list",
@@ -13181,7 +13180,6 @@ filegroup {
         "src/trace_processor/trace_processor_context.cc",
         "src/trace_processor/trace_processor_storage.cc",
         "src/trace_processor/trace_processor_storage_impl.cc",
-        "src/trace_processor/trace_reader_registry.cc",
         "src/trace_processor/virtual_destructors.cc",
     ],
 }
@@ -13454,14 +13452,6 @@ filegroup {
 // GN: //src/trace_processor/util:stdlib
 filegroup {
     name: "perfetto_src_trace_processor_util_stdlib",
-}
-
-// GN: //src/trace_processor/util:trace_type
-filegroup {
-    name: "perfetto_src_trace_processor_util_trace_type",
-    srcs: [
-        "src/trace_processor/util/trace_type.cc",
-    ],
 }
 
 // GN: //src/trace_processor/util:unittests
@@ -15069,7 +15059,6 @@ cc_test {
         ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
-        ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_unittests",
         ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_zip_reader",
@@ -16051,7 +16040,6 @@ cc_binary {
         ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
-        ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_zip_reader",
         "src/trace_processor/trace_processor_shell.cc",
@@ -16246,7 +16234,6 @@ cc_binary {
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_regex",
-        ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_redaction_trace_redaction",
         "src/trace_redaction/main.cc",
@@ -16435,7 +16422,6 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_sql_argument",
         ":perfetto_src_trace_processor_util_stdlib",
-        ":perfetto_src_trace_processor_util_trace_type",
         ":perfetto_src_trace_processor_util_util",
         ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_traceconv_lib",

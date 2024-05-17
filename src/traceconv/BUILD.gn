@@ -91,7 +91,6 @@ source_set("lib") {
     "../../src/trace_processor/util:descriptors",
     "../../src/trace_processor/util:gzip",
     "../../src/trace_processor/util:protozero_to_text",
-    "../../src/trace_processor/util:trace_type",
   ]
   sources = [
     "deobfuscate_profile.cc",
