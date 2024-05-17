@@ -720,6 +720,12 @@ bool ProcessStatsDataSource::WriteMemCounters(int32_t pid,
           GetOrCreateStatsProcess(pid)->set_smr_pss_shmem_kb(counter);
           cached.smr_pss_shmem_kb = counter;
         }
+      } else if (strcmp(key.data(), "SwapPss") == 0) {
+        auto counter = ToUInt32(value.data());
+        if (counter != cached.smr_swap_pss_kb) {
+          GetOrCreateStatsProcess(pid)->set_smr_swap_pss_kb(counter);
+          cached.smr_swap_pss_kb = counter;
+        }
       }
 
       key.clear();

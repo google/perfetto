@@ -168,6 +168,8 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       context->storage->InternString("mem.smaps.pss.file");
   proc_stats_process_names_[ProcessStats::Process::kSmrPssShmemKbFieldNumber] =
       context->storage->InternString("mem.smaps.pss.shmem");
+  proc_stats_process_names_[ProcessStats::Process::kSmrSwapPssKbFieldNumber] =
+      context->storage->InternString("mem.smaps.swap.pss");
   proc_stats_process_names_
       [ProcessStats::Process::kRuntimeUserModeFieldNumber] =
           context->storage->InternString("runtime.user_ns");

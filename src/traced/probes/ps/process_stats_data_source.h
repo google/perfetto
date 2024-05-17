@@ -90,6 +90,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
     uint32_t smr_pss_anon_kb = std::numeric_limits<uint32_t>::max();
     uint32_t smr_pss_file_kb = std::numeric_limits<uint32_t>::max();
     uint32_t smr_pss_shmem_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t smr_swap_pss_kb = std::numeric_limits<uint32_t>::max();
     uint64_t runtime_user_mode_ns = std::numeric_limits<uint64_t>::max();
     uint64_t runtime_kernel_mode_ns = std::numeric_limits<uint64_t>::max();
     // file descriptors
