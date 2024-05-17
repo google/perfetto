@@ -164,5 +164,15 @@ void MappingTracker::AddJitRange(UniquePid upid,
       });
 }
 
+VirtualMemoryMapping* MappingTracker::GetDummyMapping() {
+  if (!dummy_mapping_) {
+    CreateMappingParams params;
+    params.memory_range =
+        AddressRange::FromStartAndSize(0, std::numeric_limits<uint64_t>::max());
+    dummy_mapping_ = &InternMemoryMapping(params);
+  }
+  return dummy_mapping_;
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
