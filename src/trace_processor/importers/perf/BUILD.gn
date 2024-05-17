@@ -40,14 +40,13 @@ source_set("perf") {
   sources = [
     "attrs_section_reader.cc",
     "attrs_section_reader.h",
-    "perf_data_parser.cc",
-    "perf_data_parser.h",
     "perf_data_tokenizer.cc",
     "perf_data_tokenizer.h",
     "perf_data_tracker.cc",
     "perf_data_tracker.h",
     "perf_file.h",
-    "reader.h",
+    "record_parser.cc",
+    "record_parser.h",
   ]
   public_deps = [ ":record" ]
   deps = [

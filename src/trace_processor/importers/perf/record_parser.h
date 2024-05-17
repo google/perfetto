@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_DATA_PARSER_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_DATA_PARSER_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PERF_RECORD_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PERF_RECORD_PARSER_H_
 
 #include <stdint.h>
 
@@ -27,10 +27,10 @@ namespace trace_processor {
 namespace perf_importer {
 
 // Parses samples from perf.data files.
-class PerfDataParser : public PerfRecordParser {
+class RecordParser : public PerfRecordParser {
  public:
-  explicit PerfDataParser(TraceProcessorContext*);
-  ~PerfDataParser() override;
+  explicit RecordParser(TraceProcessorContext*);
+  ~RecordParser() override;
 
   void ParsePerfRecord(int64_t timestamp, Record record) override;
 
@@ -47,4 +47,4 @@ class PerfDataParser : public PerfRecordParser {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_DATA_PARSER_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_RECORD_PARSER_H_

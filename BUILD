@@ -1706,14 +1706,13 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/perf/attrs_section_reader.cc",
         "src/trace_processor/importers/perf/attrs_section_reader.h",
-        "src/trace_processor/importers/perf/perf_data_parser.cc",
-        "src/trace_processor/importers/perf/perf_data_parser.h",
         "src/trace_processor/importers/perf/perf_data_tokenizer.cc",
         "src/trace_processor/importers/perf/perf_data_tokenizer.h",
         "src/trace_processor/importers/perf/perf_data_tracker.cc",
         "src/trace_processor/importers/perf/perf_data_tracker.h",
         "src/trace_processor/importers/perf/perf_file.h",
-        "src/trace_processor/importers/perf/reader.h",
+        "src/trace_processor/importers/perf/record_parser.cc",
+        "src/trace_processor/importers/perf/record_parser.h",
     ],
 )
 
