@@ -262,6 +262,7 @@ namespace stats {
   F(perf_process_shard_count,             kIndexed, kInfo,     kTrace,    ""), \
   F(perf_chosen_process_shard,            kIndexed, kInfo,     kTrace,    ""), \
   F(perf_guardrail_stop_ts,               kIndexed, kDataLoss, kTrace,    ""), \
+  F(perf_record_skipped,                  kSingle,  kInfo,     kTrace,    ""), \
   F(perf_samples_skipped,                 kSingle,  kInfo,     kTrace,    ""), \
   F(perf_samples_skipped_dataloss,        kSingle,  kDataLoss, kTrace,    ""), \
   F(memory_snapshot_parser_failure,       kSingle,  kError,    kAnalysis, ""), \
