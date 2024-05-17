@@ -46,13 +46,11 @@ base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
     return base::ErrStatus("No perf_event_attr");
   }
 
-  const PerfEventAttr base_attr(context_, perf_session_id_,
-                                attr_with_ids_[0].attr);
+  const PerfEventAttr base_attr(attr_with_ids_[0].attr);
 
   base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id;
   for (const auto& entry : attr_with_ids_) {
-    RefPtr<PerfEventAttr> attr(
-        new PerfEventAttr(context_, perf_session_id_, entry.attr));
+    RefPtr<PerfEventAttr> attr(new PerfEventAttr(entry.attr));
     if (base_attr.sample_id_all() != attr->sample_id_all()) {
       return base::ErrStatus(
           "perf_event_attr with different sample_id_all values");
