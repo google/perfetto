@@ -26,10 +26,10 @@
 #include "protos/perfetto/trace/trace.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
+#include "src/trace_processor/forwarding_trace_parser.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/gzip_utils.h"
 #include "src/trace_processor/util/protozero_to_text.h"
-#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto {
 namespace trace_to_text {
