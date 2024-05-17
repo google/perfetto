@@ -31,6 +31,7 @@
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
@@ -67,6 +68,8 @@ TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
   event_tracker.reset(new EventTracker(this));
   sched_event_tracker.reset(new SchedEventTracker(this));
   process_tracker.reset(new ProcessTracker(this));
+  process_track_translation_table.reset(
+      new ProcessTrackTranslationTable(storage.get()));
   clock_tracker.reset(new ClockTracker(this));
   clock_converter.reset(new ClockConverter(this));
   mapping_tracker.reset(new MappingTracker(this));

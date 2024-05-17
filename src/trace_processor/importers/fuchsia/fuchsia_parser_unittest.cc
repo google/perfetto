@@ -28,6 +28,7 @@
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
@@ -248,6 +249,8 @@ class FuchsiaTraceParserTest : public ::testing::Test {
     context_.ftrace_sched_tracker.reset(sched_);
     process_ = new NiceMock<MockProcessTracker>(&context_);
     context_.process_tracker.reset(process_);
+    context_.process_track_translation_table.reset(
+        new ProcessTrackTranslationTable(storage_));
     slice_ = new NiceMock<MockSliceTracker>(&context_);
     context_.slice_tracker.reset(slice_);
     context_.slice_translation_table.reset(new SliceTranslationTable(storage_));

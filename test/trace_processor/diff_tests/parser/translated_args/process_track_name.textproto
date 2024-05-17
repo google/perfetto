@@ -1,0 +1,100 @@
+packet {
+  translation_table {
+    process_track_name {
+      raw_to_deobfuscated_name { key: "raw_track_name" value: "explicitly_renamed" }
+      raw_to_deobfuscated_name { key: "raw_slice1" value: "should_not_be_renamed" }
+      raw_to_deobfuscated_name { key: "raw_slice2" value: "implicitly_renamed" }
+      raw_to_deobfuscated_name { key: "raw_counter" value: "renamed_counter" }
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_descriptor {
+    uuid: 1
+    process: {
+      process_name: "exampleProcess"
+      pid: 1234
+    }
+  }
+}
+# Define a named track
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1001
+  track_descriptor {
+    uuid: 2
+    name: "raw_track_name"
+    parent_uuid: 1
+  }
+}
+# define a track who's name will be implicitly defined by slice names
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1002
+  track_descriptor {
+    uuid: 3
+    parent_uuid: 1
+  }
+}
+# Named track for the counter
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1002
+  track_descriptor {
+    uuid: 4
+    name: "raw_counter"
+    parent_uuid: 1
+    counter {
+    }
+  }
+}
+# Counter Event
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1004
+  track_event {
+    track_uuid: 4
+    type: 4
+    counter_value: 99
+  }
+}
+
+# begin/end pair for explicitly named track
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1500
+  track_event {
+    track_uuid: 2
+    name: "raw_slice1"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  track_event {
+    track_uuid: 2
+    type: 2
+  }
+}
+
+# begin/end pair for implicitly named slice
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 3000
+  track_event {
+    track_uuid: 3
+    name: "raw_slice2"
+    type: 1
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 4000
+  track_event {
+    track_uuid: 3
+    type: 2
+  }
+}

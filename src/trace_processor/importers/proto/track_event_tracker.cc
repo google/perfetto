@@ -18,6 +18,7 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/tables/track_tables_py.h"
@@ -201,7 +202,9 @@ std::optional<TrackId> TrackEventTracker::GetDescriptorTrack(
       reservation_it->second.is_counter) {
     return track_id;
   }
-  tracks->mutable_name()->Set(row, event_name);
+  const StringId track_name =
+      context_->process_track_translation_table->TranslateName(event_name);
+  tracks->mutable_name()->Set(row, track_name);
   return track_id;
 }
 

@@ -1495,6 +1495,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/mapping_tracker.h",
         "src/trace_processor/importers/common/metadata_tracker.cc",
         "src/trace_processor/importers/common/metadata_tracker.h",
+        "src/trace_processor/importers/common/process_track_translation_table.cc",
+        "src/trace_processor/importers/common/process_track_translation_table.h",
         "src/trace_processor/importers/common/process_tracker.cc",
         "src/trace_processor/importers/common/process_tracker.h",
         "src/trace_processor/importers/common/sched_event_state.h",
