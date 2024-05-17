@@ -407,15 +407,17 @@ diamond marker that shows.
 
 ![Profile Diamond](/docs/images/profile-diamond.png)
 
-This will present a flamegraph of the memory attributed to the shortest path
-to a garbage-collection root. In general an object is reachable by many paths,
-we only show the shortest as that reduces the complexity of the data displayed
-and is generally the highest-signal. The rightmost `[merged]` stacks is the
-sum of all objects that are too small to be displayed.
+This will present a set of flamegraph views as explained below.
 
-![Java Flamegraph](/docs/images/java-heap-graph.png)
+#### "Size" and "Objects" tabs
 
-The tabs that are available are
+![Java Flamegraph: Size](/docs/images/java-heap-graph.png)
+
+These views show the memory attributed to the shortest path to a
+garbage-collection root. In general an object is reachable by many paths, we
+only show the shortest as that reduces the complexity of the data displayed and
+is generally the highest-signal. The rightmost `[merged]` stacks is the sum of
+all objects that are too small to be displayed.
 
 * **Size**: how many bytes are retained via this path to the GC root.
 * **Objects**: how many objects are retained via this path to the GC root.
@@ -432,4 +434,26 @@ that could be caused by notifications, we can put "notification" in the Focus bo
 
 We aggregate the paths per class name, so if there are multiple objects of the
 same type retained by a `java.lang.Object[]`, we will show one element as its
-child, as you can see in the leftmost stack above.
+child, as you can see in the leftmost stack above. This also applies to the
+dominator tree paths as described below.
+
+#### "Dominated Size" and "Dominated Objects" tabs
+
+![Java Flamegraph: Dominated Size](/docs/images/java-heap-graph-dominated-size.png)
+
+Another way to present the heap graph as a flamegraph (a tree) is to show its
+[dominator tree](/docs/analysis/stdlib-docs.autogen#memory-heap_graph_dominator_tree).
+In a heap graph, an object `a` dominates an object `b` if `b` is reachable from
+the root only via paths that go through `a`. The dominators of an object form a
+chain from the root and the object is exclusvely retained by all objects on this
+chain. For all reachable objects in the graph those chains form a tree, i.e. the
+dominator tree.
+
+We aggregate the tree paths per class name, and each element (tree node)
+represents a set of objects that have the same class name and position in the
+dominator tree.
+
+* **Dominated Size**: how many bytes are exclusively retained by the objects in
+a node.
+* **Dominated Objects**: how many objects are exclusively retained by the
+objects in a node.
