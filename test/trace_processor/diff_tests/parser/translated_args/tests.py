@@ -121,6 +121,25 @@ class TranslatedArgs(TestSuite):
         "slice_begin"
         """))
 
+  def test_process_track_name(self):
+    return DiffTestBlueprint(
+        trace=Path('process_track_name.textproto'),
+        query="""
+        SELECT
+          name
+        FROM track
+        WHERE
+          name IS NOT NULL
+          AND type in ('process_track', 'process_counter_track')
+        ORDER BY name;
+        """,
+        out=Csv("""
+        "name"
+        "explicitly_renamed"
+        "implicitly_renamed"
+        "renamed_counter"
+        """))
+
   def test_native_symbol_arg(self):
     return DiffTestBlueprint(
         trace=Path('native_symbol_arg.textproto'),
