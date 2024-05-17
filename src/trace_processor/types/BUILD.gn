@@ -32,6 +32,7 @@ source_set("types") {
     "../../../include/perfetto/trace_processor",
     "../containers",
     "../tables:tables_python",
+    "../util:trace_type",
   ]
 }
 
