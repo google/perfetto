@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/perf/perf_data_parser.h"
+#include "src/trace_processor/importers/perf/record_parser.h"
 
 #include <optional>
 #include <string>
@@ -39,18 +39,18 @@ namespace perf_importer {
 using FramesTable = tables::StackProfileFrameTable;
 using CallsitesTable = tables::StackProfileCallsiteTable;
 
-PerfDataParser::PerfDataParser(TraceProcessorContext* context)
+RecordParser::RecordParser(TraceProcessorContext* context)
     : context_(context), tracker_(PerfDataTracker::GetOrCreate(context_)) {}
 
-PerfDataParser::~PerfDataParser() = default;
+RecordParser::~RecordParser() = default;
 
-void PerfDataParser::ParsePerfRecord(int64_t ts, Record record) {
+void RecordParser::ParsePerfRecord(int64_t ts, Record record) {
   if (base::Status status = ParseRecord(ts, std::move(record)); !status.ok()) {
     context_->storage->IncrementStats(stats::perf_record_skipped);
   }
 }
 
-base::Status PerfDataParser::ParseRecord(int64_t ts, Record record) {
+base::Status RecordParser::ParseRecord(int64_t ts, Record record) {
   switch (record.header.type) {
     case PERF_RECORD_SAMPLE:
       return ParseSample(ts, std::move(record));
@@ -71,7 +71,7 @@ base::Status PerfDataParser::ParseRecord(int64_t ts, Record record) {
   return base::OkStatus();
 }
 
-base::Status PerfDataParser::ParseSample(int64_t ts, Record record) {
+base::Status RecordParser::ParseSample(int64_t ts, Record record) {
   PERFETTO_CHECK(record.attr);
 
   Reader reader(record.payload.copy());
@@ -157,7 +157,7 @@ base::Status PerfDataParser::ParseSample(int64_t ts, Record record) {
   return base::OkStatus();
 }
 
-base::Status PerfDataParser::ParseMmap2(Record record) {
+base::Status RecordParser::ParseMmap2(Record record) {
   Reader reader(record.payload.copy());
   PerfDataTracker::Mmap2Record mmap2;
   reader.Read(mmap2.num);
