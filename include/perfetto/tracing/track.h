@@ -25,6 +25,7 @@
 #include "perfetto/tracing/internal/fnv1a.h"
 #include "perfetto/tracing/internal/tracing_muxer.h"
 #include "perfetto/tracing/platform.h"
+#include "perfetto/tracing/string_helpers.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.pbzero.h"
@@ -203,39 +204,54 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
   // |name| must outlive this object.
   constexpr explicit CounterTrack(const char* name,
                                   Track parent = MakeProcessTrack())
-      : Track(internal::Fnv1a(name) ^ kCounterMagic, parent),
-        name_(name),
-        category_(nullptr) {}
+      : CounterTrack(
+            name,
+            perfetto::protos::pbzero::CounterDescriptor::UNIT_UNSPECIFIED,
+            nullptr,
+            parent) {}
+
+  explicit CounterTrack(DynamicString name, Track parent = MakeProcessTrack())
+      : CounterTrack(
+            name,
+            perfetto::protos::pbzero::CounterDescriptor::UNIT_UNSPECIFIED,
+            nullptr,
+            parent) {}
 
   // |unit_name| is a free-form description of the unit used by this counter. It
   // must outlive this object.
-  constexpr CounterTrack(const char* name,
+  template <class TrackEventName>
+  constexpr CounterTrack(TrackEventName&& name,
                          const char* unit_name,
                          Track parent = MakeProcessTrack())
-      : Track(internal::Fnv1a(name) ^ kCounterMagic, parent),
-        name_(name),
-        category_(nullptr),
-        unit_name_(unit_name) {}
+      : CounterTrack(
+            std::forward<TrackEventName>(name),
+            perfetto::protos::pbzero::CounterDescriptor::UNIT_UNSPECIFIED,
+            unit_name,
+            parent) {}
 
-  constexpr CounterTrack(const char* name,
+  template <class TrackEventName>
+  constexpr CounterTrack(TrackEventName&& name,
                          Unit unit,
                          Track parent = MakeProcessTrack())
-      : Track(internal::Fnv1a(name) ^ kCounterMagic, parent),
-        name_(name),
-        category_(nullptr),
-        unit_(unit) {}
+      : CounterTrack(std::forward<TrackEventName>(name),
+                     unit,
+                     nullptr,
+                     parent) {}
 
-  static constexpr CounterTrack Global(const char* name,
+  template <class TrackEventName>
+  static constexpr CounterTrack Global(TrackEventName&& name,
                                        const char* unit_name) {
-    return CounterTrack(name, unit_name, Track());
+    return CounterTrack(std::forward<TrackEventName>(name), unit_name, Track());
   }
 
-  static constexpr CounterTrack Global(const char* name, Unit unit) {
-    return CounterTrack(name, unit, Track());
+  template <class TrackEventName>
+  static constexpr CounterTrack Global(TrackEventName&& name, Unit unit) {
+    return CounterTrack(std::forward<TrackEventName>(name), unit, Track());
   }
 
-  static constexpr CounterTrack Global(const char* name) {
-    return Global(name, nullptr);
+  template <class TrackEventName>
+  static constexpr CounterTrack Global(TrackEventName&& name) {
+    return Global(std::forward<TrackEventName>(name), nullptr);
   }
 
   constexpr CounterTrack set_unit(Unit unit) const {
@@ -274,6 +290,24 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
+  constexpr CounterTrack(const char* name,
+                         Unit unit,
+                         const char* unit_name,
+                         Track parent)
+      : Track(internal::Fnv1a(name) ^ kCounterMagic, parent),
+        name_(name),
+        category_(nullptr),
+        unit_(unit),
+        unit_name_(unit_name) {}
+  CounterTrack(DynamicString name,
+               Unit unit,
+               const char* unit_name,
+               Track parent)
+      : Track(internal::Fnv1a(name.value, name.length) ^ kCounterMagic, parent),
+        name_(name.value),
+        category_(nullptr),
+        unit_(unit),
+        unit_name_(unit_name) {}
   constexpr CounterTrack(uint64_t uuid_,
                          uint64_t parent_uuid_,
                          const char* name,
