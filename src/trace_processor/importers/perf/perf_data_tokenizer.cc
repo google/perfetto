@@ -194,7 +194,7 @@ PerfDataTokenizer::ParseAttrs() {
                    AttrsSectionReader::Create(header_, std::move(*tbv)));
 
   PerfSession::Builder builder(
-      context_->perf_sample_tracker->CreatePerfSession());
+      context_, context_->perf_sample_tracker->CreatePerfSession());
   while (attr_reader.CanReadNext()) {
     PerfFile::AttrsEntry entry;
     RETURN_IF_ERROR(attr_reader.ReadNext(entry));
