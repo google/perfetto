@@ -20,15 +20,10 @@
 #include <cstdint>
 #include <string>
 #include <vector>
-#include "perfetto/base/logging.h"
-#include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
+
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
-#include "src/trace_processor/importers/perf/perf_data_reader.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
-#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -37,20 +32,11 @@ namespace perfetto {
 namespace trace_processor {
 namespace perf_importer {
 
+class Reader;
 using MappingTable = tables::StackProfileMappingTable;
 
 class PerfDataTracker : public Destructible {
  public:
-  struct PerfFileSection {
-    uint64_t offset;
-    uint64_t size;
-
-    uint64_t end() const { return offset + size; }
-  };
-  struct PerfFileAttr {
-    perf_event_attr attr;
-    PerfFileSection ids;
-  };
   struct AttrAndIds {
     perf_event_attr attr;
     std::vector<uint64_t> ids;
@@ -89,23 +75,12 @@ class PerfDataTracker : public Destructible {
   ~PerfDataTracker() override;
   static PerfDataTracker* GetOrCreate(TraceProcessorContext* context);
 
-  uint64_t ComputeCommonSampleType();
-
-  void PushAttrAndIds(AttrAndIds data) { attrs_.push_back(std::move(data)); }
-
   void PushMmap2Record(Mmap2Record record);
 
-  uint64_t common_sample_type() { return common_sample_type_; }
-
-  base::StatusOr<PerfSample> ParseSample(
-      perfetto::trace_processor::perf_importer::PerfDataReader&);
+  base::StatusOr<PerfSample> ParseSample(Reader&, uint64_t sample_type);
 
  private:
-  const perf_event_attr* FindAttrWithId(uint64_t id) const;
   TraceProcessorContext* context_;
-  std::vector<AttrAndIds> attrs_;
-
-  uint64_t common_sample_type_;
 };
 }  // namespace perf_importer
 }  // namespace trace_processor

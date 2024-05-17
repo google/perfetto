@@ -87,6 +87,7 @@ source_set("common") {
     "../../util:build_id",
     "../../util:profiler_util",
     "../fuchsia:fuchsia_record",
+    "../perf:record",
     "../systrace:systrace_line",
   ]
 }

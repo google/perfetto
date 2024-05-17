@@ -16,12 +16,14 @@
 
 #include "src/trace_processor/importers/perf/perf_data_tracker.h"
 
+#include <cstdint>
 #include <optional>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/address_range.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -65,29 +67,6 @@ CreateMappingParams BuildCreateMappingParams(
 
 PerfDataTracker::~PerfDataTracker() = default;
 
-uint64_t PerfDataTracker::ComputeCommonSampleType() {
-  if (attrs_.empty()) {
-    return 0;
-  }
-  common_sample_type_ = std::numeric_limits<uint64_t>::max();
-  for (const auto& a : attrs_) {
-    common_sample_type_ &= a.attr.sample_type;
-  }
-  return common_sample_type_;
-}
-
-const perf_event_attr* PerfDataTracker::FindAttrWithId(uint64_t id) const {
-  for (const auto& attr_and_ids : attrs_) {
-    if (auto x =
-            std::find(attr_and_ids.ids.begin(), attr_and_ids.ids.end(), id);
-        x == attr_and_ids.ids.end()) {
-      continue;
-    }
-    return &attr_and_ids.attr;
-  }
-  return nullptr;
-}
-
 void PerfDataTracker::PushMmap2Record(Mmap2Record record) {
   if (IsInKernel(record.cpu_mode)) {
     context_->mapping_tracker->CreateKernelMemoryMapping(
@@ -101,17 +80,12 @@ void PerfDataTracker::PushMmap2Record(Mmap2Record record) {
 }
 
 base::StatusOr<PerfDataTracker::PerfSample> PerfDataTracker::ParseSample(
-    perfetto::trace_processor::perf_importer::PerfDataReader& reader) {
-  uint64_t sample_type = common_sample_type();
+    Reader& reader,
+    uint64_t sample_type) {
   PerfDataTracker::PerfSample sample;
 
   if (sample_type & PERF_SAMPLE_IDENTIFIER) {
     reader.ReadOptional(sample.id);
-    if (auto attr = FindAttrWithId(*sample.id); attr) {
-      sample_type = attr->sample_type;
-    } else {
-      return base::ErrStatus("No attr for sample_id");
-    }
   }
 
   if (sample_type & PERF_SAMPLE_IP) {
