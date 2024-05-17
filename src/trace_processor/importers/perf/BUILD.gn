@@ -26,21 +26,22 @@ source_set("record") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../include/perfetto/ext/base:base",
+    "../../../../include/perfetto/trace_processor:storage",
+    "../../../../include/perfetto/trace_processor:trace_processor",
     "../../../../protos/perfetto/trace/profiling:zero",
-    "../../sorter",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
-    "../common",
     "../common:parser_types",
   ]
 }
 source_set("perf") {
   sources = [
+    "attrs_section_reader.cc",
+    "attrs_section_reader.h",
     "perf_data_parser.cc",
     "perf_data_parser.h",
-    "perf_data_reader.cc",
-    "perf_data_reader.h",
     "perf_data_tokenizer.cc",
     "perf_data_tokenizer.h",
     "perf_data_tracker.cc",
@@ -51,11 +52,13 @@ source_set("perf") {
   public_deps = [ ":record" ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../sorter",
     "../../storage",
     "../../tables:tables_python",
     "../../types",
+    "../../util:file_buffer",
     "../common",
     "../common:parser_types",
     "../proto:minimal",
@@ -65,7 +68,6 @@ source_set("perf") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
-    "perf_data_reader_unittest.cc",
     "perf_data_tracker_unittest.cc",
     "perf_session_unittest.cc",
     "reader_unittest.cc",

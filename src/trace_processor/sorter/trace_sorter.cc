@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
+#include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -188,7 +189,7 @@ void TraceSorter::ParseTracePacket(TraceProcessorContext& context,
   switch (static_cast<TimestampedEvent::Type>(event.event_type)) {
     case TimestampedEvent::Type::kPerfRecord:
       context.perf_record_parser->ParsePerfRecord(
-          event.ts, token_buffer_.Extract<TraceBlobView>(id));
+          event.ts, token_buffer_.Extract<perf_importer::Record>(id));
       return;
     case TimestampedEvent::Type::kTracePacket:
       context.proto_trace_parser->ParseTracePacket(
@@ -276,7 +277,7 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
   TraceTokenBuffer::Id id = GetTokenBufferId(event);
   switch (static_cast<TimestampedEvent::Type>(event.event_type)) {
     case TimestampedEvent::Type::kPerfRecord:
-      base::ignore_result(token_buffer_.Extract<TraceBlobView>(id));
+      base::ignore_result(token_buffer_.Extract<perf_importer::Record>(id));
       return;
     case TimestampedEvent::Type::kTracePacket:
       base::ignore_result(token_buffer_.Extract<TracePacketData>(id));

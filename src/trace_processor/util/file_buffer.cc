@@ -39,10 +39,11 @@ void FileBuffer::PushBack(TraceBlobView data) {
   end_offset_ += size;
 }
 
-bool FileBuffer::PopFrontBytesUntil(const size_t target_offset) {
+bool FileBuffer::PopFrontUntil(const size_t target_offset) {
+  PERFETTO_CHECK(file_offset() <= target_offset);
   while (!data_.empty()) {
     Entry& entry = data_.front();
-    if (target_offset <= entry.file_offset) {
+    if (target_offset == entry.file_offset) {
       return true;
     }
     const size_t bytes_to_pop = target_offset - entry.file_offset;
@@ -110,9 +111,8 @@ FileBuffer::Iterator FileBuffer::FindEntryWithOffset(size_t offset) const {
   auto it = std::upper_bound(
       data_.begin(), data_.end(), offset,
       [](size_t offset, const Entry& rhs) { return offset < rhs.file_offset; });
-  if (it == data_.begin()) {
-    return end();
-  }
+  // This can only happen if too much data was popped.
+  PERFETTO_CHECK(it != data_.begin());
   return std::prev(it);
 }
 
