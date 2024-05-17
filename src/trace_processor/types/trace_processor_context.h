@@ -66,6 +66,7 @@ class PacketAnalyzer;
 class PerfRecordParser;
 class PerfSampleTracker;
 class ProcessTracker;
+class ProcessTrackTranslationTable;
 class ProtoImporterModule;
 class ProtoTraceParser;
 class SchedEventTracker;
@@ -118,6 +119,7 @@ class TraceProcessorContext {
   std::unique_ptr<SliceTranslationTable> slice_translation_table;
   std::unique_ptr<FlowTracker> flow_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;
+  std::unique_ptr<ProcessTrackTranslationTable> process_track_translation_table;
   std::unique_ptr<EventTracker> event_tracker;
   std::unique_ptr<SchedEventTracker> sched_event_tracker;
   std::unique_ptr<ClockTracker> clock_tracker;

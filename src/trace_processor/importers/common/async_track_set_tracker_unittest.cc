@@ -18,6 +18,7 @@
 
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
@@ -34,6 +35,8 @@ class AsyncTrackSetTrackerUnittest : public testing::Test {
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.track_tracker.reset(new TrackTracker(&context_));
     context_.async_track_set_tracker.reset(new AsyncTrackSetTracker(&context_));
+    context_.process_track_translation_table.reset(
+        new ProcessTrackTranslationTable(context_.storage.get()));
 
     storage_ = context_.storage.get();
     tracker_ = context_.async_track_set_tracker.get();

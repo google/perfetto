@@ -16,6 +16,7 @@
 #include "src/trace_processor/importers/proto/translation_table_module.h"
 
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
@@ -54,6 +55,8 @@ ModuleResult TranslationTableModule::TokenizePacket(
         translation_table.chrome_performance_mark());
   } else if (translation_table.has_slice_name()) {
     ParseSliceNameRules(translation_table.slice_name());
+  } else if (translation_table.has_process_track_name()) {
+    ParseProcessTrackNameRules(translation_table.process_track_name());
   }
   return ModuleResult::Handled();
 }
@@ -110,6 +113,18 @@ void TranslationTableModule::ParseSliceNameRules(protozero::ConstBytes bytes) {
         Decoder entry(*it);
     context_->slice_translation_table->AddNameTranslationRule(entry.key(),
                                                               entry.value());
+  }
+}
+
+void TranslationTableModule::ParseProcessTrackNameRules(
+    protozero::ConstBytes bytes) {
+  const auto process_track_name =
+      protos::pbzero::ProcessTrackNameTranslationTable::Decoder(bytes);
+  for (auto it = process_track_name.raw_to_deobfuscated_name(); it; ++it) {
+    protos::pbzero::ProcessTrackNameTranslationTable::
+        RawToDeobfuscatedNameEntry::Decoder entry(*it);
+    context_->process_track_translation_table->AddNameTranslationRule(
+        entry.key(), entry.value());
   }
 }
 
