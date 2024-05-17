@@ -326,8 +326,33 @@ class AndroidMetrics(TestSuite):
                 total_memory_usage_kb: 2048
             }
          }
+          user_switch {
+             user_id: 11
+             start_event: "UserController.startUser-11-fg-start-mode-1"
+             end_event: "finishUserStopped-10-[stopUser]"
+             duration_ms: 2100
+             previous_user_info {
+                 user_id: 10
+                 total_cpu_time_ms: 19
+                 total_memory_usage_kb: 3072
+             }
+          }
        }
        """))
+
+  def test_android_auto_multiuser_timing_table(self):
+      return DiffTestBlueprint(
+        trace=Path("android_auto_multiuser.textproto"),
+        query="""
+        INCLUDE PERFETTO MODULE android.auto.multiuser;
+        SELECT * FROM android_auto_multiuser_timing;
+        """,
+        out=Csv("""
+        "event_start_user_id","event_start_time","event_end_time","event_end_name","event_start_name","duration"
+        "11",3000000000,3999999999,"com.android.car.carlauncher","UserController.startUser-11-fg-start-mode-1",999999999
+        "11",3000000000,5100000000,"finishUserStopped-10-[stopUser]","UserController.startUser-11-fg-start-mode-1",2100000000
+        """)
+      )
 
   def test_android_oom_adjuster(self):
     return DiffTestBlueprint(

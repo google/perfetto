@@ -64,7 +64,7 @@ FROM (
   FROM android_startups
   UNION
   SELECT
-    slice.ts as event_end_time,
+    slice.ts + slice.dur as event_end_time,
     slice.name as event_end_name
   FROM slice
   WHERE slice.name GLOB "finishUserStopped-10*"
