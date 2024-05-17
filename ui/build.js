@@ -412,10 +412,7 @@ function compileProtos() {
     'protos/perfetto/config/perfetto_config.proto',
     'protos/perfetto/ipc/consumer_port.proto',
     'protos/perfetto/ipc/wire_protocol.proto',
-    'protos/perfetto/metrics/metrics.proto',
     'protos/perfetto/trace/perfetto/perfetto_metatrace.proto',
-    'protos/perfetto/trace/trace.proto',
-    'protos/perfetto/trace/trace_packet.proto',
     'protos/perfetto/trace_processor/trace_processor.proto',
   ];
   // Can't put --no-comments here - The comments are load bearing for
