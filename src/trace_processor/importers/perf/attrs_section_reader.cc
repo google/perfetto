@@ -56,20 +56,11 @@ base::StatusOr<AttrsSectionReader> AttrsSectionReader::Create(
   }
   const size_t attr_size = header.attr_size - kSectionSize;
 
-  const size_t attr_bytes_to_read =
-      std::min(attr_size, sizeof(PerfFile::AttrsEntry::attr));
-  const size_t attr_bytes_to_skip = attr_size - attr_bytes_to_read;
-
-  return AttrsSectionReader(std::move(section), num_attr, attr_size,
-                            attr_bytes_to_read, attr_bytes_to_skip);
+  return AttrsSectionReader(std::move(section), num_attr, attr_size);
 }
 
 base::Status AttrsSectionReader::ReadNext(PerfFile::AttrsEntry& entry) {
-  static_assert(std::has_unique_object_representations_v<PerfFile::AttrsEntry>);
-  memset(&entry, 0, sizeof(entry));
-
-  PERFETTO_CHECK(reader_.Read(&entry.attr, attr_bytes_to_read_) &&
-                 reader_.Skip(attr_bytes_to_skip_));
+  PERFETTO_CHECK(reader_.ReadPerfEventAttr(entry.attr, attr_size_));
 
   if (entry.attr.size != attr_size_) {
     return base::ErrStatus(
