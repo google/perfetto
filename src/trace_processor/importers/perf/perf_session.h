@@ -20,7 +20,6 @@
 #include <sys/types.h>
 #include <cstddef>
 #include <cstdint>
-#include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
@@ -29,15 +28,19 @@
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
 
-namespace perfetto::trace_processor::perf_importer {
+namespace perfetto::trace_processor {
+
+class TraceProcessorContext;
+
+namespace perf_importer {
 
 // Helper to deal with perf_event_attr instances in a perf file.
 class PerfSession : public RefCounted {
  public:
   class Builder {
    public:
-    explicit Builder(uint32_t perf_session_id)
-        : perf_session_id_(perf_session_id) {}
+    Builder(TraceProcessorContext* context, uint32_t perf_session_id)
+        : context_(context), perf_session_id_(perf_session_id) {}
     base::StatusOr<RefPtr<PerfSession>> Build();
     Builder& AddAttrAndIds(perf_event_attr attr, std::vector<uint64_t> ids) {
       attr_with_ids_.push_back({std::move(attr), std::move(ids)});
@@ -50,6 +53,7 @@ class PerfSession : public RefCounted {
       std::vector<uint64_t> ids;
     };
 
+    TraceProcessorContext* const context_;
     uint32_t perf_session_id_;
     std::vector<PerfEventAttrWithIds> attr_with_ids_;
   };
@@ -83,6 +87,7 @@ class PerfSession : public RefCounted {
   bool has_single_perf_event_attr_;
 };
 
-}  // namespace perfetto::trace_processor::perf_importer
+}  // namespace perf_importer
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_SESSION_H_
