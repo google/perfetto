@@ -285,6 +285,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_regex",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
     ],
@@ -3022,6 +3023,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/util:trace_type
+perfetto_filegroup(
+    name = "src_trace_processor_util_trace_type",
+    srcs = [
+        "src/trace_processor/util/trace_type.cc",
+        "src/trace_processor/util/trace_type.h",
+    ],
+)
+
 # GN target: //src/trace_processor/util:util
 perfetto_filegroup(
     name = "src_trace_processor_util_util",
@@ -3103,6 +3113,8 @@ perfetto_filegroup(
         "src/trace_processor/trace_processor_storage.cc",
         "src/trace_processor/trace_processor_storage_impl.cc",
         "src/trace_processor/trace_processor_storage_impl.h",
+        "src/trace_processor/trace_reader_registry.cc",
+        "src/trace_processor/trace_reader_registry.h",
         "src/trace_processor/virtual_destructors.cc",
     ],
 )
@@ -5959,6 +5971,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_regex",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
     ],
@@ -6137,6 +6150,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_regex",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
         "src/trace_processor/trace_processor_shell.cc",
@@ -6369,6 +6383,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_regex",
         ":src_trace_processor_util_sql_argument",
         ":src_trace_processor_util_stdlib",
+        ":src_trace_processor_util_trace_type",
         ":src_trace_processor_util_util",
         ":src_trace_processor_util_zip_reader",
         ":src_traceconv_lib",

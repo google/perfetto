@@ -46,6 +46,7 @@
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/track_event_module.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/destructible.h"
 
 namespace perfetto {
@@ -53,6 +54,7 @@ namespace trace_processor {
 
 TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
     : config(args.config), storage(args.storage) {
+  reader_registry = std::make_unique<TraceReaderRegistry>(this);
   // Init the trackers.
   machine_tracker.reset(new MachineTracker(this, args.raw_machine_id));
   if (!machine_id()) {
