@@ -33,6 +33,7 @@
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/perf/attrs_section_reader.h"
+#include "src/trace_processor/importers/perf/features.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
 #include "src/trace_processor/importers/perf/perf_session.h"
@@ -40,6 +41,7 @@
 #include "src/trace_processor/importers/perf/record.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
@@ -371,7 +373,45 @@ PerfDataTokenizer::ParseFeatures() {
   return ParsingResult::kSuccess;
 }
 
-base::Status PerfDataTokenizer::ParseFeature(uint8_t, TraceBlobView) {
+base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
+                                             TraceBlobView data) {
+  switch (feature_id) {
+    case feature::ID_EVENT_DESC: {
+      RETURN_IF_ERROR(feature::EventDescription::Parse(
+          std::move(data),
+          [](feature::EventDescription) { return base::OkStatus(); }));
+      break;
+    }
+
+    case feature::ID_BUILD_ID:
+      return feature::BuildId::Parse(
+          std::move(data), [](feature::BuildId) { return base::OkStatus(); });
+
+    case feature::ID_GROUP_DESC: {
+      feature::HeaderGroupDesc group_desc;
+      RETURN_IF_ERROR(
+          feature::HeaderGroupDesc::Parse(std::move(data), group_desc));
+      // TODO(carlscab): Do someting
+      break;
+    }
+
+    case feature::ID_SIMPLEPERF_META_INFO: {
+      feature::SimpleperfMetaInfo meta_info;
+      RETURN_IF_ERROR(
+          feature::SimpleperfMetaInfo::Parse(std::move(data), meta_info));
+      break;
+    }
+    case feature::ID_SIMPLEPERF_FILE2: {
+      RETURN_IF_ERROR(feature::ParseSimpleperfFile2(
+          std::move(data), [&](TraceBlobView) { return util::OkStatus(); }));
+
+      break;
+    }
+    default:
+      context_->storage->IncrementIndexedStats(stats::perf_features_skipped,
+                                               feature_id);
+  }
+
   return base::OkStatus();
 }
 
