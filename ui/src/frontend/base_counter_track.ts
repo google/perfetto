@@ -18,26 +18,18 @@ import {searchSegment} from '../base/binary_search';
 import {Disposable, NullDisposable} from '../base/disposable';
 import {assertTrue, assertUnreachable} from '../base/logging';
 import {Time, time} from '../base/time';
+import {uuidv4Sql} from '../base/uuid';
 import {drawTrackHoverTooltip} from '../common/canvas_utils';
 import {raf} from '../core/raf_scheduler';
+import {CacheKey} from '../core/timeline_cache';
 import {Engine, LONG, NUM, Track} from '../public';
 import {Button} from '../widgets/button';
-import {MenuItem, MenuDivider, PopupMenu2} from '../widgets/menu';
+import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {PanelSize} from './panel';
 import {NewTrackArgs} from './track';
-import {CacheKey} from '../core/timeline_cache';
-import {featureFlags} from '../core/feature_flags';
-import {uuidv4Sql} from '../base/uuid';
-
-export const COUNTER_DEBUG_MENU_ITEMS = featureFlags.register({
-  id: 'counterDebugMenuItems',
-  name: 'Counter debug menu items',
-  description: 'Extra counter menu items for debugging purposes.',
-  defaultValue: false,
-});
 
 function roundAway(n: number): number {
   const exp = Math.ceil(Math.log10(Math.max(Math.abs(n), 1)));
@@ -355,65 +347,63 @@ export abstract class BaseCounterTrack implements Track {
           },
         }),
 
-      COUNTER_DEBUG_MENU_ITEMS.get() && [
-        m(MenuDivider),
-        m(
-          MenuItem,
-          {
-            label: `Mode (currently: ${options.yMode})`,
-          },
+      m(MenuDivider),
+      m(
+        MenuItem,
+        {
+          label: `Mode (currently: ${options.yMode})`,
+        },
 
-          m(MenuItem, {
-            label: 'Value',
-            icon:
-              options.yMode === 'value'
-                ? 'radio_button_checked'
-                : 'radio_button_unchecked',
-            onclick: () => {
-              options.yMode = 'value';
-              this.invalidate();
-            },
-          }),
-
-          m(MenuItem, {
-            label: 'Delta',
-            icon:
-              options.yMode === 'delta'
-                ? 'radio_button_checked'
-                : 'radio_button_unchecked',
-            onclick: () => {
-              options.yMode = 'delta';
-              this.invalidate();
-            },
-          }),
-
-          m(MenuItem, {
-            label: 'Rate',
-            icon:
-              options.yMode === 'rate'
-                ? 'radio_button_checked'
-                : 'radio_button_unchecked',
-            onclick: () => {
-              options.yMode = 'rate';
-              this.invalidate();
-            },
-          }),
-        ),
         m(MenuItem, {
-          label: 'Round y-axis scale',
+          label: 'Value',
           icon:
-            options.yRangeRounding === 'human_readable'
-              ? 'check_box'
-              : 'check_box_outline_blank',
+            options.yMode === 'value'
+              ? 'radio_button_checked'
+              : 'radio_button_unchecked',
           onclick: () => {
-            options.yRangeRounding =
-              options.yRangeRounding === 'human_readable'
-                ? 'strict'
-                : 'human_readable';
+            options.yMode = 'value';
             this.invalidate();
           },
         }),
-      ],
+
+        m(MenuItem, {
+          label: 'Delta',
+          icon:
+            options.yMode === 'delta'
+              ? 'radio_button_checked'
+              : 'radio_button_unchecked',
+          onclick: () => {
+            options.yMode = 'delta';
+            this.invalidate();
+          },
+        }),
+
+        m(MenuItem, {
+          label: 'Rate',
+          icon:
+            options.yMode === 'rate'
+              ? 'radio_button_checked'
+              : 'radio_button_unchecked',
+          onclick: () => {
+            options.yMode = 'rate';
+            this.invalidate();
+          },
+        }),
+      ),
+      m(MenuItem, {
+        label: 'Round y-axis scale',
+        icon:
+          options.yRangeRounding === 'human_readable'
+            ? 'check_box'
+            : 'check_box_outline_blank',
+        onclick: () => {
+          options.yRangeRounding =
+            options.yRangeRounding === 'human_readable'
+              ? 'strict'
+              : 'human_readable';
+          this.invalidate();
+        },
+      }),
     ];
   }
 
