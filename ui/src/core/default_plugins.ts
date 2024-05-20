@@ -58,4 +58,5 @@ export const defaultPlugins = [
   'perfetto.VisualisedArgs',
   'org.kernel.LinuxKernelDevices',
   'perfetto.TrackUtils',
+  'com.google.PixelMemory',
 ];
