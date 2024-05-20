@@ -41,6 +41,8 @@ source_set("perf") {
   sources = [
     "attrs_section_reader.cc",
     "attrs_section_reader.h",
+    "features.cc",
+    "features.h",
     "mmap_record.cc",
     "mmap_record.h",
     "perf_data_tokenizer.cc",

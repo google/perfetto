@@ -41,22 +41,14 @@ class AttrsSectionReader {
   base::Status ReadNext(PerfFile::AttrsEntry& entry);
 
  private:
-  AttrsSectionReader(TraceBlobView section,
-                     size_t num_attr,
-                     size_t attr_size,
-                     size_t attr_bytes_to_read,
-                     size_t attr_bytes_to_skip)
+  AttrsSectionReader(TraceBlobView section, size_t num_attr, size_t attr_size)
       : reader_(std::move(section)),
         num_attr_(num_attr),
-        attr_size_(attr_size),
-        attr_bytes_to_read_(attr_bytes_to_read),
-        attr_bytes_to_skip_(attr_bytes_to_skip) {}
+        attr_size_(attr_size) {}
 
   Reader reader_;
   size_t num_attr_;
   const size_t attr_size_;
-  const size_t attr_bytes_to_read_;
-  const size_t attr_bytes_to_skip_;
 };
 
 }  // namespace perfetto::trace_processor::perf_importer

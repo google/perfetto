@@ -238,6 +238,7 @@ enum perf_record_misc {
   PERF_RECORD_MISC_GUEST_USER = 5,
 
   PERF_RECORD_MISC_MMAP_BUILD_ID = 1U << 14,
+  PERF_RECORD_MISC_EXT_RESERVED = 1U << 15,
 };
 
 enum perf_event_read_format {
