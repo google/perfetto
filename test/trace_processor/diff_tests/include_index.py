@@ -75,6 +75,7 @@ from diff_tests.parser.network.tests import NetworkParser
 from diff_tests.parser.parsing.tests import Parsing
 from diff_tests.parser.parsing.tests_debug_annotation import ParsingDebugAnnotation
 from diff_tests.parser.parsing.tests_memory_counters import ParsingMemoryCounters
+from diff_tests.parser.parsing.tests_traced_stats import ParsingTracedStats
 from diff_tests.parser.parsing.tests_rss_stats import ParsingRssStats
 from diff_tests.parser.power.tests_energy_breakdown import PowerEnergyBreakdown
 from diff_tests.parser.power.tests_entity_state_residency import EntityStateResidency
@@ -137,6 +138,7 @@ from diff_tests.tables.tests_sched import TablesSched
 
 sys.path.pop()
 
+
 def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
   parser_tests = [
       *AndroidBugreport(index_path, 'parser/android',
@@ -187,11 +189,11 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *SmokeJson(index_path, 'parser/smoke', 'SmokeJson').fetch(),
       *SmokeSchedEvents(index_path, 'parser/smoke', 'SmokeSchedEvents').fetch(),
       *InputMethodClients(index_path, 'parser/android',
-                            'InputMethodClients').fetch(),
+                          'InputMethodClients').fetch(),
       *InputMethodManagerService(index_path, 'parser/android',
-                            'InputMethodManagerService').fetch(),
+                                 'InputMethodManagerService').fetch(),
       *InputMethodService(index_path, 'parser/android',
-                            'InputMethodService').fetch(),
+                          'InputMethodService').fetch(),
       *SurfaceFlingerLayers(index_path, 'parser/android',
                             'SurfaceFlingerLayers').fetch(),
       *SurfaceFlingerTransactions(index_path, 'parser/android',
@@ -212,6 +214,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ParsingMemoryCounters(index_path, 'parser/parsing',
                              'ParsingMemoryCounters').fetch(),
       *FtraceCrop(index_path, 'parser/ftrace', 'FtraceCrop').fetch(),
+      *ParsingTracedStats(index_path, 'parser/parsing',
+                          'ParsingTracedStats').fetch(),
   ]
 
   metrics_tests = [
