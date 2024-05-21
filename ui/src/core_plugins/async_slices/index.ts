@@ -16,7 +16,7 @@ import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
-import {AsyncSliceTrackV2} from './async_slice_track_v2';
+import {AsyncSliceTrack} from './async_slice_track';
 
 export const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
 
@@ -71,7 +71,7 @@ class AsyncSlicePlugin implements Plugin {
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrackV2({engine, trackKey}, maxDepth, trackIds);
+          return new AsyncSliceTrack({engine, trackKey}, maxDepth, trackIds);
         },
       });
     }
@@ -123,7 +123,7 @@ class AsyncSlicePlugin implements Plugin {
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrackV2(
+          return new AsyncSliceTrack(
             {engine: ctx.engine, trackKey},
             maxDepth,
             trackIds,
@@ -190,7 +190,7 @@ class AsyncSlicePlugin implements Plugin {
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrackV2({engine, trackKey}, maxDepth, trackIds);
+          return new AsyncSliceTrack({engine, trackKey}, maxDepth, trackIds);
         },
       });
     }
