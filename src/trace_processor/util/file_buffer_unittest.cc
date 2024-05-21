@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/util/file_buffer.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -43,11 +44,9 @@ class SameDataAsMatcher {
         : expected_data_(expected_data) {}
     bool MatchAndExplain(const ArgType& arg,
                          ::testing ::MatchResultListener*) const override {
-      if (expected_data_.size() != arg.size()) {
-        return false;
-      }
-      return memcmp(expected_data_.data(), arg.data(), expected_data_.size()) ==
-             0;
+      return std::equal(expected_data_.data(),
+                        expected_data_.data() + expected_data_.size(),
+                        arg.data(), arg.data() + arg.size());
     }
     void DescribeTo(::std ::ostream*) const override {}
     void DescribeNegationTo(::std ::ostream*) const override {}
