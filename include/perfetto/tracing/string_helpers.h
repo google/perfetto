@@ -38,6 +38,8 @@ class PERFETTO_EXPORT_COMPONENT StaticString {
 
   constexpr explicit StaticString(const char* str) : value(str) {}
 
+  operator bool() const { return !!value; }
+
   const char* value;
 };
 
@@ -52,6 +54,9 @@ class PERFETTO_EXPORT_COMPONENT DynamicString {
     length = strlen(str);
   }
   DynamicString(const char* str, size_t len) : value(str), length(len) {}
+  constexpr DynamicString() : value(nullptr), length(0) {}
+
+  operator bool() const { return !!value; }
 
   const char* value;
   size_t length;

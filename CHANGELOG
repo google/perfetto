@@ -1,6 +1,6 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * 
   SQL Standard library:
     * Added megacycles support to CPU package. Added tables:
       `cpu_cycles_per_process`, `cpu_cycles_per_thread` and
@@ -12,7 +12,10 @@ Unreleased:
   UI:
     *
   SDK:
-    *
+    * The TRACE_COUNTER macro and CounterTrack constructor no longer accept
+      `const char *` track names. In case your code fails to compile,
+      https://perfetto.dev/docs/instrumentation/track-events#dynamic-event-names
+      explains how to fix the problem.
 
 
 v45.0 - 2024-05-09:
