@@ -73,7 +73,9 @@ SELECT ts, dur, 'awake' AS power_state
 FROM awake_slice
 UNION ALL
 SELECT ts, dur, 'suspended' AS power_state
-FROM suspend_slice;
+FROM suspend_slice
+ORDER BY ts; -- Order by will cause Perfetto table to index by ts.
+
 
 -- Extracts the duration without counting CPU suspended time from an event.
 -- This is the same as converting an event duration from wall clock to monotonic clock.
