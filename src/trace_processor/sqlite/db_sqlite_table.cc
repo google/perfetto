@@ -54,9 +54,6 @@
 namespace perfetto::trace_processor {
 namespace {
 
-// TODO(b/341230981): Enable after it's fixed.
-static constexpr bool kEnableDistinct = false;
-
 std::optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
   switch (sqlite_op) {
     case SQLITE_INDEX_CONSTRAINT_EQ:
@@ -574,7 +571,7 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
 
   // Distinct:
   idx_str += "D";
-  if (ob_idxes.size() == 1 && kEnableDistinct) {
+  if (ob_idxes.size() == 1 && PERFETTO_POPCOUNT(info->colUsed) == 1) {
     switch (sqlite3_vtab_distinct(info)) {
       case 0:
       case 1:
