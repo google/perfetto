@@ -295,6 +295,7 @@ class Globals {
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
   showPanningHint = false;
+  permalinkHash?: string;
 
   traceTime = defaultTraceTime;
 

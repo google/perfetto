@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
-import {Actions} from '../common/actions';
 import {TraceArrayBufferSource} from '../common/state';
+import {createPermalink} from './permalink';
 import {showModal} from '../widgets/modal';
 
 import {onClickCopy} from './clipboard';
@@ -74,7 +74,7 @@ export function shareTrace() {
   );
   if (result) {
     globals.logging.logEvent('Trace Actions', 'Create permalink');
-    globals.dispatch(Actions.createPermalink({isRecordingConfig: false}));
+    createPermalink();
   }
 }
 
