@@ -63,11 +63,12 @@ import {
   moveByFocusedFlow,
 } from './keyboard_event_handler';
 import {exists} from '../base/utils';
+import {publishPermalinkHash} from './publish';
 
 function renderPermalink(): m.Children {
-  const permalink = globals.state.permalink;
-  if (!permalink.requestId || !permalink.hash) return null;
-  const url = `${self.location.origin}/#!/?s=${permalink.hash}`;
+  const hash = globals.permalinkHash;
+  if (!hash) return null;
+  const url = `${self.location.origin}/#!/?s=${hash}`;
   const linkProps = {title: 'Click to copy the URL', onclick: onClickCopy(url)};
 
   return m('.alert-permalink', [
@@ -75,7 +76,7 @@ function renderPermalink(): m.Children {
     m(
       'button',
       {
-        onclick: () => globals.dispatch(Actions.clearPermalink({})),
+        onclick: () => publishPermalinkHash(undefined),
       },
       m('i.material-icons.disallow-selection', 'close'),
     ),

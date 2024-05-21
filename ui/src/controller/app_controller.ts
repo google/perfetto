@@ -16,7 +16,6 @@ import {RECORDING_V2_FLAG} from '../core/feature_flags';
 import {globals} from '../frontend/globals';
 
 import {Child, Controller, ControllerInitializerAny} from './controller';
-import {PermalinkController} from './permalink_controller';
 import {RecordController} from './record_controller';
 import {TraceController} from './trace_controller';
 
@@ -40,9 +39,7 @@ export class AppController extends Controller<'main'> {
   // - An internal promise of a nested controller being resolved and manually
   //   re-triggering the controllers.
   run() {
-    const childControllers: ControllerInitializerAny[] = [
-      Child('permalink', PermalinkController, {}),
-    ];
+    const childControllers: ControllerInitializerAny[] = [];
     if (!RECORDING_V2_FLAG.get()) {
       childControllers.push(
         Child('record', RecordController, {extensionPort: this.extensionPort}),

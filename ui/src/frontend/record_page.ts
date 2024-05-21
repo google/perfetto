@@ -57,6 +57,7 @@ import {PowerSettings} from './recording/power_settings';
 import {RecordingSectionAttrs} from './recording/recording_sections';
 import {RecordingSettings} from './recording/recording_settings';
 import {EtwSettings} from './recording/etw_settings';
+import {createPermalink} from './permalink';
 
 export const PERSIST_CONFIG_FLAG = featureFlags.register({
   id: 'persistConfigsUI',
@@ -176,9 +177,7 @@ function Instructions(cssClass: string) {
           'button.permalinkconfig',
           {
             onclick: () => {
-              globals.dispatch(
-                Actions.createPermalink({isRecordingConfig: true}),
-              );
+              createPermalink({isRecordingConfig: true});
             },
           },
           'Share recording settings',
