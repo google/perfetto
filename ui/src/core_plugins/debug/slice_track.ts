@@ -19,7 +19,7 @@ import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
-} from '../custom_sql_table_slices';
+} from '../../frontend/tracks/custom_sql_table_slice_track';
 
 import {DebugSliceDetailsTab} from './details_tab';
 import {

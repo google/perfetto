@@ -17,7 +17,7 @@ import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {Slice} from '../../public';
 
-export class AsyncSliceTrackV2 extends NamedSliceTrack {
+export class AsyncSliceTrack extends NamedSliceTrack {
   constructor(
     args: NewTrackArgs,
     maxDepth: number,
