@@ -666,9 +666,7 @@ export abstract class BaseSliceTrack<
       this.initState.dispose();
       this.initState = undefined;
     }
-    if (this.engine.isAlive) {
-      await this.engine.execute(`drop table ${this.getTableName()}`);
-    }
+    await this.engine.tryQuery(`drop table ${this.getTableName()}`);
   }
 
   // This method figures out if the visible window is outside the bounds of

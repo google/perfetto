@@ -421,7 +421,7 @@ class CounterPlugin implements Plugin {
 
   private async addGpuFrequencyTracks(ctx: PluginContextTrace) {
     const engine = ctx.engine;
-    const numGpus = await engine.getNumberOfGpus();
+    const numGpus = ctx.trace.gpuCount;
 
     for (let gpu = 0; gpu < numGpus; gpu++) {
       // Only add a gpu freq track if we have

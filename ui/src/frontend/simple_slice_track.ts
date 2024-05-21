@@ -108,8 +108,6 @@ export class SimpleSliceTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTy
   }
 
   private async destroyTrackTable() {
-    if (this.engine.isAlive) {
-      await this.engine.query(`DROP TABLE IF EXISTS ${this.sqlTableName}`);
-    }
+    await this.engine.tryQuery(`DROP TABLE IF EXISTS ${this.sqlTableName}`);
   }
 }

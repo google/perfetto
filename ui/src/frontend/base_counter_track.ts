@@ -688,9 +688,7 @@ export abstract class BaseCounterTrack implements Track {
       this.initState.dispose();
       this.initState = undefined;
     }
-    if (this.engine.isAlive) {
-      await this.engine.query(`drop table if exists ${this.getTableName()}`);
-    }
+    await this.engine.tryQuery(`drop table if exists ${this.getTableName()}`);
   }
 
   // Compute the range of values to display and range label.

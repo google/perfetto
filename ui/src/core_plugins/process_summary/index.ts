@@ -34,6 +34,8 @@ class ProcessSummaryPlugin implements Plugin {
   }
 
   private async addProcessTrackGroups(ctx: PluginContextTrace): Promise<void> {
+    const cpuCount = Math.max(...ctx.trace.cpus, -1) + 1;
+
     const result = await ctx.engine.query(`
       INCLUDE PERFETTO MODULE android.process_metadata;
 
@@ -106,7 +108,7 @@ class ProcessSummaryPlugin implements Plugin {
             isDebuggable,
           },
           trackFactory: () => {
-            return new ProcessSchedulingTrack(ctx.engine, config);
+            return new ProcessSchedulingTrack(ctx.engine, config, cpuCount);
           },
         });
       } else {

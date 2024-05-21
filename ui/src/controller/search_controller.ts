@@ -163,7 +163,7 @@ export class SearchController extends Controller<'main'> {
       utids.push(it.utid);
     }
 
-    const cpus = await this.engine.getCpus();
+    const cpus = globals.traceContext.cpus;
     const maxCpu = Math.max(...cpus, -1);
 
     const res = await this.query(`
