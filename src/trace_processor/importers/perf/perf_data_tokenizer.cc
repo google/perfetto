@@ -376,12 +376,14 @@ PerfDataTokenizer::ParseFeatures() {
 base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
                                              TraceBlobView data) {
   switch (feature_id) {
-    case feature::ID_EVENT_DESC: {
-      RETURN_IF_ERROR(feature::EventDescription::Parse(
-          std::move(data),
-          [](feature::EventDescription) { return base::OkStatus(); }));
-      break;
-    }
+    case feature::ID_EVENT_DESC:
+      return feature::EventDescription::Parse(
+          std::move(data), [&](feature::EventDescription desc) {
+            for (auto id : desc.ids) {
+              perf_session_->SetEventName(id, std::move(desc.event_string));
+            }
+            return base::OkStatus();
+          });
 
     case feature::ID_BUILD_ID:
       return feature::BuildId::Parse(
@@ -399,6 +401,9 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
       feature::SimpleperfMetaInfo meta_info;
       RETURN_IF_ERROR(
           feature::SimpleperfMetaInfo::Parse(std::move(data), meta_info));
+      for (auto it = meta_info.event_type_info.GetIterator(); it; ++it) {
+        perf_session_->SetEventName(it.key().type, it.key().config, it.value());
+      }
       break;
     }
     case feature::ID_SIMPLEPERF_FILE2: {
