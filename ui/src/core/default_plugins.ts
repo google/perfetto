@@ -58,4 +58,5 @@ export const defaultPlugins = [
   'perfetto.ThreadState',
   'perfetto.VisualisedArgs',
   'org.kernel.LinuxKernelDevices',
+  'perfetto.TrackUtils',
 ];
