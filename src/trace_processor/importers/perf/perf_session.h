@@ -66,6 +66,9 @@ class PerfSession : public RefCounted {
       const perf_event_header& header,
       const TraceBlobView& payload) const;
 
+  void SetEventName(uint64_t event_id, std::string name);
+  void SetEventName(uint32_t type, uint64_t config, const std::string& name);
+
  private:
   PerfSession(uint32_t perf_session_id,
               base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id,
