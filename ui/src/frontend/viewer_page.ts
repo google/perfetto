@@ -128,7 +128,7 @@ class TraceViewer implements m.ClassComponent {
         currentY: number,
         editing: boolean,
       ) => {
-        const traceTime = globals.traceTime;
+        const traceTime = globals.traceContext;
         const {visibleTimeScale} = timeline;
         this.keepCurrentSelection = true;
         if (editing) {

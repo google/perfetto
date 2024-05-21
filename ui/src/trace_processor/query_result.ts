@@ -57,6 +57,7 @@ import {assertExists, assertFalse, assertTrue} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';
 import {Duration, duration, Time, time} from '../base/time';
 
+export const UNKNOWN: ColumnType = null;
 export const NUM = 0;
 export const STR = 'str';
 export const NUM_NULL: number | null = 1;
@@ -203,6 +204,8 @@ function columnTypeToString(t: ColumnType): string {
       return 'LONG';
     case LONG_NULL:
       return 'LONG_NULL';
+    case UNKNOWN:
+      return 'UNKNOWN';
     default:
       return `INVALID(${t})`;
   }
@@ -215,21 +218,25 @@ function isCompatible(actual: CellType, expected: ColumnType): boolean {
         expected === NUM_NULL ||
         expected === STR_NULL ||
         expected === BLOB_NULL ||
-        expected === LONG_NULL
+        expected === LONG_NULL ||
+        expected === UNKNOWN
       );
     case CellType.CELL_VARINT:
       return (
         expected === NUM ||
         expected === NUM_NULL ||
         expected === LONG ||
-        expected === LONG_NULL
+        expected === LONG_NULL ||
+        expected === UNKNOWN
       );
     case CellType.CELL_FLOAT64:
-      return expected === NUM || expected === NUM_NULL;
+      return expected === NUM || expected === NUM_NULL || expected === UNKNOWN;
     case CellType.CELL_STRING:
-      return expected === STR || expected === STR_NULL;
+      return expected === STR || expected === STR_NULL || expected === UNKNOWN;
     case CellType.CELL_BLOB:
-      return expected === BLOB || expected === BLOB_NULL;
+      return (
+        expected === BLOB || expected === BLOB_NULL || expected === UNKNOWN
+      );
     default:
       throw new Error(`Unknown CellType ${actual}`);
   }
@@ -285,11 +292,10 @@ export interface QueryResult {
   // If true all rows have been fetched. Calling iter() will iterate through the
   // last row. If false, iter() will return an iterator which might iterate
   // through some rows (or none) but will surely not reach the end.
-
   isComplete(): boolean;
 
   // Returns a promise that is resolved only when all rows (i.e. all batches)
-  // have been fetched. The promise return value is always the object iself.
+  // have been fetched. The promise return value is always the object itself.
   waitAllRows(): Promise<QueryResult>;
 
   // Returns a promise that is resolved when either:

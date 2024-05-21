@@ -94,10 +94,8 @@ export abstract class CustomSqlTableSliceTrack<
       });
     await this.engine.query(sql);
     return DisposableCallback.from(() => {
-      if (this.engine.isAlive) {
-        this.engine.query(`DROP VIEW ${this.tableName}`);
-        config.dispose?.dispose();
-      }
+      this.engine.tryQuery(`DROP VIEW ${this.tableName}`);
+      config.dispose?.dispose();
     });
   }
 

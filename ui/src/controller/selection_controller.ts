@@ -441,7 +441,7 @@ export class SelectionController extends Controller<'main'> {
           IFNULL(value, 0) as value
         FROM counter WHERE ts < ${ts} and track_id = ${trackId}`);
     const previousValue = previous.firstRow({value: NUM}).value;
-    const endTs = rightTs !== -1n ? rightTs : globals.traceTime.end;
+    const endTs = rightTs !== -1n ? rightTs : globals.traceContext.end;
     const delta = value - previousValue;
     const duration = endTs - ts;
     const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);

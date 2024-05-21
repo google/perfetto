@@ -75,31 +75,32 @@ class EngineLoader implements vega.Loader {
     if (this.engine === undefined) {
       return '';
     }
-    const result = this.engine.execute(uri);
     try {
-      await result.waitAllRows();
+      const result = await this.engine.query(uri);
+      const columns = result.columns();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows: any[] = [];
+      for (const it = result.iter({}); it.valid(); it.next()) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const row: any = {};
+        for (const name of columns) {
+          let value = it.get(name);
+          if (typeof value === 'bigint') {
+            value = Number(value);
+          }
+          row[name] = value;
+        }
+        rows.push(row);
+      }
+      return JSON.stringify(rows);
     } catch (e) {
       if (e instanceof QueryError) {
-        console.error(result.error());
+        console.error(e);
         return '';
+      } else {
+        throw e;
       }
     }
-    const columns = result.columns();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows: any[] = [];
-    for (const it = result.iter({}); it.valid(); it.next()) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const row: any = {};
-      for (const name of columns) {
-        let value = it.get(name);
-        if (typeof value === 'bigint') {
-          value = Number(value);
-        }
-        row[name] = value;
-      }
-      rows.push(row);
-    }
-    return JSON.stringify(rows);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

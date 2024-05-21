@@ -68,9 +68,7 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
     `);
 
     return new DisposableCallback(() => {
-      if (this.engine.isAlive) {
-        this.engine.query(`drop view ${this.viewName}`);
-      }
+      this.engine.tryQuery(`drop view ${this.viewName}`);
     });
   }
 

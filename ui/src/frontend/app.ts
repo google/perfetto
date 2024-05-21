@@ -23,7 +23,6 @@ import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {duration, Span, time, TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
 import {getLegacySelection} from '../common/state';
-import {runQuery} from '../common/queries';
 import {
   DurationPrecision,
   setDurationPrecision,
@@ -322,9 +321,8 @@ export class App implements m.ClassComponent {
         const engine = this.getEngine();
 
         if (engine !== undefined && trackUtid != 0) {
-          await runQuery(
+          await engine.query(
             `INCLUDE PERFETTO MODULE sched.thread_executing_span;`,
-            engine,
           );
           await addDebugSliceTrack(
             engine,
@@ -365,9 +363,8 @@ export class App implements m.ClassComponent {
         const engine = this.getEngine();
 
         if (engine !== undefined && trackUtid != 0) {
-          await runQuery(
+          await engine.query(
             `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;`,
-            engine,
           );
           await addDebugSliceTrack(
             engine,
@@ -620,8 +617,8 @@ export class App implements m.ClassComponent {
         if (selection !== null && selection.kind === 'AREA') {
           const area = globals.state.areas[selection.areaId];
           const coversEntireTimeRange =
-            globals.traceTime.start === area.start &&
-            globals.traceTime.end === area.end;
+            globals.traceContext.start === area.start &&
+            globals.traceContext.end === area.end;
           if (!coversEntireTimeRange) {
             // If the current selection is an area which does not cover the
             // entire time range, preserve the list of selected tracks and
@@ -636,7 +633,7 @@ export class App implements m.ClassComponent {
           // If the current selection is not an area, select all.
           tracksToSelect = Object.keys(globals.state.tracks);
         }
-        const {start, end} = globals.traceTime;
+        const {start, end} = globals.traceContext;
         globals.dispatch(
           Actions.selectArea({
             area: {

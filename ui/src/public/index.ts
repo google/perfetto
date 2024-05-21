@@ -22,6 +22,7 @@ import {LegacySelection} from '../common/state';
 import {PanelSize} from '../frontend/panel';
 import {Engine} from '../trace_processor/engine';
 import {UntypedEventSet} from '../core/event_set';
+import {TraceContext} from '../frontend/globals';
 
 export {Engine} from '../trace_processor/engine';
 export {
@@ -433,10 +434,7 @@ export interface PluginContextTrace extends PluginContext {
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;
 
-  trace: {
-    // A span representing the start and end time of the trace
-    readonly span: Span<time, duration>;
-  };
+  trace: TraceContext;
 }
 
 export interface Plugin {
