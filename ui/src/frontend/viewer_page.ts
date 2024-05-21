@@ -82,11 +82,11 @@ class TraceViewer implements m.ClassComponent {
   // Used to prevent global deselection if a pan/drag select occurred.
   private keepCurrentSelection = false;
 
-  private overviewTimelinePanel = new OverviewTimelinePanel('overview');
-  private timeAxisPanel = new TimeAxisPanel('timeaxis');
-  private timeSelectionPanel = new TimeSelectionPanel('timeselection');
-  private notesPanel = new NotesPanel('notes');
-  private tickmarkPanel = new TickmarkPanel('searchTickmarks');
+  private overviewTimelinePanel = new OverviewTimelinePanel();
+  private timeAxisPanel = new TimeAxisPanel();
+  private timeSelectionPanel = new TimeSelectionPanel();
+  private notesPanel = new NotesPanel();
+  private tickmarkPanel = new TickmarkPanel();
 
   private readonly PAN_ZOOM_CONTENT_REF = 'pan-and-zoom-content';
 
@@ -231,8 +231,7 @@ class TraceViewer implements m.ClassComponent {
       if (key) {
         const trackBundle = this.resolveTrack(key);
         headerPanel = new TrackGroupPanel({
-          trackGroupId: group.id,
-          key: `trackgroup-${group.id}`,
+          groupKey: group.key,
           trackFSM: trackBundle.trackFSM,
           labels: trackBundle.labels,
           tags: trackBundle.tags,
@@ -241,8 +240,7 @@ class TraceViewer implements m.ClassComponent {
         });
       } else {
         headerPanel = new TrackGroupPanel({
-          trackGroupId: group.id,
-          key: `trackgroup-${group.id}`,
+          groupKey: group.key,
           collapsed: group.collapsed,
           title: group.name,
         });
@@ -268,7 +266,6 @@ class TraceViewer implements m.ClassComponent {
         collapsed: group.collapsed,
         childPanels: childTracks,
         header: headerPanel,
-        trackGroupId: group.id,
       });
     }
 

@@ -18,7 +18,7 @@ import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
-import {getContainingTrackId} from '../common/state';
+import {getContainingGroupKey} from '../common/state';
 
 import {globals} from './globals';
 
@@ -127,12 +127,12 @@ export function verticalScrollToTrack(
   }
 
   let trackGroup = null;
-  const trackGroupId = getContainingTrackId(globals.state, trackKeyString);
-  if (trackGroupId) {
-    trackGroup = document.querySelector('#track_' + trackGroupId);
+  const groupKey = getContainingGroupKey(globals.state, trackKeyString);
+  if (groupKey) {
+    trackGroup = document.querySelector('#track_' + groupKey);
   }
 
-  if (!trackGroupId || !trackGroup) {
+  if (!groupKey || !trackGroup) {
     console.error(`Can't scroll, track (${trackKeyString}) not found.`);
     return;
   }
@@ -142,7 +142,7 @@ export function verticalScrollToTrack(
   if (openGroup) {
     // After the track exists in the dom, it will be scrolled to.
     globals.scrollToTrackKey = trackKey;
-    globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+    globals.dispatch(Actions.toggleTrackGroupCollapsed({groupKey}));
     return;
   } else {
     trackGroup.scrollIntoView({behavior: 'smooth', block: 'nearest'});

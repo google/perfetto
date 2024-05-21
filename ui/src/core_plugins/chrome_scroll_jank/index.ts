@@ -84,7 +84,7 @@ export async function getScrollJankTracks(
 
   const addTrackGroup = Actions.addTrackGroup({
     name: 'Chrome Scroll Jank',
-    id: SCROLL_JANK_GROUP_ID,
+    key: SCROLL_JANK_GROUP_ID,
     collapsed: false,
     fixedOrdering: true,
   });
