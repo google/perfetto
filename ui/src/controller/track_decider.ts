@@ -189,38 +189,38 @@ class TrackDecider {
       parentName: STR_NULL,
     });
 
-    const parentIdToGroupId = new Map<number, string>();
+    const parentIdToGroupKey = new Map<number, string>();
     for (; it.valid(); it.next()) {
       const kind = ASYNC_SLICE_TRACK_KIND;
       const rawName = it.name === null ? undefined : it.name;
       const rawParentName = it.parentName === null ? undefined : it.parentName;
       const name = getTrackName({name: rawName, kind});
       const parentTrackId = it.parentId;
-      let trackGroup = SCROLLING_TRACK_GROUP;
+      let groupKey = SCROLLING_TRACK_GROUP;
 
       if (parentTrackId !== null) {
-        const groupId = parentIdToGroupId.get(parentTrackId);
-        if (groupId === undefined) {
-          trackGroup = uuidv4();
-          parentIdToGroupId.set(parentTrackId, trackGroup);
+        const maybeGroupKey = parentIdToGroupKey.get(parentTrackId);
+        if (maybeGroupKey === undefined) {
+          groupKey = uuidv4();
+          parentIdToGroupKey.set(parentTrackId, groupKey);
 
           const parentName = getTrackName({name: rawParentName, kind});
           this.addTrackGroupActions.push(
             Actions.addTrackGroup({
               name: parentName,
-              id: trackGroup,
+              key: groupKey,
               collapsed: true,
             }),
           );
         } else {
-          trackGroup = groupId;
+          groupKey = maybeGroupKey;
         }
       }
 
       const track: AddTrackArgs = {
         uri: `perfetto.AsyncSlices#${rawName}.${it.parentId}`,
         trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-        trackGroup,
+        trackGroup: groupKey,
         name,
       };
 
@@ -315,7 +315,7 @@ class TrackDecider {
       return;
     }
 
-    const id = uuidv4();
+    const groupUuid = uuidv4();
     const summaryTrackKey = uuidv4();
     let foundSummary = false;
 
@@ -328,14 +328,14 @@ class TrackDecider {
         track.key = summaryTrackKey;
         track.trackGroup = undefined;
       } else {
-        track.trackGroup = id;
+        track.trackGroup = groupUuid;
       }
     }
 
     const addGroup = Actions.addTrackGroup({
       summaryTrackKey,
       name: MEM_DMA_COUNTER_NAME,
-      id,
+      key: groupUuid,
       collapsed: true,
     });
     this.addTrackGroupActions.push(addGroup);
@@ -369,7 +369,7 @@ class TrackDecider {
       const groupName = group + key;
       const addGroup = Actions.addTrackGroup({
         name: groupName,
-        id: value,
+        key: value,
         collapsed: true,
       });
       this.addTrackGroupActions.push(addGroup);
@@ -408,7 +408,7 @@ class TrackDecider {
       const groupName = key;
       const addGroup = Actions.addTrackGroup({
         name: groupName,
-        id: value,
+        key: value,
         collapsed: true,
       });
       this.addTrackGroupActions.push(addGroup);
@@ -441,7 +441,7 @@ class TrackDecider {
     if (groupUuid !== undefined) {
       const addGroup = Actions.addTrackGroup({
         name: groupName,
-        id: groupUuid,
+        key: groupUuid,
         collapsed: true,
       });
       this.addTrackGroupActions.push(addGroup);
@@ -483,7 +483,7 @@ class TrackDecider {
     if (groupUuid !== undefined) {
       const addGroup = Actions.addTrackGroup({
         name: groupName,
-        id: groupUuid,
+        key: groupUuid,
         collapsed: true,
       });
       this.addTrackGroupActions.push(addGroup);
@@ -511,7 +511,7 @@ class TrackDecider {
     if (groupUuid !== undefined) {
       const addGroup = Actions.addTrackGroup({
         name: groupName,
-        id: groupUuid,
+        key: groupUuid,
         collapsed: true,
       });
       this.addTrackGroupActions.push(addGroup);
@@ -537,7 +537,7 @@ class TrackDecider {
       summaryTrackKey: string;
     }
 
-    const groupNameToIds = new Map<string, GroupIds>();
+    const groupNameToKeys = new Map<string, GroupIds>();
 
     for (; sliceIt.valid(); sliceIt.next()) {
       const id = sliceIt.id;
@@ -553,13 +553,13 @@ class TrackDecider {
         // If this is the first track encountered for a certain group,
         // create an id for the group and use this track as the group's
         // summary track.
-        const groupIds = groupNameToIds.get(groupName);
-        if (groupIds) {
-          trackGroupId = groupIds.id;
+        const groupKeys = groupNameToKeys.get(groupName);
+        if (groupKeys) {
+          trackGroupId = groupKeys.id;
         } else {
           trackGroupId = uuidv4();
           summaryTrackKey = uuidv4();
-          groupNameToIds.set(groupName, {
+          groupNameToKeys.set(groupName, {
             id: trackGroupId,
             summaryTrackKey,
           });
@@ -575,11 +575,11 @@ class TrackDecider {
       });
     }
 
-    for (const [groupName, groupIds] of groupNameToIds) {
+    for (const [groupName, groupKeys] of groupNameToKeys) {
       const addGroup = Actions.addTrackGroup({
-        summaryTrackKey: groupIds.summaryTrackKey,
+        summaryTrackKey: groupKeys.summaryTrackKey,
         name: groupName,
-        id: groupIds.id,
+        key: groupKeys.id,
         collapsed: true,
       });
       this.addTrackGroupActions.push(addGroup);
@@ -843,7 +843,7 @@ class TrackDecider {
     for (const [name, groupUuid] of groupMap) {
       const addGroup = Actions.addTrackGroup({
         name: name,
-        id: groupUuid,
+        key: groupUuid,
         collapsed: true,
       });
       this.addTrackGroupActions.push(addGroup);
@@ -1153,7 +1153,7 @@ class TrackDecider {
     const addTrackGroup = Actions.addTrackGroup({
       summaryTrackKey,
       name: `Kernel threads`,
-      id: kthreadGroupUuid,
+      key: kthreadGroupUuid,
       collapsed: true,
     });
     this.addTrackGroupActions.push(addTrackGroup);
@@ -1320,7 +1320,7 @@ class TrackDecider {
       const addTrackGroup = Actions.addTrackGroup({
         summaryTrackKey,
         name,
-        id: this.getOrCreateUuid(utid, upid),
+        key: this.getOrCreateUuid(utid, upid),
         // Perf profiling tracks remain collapsed, otherwise we would have too
         // many expanded process tracks for some perf traces, leading to
         // jankyness.
@@ -1373,7 +1373,7 @@ class TrackDecider {
           groupUuid = uuidv4();
           const addGroup = Actions.addTrackGroup({
             name: groupName,
-            id: groupUuid,
+            key: groupUuid,
             collapsed: true,
             fixedOrdering: true,
           });

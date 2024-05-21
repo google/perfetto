@@ -15,7 +15,7 @@
 import {PrimaryTrackSortKey} from '../public';
 
 import {createEmptyState} from './empty_state';
-import {getContainingTrackId, State} from './state';
+import {getContainingGroupKey, State} from './state';
 import {deserializeStateObject, serializeStateObject} from './upload_utils';
 
 test('createEmptyState', () => {
@@ -40,9 +40,9 @@ test('getContainingTrackId', () => {
     trackGroup: 'containsB',
   };
 
-  expect(getContainingTrackId(state, 'z')).toEqual(null);
-  expect(getContainingTrackId(state, 'a')).toEqual(null);
-  expect(getContainingTrackId(state, 'b')).toEqual('containsB');
+  expect(getContainingGroupKey(state, 'z')).toEqual(null);
+  expect(getContainingGroupKey(state, 'a')).toEqual(null);
+  expect(getContainingGroupKey(state, 'b')).toEqual('containsB');
 });
 
 test('state is serializable', () => {

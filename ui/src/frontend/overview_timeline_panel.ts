@@ -42,7 +42,6 @@ export class OverviewTimelinePanel implements Panel {
   private static HANDLE_SIZE_PX = 5;
   readonly kind = 'panel';
   readonly selectable = false;
-  readonly trackKey = undefined;
 
   private width = 0;
   private gesture?: DragGestureHandler;
@@ -50,8 +49,6 @@ export class OverviewTimelinePanel implements Panel {
   private traceTime?: Span<time, duration>;
   private dragStrategy?: DragStrategy;
   private readonly boundOnMouseMove = this.onMouseMove.bind(this);
-
-  constructor(readonly key: string) {}
 
   // Must explicitly type now; arguments types are no longer auto-inferred.
   // https://github.com/Microsoft/TypeScript/issues/1373

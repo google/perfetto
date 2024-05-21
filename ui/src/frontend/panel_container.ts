@@ -47,22 +47,20 @@ import {VirtualCanvas} from './virtual_canvas';
 const CANVAS_OVERDRAW_PX = 100;
 
 export interface Panel {
-  kind: 'panel';
+  readonly kind: 'panel';
   render(): m.Children;
-  selectable: boolean;
-  key: string;
-  trackKey?: string;
-  trackGroupId?: string;
+  readonly selectable: boolean;
+  readonly trackKey?: string; // Defined if this panel represents are track
+  readonly groupKey?: string; // Defined if this panel represents a group - i.e. a group summary track
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void;
   getSliceRect?(tStart: time, tDur: time, depth: number): SliceRect | undefined;
 }
 
 export interface PanelGroup {
-  kind: 'group';
-  collapsed: boolean;
-  header: Panel;
-  childPanels: Panel[];
-  trackGroupId: string;
+  readonly kind: 'group';
+  readonly collapsed: boolean;
+  readonly header: Panel;
+  readonly childPanels: Panel[];
 }
 
 export type PanelOrGroup = Panel | PanelGroup;
@@ -74,7 +72,7 @@ export interface PanelContainerAttrs {
 }
 
 interface PanelInfo {
-  id: string; // Can be == '' for singleton panels.
+  trackOrGroupKey: string; // Can be == '' for singleton panels.
   panel: Panel;
   height: number;
   width: number;
@@ -91,7 +89,7 @@ export class PanelContainer
   private panelContainerHeight = 0;
 
   // Updated every render cycle in the view() hook
-  private panelByKey = new Map<string, Panel>();
+  private panelById = new Map<string, Panel>();
 
   // Updated every render cycle in the oncreate/onupdate hook
   private panelInfos: PanelInfo[] = [];
@@ -179,11 +177,11 @@ export class PanelContainer
         tracks.push(panel.trackKey);
         continue;
       }
-      if (panel.trackGroupId !== undefined) {
-        const trackGroup = globals.state.trackGroups[panel.trackGroupId];
+      if (panel.groupKey !== undefined) {
+        const trackGroup = globals.state.trackGroups[panel.groupKey];
         // Only select a track group and all child tracks if it is closed.
         if (trackGroup.collapsed) {
-          tracks.push(panel.trackGroupId);
+          tracks.push(panel.groupKey);
           for (const track of trackGroup.tracks) {
             tracks.push(track);
           }
@@ -258,37 +256,40 @@ export class PanelContainer
     this.trash.dispose();
   }
 
-  renderPanel(node: Panel, key: string, extraClass = ''): m.Vnode {
-    assertFalse(this.panelByKey.has(key));
-    this.panelByKey.set(key, node);
-    return m(`.pf-panel${extraClass}`, {key, 'data-key': key}, node.render());
+  renderPanel(node: Panel, panelId: string, extraClass = ''): m.Vnode {
+    assertFalse(this.panelById.has(panelId));
+    this.panelById.set(panelId, node);
+    return m(
+      `.pf-panel${extraClass}`,
+      {'data-panel-id': panelId},
+      node.render(),
+    );
   }
 
   // Render a tree of panels into one vnode. Argument `path` is used to build
   // `key` attribute for intermediate tree vnodes: otherwise Mithril internals
   // will complain about keyed and non-keyed vnodes mixed together.
-  renderTree(node: PanelOrGroup, path: string): m.Vnode {
+  renderTree(node: PanelOrGroup, panelId: string): m.Vnode {
     if (node.kind === 'group') {
       return m(
         'div.pf-panel-group',
-        {key: path},
         this.renderPanel(
           node.header,
-          `${path}-header`,
+          `${panelId}-header`,
           node.collapsed ? '' : '.pf-sticky',
         ),
         ...node.childPanels.map((child, index) =>
-          this.renderTree(child, `${path}-${index}`),
+          this.renderTree(child, `${panelId}-${index}`),
         ),
       );
     }
-    return this.renderPanel(node, assertExists(node.key));
+    return this.renderPanel(node, panelId);
   }
 
   view({attrs}: m.CVnode<PanelContainerAttrs>) {
-    this.panelByKey.clear();
+    this.panelById.clear();
     const children = attrs.panels.map((panel, index) =>
-      this.renderTree(panel, `track-tree-${index}`),
+      this.renderTree(panel, `${index}`),
     );
 
     return m(
@@ -316,14 +317,15 @@ export class PanelContainer
     this.panelContainerHeight = domRect.height;
 
     dom.querySelectorAll('.pf-panel').forEach((panelElement) => {
-      const key = assertExists(panelElement.getAttribute('data-key'));
-      const panel = assertExists(this.panelByKey.get(key));
+      const panelHTMLElement = toHTMLElement(panelElement);
+      const panelId = assertExists(panelHTMLElement.dataset.panelId);
+      const panel = assertExists(this.panelById.get(panelId));
 
       // NOTE: the id can be undefined for singletons like overview timeline.
-      const id = panel.trackKey || panel.trackGroupId || '';
+      const key = panel.trackKey || panel.groupKey || '';
       const rect = panelElement.getBoundingClientRect();
       this.panelInfos.push({
-        id,
+        trackOrGroupKey: key,
         height: rect.height,
         width: rect.width,
         clientX: rect.x,
@@ -440,7 +442,7 @@ export class PanelContainer
     let selectedTracksMaxY = this.panelContainerTop;
     let trackFromCurrentContainerSelected = false;
     for (let i = 0; i < this.panelInfos.length; i++) {
-      if (area.tracks.includes(this.panelInfos[i].id)) {
+      if (area.tracks.includes(this.panelInfos[i].trackOrGroupKey)) {
         trackFromCurrentContainerSelected = true;
         selectedTracksMinY = Math.min(
           selectedTracksMinY,

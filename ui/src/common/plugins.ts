@@ -275,10 +275,10 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
           };
           return predicate(ref);
         })
-        .map((group) => group.id);
+        .map((group) => group.key);
 
-      for (const trackGroupId of groupsToExpand) {
-        globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+      for (const groupKey of groupsToExpand) {
+        globals.dispatch(Actions.toggleTrackGroupCollapsed({groupKey}));
       }
     },
 
@@ -293,10 +293,10 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
           };
           return predicate(ref);
         })
-        .map((group) => group.id);
+        .map((group) => group.key);
 
-      for (const trackGroupId of groupsToCollapse) {
-        globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+      for (const groupKey of groupsToCollapse) {
+        globals.dispatch(Actions.toggleTrackGroupCollapsed({groupKey}));
       }
     },
 
