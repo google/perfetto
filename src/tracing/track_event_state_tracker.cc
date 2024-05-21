@@ -246,7 +246,11 @@ void TrackEventStateTracker::UpdateIncrementalState(
       track.index = static_cast<uint32_t>(session_state->tracks.size() + 1);
     track.uuid = track_descriptor.uuid();
 
-    track.name = track_descriptor.name().ToStdString();
+    if (track_descriptor.has_name()) {
+      track.name = track_descriptor.name().ToStdString();
+    } else if (track_descriptor.has_static_name()) {
+      track.name = track_descriptor.static_name().ToStdString();
+    }
     track.pid = 0;
     track.tid = 0;
     if (track_descriptor.has_process()) {

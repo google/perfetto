@@ -202,7 +202,7 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
       perfetto::protos::gen::CounterDescriptor::BuiltinCounterType;
 
   // |name| must outlive this object.
-  constexpr explicit CounterTrack(const char* name,
+  constexpr explicit CounterTrack(StaticString name,
                                   Track parent = MakeProcessTrack())
       : CounterTrack(
             name,
@@ -255,33 +255,39 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
   }
 
   constexpr CounterTrack set_unit(Unit unit) const {
-    return CounterTrack(uuid, parent_uuid, name_, category_, unit, unit_name_,
-                        unit_multiplier_, is_incremental_, type_);
+    return CounterTrack(uuid, parent_uuid, static_name_, dynamic_name_,
+                        category_, unit, unit_name_, unit_multiplier_,
+                        is_incremental_, type_);
   }
 
   constexpr CounterTrack set_type(CounterType type) const {
-    return CounterTrack(uuid, parent_uuid, name_, category_, unit_, unit_name_,
-                        unit_multiplier_, is_incremental_, type);
+    return CounterTrack(uuid, parent_uuid, static_name_, dynamic_name_,
+                        category_, unit_, unit_name_, unit_multiplier_,
+                        is_incremental_, type);
   }
 
   constexpr CounterTrack set_unit_name(const char* unit_name) const {
-    return CounterTrack(uuid, parent_uuid, name_, category_, unit_, unit_name,
-                        unit_multiplier_, is_incremental_, type_);
+    return CounterTrack(uuid, parent_uuid, static_name_, dynamic_name_,
+                        category_, unit_, unit_name, unit_multiplier_,
+                        is_incremental_, type_);
   }
 
   constexpr CounterTrack set_unit_multiplier(int64_t unit_multiplier) const {
-    return CounterTrack(uuid, parent_uuid, name_, category_, unit_, unit_name_,
-                        unit_multiplier, is_incremental_, type_);
+    return CounterTrack(uuid, parent_uuid, static_name_, dynamic_name_,
+                        category_, unit_, unit_name_, unit_multiplier,
+                        is_incremental_, type_);
   }
 
   constexpr CounterTrack set_category(const char* category) const {
-    return CounterTrack(uuid, parent_uuid, name_, category, unit_, unit_name_,
-                        unit_multiplier_, is_incremental_, type_);
+    return CounterTrack(uuid, parent_uuid, static_name_, dynamic_name_,
+                        category, unit_, unit_name_, unit_multiplier_,
+                        is_incremental_, type_);
   }
 
   constexpr CounterTrack set_is_incremental(bool is_incremental = true) const {
-    return CounterTrack(uuid, parent_uuid, name_, category_, unit_, unit_name_,
-                        unit_multiplier_, is_incremental, type_);
+    return CounterTrack(uuid, parent_uuid, static_name_, dynamic_name_,
+                        category_, unit_, unit_name_, unit_multiplier_,
+                        is_incremental, type_);
   }
 
   constexpr bool is_incremental() const { return is_incremental_; }
@@ -290,12 +296,12 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
-  constexpr CounterTrack(const char* name,
+  constexpr CounterTrack(StaticString name,
                          Unit unit,
                          const char* unit_name,
                          Track parent)
-      : Track(internal::Fnv1a(name) ^ kCounterMagic, parent),
-        name_(name),
+      : Track(internal::Fnv1a(name.value) ^ kCounterMagic, parent),
+        static_name_(name),
         category_(nullptr),
         unit_(unit),
         unit_name_(unit_name) {}
@@ -304,13 +310,15 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
                const char* unit_name,
                Track parent)
       : Track(internal::Fnv1a(name.value, name.length) ^ kCounterMagic, parent),
-        name_(name.value),
+        static_name_(nullptr),
+        dynamic_name_(name),
         category_(nullptr),
         unit_(unit),
         unit_name_(unit_name) {}
   constexpr CounterTrack(uint64_t uuid_,
                          uint64_t parent_uuid_,
-                         const char* name,
+                         StaticString static_name,
+                         DynamicString dynamic_name,
                          const char* category,
                          Unit unit,
                          const char* unit_name,
@@ -318,7 +326,8 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
                          bool is_incremental,
                          CounterType type)
       : Track(uuid_, parent_uuid_),
-        name_(name),
+        static_name_(static_name),
+        dynamic_name_(dynamic_name),
         category_(category),
         unit_(unit),
         unit_name_(unit_name),
@@ -326,7 +335,8 @@ class PERFETTO_EXPORT_COMPONENT CounterTrack : public Track {
         is_incremental_(is_incremental),
         type_(type) {}
 
-  const char* const name_;
+  StaticString static_name_;
+  DynamicString dynamic_name_;
   const char* const category_;
   Unit unit_ = perfetto::protos::pbzero::CounterDescriptor::UNIT_UNSPECIFIED;
   const char* const unit_name_ = nullptr;
