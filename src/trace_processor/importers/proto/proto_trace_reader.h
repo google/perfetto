@@ -105,6 +105,8 @@ class ProtoTraceReader : public ChunkedTraceReader {
   base::FlatHashMap<uint32_t, PacketSequenceStateBuilder>
       packet_sequence_state_builders_;
 
+  base::FlatHashMap<uint32_t, size_t> packet_sequence_data_loss_;
+
   StringId skipped_packet_key_id_;
   StringId invalid_incremental_state_key_id_;
 };
