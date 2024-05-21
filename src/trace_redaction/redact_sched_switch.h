@@ -17,23 +17,63 @@
 #ifndef SRC_TRACE_REDACTION_REDACT_SCHED_SWITCH_H_
 #define SRC_TRACE_REDACTION_REDACT_SCHED_SWITCH_H_
 
-#include "src/trace_redaction/redact_ftrace_event.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
 
-// Goes through ftrace events and conditonally removes the comm values from
-// sched switch events.
-class RedactSchedSwitch : public FtraceEventRedaction {
+class SchedSwitchTransform {
  public:
-  static constexpr auto kFieldId =
-      protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber;
+  virtual ~SchedSwitchTransform();
+  virtual base::Status Transform(const Context& context,
+                                 uint64_t ts,
+                                 int32_t cpu,
+                                 int32_t* pid,
+                                 std::string* comm) const = 0;
+};
 
-  base::Status Redact(
+// Goes through all sched switch events are modifies them.
+class RedactSchedSwitchHarness : public TransformPrimitive {
+ public:
+  base::Status Transform(const Context& context,
+                         std::string* packet) const override;
+
+  template <class Transform>
+  void emplace_transform() {
+    transforms_.emplace_back(new Transform());
+  }
+
+ private:
+  base::Status TransformFtraceEvents(
       const Context& context,
-      const protos::pbzero::FtraceEventBundle::Decoder& bundle,
-      protozero::ProtoDecoder& event,
-      protos::pbzero::FtraceEvent* event_message) const override;
+      protozero::Field ftrace_events,
+      protos::pbzero::FtraceEventBundle* message) const;
+
+  base::Status TransformFtraceEvent(const Context& context,
+                                    int32_t cpu,
+                                    protozero::Field ftrace_event,
+                                    protos::pbzero::FtraceEvent* message) const;
+
+  // scratch_str is a reusable string, allowing comm modifications to be done in
+  // a shared buffer, avoiding allocations when processing ftrace events.
+  base::Status TransformFtraceEventSchedSwitch(
+      const Context& context,
+      uint64_t ts,
+      int32_t cpu,
+      protos::pbzero::SchedSwitchFtraceEvent::Decoder& sched_switch,
+      std::string* scratch_str,
+      protos::pbzero::SchedSwitchFtraceEvent* message) const;
+
+  std::vector<std::unique_ptr<SchedSwitchTransform>> transforms_;
+};
+
+class ClearComms : public SchedSwitchTransform {
+  base::Status Transform(const Context& context,
+                         uint64_t ts,
+                         int32_t cpu,
+                         int32_t* pid,
+                         std::string* comm) const override;
 };
 
 }  // namespace perfetto::trace_redaction
