@@ -251,7 +251,7 @@ enum perf_event_read_format {
   PERF_FORMAT_MAX = 1U << 5, /* non-ABI */
 };
 
-enum perf_callchain_context {
+enum perf_callchain_context : uint64_t {
   PERF_CONTEXT_HV = static_cast<uint64_t>(-32),
   PERF_CONTEXT_KERNEL = static_cast<uint64_t>(-128),
   PERF_CONTEXT_USER = static_cast<uint64_t>(-512),
