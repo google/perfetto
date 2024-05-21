@@ -16,9 +16,9 @@
 
 #include <cstdint>
 #include <string>
+#include <unordered_map>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/base/test/status_matchers.h"
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/find_package_uid.h"
@@ -35,23 +35,6 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
-
-class RedactSchedSwitchIntegrationTest
-    : public testing::Test,
-      protected TraceRedactionIntegrationFixure {
- protected:
-  void SetUp() override {
-    trace_redactor()->emplace_collect<FindPackageUid>();
-    trace_redactor()->emplace_collect<CollectTimelineEvents>();
-
-    auto* ftrace_event_redactions =
-        trace_redactor()->emplace_transform<RedactFtraceEvent>();
-    ftrace_event_redactions
-        ->emplace_back<RedactSchedSwitch::kFieldId, RedactSchedSwitch>();
-
-    context()->package_name = "com.Unity.com.unity.multiplayer.samples.coop";
-  }
-};
 
 // >>> SELECT uid
 // >>>   FROM package_list
@@ -103,6 +86,35 @@ class RedactSchedSwitchIntegrationTest
 //     | 7950 | UnityGfxDeviceW |
 //     | 7969 | UnityGfxDeviceW |
 //     +------+-----------------+
+class RedactSchedSwitchIntegrationTest
+    : public testing::Test,
+      protected TraceRedactionIntegrationFixure {
+ protected:
+  void SetUp() override {
+    trace_redactor()->emplace_collect<FindPackageUid>();
+    trace_redactor()->emplace_collect<CollectTimelineEvents>();
+
+    auto* harness =
+        trace_redactor()->emplace_transform<RedactSchedSwitchHarness>();
+    harness->emplace_transform<ClearComms>();
+
+    context()->package_name = "com.Unity.com.unity.multiplayer.samples.coop";
+  }
+
+  std::unordered_map<int32_t, std::string> expected_names_ = {
+      {7120, "Binder:7105_2"},   {7127, "UnityMain"},
+      {7142, "Job.worker 0"},    {7143, "Job.worker 1"},
+      {7144, "Job.worker 2"},    {7145, "Job.worker 3"},
+      {7146, "Job.worker 4"},    {7147, "Job.worker 5"},
+      {7148, "Job.worker 6"},    {7150, "Background Job."},
+      {7151, "Background Job."}, {7167, "UnityGfxDeviceW"},
+      {7172, "AudioTrack"},      {7174, "FMOD stream thr"},
+      {7180, "Binder:7105_3"},   {7184, "UnityChoreograp"},
+      {7945, "Filter0"},         {7946, "Filter1"},
+      {7947, "Thread-7"},        {7948, "FMOD mixer thre"},
+      {7950, "UnityGfxDeviceW"}, {7969, "UnityGfxDeviceW"},
+  };
+};
 
 TEST_F(RedactSchedSwitchIntegrationTest, ClearsNonTargetSwitchComms) {
   auto result = Redact();
@@ -113,30 +125,6 @@ TEST_F(RedactSchedSwitchIntegrationTest, ClearsNonTargetSwitchComms) {
 
   auto redacted = LoadRedacted();
   ASSERT_OK(redacted) << redacted.status().c_message();
-
-  base::FlatHashMap<int32_t, std::string> expected_names;
-  expected_names.Insert(7120, "Binder:7105_2");
-  expected_names.Insert(7127, "UnityMain");
-  expected_names.Insert(7142, "Job.worker 0");
-  expected_names.Insert(7143, "Job.worker 1");
-  expected_names.Insert(7144, "Job.worker 2");
-  expected_names.Insert(7145, "Job.worker 3");
-  expected_names.Insert(7146, "Job.worker 4");
-  expected_names.Insert(7147, "Job.worker 5");
-  expected_names.Insert(7148, "Job.worker 6");
-  expected_names.Insert(7150, "Background Job.");
-  expected_names.Insert(7151, "Background Job.");
-  expected_names.Insert(7167, "UnityGfxDeviceW");
-  expected_names.Insert(7172, "AudioTrack");
-  expected_names.Insert(7174, "FMOD stream thr");
-  expected_names.Insert(7180, "Binder:7105_3");
-  expected_names.Insert(7184, "UnityChoreograp");
-  expected_names.Insert(7945, "Filter0");
-  expected_names.Insert(7946, "Filter1");
-  expected_names.Insert(7947, "Thread-7");
-  expected_names.Insert(7948, "FMOD mixer thre");
-  expected_names.Insert(7950, "UnityGfxDeviceW");
-  expected_names.Insert(7969, "UnityGfxDeviceW");
 
   auto redacted_trace_data = LoadRedacted();
   ASSERT_OK(redacted_trace_data) << redacted.status().c_message();
@@ -164,29 +152,29 @@ TEST_F(RedactSchedSwitchIntegrationTest, ClearsNonTargetSwitchComms) {
           event_decoder.sched_switch());
 
       ASSERT_TRUE(sched_decoder.has_next_pid());
-      ASSERT_TRUE(sched_decoder.has_prev_pid());
-
-      auto next_pid = sched_decoder.next_pid();
-      auto prev_pid = sched_decoder.prev_pid();
+      ASSERT_TRUE(sched_decoder.has_next_comm());
 
       // If the pid is expected, make sure it has the right now. If it is not
       // expected, it should be missing.
-      const auto* next_comm = expected_names.Find(next_pid);
-      const auto* prev_comm = expected_names.Find(prev_pid);
+      auto next_pid = sched_decoder.next_pid();
+      auto next_comm = expected_names_.find(next_pid);
 
-      EXPECT_TRUE(sched_decoder.has_next_comm());
-      EXPECT_TRUE(sched_decoder.has_prev_comm());
-
-      if (next_comm) {
-        EXPECT_EQ(sched_decoder.next_comm().ToStdString(), *next_comm);
+      if (next_comm == expected_names_.end()) {
+        ASSERT_EQ(sched_decoder.next_comm().size, 0u);
       } else {
-        EXPECT_EQ(sched_decoder.next_comm().size, 0u);
+        ASSERT_EQ(sched_decoder.next_comm().ToStdString(), next_comm->second);
       }
 
-      if (prev_comm) {
-        EXPECT_EQ(sched_decoder.prev_comm().ToStdString(), *prev_comm);
+      ASSERT_TRUE(sched_decoder.has_prev_pid());
+      ASSERT_TRUE(sched_decoder.has_prev_comm());
+
+      auto prev_pid = sched_decoder.prev_pid();
+      auto prev_comm = expected_names_.find(prev_pid);
+
+      if (prev_comm == expected_names_.end()) {
+        ASSERT_EQ(sched_decoder.prev_comm().size, 0u);
       } else {
-        EXPECT_EQ(sched_decoder.prev_comm().size, 0u);
+        ASSERT_EQ(sched_decoder.prev_comm().ToStdString(), prev_comm->second);
       }
     }
   }

@@ -79,9 +79,10 @@ static base::Status Main(std::string_view input,
   redactor.emplace_transform<PrunePackageList>();
   redactor.emplace_transform<ScrubProcessStats>();
 
+  auto* comms_harness = redactor.emplace_transform<RedactSchedSwitchHarness>();
+  comms_harness->emplace_transform<ClearComms>();
+
   auto* redact_ftrace_events = redactor.emplace_transform<RedactFtraceEvent>();
-  redact_ftrace_events
-      ->emplace_back<RedactSchedSwitch::kFieldId, RedactSchedSwitch>();
   redact_ftrace_events
       ->emplace_back<RedactTaskNewTask::kFieldId, RedactTaskNewTask>();
   redact_ftrace_events

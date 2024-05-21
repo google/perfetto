@@ -16,6 +16,8 @@
 
 #include "src/trace_redaction/redact_sched_switch.h"
 
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_redaction/proto_util.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -25,19 +27,12 @@
 namespace perfetto::trace_redaction {
 
 namespace {
-
-// TODO(vaage): Merge with RedactComm in redact_task_newtask.cc.
-protozero::ConstChars RedactComm(const Context& context,
-                                 uint64_t ts,
-                                 int32_t pid,
-                                 protozero::ConstChars comm) {
-  if (context.timeline->PidConnectsToUid(ts, pid, *context.package_uid)) {
-    return comm;
-  }
-
-  return {};
+// TODO(vaage): While simple, this function saves us from declaring the sample
+// lambda each time we use the has_fields pattern. Once its usage increases, and
+// its value is obvious, remove this comment.
+bool IsTrue(bool value) {
+  return value;
 }
-
 }  // namespace
 
 // Redact sched switch trace events in an ftrace event bundle:
@@ -63,69 +58,168 @@ protozero::ConstChars RedactComm(const Context& context,
 // collection of ftrace event messages) because data in a sched_switch message
 // is needed in order to know if the event should be added to the bundle.
 
-base::Status RedactSchedSwitch::Redact(
-    const Context& context,
-    const protos::pbzero::FtraceEventBundle::Decoder&,
-    protozero::ProtoDecoder& event,
-    protos::pbzero::FtraceEvent* event_message) const {
-  if (!context.package_uid.has_value()) {
-    return base::ErrStatus("RedactSchedSwitch: missing package uid");
-  }
+SchedSwitchTransform::~SchedSwitchTransform() = default;
 
-  if (!context.timeline) {
-    return base::ErrStatus("RedactSchedSwitch: missing timeline");
-  }
+base::Status RedactSchedSwitchHarness::Transform(const Context& context,
+                                                 std::string* packet) const {
+  protozero::HeapBuffered<protos::pbzero::TracePacket> message;
+  protozero::ProtoDecoder decoder(*packet);
 
-  // The timestamp is needed to do the timeline look-up. If the packet has no
-  // timestamp, don't add the sched switch event. This is the safest option.
-  auto timestamp =
-      event.FindField(protos::pbzero::FtraceEvent::kTimestampFieldNumber);
-  if (!timestamp.valid()) {
-    return base::OkStatus();
-  }
-
-  auto sched_switch =
-      event.FindField(protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber);
-  if (!sched_switch.valid()) {
-    return base::ErrStatus(
-        "RedactSchedSwitch: was used for unsupported field type");
-  }
-
-  protozero::ProtoDecoder sched_switch_decoder(sched_switch.as_bytes());
-
-  auto prev_pid = sched_switch_decoder.FindField(
-      protos::pbzero::SchedSwitchFtraceEvent::kPrevPidFieldNumber);
-  auto next_pid = sched_switch_decoder.FindField(
-      protos::pbzero::SchedSwitchFtraceEvent::kNextPidFieldNumber);
-
-  // There must be a prev pid and a next pid. Otherwise, the event is invalid.
-  // Dropping the event is the safest option.
-  if (!prev_pid.valid() || !next_pid.valid()) {
-    return base::OkStatus();
-  }
-
-  // Avoid making the message until we know that we have prev and next pids.
-  auto sched_switch_message = event_message->set_sched_switch();
-
-  for (auto field = sched_switch_decoder.ReadField(); field.valid();
-       field = sched_switch_decoder.ReadField()) {
-    switch (field.id()) {
-      case protos::pbzero::SchedSwitchFtraceEvent::kNextCommFieldNumber:
-        sched_switch_message->set_next_comm(
-            RedactComm(context, timestamp.as_uint64(), next_pid.as_int32(),
-                       field.as_string()));
-        break;
-
-      case protos::pbzero::SchedSwitchFtraceEvent::kPrevCommFieldNumber:
-        sched_switch_message->set_prev_comm(
-            RedactComm(context, timestamp.as_uint64(), prev_pid.as_int32(),
-                       field.as_string()));
-        break;
-
-      default:
-        proto_util::AppendField(field, sched_switch_message);
-        break;
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() == protos::pbzero::TracePacket::kFtraceEventsFieldNumber) {
+      RETURN_IF_ERROR(
+          TransformFtraceEvents(context, field, message->set_ftrace_events()));
+    } else {
+      proto_util::AppendField(field, message.get());
     }
+  }
+
+  packet->assign(message.SerializeAsString());
+
+  return base::OkStatus();
+}
+
+base::Status RedactSchedSwitchHarness::TransformFtraceEvents(
+    const Context& context,
+    protozero::Field ftrace_events,
+    protos::pbzero::FtraceEventBundle* message) const {
+  PERFETTO_DCHECK(ftrace_events.id() ==
+                  protos::pbzero::TracePacket::kFtraceEventsFieldNumber);
+
+  protozero::ProtoDecoder decoder(ftrace_events.as_bytes());
+
+  auto cpu =
+      decoder.FindField(protos::pbzero::FtraceEventBundle::kCpuFieldNumber);
+  if (!cpu.valid()) {
+    return base::ErrStatus(
+        "RedactSchedSwitchHarness: missing cpu in ftrace event bundle.");
+  }
+
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() == protos::pbzero::FtraceEventBundle::kEventFieldNumber) {
+      RETURN_IF_ERROR(TransformFtraceEvent(context, cpu.as_int32(), field,
+                                           message->add_event()));
+      continue;
+    }
+
+    if (field.id() ==
+        protos::pbzero::FtraceEventBundle::kCompactSchedFieldNumber) {
+      // TODO(vaage): Replace this with logic specific to the comp sched data
+      // type.
+      proto_util::AppendField(field, message);
+      continue;
+    }
+
+    proto_util::AppendField(field, message);
+  }
+
+  return base::OkStatus();
+}
+
+base::Status RedactSchedSwitchHarness::TransformFtraceEvent(
+    const Context& context,
+    int32_t cpu,
+    protozero::Field ftrace_event,
+    protos::pbzero::FtraceEvent* message) const {
+  PERFETTO_DCHECK(ftrace_event.id() ==
+                  protos::pbzero::FtraceEventBundle::kEventFieldNumber);
+
+  protozero::ProtoDecoder decoder(ftrace_event.as_bytes());
+
+  auto ts =
+      decoder.FindField(protos::pbzero::FtraceEvent::kTimestampFieldNumber);
+  if (!ts.valid()) {
+    return base::ErrStatus(
+        "RedactSchedSwitchHarness: missing timestamp in ftrace event.");
+  }
+
+  std::string scratch_str;
+
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() == protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber) {
+      protos::pbzero::SchedSwitchFtraceEvent::Decoder sched_switch(
+          field.as_bytes());
+      RETURN_IF_ERROR(TransformFtraceEventSchedSwitch(
+          context, ts.as_uint64(), cpu, sched_switch, &scratch_str,
+          message->set_sched_switch()));
+    } else {
+      proto_util::AppendField(field, message);
+    }
+  }
+
+  return base::OkStatus();
+}
+
+base::Status RedactSchedSwitchHarness::TransformFtraceEventSchedSwitch(
+    const Context& context,
+    uint64_t ts,
+    int32_t cpu,
+    protos::pbzero::SchedSwitchFtraceEvent::Decoder& sched_switch,
+    std::string* scratch_str,
+    protos::pbzero::SchedSwitchFtraceEvent* message) const {
+  auto has_fields = {
+      sched_switch.has_prev_comm(), sched_switch.has_prev_pid(),
+      sched_switch.has_prev_prio(), sched_switch.has_prev_state(),
+      sched_switch.has_next_comm(), sched_switch.has_next_pid(),
+      sched_switch.has_next_prio()};
+
+  if (!std::all_of(has_fields.begin(), has_fields.end(), IsTrue)) {
+    return base::ErrStatus(
+        "RedactSchedSwitchHarness: missing required SchedSwitchFtraceEvent "
+        "field.");
+  }
+
+  auto prev_pid = sched_switch.prev_pid();
+  auto prev_comm = sched_switch.prev_comm();
+
+  auto next_pid = sched_switch.next_pid();
+  auto next_comm = sched_switch.next_comm();
+
+  // There are 7 values in a sched switch message. Since 4 of the 7 can be
+  // replaced, it is easier/cleaner to go value-by-value. Go in proto-defined
+  // order.
+
+  scratch_str->assign(prev_comm.data, prev_comm.size);
+
+  for (const auto& transform : transforms_) {
+    RETURN_IF_ERROR(
+        transform->Transform(context, ts, cpu, &prev_pid, scratch_str));
+  }
+
+  message->set_prev_comm(*scratch_str);                // FieldNumber = 1
+  message->set_prev_pid(prev_pid);                     // FieldNumber = 2
+  message->set_prev_prio(sched_switch.prev_prio());    // FieldNumber = 3
+  message->set_prev_state(sched_switch.prev_state());  // FieldNumber = 4
+
+  scratch_str->assign(next_comm.data, next_comm.size);
+
+  for (const auto& transform : transforms_) {
+    RETURN_IF_ERROR(
+        transform->Transform(context, ts, cpu, &next_pid, scratch_str));
+  }
+
+  message->set_next_comm(*scratch_str);              // FieldNumber = 5
+  message->set_next_pid(next_pid);                   // FieldNumber = 6
+  message->set_next_prio(sched_switch.next_prio());  // FieldNumber = 7
+
+  return base::OkStatus();
+}
+
+// Switch event transformation: Clear the comm value if the thread/process is
+// not part of the target packet.
+base::Status ClearComms::Transform(const Context& context,
+                                   uint64_t ts,
+                                   int32_t,
+                                   int32_t* pid,
+                                   std::string* comm) const {
+  PERFETTO_DCHECK(pid);
+  PERFETTO_DCHECK(comm);
+
+  if (!context.timeline->PidConnectsToUid(ts, *pid, *context.package_uid)) {
+    comm->clear();
   }
 
   return base::OkStatus();
