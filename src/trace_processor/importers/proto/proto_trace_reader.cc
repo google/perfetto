@@ -21,6 +21,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -119,6 +120,16 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
     HandlePreviousPacketDropped(decoder);
   }
 
+  uint32_t sequence_id = decoder.trusted_packet_sequence_id();
+  if (sequence_id) {
+    auto [data_loss, inserted] =
+        packet_sequence_data_loss_.Insert(sequence_id, 0);
+
+    if (!inserted && decoder.previous_packet_dropped()) {
+      *data_loss += 1;
+    }
+  }
+
   // It is important that we parse defaults before parsing other fields such as
   // the timestamp, since the defaults could affect them.
   if (decoder.has_trace_packet_defaults()) {
@@ -132,8 +143,7 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   }
 
   if (decoder.has_clock_snapshot()) {
-    return ParseClockSnapshot(decoder.clock_snapshot(),
-                              decoder.trusted_packet_sequence_id());
+    return ParseClockSnapshot(decoder.clock_snapshot(), sequence_id);
   }
 
   if (decoder.has_trace_stats()) {
@@ -578,6 +588,23 @@ void ProtoTraceReader::ParseTraceStats(ConstBytes blob) {
     storage->SetIndexedStats(
         stats::traced_buf_trace_writer_packet_loss, buf_num,
         static_cast<int64_t>(buf.trace_writer_packet_loss()));
+  }
+
+  base::FlatHashMap<int32_t, int64_t> data_loss_per_buffer;
+
+  for (auto it = evt.writer_stats(); it; ++it) {
+    protos::pbzero::TraceStats::WriterStats::Decoder writer(*it);
+    auto* data_loss = packet_sequence_data_loss_.Find(
+        static_cast<uint32_t>(writer.sequence_id()));
+    if (data_loss) {
+      data_loss_per_buffer[static_cast<int32_t>(writer.buffer())] +=
+          static_cast<int64_t>(*data_loss);
+    }
+  }
+
+  for (auto it = data_loss_per_buffer.GetIterator(); it; ++it) {
+    storage->SetIndexedStats(stats::traced_buf_sequence_packet_loss, it.key(),
+                             it.value());
   }
 }
 
