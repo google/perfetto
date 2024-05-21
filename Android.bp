@@ -1318,8 +1318,8 @@ filegroup {
 }
 
 // GN: [//protos/perfetto/config:source_set]
-java_library {
-    name: "perfetto_config_java_protos",
+filegroup {
+    name: "perfetto_config_filegroup_proto",
     srcs: [
         "protos/perfetto/common/android_energy_consumer_descriptor.proto",
         "protos/perfetto/common/android_log_constants.proto",
@@ -1375,10 +1375,6 @@ java_library {
         "protos/perfetto/config/trace_config.proto",
         "protos/perfetto/config/track_event/track_event_config.proto",
     ],
-    proto: {
-        type: "lite",
-        canonical_path_from_root: false,
-    },
 }
 
 // GN: //test/cts:perfetto_cts_deps
@@ -17263,6 +17259,38 @@ gensrcs {
         ":libprotobuf-internal-protos",
     ],
     output_extension: "srcjar",
+}
+
+java_library {
+    name: "perfetto_config_java_protos",
+    srcs: [
+        ":perfetto_config_filegroup_proto",
+    ],
+    static_libs: [
+        "libprotobuf-java-lite",
+    ],
+    proto: {
+        type: "lite",
+        canonical_path_from_root: false,
+    },
+}
+
+java_library {
+    name: "perfetto_config_java_protos_system_server_current",
+    srcs: [
+        ":perfetto_config_filegroup_proto",
+    ],
+    static_libs: [
+        "libprotobuf-java-lite",
+    ],
+    proto: {
+        type: "lite",
+        canonical_path_from_root: false,
+    },
+    sdk_version: "system_server_current",
+    apex_available: [
+        "com.android.profiling",
+    ],
 }
 
 prebuilt_etc {
