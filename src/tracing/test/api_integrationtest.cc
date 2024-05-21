@@ -2485,7 +2485,7 @@ TEST_P(PerfettoApiTest, TrackEventThreadTime) {
         EXPECT_FALSE(found_counter_track_descriptor);
         found_counter_track_descriptor = true;
         thread_time_counter_uuid = packet.track_descriptor().uuid();
-        EXPECT_EQ("thread_time", packet.track_descriptor().name());
+        EXPECT_EQ("thread_time", packet.track_descriptor().static_name());
         auto counter = packet.track_descriptor().counter();
         EXPECT_EQ(
             perfetto::protos::gen::
@@ -5795,8 +5795,10 @@ TEST_P(PerfettoApiTest, CountersDeltaEncoding) {
       auto& desc = packet.track_descriptor();
       if (!desc.has_counter())
         continue;
-      counter_names[desc.uuid()] = desc.name();
-      EXPECT_EQ((desc.name() != "Framerate3"), desc.counter().is_incremental());
+      counter_names[desc.uuid()] =
+          desc.has_name() ? desc.name() : desc.static_name();
+      EXPECT_EQ((desc.static_name() != "Framerate3"),
+                desc.counter().is_incremental());
     }
     if (packet.has_track_event()) {
       auto event = packet.track_event();
@@ -5869,7 +5871,8 @@ TEST_P(PerfettoApiTest, Counters) {
       continue;
     }
     auto desc = packet.track_descriptor();
-    counter_names[desc.uuid()] = desc.name();
+    counter_names[desc.uuid()] =
+        desc.has_name() ? desc.name() : desc.static_name();
     if (desc.name() == "Framerate") {
       EXPECT_EQ("fps", desc.counter().unit_name());
     } else if (desc.name() == "Goats teleported") {
