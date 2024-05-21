@@ -18,7 +18,8 @@ import {
   SLICE_TRACK_KIND,
 } from '../chrome_slices/chrome_slice_track';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
-import {COUNTER_TRACK_KIND, TraceProcessorCounterTrack} from '../counter';
+import {COUNTER_TRACK_KIND} from '../counter';
+import {TraceProcessorCounterTrack} from '../counter/trace_processor_counter_track';
 
 class AnnotationPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {

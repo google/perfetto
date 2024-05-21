@@ -15,7 +15,6 @@
 import {uuidv4} from '../../base/uuid';
 import {AddTrackArgs} from '../../common/actions';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {
   BottomTabToSCSAdapter,
   NUM,
@@ -25,34 +24,9 @@ import {
   PrimaryTrackSortKey,
 } from '../../public';
 import {Engine} from '../../trace_processor/engine';
-import {
-  CustomSqlDetailsPanelConfig,
-  CustomSqlTableDefConfig,
-  CustomSqlTableSliceTrack,
-} from '../custom_sql_table_slices';
 
 import {ScreenshotTab} from './screenshot_panel';
-
-class ScreenshotsTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
-  static readonly kind = 'dev.perfetto.ScreenshotsTrack';
-
-  getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      sqlTableName: 'android_screenshots',
-      columns: ['*'],
-    };
-  }
-
-  getDetailsPanel(): CustomSqlDetailsPanelConfig {
-    return {
-      kind: ScreenshotTab.kind,
-      config: {
-        sqlTableName: this.tableName,
-        title: 'Screenshots',
-      },
-    };
-  }
-}
+import {ScreenshotsTrack} from './screenshots_track';
 
 export type DecideTracksResult = {
   tracksToAdd: AddTrackArgs[];
