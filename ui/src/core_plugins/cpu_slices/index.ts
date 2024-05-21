@@ -162,11 +162,9 @@ class CpuSliceTrack implements Track {
   }
 
   async onDestroy() {
-    if (this.engine.isAlive) {
-      await this.engine.query(
-        `drop table if exists cpu_slice_${this.trackUuid}`,
-      );
-    }
+    await this.engine.tryQuery(
+      `drop table if exists cpu_slice_${this.trackUuid}`,
+    );
     this.fetcher.dispose();
   }
 
@@ -463,7 +461,7 @@ class CpuSliceTrack implements Track {
 
 class CpuSlices implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    const cpus = await ctx.engine.getCpus();
+    const cpus = ctx.trace.cpus;
     const cpuToSize = await this.guessCpuSizes(ctx.engine);
 
     for (const cpu of cpus) {
