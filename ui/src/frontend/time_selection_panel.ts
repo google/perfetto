@@ -140,9 +140,6 @@ function drawIBar(
 export class TimeSelectionPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = false;
-  readonly trackKey = undefined;
-
-  constructor(readonly key: string) {}
 
   render(): m.Children {
     return m('.time-selection-panel');

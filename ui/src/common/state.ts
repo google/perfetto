@@ -151,7 +151,8 @@ export const MAX_TIME = 180;
 // 52. Update track group state - don't make the summary track the first track.
 // 53. Remove android log state.
 // 54. Remove traceTime.
-export const STATE_VERSION = 54;
+// 55. Rename TrackGroupState.id -> TrackGroupState.key.
+export const STATE_VERSION = 55;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -288,7 +289,7 @@ export interface TrackState {
 }
 
 export interface TrackGroupState {
-  id: string;
+  key: string;
   name: string;
   collapsed: boolean;
   tracks: string[]; // Child track ids.
@@ -470,7 +471,7 @@ export interface State {
   newEngineMode: NewEngineMode;
   engine?: EngineConfig;
   traceUuid?: string;
-  trackGroups: ObjectById<TrackGroupState>;
+  trackGroups: ObjectByKey<TrackGroupState>;
   tracks: ObjectByKey<TrackState>;
   utidToThreadSortKey: UtidToTrackSortKey;
   areas: ObjectById<AreaById>;
@@ -908,20 +909,19 @@ export function getBuiltinChromeCategoryList(): string[] {
   ];
 }
 
-export function getContainingTrackId(
+export function getContainingGroupKey(
   state: State,
   trackKey: string,
 ): null | string {
   const track = state.tracks[trackKey];
-  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-  if (!track) {
+  if (track === undefined) {
     return null;
   }
-  const parentId = track.trackGroup;
-  if (!parentId) {
+  const parentGroupKey = track.trackGroup;
+  if (!parentGroupKey) {
     return null;
   }
-  return parentId;
+  return parentGroupKey;
 }
 
 export function getLegacySelection(state: State): LegacySelection | null {
