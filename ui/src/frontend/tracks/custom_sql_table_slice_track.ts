@@ -18,15 +18,11 @@ import {Disposable, DisposableCallback} from '../../base/disposable';
 import {Actions} from '../../common/actions';
 import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
 import {LegacySelection} from '../../common/state';
-import {OnSliceClickArgs} from '../../frontend/base_slice_track';
-import {GenericSliceDetailsTabConfigBase} from '../../frontend/generic_slice_details_tab';
-import {globals} from '../../frontend/globals';
-import {
-  NamedSliceTrack,
-  NamedSliceTrackTypes,
-} from '../../frontend/named_slice_track';
-import {NewTrackArgs} from '../../frontend/track';
-import {Plugin, PluginDescriptor} from '../../public';
+import {OnSliceClickArgs} from '../base_slice_track';
+import {GenericSliceDetailsTabConfigBase} from '../generic_slice_details_tab';
+import {globals} from '../globals';
+import {NamedSliceTrack, NamedSliceTrackTypes} from '../named_slice_track';
+import {NewTrackArgs} from '../track';
 
 export interface CustomSqlImportConfig {
   modules: string[];
@@ -137,10 +133,3 @@ export abstract class CustomSqlTableSliceTrack<
     }
   }
 }
-
-class CustomSqlTrackPlugin implements Plugin {}
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.CustomSqlTrack',
-  plugin: CustomSqlTrackPlugin,
-};

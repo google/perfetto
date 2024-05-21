@@ -15,7 +15,7 @@
 import {AddTrackArgs} from '../../common/actions';
 import {ObjectByKey} from '../../common/state';
 import {featureFlags} from '../../core/feature_flags';
-import {CustomSqlDetailsPanelConfig} from '../custom_sql_table_slices';
+import {CustomSqlDetailsPanelConfig} from '../../frontend/tracks/custom_sql_table_slice_track';
 
 export const SCROLL_JANK_GROUP_ID = 'chrome-scroll-jank-track-group';
 

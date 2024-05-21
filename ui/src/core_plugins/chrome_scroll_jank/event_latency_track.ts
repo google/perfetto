@@ -20,7 +20,7 @@ import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
-} from '../custom_sql_table_slices';
+} from '../../frontend/tracks/custom_sql_table_slice_track';
 
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {JANK_COLOR} from './jank_colors';

@@ -17,7 +17,7 @@ import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
-} from '../core_plugins/custom_sql_table_slices';
+} from './tracks/custom_sql_table_slice_track';
 import {NamedSliceTrackTypes} from './named_slice_track';
 import {ARG_PREFIX, SliceColumns, SqlDataSource} from './debug_tracks';
 import {uuidv4Sql} from '../base/uuid';

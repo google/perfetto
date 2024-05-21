@@ -12,106 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Actions} from '../../common/actions';
-import {ProfileType, LegacySelection} from '../../common/state';
-import {profileType} from '../../controller/flamegraph_controller';
-import {
-  BASE_ROW,
-  BaseSliceTrack,
-  BaseSliceTrackTypes,
-  OnSliceClickArgs,
-  OnSliceOverArgs,
-} from '../../frontend/base_slice_track';
 import {FlamegraphDetailsPanel} from '../../frontend/flamegraph_panel';
-import {globals} from '../../frontend/globals';
-import {NewTrackArgs} from '../../frontend/track';
-import {
-  Plugin,
-  PluginContextTrace,
-  PluginDescriptor,
-  Slice,
-} from '../../public';
-import {NUM, STR} from '../../trace_processor/query_result';
+import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {NUM} from '../../trace_processor/query_result';
+import {HeapProfileTrack} from './heap_profile_track';
 
 export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
-
-const HEAP_PROFILE_ROW = {
-  ...BASE_ROW,
-  type: STR,
-};
-type HeapProfileRow = typeof HEAP_PROFILE_ROW;
-interface HeapProfileSlice extends Slice {
-  type: ProfileType;
-}
-
-interface HeapProfileTrackTypes extends BaseSliceTrackTypes {
-  row: HeapProfileRow;
-  slice: HeapProfileSlice;
-}
-
-class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
-  private upid: number;
-
-  constructor(args: NewTrackArgs, upid: number) {
-    super(args);
-    this.upid = upid;
-  }
-
-  getSqlSource(): string {
-    return `select
-      *,
-      0 AS dur,
-      0 AS depth
-      from (
-        select distinct
-          id,
-          ts,
-          'heap_profile:' || (select group_concat(distinct heap_name) from heap_profile_allocation where upid = ${this.upid}) AS type
-        from heap_profile_allocation
-        where upid = ${this.upid}
-        union
-        select distinct
-          id,
-          graph_sample_ts AS ts,
-          'graph' AS type
-        from heap_graph_object
-        where upid = ${this.upid}
-      )`;
-  }
-
-  getRowSpec(): HeapProfileRow {
-    return HEAP_PROFILE_ROW;
-  }
-
-  rowToSlice(row: HeapProfileRow): HeapProfileSlice {
-    const slice = super.rowToSlice(row);
-    let type = row.type;
-    if (type === 'heap_profile:libc.malloc,com.android.art') {
-      type = 'heap_profile:com.android.art,libc.malloc';
-    }
-    slice.type = profileType(type);
-    return slice;
-  }
-
-  onSliceOver(args: OnSliceOverArgs<HeapProfileSlice>) {
-    args.tooltip = [args.slice.type];
-  }
-
-  onSliceClick(args: OnSliceClickArgs<HeapProfileSlice>) {
-    globals.makeSelection(
-      Actions.selectHeapProfile({
-        id: args.slice.id,
-        upid: this.upid,
-        ts: args.slice.ts,
-        type: args.slice.type,
-      }),
-    );
-  }
-
-  protected isSelectionHandled(selection: LegacySelection): boolean {
-    return selection.kind === 'HEAP_PROFILE';
-  }
-}
 
 class HeapProfilePlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
