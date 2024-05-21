@@ -135,4 +135,22 @@ RefPtr<const PerfEventAttr> PerfSession::FindAttrForEventId(uint64_t id) const {
   return RefPtr<const PerfEventAttr>(it->get());
 }
 
+void PerfSession::SetEventName(uint64_t event_id, std::string name) {
+  auto it = attrs_by_id_.Find(event_id);
+  if (!it) {
+    return;
+  }
+  (*it)->set_event_name(std::move(name));
+}
+
+void PerfSession::SetEventName(uint32_t type,
+                               uint64_t config,
+                               const std::string& name) {
+  for (auto it = attrs_by_id_.GetIterator(); it; ++it) {
+    if (it.value()->type() == type && it.value()->config() == config) {
+      it.value()->set_event_name(name);
+    }
+  }
+}
+
 }  // namespace perfetto::trace_processor::perf_importer
