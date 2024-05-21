@@ -490,13 +490,25 @@ const KERNEL_WAKELOCKS_SUMMARY = `
 const HIGH_CPU = `
   drop table if exists high_cpu;
   create table high_cpu as
-  with base as (
+  with cpu_cycles_args as (
     select
-      ts,
-      EXTRACT_ARG(arg_set_id, 'cpu_cycles_per_uid_cluster.uid') as uid,
-      EXTRACT_ARG(arg_set_id, 'cpu_cycles_per_uid_cluster.cluster') as cluster,
-      sum(EXTRACT_ARG(arg_set_id, 'cpu_cycles_per_uid_cluster.time_millis')) as time_millis
-    from track t join slice s on t.id = s.track_id
+      arg_set_id,
+      min(iif(key = 'cpu_cycles_per_uid_cluster.uid', int_value, null)) as uid,
+      min(iif(key = 'cpu_cycles_per_uid_cluster.cluster', int_value, null)) as cluster,
+      min(iif(key = 'cpu_cycles_per_uid_cluster.time_millis', int_value, null)) as time_millis
+    from args
+    where key in (
+      'cpu_cycles_per_uid_cluster.uid',
+      'cpu_cycles_per_uid_cluster.cluster',
+      'cpu_cycles_per_uid_cluster.time_millis'
+    )
+    group by 1
+  ),
+  base as (
+    select ts, uid, cluster, sum(time_millis) as time_millis
+    from track t
+    join slice s on t.id = s.track_id
+    join cpu_cycles_args using (arg_set_id)
     where t.name = 'Statsd Atoms'
       and s.name = 'cpu_cycles_per_uid_cluster'
     group by 1, 2, 3
@@ -521,8 +533,7 @@ const HIGH_CPU = `
   with_ratio as (
     select
       ts,
-      100.0 * cpu_dur / dur as value,
-      dur,
+      iif(dur is null, 0, 100.0 * cpu_dur / dur) as value,
       case cluster when 0 then 'little' when 1 then 'mid' when 2 then 'big' else 'cl-' || cluster end as cluster,
       case
           when uid = 0 then 'AID_ROOT'
@@ -533,17 +544,9 @@ const HIGH_CPU = `
           else pl.package_name
       end as pkg
     from with_windows left join app_package_list pl using(uid)
-    where cpu_dur is not null
-  ),
-  with_zeros as (
-      select ts, value, cluster, pkg
-      from with_ratio
-      union all
-      select ts + dur as ts, 0 as value, cluster, pkg
-      from with_ratio
   )
   select ts, sum(value) as value, cluster, pkg
-  from with_zeros
+  from with_ratio
   group by 1, 3, 4`;
 
 const WAKEUPS = `
