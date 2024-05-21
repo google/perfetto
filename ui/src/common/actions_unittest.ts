@@ -60,14 +60,14 @@ function fakeTrack(
 
 function fakeTrackGroup(
   state: State,
-  args: {id: string; summaryTrackId: string},
+  args: {key: string; summaryTrackKey: string},
 ): State {
   return produce(state, (draft) => {
     StateActions.addTrackGroup(draft, {
       name: 'A group',
-      id: args.id,
+      key: args.key,
       collapsed: false,
-      summaryTrackKey: args.summaryTrackId,
+      summaryTrackKey: args.summaryTrackKey,
     });
   });
 }
@@ -117,7 +117,7 @@ test('add track to track group', () => {
   const afterGroup = produce(state, (draft) => {
     StateActions.addTrackGroup(draft, {
       name: 'A track group',
-      id: '123-123-123',
+      key: '123-123-123',
       summaryTrackKey: 's',
       collapsed: false,
     });
@@ -151,19 +151,19 @@ test('reorder tracks', () => {
     });
   });
 
-  const firstTrackId = once.scrollingTracks[0];
-  const secondTrackId = once.scrollingTracks[1];
+  const firstTrackKey = once.scrollingTracks[0];
+  const secondTrackKey = once.scrollingTracks[1];
 
   const twice = produce(once, (draft) => {
     StateActions.moveTrack(draft, {
-      srcId: `${firstTrackId}`,
+      srcId: `${firstTrackKey}`,
       op: 'after',
-      dstId: `${secondTrackId}`,
+      dstId: `${secondTrackKey}`,
     });
   });
 
-  expect(twice.scrollingTracks[0]).toBe(secondTrackId);
-  expect(twice.scrollingTracks[1]).toBe(firstTrackId);
+  expect(twice.scrollingTracks[0]).toBe(secondTrackKey);
+  expect(twice.scrollingTracks[1]).toBe(firstTrackKey);
 });
 
 test('reorder pinned to scrolling', () => {
@@ -326,7 +326,7 @@ test('setEngineReady', () => {
 
 test('sortTracksByPriority', () => {
   let state = createEmptyState();
-  state = fakeTrackGroup(state, {id: 'g', summaryTrackId: 'b'});
+  state = fakeTrackGroup(state, {key: 'g', summaryTrackKey: 'b'});
   state = fakeTrack(state, {
     key: 'b',
     uri: HEAP_PROFILE_TRACK_KIND,
@@ -351,7 +351,7 @@ test('sortTracksByPriority', () => {
 
 test('sortTracksByPriorityAndKindAndName', () => {
   let state = createEmptyState();
-  state = fakeTrackGroup(state, {id: 'g', summaryTrackId: 'b'});
+  state = fakeTrackGroup(state, {key: 'g', summaryTrackKey: 'b'});
   state = fakeTrack(state, {
     key: 'a',
     uri: PROCESS_SCHEDULING_TRACK_KIND,
@@ -416,7 +416,7 @@ test('sortTracksByPriorityAndKindAndName', () => {
 
 test('sortTracksByTidThenName', () => {
   let state = createEmptyState();
-  state = fakeTrackGroup(state, {id: 'g', summaryTrackId: 'a'});
+  state = fakeTrackGroup(state, {key: 'g', summaryTrackKey: 'a'});
   state = fakeTrack(state, {
     key: 'a',
     uri: SLICE_TRACK_KIND,
