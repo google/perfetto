@@ -67,8 +67,6 @@ export class DebugCounterTrack extends BaseCounterTrack {
   }
 
   private async dropTrackTable(): Promise<void> {
-    if (this.engine.isAlive) {
-      this.engine.query(`drop table if exists ${this.sqlTableName}`);
-    }
+    this.engine.tryQuery(`drop table if exists ${this.sqlTableName}`);
   }
 }

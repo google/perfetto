@@ -118,7 +118,7 @@ class TrackDecider {
   }
 
   async addCpuSchedulingTracks(): Promise<void> {
-    const cpus = await this.engine.getCpus();
+    const cpus = globals.traceContext.cpus;
     const cpuToSize = await this.guessCpuSizes();
 
     for (const cpu of cpus) {
@@ -134,7 +134,7 @@ class TrackDecider {
   }
 
   async addCpuFreqTracks(engine: Engine): Promise<void> {
-    const cpus = await this.engine.getCpus();
+    const cpus = globals.traceContext.cpus;
 
     for (const cpu of cpus) {
       // Only add a cpu freq track if we have
@@ -229,7 +229,7 @@ class TrackDecider {
   }
 
   async addGpuFreqTracks(engine: Engine): Promise<void> {
-    const numGpus = await this.engine.getNumberOfGpus();
+    const numGpus = globals.traceContext.gpuCount;
     for (let gpu = 0; gpu < numGpus; gpu++) {
       // Only add a gpu freq track if we have
       // gpu freq data.

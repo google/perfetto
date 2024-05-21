@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {runQuery} from '../../common/queries';
 import {addDebugSliceTrack} from '../../public';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 
@@ -170,7 +169,7 @@ class AndroidCujs implements Plugin {
       id: 'dev.perfetto.AndroidCujs#PinJankCUJs',
       name: 'Add track: Android jank CUJs',
       callback: () => {
-        runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine).then(() => {
+        ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() => {
           addDebugSliceTrack(
             ctx.engine,
             {
@@ -189,9 +188,9 @@ class AndroidCujs implements Plugin {
       id: 'dev.perfetto.AndroidCujs#ListJankCUJs',
       name: 'Run query: Android jank CUJs',
       callback: () => {
-        runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine).then(() =>
-          ctx.tabs.openQuery(JANK_CUJ_QUERY, 'Android Jank CUJs'),
-        );
+        ctx.engine
+          .query(JANK_CUJ_QUERY_PRECONDITIONS)
+          .then(() => ctx.tabs.openQuery(JANK_CUJ_QUERY, 'Android Jank CUJs'));
       },
     });
 
@@ -223,7 +222,7 @@ class AndroidCujs implements Plugin {
       id: 'dev.perfetto.AndroidCujs#PinBlockingCalls',
       name: 'Add track: Android Blocking calls during CUJs',
       callback: () => {
-        runQuery(JANK_CUJ_QUERY_PRECONDITIONS, ctx.engine).then(() =>
+        ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() =>
           addDebugSliceTrack(
             ctx.engine,
             {

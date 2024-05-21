@@ -56,23 +56,18 @@ export class ProcessSchedulingTrack implements Track {
   private mousePos?: {x: number; y: number};
   private utidHoveredInThisTrack = -1;
   private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
-  private maxCpu = 0;
+  private cpuCount: number;
   private engine: Engine;
   private trackUuid = uuidv4Sql();
   private config: Config;
 
-  constructor(engine: Engine, config: Config) {
+  constructor(engine: Engine, config: Config, cpuCount: number) {
     this.engine = engine;
     this.config = config;
+    this.cpuCount = cpuCount;
   }
 
   async onCreate(): Promise<void> {
-    const cpus = await this.engine.getCpus();
-
-    // A process scheduling track should only exist in a trace that has cpus.
-    assertTrue(cpus.length > 0);
-    this.maxCpu = Math.max(...cpus) + 1;
-
     if (this.config.upid !== null) {
       await this.engine.query(`
         create virtual table process_scheduling_${this.trackUuid}
@@ -119,11 +114,9 @@ export class ProcessSchedulingTrack implements Track {
 
   async onDestroy(): Promise<void> {
     this.fetcher.dispose();
-    if (this.engine.isAlive) {
-      await this.engine.query(`
-        drop table process_scheduling_${this.trackUuid}
-      `);
-    }
+    await this.engine.tryQuery(`
+      drop table process_scheduling_${this.trackUuid}
+    `);
   }
 
   async onBoundsChange(
@@ -142,7 +135,7 @@ export class ProcessSchedulingTrack implements Track {
       end,
       resolution,
       length: numRows,
-      maxCpu: this.maxCpu,
+      maxCpu: this.cpuCount,
       starts: new BigInt64Array(numRows),
       ends: new BigInt64Array(numRows),
       cpus: new Uint32Array(numRows),

@@ -17,7 +17,6 @@ import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
 import {duration, Time, TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
-import {runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
 import {Engine} from '../trace_processor/engine';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../trace_processor/query_result';
@@ -104,17 +103,18 @@ const ITEMS: ContextMenuItem[] = [
     run: (slice: SliceDetails) => {
       const engine = getEngine();
       if (engine === undefined) return;
-      runQuery(
-        `
+      engine
+        .query(
+          `
         INCLUDE PERFETTO MODULE android.binder;
         INCLUDE PERFETTO MODULE android.monitor_contention;
       `,
-        engine,
-      ).then(() =>
-        addDebugSliceTrack(
-          engine,
-          {
-            sqlSource: `
+        )
+        .then(() =>
+          addDebugSliceTrack(
+            engine,
+            {
+              sqlSource: `
                                 WITH merged AS (
                                   SELECT s.ts, s.dur, tx.aidl_name AS name, 0 AS depth
                                   FROM android_binder_txns tx
@@ -151,14 +151,14 @@ const ITEMS: ContextMenuItem[] = [
                                         AND short_blocked_method IS NOT NULL
                                   ORDER BY depth
                                 ) SELECT ts, dur, name FROM merged`,
-          },
-          `Binder names (${getProcessNameFromSlice(
-            slice,
-          )}:${getThreadNameFromSlice(slice)})`,
-          {ts: 'ts', dur: 'dur', name: 'name'},
-          [],
-        ),
-      );
+            },
+            `Binder names (${getProcessNameFromSlice(
+              slice,
+            )}:${getThreadNameFromSlice(slice)})`,
+            {ts: 'ts', dur: 'dur', name: 'name'},
+            [],
+          ),
+        );
     },
   },
 ];
