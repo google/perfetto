@@ -95,7 +95,6 @@ export function createEmptyState(): State {
     scrollingTracks: [],
     areas: {},
     queries: {},
-    permalink: {},
     notes: {},
 
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get()

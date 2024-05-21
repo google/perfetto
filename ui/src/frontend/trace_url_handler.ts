@@ -18,6 +18,7 @@ import {Actions} from '../common/actions';
 import {tryGetTrace} from '../common/cache_manager';
 import {showModal} from '../widgets/modal';
 
+import {loadPermalink} from './permalink';
 import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {globals} from './globals';
 import {Route, Router} from './router';
@@ -34,7 +35,7 @@ function getCurrentTraceUrl(): undefined | string {
 export function maybeOpenTraceFromRoute(route: Route) {
   if (route.args.s) {
     // /?s=xxxx for permalinks.
-    globals.dispatch(Actions.loadPermalink({hash: route.args.s}));
+    loadPermalink(route.args.s);
     return;
   }
 

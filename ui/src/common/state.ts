@@ -310,12 +310,6 @@ export interface QueryConfig {
   query: string;
 }
 
-export interface PermalinkConfig {
-  requestId?: string; // Set by the frontend to request a new permalink.
-  hash?: string; // Set by the controller when the link has been created.
-  isRecordingConfig?: boolean; // this permalink request is for a recording config only
-}
-
 export interface FrontendLocalState {
   visibleState: VisibleState;
 }
@@ -486,7 +480,6 @@ export interface State {
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;
-  permalink: PermalinkConfig;
   notes: ObjectById<Note | AreaNote>;
   status: Status;
   selection: Selection;

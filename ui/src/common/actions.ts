@@ -448,31 +448,6 @@ export const StateActions = {
     }
   },
 
-  createPermalink(state: StateDraft, args: {isRecordingConfig: boolean}): void {
-    state.permalink = {
-      requestId: generateNextId(state),
-      hash: undefined,
-      isRecordingConfig: args.isRecordingConfig,
-    };
-  },
-
-  setPermalink(
-    state: StateDraft,
-    args: {requestId: string; hash: string},
-  ): void {
-    // Drop any links for old requests.
-    if (state.permalink.requestId !== args.requestId) return;
-    state.permalink = args;
-  },
-
-  loadPermalink(state: StateDraft, args: {hash: string}): void {
-    state.permalink = {requestId: generateNextId(state), hash: args.hash};
-  },
-
-  clearPermalink(state: StateDraft, _: {}): void {
-    state.permalink = {};
-  },
-
   updateStatus(state: StateDraft, args: Status): void {
     if (statusTraceEvent) {
       traceEventEnd(statusTraceEvent);
