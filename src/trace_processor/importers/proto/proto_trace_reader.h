@@ -78,6 +78,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,
                          TraceBlobView interned_data);
   void ParseTraceConfig(ConstBytes);
+  void ParseTraceStats(ConstBytes);
 
   std::optional<StringId> GetBuiltinClockNameOrNull(int64_t clock_id);
 
