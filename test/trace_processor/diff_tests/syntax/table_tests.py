@@ -178,6 +178,37 @@ class PerfettoTable(TestSuite):
         3073,8,4529,8
         """))
 
+  def test_distinct_multi_column(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        WITH data(a, b) AS (
+          VALUES
+            -- Needed to defeat any id/sorted detection.
+            (2, 3),
+            (0, 2),
+            (0, 1)
+        )
+        SELECT * FROM data;
+
+        CREATE TABLE bar AS
+        SELECT 1 AS b;
+
+        WITH multi_col_distinct AS (
+          SELECT DISTINCT a FROM foo CROSS JOIN bar USING (b)
+        ), multi_col_group_by AS (
+          SELECT a FROM foo CROSS JOIN bar USING (b) GROUP BY a
+        )
+        SELECT
+          (SELECT COUNT(*) FROM multi_col_distinct) AS cnt_distinct,
+          (SELECT COUNT(*) FROM multi_col_group_by) AS cnt_group_by
+        """,
+        out=Csv("""
+        "cnt_distinct","cnt_group_by"
+        1,1
+        """))
+
   def test_limit(self):
     return DiffTestBlueprint(
         trace=TextProto(''),
