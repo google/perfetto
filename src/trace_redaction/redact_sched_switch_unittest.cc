@@ -46,9 +46,21 @@ constexpr auto kCommA = "comm-a";
 constexpr auto kCommB = "comm-b";
 constexpr auto kCommNone = "";
 
+class NegatePid : public SchedSwitchTransform {
+ public:
+  base::Status Transform(const Context&,
+                         uint64_t,
+                         int32_t,
+                         int32_t* pid,
+                         std::string*) const override {
+    *pid = -(*pid);
+    return base::OkStatus();
+  }
+};
+
 }  // namespace
 
-class RedactSchedSwitchTest : public testing::Test {
+class RedactSchedSwitchFtraceEventTest : public testing::Test {
  protected:
   void SetUp() override {
     // Create a packet where two pids are swapping back-and-forth.
@@ -103,7 +115,7 @@ class RedactSchedSwitchTest : public testing::Test {
 
 // In this case, the target uid will be UID A. That means the comm values for
 // PID B should be removed, and the comm values for PID A should remain.
-TEST_F(RedactSchedSwitchTest, KeepsTargetCommValues) {
+TEST_F(RedactSchedSwitchFtraceEventTest, KeepsTargetCommValues) {
   RedactSchedSwitchHarness redact;
   redact.emplace_transform<ClearComms>();
 
@@ -137,7 +149,7 @@ TEST_F(RedactSchedSwitchTest, KeepsTargetCommValues) {
 // This case is very similar to the "some are connected", expect that it
 // verifies all comm values will be removed when testing against an unused
 // uid.
-TEST_F(RedactSchedSwitchTest, RemovesAllCommsIfPackageDoesntExist) {
+TEST_F(RedactSchedSwitchFtraceEventTest, RemovesAllCommsIfPackageDoesntExist) {
   RedactSchedSwitchHarness redact;
   redact.emplace_transform<ClearComms>();
 
@@ -160,6 +172,183 @@ TEST_F(RedactSchedSwitchTest, RemovesAllCommsIfPackageDoesntExist) {
 
   ASSERT_EQ(events[1].sched_switch().prev_comm(), kCommNone);
   ASSERT_EQ(events[1].sched_switch().next_comm(), kCommNone);
+}
+
+class RedactCompactSchedSwitchTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    // PID A and PID B need to be attached to different packages (UID) so that
+    // its possible to include one but not the other.
+    context_.timeline = std::make_unique<ProcessThreadTimeline>();
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidA, kNoParent, kUidA));
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidB, kNoParent, kUidB));
+    context_.timeline->Sort();
+
+    auto* bundle = packet_.mutable_ftrace_events();
+    bundle->set_cpu(kCpuA);  // All switch events occur on this CPU
+
+    compact_sched = bundle->mutable_compact_sched();
+
+    compact_sched->add_intern_table(kCommA);
+    compact_sched->add_intern_table(kCommB);
+  }
+
+  void AddSwitchEvent(uint64_t ts,
+                      int32_t next_pid,
+                      int32_t prev_state,
+                      int32_t prio,
+                      uint32_t comm) {
+    compact_sched->add_switch_timestamp(ts);
+    compact_sched->add_switch_next_pid(next_pid);
+    compact_sched->add_switch_prev_state(prev_state);
+    compact_sched->add_switch_next_prio(prio);
+    compact_sched->add_switch_next_comm_index(comm);
+  }
+
+  protos::gen::TracePacket packet_;
+  protos::gen::FtraceEventBundle::CompactSched* compact_sched;
+
+  Context context_;
+};
+
+TEST_F(RedactCompactSchedSwitchTest, KeepsTargetCommValues) {
+  uint32_t kCommIndexA = 0;
+  uint32_t kCommIndexB = 1;
+
+  // The new entry will be appended to the table. Another primitive can be used
+  // to reduce the intern string table.
+  uint32_t kCommIndexNone = 2;
+
+  AddSwitchEvent(kTimeA, kPidA, 0, 0, kCommIndexA);
+  AddSwitchEvent(kTimeB, kPidB, 0, 0, kCommIndexB);
+
+  context_.package_uid = kUidA;
+
+  auto packet_buffer = packet_.SerializeAsString();
+
+  RedactSchedSwitchHarness redact;
+  redact.emplace_transform<ClearComms>();
+
+  ASSERT_OK(redact.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& compact_sched = bundle.compact_sched();
+
+  // A new entry (empty string) should have been added to the table.
+  ASSERT_EQ(compact_sched.intern_table_size(), 3);
+  ASSERT_EQ(compact_sched.intern_table().back(), kCommNone);
+
+  ASSERT_EQ(compact_sched.switch_next_comm_index_size(), 2);
+  ASSERT_EQ(compact_sched.switch_next_comm_index().at(0), kCommIndexA);
+  ASSERT_EQ(compact_sched.switch_next_comm_index().at(1), kCommIndexNone);
+}
+
+// If two pids use the same comm, but one pid changes, the shared comm should
+// still be available.
+TEST_F(RedactCompactSchedSwitchTest, ChangingSharedCommonRetainsComm) {
+  uint32_t kCommIndexA = 0;
+
+  AddSwitchEvent(kTimeA, kPidA, 0, 0, kCommIndexA);
+  AddSwitchEvent(kTimeB, kPidB, 0, 0, kCommIndexA);
+
+  context_.package_uid = kUidA;
+
+  auto packet_buffer = packet_.SerializeAsString();
+
+  RedactSchedSwitchHarness redact;
+  redact.emplace_transform<ClearComms>();
+
+  ASSERT_OK(redact.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& compact_sched = bundle.compact_sched();
+
+  // A new entry should have been appended, but comm A (previously shared)
+  // should still exist in the table.
+  ASSERT_EQ(compact_sched.intern_table_size(), 3);
+  ASSERT_EQ(compact_sched.intern_table().front(), kCommA);
+  ASSERT_EQ(compact_sched.intern_table().back(), kCommNone);
+}
+
+TEST_F(RedactCompactSchedSwitchTest, RemovesAllCommsIfPackageDoesntExist) {
+  uint32_t kCommIndexA = 0;
+  uint32_t kCommIndexB = 1;
+
+  // The new entry will be appended to the table. Another primitive can be used
+  // to reduce the intern string table.
+  uint32_t kCommIndexNone = 2;
+
+  AddSwitchEvent(kTimeA, kPidA, 0, 0, kCommIndexA);
+  AddSwitchEvent(kTimeB, kPidB, 0, 0, kCommIndexB);
+
+  context_.package_uid = kUidC;
+
+  auto packet_buffer = packet_.SerializeAsString();
+
+  RedactSchedSwitchHarness redact;
+  redact.emplace_transform<ClearComms>();
+
+  ASSERT_OK(redact.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& compact_sched = bundle.compact_sched();
+
+  // A new entry (empty string) should have been added to the table.
+  ASSERT_EQ(compact_sched.intern_table_size(), 3);
+  ASSERT_EQ(compact_sched.intern_table().back(), kCommNone);
+
+  ASSERT_EQ(compact_sched.switch_next_comm_index_size(), 2);
+  ASSERT_EQ(compact_sched.switch_next_comm_index().at(0), kCommIndexNone);
+  ASSERT_EQ(compact_sched.switch_next_comm_index().at(1), kCommIndexNone);
+}
+
+TEST_F(RedactCompactSchedSwitchTest, CanChangePid) {
+  uint32_t kCommIndexA = 0;
+  uint32_t kCommIndexB = 1;
+
+  AddSwitchEvent(kTimeA, kPidA, 0, 0, kCommIndexA);
+  AddSwitchEvent(kTimeB, kPidB, 0, 0, kCommIndexB);
+
+  context_.package_uid = kUidA;  // This value is not needed to use NegatePid.
+
+  auto packet_buffer = packet_.SerializeAsString();
+
+  RedactSchedSwitchHarness redact;
+  redact.emplace_transform<NegatePid>();
+
+  ASSERT_OK(redact.Transform(context_, &packet_buffer));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_buffer));
+
+  const auto& bundle = packet.ftrace_events();
+  ASSERT_TRUE(bundle.has_compact_sched());
+
+  const auto& compact_sched = bundle.compact_sched();
+
+  // The intern table should not change.
+  ASSERT_EQ(compact_sched.intern_table_size(), 2);
+
+  ASSERT_EQ(compact_sched.switch_next_pid_size(), 2);
+  ASSERT_EQ(compact_sched.switch_next_pid().at(0), -kPidA);
+  ASSERT_EQ(compact_sched.switch_next_pid().at(1), -kPidB);
 }
 
 }  // namespace perfetto::trace_redaction
