@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <cstring>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -30,9 +31,11 @@
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+#include "protos/third_party/simpleperf/record_file.pbzero.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/perf/attrs_section_reader.h"
+#include "src/trace_processor/importers/perf/dso_tracker.h"
 #include "src/trace_processor/importers/perf/features.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
@@ -408,7 +411,11 @@ base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
     }
     case feature::ID_SIMPLEPERF_FILE2: {
       RETURN_IF_ERROR(feature::ParseSimpleperfFile2(
-          std::move(data), [&](TraceBlobView) { return util::OkStatus(); }));
+          std::move(data), [&](TraceBlobView blob) {
+            third_party::simpleperf::proto::pbzero::FileFeature::Decoder file(
+                blob.data(), blob.length());
+            DsoTracker::GetOrCreate(context_).AddSimpleperfFile2(file);
+          }));
 
       break;
     }

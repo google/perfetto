@@ -37,6 +37,7 @@
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/perf/dso_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
@@ -116,6 +117,9 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
   context_.slice_tracker->FlushPendingSlices();
   context_.args_tracker->Flush();
   context_.process_tracker->NotifyEndOfFile();
+  if (context_.perf_dso_tracker) {
+    perf_importer::DsoTracker::GetOrCreate(&context_).SymbolizeFrames();
+  }
 }
 
 void TraceProcessorStorageImpl::DestroyContext() {

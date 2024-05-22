@@ -74,7 +74,8 @@ class Reader {
     if (size_left() < size) {
       return false;
     }
-    blob = TraceBlobView(buffer_, static_cast<size_t>(end_ - current_), size);
+    blob = TraceBlobView(buffer_,
+                         static_cast<size_t>(current_ - buffer_->data()), size);
     current_ += size;
     return true;
   }
