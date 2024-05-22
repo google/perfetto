@@ -5269,6 +5269,11 @@ message ColorTransformProto {
   repeated float val = 1 [packed = true];
 }
 
+enum TrustedOverlay {
+  UNSET = 0;
+  DISABLED = 1;
+  ENABLED = 2;
+};
 // End of protos/perfetto/trace/android/surfaceflinger_common.proto
 
 // Begin of protos/perfetto/trace/android/surfaceflinger_layers.proto
@@ -5485,6 +5490,8 @@ message LayerProto {
   optional RectProto destination_frame = 57;
 
   optional uint32 original_id = 58;
+
+  optional TrustedOverlay trusted_overlay = 59;
 }
 
 message PositionProto {
@@ -5782,6 +5789,7 @@ message LayerState {
   optional uint32 fixed_transform_hint = 36;
   optional uint64 frame_number = 37;
   optional bool auto_refresh = 38;
+  // unused
   optional bool is_trusted_overlay = 39;
   optional RectProto buffer_crop = 40;
   optional RectProto destination_frame = 41;
@@ -5792,6 +5800,8 @@ message LayerState {
     OBSCURED = 2;
   };
   optional DropInputMode drop_input_mode = 42;
+
+  optional TrustedOverlay trusted_overlay = 43;
 }
 
 message DisplayState {

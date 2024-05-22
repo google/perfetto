@@ -285,6 +285,7 @@ message LayerState {
   optional uint32 fixed_transform_hint = 36;
   optional uint64 frame_number = 37;
   optional bool auto_refresh = 38;
+  // unused
   optional bool is_trusted_overlay = 39;
   optional RectProto buffer_crop = 40;
   optional RectProto destination_frame = 41;
@@ -295,6 +296,8 @@ message LayerState {
     OBSCURED = 2;
   };
   optional DropInputMode drop_input_mode = 42;
+
+  optional TrustedOverlay trusted_overlay = 43;
 }
 
 message DisplayState {

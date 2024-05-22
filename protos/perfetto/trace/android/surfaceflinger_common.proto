@@ -86,3 +86,9 @@ message ColorTransformProto {
   // This will be a 4x4 matrix of float values
   repeated float val = 1 [packed = true];
 }
+
+enum TrustedOverlay {
+  UNSET = 0;
+  DISABLED = 1;
+  ENABLED = 2;
+};
