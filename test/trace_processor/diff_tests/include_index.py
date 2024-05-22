@@ -88,6 +88,7 @@ from diff_tests.parser.profiling.tests_heap_graph import ProfilingHeapGraph
 from diff_tests.parser.profiling.tests_heap_profiling import ProfilingHeapProfiling
 from diff_tests.parser.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
 from diff_tests.parser.sched.tests import SchedParser
+from diff_tests.parser.simpleperf.tests import Simpleperf
 from diff_tests.parser.smoke.tests import Smoke
 from diff_tests.parser.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.parser.smoke.tests_json import SmokeJson
@@ -182,6 +183,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ProfilingLlvmSymbolizer(index_path, 'parser/profiling',
                                'ProfilingLlvmSymbolizer').fetch(),
       *SchedParser(index_path, 'parser/sched', 'SchedParser').fetch(),
+      *Simpleperf(index_path, 'parser/simpleperf', 'Simpleperf').fetch(),
       *StdlibSched(index_path, 'stdlib/sched', 'StdlibSched').fetch(),
       *Smoke(index_path, 'parser/smoke', 'Smoke').fetch(),
       *SmokeComputeMetrics(index_path, 'parser/smoke',
