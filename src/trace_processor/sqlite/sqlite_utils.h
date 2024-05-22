@@ -163,35 +163,31 @@ inline void SetError(sqlite3_context* ctx,
 //
 // If so, the associated constraint is omitted and the argvIndex is mapped to
 // the corresponding argument's index.
-inline int ValidateFunctionArguments(
+inline base::Status ValidateFunctionArguments(
     sqlite3_index_info* info,
     size_t arg_count,
-    const std::function<bool(size_t)>& is_arg_column,
-    base::Status& status) {
+    const std::function<bool(size_t)>& is_arg_column) {
   std::vector<bool> present;
   size_t present_count = 0;
   for (int i = 0; i < info->nConstraint; ++i) {
     const auto& in = info->aConstraint[i];
+    if (!in.usable) {
+      continue;
+    }
     auto cs_col = static_cast<size_t>(in.iColumn);
     if (!is_arg_column(cs_col)) {
       continue;
     }
     if (!IsOpEq(in.op)) {
-      status = base::ErrStatus(
+      return base::ErrStatus(
           "Unexpected non equality constraints for column %zu", cs_col);
-      return SQLITE_ERROR;
     }
     if (cs_col >= present.size()) {
       present.resize(cs_col + 1);
     }
     if (present[cs_col]) {
-      status = base::ErrStatus("Unexpected multiple constraints for column %zu",
-                               cs_col);
-      return SQLITE_ERROR;
-    }
-    if (!in.usable) {
-      status = base::ErrStatus("Required constraint is not usable %zu", cs_col);
-      return SQLITE_CONSTRAINT;
+      return base::ErrStatus("Unexpected multiple constraints for column %zu",
+                             cs_col);
     }
     present[cs_col] = true;
     present_count++;
@@ -201,13 +197,11 @@ inline int ValidateFunctionArguments(
     out.omit = true;
   }
   if (present_count != arg_count) {
-    status =
-        base::ErrStatus("Unexpected missing argument: expected %zu, actual %zu",
-                        arg_count, present_count);
-    return SQLITE_ERROR;
+    return base::ErrStatus(
+        "Unexpected missing argument: expected %zu, actual %zu", arg_count,
+        present_count);
   }
-  status = base::OkStatus();
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
 // Converts the given SqlValue type to the type string SQLite understands.
