@@ -56,6 +56,7 @@ import {SliceSqlId} from './sql_types';
 import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
 import {exists} from '../base/utils';
+import {OmniboxManager} from './omnibox_manager';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -298,6 +299,8 @@ class Globals {
   private _trackManager = new TrackManager(this._store);
   private _selectionManager = new SelectionManager(this._store);
   private _hasFtrace: boolean = false;
+
+  omnibox = new OmniboxManager();
 
   scrollToTrackKey?: string | number;
   httpRpcState: HttpRpcState = {connected: false};
@@ -865,6 +868,17 @@ function findTimeRangeOfSlice(slice: Partial<SliceLike>): {
     }
   } else {
     return {start: Time.INVALID, end: Time.INVALID};
+  }
+}
+
+// Returns the time span of the current selection, or the visible window if
+// there is no current selection.
+export function getTimeSpanOfSelectionOrVisibleWindow(): Span<time, duration> {
+  const range = globals.findTimeRangeOfSelection();
+  if (exists(range)) {
+    return new TimeSpan(range.start, range.end);
+  } else {
+    return globals.stateVisibleTime();
   }
 }
 
