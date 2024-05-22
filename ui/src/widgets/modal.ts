@@ -228,6 +228,15 @@ export async function showModal(userAttrs: ModalAttrs): Promise<void> {
   return returnedClosePromise;
 }
 
+// Technically we don't need to redraw the whole app, but it's the more
+// pragmatic option. This is exposed to keep the plugin code more clear, so it's
+// evident why a redraw is requested.
+export function redrawModal() {
+  if (currentModal !== undefined) {
+    scheduleFullRedraw();
+  }
+}
+
 // Closes the full-screen modal dialog (if any).
 // `key` is optional: if provided it will close the modal dialog only if the key
 // matches. This is to avoid accidentally closing another dialog that popped
