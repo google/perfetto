@@ -18,23 +18,16 @@
 #define SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_H_
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
-#include <limits>
 #include <memory>
 #include <optional>
-#include <string>
-#include <tuple>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/circular_queue.h"
+#include "perfetto/ext/base/utils.h"
 #include "perfetto/public/compiler.h"
-#include "perfetto/trace_processor/ref_counted.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
-#include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/perf/record.h"
@@ -44,7 +37,8 @@
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/bump_allocator.h"
 
-namespace perfetto::trace_processor {
+namespace perfetto {
+namespace trace_processor {
 
 // This class takes care of sorting events parsed from the trace stream in
 // arbitrary order and pushing them to the next pipeline stages (parsing) in
@@ -225,7 +219,7 @@ class TraceSorter {
     SortAndExtractEventsUntilAllocId(end_id);
     for (auto& sorter_data : sorter_data_by_machine_) {
       for (const auto& queue : sorter_data.queues) {
-        PERFETTO_CHECK(queue.events_.empty());
+        PERFETTO_DCHECK(queue.events_.empty());
       }
       sorter_data.queues.clear();
     }
@@ -301,13 +295,13 @@ class TraceSorter {
 
   static_assert(sizeof(TimestampedEvent) == 16,
                 "TimestampedEvent must be equal to 16 bytes");
-  static_assert(std::is_trivially_copyable_v<TimestampedEvent>,
+  static_assert(std::is_trivially_copyable<TimestampedEvent>::value,
                 "TimestampedEvent must be trivially copyable");
-  static_assert(std::is_trivially_move_assignable_v<TimestampedEvent>,
+  static_assert(std::is_trivially_move_assignable<TimestampedEvent>::value,
                 "TimestampedEvent must be trivially move assignable");
-  static_assert(std::is_trivially_move_constructible_v<TimestampedEvent>,
+  static_assert(std::is_trivially_move_constructible<TimestampedEvent>::value,
                 "TimestampedEvent must be trivially move constructible");
-  static_assert(std::is_nothrow_swappable_v<TimestampedEvent>,
+  static_assert(std::is_nothrow_swappable<TimestampedEvent>::value,
                 "TimestampedEvent must be trivially swappable");
 
   struct Queue {
@@ -364,7 +358,7 @@ class TraceSorter {
     auto* queues = &sorter_data_by_machine_[0].queues;
 
     // Find the TraceSorterData instance when |machine_id| is not nullopt.
-    if (PERFETTO_UNLIKELY(machine_id.has_value())) {
+    if (PERFETTO_UNLIKELY(!!machine_id)) {
       auto it = std::find_if(sorter_data_by_machine_.begin() + 1,
                              sorter_data_by_machine_.end(),
                              [machine_id](const TraceSorterData& item) {
@@ -407,7 +401,7 @@ class TraceSorter {
                          const TimestampedEvent&);
   void ExtractAndDiscardTokenizedObject(const TimestampedEvent& event);
 
-  static TraceTokenBuffer::Id GetTokenBufferId(const TimestampedEvent& event) {
+  TraceTokenBuffer::Id GetTokenBufferId(const TimestampedEvent& event) {
     return TraceTokenBuffer::Id{event.alloc_id()};
   }
 
@@ -454,6 +448,7 @@ class TraceSorter {
   int64_t latest_pushed_event_ts_ = std::numeric_limits<int64_t>::min();
 };
 
-}  // namespace perfetto::trace_processor
+}  // namespace trace_processor
+}  // namespace perfetto
 
 #endif  // SRC_TRACE_PROCESSOR_SORTER_TRACE_SORTER_H_
