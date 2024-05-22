@@ -143,14 +143,11 @@ int RuntimeTableFunctionModule::BestIndex(sqlite3_vtab* tab,
   // TODO(lalitm): reconsider this decision to allow more efficient queries:
   // we would need to wrap the query in a SELECT * FROM (...) WHERE constraint
   // like we do for SPAN JOIN.
-  base::Status status;
-  int ret = sqlite::utils::ValidateFunctionArguments(
+  base::Status status = sqlite::utils::ValidateFunctionArguments(
       info, s->prototype.arguments.size(),
-      [s](size_t c) { return s->IsArgumentColumn(c); }, status);
-  if (ret != SQLITE_OK) {
-    PERFETTO_CHECK(!status.ok());
-    sqlite::utils::SetError(tab, status.c_message());
-    return ret;
+      [s](size_t c) { return s->IsArgumentColumn(c); });
+  if (!status.ok()) {
+    return SQLITE_CONSTRAINT;
   }
   return SQLITE_OK;
 }

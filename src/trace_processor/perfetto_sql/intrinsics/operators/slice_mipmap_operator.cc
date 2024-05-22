@@ -151,15 +151,14 @@ int SliceMipmapOperator::Disconnect(sqlite3_vtab* vtab) {
   return SQLITE_OK;
 }
 
-int SliceMipmapOperator::BestIndex(sqlite3_vtab* vtab,
-                                   sqlite3_index_info* info) {
-  base::Status status;
-  int ret = sqlite::utils::ValidateFunctionArguments(info, kArgCount,
-                                                     IsArgColumn, status);
-  if (ret != SQLITE_OK) {
-    PERFETTO_CHECK(!status.ok());
-    sqlite::utils::SetError(vtab, status.c_message());
-    return ret;
+int SliceMipmapOperator::BestIndex(sqlite3_vtab*, sqlite3_index_info* info) {
+  base::Status status =
+      sqlite::utils::ValidateFunctionArguments(info, kArgCount, IsArgColumn);
+  if (!status.ok()) {
+    return SQLITE_CONSTRAINT;
+  }
+  if (info->nConstraint != kArgCount) {
+    return SQLITE_CONSTRAINT;
   }
   return SQLITE_OK;
 }
