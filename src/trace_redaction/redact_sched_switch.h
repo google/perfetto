@@ -17,11 +17,32 @@
 #ifndef SRC_TRACE_REDACTION_REDACT_SCHED_SWITCH_H_
 #define SRC_TRACE_REDACTION_REDACT_SCHED_SWITCH_H_
 
-#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
-#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
+
 namespace perfetto::trace_redaction {
+
+class InternTable {
+ public:
+  int64_t Push(const char* data, size_t size);
+
+  std::string_view Find(size_t index) const;
+
+  const std::vector<std::string_view>& values() const {
+    return interned_comms_;
+  }
+
+ private:
+  constexpr static size_t kExpectedCommLength = 16;
+  constexpr static size_t kMaxElements = 4096;
+
+  std::array<char, kMaxElements * kExpectedCommLength> comms_;
+  size_t comms_length_ = 0;
+
+  std::vector<std::string_view> interned_comms_;
+};
 
 class SchedSwitchTransform {
  public:
@@ -64,6 +85,19 @@ class RedactSchedSwitchHarness : public TransformPrimitive {
       protos::pbzero::SchedSwitchFtraceEvent::Decoder& sched_switch,
       std::string* scratch_str,
       protos::pbzero::SchedSwitchFtraceEvent* message) const;
+
+  base::Status TransformCompSched(
+      const Context& context,
+      int32_t cpu,
+      protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
+      protos::pbzero::FtraceEventBundle::CompactSched* message) const;
+
+  base::Status TransformCompSchedSwitch(
+      const Context& context,
+      int32_t cpu,
+      protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
+      InternTable* intern_table,
+      protos::pbzero::FtraceEventBundle::CompactSched* message) const;
 
   std::vector<std::unique_ptr<SchedSwitchTransform>> transforms_;
 };
