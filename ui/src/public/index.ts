@@ -23,6 +23,7 @@ import {PanelSize} from '../frontend/panel';
 import {Engine} from '../trace_processor/engine';
 import {UntypedEventSet} from '../core/event_set';
 import {TraceContext} from '../frontend/globals';
+import {PromptOption} from '../frontend/omnibox_manager';
 
 export {Engine} from '../trace_processor/engine';
 export {
@@ -35,6 +36,7 @@ export {
 } from '../trace_processor/query_result';
 export {BottomTabToSCSAdapter} from './utils';
 export {createStore, Migrate, Store} from '../base/store';
+export {PromptOption} from '../frontend/omnibox_manager';
 
 // This is a temporary fix until this is available in the plugin API.
 export {
@@ -435,6 +437,8 @@ export interface PluginContextTrace extends PluginContext {
   mountStore<T>(migrate: Migrate<T>): Store<T>;
 
   trace: TraceContext;
+
+  prompt(text: string, options?: PromptOption[]): Promise<string>;
 }
 
 export interface Plugin {
