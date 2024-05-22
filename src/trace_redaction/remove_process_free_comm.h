@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_REDACTION_REDACT_PROCESS_FREE_H_
-#define SRC_TRACE_REDACTION_REDACT_PROCESS_FREE_H_
+#ifndef SRC_TRACE_REDACTION_REMOVE_PROCESS_FREE_COMM_H_
+#define SRC_TRACE_REDACTION_REMOVE_PROCESS_FREE_COMM_H_
 
 #include "src/trace_redaction/redact_ftrace_event.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
 
-// Goes through ftrace events and conditonally removes the comm values from
-// process free events.
-class RedactProcessFree : public FtraceEventRedaction {
+// Process free events will always end up testing positive for "remove comm
+// value", so instead of running the test, always remove the comm value. We know
+// it would fail the test because process free events create close events on the
+// timeline. Because the timeline uses exclusive ends, the event's time will
+// never call within the range it belongs to.
+class RemoveProcessFreeComm : public FtraceEventRedaction {
  public:
   static constexpr auto kFieldId =
       protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber;
@@ -38,4 +41,4 @@ class RedactProcessFree : public FtraceEventRedaction {
 
 }  // namespace perfetto::trace_redaction
 
-#endif  // SRC_TRACE_REDACTION_REDACT_PROCESS_FREE_H_
+#endif  // SRC_TRACE_REDACTION_REMOVE_PROCESS_FREE_COMM_H_
