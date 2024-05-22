@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_redaction/redact_process_free.h"
-
-#include "src/trace_redaction/proto_util.h"
+#include "src/trace_redaction/remove_process_free_comm.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -24,25 +22,7 @@
 
 namespace perfetto::trace_redaction {
 
-// Redact sched_process_free events.
-//
-//  event {
-//    timestamp: 6702094703928940
-//    pid: 10
-//    sched_process_free {
-//      comm: "sh"
-//      pid: 7973
-//      prio: 120
-//    }
-//  }
-//
-// In the above message, it should be noted that "event.pid" will not be
-// equal to "event.sched_process_free.pid".
-//
-// The timeline treats "start" as inclusive and "end" as exclusive. This means
-// no pid will connect to the target package at a process free event. Because
-// of this, the timeline is not needed.
-base::Status RedactProcessFree::Redact(
+base::Status RemoveProcessFreeComm::Redact(
     const Context&,
     const protos::pbzero::FtraceEventBundle::Decoder&,
     protozero::ProtoDecoder& event,
@@ -50,26 +30,28 @@ base::Status RedactProcessFree::Redact(
   auto sched_process_free = event.FindField(
       protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber);
   if (!sched_process_free.valid()) {
-    return base::ErrStatus(
-        "RedactProcessFree: was used for unsupported field type");
+    return base::ErrStatus("RemoveProcessFreeComm: missing required field.");
   }
 
   // SchedProcessFreeFtraceEvent
-  protozero::ProtoDecoder process_free_decoder(sched_process_free.as_bytes());
+  protozero::ProtoDecoder decoder(sched_process_free.as_bytes());
 
-  auto* process_free_message = event_message->set_sched_process_free();
+  auto pid_field = decoder.FindField(
+    protos::pbzero::SchedProcessFreeFtraceEvent::kPidFieldNumber);
+  auto prio_field = decoder.FindField(
+    protos::pbzero::SchedProcessFreeFtraceEvent::kPrioFieldNumber);
+
+  if (!pid_field.valid() || !prio_field.valid()) {
+    return base::ErrStatus("RemoveProcessFreeComm: missing required field.");
+  }
+
+  auto* message = event_message->set_sched_process_free();
 
   // Replace the comm with an empty string instead of dropping the comm field.
   // The perfetto UI doesn't render things correctly if comm values are missing.
-  for (auto field = process_free_decoder.ReadField(); field.valid();
-       field = process_free_decoder.ReadField()) {
-    if (field.id() ==
-        protos::pbzero::SchedProcessFreeFtraceEvent::kCommFieldNumber) {
-      process_free_message->set_comm("");
-    } else {
-      proto_util::AppendField(field, process_free_message);
-    }
-  }
+  message->set_comm("");
+  message->set_pid(pid_field.as_int32());
+  message->set_prio(prio_field.as_int32());
 
   return base::OkStatus();
 }
