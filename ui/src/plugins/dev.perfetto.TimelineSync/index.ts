@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {
   Plugin,
   PluginContext,
@@ -19,17 +21,22 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {duration, Span, Time, time, TimeSpan} from '../../base/time';
+import {redrawModal, showModal} from '../../widgets/modal';
 
 const PLUGIN_ID = 'dev.perfetto.TimelineSync';
 const DEFAULT_BROADCAST_CHANNEL = `${PLUGIN_ID}#broadcastChannel`;
 const VIEWPORT_UPDATE_THROTTLE_TIME_FOR_SENDING_AFTER_RECEIVING_MS = 1_000;
 const BIGINT_PRECISION_MULTIPLIER = 1_000_000_000n;
+const ADVERTISE_PERIOD_MS = 15_000;
 type ClientId = number;
+type SessionId = number;
 
 /**
  * Synchronizes the timeline of 2 or more perfetto traces.
  *
- * To trigger the sync, the command needs to be enabled.
+ * To trigger the sync, the command needs to be executed on one tab. It will
+ * prompt a list of other tabs to keep in sync. Each tab advertise itself
+ * on a BroadcastChannel upon trace load.
  *
  * This is able to sync between traces recorded at different times, even if
  * their durations don't match. The initial viewport bound for each trace is
@@ -38,11 +45,14 @@ type ClientId = number;
 class TimelineSync implements Plugin {
   private _chan?: BroadcastChannel;
   private _ctx?: PluginContextTrace;
+  private _traceLoadTime = 0;
   // Attached to broadcast messages to allow other windows to remap viewports.
-  private _clientId: ClientId = 0;
+  private readonly _clientId: ClientId = Math.floor(Math.random() * 1_000_000);
   // Used to throttle sending updates after one has been received.
   private _lastReceivedUpdateMillis: number = 0;
   private _lastViewportBounds?: ViewportBounds;
+  private _advertisedClients = new Map<ClientId, ClientInfo>();
+  private _sessionId: SessionId = 0;
 
   // Contains the Viewport bounds of this window when it received the first sync
   // message from another one. This is used to re-scale timestamps, so that we
@@ -53,42 +63,160 @@ class TimelineSync implements Plugin {
     ViewportBoundsSnapshot
   >();
 
-  private _active: boolean = false;
-
   onActivate(ctx: PluginContext): void {
     ctx.registerCommand({
       id: `dev.perfetto.SplitScreen#enableTimelineSync`,
-      name: 'Enable timeline sync with open windows',
-      callback: this.enableTimelineSync.bind(this),
+      name: 'Enable timeline sync with other Perfetto UI tabs',
+      callback: () => this.showTimelineSyncDialog(),
     });
     ctx.registerCommand({
       id: `dev.perfetto.SplitScreen#disableTimelineSync`,
       name: 'Disable timeline sync',
-      callback: this.disableTimelineSync.bind(this),
+      callback: () => this.disableTimelineSync(this._sessionId),
     });
+
+    // Start advertising this tab. This allows the command run in other
+    // instances to discover us.
+    this._chan = new BroadcastChannel(DEFAULT_BROADCAST_CHANNEL);
+    this._chan.onmessage = this.onmessage.bind(this);
+    document.addEventListener('visibilitychange', () => this.advertise());
+    setInterval(() => this.advertise(), ADVERTISE_PERIOD_MS);
   }
 
   onDeactivate(_: PluginContext) {
-    this.disableTimelineSync();
+    this.disableTimelineSync(this._sessionId);
   }
 
   async onTraceLoad(ctx: PluginContextTrace) {
     this._ctx = ctx;
+    this._traceLoadTime = Date.now();
+    this.advertise();
   }
 
-  private enableTimelineSync() {
-    this._active = true;
+  async onTraceUnload(_: PluginContextTrace) {
+    this.disableTimelineSync(this._sessionId);
+    this._ctx = undefined;
+  }
+
+  private advertise() {
+    if (this._ctx === undefined) return; // Don't advertise if no trace loaded.
+    this._chan?.postMessage({
+      perfettoSync: {
+        cmd: 'MSG_ADVERTISE',
+        title: document.title,
+        traceLoadTime: this._traceLoadTime,
+      },
+      clientId: this._clientId,
+    } as SyncMessage);
+  }
+
+  private showTimelineSyncDialog() {
+    const selectedClients = new Array<ClientId>();
+
+    // This nested function is invoked when the modal dialog buton is pressed.
+    const doStartSession = () => {
+      // Disable any prior session.
+      this.disableTimelineSync(this._sessionId);
+
+      const clients = selectedClients.concat(this._clientId);
+      this._sessionId = Math.floor(Math.random() * 1_000_000);
+      this._chan?.postMessage({
+        perfettoSync: {
+          cmd: 'MSG_SESSION_START',
+          sessionId: this._sessionId,
+          clients: clients,
+        },
+        clientId: this._clientId,
+      } as SyncMessage);
+      this._initialBoundsForSibling.clear();
+      this.scheduleViewportUpdateMessage();
+    };
+
+    // The function below is called on every mithril render pass. It's important
+    // that this function re-computes the list of other clients on every pass.
+    // The user will go to other tabs (which causes an advertise due to the
+    // visibilitychange listener) and come back on here while the modal dialog
+    // is still being displayed.
+    const renderModalContents = (): m.Children => {
+      const children: m.Children = [];
+      this.purgeInactiveClients();
+      const clients = Array.from(this._advertisedClients.entries());
+      clients.sort((a, b) => b[1].traceLoadTime - a[1].traceLoadTime);
+      for (const [clientId, info] of clients) {
+        const opened = new Date(info.traceLoadTime).toLocaleTimeString();
+        children.push(
+          m(
+            'option',
+            {value: clientId, selected: this._advertisedClients.size === 1},
+            `${info.title} (${opened})`,
+          ),
+        );
+      }
+      return m(
+        'div',
+        {style: 'display: flex;  flex-direction: column;'},
+        m(
+          'div',
+          'Select the perfetto UI tab(s) you want to keep in sync ' +
+            '(Ctrl+Click to select many).',
+        ),
+        m(
+          'div',
+          "If you don't see the trace listed here, temporarily focus the " +
+            'corresponding browser tab and then come back here.',
+        ),
+        m(
+          'select[multiple=multiple][size=8]',
+          {
+            onchange: (e: Event) => {
+              selectedClients.splice(0);
+              const sel = (e.target as HTMLSelectElement).selectedOptions;
+              for (let i = 0; i < sel.length; i++) {
+                const clientId = parseInt(sel[i].value);
+                if (!isNaN(clientId)) selectedClients.push(clientId);
+              }
+            },
+          },
+          children,
+        ),
+      );
+    };
+
+    showModal({
+      title: 'Synchronize timeline across several tabs',
+      content: renderModalContents,
+      buttons: [
+        {
+          primary: true,
+          text: `Synchronize timelines`,
+          action: doStartSession,
+        },
+      ],
+    });
+  }
+
+  private enableTimelineSync(sessionId: SessionId, clients: ClientId[]) {
+    if (sessionId === this._sessionId) return; // Already in this session id.
+    if (!clients.includes(this._clientId)) return; // Not for us.
+    this._sessionId = sessionId;
     this._initialBoundsForSibling.clear();
-    this._clientId = this.generateClientId();
-    this._chan = new BroadcastChannel(DEFAULT_BROADCAST_CHANNEL);
-    this._chan.onmessage = this.onmessage.bind(this);
     this.scheduleViewportUpdateMessage();
   }
 
-  private disableTimelineSync() {
-    this._active = false;
+  private disableTimelineSync(sessionId: SessionId, skipMsg = false) {
+    if (sessionId !== this._sessionId || this._sessionId === 0) return;
+
+    if (!skipMsg) {
+      this._chan?.postMessage({
+        perfettoSync: {
+          cmd: 'MSG_SESSION_STOP',
+          sessionId: this._sessionId,
+        },
+        clientId: this._clientId,
+      } as SyncMessage);
+    }
+    this._sessionId = 0;
     this._initialBoundsForSibling.clear();
-    this._chan?.close();
   }
 
   private shouldThrottleViewportUpdates() {
@@ -99,7 +227,7 @@ class TimelineSync implements Plugin {
   }
 
   private scheduleViewportUpdateMessage() {
-    if (!this._active) return;
+    if (!this.active) return;
     const currentViewport = this.getCurrentViewportBounds();
     if (
       (!this._lastViewportBounds ||
@@ -116,6 +244,7 @@ class TimelineSync implements Plugin {
     this._chan?.postMessage({
       perfettoSync: {
         cmd: 'MSG_SET_VIEWPORT',
+        sessionId: this._sessionId,
         viewportBounds,
       },
       clientId: this._clientId,
@@ -123,12 +252,33 @@ class TimelineSync implements Plugin {
   }
 
   private onmessage(msg: MessageEvent) {
+    if (this._ctx === undefined) return; // Trace unloaded
     if (!('perfettoSync' in msg.data)) return;
     const msgData = msg.data as SyncMessage;
     const sync = msgData.perfettoSync;
     switch (sync.cmd) {
+      case 'MSG_ADVERTISE':
+        if (msgData.clientId !== this._clientId) {
+          this._advertisedClients.set(msgData.clientId, {
+            title: sync.title,
+            traceLoadTime: sync.traceLoadTime,
+            lastHeartbeat: Date.now(),
+          });
+          this.purgeInactiveClients();
+          redrawModal();
+        }
+        break;
+      case 'MSG_SESSION_START':
+        this.enableTimelineSync(sync.sessionId, sync.clients);
+        break;
+      case 'MSG_SESSION_STOP':
+        this.disableTimelineSync(sync.sessionId, /* skipMsg= */ true);
+        break;
       case 'MSG_SET_VIEWPORT':
-        this.onViewportSyncReceived(sync.viewportBounds, msgData.clientId);
+        if (sync.sessionId === this._sessionId) {
+          this.onViewportSyncReceived(sync.viewportBounds, msgData.clientId);
+        }
+        break;
     }
   }
 
@@ -136,6 +286,7 @@ class TimelineSync implements Plugin {
     requestViewBounds: ViewportBounds,
     source: ClientId,
   ) {
+    if (!this.active) return;
     this.cacheSiblingInitialBoundIfNeeded(requestViewBounds, source);
     const remappedViewport = this.remapViewportBounds(
       requestViewBounds,
@@ -222,8 +373,17 @@ class TimelineSync implements Plugin {
     return this._ctx!.timeline.viewport;
   }
 
-  private generateClientId(): ClientId {
-    return Math.floor(Math.random() * 1_000_000);
+  private purgeInactiveClients() {
+    const now = Date.now();
+    const TIMEOUT_MS = 30_000;
+    for (const [clientId, info] of this._advertisedClients.entries()) {
+      if (now - info.lastHeartbeat < TIMEOUT_MS) continue;
+      this._advertisedClients.delete(clientId);
+    }
+  }
+
+  private get active() {
+    return this._sessionId !== 0;
   }
 }
 
@@ -236,15 +396,43 @@ interface ViewportBoundsSnapshot {
 
 interface MsgSetViewport {
   cmd: 'MSG_SET_VIEWPORT';
+  sessionId: SessionId;
   viewportBounds: ViewportBounds;
 }
 
+interface MsgAdvertise {
+  cmd: 'MSG_ADVERTISE';
+  title: string;
+  traceLoadTime: number;
+}
+
+interface MsgSessionStart {
+  cmd: 'MSG_SESSION_START';
+  sessionId: SessionId;
+  clients: ClientId[];
+}
+
+interface MsgSessionStop {
+  cmd: 'MSG_SESSION_STOP';
+  sessionId: SessionId;
+}
+
 // In case of new messages, they should be "or-ed" here.
-type SyncMessages = MsgSetViewport;
+type SyncMessages =
+  | MsgSetViewport
+  | MsgAdvertise
+  | MsgSessionStart
+  | MsgSessionStop;
 
 interface SyncMessage {
   perfettoSync: SyncMessages;
   clientId: ClientId;
+}
+
+interface ClientInfo {
+  title: string;
+  lastHeartbeat: number; // Datetime.now() of the last MSG_ADVERTISE.
+  traceLoadTime: number; // Datetime.now() of the onTraceLoad().
 }
 
 export const plugin: PluginDescriptor = {
