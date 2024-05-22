@@ -88,6 +88,7 @@ export class OmniboxManager {
 
   setMode(mode: OmniboxMode): void {
     this._omniboxMode = mode;
+    this._focusOmniboxNextRender = true;
     this.resetOmniboxText();
     this.rejectPendingPrompt();
     raf.scheduleFullRedraw();
