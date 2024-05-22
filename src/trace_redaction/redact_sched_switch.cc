@@ -188,14 +188,29 @@ base::Status RedactSchedSwitchHarness::TransformFtraceEvent(
 
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
-    if (field.id() == protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber) {
-      protos::pbzero::SchedSwitchFtraceEvent::Decoder sched_switch(
-          field.as_bytes());
-      RETURN_IF_ERROR(TransformFtraceEventSchedSwitch(
-          context, ts.as_uint64(), cpu, sched_switch, &scratch_str,
-          message->set_sched_switch()));
-    } else {
-      proto_util::AppendField(field, message);
+    switch (field.id()) {
+      case protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber: {
+        protos::pbzero::SchedSwitchFtraceEvent::Decoder sched_switch(
+            field.as_bytes());
+        RETURN_IF_ERROR(TransformFtraceEventSchedSwitch(
+            context, ts.as_uint64(), cpu, sched_switch, &scratch_str,
+            message->set_sched_switch()));
+        break;
+      }
+
+      case protos::pbzero::FtraceEvent::kSchedWakingFieldNumber: {
+        protos::pbzero::SchedWakingFtraceEvent::Decoder sched_waking(
+            field.as_bytes());
+        RETURN_IF_ERROR(TransformFtraceEventSchedWaking(
+            context, ts.as_uint64(), cpu, sched_waking, &scratch_str,
+            message->set_sched_waking()));
+        break;
+      }
+
+      default: {
+        proto_util::AppendField(field, message);
+        break;
+      }
     }
   }
 
@@ -251,6 +266,47 @@ base::Status RedactSchedSwitchHarness::TransformFtraceEventSchedSwitch(
   message->set_next_comm(*scratch_str);              // FieldNumber = 5
   message->set_next_pid(next_pid);                   // FieldNumber = 6
   message->set_next_prio(sched_switch.next_prio());  // FieldNumber = 7
+
+  return base::OkStatus();
+}
+
+base::Status RedactSchedSwitchHarness::TransformFtraceEventSchedWaking(
+    const Context& context,
+    uint64_t ts,
+    int32_t cpu,
+    protos::pbzero::SchedWakingFtraceEvent::Decoder& sched_waking,
+    std::string* scratch_str,
+    protos::pbzero::SchedWakingFtraceEvent* message) const {
+  PERFETTO_DCHECK(modifier_);
+  PERFETTO_DCHECK(scratch_str);
+  PERFETTO_DCHECK(message);
+
+  auto has_fields = {sched_waking.has_comm(), sched_waking.has_pid(),
+                     sched_waking.has_prio(), sched_waking.has_success(),
+                     sched_waking.has_target_cpu()};
+
+  if (!std::all_of(has_fields.begin(), has_fields.end(), IsTrue)) {
+    return base::ErrStatus(
+        "RedactSchedSwitchHarness: missing required SchedWakingFtraceEvent "
+        "field.");
+  }
+
+  auto pid = sched_waking.pid();
+  auto comm = sched_waking.comm();
+
+  // There are 5 values in a sched switch message. Since 2 of the 5 can be
+  // replaced, it is easier/cleaner to go value-by-value. Go in proto-defined
+  // order.
+
+  scratch_str->assign(comm.data, comm.size);
+
+  RETURN_IF_ERROR(modifier_->Modify(context, ts, cpu, &pid, scratch_str));
+
+  message->set_comm(*scratch_str);                     // FieldNumber = 1
+  message->set_pid(pid);                               // FieldNumber = 2
+  message->set_prio(sched_waking.prio());              // FieldNumber = 3
+  message->set_success(sched_waking.success());        // FieldNumber = 4
+  message->set_target_cpu(sched_waking.target_cpu());  // FieldNumber = 5
 
   return base::OkStatus();
 }
