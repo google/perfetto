@@ -87,6 +87,10 @@ int TablePointerModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
   for (int i = 0; i < info->nConstraint; ++i) {
     auto& in = info->aConstraint[i];
     auto& out = info->aConstraintUsage[i];
+    // Ignore any unusable constraints.
+    if (!in.usable) {
+      continue;
+    }
     // Disallow row constraints.
     if (in.iColumn == kRowColumnIndex) {
       return sqlite::utils::SetError(tab, "Constraint on row not allowed");
@@ -99,9 +103,6 @@ int TablePointerModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
       bool& bound = bound_cols[static_cast<uint32_t>(in.iColumn)];
       if (bound) {
         return sqlite::utils::SetError(tab, "Duplicate bound column");
-      }
-      if (!in.usable) {
-        return SQLITE_CONSTRAINT;
       }
       // TODO(lalitm): all of the values here should be constants which should
       // be accessed with sqlite3_rhs_value. Doing this would require having to
@@ -118,9 +119,6 @@ int TablePointerModule::BestIndex(sqlite3_vtab* tab, sqlite3_index_info* info) {
       if (in.op != SQLITE_INDEX_CONSTRAINT_EQ) {
         return sqlite::utils::SetError(
             tab, "tab only supports equality constraints");
-      }
-      if (!in.usable) {
-        return SQLITE_CONSTRAINT;
       }
       out.argvIndex = kTableArgvIndex;
       out.omit = true;

@@ -425,14 +425,15 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
       argv_index = 1;
       break;
     case TableComputation::kTableFunction:
-      base::Status status;
-      int ret = sqlite::utils::ValidateFunctionArguments(
+      base::Status status = sqlite::utils::ValidateFunctionArguments(
           info, static_cast<size_t>(s->argument_count),
-          [s](uint32_t i) { return s->schema.columns[i].is_hidden; }, status);
-      if (ret != SQLITE_OK) {
-        PERFETTO_CHECK(!status.ok());
-        sqlite::utils::SetError(vtab, status.c_message());
-        return ret;
+          [s](uint32_t i) { return s->schema.columns[i].is_hidden; });
+      if (!status.ok()) {
+        // TODO(lalitm): instead of returning SQLITE_CONSTRAINT which shows the
+        // user a very cryptic error message, consider instead SQLITE_OK but
+        // with a very high (~infinite) cost. If SQLite still chose the query
+        // plan after that, we can throw a proper error message in xFilter.
+        return SQLITE_CONSTRAINT;
       }
       row_count = s->static_table_function->EstimateRowCount();
       argv_index = 1 + s->argument_count;
