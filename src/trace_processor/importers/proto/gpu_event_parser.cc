@@ -330,6 +330,7 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     ConstBytes blob) {
   protos::pbzero::GpuRenderStageEvent::Decoder event(blob.data, blob.size);
 
+  int32_t pid = 0;
   if (event.has_specifications()) {
     protos::pbzero::GpuRenderStageEvent_Specifications::Decoder spec(
         event.specifications().data, event.specifications().size);
@@ -347,6 +348,13 @@ void GpuEventParser::ParseGpuRenderStageEvent(
         gpu_render_stage_ids_.emplace_back(std::make_pair(
             context_->storage->InternString(stage.name()),
             context_->storage->InternString(stage.description())));
+      }
+    }
+    if (spec.has_context_spec()) {
+      protos::pbzero::GpuRenderStageEvent_Specifications_ContextSpec::Decoder
+          context_spec(spec.context_spec());
+      if (context_spec.has_pid()) {
+        pid = context_spec.pid();
       }
     }
   }
@@ -468,7 +476,8 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     row.command_buffer_name = command_buffer_name_id;
     row.submission_id = event.submission_id();
     row.hw_queue_id = static_cast<int64_t>(hw_queue_id);
-
+    row.upid = context_->process_tracker->GetOrCreateProcess(
+        static_cast<uint32_t>(pid));
     context_->slice_tracker->ScopedTyped(
         context_->storage->mutable_gpu_slice_table(), row, args_callback);
   }
