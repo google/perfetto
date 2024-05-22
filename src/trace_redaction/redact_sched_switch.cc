@@ -27,13 +27,61 @@
 namespace perfetto::trace_redaction {
 
 namespace {
-// TODO(vaage): While simple, this function saves us from declaring the sample
-// lambda each time we use the has_fields pattern. Once its usage increases, and
-// its value is obvious, remove this comment.
 bool IsTrue(bool value) {
   return value;
 }
+
+// Copy a field from 'decoder' to 'message' if the field can be found. Returns
+// false if the field cannot be found.
+bool Passthrough(protozero::ProtoDecoder& decoder,
+                 uint32_t field_id,
+                 protozero::Message* message) {
+  auto field = decoder.FindField(field_id);
+
+  if (field.valid()) {
+    proto_util::AppendField(field, message);
+    return true;
+  }
+
+  return false;
+}
 }  // namespace
+
+int64_t InternTable::Push(const char* data, size_t size) {
+  std::string_view outer(data, size);
+
+  for (size_t i = 0; i < interned_comms_.size(); ++i) {
+    auto view = interned_comms_[i];
+
+    if (view == outer) {
+      return static_cast<int64_t>(i);
+    }
+  }
+
+  // No room for the new string, reject the request.
+  if (comms_length_ + size > comms_.size()) {
+    return -1;
+  }
+
+  auto* head = comms_.data() + comms_length_;
+
+  // Important note, the null byte is not copied.
+  memcpy(head, data, size);
+  comms_length_ += size;
+
+  size_t id = interned_comms_.size();
+  interned_comms_.emplace_back(head, size);
+
+  return static_cast<int64_t>(id);
+}
+
+std::string_view InternTable::Find(size_t index) const {
+  if (index < interned_comms_.size()) {
+    return interned_comms_[index];
+  }
+
+  return {};
+}
 
 // Redact sched switch trace events in an ftrace event bundle:
 //
@@ -106,9 +154,10 @@ base::Status RedactSchedSwitchHarness::TransformFtraceEvents(
 
     if (field.id() ==
         protos::pbzero::FtraceEventBundle::kCompactSchedFieldNumber) {
-      // TODO(vaage): Replace this with logic specific to the comp sched data
-      // type.
-      proto_util::AppendField(field, message);
+      protos::pbzero::FtraceEventBundle::CompactSched::Decoder comp_sched(
+          field.as_bytes());
+      RETURN_IF_ERROR(TransformCompSched(context, cpu.as_int32(), comp_sched,
+                                         message->set_compact_sched()));
       continue;
     }
 
@@ -204,6 +253,176 @@ base::Status RedactSchedSwitchHarness::TransformFtraceEventSchedSwitch(
   message->set_next_comm(*scratch_str);              // FieldNumber = 5
   message->set_next_pid(next_pid);                   // FieldNumber = 6
   message->set_next_prio(sched_switch.next_prio());  // FieldNumber = 7
+
+  return base::OkStatus();
+}
+
+base::Status RedactSchedSwitchHarness::TransformCompSched(
+    const Context& context,
+    int32_t cpu,
+    protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
+    protos::pbzero::FtraceEventBundle::CompactSched* message) const {
+  auto has_switch_fields = {
+      comp_sched.has_switch_timestamp(),
+      comp_sched.has_switch_prev_state(),
+      comp_sched.has_switch_next_pid(),
+      comp_sched.has_switch_next_prio(),
+      comp_sched.has_switch_next_comm_index(),
+  };
+
+  auto has_waking_fields = {
+      comp_sched.has_waking_timestamp(),  comp_sched.has_waking_pid(),
+      comp_sched.has_waking_target_cpu(), comp_sched.has_waking_prio(),
+      comp_sched.has_waking_comm_index(), comp_sched.has_waking_common_flags(),
+  };
+
+  // Populate the intern table once; it will be used by both sched and waking.
+  InternTable intern_table;
+
+  for (auto it = comp_sched.intern_table(); it; ++it) {
+    auto chars = it->as_string();
+    auto index = intern_table.Push(chars.data, chars.size);
+
+    if (index < 0) {
+      return base::ErrStatus(
+          "RedactSchedSwitchHarness: failed to insert string into intern "
+          "table.");
+    }
+  }
+
+  if (std::any_of(has_switch_fields.begin(), has_switch_fields.end(), IsTrue)) {
+    RETURN_IF_ERROR(TransformCompSchedSwitch(context, cpu, comp_sched,
+                                             &intern_table, message));
+  }
+
+  if (std::any_of(has_waking_fields.begin(), has_waking_fields.end(), IsTrue)) {
+    // TODO(vaage): Create and call TransformCompSchedWaking().
+  }
+
+  // IMPORTANT: The intern table can only be added after switch and waking
+  // because switch and/or waking can/will modify the intern table.
+  for (auto view : intern_table.values()) {
+    message->add_intern_table(view.data(), view.size());
+  }
+
+  return base::OkStatus();
+}
+
+base::Status RedactSchedSwitchHarness::TransformCompSchedSwitch(
+    const Context& context,
+    int32_t cpu,
+    protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
+    InternTable* intern_table,
+    protos::pbzero::FtraceEventBundle::CompactSched* message) const {
+  auto has_fields = {
+      comp_sched.has_intern_table(),
+      comp_sched.has_switch_timestamp(),
+      comp_sched.has_switch_prev_state(),
+      comp_sched.has_switch_next_pid(),
+      comp_sched.has_switch_next_prio(),
+      comp_sched.has_switch_next_comm_index(),
+  };
+
+  if (!std::all_of(has_fields.begin(), has_fields.end(), IsTrue)) {
+    return base::ErrStatus(
+        "RedactSchedSwitchHarness: missing required "
+        "FtraceEventBundle::CompactSched switch field.");
+  }
+
+  std::array<bool, 3> parse_errors = {false, false, false};
+
+  auto it_ts = comp_sched.switch_timestamp(&parse_errors.at(0));
+  auto it_pid = comp_sched.switch_next_pid(&parse_errors.at(1));
+  auto it_comm = comp_sched.switch_next_comm_index(&parse_errors.at(2));
+
+  if (std::any_of(parse_errors.begin(), parse_errors.end(), IsTrue)) {
+    return base::ErrStatus(
+        "RedactSchedSwitchHarness: failed to parse CompactSched.");
+  }
+
+  std::string scratch_str;
+
+  protozero::PackedVarInt packed_comm;
+  protozero::PackedVarInt packed_pid;
+
+  // The first it_ts value is an absolute value, all other values are delta
+  // values.
+  uint64_t ts = 0;
+
+  while (it_ts && it_pid && it_comm) {
+    ts += *it_ts;
+
+    auto pid = *it_pid;
+
+    auto comm_index = *it_comm;
+    auto comm = intern_table->Find(comm_index);
+
+    scratch_str.assign(comm);
+
+    for (const auto& transform : transforms_) {
+      transform->Transform(context, ts, cpu, &pid, &scratch_str);
+    }
+
+    auto found = intern_table->Push(scratch_str.data(), scratch_str.size());
+
+    if (found < 0) {
+      return base::ErrStatus(
+          "RedactSchedSwitchHarness: failed to insert string into intern "
+          "table.");
+    }
+
+    packed_comm.Append(found);
+    packed_pid.Append(pid);
+
+    ++it_ts;
+    ++it_pid;
+    ++it_comm;
+  }
+
+  if (it_ts || it_pid || it_comm) {
+    return base::ErrStatus(
+        "RedactSchedSwitchHarness: uneven associative arrays in "
+        "FtraceEventBundle::CompactSched (switch).");
+  }
+
+  message->set_switch_next_pid(packed_pid);
+  message->set_switch_next_comm_index(packed_comm);
+
+  // There's a lot of data in a compact sched message. Most of it is packed data
+  // and most of the data is not going to change. To avoid unpacking, doing
+  // nothing, and then packing... cheat. Find the fields and pass them as opaque
+  // blobs.
+  //
+  // kInternTableFieldNumber:         The intern table will be modified by both
+  //                                  switch events and waking events. It will
+  //                                  be written elsewhere.
+  //
+  // kSwitchNextPidFieldNumber:       The switch pid will change during thread
+  //                                  merging.
+  //
+  // kSwitchNextCommIndexFieldNumber: The switch comm value will change when
+  //                                  clearing thread names and replaced
+  //                                  during thread merging.
+
+  auto passed_through = {
+      Passthrough(comp_sched,
+                  protos::pbzero::FtraceEventBundle::CompactSched::
+                      kSwitchTimestampFieldNumber,
+                  message),
+      Passthrough(comp_sched,
+                  protos::pbzero::FtraceEventBundle::CompactSched::
+                      kSwitchPrevStateFieldNumber,
+                  message),
+      Passthrough(comp_sched,
+                  protos::pbzero::FtraceEventBundle::CompactSched::
+                      kSwitchNextPrioFieldNumber,
+                  message)};
+
+  if (!std::all_of(passed_through.begin(), passed_through.end(), IsTrue)) {
+    return base::ErrStatus(
+        "RedactSchedSwitchHarness: missing required "
+        "FtraceEventBundle::CompactSched switch field.");
+  }
 
   return base::OkStatus();
 }
