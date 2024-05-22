@@ -84,9 +84,17 @@ static base::Status Main(std::string_view input,
 
   auto* redact_ftrace_events = redactor.emplace_transform<RedactFtraceEvent>();
   redact_ftrace_events
-      ->emplace_back<RedactTaskNewTask::kFieldId, RedactTaskNewTask>();
-  redact_ftrace_events
       ->emplace_back<RemoveProcessFreeComm::kFieldId, RemoveProcessFreeComm>();
+
+  // By default, the comm value is cleared. However, when thread merging is
+  // enabled (kTaskNewtaskFieldNumber + ThreadMergeDropField), the event is
+  // dropped, meaning that this primitive was effectivly a no-op. This primitive
+  // remains so that removing thread merging won't leak thread names via new
+  // task events.
+  auto* redact_new_task =
+      redact_ftrace_events
+          ->emplace_back<RedactTaskNewTask::kFieldId, RedactTaskNewTask>();
+  redact_new_task->emplace_back<ClearComms>();
 
   // This set of transformations will change pids. This will break the
   // connections between pids and the timeline (the synth threads are not in the
