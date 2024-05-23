@@ -31,7 +31,7 @@ SELECT
   ts,
   dur,
   gpu_id,
-  value AS gpu_freq
+  cast_int!(value) AS gpu_freq
 FROM counter_leading_intervals!((
     SELECT c.*
     FROM counter c
