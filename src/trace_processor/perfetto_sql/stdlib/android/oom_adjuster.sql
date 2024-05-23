@@ -93,7 +93,7 @@ WITH reason AS (
 SELECT
   ts,
   dur,
-  value AS score,
+  cast_int!(value) AS score,
   process.upid,
   process.name AS process_name,
   reason.oom_adj_id,

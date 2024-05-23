@@ -14,10 +14,6 @@
 
 import("../../../../../../gn/perfetto_sql.gni")
 
-perfetto_sql_source_set("linux") {
-  sources = [
-    "general.sql",
-    "high_watermark.sql",
-    "process.sql",
-  ]
+perfetto_sql_source_set("android") {
+  sources = [ "gpu.sql" ]
 }
