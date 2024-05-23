@@ -22,24 +22,25 @@ import synth_common
 
 trace = synth_common.create_trace()
 
-# Create a parent process which  will be forked below.
+# Create a parent process which will be forked below.
 trace.add_packet(ts=1)
 trace.add_process(10, 0, "parent")
 
-# Fork off the new process and then kill it 5ns later.
+# Fork the process into a child.
 trace.add_ftrace_packet(0)
 trace.add_newtask(ts=15, tid=10, new_tid=11, new_comm='child', flags=0)
 trace.add_sched(ts=16, prev_pid=10, next_pid=11, next_comm='child')
 
-# Create a parent process which  will be forked below.
+# Scrape event for the forked process.
 trace.add_packet(ts=20)
-trace.add_process(11, 0, "child_process")
+trace.add_process(11, 10, "child_process")
 
+# Rename of the main thread of forked process.
 trace.add_ftrace_packet(0)
 trace.add_rename(
     ts=25, tid=11, old_comm='child', new_comm='true_name', oom_score_adj=1000)
 
-# Create a parent process which  will be forked below.
+# Scrape of the forked process.
 trace.add_packet(ts=30)
 trace.add_process(11, 10, "true_process_name")
 
