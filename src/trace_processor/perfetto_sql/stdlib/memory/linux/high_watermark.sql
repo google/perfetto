@@ -36,7 +36,7 @@ SELECT
     0 AS id
 FROM with_rss
 )
-SELECT ts, dur, track_id AS upid, value AS rss_high_watermark
+SELECT ts, dur, track_id AS upid, cast_int!(value) AS rss_high_watermark
 FROM counter_leading_intervals!(high_watermark_as_counter);
 
 -- For each process fetches the memory high watermark until or during

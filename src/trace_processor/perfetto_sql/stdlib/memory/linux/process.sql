@@ -14,21 +14,7 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE android.oom_adjuster;
-
-CREATE PERFETTO VIEW _all_counters_for_with_upid AS
-SELECT
-  ts,
-  LEAD(
-    ts, 1,
-    (SELECT COALESCE(end_ts, trace_end())
-    FROM process p WHERE p.upid = t.upid) + 1)
-    OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
-  upid,
-  value,
-  name
-FROM counter c JOIN process_counter_track t
-ON t.id = c.track_id
-WHERE upid IS NOT NULL;
+INCLUDE PERFETTO MODULE memory.linux.general;
 
 -- All memory counters tables.
 
@@ -38,7 +24,7 @@ SELECT
   dur,
   upid,
   value AS anon_rss_val
-FROM _all_counters_for_with_upid
+FROM _all_counters_per_process
 WHERE name = 'mem.rss.anon';
 
 CREATE PERFETTO VIEW _file_rss AS
@@ -47,7 +33,7 @@ SELECT
   dur,
   upid,
   value AS file_rss_val
-FROM _all_counters_for_with_upid
+FROM _all_counters_per_process
 WHERE name = 'mem.rss.file';
 
 CREATE PERFETTO VIEW _shmem_rss AS
@@ -56,7 +42,7 @@ SELECT
   dur,
   upid,
   value AS shmem_rss_val
-FROM _all_counters_for_with_upid
+FROM _all_counters_per_process
 WHERE name = 'mem.rss.shmem';
 
 CREATE PERFETTO VIEW _swap AS
@@ -65,7 +51,7 @@ SELECT
   dur,
   upid,
   value AS swap_val
-FROM _all_counters_for_with_upid
+FROM _all_counters_per_process
 WHERE name = 'mem.swap';
 
 -- Span joins

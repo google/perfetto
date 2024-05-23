@@ -105,6 +105,7 @@ from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
 from diff_tests.stdlib.cpu.tests import Cpu
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
+from diff_tests.stdlib.gpu.tests import Gpu
 from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
 from diff_tests.stdlib.graphs.partition_tests import GraphPartitionTests
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
@@ -265,6 +266,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *Cpu(index_path, 'stdlib/cpu', 'Cpu').fetch(),
       *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
       *Frames(index_path, 'stdlib/android', 'Frames').fetch(),
+      *Gpu(index_path, 'stdlib/gpu', 'Gpu').fetch(),
       *GraphSearchTests(index_path, 'stdlib/graphs',
                         'GraphSearchTests').fetch(),
       *GraphPartitionTests(index_path, 'stdlib/graphs',
