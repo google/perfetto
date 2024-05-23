@@ -487,22 +487,24 @@ class TablesSched(TestSuite):
           table_name,
           critical_path_utid
         FROM _thread_executing_span_critical_path_stack((select utid from thread where tid = 3487), start_ts, end_ts), trace_bounds
-        ORDER BY ts
-        LIMIT 11
+        WHERE ts = 1737500355691
+        ORDER BY utid, id
         """,
         out=Csv("""
         "id","ts","dur","utid","stack_depth","name","table_name","critical_path_utid"
-        11889,1737349401439,57188,1477,0,"thread_state: R","thread_state",1477
-        11889,1737349401439,57188,1477,1,"[NULL]","thread_state",1477
-        11889,1737349401439,57188,1477,2,"[NULL]","thread_state",1477
-        11889,1737349401439,57188,1477,3,"process_name: com.android.providers.media.module","thread_state",1477
-        11889,1737349401439,57188,1477,4,"thread_name: rs.media.module","thread_state",1477
-        11891,1737349458627,1884896,1477,0,"thread_state: Running","thread_state",1477
-        11891,1737349458627,1884896,1477,1,"[NULL]","thread_state",1477
-        11891,1737349458627,1884896,1477,2,"[NULL]","thread_state",1477
-        11891,1737349458627,1884896,1477,3,"process_name: com.android.providers.media.module","thread_state",1477
-        11891,1737349458627,1884896,1477,4,"thread_name: rs.media.module","thread_state",1477
-        11891,1737349458627,1884896,1477,5,"cpu: 0","thread_state",1477
+        4271,1737500355691,1456753,1477,5,"bindApplication","slice",1477
+        13120,1737500355691,1456753,1477,0,"thread_state: S","thread_state",1477
+        13120,1737500355691,1456753,1477,1,"[NULL]","thread_state",1477
+        13120,1737500355691,1456753,1477,2,"[NULL]","thread_state",1477
+        13120,1737500355691,1456753,1477,3,"process_name: com.android.providers.media.module","thread_state",1477
+        13120,1737500355691,1456753,1477,4,"thread_name: rs.media.module","thread_state",1477
+        4800,1737500355691,1456753,1498,11,"HIDL::IComponentStore::getStructDescriptors::client","slice",1477
+        4801,1737500355691,1456753,1498,12,"binder transaction","slice",1477
+        13648,1737500355691,1456753,1498,6,"blocking thread_state: R+","thread_state",1477
+        13648,1737500355691,1456753,1498,7,"blocking process_name: com.android.providers.media.module","thread_state",1477
+        13648,1737500355691,1456753,1498,8,"blocking thread_name: CodecLooper","thread_state",1477
+        13648,1737500355691,1456753,1498,9,"[NULL]","thread_state",1477
+        13648,1737500355691,1456753,1498,10,"[NULL]","thread_state",1477
         """))
 
   def test_thread_executing_span_critical_path_graph(self):
