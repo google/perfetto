@@ -47,7 +47,7 @@ SELECT
   ts,
   dur,
   upid,
-  file_rss AS file_tss_val,
+  file_rss AS file_rss_val,
   anon_rss AS anon_rss_val,
   shmem_rss AS shmem_rss_val,
   swap AS swap_val,
