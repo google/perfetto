@@ -32,6 +32,37 @@
 namespace perfetto::trace_processor::perf_importer::feature {
 namespace {
 
+struct BuildIdRecord {
+  static constexpr uint8_t kMaxSize = 20;
+  char data[kMaxSize];
+  uint8_t size;
+  uint8_t reserved[3];
+};
+
+uint8_t CountTrailingZeros(const BuildIdRecord& build_id) {
+  for (uint8_t i = 0; i < BuildIdRecord::kMaxSize; ++i) {
+    if (build_id.data[BuildIdRecord::kMaxSize - i - 1] != 0) {
+      return i;
+    }
+  }
+  return sizeof(build_id.data);
+}
+
+// BuildIds are usually SHA-1 hashes (20 bytes), sometimes MD5 (16 bytes),
+// sometimes 8 bytes long. Simpleperf adds trailing zeros up to 20. Do a best
+// guess based on the number of trailing zeros.
+uint8_t GuessBuildIdSize(const BuildIdRecord& build_id) {
+  static_assert(BuildIdRecord::kMaxSize == 20);
+  uint8_t len = BuildIdRecord::kMaxSize - CountTrailingZeros(build_id);
+  if (len > 16) {
+    return BuildIdRecord::kMaxSize;
+  }
+  if (len > 8) {
+    return 16;
+  }
+  return 8;
+}
+
 bool ParseString(Reader& reader, std::string& out) {
   uint32_t len;
   base::StringView str;
@@ -51,11 +82,8 @@ bool ParseBuildId(const perf_event_header& header,
                   TraceBlobView blob,
                   BuildId& out) {
   Reader reader(std::move(blob));
-  struct {
-    char data[20];
-    uint8_t size;
-    uint8_t reserved[3];
-  } build_id;
+
+  BuildIdRecord build_id;
 
   if (!reader.Read(out.pid) || !reader.Read(build_id) ||
       !reader.ReadStringUntilEndOrNull(out.filename)) {
@@ -63,7 +91,7 @@ bool ParseBuildId(const perf_event_header& header,
   }
 
   if (header.misc & PERF_RECORD_MISC_EXT_RESERVED) {
-    if (build_id.size > sizeof(build_id.data)) {
+    if (build_id.size > BuildIdRecord::kMaxSize) {
       return false;
     }
   } else {
@@ -72,15 +100,7 @@ bool ParseBuildId(const perf_event_header& header,
     // build_id.size or build_id.reserved to do any checks.
     // TODO(b/334978369): We should be able to tell for sure whether this is
     // simpleperf or not by checking the existence of SimpleperfMetaInfo.
-    build_id.size = 20;
-    // BuildIds are usually SHA-1 hashes (20 bytes), sometimes MD5 (16 bites).
-    // Simpleperf adds trailing zeros. But zeros could be in the MD5 hash.
-    // But it the last 4 bytes are zeros there is a high chance this was an
-    // MD5.
-    if (build_id.data[16] == 0 && build_id.data[17] == 0 &&
-        build_id.data[18] == 0 && build_id.data[19] == 0) {
-      build_id.size = 16;
-    }
+    build_id.size = GuessBuildIdSize(build_id);
   }
   out.build_id = std::string(build_id.data, build_id.size);
   return true;
