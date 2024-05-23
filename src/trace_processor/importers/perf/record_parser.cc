@@ -51,7 +51,7 @@ namespace {
 CreateMappingParams BuildCreateMappingParams(
     const CommonMmapRecordFields& fields,
     std::string filename,
-    std::optional<BuildId> build_id = std::nullopt) {
+    std::optional<BuildId> build_id) {
   return {AddressRange::FromStartAndSize(fields.addr, fields.len), fields.pgoff,
           // start_offset: This is the offset into the file where the ELF header
           // starts. We assume all file mappings are ELF files an thus this
@@ -233,14 +233,18 @@ base::Status RecordParser::ParseComm(Record record) {
 base::Status RecordParser::ParseMmap(Record record) {
   MmapRecord mmap;
   RETURN_IF_ERROR(mmap.Parse(record));
+  std::optional<BuildId> build_id =
+      record.session->LookupBuildId(mmap.pid, mmap.filename);
   if (IsInKernel(record.GetCpuMode())) {
     context_->mapping_tracker->CreateKernelMemoryMapping(
-        BuildCreateMappingParams(mmap, std::move(mmap.filename)));
+        BuildCreateMappingParams(mmap, std::move(mmap.filename),
+                                 std::move(build_id)));
     return base::OkStatus();
   }
 
   context_->mapping_tracker->CreateUserMemoryMapping(
-      GetUpid(mmap), BuildCreateMappingParams(mmap, std::move(mmap.filename)));
+      GetUpid(mmap), BuildCreateMappingParams(mmap, std::move(mmap.filename),
+                                              std::move(build_id)));
 
   return base::OkStatus();
 }
@@ -248,15 +252,20 @@ base::Status RecordParser::ParseMmap(Record record) {
 util::Status RecordParser::ParseMmap2(Record record) {
   Mmap2Record mmap2;
   RETURN_IF_ERROR(mmap2.Parse(record));
+  std::optional<BuildId> build_id = mmap2.GetBuildId();
+  if (!build_id.has_value()) {
+    build_id = record.session->LookupBuildId(mmap2.pid, mmap2.filename);
+  }
   if (IsInKernel(record.GetCpuMode())) {
     context_->mapping_tracker->CreateKernelMemoryMapping(
-        BuildCreateMappingParams(mmap2, std::move(mmap2.filename)));
+        BuildCreateMappingParams(mmap2, std::move(mmap2.filename),
+                                 std::move(build_id)));
     return base::OkStatus();
   }
 
   context_->mapping_tracker->CreateUserMemoryMapping(
       GetUpid(mmap2), BuildCreateMappingParams(mmap2, std::move(mmap2.filename),
-                                               mmap2.GetBuildId()));
+                                               std::move(build_id)));
 
   return base::OkStatus();
 }
