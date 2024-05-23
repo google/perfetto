@@ -19,6 +19,24 @@ INCLUDE PERFETTO MODULE android.app_process_starts;
 INCLUDE PERFETTO MODULE android.garbage_collection;
 INCLUDE PERFETTO MODULE android.oom_adjuster;
 
+DROP VIEW IF EXISTS android_oom_adj_intervals_with_detailed_bucket_name;
+CREATE PERFETTO VIEW android_oom_adj_intervals_with_detailed_bucket_name AS
+SELECT
+  ts,
+  dur,
+  score,
+  android_oom_adj_score_to_detailed_bucket_name(score, android_appid) AS bucket,
+  upid,
+  process_name,
+  oom_adj_id,
+  oom_adj_ts,
+  oom_adj_dur,
+  oom_adj_track_id,
+  oom_adj_thread_name,
+  oom_adj_reason,
+  oom_adj_trigger
+FROM _oom_adjuster_intervals;
+
 CREATE OR REPLACE PERFETTO FUNCTION get_durations(process_name STRING)
 RETURNS TABLE(uint_sleep_dur LONG, total_dur LONG) AS
 SELECT
@@ -41,7 +59,7 @@ SELECT
   bucket,
   process_name,
   oom_adj_reason
-FROM android_oom_adj_intervals;
+FROM android_oom_adj_intervals_with_detailed_bucket_name;
 
 DROP VIEW IF EXISTS oom_adj_events_by_process_name;
 CREATE PERFETTO VIEW oom_adj_events_by_process_name AS
@@ -280,7 +298,7 @@ SELECT AndroidBootMetric(
           NULL as name,
           bucket,
           SUM(dur) as total_dur
-        FROM android_oom_adj_intervals
+        FROM android_oom_adj_intervals_with_detailed_bucket_name
           WHERE ts > first_user_unlocked()
         GROUP BY bucket)
     ),
@@ -296,7 +314,7 @@ SELECT AndroidBootMetric(
         process_name as name,
         bucket,
         SUM(dur) as total_dur
-      FROM android_oom_adj_intervals
+      FROM android_oom_adj_intervals_with_detailed_bucket_name
       WHERE ts > first_user_unlocked()
       AND process_name IS NOT NULL
       GROUP BY process_name, bucket)
@@ -318,7 +336,7 @@ SELECT AndroidBootMetric(
         AVG(oom_adj_dur) as avg_oom_adj_dur,
         COUNT(DISTINCT(oom_adj_id)) oom_adj_event_count,
         oom_adj_reason
-      FROM android_oom_adj_intervals
+      FROM android_oom_adj_intervals_with_detailed_bucket_name
       WHERE ts > first_user_unlocked()
       GROUP BY oom_adj_reason
     )
