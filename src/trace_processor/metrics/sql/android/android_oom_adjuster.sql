@@ -15,6 +15,51 @@
 --
 INCLUDE PERFETTO MODULE android.oom_adjuster;
 
+DROP VIEW IF EXISTS android_oom_adj_intervals_with_detailed_bucket_name;
+CREATE PERFETTO VIEW android_oom_adj_intervals_with_detailed_bucket_name (
+  -- Timestamp the oom_adj score of the process changed
+  ts INT,
+  -- Duration until the next oom_adj score change of the process.
+  dur INT,
+  -- oom_adj score of the process.
+  score INT,
+  -- oom_adj bucket of the process.
+  bucket STRING,
+  -- Upid of the process having an oom_adj update.
+  upid INT,
+  -- Name of the process having an oom_adj update.
+  process_name STRING,
+  -- Slice id of the latest oom_adj update in the system_server.
+  oom_adj_id INT,
+  -- Timestamp of the latest oom_adj update in the system_server.
+  oom_adj_ts INT,
+  -- Duration of the latest oom_adj update in the system_server.
+  oom_adj_dur INT,
+  -- Track id of the latest oom_adj update in the system_server
+  oom_adj_track_id INT,
+  -- Thread name of the latest oom_adj update in the system_server.
+  oom_adj_thread_name STRING,
+  -- Reason for the latest oom_adj update in the system_server.
+  oom_adj_reason STRING,
+  -- Trigger for the latest oom_adj update in the system_server.
+  oom_adj_trigger STRING
+  ) AS
+SELECT
+  ts,
+  dur,
+  score,
+  android_oom_adj_score_to_detailed_bucket_name(score, android_appid) AS bucket,
+  upid,
+  process_name,
+  oom_adj_id,
+  oom_adj_ts,
+  oom_adj_dur,
+  oom_adj_track_id,
+  oom_adj_thread_name,
+  oom_adj_reason,
+  oom_adj_trigger
+FROM _oom_adjuster_intervals;
+
 DROP TABLE IF EXISTS _oom_adj_events_with_src_bucket;
 CREATE PERFETTO TABLE _oom_adj_events_with_src_bucket
 AS
@@ -24,7 +69,7 @@ SELECT
   bucket,
   process_name,
   oom_adj_reason
-FROM android_oom_adj_intervals;
+FROM android_oom_adj_intervals_with_detailed_bucket_name;
 
 DROP VIEW IF EXISTS oom_adj_events_by_process_name;
 CREATE PERFETTO VIEW oom_adj_events_by_process_name AS
@@ -100,7 +145,7 @@ SELECT AndroidOomAdjusterMetric(
     )
     FROM (
         SELECT NULL as name, bucket, SUM(dur) as total_dur
-        FROM android_oom_adj_intervals GROUP BY bucket
+        FROM android_oom_adj_intervals_with_detailed_bucket_name GROUP BY bucket
     )
   ),
   'oom_adj_bucket_duration_agg_by_process',(SELECT RepeatedField(
@@ -112,7 +157,7 @@ SELECT AndroidOomAdjusterMetric(
     )
     FROM (
       SELECT process_name as name, bucket, SUM(dur) as total_dur
-      FROM android_oom_adj_intervals
+      FROM android_oom_adj_intervals_with_detailed_bucket_name
       WHERE process_name IS NOT NULL
       GROUP BY process_name, bucket
     )
@@ -133,7 +178,7 @@ SELECT AndroidOomAdjusterMetric(
         AVG(oom_adj_dur) as avg_oom_adj_dur,
         COUNT(DISTINCT(oom_adj_id)) oom_adj_event_count,
         oom_adj_reason
-      FROM android_oom_adj_intervals GROUP BY oom_adj_reason
+      FROM android_oom_adj_intervals_with_detailed_bucket_name GROUP BY oom_adj_reason
     )
   )
 );
