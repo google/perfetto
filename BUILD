@@ -2620,6 +2620,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_memory_linux_linux",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/memory/linux/high_watermark.sql",
         "src/trace_processor/perfetto_sql/stdlib/memory/linux/process.sql",
     ],
 )
