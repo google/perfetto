@@ -28,6 +28,7 @@ const DEFAULT_BROADCAST_CHANNEL = `${PLUGIN_ID}#broadcastChannel`;
 const VIEWPORT_UPDATE_THROTTLE_TIME_FOR_SENDING_AFTER_RECEIVING_MS = 1_000;
 const BIGINT_PRECISION_MULTIPLIER = 1_000_000_000n;
 const ADVERTISE_PERIOD_MS = 15_000;
+const DEFAULT_SESSION_ID = 1;
 type ClientId = number;
 type SessionId = number;
 
@@ -53,6 +54,9 @@ class TimelineSync implements Plugin {
   private _lastViewportBounds?: ViewportBounds;
   private _advertisedClients = new Map<ClientId, ClientInfo>();
   private _sessionId: SessionId = 0;
+  // Used when the url passes ?dev.perfetto.TimelineSync:enable to auto-enable
+  // timeline sync on trace load.
+  private _sessionidFromUrl: SessionId = 0;
 
   // Contains the Viewport bounds of this window when it received the first sync
   // message from another one. This is used to re-scale timestamps, so that we
@@ -81,6 +85,15 @@ class TimelineSync implements Plugin {
     this._chan.onmessage = this.onmessage.bind(this);
     document.addEventListener('visibilitychange', () => this.advertise());
     setInterval(() => this.advertise(), ADVERTISE_PERIOD_MS);
+
+    // Allow auto-enabling of timeline sync from the URI. The user can
+    // optionally specify a session id, otherwise we just use a default one.
+    const m = /dev.perfetto.TimelineSync:enable(=\d+)?/.exec(location.hash);
+    if (m !== null) {
+      this._sessionidFromUrl = m[1]
+        ? parseInt(m[1].substring(1))
+        : DEFAULT_SESSION_ID;
+    }
   }
 
   onDeactivate(_: PluginContext) {
@@ -91,6 +104,9 @@ class TimelineSync implements Plugin {
     this._ctx = ctx;
     this._traceLoadTime = Date.now();
     this.advertise();
+    if (this._sessionidFromUrl !== 0) {
+      this.enableTimelineSync(this._sessionidFromUrl);
+    }
   }
 
   async onTraceUnload(_: PluginContextTrace) {
@@ -144,13 +160,11 @@ class TimelineSync implements Plugin {
       clients.sort((a, b) => b[1].traceLoadTime - a[1].traceLoadTime);
       for (const [clientId, info] of clients) {
         const opened = new Date(info.traceLoadTime).toLocaleTimeString();
-        children.push(
-          m(
-            'option',
-            {value: clientId, selected: this._advertisedClients.size === 1},
-            `${info.title} (${opened})`,
-          ),
-        );
+        const attrs: {value: number; selected?: boolean} = {value: clientId};
+        if (this._advertisedClients.size === 1) {
+          attrs.selected = true;
+        }
+        children.push(m('option', attrs, `${info.title} (${opened})`));
       }
       return m(
         'div',
@@ -195,9 +209,8 @@ class TimelineSync implements Plugin {
     });
   }
 
-  private enableTimelineSync(sessionId: SessionId, clients: ClientId[]) {
+  private enableTimelineSync(sessionId: SessionId) {
     if (sessionId === this._sessionId) return; // Already in this session id.
-    if (!clients.includes(this._clientId)) return; // Not for us.
     this._sessionId = sessionId;
     this._initialBoundsForSibling.clear();
     this.scheduleViewportUpdateMessage();
@@ -269,7 +282,9 @@ class TimelineSync implements Plugin {
         }
         break;
       case 'MSG_SESSION_START':
-        this.enableTimelineSync(sync.sessionId, sync.clients);
+        if (sync.clients.includes(this._clientId)) {
+          this.enableTimelineSync(sync.sessionId);
+        }
         break;
       case 'MSG_SESSION_STOP':
         this.disableTimelineSync(sync.sessionId, /* skipMsg= */ true);
