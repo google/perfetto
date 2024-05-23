@@ -18,3 +18,7 @@
 /data/parser/*
 !/data/parser/*.sha256
 !/data/parser/README.md
+
+!/data/simpleperf
+/data/simpleperf/*
+!/data/simpleperf/*.sha256
