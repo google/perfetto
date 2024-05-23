@@ -81,9 +81,6 @@ KernelMemoryMapping& MappingTracker::CreateKernelMemoryMapping(
 UserMemoryMapping& MappingTracker::CreateUserMemoryMapping(
     UniquePid upid,
     CreateMappingParams params) {
-  // TODO(carlscab): Guess build_id if not provided. Some tools like simpleperf
-  // add a mapping file_name ->build_id that we could use here
-
   const AddressRange mapping_range = params.memory_range;
   std::unique_ptr<UserMemoryMapping> mapping(
       new UserMemoryMapping(context_, upid, std::move(params)));

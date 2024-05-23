@@ -34,6 +34,7 @@ source_set("record") {
     "../../storage",
     "../../tables:tables_python",
     "../../types",
+    "../../util:build_id",
     "../common:parser_types",
   ]
 }

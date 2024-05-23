@@ -124,3 +124,21 @@ class Simpleperf(TestSuite):
         7080,2940,0,"sleep",689664,689664,"[kernel.kallsyms]","[kernel.kallsyms][+ffffffffa8cc8119]"
         3520,295,0,"sleep",689664,689664,"[kernel.kallsyms]","[kernel.kallsyms][+ffffffffa8c6b3e6]"
         '''))
+
+  def test_build_id_feature(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/perf.data'),
+        query='''
+        SELECT build_id, name
+        FROM stack_profile_mapping
+        WHERE build_id <> ""
+        ORDER BY name
+        ''',
+        out=Csv('''
+        "build_id","name"
+        "0b12a384a9f4a3f3659b7171ca615dbec3a81f71","/elf"
+        "0b12a384a9f4a3f3659b7171ca615dbec3a81f71","/elf"
+        "47111a47babdcd27ca2f9ff450dc1897ded761ed","/lib/modules/3.13.0-76-generic/kernel/drivers/ata/pata_acpi.ko"
+        "0b12a384a9f4a3f3659b7171ca615dbec3a81f71","/t1"
+        "0b12a384a9f4a3f3659b7171ca615dbec3a81f71","/t2"
+        '''))
