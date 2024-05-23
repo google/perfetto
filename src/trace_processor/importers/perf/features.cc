@@ -216,9 +216,8 @@ util::Status EventDescription::Parse(
   return util::OkStatus();
 }
 
-util::Status ParseSimpleperfFile2(
-    TraceBlobView bytes,
-    std::function<util::Status(TraceBlobView)> cb) {
+util::Status ParseSimpleperfFile2(TraceBlobView bytes,
+                                  std::function<void(TraceBlobView)> cb) {
   Reader reader(std::move(bytes));
   while (reader.size_left() != 0) {
     uint32_t len;
@@ -230,7 +229,7 @@ util::Status ParseSimpleperfFile2(
       return base::ErrStatus(
           "Failed to parse payload in FEATURE_SIMPLEPERF_FILE2");
     }
-    RETURN_IF_ERROR(cb(std::move(payload)));
+    cb(std::move(payload));
   }
   return util::OkStatus();
 }
