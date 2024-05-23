@@ -379,6 +379,7 @@ class TestCaseRunner:
       return res
 
     if result.exit_code != 0 or not result.passed:
+      result.passed = False
       str += result.stderr
 
       if result.exit_code == 0:
