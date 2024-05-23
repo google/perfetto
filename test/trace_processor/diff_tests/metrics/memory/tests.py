@@ -248,6 +248,17 @@ class MemoryMetrics(TestSuite):
         }
         """))
 
+  def test_android_lmk_reason(self):
+    return DiffTestBlueprint(
+        trace=DataPath('lmk_userspace.pb'),
+        query=Metric('android_lmk_reason'),
+        # TODO(mayzner): Find a trace that returns results. This is still
+        # beneficial though, as at least this metric is run.
+        out=TextProto(r"""
+        android_lmk_reason {
+        }
+        """))
+
   def test_android_mem_delta(self):
     return DiffTestBlueprint(
         trace=Path('android_mem_delta.py'),
