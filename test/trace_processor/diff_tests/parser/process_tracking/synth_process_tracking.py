@@ -90,7 +90,7 @@ trace.add_sched(
     ts=28, prev_pid=32, next_pid=40, prev_comm='p3-t2', next_comm='p4-t0')
 
 trace.add_packet(ts=29)
-trace.add_process(40, 0, "process_4")
+trace.add_process(40, 30, "process_4")
 
 # And now, this new process starts a new thread that recycles TID=31 (previously
 # used as p3-t1, now becomes p4-t1).

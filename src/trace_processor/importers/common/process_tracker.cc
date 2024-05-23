@@ -356,6 +356,17 @@ UniquePid ProcessTracker::SetProcessMetadata(uint32_t pid,
   UniquePid upid = GetOrCreateProcess(pid);
   auto* process_table = context_->storage->mutable_process_table();
 
+  // If we both know the previous and current parent pid and the two are not
+  // matching, we must have died and restarted: create a new process.
+  if (pupid) {
+    std::optional<UniquePid> prev_parent_upid =
+        process_table->parent_upid()[upid];
+    if (prev_parent_upid && prev_parent_upid != pupid) {
+      upid = StartNewProcess(std::nullopt, ppid, pid, kNullStringId,
+                             ThreadNamePriority::kOther);
+    }
+  }
+
   StringId proc_name_id = context_->storage->InternString(name);
   process_table->mutable_name()->Set(upid, proc_name_id);
   process_table->mutable_cmdline()->Set(
