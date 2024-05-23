@@ -62,7 +62,7 @@ RETURNS TableOrSubquery AS
     ts,
     track_id,
     LEAD(ts, 1, trace_end()) OVER(PARTITION BY track_id ORDER BY ts) - ts AS dur,
-    CAST(value AS INT) AS value
+    cast_int!(value) AS value
   FROM base
   WHERE value != lag_value OR lag_value IS NULL
 );

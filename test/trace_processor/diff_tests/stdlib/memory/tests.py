@@ -91,3 +91,21 @@ class Memory(TestSuite):
         1737069091010,682459310,975,"cached",289,"com.android.packageinstaller",2480,332,1737064421516,29484835,1217,"binder:642_1","processEnd","IActivityManager#1598246212",49364992,52539392,827392,102731776,0,49364992,102731776
         1737069240534,489635,985,"cached",268,"com.android.managedprovisioning",1868,332,1737064421516,29484835,1217,"binder:642_1","processEnd","IActivityManager#1598246212",50683904,53985280,815104,105484288,0,50683904,105484288
          """))
+
+  def test_memory_gpu_per_process(self):
+    return DiffTestBlueprint(
+        trace=Path('../../metrics/graphics/gpu_metric.py'),
+        query="""
+        INCLUDE PERFETTO MODULE memory.android.gpu;
+        SELECT *
+        FROM memory_gpu_per_process;
+        """,
+        out=Csv("""
+        "ts","dur","upid","gpu_memory"
+        2,2,2,6
+        4,6,2,8
+        4,5,1,2
+        9,1,1,8
+        6,1,3,7
+        7,3,3,10
+         """))
