@@ -16,27 +16,14 @@
 
 #include "src/trace_redaction/redact_task_newtask.h"
 
-#include "src/trace_redaction/proto_util.h"
-
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_redaction {
 
 namespace {
-
-// TODO(vaage): Merge with RedactComm in redact_sched_switch.cc.
-protozero::ConstChars RedactComm(const Context& context,
-                                 uint64_t ts,
-                                 int32_t pid,
-                                 protozero::ConstChars comm) {
-  if (context.timeline->PidConnectsToUid(ts, pid, *context.package_uid)) {
-    return comm;
-  }
-
-  return {};
-}
 
 }  // namespace
 // Redact sched switch trace events in an ftrace event bundle:
@@ -56,9 +43,11 @@ protozero::ConstChars RedactComm(const Context& context,
 // equal to "event.task_newtask.pid" (a thread cannot start itself).
 base::Status RedactTaskNewTask::Redact(
     const Context& context,
-    const protos::pbzero::FtraceEventBundle::Decoder&,
+    const protos::pbzero::FtraceEventBundle::Decoder& bundle,
     protozero::ProtoDecoder& event,
     protos::pbzero::FtraceEvent* event_message) const {
+  PERFETTO_DCHECK(transform_);
+
   if (!context.package_uid.has_value()) {
     return base::ErrStatus("RedactTaskNewTask: missing package uid");
   }
@@ -68,45 +57,41 @@ base::Status RedactTaskNewTask::Redact(
   }
 
   // The timestamp is needed to do the timeline look-up. If the packet has no
-  // timestamp, don't add the sched switch event. This is the safest option.
-  auto timestamp =
+  // timestamp, don't add the sched switch event.
+  auto timestamp_field =
       event.FindField(protos::pbzero::FtraceEvent::kTimestampFieldNumber);
-  if (!timestamp.valid()) {
-    return base::OkStatus();
-  }
-
-  auto new_task =
+  auto new_task_field =
       event.FindField(protos::pbzero::FtraceEvent::kTaskNewtaskFieldNumber);
-  if (!new_task.valid()) {
+
+  if (!timestamp_field.valid() || !new_task_field.valid()) {
     return base::ErrStatus(
-        "RedactTaskNewTask: was used for unsupported field type");
+        "RedactTaskNewTask: missing required FtraceEvent field.");
   }
 
-  protozero::ProtoDecoder new_task_decoder(new_task.as_bytes());
+  protos::pbzero::TaskNewtaskFtraceEvent::Decoder new_task(
+      new_task_field.as_bytes());
 
-  auto pid = new_task_decoder.FindField(
-      protos::pbzero::TaskNewtaskFtraceEvent::kPidFieldNumber);
-
-  if (!pid.valid()) {
-    return base::OkStatus();
+  // There are only four fields in a new task event. Since two of them can
+  // change, it is easier to work with them directly.
+  if (!new_task.has_pid() || !new_task.has_comm() ||
+      !new_task.has_clone_flags() || !new_task.has_oom_score_adj()) {
+    return base::ErrStatus(
+        "RedactTaskNewTask: missing required TaskNewtaskFtraceEvent field.");
   }
 
-  // Avoid making the message until we know that we have prev and next pids.
+  auto pid = new_task.pid();
+  auto comm = new_task.comm().ToStdString();
+
+  auto cpu = static_cast<int32_t>(bundle.cpu());
+
+  RETURN_IF_ERROR(transform_->Transform(context, timestamp_field.as_uint64(),
+                                        cpu, &pid, &comm));
+
   auto* new_task_message = event_message->set_task_newtask();
-
-  for (auto field = new_task_decoder.ReadField(); field.valid();
-       field = new_task_decoder.ReadField()) {
-    // Perfetto view (ui.perfetto.dev) crashes if the comm value is missing.
-    // To work around this, the comm value is replaced with an empty string.
-    // This appears to work.
-    if (field.id() ==
-        protos::pbzero::TaskNewtaskFtraceEvent::kCommFieldNumber) {
-      new_task_message->set_comm(RedactComm(context, timestamp.as_uint64(),
-                                            pid.as_int32(), field.as_string()));
-    } else {
-      proto_util::AppendField(field, new_task_message);
-    }
-  }
+  new_task_message->set_pid(pid);
+  new_task_message->set_comm(comm);
+  new_task_message->set_clone_flags(new_task.clone_flags());
+  new_task_message->set_oom_score_adj(new_task.oom_score_adj());
 
   return base::OkStatus();
 }

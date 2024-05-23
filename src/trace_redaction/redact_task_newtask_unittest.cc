@@ -16,19 +16,21 @@
 
 #include "src/trace_redaction/redact_task_newtask.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/ftrace/task.gen.h"
+#include "src/base/test/status_matchers.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
-#include "protos/perfetto/trace/ftrace/sched.gen.h"
+#include "protos/perfetto/trace/ftrace/task.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto::trace_redaction {
 
 namespace {
+constexpr uint64_t kCpu = 1;
+
 constexpr uint64_t kUidA = 1;
 constexpr uint64_t kUidB = 2;
 
@@ -44,19 +46,23 @@ constexpr std::string_view kCommA = "comm-a";
 class RedactTaskNewTaskTest : public testing::Test {
  protected:
   void SetUp() override {
-    auto* event = bundle_.add_event();
+    bundle_.set_cpu(kCpu);
 
+    auto* event = bundle_.add_event();
     event->set_timestamp(123456789);
     event->set_pid(kPidA);
 
     auto* new_task = event->mutable_task_newtask();
+    new_task->set_clone_flags(0);
     new_task->set_comm(std::string(kCommA));
+    new_task->set_oom_score_adj(0);
     new_task->set_pid(kPidA);
   }
 
   base::Status Redact(const Context& context,
                       protos::pbzero::FtraceEvent* event_message) {
     RedactTaskNewTask redact;
+    redact.emplace_back<ClearComms>();
 
     auto bundle_str = bundle_.SerializeAsString();
     protos::pbzero::FtraceEventBundle::Decoder bundle_decoder(bundle_str);
@@ -93,8 +99,6 @@ class RedactTaskNewTaskTest : public testing::Test {
 };
 
 TEST_F(RedactTaskNewTaskTest, RejectMissingPackageUid) {
-  RedactTaskNewTask redact;
-
   Context context;
   context.timeline = std::make_unique<ProcessThreadTimeline>();
 
@@ -106,8 +110,6 @@ TEST_F(RedactTaskNewTaskTest, RejectMissingPackageUid) {
 }
 
 TEST_F(RedactTaskNewTaskTest, RejectMissingTimeline) {
-  RedactTaskNewTask redact;
-
   Context context;
   context.package_uid = kUidA;
 
@@ -119,8 +121,6 @@ TEST_F(RedactTaskNewTaskTest, RejectMissingTimeline) {
 }
 
 TEST_F(RedactTaskNewTaskTest, PidInPackageKeepsComm) {
-  RedactTaskNewTask redact;
-
   // Because Uid A is the target, when Pid A starts (new task event), it should
   // keep its comm value.
   Context context;
@@ -130,8 +130,7 @@ TEST_F(RedactTaskNewTaskTest, PidInPackageKeepsComm) {
   protos::pbzero::FtraceEvent::Decoder event_decoder(event_string());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
 
-  auto result = Redact(context, event_message.get());
-  ASSERT_TRUE(result.ok());
+  ASSERT_OK(Redact(context, event_message.get()));
 
   protos::gen::FtraceEvent redacted_event;
   redacted_event.ParseFromString(event_message.SerializeAsString());
@@ -142,8 +141,6 @@ TEST_F(RedactTaskNewTaskTest, PidInPackageKeepsComm) {
 }
 
 TEST_F(RedactTaskNewTaskTest, PidOutsidePackageLosesComm) {
-  RedactTaskNewTask redact;
-
   // Because Uid B is the target, when Pid A starts (new task event), it should
   // lose its comm value.
   Context context;
@@ -153,8 +150,7 @@ TEST_F(RedactTaskNewTaskTest, PidOutsidePackageLosesComm) {
   protos::pbzero::FtraceEvent::Decoder event_decoder(event_string());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
 
-  auto result = Redact(context, event_message.get());
-  ASSERT_TRUE(result.ok());
+  ASSERT_OK(Redact(context, event_message.get()));
 
   protos::gen::FtraceEvent redacted_event;
   redacted_event.ParseFromString(event_message.SerializeAsString());
