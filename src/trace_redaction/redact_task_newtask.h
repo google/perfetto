@@ -18,6 +18,7 @@
 #define SRC_TRACE_REDACTION_REDACT_TASK_NEWTASK_H_
 
 #include "src/trace_redaction/redact_ftrace_event.h"
+#include "src/trace_redaction/redact_sched_switch.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
@@ -34,6 +35,14 @@ class RedactTaskNewTask : public FtraceEventRedaction {
       const protos::pbzero::FtraceEventBundle::Decoder& bundle,
       protozero::ProtoDecoder& event,
       protos::pbzero::FtraceEvent* event_message) const override;
+
+  template <class Transform>
+  void emplace_back() {
+    transform_ = std::make_unique<Transform>();
+  }
+
+ public:
+  std::unique_ptr<SchedSwitchTransform> transform_;
 };
 
 }  // namespace perfetto::trace_redaction

@@ -57,8 +57,12 @@ class RedactFtraceEvent : public TransformPrimitive {
   // Add a new redaction. T must extend FtraceEventRedaction. This relies on the
   // honor system; no more than one redaction can be mapped to a field.
   template <uint32_t field_id, class T>
-  void emplace_back() {
-    redactions_.Insert(field_id, std::make_unique<T>());
+  T* emplace_back() {
+    auto ptr = std::make_unique<T>();
+    T* raw_ptr = ptr.get();
+
+    redactions_.Insert(field_id, std::move(ptr));
+    return raw_ptr;
   }
 
  private:
