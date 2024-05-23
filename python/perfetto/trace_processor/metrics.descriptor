@@ -992,8 +992,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-‰B
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"‡A
+„C
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"‚B
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupó
 TaskStateBreakdown$
@@ -1144,7 +1144,7 @@ PERCENTAGE
 start_timestamp (RstartTimestamp#
 end_timestamp (RendTimestamp
 thread_utid (R
-threadUtidô
+threadUtidï
 Startup
 
 startup_id (R	startupId!
@@ -1171,7 +1171,8 @@ dlopenFile?
 startup_concurrent_to_launch (	RstartupConcurrentToLaunchT
 system_state (21.perfetto.protos.AndroidStartupMetric.SystemStateRsystemState*
 slow_start_reason (	RslowStartReasonz
-slow_start_reason_detailed (2=.perfetto.protos.AndroidStartupMetric.SlowStartReasonDetailedRslowStartReasonDetailedJ
+slow_start_reason_detailed (2=.perfetto.protos.AndroidStartupMetric.SlowStartReasonDetailedRslowStartReasonDetailedy
+slow_start_reason_with_details (25.perfetto.protos.AndroidStartupMetric.SlowStartReasonRslowStartReasonWithDetailsJ
 
 Ñ
 4protos/perfetto/metrics/android/surfaceflinger.protoperfetto.protos"‡
