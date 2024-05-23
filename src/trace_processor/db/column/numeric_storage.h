@@ -23,6 +23,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <type_traits>
 #include <unordered_set>
 #include <variant>
 #include <vector>
@@ -48,10 +49,6 @@ class NumericStorageBase : public DataLayer {
     RangeOrBitVector SearchValidated(FilterOp, SqlValue, Range) const override;
 
     void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
-
-    Range OrderedIndexSearchValidated(FilterOp,
-                                      SqlValue,
-                                      const OrderedIndices&) const override;
 
     void Serialize(StorageProto*) const override;
 
@@ -143,6 +140,13 @@ class NumericStorage final : public NumericStorageBase {
       }
 
       return *tok;
+    }
+
+    SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override {
+      if constexpr (std::is_same_v<T, double>) {
+        return SqlValue::Double((*vector_)[index]);
+      }
+      return SqlValue::Long((*vector_)[index]);
     }
 
     void StableSort(SortToken* start,

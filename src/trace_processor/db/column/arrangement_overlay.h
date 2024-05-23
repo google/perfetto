@@ -19,10 +19,10 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
-#include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
@@ -61,13 +61,6 @@ class ArrangementOverlay final : public DataLayer {
 
     void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
-    Range OrderedIndexSearchValidated(FilterOp,
-                                      SqlValue,
-                                      const OrderedIndices&) const override {
-      PERFETTO_FATAL(
-          "OrderedIndexSearch can't be called on ArrangementOverlay");
-    }
-
     void StableSort(SortToken* start,
                     SortToken* end,
                     SortDirection) const override;
@@ -77,6 +70,8 @@ class ArrangementOverlay final : public DataLayer {
     std::optional<Token> MaxElement(Indices&) const override;
 
     std::optional<Token> MinElement(Indices&) const override;
+
+    SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
 
     void Serialize(StorageProto*) const override;
 

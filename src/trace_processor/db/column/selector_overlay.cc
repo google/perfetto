@@ -16,9 +16,9 @@
 
 #include "src/trace_processor/db/column/selector_overlay.h"
 
-#include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -35,7 +35,7 @@
 namespace perfetto::trace_processor::column {
 namespace {
 
-static constexpr uint32_t kIndexOfNthSetRatio = 32;
+constexpr uint32_t kIndexOfNthSetRatio = 32;
 
 }  // namespace
 
@@ -97,23 +97,6 @@ void SelectorOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
   return inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-Range SelectorOverlay::ChainImpl::OrderedIndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    const OrderedIndices& indices) const {
-  // To go from TableIndexVector to StorageIndexVector we need to find index in
-  // |selector_| by looking only into set bits.
-  std::vector<uint32_t> inner_indices(indices.size);
-  for (uint32_t i = 0; i < indices.size; ++i) {
-    inner_indices[i] = selector_->IndexOfNthSet(indices.data[i]);
-  }
-  return inner_->OrderedIndexSearchValidated(
-      op, sql_val,
-      OrderedIndices{inner_indices.data(),
-                     static_cast<uint32_t>(inner_indices.size()),
-                     indices.state});
-}
-
 void SelectorOverlay::ChainImpl::StableSort(SortToken* start,
                                             SortToken* end,
                                             SortDirection direction) const {
@@ -148,6 +131,11 @@ std::optional<Token> SelectorOverlay::ChainImpl::MinElement(
   return inner_->MinElement(indices);
 }
 
+SqlValue SelectorOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
+    uint32_t index) const {
+  return inner_->Get_AvoidUsingBecauseSlow(selector_->IndexOfNthSet(index));
+}
+
 void SelectorOverlay::ChainImpl::Serialize(StorageProto* storage) const {
   auto* selector_overlay = storage->set_selector_overlay();
   inner_->Serialize(selector_overlay->set_storage());
@@ -164,15 +152,15 @@ void SelectorOverlay::ChainImpl::TranslateToInnerIndices(
     for (auto& token : indices.tokens) {
       token.index = selector_->IndexOfNthSet(token.index);
     }
-  } else {
-    // TODO(mayzner): once we have a reverse index for IndexOfNthSet in
-    // BitVector, this should no longer be necessary.
-    std::vector<uint32_t> lookup = selector_->GetSetBitIndices();
-    for (auto& token : indices.tokens) {
-      token.index = lookup[token.index];
-    }
+    return;
   }
-  return;
+
+  // TODO(mayzner): once we have a reverse index for IndexOfNthSet in
+  // BitVector, this should no longer be necessary.
+  std::vector<uint32_t> lookup = selector_->GetSetBitIndices();
+  for (auto& token : indices.tokens) {
+    token.index = lookup[token.index];
+  }
 }
 
 }  // namespace perfetto::trace_processor::column

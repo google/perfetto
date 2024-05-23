@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <optional>
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -112,43 +113,6 @@ void FakeStorageChain::IndexSearchValidated(FilterOp,
   PERFETTO_FATAL("For GCC");
 }
 
-Range FakeStorageChain::OrderedIndexSearchValidated(
-    FilterOp,
-    SqlValue,
-    const OrderedIndices& indices) const {
-  switch (strategy_) {
-    case kAll:
-      return {0, indices.size};
-    case kNone:
-      return {};
-    case kRange: {
-      // We are looking at intersection of |range_| and |indices_|.
-      const uint32_t* first_in_range = std::partition_point(
-          indices.data, indices.data + indices.size,
-          [this](uint32_t i) { return !range_.Contains(i); });
-      const uint32_t* first_outside_range = std::partition_point(
-          first_in_range, indices.data + indices.size,
-          [this](uint32_t i) { return range_.Contains(i); });
-      return {
-          static_cast<uint32_t>(std::distance(indices.data, first_in_range)),
-          static_cast<uint32_t>(
-              std::distance(indices.data, first_outside_range))};
-    }
-    case kBitVector:
-      // We are looking at intersection of |range_| and |bit_vector_|.
-      const uint32_t* first_set = std::partition_point(
-          indices.data, indices.data + indices.size,
-          [this](uint32_t i) { return !bit_vector_.IsSet(i); });
-      const uint32_t* first_non_set = std::partition_point(
-          first_set, indices.data + indices.size,
-          [this](uint32_t i) { return bit_vector_.IsSet(i); });
-      return {
-          static_cast<uint32_t>(std::distance(indices.data, first_set)),
-          static_cast<uint32_t>(std::distance(indices.data, first_non_set))};
-  }
-  PERFETTO_FATAL("For GCC");
-}
-
 void FakeStorageChain::Distinct(Indices&) const {
   // Fake storage shouldn't implement Distinct as it's not a binary (this index
   // passes or not) operation on a column.
@@ -163,6 +127,10 @@ std::optional<Token> FakeStorageChain::MinElement(Indices&) const {
 }
 
 void FakeStorageChain::StableSort(SortToken*, SortToken*, SortDirection) const {
+  PERFETTO_FATAL("Not implemented");
+}
+
+SqlValue FakeStorageChain::Get_AvoidUsingBecauseSlow(uint32_t) const {
   PERFETTO_FATAL("Not implemented");
 }
 
