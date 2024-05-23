@@ -12,12 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../../../gn/perfetto_sql.gni")
+import("../../../../../gn/perfetto_sql.gni")
 
-perfetto_sql_source_set("linux") {
-  sources = [
-    "general.sql",
-    "high_watermark.sql",
-    "process.sql",
-  ]
+perfetto_sql_source_set("gpu") {
+  sources = [ "frequency.sql" ]
 }

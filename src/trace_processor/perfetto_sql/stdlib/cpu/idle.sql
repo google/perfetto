@@ -39,7 +39,7 @@ SELECT
   count_w_dur.track_id,
   count_w_dur.ts,
   count_w_dur.dur,
-  IIF(count_w_dur.value = 4294967295, -1, count_w_dur.value) AS idle,
+  cast_int!(IIF(count_w_dur.value = 4294967295, -1, count_w_dur.value)) AS idle,
   cct.cpu
 FROM
 counter_leading_intervals!((
