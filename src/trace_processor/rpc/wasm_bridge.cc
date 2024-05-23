@@ -15,8 +15,13 @@
  */
 
 #include <emscripten/emscripten.h>
-#include <cstdint>
 
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <new>
+
+#include "perfetto/base/compiler.h"
 #include "src/trace_processor/rpc/rpc.h"
 
 namespace perfetto::trace_processor {
@@ -29,6 +34,12 @@ Rpc* g_trace_processor_rpc;
 // The buffer used to pass the request arguments. The caller (JS) decides how
 // big this buffer should be in the Initialize() call.
 uint8_t* g_req_buf;
+
+PERFETTO_NO_INLINE void OutOfMemoryHandler() {
+  fprintf(stderr, "\nCannot enlarge memory\n");
+  abort();
+}
+
 }  // namespace
 
 // +---------------------------------------------------------------------------+
@@ -41,6 +52,13 @@ uint8_t* EMSCRIPTEN_KEEPALIVE
 trace_processor_rpc_init(RpcResponseFn* RpcResponseFn, uint32_t);
 uint8_t* trace_processor_rpc_init(RpcResponseFn* resp_function,
                                   uint32_t req_buffer_size) {
+  // Usually OOMs manifest as a failure in dlmalloc() -> sbrk() ->
+  //_emscripten_resize_heap() which aborts itself. However in some rare cases
+  // sbrk() can fail outside of _emscripten_resize_heap and just return null.
+  // When that happens, just abort with the same message that
+  // _emscripten_resize_heap uses, so error_dialog.ts shows a OOM message.
+  std::set_new_handler(&OutOfMemoryHandler);
+
   g_trace_processor_rpc = new Rpc();
 
   // |resp_function| is a JS-bound function passed by wasm_bridge.ts. It will
