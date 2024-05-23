@@ -18,6 +18,7 @@
 #define SRC_ANDROID_STATS_STATSD_LOGGING_HELPER_H_
 
 #include <stdint.h>
+#include <optional>
 #include <string>
 #include <vector>
 
