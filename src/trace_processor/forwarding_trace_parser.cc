@@ -29,6 +29,7 @@
 #include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -53,7 +54,7 @@ std::optional<TraceSorter::SortingMode> GetMinimumSortingMode(
     case kSystraceTraceType:
     case kGzipTraceType:
     case kCtraceTraceType:
-    case kAndroidBugreportTraceType:
+    case kZipFile:
       return std::nullopt;
 
     case kPerfDataTraceType:
@@ -102,31 +103,37 @@ base::Status ForwardingTraceParser::Init(const TraceBlobView& blob) {
   reader_ = std::move(*reader_or);
 
   PERFETTO_DLOG("%s detected", ToString(trace_type));
-  std::optional<TraceSorter::SortingMode> minimum_sorting_mode =
-      GetMinimumSortingMode(trace_type, *context_);
+  UpdateSorterForTraceType(trace_type);
 
-  if (minimum_sorting_mode.has_value()) {
-    if (!context_->sorter) {
-      context_->sorter.reset(new TraceSorter(context_, *minimum_sorting_mode));
-    }
-
-    switch (context_->sorter->sorting_mode()) {
-      case TraceSorter::SortingMode::kDefault:
-        PERFETTO_CHECK(minimum_sorting_mode ==
-                       TraceSorter::SortingMode::kDefault);
-        break;
-      case TraceSorter::SortingMode::kFullSort:
-        break;
-    }
-  }
-
-  // TODO(carlscab) Make sure kProtoTraceType and kSystraceTraceType are parsed
-  // first so that we do not get issues with SetPidZeroIsUpidZeroIdleProcess()
+  // TODO(b/334978369) Make sure kProtoTraceType and kSystraceTraceType are
+  // parsed first so that we do not get issues with
+  // SetPidZeroIsUpidZeroIdleProcess()
   if (trace_type == kProtoTraceType || trace_type == kSystraceTraceType) {
     context_->process_tracker->SetPidZeroIsUpidZeroIdleProcess();
   }
 
   return base::OkStatus();
+}
+
+void ForwardingTraceParser::UpdateSorterForTraceType(TraceType trace_type) {
+  std::optional<TraceSorter::SortingMode> minimum_sorting_mode =
+      GetMinimumSortingMode(trace_type, *context_);
+  if (!minimum_sorting_mode.has_value()) {
+    return;
+  }
+
+  if (!context_->sorter) {
+    context_->sorter.reset(new TraceSorter(context_, *minimum_sorting_mode));
+  }
+
+  switch (context_->sorter->sorting_mode()) {
+    case TraceSorter::SortingMode::kDefault:
+      PERFETTO_CHECK(minimum_sorting_mode ==
+                     TraceSorter::SortingMode::kDefault);
+      break;
+    case TraceSorter::SortingMode::kFullSort:
+      break;
+  }
 }
 
 base::Status ForwardingTraceParser::Parse(TraceBlobView blob) {

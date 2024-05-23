@@ -142,3 +142,12 @@ class Simpleperf(TestSuite):
         "0b12a384a9f4a3f3659b7171ca615dbec3a81f71","/t1"
         "0b12a384a9f4a3f3659b7171ca615dbec3a81f71","/t2"
         '''))
+
+  def test_clocks_align(self):
+    return DiffTestBlueprint(
+        trace=DataPath('zip/perf_track_sym.zip'),
+        query=Path('clocks_align_test.sql'),
+        out=Csv('''
+        "misaligned_count"
+        0
+        '''))
