@@ -121,9 +121,8 @@ struct SimpleperfMetaInfo {
       event_type_info;
 };
 
-util::Status ParseSimpleperfFile2(
-    TraceBlobView,
-    std::function<util::Status(TraceBlobView)> cb);
+util::Status ParseSimpleperfFile2(TraceBlobView,
+                                  std::function<void(TraceBlobView)> cb);
 
 }  // namespace perf_importer::feature
 
