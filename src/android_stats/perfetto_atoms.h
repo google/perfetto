@@ -27,6 +27,8 @@ enum class PerfettoStatsdAtom {
   // Checkpoints inside perfetto_cmd before tracing is finished.
   kTraceBegin = 1,
   kBackgroundTraceBegin = 2,
+  kCloneTraceBegin = 55,
+  kCloneTriggerTraceBegin = 56,
   kOnConnect = 3,
 
   // Guardrails inside perfetto_cmd before tracing is finished.
@@ -105,7 +107,7 @@ enum class PerfettoStatsdAtom {
   // longer supports uploading traces using Dropbox.
   // reserved 5, 6, 7;
 
-  // Contained status of guardrail state initalization and upload limit in
+  // Contained status of guardrail state initialization and upload limit in
   // perfetto_cmd. Removed as perfetto no longer manages stateful guardrails
   // reserved 44, 45, 46;
 };

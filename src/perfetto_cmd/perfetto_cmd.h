@@ -17,8 +17,7 @@
 #ifndef SRC_PERFETTO_CMD_PERFETTO_CMD_H_
 #define SRC_PERFETTO_CMD_PERFETTO_CMD_H_
 
-#include <time.h>
-
+#include <cstdint>
 #include <functional>
 #include <list>
 #include <memory>
@@ -32,9 +31,12 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/unix_task_runner.h"
+#include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
+#include "perfetto/tracing/core/forward_decls.h"
 #include "src/android_stats/perfetto_atoms.h"
 #include "src/perfetto_cmd/packet_writer.h"
 
@@ -86,6 +88,7 @@ class PerfettoCmd : public Consumer {
   void CloneSessionOnThread(TracingSessionID,
                             const std::string& cmdline,  // \0 separated.
                             CloneThreadMode,
+                            std::string clone_trigger_name,
                             std::function<void()> on_clone_callback);
   void OnTimeout();
   bool is_detach() const { return !detach_key_.empty(); }
@@ -126,7 +129,8 @@ class PerfettoCmd : public Consumer {
   // will have no effect.
   void NotifyBgProcessPipe(BgProcessStatus status);
 
-  void OnCloneSnapshotTriggerReceived(TracingSessionID);
+  void OnCloneSnapshotTriggerReceived(TracingSessionID,
+                                      std::string trigger_name);
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
@@ -135,6 +139,7 @@ class PerfettoCmd : public Consumer {
   void ReportTraceToAndroidFrameworkOrCrash();
 #endif
   void LogUploadEvent(PerfettoStatsdAtom atom);
+  void LogUploadEvent(PerfettoStatsdAtom atom, const std::string& trigger_name);
   void LogTriggerEvents(PerfettoTriggerAtom atom,
                         const std::vector<std::string>& trigger_names);
 
@@ -185,6 +190,7 @@ class PerfettoCmd : public Consumer {
   std::list<base::ThreadTaskRunner> snapshot_threads_;
   int snapshot_count_ = 0;
   std::string snapshot_config_;
+  std::string snapshot_trigger_name_;
 
   base::WeakPtrFactory<PerfettoCmd> weak_factory_{this};
 };
