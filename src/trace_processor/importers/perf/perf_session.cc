@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <optional>
 #include <vector>
 
@@ -31,6 +32,7 @@
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
 #include "src/trace_processor/importers/perf/reader.h"
+#include "src/trace_processor/util/build_id.h"
 
 namespace perfetto::trace_processor::perf_importer {
 namespace {
@@ -151,6 +153,24 @@ void PerfSession::SetEventName(uint32_t type,
       it.value()->set_event_name(name);
     }
   }
+}
+
+void PerfSession::AddBuildId(int32_t pid,
+                             std::string filename,
+                             BuildId build_id) {
+  build_ids_.Insert({pid, std::move(filename)}, std::move(build_id));
+}
+
+std::optional<BuildId> PerfSession::LookupBuildId(
+    uint32_t pid,
+    const std::string& filename) const {
+  // -1 is used in BUILD_ID feature to match any pid.
+  static constexpr int32_t kAnyPid = -1;
+  auto it = build_ids_.Find({static_cast<int32_t>(pid), filename});
+  if (!it) {
+    it = build_ids_.Find({kAnyPid, filename});
+  }
+  return it ? std::make_optional(*it) : std::nullopt;
 }
 
 }  // namespace perfetto::trace_processor::perf_importer
