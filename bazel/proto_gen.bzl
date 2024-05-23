@@ -46,12 +46,16 @@ def _proto_gen_impl(ctx):
         strip_base_path = ctx.label.package + "/"
     elif ctx.label.workspace_root:
         # This path is hit when proto targets are built as @perfetto//:xxx
-        # instead of //:xxx. This happens in embedder builds. In this case,
-        # workspace_root == "external/perfetto" and we need to rebase the paths
-        # passed to protoc.
+        # instead of //:xxx. This happens in embedder builds.
         proto_path = ctx.label.workspace_root
-        out_dir += "/" + ctx.label.workspace_root
+
+        # We could be using the sibling repository layout, in which case we do nothing.
+        if not ctx.label.workspace_root.startswith("../"):
+            # workspace_root == "external/perfetto" and we need to rebase the paths
+            # passed to protoc.
+            out_dir += "/" + ctx.label.workspace_root
         strip_base_path = ctx.label.workspace_root + "/"
+
 
     out_files = []
     suffix = ctx.attr.suffix
