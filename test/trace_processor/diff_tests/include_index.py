@@ -112,6 +112,7 @@ from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.tests import LinuxStdlib
 from diff_tests.stdlib.memory.heap_graph_dominator_tree_tests import HeapGraphDominatorTree
+from diff_tests.stdlib.memory.tests import Memory
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
@@ -273,6 +274,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
       *LinuxStdlib(index_path, 'stdlib/linux', 'LinuxStdlib').fetch(),
+      *Memory(index_path, 'stdlib/memory', 'Memory').fetch(),
       *PreludeMathFunctions(index_path, 'stdlib/prelude',
                             'PreludeMathFunctions').fetch(),
       *HeapGraphDominatorTree(index_path, 'stdlib/memory',
