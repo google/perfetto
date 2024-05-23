@@ -16,10 +16,12 @@
 
 #include "src/android_stats/statsd_logging_helper.h"
 
+#include <cstdint>
 #include <string>
+#include <vector>
 
 #include "perfetto/base/build_config.h"
-#include "perfetto/base/compiler.h"
+#include "src/android_stats/perfetto_atoms.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID) && \
     PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
@@ -27,8 +29,7 @@
 #include "src/android_internal/statsd_logging.h"       // nogncheck
 #endif
 
-namespace perfetto {
-namespace android_stats {
+namespace perfetto::android_stats {
 
 // Make sure we don't accidentally log on non-Android tree build. Note that even
 // removing this ifdef still doesn't make uploads work on OS_ANDROID.
@@ -75,5 +76,4 @@ void MaybeLogTriggerEvents(PerfettoTriggerAtom,
                            const std::vector<std::string>&) {}
 #endif
 
-}  // namespace android_stats
-}  // namespace perfetto
+}  // namespace perfetto::android_stats

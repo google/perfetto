@@ -16,12 +16,11 @@
 
 #include "src/android_internal/statsd_logging.h"
 
-#include <string.h>
+#include <cstdint>
 
 #include <statslog_perfetto.h>
 
-namespace perfetto {
-namespace android_internal {
+namespace perfetto::android_internal {
 
 void StatsdLogUploadEvent(PerfettoStatsdAtom atom,
                           int64_t uuid_lsb,
@@ -35,5 +34,4 @@ void StatsdLogTriggerEvent(PerfettoTriggerAtom atom, const char* trigger_name) {
   stats_write(PERFETTO_TRIGGER, static_cast<int32_t>(atom), trigger_name);
 }
 
-}  // namespace android_internal
-}  // namespace perfetto
+}  // namespace perfetto::android_internal
