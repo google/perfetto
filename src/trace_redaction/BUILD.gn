@@ -81,6 +81,8 @@ source_set("trace_redaction") {
     "trace_redaction_framework.h",
     "trace_redactor.cc",
     "trace_redactor.h",
+    "verify_integrity.cc",
+    "verify_integrity.h",
   ]
   deps = [
     "../../gn:default_deps",
