@@ -46,13 +46,13 @@ constexpr auto kCommA = "comm-a";
 constexpr auto kCommB = "comm-b";
 constexpr auto kCommNone = "";
 
-class NegatePid : public SchedSwitchTransform {
+class NegatePid : public RedactSchedSwitchHarness::Modifier {
  public:
-  base::Status Transform(const Context&,
-                         uint64_t,
-                         int32_t,
-                         int32_t* pid,
-                         std::string*) const override {
+  base::Status Modify(const Context&,
+                      uint64_t,
+                      int32_t,
+                      int32_t* pid,
+                      std::string*) const override {
     *pid = -(*pid);
     return base::OkStatus();
   }
