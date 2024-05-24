@@ -36,13 +36,13 @@ class RedactTaskNewTask : public FtraceEventRedaction {
       protozero::ProtoDecoder& event,
       protos::pbzero::FtraceEvent* event_message) const override;
 
-  template <class Transform>
+  template <class Modifier>
   void emplace_back() {
-    transform_ = std::make_unique<Transform>();
+    modifier_ = std::make_unique<Modifier>();
   }
 
  public:
-  std::unique_ptr<SchedSwitchTransform> transform_;
+  std::unique_ptr<RedactSchedSwitchHarness::Modifier> modifier_;
 };
 
 }  // namespace perfetto::trace_redaction

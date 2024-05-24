@@ -46,7 +46,7 @@ base::Status RedactTaskNewTask::Redact(
     const protos::pbzero::FtraceEventBundle::Decoder& bundle,
     protozero::ProtoDecoder& event,
     protos::pbzero::FtraceEvent* event_message) const {
-  PERFETTO_DCHECK(transform_);
+  PERFETTO_DCHECK(modifier_);
 
   if (!context.package_uid.has_value()) {
     return base::ErrStatus("RedactTaskNewTask: missing package uid");
@@ -84,8 +84,8 @@ base::Status RedactTaskNewTask::Redact(
 
   auto cpu = static_cast<int32_t>(bundle.cpu());
 
-  RETURN_IF_ERROR(transform_->Transform(context, timestamp_field.as_uint64(),
-                                        cpu, &pid, &comm));
+  RETURN_IF_ERROR(modifier_->Modify(context, timestamp_field.as_uint64(), cpu,
+                                    &pid, &comm));
 
   auto* new_task_message = event_message->set_task_newtask();
   new_task_message->set_pid(pid);

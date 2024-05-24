@@ -106,7 +106,7 @@ std::string_view InternTable::Find(size_t index) const {
 // collection of ftrace event messages) because data in a sched_switch message
 // is needed in order to know if the event should be added to the bundle.
 
-SchedSwitchTransform::~SchedSwitchTransform() = default;
+RedactSchedSwitchHarness::Modifier::~Modifier() = default;
 
 base::Status RedactSchedSwitchHarness::Transform(const Context& context,
                                                  std::string* packet) const {
@@ -209,6 +209,10 @@ base::Status RedactSchedSwitchHarness::TransformFtraceEventSchedSwitch(
     protos::pbzero::SchedSwitchFtraceEvent::Decoder& sched_switch,
     std::string* scratch_str,
     protos::pbzero::SchedSwitchFtraceEvent* message) const {
+  PERFETTO_DCHECK(modifier_);
+  PERFETTO_DCHECK(scratch_str);
+  PERFETTO_DCHECK(message);
+
   auto has_fields = {
       sched_switch.has_prev_comm(), sched_switch.has_prev_pid(),
       sched_switch.has_prev_prio(), sched_switch.has_prev_state(),
@@ -233,10 +237,7 @@ base::Status RedactSchedSwitchHarness::TransformFtraceEventSchedSwitch(
 
   scratch_str->assign(prev_comm.data, prev_comm.size);
 
-  for (const auto& transform : transforms_) {
-    RETURN_IF_ERROR(
-        transform->Transform(context, ts, cpu, &prev_pid, scratch_str));
-  }
+  RETURN_IF_ERROR(modifier_->Modify(context, ts, cpu, &prev_pid, scratch_str));
 
   message->set_prev_comm(*scratch_str);                // FieldNumber = 1
   message->set_prev_pid(prev_pid);                     // FieldNumber = 2
@@ -245,10 +246,7 @@ base::Status RedactSchedSwitchHarness::TransformFtraceEventSchedSwitch(
 
   scratch_str->assign(next_comm.data, next_comm.size);
 
-  for (const auto& transform : transforms_) {
-    RETURN_IF_ERROR(
-        transform->Transform(context, ts, cpu, &next_pid, scratch_str));
-  }
+  RETURN_IF_ERROR(modifier_->Modify(context, ts, cpu, &next_pid, scratch_str));
 
   message->set_next_comm(*scratch_str);              // FieldNumber = 5
   message->set_next_pid(next_pid);                   // FieldNumber = 6
@@ -314,6 +312,9 @@ base::Status RedactSchedSwitchHarness::TransformCompSchedSwitch(
     protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
     InternTable* intern_table,
     protos::pbzero::FtraceEventBundle::CompactSched* message) const {
+  PERFETTO_DCHECK(modifier_);
+  PERFETTO_DCHECK(message);
+
   auto has_fields = {
       comp_sched.has_intern_table(),
       comp_sched.has_switch_timestamp(),
@@ -359,9 +360,7 @@ base::Status RedactSchedSwitchHarness::TransformCompSchedSwitch(
 
     scratch_str.assign(comm);
 
-    for (const auto& transform : transforms_) {
-      transform->Transform(context, ts, cpu, &pid, &scratch_str);
-    }
+    RETURN_IF_ERROR(modifier_->Modify(context, ts, cpu, &pid, &scratch_str));
 
     auto found = intern_table->Push(scratch_str.data(), scratch_str.size());
 
@@ -429,11 +428,11 @@ base::Status RedactSchedSwitchHarness::TransformCompSchedSwitch(
 
 // Switch event transformation: Clear the comm value if the thread/process is
 // not part of the target packet.
-base::Status ClearComms::Transform(const Context& context,
-                                   uint64_t ts,
-                                   int32_t,
-                                   int32_t* pid,
-                                   std::string* comm) const {
+base::Status ClearComms::Modify(const Context& context,
+                                uint64_t ts,
+                                int32_t,
+                                int32_t* pid,
+                                std::string* comm) const {
   PERFETTO_DCHECK(pid);
   PERFETTO_DCHECK(comm);
 
