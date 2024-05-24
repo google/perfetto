@@ -932,7 +932,7 @@ TEST_F(SharedLibDataSourceTest, IncrementalState) {
 class SharedLibProducerTest : public testing::Test {
  protected:
   void SetUp() override {
-    struct PerfettoProducerInitArgs args = {0};
+    struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
     args.backends = PERFETTO_BACKEND_IN_PROCESS;
     PerfettoProducerInit(args);
   }
@@ -1005,7 +1005,7 @@ TEST_F(SharedLibProducerTest, ActivateTriggers) {
 class SharedLibTrackEventTest : public testing::Test {
  protected:
   void SetUp() override {
-    struct PerfettoProducerInitArgs args = {0};
+    struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
     args.backends = PERFETTO_BACKEND_IN_PROCESS;
     PerfettoProducerInit(args);
     PerfettoTeInit();

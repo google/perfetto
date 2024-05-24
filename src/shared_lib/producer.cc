@@ -37,15 +37,39 @@ void ResetForTesting() {
 }  // namespace shlib
 }  // namespace perfetto
 
-void PerfettoProducerInProcessInit() {
+struct PerfettoProducerBackendInitArgs {
+  uint32_t shmem_size_hint_kb = 0;
+};
+
+struct PerfettoProducerBackendInitArgs*
+PerfettoProducerBackendInitArgsCreate() {
+  return new PerfettoProducerBackendInitArgs();
+}
+
+void PerfettoProducerBackendInitArgsSetShmemSizeHintKb(
+    struct PerfettoProducerBackendInitArgs* backend_args,
+    uint32_t size) {
+  backend_args->shmem_size_hint_kb = size;
+}
+
+void PerfettoProducerBackendInitArgsDestroy(
+    struct PerfettoProducerBackendInitArgs* backend_args) {
+  delete backend_args;
+}
+
+void PerfettoProducerInProcessInit(
+    const struct PerfettoProducerBackendInitArgs* backend_args) {
   perfetto::TracingInitArgs args;
   args.backends = perfetto::kInProcessBackend;
+  args.shmem_size_hint_kb = backend_args->shmem_size_hint_kb;
   perfetto::Tracing::Initialize(args);
 }
 
-void PerfettoProducerSystemInit() {
+void PerfettoProducerSystemInit(
+    const struct PerfettoProducerBackendInitArgs* backend_args) {
   perfetto::TracingInitArgs args;
   args.backends = perfetto::kSystemBackend;
+  args.shmem_size_hint_kb = backend_args->shmem_size_hint_kb;
   perfetto::Tracing::Initialize(args);
 }
 

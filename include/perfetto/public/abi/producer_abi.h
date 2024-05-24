@@ -25,11 +25,46 @@
 extern "C" {
 #endif
 
+// Opaque pointer to an object that stores the initialization params.
+struct PerfettoProducerBackendInitArgs;
+
+// Creates an object to store the configuration params for initializing a
+// backend.
+PERFETTO_SDK_EXPORT struct PerfettoProducerBackendInitArgs*
+PerfettoProducerBackendInitArgsCreate(void);
+
+// Tunes the size of the shared memory buffer between the current
+// process and the service backend(s). This is a trade-off between memory
+// footprint and the ability to sustain bursts of trace writes (see comments
+// in shared_memory_abi.h).
+// If set, the value must be a multiple of 4KB. The value can be ignored if
+// larger than kMaxShmSize (32MB) or not a multiple of 4KB
+PERFETTO_SDK_EXPORT void PerfettoProducerBackendInitArgsSetShmemSizeHintKb(
+    struct PerfettoProducerBackendInitArgs*,
+    uint32_t size);
+
+PERFETTO_SDK_EXPORT void PerfettoProducerBackendInitArgsDestroy(
+    struct PerfettoProducerBackendInitArgs*);
+
 // Initializes the global system perfetto producer.
-PERFETTO_SDK_EXPORT void PerfettoProducerSystemInit(void);
+//
+// It's ok to call this function multiple times, but if the producer was
+// already initialized, most of `args` would be ignored.
+//
+// Does not take ownership of `args`. `args` can be destroyed immediately
+// after this call returns.
+PERFETTO_SDK_EXPORT void PerfettoProducerSystemInit(
+    const struct PerfettoProducerBackendInitArgs* args);
 
 // Initializes the global in-process perfetto producer.
-PERFETTO_SDK_EXPORT void PerfettoProducerInProcessInit(void);
+//
+// It's ok to call this function multiple times, but if the producer was
+// already initialized, most of `args` would be ignored.
+//
+// Does not take ownership of `args`. `args` can be destroyed immediately
+// after this call returns.
+PERFETTO_SDK_EXPORT void PerfettoProducerInProcessInit(
+    const struct PerfettoProducerBackendInitArgs* args);
 
 // Informs the tracing services to activate any of these triggers if any tracing
 // session was waiting for them.
