@@ -200,15 +200,15 @@ TEST(NullOverlay, IndexSearchIsNotNullOp) {
 }
 
 TEST(NullOverlay, OrderedIndexSearch) {
+  std::vector<uint32_t> numeric_data{1, 0, 1, 0};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
   BitVector bv{0, 1, 1, 1, 0, 1};
-  // Passing values in final storage (on normal operations)
-  // 0, 1, 0, 1, 0, 0
-  auto fake = FakeStorageChain::SearchSubset(4, BitVector{1, 0, 1, 0});
   NullOverlay storage(&bv);
-  auto chain = storage.MakeChain(std::move(fake));
+  auto chain = storage.MakeChain(numeric.MakeChain());
 
   // Passing values on final data
-  // NULL, NULL, 0, 1, 1
+  // NULL, NULL, 0, 0, 1, 1
   std::vector<uint32_t> table_idx{0, 4, 5, 1, 3};
   OrderedIndices indices{table_idx.data(), uint32_t(table_idx.size()),
                          Indices::State::kNonmonotonic};
@@ -218,28 +218,28 @@ TEST(NullOverlay, OrderedIndexSearch) {
   ASSERT_EQ(res.end, 2u);
 
   res = chain->OrderedIndexSearch(FilterOp::kIsNotNull, SqlValue(), indices);
+  ASSERT_EQ(res.start, 2u);
+  ASSERT_EQ(res.end, 5u);
+
+  res = chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(1), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 5u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(3), indices);
+  res = chain->OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(0), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 5u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(3), indices);
+  res = chain->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(1), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 5u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
+  res = chain->OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(1), indices);
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 3u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
-
-  res = chain->OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 5u);
+  res = chain->OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(0), indices);
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 3u);
 }
 
 TEST(NullOverlay, StableSort) {

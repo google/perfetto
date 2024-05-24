@@ -108,15 +108,20 @@ TEST(ArrangementOverlay, IndexSearch) {
 }
 
 TEST(ArrangementOverlay, OrderingSearch) {
-  std::vector<uint32_t> arrangement{0, 2, 4, 1, 3};
-  auto fake = FakeStorageChain::SearchSubset(5, BitVector({0, 1, 0, 1, 0}));
+  std::vector<uint32_t> numeric_data{0, 1, 2, 0, 1, 0};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
+  std::vector<uint32_t> arrangement{0, 3, 5, 1, 4, 2};
   ArrangementOverlay storage(&arrangement, Indices::State::kNonmonotonic);
-  auto chain =
-      storage.MakeChain(std::move(fake), DataLayer::ChainCreationArgs(true));
+  auto chain = storage.MakeChain(numeric.MakeChain(),
+                                 DataLayer::ChainCreationArgs(true));
 
   RangeOrBitVector res =
-      chain->Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 5));
+      chain->Search(FilterOp::kGe, SqlValue::Long(1u), Range(0, 5));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
+
+  res = chain->Search(FilterOp::kNe, SqlValue::Long(1u), Range(1, 6));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 5));
 }
 
 TEST(ArrangementOverlay, StableSort) {

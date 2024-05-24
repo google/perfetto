@@ -321,9 +321,26 @@ class DataLayerChain {
 
   // Post-validated implementation of |OrderedIndexSearch|. See
   // |OrderedIndexSearch|'s documentation.
-  virtual Range OrderedIndexSearchValidated(FilterOp,
-                                            SqlValue,
-                                            const OrderedIndices&) const = 0;
+  Range OrderedIndexSearchValidated(FilterOp op,
+                                    SqlValue value,
+                                    const OrderedIndices& indices) const;
+
+  // Returns the SqlValue representing the value at a given index.
+  //
+  // This function might be very tempting to use as it appears cheap on the
+  // surface but because of how DataLayerChains might be layered on top of each
+  // other, this might require *several* virtual function calls per index.
+  // If you're tempted to use this, please consider instead create a new
+  // "vectorized" function instead and only using this as a last resort.
+  //
+  // The correct "class" of algorithms to use this function are cases where you
+  // have a set of indices you want to lookup and based on the value returned
+  // you will only use a fraction of them. In this case, it might be worth
+  // paying the non-vectorized lookup to vastly reduce how many indices need
+  // to be translated.
+  //
+  // An example of such an algorithm is binary search on indices.
+  virtual SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const = 0;
 };
 
 }  // namespace perfetto::trace_processor::column
