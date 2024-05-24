@@ -513,6 +513,29 @@ void BM_QEFilterOrderedArrangement(benchmark::State& state) {
 }
 BENCHMARK(BM_QEFilterOrderedArrangement);
 
+void BM_QEFilterNullOrderedArrangement(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  Order order{table.table_.parent_id().index_in_table(), false};
+  Table slice_sorted_with_parent_id = table.table_.Sort({order});
+
+  Constraint c{table.table_.parent_id().index_in_table(), FilterOp::kGt,
+               SqlValue::Long(26091)};
+  Query q;
+  q.constraints = {c};
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(slice_sorted_with_parent_id.QueryToRowMap(q));
+  }
+  state.counters["s/row"] = benchmark::Counter(
+      static_cast<double>(slice_sorted_with_parent_id.row_count()),
+      benchmark::Counter::kIsIterationInvariantRate |
+          benchmark::Counter::kInvert);
+  state.counters["s/out"] = benchmark::Counter(
+      static_cast<double>(table.table_.QueryToRowMap(q).size()),
+      benchmark::Counter::kIsIterationInvariantRate |
+          benchmark::Counter::kInvert);
+}
+BENCHMARK(BM_QEFilterNullOrderedArrangement);
+
 void BM_QESliceFilterIndexSearchOneElement(benchmark::State& state) {
   SliceTableForBenchmark table(state);
   BenchmarkSliceTableFilter(

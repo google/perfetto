@@ -17,21 +17,25 @@
 #ifndef SRC_TRACE_PROCESSOR_CONTAINERS_STRING_POOL_H_
 #define SRC_TRACE_PROCESSOR_CONTAINERS_STRING_POOL_H_
 
-#include <stddef.h>
-#include <stdint.h>
-
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <limits>
+#include <memory>
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/paged_memory.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Interns strings in a string pool and hands out compact StringIds which can
 // be used to retrieve the string in O(1).
@@ -40,34 +44,38 @@ class StringPool {
   struct Id {
     Id() = default;
 
-    bool operator==(const Id& other) const { return other.id == id; }
-    bool operator!=(const Id& other) const { return !(other == *this); }
-    bool operator<(const Id& other) const { return id < other.id; }
+    constexpr bool operator==(const Id& other) const { return other.id == id; }
+    constexpr bool operator!=(const Id& other) const {
+      return !(other == *this);
+    }
+    constexpr bool operator<(const Id& other) const { return id < other.id; }
 
-    bool is_null() const { return id == 0u; }
+    constexpr bool is_null() const { return id == 0u; }
 
-    bool is_large_string() const { return id & kLargeStringFlagBitMask; }
+    constexpr bool is_large_string() const {
+      return id & kLargeStringFlagBitMask;
+    }
 
-    uint32_t block_offset() const { return id & kBlockOffsetBitMask; }
+    constexpr uint32_t block_offset() const { return id & kBlockOffsetBitMask; }
 
-    uint32_t block_index() const {
+    constexpr uint32_t block_index() const {
       return (id & kBlockIndexBitMask) >> kNumBlockOffsetBits;
     }
 
-    uint32_t large_string_index() const {
+    constexpr uint32_t large_string_index() const {
       PERFETTO_DCHECK(is_large_string());
       return id & ~kLargeStringFlagBitMask;
     }
 
-    uint32_t raw_id() const { return id; }
+    constexpr uint32_t raw_id() const { return id; }
 
-    static Id LargeString(size_t index) {
+    static constexpr Id LargeString(size_t index) {
       PERFETTO_DCHECK(index <= static_cast<uint32_t>(index));
       PERFETTO_DCHECK(!(index & kLargeStringFlagBitMask));
       return Id(kLargeStringFlagBitMask | static_cast<uint32_t>(index));
     }
 
-    static Id BlockString(size_t index, uint32_t offset) {
+    static constexpr Id BlockString(size_t index, uint32_t offset) {
       PERFETTO_DCHECK(index < (1u << (kNumBlockIndexBits + 1)));
       PERFETTO_DCHECK(offset < (1u << (kNumBlockOffsetBits + 1)));
       return Id(~kLargeStringFlagBitMask &
@@ -80,7 +88,7 @@ class StringPool {
     static constexpr Id Null() { return Id(0u); }
 
    private:
-    constexpr Id(uint32_t i) : id(i) {}
+    constexpr explicit Id(uint32_t i) : id(i) {}
 
     uint32_t id;
   };
@@ -88,7 +96,7 @@ class StringPool {
   // Iterator over the strings in the pool.
   class Iterator {
    public:
-    Iterator(const StringPool*);
+    explicit Iterator(const StringPool*);
 
     explicit operator bool() const;
     Iterator& operator++();
@@ -278,7 +286,7 @@ class StringPool {
   static NullTermStringView GetFromBlockPtr(const uint8_t* ptr) {
     uint32_t size = 0;
     const uint8_t* str_ptr = ReadSize(ptr, &size);
-    return NullTermStringView(reinterpret_cast<const char*>(str_ptr), size);
+    return {reinterpret_cast<const char*>(str_ptr), size};
   }
 
   // Lookup a string in the |large_strings_| vector. |id| should have the MSB
@@ -288,7 +296,7 @@ class StringPool {
     size_t index = id.large_string_index();
     PERFETTO_DCHECK(index < large_strings_.size());
     const std::string* str = large_strings_[index].get();
-    return NullTermStringView(str->c_str(), str->size());
+    return {str->c_str(), str->size()};
   }
 
   // The actual memory storing the strings.
@@ -308,8 +316,7 @@ class StringPool {
       string_index_{/*initial_capacity=*/4096u};
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 template <>
 struct std::hash<::perfetto::trace_processor::StringPool::Id> {
