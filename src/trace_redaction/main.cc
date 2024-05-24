@@ -39,7 +39,6 @@
 #include "src/trace_redaction/suspend_resume.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redactor.h"
-#include "src/trace_redaction/verify_integrity.h"
 
 namespace perfetto::trace_redaction {
 
@@ -48,12 +47,6 @@ static base::Status Main(std::string_view input,
                          std::string_view output,
                          std::string_view package_name) {
   TraceRedactor redactor;
-
-  // VerifyIntegrity breaks the CollectPrimitive pattern. Instead of writing to
-  // the context, its job is to read trace packets and return errors if any
-  // packet does not look "correct". This primitive is added first in an effort
-  // to detect and react to bad input before other collectors run.
-  redactor.emplace_collect<VerifyIntegrity>();
 
   // Add all collectors.
   redactor.emplace_collect<FindPackageUid>();
