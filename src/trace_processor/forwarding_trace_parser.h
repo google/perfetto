@@ -20,6 +20,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -37,6 +38,7 @@ class ForwardingTraceParser : public ChunkedTraceReader {
 
  private:
   base::Status Init(const TraceBlobView&);
+  void UpdateSorterForTraceType(TraceType trace_type);
   TraceProcessorContext* const context_;
   std::unique_ptr<ChunkedTraceReader> reader_;
 };

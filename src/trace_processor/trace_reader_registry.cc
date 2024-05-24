@@ -30,7 +30,7 @@ bool RequiresZlibSupport(TraceType type) {
   switch (type) {
     case kGzipTraceType:
     case kCtraceTraceType:
-    case kAndroidBugreportTraceType:
+    case kZipFile:
       return true;
 
     case kNinjaLogTraceType:
