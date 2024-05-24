@@ -59,6 +59,7 @@
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
+#include "src/trace_processor/importers/zip/zip_trace_reader.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
@@ -121,6 +122,7 @@
 #include "src/trace_processor/util/regex.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
+#include "src/trace_processor/util/trace_type.h"
 
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/clock_snapshot.pbzero.h"
@@ -308,8 +310,8 @@ const char* TraceTypeToString(TraceType trace_type) {
       return "ctrace";
     case kNinjaLogTraceType:
       return "ninja_log";
-    case kAndroidBugreportTraceType:
-      return "android_bugreport";
+    case kZipFile:
+      return "zip";
     case kPerfDataTraceType:
       return "perf_data";
   }
@@ -362,8 +364,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
         kGzipTraceType);
     context_.reader_registry->RegisterTraceReader<GzipTraceParser>(
         kCtraceTraceType);
-    context_.reader_registry->RegisterTraceReader<AndroidBugreportParser>(
-        kAndroidBugreportTraceType);
+    context_.reader_registry->RegisterTraceReader<ZipTraceReader>(kZipFile);
   }
 
   if (json::IsJsonSupported()) {

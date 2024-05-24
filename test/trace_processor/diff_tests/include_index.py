@@ -96,6 +96,7 @@ from diff_tests.parser.smoke.tests_sched_events import SmokeSchedEvents
 from diff_tests.parser.track_event.tests import TrackEvent
 from diff_tests.parser.translated_args.tests import TranslatedArgs
 from diff_tests.parser.ufs.tests import Ufs
+from diff_tests.parser.zip.tests import Zip
 from diff_tests.stdlib.android.frames_tests import Frames
 from diff_tests.stdlib.android.startups_tests import Startups
 from diff_tests.stdlib.android.tests import AndroidStdlib
@@ -220,6 +221,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *FtraceCrop(index_path, 'parser/ftrace', 'FtraceCrop').fetch(),
       *ParsingTracedStats(index_path, 'parser/parsing',
                           'ParsingTracedStats').fetch(),
+      *Zip(index_path, 'parser/zip', 'Zip').fetch(),
   ]
 
   metrics_tests = [

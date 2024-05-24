@@ -31,7 +31,7 @@ enum TraceType {
   kGzipTraceType,
   kCtraceTraceType,
   kNinjaLogTraceType,
-  kAndroidBugreportTraceType,
+  kZipFile,
   kPerfDataTraceType,
 };
 

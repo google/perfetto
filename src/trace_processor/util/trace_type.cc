@@ -58,8 +58,8 @@ const char* ToString(TraceType trace_type) {
       return "gzip trace";
     case kCtraceTraceType:
       return "ctrace trace";
-    case kAndroidBugreportTraceType:
-      return "Android Bugreport";
+    case kZipFile:
+      return "ZIP file";
     case kPerfDataTraceType:
       return "perf data";
     case kUnknownTraceType:
@@ -124,12 +124,8 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
   if (base::StartsWith(start, "\x0a"))
     return kProtoTraceType;
 
-  // Android bugreport.zip
-  // TODO(primiano). For now we assume any .zip file is a bugreport. In future,
-  // if we want to support different trace formats based on a .zip arachive we
-  // will need an extra layer similar to what we did kGzipTraceType.
   if (base::StartsWith(start, "PK\x03\x04"))
-    return kAndroidBugreportTraceType;
+    return kZipFile;
 
   return kUnknownTraceType;
 }

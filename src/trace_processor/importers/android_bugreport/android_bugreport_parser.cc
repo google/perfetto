@@ -17,54 +17,90 @@
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_parser.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/trace_processor/trace_blob.h"
-#include "perfetto/trace_processor/trace_blob_view.h"
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "src/trace_processor/importers/android_bugreport/android_log_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/zip_reader.h"
 
-#include "protos/perfetto/common/builtin_clock.pbzero.h"
-
 namespace perfetto {
 namespace trace_processor {
+namespace {
+const util::ZipFile* FindBugReportFile(
+    const std::vector<util::ZipFile>& zip_file_entries) {
+  for (const auto& zf : zip_file_entries) {
+    if (base::StartsWith(zf.name(), "bugreport-") &&
+        base::EndsWith(zf.name(), ".txt")) {
+      return &zf;
+    }
+  }
+  return nullptr;
+}
 
-AndroidBugreportParser::AndroidBugreportParser(TraceProcessorContext* ctx)
-    : context_(ctx), zip_reader_(new util::ZipReader()) {}
+std::optional<int32_t> ExtractYearFromBugReportFilename(
+    const std::string& filename) {
+  // Typical name: "bugreport-product-TP1A.220623.001-2022-06-24-16-24-37.txt".
+  auto year_str =
+      filename.substr(filename.size() - strlen("2022-12-31-23-59-00.txt"), 4);
+  return base::StringToInt32(year_str);
+}
+
+}  // namespace
+
+// static
+bool AndroidBugreportParser::IsAndroidBugReport(
+    const std::vector<util::ZipFile>& zip_file_entries) {
+  if (const util::ZipFile* file = FindBugReportFile(zip_file_entries);
+      file != nullptr) {
+    return ExtractYearFromBugReportFilename(file->name()).has_value();
+  }
+
+  return false;
+}
+
+// static
+util::Status AndroidBugreportParser::Parse(
+    TraceProcessorContext* context,
+    std::vector<util::ZipFile> zip_file_entries) {
+  return AndroidBugreportParser(context, std::move(zip_file_entries))
+      .ParseImpl();
+}
+
+AndroidBugreportParser::AndroidBugreportParser(
+    TraceProcessorContext* context,
+    std::vector<util::ZipFile> zip_file_entries)
+    : context_(context), zip_file_entries_(std::move(zip_file_entries)) {}
 
 AndroidBugreportParser::~AndroidBugreportParser() = default;
 
-util::Status AndroidBugreportParser::Parse(TraceBlobView tbv) {
-  if (!first_chunk_seen_) {
-    first_chunk_seen_ = true;
-    // All logs in Android bugreports use wall time (which creates problems
-    // in case of early boot events before NTP kicks in, which get emitted as
-    // 1970), but that is the state of affairs.
-    context_->clock_tracker->SetTraceTimeClock(
-        protos::pbzero::BUILTIN_CLOCK_REALTIME);
-  }
-
-  return zip_reader_->Parse(tbv.data(), tbv.size());
-}
-
-void AndroidBugreportParser::NotifyEndOfFile() {
+util::Status AndroidBugreportParser::ParseImpl() {
+  // All logs in Android bugreports use wall time (which creates problems
+  // in case of early boot events before NTP kicks in, which get emitted as
+  // 1970), but that is the state of affairs.
+  context_->clock_tracker->SetTraceTimeClock(
+      protos::pbzero::BUILTIN_CLOCK_REALTIME);
   if (!DetectYearAndBrFilename()) {
     context_->storage->IncrementStats(stats::android_br_parse_errors);
-    return;
+    return base::ErrStatus("Zip file does not contain bugreport file.");
   }
 
   ParsePersistentLogcat();
   ParseDumpstateTxt();
   SortAndStoreLogcat();
+  return base::OkStatus();
 }
 
 void AndroidBugreportParser::ParseDumpstateTxt() {
+  PERFETTO_CHECK(dumpstate_file_);
   // Dumpstate is organized in a two level hierarchy, beautifully flattened into
   // one text file with load bearing ----- markers:
   // 1. Various dumpstate sections, examples:
@@ -95,80 +131,81 @@ void AndroidBugreportParser::ParseDumpstateTxt() {
   // Here we put each line in a dedicated table, android_dumpstate, keeping
   // track of the dumpstate `section` and dumpsys `service`.
   AndroidLogParser log_parser(br_year_, context_->storage.get());
-  util::ZipFile* zf = zip_reader_->Find(dumpstate_fname_);
   StringId section_id = StringId::Null();  // The current dumpstate section.
   StringId service_id = StringId::Null();  // The current dumpsys service.
   static constexpr size_t npos = base::StringView::npos;
   enum { OTHER = 0, DUMPSYS, LOG } cur_sect = OTHER;
-  zf->DecompressLines([&](const std::vector<base::StringView>& lines) {
-    // Optimization for ParseLogLines() below. Avoids ctor/dtor-ing a new vector
-    // on every line.
-    std::vector<base::StringView> log_line(1);
-    for (const base::StringView& line : lines) {
-      if (line.StartsWith("------ ") && line.EndsWith(" ------")) {
-        // These lines mark the beginning and end of dumpstate sections:
-        // ------ DUMPSYS CRITICAL (/system/bin/dumpsys) ------
-        // ------ 0.356s was the duration of 'DUMPSYS CRITICAL' ------
-        base::StringView section = line.substr(7);
-        section = section.substr(0, section.size() - 7);
-        bool end_marker = section.find("was the duration of") != npos;
-        service_id = StringId::Null();
-        if (end_marker) {
-          section_id = StringId::Null();
-        } else {
-          section_id = context_->storage->InternString(section);
-          cur_sect = OTHER;
-          if (section.StartsWith("DUMPSYS")) {
-            cur_sect = DUMPSYS;
-          } else if (section.StartsWith("SYSTEM LOG") ||
-                     section.StartsWith("EVENT LOG") ||
-                     section.StartsWith("RADIO LOG")) {
-            // KERNEL LOG is deliberately omitted because SYSTEM LOG is a
-            // superset. KERNEL LOG contains all dupes.
-            cur_sect = LOG;
-          } else if (section.StartsWith("BLOCK STAT")) {
-            // Coalesce all the block stats into one section. Otherwise they
-            // pollute the table with one section per block device.
-            section_id = context_->storage->InternString("BLOCK STAT");
+  dumpstate_file_->DecompressLines(
+      [&](const std::vector<base::StringView>& lines) {
+        // Optimization for ParseLogLines() below. Avoids ctor/dtor-ing a new
+        // vector on every line.
+        std::vector<base::StringView> log_line(1);
+        for (const base::StringView& line : lines) {
+          if (line.StartsWith("------ ") && line.EndsWith(" ------")) {
+            // These lines mark the beginning and end of dumpstate sections:
+            // ------ DUMPSYS CRITICAL (/system/bin/dumpsys) ------
+            // ------ 0.356s was the duration of 'DUMPSYS CRITICAL' ------
+            base::StringView section = line.substr(7);
+            section = section.substr(0, section.size() - 7);
+            bool end_marker = section.find("was the duration of") != npos;
+            service_id = StringId::Null();
+            if (end_marker) {
+              section_id = StringId::Null();
+            } else {
+              section_id = context_->storage->InternString(section);
+              cur_sect = OTHER;
+              if (section.StartsWith("DUMPSYS")) {
+                cur_sect = DUMPSYS;
+              } else if (section.StartsWith("SYSTEM LOG") ||
+                         section.StartsWith("EVENT LOG") ||
+                         section.StartsWith("RADIO LOG")) {
+                // KERNEL LOG is deliberately omitted because SYSTEM LOG is a
+                // superset. KERNEL LOG contains all dupes.
+                cur_sect = LOG;
+              } else if (section.StartsWith("BLOCK STAT")) {
+                // Coalesce all the block stats into one section. Otherwise they
+                // pollute the table with one section per block device.
+                section_id = context_->storage->InternString("BLOCK STAT");
+              }
+            }
+            continue;
           }
+          // Skip end marker lines for dumpsys sections.
+          if (cur_sect == DUMPSYS && line.StartsWith("--------- ") &&
+              line.find("was the duration of dumpsys") != npos) {
+            service_id = StringId::Null();
+            continue;
+          }
+          if (cur_sect == DUMPSYS && service_id.is_null() &&
+              line.StartsWith(
+                  "----------------------------------------------")) {
+            continue;
+          }
+          if (cur_sect == DUMPSYS && line.StartsWith("DUMP OF SERVICE")) {
+            // DUMP OF SERVICE [CRITICAL|HIGH] ServiceName:
+            base::StringView svc = line.substr(line.rfind(' ') + 1);
+            svc = svc.substr(0, svc.size() - 1);
+            service_id = context_->storage->InternString(svc);
+          } else if (cur_sect == LOG) {
+            // Parse the non-persistent logcat and append to `log_events_`,
+            // together with the persistent one previously parsed by
+            // ParsePersistentLogcat(). Skips entries that are already seen in
+            // the persistent logcat, handling us vs ms truncation.
+            PERFETTO_DCHECK(log_line.size() == 1);
+            log_line[0] = line;
+            log_parser.ParseLogLines(log_line, &log_events_,
+                                     log_events_last_sorted_idx_);
+          }
+
+          if (build_fpr_.empty() && line.StartsWith("Build fingerprint:")) {
+            build_fpr_ = line.substr(20, line.size() - 20).ToStdString();
+          }
+
+          // Append the line to the android_dumpstate table.
+          context_->storage->mutable_android_dumpstate_table()->Insert(
+              {section_id, service_id, context_->storage->InternString(line)});
         }
-        continue;
-      }
-      // Skip end marker lines for dumpsys sections.
-      if (cur_sect == DUMPSYS && line.StartsWith("--------- ") &&
-          line.find("was the duration of dumpsys") != npos) {
-        service_id = StringId::Null();
-        continue;
-      }
-      if (cur_sect == DUMPSYS && service_id.is_null() &&
-          line.StartsWith("----------------------------------------------")) {
-        continue;
-      }
-      if (cur_sect == DUMPSYS && line.StartsWith("DUMP OF SERVICE")) {
-        // DUMP OF SERVICE [CRITICAL|HIGH] ServiceName:
-        base::StringView svc = line.substr(line.rfind(' ') + 1);
-        svc = svc.substr(0, svc.size() - 1);
-        service_id = context_->storage->InternString(svc);
-      } else if (cur_sect == LOG) {
-        // Parse the non-persistent logcat and append to `log_events_`, together
-        // with the persistent one previously parsed by ParsePersistentLogcat().
-        // Skips entries that are already seen in the persistent logcat,
-        // handling us vs ms truncation.
-        PERFETTO_DCHECK(log_line.size() == 1);
-        log_line[0] = line;
-        log_parser.ParseLogLines(log_line, &log_events_,
-                                 log_events_last_sorted_idx_);
-      }
-
-      if (build_fpr_.empty() && line.StartsWith("Build fingerprint:")) {
-        build_fpr_ = line.substr(20, line.size() - 20).ToStdString();
-      }
-
-      // Append the line to the android_dumpstate table.
-      context_->storage->mutable_android_dumpstate_table()->Insert(
-          {section_id, service_id, context_->storage->InternString(line)});
-    }
-  });
+      });
 }
 
 void AndroidBugreportParser::ParsePersistentLogcat() {
@@ -182,22 +219,23 @@ void AndroidBugreportParser::ParsePersistentLogcat() {
   // Sort files to ease the job of the subsequent line-based sort. Unfortunately
   // lines within each file are not 100% timestamp-ordered, due to things like
   // kernel messages where log time != event time.
-  std::vector<std::pair<uint64_t, std::string>> log_paths;
-  for (const util::ZipFile& zf : zip_reader_->files()) {
+  std::vector<std::pair<uint64_t, const util::ZipFile*>> log_files;
+  for (const util::ZipFile& zf : zip_file_entries_) {
     if (base::StartsWith(zf.name(), "FS/data/misc/logd/logcat") &&
         !base::EndsWith(zf.name(), "logcat.id")) {
-      log_paths.emplace_back(std::make_pair(zf.GetDatetime(), zf.name()));
+      log_files.push_back(std::make_pair(zf.GetDatetime(), &zf));
     }
   }
-  std::sort(log_paths.begin(), log_paths.end());
+
+  std::sort(log_files.begin(), log_files.end());
 
   // Push all events into the AndroidLogParser. It will take care of string
   // interning into the pool. Appends entries into `log_events`.
-  for (const auto& kv : log_paths) {
-    util::ZipFile* zf = zip_reader_->Find(kv.second);
-    zf->DecompressLines([&](const std::vector<base::StringView>& lines) {
-      log_parser.ParseLogLines(lines, &log_events_);
-    });
+  for (const auto& log_file : log_files) {
+    log_file.second->DecompressLines(
+        [&](const std::vector<base::StringView>& lines) {
+          log_parser.ParseLogLines(lines, &log_events_);
+        });
   }
 
   // Do an initial sorting pass. This is not the final sorting because we
@@ -230,30 +268,20 @@ void AndroidBugreportParser::SortAndStoreLogcat() {
 // This is obviously bugged for cases of bugreports collected across new year
 // but we'll live with that.
 bool AndroidBugreportParser::DetectYearAndBrFilename() {
-  const util::ZipFile* br_file = nullptr;
-  for (const auto& zf : zip_reader_->files()) {
-    if (base::StartsWith(zf.name(), "bugreport-") &&
-        base::EndsWith(zf.name(), ".txt")) {
-      br_file = &zf;
-      break;
-    }
-  }
-
+  const util::ZipFile* br_file = FindBugReportFile(zip_file_entries_);
   if (!br_file) {
     PERFETTO_ELOG("Could not find bugreport-*.txt in the zip file");
     return false;
   }
 
-  // Typical name: "bugreport-product-TP1A.220623.001-2022-06-24-16-24-37.txt".
-  auto year_str = br_file->name().substr(
-      br_file->name().size() - strlen("2022-12-31-23-59-00.txt"), 4);
-  std::optional<int32_t> year = base::StringToInt32(year_str);
+  std::optional<int32_t> year =
+      ExtractYearFromBugReportFilename(br_file->name());
   if (!year.has_value()) {
     PERFETTO_ELOG("Could not parse the year from %s", br_file->name().c_str());
     return false;
   }
   br_year_ = *year;
-  dumpstate_fname_ = br_file->name();
+  dumpstate_file_ = br_file;
   return true;
 }
 

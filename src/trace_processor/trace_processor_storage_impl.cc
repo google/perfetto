@@ -107,6 +107,8 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
     return;
   Flush();
   context_.chunk_reader->NotifyEndOfFile();
+  // NotifyEndOfFile might have pushed packets to the sorter.
+  Flush();
   for (std::unique_ptr<ProtoImporterModule>& module : context_.modules) {
     module->NotifyEndOfFile();
   }
