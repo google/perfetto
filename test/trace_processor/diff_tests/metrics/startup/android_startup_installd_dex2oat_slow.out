@@ -62,8 +62,10 @@ android_startup {
       dex2oat_dur_ns: 5000000000
     }
     slow_start_reason: "dex2oat running during launch"
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: DEX2OAT_RUNNING
       reason: "dex2oat running during launch"
+      launch_dur: 100000000000
     }
   }
   startup {
@@ -101,14 +103,20 @@ android_startup {
     slow_start_reason: "dex2oat running during launch"
     slow_start_reason: "installd running during launch"
     slow_start_reason: "Startup running concurrent to launch"
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: DEX2OAT_RUNNING
       reason: "dex2oat running during launch"
+      launch_dur: 250000000000
     }
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: INSTALLD_RUNNING
       reason: "installd running during launch"
+      launch_dur: 250000000000
     }
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: STARTUP_RUNNING_CONCURRENT
       reason: "Startup running concurrent to launch"
+      launch_dur: 250000000000
     }
     startup_concurrent_to_launch: "com.google.android.gm"
   }
@@ -145,14 +153,20 @@ android_startup {
     slow_start_reason: "dex2oat running during launch"
     slow_start_reason: "installd running during launch"
     slow_start_reason: "Startup running concurrent to launch"
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: DEX2OAT_RUNNING
       reason: "dex2oat running during launch"
+      launch_dur: 100000000000
     }
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: INSTALLD_RUNNING
       reason: "installd running during launch"
+      launch_dur: 100000000000
     }
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: STARTUP_RUNNING_CONCURRENT
       reason: "Startup running concurrent to launch"
+      launch_dur: 100000000000
     }
     startup_concurrent_to_launch: "com.google.android.deskclock"
   }

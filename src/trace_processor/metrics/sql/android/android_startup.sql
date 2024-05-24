@@ -514,7 +514,7 @@ SELECT
 
       )
     ),
-    'slow_start_reason_detailed', get_slow_start_reason_detailed(launches.startup_id)
+    'slow_start_reason_with_details', get_slow_start_reason_with_details(launches.startup_id)
   ) AS startup
 FROM android_startups launches;
 

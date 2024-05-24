@@ -2458,7 +2458,7 @@ message AndroidStartupMetric {
     optional uint32 thread_utid = 3;
   }
 
-  // Next id: 24
+  // Next id: 25
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -2540,8 +2540,15 @@ message AndroidStartupMetric {
     // Optional.
     repeated string slow_start_reason = 17;
 
-    // Same as slow_start_reason, but with more detailed information.
+    // Same as slow_start_reason, but with more detailed information, obsolete.
     repeated SlowStartReasonDetailed slow_start_reason_detailed = 21;
+
+    // Similar to slow_start_reason_detailed, but with much more comprehensive info.
+    // such as expected threshold, actual value and threads/slices to inspect.
+    // slow_start_reason will be obsolete once slow_start_reason_with_details is completed
+    // since slow_start_reason_with_details contains all the data in slow_start_reason
+    // and more.
+    repeated SlowStartReason slow_start_reason_with_details = 24;
 
     reserved 10;
   }

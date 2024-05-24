@@ -201,110 +201,130 @@ RETURNS STRING AS
     ORDER BY slice_dur DESC
     LIMIT 1;
 
-
-CREATE OR REPLACE PERFETTO FUNCTION get_slow_start_reason_detailed(startup_id LONG)
+CREATE OR REPLACE PERFETTO FUNCTION get_slow_start_reason_with_details(startup_id LONG)
 RETURNS PROTO AS
-      SELECT RepeatedField(AndroidStartupMetric_SlowStartReasonDetailed(
+      SELECT RepeatedField(AndroidStartupMetric_SlowStartReason(
+        'reason_id', reason_id,
         'reason', slow_cause,
-        'details', details))
+        'launch_dur', launch_dur))
       FROM (
         SELECT 'No baseline or cloud profiles' AS slow_cause,
-          get_missing_baseline_profile_for_launch(launch.startup_id, launch.package) as details
+          launch.dur as launch_dur,
+          'NO_BASELINE_OR_CLOUD_PROFILES' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND missing_baseline_profile_for_launch(launch.startup_id, launch.package)
 
         UNION ALL
-        SELECT 'Optimized artifacts missing, run from apk' as slow_cause, NULL as details
+        SELECT 'Optimized artifacts missing, run from apk' as slow_cause,
+          launch.dur as launch_dur,
+          'RUN_FROM_APK' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
-          AND  run_from_apk_for_launch(launch.startup_id)
+          AND run_from_apk_for_launch(launch.startup_id)
 
         UNION ALL
-        SELECT 'Unlock running during launch' as slow_cause, NULL as details
+        SELECT 'Unlock running during launch' as slow_cause,
+          launch.dur as launch_dur,
+          'UNLOCK_RUNNING' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
          AND is_unlock_running_during_launch(launch.startup_id)
 
         UNION ALL
-        SELECT 'App in debuggable mode' as slow_cause, NULL as details
-       	FROM android_startups launch
+        SELECT 'App in debuggable mode' as slow_cause,
+          launch.dur as launch_dur,
+          'APP_IN_DEBUGGABLE_MODE' as reason_id
+        FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND is_process_debuggable(launch.package)
 
         UNION ALL
-        SELECT 'GC Activity' as slow_cause, NULL as details
+        SELECT 'GC Activity' as slow_cause,
+          launch.dur as launch_dur,
+          'GC_ACTIVITY' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND total_gc_time_by_launch(launch.startup_id) > 0
 
         UNION ALL
-        SELECT 'dex2oat running during launch' AS slow_cause, NULL as details
+        SELECT 'dex2oat running during launch' AS slow_cause,
+          launch.dur as launch_dur,
+          'DEX2OAT_RUNNING' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id AND
           dur_of_process_running_concurrent_to_launch(launch.startup_id, '*dex2oat64') > 0
 
         UNION ALL
-        SELECT 'installd running during launch' AS slow_cause, NULL as details
+        SELECT 'installd running during launch' AS slow_cause,
+          launch.dur as launch_dur,
+          'INSTALLD_RUNNING' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id AND
           dur_of_process_running_concurrent_to_launch(launch.startup_id, '*installd') > 0
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Runnable state' as slow_cause,
-          get_main_thread_time_for_launch_in_runnable_state(
-            launch.startup_id, launch.dur) as details
+          launch.dur as launch_dur,
+          'MAIN_THREAD_TIME_SPENT_IN_RUNNABLE' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND main_thread_time_for_launch_in_runnable_state(launch.startup_id) > launch.dur * 0.15
 
         UNION ALL
-        SELECT 'Main Thread - Time spent in interruptible sleep state'
-          AS slow_cause, NULL as details
+        SELECT 'Main Thread - Time spent in interruptible sleep state' as slow_cause,
+          launch.dur as launch_dur,
+          'MAIN_THREAD_TIME_SPENT_IN_INTERRUPTIBLE_SLEEP' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND main_thread_time_for_launch_and_state(launch.startup_id, 'S') > 2900e6
 
         UNION ALL
-        SELECT 'Main Thread - Time spent in Blocking I/O' as slow_cause, NULL as details
+        SELECT 'Main Thread - Time spent in Blocking I/O' as slow_cause,
+          launch.dur as launch_dur,
+          'MAIN_THREAD_TIME_SPENT_IN_BLOCKING_IO' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND main_thread_time_for_launch_state_and_io_wait(launch.startup_id, 'D*', TRUE) > 450e6
 
         UNION ALL
         SELECT 'Main Thread - Time spent in OpenDexFilesFromOat*' as slow_cause,
-          get_android_sum_dur_on_main_thread_for_startup_and_slice(
-            launch.startup_id, 'OpenDexFilesFromOat*', launch.dur) as details
+          launch.dur as launch_dur,
+          'MAIN_THREAD_TIME_SPENT_IN_OPEN_DEX_FILES_FROM_OAT' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id AND
           android_sum_dur_on_main_thread_for_startup_and_slice(
           launch.startup_id, 'OpenDexFilesFromOat*') > launch.dur * 0.2
 
         UNION ALL
-        SELECT 'Time spent in bindApplication'
-          AS slow_cause, NULL as details
+        SELECT 'Time spent in bindApplication' as slow_cause,
+          launch.dur as launch_dur,
+          'TIME_SPENT_IN_BIND_APPLICATION' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND android_sum_dur_for_startup_and_slice(launch.startup_id, 'bindApplication') > 1250e6
 
         UNION ALL
-        SELECT 'Time spent in view inflation' as slow_cause, NULL as details
+        SELECT 'Time spent in view inflation' as slow_cause,
+          launch.dur as launch_dur,
+          'TIME_SPENT_IN_VIEW_INFLATION' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND android_sum_dur_for_startup_and_slice(launch.startup_id, 'inflate') > 450e6
 
         UNION ALL
         SELECT 'Time spent in ResourcesManager#getResources' as slow_cause,
-          get_android_sum_dur_for_startup_and_slice(
-            launch.startup_id, 'ResourcesManager#getResources', 130) as details
+          launch.dur as launch_dur,
+          'TIME_SPENT_IN_RESOURCES_MANAGER_GET_RESOURCES' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND android_sum_dur_for_startup_and_slice(
           launch.startup_id, 'ResourcesManager#getResources') > 130e6
 
         UNION ALL
-        SELECT 'Time spent verifying classes'
-          AS slow_cause, NULL as details
+        SELECT 'Time spent verifying classes' as slow_cause,
+          launch.dur as launch_dur,
+          'TIME_SPENT_VERIFYING_CLASSES' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id AND
           android_sum_dur_for_startup_and_slice(launch.startup_id, 'VerifyClass*')
@@ -312,7 +332,8 @@ RETURNS PROTO AS
 
         UNION ALL
         SELECT 'Potential CPU contention with another process' AS slow_cause,
-          get_potential_cpu_contention_with_another_process(launch.startup_id) as details
+          launch.dur as launch_dur,
+          'POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id AND
           main_thread_time_for_launch_in_runnable_state(launch.startup_id) > 100e6 AND
@@ -320,7 +341,8 @@ RETURNS PROTO AS
 
         UNION ALL
         SELECT 'JIT Activity' as slow_cause,
-          get_jit_activity(launch.startup_id) as details
+          launch.dur as launch_dur,
+          'JIT_ACTIVITY' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
         AND thread_time_for_launch_state_and_thread(
@@ -330,8 +352,9 @@ RETURNS PROTO AS
         ) > 100e6
 
         UNION ALL
-        SELECT 'Main Thread - Lock contention'
-          AS slow_cause, NULL as details
+        SELECT 'Main Thread - Lock contention' as slow_cause,
+          launch.dur as launch_dur,
+          'MAIN_THREAD_LOCK_CONTENTION' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND android_sum_dur_on_main_thread_for_startup_and_slice(
@@ -340,8 +363,9 @@ RETURNS PROTO AS
         ) > launch.dur * 0.2
 
         UNION ALL
-        SELECT 'Main Thread - Monitor contention'
-          AS slow_cause, NULL as details
+        SELECT 'Main Thread - Monitor contention' as slow_cause,
+          launch.dur as launch_dur,
+          'MAIN_THREAD_MONITOR_CONTENTION' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND android_sum_dur_on_main_thread_for_startup_and_slice(
@@ -350,51 +374,55 @@ RETURNS PROTO AS
         ) > launch.dur * 0.15
 
         UNION ALL
-        SELECT 'JIT compiled methods' as slow_cause, NULL as details
+        SELECT 'JIT compiled methods' as slow_cause,
+          launch.dur as launch_dur,
+          'JIT_COMPILED_METHODS' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND (
           SELECT COUNT(1)
           FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(launch.startup_id, 'JIT compiling*')
-          WHERE thread_name = 'Jit thread pool'
-        ) > 65
+          WHERE thread_name = 'Jit thread pool') > 65
 
         UNION ALL
-        SELECT 'Broadcast dispatched count' as slow_cause, NULL as details
+        SELECT 'Broadcast dispatched count' as slow_cause,
+          launch.dur as launch_dur,
+          'BROADCAST_DISPATCHED_COUNT' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND count_slices_concurrent_to_launch(
           launch.startup_id,
-          'Broadcast dispatched*'
-        ) > 15
+          'Broadcast dispatched*') > 15
 
         UNION ALL
-        SELECT 'Broadcast received count' as slow_cause, NULL as details
+        SELECT 'Broadcast received count' as slow_cause,
+          launch.dur as launch_dur,
+          'BROADCAST_RECEIVED_COUNT' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND count_slices_concurrent_to_launch(
           launch.startup_id,
-          'broadcastReceiveReg*'
-        ) > 50
+          'broadcastReceiveReg*') > 50
 
         UNION ALL
-        SELECT 'Startup running concurrent to launch' as slow_cause, NULL as details
+        SELECT 'Startup running concurrent to launch' as slow_cause,
+          launch.dur as launch_dur,
+          'STARTUP_RUNNING_CONCURRENT' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND EXISTS(
           SELECT package
           FROM android_startups l
           WHERE l.startup_id != launch.startup_id
-            AND _is_spans_overlapping(l.ts, l.ts_end, launch.ts, launch.ts_end)
-        )
+            AND _is_spans_overlapping(l.ts, l.ts_end, launch.ts, launch.ts_end))
 
         UNION ALL
         SELECT 'Main Thread - Binder transactions blocked' as slow_cause,
-          get_main_thread_binder_transactions_blocked(launch.startup_id, 2e7) as details
+          launch.dur as launch_dur,
+          'MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKED' as reason_id
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND (
           SELECT COUNT(1)
-          FROM BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(launch.startup_id, 2e7)
-        ) > 0
-      );
+          FROM BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(launch.startup_id, 2e7)) > 0
+    );

@@ -72,14 +72,20 @@ android_startup {
     slow_start_reason: "Time spent in bindApplication"
     slow_start_reason: "Main Thread - Lock contention"
     slow_start_reason: "Main Thread - Monitor contention"
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: TIME_SPENT_IN_BIND_APPLICATION
       reason: "Time spent in bindApplication"
+      launch_dur: 100000000000
     }
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: MAIN_THREAD_LOCK_CONTENTION
       reason: "Main Thread - Lock contention"
+      launch_dur: 100000000000
     }
-    slow_start_reason_detailed {
-      reason: "Main Thread - Monitor contention"
+    slow_start_reason_with_details {
+     reason_id: MAIN_THREAD_MONITOR_CONTENTION
+     reason: "Main Thread - Monitor contention"
+     launch_dur: 100000000000
     }
     startup_type: "cold"
   }
