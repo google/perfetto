@@ -32,6 +32,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -848,7 +849,18 @@ base::Status PerfettoSqlEngine::ValidateColumnNames(
     const std::vector<std::string>& column_names,
     const std::vector<sql_argument::ArgumentDefinition>& schema,
     const char* tag) {
-  // If the user has not provided a schema, we have nothing to validate.
+  std::vector<std::string> duplicate_columns;
+  for (auto it = column_names.begin(); it != column_names.end(); ++it) {
+    if (std::count(it + 1, column_names.end(), *it) > 0) {
+      duplicate_columns.push_back(*it);
+    }
+  }
+  if (!duplicate_columns.empty()) {
+    return base::ErrStatus("%s: multiple columns are named: %s", tag,
+                           base::Join(duplicate_columns, ", ").c_str());
+  }
+
+  // If the user has not provided a schema, we have nothing further to validate.
   if (schema.empty()) {
     return base::OkStatus();
   }
