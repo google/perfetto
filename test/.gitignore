@@ -22,3 +22,7 @@
 !/data/simpleperf
 /data/simpleperf/*
 !/data/simpleperf/*.sha256
+
+!/data/zip
+/data/zip/*
+!/data/zip/*.sha256
