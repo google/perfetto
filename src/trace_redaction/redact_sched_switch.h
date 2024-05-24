@@ -44,7 +44,10 @@ class InternTable {
   std::vector<std::string_view> interned_comms_;
 };
 
-// Goes through all sched switch events are modifies them.
+// TODO(vaage): Rename this class. When it was first created, it only handled
+// switch events, so having "switch" in the name sense. Now that it is
+// expanding to include waking events, a more general name is needed (e.g.
+// scheduling covers both switch and waking events).
 class RedactSchedSwitchHarness : public TransformPrimitive {
  public:
   class Modifier {
@@ -85,6 +88,14 @@ class RedactSchedSwitchHarness : public TransformPrimitive {
       protos::pbzero::SchedSwitchFtraceEvent::Decoder& sched_switch,
       std::string* scratch_str,
       protos::pbzero::SchedSwitchFtraceEvent* message) const;
+
+  base::Status TransformFtraceEventSchedWaking(
+      const Context& context,
+      uint64_t ts,
+      int32_t cpu,
+      protos::pbzero::SchedWakingFtraceEvent::Decoder& sched_waking,
+      std::string* scratch_str,
+      protos::pbzero::SchedWakingFtraceEvent* message) const;
 
   base::Status TransformCompSched(
       const Context& context,
