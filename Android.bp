@@ -13589,7 +13589,6 @@ filegroup {
         "src/trace_redaction/suspend_resume.cc",
         "src/trace_redaction/trace_redaction_framework.cc",
         "src/trace_redaction/trace_redactor.cc",
-        "src/trace_redaction/verify_integrity.cc",
     ],
 }
 
