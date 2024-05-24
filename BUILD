@@ -2608,6 +2608,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/export:export
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_export_export",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/export/to_firefox_profile.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/gpu:gpu
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_gpu_gpu",
@@ -2773,6 +2781,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_cpu_cpu",
         ":src_trace_processor_perfetto_sql_stdlib_cpu_utilization_utilization",
         ":src_trace_processor_perfetto_sql_stdlib_deprecated_v42_common_common",
+        ":src_trace_processor_perfetto_sql_stdlib_export_export",
         ":src_trace_processor_perfetto_sql_stdlib_gpu_gpu",
         ":src_trace_processor_perfetto_sql_stdlib_graphs_graphs",
         ":src_trace_processor_perfetto_sql_stdlib_intervals_intervals",
@@ -3203,6 +3212,8 @@ perfetto_filegroup(
         "src/traceconv/deobfuscate_profile.h",
         "src/traceconv/symbolize_profile.cc",
         "src/traceconv/symbolize_profile.h",
+        "src/traceconv/trace_to_firefox.cc",
+        "src/traceconv/trace_to_firefox.h",
         "src/traceconv/trace_to_hprof.cc",
         "src/traceconv/trace_to_hprof.h",
         "src/traceconv/trace_to_json.cc",

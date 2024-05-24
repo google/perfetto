@@ -13115,6 +13115,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/thread_states.sql",
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/timestamps.sql",
+        "src/trace_processor/perfetto_sql/stdlib/export/to_firefox_profile.sql",
         "src/trace_processor/perfetto_sql/stdlib/gpu/frequency.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/dominator_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/partition.sql",
@@ -13646,6 +13647,7 @@ filegroup {
     srcs: [
         "src/traceconv/deobfuscate_profile.cc",
         "src/traceconv/symbolize_profile.cc",
+        "src/traceconv/trace_to_firefox.cc",
         "src/traceconv/trace_to_hprof.cc",
         "src/traceconv/trace_to_json.cc",
         "src/traceconv/trace_to_profile.cc",
