@@ -31,11 +31,15 @@ android_startup {
     }
     slow_start_reason: "Broadcast dispatched count"
     slow_start_reason: "Broadcast received count"
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: BROADCAST_DISPATCHED_COUNT
       reason: "Broadcast dispatched count"
+      launch_dur: 100
     }
-    slow_start_reason_detailed {
+    slow_start_reason_with_details {
+      reason_id: BROADCAST_RECEIVED_COUNT
       reason: "Broadcast received count"
+      launch_dur: 100
     }
   }
 }
