@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "perfetto/trace_processor/basic_types.h"
@@ -56,10 +57,6 @@ class DenseNullOverlay final : public DataLayer {
 
     void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
-    Range OrderedIndexSearchValidated(FilterOp,
-                                      SqlValue,
-                                      const OrderedIndices&) const override;
-
     void StableSort(SortToken* start,
                     SortToken* end,
                     SortDirection) const override;
@@ -69,6 +66,8 @@ class DenseNullOverlay final : public DataLayer {
     std::optional<Token> MaxElement(Indices&) const override;
 
     std::optional<Token> MinElement(Indices&) const override;
+
+    SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
 
     void Serialize(StorageProto*) const override;
 
