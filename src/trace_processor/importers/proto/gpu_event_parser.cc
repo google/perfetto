@@ -359,6 +359,16 @@ void GpuEventParser::ParseGpuRenderStageEvent(
     }
   }
 
+  if (event.has_context()) {
+    uint64_t context_id = event.context();
+    auto* decoder = sequence_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kGraphicsContextsFieldNumber,
+        protos::pbzero::InternedGraphicsContext>(context_id);
+    if (decoder) {
+      pid = decoder->pid();
+    }
+  }
+
   auto args_callback = [this, &event,
                         sequence_state](ArgsTracker::BoundInserter* inserter) {
     if (event.has_stage_iid()) {
