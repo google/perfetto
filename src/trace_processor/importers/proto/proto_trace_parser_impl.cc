@@ -29,8 +29,8 @@
 #include "perfetto/ext/base/uuid.h"
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -161,9 +161,9 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   protos::pbzero::ChromeEventBundle::Decoder bundle(blob.data, blob.size);
   ArgsTracker args(context_);
   if (bundle.has_metadata()) {
+    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
     RawId id = storage->mutable_raw_table()
-                   ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0, 0, 0,
-                             context_->machine_id()})
+                   ->Insert({ts, raw_chrome_metadata_event_id_, 0, 0, 0, ucpu})
                    .id;
     auto inserter = args.AddArgsTo(id);
 
@@ -209,9 +209,10 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
   }
 
   if (bundle.has_legacy_ftrace_output()) {
+    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
     RawId id = storage->mutable_raw_table()
                    ->Insert({ts, raw_chrome_legacy_system_trace_event_id_, 0, 0,
-                             0, 0, context_->machine_id()})
+                             0, ucpu})
                    .id;
 
     std::string data;
@@ -230,9 +231,10 @@ void ProtoTraceParserImpl::ParseChromeEvents(int64_t ts, ConstBytes blob) {
           protos::pbzero::ChromeLegacyJsonTrace::USER_TRACE) {
         continue;
       }
+      auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
       RawId id = storage->mutable_raw_table()
                      ->Insert({ts, raw_chrome_legacy_user_trace_event_id_, 0, 0,
-                               0, 0, context_->machine_id()})
+                               0, ucpu})
                      .id;
       Variadic value =
           Variadic::String(storage->InternString(legacy_trace.data()));

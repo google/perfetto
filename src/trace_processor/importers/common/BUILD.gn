@@ -28,6 +28,8 @@ source_set("common") {
     "clock_converter.h",
     "clock_tracker.cc",
     "clock_tracker.h",
+    "cpu_tracker.cc",
+    "cpu_tracker.h",
     "create_mapping_params.h",
     "deobfuscation_mapping_table.cc",
     "deobfuscation_mapping_table.h",

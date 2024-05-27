@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 
 namespace perfetto {
@@ -137,12 +138,12 @@ void ThreadStateTracker::AddOpenState(int64_t ts,
   // Insert row with unfinished state
   tables::ThreadStateTable::Row row;
   row.ts = ts;
-  row.cpu = cpu;
   row.waker_utid = waker_utid;
   row.dur = -1;
   row.utid = utid;
   row.state = state;
-  row.machine_id = context_->machine_id();
+  if (cpu)
+    row.ucpu = context_->cpu_tracker->GetOrCreateCpu(*cpu);
   if (common_flags.has_value()) {
     row.irq_context = CommonFlagsToIrqContext(*common_flags);
   }
