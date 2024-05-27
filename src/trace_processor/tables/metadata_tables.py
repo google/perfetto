@@ -191,18 +191,46 @@ THREAD_TABLE = Table(
                 ''',
         }))
 
+CPU_TABLE = Table(
+    python_module=__file__,
+    class_name='CpuTable',
+    sql_name='__intrinsic_cpu',
+    columns=[
+        C('cpu', CppOptional(CppUint32())),
+        C('cluster_id', CppUint32()),
+        C('processor', CppString()),
+        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Contains information of processes seen during the trace
+        ''',
+        group='Misc',
+        columns={
+            'cpu':
+                '''the index (0-based) of the CPU core on the device''',
+            'cluster_id':
+                '''the cluster id is shared by CPUs in
+the same cluster''',
+            'processor':
+                '''a string describing this core''',
+            'machine_id':
+                '''
+                  Machine identifier, non-null for CPUs on a remote machine.
+                ''',
+        }))
+
 RAW_TABLE = Table(
     python_module=__file__,
     class_name='RawTable',
-    sql_name='raw',
+    sql_name='__intrinsic_raw',
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('name', CppString()),
-        C('cpu', CppUint32()),
         C('utid', CppTableId(THREAD_TABLE)),
         C('arg_set_id', CppUint32()),
         C('common_flags', CppUint32()),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
+        C('ucpu', CppTableId(CPU_TABLE))
     ],
     tabledoc=TableDoc(
         doc='''
@@ -223,8 +251,6 @@ RAW_TABLE = Table(
                   The name of the event. For ftrace events, this will be the
                   ftrace event name.
                 ''',
-            'cpu':
-                'The CPU this event was emitted on.',
             'utid':
                 'The thread this event was emitted on.',
             'common_flags':
@@ -232,17 +258,16 @@ RAW_TABLE = Table(
                   Ftrace event flags for this event. Currently only emitted for
                   sched_waking events.
                 ''',
-            'machine_id':
+            'ucpu':
                 '''
-                  Machine identifier, non-null for raw events on a remote
-                  machine.
+                  The unique CPU indentifier.
                 ''',
         }))
 
 FTRACE_EVENT_TABLE = Table(
     python_module=__file__,
     class_name='FtraceEventTable',
-    sql_name='ftrace_event',
+    sql_name='__intrinsic_ftrace_event',
     parent=RAW_TABLE,
     columns=[],
     tabledoc=TableDoc(
@@ -357,51 +382,18 @@ EXP_MISSING_CHROME_PROC_TABLE = Table(
             'reliable_from': ''''''
         }))
 
-CPU_TABLE = Table(
-    python_module=__file__,
-    class_name='CpuTable',
-    sql_name='cpu',
-    columns=[
-        C('cluster_id', CppUint32()),
-        C('processor', CppString()),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
-    ],
-    tabledoc=TableDoc(
-        doc='''
-          Contains information of processes seen during the trace
-        ''',
-        group='Misc',
-        columns={
-            'cluster_id':
-                '''the cluster id is shared by CPUs in
-the same cluster''',
-            'processor':
-                '''a string describing this core''',
-            'machine_id':
-                '''
-                  Machine identifier, non-null for CPUs on a remote machine.
-                ''',
-        }))
-
 CPU_FREQ_TABLE = Table(
     python_module=__file__,
     class_name='CpuFreqTable',
-    sql_name='cpu_freq',
+    sql_name='__intrinsic_cpu_freq',
     columns=[
-        C('cpu_id', CppTableId(CPU_TABLE)),
+        C('ucpu', CppTableId(CPU_TABLE)),
         C('freq', CppUint32()),
-        C('machine_id', CppOptional(CppTableId(MACHINE_TABLE))),
     ],
     tabledoc=TableDoc(
-        doc='''''',
-        group='Misc',
-        columns={
-            'cpu_id': '''''',
+        doc='''''', group='Misc', columns={
+            'ucpu': '''''',
             'freq': '''''',
-            'machine_id':
-                '''
-                  Machine identifier, non-null for CPUs on a remote machine.
-                ''',
         }))
 
 CLOCK_SNAPSHOT_TABLE = Table(

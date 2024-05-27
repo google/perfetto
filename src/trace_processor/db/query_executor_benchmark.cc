@@ -198,12 +198,12 @@ struct FtraceEventTableForBenchmark {
       while (cur_idx < idx) {
         std::vector<std::string> raw_row = SplitCSVLine(raw_rows[cur_idx + 1]);
         RawTable::Row r;
-        r.cpu = *base::StringToUInt32(raw_row[1]);
+        r.ucpu = tables::CpuTable::Id(*base::StringToUInt32(raw_row[1]));
         raw_.Insert(r);
         cur_idx++;
       }
       FtraceEventTable::Row row;
-      row.cpu = *base::StringToUInt32(row_vec[1]);
+      row.ucpu = tables::CpuTable::Id(*base::StringToUInt32(row_vec[1]));
       table_.Insert(row);
     }
   }
@@ -374,7 +374,7 @@ BENCHMARK(BM_QEFilterWithSparseSelector);
 void BM_QEFilterWithDenseSelector(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
   Query q;
-  q.constraints = {table.table_.cpu().eq(4)};
+  q.constraints = {table.table_.ucpu().eq(4)};
   BenchmarkFtraceEventTableQuery(state, table, q);
 }
 BENCHMARK(BM_QEFilterWithDenseSelector);
@@ -566,14 +566,15 @@ BENCHMARK(BM_QESliceSortNullNumericAsc);
 
 void BM_QEFtraceEventSortSelectorNumericAsc(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
-  BenchmarkFtraceEventTableSort(state, table, {table.table_.cpu().ascending()});
+  BenchmarkFtraceEventTableSort(state, table,
+                                {table.table_.ucpu().ascending()});
 }
 BENCHMARK(BM_QEFtraceEventSortSelectorNumericAsc);
 
 void BM_QEFtraceEventSortSelectorNumericDesc(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
   BenchmarkFtraceEventTableSort(state, table,
-                                {table.table_.cpu().descending()});
+                                {table.table_.ucpu().descending()});
 }
 BENCHMARK(BM_QEFtraceEventSortSelectorNumericDesc);
 
@@ -590,7 +591,7 @@ void BM_QEDistinctWithDenseSelector(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
   Query q;
   q.order_type = Query::OrderType::kDistinct;
-  q.orders = {table.table_.cpu().descending()};
+  q.orders = {table.table_.ucpu().descending()};
   BenchmarkFtraceEventTableQuery(state, table, q);
 }
 BENCHMARK(BM_QEDistinctWithDenseSelector);
@@ -608,7 +609,7 @@ void BM_QEDistinctSortedWithDenseSelector(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
   Query q;
   q.order_type = Query::OrderType::kDistinctAndSort;
-  q.orders = {table.table_.cpu().descending()};
+  q.orders = {table.table_.ucpu().descending()};
   BenchmarkFtraceEventTableQuery(state, table, q);
 }
 BENCHMARK(BM_QEDistinctSortedWithDenseSelector);

@@ -23,8 +23,10 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
@@ -260,6 +262,8 @@ class ProtoTraceParserTest : public ::testing::Test {
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.metadata_tracker.reset(
         new MetadataTracker(context_.storage.get()));
+    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
+    context_.cpu_tracker.reset(new CpuTracker(&context_));
     event_ = new MockEventTracker(&context_);
     context_.event_tracker.reset(event_);
     sched_ = new MockSchedEventTracker(&context_);
@@ -2371,7 +2375,9 @@ TEST_F(ProtoTraceParserTest, TrackEventParseLegacyEventIntoRawTable) {
   EXPECT_EQ(raw_table.ts()[0], 1010000);
   EXPECT_EQ(raw_table.name()[0],
             storage_->InternString("track_event.legacy_event"));
-  EXPECT_EQ(raw_table.cpu()[0], 0u);
+  auto ucpu = raw_table.ucpu()[0];
+  const auto& cpu_table = storage_->cpu_table();
+  EXPECT_EQ(cpu_table.cpu()[ucpu.value], 0u);
   EXPECT_EQ(raw_table.utid()[0], 1u);
   EXPECT_EQ(raw_table.arg_set_id()[0], 1u);
 
