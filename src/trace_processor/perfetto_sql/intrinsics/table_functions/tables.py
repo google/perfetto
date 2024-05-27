@@ -123,7 +123,7 @@ EXPERIMENTAL_COUNTER_DUR_TABLE = Table(
 EXPERIMENTAL_SCHED_UPID_TABLE = Table(
     python_module=__file__,
     class_name="ExperimentalSchedUpidTable",
-    sql_name="experimental_sched_upid",
+    sql_name="__intrinsic_sched_upid",
     columns=[
         C("upid", CppOptional(CppTableId(PROCESS_TABLE))),
     ],

@@ -1479,6 +1479,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/clock_converter.h",
         "src/trace_processor/importers/common/clock_tracker.cc",
         "src/trace_processor/importers/common/clock_tracker.h",
+        "src/trace_processor/importers/common/cpu_tracker.cc",
+        "src/trace_processor/importers/common/cpu_tracker.h",
         "src/trace_processor/importers/common/create_mapping_params.h",
         "src/trace_processor/importers/common/deobfuscation_mapping_table.cc",
         "src/trace_processor/importers/common/deobfuscation_mapping_table.h",
@@ -2627,6 +2629,7 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/prelude/casts.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/prelude/tables_views.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/trace_bounds.sql",
     ],
 )

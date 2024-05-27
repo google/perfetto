@@ -19,7 +19,9 @@
 #include <algorithm>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
@@ -45,6 +47,8 @@ class ThreadStateTrackerUnittest : public testing::Test {
     context_.process_tracker.reset(new ProcessTracker(&context_));
     context_.global_args_tracker.reset(
         new GlobalArgsTracker(context_.storage.get()));
+    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
+    context_.cpu_tracker.reset(new CpuTracker(&context_));
     context_.args_tracker.reset(new ArgsTracker(&context_));
     tracker_.reset(new ThreadStateTracker(&context_));
   }
@@ -72,12 +76,12 @@ class ThreadStateTrackerUnittest : public testing::Test {
     ASSERT_EQ(it.utid(), utid);
     if (state == kRunning) {
       if (cpu.has_value()) {
-        ASSERT_EQ(it.cpu(), cpu);
+        ASSERT_EQ(it.ucpu().value().value, cpu);
       } else {
-        ASSERT_EQ(it.cpu(), CPU_A);
+        ASSERT_EQ(it.ucpu().value().value, CPU_A);
       }
     } else {
-      ASSERT_EQ(it.cpu(), std::nullopt);
+      ASSERT_EQ(it.ucpu(), std::nullopt);
     }
     ASSERT_STREQ(context_.storage->GetString(it.state()).c_str(), state);
     ASSERT_EQ(it.io_wait(), io_wait);

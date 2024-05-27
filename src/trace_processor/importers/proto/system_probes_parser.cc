@@ -22,6 +22,7 @@
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -746,13 +747,10 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
 void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
   protos::pbzero::CpuInfo::Decoder packet(blob.data, blob.size);
   uint32_t cluster_id = 0;
+  uint32_t cpu_id = 0;
   std::vector<uint32_t> last_cpu_freqs;
-  for (auto it = packet.cpus(); it; it++) {
+  for (auto it = packet.cpus(); it; it++, cpu_id++) {
     protos::pbzero::CpuInfo::Cpu::Decoder cpu(*it);
-    tables::CpuTable::Row cpu_row;
-    if (cpu.has_processor()) {
-      cpu_row.processor = context_->storage->InternString(cpu.processor());
-    }
     std::vector<uint32_t> freqs;
     for (auto freq_it = cpu.frequencies(); freq_it; freq_it++) {
       freqs.push_back(*freq_it);
@@ -762,19 +760,17 @@ void SystemProbesParser::ParseCpuInfo(ConstBytes blob) {
     if (freqs != last_cpu_freqs && !last_cpu_freqs.empty()) {
       cluster_id++;
     }
-    cpu_row.cluster_id = cluster_id;
-    cpu_row.machine_id = context_->machine_id();
 
     last_cpu_freqs = freqs;
-    tables::CpuTable::Id cpu_row_id =
-        context_->storage->mutable_cpu_table()->Insert(cpu_row).id;
+
+    tables::CpuTable::Id ucpu =
+        context_->cpu_tracker->SetCpuInfo(cpu_id, cpu.processor(), cluster_id);
 
     for (auto freq_it = cpu.frequencies(); freq_it; freq_it++) {
       uint32_t freq = *freq_it;
       tables::CpuFreqTable::Row cpu_freq_row;
-      cpu_freq_row.cpu_id = cpu_row_id;
+      cpu_freq_row.ucpu = ucpu;
       cpu_freq_row.freq = freq;
-      cpu_freq_row.machine_id = context_->machine_id();
       context_->storage->mutable_cpu_freq_table()->Insert(cpu_freq_row);
     }
   }

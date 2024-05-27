@@ -24,6 +24,7 @@
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/deobfuscation_mapping_table.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
@@ -78,6 +79,7 @@ TraceProcessorContext::TraceProcessorContext(const InitArgs& args)
   perf_sample_tracker.reset(new PerfSampleTracker(this));
   stack_profile_tracker.reset(new StackProfileTracker(this));
   metadata_tracker.reset(new MetadataTracker(storage.get()));
+  cpu_tracker.reset(new CpuTracker(this));
   global_args_tracker.reset(new GlobalArgsTracker(storage.get()));
   {
     descriptor_pool_.reset(new DescriptorPool());

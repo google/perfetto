@@ -26,11 +26,11 @@
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
-#include "src/trace_processor/importers/common/machine_tracker.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/process_track_translation_table.h"
+#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/common/virtual_memory_mapping.h"
 #include "src/trace_processor/importers/json/json_utils.h"
@@ -1023,10 +1023,11 @@ class TrackEventParser::EventImporter {
     if (!utid_)
       return util::ErrStatus("raw legacy event without thread association");
 
-    RawId id = storage_->mutable_raw_table()
-                   ->Insert({ts_, parser_->raw_legacy_event_id_, 0, *utid_, 0,
-                             0, context_->machine_id()})
-                   .id;
+    auto ucpu = context_->cpu_tracker->GetOrCreateCpu(0);
+    RawId id =
+        storage_->mutable_raw_table()
+            ->Insert({ts_, parser_->raw_legacy_event_id_, *utid_, 0, 0, ucpu})
+            .id;
 
     auto inserter = context_->args_tracker->AddArgsTo(id);
     inserter
