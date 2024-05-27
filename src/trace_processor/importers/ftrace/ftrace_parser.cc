@@ -24,6 +24,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -1362,10 +1363,10 @@ void FtraceParser::ParseGenericFtrace(int64_t ts,
   protos::pbzero::GenericFtraceEvent::Decoder evt(blob.data, blob.size);
   StringId event_id = context_->storage->InternString(evt.event_name());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-  RawId id =
-      context_->storage->mutable_ftrace_event_table()
-          ->Insert({ts, event_id, cpu, utid, {}, {}, context_->machine_id()})
-          .id;
+  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+  RawId id = context_->storage->mutable_ftrace_event_table()
+                 ->Insert({ts, event_id, utid, {}, {}, ucpu})
+                 .id;
   auto inserter = context_->args_tracker->AddArgsTo(id);
 
   for (auto it = evt.field(); it; ++it) {
@@ -1404,15 +1405,12 @@ void FtraceParser::ParseTypedFtraceToRaw(
   FtraceMessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
   const auto& message_strings = ftrace_message_strings_[ftrace_id];
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-  RawId id = context_->storage->mutable_ftrace_event_table()
-                 ->Insert({timestamp,
-                           message_strings.message_name_id,
-                           cpu,
-                           utid,
-                           {},
-                           {},
-                           context_->machine_id()})
-                 .id;
+  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+  RawId id =
+      context_->storage->mutable_ftrace_event_table()
+          ->Insert(
+              {timestamp, message_strings.message_name_id, utid, {}, {}, ucpu})
+          .id;
   auto inserter = context_->args_tracker->AddArgsTo(id);
 
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {

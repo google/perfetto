@@ -630,9 +630,11 @@ SystraceSerializer::ScopedCString SystraceSerializer::SerializeToString(
 void SystraceSerializer::SerializePrefix(uint32_t raw_row,
                                          base::StringWriter* writer) {
   const auto& raw = storage_->raw_table();
+  const auto& cpu_table = storage_->cpu_table();
 
   int64_t ts = raw.ts()[raw_row];
-  uint32_t cpu = raw.cpu()[raw_row];
+  auto ucpu = raw.ucpu()[raw_row];
+  auto cpu = cpu_table.cpu()[ucpu.value];
 
   UniqueTid utid = raw.utid()[raw_row];
   uint32_t tid = storage_->thread_table().tid()[utid];
@@ -675,7 +677,7 @@ void SystraceSerializer::SerializePrefix(uint32_t raw_row,
     writer->AppendPaddedInt<' ', 5>(tgid);
   }
   writer->AppendLiteral(") [");
-  writer->AppendPaddedInt<'0', 3>(cpu);
+  writer->AppendPaddedInt<'0', 3>(cpu ? *cpu : 0);
   writer->AppendLiteral("] .... ");
 
   writer->AppendInt(ftrace_time.secs);
