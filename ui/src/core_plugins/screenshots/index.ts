@@ -40,9 +40,12 @@ export async function decideTracks(
     tracksToAdd: [],
   };
 
-  const res = await engine.query(
-    'select count() as count from android_screenshots',
-  );
+  const res = await engine.query(`
+    INCLUDE PERFETTO MODULE android.screenshots;
+    select
+      count() as count
+    from android_screenshots
+  `);
   const {count} = res.firstRow({count: NUM});
 
   if (count > 0) {
@@ -58,11 +61,12 @@ export async function decideTracks(
 
 class ScreenshotsPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    await ctx.engine.query(`INCLUDE PERFETTO MODULE android.screenshots`);
-
-    const res = await ctx.engine.query(
-      'select count() as count from android_screenshots',
-    );
+    const res = await ctx.engine.query(`
+      INCLUDE PERFETTO MODULE android.screenshots;
+      select
+        count() as count
+      from android_screenshots
+    `);
     const {count} = res.firstRow({count: NUM});
 
     if (count > 0) {
