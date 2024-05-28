@@ -19,7 +19,6 @@ source_set("full") {
   ]
   deps = [
     "../../../../gn:default_deps",
-    "../../../../gn:zlib",
     "../../../../include/perfetto/ext/base:base",
     "../../../trace_processor:storage_minimal",
     "../../types",
