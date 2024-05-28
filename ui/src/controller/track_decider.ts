@@ -96,10 +96,12 @@ class TrackDecider {
   async guessCpuSizes(): Promise<Map<number, string>> {
     const cpuToSize = new Map<number, string>();
     await this.engine.query(`
-      INCLUDE PERFETTO MODULE cpu.size;
+      include perfetto module cpu.size;
     `);
     const result = await this.engine.query(`
-      SELECT cpu, cpu_guess_core_type(cpu) as size FROM cpu_counter_track;
+      select cpu, cpu_guess_core_type(cpu) as size
+      from cpu_counter_track
+      join _counter_track_summary using (id);
     `);
 
     const it = result.iter({
@@ -152,6 +154,7 @@ class TrackDecider {
             limit 1
           ) as cpuIdleId
         from cpu_counter_track
+        join _counter_track_summary using (id)
         where name = 'cpufreq' and cpu = ${cpu}
         limit 1;
       `);
@@ -236,6 +239,7 @@ class TrackDecider {
       const freqExistsResult = await engine.query(`
         select *
         from gpu_counter_track
+        join _counter_track_summary using (id)
         where name = 'gpufreq' and gpu_id = ${gpu}
         limit 1;
       `);
@@ -254,6 +258,7 @@ class TrackDecider {
     const cpuFreqLimitCounterTracksSql = `
       select name, id
       from cpu_counter_track
+      join _counter_track_summary using (id)
       where name glob "Cpu * Freq Limit"
       order by name asc
     `;
@@ -271,6 +276,7 @@ class TrackDecider {
     const addCpuPerfCounterTracksSql = `
       select printf("Cpu %u %s", cpu, name) as name, id
       from perf_counter_track as pct
+      join _counter_track_summary using (id)
       order by perf_session_id asc, pct.name asc, cpu asc
     `;
     this.addCpuCounterTracks(engine, addCpuPerfCounterTracksSql);
@@ -707,7 +713,8 @@ class TrackDecider {
         thread.name as threadName,
         thread_counter_track.id as trackId
       from thread_counter_track
-      join thread using(utid)
+      join _counter_track_summary using (id)
+      join thread using (utid)
       where thread_counter_track.name != 'thread_time'
   `);
 
@@ -1001,6 +1008,7 @@ class TrackDecider {
         process.pid,
         process.name as processName
       from process_counter_track
+      join _counter_track_summary using (id)
       join process using(upid);
   `);
     const it = result.iter({
@@ -1332,12 +1340,13 @@ class TrackDecider {
 
   private async computeThreadOrderingMetadata(): Promise<UtidToTrackSortKey> {
     const result = await this.engine.query(`
-    select
-      utid,
-      tid,
-      (select pid from process p where t.upid = p.upid) as pid,
-      t.name as threadName
-    from thread t`);
+      select
+        utid,
+        tid,
+        (select pid from process p where t.upid = p.upid) as pid,
+        t.name as threadName
+      from thread t
+    `);
 
     const it = result.iter({
       utid: NUM,
@@ -1549,9 +1558,9 @@ class TrackDecider {
       return PrimaryTrackSortKey.COUNTER_TRACK;
     }
     const result = await this.engine.query(`
-    select utid
-    from thread
-    where upid=${upid} and name=${sqliteString(threadName)}
+      select utid
+      from thread
+      where upid=${upid} and name=${sqliteString(threadName)}
     `);
     const it = result.iter({
       utid: NUM,
