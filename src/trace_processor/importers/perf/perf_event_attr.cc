@@ -25,6 +25,7 @@
 #include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::perf_importer {
@@ -116,21 +117,19 @@ PerfCounter& PerfEventAttr::GetOrCreateCounter(uint32_t cpu) const {
 }
 
 PerfCounter PerfEventAttr::CreateCounter(uint32_t cpu) const {
-  return PerfCounter(
-      context_->storage->mutable_counter_table(),
+  tables::PerfCounterTrackTable::Row row;
+  row.name = context_->storage->InternString(base::StringView(event_name_));
+  row.unit = context_->storage->InternString(base::StringView(""));
+  row.description = context_->storage->InternString(base::StringView(""));
+  row.perf_session_id = perf_session_id_;
+  row.cpu = cpu;
+  row.is_timebase = is_timebase();
+  const auto counter_track_ref =
       context_->storage->mutable_perf_counter_track_table()
-          ->Insert({/*in_name=*/context_->storage->InternString(
-                        base::StringView(event_name_)),
-                    /*in_parent_id=*/std::nullopt,
-                    /*in_source_arg_set_id=*/std::nullopt,
-                    /*in_machine_id=*/std::nullopt,
-                    /*in_unit=*/
-                    context_->storage->InternString(base::StringView("")),
-                    /*in_description=*/
-                    context_->storage->InternString(base::StringView("")),
-                    /*in_perf_session_id=*/perf_session_id_, /*in_cpu=*/cpu,
-                    /*in_is_timebase=*/is_timebase()})
-          .row_reference);
+          ->Insert(std::move(row))
+          .row_reference;
+  return PerfCounter(context_->storage->mutable_counter_table(),
+                     std::move(counter_track_ref));
 }
 
 }  // namespace perfetto::trace_processor::perf_importer
