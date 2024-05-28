@@ -98,6 +98,8 @@ source_set("lib") {
     "deobfuscate_profile.h",
     "symbolize_profile.cc",
     "symbolize_profile.h",
+    "trace_to_firefox.cc",
+    "trace_to_firefox.h",
     "trace_to_hprof.cc",
     "trace_to_hprof.h",
     "trace_to_json.cc",
