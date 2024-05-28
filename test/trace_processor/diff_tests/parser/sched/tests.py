@@ -83,28 +83,29 @@ class SchedParser(TestSuite):
           t.name,
           c.ts,
           c.value,
-          c.machine_id
+          m.raw_id as raw_machine_id
         FROM
           counter AS c
-        LEFT JOIN
+        JOIN
           counter_track AS t
           ON c.track_id = t.id
+        JOIN machine as m on t.machine_id = m.id
         WHERE
           name GLOB "Cpu ? Cap" OR name GLOB "Cpu ? Util" OR name GLOB "Cpu ? Nr Running"
         ORDER BY ts;
         """,
         out=Csv("""
-        "name","ts","value","machine_id"
-        "Cpu 6 Util",10000,1.000000,1
-        "Cpu 6 Cap",10000,1004.000000,1
-        "Cpu 6 Nr Running",10000,0.000000,1
-        "Cpu 7 Util",11000,1.000000,1
-        "Cpu 7 Cap",11000,1007.000000,1
-        "Cpu 7 Nr Running",11000,0.000000,1
-        "Cpu 4 Util",12000,43.000000,1
-        "Cpu 4 Cap",12000,760.000000,1
-        "Cpu 4 Nr Running",12000,0.000000,1
-        "Cpu 5 Util",13000,125.000000,1
-        "Cpu 5 Cap",13000,757.000000,1
-        "Cpu 5 Nr Running",13000,1.000000,1
+        "name","ts","value","raw_machine_id"
+        "Cpu 6 Util",10000,1.000000,1001
+        "Cpu 6 Cap",10000,1004.000000,1001
+        "Cpu 6 Nr Running",10000,0.000000,1001
+        "Cpu 7 Util",11000,1.000000,1001
+        "Cpu 7 Cap",11000,1007.000000,1001
+        "Cpu 7 Nr Running",11000,0.000000,1001
+        "Cpu 4 Util",12000,43.000000,1001
+        "Cpu 4 Cap",12000,760.000000,1001
+        "Cpu 4 Nr Running",12000,0.000000,1001
+        "Cpu 5 Util",13000,125.000000,1001
+        "Cpu 5 Cap",13000,757.000000,1001
+        "Cpu 5 Nr Running",13000,1.000000,1001
         """))
