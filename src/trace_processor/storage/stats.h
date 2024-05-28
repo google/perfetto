@@ -349,6 +349,14 @@ namespace stats {
   F(winscope_protolog_missing_interned_stacktrace_parse_errors,                \
                                           kSingle,  kInfo,     kAnalysis,      \
       "Failed to find interned ProtoLog stacktrace."),                         \
+  F(winscope_viewcapture_parse_errors,                                         \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "ViewCapture packet has unknown fields, which results in some "          \
+      "arguments missing. You may need a newer version of trace processor "    \
+      "to parse them."),                                                       \
+  F(winscope_viewcapture_missing_interned_string_parse_errors,                 \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "Failed to find interned ViewCapture string."),                          \
   F(jit_unknown_frame,                    kSingle,  kDataLoss, kTrace,         \
       "Indicates that we were unable to determine the function for a frame in "\
       "a jitted memory region"),                                               \
