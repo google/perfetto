@@ -89,6 +89,7 @@ perfetto_proto_library("winscope_extensions_@TYPE@") {
     "view/surfacecontrol.proto",
     "view/viewrootimpl.proto",
     "view/windowlayoutparams.proto",
+    "viewcapture.proto",
     "winscope_extensions_impl.proto",
   ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
