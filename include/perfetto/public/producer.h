@@ -28,20 +28,39 @@
 struct PerfettoProducerInitArgs {
   // Bitwise-or of backends that should be enabled.
   PerfettoBackendTypes backends;
+
+  // [Optional] Tune the size of the shared memory buffer between the current
+  // process and the service backend(s). This is a trade-off between memory
+  // footprint and the ability to sustain bursts of trace writes (see comments
+  // in shared_memory_abi.h).
+  // If set, the value must be a multiple of 4KB. The value can be ignored if
+  // larger than kMaxShmSize (32MB) or not a multiple of 4KB.
+  uint32_t shmem_size_hint_kb;
 };
 
 // Initializes a PerfettoProducerInitArgs struct.
 #define PERFETTO_PRODUCER_INIT_ARGS_INIT() \
-  { 0 }
+  { 0, 0 }
 
 // Initializes the global perfetto producer.
+//
+// It's ok to call this function multiple times, but if a backend was already
+// initialized, most of `args` would be ignored.
 static inline void PerfettoProducerInit(struct PerfettoProducerInitArgs args) {
+  struct PerfettoProducerBackendInitArgs* backend_args =
+      PerfettoProducerBackendInitArgsCreate();
+
+  PerfettoProducerBackendInitArgsSetShmemSizeHintKb(backend_args,
+                                                    args.shmem_size_hint_kb);
+
   if (args.backends & PERFETTO_BACKEND_IN_PROCESS) {
-    PerfettoProducerInProcessInit();
+    PerfettoProducerInProcessInit(backend_args);
   }
   if (args.backends & PERFETTO_BACKEND_SYSTEM) {
-    PerfettoProducerSystemInit();
+    PerfettoProducerSystemInit(backend_args);
   }
+
+  PerfettoProducerBackendInitArgsDestroy(backend_args);
 }
 
 // Informs the tracing services to activate the single trigger `trigger_name` if
