@@ -131,10 +131,12 @@ class CounterPlugin implements Plugin {
       from (
         select name, id, unit
         from counter_track
+        join _counter_track_summary using (id)
         where type = 'counter_track'
         union
         select name, id, unit
         from gpu_counter_track
+        join _counter_track_summary using (id)
         where name != 'gpufreq'
       )
       order by name
@@ -176,6 +178,7 @@ class CounterPlugin implements Plugin {
     const cpuFreqLimitCounterTracksSql = `
       select name, id
       from cpu_counter_track
+      join _counter_track_summary using (id)
       where name glob "Cpu * Freq Limit"
       order by name asc
     `;
@@ -193,6 +196,7 @@ class CounterPlugin implements Plugin {
     const addCpuPerfCounterTracksSql = `
       select printf("Cpu %u %s", cpu, name) as name, id
       from perf_counter_track as pct
+      join _counter_track_summary using (id)
       order by perf_session_id asc, pct.name asc, cpu asc
     `;
     this.addCpuCounterTracks(ctx, addCpuPerfCounterTracksSql);
@@ -241,6 +245,7 @@ class CounterPlugin implements Plugin {
         thread.start_ts as startTs,
         thread.end_ts as endTs
       from thread_counter_track
+      join _counter_track_summary using (id)
       join thread using(utid)
       where thread_counter_track.name != 'thread_time'
     `);
@@ -296,6 +301,7 @@ class CounterPlugin implements Plugin {
       process.pid,
       process.name as processName
     from process_counter_track
+    join _counter_track_summary using (id)
     join process using(upid);
   `);
     const it = result.iter({
@@ -344,11 +350,12 @@ class CounterPlugin implements Plugin {
       // Only add a gpu freq track if we have
       // gpu freq data.
       const freqExistsResult = await engine.query(`
-      select id
-      from gpu_counter_track
-      where name = 'gpufreq' and gpu_id = ${gpu}
-      limit 1;
-    `);
+        select id
+        from gpu_counter_track
+        join _counter_track_summary using (id)
+        where name = 'gpufreq' and gpu_id = ${gpu}
+        limit 1;
+      `);
       if (freqExistsResult.numRows() > 0) {
         const trackId = freqExistsResult.firstRow({id: NUM}).id;
         const uri = `perfetto.Counter#gpu_freq${gpu}`;
