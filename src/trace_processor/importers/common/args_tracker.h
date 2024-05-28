@@ -154,6 +154,10 @@ class ArgsTracker {
         context_->storage->mutable_surfaceflinger_transactions_table(), id);
   }
 
+  BoundInserter AddArgsTo(tables::ViewCaptureTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_viewcapture_table(), id);
+  }
+
   BoundInserter AddArgsTo(tables::WindowManagerShellTransitionsTable::Id id) {
     return AddArgsTo(
         context_->storage->mutable_window_manager_shell_transitions_table(),

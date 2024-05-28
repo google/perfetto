@@ -139,15 +139,16 @@ V8RegexpCodeTable::~V8RegexpCodeTable() = default;
 InputMethodClientsTable::~InputMethodClientsTable() = default;
 InputMethodManagerServiceTable::~InputMethodManagerServiceTable() = default;
 InputMethodServiceTable::~InputMethodServiceTable() = default;
+ProtoLogTable::~ProtoLogTable() = default;
 SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =
     default;
 SurfaceFlingerLayerTable::~SurfaceFlingerLayerTable() = default;
 SurfaceFlingerTransactionsTable::~SurfaceFlingerTransactionsTable() = default;
+ViewCaptureTable::~ViewCaptureTable() = default;
 WindowManagerShellTransitionsTable::~WindowManagerShellTransitionsTable() =
     default;
 WindowManagerShellTransitionHandlersTable::
     ~WindowManagerShellTransitionHandlersTable() = default;
-ProtoLogTable::~ProtoLogTable() = default;
 
 }  // namespace tables
 

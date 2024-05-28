@@ -845,6 +845,13 @@ class TraceStorage {
     return &surfaceflinger_transactions_table_;
   }
 
+  const tables::ViewCaptureTable& viewcapture_table() const {
+    return viewcapture_table_;
+  }
+  tables::ViewCaptureTable* mutable_viewcapture_table() {
+    return &viewcapture_table_;
+  }
+
   const tables::WindowManagerShellTransitionsTable&
   window_manager_shell_transitions_table() const {
     return window_manager_shell_transitions_table_;
@@ -1147,6 +1154,7 @@ class TraceStorage {
   tables::SurfaceFlingerLayerTable surfaceflinger_layer_table_{&string_pool_};
   tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
       &string_pool_};
+  tables::ViewCaptureTable viewcapture_table_{&string_pool_};
   tables::WindowManagerShellTransitionsTable
       window_manager_shell_transitions_table_{&string_pool_};
   tables::WindowManagerShellTransitionHandlersTable
