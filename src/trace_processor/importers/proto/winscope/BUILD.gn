@@ -16,6 +16,8 @@ import("../../../../../gn/perfetto_cc_proto_descriptor.gni")
 
 source_set("full") {
   sources = [
+    "viewcapture_args_parser.cc",
+    "viewcapture_args_parser.h",
     "protolog_messages_tracker.cc",
     "protolog_messages_tracker.h",
     "protolog_parser.cc",

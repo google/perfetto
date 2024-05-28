@@ -57,6 +57,7 @@ from diff_tests.parser.android.tests_protolog import ProtoLog
 from diff_tests.parser.android.tests_shell_transitions import ShellTransitions
 from diff_tests.parser.android.tests_surfaceflinger_layers import SurfaceFlingerLayers
 from diff_tests.parser.android.tests_surfaceflinger_transactions import SurfaceFlingerTransactions
+from diff_tests.parser.android.tests_viewcapture import ViewCapture
 from diff_tests.parser.atrace.tests import Atrace
 from diff_tests.parser.atrace.tests_error_handling import AtraceErrorHandling
 from diff_tests.parser.chrome.tests import ChromeParser
@@ -207,6 +208,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ShellTransitions(index_path, 'parser/android',
                         'ShellTransitions').fetch(),
       *ProtoLog(index_path, 'parser/android', 'ProtoLog').fetch(),
+      *ViewCapture(index_path, 'parser/android', 'ViewCapture').fetch(),
       *TrackEvent(index_path, 'parser/track_event', 'TrackEvent').fetch(),
       *TranslatedArgs(index_path, 'parser/translated_args',
                       'TranslatedArgs').fetch(),
