@@ -16,20 +16,18 @@
 
 #include "src/trace_processor/importers/common/event_tracker.h"
 
-#include <math.h>
+#include <cinttypes>
+#include <cstdint>
 #include <optional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/utils.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/storage/stats.h"
+#include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/types/variadic.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 EventTracker::EventTracker(TraceProcessorContext* context)
     : context_(context) {}
@@ -65,9 +63,7 @@ std::optional<CounterId> EventTracker::PushCounter(int64_t timestamp,
   max_timestamp_ = timestamp;
 
   auto* counter_values = context_->storage->mutable_counter_table();
-  return counter_values
-      ->Insert({timestamp, track_id, value, {}, context_->machine_id()})
-      .id;
+  return counter_values->Insert({timestamp, track_id, value, {}}).id;
 }
 
 std::optional<CounterId> EventTracker::PushCounter(
@@ -106,5 +102,4 @@ void EventTracker::FlushPendingEvents() {
   pending_upid_resolution_counter_.clear();
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

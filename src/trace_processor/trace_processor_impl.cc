@@ -808,6 +808,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // Note: if adding a table here which might potentially contain many rows
   // (O(rows in sched/slice/counter)), then consider calling ShrinkToFit on
   // that table in TraceStorage::ShrinkToFitTables.
+  RegisterStaticTable(storage->machine_table());
   RegisterStaticTable(storage->arg_table());
   RegisterStaticTable(storage->raw_table());
   RegisterStaticTable(storage->ftrace_event_table());
