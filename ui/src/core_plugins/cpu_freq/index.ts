@@ -411,6 +411,7 @@ class CpuFreq implements Plugin {
       select ifnull(max(value), 0) as freq
       from counter c
       join cpu_counter_track t on c.track_id = t.id
+      join _counter_track_summary s on t.id = s.id
       where name = 'cpufreq';
     `);
     const maxCpuFreq = maxCpuFreqResult.firstRow({freq: NUM}).freq;
@@ -428,6 +429,7 @@ class CpuFreq implements Plugin {
             limit 1
           ) as cpuIdleId
         from cpu_counter_track
+        join _counter_track_summary using (id)
         where name = 'cpufreq' and cpu = ${cpu}
         limit 1;
       `);

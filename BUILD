@@ -2740,6 +2740,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_viz_summary_summary",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/viz/summary/counters.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/processes.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/viz/summary/threads.sql",
