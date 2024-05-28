@@ -55,7 +55,7 @@ package perfetto.protos;
 // emitted proactively in advance of referring to them in later packets.
 //
 // Next reserved id: 8 (up to 15).
-// Next id: 36.
+// Next id: 42.
 message InternedData {
   // TODO(eseckler): Replace iid fields inside interned messages with
   // map<iid, message> type fields in InternedData.
@@ -137,4 +137,10 @@ message InternedData {
   repeated InternedString protolog_string_args = 36;
   // Interned protolog stacktraces.
   repeated InternedString protolog_stacktrace = 37;
+
+  // viewcapture
+  repeated InternedString viewcapture_package_name = 38;
+  repeated InternedString viewcapture_window_name = 39;
+  repeated InternedString viewcapture_view_id = 40;
+  repeated InternedString viewcapture_class_name = 41;
 }
