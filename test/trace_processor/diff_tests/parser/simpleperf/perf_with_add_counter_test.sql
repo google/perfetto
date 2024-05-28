@@ -12,8 +12,7 @@ WITH
       ts,
       track_id,
       IIF(lag_value IS NULL, value, value - lag_value) AS delta,
-      arg_set_id,
-      machine_id
+      arg_set_id
     FROM counter_delta_base
   ),
   named_counter AS (
