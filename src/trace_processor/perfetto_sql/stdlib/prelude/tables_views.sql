@@ -12,9 +12,11 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
-
 -- Contains information of CPUs seen during the trace.
 CREATE PERFETTO VIEW cpu (
+  -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|
+  -- instead.
+  id UINT,
   -- Unique identifier for this CPU. Isn't equal to |cpu| for remote machines
   -- and is equal to |cpu| for the host machine.
   ucpu UINT,
@@ -30,6 +32,7 @@ CREATE PERFETTO VIEW cpu (
   machine_id UINT
 ) AS
 SELECT
+  id,
   id AS ucpu,
   cpu,
   type AS type,
@@ -45,26 +48,19 @@ WHERE
 CREATE PERFETTO VIEW cpu_frequencies (
   -- Unique identifier for this cpu frequency.
   id UINT,
-  -- The name of the "most-specific" child table containing this row.
-  type STRING,
-  -- The CPU identifier.
+  -- The CPU for this frequency, meaningful only in single machine traces.
+  -- For multi-machine, join with the `cpu` table on `ucpu` to get the CPU
+  -- identifier of each machine.
   cpu UINT,
   -- CPU frequency in KHz.
   freq UINT,
-  -- Machine identifier, non-null for CPUs on a remote machine.
-  machine_id UINT,
-  -- The unique CPU identifier that the slice executed on.
+  -- The CPU that the slice executed on (meaningful only in single machine
+  -- traces). For multi-machine, join with the `cpu` table on `ucpu` to get the
+  -- CPU identifier of each machine.
   ucpu UINT
 ) AS
-SELECT
-  __intrinsic_cpu_freq.id,
-  __intrinsic_cpu_freq.type AS type,
-  cpu,
-  freq,
-  machine_id,
-  cpu.ucpu
-FROM
-  __intrinsic_cpu_freq LEFT JOIN cpu USING (ucpu);
+SELECT id, ucpu AS cpu, freq, ucpu
+FROM __intrinsic_cpu_freq;
 
 -- This table holds slices with kernel thread scheduling information. These
 -- slices are collected when the Linux "ftrace" data source is used with the
