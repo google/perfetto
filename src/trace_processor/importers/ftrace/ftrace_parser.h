@@ -76,6 +76,7 @@ class FtraceParser {
   void ParseCpuFreq(int64_t timestamp, protozero::ConstBytes);
   void ParseCpuFreqThrottle(int64_t timestamp, protozero::ConstBytes);
   void ParseGpuFreq(int64_t timestamp, protozero::ConstBytes);
+  void ParseKgslGpuFreq(int64_t timestamp, protozero::ConstBytes);
   void ParseCpuIdle(int64_t timestamp, protozero::ConstBytes);
   void ParsePrint(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseZero(int64_t timestamp, uint32_t pid, protozero::ConstBytes);

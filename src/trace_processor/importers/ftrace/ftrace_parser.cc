@@ -65,6 +65,7 @@
 #include "protos/perfetto/trace/ftrace/i2c.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ion.pbzero.h"
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
+#include "protos/perfetto/trace/ftrace/kgsl.pbzero.h"
 #include "protos/perfetto/trace/ftrace/kmem.pbzero.h"
 #include "protos/perfetto/trace/ftrace/lwis.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mali.pbzero.h"
@@ -771,6 +772,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kGpuFrequencyFieldNumber: {
         ParseGpuFreq(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kKgslGpuFrequencyFieldNumber: {
+        ParseKgslGpuFreq(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kCpuIdleFieldNumber: {
@@ -1561,6 +1566,17 @@ void FtraceParser::ParseGpuFreq(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GpuFrequencyFtraceEvent::Decoder freq(blob.data, blob.size);
   uint32_t gpu = freq.gpu_id();
   uint32_t new_freq = freq.state();
+  TrackId track =
+      context_->track_tracker->InternGpuCounterTrack(gpu_freq_name_id_, gpu);
+  context_->event_tracker->PushCounter(timestamp, new_freq, track);
+}
+
+void FtraceParser::ParseKgslGpuFreq(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::KgslGpuFrequencyFtraceEvent::Decoder freq(blob.data,
+                                                            blob.size);
+  uint32_t gpu = freq.gpu_id();
+  // Source data is frequency / 1000, so we correct that here:
+  double new_freq = static_cast<double>(freq.gpu_freq()) * 1000.0;
   TrackId track =
       context_->track_tracker->InternGpuCounterTrack(gpu_freq_name_id_, gpu);
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
