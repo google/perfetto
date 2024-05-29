@@ -235,7 +235,7 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
 
           globals.setLegacySelection(
             {
-              kind: 'CHROME_SLICE',
+              kind: 'SLICE',
               id: vnode.attrs.id,
               trackKey,
               table: 'slice',

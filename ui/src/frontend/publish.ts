@@ -189,7 +189,7 @@ export function publishConnectedFlows(connectedFlows: Flow[]) {
   globals.dispatch(Actions.setHighlightedFlowLeftId({flowId: -1}));
   globals.dispatch(Actions.setHighlightedFlowRightId({flowId: -1}));
   const currentSelection = getLegacySelection(globals.state);
-  if (currentSelection?.kind === 'CHROME_SLICE') {
+  if (currentSelection?.kind === 'SLICE') {
     const sliceId = currentSelection.id;
     for (const flow of globals.connectedFlows) {
       if (flow.begin.sliceId === sliceId) {

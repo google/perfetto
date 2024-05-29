@@ -153,7 +153,7 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   }
   globals.setLegacySelection(
     {
-      kind: 'SLICE',
+      kind: 'SCHED_SLICE',
       id,
       trackKey: trackId,
     },

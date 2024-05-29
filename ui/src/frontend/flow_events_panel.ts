@@ -52,7 +52,7 @@ export class FlowEventsPanel implements m.ClassComponent {
       );
     }
 
-    if (selection.kind !== 'CHROME_SLICE') {
+    if (selection.kind !== 'SLICE') {
       return m(
         EmptyState,
         {
@@ -69,7 +69,7 @@ export class FlowEventsPanel implements m.ClassComponent {
       if (trackKey) {
         globals.setLegacySelection(
           {
-            kind: 'CHROME_SLICE',
+            kind: 'SLICE',
             id: sliceId,
             trackKey,
             table: 'slice',

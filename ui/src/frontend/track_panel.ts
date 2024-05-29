@@ -567,7 +567,7 @@ export function renderWakeupVertical(
   const currentSelection = getLegacySelection(globals.state);
   if (currentSelection !== null) {
     if (
-      currentSelection.kind === 'SLICE' &&
+      currentSelection.kind === 'SCHED_SLICE' &&
       globals.sliceDetails.wakeupTs !== undefined
     ) {
       drawVerticalLineAtTime(

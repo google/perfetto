@@ -42,7 +42,7 @@ import {
 } from '../core_plugins/frames';
 import {decideTracks as screenshotDecideTracks} from '../core_plugins/screenshots';
 import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
-import {SLICE_TRACK_KIND} from '../core_plugins/chrome_slices/chrome_slice_track';
+import {THREAD_SLICE_TRACK_KIND} from '../core_plugins/thread_slice/thread_slice_track';
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';
@@ -982,11 +982,11 @@ class TrackDecider {
 
       const uuid = this.getUuid(utid, upid);
 
-      const kind = SLICE_TRACK_KIND;
+      const kind = THREAD_SLICE_TRACK_KIND;
       const name = getTrackName({name: trackName, utid, tid, threadName, kind});
 
       this.tracksToAdd.push({
-        uri: `perfetto.ChromeSlices#${trackId}`,
+        uri: `perfetto.ThreadSlices#${trackId}`,
         name,
         trackGroup: uuid,
         trackSortKey: {
