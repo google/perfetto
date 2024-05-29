@@ -15,22 +15,7 @@
 
 INCLUDE PERFETTO MODULE android.device;
 INCLUDE PERFETTO MODULE cpu.idle;
-
--- Device specific info for deep idle time offsets
-CREATE PERFETTO TABLE _device_cpu_deep_idle_offsets
-AS
-WITH data(device, cpu, offset_ns) AS (
-  VALUES
-  ("oriole", 6, 200000),
-  ("oriole", 7, 200000),
-  ("raven", 6, 200000),
-  ("raven", 7, 200000),
-  ("eos", 0, 450000),
-  ("eos", 1, 450000),
-  ("eos", 2, 450000),
-  ("eos", 3, 450000)
-)
-select * from data;
+INCLUDE PERFETTO MODULE wattson.cpu_idle_offsets;
 
 -- Get the corresponding deep idle time offset based on device and CPU.
 CREATE PERFETTO FUNCTION _get_deep_idle_offset(cpu INT)
