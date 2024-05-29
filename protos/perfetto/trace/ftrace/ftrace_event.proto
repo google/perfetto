@@ -50,6 +50,7 @@ import "protos/perfetto/trace/ftrace/i2c.proto";
 import "protos/perfetto/trace/ftrace/ion.proto";
 import "protos/perfetto/trace/ftrace/ipi.proto";
 import "protos/perfetto/trace/ftrace/irq.proto";
+import "protos/perfetto/trace/ftrace/kgsl.proto";
 import "protos/perfetto/trace/ftrace/kmem.proto";
 import "protos/perfetto/trace/ftrace/kvm.proto";
 import "protos/perfetto/trace/ftrace/lowmemorykiller.proto";
@@ -630,5 +631,6 @@ message FtraceEvent {
     ThermalExynosAcpmHighOverheadFtraceEvent thermal_exynos_acpm_high_overhead =
         507;
     DcvshFreqFtraceEvent dcvsh_freq = 508;
+    KgslGpuFrequencyFtraceEvent kgsl_gpu_frequency = 509;
   }
 }

@@ -503,3 +503,4 @@ power/device_pm_callback_end
 thermal_exynos/thermal_exynos_acpm_bulk
 thermal_exynos/thermal_exynos_acpm_high_overhead
 dcvsh/dcvsh_freq
+kgsl/gpu_frequency
