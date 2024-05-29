@@ -106,7 +106,7 @@ export function createEmptyState(): State {
     frontendLocalState: {
       visibleState: {
         start: Time.ZERO,
-        end: Time.ZERO,
+        end: Time.fromSeconds(10),
         lastUpdate: 0,
         resolution: 0n,
       },
