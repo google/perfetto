@@ -721,16 +721,17 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_switch_original.pb'),
         query="""
-        SELECT * from cpu
+        SELECT cpu, cluster_id
+        FROM cpu
         """,
         out=Csv("""
-        "ucpu","cpu","type","cluster_id","processor","machine_id"
-        0,0,"__intrinsic_cpu",0,"[NULL]","[NULL]"
-        1,1,"__intrinsic_cpu",0,"[NULL]","[NULL]"
-        2,2,"__intrinsic_cpu",0,"[NULL]","[NULL]"
-        3,3,"__intrinsic_cpu",0,"[NULL]","[NULL]"
-        4,4,"__intrinsic_cpu",0,"[NULL]","[NULL]"
-        7,7,"__intrinsic_cpu",0,"[NULL]","[NULL]"
+        "cpu","cluster_id"
+        0,0
+        1,0
+        2,0
+        3,0
+        4,0
+        7,0
         """))
 
   def test_sched_cpu_id_machine_id(self):
@@ -738,14 +739,16 @@ class TablesSched(TestSuite):
         trace=DataPath('sched_switch_original.pb'),
         trace_modifier=TraceInjector(['ftrace_events'], {'machine_id': 1001}),
         query="""
-        SELECT * from cpu
+        SELECT cpu, cluster_id, machine.raw_id as raw_machine_id
+        FROM cpu
+        JOIN machine ON cpu.machine_id = machine.id
         """,
         out=Csv("""
-        "ucpu","cpu","type","cluster_id","processor","machine_id"
-        4096,0,"__intrinsic_cpu",0,"[NULL]",1
-        4097,1,"__intrinsic_cpu",0,"[NULL]",1
-        4098,2,"__intrinsic_cpu",0,"[NULL]",1
-        4099,3,"__intrinsic_cpu",0,"[NULL]",1
-        4100,4,"__intrinsic_cpu",0,"[NULL]",1
-        4103,7,"__intrinsic_cpu",0,"[NULL]",1
+        "cpu","cluster_id","raw_machine_id"
+        0,0,1001
+        1,0,1001
+        2,0,1001
+        3,0,1001
+        4,0,1001
+        7,0,1001
         """))
