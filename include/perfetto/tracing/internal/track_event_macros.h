@@ -170,7 +170,9 @@
       /* that the scoped event is exactly ONE line and can't escape the    */ \
       /* scope if used in a single line if statement.                      */ \
       EventFinalizer(...) {}                                                  \
-      ~EventFinalizer() { TRACE_EVENT_END(category); }                        \
+      ~EventFinalizer() {                                                     \
+        TRACE_EVENT_END(category);                                            \
+      }                                                                       \
                                                                               \
       EventFinalizer(const EventFinalizer&) = delete;                         \
       inline EventFinalizer& operator=(const EventFinalizer&) = delete;       \

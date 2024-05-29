@@ -23,7 +23,7 @@ class StdlibCounterIntervals(TestSuite):
 
   def test_intervals_counter_leading(self):
     return DiffTestBlueprint(
-      trace=DataPath('counters.json'),
+        trace=DataPath('counters.json'),
         query="""
         INCLUDE PERFETTO MODULE counters.intervals;
 

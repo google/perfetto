@@ -292,7 +292,8 @@ SELECT 1;
     self.assertListEqual(res.errors, [])
 
     fn = res.functions[0]
-    self.assertEqual(fn.desc, 'This\n is\n\n a\n      very\n\n long\n\n description.')
+    self.assertEqual(fn.desc,
+                     'This\n is\n\n a\n      very\n\n long\n\n description.')
 
   def test_multiline_arg_desc(self):
     res = parse_file(
@@ -587,7 +588,6 @@ SELECT 1;
     })
     self.assertEqual(macro.return_type, 'TableOrSubquery')
     self.assertEqual(macro.return_desc, 'Exists.')
-
 
   def test_create_or_replace_macro_banned(self):
     res = parse_file(

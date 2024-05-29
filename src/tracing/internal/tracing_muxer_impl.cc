@@ -1856,7 +1856,7 @@ void TracingMuxerImpl::UpdateDataSourceOnAllBackends(RegisteredDataSource& rds,
     }
     rds.descriptor.set_will_notify_on_start(true);
     if (!rds.descriptor.has_will_notify_on_stop()) {
-        rds.descriptor.set_will_notify_on_stop(true);
+      rds.descriptor.set_will_notify_on_stop(true);
     }
 
     rds.descriptor.set_handles_incremental_state_clear(true);

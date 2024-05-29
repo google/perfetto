@@ -74,8 +74,9 @@ def main():
     args.test_extensions = os.path.join(out_path, 'gen', 'protos', 'perfetto',
                                         'trace', 'test_extensions.descriptor')
   if args.winscope_extensions is None:
-    args.winscope_extensions = os.path.join(out_path, 'gen', 'protos', 'perfetto', 'trace',
-                                            'android', 'winscope.descriptor')
+    args.winscope_extensions = os.path.join(out_path, 'gen', 'protos',
+                                            'perfetto', 'trace', 'android',
+                                            'winscope.descriptor')
 
   test_runner = DiffTestsRunner(args.name_filter, args.trace_processor,
                                 args.trace_descriptor, args.no_colors,
@@ -83,8 +84,10 @@ def main():
   sys.stderr.write(f"[==========] Running {len(test_runner.tests)} tests.\n")
 
   results = test_runner.run_all_tests(args.metrics_descriptor,
-                                      args.chrome_track_event_descriptor, args.test_extensions,
-                                      args.winscope_extensions, args.keep_input, args.rebase)
+                                      args.chrome_track_event_descriptor,
+                                      args.test_extensions,
+                                      args.winscope_extensions, args.keep_input,
+                                      args.rebase)
   sys.stderr.write(results.str(args.no_colors, len(test_runner.tests)))
 
   if args.rebase:

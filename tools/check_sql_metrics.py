@@ -42,9 +42,9 @@ CREATE_TABLE_ALLOWLIST = {
         'android_blocking_calls_cuj_calls'
     ],
     ('/android'
-    '/android_blocking_calls_unagg.sql'): [
-        'filtered_processes_with_non_zero_blocking_calls',
-        'process_info', 'android_blocking_calls_unagg_calls'
+     '/android_blocking_calls_unagg.sql'): [
+        'filtered_processes_with_non_zero_blocking_calls', 'process_info',
+        'android_blocking_calls_unagg_calls'
     ],
     '/android/jank/cujs.sql': ['android_jank_cuj'],
     '/chrome/gesture_flow_event.sql': [
@@ -92,8 +92,6 @@ def check(path: str, metrics_sources: str) -> List[str]:
           f'Use "CREATE OR REPLACE PERFETTO MACRO" in Perfetto metrics, to '
           f'prevent the file from crashing if the metric is rerun.\n'
           f'Offending file: {path}\n')
-
-
 
   # Check that CREATE VIEW/TABLE has a matching DROP VIEW/TABLE before it.
   create_table_view_dir = match_create_table_pattern_to_dict(

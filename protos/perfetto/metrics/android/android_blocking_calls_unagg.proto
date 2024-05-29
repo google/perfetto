@@ -23,14 +23,13 @@ import "protos/perfetto/metrics/android/process_metadata.proto";
 
 // All blocking calls for a trace. Shows count and total duration for each.
 message AndroidBlockingCallsUnagg {
+  repeated ProcessWithBlockingCalls process_with_blocking_calls = 1;
 
-    repeated ProcessWithBlockingCalls process_with_blocking_calls = 1;
+  message ProcessWithBlockingCalls {
+    // Details about the process (uid, version, etc)
+    optional AndroidProcessMetadata process = 1;
 
-    message ProcessWithBlockingCalls {
-        // Details about the process (uid, version, etc)
-        optional AndroidProcessMetadata process = 1;
-
-        // List of blocking calls on the process main thread.
-        repeated AndroidBlockingCall blocking_calls = 2;
-    }
+    // List of blocking calls on the process main thread.
+    repeated AndroidBlockingCall blocking_calls = 2;
+  }
 }

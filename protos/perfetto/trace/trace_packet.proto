@@ -263,7 +263,9 @@ message TracePacket {
   //
   // TODO(eseckler): Emit this field in a PacketSequenceDescriptor message
   // instead.
-  oneof optional_trusted_uid { int32 trusted_uid = 3; };
+  oneof optional_trusted_uid {
+    int32 trusted_uid = 3;
+  };
 
   // Service-assigned identifier of the packet sequence this packet belongs to.
   // Uniquely identifies a producer + writer pair within the tracing session. A

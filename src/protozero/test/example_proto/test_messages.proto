@@ -86,7 +86,9 @@ message EveryField {
 
 message NestedA {
   message NestedB {
-    message NestedC { optional int32 value_c = 1; }
+    message NestedC {
+      optional int32 value_c = 1;
+    }
     optional NestedC value_b = 1;
   }
   repeated NestedB repeated_a = 2;

@@ -1133,7 +1133,7 @@ class TrackEventParser::EventImporter {
     }
 
     ArgsParser args_writer(ts_, *inserter, *storage_, sequence_state_,
-                                    /*support_json=*/true);
+                           /*support_json=*/true);
     int unknown_extensions = 0;
     log_errors(parser_->args_parser_.ParseMessage(
         blob_, ".perfetto.protos.TrackEvent", &parser_->reflect_fields_,
@@ -1533,7 +1533,7 @@ void TrackEventParser::ParseTrackDescriptor(
     const StringId raw_name_id = context_->storage->InternString(
         decoder.has_name() ? decoder.name() : decoder.static_name());
     const StringId name_id =
-      context_->process_track_translation_table->TranslateName(raw_name_id);
+        context_->process_track_translation_table->TranslateName(raw_name_id);
     tracks->mutable_name()->Set(*tracks->id().IndexOf(track_id), name_id);
   }
 }

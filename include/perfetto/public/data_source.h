@@ -117,7 +117,8 @@ static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
     PerfettoPbMsgInit(&desc.msg, &writer);
 
     perfetto_protos_DataSourceDescriptor_set_cstr_name(&desc, data_source_name);
-    perfetto_protos_DataSourceDescriptor_set_will_notify_on_stop(&desc, params.will_notify_on_stop);
+    perfetto_protos_DataSourceDescriptor_set_will_notify_on_stop(
+        &desc, params.will_notify_on_stop);
 
     desc_size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
     desc_buf = malloc(desc_size);

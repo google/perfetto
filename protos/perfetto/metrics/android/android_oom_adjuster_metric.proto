@@ -20,7 +20,8 @@ package perfetto.protos;
 
 message AndroidOomAdjusterMetric {
   message OomAdjusterTransitionCounts {
-    // name of the item aggregated by. example: process_name, oom_adjuster_reason.
+    // name of the item aggregated by. example: process_name,
+    // oom_adjuster_reason.
     optional string name = 1;
     // name of previous oom bucket.
     optional string src_bucket = 2;
@@ -30,7 +31,8 @@ message AndroidOomAdjusterMetric {
     optional int64 count = 4;
   }
   message OomAdjBucketDurationAggregation {
-    // name of the item aggregated by. example: process_name, oom_adjuster_reason
+    // name of the item aggregated by. example: process_name,
+    // oom_adjuster_reason
     optional string name = 1;
     // name of oom bucket.
     optional string bucket = 2;
@@ -44,10 +46,15 @@ message AndroidOomAdjusterMetric {
     optional int64 oom_adj_event_count = 4;
     optional string oom_adj_reason = 5;
   }
-  repeated OomAdjusterTransitionCounts oom_adjuster_transition_counts_global = 1;
-  repeated OomAdjusterTransitionCounts oom_adjuster_transition_counts_by_process = 2;
-  repeated OomAdjusterTransitionCounts oom_adjuster_transition_counts_by_oom_adj_reason = 3;
-  repeated OomAdjBucketDurationAggregation oom_adj_bucket_duration_agg_global = 4;
-  repeated OomAdjBucketDurationAggregation oom_adj_bucket_duration_agg_by_process = 5;
+  repeated OomAdjusterTransitionCounts oom_adjuster_transition_counts_global =
+      1;
+  repeated OomAdjusterTransitionCounts
+      oom_adjuster_transition_counts_by_process = 2;
+  repeated OomAdjusterTransitionCounts
+      oom_adjuster_transition_counts_by_oom_adj_reason = 3;
+  repeated OomAdjBucketDurationAggregation oom_adj_bucket_duration_agg_global =
+      4;
+  repeated OomAdjBucketDurationAggregation
+      oom_adj_bucket_duration_agg_by_process = 5;
   repeated OomAdjDurationAggregation oom_adj_duration_agg = 6;
 }

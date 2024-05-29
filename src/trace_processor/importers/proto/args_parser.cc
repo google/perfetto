@@ -23,12 +23,11 @@ namespace perfetto::trace_processor {
 
 using BoundInserter = ArgsTracker::BoundInserter;
 
-ArgsParser::ArgsParser(
-    int64_t packet_timestamp,
-    BoundInserter& inserter,
-    TraceStorage& storage,
-    PacketSequenceStateGeneration* sequence_state,
-    bool support_json)
+ArgsParser::ArgsParser(int64_t packet_timestamp,
+                       BoundInserter& inserter,
+                       TraceStorage& storage,
+                       PacketSequenceStateGeneration* sequence_state,
+                       bool support_json)
     : support_json_(support_json),
       packet_timestamp_(packet_timestamp),
       sequence_state_(sequence_state),
@@ -49,8 +48,7 @@ void ArgsParser::AddUnsignedInteger(const Key& key, uint64_t value) {
                    Variadic::UnsignedInteger(value));
 }
 
-void ArgsParser::AddString(const Key& key,
-                                    const protozero::ConstChars& value) {
+void ArgsParser::AddString(const Key& key, const protozero::ConstChars& value) {
   inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
                    storage_.InternString(base::StringView(key.key)),
                    Variadic::String(storage_.InternString(value)));
@@ -81,14 +79,12 @@ void ArgsParser::AddBoolean(const Key& key, bool value) {
                    Variadic::Boolean(value));
 }
 
-void ArgsParser::AddBytes(const Key& key,
-                                   const protozero::ConstBytes& value) {
+void ArgsParser::AddBytes(const Key& key, const protozero::ConstBytes& value) {
   std::string b64_data = base::Base64Encode(value.data, value.size);
   AddString(key, b64_data);
 }
 
-bool ArgsParser::AddJson(const Key& key,
-                                  const protozero::ConstChars& value) {
+bool ArgsParser::AddJson(const Key& key, const protozero::ConstChars& value) {
   if (!support_json_)
     PERFETTO_FATAL("Unexpected JSON value when parsing data");
 
@@ -111,8 +107,7 @@ size_t ArgsParser::GetArrayEntryIndex(const std::string& array_key) {
       storage_.InternString(base::StringView(array_key)));
 }
 
-size_t ArgsParser::IncrementArrayEntryIndex(
-    const std::string& array_key) {
+size_t ArgsParser::IncrementArrayEntryIndex(const std::string& array_key) {
   return inserter_.IncrementArrayEntryIndex(
       storage_.InternString(base::StringView(array_key)));
 }
@@ -125,12 +120,11 @@ PacketSequenceStateGeneration* ArgsParser::seq_state() {
   return sequence_state_;
 }
 
-InternedMessageView* ArgsParser::GetInternedMessageView(
-    uint32_t field_id,
-    uint64_t iid) {
+InternedMessageView* ArgsParser::GetInternedMessageView(uint32_t field_id,
+                                                        uint64_t iid) {
   if (!sequence_state_)
     return nullptr;
   return sequence_state_->GetInternedMessageView(field_id, iid);
 }
 
-}  // namespace perfetto:trace_processor
+}  // namespace perfetto::trace_processor
