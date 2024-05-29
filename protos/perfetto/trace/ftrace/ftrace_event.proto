@@ -29,6 +29,7 @@ import "protos/perfetto/trace/ftrace/cma.proto";
 import "protos/perfetto/trace/ftrace/compaction.proto";
 import "protos/perfetto/trace/ftrace/cpuhp.proto";
 import "protos/perfetto/trace/ftrace/cros_ec.proto";
+import "protos/perfetto/trace/ftrace/dcvsh.proto";
 import "protos/perfetto/trace/ftrace/dma_fence.proto";
 import "protos/perfetto/trace/ftrace/dmabuf_heap.proto";
 import "protos/perfetto/trace/ftrace/dpu.proto";
@@ -628,5 +629,6 @@ message FtraceEvent {
     ThermalExynosAcpmBulkFtraceEvent thermal_exynos_acpm_bulk = 506;
     ThermalExynosAcpmHighOverheadFtraceEvent thermal_exynos_acpm_high_overhead =
         507;
+    DcvshFreqFtraceEvent dcvsh_freq = 508;
   }
 }

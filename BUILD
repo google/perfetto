@@ -5002,6 +5002,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/ftrace/compaction.proto",
         "protos/perfetto/trace/ftrace/cpuhp.proto",
         "protos/perfetto/trace/ftrace/cros_ec.proto",
+        "protos/perfetto/trace/ftrace/dcvsh.proto",
         "protos/perfetto/trace/ftrace/dma_fence.proto",
         "protos/perfetto/trace/ftrace/dmabuf_heap.proto",
         "protos/perfetto/trace/ftrace/dpu.proto",

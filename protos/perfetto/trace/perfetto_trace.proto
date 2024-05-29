@@ -7290,6 +7290,15 @@ message CrosEcSensorhubDataFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/cros_ec.proto
 
+// Begin of protos/perfetto/trace/ftrace/dcvsh.proto
+
+message DcvshFreqFtraceEvent {
+  optional uint64 cpu = 1;
+  optional uint64 freq = 2;
+}
+
+// End of protos/perfetto/trace/ftrace/dcvsh.proto
+
 // Begin of protos/perfetto/trace/ftrace/dma_fence.proto
 
 message DmaFenceInitFtraceEvent {
@@ -10841,6 +10850,7 @@ message FtraceEvent {
     ThermalExynosAcpmBulkFtraceEvent thermal_exynos_acpm_bulk = 506;
     ThermalExynosAcpmHighOverheadFtraceEvent thermal_exynos_acpm_high_overhead =
         507;
+    DcvshFreqFtraceEvent dcvsh_freq = 508;
   }
 }
 
