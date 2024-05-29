@@ -15,7 +15,5 @@
 import("../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("auto") {
-  sources = [
-    "multiuser.sql",
-  ]
+  sources = [ "multiuser.sql" ]
 }

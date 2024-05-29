@@ -15,8 +15,8 @@
  * limitations under the License.
  */
 
-#include "src/base/test/status_matchers.h"
 #include "src/trace_redaction/collect_timeline_events.h"
+#include "src/base/test/status_matchers.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"

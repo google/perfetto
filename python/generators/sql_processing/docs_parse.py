@@ -44,6 +44,7 @@ def parse_comment(comment: str) -> str:
   return ' '.join(line.strip().lstrip('--').lstrip()
                   for line in comment.strip().split('\n'))
 
+
 def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
   """Returns error message if the name is not correct, None otherwise."""
   prefix = name.lower().split('_')[0]

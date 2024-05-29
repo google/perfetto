@@ -19,8 +19,8 @@ syntax = "proto2";
 package perfetto.protos;
 
 // Measure Android IO stats in a trace.
-// Note: This is an aggregated metric, for unaggregated metrics look at AndroidIoUnaggregated
-// in io_unagg_metric.proto.
+// Note: This is an aggregated metric, for unaggregated metrics look at
+// AndroidIoUnaggregated in io_unagg_metric.proto.
 message AndroidIo {
   // Next id: 3
   // Stats for Counters in an f2fs file system.

@@ -37,9 +37,9 @@ base::Status RemoveProcessFreeComm::Redact(
   protozero::ProtoDecoder decoder(sched_process_free.as_bytes());
 
   auto pid_field = decoder.FindField(
-    protos::pbzero::SchedProcessFreeFtraceEvent::kPidFieldNumber);
+      protos::pbzero::SchedProcessFreeFtraceEvent::kPidFieldNumber);
   auto prio_field = decoder.FindField(
-    protos::pbzero::SchedProcessFreeFtraceEvent::kPrioFieldNumber);
+      protos::pbzero::SchedProcessFreeFtraceEvent::kPrioFieldNumber);
 
   if (!pid_field.valid() || !prio_field.valid()) {
     return base::ErrStatus("RemoveProcessFreeComm: missing required field.");

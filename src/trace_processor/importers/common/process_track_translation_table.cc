@@ -18,7 +18,8 @@
 
 namespace perfetto::trace_processor {
 
-ProcessTrackTranslationTable::ProcessTrackTranslationTable(TraceStorage* storage)
+ProcessTrackTranslationTable::ProcessTrackTranslationTable(
+    TraceStorage* storage)
     : storage_(storage) {}
 
 }  // namespace perfetto::trace_processor

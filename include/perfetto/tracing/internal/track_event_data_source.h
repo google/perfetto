@@ -76,7 +76,8 @@ template <>
 struct TraceTimestampTraits<uint64_t> {
   static inline TraceTimestamp ConvertTimestampToTraceTimeNs(
       const uint64_t& timestamp) {
-    return {static_cast<uint32_t>(internal::TrackEventInternal::GetClockId()), timestamp};
+    return {static_cast<uint32_t>(internal::TrackEventInternal::GetClockId()),
+            timestamp};
   }
 };
 
@@ -108,14 +109,15 @@ static constexpr bool IsValidNormalTrack() {
 // Because the user can use arbitrary timestamp types, we can't compare against
 // any known base type here. Instead, we check that a track or a trace lambda
 // isn't being interpreted as a timestamp.
-template <typename T,
-          typename CanBeConvertedToNsCheck = decltype(
-              ::perfetto::TraceTimestampTraits<typename base::remove_cvref_t<
-                  T>>::ConvertTimestampToTraceTimeNs(std::declval<T>())),
-          typename NotTrackCheck =
-              typename std::enable_if<!IsValidNormalTrack<T>()>::type,
-          typename NotLambdaCheck =
-              typename std::enable_if<!IsValidTraceLambda<T>()>::type>
+template <
+    typename T,
+    typename CanBeConvertedToNsCheck =
+        decltype(::perfetto::TraceTimestampTraits<typename base::remove_cvref_t<
+                     T>>::ConvertTimestampToTraceTimeNs(std::declval<T>())),
+    typename NotTrackCheck =
+        typename std::enable_if<!IsValidNormalTrack<T>()>::type,
+    typename NotLambdaCheck =
+        typename std::enable_if<!IsValidTraceLambda<T>()>::type>
 static constexpr bool IsValidTimestamp() {
   return true;
 }

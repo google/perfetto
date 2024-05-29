@@ -23,9 +23,7 @@
 
 namespace perfetto::trace_redaction {
 
-namespace {
-
-}  // namespace
+namespace {}  // namespace
 // Redact sched switch trace events in an ftrace event bundle:
 //
 // event {

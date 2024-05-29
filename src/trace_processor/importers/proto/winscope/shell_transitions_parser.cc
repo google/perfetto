@@ -49,8 +49,7 @@ void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   }
 
   auto inserter = context_->args_tracker->AddArgsTo(row_id);
-  ArgsParser writer(/*timestamp=*/0, inserter,
-                             *context_->storage.get());
+  ArgsParser writer(/*timestamp=*/0, inserter, *context_->storage.get());
   base::Status status = args_parser_.ParseMessage(
       blob, kShellTransitionsProtoName, nullptr /* parse all fields */, writer);
 

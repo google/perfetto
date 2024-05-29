@@ -47,15 +47,13 @@ trace.add_atrace_end(ts=850, tid=42, pid=42)
 trace.add_atrace_begin(ts=900, tid=42, pid=42, buf=APP_SET_ID_EVENT)
 trace.add_atrace_end(ts=1200, tid=42, pid=42)
 
-trace.add_atrace_begin(
-    ts=1500, tid=43, pid=43, buf=CONSENT_MANAGER_READ_EVENT)
+trace.add_atrace_begin(ts=1500, tid=43, pid=43, buf=CONSENT_MANAGER_READ_EVENT)
 trace.add_atrace_end(ts=1650, tid=43, pid=43)
 
 trace.add_atrace_begin(
     ts=2500, tid=43, pid=44, buf=ODP_MANAGER_INITIALIZATION_EVENT)
 trace.add_atrace_end(ts=2550, tid=43, pid=44)
-trace.add_atrace_begin(
-    ts=2600, tid=43, pid=44, buf=ODP_MANAGER_EXECUTE_EVENT)
+trace.add_atrace_begin(ts=2600, tid=43, pid=44, buf=ODP_MANAGER_EXECUTE_EVENT)
 trace.add_atrace_end(ts=2700, tid=43, pid=44)
 trace.add_atrace_begin(
     ts=2800, tid=43, pid=44, buf=ODP_MANAGER_REQUEST_SURFACE_PACKAGE_EVENT)

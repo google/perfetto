@@ -57,7 +57,8 @@ message AndroidBootMetric {
     optional double mb_per_ms_of_gc = 12;
   }
   message OomAdjusterTransitionCounts {
-    // name of the item aggregated by. example: process_name, oom_adjuster_reason.
+    // name of the item aggregated by. example: process_name,
+    // oom_adjuster_reason.
     optional string name = 1;
     // name of previous oom bucket.
     optional string src_bucket = 2;
@@ -67,7 +68,8 @@ message AndroidBootMetric {
     optional int64 count = 4;
   }
   message OomAdjBucketDurationAggregation {
-    // name of the item aggregated by. example: process_name, oom_adjuster_reason
+    // name of the item aggregated by. example: process_name,
+    // oom_adjuster_reason
     optional string name = 1;
     // name of oom bucket.
     optional string bucket = 2;
@@ -85,10 +87,15 @@ message AndroidBootMetric {
   optional ProcessStartAggregation post_boot_process_start_aggregation = 7;
   optional GarbageCollectionAggregation full_trace_gc_aggregation = 8;
   optional GarbageCollectionAggregation post_boot_gc_aggregation = 9;
-  repeated OomAdjusterTransitionCounts post_boot_oom_adjuster_transition_counts_global = 10;
-  repeated OomAdjusterTransitionCounts post_boot_oom_adjuster_transition_counts_by_process = 11;
-  repeated OomAdjusterTransitionCounts post_boot_oom_adjuster_transition_counts_by_oom_adj_reason = 12;
-  repeated OomAdjBucketDurationAggregation post_boot_oom_adj_bucket_duration_agg_global = 13;
-  repeated OomAdjBucketDurationAggregation post_boot_oom_adj_bucket_duration_agg_by_process = 14;
+  repeated OomAdjusterTransitionCounts
+      post_boot_oom_adjuster_transition_counts_global = 10;
+  repeated OomAdjusterTransitionCounts
+      post_boot_oom_adjuster_transition_counts_by_process = 11;
+  repeated OomAdjusterTransitionCounts
+      post_boot_oom_adjuster_transition_counts_by_oom_adj_reason = 12;
+  repeated OomAdjBucketDurationAggregation
+      post_boot_oom_adj_bucket_duration_agg_global = 13;
+  repeated OomAdjBucketDurationAggregation
+      post_boot_oom_adj_bucket_duration_agg_by_process = 14;
   repeated OomAdjDurationAggregation post_boot_oom_adj_duration_agg = 15;
 }

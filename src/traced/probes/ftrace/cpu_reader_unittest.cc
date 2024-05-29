@@ -2459,7 +2459,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseFullPageSchedSwitch) {
 //            <...>-9290  [000] ....  1352.724574: suspend_resume: thaw_processes[0] begin
 // clang-format on
 
-static ExamplePage g_suspend_resume {
+static ExamplePage g_suspend_resume{
     "synthetic",
     R"(00000000: edba 155a 3201 0000 7401 0000 0000 0000  ...Z2...t.......
 00000010: 7e58 22cd 1201 0000 0600 0000 ac00 0000  ~X".............

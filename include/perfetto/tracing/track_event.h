@@ -133,7 +133,9 @@
 
 // Deprecated; see perfetto::Category().
 #define PERFETTO_CATEGORY(name) \
-  ::perfetto::Category { #name }
+  ::perfetto::Category {        \
+    #name                       \
+  }
 
 // Internal helpers for determining if a given category is defined at build or
 // runtime.
