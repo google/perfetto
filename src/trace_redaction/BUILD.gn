@@ -81,6 +81,8 @@ source_set("trace_redaction") {
     "trace_redaction_framework.h",
     "trace_redactor.cc",
     "trace_redactor.h",
+    "verify_integrity.cc",
+    "verify_integrity.h",
   ]
   deps = [
     "../../gn:default_deps",
@@ -111,6 +113,7 @@ source_set("integrationtests") {
     "scrub_process_trees_integrationtest.cc",
     "trace_redaction_integration_fixture.cc",
     "trace_redaction_integration_fixture.h",
+    "verify_integrity_integrationtest.cc",
   ]
   deps = [
     ":trace_redaction",
@@ -146,6 +149,7 @@ perfetto_unittest_source_set("unittests") {
     "remap_scheduling_events_unittest.cc",
     "remove_process_free_comm_unittest.cc",
     "suspend_resume_unittest.cc",
+    "verify_integrity_unittest.cc",
   ]
   deps = [
     ":trace_redaction",
