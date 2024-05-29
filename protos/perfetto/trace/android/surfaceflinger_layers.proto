@@ -233,6 +233,8 @@ message LayerProto {
   optional RectProto destination_frame = 57;
 
   optional uint32 original_id = 58;
+
+  optional TrustedOverlay trusted_overlay = 59;
 }
 
 message PositionProto {
