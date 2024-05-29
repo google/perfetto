@@ -329,3 +329,27 @@ describe('modal_dialog', () => {
     await waitForPerfettoIdle(page);
   });
 });
+
+describe('features', () => {
+  let page: Page;
+
+  beforeAll(async () => {
+    page = await getPage();
+    await page.goto('http://localhost:10000/?testing=1');
+    await waitForPerfettoIdle(page);
+  });
+
+  // Test that we show a (debuggable) chip next to tracks for debuggable apps.
+  // Regression test for aosp/3106008 .
+  test('track_debuggable_chip', async () => {
+    const page = await getPage();
+    await page.goto(
+      'http://localhost:10000/?testing=1/#!/?url=http://localhost:10000/test/data/api32_startup_warm.perfetto-trace',
+    );
+    await waitForPerfettoIdle(page);
+    await page.hover(
+      'h1[title="androidx.benchmark.integration.macrobenchmark.test 7527"]',
+    );
+    await waitForPerfettoIdle(page);
+  });
+});
