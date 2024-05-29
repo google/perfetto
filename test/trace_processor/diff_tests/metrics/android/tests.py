@@ -140,16 +140,16 @@ class AndroidMetrics(TestSuite):
         out=Path('android_sysui_notifications_blocking_calls_metric.out'))
 
   def test_sysui_notif_shade_list_builder(self):
-      return DiffTestBlueprint(
-          trace=Path('android_sysui_notif_shade_list_builder_metric.py'),
-          query=Metric('sysui_notif_shade_list_builder_metric'),
-          out=Path('sysui_notif_shade_list_builder_metric.out'))
+    return DiffTestBlueprint(
+        trace=Path('android_sysui_notif_shade_list_builder_metric.py'),
+        query=Metric('sysui_notif_shade_list_builder_metric'),
+        out=Path('sysui_notif_shade_list_builder_metric.out'))
 
   def test_sysui_update_notif_on_ui_mode_changed(self):
-      return DiffTestBlueprint(
-          trace=Path('sysui_update_notif_on_ui_mode_changed_metric.py'),
-          query=Metric('sysui_update_notif_on_ui_mode_changed_metric'),
-          out=Path('sysui_update_notif_on_ui_mode_changed_metric.out'))
+    return DiffTestBlueprint(
+        trace=Path('sysui_update_notif_on_ui_mode_changed_metric.py'),
+        query=Metric('sysui_update_notif_on_ui_mode_changed_metric'),
+        out=Path('sysui_update_notif_on_ui_mode_changed_metric.out'))
 
   def test_monitor_contention_metric(self):
     return DiffTestBlueprint(
@@ -225,17 +225,15 @@ class AndroidMetrics(TestSuite):
 
   def test_android_boot_unagg(self):
     return DiffTestBlueprint(
-      trace=DataPath('android_postboot_unlock.pftrace'),
-      query=Metric("android_boot_unagg"),
-      out=Path('android_boot_unagg.out')
-    )
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric("android_boot_unagg"),
+        out=Path('android_boot_unagg.out'))
 
   def test_android_app_process_starts(self):
     return DiffTestBlueprint(
-      trace=DataPath('android_postboot_unlock.pftrace'),
-      query=Metric("android_app_process_starts"),
-      out=Path('android_app_process_starts.out')
-    )
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric("android_app_process_starts"),
+        out=Path('android_app_process_starts.out'))
 
   def test_android_garbage_collection(self):
     return DiffTestBlueprint(
@@ -295,8 +293,8 @@ class AndroidMetrics(TestSuite):
           }
         }
         """),
-       query=Metric('android_auto_multiuser'),
-       out=TextProto(r"""
+        query=Metric('android_auto_multiuser'),
+        out=TextProto(r"""
        android_auto_multiuser {
          user_switch {
             user_id: 11
@@ -311,9 +309,9 @@ class AndroidMetrics(TestSuite):
 
   def test_android_auto_multiuser_switch_with_previous_user_data(self):
     return DiffTestBlueprint(
-       trace=Path("android_auto_multiuser.textproto"),
-       query=Metric('android_auto_multiuser'),
-       out=TextProto(r"""
+        trace=Path("android_auto_multiuser.textproto"),
+        query=Metric('android_auto_multiuser'),
+        out=TextProto(r"""
        android_auto_multiuser {
          user_switch {
             user_id: 11
@@ -341,7 +339,7 @@ class AndroidMetrics(TestSuite):
        """))
 
   def test_android_auto_multiuser_timing_table(self):
-      return DiffTestBlueprint(
+    return DiffTestBlueprint(
         trace=Path("android_auto_multiuser.textproto"),
         query="""
         INCLUDE PERFETTO MODULE android.auto.multiuser;
@@ -351,12 +349,10 @@ class AndroidMetrics(TestSuite):
         "event_start_user_id","event_start_time","event_end_time","event_end_name","event_start_name","duration"
         "11",3000000000,3999999999,"com.android.car.carlauncher","UserController.startUser-11-fg-start-mode-1",999999999
         "11",3000000000,5100000000,"finishUserStopped-10-[stopUser]","UserController.startUser-11-fg-start-mode-1",2100000000
-        """)
-      )
+        """))
 
   def test_android_oom_adjuster(self):
     return DiffTestBlueprint(
-      trace=DataPath('android_postboot_unlock.pftrace'),
-      query=Metric("android_oom_adjuster"),
-      out=Path('android_oom_adjuster.out')
-    )
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric("android_oom_adjuster"),
+        out=Path('android_oom_adjuster.out'))

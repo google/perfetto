@@ -19,6 +19,5 @@ generating descriptors."""
 import sys
 import subprocess
 
-
 if __name__ == '__main__':
   sys.exit(subprocess.call(sys.argv[1:]))

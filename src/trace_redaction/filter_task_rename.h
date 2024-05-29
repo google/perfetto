@@ -28,8 +28,8 @@ class FilterTaskRename final : public FtraceEventFilter {
  public:
   base::Status VerifyContext(const Context& context) const override;
 
-  bool KeepEvent(
-      const Context& context, protozero::ConstBytes bytes) const override;
+  bool KeepEvent(const Context& context,
+                 protozero::ConstBytes bytes) const override;
 };
 
 }  // namespace perfetto::trace_redaction

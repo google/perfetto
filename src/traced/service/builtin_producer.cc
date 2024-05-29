@@ -53,7 +53,8 @@ constexpr char kJavaHprofOomDataSourceName[] = "android.java_hprof.oom";
 constexpr char kTracedPerfDataSourceName[] = "linux.perf";
 constexpr char kLazyHeapprofdPropertyName[] = "traced.lazy.heapprofd";
 constexpr char kLazyTracedPerfPropertyName[] = "traced.lazy.traced_perf";
-constexpr char kJavaHprofOomActivePropertyName[] = "traced.oome_heap_session.count";
+constexpr char kJavaHprofOomActivePropertyName[] =
+    "traced.oome_heap_session.count";
 
 constexpr char kAndroidSdkSyspropGuardDataSourceName[] =
     "android.sdk_sysprop_guard";

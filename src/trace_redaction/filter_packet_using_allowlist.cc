@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+#include "src/trace_redaction/filter_packet_using_allowlist.h"
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
-#include "src/trace_redaction/filter_packet_using_allowlist.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {

@@ -53,6 +53,7 @@ top_level_names = [
     'android.os.Handler: #0',
 ]
 
+
 def add_main_thread_atrace(trace, ts, ts_end, buf, pid):
   trace.add_atrace_begin(ts=ts, tid=pid, pid=pid, buf=buf)
   trace.add_atrace_end(ts=ts_end, tid=pid, pid=pid)

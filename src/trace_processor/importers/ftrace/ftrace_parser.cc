@@ -952,8 +952,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kThermalExynosAcpmHighOverheadFieldNumber: {
-        thermal_tracker_.ParseThermalExynosAcpmHighOverhead(
-            ts, fld_bytes);
+        thermal_tracker_.ParseThermalExynosAcpmHighOverhead(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kCdevUpdateFieldNumber: {

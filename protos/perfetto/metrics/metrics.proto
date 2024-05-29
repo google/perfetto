@@ -260,7 +260,8 @@ message TraceMetrics {
 
   optional AndroidMonitorContentionMetric android_monitor_contention = 50;
 
-  optional AndroidSysUINotificationsBlockingCallsMetric android_sysui_notifications_blocking_calls_metric = 51;
+  optional AndroidSysUINotificationsBlockingCallsMetric
+      android_sysui_notifications_blocking_calls_metric = 51;
 
   // Metrics to track codec framework.
   optional AndroidCodecMetrics codec_metrics = 52;
@@ -277,16 +278,19 @@ message TraceMetrics {
   optional AndroidAnrMetric android_anr = 55;
 
   // Aggregated Android Monitor Contention metrics
-  optional AndroidMonitorContentionAggMetric android_monitor_contention_agg = 56;
+  optional AndroidMonitorContentionAggMetric android_monitor_contention_agg =
+      56;
 
   optional AndroidBootMetric android_boot = 57;
 
   // Metric for AdServices module.
   optional AdServicesMetric ad_services_metric = 58;
 
-  optional SysuiNotifShadeListBuilderMetric sysui_notif_shade_list_builder_metric = 59;
+  optional SysuiNotifShadeListBuilderMetric
+      sysui_notif_shade_list_builder_metric = 59;
 
-  optional SysuiUpdateNotifOnUiModeChangedMetric sysui_update_notif_on_ui_mode_changed_metric = 60;
+  optional SysuiUpdateNotifOnUiModeChangedMetric
+      sysui_update_notif_on_ui_mode_changed_metric = 60;
 
   // Metrics for Process starts.
   optional AndroidAppProcessStartsMetric android_app_process_starts = 61;
@@ -295,7 +299,8 @@ message TraceMetrics {
   optional AndroidBootUnagg android_boot_unagg = 62;
 
   // Android garbage collection metrics
-  optional AndroidGarbageCollectionUnaggMetric android_garbage_collection_unagg = 63;
+  optional AndroidGarbageCollectionUnaggMetric
+      android_garbage_collection_unagg = 63;
 
   // Multiuser - metrics for switching users.
   // Specific for Android Auto
