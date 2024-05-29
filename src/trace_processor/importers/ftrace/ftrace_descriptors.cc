@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 508> descriptors{{
+std::array<FtraceMessageDescriptor, 509> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5617,6 +5617,15 @@ std::array<FtraceMessageDescriptor, 508> descriptors{{
             {"pid_et_p", ProtoSchemaType::kInt32},
             {"k_p", ProtoSchemaType::kInt32},
             {"k_i", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "dcvsh_freq",
+        2,
+        {
+            {},
+            {"cpu", ProtoSchemaType::kUint64},
+            {"freq", ProtoSchemaType::kUint64},
         },
     },
 }};

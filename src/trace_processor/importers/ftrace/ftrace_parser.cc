@@ -50,6 +50,7 @@
 #include "protos/perfetto/trace/ftrace/cma.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cros_ec.pbzero.h"
+#include "protos/perfetto/trace/ftrace/dcvsh.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dmabuf_heap.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dpu.pbzero.h"
 #include "protos/perfetto/trace/ftrace/fastrpc.pbzero.h"
@@ -318,6 +319,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
+      cpu_freq_throttle_name_id_(
+          context->storage->InternString("cpufreq_throttle")),
       gpu_freq_name_id_(context->storage->InternString("gpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
       suspend_resume_name_id_(
@@ -760,6 +763,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kCpuFrequencyFieldNumber: {
         ParseCpuFreq(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kDcvshFreqFieldNumber: {
+        ParseCpuFreqThrottle(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kGpuFrequencyFieldNumber: {
@@ -1537,6 +1544,16 @@ void FtraceParser::ParseCpuFreq(int64_t timestamp, ConstBytes blob) {
   uint32_t new_freq = freq.state();
   TrackId track =
       context_->track_tracker->InternCpuCounterTrack(cpu_freq_name_id_, cpu);
+  context_->event_tracker->PushCounter(timestamp, new_freq, track);
+}
+
+void FtraceParser::ParseCpuFreqThrottle(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::DcvshFreqFtraceEvent::Decoder freq(blob.data, blob.size);
+  uint32_t cpu = static_cast<uint32_t>(freq.cpu());
+  // Source data is frequency / 1000, so we correct that here:
+  double new_freq = static_cast<double>(freq.freq()) * 1000.0;
+  TrackId track = context_->track_tracker->InternCpuCounterTrack(
+      cpu_freq_throttle_name_id_, cpu);
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
 }
 
