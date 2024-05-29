@@ -1394,8 +1394,9 @@ class Parsing(TestSuite):
         query="""
         SELECT
           freq,
-          GROUP_CONCAT(cpu) AS cpus
+          GROUP_CONCAT(cpu.cpu) AS cpus
         FROM cpu_frequencies
+        JOIN cpu using (ucpu)
         WHERE machine_id is not NULL
         GROUP BY freq
         ORDER BY freq;
