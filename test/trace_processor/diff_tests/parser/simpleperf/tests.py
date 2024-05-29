@@ -151,3 +151,15 @@ class Simpleperf(TestSuite):
         "misaligned_count"
         0
         '''))
+
+  def test_cmdline(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/perf.data'),
+        query='''
+        SELECT cmdline
+        FROM perf_session
+        ''',
+        out=Csv('''
+        "cmdline"
+        "/ssd/android/aosp_master/out/host/linux-x86/bin/simpleperf record -p 26083,26090,26124,26130 sleep 0.0001"
+        '''))

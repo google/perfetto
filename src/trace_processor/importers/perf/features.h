@@ -25,6 +25,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 
@@ -123,6 +124,8 @@ struct SimpleperfMetaInfo {
 
 util::Status ParseSimpleperfFile2(TraceBlobView,
                                   std::function<void(TraceBlobView)> cb);
+
+base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView blob);
 
 }  // namespace perf_importer::feature
 

@@ -199,8 +199,7 @@ PerfDataTokenizer::ParseAttrs() {
   ASSIGN_OR_RETURN(AttrsSectionReader attr_reader,
                    AttrsSectionReader::Create(header_, std::move(*tbv)));
 
-  PerfSession::Builder builder(
-      context_, context_->perf_sample_tracker->CreatePerfSession());
+  PerfSession::Builder builder(context_);
   while (attr_reader.CanReadNext()) {
     PerfFile::AttrsEntry entry;
     RETURN_IF_ERROR(attr_reader.ReadNext(entry));
@@ -380,6 +379,13 @@ PerfDataTokenizer::ParseFeatures() {
 base::Status PerfDataTokenizer::ParseFeature(uint8_t feature_id,
                                              TraceBlobView data) {
   switch (feature_id) {
+    case feature::ID_CMD_LINE: {
+      ASSIGN_OR_RETURN(std::vector<std::string> args,
+                       feature::ParseCmdline(std::move(data)));
+      perf_session_->SetCmdline(args);
+      return base::OkStatus();
+    }
+
     case feature::ID_EVENT_DESC:
       return feature::EventDescription::Parse(
           std::move(data), [&](feature::EventDescription desc) {

@@ -618,6 +618,13 @@ class TraceStorage {
     return &cpu_profile_stack_sample_table_;
   }
 
+  const tables::PerfSessionTable& perf_session_table() const {
+    return perf_session_table_;
+  }
+  tables::PerfSessionTable* mutable_perf_session_table() {
+    return &perf_session_table_;
+  }
+
   const tables::PerfSampleTable& perf_sample_table() const {
     return perf_sample_table_;
   }
@@ -1092,6 +1099,7 @@ class TraceStorage {
       &string_pool_};
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
       &string_pool_, &stack_sample_table_};
+  tables::PerfSessionTable perf_session_table_{&string_pool_};
   tables::PerfSampleTable perf_sample_table_{&string_pool_};
   tables::PackageListTable package_list_table_{&string_pool_};
   tables::AndroidGameInterventionListTable

@@ -853,6 +853,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->symbol_table());
   RegisterStaticTable(storage->heap_profile_allocation_table());
   RegisterStaticTable(storage->cpu_profile_stack_sample_table());
+  RegisterStaticTable(storage->perf_session_table());
   RegisterStaticTable(storage->perf_sample_table());
   RegisterStaticTable(storage->stack_profile_callsite_table());
   RegisterStaticTable(storage->stack_profile_mapping_table());

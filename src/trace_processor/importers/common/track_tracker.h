@@ -18,8 +18,10 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACK_TRACKER_H_
 
 #include <optional>
+
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -145,7 +147,7 @@ class TrackTracker {
   // Creates a counter track for values within perf samples.
   // The tracks themselves are managed by PerfSampleTracker.
   TrackId CreatePerfCounterTrack(StringId name,
-                                 uint32_t perf_session_id,
+                                 tables::PerfSessionTable::Id perf_session_id,
                                  uint32_t cpu,
                                  bool is_timebase);
 
