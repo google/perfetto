@@ -108,8 +108,25 @@ std::string_view InternTable::Find(size_t index) const {
 
 SchedEventModifier::~SchedEventModifier() = default;
 
+SchedEventFilter::~SchedEventFilter() = default;
+
 base::Status RedactSchedEvents::Transform(const Context& context,
-                                                 std::string* packet) const {
+                                          std::string* packet) const {
+  PERFETTO_DCHECK(modifier_);
+  PERFETTO_DCHECK(filter_);
+
+  if (!context.timeline) {
+    return base::ErrStatus("RedactSchedEvents: missing timeline.");
+  }
+
+  if (!context.package_uid.has_value()) {
+    return base::ErrStatus("RedactSchedEvents: missing package uid.");
+  }
+
+  if (!packet || packet->empty()) {
+    return base::ErrStatus("RedactSchedEvents: null or empty packet.");
+  }
+
   protozero::HeapBuffered<protos::pbzero::TracePacket> message;
   protozero::ProtoDecoder decoder(*packet);
 
@@ -147,8 +164,8 @@ base::Status RedactSchedEvents::OnFtraceEvents(
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
     if (field.id() == protos::pbzero::FtraceEventBundle::kEventFieldNumber) {
-      RETURN_IF_ERROR(OnFtraceEvent(context, cpu.as_int32(), field,
-                                           message->add_event()));
+      RETURN_IF_ERROR(
+          OnFtraceEvent(context, cpu.as_int32(), field, message->add_event()));
       continue;
     }
 
@@ -157,7 +174,7 @@ base::Status RedactSchedEvents::OnFtraceEvents(
       protos::pbzero::FtraceEventBundle::CompactSched::Decoder comp_sched(
           field.as_bytes());
       RETURN_IF_ERROR(OnCompSched(context, cpu.as_int32(), comp_sched,
-                                         message->set_compact_sched()));
+                                  message->set_compact_sched()));
       continue;
     }
 
@@ -192,9 +209,9 @@ base::Status RedactSchedEvents::OnFtraceEvent(
       case protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber: {
         protos::pbzero::SchedSwitchFtraceEvent::Decoder sched_switch(
             field.as_bytes());
-        RETURN_IF_ERROR(OnFtraceEventSwitch(
-            context, ts.as_uint64(), cpu, sched_switch, &scratch_str,
-            message->set_sched_switch()));
+        RETURN_IF_ERROR(OnFtraceEventSwitch(context, ts.as_uint64(), cpu,
+                                            sched_switch, &scratch_str,
+                                            message->set_sched_switch()));
         break;
       }
 
@@ -202,8 +219,7 @@ base::Status RedactSchedEvents::OnFtraceEvent(
         protos::pbzero::SchedWakingFtraceEvent::Decoder sched_waking(
             field.as_bytes());
         RETURN_IF_ERROR(OnFtraceEventWaking(
-            context, ts.as_uint64(), cpu, sched_waking, &scratch_str,
-            message->set_sched_waking()));
+            context, ts.as_uint64(), cpu, sched_waking, &scratch_str, message));
         break;
       }
 
@@ -270,16 +286,29 @@ base::Status RedactSchedEvents::OnFtraceEventSwitch(
   return base::OkStatus();
 }
 
+// Redact sched waking trace events in a ftrace event bundle:
+//
+//  event {
+//    timestamp: 6702093787823849
+//    pid: 814                      <-- waker
+//    sched_waking {
+//      comm: "surfaceflinger"
+//      pid: 756                    <-- target
+//      prio: 97
+//      success: 1
+//      target_cpu: 2
+//    }
+//  }
 base::Status RedactSchedEvents::OnFtraceEventWaking(
     const Context& context,
     uint64_t ts,
     int32_t cpu,
     protos::pbzero::SchedWakingFtraceEvent::Decoder& sched_waking,
     std::string* scratch_str,
-    protos::pbzero::SchedWakingFtraceEvent* message) const {
+    protos::pbzero::FtraceEvent* parent_message) const {
   PERFETTO_DCHECK(modifier_);
   PERFETTO_DCHECK(scratch_str);
-  PERFETTO_DCHECK(message);
+  PERFETTO_DCHECK(parent_message);
 
   auto has_fields = {sched_waking.has_comm(), sched_waking.has_pid(),
                      sched_waking.has_prio(), sched_waking.has_success(),
@@ -292,6 +321,11 @@ base::Status RedactSchedEvents::OnFtraceEventWaking(
   }
 
   auto pid = sched_waking.pid();
+
+  if (!filter_->Includes(context, ts, pid)) {
+    return base::OkStatus();
+  }
+
   auto comm = sched_waking.comm();
 
   // There are 5 values in a sched switch message. Since 2 of the 5 can be
@@ -302,6 +336,7 @@ base::Status RedactSchedEvents::OnFtraceEventWaking(
 
   RETURN_IF_ERROR(modifier_->Modify(context, ts, cpu, &pid, scratch_str));
 
+  auto message = parent_message->set_sched_waking();
   message->set_comm(*scratch_str);                     // FieldNumber = 1
   message->set_pid(pid);                               // FieldNumber = 2
   message->set_prio(sched_waking.prio());              // FieldNumber = 3
@@ -345,8 +380,8 @@ base::Status RedactSchedEvents::OnCompSched(
   }
 
   if (std::any_of(has_switch_fields.begin(), has_switch_fields.end(), IsTrue)) {
-    RETURN_IF_ERROR(OnCompSchedSwitch(context, cpu, comp_sched,
-                                             &intern_table, message));
+    RETURN_IF_ERROR(
+        OnCompSchedSwitch(context, cpu, comp_sched, &intern_table, message));
   }
 
   if (std::any_of(has_waking_fields.begin(), has_waking_fields.end(), IsTrue)) {
@@ -382,7 +417,8 @@ base::Status RedactSchedEvents::OnCompSchedSwitch(
 
   if (!std::all_of(has_fields.begin(), has_fields.end(), IsTrue)) {
     return base::ErrStatus(
-        "RedactSchedEvents: missing required FtraceEventBundle::CompactSched switch field.");
+        "RedactSchedEvents: missing required FtraceEventBundle::CompactSched "
+        "switch field.");
   }
 
   std::array<bool, 3> parse_errors = {false, false, false};
@@ -494,6 +530,18 @@ base::Status ClearComms::Modify(const Context& context,
   }
 
   return base::OkStatus();
+}
+
+bool ConnectedToPackage::Includes(const Context& context,
+                                  uint64_t ts,
+                                  int32_t wakee) const {
+  PERFETTO_DCHECK(context.package_uid.has_value());
+
+  return context.timeline->PidConnectsToUid(ts, wakee, *context.package_uid);
+}
+
+bool AllowAll::Includes(const Context&, uint64_t, int32_t) const {
+  return true;
 }
 
 }  // namespace perfetto::trace_redaction
