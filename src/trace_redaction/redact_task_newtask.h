@@ -18,7 +18,7 @@
 #define SRC_TRACE_REDACTION_REDACT_TASK_NEWTASK_H_
 
 #include "src/trace_redaction/redact_ftrace_event.h"
-#include "src/trace_redaction/redact_sched_switch.h"
+#include "src/trace_redaction/redact_sched_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
@@ -42,7 +42,7 @@ class RedactTaskNewTask : public FtraceEventRedaction {
   }
 
  public:
-  std::unique_ptr<RedactSchedSwitchHarness::Modifier> modifier_;
+  std::unique_ptr<SchedEventModifier> modifier_;
 };
 
 }  // namespace perfetto::trace_redaction
