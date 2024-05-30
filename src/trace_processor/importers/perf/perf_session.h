@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
@@ -30,6 +31,7 @@
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/build_id.h"
 
 namespace perfetto::trace_processor {
@@ -43,8 +45,7 @@ class PerfSession : public RefCounted {
  public:
   class Builder {
    public:
-    Builder(TraceProcessorContext* context, uint32_t perf_session_id)
-        : context_(context), perf_session_id_(perf_session_id) {}
+    explicit Builder(TraceProcessorContext* context) : context_(context) {}
     base::StatusOr<RefPtr<PerfSession>> Build();
     Builder& AddAttrAndIds(perf_event_attr attr, std::vector<uint64_t> ids) {
       attr_with_ids_.push_back({std::move(attr), std::move(ids)});
@@ -58,11 +59,12 @@ class PerfSession : public RefCounted {
     };
 
     TraceProcessorContext* const context_;
-    uint32_t perf_session_id_;
     std::vector<PerfEventAttrWithIds> attr_with_ids_;
   };
 
-  uint32_t perf_session_id() const { return perf_session_id_; }
+  tables::PerfSessionTable::Id perf_session_id() const {
+    return perf_session_id_;
+  }
 
   RefPtr<const PerfEventAttr> FindAttrForEventId(uint64_t id) const;
 
@@ -70,6 +72,7 @@ class PerfSession : public RefCounted {
       const perf_event_header& header,
       const TraceBlobView& payload) const;
 
+  void SetCmdline(const std::vector<std::string>& args);
   void SetEventName(uint64_t event_id, std::string name);
   void SetEventName(uint32_t type, uint64_t config, const std::string& name);
 
@@ -93,10 +96,12 @@ class PerfSession : public RefCounted {
     }
   };
 
-  PerfSession(uint32_t perf_session_id,
+  PerfSession(TraceProcessorContext* context,
+              tables::PerfSessionTable::Id perf_session_id,
               base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id,
               bool has_single_perf_event_attr)
-      : perf_session_id_(perf_session_id),
+      : context_(context),
+        perf_session_id_(perf_session_id),
         attrs_by_id_(std::move(attrs_by_id)),
         has_single_perf_event_attr_(has_single_perf_event_attr) {}
 
@@ -104,7 +109,8 @@ class PerfSession : public RefCounted {
                    const TraceBlobView& payload,
                    uint64_t& id) const;
 
-  uint32_t perf_session_id_;
+  TraceProcessorContext* const context_;
+  tables::PerfSessionTable::Id perf_session_id_;
   base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id_;
   // Multiple ids can map to the same perf_event_attr. This member tells us
   // whether there was only one perf_event_attr (with potentially different ids

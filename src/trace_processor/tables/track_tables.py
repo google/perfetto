@@ -290,30 +290,6 @@ GPU_COUNTER_TRACK_TABLE = Table(
         group='Counter Tracks',
         columns={'gpu_id': 'The identifier for the GPU.'}))
 
-PERF_COUNTER_TRACK_TABLE = Table(
-    python_module=__file__,
-    class_name='PerfCounterTrackTable',
-    sql_name='perf_counter_track',
-    columns=[
-        C('perf_session_id', CppUint32()),
-        C('cpu', CppUint32()),
-        C('is_timebase', CppUint32()),
-    ],
-    parent=COUNTER_TRACK_TABLE,
-    tabledoc=TableDoc(
-        doc='Sampled counters\' values for samples in the perf_sample table.',
-        group='Counter Tracks',
-        columns={
-            'perf_session_id':
-                'id of a distict profiling stream',
-            'cpu':
-                'the core the sample was taken on',
-            'is_timebase':
-                '''
-                  If true, indicates this counter was the sampling timebase for
-                  this perf_session_id
-                '''
-        }))
 
 ENERGY_COUNTER_TRACK_TABLE = Table(
     python_module=__file__,
@@ -393,7 +369,6 @@ ALL_TABLES = [
     GPU_WORK_PERIOD_TRACK_TABLE,
     IRQ_COUNTER_TRACK_TABLE,
     LINUX_DEVICE_TRACK_TABLE,
-    PERF_COUNTER_TRACK_TABLE,
     PROCESS_COUNTER_TRACK_TABLE,
     PROCESS_TRACK_TABLE,
     SOFTIRQ_COUNTER_TRACK_TABLE,
