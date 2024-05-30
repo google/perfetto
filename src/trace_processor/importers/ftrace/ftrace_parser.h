@@ -74,7 +74,9 @@ class FtraceParser {
   void ParseSchedWaking(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseSchedProcessFree(int64_t timestamp, protozero::ConstBytes);
   void ParseCpuFreq(int64_t timestamp, protozero::ConstBytes);
+  void ParseCpuFreqThrottle(int64_t timestamp, protozero::ConstBytes);
   void ParseGpuFreq(int64_t timestamp, protozero::ConstBytes);
+  void ParseKgslGpuFreq(int64_t timestamp, protozero::ConstBytes);
   void ParseCpuIdle(int64_t timestamp, protozero::ConstBytes);
   void ParsePrint(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseZero(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
@@ -319,6 +321,7 @@ class FtraceParser {
   const StringId sched_waking_name_id_;
   const StringId cpu_id_;
   const StringId cpu_freq_name_id_;
+  const StringId cpu_freq_throttle_name_id_;
   const StringId gpu_freq_name_id_;
   const StringId cpu_idle_name_id_;
   const StringId suspend_resume_name_id_;
