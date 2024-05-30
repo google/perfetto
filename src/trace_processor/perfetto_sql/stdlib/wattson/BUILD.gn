@@ -18,7 +18,7 @@ perfetto_sql_source_set("wattson") {
   sources = [
     "arm_dsu.sql",
     "cpu_idle.sql",
-    "cpu_idle_offsets.sql",
+    "device_infos.sql",
     "system_state.sql",
   ]
 }

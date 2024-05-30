@@ -13,16 +13,15 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.device;
 INCLUDE PERFETTO MODULE cpu.idle;
-INCLUDE PERFETTO MODULE wattson.cpu_idle_offsets;
+INCLUDE PERFETTO MODULE wattson.device_infos;
 
 -- Get the corresponding deep idle time offset based on device and CPU.
 CREATE PERFETTO TABLE _filtered_deep_idle_offsets
 AS
 SELECT cpu, offset_ns
 FROM _device_cpu_deep_idle_offsets as offsets
-JOIN android_device_name as device
+JOIN _wattson_device as device
 ON offsets.device = device.name;
 
 -- Adjust duration of active portion to be slightly longer to account for

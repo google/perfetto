@@ -187,10 +187,10 @@ class WattsonStdlib(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_cpu_eos.pb'),
         query=("""
-            INCLUDE PERFETTO MODULE android.device;
-            select name from android_device_name
+            INCLUDE PERFETTO MODULE wattson.device_infos;
+            select name from _wattson_device
             """),
         out=Csv("""
             "name"
-            "eos"
+            "monaco"
             """))
