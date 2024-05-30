@@ -1,3 +1,0 @@
-include platform/frameworks/base:/services/core/java/com/android/server/wm/OWNERS
-
-per-file surfaceflinger*.java = file:platform/frameworks/base:/services/core/java/com/android/server/wm/OWNERS
