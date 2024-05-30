@@ -305,6 +305,7 @@ message AndroidStartupMetric {
       NS = 1;
       PERCENTAGE = 2;
       TRUE_OR_FALSE = 3;
+      COUNT = 4;
     }
     optional ThresholdUnit unit = 2;
 

@@ -206,11 +206,18 @@ RETURNS PROTO AS
       SELECT RepeatedField(AndroidStartupMetric_SlowStartReason(
         'reason_id', reason_id,
         'reason', slow_cause,
-        'launch_dur', launch_dur))
+        'launch_dur', launch_dur,
+        'expected_value', expected_val,
+        'actual_value', actual_val))
       FROM (
-        SELECT 'No baseline or cloud profiles' AS slow_cause,
+        SELECT 'No baseline or cloud profiles' as slow_cause,
           launch.dur as launch_dur,
-          'NO_BASELINE_OR_CLOUD_PROFILES' as reason_id
+          'NO_BASELINE_OR_CLOUD_PROFILES' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', FALSE,
+            'unit', 'TRUE_OR_FALSE') as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', TRUE) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND missing_baseline_profile_for_launch(launch.startup_id, launch.package)
@@ -218,7 +225,12 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Optimized artifacts missing, run from apk' as slow_cause,
           launch.dur as launch_dur,
-          'RUN_FROM_APK' as reason_id
+          'RUN_FROM_APK' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', FALSE,
+            'unit', 'TRUE_OR_FALSE') as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', TRUE) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND run_from_apk_for_launch(launch.startup_id)
@@ -226,7 +238,12 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Unlock running during launch' as slow_cause,
           launch.dur as launch_dur,
-          'UNLOCK_RUNNING' as reason_id
+          'UNLOCK_RUNNING' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', FALSE,
+            'unit', 'TRUE_OR_FALSE') as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', TRUE) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
          AND is_unlock_running_during_launch(launch.startup_id)
@@ -234,7 +251,12 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'App in debuggable mode' as slow_cause,
           launch.dur as launch_dur,
-          'APP_IN_DEBUGGABLE_MODE' as reason_id
+          'APP_IN_DEBUGGABLE_MODE' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', FALSE,
+            'unit', 'TRUE_OR_FALSE') as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', TRUE) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND is_process_debuggable(launch.package)
@@ -242,7 +264,12 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'GC Activity' as slow_cause,
           launch.dur as launch_dur,
-          'GC_ACTIVITY' as reason_id
+          'GC_ACTIVITY' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', FALSE,
+            'unit', 'TRUE_OR_FALSE') as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', TRUE) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND total_gc_time_by_launch(launch.startup_id) > 0
@@ -250,7 +277,12 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'dex2oat running during launch' AS slow_cause,
           launch.dur as launch_dur,
-          'DEX2OAT_RUNNING' as reason_id
+          'DEX2OAT_RUNNING' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', FALSE,
+            'unit', 'TRUE_OR_FALSE') as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', TRUE) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id AND
           dur_of_process_running_concurrent_to_launch(launch.startup_id, '*dex2oat64') > 0
@@ -258,7 +290,12 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'installd running during launch' AS slow_cause,
           launch.dur as launch_dur,
-          'INSTALLD_RUNNING' as reason_id
+          'INSTALLD_RUNNING' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', FALSE,
+            'unit', 'TRUE_OR_FALSE') as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', TRUE) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id AND
           dur_of_process_running_concurrent_to_launch(launch.startup_id, '*installd') > 0
@@ -266,7 +303,15 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Main Thread - Time spent in Runnable state' as slow_cause,
           launch.dur as launch_dur,
-          'MAIN_THREAD_TIME_SPENT_IN_RUNNABLE' as reason_id
+          'MAIN_THREAD_TIME_SPENT_IN_RUNNABLE' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 15,
+            'unit', 'PERCENTAGE',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value',
+              main_thread_time_for_launch_in_runnable_state(launch.startup_id) * 100 / launch.dur,
+            'dur', main_thread_time_for_launch_in_runnable_state(launch.startup_id)) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND main_thread_time_for_launch_in_runnable_state(launch.startup_id) > launch.dur * 0.15
@@ -274,7 +319,13 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Main Thread - Time spent in interruptible sleep state' as slow_cause,
           launch.dur as launch_dur,
-          'MAIN_THREAD_TIME_SPENT_IN_INTERRUPTIBLE_SLEEP' as reason_id
+          'MAIN_THREAD_TIME_SPENT_IN_INTERRUPTIBLE_SLEEP' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 2900000000,
+            'unit', 'NS',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', main_thread_time_for_launch_and_state(launch.startup_id, 'S')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND main_thread_time_for_launch_and_state(launch.startup_id, 'S') > 2900e6
@@ -282,7 +333,14 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Main Thread - Time spent in Blocking I/O' as slow_cause,
           launch.dur as launch_dur,
-          'MAIN_THREAD_TIME_SPENT_IN_BLOCKING_IO' as reason_id
+          'MAIN_THREAD_TIME_SPENT_IN_BLOCKING_IO' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 450000000,
+            'unit', 'NS',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', main_thread_time_for_launch_state_and_io_wait(
+              launch.startup_id, 'D*', TRUE)) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND main_thread_time_for_launch_state_and_io_wait(launch.startup_id, 'D*', TRUE) > 450e6
@@ -290,7 +348,16 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Main Thread - Time spent in OpenDexFilesFromOat*' as slow_cause,
           launch.dur as launch_dur,
-          'MAIN_THREAD_TIME_SPENT_IN_OPEN_DEX_FILES_FROM_OAT' as reason_id
+          'MAIN_THREAD_TIME_SPENT_IN_OPEN_DEX_FILES_FROM_OAT' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 20,
+            'unit', 'PERCENTAGE',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', android_sum_dur_on_main_thread_for_startup_and_slice(
+              launch.startup_id, 'OpenDexFilesFromOat*') * 100 / launch.dur,
+            'dur', android_sum_dur_on_main_thread_for_startup_and_slice(
+              launch.startup_id, 'OpenDexFilesFromOat*')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id AND
           android_sum_dur_on_main_thread_for_startup_and_slice(
@@ -299,7 +366,14 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Time spent in bindApplication' as slow_cause,
           launch.dur as launch_dur,
-          'TIME_SPENT_IN_BIND_APPLICATION' as reason_id
+          'TIME_SPENT_IN_BIND_APPLICATION' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 1250000000,
+            'unit', 'NS',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', android_sum_dur_for_startup_and_slice(
+              launch.startup_id, 'bindApplication')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND android_sum_dur_for_startup_and_slice(launch.startup_id, 'bindApplication') > 1250e6
@@ -307,7 +381,14 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Time spent in view inflation' as slow_cause,
           launch.dur as launch_dur,
-          'TIME_SPENT_IN_VIEW_INFLATION' as reason_id
+          'TIME_SPENT_IN_VIEW_INFLATION' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 450000000,
+            'unit', 'NS',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', android_sum_dur_for_startup_and_slice(
+              launch.startup_id, 'inflate')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND android_sum_dur_for_startup_and_slice(launch.startup_id, 'inflate') > 450e6
@@ -315,7 +396,14 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Time spent in ResourcesManager#getResources' as slow_cause,
           launch.dur as launch_dur,
-          'TIME_SPENT_IN_RESOURCES_MANAGER_GET_RESOURCES' as reason_id
+          'TIME_SPENT_IN_RESOURCES_MANAGER_GET_RESOURCES' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 130000000,
+            'unit', 'NS',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', android_sum_dur_for_startup_and_slice(
+              launch.startup_id, 'ResourcesManager#getResources')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND android_sum_dur_for_startup_and_slice(
@@ -324,7 +412,16 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Time spent verifying classes' as slow_cause,
           launch.dur as launch_dur,
-          'TIME_SPENT_VERIFYING_CLASSES' as reason_id
+          'TIME_SPENT_VERIFYING_CLASSES' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 15,
+            'unit', 'PERCENTAGE',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', android_sum_dur_for_startup_and_slice(
+              launch.startup_id, 'VerifyClass*') * 100 / launch.dur,
+            'dur', android_sum_dur_for_startup_and_slice(
+              launch.startup_id, 'VerifyClass*')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id AND
           android_sum_dur_for_startup_and_slice(launch.startup_id, 'VerifyClass*')
@@ -333,7 +430,14 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Potential CPU contention with another process' AS slow_cause,
           launch.dur as launch_dur,
-          'POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS' as reason_id
+          'POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 100000000,
+            'unit', 'NS',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value',
+              main_thread_time_for_launch_in_runnable_state(launch.startup_id)) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id AND
           main_thread_time_for_launch_in_runnable_state(launch.startup_id) > 100e6 AND
@@ -342,7 +446,14 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'JIT Activity' as slow_cause,
           launch.dur as launch_dur,
-          'JIT_ACTIVITY' as reason_id
+          'JIT_ACTIVITY' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 100000000,
+            'unit', 'NS',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', thread_time_for_launch_state_and_thread(
+              launch.startup_id, 'Running', 'Jit thread pool')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
         AND thread_time_for_launch_state_and_thread(
@@ -354,7 +465,16 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Main Thread - Lock contention' as slow_cause,
           launch.dur as launch_dur,
-          'MAIN_THREAD_LOCK_CONTENTION' as reason_id
+          'MAIN_THREAD_LOCK_CONTENTION' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 20,
+            'unit', 'PERCENTAGE',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', android_sum_dur_on_main_thread_for_startup_and_slice(
+              launch.startup_id, 'Lock contention on*') * 100 / launch.dur,
+            'dur', android_sum_dur_on_main_thread_for_startup_and_slice(
+              launch.startup_id, 'Lock contention on*')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND android_sum_dur_on_main_thread_for_startup_and_slice(
@@ -365,18 +485,35 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Main Thread - Monitor contention' as slow_cause,
           launch.dur as launch_dur,
-          'MAIN_THREAD_MONITOR_CONTENTION' as reason_id
+          'MAIN_THREAD_MONITOR_CONTENTION' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 15,
+            'unit', 'PERCENTAGE',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', android_sum_dur_on_main_thread_for_startup_and_slice(
+              launch.startup_id, 'Lock contention on a monitor*') * 100 / launch.dur,
+            'dur', android_sum_dur_on_main_thread_for_startup_and_slice(
+              launch.startup_id, 'Lock contention on a monitor*')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND android_sum_dur_on_main_thread_for_startup_and_slice(
-          launch.startup_id,
-          'Lock contention on a monitor*'
-        ) > launch.dur * 0.15
+            launch.startup_id,
+            'Lock contention on a monitor*'
+          ) > launch.dur * 0.15
 
         UNION ALL
         SELECT 'JIT compiled methods' as slow_cause,
           launch.dur as launch_dur,
-          'JIT_COMPILED_METHODS' as reason_id
+          'JIT_COMPILED_METHODS' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 65,
+            'unit', 'COUNT',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', (SELECT COUNT(1)
+              FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(launch.startup_id, 'JIT compiling*')
+              WHERE thread_name = 'Jit thread pool')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND (
@@ -387,7 +524,14 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Broadcast dispatched count' as slow_cause,
           launch.dur as launch_dur,
-          'BROADCAST_DISPATCHED_COUNT' as reason_id
+          'BROADCAST_DISPATCHED_COUNT' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 15,
+            'unit', 'COUNT',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', count_slices_concurrent_to_launch(launch.startup_id,
+              'Broadcast dispatched*')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND count_slices_concurrent_to_launch(
@@ -397,17 +541,29 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Broadcast received count' as slow_cause,
           launch.dur as launch_dur,
-          'BROADCAST_RECEIVED_COUNT' as reason_id
+          'BROADCAST_RECEIVED_COUNT' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', 50,
+            'unit', 'COUNT',
+            'higher_expected', FALSE) as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', count_slices_concurrent_to_launch(launch.startup_id,
+              'broadcastReceiveReg*')) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND count_slices_concurrent_to_launch(
-          launch.startup_id,
-          'broadcastReceiveReg*') > 50
+            launch.startup_id,
+            'broadcastReceiveReg*') > 50
 
         UNION ALL
         SELECT 'Startup running concurrent to launch' as slow_cause,
           launch.dur as launch_dur,
-          'STARTUP_RUNNING_CONCURRENT' as reason_id
+          'STARTUP_RUNNING_CONCURRENT' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', FALSE,
+            'unit', 'TRUE_OR_FALSE') as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', TRUE) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND EXISTS(
@@ -419,7 +575,12 @@ RETURNS PROTO AS
         UNION ALL
         SELECT 'Main Thread - Binder transactions blocked' as slow_cause,
           launch.dur as launch_dur,
-          'MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKED' as reason_id
+          'MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKED' as reason_id,
+          AndroidStartupMetric_ThresholdValue(
+            'value', FALSE,
+            'unit', 'TRUE_OR_FALSE') as expected_val,
+          AndroidStartupMetric_ActualValue(
+            'value', TRUE) as actual_val
         FROM android_startups launch
         WHERE launch.startup_id = $startup_id
           AND (
