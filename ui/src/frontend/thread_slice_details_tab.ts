@@ -229,24 +229,22 @@ async function getSliceDetails(
   }
 }
 
-interface ChromeSliceDetailsTabConfig {
+interface ThreadSliceDetailsTabConfig {
   id: number;
   table: string;
 }
 
-export class ChromeSliceDetailsTab extends BottomTab<ChromeSliceDetailsTabConfig> {
-  static readonly kind = 'dev.perfetto.ChromeSliceDetailsTab';
-
+export class ThreadSliceDetailsTab extends BottomTab<ThreadSliceDetailsTabConfig> {
   private sliceDetails?: SliceDetails;
   private breakdownByThreadState?: BreakdownByThreadState;
 
   static create(
-    args: NewBottomTabArgs<ChromeSliceDetailsTabConfig>,
-  ): ChromeSliceDetailsTab {
-    return new ChromeSliceDetailsTab(args);
+    args: NewBottomTabArgs<ThreadSliceDetailsTabConfig>,
+  ): ThreadSliceDetailsTab {
+    return new ThreadSliceDetailsTab(args);
   }
 
-  constructor(args: NewBottomTabArgs<ChromeSliceDetailsTabConfig>) {
+  constructor(args: NewBottomTabArgs<ThreadSliceDetailsTabConfig>) {
     super(args);
     this.load();
   }

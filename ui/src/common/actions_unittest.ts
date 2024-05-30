@@ -31,7 +31,7 @@ import {
   TraceUrlSource,
   TrackSortKey,
 } from './state';
-import {SLICE_TRACK_KIND} from '../core_plugins/chrome_slices/chrome_slice_track';
+import {THREAD_SLICE_TRACK_KIND} from '../core_plugins/thread_slice/thread_slice_track';
 
 function fakeTrack(
   state: State,
@@ -360,19 +360,19 @@ test('sortTracksByPriorityAndKindAndName', () => {
   });
   state = fakeTrack(state, {
     key: 'b',
-    uri: SLICE_TRACK_KIND,
+    uri: THREAD_SLICE_TRACK_KIND,
     trackGroup: 'g',
     trackSortKey: PrimaryTrackSortKey.MAIN_THREAD,
   });
   state = fakeTrack(state, {
     key: 'c',
-    uri: SLICE_TRACK_KIND,
+    uri: THREAD_SLICE_TRACK_KIND,
     trackGroup: 'g',
     trackSortKey: PrimaryTrackSortKey.RENDER_THREAD,
   });
   state = fakeTrack(state, {
     key: 'd',
-    uri: SLICE_TRACK_KIND,
+    uri: THREAD_SLICE_TRACK_KIND,
     trackGroup: 'g',
     trackSortKey: PrimaryTrackSortKey.GPU_COMPLETION_THREAD,
   });
@@ -383,13 +383,13 @@ test('sortTracksByPriorityAndKindAndName', () => {
   });
   state = fakeTrack(state, {
     key: 'f',
-    uri: SLICE_TRACK_KIND,
+    uri: THREAD_SLICE_TRACK_KIND,
     trackGroup: 'g',
     name: 'T2',
   });
   state = fakeTrack(state, {
     key: 'g',
-    uri: SLICE_TRACK_KIND,
+    uri: THREAD_SLICE_TRACK_KIND,
     trackGroup: 'g',
     name: 'T10',
   });
@@ -419,7 +419,7 @@ test('sortTracksByTidThenName', () => {
   state = fakeTrackGroup(state, {key: 'g', summaryTrackKey: 'a'});
   state = fakeTrack(state, {
     key: 'a',
-    uri: SLICE_TRACK_KIND,
+    uri: THREAD_SLICE_TRACK_KIND,
     trackSortKey: {
       utid: 1,
       priority: InThreadTrackSortKey.ORDINARY,
@@ -430,7 +430,7 @@ test('sortTracksByTidThenName', () => {
   });
   state = fakeTrack(state, {
     key: 'b',
-    uri: SLICE_TRACK_KIND,
+    uri: THREAD_SLICE_TRACK_KIND,
     trackSortKey: {
       utid: 2,
       priority: InThreadTrackSortKey.ORDINARY,

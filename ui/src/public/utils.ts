@@ -114,7 +114,7 @@ export interface BottomTabAdapterAttrs {
  * @example
  * new BottomTabAdapter({
       tabFactory: (sel) => {
-        if (sel.kind !== 'CHROME_SLICE') {
+        if (sel.kind !== 'SLICE') {
           return undefined;
         }
         return new ChromeSliceDetailsTab({

@@ -303,7 +303,7 @@ export class CpuSliceTrack implements Track {
 
     const selection = getLegacySelection(globals.state);
     const details = globals.sliceDetails;
-    if (selection !== null && selection.kind === 'SLICE') {
+    if (selection !== null && selection.kind === 'SCHED_SLICE') {
       const [startIndex, endIndex] = searchEq(data.ids, selection.id);
       if (startIndex !== endIndex) {
         const tStart = Time.fromRaw(data.startQs[startIndex]);
@@ -435,7 +435,7 @@ export class CpuSliceTrack implements Track {
 
     globals.setLegacySelection(
       {
-        kind: 'SLICE',
+        kind: 'SCHED_SLICE',
         id,
         trackKey: this.trackKey,
       },
