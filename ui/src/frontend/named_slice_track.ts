@@ -78,7 +78,7 @@ export abstract class NamedSliceTrack<
   onSliceClick(args: OnSliceClickArgs<T['slice']>) {
     globals.setLegacySelection(
       {
-        kind: 'CHROME_SLICE',
+        kind: 'SLICE',
         id: args.slice.id,
         trackKey: this.trackKey,
         table: 'slice',

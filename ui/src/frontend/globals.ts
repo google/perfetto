@@ -799,7 +799,7 @@ class Globals {
       return undefined;
     }
 
-    if (selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
+    if (selection.kind === 'SCHED_SLICE' || selection.kind === 'SLICE') {
       const slice = this.sliceDetails;
       return findTimeRangeOfSlice(slice);
     } else if (selection.kind === 'THREAD_STATE') {

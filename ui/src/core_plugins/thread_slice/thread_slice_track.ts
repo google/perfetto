@@ -25,22 +25,22 @@ import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {LONG_NULL} from '../../trace_processor/query_result';
 
-export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
+export const THREAD_SLICE_TRACK_KIND = 'ThreadSliceTrack';
 
-export const CHROME_SLICE_ROW = {
+export const THREAD_SLICE_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
   ...NAMED_ROW,
 
-  // Chrome-specific columns.
+  // Thread-specific columns.
   threadDur: LONG_NULL,
 };
-export type ChromeSliceRow = typeof CHROME_SLICE_ROW;
+export type ThreadSliceRow = typeof THREAD_SLICE_ROW;
 
-export interface ChromeSliceTrackTypes extends NamedSliceTrackTypes {
-  row: ChromeSliceRow;
+export interface ThreadSliceTrackTypes extends NamedSliceTrackTypes {
+  row: ThreadSliceRow;
 }
 
-export class ChromeSliceTrack extends NamedSliceTrack<ChromeSliceTrackTypes> {
+export class ThreadSliceTrack extends NamedSliceTrack<ThreadSliceTrackTypes> {
   constructor(
     args: NewTrackArgs,
     private trackId: number,
@@ -56,7 +56,7 @@ export class ChromeSliceTrack extends NamedSliceTrack<ChromeSliceTrackTypes> {
 
   // This is used by the base class to call iter().
   getRowSpec() {
-    return CHROME_SLICE_ROW;
+    return THREAD_SLICE_ROW;
   }
 
   getSqlSource(): string {
@@ -73,8 +73,8 @@ export class ChromeSliceTrack extends NamedSliceTrack<ChromeSliceTrackTypes> {
 
   // Converts a SQL result row to an "Impl" Slice.
   rowToSlice(
-    row: ChromeSliceTrackTypes['row'],
-  ): ChromeSliceTrackTypes['slice'] {
+    row: ThreadSliceTrackTypes['row'],
+  ): ThreadSliceTrackTypes['slice'] {
     const namedSlice = super.rowToSlice(row);
 
     if (row.dur > 0n && row.threadDur !== null) {
@@ -85,16 +85,16 @@ export class ChromeSliceTrack extends NamedSliceTrack<ChromeSliceTrackTypes> {
     }
   }
 
-  onUpdatedSlices(slices: ChromeSliceTrackTypes['slice'][]) {
+  onUpdatedSlices(slices: ThreadSliceTrackTypes['slice'][]) {
     for (const slice of slices) {
       slice.isHighlighted = slice === this.hoveredSlice;
     }
   }
 
-  onSliceClick(args: OnSliceClickArgs<ChromeSliceTrackTypes['slice']>) {
+  onSliceClick(args: OnSliceClickArgs<ThreadSliceTrackTypes['slice']>) {
     globals.setLegacySelection(
       {
-        kind: 'CHROME_SLICE',
+        kind: 'SLICE',
         id: args.slice.id,
         trackKey: this.trackKey,
         table: this.tableName,

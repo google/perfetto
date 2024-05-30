@@ -677,7 +677,7 @@ export class TraceController extends Controller<States> {
       }
       globals.setLegacySelection(
         {
-          kind: 'CHROME_SLICE',
+          kind: 'SLICE',
           id: row.id,
           trackKey,
           table: 'slice',

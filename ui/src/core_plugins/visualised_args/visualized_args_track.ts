@@ -18,13 +18,13 @@ import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
 import {Button} from '../../widgets/button';
 import {Icons} from '../../base/semantic_icons';
-import {ChromeSliceTrack} from '../chrome_slices/chrome_slice_track';
+import {ThreadSliceTrack} from '../thread_slice/thread_slice_track';
 import {uuidv4Sql} from '../../base/uuid';
 import {NewTrackArgs} from '../../frontend/track';
 import {Disposable, DisposableCallback} from '../../base/disposable';
 
 // Similar to a SliceTrack, but creates a view
-export class VisualisedArgsTrack extends ChromeSliceTrack {
+export class VisualisedArgsTrack extends ThreadSliceTrack {
   private viewName: string;
 
   constructor(

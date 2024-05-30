@@ -164,7 +164,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     trackKey: string,
     switchToCurrentSelectionTab: boolean,
   ) {
-    const action = Actions.selectChromeSlice({
+    const action = Actions.selectSlice({
       id: sliceId,
       trackKey,
       table: 'slice',
