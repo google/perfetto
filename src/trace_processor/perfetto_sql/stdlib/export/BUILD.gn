@@ -15,5 +15,10 @@
 import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("export") {
-  sources = [ "to_firefox_profile.sql" ]
+  sources = []
+
+  # Chrmouim builds set DSQLITE_OMIT_JSON so SQL json functions will not exist.
+  if (!build_with_chromium) {
+    sources += [ "to_firefox_profile.sql" ]
+  }
 }
