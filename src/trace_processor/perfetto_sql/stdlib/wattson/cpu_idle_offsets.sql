@@ -18,8 +18,12 @@ CREATE PERFETTO TABLE _device_cpu_deep_idle_offsets
 AS
 WITH data(device, cpu, offset_ns) AS (
   VALUES
-  ("oriole", 6, 200000),
-  ("oriole", 7, 200000),
+  ("raven", 0, 0),
+  ("raven", 1, 0),
+  ("raven", 2, 0),
+  ("raven", 3, 0),
+  ("raven", 4, 0),
+  ("raven", 5, 0),
   ("raven", 6, 200000),
   ("raven", 7, 200000),
   ("eos", 0, 450000),
