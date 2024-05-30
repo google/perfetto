@@ -22,7 +22,6 @@
 #include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "src/trace_redaction/filter_packet_using_allowlist.h"
 #include "src/trace_redaction/filter_print_events.h"
-#include "src/trace_redaction/filter_sched_waking_events.h"
 #include "src/trace_redaction/filter_task_rename.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/populate_allow_lists.h"
@@ -75,7 +74,6 @@ static base::Status Main(std::string_view input,
   auto* scrub_ftrace_events = redactor.emplace_transform<ScrubFtraceEvents>();
   scrub_ftrace_events->emplace_back<FilterFtraceUsingAllowlist>();
   scrub_ftrace_events->emplace_back<FilterPrintEvents>();
-  scrub_ftrace_events->emplace_back<FilterSchedWakingEvents>();
   scrub_ftrace_events->emplace_back<FilterTaskRename>();
   scrub_ftrace_events->emplace_back<FilterSuspendResume>();
 
@@ -86,8 +84,9 @@ static base::Status Main(std::string_view input,
   redactor.emplace_transform<PrunePackageList>();
   redactor.emplace_transform<ScrubProcessStats>();
 
-  auto* comms_harness = redactor.emplace_transform<RedactSchedEvents>();
-  comms_harness->emplace_transform<ClearComms>();
+  auto* redact_sched_events = redactor.emplace_transform<RedactSchedEvents>();
+  redact_sched_events->emplace_modifier<ClearComms>();
+  redact_sched_events->emplace_filter<ConnectedToPackage>();
 
   auto* redact_ftrace_events = redactor.emplace_transform<RedactFtraceEvent>();
   redact_ftrace_events
@@ -107,16 +106,16 @@ static base::Status Main(std::string_view input,
   // connections between pids and the timeline (the synth threads are not in the
   // timeline). If a transformation uses the timeline, it must be before this
   // transformation.
-  auto* redact_sched_events = redactor.emplace_transform<RedactFtraceEvent>();
-  redact_sched_events->emplace_back<ThreadMergeRemapFtraceEventPid::kFieldId,
-                                    ThreadMergeRemapFtraceEventPid>();
-  redact_sched_events->emplace_back<ThreadMergeRemapSchedSwitchPid::kFieldId,
-                                    ThreadMergeRemapSchedSwitchPid>();
-  redact_sched_events->emplace_back<ThreadMergeRemapSchedWakingPid::kFieldId,
-                                    ThreadMergeRemapSchedWakingPid>();
-  redact_sched_events->emplace_back<
-      ThreadMergeDropField::kTaskNewtaskFieldNumber, ThreadMergeDropField>();
-  redact_sched_events
+  auto* merge_threads = redactor.emplace_transform<RedactFtraceEvent>();
+  merge_threads->emplace_back<ThreadMergeRemapFtraceEventPid::kFieldId,
+                              ThreadMergeRemapFtraceEventPid>();
+  merge_threads->emplace_back<ThreadMergeRemapSchedSwitchPid::kFieldId,
+                              ThreadMergeRemapSchedSwitchPid>();
+  merge_threads->emplace_back<ThreadMergeRemapSchedWakingPid::kFieldId,
+                              ThreadMergeRemapSchedWakingPid>();
+  merge_threads->emplace_back<ThreadMergeDropField::kTaskNewtaskFieldNumber,
+                              ThreadMergeDropField>();
+  merge_threads
       ->emplace_back<ThreadMergeDropField::kSchedProcessFreeFieldNumber,
                      ThreadMergeDropField>();
 
