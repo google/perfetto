@@ -22,12 +22,13 @@ import {
 } from '../../public';
 import {duration, Span, Time, time, TimeSpan} from '../../base/time';
 import {redrawModal, showModal} from '../../widgets/modal';
+import {assertExists} from '../../base/logging';
 
 const PLUGIN_ID = 'dev.perfetto.TimelineSync';
 const DEFAULT_BROADCAST_CHANNEL = `${PLUGIN_ID}#broadcastChannel`;
 const VIEWPORT_UPDATE_THROTTLE_TIME_FOR_SENDING_AFTER_RECEIVING_MS = 1_000;
 const BIGINT_PRECISION_MULTIPLIER = 1_000_000_000n;
-const ADVERTISE_PERIOD_MS = 15_000;
+const ADVERTISE_PERIOD_MS = 10_000;
 const DEFAULT_SESSION_ID = 1;
 type ClientId = number;
 type SessionId = number;
@@ -84,6 +85,7 @@ class TimelineSync implements Plugin {
     this._chan = new BroadcastChannel(DEFAULT_BROADCAST_CHANNEL);
     this._chan.onmessage = this.onmessage.bind(this);
     document.addEventListener('visibilitychange', () => this.advertise());
+    window.addEventListener('focus', () => this.advertise());
     setInterval(() => this.advertise(), ADVERTISE_PERIOD_MS);
 
     // Allow auto-enabling of timeline sync from the URI. The user can
@@ -127,20 +129,25 @@ class TimelineSync implements Plugin {
   }
 
   private showTimelineSyncDialog() {
-    const selectedClients = new Array<ClientId>();
+    let clientsSelect: HTMLSelectElement;
 
     // This nested function is invoked when the modal dialog buton is pressed.
     const doStartSession = () => {
       // Disable any prior session.
       this.disableTimelineSync(this._sessionId);
-
-      const clients = selectedClients.concat(this._clientId);
+      const selectedClients = new Array<ClientId>();
+      const sel = assertExists(clientsSelect).selectedOptions;
+      for (let i = 0; i < sel.length; i++) {
+        const clientId = parseInt(sel[i].value);
+        if (!isNaN(clientId)) selectedClients.push(clientId);
+      }
+      selectedClients.push(this._clientId); // Always add ourselves.
       this._sessionId = Math.floor(Math.random() * 1_000_000);
       this._chan?.postMessage({
         perfettoSync: {
           cmd: 'MSG_SESSION_START',
           sessionId: this._sessionId,
-          clients: clients,
+          clients: selectedClients,
         },
         clientId: this._clientId,
       } as SyncMessage);
@@ -182,13 +189,8 @@ class TimelineSync implements Plugin {
         m(
           'select[multiple=multiple][size=8]',
           {
-            onchange: (e: Event) => {
-              selectedClients.splice(0);
-              const sel = (e.target as HTMLSelectElement).selectedOptions;
-              for (let i = 0; i < sel.length; i++) {
-                const clientId = parseInt(sel[i].value);
-                if (!isNaN(clientId)) selectedClients.push(clientId);
-              }
+            oncreate: (vnode: m.VnodeDOM) => {
+              clientsSelect = vnode.dom as HTMLSelectElement;
             },
           },
           children,
