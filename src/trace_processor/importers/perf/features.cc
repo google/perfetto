@@ -74,7 +74,8 @@ bool ParseString(Reader& reader, std::string& out) {
     return false;
   }
 
-  out = std::string(str.data(), len - 1);
+  // Strings are padded with null values, stop at first null
+  out = std::string(str.data());
   return true;
 }
 
@@ -272,6 +273,24 @@ util::Status HeaderGroupDesc::Parse(TraceBlobView bytes, HeaderGroupDesc& out) {
   }
   out = std::move(group_desc);
   return base::OkStatus();
+}
+
+base::StatusOr<std::vector<std::string>> ParseCmdline(TraceBlobView bytes) {
+  Reader reader(std::move(bytes));
+  uint32_t nr;
+  if (!reader.Read(nr)) {
+    return util::ErrStatus("Failed to parse nr for CMDLINE");
+  }
+
+  std::vector<std::string> args;
+  args.reserve(nr);
+  for (; nr != 0; --nr) {
+    args.emplace_back();
+    if (!ParseString(reader, args.back())) {
+      return base::ErrStatus("Failed to parse string for CMDLINE");
+    }
+  }
+  return std::move(args);
 }
 
 }  // namespace perfetto::trace_processor::perf_importer::feature
