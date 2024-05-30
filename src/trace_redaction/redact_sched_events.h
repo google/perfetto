@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_REDACTION_REDACT_SCHED_SWITCH_H_
-#define SRC_TRACE_REDACTION_REDACT_SCHED_SWITCH_H_
+#ifndef SRC_TRACE_REDACTION_REDACT_SCHED_EVENTS_H_
+#define SRC_TRACE_REDACTION_REDACT_SCHED_EVENTS_H_
 
 #include "src/trace_redaction/trace_redaction_framework.h"
 
@@ -44,22 +44,18 @@ class InternTable {
   std::vector<std::string_view> interned_comms_;
 };
 
-// TODO(vaage): Rename this class. When it was first created, it only handled
-// switch events, so having "switch" in the name sense. Now that it is
-// expanding to include waking events, a more general name is needed (e.g.
-// scheduling covers both switch and waking events).
-class RedactSchedSwitchHarness : public TransformPrimitive {
+class SchedEventModifier {
  public:
-  class Modifier {
-   public:
-    virtual ~Modifier();
-    virtual base::Status Modify(const Context& context,
-                                uint64_t ts,
-                                int32_t cpu,
-                                int32_t* pid,
-                                std::string* comm) const = 0;
-  };
+  virtual ~SchedEventModifier();
+  virtual base::Status Modify(const Context& context,
+                              uint64_t ts,
+                              int32_t cpu,
+                              int32_t* pid,
+                              std::string* comm) const = 0;
+};
 
+class RedactSchedEvents : public TransformPrimitive {
+ public:
   base::Status Transform(const Context& context,
                          std::string* packet) const override;
 
@@ -69,19 +65,19 @@ class RedactSchedSwitchHarness : public TransformPrimitive {
   }
 
  private:
-  base::Status TransformFtraceEvents(
+  base::Status OnFtraceEvents(
       const Context& context,
       protozero::Field ftrace_events,
       protos::pbzero::FtraceEventBundle* message) const;
 
-  base::Status TransformFtraceEvent(const Context& context,
+  base::Status OnFtraceEvent(const Context& context,
                                     int32_t cpu,
                                     protozero::Field ftrace_event,
                                     protos::pbzero::FtraceEvent* message) const;
 
   // scratch_str is a reusable string, allowing comm modifications to be done in
   // a shared buffer, avoiding allocations when processing ftrace events.
-  base::Status TransformFtraceEventSchedSwitch(
+  base::Status OnFtraceEventSwitch(
       const Context& context,
       uint64_t ts,
       int32_t cpu,
@@ -89,7 +85,7 @@ class RedactSchedSwitchHarness : public TransformPrimitive {
       std::string* scratch_str,
       protos::pbzero::SchedSwitchFtraceEvent* message) const;
 
-  base::Status TransformFtraceEventSchedWaking(
+  base::Status OnFtraceEventWaking(
       const Context& context,
       uint64_t ts,
       int32_t cpu,
@@ -97,23 +93,23 @@ class RedactSchedSwitchHarness : public TransformPrimitive {
       std::string* scratch_str,
       protos::pbzero::SchedWakingFtraceEvent* message) const;
 
-  base::Status TransformCompSched(
+  base::Status OnCompSched(
       const Context& context,
       int32_t cpu,
       protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
       protos::pbzero::FtraceEventBundle::CompactSched* message) const;
 
-  base::Status TransformCompSchedSwitch(
+  base::Status OnCompSchedSwitch(
       const Context& context,
       int32_t cpu,
       protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
       InternTable* intern_table,
       protos::pbzero::FtraceEventBundle::CompactSched* message) const;
 
-  std::unique_ptr<Modifier> modifier_;
+  std::unique_ptr<SchedEventModifier> modifier_;
 };
 
-class ClearComms : public RedactSchedSwitchHarness::Modifier {
+class ClearComms : public SchedEventModifier {
   base::Status Modify(const Context& context,
                       uint64_t ts,
                       int32_t cpu,
@@ -123,4 +119,4 @@ class ClearComms : public RedactSchedSwitchHarness::Modifier {
 
 }  // namespace perfetto::trace_redaction
 
-#endif  // SRC_TRACE_REDACTION_REDACT_SCHED_SWITCH_H_
+#endif  // SRC_TRACE_REDACTION_REDACT_SCHED_EVENTS_H_
