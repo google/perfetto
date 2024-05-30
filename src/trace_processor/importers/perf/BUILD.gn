@@ -102,6 +102,8 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../../protos/perfetto/trace/profiling:zero",
     "../../../base",
-    "../../importers/common",
+    "../../storage",
+    "../../types",
+    "../common",
   ]
 }

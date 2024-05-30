@@ -238,7 +238,7 @@ void ProfileModule::ParsePerfSample(
         PerfSample::ProducerEvent::PROFILER_STOP_GUARDRAIL) {
       context_->storage->SetIndexedStats(
           stats::perf_guardrail_stop_ts,
-          static_cast<int>(sampling_stream.perf_session_id), ts);
+          static_cast<int>(sampling_stream.perf_session_id.value), ts);
     }
     return;
   }

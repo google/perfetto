@@ -129,7 +129,7 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
     seq_it = seq_state_.emplace(seq_id, CreatePerfSession()).first;
   }
   SequenceState* seq_state = &seq_it->second;
-  uint32_t session_id = seq_state->perf_session_id;
+  tables::PerfSessionTable::Id session_id = seq_state->perf_session_id;
 
   auto cpu_it = seq_state->per_cpu.find(cpu);
   if (cpu_it != seq_state->per_cpu.end())
@@ -162,14 +162,18 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
   // tracing session).
   if (perf_defaults.has_value() && perf_defaults->process_shard_count() > 0) {
     context_->storage->SetIndexedStats(
-        stats::perf_process_shard_count, static_cast<int>(session_id),
+        stats::perf_process_shard_count, static_cast<int>(session_id.value),
         static_cast<int64_t>(perf_defaults->process_shard_count()));
     context_->storage->SetIndexedStats(
-        stats::perf_chosen_process_shard, static_cast<int>(session_id),
+        stats::perf_chosen_process_shard, static_cast<int>(session_id.value),
         static_cast<int64_t>(perf_defaults->chosen_process_shard()));
   }
 
   return {session_id, timebase_track_id};
+}
+
+tables::PerfSessionTable::Id PerfSampleTracker::CreatePerfSession() {
+  return context_->storage->mutable_perf_session_table()->Insert({}).id;
 }
 
 }  // namespace trace_processor

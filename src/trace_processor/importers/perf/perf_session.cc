@@ -22,16 +22,21 @@
 #include <cstring>
 #include <limits>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
 #include "src/trace_processor/importers/perf/reader.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/build_id.h"
 
 namespace perfetto::trace_processor::perf_importer {
@@ -48,13 +53,16 @@ base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
     return base::ErrStatus("No perf_event_attr");
   }
 
-  const PerfEventAttr base_attr(context_, perf_session_id_,
+  auto perf_session_id =
+      context_->storage->mutable_perf_session_table()->Insert({}).id;
+
+  const PerfEventAttr base_attr(context_, perf_session_id,
                                 attr_with_ids_[0].attr);
 
   base::FlatHashMap<uint64_t, RefPtr<PerfEventAttr>> attrs_by_id;
   for (const auto& entry : attr_with_ids_) {
     RefPtr<PerfEventAttr> attr(
-        new PerfEventAttr(context_, perf_session_id_, entry.attr));
+        new PerfEventAttr(context_, perf_session_id, entry.attr));
     if (base_attr.sample_id_all() != attr->sample_id_all()) {
       return base::ErrStatus(
           "perf_event_attr with different sample_id_all values");
@@ -79,8 +87,9 @@ base::StatusOr<RefPtr<PerfSession>> PerfSession::Builder::Build() {
     return base::ErrStatus("No id offsets for multiple perf_event_attr");
   }
 
-  return RefPtr<PerfSession>(new PerfSession(
-      perf_session_id_, std::move(attrs_by_id), attr_with_ids_.size() == 1));
+  return RefPtr<PerfSession>(new PerfSession(context_, perf_session_id,
+                                             std::move(attrs_by_id),
+                                             attr_with_ids_.size() == 1));
 }
 
 base::StatusOr<RefPtr<const PerfEventAttr>> PerfSession::FindAttrForRecord(
@@ -171,6 +180,13 @@ std::optional<BuildId> PerfSession::LookupBuildId(
     it = build_ids_.Find({kAnyPid, filename});
   }
   return it ? std::make_optional(*it) : std::nullopt;
+}
+
+void PerfSession::SetCmdline(const std::vector<std::string>& args) {
+  context_->storage->mutable_perf_session_table()
+      ->FindById(perf_session_id_)
+      ->set_cmdline(context_->storage->InternString(
+          base::StringView(base::Join(args, " "))));
 }
 
 }  // namespace perfetto::trace_processor::perf_importer

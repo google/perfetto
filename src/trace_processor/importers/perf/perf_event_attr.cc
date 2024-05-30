@@ -25,7 +25,7 @@
 #include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto::trace_processor::perf_importer {
@@ -96,7 +96,7 @@ std::optional<size_t> IdOffsetFromEndOfNonSampleRecord(
 }  // namespace
 
 PerfEventAttr::PerfEventAttr(TraceProcessorContext* context,
-                             uint32_t perf_session_id,
+                             tables::PerfSessionTable::Id perf_session_id,
                              perf_event_attr attr)
     : context_(context),
       perf_session_id_(perf_session_id),

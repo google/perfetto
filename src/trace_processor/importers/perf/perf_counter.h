@@ -20,7 +20,7 @@
 #include <cstdint>
 
 #include "src/trace_processor/tables/counter_tables_py.h"
-#include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 
 namespace perfetto::trace_processor::perf_importer {
 

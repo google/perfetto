@@ -26,6 +26,7 @@
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 
 namespace perfetto::trace_processor {
 
@@ -37,7 +38,7 @@ namespace perf_importer {
 class PerfEventAttr : public RefCounted {
  public:
   PerfEventAttr(TraceProcessorContext* context,
-                uint32_t perf_session_id_,
+                tables::PerfSessionTable::Id perf_session_id_,
                 perf_event_attr attr);
   ~PerfEventAttr();
   uint32_t type() const { return attr_.type; }
@@ -101,7 +102,7 @@ class PerfEventAttr : public RefCounted {
   PerfCounter CreateCounter(uint32_t cpu) const;
 
   TraceProcessorContext* const context_;
-  uint32_t perf_session_id_;
+  tables::PerfSessionTable::Id perf_session_id_;
   perf_event_attr attr_;
   std::optional<size_t> time_offset_from_start_;
   std::optional<size_t> time_offset_from_end_;
