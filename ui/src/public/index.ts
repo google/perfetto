@@ -516,6 +516,9 @@ interface WellKnownTrackTags {
 
   // Controls whether to show the "debuggable" chip.
   debuggable: boolean;
+
+  // Groupname of the track
+  groupName: string;
 }
 
 // An set of key/value pairs describing a given track. These are used for

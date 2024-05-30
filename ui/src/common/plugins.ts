@@ -222,9 +222,12 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
     pinTracksByPredicate(predicate: TrackPredicate) {
       const tracks = Object.values(globals.state.tracks);
+      const groups = globals.state.trackGroups;
       for (const track of tracks) {
         const tags = {
           name: track.name,
+          groupName: (track.trackGroup ? groups[track.trackGroup] : undefined)
+            ?.name,
         };
         if (predicate(tags) && !isPinned(track.key)) {
           globals.dispatch(
