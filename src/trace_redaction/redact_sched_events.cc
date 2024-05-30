@@ -244,7 +244,7 @@ base::Status RedactSchedEvents::OnFtraceEventSwitch(
   PERFETTO_DCHECK(scratch_str);
   PERFETTO_DCHECK(message);
 
-  auto has_fields = {
+  std::array<bool, 7> has_fields = {
       sched_switch.has_prev_comm(), sched_switch.has_prev_pid(),
       sched_switch.has_prev_prio(), sched_switch.has_prev_state(),
       sched_switch.has_next_comm(), sched_switch.has_next_pid(),
@@ -310,9 +310,9 @@ base::Status RedactSchedEvents::OnFtraceEventWaking(
   PERFETTO_DCHECK(scratch_str);
   PERFETTO_DCHECK(parent_message);
 
-  auto has_fields = {sched_waking.has_comm(), sched_waking.has_pid(),
-                     sched_waking.has_prio(), sched_waking.has_success(),
-                     sched_waking.has_target_cpu()};
+  std::array<bool, 5> has_fields = {
+      sched_waking.has_comm(), sched_waking.has_pid(), sched_waking.has_prio(),
+      sched_waking.has_success(), sched_waking.has_target_cpu()};
 
   if (!std::all_of(has_fields.begin(), has_fields.end(), IsTrue)) {
     return base::ErrStatus(
@@ -351,20 +351,6 @@ base::Status RedactSchedEvents::OnCompSched(
     int32_t cpu,
     protos::pbzero::FtraceEventBundle::CompactSched::Decoder& comp_sched,
     protos::pbzero::FtraceEventBundle::CompactSched* message) const {
-  auto has_switch_fields = {
-      comp_sched.has_switch_timestamp(),
-      comp_sched.has_switch_prev_state(),
-      comp_sched.has_switch_next_pid(),
-      comp_sched.has_switch_next_prio(),
-      comp_sched.has_switch_next_comm_index(),
-  };
-
-  auto has_waking_fields = {
-      comp_sched.has_waking_timestamp(),  comp_sched.has_waking_pid(),
-      comp_sched.has_waking_target_cpu(), comp_sched.has_waking_prio(),
-      comp_sched.has_waking_comm_index(), comp_sched.has_waking_common_flags(),
-  };
-
   // Populate the intern table once; it will be used by both sched and waking.
   InternTable intern_table;
 
@@ -379,10 +365,24 @@ base::Status RedactSchedEvents::OnCompSched(
     }
   }
 
+  std::array<bool, 5> has_switch_fields = {
+      comp_sched.has_switch_timestamp(),
+      comp_sched.has_switch_prev_state(),
+      comp_sched.has_switch_next_pid(),
+      comp_sched.has_switch_next_prio(),
+      comp_sched.has_switch_next_comm_index(),
+  };
+
   if (std::any_of(has_switch_fields.begin(), has_switch_fields.end(), IsTrue)) {
     RETURN_IF_ERROR(
         OnCompSchedSwitch(context, cpu, comp_sched, &intern_table, message));
   }
+
+  std::array<bool, 6> has_waking_fields = {
+      comp_sched.has_waking_timestamp(),  comp_sched.has_waking_pid(),
+      comp_sched.has_waking_target_cpu(), comp_sched.has_waking_prio(),
+      comp_sched.has_waking_comm_index(), comp_sched.has_waking_common_flags(),
+  };
 
   if (std::any_of(has_waking_fields.begin(), has_waking_fields.end(), IsTrue)) {
     // TODO(vaage): Create and call TransformCompSchedWaking().
@@ -406,7 +406,7 @@ base::Status RedactSchedEvents::OnCompSchedSwitch(
   PERFETTO_DCHECK(modifier_);
   PERFETTO_DCHECK(message);
 
-  auto has_fields = {
+  std::array<bool, 6> has_fields = {
       comp_sched.has_intern_table(),
       comp_sched.has_switch_timestamp(),
       comp_sched.has_switch_prev_state(),
