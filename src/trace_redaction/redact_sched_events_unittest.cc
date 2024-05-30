@@ -52,7 +52,7 @@ constexpr auto kCommB = "comm-b";
 constexpr auto kCommC = "comm-c";
 constexpr auto kCommNone = "";
 
-template<int32_t new_pid>
+template <int32_t new_pid>
 class ChangePidTo : public SchedEventModifier {
  public:
   base::Status Modify(const Context& context,
@@ -67,7 +67,6 @@ class ChangePidTo : public SchedEventModifier {
     return base::OkStatus();
   }
 };
-
 }  // namespace
 
 class RedactSchedSwitchFtraceEventTest : public testing::Test {
@@ -117,23 +116,24 @@ class RedactSchedSwitchFtraceEventTest : public testing::Test {
     context_.timeline->Append(
         ProcessThreadTimeline::Event::Open(kTimeA, kPidB, kNoParent, kUidB));
     context_.timeline->Sort();
+
+    redact_.emplace_modifier<ClearComms>();
+    redact_.emplace_filter<AllowAll>();
   }
 
   protos::gen::TracePacket packet_;
   Context context_;
+  RedactSchedEvents redact_;
 };
 
 // In this case, the target uid will be UID A. That means the comm values for
 // PID B should be removed, and the comm values for PID A should remain.
 TEST_F(RedactSchedSwitchFtraceEventTest, KeepsTargetCommValues) {
-  RedactSchedEvents redact;
-  redact.emplace_transform<ClearComms>();
-
   context_.package_uid = kUidA;
 
   auto packet_buffer = packet_.SerializeAsString();
 
-  ASSERT_OK(redact.Transform(context_, &packet_buffer));
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
 
   protos::gen::TracePacket packet;
   ASSERT_TRUE(packet.ParseFromString(packet_buffer));
@@ -160,14 +160,11 @@ TEST_F(RedactSchedSwitchFtraceEventTest, KeepsTargetCommValues) {
 // verifies all comm values will be removed when testing against an unused
 // uid.
 TEST_F(RedactSchedSwitchFtraceEventTest, RemovesAllCommsIfPackageDoesntExist) {
-  RedactSchedEvents redact;
-  redact.emplace_transform<ClearComms>();
-
   context_.package_uid = kUidC;
 
   auto packet_buffer = packet_.SerializeAsString();
 
-  ASSERT_OK(redact.Transform(context_, &packet_buffer));
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
 
   protos::gen::TracePacket packet;
   ASSERT_TRUE(packet.ParseFromString(packet_buffer));
@@ -203,6 +200,9 @@ class RedactCompactSchedSwitchTest : public testing::Test {
 
     compact_sched->add_intern_table(kCommA);
     compact_sched->add_intern_table(kCommB);
+
+    redact_.emplace_modifier<ClearComms>();
+    redact_.emplace_filter<AllowAll>();
   }
 
   void AddSwitchEvent(uint64_t ts,
@@ -221,6 +221,7 @@ class RedactCompactSchedSwitchTest : public testing::Test {
   protos::gen::FtraceEventBundle::CompactSched* compact_sched;
 
   Context context_;
+  RedactSchedEvents redact_;
 };
 
 TEST_F(RedactCompactSchedSwitchTest, KeepsTargetCommValues) {
@@ -238,10 +239,7 @@ TEST_F(RedactCompactSchedSwitchTest, KeepsTargetCommValues) {
 
   auto packet_buffer = packet_.SerializeAsString();
 
-  RedactSchedEvents redact;
-  redact.emplace_transform<ClearComms>();
-
-  ASSERT_OK(redact.Transform(context_, &packet_buffer));
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
 
   protos::gen::TracePacket packet;
   ASSERT_TRUE(packet.ParseFromString(packet_buffer));
@@ -272,10 +270,7 @@ TEST_F(RedactCompactSchedSwitchTest, ChangingSharedCommonRetainsComm) {
 
   auto packet_buffer = packet_.SerializeAsString();
 
-  RedactSchedEvents redact;
-  redact.emplace_transform<ClearComms>();
-
-  ASSERT_OK(redact.Transform(context_, &packet_buffer));
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
 
   protos::gen::TracePacket packet;
   ASSERT_TRUE(packet.ParseFromString(packet_buffer));
@@ -307,10 +302,7 @@ TEST_F(RedactCompactSchedSwitchTest, RemovesAllCommsIfPackageDoesntExist) {
 
   auto packet_buffer = packet_.SerializeAsString();
 
-  RedactSchedEvents redact;
-  redact.emplace_transform<ClearComms>();
-
-  ASSERT_OK(redact.Transform(context_, &packet_buffer));
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
 
   protos::gen::TracePacket packet;
   ASSERT_TRUE(packet.ParseFromString(packet_buffer));
@@ -341,10 +333,9 @@ TEST_F(RedactCompactSchedSwitchTest, CanChangePid) {
 
   auto packet_buffer = packet_.SerializeAsString();
 
-  RedactSchedEvents redact;
-  redact.emplace_transform<ChangePidTo<kPidC>>();
+  redact_.emplace_modifier<ChangePidTo<kPidC>>();
 
-  ASSERT_OK(redact.Transform(context_, &packet_buffer));
+  ASSERT_OK(redact_.Transform(context_, &packet_buffer));
 
   protos::gen::TracePacket packet;
   ASSERT_TRUE(packet.ParseFromString(packet_buffer));
@@ -411,16 +402,18 @@ class RedactSchedWakingFtraceEventTest : public testing::Test {
     context_.timeline->Append(
         ProcessThreadTimeline::Event::Open(kTimeA, kPidC, kNoParent, kUidC));
     context_.timeline->Sort();
+
+    redact.emplace_modifier<ClearComms>();
+    redact.emplace_filter<AllowAll>();
   }
 
   protos::gen::TracePacket packet_;
   Context context_;
+
+  RedactSchedEvents redact;
 };
 
 TEST_F(RedactSchedWakingFtraceEventTest, WakeeKeepsCommWhenConnectedToPackage) {
-  RedactSchedEvents redact;
-  redact.emplace_transform<ClearComms>();
-
   context_.package_uid = kUidB;
 
   auto packet_buffer = packet_.SerializeAsString();
@@ -441,9 +434,6 @@ TEST_F(RedactSchedWakingFtraceEventTest, WakeeKeepsCommWhenConnectedToPackage) {
 
 TEST_F(RedactSchedWakingFtraceEventTest,
        WakeeLosesCommWhenNotConnectedToPackage) {
-  RedactSchedEvents redact;
-  redact.emplace_transform<ClearComms>();
-
   context_.package_uid = kUidA;
 
   auto packet_buffer = packet_.SerializeAsString();
@@ -463,8 +453,7 @@ TEST_F(RedactSchedWakingFtraceEventTest,
 }
 
 TEST_F(RedactSchedWakingFtraceEventTest, WakeeKeepsPidWhenConnectedToPackage) {
-  RedactSchedEvents redact;
-  redact.emplace_transform<ChangePidTo<kPidD>>();
+  redact.emplace_modifier<ChangePidTo<kPidD>>();
 
   context_.package_uid = kUidB;
 
@@ -488,8 +477,7 @@ TEST_F(RedactSchedWakingFtraceEventTest, WakeeKeepsPidWhenConnectedToPackage) {
 
 TEST_F(RedactSchedWakingFtraceEventTest,
        WakeeLosesPidWhenNotConnectedToPackage) {
-  RedactSchedEvents redact;
-  redact.emplace_transform<ChangePidTo<kPidD>>();
+  redact.emplace_modifier<ChangePidTo<kPidD>>();
 
   context_.package_uid = kUidA;
 
@@ -511,8 +499,7 @@ TEST_F(RedactSchedWakingFtraceEventTest,
 }
 
 TEST_F(RedactSchedWakingFtraceEventTest, WakerPidIsLeftUnaffected) {
-  RedactSchedEvents redact;
-  redact.emplace_transform<ChangePidTo<kPidD>>();
+  redact.emplace_modifier<ChangePidTo<kPidD>>();
 
   context_.package_uid = kUidB;
 

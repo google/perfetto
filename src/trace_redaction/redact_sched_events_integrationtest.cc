@@ -94,9 +94,10 @@ class RedactSchedSwitchIntegrationTest
     trace_redactor()->emplace_collect<FindPackageUid>();
     trace_redactor()->emplace_collect<CollectTimelineEvents>();
 
-    auto* harness =
+    auto* redact_sched_events =
         trace_redactor()->emplace_transform<RedactSchedEvents>();
-    harness->emplace_transform<ClearComms>();
+    redact_sched_events->emplace_modifier<ClearComms>();
+    redact_sched_events->emplace_filter<AllowAll>();
 
     context()->package_name = "com.Unity.com.unity.multiplayer.samples.coop";
   }
