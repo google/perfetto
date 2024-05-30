@@ -742,14 +742,14 @@ export const StateActions = {
     state.currentFlamegraphState.focusRegex = args.focusRegex;
   },
 
-  selectChromeSlice(
+  selectSlice(
     state: StateDraft,
     args: {id: number; trackKey: string; table?: string; scroll?: boolean},
   ): void {
     state.selection = {
       kind: 'legacy',
       legacySelection: {
-        kind: 'CHROME_SLICE',
+        kind: 'SLICE',
         id: args.id,
         trackKey: args.trackKey,
         table: args.table,

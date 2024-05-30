@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {uuidv4} from '../../base/uuid';
-import {ChromeSliceDetailsTab} from '../../frontend/chrome_slice_details_tab';
+import {ThreadSliceDetailsTab} from '../../frontend/thread_slice_details_tab';
 import {
   BottomTabToSCSAdapter,
   Plugin,
@@ -22,9 +22,9 @@ import {
 } from '../../public';
 import {getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {ChromeSliceTrack, SLICE_TRACK_KIND} from './chrome_slice_track';
+import {ThreadSliceTrack, THREAD_SLICE_TRACK_KIND} from './thread_slice_track';
 
-class ChromeSlicesPlugin implements Plugin {
+class ThreadSlicesPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
@@ -76,16 +76,16 @@ class ChromeSlicesPlugin implements Plugin {
       });
 
       ctx.registerTrack({
-        uri: `perfetto.ChromeSlices#${trackId}`,
+        uri: `perfetto.ThreadSlices#${trackId}`,
         displayName,
         trackIds: [trackId],
-        kind: SLICE_TRACK_KIND,
+        kind: THREAD_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
           const newTrackArgs = {
             engine: ctx.engine,
             trackKey,
           };
-          return new ChromeSliceTrack(newTrackArgs, trackId, maxDepth);
+          return new ThreadSliceTrack(newTrackArgs, trackId, maxDepth);
         },
       });
     }
@@ -93,10 +93,10 @@ class ChromeSlicesPlugin implements Plugin {
     ctx.registerDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (sel) => {
-          if (sel.kind !== 'CHROME_SLICE') {
+          if (sel.kind !== 'SLICE') {
             return undefined;
           }
-          return new ChromeSliceDetailsTab({
+          return new ThreadSliceDetailsTab({
             config: {
               table: sel.table ?? 'slice',
               id: sel.id,
@@ -111,6 +111,6 @@ class ChromeSlicesPlugin implements Plugin {
 }
 
 export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.ChromeSlices',
-  plugin: ChromeSlicesPlugin,
+  pluginId: 'perfetto.ThreadSlices',
+  plugin: ThreadSlicesPlugin,
 };

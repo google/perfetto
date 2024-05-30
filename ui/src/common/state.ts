@@ -42,7 +42,7 @@ export {
   LegacySelection,
   AreaSelection,
   ProfileType,
-  ChromeSliceSelection,
+  ThreadSliceSelection,
   CpuProfileSampleSelection,
 } from '../core/selection_manager';
 
@@ -152,7 +152,8 @@ export const MAX_TIME = 180;
 // 53. Remove android log state.
 // 54. Remove traceTime.
 // 55. Rename TrackGroupState.id -> TrackGroupState.key.
-export const STATE_VERSION = 55;
+// 56. Renamed chrome slice to thread slice everywhere.
+export const STATE_VERSION = 56;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 

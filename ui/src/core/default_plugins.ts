@@ -39,7 +39,7 @@ export const defaultPlugins = [
   'perfetto.Annotation',
   'perfetto.AsyncSlices',
   'perfetto.ChromeScrollJank',
-  'perfetto.ChromeSlices',
+  'perfetto.ThreadSlices',
   'perfetto.Counter',
   'perfetto.CpuFreq',
   'perfetto.CpuProfile',
