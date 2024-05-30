@@ -28,7 +28,7 @@
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/redact_ftrace_event.h"
-#include "src/trace_redaction/redact_sched_switch.h"
+#include "src/trace_redaction/redact_sched_events.h"
 #include "src/trace_redaction/redact_task_newtask.h"
 #include "src/trace_redaction/remap_scheduling_events.h"
 #include "src/trace_redaction/remove_process_free_comm.h"
@@ -86,7 +86,7 @@ static base::Status Main(std::string_view input,
   redactor.emplace_transform<PrunePackageList>();
   redactor.emplace_transform<ScrubProcessStats>();
 
-  auto* comms_harness = redactor.emplace_transform<RedactSchedSwitchHarness>();
+  auto* comms_harness = redactor.emplace_transform<RedactSchedEvents>();
   comms_harness->emplace_transform<ClearComms>();
 
   auto* redact_ftrace_events = redactor.emplace_transform<RedactFtraceEvent>();
