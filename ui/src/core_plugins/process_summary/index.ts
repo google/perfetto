@@ -105,7 +105,7 @@ class ProcessSummaryPlugin implements Plugin {
           displayName: `${upid === null ? tid : pid} schedule`,
           kind: PROCESS_SCHEDULING_TRACK_KIND,
           tags: {
-            isDebuggable,
+            debuggable: isDebuggable,
           },
           trackFactory: () => {
             return new ProcessSchedulingTrack(ctx.engine, config, cpuCount);
@@ -123,7 +123,7 @@ class ProcessSummaryPlugin implements Plugin {
           displayName: `${upid === null ? tid : pid} summary`,
           kind: PROCESS_SUMMARY_TRACK,
           tags: {
-            isDebuggable,
+            debuggable: isDebuggable,
           },
           trackFactory: () => new ProcessSummaryTrack(ctx.engine, config),
         });
