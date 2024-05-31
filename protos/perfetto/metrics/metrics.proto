@@ -74,6 +74,7 @@ import "protos/perfetto/metrics/android/monitor_contention_metric.proto";
 import "protos/perfetto/metrics/android/monitor_contention_agg_metric.proto";
 import "protos/perfetto/metrics/android/app_process_starts_metric.proto";
 import "protos/perfetto/metrics/android/android_oom_adjuster_metric.proto";
+import "protos/perfetto/metrics/android/android_broadcasts_metric.proto";
 
 // Trace processor metadata
 message TraceMetadata {
@@ -120,7 +121,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 68
+// Next id: 69
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -311,6 +312,9 @@ message TraceMetrics {
 
   // Android OOM unaggregated metrics.
   optional AndroidOomAdjusterMetric android_oom_adjuster = 66;
+
+  // Android Broadcasts aggregated metrics
+  optional AndroidBroadcastsMetric android_broadcasts = 68;
 
   // Android
   // Demo extensions.
