@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {profileType} from '../..//frontend/flamegraph_panel';
 import {Actions} from '../../common/actions';
 import {ProfileType, LegacySelection} from '../../common/state';
-import {profileType} from '../../controller/flamegraph_controller';
 import {
   BASE_ROW,
   BaseSliceTrack,

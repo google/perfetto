@@ -13,11 +13,34 @@
 // limitations under the License.
 
 import {featureFlags} from '../core/feature_flags';
-import {CallsiteInfo, FlamegraphStateViewingOption, ProfileType} from './state';
+import {ProfileType} from './state';
+
+export enum FlamegraphViewingOption {
+  SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY = 'SPACE',
+  ALLOC_SPACE_MEMORY_ALLOCATED_KEY = 'ALLOC_SPACE',
+  OBJECTS_ALLOCATED_NOT_FREED_KEY = 'OBJECTS',
+  OBJECTS_ALLOCATED_KEY = 'ALLOC_OBJECTS',
+  PERF_SAMPLES_KEY = 'PERF_SAMPLES',
+  DOMINATOR_TREE_OBJ_SIZE_KEY = 'DOMINATED_OBJ_SIZE',
+  DOMINATOR_TREE_OBJ_COUNT_KEY = 'DOMINATED_OBJ_COUNT',
+}
 
 interface ViewingOption {
-  option: FlamegraphStateViewingOption;
+  option: FlamegraphViewingOption;
   name: string;
+}
+
+export interface CallsiteInfo {
+  id: number;
+  parentId: number;
+  depth: number;
+  name?: string;
+  totalSize: number;
+  selfSize: number;
+  mapping: string;
+  merged: boolean;
+  highlighted: boolean;
+  location?: string;
 }
 
 const SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG = featureFlags.register({
@@ -32,32 +55,29 @@ export function viewingOptions(profileType: ProfileType): Array<ViewingOption> {
     case ProfileType.PERF_SAMPLE:
       return [
         {
-          option: FlamegraphStateViewingOption.PERF_SAMPLES_KEY,
+          option: FlamegraphViewingOption.PERF_SAMPLES_KEY,
           name: 'Samples',
         },
       ];
     case ProfileType.JAVA_HEAP_GRAPH:
       return [
         {
-          option:
-            FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
+          option: FlamegraphViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
           name: 'Size',
         },
         {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
+          option: FlamegraphViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
           name: 'Objects',
         },
       ].concat(
         SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG.get()
           ? [
               {
-                option:
-                  FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_SIZE_KEY,
+                option: FlamegraphViewingOption.DOMINATOR_TREE_OBJ_SIZE_KEY,
                 name: 'Dominated size',
               },
               {
-                option:
-                  FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_COUNT_KEY,
+                option: FlamegraphViewingOption.DOMINATOR_TREE_OBJ_COUNT_KEY,
                 name: 'Dominated objects',
               },
             ]
@@ -66,62 +86,60 @@ export function viewingOptions(profileType: ProfileType): Array<ViewingOption> {
     case ProfileType.HEAP_PROFILE:
       return [
         {
-          option:
-            FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
+          option: FlamegraphViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
           name: 'Unreleased size',
         },
         {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
+          option: FlamegraphViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
           name: 'Unreleased count',
         },
         {
-          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+          option: FlamegraphViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
           name: 'Total size',
         },
         {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+          option: FlamegraphViewingOption.OBJECTS_ALLOCATED_KEY,
           name: 'Total count',
         },
       ];
     case ProfileType.NATIVE_HEAP_PROFILE:
       return [
         {
-          option:
-            FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
+          option: FlamegraphViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
           name: 'Unreleased malloc size',
         },
         {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
+          option: FlamegraphViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
           name: 'Unreleased malloc count',
         },
         {
-          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+          option: FlamegraphViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
           name: 'Total malloc size',
         },
         {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+          option: FlamegraphViewingOption.OBJECTS_ALLOCATED_KEY,
           name: 'Total malloc count',
         },
       ];
     case ProfileType.JAVA_HEAP_SAMPLES:
       return [
         {
-          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+          option: FlamegraphViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
           name: 'Total allocation size',
         },
         {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+          option: FlamegraphViewingOption.OBJECTS_ALLOCATED_KEY,
           name: 'Total allocation count',
         },
       ];
     case ProfileType.MIXED_HEAP_PROFILE:
       return [
         {
-          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+          option: FlamegraphViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
           name: 'Total allocation size (malloc + java)',
         },
         {
-          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+          option: FlamegraphViewingOption.OBJECTS_ALLOCATED_KEY,
           name: 'Total allocation count (malloc + java)',
         },
       ];
@@ -133,14 +151,14 @@ export function viewingOptions(profileType: ProfileType): Array<ViewingOption> {
 
 export function defaultViewingOption(
   profileType: ProfileType,
-): FlamegraphStateViewingOption {
+): FlamegraphViewingOption {
   return viewingOptions(profileType)[0].option;
 }
 
 export function expandCallsites(
-  data: CallsiteInfo[],
+  data: ReadonlyArray<CallsiteInfo>,
   clickedCallsiteIndex: number,
-): CallsiteInfo[] {
+): ReadonlyArray<CallsiteInfo> {
   if (clickedCallsiteIndex === -1) return data;
   const expandedCallsites: CallsiteInfo[] = [];
   if (clickedCallsiteIndex >= data.length || clickedCallsiteIndex < -1) {
@@ -170,7 +188,10 @@ export function expandCallsites(
 // Merge callsites that have approximately width less than
 // MIN_PIXEL_DISPLAYED. All small callsites in the same depth and with same
 // parent will be merged to one with total size of all merged callsites.
-export function mergeCallsites(data: CallsiteInfo[], minSizeDisplayed: number) {
+export function mergeCallsites(
+  data: ReadonlyArray<CallsiteInfo>,
+  minSizeDisplayed: number,
+) {
   const mergedData: CallsiteInfo[] = [];
   const mergedCallsites: Map<number, number> = new Map();
   for (let i = 0; i < data.length; i++) {
@@ -238,7 +259,7 @@ function getCallsitesParentHash(
     ? +map.get(callsite.parentId)!
     : callsite.parentId;
 }
-export function findRootSize(data: CallsiteInfo[]) {
+export function findRootSize(data: ReadonlyArray<CallsiteInfo>) {
   let totalSize = 0;
   let i = 0;
   while (i < data.length && data[i].depth === 0) {

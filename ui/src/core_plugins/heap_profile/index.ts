@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FlamegraphDetailsPanel} from '../../frontend/flamegraph_panel';
+import {
+  FlamegraphCache,
+  FlamegraphDetailsPanel,
+  profileType,
+} from '../../frontend/flamegraph_panel';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {NUM} from '../../trace_processor/query_result';
 import {HeapProfileTrack} from './heap_profile_track';
@@ -45,10 +49,19 @@ class HeapProfilePlugin implements Plugin {
       });
     }
 
+    const cache = new FlamegraphCache('heap_profile');
     ctx.registerDetailsPanel({
       render: (sel) => {
         if (sel.kind === 'HEAP_PROFILE') {
-          return m(FlamegraphDetailsPanel);
+          return m(FlamegraphDetailsPanel, {
+            cache,
+            selection: {
+              profileType: profileType(sel.type),
+              start: sel.ts,
+              end: sel.ts,
+              upids: [sel.upid],
+            },
+          });
         } else {
           return undefined;
         }

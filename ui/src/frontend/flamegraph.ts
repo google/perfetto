@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {CallsiteInfo} from '../common/flamegraph_util';
 import {searchSegment} from '../base/binary_search';
 import {cropText} from '../common/canvas_utils';
-
-import {CallsiteInfo} from '../common/state';
 
 interface Node {
   width: number;
@@ -35,7 +34,7 @@ const NODE_HEIGHT = 18;
 
 export const FLAMEGRAPH_HOVERED_COLOR = 'hsl(224, 45%, 55%)';
 
-export function findRootSize(data: CallsiteInfo[]) {
+export function findRootSize(data: ReadonlyArray<CallsiteInfo>) {
   let totalSize = 0;
   let i = 0;
   while (i < data.length && data[i].depth === 0) {
@@ -52,7 +51,7 @@ export interface NodeRendering {
 
 export class Flamegraph {
   private nodeRendering: NodeRendering = {};
-  private flamegraphData: CallsiteInfo[];
+  private flamegraphData: ReadonlyArray<CallsiteInfo>;
   private highlightSomeNodes = false;
   private maxDepth = -1;
   private totalSize = -1;
@@ -117,7 +116,7 @@ export class Flamegraph {
   // graph.
   updateDataIfChanged(
     nodeRendering: NodeRendering,
-    flamegraphData: CallsiteInfo[],
+    flamegraphData: ReadonlyArray<CallsiteInfo>,
     clickedCallsite?: CallsiteInfo,
   ) {
     this.nodeRendering = nodeRendering;

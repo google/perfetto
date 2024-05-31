@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {mergeCallsites} from './flamegraph_util';
-import {CallsiteInfo} from './state';
+import {CallsiteInfo, mergeCallsites} from './flamegraph_util';
 
 test('zeroCallsitesMerged', () => {
   const callsites: CallsiteInfo[] = [
