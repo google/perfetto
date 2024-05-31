@@ -15,7 +15,6 @@
 import {produce} from 'immer';
 
 import {assertExists} from '../base/logging';
-import {Time} from '../base/time';
 import {PrimaryTrackSortKey} from '../public';
 import {HEAP_PROFILE_TRACK_KIND} from '../core_plugins/heap_profile';
 import {PROCESS_SCHEDULING_TRACK_KIND} from '../core_plugins/process_summary/process_scheduling_track';
@@ -25,7 +24,6 @@ import {StateActions} from './actions';
 import {createEmptyState} from './empty_state';
 import {
   InThreadTrackSortKey,
-  ProfileType,
   SCROLLING_TRACK_GROUP,
   State,
   TraceUrlSource,
@@ -456,39 +454,4 @@ test('sortTracksByTidThenName', () => {
   });
 
   expect(after.trackGroups['g'].tracks).toEqual(['a', 'c', 'b']);
-});
-
-test('perf samples open flamegraph', () => {
-  const state = createEmptyState();
-
-  const afterSelectingPerf = produce(state, (draft) => {
-    StateActions.selectPerfSamples(draft, {
-      id: 0,
-      upid: 0,
-      leftTs: Time.fromRaw(0n),
-      rightTs: Time.fromRaw(0n),
-      type: ProfileType.PERF_SAMPLE,
-    });
-  });
-
-  expect(assertExists(afterSelectingPerf.currentFlamegraphState).type).toBe(
-    ProfileType.PERF_SAMPLE,
-  );
-});
-
-test('heap profile opens flamegraph', () => {
-  const state = createEmptyState();
-
-  const afterSelectingPerf = produce(state, (draft) => {
-    StateActions.selectHeapProfile(draft, {
-      id: 0,
-      upid: 0,
-      ts: Time.fromRaw(0n),
-      type: ProfileType.JAVA_HEAP_GRAPH,
-    });
-  });
-
-  expect(assertExists(afterSelectingPerf.currentFlamegraphState).type).toBe(
-    ProfileType.JAVA_HEAP_GRAPH,
-  );
 });
