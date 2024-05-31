@@ -421,16 +421,6 @@ base::Status RedactSchedEvents::OnCompSchedSwitch(
         "switch field.");
   }
 
-  std::array<bool, 3> parse_errors = {false, false, false};
-
-  auto it_ts = comp_sched.switch_timestamp(&parse_errors.at(0));
-  auto it_pid = comp_sched.switch_next_pid(&parse_errors.at(1));
-  auto it_comm = comp_sched.switch_next_comm_index(&parse_errors.at(2));
-
-  if (std::any_of(parse_errors.begin(), parse_errors.end(), IsTrue)) {
-    return base::ErrStatus("RedactSchedEvents: failed to parse CompactSched.");
-  }
-
   std::string scratch_str;
 
   protozero::PackedVarInt packed_comm;
@@ -439,6 +429,12 @@ base::Status RedactSchedEvents::OnCompSchedSwitch(
   // The first it_ts value is an absolute value, all other values are delta
   // values.
   uint64_t ts = 0;
+
+  std::array<bool, 3> parse_errors = {false, false, false};
+
+  auto it_ts = comp_sched.switch_timestamp(&parse_errors.at(0));
+  auto it_pid = comp_sched.switch_next_pid(&parse_errors.at(1));
+  auto it_comm = comp_sched.switch_next_comm_index(&parse_errors.at(2));
 
   while (it_ts && it_pid && it_comm) {
     ts += *it_ts;
@@ -465,6 +461,11 @@ base::Status RedactSchedEvents::OnCompSchedSwitch(
     ++it_ts;
     ++it_pid;
     ++it_comm;
+  }
+
+  if (std::any_of(parse_errors.begin(), parse_errors.end(), IsTrue)) {
+    return base::ErrStatus(
+        "RedactSchedEvents: error reading FtraceEventBundle::CompactSched.");
   }
 
   if (it_ts || it_pid || it_comm) {
