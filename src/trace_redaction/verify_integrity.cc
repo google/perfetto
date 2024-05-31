@@ -22,28 +22,25 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto::trace_redaction {
-namespace {
-// All constants are from
-// "system/core/libcutils/include/private/android_filesystem_config.h"
-//
-// AID 1000 == system (those are probably frame_timeline packets you will see
-// those on) AID 9999 is nobody == traced/traced_probes
-constexpr int32_t kAidSystem = 1000;
-constexpr int32_t kAidNobody = 9999;
-}  // namespace
 
 base::Status VerifyIntegrity::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
-    Context*) const {
+    Context* context) const {
   if (!packet.has_trusted_uid()) {
     return base::ErrStatus(
         "VerifyIntegrity: missing field (TracePacket::kTrustedUid).");
   }
 
-  if (packet.trusted_uid() != kAidSystem &&
-      packet.trusted_uid() != kAidNobody) {
-    return base::ErrStatus(
-        "VerifyIntegrity: invalid field (TracePacket::kTrustedUid).");
+  // Use an empty list as "trust everyone".
+  const auto& trusted_uids = context->trusted_uids;
+
+  if (!trusted_uids.empty()) {
+    auto trusted_uid = packet.trusted_uid();
+
+    if (std::find(trusted_uids.begin(), trusted_uids.end(), trusted_uid) ==
+        trusted_uids.end()) {
+      return base::ErrStatus("VerifyIntegrity: untrusted uid.");
+    }
   }
 
   if (packet.has_ftrace_events()) {

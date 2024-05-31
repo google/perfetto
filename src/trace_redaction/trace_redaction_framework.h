@@ -114,6 +114,19 @@ class Context {
   // running any primitives.
   std::string package_name;
 
+  // Each packet will have a trusted uid. This is the package emitting the
+  // event. In production we only expect:
+  //
+  //    1000: probably frame_timeline packets you will see those on.
+  //    9999: traced/traced_probes (sometimes called "nobody").
+  //
+  // While field traces are limited to these two uids, it created an artifical
+  // limitation when testing.
+  //
+  // When empty, all uids should be allowed. When non-empty, only uids found in
+  // the collection are allowed.
+  std::vector<int32_t> trusted_uids = {1000, 9999};
+
   // The package list maps a package name to a uid. It is possible for multiple
   // package names to map to the same uid, for example:
   //
