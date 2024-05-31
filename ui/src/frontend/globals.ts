@@ -32,9 +32,7 @@ import {
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {
-  CallsiteInfo,
   EngineConfig,
-  ProfileType,
   RESOLUTION_DEFAULT,
   State,
   getLegacySelection,
@@ -57,6 +55,8 @@ import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
 import {exists} from '../base/utils';
 import {OmniboxManager} from './omnibox_manager';
+import {CallsiteInfo} from '../common/flamegraph_util';
+import {FlamegraphCache} from './flamegraph_panel';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -143,27 +143,6 @@ export interface CounterDetails {
 export interface ThreadStateDetails {
   ts?: time;
   dur?: duration;
-}
-
-export interface FlamegraphDetails {
-  type?: ProfileType;
-  id?: number;
-  start?: time;
-  dur?: duration;
-  pids?: number[];
-  upids?: number[];
-  flamegraph?: CallsiteInfo[];
-  expandedCallsite?: CallsiteInfo;
-  viewingOption?: string;
-  expandedId?: number;
-  // isInAreaSelection is true if a flamegraph is part of the current area
-  // selection.
-  isInAreaSelection?: boolean;
-  // When heap_graph_non_finalized_graph has a count >0, we mark the graph
-  // as incomplete.
-  graphIncomplete?: boolean;
-  // About to show a new graph whose data is not ready yet.
-  graphLoading?: boolean;
 }
 
 export interface CpuProfileDetails {
@@ -282,7 +261,6 @@ class Globals {
   private _selectedFlows?: Flow[] = undefined;
   private _visibleFlowCategories?: Map<string, boolean> = undefined;
   private _counterDetails?: CounterDetails = undefined;
-  private _flamegraphDetails?: FlamegraphDetails = undefined;
   private _cpuProfileDetails?: CpuProfileDetails = undefined;
   private _numQueriesQueued = 0;
   private _bufferUsage?: number = undefined;
@@ -301,6 +279,7 @@ class Globals {
   private _hasFtrace: boolean = false;
 
   omnibox = new OmniboxManager();
+  areaFlamegraphCache = new FlamegraphCache('area');
 
   scrollToTrackKey?: string | number;
   httpRpcState: HttpRpcState = {connected: false};
@@ -358,7 +337,6 @@ class Globals {
     this._visibleFlowCategories = new Map<string, boolean>();
     this._counterDetails = {};
     this._threadStateDetails = {};
-    this._flamegraphDetails = {};
     this._cpuProfileDetails = {};
     this.engines.clear();
     this._selectionManager.clear();
@@ -479,14 +457,6 @@ class Globals {
 
   get aggregateDataStore(): AggregateDataStore {
     return assertExists(this._aggregateDataStore);
-  }
-
-  get flamegraphDetails() {
-    return assertExists(this._flamegraphDetails);
-  }
-
-  set flamegraphDetails(click: FlamegraphDetails) {
-    this._flamegraphDetails = assertExists(click);
   }
 
   get traceErrors() {
