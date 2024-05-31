@@ -13,7 +13,11 @@
 // limitations under the License.
 
 import {TrackData} from '../../common/track_data';
-import {FlamegraphDetailsPanel} from '../../frontend/flamegraph_panel';
+import {
+  FlamegraphCache,
+  FlamegraphDetailsPanel,
+  profileType,
+} from '../../frontend/flamegraph_panel';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {NUM} from '../../trace_processor/query_result';
 import {PerfSamplesProfileTrack} from './perf_samples_profile_track';
@@ -43,10 +47,19 @@ class PerfSamplesProfilePlugin implements Plugin {
       });
     }
 
+    const cache = new FlamegraphCache('perf_samples');
     ctx.registerDetailsPanel({
       render: (sel) => {
         if (sel.kind === 'PERF_SAMPLES') {
-          return m(FlamegraphDetailsPanel);
+          return m(FlamegraphDetailsPanel, {
+            cache,
+            selection: {
+              profileType: profileType(sel.type),
+              start: sel.leftTs,
+              end: sel.rightTs,
+              upids: [sel.upid],
+            },
+          });
         } else {
           return undefined;
         }

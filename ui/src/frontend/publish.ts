@@ -24,7 +24,6 @@ import {getLegacySelection} from '../common/state';
 import {
   CounterDetails,
   CpuProfileDetails,
-  FlamegraphDetails,
   Flow,
   globals,
   QuantizedLoad,
@@ -78,11 +77,6 @@ export function publishHttpRpcState(httpRpcState: HttpRpcState) {
 
 export function publishCounterDetails(click: CounterDetails) {
   globals.counterDetails = click;
-  globals.publishRedraw();
-}
-
-export function publishFlamegraphDetails(click: FlamegraphDetails) {
-  globals.flamegraphDetails = click;
   globals.publishRedraw();
 }
 
