@@ -22,15 +22,13 @@
 #include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "src/trace_redaction/filter_packet_using_allowlist.h"
 #include "src/trace_redaction/filter_print_events.h"
-#include "src/trace_redaction/filter_task_rename.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/redact_ftrace_event.h"
+#include "src/trace_redaction/redact_process_events.h"
 #include "src/trace_redaction/redact_sched_events.h"
-#include "src/trace_redaction/redact_task_newtask.h"
 #include "src/trace_redaction/remap_scheduling_events.h"
-#include "src/trace_redaction/remove_process_free_comm.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
 #include "src/trace_redaction/scrub_process_stats.h"
 #include "src/trace_redaction/scrub_process_trees.h"
@@ -74,7 +72,6 @@ static base::Status Main(std::string_view input,
   auto* scrub_ftrace_events = redactor.emplace_transform<ScrubFtraceEvents>();
   scrub_ftrace_events->emplace_back<FilterFtraceUsingAllowlist>();
   scrub_ftrace_events->emplace_back<FilterPrintEvents>();
-  scrub_ftrace_events->emplace_back<FilterTaskRename>();
   scrub_ftrace_events->emplace_back<FilterSuspendResume>();
 
   // Scrub packets and ftrace events first as they will remove the largest
@@ -84,15 +81,22 @@ static base::Status Main(std::string_view input,
   redactor.emplace_transform<PrunePackageList>();
   redactor.emplace_transform<ScrubProcessStats>();
 
+  // Redacts all switch and waking events. This should use the same modifier and
+  // filter as the process events (see below).
   auto* redact_sched_events = redactor.emplace_transform<RedactSchedEvents>();
   redact_sched_events->emplace_modifier<ClearComms>();
   redact_sched_events->emplace_filter<ConnectedToPackage>();
 
+  // Redacts all new task, rename task, process free events. This should use the
+  // same modifier and filter as the schedule events (see above).
+  auto* redact_process_events =
+      redactor.emplace_transform<RedactProcessEvents>();
+  redact_process_events->emplace_modifier<ClearComms>();
+  redact_process_events->emplace_filter<ConnectedToPackage>();
+
   // TODO(vaage): The primitives used to implement thread merging do not work
   // correctly with other primitives.
   //
-  //    - RemoveProcessFreeComm
-  //    - RedactTaskNewTask
   //    - ThreadMergeRemapFtraceEventPid
   //    - ThreadMergeRemapSchedSwitchPid
   //    - ThreadMergeRemapSchedWakingPid

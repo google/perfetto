@@ -64,7 +64,7 @@ class SchedEventFilter {
   // and easily implemented wrong.
   virtual bool Includes(const Context& context,
                         uint64_t ts,
-                        int32_t wakee) const = 0;
+                        int32_t target) const = 0;
 };
 
 class RedactSchedEvents : public TransformPrimitive {
