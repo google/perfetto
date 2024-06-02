@@ -17,13 +17,10 @@
 #include <cstdint>
 #include <string>
 
-#include "perfetto/base/status.h"
 #include "src/base/test/status_matchers.h"
-#include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "src/trace_redaction/populate_allow_lists.h"
-#include "src/trace_redaction/scrub_ftrace_events.h"
+#include "src/trace_redaction/redact_ftrace_events.h"
 #include "src/trace_redaction/trace_redaction_integration_fixture.h"
-#include "src/trace_redaction/trace_redactor.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -39,9 +36,11 @@ class FilterFtraceUsingAllowlistTest
  protected:
   void SetUp() override {
     trace_redactor()->emplace_build<PopulateAllowlists>();
-    trace_redactor()
-        ->emplace_transform<ScrubFtraceEvents>()
-        ->emplace_back<FilterFtraceUsingAllowlist>();
+
+    auto redact_with_allowlist =
+        trace_redactor()->emplace_transform<RedactFtraceEvents>();
+    redact_with_allowlist->emplace_filter<FilterFtracesUsingAllowlist>();
+    redact_with_allowlist->emplace_writer<WriteFtracesPassthrough>();
   }
 
   // Parse the given buffer and gather field ids from across all events. This

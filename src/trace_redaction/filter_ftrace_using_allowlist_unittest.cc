@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-#include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "src/base/test/status_matchers.h"
-#include "src/trace_redaction/scrub_ftrace_events.h"
+#include "src/trace_redaction/redact_ftrace_events.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
@@ -34,7 +33,8 @@ namespace perfetto::trace_redaction {
 class FilterFtraceUsingAllowlistTest : public testing::Test {
  protected:
   void SetUp() override {
-    transform_.emplace_back<FilterFtraceUsingAllowlist>();
+    transform_.emplace_filter<FilterFtracesUsingAllowlist>();
+    transform_.emplace_writer<WriteFtracesPassthrough>();
   }
 
   // task_rename should be in the allow-list.
@@ -58,7 +58,7 @@ class FilterFtraceUsingAllowlistTest : public testing::Test {
     e->mutable_clock_set_rate()->set_state(state);
   }
 
-  ScrubFtraceEvents transform_;
+  RedactFtraceEvents transform_;
 };
 
 TEST_F(FilterFtraceUsingAllowlistTest, ReturnErrorForNullPacket) {
@@ -77,16 +77,6 @@ TEST_F(FilterFtraceUsingAllowlistTest, ReturnErrorForEmptyPacket) {
       protos::pbzero::FtraceEvent::kTaskRenameFieldNumber};
 
   std::string packet_str = "";
-
-  ASSERT_FALSE(transform_.Transform(context, &packet_str).ok());
-}
-
-TEST_F(FilterFtraceUsingAllowlistTest, ReturnErrorForEmptyAllowList) {
-  // The context will have no allow-list entries. ScrubFtraceEvents should fail.
-  Context context;
-
-  protos::gen::TracePacket packet;
-  std::string packet_str = packet.SerializeAsString();
 
   ASSERT_FALSE(transform_.Transform(context, &packet_str).ok());
 }
