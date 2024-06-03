@@ -27,11 +27,11 @@
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/redact_ftrace_event.h"
 #include "src/trace_redaction/redact_process_events.h"
+#include "src/trace_redaction/redact_process_trees.h"
 #include "src/trace_redaction/redact_sched_events.h"
 #include "src/trace_redaction/remap_scheduling_events.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
 #include "src/trace_redaction/scrub_process_stats.h"
-#include "src/trace_redaction/scrub_process_trees.h"
 #include "src/trace_redaction/scrub_trace_packet.h"
 #include "src/trace_redaction/suspend_resume.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
@@ -77,7 +77,6 @@ static base::Status Main(std::string_view input,
   // Scrub packets and ftrace events first as they will remove the largest
   // chucks of data from the trace. This will reduce the amount of data that the
   // other primitives need to operate on.
-  redactor.emplace_transform<ScrubProcessTrees>();
   redactor.emplace_transform<PrunePackageList>();
   redactor.emplace_transform<ScrubProcessStats>();
 
@@ -104,6 +103,15 @@ static base::Status Main(std::string_view input,
   //    - ThreadMergeDropField(kSchedProcessFreeFieldNumber)
   //
   // Add these primitives back one-by-one to find the issue.
+
+  // Configure the primitive to remove processes and threads that don't belong
+  // to the target package and adds a process and threads for the synth thread
+  // group and threads.
+  {
+    auto* primitive = redactor.emplace_transform<RedactProcessTrees>();
+    primitive->emplace_modifier<ProcessTreeCreateSynthThreads>();
+    primitive->emplace_filter<ProcessTreeFilterConnectedToPackage>();
+  }
 
   Context context;
   context.package_name = package_name;
