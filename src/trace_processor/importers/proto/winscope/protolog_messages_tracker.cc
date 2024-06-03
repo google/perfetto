@@ -43,4 +43,9 @@ ProtoLogMessagesTracker::GetTrackedMessagesByMessageId(uint64_t message_id) {
   return tracked_messages;
 }
 
+void ProtoLogMessagesTracker::ClearTrackedMessagesForMessageId(
+    uint64_t message_id) {
+  tracked_protolog_messages.Erase(message_id);
+}
+
 }  // namespace perfetto::trace_processor

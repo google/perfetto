@@ -57,6 +57,7 @@ class ProtoLogMessagesTracker : public Destructible {
   void TrackMessage(TrackedProtoLogMessage tracked_protolog_message);
   std::optional<std::vector<ProtoLogMessagesTracker::TrackedProtoLogMessage>*>
   GetTrackedMessagesByMessageId(uint64_t message_id);
+  void ClearTrackedMessagesForMessageId(uint64_t message_id);
 
  private:
   base::FlatHashMap<uint64_t, std::vector<TrackedProtoLogMessage>>
