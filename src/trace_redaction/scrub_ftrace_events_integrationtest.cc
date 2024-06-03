@@ -16,10 +16,8 @@
 
 #include <vector>
 
-#include "perfetto/base/status.h"
 #include "src/base/test/status_matchers.h"
-#include "src/trace_redaction/scrub_ftrace_events.h"
-#include "src/trace_redaction/trace_redaction_framework.h"
+#include "src/trace_redaction/redact_ftrace_events.h"
 #include "src/trace_redaction/trace_redaction_integration_fixture.h"
 #include "test/gtest_and_gmock.h"
 
@@ -44,7 +42,10 @@ class ScrubFtraceEventsIntegrationTest
     context()->ftrace_packet_allow_list.insert(
         protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber);
 
-    trace_redactor()->emplace_transform<ScrubFtraceEvents>();
+    auto* redact_with_allowlist =
+        trace_redactor()->emplace_transform<RedactFtraceEvents>();
+    redact_with_allowlist->emplace_filter<FilterFtracesUsingAllowlist>();
+    redact_with_allowlist->emplace_writer<WriteFtracesPassthrough>();
   }
 
   // Gets spans for `event` messages that contain `sched_switch` messages.
