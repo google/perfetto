@@ -19,12 +19,13 @@
 #include <string>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_processor/util/status_macros.h"
+#include "src/trace_redaction/proto_util.h"
+
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
-#include "src/trace_processor/util/status_macros.h"
-#include "src/trace_redaction/proto_util.h"
 
 namespace perfetto::trace_redaction {
 
@@ -123,6 +124,9 @@ base::Status RedactProcessEvents::OnFtraceEvent(
       case protos::pbzero::FtraceEvent::kTaskRenameFieldNumber:
         OnProcessRename(context, ts.as_uint64(), cpu, it.as_bytes(),
                         shared_comm, message);
+        break;
+      case protos::pbzero::FtraceEvent::kPrintFieldNumber:
+        OnPrint(context, ts.as_uint64(), bytes, message);
         break;
       default:
         proto_util::AppendField(it, message);
@@ -316,6 +320,35 @@ base::Status RedactProcessEvents::OnProcessRename(
 
   message->set_pid(pid);
   message->set_oom_score_adj(oom_score_adj);
+
+  return base::OkStatus();
+}
+
+base::Status RedactProcessEvents::OnPrint(
+    const Context& context,
+    uint64_t ts,
+    protozero::ConstBytes event_bytes,
+    protos::pbzero::FtraceEvent* parent_message) const {
+  PERFETTO_DCHECK(parent_message);
+
+  protozero::ProtoDecoder decoder(event_bytes);
+
+  auto pid = decoder.FindField(protos::pbzero::FtraceEvent::kPidFieldNumber);
+  if (!pid.valid()) {
+    return base::ErrStatus("RedactProcessEvents: missing FtraceEvent %u",
+                           pid.id());
+  }
+
+  auto print =
+      decoder.FindField(protos::pbzero::FtraceEvent::kPrintFieldNumber);
+  if (!print.valid()) {
+    return base::ErrStatus("RedactProcessEvents: missing FtraceEvent %u",
+                           print.id());
+  }
+
+  if (filter_->Includes(context, ts, pid.as_int32())) {
+    proto_util::AppendField(print, parent_message);
+  }
 
   return base::OkStatus();
 }

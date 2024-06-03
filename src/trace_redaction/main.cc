@@ -21,7 +21,6 @@
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "src/trace_redaction/filter_packet_using_allowlist.h"
-#include "src/trace_redaction/filter_print_events.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
@@ -71,7 +70,6 @@ static base::Status Main(std::string_view input,
 
   auto* scrub_ftrace_events = redactor.emplace_transform<ScrubFtraceEvents>();
   scrub_ftrace_events->emplace_back<FilterFtraceUsingAllowlist>();
-  scrub_ftrace_events->emplace_back<FilterPrintEvents>();
   scrub_ftrace_events->emplace_back<FilterSuspendResume>();
 
   // Scrub packets and ftrace events first as they will remove the largest

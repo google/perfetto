@@ -25,9 +25,20 @@
 
 namespace perfetto::trace_redaction {
 
-// Goes through a trace packet and removes tasks (i.e. task_rename,
-// task_newtask, sched_process_free), change a tasks pid, and/or change a tasks
-// comm value.
+// Goes through a trace packet and filters:
+//
+//    - task_rename
+//    - task_newtask
+//    - sched_process_free
+//    - print
+//
+// Goes through a trace packet and modifies pid and comm:
+//
+//    - task_newtask
+//    - sched_process_free
+//    - task_rename
+//
+// 'print' does not support modification.
 //
 // These operations are separate from the scheduling events in an effort to make
 // the code easier to understand, however they use the same filter and modifier
@@ -79,6 +90,13 @@ class RedactProcessEvents : public TransformPrimitive {
       protozero::ConstBytes bytes,
       std::string* shared_comm,
       protos::pbzero::FtraceEvent* parent_message) const;
+
+  // Unlike the other On* functions, this one required the event's byte buffer
+  // because it needs the pid from it.
+  base::Status OnPrint(const Context& context,
+                       uint64_t ts,
+                       protozero::ConstBytes event_bytes,
+                       protos::pbzero::FtraceEvent* parent_message) const;
 
   std::unique_ptr<SchedEventModifier> modifier_;
 
