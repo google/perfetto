@@ -1768,6 +1768,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/proto/winscope/android_input_event_parser.cc",
         "src/trace_processor/importers/proto/winscope/android_input_event_parser.h",
+        "src/trace_processor/importers/proto/winscope/protolog_message_decoder.cc",
+        "src/trace_processor/importers/proto/winscope/protolog_message_decoder.h",
         "src/trace_processor/importers/proto/winscope/protolog_messages_tracker.cc",
         "src/trace_processor/importers/proto/winscope/protolog_messages_tracker.h",
         "src/trace_processor/importers/proto/winscope/protolog_parser.cc",
