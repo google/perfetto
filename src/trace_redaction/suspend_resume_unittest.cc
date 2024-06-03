@@ -14,84 +14,48 @@
  * limitations under the License.
  */
 
-#include "src/trace_redaction/suspend_resume.h"
-#include "src/base/test/status_matchers.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/power.gen.h"
+#include "src/trace_redaction/redact_ftrace_events.h"
+#include "src/trace_redaction/trace_redaction_framework.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
-#include "protos/perfetto/trace/ftrace/power.gen.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 
 namespace perfetto::trace_redaction {
 
-TEST(AllowSuspendResumeTest, UpdatesTracePacketAllowlist) {
-  Context context;
-
-  // Start with a non-empty allow-list item.
-  context.ftrace_packet_allow_list.insert(
-      protos::pbzero::FtraceEvent::kPrintFieldNumber);
-
-  ASSERT_EQ(context.ftrace_packet_allow_list.size(), 1u);
-
-  AllowSuspendResume allow;
-  auto status = allow.Build(&context);
-  ASSERT_OK(status) << status.message();
-
-  // Print should still be present. The allowlist should have been updated, not
-  // replaced.
-  ASSERT_EQ(context.ftrace_packet_allow_list.count(
-                protos::pbzero::FtraceEvent::kPrintFieldNumber),
-            1u);
-
-  ASSERT_EQ(context.ftrace_packet_allow_list.count(
-                protos::pbzero::FtraceEvent::kSuspendResumeFieldNumber),
-            1u);
-}
-
-TEST(AllowSuspendResumeTest, UpdatesSuspendResumeAllowlist) {
-  Context context;
-
-  ASSERT_TRUE(context.suspend_result_allow_list.empty());
-
-  AllowSuspendResume allow;
-  auto status = allow.Build(&context);
-  ASSERT_OK(status) << status.message();
-
-  ASSERT_FALSE(context.suspend_result_allow_list.empty());
-}
-
 class SuspendResumeTest : public testing::Test {
  protected:
-  void SetUp() {
-    AllowSuspendResume allow;
-    ASSERT_OK(allow.Build(&context_));
-  }
-
-  protos::gen::FtraceEvent CreateSuspendResumeEvent(
+  protos::gen::FtraceEventBundle CreateSuspendResumeEvent(
       const std::string* action) const {
-    protos::gen::FtraceEvent event;
-    event.set_timestamp(1234);
-    event.set_pid(0);
+    protos::gen::FtraceEventBundle bundle;
 
-    auto* suspend_resume = event.mutable_suspend_resume();
+    auto* event = bundle.add_event();
+    event->set_timestamp(1234);
+    event->set_pid(0);
+
+    auto* suspend_resume = event->mutable_suspend_resume();
 
     if (action) {
       suspend_resume->set_action(*action);
     }
 
-    return event;
+    return bundle;
   }
 
-  protos::gen::FtraceEvent CreateOtherEvent() const {
-    protos::gen::FtraceEvent event;
-    event.set_timestamp(1234);
-    event.set_pid(0);
+  protos::gen::FtraceEventBundle CreateOtherEvent() const {
+    protos::gen::FtraceEventBundle bundle;
 
-    auto* print = event.mutable_print();
+    auto* event = bundle.add_event();
+    event->set_timestamp(1234);
+    event->set_pid(0);
+
+    auto* print = event->mutable_print();
     print->set_buf("This is a message");
 
-    return event;
+    return bundle;
   }
 
   const Context& context() const { return context_; }
@@ -104,46 +68,64 @@ class SuspendResumeTest : public testing::Test {
 // It should assume that another filter will handle it and it should just allow
 // those events through
 TEST_F(SuspendResumeTest, AcceptsOtherEvents) {
-  auto event = CreateOtherEvent();
-  auto event_array = event.SerializeAsArray();
-  protozero::ConstBytes event_bytes{event_array.data(), event_array.size()};
+  auto bundle = CreateOtherEvent();
+  auto bundle_str = bundle.SerializeAsString();
 
-  FilterSuspendResume filter;
-  ASSERT_TRUE(filter.KeepEvent(context(), event_bytes));
+  protozero::ProtoDecoder decoder(bundle_str);
+
+  auto event =
+      decoder.FindField(protos::pbzero::FtraceEventBundle::kEventFieldNumber);
+  ASSERT_TRUE(event.valid());
+
+  FilterFtraceUsingSuspendResume filter;
+  ASSERT_TRUE(filter.Includes(context(), event));
 }
 
 TEST_F(SuspendResumeTest, AcceptsEventsWithNoName) {
-  auto event = CreateSuspendResumeEvent(nullptr);
-  auto event_array = event.SerializeAsArray();
-  protozero::ConstBytes event_bytes{event_array.data(), event_array.size()};
+  auto bundle = CreateSuspendResumeEvent(nullptr);
+  auto bundle_str = bundle.SerializeAsString();
 
-  Context context;
+  protozero::ProtoDecoder decoder(bundle_str);
 
-  FilterSuspendResume filter;
-  ASSERT_TRUE(filter.KeepEvent(context, event_bytes));
+  auto event =
+      decoder.FindField(protos::pbzero::FtraceEventBundle::kEventFieldNumber);
+  ASSERT_TRUE(event.valid());
+
+  FilterFtraceUsingSuspendResume filter;
+  ASSERT_TRUE(filter.Includes(context(), event));
 }
 
 TEST_F(SuspendResumeTest, AcceptsEventsWithValidName) {
   // This value is from "src/trace_redaction/suspend_resume.cc".
   std::string name = "syscore_suspend";
 
-  auto event = CreateSuspendResumeEvent(&name);
-  auto event_array = event.SerializeAsArray();
-  protozero::ConstBytes event_bytes{event_array.data(), event_array.size()};
+  auto bundle = CreateSuspendResumeEvent(&name);
+  auto bundle_str = bundle.SerializeAsString();
 
-  FilterSuspendResume filter;
-  ASSERT_TRUE(filter.KeepEvent(context(), event_bytes));
+  protozero::ProtoDecoder decoder(bundle_str);
+
+  auto event =
+      decoder.FindField(protos::pbzero::FtraceEventBundle::kEventFieldNumber);
+  ASSERT_TRUE(event.valid());
+
+  FilterFtraceUsingSuspendResume filter;
+  ASSERT_TRUE(filter.Includes(context(), event));
 }
 
 TEST_F(SuspendResumeTest, RejectsEventsWithInvalidName) {
   std::string name = "hello world";
 
-  auto event = CreateSuspendResumeEvent(&name);
-  auto event_array = event.SerializeAsArray();
-  protozero::ConstBytes event_bytes{event_array.data(), event_array.size()};
+  auto bundle = CreateSuspendResumeEvent(&name);
+  auto bundle_str = bundle.SerializeAsString();
 
-  FilterSuspendResume filter;
-  ASSERT_FALSE(filter.KeepEvent(context(), event_bytes));
+  protozero::ProtoDecoder decoder(bundle_str);
+
+  auto event =
+      decoder.FindField(protos::pbzero::FtraceEventBundle::kEventFieldNumber);
+  ASSERT_TRUE(event.valid());
+
+  FilterFtraceUsingSuspendResume filter;
+  ASSERT_FALSE(filter.Includes(context(), event));
 }
 
 }  // namespace perfetto::trace_redaction
