@@ -225,9 +225,9 @@ base::Status RedactProcessEvents::OnNewTask(
         protos::pbzero::TaskNewtaskFtraceEvent::kPidFieldNumber);
   }
 
-  auto clone_flags = decoder.has_clone_flags();
+  auto clone_flags = decoder.clone_flags();
   auto comm = decoder.comm();
-  auto omm_score_adj = decoder.has_oom_score_adj();
+  auto omm_score_adj = decoder.oom_score_adj();
   auto pid = decoder.pid();
 
   PERFETTO_DCHECK(filter_);
