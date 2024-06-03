@@ -77,8 +77,8 @@ base::Status RedactProcessEvents::OnFtraceEvents(
 
   for (auto it = decoder.ReadField(); it.valid(); it = decoder.ReadField()) {
     if (it.id() == protos::pbzero::FtraceEventBundle::kEventFieldNumber) {
-      OnFtraceEvent(context, cpu.as_int32(), it.as_bytes(), &shared_comm,
-                    message->add_event());
+      RETURN_IF_ERROR(OnFtraceEvent(context, cpu.as_int32(), it.as_bytes(),
+                                    &shared_comm, message->add_event()));
     } else {
       proto_util::AppendField(it, message);
     }
@@ -114,19 +114,19 @@ base::Status RedactProcessEvents::OnFtraceEvent(
   for (auto it = decoder.ReadField(); it.valid(); it = decoder.ReadField()) {
     switch (it.id()) {
       case protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber:
-        OnProcessFree(context, ts.as_uint64(), cpu, it.as_bytes(), shared_comm,
-                      message);
+        RETURN_IF_ERROR(OnProcessFree(context, ts.as_uint64(), cpu,
+                                      it.as_bytes(), shared_comm, message));
         break;
       case protos::pbzero::FtraceEvent::kTaskNewtaskFieldNumber:
-        OnNewTask(context, ts.as_uint64(), cpu, it.as_bytes(), shared_comm,
-                  message);
+        RETURN_IF_ERROR(OnNewTask(context, ts.as_uint64(), cpu, it.as_bytes(),
+                                  shared_comm, message));
         break;
       case protos::pbzero::FtraceEvent::kTaskRenameFieldNumber:
-        OnProcessRename(context, ts.as_uint64(), cpu, it.as_bytes(),
-                        shared_comm, message);
+        RETURN_IF_ERROR(OnProcessRename(context, ts.as_uint64(), cpu,
+                                        it.as_bytes(), shared_comm, message));
         break;
       case protos::pbzero::FtraceEvent::kPrintFieldNumber:
-        OnPrint(context, ts.as_uint64(), bytes, message);
+        RETURN_IF_ERROR(OnPrint(context, ts.as_uint64(), bytes, message));
         break;
       default:
         proto_util::AppendField(it, message);
