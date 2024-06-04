@@ -56,7 +56,7 @@ class RedactProcessTreesIntegrationTest
     auto* process_tree =
         trace_redactor()->emplace_transform<RedactProcessTrees>();
     process_tree->emplace_modifier<ProcessTreeDoNothing>();
-    process_tree->emplace_filter<ProcessTreeFilterConnectedToPackage>();
+    process_tree->emplace_filter<ConnectedToPackage>();
 
     // In this case, the process and package have the same name.
     context()->package_name = kProcessName;
@@ -186,7 +186,7 @@ TEST_F(RedactProcessTreesIntegrationTest, AddSynthProcess) {
   auto* process_tree =
       trace_redactor()->emplace_transform<RedactProcessTrees>();
   process_tree->emplace_modifier<ProcessTreeCreateSynthThreads>();
-  process_tree->emplace_filter<ProcessTreeFilterAllowAll>();
+  process_tree->emplace_filter<AllowAll>();
 
   ASSERT_OK(Redact());
 
@@ -209,7 +209,7 @@ TEST_F(RedactProcessTreesIntegrationTest, AddSynthThreads) {
   auto* process_tree =
       trace_redactor()->emplace_transform<RedactProcessTrees>();
   process_tree->emplace_modifier<ProcessTreeCreateSynthThreads>();
-  process_tree->emplace_filter<ProcessTreeFilterAllowAll>();
+  process_tree->emplace_filter<AllowAll>();
 
   ASSERT_OK(Redact());
 
