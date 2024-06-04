@@ -188,7 +188,7 @@ base::Status ToTimecode::Run(void*,
   int64_t mm = ss / 60;
   ss = ss % 60;
 
-  int64_t hh = mm % 60;
+  int64_t hh = mm / 60;
   mm = mm % 60;
 
   base::StackString<64> buf("%02" PRId64 ":%02" PRId64 ":%02" PRId64
