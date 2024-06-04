@@ -99,8 +99,14 @@ class ProcessThreadTimeline {
   // Returns true if a process/thread is connected to a package.
   bool PidConnectsToUid(uint64_t ts, int32_t pid, uint64_t uid) const;
 
-  // Finds the pid's last event before ts.
-  Event FindPreviousEvent(uint64_t ts, int32_t pid) const;
+  // Get the opening event for a pid. If pid ends at ts, an opening event will
+  // still be returned.
+  const Event* GetOpeningEvent(uint64_t ts, int32_t pid) const;
+
+  // SELECT MAX(ts), * FROM events WHERE pid=@pid AND type=@type AND ts<=@ts
+  const Event* QueryLeftMax(uint64_t ts,
+                            int32_t pid,
+                            ProcessThreadTimeline::Event::Type type) const;
 
  private:
   enum class Mode {
