@@ -87,11 +87,6 @@ base::Status RedactProcessEvents::OnFtraceEvents(
   return base::OkStatus();
 }
 
-// TODO(b/336807771): There is a pid on the ftrace event. This is the
-// process/thread invoking the action. In the case of a new task, its the
-// process/thread forking and starting the task. Becuase this case is so
-// common, if it needs to be modified (e.g. thread merging), it will behandled
-// there.
 base::Status RedactProcessEvents::OnFtraceEvent(
     const Context& context,
     int32_t cpu,
