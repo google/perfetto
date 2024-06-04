@@ -99,7 +99,7 @@ static base::Status Main(std::string_view input,
   {
     auto* primitive = redactor.emplace_transform<RedactProcessTrees>();
     primitive->emplace_modifier<ProcessTreeCreateSynthThreads>();
-    primitive->emplace_filter<ProcessTreeFilterConnectedToPackage>();
+    primitive->emplace_filter<ConnectedToPackage>();
   }
 
   Context context;

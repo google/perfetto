@@ -13608,6 +13608,7 @@ filegroup {
         "src/trace_redaction/collect_system_info.cc",
         "src/trace_redaction/collect_timeline_events.cc",
         "src/trace_redaction/filter_packet_using_allowlist.cc",
+        "src/trace_redaction/filtering.cc",
         "src/trace_redaction/find_package_uid.cc",
         "src/trace_redaction/modify_process_trees.cc",
         "src/trace_redaction/populate_allow_lists.cc",

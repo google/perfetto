@@ -30,26 +30,7 @@
 
 namespace perfetto::trace_redaction {
 
-ProcessTreeFilter::~ProcessTreeFilter() = default;
-
 ProcessTreeModifier::~ProcessTreeModifier() = default;
-
-bool ProcessTreeFilterAllowAll::Filter(const Context&,
-                                       uint64_t,
-                                       int32_t) const {
-  return true;
-}
-
-bool ProcessTreeFilterConnectedToPackage::Filter(const Context& context,
-                                                 uint64_t ts,
-                                                 int32_t pid) const {
-  PERFETTO_DCHECK(context.timeline);
-  PERFETTO_DCHECK(context.package_uid.has_value());
-
-  // Checking the uid directly is an option, but the timeline handles multiple
-  // instances of the same app.
-  return context.timeline->PidConnectsToUid(ts, pid, *context.package_uid);
-}
 
 base::Status ProcessTreeDoNothing::Modify(const Context&,
                                           protos::pbzero::ProcessTree*) const {
@@ -176,7 +157,7 @@ base::Status RedactProcessTrees::OnProcess(
 
   PERFETTO_DCHECK(filter_);
 
-  if (filter_->Filter(context, ts, pid.as_int32())) {
+  if (filter_->Includes(context, ts, pid.as_int32())) {
     proto_util::AppendField(field, message);
   }
 
@@ -198,7 +179,7 @@ base::Status RedactProcessTrees::OnThread(
 
   PERFETTO_DCHECK(filter_);
 
-  if (filter_->Filter(context, ts, tid.as_int32())) {
+  if (filter_->Includes(context, ts, tid.as_int32())) {
     proto_util::AppendField(field, message);
   }
 

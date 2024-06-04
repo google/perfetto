@@ -108,8 +108,6 @@ std::string_view InternTable::Find(size_t index) const {
 
 SchedEventModifier::~SchedEventModifier() = default;
 
-SchedEventFilter::~SchedEventFilter() = default;
-
 base::Status RedactSchedEvents::Transform(const Context& context,
                                           std::string* packet) const {
   PERFETTO_DCHECK(modifier_);
@@ -650,18 +648,6 @@ base::Status DoNothing::Modify(const Context&,
                                int32_t*,
                                std::string*) const {
   return base::OkStatus();
-}
-
-bool ConnectedToPackage::Includes(const Context& context,
-                                  uint64_t ts,
-                                  int32_t wakee) const {
-  PERFETTO_DCHECK(context.package_uid.has_value());
-
-  return context.timeline->PidConnectsToUid(ts, wakee, *context.package_uid);
-}
-
-bool AllowAll::Includes(const Context&, uint64_t, int32_t) const {
-  return true;
 }
 
 }  // namespace perfetto::trace_redaction

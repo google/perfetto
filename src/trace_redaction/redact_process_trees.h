@@ -19,35 +19,18 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
+#include "src/trace_redaction/redact_sched_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/ps/process_tree.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
-class ProcessTreeFilter {
- public:
-  virtual ~ProcessTreeFilter();
-  virtual bool Filter(const Context& context,
-                      uint64_t ts,
-                      int32_t pid) const = 0;
-};
-
 class ProcessTreeModifier {
  public:
   virtual ~ProcessTreeModifier();
   virtual base::Status Modify(const Context& context,
                               protos::pbzero::ProcessTree* message) const = 0;
-};
-
-class ProcessTreeFilterAllowAll : public ProcessTreeFilter {
- public:
-  bool Filter(const Context& context, uint64_t ts, int32_t pid) const override;
-};
-
-class ProcessTreeFilterConnectedToPackage : public ProcessTreeFilter {
- public:
-  bool Filter(const Context& context, uint64_t ts, int32_t pid) const override;
 };
 
 class ProcessTreeDoNothing : public ProcessTreeModifier {
@@ -98,7 +81,7 @@ class RedactProcessTrees : public TransformPrimitive {
   base::Status AppendSynthThreads(const Context& context,
                                   protos::pbzero::ProcessTree* message) const;
 
-  std::unique_ptr<ProcessTreeFilter> filter_;
+  std::unique_ptr<PidFilter> filter_;
   std::unique_ptr<ProcessTreeModifier> modifier_;
 };
 
