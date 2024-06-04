@@ -33,6 +33,13 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: UNLOCK_RUNNING
       reason: "Unlock running during launch"
+      expected_value {
+        value: 0
+        unit: TRUE_OR_FALSE
+      }
+      actual_value {
+        value: 1
+      }
       launch_dur: 100
     }
   }
