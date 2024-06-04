@@ -437,6 +437,14 @@ function RecordingNotes() {
     '.note',
     `To trace Chrome from the Perfetto UI, you need to install our `,
     m('a', {href: extensionURL, target: '_blank'}, 'Chrome extension'),
+    ' and then reload this page. ',
+  );
+
+  const msgWinEtw = m(
+    '.note',
+    `To trace with Etw on Windows from the Perfetto UI, you to run chrome with`,
+    `administrator permission and you need to install our `,
+    m('a', {href: extensionURL, target: '_blank'}, 'Chrome extension'),
     ' and then reload this page.',
   );
 
@@ -488,6 +496,9 @@ function RecordingNotes() {
       break;
     case 'CrOS':
       if (!globals.state.extensionInstalled) notes.push(msgChrome);
+      break;
+    case 'Win':
+      if (!globals.state.extensionInstalled) notes.push(msgWinEtw);
       break;
     default:
   }
@@ -576,7 +587,10 @@ function recordingButtons() {
     ) {
       buttons.push(start);
     }
-  } else if (isChromeTarget(target) && state.extensionInstalled) {
+  } else if (
+    (isWindowsTarget(target) || isChromeTarget(target)) &&
+    state.extensionInstalled
+  ) {
     buttons.push(start);
   }
   return m('.button', buttons);
@@ -606,7 +620,11 @@ function onStartRecordingPressed() {
   autosaveConfigStore.save(globals.state.recordConfig);
 
   const target = globals.state.recordingTarget;
-  if (isAndroidTarget(target) || isChromeTarget(target)) {
+  if (
+    isAndroidTarget(target) ||
+    isChromeTarget(target) ||
+    isWindowsTarget(target)
+  ) {
     globals.logging.logEvent('Record Trace', `Record trace (${target.os})`);
     globals.dispatch(Actions.startRecording({}));
   }
