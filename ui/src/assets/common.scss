@@ -733,6 +733,9 @@ button.query-ctrl {
     background-color: var(--collapsed-background);
     color: var(--main-foreground-color);
     font-weight: bold;
+    .shell {
+      overflow: hidden;
+    }
     span.chip {
       color: #121212;
     }
@@ -742,7 +745,7 @@ button.query-ctrl {
     display: grid;
     grid-template-areas: "fold-button title buttons";
     grid-template-columns: 28px 1fr auto;
-    align-items: center;
+    align-items: baseline;
     line-height: 1;
     width: var(--track-shell-width);
     transition: background-color 0.4s;
@@ -776,8 +779,12 @@ button.query-ctrl {
     }
     h1 {
       @include track_shell_title();
+      position: relative;
+      top: -5px;
     }
     .fold-button {
+      position: relative;
+      top: -5px;
       grid-area: fold-button;
     }
     .track-button {

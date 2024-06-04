@@ -75,7 +75,6 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
   private dragging = false;
   private dropping: 'before'|'after'|undefined = undefined;
   private attrs?: TrackShellAttrs;
-
   private initialHeight?: number;
 
   oninit(vnode: m.Vnode<TrackShellAttrs>) {
@@ -187,12 +186,13 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
   resize = (e: MouseEvent): void => {
     e.stopPropagation();
     e.preventDefault();
-    let y = e.offsetY;
-    let previousClientY = e.clientY;
+    if (!this.attrs) {
+      return;
+    }
+    let y = this.attrs.track.getHeight();
     const mouseMoveEvent = (evMove: MouseEvent): void => {
-        evMove.preventDefault();
-        y += (evMove.clientY -previousClientY);
-        previousClientY = evMove.clientY;
+      evMove.preventDefault();
+      y += evMove.movementY;
         if (this.attrs && this.initialHeight) {
           const newMultiplier = y / this.initialHeight;
           if (newMultiplier < 1) {
@@ -204,8 +204,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         }
     };
     const mouseUpEvent = (): void => {
-        document.removeEventListener('mousemove', mouseMoveEvent);
-        document.removeEventListener('mouseup', mouseUpEvent);
+      document.removeEventListener('mousemove', mouseMoveEvent);
+      document.removeEventListener('mouseup', mouseUpEvent);
     };
     document.addEventListener('mousemove', mouseMoveEvent);
     document.addEventListener('mouseup', mouseUpEvent);
@@ -215,7 +215,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
   onmousemove(e: MouseEvent) {
     if (this.attrs?.track.supportsResizing) {
       if (e.currentTarget instanceof HTMLElement &&
-        e.offsetY >= e.currentTarget.scrollHeight - 5) {
+        e.pageY - e.currentTarget.getBoundingClientRect().top >=
+          e.currentTarget.clientHeight - 5) {
             document.addEventListener('mousedown', this.resize);
           e.currentTarget.style.cursor = 'row-resize';
           return;
