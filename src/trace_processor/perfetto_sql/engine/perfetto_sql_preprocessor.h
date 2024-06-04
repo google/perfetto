@@ -23,13 +23,13 @@
 #include <unordered_set>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_tokenizer.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 // Preprocessor for PerfettoSQL statements. The main responsiblity of this
 // class is to perform similar functions to the C/C++ preprocessor (e.g.
@@ -72,14 +72,7 @@ class PerfettoSqlPreprocessor {
     const Macro* macro;
     std::unordered_map<std::string, SqlSource> arg_bindings;
   };
-  struct InvocationArg {
-    std::optional<SqlSource> arg;
-    bool has_more;
-  };
 
-  base::Status ErrorAtToken(const SqliteTokenizer& tokenizer,
-                            const SqliteTokenizer::Token& token,
-                            const char* error);
   base::StatusOr<SqlSource> RewriteInternal(
       const SqlSource&,
       const std::unordered_map<std::string, SqlSource>& arg_bindings);
@@ -89,10 +82,6 @@ class PerfettoSqlPreprocessor {
       SqliteTokenizer::Token& token,
       const SqliteTokenizer::Token& name_token,
       const std::unordered_map<std::string, SqlSource>& arg_bindings);
-  base::StatusOr<InvocationArg> ParseMacroInvocationArg(
-      SqliteTokenizer& tokenizer,
-      SqliteTokenizer::Token& token,
-      bool has_prev_args);
 
   SqliteTokenizer global_tokenizer_;
   const base::FlatHashMap<std::string, Macro>* macros_ = nullptr;
@@ -101,7 +90,6 @@ class PerfettoSqlPreprocessor {
   base::Status status_;
 };
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_PREPROCESSOR_H_
