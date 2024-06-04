@@ -78,6 +78,11 @@
       PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(STRUCT, __VA_ARGS__))
 #endif
 
+#define PERFETTO_I_TE_CONCAT2(a, b) a##b
+#define PERFETTO_I_TE_CONCAT(a, b) PERFETTO_I_TE_CONCAT2(a, b)
+// Generate a unique name with a given prefix.
+#define PERFETTO_I_TE_UID(prefix) PERFETTO_I_TE_CONCAT(prefix, __LINE__)
+
 struct PerfettoTeHlMacroNameAndType {
   const char* name;
   int32_t type;
@@ -316,5 +321,60 @@ static inline void PerfettoTeHlCall(struct PerfettoTeCategoryImpl* cat,
                        PERFETTO_I_TE_HL_MACRO_PARAMS(__VA_ARGS__)); \
     }                                                               \
   } while (0)
+
+#ifdef __cplusplus
+
+// Begins a slice named `const char* NAME` on the current thread track.
+//
+// This is supposed to be used with PERFETTO_TE_SCOPED(). The implementation is
+// identical to PERFETTO_TE_SLICE_BEGIN(): this has a different name to
+// highlight the fact that PERFETTO_TE_SCOPED() also adds a
+// PERFETTO_TE_SLICE_END().
+#define PERFETTO_TE_SLICE(NAME) \
+  { NAME, PERFETTO_TE_TYPE_SLICE_BEGIN }
+
+// ------------------------
+// PERFETTO_TE_SCOPED macro
+// ------------------------
+//
+// Emits an event immediately and a PERFETTO_TE_SLICE_END event when the current
+// scope terminates.
+//
+// All the extra params are added only to the event emitted immediately, not to
+// the END event.
+//
+// TRACK params are not supported.
+//
+// This
+// {
+//   PERFETTO_TE_SCOPED(category, PERFETTO_TE_SLICE("name"), ...);
+//   ...
+// }
+// is equivalent to
+// {
+//   PERFETTO_TE(category, PERFETTO_TE_SLICE_BEGIN("name"), ...);
+//   ...
+//   PERFETTO_TE(category, PERFETTO_TE_SLICE_END());
+// }
+//
+// Examples:
+//
+// PERFETTO_TE_SCOPED(category, PERFETTO_TE_SLICE("name"));
+// PERFETTO_TE_SCOPED(category, PERFETTO_TE_SLICE("name"),
+//                    PERFETTO_TE_ARG_UINT64("count", 42));
+//
+#define PERFETTO_TE_SCOPED(CAT, ...)               \
+  class PERFETTO_I_TE_UID(PerfettoTeEvent) {       \
+    struct Internal {                              \
+      Internal() {                                 \
+        PERFETTO_TE(CAT, __VA_ARGS__);             \
+      }                                            \
+      ~Internal() {                                \
+        PERFETTO_TE(CAT, PERFETTO_TE_SLICE_END()); \
+      }                                            \
+    } field;                                       \
+  } PERFETTO_I_TE_UID(perfetto_te_event)
+
+#endif  // __cplusplus
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_TE_MACROS_H_
