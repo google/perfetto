@@ -23,21 +23,6 @@ namespace perfetto::trace_redaction {
 
 namespace {
 
-class SliceTestParams {
- public:
-  SliceTestParams(uint64_t ts, int32_t pid, uint64_t uid)
-      : ts_(ts), pid_(pid), uid_(uid) {}
-
-  uint64_t ts() const { return ts_; }
-  int32_t pid() const { return pid_; }
-  uint64_t uid() const { return uid_; }
-
- private:
-  uint64_t ts_;
-  int32_t pid_;
-  uint64_t uid_;
-};
-
 constexpr uint64_t kTimeA = 0;
 constexpr uint64_t kTimeB = 10;
 constexpr uint64_t kTimeC = 20;
@@ -103,72 +88,122 @@ class ProcessThreadTimelineTest : public testing::Test {
   ProcessThreadTimeline timeline_;
 };
 
-TEST_F(ProcessThreadTimelineTest, NoEventBeforeFirstSpan) {
-  auto event = timeline_.FindPreviousEvent(kTimeA, kPidB);
-  ASSERT_EQ(event, invalid_);
+TEST_F(ProcessThreadTimelineTest, BeforeSpan) {
+  auto prev_open = timeline_.QueryLeftMax(
+      kTimeA, kPidB, ProcessThreadTimeline::Event::Type::kOpen);
+  ASSERT_FALSE(prev_open);
+
+  auto prev_close = timeline_.QueryLeftMax(
+      kTimeA, kPidB, ProcessThreadTimeline::Event::Type::kClose);
+  ASSERT_FALSE(prev_close);
 }
 
-TEST_F(ProcessThreadTimelineTest, OpenEventAtStartOfFirstSpan) {
-  auto event = timeline_.FindPreviousEvent(kTimeB, kPidB);
-  ASSERT_EQ(event, pid_b_events_[0]);
+TEST_F(ProcessThreadTimelineTest, StartOfSpan) {
+  auto prev_open = timeline_.QueryLeftMax(
+      kTimeB, kPidB, ProcessThreadTimeline::Event::Type::kOpen);
+  ASSERT_TRUE(prev_open);
+  ASSERT_EQ(*prev_open, pid_b_events_[0]);
+
+  auto prev_close = timeline_.QueryLeftMax(
+      kTimeB, kPidB, ProcessThreadTimeline::Event::Type::kClose);
+  ASSERT_FALSE(prev_close);
 }
 
-TEST_F(ProcessThreadTimelineTest, OpenEventWithinFirstSpan) {
-  auto event = timeline_.FindPreviousEvent(kTimeC, kPidB);
-  ASSERT_EQ(event, pid_b_events_[0]);
+TEST_F(ProcessThreadTimelineTest, DuringSpan) {
+  auto prev_open = timeline_.QueryLeftMax(
+      kTimeC, kPidB, ProcessThreadTimeline::Event::Type::kOpen);
+  ASSERT_TRUE(prev_open);
+  ASSERT_EQ(*prev_open, pid_b_events_[0]);
+
+  auto prev_close = timeline_.QueryLeftMax(
+      kTimeC, kPidB, ProcessThreadTimeline::Event::Type::kClose);
+  ASSERT_FALSE(prev_close);
 }
 
-TEST_F(ProcessThreadTimelineTest, CloseEventAtEndOfFirstSpan) {
-  auto event = timeline_.FindPreviousEvent(kTimeD, kPidB);
-  ASSERT_EQ(event, pid_b_events_[1]);
+TEST_F(ProcessThreadTimelineTest, EndOfSpan) {
+  auto prev_open = timeline_.QueryLeftMax(
+      kTimeD, kPidB, ProcessThreadTimeline::Event::Type::kOpen);
+  ASSERT_TRUE(prev_open);
+  ASSERT_EQ(*prev_open, pid_b_events_[0]);
+
+  auto prev_close = timeline_.QueryLeftMax(
+      kTimeD, kPidB, ProcessThreadTimeline::Event::Type::kClose);
+  ASSERT_TRUE(prev_close);
+  ASSERT_EQ(*prev_close, pid_b_events_[1]);
 }
 
-TEST_F(ProcessThreadTimelineTest, CloseEventBetweenSpans) {
-  auto event = timeline_.FindPreviousEvent(kTimeE, kPidB);
-  ASSERT_EQ(event, pid_b_events_[1]);
+// Even through its after a span, the previous open and close events should be
+// openned.
+TEST_F(ProcessThreadTimelineTest, AfterSpan) {
+  auto prev_open = timeline_.QueryLeftMax(
+      kTimeE, kPidB, ProcessThreadTimeline::Event::Type::kOpen);
+  ASSERT_TRUE(prev_open);
+  ASSERT_EQ(*prev_open, pid_b_events_[0]);
+
+  auto prev_close = timeline_.QueryLeftMax(
+      kTimeE, kPidB, ProcessThreadTimeline::Event::Type::kClose);
+  ASSERT_TRUE(prev_close);
+  ASSERT_EQ(*prev_close, pid_b_events_[1]);
 }
 
-TEST_F(ProcessThreadTimelineTest, OpenEventAtStartOfSecondSpan) {
-  auto event = timeline_.FindPreviousEvent(kTimeF, kPidB);
-  ASSERT_EQ(event, pid_b_events_[2]);
+// When a pid is reused, the new open event (for the reused pid) should be
+// returned, but the close from the previous span should be returned.
+TEST_F(ProcessThreadTimelineTest, StartOfSecondSpan) {
+  auto prev_open = timeline_.QueryLeftMax(
+      kTimeF, kPidB, ProcessThreadTimeline::Event::Type::kOpen);
+  ASSERT_TRUE(prev_open);
+  ASSERT_EQ(*prev_open, pid_b_events_[2]);
+
+  auto prev_close = timeline_.QueryLeftMax(
+      kTimeF, kPidB, ProcessThreadTimeline::Event::Type::kClose);
+  ASSERT_TRUE(prev_close);
+  ASSERT_EQ(*prev_close, pid_b_events_[1]);
 }
 
-TEST_F(ProcessThreadTimelineTest, OpenEventWithinSecondSpan) {
-  auto event = timeline_.FindPreviousEvent(kTimeG, kPidB);
-  ASSERT_EQ(event, pid_b_events_[2]);
+// Now that there is a second close event, both open and close events should
+// come from the same span.
+TEST_F(ProcessThreadTimelineTest, CloseOfSecondSpan) {
+  auto prev_open = timeline_.QueryLeftMax(
+      kTimeH, kPidB, ProcessThreadTimeline::Event::Type::kOpen);
+  ASSERT_TRUE(prev_open);
+  ASSERT_EQ(*prev_open, pid_b_events_[2]);
+
+  auto prev_close = timeline_.QueryLeftMax(
+      kTimeH, kPidB, ProcessThreadTimeline::Event::Type::kClose);
+  ASSERT_TRUE(prev_close);
+  ASSERT_EQ(*prev_close, pid_b_events_[3]);
 }
 
-TEST_F(ProcessThreadTimelineTest, CloseEventAtEndOfSecondSpan) {
-  auto event = timeline_.FindPreviousEvent(kTimeH, kPidB);
-  ASSERT_EQ(event, pid_b_events_[3]);
+TEST_F(ProcessThreadTimelineTest, BeforeSpanWithZeroDuration) {
+  auto prev_open = timeline_.QueryLeftMax(
+      kTimeA, kPidD, ProcessThreadTimeline::Event::Type::kOpen);
+  ASSERT_FALSE(prev_open);
+
+  auto prev_close = timeline_.QueryLeftMax(
+      kTimeA, kPidD, ProcessThreadTimeline::Event::Type::kClose);
+  ASSERT_FALSE(prev_close);
 }
 
-// Pid B is active. But Pid C is not active. At this point, Pid C should report
-// as invalid event though another pid is active.
-TEST_F(ProcessThreadTimelineTest, InvalidEventWhenAnotherSpanIsActive) {
-  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeB, kPidB), pid_b_events_[0]);
-  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeB, kPidC), invalid_);
+TEST_F(ProcessThreadTimelineTest, SpanWithZeroDuration) {
+  auto prev_open = timeline_.QueryLeftMax(
+      kTimeC, kPidD, ProcessThreadTimeline::Event::Type::kOpen);
+  ASSERT_TRUE(prev_open);
+  ASSERT_EQ(*prev_open, pid_d_events_[0]);
+
+  auto prev_close = timeline_.QueryLeftMax(
+      kTimeC, kPidD, ProcessThreadTimeline::Event::Type::kClose);
+  ASSERT_TRUE(prev_close);
+  ASSERT_EQ(*prev_close, pid_d_events_[1]);
 }
 
-// When both pids are active, they should both report as active (using their
-// open events).
-TEST_F(ProcessThreadTimelineTest, ConcurrentSpansBothReportAsActive) {
-  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeC, kPidB), pid_b_events_[0]);
-  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeC, kPidC), pid_c_events_[0]);
-}
+TEST_F(ProcessThreadTimelineTest, AfterSpanWithZeroDuration) {
+  auto prev_open = timeline_.QueryLeftMax(
+      kTimeE, kPidD, ProcessThreadTimeline::Event::Type::kOpen);
+  ASSERT_TRUE(prev_open);
 
-// There are three test cases here:
-//
-// 1. Before open/close
-// 2. At open/close
-// 3. After open/close
-//
-// Normally these would be tree different test cases, but the naming gets
-// complicated, so it is easier to do it in one case.
-TEST_F(ProcessThreadTimelineTest, ZeroDuration) {
-  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeB, kPidD), invalid_);
-  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeC, kPidD), pid_d_events_[1]);
-  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeD, kPidD), pid_d_events_[1]);
+  auto prev_close = timeline_.QueryLeftMax(
+      kTimeE, kPidD, ProcessThreadTimeline::Event::Type::kClose);
+  ASSERT_TRUE(prev_close);
 }
 
 // |----- UID A -----| |----- UID C -----|

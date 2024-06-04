@@ -331,11 +331,12 @@ TEST_F(RedactProcessFree, DropsCommOutsidePackage) {
   ASSERT_TRUE(process_free.comm().empty());
 }
 
-TEST_F(RedactProcessFree, DropsCommAtProcessFree) {
+TEST_F(RedactProcessFree, KeepsCommAtProcessFree) {
   redact_.emplace_modifier<ClearComms>();
 
-  // The new task is for Pid A. Pid A is part of Uid A. Keep Uid A; But, Pid A
-  // ends at kTimeB (that's when the free event occurs). Drop comm.
+  // The new task is for Pid A. Pid A is part of Uid A. Keep Uid A; Process free
+  // marks the end of Pid A, but process free is inclusive and Pid A is only
+  // free after the event.
   context_.package_uid = kUidA;
 
   context_.timeline->Append(ProcessThreadTimeline::Event::Close(kTimeB, kPidA));
@@ -359,7 +360,7 @@ TEST_F(RedactProcessFree, DropsCommAtProcessFree) {
   ASSERT_EQ(process_free.pid(), kPidA);
 
   ASSERT_TRUE(process_free.has_comm());
-  ASSERT_TRUE(process_free.comm().empty());
+  ASSERT_EQ(process_free.comm(), kCommA);
 }
 
 TEST_F(RedactProcessFree, KeepTaskInPackage) {
