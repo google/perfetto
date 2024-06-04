@@ -3753,6 +3753,13 @@ base::Status TracingServiceImpl::FlushAndCloneSession(
     return base::ErrStatus("Tracing session not found");
   }
 
+  // Skip the UID check for sessions marked with a bugreport_score > 0.
+  // Those sessions, by design, can be stolen by any other consumer for the
+  // sake of creating snapshots for bugreports.
+  if (!session->IsCloneAllowed(consumer->uid_)) {
+    return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
+  }
+
   // If any of the buffers are marked as clear_before_clone, reset them before
   // issuing the Flush(kCloneReason).
   size_t buf_idx = 0;
@@ -3966,13 +3973,6 @@ base::Status TracingServiceImpl::FinishCloneSession(
   if (consumer->tracing_session_id_) {
     return PERFETTO_SVC_ERR(
         "The consumer is already attached to another tracing session");
-  }
-
-  // Skip the UID check for sessions marked with a bugreport_score > 0.
-  // Those sessions, by design, can be stolen by any other consumer for the
-  // sake of creating snapshots for bugreports.
-  if (!src->IsCloneAllowed(consumer->uid_)) {
-    return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
   }
 
   std::vector<BufferID> buf_ids =
