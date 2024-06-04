@@ -1265,6 +1265,7 @@ class AndroidLongBatteryTracing implements Plugin {
     const groupName = 'Network Summary';
 
     const e = ctx.engine;
+    await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
     await e.query(NETWORK_SUMMARY);
     await e.query(RADIO_TRANSPORT_TYPE);
 
@@ -1386,6 +1387,7 @@ class AndroidLongBatteryTracing implements Plugin {
         name,
         `select ts, ${col}_ratio as value from modem_activity_info`,
         groupName,
+        {yRangeSharingKey: 'modem_activity', unit: '%'},
       );
 
     await ctx.engine.query(MODEM_ACTIVITY_INFO);
@@ -1539,6 +1541,7 @@ class AndroidLongBatteryTracing implements Plugin {
         `CPU (${it.cluster}): ${it.pkg}`,
         `select ts, value from high_cpu where pkg = "${it.pkg}" and cluster="${it.cluster}"`,
         groupName,
+        {yOverrideMaximum: 100, unit: '%'},
       );
     }
   }
