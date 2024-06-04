@@ -28,11 +28,13 @@
 namespace perfetto::trace_redaction {
 namespace {
 
+constexpr uint64_t kTimeStep = 1000;
+
 constexpr uint64_t kTimestampA = 0;
-constexpr uint64_t kTimestampB = 1000;
-constexpr uint64_t kTimestampC = 2000;
-constexpr uint64_t kTimestampD = 3000;
-constexpr uint64_t kTimestampE = 3000;
+constexpr uint64_t kTimestampB = kTimeStep;
+constexpr uint64_t kTimestampC = kTimeStep * 2;
+constexpr uint64_t kTimestampD = kTimeStep * 3;
+constexpr uint64_t kTimestampE = kTimeStep * 4;
 
 constexpr int64_t kCookieA = 1234;
 
