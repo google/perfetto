@@ -36,6 +36,8 @@ source_set("trace_redaction") {
     "collect_timeline_events.h",
     "filter_packet_using_allowlist.cc",
     "filter_packet_using_allowlist.h",
+    "filtering.cc",
+    "filtering.h",
     "find_package_uid.cc",
     "find_package_uid.h",
     "frame_cookie.h",
