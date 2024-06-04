@@ -121,26 +121,65 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: RUN_FROM_APK
       reason: "Optimized artifacts missing, run from apk"
+      expected_value {
+        value: 0
+        unit: TRUE_OR_FALSE
+      }
+      actual_value {
+        value: 1
+      }
       launch_dur: 108000000000
     }
     slow_start_reason_with_details {
       reason_id: TIME_SPENT_IN_BIND_APPLICATION
       reason: "Time spent in bindApplication"
+      expected_value {
+        value: 1250000000
+        unit: NS
+        higher_expected: false
+      }
+      actual_value {
+        value: 10000000000
+      }
       launch_dur: 108000000000
     }
     slow_start_reason_with_details {
       reason_id: TIME_SPENT_IN_VIEW_INFLATION
       reason: "Time spent in view inflation"
+      expected_value {
+        value: 450000000
+        unit: NS
+        higher_expected: false
+      }
+      actual_value {
+        value: 3000000000
+      }
       launch_dur: 108000000000
     }
     slow_start_reason_with_details {
       reason_id: TIME_SPENT_IN_RESOURCES_MANAGER_GET_RESOURCES
       reason: "Time spent in ResourcesManager#getResources"
+      expected_value {
+        value: 130000000
+        unit: NS
+        higher_expected: false
+      }
+      actual_value {
+        value: 5000000000
+      }
       launch_dur: 108000000000
     }
     slow_start_reason_with_details {
       reason_id: POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS
       reason: "Potential CPU contention with another process"
+      expected_value {
+        value: 100000000
+        unit: NS
+        higher_expected: false
+      }
+      actual_value {
+        value: 5000000000
+      }
       launch_dur: 108000000000
     }
     startup_type: "cold"

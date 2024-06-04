@@ -73,21 +73,54 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_RUNNABLE
       reason: "Main Thread - Time spent in Runnable state"
+      expected_value {
+        value: 15
+        unit: PERCENTAGE
+        higher_expected: false
+      }
+      actual_value {
+        value: 74
+        dur: 80000000000
+      }
       launch_dur: 108000000000
     }
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_INTERRUPTIBLE_SLEEP
       reason: "Main Thread - Time spent in interruptible sleep state"
+      expected_value {
+        value: 2900000000
+        unit: NS
+        higher_expected: false
+      }
+      actual_value {
+        value: 5000000000
+      }
       launch_dur: 108000000000
     }
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_BLOCKING_IO
       reason: "Main Thread - Time spent in Blocking I/O"
+      expected_value {
+        value: 450000000
+        unit: NS
+        higher_expected: false
+      }
+      actual_value {
+        value: 5000000000
+      }
       launch_dur: 108000000000
     }
     slow_start_reason_with_details {
       reason_id: POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS
       reason: "Potential CPU contention with another process"
+      expected_value {
+        value: 100000000
+        unit: NS
+        higher_expected: false
+      }
+        actual_value {
+        value: 80000000000
+      }
       launch_dur: 108000000000
     }
   }
