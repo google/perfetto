@@ -882,10 +882,8 @@ class TracingServiceImpl : public TracingService {
                             const std::string& trigger_name);
   size_t PurgeExpiredAndCountTriggerInWindow(int64_t now_ns,
                                              uint64_t trigger_name_hash);
-  static void StopOnDurationMsExpiry(base::WeakPtr<TracingServiceImpl>,
-                                     TracingSessionID);
+  void StopOnDurationMsExpiry(TracingSessionID);
 
-  base::TaskRunner* const task_runner_;
   std::unique_ptr<tracing_service::Clock> clock_;
   std::unique_ptr<tracing_service::Random> random_;
   const InitOpts init_opts_;
@@ -924,8 +922,7 @@ class TracingServiceImpl : public TracingService {
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 
-  base::WeakPtrFactory<TracingServiceImpl>
-      weak_ptr_factory_;  // Keep at the end.
+  base::WeakRunner weak_runner_;
 };
 
 }  // namespace perfetto
