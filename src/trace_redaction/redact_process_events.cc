@@ -174,7 +174,7 @@ base::Status RedactProcessEvents::OnProcessFree(
   shared_comm->assign(comm.data, comm.size);
 
   PERFETTO_DCHECK(modifier_);
-  RETURN_IF_ERROR(modifier_->Modify(context, ts, cpu, &pid, shared_comm));
+  modifier_->Modify(context, ts, cpu, &pid, shared_comm);
 
   auto* message = parent_message->set_sched_process_free();
   message->set_pid(pid);
@@ -233,7 +233,7 @@ base::Status RedactProcessEvents::OnNewTask(
   shared_comm->assign(comm.data, comm.size);
 
   PERFETTO_DCHECK(modifier_);
-  RETURN_IF_ERROR(modifier_->Modify(context, ts, cpu, &pid, shared_comm));
+  modifier_->Modify(context, ts, cpu, &pid, shared_comm);
 
   auto* message = parent_message->set_task_newtask();
   message->set_clone_flags(clone_flags);
@@ -297,7 +297,7 @@ base::Status RedactProcessEvents::OnProcessRename(
   shared_comm->assign(old_comm.data, old_comm.size);
 
   PERFETTO_DCHECK(modifier_);
-  RETURN_IF_ERROR(modifier_->Modify(context, ts, cpu, &noop_pid, shared_comm));
+  modifier_->Modify(context, ts, cpu, &noop_pid, shared_comm);
 
   // Write the old-comm now so shared_comm can be used new-comm.
   message->set_oldcomm(*shared_comm);
@@ -305,7 +305,7 @@ base::Status RedactProcessEvents::OnProcessRename(
   shared_comm->assign(new_comm.data, new_comm.size);
 
   PERFETTO_DCHECK(modifier_);
-  RETURN_IF_ERROR(modifier_->Modify(context, ts, cpu, &pid, shared_comm));
+  modifier_->Modify(context, ts, cpu, &pid, shared_comm);
 
   message->set_newcomm(*shared_comm);
 

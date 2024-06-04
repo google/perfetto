@@ -54,18 +54,19 @@ constexpr auto kCommC = "comm-c";
 constexpr auto kCommNone = "";
 
 template <int32_t new_pid>
-class ChangePidTo : public SchedEventModifier {
+class ChangePidTo : public PidCommModifier {
  public:
-  base::Status Modify(const Context& context,
-                      uint64_t ts,
-                      int32_t,
-                      int32_t* pid,
-                      std::string*) const override {
+  void Modify(const Context& context,
+              uint64_t ts,
+              int32_t,
+              int32_t* pid,
+              std::string*) const override {
+    PERFETTO_DCHECK(context.timeline);
+    PERFETTO_DCHECK(context.package_uid.has_value());
+    PERFETTO_DCHECK(pid);
     if (!context.timeline->PidConnectsToUid(ts, *pid, *context.package_uid)) {
       *pid = new_pid;
     }
-
-    return base::OkStatus();
   }
 };
 }  // namespace

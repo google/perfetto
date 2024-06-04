@@ -98,7 +98,7 @@ class RedactProcessEvents : public TransformPrimitive {
                        protozero::ConstBytes event_bytes,
                        protos::pbzero::FtraceEvent* parent_message) const;
 
-  std::unique_ptr<SchedEventModifier> modifier_;
+  std::unique_ptr<PidCommModifier> modifier_;
 
   std::unique_ptr<PidFilter> filter_;
 };
