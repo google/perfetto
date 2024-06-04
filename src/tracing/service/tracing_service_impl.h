@@ -352,10 +352,10 @@ class TracingServiceImpl : public TracingService {
              ConsumerEndpoint::FlushCallback,
              FlushFlags);
   void FlushAndDisableTracing(TracingSessionID);
-  void FlushAndCloneSession(ConsumerEndpointImpl*,
-                            TracingSessionID,
-                            bool skip_filter,
-                            bool for_bugreport);
+  base::Status FlushAndCloneSession(ConsumerEndpointImpl*,
+                                    TracingSessionID,
+                                    bool skip_filter,
+                                    bool for_bugreport);
 
   // Starts reading the internal tracing buffers from the tracing session `tsid`
   // and sends them to `*consumer` (which must be != nullptr).

@@ -3720,10 +3720,11 @@ size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
   return trigger_count;
 }
 
-void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
-                                              TracingSessionID tsid,
-                                              bool skip_trace_filter,
-                                              bool for_bugreport) {
+base::Status TracingServiceImpl::FlushAndCloneSession(
+    ConsumerEndpointImpl* consumer,
+    TracingSessionID tsid,
+    bool skip_trace_filter,
+    bool for_bugreport) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto clone_target = FlushFlags::CloneTarget::kUnknown;
 
@@ -3736,9 +3737,8 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
     PERFETTO_LOG("Looking for sessions for bugreport");
     TracingSession* session = FindTracingSessionWithMaxBugreportScore();
     if (!session) {
-      consumer->consumer_->OnSessionCloned(
-          {false, "No tracing sessions eligible for bugreport found", {}});
-      return;
+      return base::ErrStatus(
+          "No tracing sessions eligible for bugreport found");
     }
     tsid = session->id;
     clone_target = FlushFlags::CloneTarget::kBugreport;
@@ -3750,9 +3750,7 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
 
   TracingSession* session = GetTracingSession(tsid);
   if (!session) {
-    consumer->consumer_->OnSessionCloned(
-        {false, "Tracing session not found", {}});
-    return;
+    return base::ErrStatus("Tracing session not found");
   }
 
   // If any of the buffers are marked as clear_before_clone, reset them before
@@ -3784,9 +3782,8 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
       // We cannot leave the original tracing session buffer-less as it would
       // cause crashes when data sources commit new data.
       buf = std::move(old_buf);
-      consumer->consumer_->OnSessionCloned(
-          {false, "Buffer allocation failed while attempting to clone", {}});
-      return;
+      return base::ErrStatus(
+          "Buffer allocation failed while attempting to clone");
     }
   }
 
@@ -3832,6 +3829,8 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
         FlushFlags(FlushFlags::Initiator::kTraced,
                    FlushFlags::Reason::kTraceClone, clone_target));
   }
+
+  return base::OkStatus();
 }
 
 std::map<ProducerID, std::vector<DataSourceInstanceID>>
@@ -4416,8 +4415,12 @@ void TracingServiceImpl::ConsumerEndpointImpl::CloneSession(
     CloneSessionArgs args) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // FlushAndCloneSession will call OnSessionCloned after the async flush.
-  service_->FlushAndCloneSession(this, tsid, args.skip_trace_filter,
-                                 args.for_bugreport);
+  base::Status result = service_->FlushAndCloneSession(
+      this, tsid, args.skip_trace_filter, args.for_bugreport);
+
+  if (!result.ok()) {
+    consumer_->OnSessionCloned({false, result.message(), {}});
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
