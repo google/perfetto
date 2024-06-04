@@ -18,6 +18,7 @@
 #define SRC_TRACE_REDACTION_REDACT_SCHED_EVENTS_H_
 
 #include "src/trace_redaction/filtering.h"
+#include "src/trace_redaction/modify.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
@@ -43,16 +44,6 @@ class InternTable {
   size_t comms_length_ = 0;
 
   std::vector<std::string_view> interned_comms_;
-};
-
-class SchedEventModifier {
- public:
-  virtual ~SchedEventModifier();
-  virtual base::Status Modify(const Context& context,
-                              uint64_t ts,
-                              int32_t cpu,
-                              int32_t* pid,
-                              std::string* comm) const = 0;
 };
 
 class RedactSchedEvents : public TransformPrimitive {
@@ -121,26 +112,8 @@ class RedactSchedEvents : public TransformPrimitive {
       protos::pbzero::FtraceEventBundle::CompactSched* compact_sched_message)
       const;
 
-  std::unique_ptr<SchedEventModifier> modifier_;
+  std::unique_ptr<PidCommModifier> modifier_;
   std::unique_ptr<PidFilter> filter_;
-};
-
-class ClearComms : public SchedEventModifier {
- public:
-  base::Status Modify(const Context& context,
-                      uint64_t ts,
-                      int32_t cpu,
-                      int32_t* pid,
-                      std::string* comm) const override;
-};
-
-class DoNothing : public SchedEventModifier {
- public:
-  base::Status Modify(const Context& context,
-                      uint64_t ts,
-                      int32_t cpu,
-                      int32_t* pid,
-                      std::string* comm) const override;
 };
 
 }  // namespace perfetto::trace_redaction

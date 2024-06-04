@@ -41,6 +41,8 @@ source_set("trace_redaction") {
     "find_package_uid.cc",
     "find_package_uid.h",
     "frame_cookie.h",
+    "modify.cc",
+    "modify.h",
     "modify_process_trees.cc",
     "modify_process_trees.h",
     "populate_allow_lists.cc",
