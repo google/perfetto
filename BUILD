@@ -1278,6 +1278,8 @@ perfetto_cc_library(
         "src/base/virtual_destructors.cc",
         "src/base/waitable_event.cc",
         "src/base/watchdog_posix.cc",
+        "src/base/weak_runner.cc",
+        "src/base/weak_runner.h",
     ],
     hdrs = [
         ":include_perfetto_base_base",
