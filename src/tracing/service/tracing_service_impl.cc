@@ -409,11 +409,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
 
   // Producer::OnConnect() should run before Producer::OnTracingSetup(). The
   // latter may be posted by SetupSharedMemory() below, so post OnConnect() now.
-  auto weak_ptr = endpoint->weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_ptr] {
-    if (weak_ptr)
-      weak_ptr->producer_->OnConnect();
-  });
+  endpoint->weak_runner_.PostTask(
+      [endpoint = endpoint.get()] { endpoint->producer_->OnConnect(); });
 
   if (shm) {
     // The producer supplied an SMB. This is used only by Chrome; in the most
@@ -4736,13 +4733,12 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     : id_(id),
       client_identity_(client_identity),
       service_(service),
-      task_runner_(task_runner),
       producer_(producer),
       name_(producer_name),
       sdk_version_(sdk_version),
       in_process_(in_process),
       smb_scraping_enabled_(smb_scraping_enabled),
-      weak_ptr_factory_(this) {}
+      weak_runner_(task_runner) {}
 
 TracingServiceImpl::ProducerEndpointImpl::~ProducerEndpointImpl() {
   service_->DisconnectProducer(id_);
@@ -4888,7 +4884,7 @@ void TracingServiceImpl::ProducerEndpointImpl::SetupSharedMemory(
     inproc_shmem_arbiter_.reset(new SharedMemoryArbiterImpl(
         shared_memory_->start(), shared_memory_->size(),
         SharedMemoryABI::ShmemMode::kDefault,
-        shared_buffer_page_size_kb_ * 1024, this, task_runner_));
+        shared_buffer_page_size_kb_ * 1024, this, weak_runner_.task_runner()));
     inproc_shmem_arbiter_->SetDirectSMBPatchingSupportedByService();
   }
 
@@ -4917,11 +4913,8 @@ void TracingServiceImpl::ProducerEndpointImpl::StopDataSource(
   // should send the Producer a TearDownTracing if all its data sources have
   // been disabled (see b/77532839 and aosp/655179 PS1).
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, ds_inst_id] {
-    if (weak_this)
-      weak_this->producer_->StopDataSource(ds_inst_id);
-  });
+  weak_runner_.PostTask(
+      [this, ds_inst_id] { producer_->StopDataSource(ds_inst_id); });
 }
 
 SharedMemoryArbiter*
@@ -4960,11 +4953,7 @@ void TracingServiceImpl::ProducerEndpointImpl::NotifyFlushComplete(
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::OnTracingSetup() {
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this] {
-    if (weak_this)
-      weak_this->producer_->OnTracingSetup();
-  });
+  weak_runner_.PostTask([this] { producer_->OnTracingSetup(); });
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::Flush(
@@ -4972,14 +4961,10 @@ void TracingServiceImpl::ProducerEndpointImpl::Flush(
     const std::vector<DataSourceInstanceID>& data_sources,
     FlushFlags flush_flags) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask(
-      [weak_this, flush_request_id, data_sources, flush_flags] {
-        if (weak_this) {
-          weak_this->producer_->Flush(flush_request_id, data_sources.data(),
-                                      data_sources.size(), flush_flags);
-        }
-      });
+  weak_runner_.PostTask([this, flush_request_id, data_sources, flush_flags] {
+    producer_->Flush(flush_request_id, data_sources.data(), data_sources.size(),
+                     flush_flags);
+  });
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::SetupDataSource(
@@ -4987,10 +4972,8 @@ void TracingServiceImpl::ProducerEndpointImpl::SetupDataSource(
     const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   allowed_target_buffers_.insert(static_cast<BufferID>(config.target_buffer()));
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, ds_id, config] {
-    if (weak_this)
-      weak_this->producer_->SetupDataSource(ds_id, std::move(config));
+  weak_runner_.PostTask([this, ds_id, config] {
+    producer_->SetupDataSource(ds_id, std::move(config));
   });
 }
 
@@ -4998,10 +4981,8 @@ void TracingServiceImpl::ProducerEndpointImpl::StartDataSource(
     DataSourceInstanceID ds_id,
     const DataSourceConfig& config) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, ds_id, config] {
-    if (weak_this)
-      weak_this->producer_->StartDataSource(ds_id, std::move(config));
+  weak_runner_.PostTask([this, ds_id, config] {
+    producer_->StartDataSource(ds_id, std::move(config));
   });
 }
 
@@ -5028,19 +5009,15 @@ void TracingServiceImpl::ProducerEndpointImpl::OnFreeBuffers(
 void TracingServiceImpl::ProducerEndpointImpl::ClearIncrementalState(
     const std::vector<DataSourceInstanceID>& data_sources) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
-  auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, data_sources] {
-    if (weak_this) {
-      base::StringView producer_name(weak_this->name_);
-      weak_this->producer_->ClearIncrementalState(data_sources.data(),
-                                                  data_sources.size());
-    }
+  weak_runner_.PostTask([this, data_sources] {
+    base::StringView producer_name(name_);
+    producer_->ClearIncrementalState(data_sources.data(), data_sources.size());
   });
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::Sync(
     std::function<void()> callback) {
-  task_runner_->PostTask(callback);
+  weak_runner_.task_runner()->PostTask(callback);
 }
 
 bool TracingServiceImpl::ProducerEndpointImpl::IsAndroidProcessFrozen() {
