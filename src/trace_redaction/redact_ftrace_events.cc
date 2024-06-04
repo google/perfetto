@@ -19,8 +19,6 @@
 #include <string>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
-#include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "src/trace_processor/util/status_macros.h"
 #include "src/trace_redaction/proto_util.h"
 
@@ -46,42 +44,6 @@ bool FilterFtracesUsingAllowlist::Includes(const Context& context,
   }
 
   return false;
-}
-
-bool FilterFtraceUsingSuspendResume::Includes(const Context&,
-                                              protozero::Field event) const {
-  // Values are taken from "suspend_period.textproto". These values would
-  // ideally be provided via the context, but until there are multiple sources,
-  // they can be here.
-  constexpr std::string_view kSyscoreSuspend = "syscore_suspend";
-  constexpr std::string_view kSyscoreResume = "syscore_resume";
-  constexpr std::string_view kTimekeepingFreeze = "timekeeping_freeze";
-
-  protozero::ProtoDecoder event_decoder(event.as_bytes());
-
-  // It's not a suspend-resume event, defer the decision to another filter.
-  auto suspend_resume = event_decoder.FindField(
-      protos::pbzero::FtraceEvent::kSuspendResumeFieldNumber);
-
-  if (!suspend_resume.valid()) {
-    return true;
-  }
-
-  protozero::ProtoDecoder suspend_resume_decoder(suspend_resume.as_bytes());
-
-  auto action = suspend_resume_decoder.FindField(
-      protos::pbzero::SuspendResumeFtraceEvent::kActionFieldNumber);
-
-  // If a suspend-resume has no action, there is nothing to redact, so it is
-  // safe to passthrough.
-  if (!action.valid()) {
-    return true;
-  }
-
-  std::string_view action_str(action.as_string().data, action.size());
-
-  return kSyscoreSuspend == action_str || kSyscoreResume == action_str ||
-         kTimekeepingFreeze == action_str;
 }
 
 base::Status WriteFtracesPassthrough::WriteTo(

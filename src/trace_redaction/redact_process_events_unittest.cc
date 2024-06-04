@@ -17,6 +17,7 @@
 #include "src/trace_redaction/redact_process_events.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "protos/perfetto/trace/ftrace/ftrace.gen.h"
+#include "protos/perfetto/trace/ftrace/power.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
 #include "src/base/test/status_matchers.h"
 #include "test/gtest_and_gmock.h"
@@ -616,6 +617,118 @@ TEST_F(RedactPrintTest, DropTaskOutsidePackage) {
   // The task should have been removed, but the event will still remain.
   const auto& event = packet.ftrace_events().event().at(0);
   ASSERT_FALSE(event.has_print());
+}
+
+class RedactSuspendResumeTest : public testing::Test {
+ protected:
+  void SetUp() {
+    auto* events = packet_.mutable_ftrace_events();
+    events->set_cpu(kCpu);
+
+    for (const auto& action : {"syscore_suspend", "syscore_resume",
+                               "timekeeping_freeze", "not-allowed"}) {
+      auto* event = events->add_event();
+      event->set_timestamp(kTimeB);
+      event->set_pid(kPidA);
+
+      auto* suspend_resume = event->mutable_suspend_resume();
+      suspend_resume->set_action(action);
+      suspend_resume->set_start(0);
+      suspend_resume->set_val(3);
+    }
+
+    context_.timeline = std::make_unique<ProcessThreadTimeline>();
+
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidA, kNoParent, kUidA));
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidB, kNoParent, kUidB));
+    context_.timeline->Sort();
+
+    redact_.emplace_modifier<DoNothing>();
+    redact_.emplace_filter<AllowAll>();
+  }
+
+  RedactProcessEvents redact_;
+  protos::gen::TracePacket packet_;
+  Context context_;
+};
+
+TEST_F(RedactSuspendResumeTest, KeepTaskInsidePackage) {
+  redact_.emplace_filter<ConnectedToPackage>();
+
+  context_.package_uid = kUidA;
+
+  auto packet_str = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_str));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_str));
+
+  ASSERT_TRUE(packet.has_ftrace_events());
+  ASSERT_EQ(packet.ftrace_events().event().size(), 4u);
+}
+
+// Only actions in the allowlist should be allowed.
+//
+// TODO(vaage): The allowlist is not configurable right now. If moved into the
+// context, it could be configured.
+TEST_F(RedactSuspendResumeTest, FiltersByAllowlist) {
+  redact_.emplace_filter<ConnectedToPackage>();
+
+  context_.package_uid = kUidA;
+
+  auto packet_str = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_str));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_str));
+
+  ASSERT_TRUE(packet.has_ftrace_events());
+  ASSERT_EQ(packet.ftrace_events().event().size(), 4u);
+
+  {
+    const auto& event = packet.ftrace_events().event().at(0);
+    ASSERT_TRUE(event.has_suspend_resume());
+    ASSERT_EQ(event.suspend_resume().action(), "syscore_suspend");
+  }
+
+  {
+    const auto& event = packet.ftrace_events().event().at(1);
+    ASSERT_TRUE(event.has_suspend_resume());
+    ASSERT_EQ(event.suspend_resume().action(), "syscore_resume");
+  }
+
+  {
+    const auto& event = packet.ftrace_events().event().at(2);
+    ASSERT_TRUE(event.has_suspend_resume());
+    ASSERT_EQ(event.suspend_resume().action(), "timekeeping_freeze");
+  }
+
+  // The fourth entry is an invalid action. While the other entries are valid
+  // and are retained, this one should be dropped.
+  ASSERT_FALSE(packet.ftrace_events().event().at(3).has_suspend_resume());
+}
+
+TEST_F(RedactSuspendResumeTest, DropTaskOutsidePackage) {
+  redact_.emplace_filter<ConnectedToPackage>();
+
+  context_.package_uid = kUidB;
+
+  auto packet_str = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_str));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_str));
+
+  ASSERT_TRUE(packet.has_ftrace_events());
+  ASSERT_EQ(packet.ftrace_events().event().size(), 4u);
+
+  // The task should have been removed, but the event will still remain.
+  ASSERT_FALSE(packet.ftrace_events().event().at(0).has_suspend_resume());
+  ASSERT_FALSE(packet.ftrace_events().event().at(1).has_suspend_resume());
+  ASSERT_FALSE(packet.ftrace_events().event().at(2).has_suspend_resume());
+  ASSERT_FALSE(packet.ftrace_events().event().at(3).has_suspend_resume());
 }
 
 }  // namespace perfetto::trace_redaction

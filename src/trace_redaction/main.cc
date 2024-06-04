@@ -69,7 +69,6 @@ static base::Status Main(std::string_view input,
 
   auto* ftrace_suspend_resume =
       redactor.emplace_transform<RedactFtraceEvents>();
-  ftrace_suspend_resume->emplace_filter<FilterFtraceUsingSuspendResume>();
   ftrace_suspend_resume->emplace_writer<WriteFtracesPassthrough>();
 
   // Scrub packets and ftrace events first as they will remove the largest
