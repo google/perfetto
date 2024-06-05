@@ -21,6 +21,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_processor/util/status_macros.h"
 #include "src/trace_redaction/proto_util.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
@@ -50,50 +51,65 @@ base::Status ScrubProcessStats::Transform(const Context& context,
 
   protozero::HeapBuffered<protos::pbzero::TracePacket> message;
 
-  // TODO(vaage): Add primitive to drop all packets that don't have a
-  // timestamp, allowing all other packets assume there are timestamps.
+  // Not all packets will have a top-level timestamp, but for process stats, the
+  // timestamp is located at the trace packet.
   auto time_field = packet_decoder.FindField(
       protos::pbzero::TracePacket::kTimestampFieldNumber);
   PERFETTO_DCHECK(time_field.valid());
-  auto time = time_field.as_uint64();
 
-  for (auto packet_field = packet_decoder.ReadField(); packet_field.valid();
-       packet_field = packet_decoder.ReadField()) {
-    if (packet_field.id() !=
-        protos::pbzero::TracePacket::kProcessStatsFieldNumber) {
-      proto_util::AppendField(packet_field, message.get());
-      continue;
-    }
+  auto ts = time_field.as_uint64();
 
-    auto process_stats = std::move(packet_field);
-    protozero::ProtoDecoder process_stats_decoder(process_stats.as_bytes());
-
-    auto* process_stats_message = message->set_process_stats();
-
-    for (auto process_stats_field = process_stats_decoder.ReadField();
-         process_stats_field.valid();
-         process_stats_field = process_stats_decoder.ReadField()) {
-      bool keep_field;
-
-      if (process_stats_field.id() ==
-          protos::pbzero::ProcessStats::kProcessesFieldNumber) {
-        protozero::ProtoDecoder process_decoder(process_stats_field.as_bytes());
-        auto pid = process_decoder.FindField(
-            protos::pbzero::ProcessStats::Process::kPidFieldNumber);
-
-        keep_field = context.timeline->PidConnectsToUid(time, pid.as_int32(),
-                                                        *context.package_uid);
-      } else {
-        keep_field = true;
-      }
-
-      if (keep_field) {
-        proto_util::AppendField(process_stats_field, process_stats_message);
-      }
+  for (auto field = packet_decoder.ReadField(); field.valid();
+       field = packet_decoder.ReadField()) {
+    if (field.id() == protos::pbzero::TracePacket::kProcessStatsFieldNumber) {
+      RETURN_IF_ERROR(OnProcessStats(context, ts, field.as_bytes(),
+                                     message->set_process_stats()));
+    } else {
+      proto_util::AppendField(field, message.get());
     }
   }
 
   packet->assign(message.SerializeAsString());
+
+  return base::OkStatus();
+}
+
+base::Status ScrubProcessStats::OnProcessStats(
+    const Context& context,
+    uint64_t ts,
+    protozero::ConstBytes bytes,
+    protos::pbzero::ProcessStats* message) const {
+  protozero::ProtoDecoder decoder(bytes);
+
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() == protos::pbzero::ProcessStats::kProcessesFieldNumber) {
+      RETURN_IF_ERROR(OnProcess(context, ts, field, message));
+    } else {
+      proto_util::AppendField(field, message);
+    }
+  }
+
+  return base::OkStatus();
+}
+
+base::Status ScrubProcessStats::OnProcess(
+    const Context& context,
+    uint64_t ts,
+    protozero::Field field,
+    protos::pbzero::ProcessStats* message) const {
+  PERFETTO_DCHECK(field.id() ==
+                  protos::pbzero::ProcessStats::kProcessesFieldNumber);
+
+  protozero::ProtoDecoder decoder(field.as_bytes());
+  auto pid =
+      decoder.FindField(protos::pbzero::ProcessStats::Process::kPidFieldNumber);
+  PERFETTO_DCHECK(pid.valid());
+
+  PERFETTO_DCHECK(filter_);
+  if (filter_->Includes(context, ts, pid.as_int32())) {
+    proto_util::AppendField(field, message);
+  }
 
   return base::OkStatus();
 }

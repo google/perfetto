@@ -58,10 +58,11 @@ static base::Status Main(std::string_view input,
   redactor.emplace_build<ReduceFrameCookies>();
   redactor.emplace_build<BuildSyntheticThreads>();
 
-  // Add all transforms.
-  auto* scrub_packet = redactor.emplace_transform<ScrubTracePacket>();
-  scrub_packet->emplace_back<FilterPacketUsingAllowlist>();
-  scrub_packet->emplace_back<FilterFrameEvents>();
+  {
+    auto* primitive = redactor.emplace_transform<ScrubTracePacket>();
+    primitive->emplace_back<FilterPacketUsingAllowlist>();
+    primitive->emplace_back<FilterFrameEvents>();
+  }
 
   {
     auto* primitive = redactor.emplace_transform<RedactFtraceEvents>();
@@ -73,24 +74,45 @@ static base::Status Main(std::string_view input,
     primitive->emplace_filter<FilterFtraceUsingSuspendResume>();
   }
 
-  // Scrub packets and ftrace events first as they will remove the largest
-  // chucks of data from the trace. This will reduce the amount of data that the
-  // other primitives need to operate on.
   redactor.emplace_transform<PrunePackageList>();
-  redactor.emplace_transform<ScrubProcessStats>();
+
+  // Process stats includes per-process information, such as:
+  //
+  //   processes {
+  //   pid: 1
+  //   vm_size_kb: 11716992
+  //   vm_rss_kb: 5396
+  //   rss_anon_kb: 2896
+  //   rss_file_kb: 1728
+  //   rss_shmem_kb: 772
+  //   vm_swap_kb: 4236
+  //   vm_locked_kb: 0
+  //   vm_hwm_kb: 6720
+  //   oom_score_adj: -1000
+  // }
+  //
+  // Use the ConnectedToPackage primitive to ensure only the target package has
+  // stats in the trace.
+  {
+    auto* primitive = redactor.emplace_transform<ScrubProcessStats>();
+    primitive->emplace_filter<ConnectedToPackage>();
+  }
 
   // Redacts all switch and waking events. This should use the same modifier and
   // filter as the process events (see below).
-  auto* redact_sched_events = redactor.emplace_transform<RedactSchedEvents>();
-  redact_sched_events->emplace_modifier<ClearComms>();
-  redact_sched_events->emplace_filter<ConnectedToPackage>();
+  {
+    auto* primitive = redactor.emplace_transform<RedactSchedEvents>();
+    primitive->emplace_modifier<ClearComms>();
+    primitive->emplace_filter<ConnectedToPackage>();
+  }
 
   // Redacts all new task, rename task, process free events. This should use the
   // same modifier and filter as the schedule events (see above).
-  auto* redact_process_events =
-      redactor.emplace_transform<RedactProcessEvents>();
-  redact_process_events->emplace_modifier<ClearComms>();
-  redact_process_events->emplace_filter<ConnectedToPackage>();
+  {
+    auto* primitive = redactor.emplace_transform<RedactProcessEvents>();
+    primitive->emplace_modifier<ClearComms>();
+    primitive->emplace_filter<ConnectedToPackage>();
+  }
 
   // TODO(vaage): Implement and add thread merging primitives.
 
