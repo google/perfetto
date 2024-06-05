@@ -865,9 +865,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->android_log_table());
   RegisterStaticTable(storage->android_dumpstate_table());
   RegisterStaticTable(storage->android_game_intervention_list_table());
-  RegisterStaticTable(storage->android_key_events_table());
-  RegisterStaticTable(storage->android_motion_events_table());
-  RegisterStaticTable(storage->android_input_event_dispatch_table());
 
   RegisterStaticTable(storage->vulkan_memory_allocations_table());
 
