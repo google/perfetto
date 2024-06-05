@@ -19,6 +19,7 @@
 
 #include <cstdint>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -74,6 +75,9 @@ class NetworkTraceModule : public ProtoImporterModule {
 
   TraceProcessorContext* context_;
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet_buffer_;
+
+  bool loaded_package_names_ = false;
+  base::FlatHashMap<int64_t, StringId> package_names_;
 
   const StringId net_arg_length_;
   const StringId net_arg_ip_proto_;

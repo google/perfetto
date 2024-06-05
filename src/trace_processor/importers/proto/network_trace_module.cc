@@ -163,6 +163,14 @@ void NetworkTraceModule::ParseGenericEvent(
   StringId direction = context_->storage->InternString(track_suffix);
   StringId iface = context_->storage->InternString(evt.interface());
 
+  if (!loaded_package_names_) {
+    loaded_package_names_ = true;
+    const auto& package_list = context_->storage->package_list_table();
+    for (auto row = package_list.IterateRows(); row; ++row) {
+      package_names_.Insert(row.uid(), row.package_name());
+    }
+  }
+
   // Android stores the app id in the lower part of the uid. The actual uid will
   // be `user_id * kPerUserRange + app_id`. For package lookup, we want app id.
   uint32_t app_id = evt.uid() % kPerUserRange;
@@ -170,10 +178,9 @@ void NetworkTraceModule::ParseGenericEvent(
   // Event titles are the package name, if available.
   StringId slice_name = kNullStringId;
   if (evt.uid() > 0) {
-    const auto& package_list = context_->storage->package_list_table();
-    std::optional<uint32_t> pkg_row = package_list.uid().IndexOf(app_id);
-    if (pkg_row) {
-      slice_name = package_list.package_name()[*pkg_row];
+    StringId* iter = package_names_.Find(app_id);
+    if (iter != nullptr) {
+      slice_name = *iter;
     }
   }
 
