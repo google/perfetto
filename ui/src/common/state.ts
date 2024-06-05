@@ -28,7 +28,6 @@ import {
   selectionToLegacySelection,
   Selection,
   LegacySelection,
-  ProfileType,
 } from '../core/selection_manager';
 
 export {
@@ -42,7 +41,7 @@ export {
   LegacySelection,
   AreaSelection,
   ProfileType,
-  ChromeSliceSelection,
+  ThreadSliceSelection,
   CpuProfileSampleSelection,
 } from '../core/selection_manager';
 
@@ -151,7 +150,10 @@ export const MAX_TIME = 180;
 // 52. Update track group state - don't make the summary track the first track.
 // 53. Remove android log state.
 // 54. Remove traceTime.
-export const STATE_VERSION = 54;
+// 55. Rename TrackGroupState.id -> TrackGroupState.key.
+// 56. Renamed chrome slice to thread slice everywhere.
+// 57. Remove flamegraph related code from state.
+export const STATE_VERSION = 57;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -186,56 +188,6 @@ export type UtidToTrackSortKey = {
     sortKey: PrimaryTrackSortKey;
   };
 };
-
-export enum FlamegraphStateViewingOption {
-  SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY = 'SPACE',
-  ALLOC_SPACE_MEMORY_ALLOCATED_KEY = 'ALLOC_SPACE',
-  OBJECTS_ALLOCATED_NOT_FREED_KEY = 'OBJECTS',
-  OBJECTS_ALLOCATED_KEY = 'ALLOC_OBJECTS',
-  PERF_SAMPLES_KEY = 'PERF_SAMPLES',
-  DOMINATOR_TREE_OBJ_SIZE_KEY = 'DOMINATED_OBJ_SIZE',
-  DOMINATOR_TREE_OBJ_COUNT_KEY = 'DOMINATED_OBJ_COUNT',
-}
-
-const HEAP_GRAPH_DOMINATOR_TREE_VIEWING_OPTIONS = [
-  FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_SIZE_KEY,
-  FlamegraphStateViewingOption.DOMINATOR_TREE_OBJ_COUNT_KEY,
-] as const;
-
-export type HeapGraphDominatorTreeViewingOption =
-  (typeof HEAP_GRAPH_DOMINATOR_TREE_VIEWING_OPTIONS)[number];
-
-export function isHeapGraphDominatorTreeViewingOption(
-  option: FlamegraphStateViewingOption,
-): option is HeapGraphDominatorTreeViewingOption {
-  return (
-    HEAP_GRAPH_DOMINATOR_TREE_VIEWING_OPTIONS as readonly FlamegraphStateViewingOption[]
-  ).includes(option);
-}
-
-export interface FlamegraphState {
-  kind: 'FLAMEGRAPH_STATE';
-  upids: number[];
-  start: time;
-  end: time;
-  type: ProfileType;
-  viewingOption: FlamegraphStateViewingOption;
-  focusRegex: string;
-  expandedCallsiteByViewingOption: {[key: string]: CallsiteInfo | undefined};
-}
-
-export interface CallsiteInfo {
-  id: number;
-  parentId: number;
-  depth: number;
-  name?: string;
-  totalSize: number;
-  selfSize: number;
-  mapping: string;
-  merged: boolean;
-  highlighted: boolean;
-  location?: string;
-}
 
 export interface TraceFileSource {
   type: 'FILE';
@@ -288,7 +240,7 @@ export interface TrackState {
 }
 
 export interface TrackGroupState {
-  id: string;
+  key: string;
   name: string;
   collapsed: boolean;
   tracks: string[]; // Child track ids.
@@ -308,12 +260,6 @@ export interface QueryConfig {
   id: string;
   engineId?: string;
   query: string;
-}
-
-export interface PermalinkConfig {
-  requestId?: string; // Set by the frontend to request a new permalink.
-  hash?: string; // Set by the controller when the link has been created.
-  isRecordingConfig?: boolean; // this permalink request is for a recording config only
 }
 
 export interface FrontendLocalState {
@@ -476,7 +422,7 @@ export interface State {
   newEngineMode: NewEngineMode;
   engine?: EngineConfig;
   traceUuid?: string;
-  trackGroups: ObjectById<TrackGroupState>;
+  trackGroups: ObjectByKey<TrackGroupState>;
   tracks: ObjectByKey<TrackState>;
   utidToThreadSortKey: UtidToTrackSortKey;
   areas: ObjectById<AreaById>;
@@ -486,12 +432,11 @@ export interface State {
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;
-  permalink: PermalinkConfig;
   notes: ObjectById<Note | AreaNote>;
   status: Status;
   selection: Selection;
-  currentFlamegraphState: FlamegraphState | null;
   traceConversionInProgress: boolean;
+  flamegraphModalDismissed: boolean;
 
   /**
    * This state is updated on the frontend at 60Hz and eventually syncronised to
@@ -527,7 +472,6 @@ export interface State {
   recordingInProgress: boolean;
   recordingCancelled: boolean;
   extensionInstalled: boolean;
-  flamegraphModalDismissed: boolean;
   recordingTarget: RecordingTarget;
   availableAdbDevices: AdbRecordingTarget[];
   lastRecordingError?: string;
@@ -915,20 +859,19 @@ export function getBuiltinChromeCategoryList(): string[] {
   ];
 }
 
-export function getContainingTrackId(
+export function getContainingGroupKey(
   state: State,
   trackKey: string,
 ): null | string {
   const track = state.tracks[trackKey];
-  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-  if (!track) {
+  if (track === undefined) {
     return null;
   }
-  const parentId = track.trackGroup;
-  if (!parentId) {
+  const parentGroupKey = track.trackGroup;
+  if (!parentGroupKey) {
     return null;
   }
-  return parentId;
+  return parentGroupKey;
 }
 
 export function getLegacySelection(state: State): LegacySelection | null {

@@ -514,6 +514,29 @@ class TraceStorage {
     return &android_dumpstate_table_;
   }
 
+  const tables::AndroidKeyEventsTable& android_key_events_table() const {
+    return android_key_events_table_;
+  }
+  tables::AndroidKeyEventsTable* mutable_android_key_events_table() {
+    return &android_key_events_table_;
+  }
+
+  const tables::AndroidMotionEventsTable& android_motion_events_table() const {
+    return android_motion_events_table_;
+  }
+  tables::AndroidMotionEventsTable* mutable_android_motion_events_table() {
+    return &android_motion_events_table_;
+  }
+
+  const tables::AndroidInputEventDispatchTable&
+  android_input_event_dispatch_table() const {
+    return android_input_event_dispatch_table_;
+  }
+  tables::AndroidInputEventDispatchTable*
+  mutable_android_input_event_dispatch_table() {
+    return &android_input_event_dispatch_table_;
+  }
+
   const StatsMap& stats() const { return stats_; }
 
   const tables::MetadataTable& metadata_table() const {
@@ -616,6 +639,13 @@ class TraceStorage {
   }
   tables::CpuProfileStackSampleTable* mutable_cpu_profile_stack_sample_table() {
     return &cpu_profile_stack_sample_table_;
+  }
+
+  const tables::PerfSessionTable& perf_session_table() const {
+    return perf_session_table_;
+  }
+  tables::PerfSessionTable* mutable_perf_session_table() {
+    return &perf_session_table_;
   }
 
   const tables::PerfSampleTable& perf_sample_table() const {
@@ -843,6 +873,13 @@ class TraceStorage {
   tables::SurfaceFlingerTransactionsTable*
   mutable_surfaceflinger_transactions_table() {
     return &surfaceflinger_transactions_table_;
+  }
+
+  const tables::ViewCaptureTable& viewcapture_table() const {
+    return viewcapture_table_;
+  }
+  tables::ViewCaptureTable* mutable_viewcapture_table() {
+    return &viewcapture_table_;
   }
 
   const tables::WindowManagerShellTransitionsTable&
@@ -1083,6 +1120,11 @@ class TraceStorage {
 
   tables::AndroidDumpstateTable android_dumpstate_table_{&string_pool_};
 
+  tables::AndroidKeyEventsTable android_key_events_table_{&string_pool_};
+  tables::AndroidMotionEventsTable android_motion_events_table_{&string_pool_};
+  tables::AndroidInputEventDispatchTable
+      android_input_event_dispatch_table_{&string_pool_};
+
   tables::StackProfileMappingTable stack_profile_mapping_table_{&string_pool_};
   tables::StackProfileFrameTable stack_profile_frame_table_{&string_pool_};
   tables::StackProfileCallsiteTable stack_profile_callsite_table_{
@@ -1092,6 +1134,7 @@ class TraceStorage {
       &string_pool_};
   tables::CpuProfileStackSampleTable cpu_profile_stack_sample_table_{
       &string_pool_, &stack_sample_table_};
+  tables::PerfSessionTable perf_session_table_{&string_pool_};
   tables::PerfSampleTable perf_sample_table_{&string_pool_};
   tables::PackageListTable package_list_table_{&string_pool_};
   tables::AndroidGameInterventionListTable
@@ -1147,6 +1190,7 @@ class TraceStorage {
   tables::SurfaceFlingerLayerTable surfaceflinger_layer_table_{&string_pool_};
   tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
       &string_pool_};
+  tables::ViewCaptureTable viewcapture_table_{&string_pool_};
   tables::WindowManagerShellTransitionsTable
       window_manager_shell_transitions_table_{&string_pool_};
   tables::WindowManagerShellTransitionHandlersTable

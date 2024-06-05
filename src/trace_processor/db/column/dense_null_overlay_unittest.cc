@@ -129,11 +129,12 @@ TEST(DenseNullOverlay, IsNullIndexSearch) {
 }
 
 TEST(DenseNullOverlay, OrderedIndexSearch) {
-  auto fake = FakeStorageChain::SearchSubset(6, BitVector({0, 1, 0, 1, 0, 1}));
+  std::vector<uint32_t> numeric_data{0, 1, 0, 1, 0, 1};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
 
   BitVector bv{0, 1, 0, 1, 0, 1};
   DenseNullOverlay storage(&bv);
-  auto chain = storage.MakeChain(std::move(fake));
+  auto chain = storage.MakeChain(numeric.MakeChain());
 
   std::vector<uint32_t> indices_vec({0, 2, 4, 1, 3, 5});
   OrderedIndices indices{indices_vec.data(), 6, Indices::State::kNonmonotonic};
@@ -146,25 +147,25 @@ TEST(DenseNullOverlay, OrderedIndexSearch) {
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 6u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(3), indices);
+  res = chain->OrderedIndexSearch(FilterOp::kEq, SqlValue::Long(1), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 6u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(3), indices);
+  res = chain->OrderedIndexSearch(FilterOp::kGt, SqlValue::Long(0), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 6u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(3), indices);
+  res = chain->OrderedIndexSearch(FilterOp::kGe, SqlValue::Long(1), indices);
   ASSERT_EQ(res.start, 3u);
   ASSERT_EQ(res.end, 6u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 6u);
+  res = chain->OrderedIndexSearch(FilterOp::kLt, SqlValue::Long(1), indices);
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 3u);
 
-  res = chain->OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(3), indices);
-  ASSERT_EQ(res.start, 3u);
-  ASSERT_EQ(res.end, 6u);
+  res = chain->OrderedIndexSearch(FilterOp::kLe, SqlValue::Long(0), indices);
+  ASSERT_EQ(res.start, 0u);
+  ASSERT_EQ(res.end, 3u);
 }
 
 TEST(DenseNullOverlay, SingleSearch) {

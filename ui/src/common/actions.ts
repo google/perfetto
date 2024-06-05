@@ -15,7 +15,7 @@
 import {Draft} from 'immer';
 
 import {assertExists, assertTrue} from '../base/logging';
-import {duration, Time, time} from '../base/time';
+import {duration, time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
 import {
   GenericSliceDetailsTabConfig,
@@ -37,7 +37,6 @@ import {
   performReordering,
 } from './dragndrop_logic';
 import {createEmptyState} from './empty_state';
-import {defaultViewingOption} from './flamegraph_util';
 import {
   MetatraceTrackId,
   traceEventBegin,
@@ -47,9 +46,7 @@ import {
 import {
   AdbRecordingTarget,
   Area,
-  CallsiteInfo,
   EngineMode,
-  FlamegraphStateViewingOption,
   LoadedConfig,
   NewEngineMode,
   OmniboxMode,
@@ -253,15 +250,15 @@ export const StateActions = {
     // the reducer.
     args: {
       name: string;
-      id: string;
+      key: string;
       summaryTrackKey?: string;
       collapsed: boolean;
       fixedOrdering?: boolean;
     },
   ): void {
-    state.trackGroups[args.id] = {
+    state.trackGroups[args.key] = {
       name: args.name,
-      id: args.id,
+      key: args.key,
       collapsed: args.collapsed,
       tracks: [],
       summaryTrack: args.summaryTrackKey,
@@ -394,12 +391,8 @@ export const StateActions = {
     }
   },
 
-  toggleTrackGroupCollapsed(
-    state: StateDraft,
-    args: {trackGroupId: string},
-  ): void {
-    const id = args.trackGroupId;
-    const trackGroup = assertExists(state.trackGroups[id]);
+  toggleTrackGroupCollapsed(state: StateDraft, args: {groupKey: string}): void {
+    const trackGroup = assertExists(state.trackGroups[args.groupKey]);
     trackGroup.collapsed = !trackGroup.collapsed;
   },
 
@@ -446,31 +439,6 @@ export const StateActions = {
     if (state.engine !== undefined && state.engine.mode === args.mode) {
       state.engine.failed = args.failure;
     }
-  },
-
-  createPermalink(state: StateDraft, args: {isRecordingConfig: boolean}): void {
-    state.permalink = {
-      requestId: generateNextId(state),
-      hash: undefined,
-      isRecordingConfig: args.isRecordingConfig,
-    };
-  },
-
-  setPermalink(
-    state: StateDraft,
-    args: {requestId: string; hash: string},
-  ): void {
-    // Drop any links for old requests.
-    if (state.permalink.requestId !== args.requestId) return;
-    state.permalink = args;
-  },
-
-  loadPermalink(state: StateDraft, args: {hash: string}): void {
-    state.permalink = {requestId: generateNextId(state), hash: args.hash};
-  },
-
-  clearPermalink(state: StateDraft, _: {}): void {
-    state.permalink = {};
   },
 
   updateStatus(state: StateDraft, args: Status): void {
@@ -666,13 +634,6 @@ export const StateActions = {
         type: args.type,
       },
     };
-    this.openFlamegraph(state, {
-      type: args.type,
-      start: Time.ZERO,
-      end: args.ts,
-      upids: [args.upid],
-      viewingOption: defaultViewingOption(args.type),
-    });
   },
 
   selectPerfSamples(
@@ -696,35 +657,6 @@ export const StateActions = {
         type: args.type,
       },
     };
-    this.openFlamegraph(state, {
-      type: args.type,
-      start: args.leftTs,
-      end: args.rightTs,
-      upids: [args.upid],
-      viewingOption: defaultViewingOption(args.type),
-    });
-  },
-
-  openFlamegraph(
-    state: StateDraft,
-    args: {
-      upids: number[];
-      start: time;
-      end: time;
-      type: ProfileType;
-      viewingOption: FlamegraphStateViewingOption;
-    },
-  ): void {
-    state.currentFlamegraphState = {
-      kind: 'FLAMEGRAPH_STATE',
-      upids: args.upids,
-      start: args.start,
-      end: args.end,
-      type: args.type,
-      viewingOption: args.viewingOption,
-      focusRegex: '',
-      expandedCallsiteByViewingOption: {},
-    };
   },
 
   selectCpuProfileSample(
@@ -742,43 +674,14 @@ export const StateActions = {
     };
   },
 
-  expandFlamegraphState(
-    state: StateDraft,
-    args: {
-      expandedCallsite?: CallsiteInfo;
-      viewingOption: FlamegraphStateViewingOption;
-    },
-  ): void {
-    if (state.currentFlamegraphState === null) return;
-    state.currentFlamegraphState.expandedCallsiteByViewingOption[
-      args.viewingOption
-    ] = args.expandedCallsite;
-  },
-
-  changeViewFlamegraphState(
-    state: StateDraft,
-    args: {viewingOption: FlamegraphStateViewingOption},
-  ): void {
-    if (state.currentFlamegraphState === null) return;
-    state.currentFlamegraphState.viewingOption = args.viewingOption;
-  },
-
-  changeFocusFlamegraphState(
-    state: StateDraft,
-    args: {focusRegex: string},
-  ): void {
-    if (state.currentFlamegraphState === null) return;
-    state.currentFlamegraphState.focusRegex = args.focusRegex;
-  },
-
-  selectChromeSlice(
+  selectSlice(
     state: StateDraft,
     args: {id: number; trackKey: string; table?: string; scroll?: boolean},
   ): void {
     state.selection = {
       kind: 'legacy',
       legacySelection: {
-        kind: 'CHROME_SLICE',
+        kind: 'SLICE',
         id: args.id,
         trackKey: args.trackKey,
         table: args.table,
@@ -920,7 +823,7 @@ export const StateActions = {
 
   toggleTrackSelection(
     state: StateDraft,
-    args: {id: string; isTrackGroup: boolean},
+    args: {key: string; isTrackGroup: boolean},
   ) {
     const selection = state.selection;
     if (
@@ -930,12 +833,12 @@ export const StateActions = {
       return;
     }
     const areaId = selection.legacySelection.areaId;
-    const index = state.areas[areaId].tracks.indexOf(args.id);
+    const index = state.areas[areaId].tracks.indexOf(args.key);
     if (index > -1) {
       state.areas[areaId].tracks.splice(index, 1);
       if (args.isTrackGroup) {
         // Also remove all child tracks.
-        for (const childTrack of state.trackGroups[args.id].tracks) {
+        for (const childTrack of state.trackGroups[args.key].tracks) {
           const childIndex = state.areas[areaId].tracks.indexOf(childTrack);
           if (childIndex > -1) {
             state.areas[areaId].tracks.splice(childIndex, 1);
@@ -943,10 +846,10 @@ export const StateActions = {
         }
       }
     } else {
-      state.areas[areaId].tracks.push(args.id);
+      state.areas[areaId].tracks.push(args.key);
       if (args.isTrackGroup) {
         // Also add all child tracks.
-        for (const childTrack of state.trackGroups[args.id].tracks) {
+        for (const childTrack of state.trackGroups[args.key].tracks) {
           if (!state.areas[areaId].tracks.includes(childTrack)) {
             state.areas[areaId].tracks.push(childTrack);
           }

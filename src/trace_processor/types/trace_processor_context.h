@@ -23,30 +23,18 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/types/destructible.h"
+#include "src/trace_processor/util/trace_type.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-enum TraceType {
-  kUnknownTraceType,
-  kProtoTraceType,
-  kJsonTraceType,
-  kFuchsiaTraceType,
-  kSystraceTraceType,
-  kGzipTraceType,
-  kCtraceTraceType,
-  kNinjaLogTraceType,
-  kAndroidBugreportTraceType,
-  kPerfDataTraceType,
-};
-
-class AndroidProbesTracker;
 class ArgsTracker;
 class ArgsTranslationTable;
 class AsyncTrackSetTracker;
 class ChunkedTraceReader;
 class ClockConverter;
 class ClockTracker;
+class CpuTracker;
 class DeobfuscationMappingTable;
 class DescriptorPool;
 class EtwModule;
@@ -66,12 +54,14 @@ class PacketAnalyzer;
 class PerfRecordParser;
 class PerfSampleTracker;
 class ProcessTracker;
+class ProcessTrackTranslationTable;
 class ProtoImporterModule;
 class ProtoTraceParser;
 class SchedEventTracker;
 class SliceTracker;
 class SliceTranslationTable;
 class StackProfileTracker;
+class TraceReaderRegistry;
 class TraceSorter;
 class TraceStorage;
 class TrackEventModule;
@@ -99,6 +89,8 @@ class TraceProcessorContext {
   // |storage| is shared among multiple contexts in multi-machine tracing.
   std::shared_ptr<TraceStorage> storage;
 
+  std::unique_ptr<TraceReaderRegistry> reader_registry;
+
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
 
   // The sorter is used to sort trace data by timestamp and is shared among
@@ -118,6 +110,7 @@ class TraceProcessorContext {
   std::unique_ptr<SliceTranslationTable> slice_translation_table;
   std::unique_ptr<FlowTracker> flow_tracker;
   std::unique_ptr<ProcessTracker> process_tracker;
+  std::unique_ptr<ProcessTrackTranslationTable> process_track_translation_table;
   std::unique_ptr<EventTracker> event_tracker;
   std::unique_ptr<SchedEventTracker> sched_event_tracker;
   std::unique_ptr<ClockTracker> clock_tracker;
@@ -127,6 +120,7 @@ class TraceProcessorContext {
   std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
   std::unique_ptr<StackProfileTracker> stack_profile_tracker;
   std::unique_ptr<MetadataTracker> metadata_tracker;
+  std::unique_ptr<CpuTracker> cpu_tracker;
 
   // These fields are stored as pointers to Destructible objects rather than
   // their actual type (a subclass of Destructible), as the concrete subclass
@@ -151,18 +145,8 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> ftrace_sched_tracker;      // FtraceSchedEventTracker
   std::unique_ptr<Destructible> v8_tracker;                // V8Tracker
   std::unique_ptr<Destructible> jit_tracker;               // JitTracker
+  std::unique_ptr<Destructible> perf_dso_tracker;          // DsoTracker
   // clang-format on
-
-  // These fields are trace readers which will be called by |forwarding_parser|
-  // once the format of the trace is discovered. They are placed here as they
-  // are only available in the lib target.
-  std::unique_ptr<ChunkedTraceReader> json_trace_tokenizer;
-  std::unique_ptr<ChunkedTraceReader> fuchsia_trace_tokenizer;
-  std::unique_ptr<ChunkedTraceReader> ninja_log_parser;
-  std::unique_ptr<ChunkedTraceReader> android_bugreport_parser;
-  std::unique_ptr<ChunkedTraceReader> systrace_trace_parser;
-  std::unique_ptr<ChunkedTraceReader> gzip_trace_parser;
-  std::unique_ptr<ChunkedTraceReader> perf_data_trace_tokenizer;
 
   std::unique_ptr<ProtoTraceParser> proto_trace_parser;
 

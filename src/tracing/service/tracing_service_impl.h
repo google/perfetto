@@ -32,6 +32,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/ext/base/periodic_task.h"
+#include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -211,7 +212,7 @@ class TracingServiceImpl : public TracingService {
     ~ConsumerEndpointImpl() override;
 
     void NotifyOnTracingDisabled(const std::string& error);
-    void NotifyCloneSnapshotTrigger();
+    void NotifyCloneSnapshotTrigger(const std::string& trigger_name);
 
     // TracingService::ConsumerEndpoint implementation.
     void EnableTracing(const TraceConfig&, base::ScopedFile) override;

@@ -124,7 +124,7 @@ The following table lists the available options when using `perfetto` in
 :    Specifies the path to a configuration file. In normal mode, some
      configurations may be encoded in a configuration protocol buffer.
      This file must comply with the protocol buffer schema defined in AOSP
-     [`trace_config.proto`](/protos/perfetto/config/data_source_config.proto).
+     [`trace_config.proto`](/protos/perfetto/config/trace_config.proto).
      You select and configure the data sources using the DataSourceConfig member
      of the TraceConfig, as defined in AOSP
      [`data_source_config.proto`](/protos/perfetto/config/data_source_config.proto).

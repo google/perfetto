@@ -81,9 +81,6 @@ KernelMemoryMapping& MappingTracker::CreateKernelMemoryMapping(
 UserMemoryMapping& MappingTracker::CreateUserMemoryMapping(
     UniquePid upid,
     CreateMappingParams params) {
-  // TODO(carlscab): Guess build_id if not provided. Some tools like simpleperf
-  // add a mapping file_name ->build_id that we could use here
-
   const AddressRange mapping_range = params.memory_range;
   std::unique_ptr<UserMemoryMapping> mapping(
       new UserMemoryMapping(context_, upid, std::move(params)));
@@ -162,6 +159,16 @@ void MappingTracker::AddJitRange(UniquePid upid,
         PERFETTO_CHECK(jit_range.Contains(entry.first));
         entry.second->SetJitCache(jit_cache);
       });
+}
+
+VirtualMemoryMapping* MappingTracker::GetDummyMapping() {
+  if (!dummy_mapping_) {
+    CreateMappingParams params;
+    params.memory_range =
+        AddressRange::FromStartAndSize(0, std::numeric_limits<uint64_t>::max());
+    dummy_mapping_ = &InternMemoryMapping(params);
+  }
+  return dummy_mapping_;
 }
 
 }  // namespace trace_processor

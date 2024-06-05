@@ -16,12 +16,15 @@
 
 #include "src/trace_processor/db/column/data_layer.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column/arrangement_overlay.h"
@@ -35,6 +38,7 @@
 #include "src/trace_processor/db/column/set_id_storage.h"
 #include "src/trace_processor/db/column/string_storage.h"
 #include "src/trace_processor/db/column/types.h"
+#include "src/trace_processor/db/compare.h"
 
 namespace perfetto::trace_processor::column {
 
@@ -109,6 +113,53 @@ std::unique_ptr<DataLayerChain> DataLayer::MakeChain(
       PERFETTO_FATAL(
           "Unexpected call to MakeChain(DataLayerChain). MakeChain() should be "
           "called instead");
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+Range DataLayerChain::OrderedIndexSearchValidated(
+    FilterOp op,
+    SqlValue value,
+    const OrderedIndices& indices) const {
+  auto lb = [&]() {
+    return static_cast<uint32_t>(std::distance(
+        indices.data,
+        std::lower_bound(indices.data, indices.data + indices.size, value,
+                         [this](uint32_t idx, const SqlValue& v) {
+                           return compare::SqlValueComparator(
+                               Get_AvoidUsingBecauseSlow(idx), v);
+                         })));
+  };
+  auto ub = [&]() {
+    return static_cast<uint32_t>(std::distance(
+        indices.data,
+        std::upper_bound(indices.data, indices.data + indices.size, value,
+                         [this](const SqlValue& v, uint32_t idx) {
+                           return compare::SqlValueComparator(
+                               v, Get_AvoidUsingBecauseSlow(idx));
+                         })));
+  };
+  switch (op) {
+    case FilterOp::kEq:
+      return {lb(), ub()};
+    case FilterOp::kLe:
+      return {0, ub()};
+    case FilterOp::kLt:
+      return {0, lb()};
+    case FilterOp::kGe:
+      return {lb(), indices.size};
+    case FilterOp::kGt:
+      return {ub(), indices.size};
+    case FilterOp::kIsNull:
+      PERFETTO_CHECK(value.is_null());
+      return {0, ub()};
+    case FilterOp::kIsNotNull:
+      PERFETTO_CHECK(value.is_null());
+      return {ub(), indices.size};
+    case FilterOp::kNe:
+    case FilterOp::kGlob:
+    case FilterOp::kRegex:
+      PERFETTO_FATAL("Wrong filtering operation");
   }
   PERFETTO_FATAL("For GCC");
 }

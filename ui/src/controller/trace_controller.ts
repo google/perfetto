@@ -29,11 +29,11 @@ import {pluginManager} from '../common/plugins';
 import {EngineMode, PendingDeeplinkState, ProfileType} from '../common/state';
 import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {
-  defaultTraceTime,
+  defaultTraceContext,
   globals,
   QuantizedLoad,
   ThreadDesc,
-  TraceTime,
+  TraceContext,
 } from '../frontend/globals';
 import {
   clearOverviewData,
@@ -41,7 +41,7 @@ import {
   publishMetricError,
   publishOverviewData,
   publishThreads,
-  publishTraceDetails,
+  publishTraceContext,
 } from '../frontend/publish';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Router} from '../frontend/router';
@@ -74,11 +74,6 @@ import {
   CpuProfileControllerArgs,
 } from './cpu_profile_controller';
 import {
-  FlamegraphController,
-  FlamegraphControllerArgs,
-  profileType,
-} from './flamegraph_controller';
-import {
   FlowEventsController,
   FlowEventsControllerArgs,
 } from './flow_events_controller';
@@ -100,6 +95,7 @@ import {
   TraceStream,
 } from '../core/trace_stream';
 import {decideTracks} from './track_decider';
+import {FlamegraphCache, profileType} from '../frontend/flamegraph_panel';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -281,10 +277,6 @@ export class TraceController extends Controller<States> {
           Child('cpuProfile', CpuProfileController, cpuProfileArgs),
         );
 
-        const flamegraphArgs: FlamegraphControllerArgs = {engine};
-        childControllers.push(
-          Child('flamegraph', FlamegraphController, flamegraphArgs),
-        );
         childControllers.push(
           Child('cpu_aggregation', CpuAggregationController, {
             engine,
@@ -351,6 +343,10 @@ export class TraceController extends Controller<States> {
   onDestroy() {
     pluginManager.onTraceClose();
     globals.engines.delete(this.engineId);
+
+    // Invalidate the flamegraph cache.
+    // TODO(stevegolton): migrate this to the new system when it's ready.
+    globals.areaFlamegraphCache = new FlamegraphCache('area');
   }
 
   private async loadTrace(): Promise<EngineMode> {
@@ -452,7 +448,7 @@ export class TraceController extends Controller<States> {
     const traceUuid = await this.cacheCurrentTrace();
 
     const traceDetails = await getTraceTimeDetails(this.engine);
-    publishTraceDetails(traceDetails);
+    publishTraceContext(traceDetails);
 
     const shownJsonWarning =
       window.localStorage.getItem(SHOWN_JSON_WARNING_KEY) !== null;
@@ -677,7 +673,7 @@ export class TraceController extends Controller<States> {
       }
       globals.setLegacySelection(
         {
-          kind: 'CHROME_SLICE',
+          kind: 'SLICE',
           id: row.id,
           trackKey,
           table: 'slice',
@@ -1025,6 +1021,9 @@ export class TraceController extends Controller<States> {
     this.updateStatus('Creating slice summaries');
     await engine.query(`include perfetto module viz.summary.slices;`);
 
+    this.updateStatus('Creating counter summaries');
+    await engine.query(`include perfetto module viz.summary.counters;`);
+
     this.updateStatus('Creating thread summaries');
     await engine.query(`include perfetto module viz.summary.threads;`);
 
@@ -1100,8 +1099,8 @@ async function computeVisibleTime(
   // if we have non-default visible state, update the visible time to it
   const previousVisibleState = globals.stateVisibleTime();
   const defaultTraceSpan = new TimeSpan(
-    defaultTraceTime.start,
-    defaultTraceTime.end,
+    defaultTraceContext.start,
+    defaultTraceContext.end,
   );
   if (
     !(
@@ -1122,7 +1121,7 @@ async function computeVisibleTime(
   let visibleEnd = traceEnd;
 
   // compare start and end with metadata computed by the trace processor
-  const mdTime = await engine.getTracingMetadataTimeBounds();
+  const mdTime = await getTracingMetadataTimeBounds(engine);
   // make sure the bounds hold
   if (Time.max(visibleStart, mdTime.start) < Time.min(visibleEnd, mdTime.end)) {
     visibleStart = Time.max(visibleStart, mdTime.start);
@@ -1145,8 +1144,8 @@ async function computeVisibleTime(
   return HighPrecisionTimeSpan.fromTime(visibleStart, visibleEnd);
 }
 
-async function getTraceTimeDetails(engine: EngineBase): Promise<TraceTime> {
-  const traceTime = await engine.getTraceTimeBounds();
+async function getTraceTimeDetails(engine: Engine): Promise<TraceContext> {
+  const traceTime = await getTraceTimeBounds(engine);
 
   // Find the first REALTIME or REALTIME_COARSE clock snapshot.
   // Prioritize REALTIME over REALTIME_COARSE.
@@ -1216,5 +1215,67 @@ async function getTraceTimeDetails(engine: EngineBase): Promise<TraceTime> {
     realtimeOffset,
     utcOffset,
     traceTzOffset,
+    cpus: await getCpus(engine),
+    gpuCount: await getNumberOfGpus(engine),
   };
+}
+
+async function getTraceTimeBounds(
+  engine: Engine,
+): Promise<Span<time, duration>> {
+  const result = await engine.query(
+    `select start_ts as startTs, end_ts as endTs from trace_bounds`,
+  );
+  const bounds = result.firstRow({
+    startTs: LONG,
+    endTs: LONG,
+  });
+  return new TimeSpan(Time.fromRaw(bounds.startTs), Time.fromRaw(bounds.endTs));
+}
+
+// TODO(hjd): When streaming must invalidate this somehow.
+async function getCpus(engine: Engine): Promise<number[]> {
+  const cpus = [];
+  const queryRes = await engine.query(
+    'select distinct(cpu) as cpu from sched order by cpu;',
+  );
+  for (const it = queryRes.iter({cpu: NUM}); it.valid(); it.next()) {
+    cpus.push(it.cpu);
+  }
+  return cpus;
+}
+
+async function getNumberOfGpus(engine: Engine): Promise<number> {
+  const result = await engine.query(`
+    select count(distinct(gpu_id)) as gpuCount
+    from gpu_counter_track
+    where name = 'gpufreq';
+  `);
+  return result.firstRow({gpuCount: NUM}).gpuCount;
+}
+
+async function getTracingMetadataTimeBounds(
+  engine: Engine,
+): Promise<Span<time, duration>> {
+  const queryRes = await engine.query(`select
+       name,
+       int_value as intValue
+       from metadata
+       where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
+       or name = 'all_data_source_started_ns'`);
+  let startBound = Time.MIN;
+  let endBound = Time.MAX;
+  const it = queryRes.iter({name: STR, intValue: LONG_NULL});
+  for (; it.valid(); it.next()) {
+    const columnName = it.name;
+    const timestamp = it.intValue;
+    if (timestamp === null) continue;
+    if (columnName === 'tracing_disabled_ns') {
+      endBound = Time.min(endBound, Time.fromRaw(timestamp));
+    } else {
+      startBound = Time.max(startBound, Time.fromRaw(timestamp));
+    }
+  }
+
+  return new TimeSpan(startBound, endBound);
 }

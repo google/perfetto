@@ -73,14 +73,14 @@ class CpuFreqTrack implements Track {
 
   async onCreate() {
     if (this.config.idleTrackId === undefined) {
-      await this.engine.execute(`
+      await this.engine.query(`
         create view raw_freq_idle_${this.trackUuid} as
         select ts, dur, value as freqValue, -1 as idleValue
         from experimental_counter_dur c
         where track_id = ${this.config.freqTrackId}
       `);
     } else {
-      await this.engine.execute(`
+      await this.engine.query(`
         create view raw_freq_${this.trackUuid} as
         select ts, dur, value as freqValue
         from experimental_counter_dur c
@@ -99,7 +99,7 @@ class CpuFreqTrack implements Track {
       `);
     }
 
-    await this.engine.execute(`
+    await this.engine.query(`
       create virtual table cpu_freq_${this.trackUuid}
       using __intrinsic_counter_mipmap((
         select ts, freqValue as value
@@ -119,13 +119,15 @@ class CpuFreqTrack implements Track {
   }
 
   async onDestroy(): Promise<void> {
-    if (this.engine.isAlive) {
-      await this.engine.query(`drop table cpu_freq_${this.trackUuid}`);
-      await this.engine.query(`drop table cpu_idle_${this.trackUuid}`);
-      await this.engine.query(`drop table raw_freq_idle_${this.trackUuid}`);
-      await this.engine.query(`drop view if exists raw_freq_${this.trackUuid}`);
-      await this.engine.query(`drop view if exists raw_idle_${this.trackUuid}`);
-    }
+    await this.engine.tryQuery(`drop table cpu_freq_${this.trackUuid}`);
+    await this.engine.tryQuery(`drop table cpu_idle_${this.trackUuid}`);
+    await this.engine.tryQuery(`drop table raw_freq_idle_${this.trackUuid}`);
+    await this.engine.tryQuery(
+      `drop view if exists raw_freq_${this.trackUuid}`,
+    );
+    await this.engine.tryQuery(
+      `drop view if exists raw_idle_${this.trackUuid}`,
+    );
   }
 
   async onBoundsChange(
@@ -403,12 +405,13 @@ class CpuFreq implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
 
-    const cpus = await engine.getCpus();
+    const cpus = ctx.trace.cpus;
 
     const maxCpuFreqResult = await engine.query(`
       select ifnull(max(value), 0) as freq
       from counter c
       join cpu_counter_track t on c.track_id = t.id
+      join _counter_track_summary s on t.id = s.id
       where name = 'cpufreq';
     `);
     const maxCpuFreq = maxCpuFreqResult.firstRow({freq: NUM}).freq;
@@ -426,6 +429,7 @@ class CpuFreq implements Plugin {
             limit 1
           ) as cpuIdleId
         from cpu_counter_track
+        join _counter_track_summary using (id)
         where name = 'cpufreq' and cpu = ${cpu}
         limit 1;
       `);

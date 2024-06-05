@@ -17,8 +17,9 @@
 #include "src/trace_processor/importers/proto/winscope/winscope_module.h"
 #include "protos/perfetto/trace/android/winscope_extensions.pbzero.h"
 #include "protos/perfetto/trace/android/winscope_extensions_impl.pbzero.h"
+#include "src/trace_processor/importers/proto/args_parser.h"
+#include "src/trace_processor/importers/proto/winscope/viewcapture_args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
-#include "src/trace_processor/importers/proto/winscope/winscope_args_parser.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -76,13 +77,15 @@ void WinscopeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
           decoder.protolog_viewer_config());
       return;
     case TracePacket::kWinscopeExtensionsFieldNumber:
-      ParseWinscopeExtensionsData(decoder.winscope_extensions(), timestamp);
+      ParseWinscopeExtensionsData(decoder.winscope_extensions(), timestamp,
+                                  data);
       return;
   }
 }
 
 void WinscopeModule::ParseWinscopeExtensionsData(protozero::ConstBytes blob,
-                                                 int64_t timestamp) {
+                                                 int64_t timestamp,
+                                                 const TracePacketData& data) {
   WinscopeExtensionsImpl::Decoder decoder(blob.data, blob.size);
 
   if (auto field =
@@ -97,6 +100,11 @@ void WinscopeModule::ParseWinscopeExtensionsData(protozero::ConstBytes blob,
                  WinscopeExtensionsImpl::kInputmethodServiceFieldNumber);
              field.valid()) {
     ParseInputMethodServiceData(timestamp, field.as_bytes());
+  } else if (field =
+                 decoder.Get(WinscopeExtensionsImpl::kViewcaptureFieldNumber);
+             field.valid()) {
+    ParseViewCaptureData(timestamp, field.as_bytes(),
+                         data.sequence_state.get());
   }
 }
 
@@ -109,7 +117,7 @@ void WinscopeModule::ParseInputMethodClientsData(int64_t timestamp,
 
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(rowId);
-  WinscopeArgsParser writer(inserter, *context_->storage.get());
+  ArgsParser writer(timestamp, inserter, *context_->storage.get());
   base::Status status =
       args_parser_.ParseMessage(blob, kInputMethodClientsProtoName,
                                 nullptr /* parse all fields */, writer);
@@ -130,7 +138,7 @@ void WinscopeModule::ParseInputMethodManagerServiceData(
 
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(rowId);
-  WinscopeArgsParser writer(inserter, *context_->storage.get());
+  ArgsParser writer(timestamp, inserter, *context_->storage.get());
   base::Status status =
       args_parser_.ParseMessage(blob, kInputMethodManagerServiceProtoName,
                                 nullptr /* parse all fields */, writer);
@@ -149,13 +157,32 @@ void WinscopeModule::ParseInputMethodServiceData(int64_t timestamp,
 
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(rowId);
-  WinscopeArgsParser writer(inserter, *context_->storage.get());
+  ArgsParser writer(timestamp, inserter, *context_->storage.get());
   base::Status status =
       args_parser_.ParseMessage(blob, kInputMethodServiceProtoName,
                                 nullptr /* parse all fields */, writer);
   if (!status.ok()) {
     context_->storage->IncrementStats(
         stats::winscope_inputmethod_service_parse_errors);
+  }
+}
+
+void WinscopeModule::ParseViewCaptureData(
+    int64_t timestamp,
+    protozero::ConstBytes blob,
+    PacketSequenceStateGeneration* sequence_state) {
+  tables::ViewCaptureTable::Row row;
+  row.ts = timestamp;
+  auto rowId = context_->storage->mutable_viewcapture_table()->Insert(row).id;
+
+  ArgsTracker tracker(context_);
+  auto inserter = tracker.AddArgsTo(rowId);
+  ViewCaptureArgsParser writer(timestamp, inserter, *context_->storage.get(),
+                               sequence_state);
+  base::Status status = args_parser_.ParseMessage(
+      blob, kViewCaptureProtoName, nullptr /* parse all fields */, writer);
+  if (!status.ok()) {
+    context_->storage->IncrementStats(stats::winscope_viewcapture_parse_errors);
   }
 }
 

@@ -154,10 +154,29 @@ class ArgsTracker {
         context_->storage->mutable_surfaceflinger_transactions_table(), id);
   }
 
+  BoundInserter AddArgsTo(tables::ViewCaptureTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_viewcapture_table(), id);
+  }
+
   BoundInserter AddArgsTo(tables::WindowManagerShellTransitionsTable::Id id) {
     return AddArgsTo(
         context_->storage->mutable_window_manager_shell_transitions_table(),
         id);
+  }
+
+  BoundInserter AddArgsTo(tables::AndroidKeyEventsTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_android_key_events_table(),
+                     id);
+  }
+
+  BoundInserter AddArgsTo(tables::AndroidMotionEventsTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_android_motion_events_table(),
+                     id);
+  }
+
+  BoundInserter AddArgsTo(tables::AndroidInputEventDispatchTable::Id id) {
+    return AddArgsTo(
+        context_->storage->mutable_android_input_event_dispatch_table(), id);
   }
 
   BoundInserter AddArgsTo(MetadataId id) {

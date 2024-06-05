@@ -503,8 +503,8 @@ class PERFETTO_EXPORT_COMPONENT StartupTracingSession {
   virtual void AbortBlocking() = 0;
 };
 
-PERFETTO_ALWAYS_INLINE inline std::unique_ptr<TracingSession>
-Tracing::NewTrace(BackendType backend) {
+PERFETTO_ALWAYS_INLINE inline std::unique_ptr<TracingSession> Tracing::NewTrace(
+    BackendType backend) {
   // This code is inlined to allow dead-code elimination for unused consumer
   // implementation. The logic behind it is the following:
   // Nothing other than the code below references the GetInstance() method

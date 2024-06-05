@@ -67,6 +67,11 @@ class ModuleStateManager {
  public:
   // Per-vtab state. The pointer to this class should be stored in the Vtab.
   struct PerVtabState {
+   private:
+    // The below fields should only be accessed by the manager, use GetState to
+    // access the state from outside this class.
+    friend class ModuleStateManager<Module>;
+
     ModuleStateManager* manager;
     bool disconnected = false;
     std::string table_name;

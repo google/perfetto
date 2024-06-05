@@ -14,14 +14,10 @@
 
 import m from 'mithril';
 
-import {Time} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {CounterDetailsPanel} from '../../frontend/counter_panel';
-import {globals} from '../../frontend/globals';
 import {
   NUM_NULL,
   STR_NULL,
-  LONG,
   LONG_NULL,
   NUM,
   Plugin,
@@ -31,11 +27,8 @@ import {
   STR,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
-import {
-  BaseCounterTrack,
-  BaseCounterTrackArgs,
-  CounterOptions,
-} from '../../frontend/base_counter_track';
+import {CounterOptions} from '../../frontend/base_counter_track';
+import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
@@ -112,82 +105,6 @@ function getDefaultCounterOptions(name: string): Partial<CounterOptions> {
   return options;
 }
 
-interface TraceProcessorCounterTrackArgs extends BaseCounterTrackArgs {
-  trackId: number;
-  rootTable?: string;
-}
-
-export class TraceProcessorCounterTrack extends BaseCounterTrack {
-  private trackId: number;
-  private rootTable: string;
-
-  constructor(args: TraceProcessorCounterTrackArgs) {
-    super(args);
-    this.trackId = args.trackId;
-    this.rootTable = args.rootTable ?? 'counter';
-  }
-
-  getSqlSource() {
-    return `select ts, value from ${this.rootTable} where track_id = ${this.trackId}`;
-  }
-
-  onMouseClick({x}: {x: number}): boolean {
-    const {visibleTimeScale} = globals.timeline;
-    const time = visibleTimeScale.pxToHpTime(x).toTime('floor');
-
-    const query = `
-      select
-        id,
-        ts as leftTs,
-        (
-          select ts
-          from ${this.rootTable}
-          where
-            track_id = ${this.trackId}
-            and ts >= ${time}
-          order by ts
-          limit 1
-        ) as rightTs
-      from ${this.rootTable}
-      where
-        track_id = ${this.trackId}
-        and ts < ${time}
-      order by ts DESC
-      limit 1
-    `;
-
-    this.engine.query(query).then((result) => {
-      const it = result.iter({
-        id: NUM,
-        leftTs: LONG,
-        rightTs: LONG_NULL,
-      });
-      if (!it.valid()) {
-        return;
-      }
-      const trackKey = this.trackKey;
-      const id = it.id;
-      const leftTs = Time.fromRaw(it.leftTs);
-
-      // TODO(stevegolton): Don't try to guess times and durations here, make it
-      // obvious to the user that this counter sample has no duration as it's
-      // the last one in the series
-      const rightTs = Time.fromRaw(it.rightTs ?? leftTs);
-
-      globals.makeSelection(
-        Actions.selectCounter({
-          leftTs,
-          rightTs,
-          id,
-          trackKey,
-        }),
-      );
-    });
-
-    return true;
-  }
-}
-
 class CounterPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addCounterTracks(ctx);
@@ -214,10 +131,12 @@ class CounterPlugin implements Plugin {
       from (
         select name, id, unit
         from counter_track
+        join _counter_track_summary using (id)
         where type = 'counter_track'
         union
         select name, id, unit
         from gpu_counter_track
+        join _counter_track_summary using (id)
         where name != 'gpufreq'
       )
       order by name
@@ -259,6 +178,7 @@ class CounterPlugin implements Plugin {
     const cpuFreqLimitCounterTracksSql = `
       select name, id
       from cpu_counter_track
+      join _counter_track_summary using (id)
       where name glob "Cpu * Freq Limit"
       order by name asc
     `;
@@ -276,6 +196,7 @@ class CounterPlugin implements Plugin {
     const addCpuPerfCounterTracksSql = `
       select printf("Cpu %u %s", cpu, name) as name, id
       from perf_counter_track as pct
+      join _counter_track_summary using (id)
       order by perf_session_id asc, pct.name asc, cpu asc
     `;
     this.addCpuCounterTracks(ctx, addCpuPerfCounterTracksSql);
@@ -324,6 +245,7 @@ class CounterPlugin implements Plugin {
         thread.start_ts as startTs,
         thread.end_ts as endTs
       from thread_counter_track
+      join _counter_track_summary using (id)
       join thread using(utid)
       where thread_counter_track.name != 'thread_time'
     `);
@@ -379,6 +301,7 @@ class CounterPlugin implements Plugin {
       process.pid,
       process.name as processName
     from process_counter_track
+    join _counter_track_summary using (id)
     join process using(upid);
   `);
     const it = result.iter({
@@ -421,17 +344,18 @@ class CounterPlugin implements Plugin {
 
   private async addGpuFrequencyTracks(ctx: PluginContextTrace) {
     const engine = ctx.engine;
-    const numGpus = await engine.getNumberOfGpus();
+    const numGpus = ctx.trace.gpuCount;
 
     for (let gpu = 0; gpu < numGpus; gpu++) {
       // Only add a gpu freq track if we have
       // gpu freq data.
       const freqExistsResult = await engine.query(`
-      select id
-      from gpu_counter_track
-      where name = 'gpufreq' and gpu_id = ${gpu}
-      limit 1;
-    `);
+        select id
+        from gpu_counter_track
+        join _counter_track_summary using (id)
+        where name = 'gpufreq' and gpu_id = ${gpu}
+        limit 1;
+      `);
       if (freqExistsResult.numRows() > 0) {
         const trackId = freqExistsResult.firstRow({id: NUM}).id;
         const uri = `perfetto.Counter#gpu_freq${gpu}`;

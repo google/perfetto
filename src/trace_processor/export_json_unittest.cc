@@ -27,8 +27,11 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
@@ -76,9 +79,13 @@ class ExportJsonTest : public ::testing::Test {
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.event_tracker.reset(new EventTracker(&context_));
     context_.track_tracker.reset(new TrackTracker(&context_));
+    context_.machine_tracker.reset(new MachineTracker(&context_, 0));
+    context_.cpu_tracker.reset(new CpuTracker(&context_));
     context_.metadata_tracker.reset(
         new MetadataTracker(context_.storage.get()));
     context_.process_tracker.reset(new ProcessTracker(&context_));
+    context_.process_track_translation_table.reset(
+        new ProcessTrackTranslationTable(context_.storage.get()));
   }
 
   std::string ToJson(ArgumentFilterPredicate argument_filter = nullptr,
@@ -391,10 +398,11 @@ TEST_F(ExportJsonTest, StorageWithChromeMetadata) {
 
   TraceStorage* storage = context_.storage.get();
 
-  RawId id =
-      storage->mutable_raw_table()
-          ->Insert({0, storage->InternString("chrome_event.metadata"), 0, 0})
-          .id;
+  auto ucpu = context_.cpu_tracker->GetOrCreateCpu(0);
+  RawId id = storage->mutable_raw_table()
+                 ->Insert({0, storage->InternString("chrome_event.metadata"), 0,
+                           0, 0, ucpu})
+                 .id;
 
   StringId name1_id = storage->InternString(base::StringView(kName1));
   StringId name2_id = storage->InternString(base::StringView(kName2));
@@ -1388,9 +1396,10 @@ TEST_F(ExportJsonTest, RawEvent) {
   UniquePid upid = context_.process_tracker->GetOrCreateProcess(kProcessID);
   context_.storage->mutable_thread_table()->mutable_upid()->Set(utid, upid);
 
+  auto ucpu = context_.cpu_tracker->GetOrCreateCpu(0);
   auto id_and_row = storage->mutable_raw_table()->Insert(
-      {kTimestamp, storage->InternString("track_event.legacy_event"), /*cpu=*/0,
-       utid});
+      {kTimestamp, storage->InternString("track_event.legacy_event"), utid, 0,
+       0, ucpu});
   auto inserter = context_.args_tracker->AddArgsTo(id_and_row.id);
 
   auto add_arg = [&](const char* key, Variadic value) {

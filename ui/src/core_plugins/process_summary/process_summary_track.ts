@@ -171,13 +171,11 @@ export class ProcessSummaryTrack implements Track {
   }
 
   async onDestroy(): Promise<void> {
-    if (this.engine.isAlive) {
-      await this.engine.query(
-        `drop table if exists ${this.tableName(
-          'window',
-        )}; drop table if exists ${this.tableName('span')}`,
-      );
-    }
+    await this.engine.tryQuery(
+      `drop table if exists ${this.tableName(
+        'window',
+      )}; drop table if exists ${this.tableName('span')}`,
+    );
     this.fetcher.dispose();
   }
 

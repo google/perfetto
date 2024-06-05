@@ -19,3 +19,8 @@
 export function exists<T>(value: T): value is NonNullable<T> {
   return value !== undefined && value !== null;
 }
+
+// Generic result type - similar to Rust's Result<T, E>
+export type Result<T, E = {}> =
+  | {success: true; result: T}
+  | {success: false; error: E};

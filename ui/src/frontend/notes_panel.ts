@@ -57,11 +57,8 @@ function getStartTimestamp(note: Note | AreaNote) {
 export class NotesPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = false;
-  readonly trackKey = undefined;
 
   hoveredX: null | number = null;
-
-  constructor(readonly key: string) {}
 
   render(): m.Children {
     const allCollapsed = Object.values(globals.state.trackGroups).every(

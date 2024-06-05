@@ -14,12 +14,51 @@
 
 import m from 'mithril';
 
-import {QueryResponse, runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
 import {Engine} from '../trace_processor/engine';
 
 import {globals} from './globals';
 import {createPage} from './pages';
+import {QueryResult, UNKNOWN} from '../trace_processor/query_result';
+
+function getEngine(name: string): Engine | undefined {
+  const currentEngine = globals.getCurrentEngine();
+  if (currentEngine === undefined) return undefined;
+  const engineId = currentEngine.id;
+  return globals.engines.get(engineId)?.getProxy(name);
+}
+
+/**
+ * Extracts and copies fields from a source object based on the keys present in
+ * a spec object, effectively creating a new object that includes only the
+ * fields that are present in the spec object.
+ *
+ * @template S - A type representing the spec object, a subset of T.
+ * @template T - A type representing the source object, a superset of S.
+ *
+ * @param {T} source - The source object containing the full set of properties.
+ * @param {S} spec - The specification object whose keys determine which fields
+ * should be extracted from the source object.
+ *
+ * @returns {S} A new object containing only the fields from the source object
+ * that are also present in the specification object.
+ *
+ * @example
+ * const fullObject = { foo: 123, bar: '123', baz: true };
+ * const spec = { foo: 0, bar: '' };
+ * const result = pickFields(fullObject, spec);
+ * console.log(result); // Output: { foo: 123, bar: '123' }
+ */
+function pickFields<S extends Record<string, unknown>, T extends S>(
+  source: T,
+  spec: S,
+): S {
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(spec)) {
+    result[key] = source[key];
+  }
+  return result as S;
+}
 
 interface StatsSectionAttrs {
   title: string;
@@ -29,58 +68,71 @@ interface StatsSectionAttrs {
   queryId: string;
 }
 
-function getEngine(name: string): Engine | undefined {
-  const currentEngine = globals.getCurrentEngine();
-  if (currentEngine === undefined) return undefined;
-  const engineId = currentEngine.id;
-  return globals.engines.get(engineId)?.getProxy(name);
-}
+const statsSpec = {
+  name: UNKNOWN,
+  value: UNKNOWN,
+  description: UNKNOWN,
+  idx: UNKNOWN,
+  severity: UNKNOWN,
+  source: UNKNOWN,
+};
+
+type StatsSectionRow = typeof statsSpec;
 
 // Generic class that generate a <section> + <table> from the stats table.
 // The caller defines the query constraint, title and styling.
 // Used for errors, data losses and debugging sections.
 class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
-  private queryResponse?: QueryResponse;
+  private data?: StatsSectionRow[];
 
   constructor({attrs}: m.CVnode<StatsSectionAttrs>) {
     const engine = getEngine('StatsSection');
     if (engine === undefined) {
       return;
     }
-    const query = `select name, value, cast(ifnull(idx, '') as text) as idx,
-              description, severity, source from stats
-              where ${attrs.sqlConstraints || '1=1'}
-              order by name, idx`;
-    runQuery(query, engine).then((resp: QueryResponse) => {
-      this.queryResponse = resp;
+    const query = `
+      select
+        name,
+        value,
+        cast(ifnull(idx, '') as text) as idx,
+        description,
+        severity,
+        source from stats
+      where ${attrs.sqlConstraints || '1=1'}
+      order by name, idx
+    `;
+
+    engine.query(query).then((resp) => {
+      const data: StatsSectionRow[] = [];
+      const it = resp.iter(statsSpec);
+      for (; it.valid(); it.next()) {
+        data.push(pickFields(it, statsSpec));
+      }
+      this.data = data;
+
       raf.scheduleFullRedraw();
     });
   }
 
   view({attrs}: m.CVnode<StatsSectionAttrs>) {
-    const resp = this.queryResponse;
-    if (resp === undefined || resp.totalRowCount === 0) {
+    const data = this.data;
+    if (data === undefined || data.length === 0) {
       return m('');
     }
-    if (resp.error) throw new Error(resp.error);
 
-    const tableRows = [];
-    for (const row of resp.rows) {
+    const tableRows = data.map((row) => {
       const help = [];
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (row.description) {
+      if (Boolean(row.description)) {
         help.push(m('i.material-icons.contextual-help', 'help_outline'));
       }
       const idx = row.idx !== '' ? `[${row.idx}]` : '';
-      tableRows.push(
-        m(
-          'tr',
-          m('td.name', {title: row.description}, `${row.name}${idx}`, help),
-          m('td', `${row.value}`),
-          m('td', `${row.severity} (${row.source})`),
-        ),
+      return m(
+        'tr',
+        m('td.name', {title: row.description}, `${row.name}${idx}`, help),
+        m('td', `${row.value}`),
+        m('td', `${row.severity} (${row.source})`),
       );
-    }
+    });
 
     return m(
       `section${attrs.cssClass}`,
@@ -107,49 +159,63 @@ class MetricErrors implements m.ClassComponent {
   }
 }
 
+const traceMetadataRowSpec = {name: UNKNOWN, value: UNKNOWN};
+
+type TraceMetadataRow = typeof traceMetadataRowSpec;
+
 class TraceMetadata implements m.ClassComponent {
-  private queryResponse?: QueryResponse;
+  private data?: TraceMetadataRow[];
 
   constructor() {
     const engine = getEngine('StatsSection');
     if (engine === undefined) {
       return;
     }
-    const query = `with 
-          metadata_with_priorities as (select
-            name, ifnull(str_value, cast(int_value as text)) as value,
-            name in (
-               "trace_size_bytes", 
-               "cr-os-arch",
-               "cr-os-name",
-               "cr-os-version",
-               "cr-physical-memory",
-               "cr-product-version",
-               "cr-hardware-class"
-            ) as priority 
-            from metadata
-          )
-          select name, value
-          from metadata_with_priorities 
-          order by priority desc, name`;
-    runQuery(query, engine).then((resp: QueryResponse) => {
-      this.queryResponse = resp;
+    const query = `
+      with metadata_with_priorities as (
+        select
+          name,
+          ifnull(str_value, cast(int_value as text)) as value,
+          name in (
+            "trace_size_bytes", 
+            "cr-os-arch",
+            "cr-os-name",
+            "cr-os-version",
+            "cr-physical-memory",
+            "cr-product-version",
+            "cr-hardware-class"
+          ) as priority 
+        from metadata
+      )
+      select
+        name,
+        value
+      from metadata_with_priorities 
+      order by
+        priority desc,
+        name
+    `;
+
+    engine.query(query).then((resp: QueryResult) => {
+      const tableRows: TraceMetadataRow[] = [];
+      const it = resp.iter(traceMetadataRowSpec);
+      for (; it.valid(); it.next()) {
+        tableRows.push(pickFields(it, traceMetadataRowSpec));
+      }
+      this.data = tableRows;
       raf.scheduleFullRedraw();
     });
   }
 
   view() {
-    const resp = this.queryResponse;
-    if (resp === undefined || resp.totalRowCount === 0) {
+    const data = this.data;
+    if (data === undefined || data.length === 0) {
       return m('');
     }
 
-    const tableRows = [];
-    for (const row of resp.rows) {
-      tableRows.push(
-        m('tr', m('td.name', `${row.name}`), m('td', `${row.value}`)),
-      );
-    }
+    const tableRows = data.map((row) => {
+      return m('tr', m('td.name', `${row.name}`), m('td', `${row.value}`));
+    });
 
     return m(
       'section',
@@ -163,40 +229,68 @@ class TraceMetadata implements m.ClassComponent {
   }
 }
 
+const androidGameInterventionRowSpec = {
+  package_name: UNKNOWN,
+  uid: UNKNOWN,
+  current_mode: UNKNOWN,
+  standard_mode_supported: UNKNOWN,
+  standard_mode_downscale: UNKNOWN,
+  standard_mode_use_angle: UNKNOWN,
+  standard_mode_fps: UNKNOWN,
+  perf_mode_supported: UNKNOWN,
+  perf_mode_downscale: UNKNOWN,
+  perf_mode_use_angle: UNKNOWN,
+  perf_mode_fps: UNKNOWN,
+  battery_mode_supported: UNKNOWN,
+  battery_mode_downscale: UNKNOWN,
+  battery_mode_use_angle: UNKNOWN,
+  battery_mode_fps: UNKNOWN,
+};
+
+type AndroidGameInterventionRow = typeof androidGameInterventionRowSpec;
+
 class AndroidGameInterventionList implements m.ClassComponent {
-  private queryResponse?: QueryResponse;
+  private data?: AndroidGameInterventionRow[];
 
   constructor() {
     const engine = getEngine('StatsSection');
     if (engine === undefined) {
       return;
     }
-    const query = `select
-                package_name,
-                uid,
-                current_mode,
-                standard_mode_supported,
-                standard_mode_downscale,
-                standard_mode_use_angle,
-                standard_mode_fps,
-                perf_mode_supported,
-                perf_mode_downscale,
-                perf_mode_use_angle,
-                perf_mode_fps,
-                battery_mode_supported,
-                battery_mode_downscale,
-                battery_mode_use_angle,
-                battery_mode_fps
-                from android_game_intervention_list`;
-    runQuery(query, engine).then((resp: QueryResponse) => {
-      this.queryResponse = resp;
+    const query = `
+      select
+        package_name,
+        uid,
+        current_mode,
+        standard_mode_supported,
+        standard_mode_downscale,
+        standard_mode_use_angle,
+        standard_mode_fps,
+        perf_mode_supported,
+        perf_mode_downscale,
+        perf_mode_use_angle,
+        perf_mode_fps,
+        battery_mode_supported,
+        battery_mode_downscale,
+        battery_mode_use_angle,
+        battery_mode_fps
+      from android_game_intervention_list
+    `;
+
+    engine.query(query).then((resp) => {
+      const data: AndroidGameInterventionRow[] = [];
+      const it = resp.iter(androidGameInterventionRowSpec);
+      for (; it.valid(); it.next()) {
+        data.push(pickFields(it, androidGameInterventionRowSpec));
+      }
+      this.data = data;
       raf.scheduleFullRedraw();
     });
   }
 
   view() {
-    const resp = this.queryResponse;
-    if (resp === undefined || resp.totalRowCount === 0) {
+    const data = this.data;
+    if (data === undefined || data.length === 0) {
       return m('');
     }
 
@@ -204,7 +298,8 @@ class AndroidGameInterventionList implements m.ClassComponent {
     let standardInterventions = '';
     let perfInterventions = '';
     let batteryInterventions = '';
-    for (const row of resp.rows) {
+
+    for (const row of data) {
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (row.standard_mode_supported) {
         standardInterventions = `angle=${row.standard_mode_use_angle},downscale=${row.standard_mode_downscale},fps=${row.standard_mode_fps}`;
@@ -268,46 +363,68 @@ class AndroidGameInterventionList implements m.ClassComponent {
   }
 }
 
-class PackageList implements m.ClassComponent {
-  private queryResponse?: QueryResponse;
+const packageDataSpec = {
+  packageName: UNKNOWN,
+  versionCode: UNKNOWN,
+  debuggable: UNKNOWN,
+  profileableFromShell: UNKNOWN,
+};
+
+type PackageData = typeof packageDataSpec;
+
+class PackageListSection implements m.ClassComponent {
+  private packageList?: PackageData[];
 
   constructor() {
     const engine = getEngine('StatsSection');
     if (engine === undefined) {
       return;
     }
-    const query = `select package_name, version_code, debuggable,
-                profileable_from_shell from package_list`;
-    runQuery(query, engine).then((resp: QueryResponse) => {
-      this.queryResponse = resp;
-      raf.scheduleFullRedraw();
-    });
+    this.loadData(engine);
+  }
+
+  private async loadData(engine: Engine): Promise<void> {
+    const query = `
+      select
+        package_name as packageName,
+        version_code as versionCode,
+        debuggable,
+        profileable_from_shell as profileableFromShell
+      from package_list
+    `;
+
+    const packageList: PackageData[] = [];
+    const result = await engine.query(query);
+    const it = result.iter(packageDataSpec);
+    for (; it.valid(); it.next()) {
+      packageList.push(pickFields(it, packageDataSpec));
+    }
+
+    this.packageList = packageList;
+    raf.scheduleFullRedraw();
   }
 
   view() {
-    const resp = this.queryResponse;
-    if (resp === undefined || resp.totalRowCount === 0) {
-      return m('');
+    const packageList = this.packageList;
+    if (packageList === undefined || packageList.length === 0) {
+      return undefined;
     }
 
-    const tableRows = [];
-    for (const row of resp.rows) {
-      tableRows.push(
+    const tableRows = packageList.map((it) => {
+      return m(
+        'tr',
+        m('td.name', `${it.packageName}`),
+        m('td', `${it.versionCode}`),
+        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
         m(
-          'tr',
-          m('td.name', `${row.package_name}`),
-          m('td', `${row.version_code}`),
-          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-          m(
-            'td',
-            `${row.debuggable ? 'debuggable' : ''} ${
-              row.profileable_from_shell ? 'profileable' : ''
-            }`,
-          ),
-          /* eslint-enable */
+          'td',
+          `${it.debuggable ? 'debuggable' : ''} ${
+            it.profileableFromShell ? 'profileable' : ''
+          }`,
         ),
+        /* eslint-enable */
       );
-    }
+    });
 
     return m(
       'section',
@@ -348,7 +465,7 @@ export const TraceInfoPage = createPage({
         sqlConstraints: `severity = 'data_loss' and value > 0`,
       }),
       m(TraceMetadata),
-      m(PackageList),
+      m(PackageListSection),
       m(AndroidGameInterventionList),
       m(StatsSection, {
         queryId: 'info_all',

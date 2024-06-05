@@ -45,95 +45,116 @@ void ProcessThreadTimeline::Sort() {
   mode_ = Mode::kRead;
 }
 
+const ProcessThreadTimeline::Event* ProcessThreadTimeline::GetOpeningEvent(
+    uint64_t ts,
+    int32_t pid) const {
+  PERFETTO_DCHECK(mode_ == Mode::kRead);
+
+  auto prev_open = QueryLeftMax(ts, pid, Event::Type::kOpen);
+  auto prev_close = QueryLeftMax(ts, pid, Event::Type::kClose);
+
+  // If there is no open event before ts, it means pid never started.
+  if (!prev_open) {
+    return nullptr;
+  }
+
+  // There is a close event that is strictly between the open event and ts, then
+  // the pid is considered free.
+  //
+  //    |---------|  ^  : pid is free
+  // ^  |---------|  ^  : pid is free
+  //    ^---------|     : pid is active
+  //    |---------^     : pid is active
+  //    |----^----|     : pid is active
+
+  // Both open and close are less than or equal to ts (QueryLeftMax).
+  uint64_t close = prev_close ? prev_close->ts : 0;
+  uint64_t open = prev_open->ts;
+
+  return close > open && close < ts ? nullptr : prev_open;
+}
+
 bool ProcessThreadTimeline::PidConnectsToUid(uint64_t ts,
                                              int32_t pid,
                                              uint64_t uid) const {
   PERFETTO_DCHECK(mode_ == Mode::kRead);
 
-  auto event = FindPreviousEvent(ts, pid);
+  const auto* prev_open = QueryLeftMax(ts, pid, Event::Type::kOpen);
+  const auto* prev_close = QueryLeftMax(ts, pid, Event::Type::kClose);
 
   for (size_t d = 0; d < kMaxSearchDepth; ++d) {
-    // The thread/process was freed. It won't exist until a new open event.
-    if (event.type != Event::Type::kOpen) {
+    // If there's no previous open event, it means this pid was never created.
+    // This should not happen.
+    if (!prev_open) {
       return false;
+    }
+
+    // This get tricky here. If done wrong, proc_free events will fail because
+    // they'll report as disconnected when they could be connected to the
+    // package. Inclusive bounds are used here. In context, if a task_newtask
+    // event happens at time T, the pid exists at time T. If a proc_free event
+    // happens at time T, the pid is "shutting down" at time T but still exists.
+    //
+    //    B         E     : B = begin
+    //    .         .       E = end
+    //    .         .
+    //    |---------|  ^  : pid is free
+    // ^  |---------|     : pid is free
+    //    ^---------|     : pid is active
+    //    |---------^     : pid is active
+    //    |----^----|     : pid is active
+
+    // By definition, both open and close are less than or equal to ts
+    // (QueryLeftMax), so problem space is reduces.
+    auto close = prev_close ? prev_close->ts : 0;
+    auto open = prev_open->ts;
+
+    if (close > open && close < ts) {
+      return false;  // Close is sitting between open and ts.
     }
 
     // TODO(vaage): Normalize the uid values.
-    if (event.uid == uid) {
+    if (prev_open->uid == uid) {
       return true;
     }
 
-    // If there is no parent, there is no way to keep searching.
-    if (event.ppid == Event::kUnknownPid) {
-      return false;
+    if (prev_open->ppid == Event::kUnknownPid) {
+      return false;  // If there is no parent, there is no way to keep
+                     // searching.
     }
 
-    event = FindPreviousEvent(ts, event.ppid);
+    auto ppid = prev_open->ppid;
+
+    prev_open = QueryLeftMax(ts, ppid, Event::Type::kOpen);
+    prev_close = QueryLeftMax(ts, ppid, Event::Type::kClose);
   }
 
   return false;
 }
 
-ProcessThreadTimeline::Event ProcessThreadTimeline::FindPreviousEvent(
+const ProcessThreadTimeline::Event* ProcessThreadTimeline::QueryLeftMax(
     uint64_t ts,
-    int32_t pid) const {
-  PERFETTO_DCHECK(mode_ == Mode::kRead);
-
-  Event fake = Event::Close(ts, pid);
+    int32_t pid,
+    Event::Type type) const {
+  auto fake = Event::Close(0, pid);
 
   // Events are sorted by pid, creating islands of data. This search is to put
   // the cursor at the start of pid's island. Each island will be small (a
   // couple of items), so searching within the islands should be cheap.
-  auto at = std::lower_bound(events_.begin(), events_.end(), fake, OrderByPid);
+  auto it = std::lower_bound(events_.begin(), events_.end(), fake, OrderByPid);
+  auto end = std::upper_bound(events_.begin(), events_.end(), fake, OrderByPid);
 
-  // `pid` was not found in `events_`.
-  if (at == events_.end()) {
-    return {};
-  }
+  const Event* best = nullptr;
 
-  // "no best option".
-  Event best = {};
+  for (; it != end; ++it) {
+    bool replace = false;
 
-  // Run through all events (related to this pid) and find the last event that
-  // comes before ts. If the events were in order by time, the search could be
-  // more efficient, but the gains are margin because:
-  //
-  // 1. The number of edge cases go up.
-  //
-  // 2. The code is harder to read.
-  //
-  // 3. The performance gains are minimal or non-existant because of the small
-  //    number of events.
-  for (; at != events_.end() && at->pid == pid; ++at) {
-    // This event is after "now" and can safely be ignored.
-    if (at->ts > ts) {
-      continue;
+    if (it->type == type && it->ts <= ts) {
+      replace = !best || it->ts > best->ts;
     }
 
-    // `at` is know to be before now. So it is always safe to accept an event.
-    //
-    // All ts values are positive. However, ts_at and ts_best are both less than
-    // ts (see early condition), meaning they can be considered negative values.
-    //
-    //      at        best            ts
-    //   <---+-----------+-------------+---->
-    //      31          64            93
-    //
-    //      at        best            ts
-    //   <---+-----------+-------------+---->
-    //     -62         -29             0
-    //
-    // This means that the latest ts value under ts is the closest to ts.
-
-    if (best.type == Event::Type::kInvalid || at->ts > best.ts) {
-      best = *at;
-    }
-
-    // This handles the rare edge case where an open and close event occur at
-    // the same time. The close event must get priority. This is done by
-    // allowing close events to use ">=" where as other events can only use ">".
-    if (at->type == Event::Type::kClose && at->ts == best.ts) {
-      best = *at;
+    if (replace) {
+      best = &(*it);
     }
   }
 

@@ -20,7 +20,7 @@ import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {asSliceSqlId} from '../frontend/sql_types';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
-import {SLICE_TRACK_KIND} from '../core_plugins/chrome_slices/chrome_slice_track';
+import {THREAD_SLICE_TRACK_KIND} from '../core_plugins/thread_slice/thread_slice_track';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../core_plugins/frames';
 
 import {Controller} from './controller';
@@ -41,7 +41,7 @@ const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
 export class FlowEventsController extends Controller<'main'> {
   private lastSelectedSliceId?: number;
   private lastSelectedArea?: Area;
-  private lastSelectedKind: 'CHROME_SLICE' | 'AREA' | 'NONE' = 'NONE';
+  private lastSelectedKind: 'SLICE' | 'AREA' | 'NONE' = 'NONE';
 
   constructor(private args: FlowEventsControllerArgs) {
     super('main');
@@ -306,13 +306,13 @@ export class FlowEventsController extends Controller<'main'> {
 
   sliceSelected(sliceId: number) {
     if (
-      this.lastSelectedKind === 'CHROME_SLICE' &&
+      this.lastSelectedKind === 'SLICE' &&
       this.lastSelectedSliceId === sliceId
     ) {
       return;
     }
     this.lastSelectedSliceId = sliceId;
-    this.lastSelectedKind = 'CHROME_SLICE';
+    this.lastSelectedKind = 'SLICE';
 
     const connectedFlows = SHOW_INDIRECT_PRECEDING_FLOWS_FLAG.get()
       ? `(
@@ -386,7 +386,7 @@ export class FlowEventsController extends Controller<'main'> {
         const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
         const kind = trackInfo?.kind;
         if (
-          kind === SLICE_TRACK_KIND ||
+          kind === THREAD_SLICE_TRACK_KIND ||
           kind === ACTUAL_FRAMES_SLICE_TRACK_KIND
         ) {
           if (trackInfo?.trackIds) {
@@ -453,7 +453,7 @@ export class FlowEventsController extends Controller<'main'> {
 
     // TODO(b/155483804): This is a hack as annotation slices don't contain
     // flows. We should tidy this up when fixing this bug.
-    if (selection.kind === 'CHROME_SLICE' && selection.table !== 'annotation') {
+    if (selection.kind === 'SLICE' && selection.table !== 'annotation') {
       this.sliceSelected(selection.id);
     } else {
       publishConnectedFlows([]);

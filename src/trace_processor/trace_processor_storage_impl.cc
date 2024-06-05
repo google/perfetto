@@ -30,12 +30,14 @@
 #include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/perf/dso_tracker.h"
 #include "src/trace_processor/importers/proto/chrome_track_event.descriptor.h"
 #include "src/trace_processor/importers/proto/default_modules.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
@@ -45,6 +47,7 @@
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/trace_reader_registry.h"
 #include "src/trace_processor/util/descriptors.h"
 
 namespace perfetto {
@@ -52,6 +55,8 @@ namespace trace_processor {
 
 TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg)
     : context_({cfg, std::make_shared<TraceStorage>(cfg)}) {
+  context_.reader_registry->RegisterTraceReader<ProtoTraceReader>(
+      kProtoTraceType);
   context_.proto_trace_parser =
       std::make_unique<ProtoTraceParserImpl>(&context_);
   RegisterDefaultModules(&context_);
@@ -102,6 +107,8 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
     return;
   Flush();
   context_.chunk_reader->NotifyEndOfFile();
+  // NotifyEndOfFile might have pushed packets to the sorter.
+  Flush();
   for (std::unique_ptr<ProtoImporterModule>& module : context_.modules) {
     module->NotifyEndOfFile();
   }
@@ -112,6 +119,9 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
   context_.slice_tracker->FlushPendingSlices();
   context_.args_tracker->Flush();
   context_.process_tracker->NotifyEndOfFile();
+  if (context_.perf_dso_tracker) {
+    perf_importer::DsoTracker::GetOrCreate(&context_).SymbolizeFrames();
+  }
 }
 
 void TraceProcessorStorageImpl::DestroyContext() {

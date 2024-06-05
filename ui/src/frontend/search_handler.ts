@@ -96,7 +96,7 @@ function selectCurrentSearchResult() {
     case 'cpu':
       globals.setLegacySelection(
         {
-          kind: 'SLICE',
+          kind: 'SCHED_SLICE',
           id: currentId,
           trackKey,
         },
@@ -126,7 +126,7 @@ function selectCurrentSearchResult() {
       // When we include annotations we need to pass the correct table.
       globals.setLegacySelection(
         {
-          kind: 'CHROME_SLICE',
+          kind: 'SLICE',
           id: currentId,
           trackKey,
           table: 'slice',

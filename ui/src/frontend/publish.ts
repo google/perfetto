@@ -24,14 +24,13 @@ import {getLegacySelection} from '../common/state';
 import {
   CounterDetails,
   CpuProfileDetails,
-  FlamegraphDetails,
   Flow,
   globals,
   QuantizedLoad,
   SliceDetails,
   ThreadDesc,
   ThreadStateDetails,
-  TraceTime,
+  TraceContext,
 } from './globals';
 import {findCurrentSelection} from './keyboard_event_handler';
 
@@ -81,11 +80,6 @@ export function publishCounterDetails(click: CounterDetails) {
   globals.publishRedraw();
 }
 
-export function publishFlamegraphDetails(click: FlamegraphDetails) {
-  globals.flamegraphDetails = click;
-  globals.publishRedraw();
-}
-
 export function publishCpuProfileDetails(details: CpuProfileDetails) {
   globals.cpuProfileDetails = details;
   globals.publishRedraw();
@@ -96,8 +90,8 @@ export function publishHasFtrace(value: boolean): void {
   globals.publishRedraw();
 }
 
-export function publishTraceDetails(details: TraceTime): void {
-  globals.traceTime = details;
+export function publishTraceContext(details: TraceContext): void {
+  globals.traceContext = details;
   globals.publishRedraw();
 }
 
@@ -189,7 +183,7 @@ export function publishConnectedFlows(connectedFlows: Flow[]) {
   globals.dispatch(Actions.setHighlightedFlowLeftId({flowId: -1}));
   globals.dispatch(Actions.setHighlightedFlowRightId({flowId: -1}));
   const currentSelection = getLegacySelection(globals.state);
-  if (currentSelection?.kind === 'CHROME_SLICE') {
+  if (currentSelection?.kind === 'SLICE') {
     const sliceId = currentSelection.id;
     for (const flow of globals.connectedFlows) {
       if (flow.begin.sliceId === sliceId) {
@@ -206,5 +200,10 @@ export function publishConnectedFlows(connectedFlows: Flow[]) {
 
 export function publishShowPanningHint() {
   globals.showPanningHint = true;
+  globals.publishRedraw();
+}
+
+export function publishPermalinkHash(hash: string | undefined): void {
+  globals.permalinkHash = hash;
   globals.publishRedraw();
 }

@@ -338,7 +338,7 @@ class Parsing(TestSuite):
         SELECT ts, cpu, dur, ts_end, utid, end_state, priority, upid, name, tid
         FROM sched
         JOIN thread USING(utid)
-        ORDER BY ts;
+        ORDER BY ts, sched.id;
         """,
         out=Path('systrace_html.out'))
 
@@ -735,13 +735,13 @@ class Parsing(TestSuite):
         trace=Path('cpu_info.textproto'),
         query="""
         SELECT
-          id,
+          cpu,
           cluster_id,
           processor
         FROM cpu;
         """,
         out=Csv("""
-        "id","cluster_id","processor"
+        "cpu","cluster_id","processor"
         0,0,"AArch64 Processor rev 13 (aarch64)"
         1,0,"AArch64 Processor rev 13 (aarch64)"
         2,0,"AArch64 Processor rev 13 (aarch64)"
@@ -758,8 +758,8 @@ class Parsing(TestSuite):
         query="""
         SELECT
           freq,
-          GROUP_CONCAT(cpu_id) AS cpus
-        FROM cpu_freq
+          GROUP_CONCAT(cpu) AS cpus
+        FROM cpu_frequencies
         GROUP BY freq
         ORDER BY freq;
         """,
@@ -1369,14 +1369,14 @@ class Parsing(TestSuite):
         trace_modifier=TraceInjector(['cpu_info'], {'machine_id': 1001}),
         query="""
         SELECT
-          id,
+          cpu,
           cluster_id,
           processor
         FROM cpu
         WHERE machine_id is not NULL;
         """,
         out=Csv("""
-        "id","cluster_id","processor"
+        "cpu","cluster_id","processor"
         0,0,"AArch64 Processor rev 13 (aarch64)"
         1,0,"AArch64 Processor rev 13 (aarch64)"
         2,0,"AArch64 Processor rev 13 (aarch64)"
@@ -1394,8 +1394,9 @@ class Parsing(TestSuite):
         query="""
         SELECT
           freq,
-          GROUP_CONCAT(cpu_id) AS cpus
-        FROM cpu_freq
+          GROUP_CONCAT(cpu.cpu) AS cpus
+        FROM cpu_frequencies
+        JOIN cpu using (ucpu)
         WHERE machine_id is not NULL
         GROUP BY freq
         ORDER BY freq;
@@ -1412,7 +1413,7 @@ class Parsing(TestSuite):
         SELECT ts, thread.name, thread.tid
         FROM thread_state
         JOIN thread USING (utid)
-        WHERE state = 'R' AND thread_state.machine_id is not NULL
+        WHERE state = 'R' AND thread.machine_id is not NULL
         ORDER BY ts;
         """,
         out=Path('sched_waking_instants_compact_sched.out'))

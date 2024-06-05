@@ -122,6 +122,7 @@ OBJECT_NAME_ALLOWLIST = {
     'slices/cpu_time.sql': ['thread_slice_cpu_time']
 }
 
+
 # Given a regex pattern and a string to match against, returns all the
 # matching positions. Specifically, it returns a dictionary from the line
 # number of the match to the regex match object.

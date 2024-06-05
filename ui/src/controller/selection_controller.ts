@@ -15,7 +15,11 @@
 import {assertTrue} from '../base/logging';
 import {Time, time} from '../base/time';
 import {Args, ArgValue} from '../common/arg_types';
-import {ChromeSliceSelection, getLegacySelection} from '../common/state';
+import {
+  SelectionKind,
+  ThreadSliceSelection,
+  getLegacySelection,
+} from '../common/state';
 import {
   CounterDetails,
   globals,
@@ -37,7 +41,7 @@ import {
   STR_NULL,
   timeFromSql,
 } from '../trace_processor/query_result';
-import {SLICE_TRACK_KIND} from '../core_plugins/chrome_slices/chrome_slice_track';
+import {THREAD_SLICE_TRACK_KIND} from '../core_plugins/thread_slice/thread_slice_track';
 
 import {Controller} from './controller';
 
@@ -71,10 +75,10 @@ export class SelectionController extends Controller<'main'> {
     const selection = getLegacySelection(globals.state);
     if (!selection || selection.kind === 'AREA') return;
 
-    const selectWithId = [
+    const selectWithId: SelectionKind[] = [
       'SLICE',
       'COUNTER',
-      'CHROME_SLICE',
+      'SCHED_SLICE',
       'HEAP_PROFILE',
       'THREAD_STATE',
     ];
@@ -107,16 +111,16 @@ export class SelectionController extends Controller<'main'> {
           publishCounterDetails(results);
         }
       });
-    } else if (selection.kind === 'SLICE') {
-      this.sliceDetails(selectedId as number);
+    } else if (selection.kind === 'SCHED_SLICE') {
+      this.schedSliceDetails(selectedId as number);
     } else if (selection.kind === 'THREAD_STATE') {
       this.threadStateDetails(selection.id);
-    } else if (selection.kind === 'CHROME_SLICE') {
-      this.chromeSliceDetails(selection);
+    } else if (selection.kind === 'SLICE') {
+      this.sliceDetails(selection);
     }
   }
 
-  async chromeSliceDetails(selection: ChromeSliceSelection) {
+  async sliceDetails(selection: ThreadSliceSelection) {
     const selectedId = selection.id;
     const table = selection.table;
 
@@ -306,7 +310,7 @@ export class SelectionController extends Controller<'main'> {
       if (name === 'destination slice id' && !isNaN(Number(value))) {
         const destTrackId = await this.getDestTrackId(value);
         args.set('Destination Slice', {
-          kind: 'SLICE',
+          kind: 'SCHED_SLICE',
           trackId: destTrackId,
           sliceId: Number(value),
           rawValue: value,
@@ -328,7 +332,7 @@ export class SelectionController extends Controller<'main'> {
     let trackKey = '';
     for (const track of Object.values(globals.state.tracks)) {
       const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
-      if (trackInfo?.kind === SLICE_TRACK_KIND) {
+      if (trackInfo?.kind === THREAD_SLICE_TRACK_KIND) {
         const trackIds = trackInfo?.trackIds;
         if (trackIds && trackIds.length > 0 && trackIds[0] === trackId) {
           trackKey = track.key;
@@ -366,7 +370,7 @@ export class SelectionController extends Controller<'main'> {
     }
   }
 
-  async sliceDetails(id: number) {
+  async schedSliceDetails(id: number) {
     const sqlQuery = `SELECT
       sched.ts,
       sched.dur,
@@ -441,7 +445,7 @@ export class SelectionController extends Controller<'main'> {
           IFNULL(value, 0) as value
         FROM counter WHERE ts < ${ts} and track_id = ${trackId}`);
     const previousValue = previous.firstRow({value: NUM}).value;
-    const endTs = rightTs !== -1n ? rightTs : globals.traceTime.end;
+    const endTs = rightTs !== -1n ? rightTs : globals.traceContext.end;
     const delta = value - previousValue;
     const duration = endTs - ts;
     const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);

@@ -51,7 +51,7 @@ static void EnabledCb(struct PerfettoTeCategoryImpl* c,
 
 int main(void) {
   uint64_t flow_counter = 0;
-  struct PerfettoProducerInitArgs args = {0};
+  struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
   args.backends = PERFETTO_BACKEND_SYSTEM;
   PerfettoProducerInit(args);
   PerfettoTeInit();

@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/util/file_buffer.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -43,11 +44,9 @@ class SameDataAsMatcher {
         : expected_data_(expected_data) {}
     bool MatchAndExplain(const ArgType& arg,
                          ::testing ::MatchResultListener*) const override {
-      if (expected_data_.size() != arg.size()) {
-        return false;
-      }
-      return memcmp(expected_data_.data(), arg.data(), expected_data_.size()) ==
-             0;
+      return std::equal(expected_data_.data(),
+                        expected_data_.data() + expected_data_.size(),
+                        arg.data(), arg.data() + arg.size());
     }
     void DescribeTo(::std ::ostream*) const override {}
     void DescribeNegationTo(::std ::ostream*) const override {}
@@ -108,7 +107,7 @@ TEST(FileBuffer, ContiguousAccessAtOffset) {
   FileBuffer buffer = CreateFileBuffer(Slice(expected_data, kChunkSize));
 
   for (size_t file_offset = 0; file_offset <= kExpectedSize; ++file_offset) {
-    EXPECT_TRUE(buffer.PopFrontBytesUntil(file_offset));
+    EXPECT_TRUE(buffer.PopFrontUntil(file_offset));
     for (size_t off = file_offset; off <= kExpectedSize; ++off) {
       auto expected = expected_data.slice_off(off, kExpectedSize - off);
       std::optional<TraceBlobView> tbv = buffer.SliceOff(off, expected.size());
@@ -143,18 +142,16 @@ TEST(FileBuffer, PopRemovesData) {
 
   --expected_size;
   ++expected_file_offset;
-  buffer.PopFrontBytesUntil(expected_file_offset);
+  buffer.PopFrontUntil(expected_file_offset);
   EXPECT_THAT(buffer.file_offset(), Eq(expected_file_offset));
-  EXPECT_THAT(buffer.SliceOff(expected_file_offset - 1, 1), Eq(std::nullopt));
   EXPECT_THAT(buffer.SliceOff(expected_file_offset, expected_size),
               Optional(SameDataAs(expected_data.slice_off(
                   expected_data.size() - expected_size, expected_size))));
 
   expected_size -= kChunkSize;
   expected_file_offset += kChunkSize;
-  buffer.PopFrontBytesUntil(expected_file_offset);
+  buffer.PopFrontUntil(expected_file_offset);
   EXPECT_THAT(buffer.file_offset(), Eq(expected_file_offset));
-  EXPECT_THAT(buffer.SliceOff(expected_file_offset - 1, 1), Eq(std::nullopt));
   EXPECT_THAT(buffer.SliceOff(expected_file_offset, expected_size),
               Optional(SameDataAs(expected_data.slice_off(
                   expected_data.size() - expected_size, expected_size))));

@@ -18,9 +18,11 @@
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
-#include "src/trace_processor/importers/common/sched_event_tracker.h"
+#include "src/trace_processor/importers/common/machine_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/importers/common/sched_event_tracker.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -40,6 +42,8 @@ class SchedEventTrackerTest : public ::testing::Test {
     context.args_tracker.reset(new ArgsTracker(&context));
     context.event_tracker.reset(new EventTracker(&context));
     context.process_tracker.reset(new ProcessTracker(&context));
+    context.machine_tracker.reset(new MachineTracker(&context, 0));
+    context.cpu_tracker.reset(new CpuTracker(&context));
     context.sched_event_tracker.reset(new SchedEventTracker(&context));
     sched_tracker = FtraceSchedEventTracker::GetOrCreate(&context);
   }

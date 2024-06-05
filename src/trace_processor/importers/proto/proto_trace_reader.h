@@ -78,6 +78,7 @@ class ProtoTraceReader : public ChunkedTraceReader {
   void ParseInternedData(const protos::pbzero::TracePacket_Decoder&,
                          TraceBlobView interned_data);
   void ParseTraceConfig(ConstBytes);
+  void ParseTraceStats(ConstBytes);
 
   std::optional<StringId> GetBuiltinClockNameOrNull(int64_t clock_id);
 
@@ -103,6 +104,8 @@ class ProtoTraceReader : public ChunkedTraceReader {
 
   base::FlatHashMap<uint32_t, PacketSequenceStateBuilder>
       packet_sequence_state_builders_;
+
+  base::FlatHashMap<uint32_t, size_t> packet_sequence_data_loss_;
 
   StringId skipped_packet_key_id_;
   StringId invalid_incremental_state_key_id_;

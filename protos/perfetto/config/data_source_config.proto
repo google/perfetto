@@ -196,7 +196,8 @@ message DataSourceConfig {
   optional ProtoLogConfig protolog_config = 126 [lazy = true];
 
   // Data source name: android.input.inputevent
-  optional AndroidInputEventConfig android_input_event_config = 128 [lazy = true];
+  optional AndroidInputEventConfig android_input_event_config = 128
+      [lazy = true];
 
   // Data source name: android.pixel.modem
   optional PixelModemConfig pixel_modem_config = 129 [lazy = true];

@@ -39,6 +39,8 @@ class FileBuffer {
   // Trivial empty ctor.
   FileBuffer() = default;
 
+  bool empty() const { return data_.empty(); }
+
   // Returns the offset to the start of the buffered window of data.
   size_t file_offset() const {
     return data_.empty() ? end_offset_ : data_.front().file_offset;
@@ -47,10 +49,19 @@ class FileBuffer {
   // Adds a `TraceBlobView` at the back.
   void PushBack(TraceBlobView view);
 
-  // Shrinks the buffer by dropping bytes from the front of the buffer until the
+  // Shrinks the buffer by dropping data from the front of the buffer until the
   // given offset is reached. If not enough data is present as much data as
   // possible will be dropped and `false` will be returned.
-  bool PopFrontBytesUntil(size_t offset);
+  // ATTENTION: If `offset` < 'file_offset()' (i.e. you try to access data
+  // previously popped) this method will CHECK fail.
+  bool PopFrontUntil(size_t offset);
+
+  // Shrinks the buffer by dropping `bytes` from the front of the buffer. If not
+  // enough data is present as much data as possible will be dropped and `false`
+  // will be returned.
+  bool PopFrontBytes(size_t bytes) {
+    return PopFrontUntil(file_offset() + bytes);
+  }
 
   // Similar to `TraceBlobView::slice_off`, creates a slice with data starting
   // at `offset` and of the given `length`. This method might need to allocate a
@@ -58,8 +69,8 @@ class FileBuffer {
   // TraceBlobView instances). If not enough data is present `std::nullopt` is
   // returned.
   //
-  // ATTENTION: If `offset` < 'file_offset()' this method will never return a
-  // value.
+  // ATTENTION: If `offset` < 'file_offset()' (i.e. you try to access data
+  // previously popped) this method will CHECK fail.
   std::optional<TraceBlobView> SliceOff(size_t offset, size_t length) const;
 
  private:

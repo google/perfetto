@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -54,10 +55,6 @@ class SetIdStorage final : public DataLayer {
 
     void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
-    Range OrderedIndexSearchValidated(FilterOp,
-                                      SqlValue,
-                                      const OrderedIndices&) const override;
-
     void StableSort(SortToken* start,
                     SortToken* end,
                     SortDirection direction) const override;
@@ -69,6 +66,8 @@ class SetIdStorage final : public DataLayer {
     std::optional<Token> MaxElement(Indices&) const override;
 
     std::optional<Token> MinElement(Indices&) const override;
+
+    SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
 
     uint32_t size() const override {
       return static_cast<uint32_t>(values_->size());

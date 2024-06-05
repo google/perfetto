@@ -1604,7 +1604,7 @@ message ViewClassName {
 //
 // All non-delta-timestamps are absolute CLOCK_MONOTONIC timestamps.
 
-// Next id: 15
+// Next id: 16
 enum ChromeCompositorSchedulerActionV2 {
   CC_SCHEDULER_ACTION_V2_UNSPECIFIED = 0;
   CC_SCHEDULER_ACTION_V2_NONE = 1;
@@ -1615,6 +1615,7 @@ enum ChromeCompositorSchedulerActionV2 {
   CC_SCHEDULER_ACTION_V2_DRAW_IF_POSSIBLE = 5;
   CC_SCHEDULER_ACTION_V2_DRAW_FORCED = 6;
   CC_SCHEDULER_ACTION_V2_DRAW_ABORT = 7;
+  CC_SCHEDULER_ACTION_V2_UPDATE_DISPLAY_TREE = 15;
   CC_SCHEDULER_ACTION_V2_BEGIN_LAYER_TREE_FRAME_SINK_CREATION = 8;
   CC_SCHEDULER_ACTION_V2_PREPARE_TILES = 9;
   CC_SCHEDULER_ACTION_V2_INVALIDATE_LAYER_TREE_FRAME_SINK = 10;
@@ -1883,6 +1884,14 @@ message AnimationFrameScriptTimingInfo {
     PROMISE_REJECT = 6;
   }
   optional InvokerType invoker_type = 9;
+  enum ThirdPartyTechnology {
+    UNSPECIFIED = 0;
+    NONE = 1;
+    WORD_PRESS = 2;
+    GOOGLE_ANALYTICS = 3;
+    GOOGLE_FONT_API = 4;
+  }
+  optional ThirdPartyTechnology third_party_technology = 10;
 }
 
 message ChromeTrackEvent {

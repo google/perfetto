@@ -31,9 +31,6 @@ import {Panel} from './panel_container';
 export class TickmarkPanel implements Panel {
   readonly kind = 'panel';
   readonly selectable = false;
-  readonly trackKey = undefined;
-
-  constructor(readonly key: string) {}
 
   render(): m.Children {
     return m('.tickbar');

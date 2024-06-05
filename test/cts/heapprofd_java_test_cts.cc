@@ -108,8 +108,9 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
   return helper.trace();
 }
 
-std::vector<protos::gen::TracePacket> TriggerOomHeapDump(std::string app_name,
-                                                         std::string heap_dump_target) {
+std::vector<protos::gen::TracePacket> TriggerOomHeapDump(
+    std::string app_name,
+    std::string heap_dump_target) {
   base::TestTaskRunner task_runner;
 
   // (re)start the target app's main activity
@@ -129,7 +130,8 @@ std::vector<protos::gen::TracePacket> TriggerOomHeapDump(std::string app_name,
   trace_config.set_data_source_stop_timeout_ms(60000);
 
   auto* trigger_config = trace_config.mutable_trigger_config();
-  trigger_config->set_trigger_mode(perfetto::protos::gen::TraceConfig::TriggerConfig::START_TRACING);
+  trigger_config->set_trigger_mode(
+      perfetto::protos::gen::TraceConfig::TriggerConfig::START_TRACING);
   trigger_config->set_trigger_timeout_ms(60000);
   auto* oom_trigger = trigger_config->add_triggers();
   oom_trigger->set_name("com.android.telemetry.art-outofmemory");
@@ -145,7 +147,8 @@ std::vector<protos::gen::TracePacket> TriggerOomHeapDump(std::string app_name,
 
   // start tracing
   helper.StartTracing(trace_config);
-  StartAppActivity(app_name, "JavaOomActivity", "target.app.running", &task_runner,
+  StartAppActivity(app_name, "JavaOomActivity", "target.app.running",
+                   &task_runner,
                    /*delay_ms=*/100);
   task_runner.RunUntilCheckpoint("target.app.running", 10000 /*ms*/);
 

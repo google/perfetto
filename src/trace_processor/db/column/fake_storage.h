@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -84,10 +85,6 @@ class FakeStorageChain : public DataLayerChain {
 
   void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
-  Range OrderedIndexSearchValidated(FilterOp,
-                                    SqlValue,
-                                    const OrderedIndices&) const override;
-
   void StableSort(SortToken* start,
                   SortToken* end,
                   SortDirection) const override;
@@ -95,7 +92,10 @@ class FakeStorageChain : public DataLayerChain {
   void Distinct(Indices&) const override;
 
   std::optional<Token> MaxElement(Indices&) const override;
+
   std::optional<Token> MinElement(Indices&) const override;
+
+  SqlValue Get_AvoidUsingBecauseSlow(uint32_t index) const override;
 
   void Serialize(StorageProto*) const override;
 

@@ -219,50 +219,6 @@ void DenseNullOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
   inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-Range DenseNullOverlay::ChainImpl::OrderedIndexSearchValidated(
-    FilterOp op,
-    SqlValue sql_val,
-    const OrderedIndices& indices) const {
-  // For NOT EQUAL the further analysis needs to be done by the caller.
-  PERFETTO_CHECK(op != FilterOp::kNe);
-
-  PERFETTO_TP_TRACE(metatrace::Category::DB,
-                    "DenseNullOverlay::ChainImpl::OrderedIndexSearch");
-
-  // We assume all NULLs are ordered to be in the front. We are looking for the
-  // first index that points to non NULL value.
-  const uint32_t* first_non_null =
-      std::partition_point(indices.data, indices.data + indices.size,
-                           [this](uint32_t i) { return !non_null_->IsSet(i); });
-
-  auto non_null_offset =
-      static_cast<uint32_t>(std::distance(indices.data, first_non_null));
-  auto non_null_size = static_cast<uint32_t>(
-      std::distance(first_non_null, indices.data + indices.size));
-
-  if (op == FilterOp::kIsNull) {
-    return {0, non_null_offset};
-  }
-
-  if (op == FilterOp::kIsNotNull) {
-    switch (inner_->ValidateSearchConstraints(op, sql_val)) {
-      case SearchValidationResult::kNoData:
-        return {};
-      case SearchValidationResult::kAllData:
-        return {non_null_offset, indices.size};
-      case SearchValidationResult::kOk:
-        break;
-    }
-  }
-
-  Range inner_range = inner_->OrderedIndexSearchValidated(
-      op, sql_val,
-      OrderedIndices{first_non_null, non_null_size,
-                     Indices::State::kNonmonotonic});
-  return {inner_range.start + non_null_offset,
-          inner_range.end + non_null_offset};
-}
-
 void DenseNullOverlay::ChainImpl::StableSort(SortToken* start,
                                              SortToken* end,
                                              SortDirection direction) const {
@@ -312,6 +268,12 @@ std::optional<Token> DenseNullOverlay::ChainImpl::MinElement(
 
   return (first_null_it == indices.tokens.end()) ? inner_->MinElement(indices)
                                                  : *first_null_it;
+}
+
+SqlValue DenseNullOverlay::ChainImpl::Get_AvoidUsingBecauseSlow(
+    uint32_t index) const {
+  return non_null_->IsSet(index) ? inner_->Get_AvoidUsingBecauseSlow(index)
+                                 : SqlValue();
 }
 
 void DenseNullOverlay::ChainImpl::Serialize(StorageProto* storage) const {

@@ -37,7 +37,7 @@ SELECT
   count_w_dur.track_id,
   count_w_dur.ts,
   count_w_dur.dur,
-  count_w_dur.value as freq,
+  cast_int!(count_w_dur.value) as freq,
   cct.cpu
 FROM
 counter_leading_intervals!((

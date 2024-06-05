@@ -22,6 +22,8 @@ import {LegacySelection} from '../common/state';
 import {PanelSize} from '../frontend/panel';
 import {Engine} from '../trace_processor/engine';
 import {UntypedEventSet} from '../core/event_set';
+import {TraceContext} from '../frontend/globals';
+import {PromptOption} from '../frontend/omnibox_manager';
 
 export {Engine} from '../trace_processor/engine';
 export {
@@ -34,6 +36,7 @@ export {
 } from '../trace_processor/query_result';
 export {BottomTabToSCSAdapter} from './utils';
 export {createStore, Migrate, Store} from '../base/store';
+export {PromptOption} from '../frontend/omnibox_manager';
 
 // This is a temporary fix until this is available in the plugin API.
 export {
@@ -433,10 +436,9 @@ export interface PluginContextTrace extends PluginContext {
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;
 
-  trace: {
-    // A span representing the start and end time of the trace
-    readonly span: Span<time, duration>;
-  };
+  trace: TraceContext;
+
+  prompt(text: string, options?: PromptOption[]): Promise<string>;
 }
 
 export interface Plugin {
@@ -514,6 +516,9 @@ interface WellKnownTrackTags {
 
   // Controls whether to show the "debuggable" chip.
   debuggable: boolean;
+
+  // Groupname of the track
+  groupName: string;
 }
 
 // An set of key/value pairs describing a given track. These are used for

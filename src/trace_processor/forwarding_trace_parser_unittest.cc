@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/forwarding_trace_parser.h"
 
+#include "src/trace_processor/util/trace_type.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {

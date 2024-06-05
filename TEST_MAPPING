@@ -1,4 +1,14 @@
 {
+  "art-mainline-presubmit": [
+    {
+      "name": "CtsPerfettoTestCases",
+      "options": [
+        {
+          "include-filter": "HeapprofdJavaCtsTest*"
+        }
+      ]
+    }
+  ],
   "presubmit": [
     {
       "name": "CtsPerfettoTestCases"

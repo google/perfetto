@@ -135,6 +135,7 @@ GPU_SLICE_TABLE = Table(
         C('frame_id', CppOptional(CppUint32())),
         C('submission_id', CppOptional(CppUint32())),
         C('hw_queue_id', CppOptional(CppInt64())),
+        C('upid', CppOptional(CppUint32())),
         C('render_subpasses', CppString()),
     ],
     parent=SLICE_TABLE,
@@ -142,17 +143,33 @@ GPU_SLICE_TABLE = Table(
         doc='''''',
         group='Slice',
         columns={
-            'context_id': '''''',
-            'render_target': '''''',
-            'render_target_name': '''''',
-            'render_pass': '''''',
-            'render_pass_name': '''''',
-            'command_buffer': '''''',
-            'command_buffer_name': '''''',
-            'frame_id': '''''',
-            'submission_id': '''''',
-            'hw_queue_id': '''''',
-            'render_subpasses': ''''''
+            'context_id':
+                '''''',
+            'render_target':
+                '''''',
+            'render_target_name':
+                '''''',
+            'render_pass':
+                '''''',
+            'render_pass_name':
+                '''''',
+            'command_buffer':
+                '''''',
+            'command_buffer_name':
+                '''''',
+            'frame_id':
+                '''''',
+            'submission_id':
+                '''''',
+            'hw_queue_id':
+                '''''',
+            'upid':
+                '''
+                  Unique process id of the app that generates this gpu render
+                  stage event.
+                ''',
+            'render_subpasses':
+                ''''''
         }))
 
 GRAPHICS_FRAME_SLICE_TABLE = Table(

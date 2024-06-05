@@ -203,9 +203,10 @@ class DynamicTables(TestSuite):
         query="""
         SELECT
           TO_TIMECODE(0) AS t0,
-          TO_TIMECODE(123456789123456789) AS tN
+          TO_TIMECODE(3599123456789) AS t1,
+          TO_TIMECODE(3600123456789) AS t2
         """,
         out=Csv("""
-        "t0","tN"
-        "00:00:00 000 000 000","33:33:09 123 456 789"
+        "t0","t1","t2"
+        "00:00:00 000 000 000","00:59:59 123 456 789","01:00:00 123 456 789"
         """))

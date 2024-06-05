@@ -293,11 +293,11 @@ export abstract class BaseSliceTrack<
 
   protected isSelectionHandled(selection: LegacySelection): boolean {
     // TODO(hjd): Remove when updating selection.
-    // We shouldn't know here about CHROME_SLICE. Maybe should be set by
+    // We shouldn't know here about THREAD_SLICE. Maybe should be set by
     // whatever deals with that. Dunno the namespace of selection is weird. For
     // most cases in non-ambiguous (because most things are a 'slice'). But some
     // others (e.g. THREAD_SLICE) have their own ID namespace so we need this.
-    const supportedSelectionKinds: SelectionKind[] = ['SLICE', 'CHROME_SLICE'];
+    const supportedSelectionKinds: SelectionKind[] = ['SCHED_SLICE', 'SLICE'];
     return supportedSelectionKinds.includes(selection.kind);
   }
 
@@ -666,9 +666,7 @@ export abstract class BaseSliceTrack<
       this.initState.dispose();
       this.initState = undefined;
     }
-    if (this.engine.isAlive) {
-      await this.engine.execute(`drop table ${this.getTableName()}`);
-    }
+    await this.engine.tryQuery(`drop table ${this.getTableName()}`);
   }
 
   // This method figures out if the visible window is outside the bounds of

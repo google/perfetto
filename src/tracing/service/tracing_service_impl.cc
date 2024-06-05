@@ -24,6 +24,7 @@
 #include <limits>
 #include <optional>
 #include <regex>
+#include <string>
 #include <unordered_set>
 #include "perfetto/base/time.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
@@ -1689,13 +1690,14 @@ void TracingServiceImpl::ActivateTriggers(
               tracing_session.config, tracing_session.trace_uuid,
               PerfettoStatsdAtom::kTracedTriggerCloneSnapshot, iter->name());
           task_runner_->PostDelayedTask(
-              [weak_this, tsid] {
+              [weak_this, tsid, trigger_name = iter->name()] {
                 if (!weak_this)
                   return;
                 auto* tsess = weak_this->GetTracingSession(tsid);
                 if (!tsess || !tsess->consumer_maybe_null)
                   return;
-                tsess->consumer_maybe_null->NotifyCloneSnapshotTrigger();
+                tsess->consumer_maybe_null->NotifyCloneSnapshotTrigger(
+                    trigger_name);
               },
               iter->stop_delay_ms());
           break;
@@ -4265,13 +4267,15 @@ void TracingServiceImpl::ConsumerEndpointImpl::OnAllDataSourcesStarted() {
   observable_events->set_all_data_sources_started(true);
 }
 
-void TracingServiceImpl::ConsumerEndpointImpl::NotifyCloneSnapshotTrigger() {
+void TracingServiceImpl::ConsumerEndpointImpl::NotifyCloneSnapshotTrigger(
+    const std::string& trigger_name) {
   if (!(observable_events_mask_ & ObservableEvents::TYPE_CLONE_TRIGGER_HIT)) {
     return;
   }
   auto* observable_events = AddObservableEvents();
   auto* clone_trig = observable_events->mutable_clone_trigger_hit();
   clone_trig->set_tracing_session_id(static_cast<int64_t>(tracing_session_id_));
+  clone_trig->set_trigger_name(trigger_name);
 }
 
 ObservableEvents*

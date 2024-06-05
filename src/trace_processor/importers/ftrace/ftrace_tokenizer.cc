@@ -271,7 +271,8 @@ void FtraceTokenizer::TokenizeFtraceEvent(
   } else if (PERFETTO_UNLIKELY(event_id ==
                                protos::pbzero::FtraceEvent::
                                    kThermalExynosAcpmBulkFieldNumber)) {
-    TokenizeFtraceThermalExynosAcpmBulk(cpu, std::move(event), std::move(state));
+    TokenizeFtraceThermalExynosAcpmBulk(cpu, std::move(event),
+                                        std::move(state));
     return;
   }
 
@@ -475,7 +476,8 @@ void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(
 }
 
 void FtraceTokenizer::TokenizeFtraceThermalExynosAcpmBulk(
-    uint32_t cpu, TraceBlobView event,
+    uint32_t cpu,
+    TraceBlobView event,
     RefPtr<PacketSequenceStateGeneration> state) {
   // Special handling of valid thermal_exynos_acpm_bulk tracepoint events which
   // contains the right timestamp value nested inside the event data.

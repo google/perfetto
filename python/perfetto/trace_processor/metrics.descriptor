@@ -992,8 +992,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-âB
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"áA
+èC
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"çB
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupÛ
 TaskStateBreakdown$
@@ -1122,17 +1122,18 @@ launch_dur (R	launchDur
 BROADCAST_DISPATCHED_COUNT
 BROADCAST_RECEIVED_COUNT
 STARTUP_RUNNING_CONCURRENT+
-'MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKEDÉ
+'MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKEDé
 ThresholdValue
 value (RvalueV
 unit (2B.perfetto.protos.AndroidStartupMetric.ThresholdValue.ThresholdUnitRunit'
-higher_expected (RhigherExpected"Z
+higher_expected (RhigherExpected"e
 ThresholdUnit
 THRESHOLD_UNIT_UNSPECIFIED 
 NS
 
 PERCENTAGE
-TRUE_OR_FALSE5
+TRUE_OR_FALSE	
+COUNT5
 ActualValue
 value (Rvalue
 dur (Rdur|
@@ -1144,7 +1145,7 @@ PERCENTAGE
 start_timestamp (RstartTimestamp#
 end_timestamp (RendTimestamp
 thread_utid (R
-threadUtidÙ
+threadUtidÔ
 Startup
 
 startup_id (R	startupId!
@@ -1171,7 +1172,8 @@ dlopenFile?
 startup_concurrent_to_launch (	RstartupConcurrentToLaunchT
 system_state (21.perfetto.protos.AndroidStartupMetric.SystemStateRsystemState*
 slow_start_reason (	RslowStartReasonz
-slow_start_reason_detailed (2=.perfetto.protos.AndroidStartupMetric.SlowStartReasonDetailedRslowStartReasonDetailedJ
+slow_start_reason_detailed (2=.perfetto.protos.AndroidStartupMetric.SlowStartReasonDetailedRslowStartReasonDetailedy
+slow_start_reason_with_details (25.perfetto.protos.AndroidStartupMetric.SlowStartReasonRslowStartReasonWithDetailsJ
 
 —
 4protos/perfetto/metrics/android/surfaceflinger.protoperfetto.protos"á

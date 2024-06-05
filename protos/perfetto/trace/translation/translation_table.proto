@@ -26,6 +26,7 @@ message TranslationTable {
     ChromeUserEventTranslationTable chrome_user_event = 2;
     ChromePerformanceMarkTranslationTable chrome_performance_mark = 3;
     SliceNameTranslationTable slice_name = 4;
+    ProcessTrackNameTranslationTable process_track_name = 5;
   }
 }
 
@@ -47,5 +48,10 @@ message ChromePerformanceMarkTranslationTable {
 
 // Raw -> deobfuscated slice name translation rules.
 message SliceNameTranslationTable {
+  map<string, string> raw_to_deobfuscated_name = 1;
+};
+
+// Raw -> deobfuscated process track name translation rules.
+message ProcessTrackNameTranslationTable {
   map<string, string> raw_to_deobfuscated_name = 1;
 };

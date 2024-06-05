@@ -71,8 +71,8 @@ export class FlowEventsRendererArgs {
       for (const trackId of getTrackIds(track)) {
         this.trackIdToTrackPanel.set(trackId, {panel, yStart});
       }
-    } else if (exists(panel.trackGroupId)) {
-      this.groupIdToTrackGroupPanel.set(panel.trackGroupId, {
+    } else if (exists(panel.groupKey)) {
+      this.groupIdToTrackGroupPanel.set(panel.groupKey, {
         panel,
         yStart,
         height,

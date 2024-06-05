@@ -17,7 +17,6 @@ import time
 import subprocess
 from os.path import relpath, dirname, join
 
-
 USE_PYTHON3 = True
 
 

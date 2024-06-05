@@ -20,7 +20,7 @@ import {
   STR_NULL,
 } from '../../public';
 import {ASYNC_SLICE_TRACK_KIND} from '../../core_plugins/async_slices';
-import {AsyncSliceTrackV2} from '../../core_plugins/async_slices/async_slice_track_v2';
+import {AsyncSliceTrack} from '../../core_plugins/async_slices/async_slice_track';
 
 // This plugin renders visualizations of runtime power state transitions for
 // Linux kernel devices (devices managed by Linux drivers).
@@ -50,7 +50,7 @@ class LinuxKernelDevices implements Plugin {
         trackIds: [trackId],
         kind: ASYNC_SLICE_TRACK_KIND,
         trackFactory: ({trackKey}) => {
-          return new AsyncSliceTrackV2(
+          return new AsyncSliceTrack(
             {
               engine: ctx.engine,
               trackKey,

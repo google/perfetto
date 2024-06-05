@@ -17,8 +17,30 @@
 INCLUDE PERFETTO MODULE slices.with_context;
 INCLUDE PERFETTO MODULE counters.intervals;
 
--- Converts an oom_adj score Integer to String bucket name.
+-- Converts an oom_adj score Integer to String sample name.
+-- One of: cached, background, job, foreground_service, bfgs, foreground and
+-- system.
 CREATE PERFETTO FUNCTION android_oom_adj_score_to_bucket_name(
+  -- `oom_score` value
+  oom_score INT
+)
+-- Returns the sample bucket based on the oom score.
+RETURNS STRING
+AS
+SELECT
+  CASE
+    WHEN $oom_score >= 900 THEN 'cached'
+    WHEN $oom_score BETWEEN 250 AND 900 THEN 'background'
+    WHEN $oom_score BETWEEN 201 AND 250 THEN 'job'
+    WHEN $oom_score = 200 THEN 'foreground_service'
+    WHEN $oom_score BETWEEN 100 AND 200 THEN 'bfgs'
+    WHEN $oom_score BETWEEN 0 AND 100 THEN 'foreground'
+    WHEN $oom_score < 0 THEN 'system'
+END;
+
+-- Converts an oom_adj score Integer to String bucket name.
+-- Deprecated: use `android_oom_adj_score_to_bucket_name` instead.
+CREATE PERFETTO FUNCTION android_oom_adj_score_to_detailed_bucket_name(
   -- oom_adj score.
   value INT,
   -- android_app id of the process.
@@ -52,8 +74,58 @@ SELECT
     ELSE 'unknown_app'
   END;
 
+CREATE PERFETTO TABLE _oom_adjuster_intervals AS
+WITH reason AS (
+  SELECT
+    thread_slice.id AS oom_adj_id,
+    thread_slice.ts AS oom_adj_ts,
+    thread_slice.dur AS oom_adj_dur,
+    thread_slice.track_id AS oom_adj_track_id,
+    utid AS oom_adj_utid,
+    thread_name AS oom_adj_thread_name,
+    str_split(thread_slice.name, '_', 1) AS oom_adj_reason,
+    slice.name AS oom_adj_trigger,
+    LEAD(thread_slice.ts) OVER (ORDER BY thread_slice.ts) AS oom_adj_next_ts
+  FROM thread_slice
+  LEFT JOIN slice ON slice.id = thread_slice.parent_id AND slice.dur != -1
+  WHERE thread_slice.name GLOB 'updateOomAdj_*' AND process_name = 'system_server'
+)
+SELECT
+  ts,
+  dur,
+  cast_int!(value) AS score,
+  process.upid,
+  process.name AS process_name,
+  reason.oom_adj_id,
+  reason.oom_adj_ts,
+  reason.oom_adj_dur,
+  reason.oom_adj_track_id,
+  reason.oom_adj_thread_name,
+  reason.oom_adj_utid,
+  reason.oom_adj_reason,
+  reason.oom_adj_trigger,
+  android_appid
+FROM
+  counter_leading_intervals
+    !(
+      (
+        SELECT counter.*
+        FROM counter
+        JOIN counter_track track
+          ON track.id = counter.track_id AND track.name = 'oom_score_adj'
+      ))
+      counter
+JOIN process_counter_track track
+  ON counter.track_id = track.id
+JOIN process
+  USING (upid)
+LEFT JOIN reason
+  ON counter.ts BETWEEN oom_adj_ts AND COALESCE(oom_adj_next_ts, trace_end())
+WHERE track.name = 'oom_score_adj';
+
+
 -- All oom adj state intervals across all processes along with the reason for the state update.
-CREATE PERFETTO TABLE android_oom_adj_intervals (
+CREATE PERFETTO VIEW android_oom_adj_intervals (
   -- Timestamp the oom_adj score of the process changed
   ts INT,
   -- Duration until the next oom_adj score change of the process.
@@ -81,49 +153,18 @@ CREATE PERFETTO TABLE android_oom_adj_intervals (
   -- Trigger for the latest oom_adj update in the system_server.
   oom_adj_trigger STRING
   ) AS
-WITH
-  reason AS (
-    SELECT
-      thread_slice.id AS oom_adj_id,
-      thread_slice.ts AS oom_adj_ts,
-      thread_slice.dur AS oom_adj_dur,
-      thread_slice.track_id AS oom_adj_track_id,
-      thread_name AS oom_adj_thread_name,
-      str_split(thread_slice.name, '_', 1) AS oom_adj_reason,
-      slice.name AS oom_adj_trigger,
-      LEAD(thread_slice.ts) OVER (ORDER BY thread_slice.ts) AS oom_adj_next_ts
-    FROM thread_slice
-    LEFT JOIN slice ON slice.id = thread_slice.parent_id AND slice.dur != -1
-    WHERE thread_slice.name GLOB 'updateOomAdj_*' AND process_name = 'system_server'
-  )
 SELECT
   ts,
   dur,
-  value AS score,
-  android_oom_adj_score_to_bucket_name(value, android_appid) AS bucket,
-  process.upid,
-  process.name AS process_name,
-  reason.oom_adj_id,
-  reason.oom_adj_ts,
-  reason.oom_adj_dur,
-  reason.oom_adj_track_id,
-  reason.oom_adj_thread_name,
-  reason.oom_adj_reason,
-  reason.oom_adj_trigger
-FROM
-  counter_leading_intervals
-    !(
-      (
-        SELECT counter.*
-        FROM counter
-        JOIN counter_track track
-          ON track.id = counter.track_id AND track.name = 'oom_score_adj'
-      ))
-      counter
-JOIN process_counter_track track
-  ON counter.track_id = track.id
-JOIN process
-  USING (upid)
-LEFT JOIN reason
-  ON counter.ts BETWEEN oom_adj_ts AND COALESCE(oom_adj_next_ts, trace_end())
-WHERE track.name = 'oom_score_adj';
+  score,
+  android_oom_adj_score_to_bucket_name(score) AS bucket,
+  upid,
+  process_name,
+  oom_adj_id,
+  oom_adj_ts,
+  oom_adj_dur,
+  oom_adj_track_id,
+  oom_adj_thread_name,
+  oom_adj_reason,
+  oom_adj_trigger
+FROM _oom_adjuster_intervals;

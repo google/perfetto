@@ -45,7 +45,7 @@ export interface NoteSelection {
 }
 
 export interface SliceSelection {
-  kind: 'SLICE';
+  kind: 'SCHED_SLICE';
   id: number;
 }
 
@@ -80,8 +80,8 @@ export interface CpuProfileSampleSelection {
   ts: time;
 }
 
-export interface ChromeSliceSelection {
-  kind: 'CHROME_SLICE';
+export interface ThreadSliceSelection {
+  kind: 'SLICE';
   id: number;
   table?: string;
 }
@@ -113,7 +113,7 @@ export type LegacySelection = (
   | CounterSelection
   | HeapProfileSelection
   | CpuProfileSampleSelection
-  | ChromeSliceSelection
+  | ThreadSliceSelection
   | ThreadStateSelection
   | AreaSelection
   | PerfSamplesSelection

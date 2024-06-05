@@ -15,7 +15,10 @@
 import("../../../../gn/proto_library.gni")
 
 perfetto_proto_library("@TYPE@") {
-  deps = [ "../../common:@TYPE@", ":winscope_regular_@TYPE@" ]
+  deps = [
+    ":winscope_regular_@TYPE@",
+    "../../common:@TYPE@",
+  ]
 
   sources = [
     "android_game_intervention_list.proto",
@@ -44,8 +47,8 @@ perfetto_proto_library("winscope_common_@TYPE@") {
 # Winscope messages added to TracePacket directly
 perfetto_proto_library("winscope_regular_@TYPE@") {
   deps = [
-    "../../common:@TYPE@",
     ":winscope_common_@TYPE@",
+    "../../common:@TYPE@",
   ]
   sources = [
     "protolog.proto",
@@ -64,19 +67,19 @@ perfetto_proto_library("winscope_extensions_@TYPE@") {
   ]
   public_deps = [ ":winscope_common_@TYPE@" ]
   sources = [
-    "inputmethodeditor.proto",
     "graphics/pixelformat.proto",
+    "inputmethodeditor.proto",
     "inputmethodservice/inputmethodservice.proto",
     "inputmethodservice/softinputwindow.proto",
     "server/inputmethod/inputmethodmanagerservice.proto",
     "typedef.proto",
-    "view/inputmethod/editorinfo.proto",
-    "view/inputmethod/inputconnection.proto",
-    "view/inputmethod/inputmethodmanager.proto",
     "view/display.proto",
     "view/displaycutout.proto",
     "view/imefocuscontroller.proto",
     "view/imeinsetssourceconsumer.proto",
+    "view/inputmethod/editorinfo.proto",
+    "view/inputmethod/inputconnection.proto",
+    "view/inputmethod/inputmethodmanager.proto",
     "view/insetsanimationcontrolimpl.proto",
     "view/insetscontroller.proto",
     "view/insetssource.proto",
@@ -86,6 +89,7 @@ perfetto_proto_library("winscope_extensions_@TYPE@") {
     "view/surfacecontrol.proto",
     "view/viewrootimpl.proto",
     "view/windowlayoutparams.proto",
+    "viewcapture.proto",
     "winscope_extensions_impl.proto",
   ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
@@ -95,8 +99,8 @@ perfetto_proto_library("winscope_descriptor") {
   proto_generators = [ "descriptor" ]
   generate_descriptor = "winscope.descriptor"
   deps = [
-    ":winscope_regular_source_set",
     ":winscope_extensions_source_set",
+    ":winscope_regular_source_set",
   ]
   sources = [ "winscope.proto" ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]

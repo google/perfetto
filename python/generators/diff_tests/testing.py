@@ -266,6 +266,7 @@ class TestSuite:
         if method.__name__.startswith('test_')
     ]
 
+
 def PrintProfileProto(profile):
   locations = {l.id: l for l in profile.location}
   functions = {f.id: f for f in profile.function}

@@ -65,7 +65,6 @@ class ProtoTraceParserImpl : public ProtoTraceParser {
                               int64_t /*ts*/,
                               InlineSchedWaking data) override;
 
-  void ParseTraceStats(ConstBytes);
   void ParseChromeEvents(int64_t ts, ConstBytes);
   void ParseMetatraceEvent(int64_t ts, ConstBytes);
 

@@ -17,7 +17,7 @@ import {v4 as uuidv4} from 'uuid';
 import {Disposable, Trash} from '../base/disposable';
 import {Registry} from '../base/registry';
 import {Span, duration, time} from '../base/time';
-import {globals} from '../frontend/globals';
+import {TraceContext, globals} from '../frontend/globals';
 import {
   Command,
   DetailsPanel,
@@ -45,6 +45,7 @@ import {assertExists} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
 import {defaultPlugins} from '../core/default_plugins';
 import {HighPrecisionTimeSpan} from './high_precision_time';
+import {PromptOption} from '../frontend/omnibox_manager';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -221,9 +222,12 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
     pinTracksByPredicate(predicate: TrackPredicate) {
       const tracks = Object.values(globals.state.tracks);
+      const groups = globals.state.trackGroups;
       for (const track of tracks) {
         const tags = {
           name: track.name,
+          groupName: (track.trackGroup ? groups[track.trackGroup] : undefined)
+            ?.name,
         };
         if (predicate(tags) && !isPinned(track.key)) {
           globals.dispatch(
@@ -275,10 +279,10 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
           };
           return predicate(ref);
         })
-        .map((group) => group.id);
+        .map((group) => group.key);
 
-      for (const trackGroupId of groupsToExpand) {
-        globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+      for (const groupKey of groupsToExpand) {
+        globals.dispatch(Actions.toggleTrackGroupCollapsed({groupKey}));
       }
     },
 
@@ -293,10 +297,10 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
           };
           return predicate(ref);
         })
-        .map((group) => group.id);
+        .map((group) => group.key);
 
-      for (const trackGroupId of groupsToCollapse) {
-        globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+      for (const groupKey of groupsToCollapse) {
+        globals.dispatch(Actions.toggleTrackGroupCollapsed({groupKey}));
       }
     },
 
@@ -342,11 +346,16 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     return globals.store.createSubStore(['plugins', this.pluginId], migrate);
   }
 
-  readonly trace = {
-    get span(): Span<time, duration> {
-      return globals.stateTraceTimeTP();
-    },
-  };
+  get trace(): TraceContext {
+    return globals.traceContext;
+  }
+
+  async prompt(
+    text: string,
+    options?: PromptOption[] | undefined,
+  ): Promise<string> {
+    return globals.omnibox.prompt(text, options);
+  }
 }
 
 function isPinned(trackId: string): boolean {

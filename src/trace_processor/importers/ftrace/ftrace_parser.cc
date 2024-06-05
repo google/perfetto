@@ -24,6 +24,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/cpu_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -49,6 +50,7 @@
 #include "protos/perfetto/trace/ftrace/cma.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cros_ec.pbzero.h"
+#include "protos/perfetto/trace/ftrace/dcvsh.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dmabuf_heap.pbzero.h"
 #include "protos/perfetto/trace/ftrace/dpu.pbzero.h"
 #include "protos/perfetto/trace/ftrace/fastrpc.pbzero.h"
@@ -63,6 +65,7 @@
 #include "protos/perfetto/trace/ftrace/i2c.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ion.pbzero.h"
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
+#include "protos/perfetto/trace/ftrace/kgsl.pbzero.h"
 #include "protos/perfetto/trace/ftrace/kmem.pbzero.h"
 #include "protos/perfetto/trace/ftrace/lwis.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mali.pbzero.h"
@@ -317,6 +320,8 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
       cpu_freq_name_id_(context->storage->InternString("cpufreq")),
+      cpu_freq_throttle_name_id_(
+          context->storage->InternString("cpufreq_throttle")),
       gpu_freq_name_id_(context->storage->InternString("gpufreq")),
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
       suspend_resume_name_id_(
@@ -761,8 +766,16 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseCpuFreq(ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kDcvshFreqFieldNumber: {
+        ParseCpuFreqThrottle(ts, fld_bytes);
+        break;
+      }
       case FtraceEvent::kGpuFrequencyFieldNumber: {
         ParseGpuFreq(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kKgslGpuFrequencyFieldNumber: {
+        ParseKgslGpuFreq(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kCpuIdleFieldNumber: {
@@ -951,8 +964,7 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         break;
       }
       case FtraceEvent::kThermalExynosAcpmHighOverheadFieldNumber: {
-        thermal_tracker_.ParseThermalExynosAcpmHighOverhead(
-            ts, fld_bytes);
+        thermal_tracker_.ParseThermalExynosAcpmHighOverhead(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kCdevUpdateFieldNumber: {
@@ -1362,10 +1374,10 @@ void FtraceParser::ParseGenericFtrace(int64_t ts,
   protos::pbzero::GenericFtraceEvent::Decoder evt(blob.data, blob.size);
   StringId event_id = context_->storage->InternString(evt.event_name());
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-  RawId id =
-      context_->storage->mutable_ftrace_event_table()
-          ->Insert({ts, event_id, cpu, utid, {}, {}, context_->machine_id()})
-          .id;
+  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+  RawId id = context_->storage->mutable_ftrace_event_table()
+                 ->Insert({ts, event_id, utid, {}, {}, ucpu})
+                 .id;
   auto inserter = context_->args_tracker->AddArgsTo(id);
 
   for (auto it = evt.field(); it; ++it) {
@@ -1404,15 +1416,12 @@ void FtraceParser::ParseTypedFtraceToRaw(
   FtraceMessageDescriptor* m = GetMessageDescriptorForId(ftrace_id);
   const auto& message_strings = ftrace_message_strings_[ftrace_id];
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(tid);
-  RawId id = context_->storage->mutable_ftrace_event_table()
-                 ->Insert({timestamp,
-                           message_strings.message_name_id,
-                           cpu,
-                           utid,
-                           {},
-                           {},
-                           context_->machine_id()})
-                 .id;
+  auto ucpu = context_->cpu_tracker->GetOrCreateCpu(cpu);
+  RawId id =
+      context_->storage->mutable_ftrace_event_table()
+          ->Insert(
+              {timestamp, message_strings.message_name_id, utid, {}, {}, ucpu})
+          .id;
   auto inserter = context_->args_tracker->AddArgsTo(id);
 
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
@@ -1542,10 +1551,31 @@ void FtraceParser::ParseCpuFreq(int64_t timestamp, ConstBytes blob) {
   context_->event_tracker->PushCounter(timestamp, new_freq, track);
 }
 
+void FtraceParser::ParseCpuFreqThrottle(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::DcvshFreqFtraceEvent::Decoder freq(blob.data, blob.size);
+  uint32_t cpu = static_cast<uint32_t>(freq.cpu());
+  // Source data is frequency / 1000, so we correct that here:
+  double new_freq = static_cast<double>(freq.freq()) * 1000.0;
+  TrackId track = context_->track_tracker->InternCpuCounterTrack(
+      cpu_freq_throttle_name_id_, cpu);
+  context_->event_tracker->PushCounter(timestamp, new_freq, track);
+}
+
 void FtraceParser::ParseGpuFreq(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::GpuFrequencyFtraceEvent::Decoder freq(blob.data, blob.size);
   uint32_t gpu = freq.gpu_id();
   uint32_t new_freq = freq.state();
+  TrackId track =
+      context_->track_tracker->InternGpuCounterTrack(gpu_freq_name_id_, gpu);
+  context_->event_tracker->PushCounter(timestamp, new_freq, track);
+}
+
+void FtraceParser::ParseKgslGpuFreq(int64_t timestamp, ConstBytes blob) {
+  protos::pbzero::KgslGpuFrequencyFtraceEvent::Decoder freq(blob.data,
+                                                            blob.size);
+  uint32_t gpu = freq.gpu_id();
+  // Source data is frequency / 1000, so we correct that here:
+  double new_freq = static_cast<double>(freq.gpu_freq()) * 1000.0;
   TrackId track =
       context_->track_tracker->InternGpuCounterTrack(gpu_freq_name_id_, gpu);
   context_->event_tracker->PushCounter(timestamp, new_freq, track);

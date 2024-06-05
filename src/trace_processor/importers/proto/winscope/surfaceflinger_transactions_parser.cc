@@ -18,8 +18,8 @@
 
 #include "protos/perfetto/trace/android/surfaceflinger_transactions.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/proto/args_parser.h"
 #include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
-#include "src/trace_processor/importers/proto/winscope/winscope_args_parser.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -43,7 +43,7 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
 
   ArgsTracker tracker(context_);
   auto inserter = tracker.AddArgsTo(rowId);
-  WinscopeArgsParser writer(inserter, *context_->storage.get());
+  ArgsParser writer(timestamp, inserter, *context_->storage.get());
   base::Status status =
       args_parser_.ParseMessage(blob, kTransactionTraceEntryProtoName,
                                 nullptr /* parse all fields */, writer);

@@ -23,6 +23,8 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto::trace_processor::perf_importer {
@@ -41,12 +43,16 @@ MATCHER_P(IsOkAndHolds, matcher, "") {
 }
 
 TEST(PerfSessionTest, NoAttrBuildFails) {
-  PerfSession::Builder builder(0);
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  PerfSession::Builder builder(&context);
   EXPECT_FALSE(builder.Build().ok());
 }
 
 TEST(PerfSessionTest, OneAttrAndNoIdBuildSucceeds) {
-  PerfSession::Builder builder(0);
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = false;
   attr.sample_type = PERF_SAMPLE_CALLCHAIN | PERF_SAMPLE_CPU | PERF_SAMPLE_TIME;
@@ -61,7 +67,9 @@ TEST(PerfSessionTest, OneAttrAndNoIdBuildSucceeds) {
 }
 
 TEST(PerfSessionTest, MultipleAttrsAndNoIdBuildFails) {
-  PerfSession::Builder builder(0);
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_CALLCHAIN | PERF_SAMPLE_CPU | PERF_SAMPLE_TIME;
@@ -71,7 +79,9 @@ TEST(PerfSessionTest, MultipleAttrsAndNoIdBuildFails) {
 }
 
 TEST(PerfSessionTest, MultipleIdsSameAttrAndNoIdCanExtractAttrFromRecord) {
-  PerfSession::Builder builder(0);
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_CPU | PERF_SAMPLE_TIME;
@@ -95,7 +105,9 @@ TEST(PerfSessionTest, MultipleIdsSameAttrAndNoIdCanExtractAttrFromRecord) {
 }
 
 TEST(PerfSessionTest, NoCommonSampleIdAllBuildFails) {
-  PerfSession::Builder builder(0);
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IDENTIFIER;
@@ -111,7 +123,9 @@ TEST(PerfSessionTest, NoCommonSampleIdAllBuildFails) {
 }
 
 TEST(PerfSessionTest, NoCommonOffsetForSampleBuildFails) {
-  PerfSession::Builder builder(0);
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_ID;
@@ -122,7 +136,9 @@ TEST(PerfSessionTest, NoCommonOffsetForSampleBuildFails) {
 }
 
 TEST(PerfSessionTest, NoCommonOffsetForNonSampleBuildFails) {
-  PerfSession::Builder builder(0);
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_ID | PERF_SAMPLE_TID;
@@ -138,7 +154,9 @@ TEST(PerfSessionTest, NoCommonOffsetForNonSampleBuildFails) {
 }
 
 TEST(PerfSessionTest, NoCommonOffsetForNonSampleAndNoSampleIdAllBuildSucceeds) {
-  PerfSession::Builder builder(0);
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = false;
   attr.sample_type = PERF_SAMPLE_IDENTIFIER | PERF_SAMPLE_TID;
@@ -149,7 +167,9 @@ TEST(PerfSessionTest, NoCommonOffsetForNonSampleAndNoSampleIdAllBuildSucceeds) {
 }
 
 TEST(PerfSessionTest, MultiplesessionBuildSucceeds) {
-  PerfSession::Builder builder(0);
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_ID;
@@ -159,7 +179,9 @@ TEST(PerfSessionTest, MultiplesessionBuildSucceeds) {
 }
 
 TEST(PerfSessionTest, FindAttrInRecordWithId) {
-  PerfSession::Builder builder(0);
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IP | PERF_SAMPLE_ID;
@@ -194,7 +216,9 @@ TEST(PerfSessionTest, FindAttrInRecordWithId) {
 }
 
 TEST(PerfSessionTest, FindAttrInRecordWithIdentifier) {
-  PerfSession::Builder builder(0);
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  PerfSession::Builder builder(&context);
   perf_event_attr attr;
   attr.sample_id_all = true;
   attr.sample_type = PERF_SAMPLE_IDENTIFIER | PERF_SAMPLE_IP;

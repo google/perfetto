@@ -32,9 +32,7 @@ import {
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {
-  CallsiteInfo,
   EngineConfig,
-  ProfileType,
   RESOLUTION_DEFAULT,
   State,
   getLegacySelection,
@@ -56,6 +54,9 @@ import {SliceSqlId} from './sql_types';
 import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
 import {exists} from '../base/utils';
+import {OmniboxManager} from './omnibox_manager';
+import {CallsiteInfo} from '../common/flamegraph_util';
+import {FlamegraphCache} from './flamegraph_panel';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -144,27 +145,6 @@ export interface ThreadStateDetails {
   dur?: duration;
 }
 
-export interface FlamegraphDetails {
-  type?: ProfileType;
-  id?: number;
-  start?: time;
-  dur?: duration;
-  pids?: number[];
-  upids?: number[];
-  flamegraph?: CallsiteInfo[];
-  expandedCallsite?: CallsiteInfo;
-  viewingOption?: string;
-  expandedId?: number;
-  // isInAreaSelection is true if a flamegraph is part of the current area
-  // selection.
-  isInAreaSelection?: boolean;
-  // When heap_graph_non_finalized_graph has a count >0, we mark the graph
-  // as incomplete.
-  graphIncomplete?: boolean;
-  // About to show a new graph whose data is not ready yet.
-  graphLoading?: boolean;
-}
-
 export interface CpuProfileDetails {
   id?: number;
   ts?: time;
@@ -221,7 +201,7 @@ export interface LegacySelectionArgs {
   pendingScrollId: number | undefined;
 }
 
-export interface TraceTime {
+export interface TraceContext {
   readonly start: time;
   readonly end: time;
 
@@ -237,14 +217,22 @@ export interface TraceTime {
   // Trace TZ is like UTC but keeps into account also the timezone_off_mins
   // recorded into the trace, to show timestamps in the device local time.
   readonly traceTzOffset: time;
+
+  // The list of CPUs in the trace
+  readonly cpus: number[];
+
+  // The number of gpus in the trace
+  readonly gpuCount: number;
 }
 
-export const defaultTraceTime: TraceTime = {
+export const defaultTraceContext: TraceContext = {
   start: Time.ZERO,
   end: Time.fromSeconds(10),
   realtimeOffset: Time.ZERO,
   utcOffset: Time.ZERO,
   traceTzOffset: Time.ZERO,
+  cpus: [],
+  gpuCount: 0,
 };
 
 /**
@@ -273,7 +261,6 @@ class Globals {
   private _selectedFlows?: Flow[] = undefined;
   private _visibleFlowCategories?: Map<string, boolean> = undefined;
   private _counterDetails?: CounterDetails = undefined;
-  private _flamegraphDetails?: FlamegraphDetails = undefined;
   private _cpuProfileDetails?: CpuProfileDetails = undefined;
   private _numQueriesQueued = 0;
   private _bufferUsage?: number = undefined;
@@ -291,12 +278,16 @@ class Globals {
   private _selectionManager = new SelectionManager(this._store);
   private _hasFtrace: boolean = false;
 
+  omnibox = new OmniboxManager();
+  areaFlamegraphCache = new FlamegraphCache('area');
+
   scrollToTrackKey?: string | number;
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
   showPanningHint = false;
+  permalinkHash?: string;
 
-  traceTime = defaultTraceTime;
+  traceContext = defaultTraceContext;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -346,7 +337,6 @@ class Globals {
     this._visibleFlowCategories = new Map<string, boolean>();
     this._counterDetails = {};
     this._threadStateDetails = {};
-    this._flamegraphDetails = {};
     this._cpuProfileDetails = {};
     this.engines.clear();
     this._selectionManager.clear();
@@ -467,14 +457,6 @@ class Globals {
 
   get aggregateDataStore(): AggregateDataStore {
     return assertExists(this._aggregateDataStore);
-  }
-
-  get flamegraphDetails() {
-    return assertExists(this._flamegraphDetails);
-  }
-
-  set flamegraphDetails(click: FlamegraphDetails) {
-    this._flamegraphDetails = assertExists(click);
   }
 
   get traceErrors() {
@@ -716,19 +698,19 @@ class Globals {
 
   // Get a timescale that covers the entire trace
   getTraceTimeScale(pxSpan: PxSpan): TimeScale {
-    const {start, end} = this.traceTime;
+    const {start, end} = this.traceContext;
     const traceTime = HighPrecisionTimeSpan.fromTime(start, end);
     return TimeScale.fromHPTimeSpan(traceTime, pxSpan);
   }
 
   // Get the trace time bounds
   stateTraceTime(): Span<HighPrecisionTime> {
-    const {start, end} = this.traceTime;
+    const {start, end} = this.traceContext;
     return HighPrecisionTimeSpan.fromTime(start, end);
   }
 
   stateTraceTimeTP(): Span<time, duration> {
-    const {start, end} = this.traceTime;
+    const {start, end} = this.traceContext;
     return new TimeSpan(start, end);
   }
 
@@ -762,14 +744,14 @@ class Globals {
     switch (fmt) {
       case TimestampFormat.Timecode:
       case TimestampFormat.Seconds:
-        return this.traceTime.start;
+        return this.traceContext.start;
       case TimestampFormat.Raw:
       case TimestampFormat.RawLocale:
         return Time.ZERO;
       case TimestampFormat.UTC:
-        return this.traceTime.utcOffset;
+        return this.traceContext.utcOffset;
       case TimestampFormat.TraceTz:
-        return this.traceTime.traceTzOffset;
+        return this.traceContext.traceTzOffset;
       default:
         const x: never = fmt;
         throw new Error(`Unsupported format ${x}`);
@@ -787,7 +769,7 @@ class Globals {
       return undefined;
     }
 
-    if (selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
+    if (selection.kind === 'SCHED_SLICE' || selection.kind === 'SLICE') {
       const slice = this.sliceDetails;
       return findTimeRangeOfSlice(slice);
     } else if (selection.kind === 'THREAD_STATE') {
@@ -856,6 +838,17 @@ function findTimeRangeOfSlice(slice: Partial<SliceLike>): {
     }
   } else {
     return {start: Time.INVALID, end: Time.INVALID};
+  }
+}
+
+// Returns the time span of the current selection, or the visible window if
+// there is no current selection.
+export function getTimeSpanOfSelectionOrVisibleWindow(): Span<time, duration> {
+  const range = globals.findTimeRangeOfSelection();
+  if (exists(range)) {
+    return new TimeSpan(range.start, range.end);
+  } else {
+    return globals.stateVisibleTime();
   }
 }
 

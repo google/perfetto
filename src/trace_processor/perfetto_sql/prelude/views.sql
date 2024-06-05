@@ -53,3 +53,8 @@ SELECT
     WHEN 'json' THEN string_value
   ELSE NULL END AS display_value
 FROM internal_args;
+
+CREATE VIEW perf_session
+AS
+SELECT *, id AS perf_session_id
+FROM __intrinsic_perf_session;

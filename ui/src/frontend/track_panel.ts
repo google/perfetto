@@ -199,7 +199,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
                 onclick: (e: MouseEvent) => {
                   globals.dispatch(
                     Actions.toggleTrackSelection({
-                      id: attrs.trackKey,
+                      key: attrs.trackKey,
                       isTrackGroup: false,
                     }),
                   );
@@ -423,10 +423,6 @@ export class TrackPanel implements Panel {
 
   constructor(private readonly attrs: TrackPanelAttrs) {}
 
-  get key(): string {
-    return this.attrs.trackKey;
-  }
-
   get trackKey(): string {
     return this.attrs.trackKey;
   }
@@ -571,7 +567,7 @@ export function renderWakeupVertical(
   const currentSelection = getLegacySelection(globals.state);
   if (currentSelection !== null) {
     if (
-      currentSelection.kind === 'SLICE' &&
+      currentSelection.kind === 'SCHED_SLICE' &&
       globals.sliceDetails.wakeupTs !== undefined
     ) {
       drawVerticalLineAtTime(

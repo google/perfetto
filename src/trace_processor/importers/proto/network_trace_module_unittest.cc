@@ -20,6 +20,7 @@
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/global_args_tracker.h"
+#include "src/trace_processor/importers/common/process_track_translation_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
@@ -45,6 +46,8 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.args_tracker.reset(new ArgsTracker(&context_));
     context_.global_args_tracker.reset(new GlobalArgsTracker(storage_));
     context_.slice_translation_table.reset(new SliceTranslationTable(storage_));
+    context_.process_track_translation_table.reset(
+        new ProcessTrackTranslationTable(storage_));
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.async_track_set_tracker.reset(new AsyncTrackSetTracker(&context_));
     context_.proto_trace_parser.reset(new ProtoTraceParserImpl(&context_));
