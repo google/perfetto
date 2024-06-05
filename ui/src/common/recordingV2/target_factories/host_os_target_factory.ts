@@ -18,7 +18,7 @@ import {
   RecordingTargetV2,
   TargetFactory,
 } from '../recording_interfaces_v2';
-import {isLinux, isMacOs} from '../recording_utils';
+import {isLinux, isMacOs, isWindows} from '../recording_utils';
 import {targetFactoryRegistry} from '../target_factory_registry';
 import {HostOsTarget} from '../targets/host_os_target';
 
@@ -79,7 +79,11 @@ export class HostOsTargetFactory implements TargetFactory {
   }
 }
 
-// We instantiate the host target factory only on Mac and Linux.
-if (isMacOs(navigator.userAgent) || isLinux(navigator.userAgent)) {
+// We instantiate the host target factory only on Mac, Linux, and Windows.
+if (
+  isMacOs(navigator.userAgent) ||
+  isLinux(navigator.userAgent) ||
+  isWindows(navigator.userAgent)
+) {
   targetFactoryRegistry.register(new HostOsTargetFactory());
 }
