@@ -41,6 +41,12 @@ class FilterFtraceUsingSuspendResume : public FtraceEventFilter {
   bool Includes(const Context& context, protozero::Field event) const override;
 };
 
+// Discard all rss events not belonging to the target package.
+class FilterRss : public FtraceEventFilter {
+ public:
+  bool Includes(const Context& context, protozero::Field event) const override;
+};
+
 // Filters ftrace events and modifies remaining events before writing them to
 // the packet. Only one filter and/or writer can be assigned to provide finer
 // grain control.

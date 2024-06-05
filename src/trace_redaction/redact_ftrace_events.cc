@@ -82,6 +82,19 @@ bool FilterFtraceUsingSuspendResume::Includes(const Context&,
          kTimekeepingFreeze == action_str;
 }
 
+bool FilterRss::Includes(const Context& context, protozero::Field event) const {
+  protos::pbzero::FtraceEvent::Decoder event_decoder(event.as_bytes());
+
+  if (event_decoder.has_rss_stat_throttled() || event_decoder.has_rss_stat()) {
+    // The event's pid is unsigned, but tids are always signed.
+    auto pid = static_cast<int32_t>(event_decoder.pid());
+    return context.timeline->PidConnectsToUid(event_decoder.timestamp(), pid,
+                                              *context.package_uid);
+  }
+
+  return true;
+}
+
 base::Status RedactFtraceEvents::Transform(const Context& context,
                                            std::string* packet) const {
   if (packet == nullptr || packet->empty()) {

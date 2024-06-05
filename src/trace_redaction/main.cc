@@ -71,6 +71,11 @@ static base::Status Main(std::string_view input,
 
   {
     auto* primitive = redactor.emplace_transform<RedactFtraceEvents>();
+    primitive->emplace_filter<FilterRss>();
+  }
+
+  {
+    auto* primitive = redactor.emplace_transform<RedactFtraceEvents>();
     primitive->emplace_filter<FilterFtraceUsingSuspendResume>();
   }
 
