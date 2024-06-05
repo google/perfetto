@@ -96,10 +96,10 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
             this.config!.cpuType,
           )})`;
     return `
-    select
-      ts,
-      active_cpu_count as value
-    from ${sourceTable}
+      select
+        ts,
+        active_cpu_count as value
+      from ${sourceTable}
     `;
   }
 }

@@ -37,7 +37,13 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
   }
 
   getSqlSource() {
-    return `select ts, value from ${this.rootTable} where track_id = ${this.trackId}`;
+    return `
+      select
+        ts,
+        value
+      from ${this.rootTable}
+      where track_id = ${this.trackId}
+    `;
   }
 
   onMouseClick({x}: {x: number}): boolean {
