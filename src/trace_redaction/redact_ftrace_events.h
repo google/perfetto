@@ -31,25 +31,20 @@ class FtraceEventFilter {
                         protozero::Field event) const = 0;
 };
 
-class FtraceEventWriter {
- public:
-  virtual ~FtraceEventWriter();
-  virtual base::Status WriteTo(
-      const Context& context,
-      protozero::Field event,
-      protos::pbzero::FtraceEventBundle* message) const = 0;
-};
-
 class FilterFtracesUsingAllowlist : public FtraceEventFilter {
  public:
   bool Includes(const Context& context, protozero::Field event) const override;
 };
 
-class WriteFtracesPassthrough : public FtraceEventWriter {
-  base::Status WriteTo(
-      const Context& context,
-      protozero::Field event,
-      protos::pbzero::FtraceEventBundle* message) const override;
+class FilterFtraceUsingSuspendResume : public FtraceEventFilter {
+ public:
+  bool Includes(const Context& context, protozero::Field event) const override;
+};
+
+// Discard all rss events not belonging to the target package.
+class FilterRss : public FtraceEventFilter {
+ public:
+  bool Includes(const Context& context, protozero::Field event) const override;
 };
 
 // Filters ftrace events and modifies remaining events before writing them to
@@ -65,21 +60,12 @@ class RedactFtraceEvents : public TransformPrimitive {
     filter_ = std::make_unique<Filter>();
   }
 
-  template <typename Writer>
-  void emplace_writer() {
-    writer_ = std::make_unique<Writer>();
-  }
-
  private:
-  // Checks if there is at least one ftrace event.
-  bool HasFtraceEvent(const std::string& bytes) const;
-
   base::Status OnFtraceEvents(const Context& context,
-                              protozero::ConstBytes bytes,
+                              protozero::Field ftrace_events,
                               protos::pbzero::FtraceEventBundle* message) const;
 
   std::unique_ptr<FtraceEventFilter> filter_;
-  std::unique_ptr<FtraceEventWriter> writer_;
 };
 
 }  // namespace perfetto::trace_redaction
