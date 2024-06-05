@@ -1803,6 +1803,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/additional_modules.h",
         "src/trace_processor/importers/proto/android_camera_event_module.cc",
         "src/trace_processor/importers/proto/android_camera_event_module.h",
+        "src/trace_processor/importers/proto/android_input_event_module.cc",
+        "src/trace_processor/importers/proto/android_input_event_module.h",
         "src/trace_processor/importers/proto/android_probes_module.cc",
         "src/trace_processor/importers/proto/android_probes_module.h",
         "src/trace_processor/importers/proto/android_probes_parser.cc",
