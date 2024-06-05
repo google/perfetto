@@ -36,9 +36,16 @@ export class ChromeTasksScrollJankTrack extends NamedSliceTrack<ChromeTasksScrol
   }
 
   getSqlSource(): string {
-    return `select s2.ts as ts, s2.dur as dur, s2.id as id, 0 as depth, s1.full_name as name
-from chrome_tasks_delaying_input_processing s1
-join slice s2 on s2.id=s1.slice_id`;
+    return `
+      select
+        s2.ts as ts,
+        s2.dur as dur,
+        s2.id as id,
+        0 as depth,
+        s1.full_name as name
+      from chrome_tasks_delaying_input_processing s1
+      join slice s2 on s2.id=s1.slice_id
+    `;
   }
 }
 export type GetTrackGroupUuidFn = (utid: number, upid: number | null) => string;
@@ -55,10 +62,12 @@ export async function decideTracks(
   }
 
   const queryResult = await engine.query(`
-    select utid, upid
+    select
+      utid,
+      upid
     from thread
     where name='CrBrowserMain'
-    `);
+  `);
 
   const it = queryResult.iter({
     utid: NUM,

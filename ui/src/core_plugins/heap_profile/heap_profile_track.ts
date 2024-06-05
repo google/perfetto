@@ -52,10 +52,11 @@ export class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
   }
 
   getSqlSource(): string {
-    return `select
-      *,
-      0 AS dur,
-      0 AS depth
+    return `
+      select
+        *,
+        0 AS dur,
+        0 AS depth
       from (
         select distinct
           id,
@@ -70,7 +71,8 @@ export class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
           'graph' AS type
         from heap_graph_object
         where upid = ${this.upid}
-      )`;
+      )
+    `;
   }
 
   getRowSpec(): HeapProfileRow {

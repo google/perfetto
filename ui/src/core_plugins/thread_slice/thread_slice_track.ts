@@ -60,15 +60,17 @@ export class ThreadSliceTrack extends NamedSliceTrack<ThreadSliceTrackTypes> {
   }
 
   getSqlSource(): string {
-    return `select
-      ts,
-      dur,
-      id,
-      depth,
-      ifnull(name, '') as name,
-      thread_dur as threadDur
-    from ${this.tableName}
-    where track_id = ${this.trackId}`;
+    return `
+      select
+        ts,
+        dur,
+        id,
+        depth,
+        ifnull(name, '') as name,
+        thread_dur as threadDur
+      from ${this.tableName}
+      where track_id = ${this.trackId}
+    `;
   }
 
   // Converts a SQL result row to an "Impl" Slice.
