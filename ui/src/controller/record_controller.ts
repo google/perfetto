@@ -24,6 +24,7 @@ import {
   AdbRecordingTarget,
   isAdbTarget,
   isChromeTarget,
+  isWindowsTarget,
   RecordingTarget,
 } from '../common/state';
 import {globals} from '../frontend/globals';
@@ -398,7 +399,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
     const controllerPromise = new Promise<RpcConsumerPort>(
       async (resolve, _) => {
         let controller: RpcConsumerPort | undefined = undefined;
-        if (isChromeTarget(target)) {
+        if (isChromeTarget(target) || isWindowsTarget(target)) {
           controller = new ChromeExtensionConsumerPort(
             this.extensionPort,
             this,
