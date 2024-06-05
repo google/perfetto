@@ -514,29 +514,6 @@ class TraceStorage {
     return &android_dumpstate_table_;
   }
 
-  const tables::AndroidKeyEventsTable& android_key_events_table() const {
-    return android_key_events_table_;
-  }
-  tables::AndroidKeyEventsTable* mutable_android_key_events_table() {
-    return &android_key_events_table_;
-  }
-
-  const tables::AndroidMotionEventsTable& android_motion_events_table() const {
-    return android_motion_events_table_;
-  }
-  tables::AndroidMotionEventsTable* mutable_android_motion_events_table() {
-    return &android_motion_events_table_;
-  }
-
-  const tables::AndroidInputEventDispatchTable&
-  android_input_event_dispatch_table() const {
-    return android_input_event_dispatch_table_;
-  }
-  tables::AndroidInputEventDispatchTable*
-  mutable_android_input_event_dispatch_table() {
-    return &android_input_event_dispatch_table_;
-  }
-
   const StatsMap& stats() const { return stats_; }
 
   const tables::MetadataTable& metadata_table() const {
@@ -1119,11 +1096,6 @@ class TraceStorage {
   tables::AndroidLogTable android_log_table_{&string_pool_};
 
   tables::AndroidDumpstateTable android_dumpstate_table_{&string_pool_};
-
-  tables::AndroidKeyEventsTable android_key_events_table_{&string_pool_};
-  tables::AndroidMotionEventsTable android_motion_events_table_{&string_pool_};
-  tables::AndroidInputEventDispatchTable
-      android_input_event_dispatch_table_{&string_pool_};
 
   tables::StackProfileMappingTable stack_profile_mapping_table_{&string_pool_};
   tables::StackProfileFrameTable stack_profile_frame_table_{&string_pool_};
