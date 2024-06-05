@@ -32,15 +32,15 @@ export class AsyncSliceTrack extends NamedSliceTrack {
 
   getSqlSource(): string {
     return `
-    select
-      ts,
-      dur,
-      layout_depth as depth,
-      ifnull(name, '[null]') as name,
-      id,
-      thread_dur as threadDur
-    from experimental_slice_layout
-    where filter_track_ids = '${this.trackIds.join(',')}'
+      select
+        ts,
+        dur,
+        layout_depth as depth,
+        ifnull(name, '[null]') as name,
+        id,
+        thread_dur as threadDur
+      from experimental_slice_layout
+      where filter_track_ids = '${this.trackIds.join(',')}'
     `;
   }
 
