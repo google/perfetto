@@ -17,7 +17,6 @@
 #include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
 
 #include "perfetto/ext/base/string_utils.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mali.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -40,7 +39,63 @@ MaliGpuEventTracker::MaliGpuEventTracker(TraceProcessorContext* context)
       mali_CSF_INTERRUPT_id_(
           context->storage->InternString("mali_CSF_INTERRUPT")),
       mali_CSF_INTERRUPT_info_val_id_(
-          context->storage->InternString("info_val")) {}
+          context->storage->InternString("info_val")),
+      current_mcu_state_name_(kNullStringId),
+      mcu_state_track_name_(context->storage->InternString("Mali MCU state")) {
+  using protos::pbzero::FtraceEvent;
+
+  mcu_state_names_.fill(kNullStringId);
+  RegisterMcuState<
+      FtraceEvent::kMaliMaliPMMCUHCTLCORESDOWNSCALENOTIFYPENDFieldNumber>(
+      "HCTL_CORES_DOWN_SCALE_NOTIFY_PEND");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUHCTLCORESNOTIFYPENDFieldNumber>(
+      "HCTL_CORES_NOTIFY_PEND");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUHCTLCOREINACTIVEPENDFieldNumber>(
+      "HCTL_CORE_INACTIVE_PEND");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUHCTLMCUONRECHECKFieldNumber>(
+      "HCTL_MCU_ON_RECHECK");
+  RegisterMcuState<
+      FtraceEvent::kMaliMaliPMMCUHCTLSHADERSCOREOFFPENDFieldNumber>(
+      "HCTL_SHADERS_CORE_OFF_PEND");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUHCTLSHADERSPENDOFFFieldNumber>(
+      "HCTL_SHADERS_PEND_OFF");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUHCTLSHADERSPENDONFieldNumber>(
+      "HCTL_SHADERS_PEND_ON");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUHCTLSHADERSREADYOFFFieldNumber>(
+      "HCTL_SHADERS_READY_OFF");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUINSLEEPFieldNumber>("IN_SLEEP");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUOFFFieldNumber>("OFF");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUONFieldNumber>("ON");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUONCOREATTRUPDATEPENDFieldNumber>(
+      "ON_CORE_ATTR_UPDATE_PEND");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUONGLBREINITPENDFieldNumber>(
+      "ON_GLB_REINIT_PEND");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUONHALTFieldNumber>("ON_HALT");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUONHWCNTDISABLEFieldNumber>(
+      "ON_HWCNT_DISABLE");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUONHWCNTENABLEFieldNumber>(
+      "ON_HWCNT_ENABLE");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUONPENDHALTFieldNumber>(
+      "ON_PEND_HALT");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUONPENDSLEEPFieldNumber>(
+      "ON_PEND_SLEEP");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUONSLEEPINITIATEFieldNumber>(
+      "ON_SLEEP_INITIATE");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUPENDOFFFieldNumber>("PEND_OFF");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUPENDONRELOADFieldNumber>(
+      "PEND_ON_RELOAD");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCUPOWERDOWNFieldNumber>(
+      "POWER_DOWN");
+  RegisterMcuState<FtraceEvent::kMaliMaliPMMCURESETWAITFieldNumber>(
+      "RESET_WAIT");
+}
+
+template <uint32_t FieldId>
+void MaliGpuEventTracker::RegisterMcuState(const char* state_name) {
+  static_assert(FieldId >= kFirstMcuStateId && FieldId <= kLastMcuStateId);
+  mcu_state_names_[FieldId - kFirstMcuStateId] =
+      context_->storage->InternString(state_name);
+}
 
 void MaliGpuEventTracker::ParseMaliGpuEvent(int64_t ts,
                                             uint32_t field_id,
@@ -118,6 +173,31 @@ void MaliGpuEventTracker::ParseMaliGpuIrqEvent(int64_t ts,
       PERFETTO_DFATAL("Unexpected field id");
       break;
   }
+}
+
+void MaliGpuEventTracker::ParseMaliGpuMcuStateEvent(int64_t timestamp,
+                                                    uint32_t field_id) {
+  tables::GpuTrackTable::Row track_info(mcu_state_track_name_);
+  TrackId track_id = context_->track_tracker->InternGpuTrack(track_info);
+
+  if (field_id < kFirstMcuStateId || field_id > kLastMcuStateId) {
+    PERFETTO_FATAL("Mali MCU state ID out of range");
+  }
+
+  StringId state_name = mcu_state_names_[field_id - kFirstMcuStateId];
+  if (state_name == kNullStringId) {
+    context_->storage->IncrementStats(stats::mali_unknown_mcu_state_id);
+    return;
+  }
+
+  if (current_mcu_state_name_ != kNullStringId) {
+    context_->slice_tracker->End(timestamp, track_id, kNullStringId,
+                                 current_mcu_state_name_);
+  }
+
+  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
+                                 state_name);
+  current_mcu_state_name_ = state_name;
 }
 
 void MaliGpuEventTracker::ParseMaliKcpuCqsSet(int64_t timestamp,

@@ -367,7 +367,9 @@ namespace stats {
   F(android_input_event_parse_errors,     kSingle,  kInfo,     kAnalysis,      \
       "Android input event packet has unknown fields, which results "          \
       "in some arguments missing. You may need a newer version of trace "      \
-      "processor to parse them.")
+      "processor to parse them."),                                             \
+  F(mali_unknown_mcu_state_id,            kSingle,  kError,   kAnalysis,       \
+      "An invalid Mali GPU MCU state ID was detected.")
 // clang-format on
 
 enum Type {

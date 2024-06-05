@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 510> descriptors{{
+std::array<FtraceMessageDescriptor, 533> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5635,6 +5635,236 @@ std::array<FtraceMessageDescriptor, 510> descriptors{{
             {},
             {"gpu_freq", ProtoSchemaType::kUint32},
             {"gpu_id", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_HCTL_CORES_DOWN_SCALE_NOTIFY_PEND",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_HCTL_CORES_NOTIFY_PEND",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_HCTL_CORE_INACTIVE_PEND",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_HCTL_MCU_ON_RECHECK",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_HCTL_SHADERS_CORE_OFF_PEND",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_HCTL_SHADERS_PEND_OFF",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_HCTL_SHADERS_PEND_ON",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_HCTL_SHADERS_READY_OFF",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_IN_SLEEP",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_OFF",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_ON",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_ON_CORE_ATTR_UPDATE_PEND",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_ON_GLB_REINIT_PEND",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_ON_HALT",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_ON_HWCNT_DISABLE",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_ON_HWCNT_ENABLE",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_ON_PEND_HALT",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_ON_PEND_SLEEP",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_ON_SLEEP_INITIATE",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_PEND_OFF",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_PEND_ON_RELOAD",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_POWER_DOWN",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_PM_MCU_RESET_WAIT",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
         },
     },
 }};
