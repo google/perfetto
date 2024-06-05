@@ -70,10 +70,10 @@ export class RunnableThreadCountTrack extends BaseCounterTrack {
 
   getSqlSource() {
     return `
-    select
-      ts,
-      runnable_thread_count as value
-    from sched_runnable_thread_count
+      select
+        ts,
+        runnable_thread_count as value
+      from sched_runnable_thread_count
     `;
   }
 }
