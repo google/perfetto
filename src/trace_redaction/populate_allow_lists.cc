@@ -96,11 +96,6 @@ base::Status PopulateAllowlists::Build(Context* context) const {
   //    are centrally allocated by the HAL process). We drop them for now as we
   //    don't have the required attribution info in the trace.
   //
-  //    TODO(vaage): The allowed rss stat events (i.e. kRssStatFieldNumber,
-  //    kRssStatThrottledFieldNumber) are process-scoped. It is non-trivial to
-  //    merge events, so all events outside of the target package should be
-  //    dropped.
-  //
   //    TODO(vaage): kSchedBlockedReasonFieldNumber contains two pids, an outer
   //    and inner pid. A primitive is needed to further redact these events.
 

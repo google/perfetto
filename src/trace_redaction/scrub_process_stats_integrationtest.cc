@@ -37,7 +37,9 @@ class ScrubProcessStatsTest : public testing::Test,
  protected:
   void SetUp() override {
     trace_redactor()->emplace_collect<CollectTimelineEvents>();
-    trace_redactor()->emplace_transform<ScrubProcessStats>();
+
+    auto* scrub = trace_redactor()->emplace_transform<ScrubProcessStats>();
+    scrub->emplace_filter<ConnectedToPackage>();
 
     // Package "com.Unity.com.unity.multiplayer.samples.coop";
     context()->package_uid = 10252;
