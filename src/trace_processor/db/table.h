@@ -130,8 +130,7 @@ class Table {
 
   // Filters and sorts the tables with the arguments specified, returning the
   // result as a RowMap.
-  RowMap QueryToRowMap(const std::vector<Constraint>&,
-                       const std::vector<Order>&) const;
+  RowMap QueryToRowMap(const Query&) const;
 
   // Applies the RowMap |rm| onto this table and returns an iterator over the
   // resulting rows.
@@ -198,6 +197,9 @@ class Table {
   void CreateChains() const;
 
   Table CopyExceptOverlays() const;
+
+  void ApplyDistinct(const Query&, RowMap*) const;
+  void ApplySort(const Query&, RowMap*) const;
 
   StringPool* string_pool_ = nullptr;
   uint32_t row_count_ = 0;

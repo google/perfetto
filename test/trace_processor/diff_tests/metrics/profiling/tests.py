@@ -109,3 +109,18 @@ class ProfilingMetrics(TestSuite):
         trace=Path('heap_graph.textproto'),
         query=Metric('java_heap_histogram'),
         out=Path('java_heap_histogram.out'))
+
+  def test_java_heap_class_stats(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_graph.textproto'),
+        query=Metric('java_heap_class_stats'),
+        out=Path('java_heap_class_stats.out'))
+
+  def test_java_heap_class_stats_no_heap_graph(self):
+    return DiffTestBlueprint(
+        trace=Path('heap_profile_no_symbols.textproto'),
+        query=Metric('java_heap_class_stats'),
+        out=TextProto(r"""
+        java_heap_class_stats {
+        }
+        """))

@@ -53,6 +53,12 @@ class DummyStorage final : public DataLayer {
                     SortToken* end,
                     SortDirection) const override;
 
+    void Distinct(Indices&) const override;
+
+    std::optional<Token> MaxElement(Indices&) const override;
+
+    std::optional<Token> MinElement(Indices&) const override;
+
     void Serialize(StorageProto*) const override;
 
     uint32_t size() const override;

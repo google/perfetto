@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+export type SearchSource = 'cpu' | 'log' | 'slice' | 'track';
+
 export interface SearchSummary {
   tsStarts: BigInt64Array;
   tsEnds: BigInt64Array;
@@ -19,10 +21,10 @@ export interface SearchSummary {
 }
 
 export interface CurrentSearchResults {
-  sliceIds: Float64Array;
-  tsStarts: BigInt64Array;
+  eventIds: Float64Array;
+  tses: BigInt64Array;
   utids: Float64Array;
   trackKeys: string[];
-  sources: string[];
+  sources: SearchSource[];
   totalResults: number;
 }

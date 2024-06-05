@@ -14,26 +14,29 @@
  * limitations under the License.
  */
 
-#include "perfetto/base/build_config.h"
+#include <cstddef>
+#include <cstdint>
+#include <initializer_list>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_HTTPD)
-
-#include "src/trace_processor/rpc/httpd.h"
-
+#include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/http/http_server.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/unix_task_runner.h"
-#include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
+#include "src/trace_processor/rpc/httpd.h"
 #include "src/trace_processor/rpc/rpc.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
 
-namespace perfetto {
-namespace trace_processor {
-
+namespace perfetto::trace_processor {
 namespace {
 
 constexpr int kBindPort = 9001;
@@ -58,40 +61,40 @@ class Httpd : public base::HttpRequestHandler {
   void OnHttpRequest(const base::HttpRequest&) override;
   void OnWebsocketMessage(const base::WebsocketMessage&) override;
 
-  void ServeHelpPage(const base::HttpRequest&);
+  static void ServeHelpPage(const base::HttpRequest&);
 
-  Rpc trace_processor_rpc_;
+  Rpc global_trace_processor_rpc_;
   base::UnixTaskRunner task_runner_;
   base::HttpServer http_srv_;
 };
 
-base::HttpServerConnection* g_cur_conn;
-
 base::StringView Vec2Sv(const std::vector<uint8_t>& v) {
-  return base::StringView(reinterpret_cast<const char*>(v.data()), v.size());
+  return {reinterpret_cast<const char*>(v.data()), v.size()};
 }
 
 // Used both by websockets and /rpc chunked HTTP endpoints.
-void SendRpcChunk(const void* data, uint32_t len) {
+void SendRpcChunk(base::HttpServerConnection* conn,
+                  const void* data,
+                  uint32_t len) {
   if (data == nullptr) {
     // Unrecoverable RPC error case.
-    if (!g_cur_conn->is_websocket())
-      g_cur_conn->SendResponseBody("0\r\n\r\n", 5);
-    g_cur_conn->Close();
+    if (!conn->is_websocket())
+      conn->SendResponseBody("0\r\n\r\n", 5);
+    conn->Close();
     return;
   }
-  if (g_cur_conn->is_websocket()) {
-    g_cur_conn->SendWebsocketMessage(data, len);
+  if (conn->is_websocket()) {
+    conn->SendWebsocketMessage(data, len);
   } else {
     base::StackString<32> chunk_hdr("%x\r\n", len);
-    g_cur_conn->SendResponseBody(chunk_hdr.c_str(), chunk_hdr.len());
-    g_cur_conn->SendResponseBody(data, len);
-    g_cur_conn->SendResponseBody("\r\n", 2);
+    conn->SendResponseBody(chunk_hdr.c_str(), chunk_hdr.len());
+    conn->SendResponseBody(data, len);
+    conn->SendResponseBody("\r\n", 2);
   }
 }
 
 Httpd::Httpd(std::unique_ptr<TraceProcessor> preloaded_instance)
-    : trace_processor_rpc_(std::move(preloaded_instance)),
+    : global_trace_processor_rpc_(std::move(preloaded_instance)),
       http_srv_(&task_runner_, this) {}
 Httpd::~Httpd() = default;
 
@@ -103,8 +106,9 @@ void Httpd::Run(int port) {
       "or through the Python API (see "
       "https://perfetto.dev/docs/analysis/trace-processor#python-api).");
 
-  for (size_t i = 0; i < base::ArraySize(kAllowedCORSOrigins); ++i)
-    http_srv_.AddAllowedOrigin(kAllowedCORSOrigins[i]);
+  for (const auto& kAllowedCORSOrigin : kAllowedCORSOrigins) {
+    http_srv_.AddAllowedOrigin(kAllowedCORSOrigin);
+  }
   http_srv_.Start(port);
   task_runner_.Run();
 }
@@ -139,7 +143,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   };
 
   if (req.uri == "/status") {
-    auto status = trace_processor_rpc_.GetStatus();
+    auto status = global_trace_processor_rpc_.GetStatus();
     return conn.SendResponse("200 OK", default_headers, Vec2Sv(status));
   }
 
@@ -161,13 +165,13 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     // Start the chunked reply.
     conn.SendResponseHeaders("200 OK", chunked_headers,
                              base::HttpServerConnection::kOmitContentLength);
-    PERFETTO_CHECK(g_cur_conn == nullptr);
-    g_cur_conn = req.conn;
-    trace_processor_rpc_.SetRpcResponseFunction(SendRpcChunk);
+    global_trace_processor_rpc_.SetRpcResponseFunction(
+        [&](const void* data, uint32_t len) {
+          SendRpcChunk(&conn, data, len);
+        });
     // OnRpcRequest() will call SendRpcChunk() one or more times.
-    trace_processor_rpc_.OnRpcRequest(req.body.data(), req.body.size());
-    trace_processor_rpc_.SetRpcResponseFunction(nullptr);
-    g_cur_conn = nullptr;
+    global_trace_processor_rpc_.OnRpcRequest(req.body.data(), req.body.size());
+    global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
 
     // Terminate chunked stream.
     conn.SendResponseBody("0\r\n\r\n", 5);
@@ -175,7 +179,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   }
 
   if (req.uri == "/parse") {
-    base::Status status = trace_processor_rpc_.Parse(
+    base::Status status = global_trace_processor_rpc_.Parse(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
     protozero::HeapBuffered<protos::pbzero::AppendTraceDataResult> result;
     if (!status.ok()) {
@@ -186,12 +190,12 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   }
 
   if (req.uri == "/notify_eof") {
-    trace_processor_rpc_.NotifyEndOfFile();
+    global_trace_processor_rpc_.NotifyEndOfFile();
     return conn.SendResponse("200 OK", default_headers);
   }
 
   if (req.uri == "/restore_initial_tables") {
-    trace_processor_rpc_.RestoreInitialTables();
+    global_trace_processor_rpc_.RestoreInitialTables();
     return conn.SendResponse("200 OK", default_headers);
   }
 
@@ -217,26 +221,27 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
       if (!has_more)
         conn.SendResponseBody("0\r\n\r\n", 5);
     };
-    trace_processor_rpc_.Query(
+    global_trace_processor_rpc_.Query(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size(),
         on_result_chunk);
     return;
   }
 
   if (req.uri == "/compute_metric") {
-    std::vector<uint8_t> res = trace_processor_rpc_.ComputeMetric(
+    std::vector<uint8_t> res = global_trace_processor_rpc_.ComputeMetric(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
     return conn.SendResponse("200 OK", default_headers, Vec2Sv(res));
   }
 
   if (req.uri == "/enable_metatrace") {
-    trace_processor_rpc_.EnableMetatrace(
+    global_trace_processor_rpc_.EnableMetatrace(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
     return conn.SendResponse("200 OK", default_headers);
   }
 
   if (req.uri == "/disable_and_read_metatrace") {
-    std::vector<uint8_t> res = trace_processor_rpc_.DisableAndReadMetatrace();
+    std::vector<uint8_t> res =
+        global_trace_processor_rpc_.DisableAndReadMetatrace();
     return conn.SendResponse("200 OK", default_headers, Vec2Sv(res));
   }
 
@@ -244,19 +249,19 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
-  PERFETTO_CHECK(g_cur_conn == nullptr);
-  g_cur_conn = msg.conn;
-  trace_processor_rpc_.SetRpcResponseFunction(SendRpcChunk);
+  global_trace_processor_rpc_.SetRpcResponseFunction(
+      [&](const void* data, uint32_t len) {
+        SendRpcChunk(msg.conn, data, len);
+      });
   // OnRpcRequest() will call SendRpcChunk() one or more times.
-  trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
-  trace_processor_rpc_.SetRpcResponseFunction(nullptr);
-  g_cur_conn = nullptr;
+  global_trace_processor_rpc_.OnRpcRequest(msg.data.data(), msg.data.size());
+  global_trace_processor_rpc_.SetRpcResponseFunction(nullptr);
 }
 
 }  // namespace
 
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
-                      std::string port_number) {
+                      const std::string& port_number) {
   Httpd srv(std::move(preloaded_instance));
   std::optional<int> port_opt = base::StringToInt32(port_number);
   int port = port_opt.has_value() ? *port_opt : kBindPort;
@@ -291,7 +296,4 @@ https://perfetto.dev/docs/contributing/getting-started#community
   req.conn->SendResponse("200 OK", headers, kPage);
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
-
-#endif  // PERFETTO_TP_HTTPD
+}  // namespace perfetto::trace_processor

@@ -31,8 +31,8 @@ class FilterPacketUsingAllowlist : public TracePacketFilter {
  public:
   base::Status VerifyContext(const Context& context) const override;
 
-  bool KeepPacket(const Context& context,
-                  const std::string& bytes) const override;
+  bool KeepField(const Context& context,
+                 const protozero::Field& field) const override;
 };
 
 }  // namespace perfetto::trace_redaction

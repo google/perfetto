@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Duration, Time, time} from '../base/time';
+import {Duration, time} from '../base/time';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {
@@ -25,14 +25,14 @@ import {
   CallsiteInfo,
   FlamegraphState,
   FlamegraphStateViewingOption,
-  ProfileType,
   isHeapGraphDominatorTreeViewingOption,
+  ProfileType,
 } from '../common/state';
 import {FlamegraphDetails, globals} from '../frontend/globals';
 import {publishFlamegraphDetails} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';
 import {NUM, STR} from '../trace_processor/query_result';
-import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../tracks/perf_samples_profile';
+import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../core_plugins/perf_samples_profile';
 
 import {AreaSelectionHandler} from './area_selection_handler';
 import {Controller} from './controller';
@@ -106,6 +106,10 @@ class TablesCache {
     }
     return tableName;
   }
+
+  hasQuery(query: string): boolean {
+    return this.cache.get(query) !== undefined;
+  }
 }
 
 export class FlamegraphController extends Controller<'main'> {
@@ -116,10 +120,6 @@ export class FlamegraphController extends Controller<'main'> {
   private flamegraphDetails: FlamegraphDetails = {};
   private areaSelectionHandler: AreaSelectionHandler;
   private cache: TablesCache;
-  private heapGraphSelected: {upid: number; timestamp: time} = {
-    upid: -1,
-    timestamp: Time.INVALID,
-  };
 
   constructor(private args: FlamegraphControllerArgs) {
     super('main');
@@ -215,9 +215,8 @@ export class FlamegraphController extends Controller<'main'> {
       const flamegraphData = await this.getFlamegraphData(
         key,
         /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-        selectedFlamegraphState.viewingOption
-          ? /* eslint-enable */
-            selectedFlamegraphState.viewingOption
+        selectedFlamegraphState.viewingOption /* eslint-enable */
+          ? selectedFlamegraphState.viewingOption
           : defaultViewingOption(selectedFlamegraphState.type),
         selection.start,
         selection.end,
@@ -540,22 +539,18 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   private async loadHeapGraphDominatorTreeQuery(upid: number, timestamp: time) {
-    const selectTreeQuery = `
-    -- cache invalidate: upid ${upid}, ts ${timestamp}
-    SELECT * FROM heap_graph_type_dominated`;
-    if (
-      this.heapGraphSelected.upid === upid &&
-      this.heapGraphSelected.timestamp === timestamp
-    ) {
-      return selectTreeQuery;
+    const outputTableName = `heap_graph_type_dominated_${upid}_${timestamp}`;
+    const outputQuery = `SELECT * FROM ${outputTableName}`;
+    if (this.cache.hasQuery(outputQuery)) {
+      return outputQuery;
     }
-    this.heapGraphSelected = {upid, timestamp};
+
     this.args.engine.query(`
     INCLUDE PERFETTO MODULE memory.heap_graph_dominator_tree;
 
     -- heap graph dominator tree with objects as nodes and all relavant
     -- object self stats and dominated stats
-    CREATE PERFETTO TABLE heap_graph_object_dominated AS
+    CREATE PERFETTO TABLE _heap_graph_object_dominated AS
     SELECT
      node.id,
      node.idom_id,
@@ -574,21 +569,19 @@ export class FlamegraphController extends Controller<'main'> {
     -- calculate for each object node in the dominator tree the
     -- HASH(path of type_id's from the super root to the object)
     CREATE PERFETTO TABLE _dominator_tree_path_hash AS
-    WITH RECURSIVE _tree_visitor(id, path, path_hash) AS (
+    WITH RECURSIVE _tree_visitor(id, path_hash) AS (
       SELECT
         id,
-        CAST(type_id AS text) || '-' || IFNULL(root_type, '') AS path,
         HASH(
-          CAST(type_id AS text) || '-' || IFNULL(root_type, '')
+          CAST(type_id AS TEXT) || '-' || IFNULL(root_type, '')
         ) AS path_hash
-      FROM heap_graph_object_dominated
+      FROM _heap_graph_object_dominated
       WHERE depth = 1
       UNION ALL
       SELECT
         child.id,
-        parent.path || '/' || CAST(type_id AS text) AS path,
-        HASH(parent.path || '/' || CAST(type_id AS text)) AS path_hash
-      FROM heap_graph_object_dominated child
+        HASH(CAST(parent.path_hash AS TEXT) || '/' || CAST(type_id AS TEXT)) AS path_hash
+      FROM _heap_graph_object_dominated child
       JOIN _tree_visitor parent ON child.idom_id = parent.id
     )
     SELECT * from _tree_visitor
@@ -597,7 +590,7 @@ export class FlamegraphController extends Controller<'main'> {
     -- merge object nodes with the same path into one "class type node", so the
     -- end result is a tree where nodes are identified by their types and the
     -- dominator relationships are preserved.
-    CREATE PERFETTO TABLE heap_graph_type_dominated AS
+    CREATE PERFETTO TABLE ${outputTableName} AS
     SELECT
       map.path_hash as id,
       COALESCE(cls.deobfuscated_name, cls.name, '[NULL]') || IIF(
@@ -615,13 +608,18 @@ export class FlamegraphController extends Controller<'main'> {
       -1 as line_number,
       sum(self_size) AS size,
       count(*) AS count
-    FROM heap_graph_object_dominated node
+    FROM _heap_graph_object_dominated node
     JOIN _dominator_tree_path_hash map USING(id)
     LEFT JOIN _dominator_tree_path_hash parent_map ON node.idom_id = parent_map.id
     JOIN heap_graph_class cls ON node.type_id = cls.id
-    GROUP BY map.path_hash, name, parent_id, depth, map_name, source_file, line_number;`);
+    GROUP BY map.path_hash, name, parent_id, depth, map_name, source_file, line_number;
 
-    return selectTreeQuery;
+    -- These are intermediates and not needed
+    DROP TABLE _heap_graph_object_dominated;
+    DROP TABLE _dominator_tree_path_hash;
+    `);
+
+    return outputQuery;
   }
 
   getMinSizeDisplayed(

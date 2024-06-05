@@ -18,7 +18,7 @@ import {BigintMath} from '../../base/bigint_math';
 import {Icons} from '../../base/semantic_icons';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 import {
   LONG,
   LONG_NULL,
@@ -68,7 +68,7 @@ export interface SliceDetails {
 }
 
 async function getUtidAndUpid(
-  engine: EngineProxy,
+  engine: Engine,
   sqlTrackId: number,
 ): Promise<{utid?: Utid; upid?: Upid}> {
   const columnInfo = (
@@ -118,7 +118,7 @@ async function getUtidAndUpid(
 }
 
 export async function getSliceFromConstraints(
-  engine: EngineProxy,
+  engine: Engine,
   constraints: SQLConstraints,
 ): Promise<SliceDetails[]> {
   const query = await engine.query(`
@@ -186,7 +186,7 @@ export async function getSliceFromConstraints(
 }
 
 export async function getSlice(
-  engine: EngineProxy,
+  engine: Engine,
   id: SliceSqlId,
 ): Promise<SliceDetails | undefined> {
   const result = await getSliceFromConstraints(engine, {
@@ -272,7 +272,7 @@ export interface SliceTreeNode extends SliceDetails {
 
 // Get all descendants for a given slice in a tree form.
 export async function getDescendantSliceTree(
-  engine: EngineProxy,
+  engine: Engine,
   id: SliceSqlId,
 ): Promise<SliceTreeNode | undefined> {
   const slice = await getSlice(engine, id);

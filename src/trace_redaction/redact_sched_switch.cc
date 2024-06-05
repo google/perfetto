@@ -24,6 +24,22 @@
 
 namespace perfetto::trace_redaction {
 
+namespace {
+
+// TODO(vaage): Merge with RedactComm in redact_task_newtask.cc.
+protozero::ConstChars RedactComm(const Context& context,
+                                 uint64_t ts,
+                                 int32_t pid,
+                                 protozero::ConstChars comm) {
+  if (context.timeline->PidConnectsToUid(ts, pid, *context.package_uid)) {
+    return comm;
+  }
+
+  return {};
+}
+
+}  // namespace
+
 // Redact sched switch trace events in an ftrace event bundle:
 //
 //  event {
@@ -47,14 +63,10 @@ namespace perfetto::trace_redaction {
 // collection of ftrace event messages) because data in a sched_switch message
 // is needed in order to know if the event should be added to the bundle.
 
-RedactSchedSwitch::RedactSchedSwitch()
-    : FtraceEventRedaction(
-          protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber) {}
-
 base::Status RedactSchedSwitch::Redact(
     const Context& context,
-    const protos::pbzero::FtraceEvent::Decoder& event,
-    protozero::ConstBytes bytes,
+    const protos::pbzero::FtraceEventBundle::Decoder&,
+    protozero::ProtoDecoder& event,
     protos::pbzero::FtraceEvent* event_message) const {
   if (!context.package_uid.has_value()) {
     return base::ErrStatus("RedactSchedSwitch: missing package uid");
@@ -64,38 +76,50 @@ base::Status RedactSchedSwitch::Redact(
     return base::ErrStatus("RedactSchedSwitch: missing timeline");
   }
 
-  protos::pbzero::SchedSwitchFtraceEvent::Decoder sched_switch(bytes);
+  // The timestamp is needed to do the timeline look-up. If the packet has no
+  // timestamp, don't add the sched switch event. This is the safest option.
+  auto timestamp =
+      event.FindField(protos::pbzero::FtraceEvent::kTimestampFieldNumber);
+  if (!timestamp.valid()) {
+    return base::OkStatus();
+  }
+
+  auto sched_switch =
+      event.FindField(protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber);
+  if (!sched_switch.valid()) {
+    return base::ErrStatus(
+        "RedactSchedSwitch: was used for unsupported field type");
+  }
+
+  protozero::ProtoDecoder sched_switch_decoder(sched_switch.as_bytes());
+
+  auto prev_pid = sched_switch_decoder.FindField(
+      protos::pbzero::SchedSwitchFtraceEvent::kPrevPidFieldNumber);
+  auto next_pid = sched_switch_decoder.FindField(
+      protos::pbzero::SchedSwitchFtraceEvent::kNextPidFieldNumber);
 
   // There must be a prev pid and a next pid. Otherwise, the event is invalid.
   // Dropping the event is the safest option.
-  if (!sched_switch.has_prev_pid() || !sched_switch.has_next_pid()) {
+  if (!prev_pid.valid() || !next_pid.valid()) {
     return base::OkStatus();
   }
 
   // Avoid making the message until we know that we have prev and next pids.
   auto sched_switch_message = event_message->set_sched_switch();
 
-  auto prev_slice =
-      context.timeline->Search(event.timestamp(), sched_switch.prev_pid());
-  auto next_slice =
-      context.timeline->Search(event.timestamp(), sched_switch.next_pid());
-
-  // To read the fields, move the read head back to the start.
-  sched_switch.Reset();
-
-  for (auto field = sched_switch.ReadField(); field.valid();
-       field = sched_switch.ReadField()) {
+  for (auto field = sched_switch_decoder.ReadField(); field.valid();
+       field = sched_switch_decoder.ReadField()) {
     switch (field.id()) {
       case protos::pbzero::SchedSwitchFtraceEvent::kNextCommFieldNumber:
-        if (next_slice.uid == context.package_uid) {
-          proto_util::AppendField(field, sched_switch_message);
-        }
+        sched_switch_message->set_next_comm(
+            RedactComm(context, timestamp.as_uint64(), next_pid.as_int32(),
+                       field.as_string()));
         break;
 
       case protos::pbzero::SchedSwitchFtraceEvent::kPrevCommFieldNumber:
-        if (prev_slice.uid == context.package_uid) {
-          proto_util::AppendField(field, sched_switch_message);
-        }
+        sched_switch_message->set_prev_comm(
+            RedactComm(context, timestamp.as_uint64(), prev_pid.as_int32(),
+                       field.as_string()));
         break;
 
       default:

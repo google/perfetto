@@ -18,11 +18,11 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 
 class AndroidPerf implements Plugin {
   async addAppProcessStartsDebugTrack(
-    engine: EngineProxy,
+    engine: Engine,
     reason: string,
     sliceName: string,
   ): Promise<void> {

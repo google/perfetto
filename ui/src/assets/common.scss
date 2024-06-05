@@ -560,15 +560,33 @@ button.query-ctrl {
   padding: 0.25em 0.5em;
   max-height: 150px;
   overflow-y: auto;
+  position: relative;
 
   pre {
     font-size: 10pt;
     margin: 0;
     overflow-x: auto;
+    overflow-y: hidden;
+    white-space: pre-wrap;
+    position: relative;
+    cursor: pointer;
+
+    &:hover::after {
+      content: "Doubleclick to re-run";
+      font-size: 12px;
+      color: rgba(0, 0, 0, 20%);
+      position: absolute;
+      top: 0;
+      margin: auto;
+      right: 0;
+    }
   }
 
-  &:hover .history-item-buttons {
-    visibility: visible;
+  &:hover {
+    background-color: hsl(213, 22%, 94%);
+    .history-item-buttons {
+      visibility: visible;
+    }
   }
 }
 

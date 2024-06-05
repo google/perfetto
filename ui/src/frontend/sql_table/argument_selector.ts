@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {raf} from '../../core/raf_scheduler';
-import {EngineProxy} from '../../trace_processor/engine';
+import {Engine} from '../../trace_processor/engine';
 import {STR} from '../../trace_processor/query_result';
 import {FilterableSelect} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
@@ -31,7 +31,7 @@ import {ArgSetIdColumn} from './table_description';
 const MAX_ARGS_TO_DISPLAY = 15;
 
 interface ArgumentSelectorAttrs {
-  engine: EngineProxy;
+  engine: Engine;
   argSetId: ArgSetIdColumn;
   tableName: string;
   constraints: SQLConstraints;

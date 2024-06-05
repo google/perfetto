@@ -18,10 +18,16 @@
 #define SRC_TRACE_REDACTION_REDACT_FTRACE_EVENT_H_
 
 #include <cstdint>
+#include <memory>
+#include <string>
 
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/protozero/field.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
@@ -30,21 +36,17 @@ namespace perfetto::trace_redaction {
 // event in the trace.
 class FtraceEventRedaction {
  public:
-  explicit FtraceEventRedaction(uint32_t field_id) : field_id_(field_id) {}
-
   virtual ~FtraceEventRedaction();
 
-  uint32_t field_id() const { return field_id_; }
-
-  // Write a new version of the event to the message.
+  // Write at most one field from `event` to `event_message`. This relies on the
+  // honor system; other redactions may be registered on other values.
+  //
+  //  - event: effectively "protos::pbzero::FtraceEvent::Decoder"
   virtual base::Status Redact(
       const Context& context,
-      const protos::pbzero::FtraceEvent::Decoder& event,
-      protozero::ConstBytes bytes,
+      const protos::pbzero::FtraceEventBundle::Decoder& bundle,
+      protozero::ProtoDecoder& event,
       protos::pbzero::FtraceEvent* event_message) const = 0;
-
- private:
-  uint32_t field_id_;
 };
 
 class RedactFtraceEvent : public TransformPrimitive {
@@ -52,31 +54,25 @@ class RedactFtraceEvent : public TransformPrimitive {
   base::Status Transform(const Context& context,
                          std::string* packet) const override;
 
-  // Add a new redaction. T must extend FtraceEventRedaction.
-  template <typename T>
+  // Add a new redaction. T must extend FtraceEventRedaction. This relies on the
+  // honor system; no more than one redaction can be mapped to a field.
+  template <uint32_t field_id, class T>
   void emplace_back() {
-    redactions_.push_back(std::make_unique<T>());
+    redactions_.Insert(field_id, std::make_unique<T>());
   }
 
  private:
-  void RedactPacket(const Context& context,
-                    protozero::ConstBytes bytes,
-                    protos::pbzero::TracePacket* message) const;
-
   void RedactEvents(const Context& context,
-                    protozero::ConstBytes bytes,
+                    protozero::Field bundle,
                     protos::pbzero::FtraceEventBundle* message) const;
 
   void RedactEvent(const Context& context,
-                   protozero::ConstBytes bytes,
+                   const protos::pbzero::FtraceEventBundle::Decoder& bundle,
+                   protozero::Field event,
                    protos::pbzero::FtraceEvent* message) const;
 
-  const FtraceEventRedaction* FindRedactionFor(uint32_t i) const;
-
-  // Each redactions supplies its own id. This list will be small. So
-  // iterating over the list checking the reported ids should be good enough.
-  // Ids must not collide.
-  std::vector<std::unique_ptr<FtraceEventRedaction>> redactions_;
+  base::FlatHashMap<uint32_t, std::unique_ptr<FtraceEventRedaction>>
+      redactions_;
 };
 
 }  // namespace perfetto::trace_redaction

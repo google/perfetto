@@ -19,6 +19,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -144,6 +146,54 @@ void ArrangementOverlay::ChainImpl::StableSort(SortToken* start,
     it->index = (*arrangement_)[it->index];
   }
   inner_->StableSort(start, end, direction);
+}
+
+void ArrangementOverlay::ChainImpl::Distinct(Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "ArrangementOverlay::ChainImpl::Distinct");
+  // TODO(mayzner): Utilize `does_arrangmeent_order_storage_`.
+  std::unordered_set<uint32_t> s;
+  indices.tokens.erase(
+      std::remove_if(indices.tokens.begin(), indices.tokens.end(),
+                     [this, &s](Token& idx) {
+                       if (s.insert(idx.index).second) {
+                         idx.index = (*arrangement_)[idx.index];
+                         return false;
+                       }
+                       return true;
+                     }),
+      indices.tokens.end());
+  inner_->Distinct(indices);
+}
+
+std::optional<Token> ArrangementOverlay::ChainImpl::MaxElement(
+    Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "ArrangementOverlay::ChainImpl::MaxElement");
+  for (auto& i : indices.tokens) {
+    i.index = (*arrangement_)[i.index];
+  }
+  // If the indices state is monotonic, we can just pass the arrangement's
+  // state.
+  indices.state = indices.state == Indices::State::kMonotonic
+                      ? arrangement_state_
+                      : Indices::State::kNonmonotonic;
+  return inner_->MaxElement(indices);
+}
+
+std::optional<Token> ArrangementOverlay::ChainImpl::MinElement(
+    Indices& indices) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB,
+                    "ArrangementOverlay::ChainImpl::MinElement");
+  for (auto& i : indices.tokens) {
+    i.index = (*arrangement_)[i.index];
+  }
+  // If the indices state is monotonic, we can just pass the arrangement's
+  // state.
+  indices.state = indices.state == Indices::State::kMonotonic
+                      ? arrangement_state_
+                      : Indices::State::kNonmonotonic;
+  return inner_->MinElement(indices);
 }
 
 void ArrangementOverlay::ChainImpl::Serialize(StorageProto* storage) const {

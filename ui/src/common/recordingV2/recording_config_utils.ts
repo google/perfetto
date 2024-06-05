@@ -769,7 +769,7 @@ export function genTraceConfig(
   ) {
     const ds = new TraceConfig.DataSource();
     ds.config = new DataSourceConfig();
-    ds.config.name = 'windows.etw';
+    ds.config.name = 'org.chromium.etw_system';
     ds.config.etwConfig = new EtwConfig();
 
     const kernelFlags: EtwConfig.KernelFlag[] = [];

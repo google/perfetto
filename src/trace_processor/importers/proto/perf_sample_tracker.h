@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include <cstdint>
 #include <unordered_map>
 
 #include "src/trace_processor/storage/trace_storage.h"
@@ -50,6 +51,8 @@ class PerfSampleTracker {
       uint32_t seq_id,
       uint32_t cpu,
       protos::pbzero::TracePacketDefaults_Decoder* nullable_defaults);
+
+  uint32_t CreatePerfSession() { return next_perf_session_id_++; }
 
  private:
   struct CpuSequenceState {

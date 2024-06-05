@@ -23,7 +23,6 @@
 #include "perfetto/ext/base/utils.h"
 
 #include <algorithm>
-#include <functional>
 #include <limits>
 
 namespace perfetto {
@@ -45,6 +44,11 @@ namespace base {
 // tsl::robin_map:            931,403,397 ns    243.622M insertions/s
 // absl::flat_hash_map:       998,013,459 ns    227.379M insertions/s
 // FollyF14FastMap:         1,181,480,602 ns    192.074M insertions/s
+//
+// TODO(primiano): the table regresses for heavy insert+erase workloads since we
+// don't clean up tombstones outside of resizes. In the limit, the entire
+// table's capacity is made up of values/tombstones, so each search has to
+// exhaustively scan the full capacity.
 
 // The structs below define the probing algorithm used to probe slots upon a
 // collision. They are guaranteed to visit all slots as our table size is always

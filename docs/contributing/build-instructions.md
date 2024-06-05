@@ -535,6 +535,7 @@ In `.vscode/settings.json`:
     "./ui",
   ],
   "prettier.configPath": "ui/.prettierrc.yml",
+  "typescript.preferences.importModuleSpecifier": "relative",
   "[typescript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },

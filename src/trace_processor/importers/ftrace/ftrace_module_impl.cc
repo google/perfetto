@@ -38,14 +38,14 @@ ModuleResult FtraceModuleImpl::TokenizePacket(
     const protos::pbzero::TracePacket::Decoder& decoder,
     TraceBlobView* packet,
     int64_t /*packet_timestamp*/,
-    PacketSequenceState* seq_state,
+    RefPtr<PacketSequenceStateGeneration> seq_state,
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kFtraceEventsFieldNumber: {
       auto ftrace_field = decoder.ftrace_events();
       return tokenizer_.TokenizeFtraceBundle(
-          packet->slice(ftrace_field.data, ftrace_field.size), seq_state,
-          decoder.trusted_packet_sequence_id());
+          packet->slice(ftrace_field.data, ftrace_field.size),
+          std::move(seq_state), decoder.trusted_packet_sequence_id());
     }
     case TracePacket::kFtraceStatsFieldNumber: {
       return parser_.ParseFtraceStats(decoder.ftrace_stats(),

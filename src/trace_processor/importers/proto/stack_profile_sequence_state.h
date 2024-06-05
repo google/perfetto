@@ -23,7 +23,6 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/string_view.h"
-#include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -35,7 +34,7 @@ class TraceProcessorContext;
 class VirtualMemoryMapping;
 
 class StackProfileSequenceState final
-    : public PacketSequenceStateGeneration::InternedDataTracker {
+    : public PacketSequenceStateGeneration::CustomState {
  public:
   explicit StackProfileSequenceState(TraceProcessorContext* context);
 

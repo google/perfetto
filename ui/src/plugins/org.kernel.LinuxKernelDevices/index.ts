@@ -19,31 +19,19 @@ import {
   PluginDescriptor,
   STR_NULL,
 } from '../../public';
-import {ASYNC_SLICE_TRACK_KIND} from '../../tracks/async_slices';
-import {AsyncSliceTrackV2} from '../../tracks/async_slices/async_slice_track_v2';
+import {ASYNC_SLICE_TRACK_KIND} from '../../core_plugins/async_slices';
+import {AsyncSliceTrackV2} from '../../core_plugins/async_slices/async_slice_track_v2';
 
 // This plugin renders visualizations of runtime power state transitions for
 // Linux kernel devices (devices managed by Linux drivers).
 class LinuxKernelDevices implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
-      with
-        slices_tracks as materialized (
-          select distinct track_id
-          from slice
-        ),
-        tracks as (
-          select
-            linux_device_track.id as track_id,
-            linux_device_track.name
-          from linux_device_track
-          join slices_tracks on
-          slices_tracks.track_id = linux_device_track.id
-        )
       select
-        t.name,
-        t.track_id as trackId
-      from tracks as t
+        t.id as trackId,
+        t.name
+      from linux_device_track t
+      join _slice_track_summary using (id)
       order by t.name;
     `);
 

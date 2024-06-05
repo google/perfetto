@@ -27,22 +27,22 @@ import {globals} from '../frontend/globals';
 import {PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {PrimaryTrackSortKey} from '../public';
 import {getTrackName} from '../public/utils';
-import {Engine, EngineProxy} from '../trace_processor/engine';
+import {Engine, EngineBase} from '../trace_processor/engine';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../trace_processor/query_result';
-import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices';
+import {ASYNC_SLICE_TRACK_KIND} from '../core_plugins/async_slices';
 import {
   ENABLE_SCROLL_JANK_PLUGIN_V2,
   getScrollJankTracks,
-} from '../tracks/chrome_scroll_jank';
-import {decideTracks as scrollJankDecideTracks} from '../tracks/chrome_scroll_jank/chrome_tasks_scroll_jank_track';
-import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
-import {COUNTER_TRACK_KIND} from '../tracks/counter';
+} from '../core_plugins/chrome_scroll_jank';
+import {decideTracks as scrollJankDecideTracks} from '../core_plugins/chrome_scroll_jank/chrome_tasks_scroll_jank_track';
+import {COUNTER_TRACK_KIND} from '../core_plugins/counter';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
-} from '../tracks/frames';
-import {decideTracks as screenshotDecideTracks} from '../tracks/screenshots';
-import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
+} from '../core_plugins/frames';
+import {decideTracks as screenshotDecideTracks} from '../core_plugins/screenshots';
+import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
+import {SLICE_TRACK_KIND} from '../core_plugins/chrome_slices/chrome_slice_track';
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';
@@ -76,18 +76,20 @@ const CHROME_TRACK_REGEX = new RegExp('^Chrome.*|^InputLatency::.*');
 const CHROME_TRACK_GROUP = 'Chrome Global Tracks';
 const MISC_GROUP = 'Misc Global Tracks';
 
-export async function decideTracks(engine: Engine): Promise<DeferredAction[]> {
+export async function decideTracks(
+  engine: EngineBase,
+): Promise<DeferredAction[]> {
   return new TrackDecider(engine).decideTracks();
 }
 
 class TrackDecider {
-  private engine: Engine;
+  private engine: EngineBase;
   private upidToUuid = new Map<number, string>();
   private utidToUuid = new Map<number, string>();
   private tracksToAdd: AddTrackArgs[] = [];
   private addTrackGroupActions: DeferredAction[] = [];
 
-  constructor(engine: Engine) {
+  constructor(engine: EngineBase) {
     this.engine = engine;
   }
 
@@ -131,7 +133,7 @@ class TrackDecider {
     }
   }
 
-  async addCpuFreqTracks(engine: EngineProxy): Promise<void> {
+  async addCpuFreqTracks(engine: Engine): Promise<void> {
     const cpus = await this.engine.getCpus();
 
     for (const cpu of cpus) {
@@ -165,65 +167,36 @@ class TrackDecider {
     }
   }
 
-  async addGlobalAsyncTracks(engine: EngineProxy): Promise<void> {
+  async addGlobalAsyncTracks(engine: Engine): Promise<void> {
     const rawGlobalAsyncTracks = await engine.query(`
-      with tracks_with_slices as materialized (
-        select distinct track_id
-        from slice
-      ),
-      global_tracks as (
-        select
-          track.parent_id as parent_id,
-          track.id as track_id,
-          track.name as name
-        from track
-        join tracks_with_slices on tracks_with_slices.track_id = track.id
-        where
-          track.type = "track"
-          or track.type = "gpu_track"
-          or track.type = "cpu_track"
-      ),
-      global_tracks_grouped as (
-        select
-          parent_id,
-          name,
-          group_concat(track_id) as trackIds,
-          count(track_id) as trackCount
-        from global_tracks track
-        group by parent_id, name
+      with global_tracks_grouped as (
+        select distinct t.parent_id, t.name
+        from track t
+        join _slice_track_summary using (id)
+        where t.type in ('track', 'gpu_track', 'cpu_track')
       )
       select
-        t.parent_id as parentId,
-        p.name as parentName,
         t.name as name,
-        t.trackIds as trackIds,
-        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+        t.parent_id as parentId,
+        p.name as parentName
       from global_tracks_grouped AS t
       left join track p on (t.parent_id = p.id)
-      order by p.name, t.name;
+      order by p.name, t.name
     `);
     const it = rawGlobalAsyncTracks.iter({
       name: STR_NULL,
-      parentName: STR_NULL,
       parentId: NUM_NULL,
-      maxDepth: NUM_NULL,
+      parentName: STR_NULL,
     });
 
     const parentIdToGroupId = new Map<number, string>();
-
     for (; it.valid(); it.next()) {
       const kind = ASYNC_SLICE_TRACK_KIND;
       const rawName = it.name === null ? undefined : it.name;
       const rawParentName = it.parentName === null ? undefined : it.parentName;
       const name = getTrackName({name: rawName, kind});
       const parentTrackId = it.parentId;
-      const maxDepth = it.maxDepth;
       let trackGroup = SCROLLING_TRACK_GROUP;
-
-      // If there are no slices in this track, skip it.
-      if (maxDepth === null) {
-        continue;
-      }
 
       if (parentTrackId !== null) {
         const groupId = parentIdToGroupId.get(parentTrackId);
@@ -255,17 +228,17 @@ class TrackDecider {
     }
   }
 
-  async addGpuFreqTracks(engine: EngineProxy): Promise<void> {
+  async addGpuFreqTracks(engine: Engine): Promise<void> {
     const numGpus = await this.engine.getNumberOfGpus();
     for (let gpu = 0; gpu < numGpus; gpu++) {
       // Only add a gpu freq track if we have
       // gpu freq data.
       const freqExistsResult = await engine.query(`
-      select *
-      from gpu_counter_track
-      where name = 'gpufreq' and gpu_id = ${gpu}
-      limit 1;
-    `);
+        select *
+        from gpu_counter_track
+        where name = 'gpufreq' and gpu_id = ${gpu}
+        limit 1;
+      `);
       if (freqExistsResult.numRows() > 0) {
         this.tracksToAdd.push({
           uri: `perfetto.Counter#gpu_freq${gpu}`,
@@ -277,7 +250,7 @@ class TrackDecider {
     }
   }
 
-  async addCpuFreqLimitCounterTracks(engine: EngineProxy): Promise<void> {
+  async addCpuFreqLimitCounterTracks(engine: Engine): Promise<void> {
     const cpuFreqLimitCounterTracksSql = `
       select name, id
       from cpu_counter_track
@@ -288,7 +261,7 @@ class TrackDecider {
     this.addCpuCounterTracks(engine, cpuFreqLimitCounterTracksSql);
   }
 
-  async addCpuPerfCounterTracks(engine: EngineProxy): Promise<void> {
+  async addCpuPerfCounterTracks(engine: Engine): Promise<void> {
     // Perf counter tracks are bound to CPUs, follow the scheduling and
     // frequency track naming convention ("Cpu N ...").
     // Note: we might not have a track for a given cpu if no data was seen from
@@ -303,7 +276,7 @@ class TrackDecider {
     this.addCpuCounterTracks(engine, addCpuPerfCounterTracksSql);
   }
 
-  async addCpuCounterTracks(engine: EngineProxy, sql: string): Promise<void> {
+  async addCpuCounterTracks(engine: Engine, sql: string): Promise<void> {
     const result = await engine.query(sql);
 
     const it = result.iter({
@@ -545,7 +518,7 @@ class TrackDecider {
     }
   }
 
-  async addAnnotationTracks(engine: EngineProxy): Promise<void> {
+  async addAnnotationTracks(engine: Engine): Promise<void> {
     const sliceResult = await engine.query(`
       select id, name, upid, group_name
       from annotation_slice_track
@@ -636,16 +609,16 @@ class TrackDecider {
     }
   }
 
-  async addThreadStateTracks(engine: EngineProxy): Promise<void> {
+  async addThreadStateTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
-      with ts_distinct as materialized (select distinct utid from thread_state)
       select
         utid,
         upid,
         tid,
         thread.name as threadName
       from thread
-      where utid != 0 and utid in ts_distinct`);
+      join _sched_summary using (utid)
+    `);
 
     const it = result.iter({
       utid: NUM,
@@ -686,7 +659,7 @@ class TrackDecider {
     }
   }
 
-  async addThreadCpuSampleTracks(engine: EngineProxy): Promise<void> {
+  async addThreadCpuSampleTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
       with thread_cpu_sample as (
         select distinct utid
@@ -724,18 +697,18 @@ class TrackDecider {
     }
   }
 
-  async addThreadCounterTracks(engine: EngineProxy): Promise<void> {
+  async addThreadCounterTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
-    select
-      thread_counter_track.name as trackName,
-      utid,
-      upid,
-      tid,
-      thread.name as threadName,
-      thread_counter_track.id as trackId
-    from thread_counter_track
-    join thread using(utid)
-    where thread_counter_track.name != 'thread_time'
+      select
+        thread_counter_track.name as trackName,
+        utid,
+        upid,
+        tid,
+        thread.name as threadName,
+        thread_counter_track.id as trackId
+      from thread_counter_track
+      join thread using(utid)
+      where thread_counter_track.name != 'thread_time'
   `);
 
     const it = result.iter({
@@ -774,29 +747,17 @@ class TrackDecider {
     }
   }
 
-  async addProcessAsyncSliceTracks(engine: EngineProxy): Promise<void> {
+  async addProcessAsyncSliceTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
-      with process_async_tracks as materialized (
-        select
-          process_track.upid as upid,
-          process_track.name as trackName,
-          process.name as processName,
-          process.pid as pid,
-          group_concat(process_track.id) as trackIds,
-          count(1) as trackCount
-        from process_track
-        join process using(upid)
-        where
-            process_track.name is null or
-            process_track.name not like "% Timeline"
-        group by
-          process_track.upid,
-          process_track.name
-      )
       select
-        t.*,
-        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from process_async_tracks t;
+        upid,
+        t.name as trackName,
+        t.track_ids as trackIds,
+        process.name as processName,
+        process.pid as pid
+      from _process_track_summary_by_upid_and_name t
+      join process using(upid)
+      where t.name is null or t.name not glob "* Timeline"
     `);
 
     const it = result.iter({
@@ -805,7 +766,6 @@ class TrackDecider {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
-      maxDepth: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -813,14 +773,8 @@ class TrackDecider {
       const rawTrackIds = it.trackIds;
       const processName = it.processName;
       const pid = it.pid;
-      const maxDepth = it.maxDepth;
 
-      if (maxDepth === null) {
-        // If there are no slices in this track, skip it.
-        continue;
-      }
-
-      const uuid = this.getUuid(0, upid);
+      const uuid = this.getUuid(null, upid);
       const name = getTrackName({
         name: trackName,
         upid,
@@ -838,39 +792,28 @@ class TrackDecider {
     }
   }
 
-  async addUserAsyncSliceTracks(engine: EngineProxy): Promise<void> {
+  async addUserAsyncSliceTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
-      with tracks_with_slices as materialized (
-        select distinct track_id
-        from slice
-      ),
-      global_tracks as (
+      with grouped_packages as materialized (
         select
-          uid_track.name,
-          uid_track.uid,
-          group_concat(uid_track.id) as trackIds,
-          count(uid_track.id) as trackCount
-        from uid_track
-        join tracks_with_slices
-        where tracks_with_slices.track_id == uid_track.id
-        group by uid_track.uid
+          uid,
+          group_concat(package_name, ',') as package_name,
+          count() as cnt
+        from package_list
+        group by uid
       )
       select
         t.name as name,
         t.uid as uid,
-        package_list.package_name as package_name,
-        t.trackIds as trackIds,
-        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from global_tracks t
-      join package_list
-      where t.uid = package_list.uid
-      group by t.uid
-      `);
+        iif(g.cnt = 1, g.package_name, 'UID ' || g.uid) as packageName
+      from _uid_track_track_summary_by_uid_and_name t
+      left join grouped_packages g using (uid)
+    `);
 
     const it = result.iter({
       name: STR_NULL,
       uid: NUM_NULL,
-      package_name: STR_NULL,
+      packageName: STR_NULL,
     });
 
     // Map From [name] -> [uuid, key]
@@ -882,8 +825,7 @@ class TrackDecider {
       }
       const rawName = it.name;
       const uid = it.uid === null ? undefined : it.uid;
-      const userName =
-        it.package_name === null ? `UID: ${uid}` : it.package_name;
+      const userName = it.packageName === null ? `UID ${uid}` : it.packageName;
 
       const groupUuid = `uid-track-group${rawName}`;
       if (groupMap.get(rawName) === undefined) {
@@ -908,50 +850,31 @@ class TrackDecider {
     }
   }
 
-  async addActualFramesTracks(engine: EngineProxy): Promise<void> {
+  async addActualFramesTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
-      with process_async_tracks as materialized (
-        select
-          process_track.upid as upid,
-          process_track.name as trackName,
-          process.name as processName,
-          process.pid as pid,
-          group_concat(process_track.id) as trackIds,
-          count(1) as trackCount
-        from process_track
-        join process using(upid)
-        where process_track.name = "Actual Timeline"
-        group by
-          process_track.upid,
-          process_track.name
-      )
       select
-        t.*,
-        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from process_async_tracks t;
-  `);
+        upid,
+        t.name as trackName,
+        process.name as processName,
+        process.pid as pid
+      from _process_track_summary_by_upid_and_name t
+      join process using(upid)
+      where t.name = "Actual Timeline"
+    `);
 
     const it = result.iter({
       upid: NUM,
       trackName: STR_NULL,
       processName: STR_NULL,
       pid: NUM_NULL,
-      maxDepth: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
       const trackName = it.trackName;
       const processName = it.processName;
       const pid = it.pid;
-      const maxDepth = it.maxDepth;
 
-      if (maxDepth === null) {
-        // If there are no slices in this track, skip it.
-        continue;
-      }
-
-      const uuid = this.getUuid(0, upid);
-
+      const uuid = this.getUuid(null, upid);
       const kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
       const name = getTrackName({
         name: trackName,
@@ -970,35 +893,23 @@ class TrackDecider {
     }
   }
 
-  async addExpectedFramesTracks(engine: EngineProxy): Promise<void> {
+  async addExpectedFramesTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
-      with process_async_tracks as materialized (
-        select
-          process_track.upid as upid,
-          process_track.name as trackName,
-          process.name as processName,
-          process.pid as pid,
-          group_concat(process_track.id) as trackIds,
-          count(1) as trackCount
-        from process_track
-        join process using(upid)
-        where process_track.name = "Expected Timeline"
-        group by
-          process_track.upid,
-          process_track.name
-      )
       select
-        t.*,
-        __max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from process_async_tracks t;
-  `);
+        upid,
+        t.name as trackName,
+        process.name as processName,
+        process.pid as pid
+      from _process_track_summary_by_upid_and_name t
+      join process using(upid)
+      where t.name = "Expected Timeline"
+    `);
 
     const it = result.iter({
       upid: NUM,
       trackName: STR_NULL,
       processName: STR_NULL,
       pid: NUM_NULL,
-      maxDepth: NUM_NULL,
     });
 
     for (; it.valid(); it.next()) {
@@ -1006,15 +917,8 @@ class TrackDecider {
       const trackName = it.trackName;
       const processName = it.processName;
       const pid = it.pid;
-      const maxDepth = it.maxDepth;
 
-      if (maxDepth === null) {
-        // If there are no slices in this track, skip it.
-        continue;
-      }
-
-      const uuid = this.getUuid(0, upid);
-
+      const uuid = this.getUuid(null, upid);
       const kind = EXPECTED_FRAMES_SLICE_TRACK_KIND;
       const name = getTrackName({
         name: trackName,
@@ -1033,9 +937,8 @@ class TrackDecider {
     }
   }
 
-  async addThreadSliceTracks(engine: EngineProxy): Promise<void> {
+  async addThreadSliceTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
-      with slice_track as materialized (select distinct track_id from slice)
       select
         thread_track.utid as utid,
         thread_track.id as trackId,
@@ -1046,8 +949,8 @@ class TrackDecider {
         thread.name as threadName,
         thread.upid as upid
       from thread_track
+      join _slice_track_summary using (id)
       join thread using(utid)
-      join slice_track on thread_track.id = slice_track.track_id
   `);
 
     const it = result.iter({
@@ -1089,16 +992,16 @@ class TrackDecider {
     }
   }
 
-  async addProcessCounterTracks(engine: EngineProxy): Promise<void> {
+  async addProcessCounterTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
-    select
-      process_counter_track.id as trackId,
-      process_counter_track.name as trackName,
-      upid,
-      process.pid,
-      process.name as processName
-    from process_counter_track
-    join process using(upid);
+      select
+        process_counter_track.id as trackId,
+        process_counter_track.name as trackName,
+        upid,
+        process.pid,
+        process.name as processName
+      from process_counter_track
+      join process using(upid);
   `);
     const it = result.iter({
       trackId: NUM,
@@ -1113,7 +1016,7 @@ class TrackDecider {
       const trackId = it.trackId;
       const trackName = it.trackName;
       const processName = it.processName;
-      const uuid = this.getUuid(0, upid);
+      const uuid = this.getUuid(null, upid);
       const name = getTrackName({
         name: trackName,
         upid,
@@ -1133,15 +1036,15 @@ class TrackDecider {
     }
   }
 
-  async addProcessHeapProfileTracks(engine: EngineProxy): Promise<void> {
+  async addProcessHeapProfileTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
-    select distinct(upid) from heap_profile_allocation
-    union
-    select distinct(upid) from heap_graph_object
+      select upid
+      from _process_available_info_summary
+      where allocation_count > 0 or graph_object_count > 0
   `);
     for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
-      const uuid = this.getUuid(0, upid);
+      const uuid = this.getUuid(null, upid);
       this.tracksToAdd.push({
         uri: `perfetto.HeapProfile#${upid}`,
         trackSortKey: PrimaryTrackSortKey.HEAP_PROFILE_TRACK,
@@ -1151,16 +1054,17 @@ class TrackDecider {
     }
   }
 
-  async addProcessPerfSamplesTracks(engine: EngineProxy): Promise<void> {
+  async addProcessPerfSamplesTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
-      select distinct upid, pid
-      from perf_sample join thread using (utid) join process using (upid)
-      where callsite_id is not null
+      select upid, pid
+      from _process_available_info_summary
+      join process using (upid)
+      where perf_sample_count > 0
   `);
     for (const it = result.iter({upid: NUM, pid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       const pid = it.pid;
-      const uuid = this.getUuid(0, upid);
+      const uuid = this.getUuid(null, upid);
       this.tracksToAdd.push({
         uri: `perfetto.PerfSamplesProfile#${upid}`,
         trackSortKey: PrimaryTrackSortKey.PERF_SAMPLES_PROFILE_TRACK,
@@ -1170,22 +1074,22 @@ class TrackDecider {
     }
   }
 
-  getUuidUnchecked(utid: number, upid: number | null) {
+  getUuidUnchecked(utid: number | null, upid: number | null) {
     return upid === null
-      ? this.utidToUuid.get(utid)
+      ? this.utidToUuid.get(utid!)
       : this.upidToUuid.get(upid);
   }
 
-  getUuid(utid: number, upid: number | null) {
+  getUuid(utid: number | null, upid: number | null) {
     return assertExists(this.getUuidUnchecked(utid, upid));
   }
 
-  getOrCreateUuid(utid: number, upid: number | null) {
+  getOrCreateUuid(utid: number | null, upid: number | null) {
     let uuid = this.getUuidUnchecked(utid, upid);
     if (uuid === undefined) {
       uuid = uuidv4();
       if (upid === null) {
-        this.utidToUuid.set(utid, uuid);
+        this.utidToUuid.set(utid!, uuid);
       } else {
         this.upidToUuid.set(upid, uuid);
       }
@@ -1197,7 +1101,7 @@ class TrackDecider {
     this.upidToUuid.set(upid, uuid);
   }
 
-  async addKernelThreadGrouping(engine: EngineProxy): Promise<void> {
+  async addKernelThreadGrouping(engine: Engine): Promise<void> {
     // Identify kernel threads if this is a linux system trace, and sufficient
     // process information is available. Kernel threads are identified by being
     // children of kthreadd (always pid 2).
@@ -1260,7 +1164,7 @@ class TrackDecider {
     }
   }
 
-  async addProcessTrackGroups(engine: EngineProxy): Promise<void> {
+  async addProcessTrackGroups(engine: Engine): Promise<void> {
     // We want to create groups of tracks in a specific order.
     // The tracks should be grouped:
     //    by upid
@@ -1274,181 +1178,155 @@ class TrackDecider {
     //  thread name
     //  utid
     const result = await engine.query(`
-    with candidateThreadsAndProcesses as materialized (
-      select upid, 0 as utid from process_track
-      union
-      select upid, 0 as utid from process_counter_track
-      union
-      select upid, utid from thread_counter_track join thread using(utid)
-      union
-      select upid, utid from thread_track join thread using(utid)
-      union
-      select upid, utid from (
-        select distinct utid from sched
-      ) join thread using(utid) group by utid
-      union
-      select upid, 0 as utid from (
-        select distinct utid from perf_sample where callsite_id is not null
-      ) join thread using (utid)
-      union
-      select upid, utid from (
-        select distinct utid from cpu_profile_stack_sample
-      ) join thread using(utid)
-      union
-      select upid as upid, 0 as utid from heap_profile_allocation
-      union
-      select upid as upid, 0 as utid from heap_graph_object
-    ),
-    schedSum as materialized (
-      select upid, sum(thread_total_dur) as total_dur
-      from (
-        select utid, sum(dur) as thread_total_dur
-        from sched where dur != -1 and utid != 0
-        group by utid
+      with processGroups as (
+        select
+          upid,
+          process.pid as pid,
+          process.name as processName,
+          sum_running_dur as sumRunningDur,
+          thread_slice_count + process_slice_count as sliceCount,
+          perf_sample_count as perfSampleCount,
+          allocation_count as heapProfileAllocationCount,
+          graph_object_count as heapGraphObjectCount,
+          (
+            select group_concat(string_value)
+            from args
+            where
+              process.arg_set_id is not null and
+              arg_set_id = process.arg_set_id and
+              flat_key = 'chrome.process_label'
+          ) chromeProcessLabels,
+          case process.name
+            when 'Browser' then 3
+            when 'Gpu' then 2
+            when 'Renderer' then 1
+            else 0
+          end as chromeProcessRank
+        from _process_available_info_summary
+        join process using(upid)
+      ),
+      threadGroups as (
+        select
+          utid,
+          tid,
+          thread.name as threadName,
+          sum_running_dur as sumRunningDur,
+          slice_count as sliceCount,
+          perf_sample_count as perfSampleCount
+        from _thread_available_info_summary
+        join thread using (utid)
+        where upid is null
       )
-      join thread using (utid)
-      group by upid
-    ),
-    sliceSum as materialized (
-      select
-        process.upid as upid,
-        sum(cnt) as sliceCount
-      from (select track_id, count(*) as cnt from slice group by track_id)
-        left join thread_track on track_id = thread_track.id
-        left join thread on thread_track.utid = thread.utid
-        left join process_track on track_id = process_track.id
-        join process on process.upid = thread.upid
-          or process_track.upid = process.upid
-      where process.upid is not null
-      group by process.upid
-    )
-    select
-      the_tracks.upid,
-      the_tracks.utid,
-      total_dur as hasSched,
-      hasHeapProfiles,
-      process.pid as pid,
-      thread.tid as tid,
-      process.name as processName,
-      thread.name as threadName,
-      package_list.debuggable as isDebuggable,
-      ifnull((
-        select group_concat(string_value)
-        from args
-        where
-          process.arg_set_id is not null and
-          arg_set_id = process.arg_set_id and
-          flat_key = 'chrome.process_label'
-      ), '') AS chromeProcessLabels,
-      (case process.name
-         when 'Browser' then 3
-         when 'Gpu' then 2
-         when 'Renderer' then 1
-         else 0
-      end) as chromeProcessRank
-    from candidateThreadsAndProcesses the_tracks
-    left join schedSum using(upid)
-    left join (
-      select
-        distinct(upid) as upid,
-        true as hasHeapProfiles
-      from heap_profile_allocation
-      union
-      select
-        distinct(upid) as upid,
-        true as hasHeapProfiles
-      from heap_graph_object
-    ) using (upid)
-    left join (
-      select
-        thread.upid as upid,
-        sum(cnt) as perfSampleCount
+      select *
       from (
-          select utid, count(*) as cnt
-          from perf_sample where callsite_id is not null
-          group by utid
-      ) join thread using (utid)
-      group by thread.upid
-    ) using (upid)
-    left join sliceSum using (upid)
-    left join thread using(utid)
-    left join process using(upid)
-    left join package_list using(uid)
-    order by
-      chromeProcessRank desc,
-      hasHeapProfiles desc,
-      perfSampleCount desc,
-      total_dur desc,
-      sliceCount desc,
-      processName asc nulls last,
-      the_tracks.upid asc nulls last,
-      threadName asc nulls last,
-      the_tracks.utid asc nulls last;
+        select
+          upid,
+          null as utid,
+          pid,
+          null as tid,
+          processName,
+          null as threadName,
+          sumRunningDur > 0 as hasSched,
+          heapProfileAllocationCount > 0
+            or heapGraphObjectCount > 0 as hasHeapInfo,
+          ifnull(chromeProcessLabels, '') as chromeProcessLabels
+        from processGroups
+        order by
+          chromeProcessRank desc,
+          heapProfileAllocationCount desc,
+          heapGraphObjectCount desc,
+          perfSampleCount desc,
+          sumRunningDur desc,
+          sliceCount desc,
+          processName asc,
+          upid asc
+      )
+      union all
+      select *
+      from (
+        select
+          null,
+          utid,
+          null as pid,
+          tid,
+          null as processName,
+          threadName,
+          sumRunningDur > 0 as hasSched,
+          0 as hasHeapInfo,
+          '' as chromeProcessLabels
+        from threadGroups
+        order by
+          perfSampleCount desc,
+          sumRunningDur desc,
+          sliceCount desc,
+          threadName asc,
+          utid asc
+      )
   `);
 
     const it = result.iter({
-      utid: NUM,
       upid: NUM_NULL,
-      tid: NUM_NULL,
+      utid: NUM_NULL,
       pid: NUM_NULL,
-      threadName: STR_NULL,
+      tid: NUM_NULL,
       processName: STR_NULL,
+      threadName: STR_NULL,
       hasSched: NUM_NULL,
-      hasHeapProfiles: NUM_NULL,
+      hasHeapInfo: NUM_NULL,
       chromeProcessLabels: STR,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
-      const tid = it.tid;
       const upid = it.upid;
       const pid = it.pid;
+      const tid = it.tid;
       const threadName = it.threadName;
       const processName = it.processName;
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       const hasSched = !!it.hasSched;
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      const hasHeapProfiles = !!it.hasHeapProfiles;
+      const hasHeapInfo = !!it.hasHeapInfo;
 
-      // Group by upid if present else by utid.
-      let pUuid =
-        upid === null ? this.utidToUuid.get(utid) : this.upidToUuid.get(upid);
-      // These should only happen once for each track group.
-      if (pUuid === undefined) {
-        pUuid = this.getOrCreateUuid(utid, upid);
-        const summaryTrackKey = uuidv4();
-        const type = hasSched ? 'schedule' : 'summary';
-        const uri = `perfetto.ProcessScheduling#${upid}.${utid}.${type}`;
+      const summaryTrackKey = uuidv4();
+      const type = hasSched ? 'schedule' : 'summary';
+      const uri = `perfetto.ProcessScheduling#${upid}.${utid}.${type}`;
 
-        this.tracksToAdd.push({
-          uri,
-          key: summaryTrackKey,
-          trackSortKey: hasSched
-            ? PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK
-            : PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
-          name: `${upid === null ? tid : pid} summary`,
-          labels: it.chromeProcessLabels.split(','),
-        });
-
-        const name = getTrackName({
-          utid,
-          processName,
-          pid,
-          threadName,
-          tid,
-          upid,
-        });
-        const addTrackGroup = Actions.addTrackGroup({
-          summaryTrackKey,
-          name,
-          id: pUuid,
-          // Perf profiling tracks remain collapsed, otherwise we would have too
-          // many expanded process tracks for some perf traces, leading to
-          // jankyness.
-          collapsed: !hasHeapProfiles,
-        });
-
-        this.addTrackGroupActions.push(addTrackGroup);
+      // If previous groupings (e.g. kernel threads) picked up there tracks,
+      // don't try to regroup them.
+      const pUuid =
+        upid === null ? this.utidToUuid.get(utid!) : this.upidToUuid.get(upid);
+      if (pUuid !== undefined) {
+        continue;
       }
+
+      this.tracksToAdd.push({
+        uri,
+        key: summaryTrackKey,
+        trackSortKey: hasSched
+          ? PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK
+          : PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
+        name: `${upid === null ? tid : pid} summary`,
+        labels: it.chromeProcessLabels.split(','),
+      });
+
+      const name = getTrackName({
+        utid,
+        processName,
+        pid,
+        threadName,
+        tid,
+        upid,
+      });
+      const addTrackGroup = Actions.addTrackGroup({
+        summaryTrackKey,
+        name,
+        id: this.getOrCreateUuid(utid, upid),
+        // Perf profiling tracks remain collapsed, otherwise we would have too
+        // many expanded process tracks for some perf traces, leading to
+        // jankyness.
+        collapsed: !hasHeapInfo,
+      });
+      this.addTrackGroupActions.push(addTrackGroup);
     }
   }
 

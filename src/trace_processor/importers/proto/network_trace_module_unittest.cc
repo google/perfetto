@@ -23,7 +23,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/proto/proto_trace_parser.h"
+#include "src/trace_processor/importers/proto/proto_trace_parser_impl.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -47,9 +47,9 @@ class NetworkTraceModuleTest : public testing::Test {
     context_.slice_translation_table.reset(new SliceTranslationTable(storage_));
     context_.args_translation_table.reset(new ArgsTranslationTable(storage_));
     context_.async_track_set_tracker.reset(new AsyncTrackSetTracker(&context_));
-    context_.sorter.reset(new TraceSorter(
-        &context_, std::make_unique<ProtoTraceParser>(&context_),
-        TraceSorter::SortingMode::kFullSort));
+    context_.proto_trace_parser.reset(new ProtoTraceParserImpl(&context_));
+    context_.sorter.reset(
+        new TraceSorter(&context_, TraceSorter::SortingMode::kFullSort));
   }
 
   util::Status TokenizeAndParse() {
@@ -70,7 +70,9 @@ class NetworkTraceModuleTest : public testing::Test {
   bool HasArg(ArgSetId sid, base::StringView key, Variadic value) {
     StringId key_id = storage_->InternString(key);
     const auto& a = storage_->arg_table();
-    for (auto it = a.FilterToIterator({a.arg_set_id().eq(sid)}); it; ++it) {
+    Query q;
+    q.constraints = {a.arg_set_id().eq(sid)};
+    for (auto it = a.FilterToIterator(q); it; ++it) {
       if (it.key() == key_id) {
         EXPECT_EQ(it.flat_key(), key_id);
         if (storage_->GetArgValue(it.row_number().row_number()) == value) {

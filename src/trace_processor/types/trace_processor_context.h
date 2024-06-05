@@ -40,39 +40,42 @@ enum TraceType {
   kPerfDataTraceType,
 };
 
+class AndroidProbesTracker;
 class ArgsTracker;
 class ArgsTranslationTable;
 class AsyncTrackSetTracker;
-class AndroidProbesTracker;
 class ChunkedTraceReader;
-class ClockTracker;
 class ClockConverter;
+class ClockTracker;
 class DeobfuscationMappingTable;
+class DescriptorPool;
 class EtwModule;
 class EventTracker;
+class FlowTracker;
 class ForwardingTraceParser;
 class FtraceModule;
+class FuchsiaRecordParser;
 class GlobalArgsTracker;
-class StackProfileTracker;
 class HeapGraphTracker;
-class PerfSampleTracker;
+class JsonTraceParser;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
 class MultiMachineTraceManager;
 class PacketAnalyzer;
-class ProtoImporterModule;
-class TrackEventModule;
+class PerfRecordParser;
+class PerfSampleTracker;
 class ProcessTracker;
+class ProtoImporterModule;
+class ProtoTraceParser;
 class SchedEventTracker;
 class SliceTracker;
 class SliceTranslationTable;
-class FlowTracker;
-class TraceParser;
+class StackProfileTracker;
 class TraceSorter;
 class TraceStorage;
+class TrackEventModule;
 class TrackTracker;
-class DescriptorPool;
 
 using MachineId = tables::MachineTable::Id;
 
@@ -131,22 +134,23 @@ class TraceProcessorContext {
   // the GetOrCreate() method on their subclass type, e.g.
   // SyscallTracker::GetOrCreate(context)
   // clang-format off
-  std::unique_ptr<Destructible> android_probes_tracker;  // AndroidProbesTracker
-  std::unique_ptr<Destructible> binder_tracker;          // BinderTracker
-  std::unique_ptr<Destructible> heap_graph_tracker;      // HeapGraphTracker
-  std::unique_ptr<Destructible> syscall_tracker;         // SyscallTracker
-  std::unique_ptr<Destructible> system_info_tracker;     // SystemInfoTracker
-  std::unique_ptr<Destructible> v4l2_tracker;            // V4l2Tracker
-  std::unique_ptr<Destructible> virtio_video_tracker;    // VirtioVideoTracker
-  std::unique_ptr<Destructible> systrace_parser;         // SystraceParser
-  std::unique_ptr<Destructible> thread_state_tracker;    // ThreadStateTracker
-  std::unique_ptr<Destructible> i2c_tracker;             // I2CTracker
-  std::unique_ptr<Destructible> perf_data_tracker;       // PerfDataTracker
-  std::unique_ptr<Destructible> content_analyzer;        // ProtoContentAnalyzer
+  std::unique_ptr<Destructible> android_probes_tracker;    // AndroidProbesTracker
+  std::unique_ptr<Destructible> binder_tracker;            // BinderTracker
+  std::unique_ptr<Destructible> heap_graph_tracker;        // HeapGraphTracker
+  std::unique_ptr<Destructible> syscall_tracker;           // SyscallTracker
+  std::unique_ptr<Destructible> system_info_tracker;       // SystemInfoTracker
+  std::unique_ptr<Destructible> v4l2_tracker;              // V4l2Tracker
+  std::unique_ptr<Destructible> virtio_video_tracker;      // VirtioVideoTracker
+  std::unique_ptr<Destructible> systrace_parser;           // SystraceParser
+  std::unique_ptr<Destructible> thread_state_tracker;      // ThreadStateTracker
+  std::unique_ptr<Destructible> i2c_tracker;               // I2CTracker
+  std::unique_ptr<Destructible> perf_data_tracker;         // PerfDataTracker
+  std::unique_ptr<Destructible> content_analyzer;          // ProtoContentAnalyzer
   std::unique_ptr<Destructible> shell_transitions_tracker; // ShellTransitionsTracker
-  std::unique_ptr<Destructible> ftrace_sched_tracker;    // FtraceSchedEventTracker
-  std::unique_ptr<Destructible> v8_tracker;              // V8Tracker
-  std::unique_ptr<Destructible> jit_tracker;             // JitTracker
+  std::unique_ptr<Destructible> protolog_messages_tracker; // ProtoLogMessagesTracker
+  std::unique_ptr<Destructible> ftrace_sched_tracker;      // FtraceSchedEventTracker
+  std::unique_ptr<Destructible> v8_tracker;                // V8Tracker
+  std::unique_ptr<Destructible> jit_tracker;               // JitTracker
   // clang-format on
 
   // These fields are trace readers which will be called by |forwarding_parser|
@@ -160,12 +164,14 @@ class TraceProcessorContext {
   std::unique_ptr<ChunkedTraceReader> gzip_trace_parser;
   std::unique_ptr<ChunkedTraceReader> perf_data_trace_tokenizer;
 
+  std::unique_ptr<ProtoTraceParser> proto_trace_parser;
+
   // These fields are trace parsers which will be called by |forwarding_parser|
   // once the format of the trace is discovered. They are placed here as they
   // are only available in the lib target.
-  std::unique_ptr<TraceParser> json_trace_parser;
-  std::unique_ptr<TraceParser> fuchsia_trace_parser;
-  std::unique_ptr<TraceParser> perf_data_parser;
+  std::unique_ptr<JsonTraceParser> json_trace_parser;
+  std::unique_ptr<FuchsiaRecordParser> fuchsia_record_parser;
+  std::unique_ptr<PerfRecordParser> perf_record_parser;
 
   // This field contains the list of proto descriptors that can be used by
   // reflection-based parsers.

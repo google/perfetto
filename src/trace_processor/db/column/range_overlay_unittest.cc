@@ -95,14 +95,17 @@ TEST(RangeOverlay, SearchBitVector) {
 TEST(RangeOverlay, IndexSearch) {
   auto fake =
       FakeStorageChain::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0}));
+
+  // {true, false}
   Range range(3, 5);
   RangeOverlay storage(&range);
   auto chain = storage.MakeChain(std::move(fake));
 
+  // {true, false, true}
   Indices indices = Indices::CreateWithIndexPayloadForTesting(
-      {1u, 0u, 3u}, Indices::State::kNonmonotonic);
+      {0, 1, 0}, Indices::State::kNonmonotonic);
   chain->IndexSearch(FilterOp::kGe, SqlValue::Long(0u), indices);
-  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(1u));
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 2));
 }
 
 TEST(RangeOverlay, StableSort) {
@@ -121,6 +124,21 @@ TEST(RangeOverlay, StableSort) {
   chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
                     column::DataLayerChain::SortDirection::kAscending);
   ASSERT_THAT(utils::ExtractPayloadForTesting(tokens), ElementsAre(1, 2, 0));
+}
+
+TEST(RangeOverlay, Distinct) {
+  std::vector<uint32_t> numeric_data{100, 99, 2, 0, 1};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
+  // 99, 2, 0, 1
+  Range range(1, 4);
+  RangeOverlay storage(&range);
+  auto chain = storage.MakeChain(numeric.MakeChain());
+
+  auto indices = Indices::CreateWithIndexPayloadForTesting(
+      {0, 0, 0}, Indices::State::kNonmonotonic);
+  chain->Distinct(indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0));
 }
 
 }  // namespace

@@ -23,7 +23,6 @@ export let SELECTION_STROKE_COLOR = '#00344596';
 export let SELECTION_FILL_COLOR = '#8398e64d';
 export let OVERVIEW_TIMELINE_NON_VISIBLE_COLOR = '#c8c8c8cc';
 export let DEFAULT_DETAILS_CONTENT_HEIGHT = 280;
-export const SELECTED_LOG_ROWS_COLOR = '#D2EFE0';
 export let BACKGROUND_COLOR = '#ffffff';
 export let FOREGROUND_COLOR = '#222';
 export let COLLAPSED_BACKGROUND = '#ffffff';

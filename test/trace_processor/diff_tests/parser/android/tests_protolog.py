@@ -31,3 +31,13 @@ class ProtoLog(TestSuite):
         1,857384110,"WARN","MySecondGroup","Test message with different int formats: 1776, 0o3360, 0x6f0, 888.000000, 8.880000e+02.","[NULL]"
         2,857384130,"ERROR","MyThirdGroup","Message re-using interned string 'MyOtherTestString' == 'MyOtherTestString', but 'SomeOtherTestString' != 'MyOtherTestString'","[NULL]"
         """))
+
+  def test_handles_packet_loss(self):
+    return DiffTestBlueprint(
+        trace=Path('protolog_packet_loss.textproto'),
+        query="SELECT id, ts, level, tag, message, stacktrace FROM protolog;",
+        out=Csv("""
+        "id","ts","level","tag","message","stacktrace"
+        0,857384130,"DEBUG","MyFirstGroup","Test message with two strings: MyTestString and MyTestString","[NULL]"
+        1,857384130,"DEBUG","MyFirstGroup","Test message with two strings: MyNextTestString and MyNextTestString","[NULL]"
+        """))

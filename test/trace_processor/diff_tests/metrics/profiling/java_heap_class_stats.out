@@ -1,0 +1,73 @@
+java_heap_class_stats {
+  instance_stats {
+    upid: 2
+    process {
+      name: "system_server"
+      uid: 1000
+      pid: 2
+    }
+    samples {
+      ts: 10
+      type_count {
+        type_name: "FactoryProducerDelegateImplActor"
+        obj_count: 1
+        size_bytes: 64
+        native_size_bytes: 0
+        reachable_obj_count: 1
+        reachable_size_bytes: 64
+        reachable_native_size_bytes: 0
+        dominated_obj_count: 2
+        dominated_size_bytes: 96
+        dominated_native_size_bytes: 0
+      }
+      type_count {
+        type_name: "Foo"
+        obj_count: 2
+        size_bytes: 160
+        native_size_bytes: 0
+        reachable_obj_count: 1
+        reachable_size_bytes: 32
+        reachable_native_size_bytes: 0
+        dominated_obj_count: 1
+        dominated_size_bytes: 32
+        dominated_native_size_bytes: 0
+      }
+      type_count {
+        type_name: "DeobfuscatedA"
+        obj_count: 1
+        size_bytes: 1024
+        native_size_bytes: 0
+        reachable_obj_count: 0
+        reachable_size_bytes: 0
+        reachable_native_size_bytes: 0
+        dominated_obj_count: 0
+        dominated_size_bytes: 0
+        dominated_native_size_bytes: 0
+      }
+      type_count {
+        type_name: "DeobfuscatedA[]"
+        obj_count: 1
+        size_bytes: 256
+        native_size_bytes: 0
+        reachable_obj_count: 1
+        reachable_size_bytes: 256
+        reachable_native_size_bytes: 0
+        dominated_obj_count: 1
+        dominated_size_bytes: 256
+        dominated_native_size_bytes: 0
+      }
+      type_count {
+        type_name: "java.lang.Class<DeobfuscatedA[]>"
+        obj_count: 1
+        size_bytes: 256
+        native_size_bytes: 0
+        reachable_obj_count: 0
+        reachable_size_bytes: 0
+        reachable_native_size_bytes: 0
+        dominated_obj_count: 0
+        dominated_size_bytes: 0
+        dominated_native_size_bytes: 0
+      }
+    }
+  }
+}

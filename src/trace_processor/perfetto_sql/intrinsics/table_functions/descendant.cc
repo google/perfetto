@@ -77,21 +77,23 @@ base::Status GetDescendants(
   // track are always perfectly stacked).
   // For unfinshed slices (i.e. -1 dur), we need to consider until the end of
   // the trace so we cannot add any similar constraint.
-  std::vector<Constraint> cs;
+  Query q;
   if (start_ref->dur() >= 0) {
-    cs.emplace_back(slices.ts().le(start_ref->ts() + start_ref->dur()));
+    q.constraints.emplace_back(
+        slices.ts().le(start_ref->ts() + start_ref->dur()));
   }
 
   // All nested descendents must be on the same track, with a ts greater than
   // |start_ref.ts| and whose depth is larger than |start_ref|'s.
-  cs.emplace_back(slices.ts().ge(start_ref->ts()));
-  cs.emplace_back(slices.track_id().eq(start_ref->track_id().value));
-  cs.emplace_back(slices.depth().gt(start_ref->depth()));
+  q.constraints.emplace_back(slices.ts().ge(start_ref->ts()));
+  q.constraints.emplace_back(slices.track_id().eq(start_ref->track_id().value));
+  q.constraints.emplace_back(slices.depth().gt(start_ref->depth()));
 
   // It's important we insert directly into |row_numbers_accumulator| and not
   // overwrite it because we expect the existing elements in
   // |row_numbers_accumulator| to be preserved.
-  for (auto it = slices.FilterToIterator(cs); it; ++it) {
+
+  for (auto it = slices.FilterToIterator(q); it; ++it) {
     row_numbers_accumulator.emplace_back(it.row_number());
   }
   return base::OkStatus();
@@ -135,8 +137,9 @@ base::StatusOr<std::unique_ptr<Table>> Descendant::ComputeTable(
           start_id_uint, slices, std::move(descendants));
     }
     case Type::kSliceByStack: {
-      auto sbs_cs = {slices.stack_id().eq(start_id)};
-      for (auto it = slices.FilterToIterator(sbs_cs); it; ++it) {
+      Query q;
+      q.constraints = {slices.stack_id().eq(start_id)};
+      for (auto it = slices.FilterToIterator(q); it; ++it) {
         RETURN_IF_ERROR(GetDescendants(slices, it.id(), descendants));
       }
       return ExtendWithStartId<tables::DescendantSliceByStackTable>(

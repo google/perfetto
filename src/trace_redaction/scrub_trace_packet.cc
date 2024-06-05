@@ -19,10 +19,17 @@
 #include "src/trace_redaction/scrub_trace_packet.h"
 
 #include "perfetto/base/status.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_processor/util/status_macros.h"
+#include "src/trace_redaction/proto_util.h"
 
 namespace perfetto::trace_redaction {
 
 TracePacketFilter::~TracePacketFilter() = default;
+
+base::Status TracePacketFilter::VerifyContext(const Context&) const {
+  return base::OkStatus();
+}
 
 base::Status ScrubTracePacket::Transform(const Context& context,
                                          std::string* packet) const {
@@ -31,26 +38,29 @@ base::Status ScrubTracePacket::Transform(const Context& context,
   }
 
   for (const auto& filter : filters_) {
-    auto status = filter->VerifyContext(context);
+    RETURN_IF_ERROR(filter->VerifyContext(context));
+  }
 
-    if (!status.ok()) {
-      return status;
+  protozero::HeapBuffered<protos::pbzero::TracePacket> new_packet;
+
+  protozero::ProtoDecoder decoder(*packet);
+
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (KeepEvent(context, field)) {
+      proto_util::AppendField(field, new_packet.get());
     }
   }
 
-  if (KeepEvent(context, *packet)) {
-    return base::OkStatus();
-  }
-
-  packet->clear();
+  packet->assign(new_packet.SerializeAsString());
   return base::OkStatus();
 }
 
-// Logical AND of all filters.
+// Logical AND all filters.
 bool ScrubTracePacket::KeepEvent(const Context& context,
-                                 const std::string& bytes) const {
+                                 const protozero::Field& field) const {
   for (const auto& filter : filters_) {
-    if (!filter->KeepPacket(context, bytes)) {
+    if (!filter->KeepField(context, field)) {
       return false;
     }
   }

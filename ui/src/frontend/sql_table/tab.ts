@@ -17,7 +17,7 @@ import m from 'mithril';
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
-import {AddDebugTrackMenu} from '../../tracks/debug/add_debug_track_menu';
+import {AddDebugTrackMenu} from '../../core_plugins/debug/add_debug_track_menu';
 import {Button} from '../../widgets/button';
 import {DetailsShell} from '../../widgets/details_shell';
 import {Popup, PopupPosition} from '../../widgets/popup';
@@ -25,7 +25,7 @@ import {Popup, PopupPosition} from '../../widgets/popup';
 import {Filter, SqlTableState} from './state';
 import {SqlTable} from './table';
 import {SqlTableDescription, tableDisplayName} from './table_description';
-import {EngineProxy} from '../../public';
+import {Engine} from '../../public';
 import {globals} from '../globals';
 import {assertExists} from '../../base/logging';
 import {uuidv4} from '../../base/uuid';
@@ -58,7 +58,7 @@ export function addSqlTableTab(config: SqlTableTabConfig): void {
 }
 
 // TODO(stevegolton): Find a way to make this more elegant.
-function getEngine(): EngineProxy {
+function getEngine(): Engine {
   const engConfig = globals.getCurrentEngine();
   const engineId = assertExists(engConfig).id;
   return assertExists(globals.engines.get(engineId)).getProxy('QueryResult');

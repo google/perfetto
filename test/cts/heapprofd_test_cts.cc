@@ -88,8 +88,8 @@ class ContentProviderReader {
     bool multiuser_support = sdk && *sdk >= 34;
     cmd_ = "content read";
     if (multiuser_support) {
-      // This command is available only starting from android U.
-      cmd_ += " --user `cmd user get-main-user`";
+      // This is required only starting from android U.
+      cmd_ += " --user `am get-current-user`";
     }
     cmd_ += std::string(" --uri content://") + app + std::string("/") + path;
     cmd_ += " >" + tempfile_;

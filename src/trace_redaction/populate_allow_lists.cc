@@ -25,6 +25,32 @@
 namespace perfetto::trace_redaction {
 
 base::Status PopulateAllowlists::Build(Context* context) const {
+  // These fields are top-level fields that outside the "oneof data" field.
+  std::initializer_list<uint32_t> required_trace_fields = {
+
+      protos::pbzero::TracePacket::kTimestampFieldNumber,
+      protos::pbzero::TracePacket::kTimestampClockIdFieldNumber,
+      protos::pbzero::TracePacket::kTrustedUidFieldNumber,
+      protos::pbzero::TracePacket::kTrustedPacketSequenceIdFieldNumber,
+      protos::pbzero::TracePacket::kTrustedPidFieldNumber,
+      protos::pbzero::TracePacket::kInternedDataFieldNumber,
+      protos::pbzero::TracePacket::kSequenceFlagsFieldNumber,
+
+      // DEPRECATED. Moved to SequenceFlags::SEQ_INCREMENTAL_STATE_CLEARED. So
+      // there is no reason to include it.
+      //
+      // protos::pbzero::TracePacket::incremental_state_cleared
+
+      protos::pbzero::TracePacket::kTracePacketDefaultsFieldNumber,
+      protos::pbzero::TracePacket::kPreviousPacketDroppedFieldNumber,
+      protos::pbzero::TracePacket::kFirstPacketOnSequenceFieldNumber,
+      protos::pbzero::TracePacket::kMachineIdFieldNumber,
+  };
+
+  for (auto item : required_trace_fields) {
+    context->trace_packet_allow_list.insert(item);
+  }
+
   // TRACE PACKET NOTES
   //
   //    protos::pbzero::TracePacket::kAndroidSystemPropertyFieldNumber
@@ -33,8 +59,7 @@ base::Status PopulateAllowlists::Build(Context* context) const {
   //      constraints around keys or values, making fine-grain redaction
   //      difficult. Because this packet's value has no measurable, the safest
   //      option to drop the whole packet.
-
-  std::initializer_list<uint> trace_packets = {
+  std::initializer_list<uint32_t> trace_packets = {
       protos::pbzero::TracePacket::kProcessTreeFieldNumber,
       protos::pbzero::TracePacket::kProcessStatsFieldNumber,
       protos::pbzero::TracePacket::kClockSnapshotFieldNumber,
@@ -59,24 +84,38 @@ base::Status PopulateAllowlists::Build(Context* context) const {
     context->trace_packet_allow_list.insert(item);
   }
 
-  std::initializer_list<uint> ftrace_events = {
-      protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber,
+  // FTRACE EVENT NOTES
+  //
+  //    Dma events (kDmaHeapStatFieldNumber) are global events and are not
+  //    emitted within a process context (they are centrally allocated by the
+  //    HAL process). We drop them for now as we don't have the required
+  //    attribution info in the trace.
+  //
+  //    ION events (e.g. kIonBufferCreateFieldNumber, kIonHeapGrowFieldNumber,
+  //    etc.) are global events are not emitted within a process context (they
+  //    are centrally allocated by the HAL process). We drop them for now as we
+  //    don't have the required attribution info in the trace.
+  //
+  //    TODO(vaage): The allowed rss stat events (i.e. kRssStatFieldNumber,
+  //    kRssStatThrottledFieldNumber) are process-scoped. It is non-trivial to
+  //    merge events, so all events outside of the target package should be
+  //    dropped.
+  //
+  //    TODO(vaage): kSchedBlockedReasonFieldNumber contains two pids, an outer
+  //    and inner pid. A primitive is needed to further redact these events.
+
+  std::initializer_list<uint32_t> ftrace_events = {
       protos::pbzero::FtraceEvent::kCpuFrequencyFieldNumber,
       protos::pbzero::FtraceEvent::kCpuIdleFieldNumber,
+      protos::pbzero::FtraceEvent::kPrintFieldNumber,
+      protos::pbzero::FtraceEvent::kRssStatFieldNumber,
+      protos::pbzero::FtraceEvent::kRssStatThrottledFieldNumber,
       protos::pbzero::FtraceEvent::kSchedBlockedReasonFieldNumber,
+      protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber,
+      protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber,
       protos::pbzero::FtraceEvent::kSchedWakingFieldNumber,
       protos::pbzero::FtraceEvent::kTaskNewtaskFieldNumber,
       protos::pbzero::FtraceEvent::kTaskRenameFieldNumber,
-      protos::pbzero::FtraceEvent::kSchedProcessFreeFieldNumber,
-      protos::pbzero::FtraceEvent::kRssStatFieldNumber,
-      protos::pbzero::FtraceEvent::kIonHeapShrinkFieldNumber,
-      protos::pbzero::FtraceEvent::kIonHeapGrowFieldNumber,
-      protos::pbzero::FtraceEvent::kIonStatFieldNumber,
-      protos::pbzero::FtraceEvent::kIonBufferCreateFieldNumber,
-      protos::pbzero::FtraceEvent::kIonBufferDestroyFieldNumber,
-      protos::pbzero::FtraceEvent::kDmaHeapStatFieldNumber,
-      protos::pbzero::FtraceEvent::kRssStatThrottledFieldNumber,
-      protos::pbzero::FtraceEvent::kPrintFieldNumber,
   };
 
   for (auto item : ftrace_events) {

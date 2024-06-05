@@ -21,6 +21,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/importers/common/trace_parser.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
 namespace perfetto {
 
@@ -33,7 +34,6 @@ class TracePacket_Decoder;
 
 namespace trace_processor {
 
-class PacketSequenceState;
 class TraceBlobView;
 class TraceProcessorContext;
 
@@ -108,7 +108,7 @@ class ProtoImporterModule {
       const protos::pbzero::TracePacket_Decoder&,
       TraceBlobView* packet,
       int64_t packet_timestamp,
-      PacketSequenceState*,
+      RefPtr<PacketSequenceStateGeneration> sequence_state,
       uint32_t field_id);
 
   // Called by ProtoTraceReader during the tokenization stage i.e. before

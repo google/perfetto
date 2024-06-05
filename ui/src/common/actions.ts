@@ -15,7 +15,7 @@
 import {Draft} from 'immer';
 
 import {assertExists, assertTrue} from '../base/logging';
-import {duration, time} from '../base/time';
+import {duration, Time, time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
 import {
   GenericSliceDetailsTabConfig,
@@ -63,7 +63,6 @@ import {
   State,
   Status,
   ThreadTrackSortKey,
-  TraceTime,
   TrackSortKey,
   UtidToTrackSortKey,
   VisibleState,
@@ -474,10 +473,6 @@ export const StateActions = {
     state.permalink = {};
   },
 
-  setTraceTime(state: StateDraft, args: TraceTime): void {
-    state.traceTime = args;
-  },
-
   updateStatus(state: StateDraft, args: Status): void {
     if (statusTraceEvent) {
       traceEventEnd(statusTraceEvent);
@@ -673,7 +668,7 @@ export const StateActions = {
     };
     this.openFlamegraph(state, {
       type: args.type,
-      start: state.traceTime.start as time, // TODO(stevegolton): Avoid type assertion here.
+      start: Time.ZERO,
       end: args.ts,
       upids: [args.upid],
       viewingOption: defaultViewingOption(args.type),
@@ -1160,13 +1155,6 @@ export const StateActions = {
             index === args.aggregationIndex ? args.order : undefined,
         }),
       );
-  },
-
-  setPivotTableArgumentNames(
-    state: StateDraft,
-    args: {argumentNames: string[]},
-  ) {
-    state.nonSerializableState.pivotTable.argumentNames = args.argumentNames;
   },
 
   changePivotTablePivotOrder(

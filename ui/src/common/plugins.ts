@@ -21,7 +21,6 @@ import {globals} from '../frontend/globals';
 import {
   Command,
   DetailsPanel,
-  EngineProxy,
   MetricVisualisation,
   Migrate,
   Plugin,
@@ -36,7 +35,7 @@ import {
   GroupPredicate,
   TrackRef,
 } from '../public';
-import {Engine} from '../trace_processor/engine';
+import {EngineBase, Engine} from '../trace_processor/engine';
 
 import {Actions} from './actions';
 import {SCROLLING_TRACK_GROUP} from './state';
@@ -103,9 +102,12 @@ export class PluginContextImpl implements PluginContext, Disposable {
 class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   private trash = new Trash();
   private alive = true;
+  readonly engine: Engine;
 
-  constructor(private ctx: PluginContext, readonly engine: EngineProxy) {
-    this.trash.add(engine);
+  constructor(private ctx: PluginContext, engine: EngineBase) {
+    const engineProxy = engine.getProxy(ctx.pluginId);
+    this.trash.add(engineProxy);
+    this.engine = engineProxy;
   }
 
   registerCommand(cmd: Command): void {
@@ -299,11 +301,20 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     },
 
     get tracks(): TrackRef[] {
-      return Object.values(globals.state.tracks).map((trackState) => {
+      const tracks = Object.values(globals.state.tracks);
+      const pinnedTracks = globals.state.pinnedTracks;
+      const groups = globals.state.trackGroups;
+      return tracks.map((trackState) => {
+        const group = trackState.trackGroup
+          ? groups[trackState.trackGroup]
+          : undefined;
         return {
           displayName: trackState.name,
           uri: trackState.uri,
           params: trackState.params,
+          key: trackState.key,
+          groupName: group?.name,
+          isPinned: pinnedTracks.includes(trackState.key),
         };
       });
     },
@@ -371,7 +382,7 @@ function makePlugin(info: PluginDescriptor): Plugin {
 export class PluginManager {
   private registry: PluginRegistry;
   private _plugins: Map<string, PluginDetails>;
-  private engine?: Engine;
+  private engine?: EngineBase;
   private flags = new Map<string, Flag>();
 
   constructor(registry: PluginRegistry) {
@@ -385,18 +396,24 @@ export class PluginManager {
 
   // Must only be called once on startup
   async initialize(): Promise<void> {
-    for (const plugin of pluginRegistry.values()) {
-      const id = `plugin_${plugin.pluginId}`;
-      const name = `Plugin: ${plugin.pluginId}`;
+    // Shuffle the order of plugins to weed out any implicit inter-plugin
+    // dependencies.
+    const pluginsShuffled = Array.from(pluginRegistry.values())
+      .map(({pluginId}) => ({pluginId, sort: Math.random()}))
+      .sort((a, b) => a.sort - b.sort);
+
+    for (const {pluginId} of pluginsShuffled) {
+      const flagId = `plugin_${pluginId}`;
+      const name = `Plugin: ${pluginId}`;
       const flag = featureFlags.register({
-        id,
+        id: flagId,
         name,
-        description: `Overrides '${id}' plugin.`,
-        defaultValue: defaultPlugins.includes(plugin.pluginId),
+        description: `Overrides '${pluginId}' plugin.`,
+        defaultValue: defaultPlugins.includes(pluginId),
       });
-      this.flags.set(plugin.pluginId, flag);
+      this.flags.set(pluginId, flag);
       if (flag.get()) {
-        await this.activatePlugin(plugin.pluginId);
+        await this.activatePlugin(pluginId);
       }
     }
   }
@@ -451,7 +468,7 @@ export class PluginManager {
     // If a trace is already loaded when plugin is activated, make sure to
     // call onTraceLoad().
     if (this.engine) {
-      await doPluginTraceLoad(pluginDetails, this.engine, id);
+      await doPluginTraceLoad(pluginDetails, this.engine);
     }
 
     this._plugins.set(id, pluginDetails);
@@ -513,19 +530,25 @@ export class PluginManager {
   }
 
   async onTraceLoad(
-    engine: Engine,
+    engine: EngineBase,
     beforeEach?: (id: string) => void,
   ): Promise<void> {
     this.engine = engine;
-    const plugins = Array.from(this._plugins.entries());
+
+    // Shuffle the order of plugins to weed out any implicit inter-plugin
+    // dependencies.
+    const pluginsShuffled = Array.from(this._plugins.entries())
+      .map(([id, plugin]) => ({id, plugin, sort: Math.random()}))
+      .sort((a, b) => a.sort - b.sort);
+
     // Awaiting all plugins in parallel will skew timing data as later plugins
     // will spend most of their time waiting for earlier plugins to load.
     // Running in parallel will have very little performance benefit assuming
     // most plugins use the same engine, which can only process one query at a
     // time.
-    for (const [id, pluginDetails] of plugins) {
+    for (const {id, plugin} of pluginsShuffled) {
       beforeEach?.(id);
-      await doPluginTraceLoad(pluginDetails, engine, id);
+      await doPluginTraceLoad(plugin, engine);
     }
   }
 
@@ -550,14 +573,11 @@ export class PluginManager {
 
 async function doPluginTraceLoad(
   pluginDetails: PluginDetails,
-  engine: Engine,
-  pluginId: string,
+  engine: EngineBase,
 ): Promise<void> {
   const {plugin, context} = pluginDetails;
 
-  const engineProxy = engine.getProxy(pluginId);
-
-  const traceCtx = new PluginContextTraceImpl(context, engineProxy);
+  const traceCtx = new PluginContextTraceImpl(context, engine);
   pluginDetails.traceContext = traceCtx;
 
   const startTime = performance.now();

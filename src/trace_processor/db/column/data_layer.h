@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -117,30 +118,11 @@ class DataLayerChain {
       // Data is in monotonic order.
       kMonotonic,
     };
-    // Contains an index to an element in the chain and an opaque payload class
-    // which can be set to whatever the user of the chain requires.
-    struct Token {
-      // An index pointing to an element in this chain. Indicates the element
-      // at this index should be filtered.
-      uint32_t index;
-
-      // An opaque value which can be set to some value meaningful to the
-      // caller. While the exact meaning of |payload| should not be depended
-      // upon, implementations are free to make assumptions that |payload| will
-      // be strictly monotonic.
-      uint32_t payload;
-
-      struct PayloadComparator {
-        bool operator()(const Token& a, const Token& b) {
-          return a.payload < b.payload;
-        }
-      };
-    };
     static Indices Create(const std::vector<uint32_t>& raw, State state) {
       std::vector<Token> tokens;
-      tokens.reserve(tokens.size());
-      for (uint32_t r : raw) {
-        tokens.push_back(Token{r, r});
+      tokens.reserve(raw.size());
+      for (auto r : raw) {
+        tokens.push_back({r, r});
       }
       return Indices{std::move(tokens), state};
     }
@@ -148,7 +130,7 @@ class DataLayerChain {
         const std::vector<uint32_t>& raw,
         State state) {
       std::vector<Token> tokens;
-      tokens.reserve(tokens.size());
+      tokens.reserve(raw.size());
       for (uint32_t i = 0; i < raw.size(); ++i) {
         tokens.push_back(Token{raw[i], i});
       }
@@ -282,6 +264,24 @@ class DataLayerChain {
   virtual void StableSort(SortToken* start,
                           SortToken* end,
                           SortDirection direction) const = 0;
+
+  // Removes all indices pointing to values that are duplicates, as a result the
+  // indices will only point to distinct (not duplicated) values.
+  //
+  // Notes for implementors:
+  // * Each layer that might introduce duplicates is responsible for removing
+  // them.
+  virtual void Distinct(Indices&) const = 0;
+
+  // After calling this function Indices will have at most one element. If
+  // present it will point to the first index with the largest value in the
+  // chain.
+  virtual std::optional<Token> MaxElement(Indices&) const = 0;
+
+  // After calling this function Indices will have at most one element. If
+  // present it will point to the first index with the smallest value in the
+  // chain.
+  virtual std::optional<Token> MinElement(Indices&) const = 0;
 
   // Serializes storage data to proto format.
   virtual void Serialize(StorageProto*) const = 0;

@@ -1,0 +1,118 @@
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  sequence_flags: 1
+  previous_packet_dropped: true
+  trusted_pid: 1716
+  first_packet_on_sequence: true
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  interned_data {
+    protolog_string_args {
+      iid: 1
+      str: "MyTestString"
+    }
+  }
+  trusted_pid: 1716
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  interned_data {
+    protolog_string_args {
+      iid: 2
+      str: "MyOtherTestString"
+    }
+  }
+  trusted_pid: 1716
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  sequence_flags: 2
+  trusted_pid: 1716
+  timestamp: 857384130
+  protolog_message {
+    message_id: 6924537961316301726
+    str_param_iids: 1
+    str_param_iids: 1
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  sequence_flags: 2
+  trusted_pid: 1716
+  timestamp: 857384130
+  protolog_message {
+    message_id: 6924537961316301726
+    str_param_iids: 1
+    str_param_iids: 2
+  }
+  previous_packet_dropped: true
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  sequence_flags: 2
+  trusted_pid: 1716
+  timestamp: 857384130
+  protolog_message {
+    message_id: 6924537961316301726
+    str_param_iids: 2
+    str_param_iids: 2
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 4
+  sequence_flags: 1
+  previous_packet_dropped: true
+  trusted_pid: 1716
+  first_packet_on_sequence: true
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 4
+  interned_data {
+    protolog_string_args {
+      iid: 1
+      str: "MyNextTestString"
+    }
+  }
+  trusted_pid: 1716
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 4
+  sequence_flags: 2
+  trusted_pid: 1716
+  timestamp: 857384130
+  protolog_message {
+    message_id: 6924537961316301726
+    str_param_iids: 1
+    str_param_iids: 1
+  }
+}
+packet {
+  trusted_uid: 10224
+  trusted_packet_sequence_id: 10
+  previous_packet_dropped: true
+  trusted_pid: 2063
+  first_packet_on_sequence: true
+  protolog_viewer_config {
+    messages {
+      message_id: 6924537961316301726
+      message: "Test message with two strings: %s and %s"
+      level: PROTOLOG_LEVEL_DEBUG
+      group_id: 1
+    }
+    groups {
+      id: 1
+      name: "MY_FIRST_GROUP"
+      tag: "MyFirstGroup"
+    }
+  }
+}

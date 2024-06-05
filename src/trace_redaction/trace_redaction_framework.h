@@ -21,9 +21,12 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_set>
+#include <vector>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/status.h"
+#include "src/trace_redaction/frame_cookie.h"
 #include "src/trace_redaction/process_thread_timeline.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -36,6 +39,59 @@ namespace perfetto::trace_redaction {
 constexpr uint64_t NormalizeUid(uint64_t uid) {
   return uid % 1000000;
 }
+
+class SystemInfo {
+ public:
+  int32_t AllocateSynthThread() {
+    return (1 << kSynthShift) | (++next_synth_thread_);
+  }
+
+  uint32_t ReserveCpu(uint32_t cpu) {
+    last_cpu_ = std::max(last_cpu_, cpu);
+    return last_cpu_;
+  }
+
+  uint32_t last_cpu() const { return last_cpu_; }
+
+ private:
+  // This is the last allocated tid. Using a tid equal to or less than this tid
+  // risks a collision with another tid. If a tid is ever created (by a
+  // primitive) this should be advanced to the max between this value and the
+  // new tid.
+  //
+  // On a 64 bit machine, the max pid limit is 2^22 (approximately 4 million).
+  // Perfetto uses a 32 (signed) int for the pid. Even in this case, there is
+  // room for 2^9 synthetic threads (2 ^ (31 - 22) = 2 ^ 9).
+  //
+  // Futhermore, ther Android source code return 4194304 (2 ^ 22) on 64 bit
+  // devices.
+  //
+  //  /proc/sys/kernel/pid_max (since Linux 2.5.34)
+  //      This file specifies the value at which PIDs wrap around
+  //      (i.e., the value in this file is one greater than the
+  //      maximum PID).  PIDs greater than this value are not
+  //      allocated; thus, the value in this file also acts as a
+  //      system-wide limit on the total number of processes and
+  //      threads.  The default value for this file, 32768, results
+  //      in the same range of PIDs as on earlier kernels.  On
+  //      32-bit platforms, 32768 is the maximum value for pid_max.
+  //      On 64-bit systems, pid_max can be set to any value up to
+  //      2^22 (PID_MAX_LIMIT, approximately 4 million).
+  //
+  // SOURCE: https://man7.org/linux/man-pages/man5/proc.5.html
+  static constexpr auto kSynthShift = 22;
+  int32_t next_synth_thread_ = 0;
+
+  // The last CPU index seen. If this value is 7, it means there are at least
+  // 8 CPUs.
+  uint32_t last_cpu_ = 0;
+};
+
+class SyntheticThreadGroup {
+ public:
+  int32_t tgid;
+  std::vector<int32_t> tids;
+};
 
 // Primitives should be stateless. All state should be stored in the context.
 // Primitives should depend on data in the context, not the origin of the data.
@@ -186,6 +242,38 @@ class Context {
   // After Sort(), Flatten() and Reduce() can be called (optional) to improve
   // the practical look-up times (compared to theoretical look-up times).
   std::unique_ptr<ProcessThreadTimeline> timeline;
+
+  // All frame events:
+  //
+  //  - ActualDisplayFrame
+  //  - ActualSurfaceFrame
+  //  - ExpectedDisplayFrame
+  //  - ExpectedSurfaceFrame
+  //
+  // Connect a time, a pid, and a cookie value. Cookies are unqiue within a
+  // trace, so if a cookie was connected to the target package, it can always be
+  // used.
+  //
+  // End events (i.e. FrameEnd) only have a time and cookie value. The cookie
+  // value connects it to its start time.
+  //
+  // In the collect phase, all start events are collected and converted to a
+  // simpler structure.
+  //
+  // In the build phase, the cookies are filtered to only include the ones that
+  // belong to the target package. This is down in the build phase, and not the
+  // collect phase, because the timeline is needed to determine if the cookie
+  // belongs to the target package.
+  std::vector<FrameCookie> global_frame_cookies;
+
+  // The collect of cookies that belong to the target package. Because cookie
+  // values are unique within the scope of the trace, pid and time are no longer
+  // needed and a set can be used for faster queries.
+  std::unordered_set<int64_t> package_frame_cookies;
+
+  std::optional<SystemInfo> system_info;
+
+  std::optional<SyntheticThreadGroup> synthetic_threads;
 };
 
 // Extracts low-level data from the trace and writes it into the context. The

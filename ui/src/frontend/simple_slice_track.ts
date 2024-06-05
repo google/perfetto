@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineProxy, TrackContext} from '../public';
+import {Engine, TrackContext} from '../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
-} from '../tracks/custom_sql_table_slices';
+} from '../core_plugins/custom_sql_table_slices';
 import {NamedSliceTrackTypes} from './named_slice_track';
 import {ARG_PREFIX, SliceColumns, SqlDataSource} from './debug_tracks';
 import {uuidv4Sql} from '../base/uuid';
 import {DisposableCallback} from '../base/disposable';
-import {DebugSliceDetailsTab} from '../tracks/debug/details_tab';
+import {DebugSliceDetailsTab} from '../core_plugins/debug/details_tab';
 
 export interface SimpleSliceTrackConfig {
   data: SqlDataSource;
@@ -35,7 +35,7 @@ export class SimpleSliceTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTy
   private sqlTableName: string;
 
   constructor(
-    engine: EngineProxy,
+    engine: Engine,
     ctx: TrackContext,
     config: SimpleSliceTrackConfig,
   ) {
@@ -87,13 +87,12 @@ export class SimpleSliceTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTy
     // TODO(altimin): Support removing this table when the track is closed.
     const dur = sliceColumns.dur === '0' ? 0 : sliceColumns.dur;
     await this.engine.query(`
-      create table ${this.sqlTableName} as
+      create perfetto table ${this.sqlTableName} as
       with data${dataColumns} as (
         ${data.sqlSource}
       ),
       prepared_data as (
         select
-          row_number() over () as id,
           ${sliceColumns.ts} as ts,
           ifnull(cast(${dur} as int), -1) as dur,
           printf('%s', ${sliceColumns.name}) as name
@@ -102,6 +101,7 @@ export class SimpleSliceTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTy
         from data
       )
       select
+        row_number() over (order by ts) as id,
         *
       from prepared_data
       order by ts;`);

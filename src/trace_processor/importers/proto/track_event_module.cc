@@ -19,6 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
@@ -48,22 +49,23 @@ ModuleResult TrackEventModule::TokenizePacket(
     const TracePacket::Decoder& decoder,
     TraceBlobView* packet,
     int64_t packet_timestamp,
-    PacketSequenceState* state,
+    RefPtr<PacketSequenceStateGeneration> state,
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kTrackEventRangeOfInterestFieldNumber:
-      return tokenizer_.TokenizeRangeOfInterestPacket(state, decoder,
+      return tokenizer_.TokenizeRangeOfInterestPacket(std::move(state), decoder,
                                                       packet_timestamp);
     case TracePacket::kTrackDescriptorFieldNumber:
-      return tokenizer_.TokenizeTrackDescriptorPacket(state, decoder,
+      return tokenizer_.TokenizeTrackDescriptorPacket(std::move(state), decoder,
                                                       packet_timestamp);
     case TracePacket::kTrackEventFieldNumber:
-      tokenizer_.TokenizeTrackEventPacket(state, decoder, packet,
+      tokenizer_.TokenizeTrackEventPacket(std::move(state), decoder, packet,
                                           packet_timestamp);
       return ModuleResult::Handled();
     case TracePacket::kThreadDescriptorFieldNumber:
       // TODO(eseckler): Remove once Chrome has switched to TrackDescriptors.
-      return tokenizer_.TokenizeThreadDescriptorPacket(state, decoder);
+      return tokenizer_.TokenizeThreadDescriptorPacket(std::move(state),
+                                                       decoder);
   }
   return ModuleResult::Ignored();
 }

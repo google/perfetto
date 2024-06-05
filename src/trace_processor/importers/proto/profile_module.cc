@@ -27,7 +27,7 @@
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/perf_sample_tracker.h"
 #include "src/trace_processor/importers/proto/profile_packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
@@ -66,14 +66,15 @@ ProfileModule::ProfileModule(TraceProcessorContext* context)
 
 ProfileModule::~ProfileModule() = default;
 
-ModuleResult ProfileModule::TokenizePacket(const TracePacket::Decoder& decoder,
-                                           TraceBlobView* packet,
-                                           int64_t /*packet_timestamp*/,
-                                           PacketSequenceState* state,
-                                           uint32_t field_id) {
+ModuleResult ProfileModule::TokenizePacket(
+    const TracePacket::Decoder& decoder,
+    TraceBlobView* packet,
+    int64_t /*packet_timestamp*/,
+    RefPtr<PacketSequenceStateGeneration> state,
+    uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kStreamingProfilePacketFieldNumber:
-      return TokenizeStreamingProfilePacket(state, packet,
+      return TokenizeStreamingProfilePacket(std::move(state), packet,
                                             decoder.streaming_profile_packet());
   }
   return ModuleResult::Ignored();
@@ -93,7 +94,7 @@ void ProfileModule::ParseTracePacketData(
       ParsePerfSample(ts, data.sequence_state.get(), decoder);
       return;
     case TracePacket::kProfilePacketFieldNumber:
-      ParseProfilePacket(ts, data.sequence_state->state(),
+      ParseProfilePacket(ts, data.sequence_state.get(),
                          decoder.profile_packet());
       return;
     case TracePacket::kModuleSymbolsFieldNumber:
@@ -111,7 +112,7 @@ void ProfileModule::ParseTracePacketData(
 }
 
 ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
-    PacketSequenceState* sequence_state,
+    RefPtr<PacketSequenceStateGeneration> sequence_state,
     TraceBlobView* packet,
     ConstBytes streaming_profile_packet) {
   protos::pbzero::StreamingProfilePacket::Decoder decoder(
@@ -139,8 +140,7 @@ ModuleResult ProfileModule::TokenizeStreamingProfilePacket(
     sequence_state->IncrementAndGetTrackEventTimeNs(*timestamp_it * 1000);
   }
 
-  context_->sorter->PushTracePacket(packet_ts,
-                                    sequence_state->current_generation(),
+  context_->sorter->PushTracePacket(packet_ts, std::move(sequence_state),
                                     std::move(*packet), context_->machine_id());
   return ModuleResult::Handled();
 }
@@ -155,10 +155,10 @@ void ProfileModule::ParseStreamingProfilePacket(
   ProcessTracker* procs = context_->process_tracker.get();
   TraceStorage* storage = context_->storage.get();
   StackProfileSequenceState& stack_profile_sequence_state =
-      *sequence_state->GetOrCreate<StackProfileSequenceState>();
+      *sequence_state->GetCustomState<StackProfileSequenceState>();
 
-  uint32_t pid = static_cast<uint32_t>(sequence_state->state()->pid());
-  uint32_t tid = static_cast<uint32_t>(sequence_state->state()->tid());
+  uint32_t pid = static_cast<uint32_t>(sequence_state->pid());
+  uint32_t tid = static_cast<uint32_t>(sequence_state->tid());
   const UniqueTid utid = procs->UpdateThread(tid, pid);
   const UniquePid upid = procs->GetOrCreateProcess(pid);
 
@@ -255,7 +255,7 @@ void ProfileModule::ParsePerfSample(
       context_->process_tracker->GetOrCreateProcess(sample.pid());
 
   StackProfileSequenceState& stack_profile_sequence_state =
-      *sequence_state->GetOrCreate<StackProfileSequenceState>();
+      *sequence_state->GetCustomState<StackProfileSequenceState>();
   uint64_t callstack_iid = sample.callstack_iid();
   std::optional<CallsiteId> cs_id =
       stack_profile_sequence_state.FindOrInsertCallstack(upid, callstack_iid);
@@ -301,12 +301,12 @@ void ProfileModule::ParsePerfSample(
   context_->storage->mutable_perf_sample_table()->Insert(sample_row);
 }
 
-void ProfileModule::ParseProfilePacket(int64_t ts,
-                                       PacketSequenceState* sequence_state,
-                                       ConstBytes blob) {
+void ProfileModule::ParseProfilePacket(
+    int64_t ts,
+    PacketSequenceStateGeneration* sequence_state,
+    ConstBytes blob) {
   ProfilePacketSequenceState& profile_packet_sequence_state =
-      *sequence_state->current_generation()
-           ->GetOrCreate<ProfilePacketSequenceState>();
+      *sequence_state->GetCustomState<ProfilePacketSequenceState>();
   protos::pbzero::ProfilePacket::Decoder packet(blob.data, blob.size);
   profile_packet_sequence_state.SetProfilePacketIndex(packet.index());
 
@@ -408,7 +408,10 @@ void ProfileModule::ParseProfilePacket(int64_t ts,
         src_allocation.heap_name =
             context_->storage->InternString(entry.heap_name());
       } else {
-        src_allocation.heap_name = context_->storage->InternString("malloc");
+        // After aosp/1348782 there should be a heap name associated with all
+        // allocations - absence of one is likely a bug (for traces captured
+        // in older builds, this was the native heap profiler (libc.malloc)).
+        src_allocation.heap_name = context_->storage->InternString("unknown");
       }
       src_allocation.timestamp = timestamp;
       src_allocation.callstack_id = sample.callstack_id();

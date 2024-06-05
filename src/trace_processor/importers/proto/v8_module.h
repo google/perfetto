@@ -22,6 +22,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/protozero/field.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/v8_tables_py.h"
@@ -53,7 +54,7 @@ class V8Module : public ProtoImporterModule {
       const protos::pbzero::TracePacket_Decoder& decoder,
       TraceBlobView* packet,
       int64_t packet_timestamp,
-      PacketSequenceState* state,
+      RefPtr<PacketSequenceStateGeneration> state,
       uint32_t field_id) override;
 
   void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder&,

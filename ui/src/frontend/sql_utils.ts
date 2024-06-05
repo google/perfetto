@@ -14,7 +14,7 @@
 
 import {isString} from '../base/object_utils';
 import {SortDirection} from '../common/state';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {ColumnType, NUM} from '../trace_processor/query_result';
 
 export interface OrderClause {
@@ -111,7 +111,7 @@ export function sqlValueToString(val?: ColumnType): string | undefined {
 }
 
 export async function getTableRowCount(
-  engine: EngineProxy,
+  engine: Engine,
   tableName: string,
 ): Promise<number | undefined> {
   const result = await engine.query(

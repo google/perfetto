@@ -26,12 +26,13 @@ namespace perfetto::trace_redaction {
 // task_newtask events.
 class RedactTaskNewTask : public FtraceEventRedaction {
  public:
-  RedactTaskNewTask();
+  static constexpr auto kFieldId =
+      protos::pbzero::FtraceEvent::kTaskNewtaskFieldNumber;
 
   base::Status Redact(
       const Context& context,
-      const protos::pbzero::FtraceEvent::Decoder& event,
-      protozero::ConstBytes bytes,
+      const protos::pbzero::FtraceEventBundle::Decoder& bundle,
+      protozero::ProtoDecoder& event,
       protos::pbzero::FtraceEvent* event_message) const override;
 };
 

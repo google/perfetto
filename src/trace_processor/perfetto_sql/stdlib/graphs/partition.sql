@@ -22,30 +22,9 @@
 --
 -- Example:
 -- Input
---   id | parent_id | group_key
---   ---+-----------+--------
---   1  | NULL      | 1
---   2  | 1         | 1
---   3  | 2         | 2
---   4  | 2         | 2
---   5  | 4         | 1
---   6  | 4         | 3
---   7  | 4         | 2
 --
--- Or as a graph:
---         1 (1)
---        /
---       2 (1)
---      /  \
---     3 (2) 4 (2)
---            \
---             5 (1)
---            /  \
---         6 (3) 7 (2)
---
--- Possible output (order of rows is implementation-defined)
 --   id | parent_id | group_key
---   ---+-----------+-------
+--   ---|-----------|----------
 --   1  | NULL      | 1
 --   2  | 1         | 1
 --   3  | NULL      | 2
@@ -53,13 +32,41 @@
 --   5  | 2         | 1
 --   6  | NULL      | 3
 --   7  | 4         | 2
+--   8  | 4         | 1
+--
+-- Or as a graph:
+-- ```
+--         1 (1)
+--        /
+--       2 (1)
+--      /  \
+--     3 (2) 4 (2)
+--           /   \
+--         5 (1) 8 (1)
+--        /  \
+--     6 (3) 7 (2)
+-- ```
+-- Possible output (order of rows is implementation-defined)
+--
+--   id | parent_id | group_key
+--   ---|-----------|-------
+--   1  | NULL      | 1
+--   2  | 1         | 1
+--   3  | NULL      | 2
+--   4  | NULL      | 2
+--   5  | 2         | 1
+--   6  | NULL      | 3
+--   7  | 4         | 2
+--   8  | 2         | 1
 --
 -- Or as a forest:
---    1 (1)       3 (2)      4 (2)        6 (3)
---     |                      |
---    2 (1)                  7 (2)
---     |
---    5 (1)
+-- ```
+--     1 (1)       3 (2)      4 (2)        6 (3)
+--      |                      |
+--     2 (1)                  7 (2)
+--     /   \
+--   5 (1) 8 (1)
+-- ```
 CREATE PERFETTO MACRO tree_structural_partition_by_group(
   -- A table/view/subquery corresponding to a tree which should be partitioned.
   -- This table must have the columns "id", "parent_id" and "group_key".

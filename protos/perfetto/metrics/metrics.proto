@@ -22,6 +22,7 @@ import "protos/perfetto/metrics/android/ad_services_metric.proto";
 import "protos/perfetto/metrics/android/android_boot.proto";
 import "protos/perfetto/metrics/android/android_boot_unagg.proto";
 import "protos/perfetto/metrics/android/android_garbage_collection_unagg_metric.proto";
+import "protos/perfetto/metrics/android/auto_metric.proto";
 import "protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto";
 import "protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto";
 import "protos/perfetto/metrics/android/android_frame_timeline_metric.proto";
@@ -48,6 +49,7 @@ import "protos/perfetto/metrics/android/ion_metric.proto";
 import "protos/perfetto/metrics/android/irq_runtime_metric.proto";
 import "protos/perfetto/metrics/android/jank_cuj_metric.proto";
 import "protos/perfetto/metrics/android/java_heap_histogram.proto";
+import "protos/perfetto/metrics/android/java_heap_class_stats.proto";
 import "protos/perfetto/metrics/android/java_heap_stats.proto";
 import "protos/perfetto/metrics/android/lmk_metric.proto";
 import "protos/perfetto/metrics/android/lmk_reason_metric.proto";
@@ -71,6 +73,7 @@ import "protos/perfetto/metrics/android/binder_metric.proto";
 import "protos/perfetto/metrics/android/monitor_contention_metric.proto";
 import "protos/perfetto/metrics/android/monitor_contention_agg_metric.proto";
 import "protos/perfetto/metrics/android/app_process_starts_metric.proto";
+import "protos/perfetto/metrics/android/android_oom_adjuster_metric.proto";
 
 // Trace processor metadata
 message TraceMetadata {
@@ -117,7 +120,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 66
+// Next id: 68
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -168,6 +171,9 @@ message TraceMetrics {
 
   // If the trace contains a heap graph, output histogram.
   optional JavaHeapHistogram java_heap_histogram = 21;
+
+  // If the trace contains a heap graph, output stats per heap class.
+  optional JavaHeapClassStats java_heap_class_stats = 67;
 
   // Metrics used to find potential culprits of low-memory kills.
   optional AndroidLmkReasonMetric android_lmk_reason = 18;
@@ -293,11 +299,15 @@ message TraceMetrics {
 
   // Multiuser - metrics for switching users.
   // Specific for Android Auto
-  optional AndroidMultiuserMetric android_auto_multiuser = 64;
+  optional AndroidAutoMultiuserMetric android_auto_multiuser = 64;
 
   // All blocking calls (e.g. binder calls) for a trace.
   optional AndroidBlockingCallsUnagg android_blocking_calls_unagg = 65;
 
+  // Android OOM unaggregated metrics.
+  optional AndroidOomAdjusterMetric android_oom_adjuster = 66;
+
+  // Android
   // Demo extensions.
   extensions 450 to 499;
 

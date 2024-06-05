@@ -24,6 +24,11 @@ export interface Size {
   readonly height: number;
 }
 
+export interface Vector {
+  readonly x: number;
+  readonly y: number;
+}
+
 export function intersectRects(a: Rect, b: Rect): Rect {
   return {
     top: Math.max(a.top, b.top),
@@ -55,5 +60,30 @@ export function rectSize(r: Rect): Size {
   return {
     width: r.right - r.left,
     height: r.bottom - r.top,
+  };
+}
+
+/**
+ * Return true if rect a contains rect b.
+ *
+ * @param a A rect.
+ * @param b Another rect.
+ * @returns True if rect a contains rect b, false otherwise.
+ */
+export function containsRect(a: Rect, b: Rect): boolean {
+  return !(
+    b.top < a.top ||
+    b.bottom > a.bottom ||
+    b.left < a.left ||
+    b.right > a.right
+  );
+}
+
+export function translateRect(a: Rect, b: Vector): Rect {
+  return {
+    top: a.top + b.y,
+    left: a.left + b.x,
+    bottom: a.bottom + b.y,
+    right: a.right + b.x,
   };
 }

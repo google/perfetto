@@ -1,0 +1,16 @@
+// From chromium's buildtools/third_party/libc++/__assertion_handler
+
+#ifndef _LIBCPP___ASSERTION_HANDLER
+#define _LIBCPP___ASSERTION_HANDLER
+
+#include <__config>
+#include <__verbose_abort>
+
+#if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
+#  pragma GCC system_header
+#endif
+
+// TODO(hardening): in production, trap rather than abort.
+#define _LIBCPP_ASSERTION_HANDLER(message) _LIBCPP_VERBOSE_ABORT("%s", message)
+
+#endif // _LIBCPP___ASSERTION_HANDLER

@@ -22,7 +22,7 @@ import {QueryError} from '../trace_processor/query_result';
 import {
   AddDebugTrackMenu,
   uuidToViewName,
-} from '../tracks/debug/add_debug_track_menu';
+} from '../core_plugins/debug/add_debug_track_menu';
 import {Button} from '../widgets/button';
 import {PopupMenu2} from '../widgets/menu';
 import {PopupPosition} from '../widgets/popup';
@@ -32,7 +32,7 @@ import {QueryTable} from './query_table';
 import {globals} from './globals';
 import {Actions} from '../common/actions';
 import {BottomTabToTabAdapter} from '../public/utils';
-import {EngineProxy} from '../public';
+import {Engine} from '../public';
 
 interface QueryResultTabConfig {
   readonly query: string;
@@ -66,7 +66,7 @@ export function addQueryResultsTab(
 }
 
 // TODO(stevegolton): Find a way to make this more elegant.
-function getEngine(): EngineProxy {
+function getEngine(): Engine {
   const engConfig = globals.getCurrentEngine();
   const engineId = assertExists(engConfig).id;
   return assertExists(globals.engines.get(engineId)).getProxy('QueryResult');

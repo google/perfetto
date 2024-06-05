@@ -57,3 +57,15 @@ message GpuWorkPeriodFtraceEvent {
   optional uint64 end_time_ns = 4;
   optional uint64 total_active_duration_ns = 5;
 }
+message DevicePmCallbackStartFtraceEvent {
+  optional string device = 1;
+  optional string driver = 2;
+  optional string parent = 3;
+  optional string pm_ops = 4;
+  optional int32 event = 5;
+}
+message DevicePmCallbackEndFtraceEvent {
+  optional string device = 1;
+  optional string driver = 2;
+  optional int32 error = 3;
+}

@@ -373,6 +373,16 @@ TEST(IdStorage, StableSort) {
               ElementsAre(4, 3, 2, 1, 0));
 }
 
+TEST(IdStorage, Distinct) {
+  IdStorage storage;
+  auto chain = storage.MakeChain();
+
+  auto indices = Indices::CreateWithIndexPayloadForTesting(
+      {1, 1, 0, 3}, Indices::State::kNonmonotonic);
+  chain->Distinct(indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 2, 3));
+}
+
 }  // namespace
 }  // namespace column
 }  // namespace perfetto::trace_processor

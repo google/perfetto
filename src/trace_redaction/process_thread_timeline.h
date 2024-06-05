@@ -18,8 +18,7 @@
 #define SRC_TRACE_REDACTION_PROCESS_THREAD_TIMELINE_H_
 
 #include <cstdint>
-#include <list>
-#include <optional>
+#include <limits>
 #include <vector>
 
 namespace perfetto::trace_redaction {
@@ -27,38 +26,24 @@ namespace perfetto::trace_redaction {
 class ProcessThreadTimeline {
  public:
   // Opened and closed events are used to mark the start and end of lifespans.
-  class Event {
+  struct Event {
    public:
+    static constexpr auto kUnknownPid = std::numeric_limits<int32_t>::max();
+    static constexpr auto kUnknownUid = std::numeric_limits<uint64_t>::max();
+
     enum class Type { kInvalid, kOpen, kClose };
 
-    Event()
-        : type_(ProcessThreadTimeline::Event::Type::kInvalid),
-          ts_(0),
-          pid_(0),
-          ppid_(0),
-          uid_(0) {}
-
-    Type type() const { return type_; }
-
-    uint64_t ts() const { return ts_; }
-
-    int32_t pid() const { return pid_; }
-
-    int32_t ppid() const { return ppid_; }
-
-    uint64_t uid() const { return uid_; }
-
     bool operator==(const Event& o) const {
-      switch (type_) {
+      switch (type) {
         case Type::kOpen:
-          return o.type_ == Type::kOpen && ts_ == o.ts_ && pid_ == o.pid_ &&
-                 ppid_ == o.ppid_ && uid_ == o.uid_;
+          return o.type == Type::kOpen && ts == o.ts && pid == o.pid &&
+                 ppid == o.ppid && uid == o.uid;
 
         case Type::kClose:
-          return o.type_ == Type::kClose && ts_ == o.ts_ && pid_ == o.pid_;
+          return o.type == Type::kClose && ts == o.ts && pid == o.pid;
 
         case Type::kInvalid:
-          return o.type_ == Type::kInvalid;
+          return o.type == Type::kInvalid;
       }
 
       return false;
@@ -66,45 +51,35 @@ class ProcessThreadTimeline {
 
     bool operator!=(const Event& o) const { return !(*this == o); }
 
+    bool valid() const { return type != Type::kInvalid; }
+
     static Event Open(uint64_t ts, int32_t pid, int32_t ppid, uint64_t uid) {
-      return Event(ProcessThreadTimeline::Event::Type::kOpen, ts, pid, ppid,
-                   uid);
+      return {Type::kOpen, ts, pid, ppid, uid};
     }
 
     static Event Open(uint64_t ts, int32_t pid, int32_t ppid) {
-      return Event(ProcessThreadTimeline::Event::Type::kOpen, ts, pid, ppid, 0);
+      return {Type::kOpen, ts, pid, ppid, kUnknownUid};
     }
 
     static Event Close(uint64_t ts, int32_t pid) {
-      return Event(ProcessThreadTimeline::Event::Type::kClose, ts, pid, 0, 0);
+      return {Type::kClose, ts, pid, kUnknownPid, kUnknownUid};
     }
 
-   private:
-    Event(Type type, uint64_t ts, int32_t pid, int32_t ppid, uint64_t uid)
-        : type_(type), ts_(ts), pid_(pid), ppid_(ppid), uid_(uid) {}
+    Type type = Type::kInvalid;
 
-    Type type_ = Type::kInvalid;
+    // The time when the event occured. Undefined when type is kInvalid.
+    uint64_t ts = 0;
 
-    // Valid: open & close
-    uint64_t ts_ = 0;
+    // The subject of the event. Undefined when type is kInvalid.
+    int32_t pid = kUnknownPid;
 
-    // Valid: open & close
-    int32_t pid_ = -1;
+    // The parent of the subject. kUnknownPid if the parent is unknown.
+    // Undefined when type is kClose or kInvalid.
+    int32_t ppid = kUnknownPid;
 
-    // Valid: open
-    int32_t ppid_ = -1;
-
-    // Valid: open
-    uint64_t uid_ = 0;
-  };
-
-  // The state of a process at a specific point in time.
-  struct Slice {
-    int32_t pid = -1;
-
-    // It is safe to use 0 as the invalid value because that's effectively
-    // what happening in the trace.
-    uint64_t uid = 0;
+    // The package containing the subject. kUnknownUid if the package is
+    // unknown. Undefined when type is kClose or kInvalid.
+    uint64_t uid = kUnknownUid;
   };
 
   ProcessThreadTimeline() = default;
@@ -121,65 +96,27 @@ class ProcessThreadTimeline {
   // subset of events will, on average, be trivally small.
   void Sort();
 
-  // OPTIONAL: minimizes the distance between the leaf nodes and the package
-  // nodes (a node with a uid value not equal to zero).
-  void Flatten();
+  // Returns true if a process/thread is connected to a package.
+  bool PidConnectsToUid(uint64_t ts, int32_t pid, uint64_t uid) const;
 
-  // OPTIONAL: Removes events from the timeline that:
-  //
-  //  1. Reduces the number of events in the timeline to shrink the search
-  //  space.
-  //
-  //  2. Does not invalidate the timeline.
-  //
-  // This can only be called after calling Sort(). Calling Reduce() before
-  // Sort() has undefined behaviour. Calling Reduce() after AppendOpen() if
-  // AppendClose() (without a call to Sort() call) has undefined behaviour.
-  void Reduce(uint64_t package_uid);
-
-  // Returns a snapshot that contains a process's pid and ppid, but contains the
-  // first uid found in its parent-child chain. If a uid cannot be found, uid=0
-  // is returned.
-  //
-  // `Sort()` must be called before this.
-  Slice Search(uint64_t ts, int32_t pid) const;
-
-  // Finds the distance between pid and its uid.
-  //
-  // Returns -1 it pid has no connection to a uid.
-  // Returns 0 if pid has an immediately connection to a uid.
-  //
-  // Return n where:  n is the number of pids between the given pid and the pid
-  //                  connected to the uid. For example, assume D() is a
-  //                  function that measures the distance between two nodes in
-  //                  the same chain:
-  //
-  //                    | pid | depth
-  //                    | a   : 0
-  //                    | b   : 1
-  //                    | c   : 2 --> uid = 98
-  //
-  //                    D(a) = 2
-  //                    D(b) = 1
-  //                    D(c) = 0
-  std::optional<size_t> GetDepth(uint64_t ts, int32_t pid) const;
+  // Finds the pid's last event before ts.
+  Event FindPreviousEvent(uint64_t ts, int32_t pid) const;
 
  private:
-  // Effectively this is the same as:
-  //
-  //  events_for(pid).before(ts).sort_by_time().last()
-  std::optional<Event> FindPreviousEvent(uint64_t ts, int32_t pid) const;
+  enum class Mode {
+    // The timeline can safely be queried. If the timeline is in read mode, and
+    // a user writes to the timeline, the timeline will change to write mode.
+    kRead,
 
-  std::optional<Event> Search(size_t depth, uint64_t ts, int32_t pid) const;
+    // The timeline change be changed. If the timeline is not in write mode,
+    // reading from the timeline will throw an error. Sort() must be called to
+    // change the timeline from write to read mode.
+    kWrite
+  };
 
-  std::optional<size_t> GetDepth(size_t depth, uint64_t ts, int32_t pid) const;
+  std::vector<Event> events_;
 
-  bool TestEvent(std::optional<Event> event) const;
-
-  // The number of events are unclear. Use a list when in "write-only" mode and
-  // then change to a vector for "read-only" mode.
-  std::list<Event> write_only_events_;
-  std::vector<Event> read_only_events_;
+  Mode mode_ = Mode::kRead;
 };
 
 }  // namespace perfetto::trace_redaction

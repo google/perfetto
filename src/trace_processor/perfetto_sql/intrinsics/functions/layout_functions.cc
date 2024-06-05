@@ -16,6 +16,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <queue>
 #include <vector>
 #include "perfetto/base/logging.h"
@@ -64,8 +65,10 @@ Please specify "ORDER BY ts" in the window clause.
     size_t depth = SelectAvailableDepth(is_busy);
     // If the slice has an end and is not an instant, schedule this depth
     // to be marked available again when it ends.
-    if (dur > 0) {
-      slice_ends_.push({ts + dur, depth});
+    if (dur != 0) {
+      int64_t ts_end =
+          dur == -1 ? std::numeric_limits<int64_t>::max() : ts + dur;
+      slice_ends_.push({ts_end, depth});
     }
     last_depth_ = depth;
     return base::OkStatus();

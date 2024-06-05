@@ -23,6 +23,7 @@
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/proto/config.descriptor.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 
@@ -44,6 +45,7 @@ MetadataModule::MetadataModule(TraceProcessorContext* context)
           context_->storage->InternString("trusted_producer_uid")) {
   RegisterForField(TracePacket::kUiStateFieldNumber, context);
   RegisterForField(TracePacket::kTriggerFieldNumber, context);
+  RegisterForField(TracePacket::kChromeTriggerFieldNumber, context);
   RegisterForField(TracePacket::kTraceUuidFieldNumber, context);
 }
 
@@ -51,7 +53,7 @@ ModuleResult MetadataModule::TokenizePacket(
     const protos::pbzero::TracePacket::Decoder& decoder,
     TraceBlobView*,
     int64_t,
-    PacketSequenceState*,
+    RefPtr<PacketSequenceStateGeneration>,
     uint32_t field_id) {
   switch (field_id) {
     case TracePacket::kUiStateFieldNumber: {
@@ -134,6 +136,11 @@ void MetadataModule::ParseChromeTrigger(int64_t ts, ConstBytes blob) {
   }
   context_->slice_tracker->Scoped(ts, track_id, cat_id, name_id,
                                   /* duration = */ 0);
+
+  MetadataTracker* metadata = context_->metadata_tracker.get();
+  metadata->SetDynamicMetadata(
+      context_->storage->InternString("cr-triggered_rule_name_hash"),
+      Variadic::Integer(trigger.trigger_name_hash()));
 }
 
 void MetadataModule::ParseTraceUuid(ConstBytes blob) {

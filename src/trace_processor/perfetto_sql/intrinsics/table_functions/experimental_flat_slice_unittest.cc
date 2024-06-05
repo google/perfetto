@@ -100,8 +100,9 @@ TEST(ExperimentalFlatSlice, Smoke) {
   inserter.Populate(table);
 
   auto out = ExperimentalFlatSlice::ComputeFlatSliceTable(table, &pool, 0, 400);
-  auto it = out->ApplyAndIterateRows(out->QueryToRowMap(
-      {}, {out->track_id().ascending(), out->ts().ascending()}));
+  Query q;
+  q.orders = {out->track_id().ascending(), out->ts().ascending()};
+  auto it = out->ApplyAndIterateRows(out->QueryToRowMap(q));
 
   TableAsserter asserter(std::move(it));
 
@@ -183,8 +184,9 @@ TEST(ExperimentalFlatSlice, Bounds) {
 
   auto out =
       ExperimentalFlatSlice::ComputeFlatSliceTable(table, &pool, start, end);
-  auto it = out->ApplyAndIterateRows(out->QueryToRowMap(
-      {}, {out->track_id().ascending(), out->ts().ascending()}));
+  Query q;
+  q.orders = {out->track_id().ascending(), out->ts().ascending()};
+  auto it = out->ApplyAndIterateRows(out->QueryToRowMap(q));
 
   TableAsserter asserter(std::move(it));
 

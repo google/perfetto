@@ -30,81 +30,77 @@ FtraceEventRedaction::~FtraceEventRedaction() = default;
 
 base::Status RedactFtraceEvent::Transform(const Context& context,
                                           std::string* packet) const {
-  protozero::ConstBytes packet_bytes = {
-      reinterpret_cast<const uint8_t*>(packet->data()), packet->size()};
-
   protozero::HeapBuffered<protos::pbzero::TracePacket> message;
 
-  RedactPacket(context, packet_bytes, message.get());
+  protozero::ProtoDecoder decoder(*packet);
+
+  // Treat FtraceEvents (bundle) as a special case.
+  for (auto f = decoder.ReadField(); f.valid(); f = decoder.ReadField()) {
+    if (f.id() == protos::pbzero::TracePacket::kFtraceEventsFieldNumber) {
+      RedactEvents(context, f, message->set_ftrace_events());
+    } else {
+      proto_util::AppendField(f, message.get());
+    }
+  }
+
   packet->assign(message.SerializeAsString());
 
   return base::OkStatus();
-}
-
-// Iterate over every field in a packet, treating FtraceEvents (bundle) as a
-// special case.
-void RedactFtraceEvent::RedactPacket(
-    const Context& context,
-    protozero::ConstBytes bytes,
-    protos::pbzero::TracePacket* message) const {
-  protozero::ProtoDecoder decoder(bytes);
-
-  for (auto field = decoder.ReadField(); field.valid();
-       field = decoder.ReadField()) {
-    if (field.id() == protos::pbzero::TracePacket::kFtraceEventsFieldNumber) {
-      RedactEvents(context, field.as_bytes(), message->set_ftrace_events());
-    } else {
-      proto_util::AppendField(field, message);
-    }
-  }
 }
 
 // Iterate over every field in FtraceEvents (bundle), treating FtraceEvent as a
 // special case (calls the correct redaction).
 void RedactFtraceEvent::RedactEvents(
     const Context& context,
-    protozero::ConstBytes bytes,
+    protozero::Field bundle,
     protos::pbzero::FtraceEventBundle* message) const {
-  protozero::ProtoDecoder decoder(bytes);
+  PERFETTO_DCHECK(bundle.id() ==
+                  protos::pbzero::TracePacket::kFtraceEventsFieldNumber);
 
-  for (auto field = decoder.ReadField(); field.valid();
-       field = decoder.ReadField()) {
-    if (field.id() == protos::pbzero::FtraceEventBundle::kEventFieldNumber) {
-      RedactEvent(context, field.as_bytes(), message->add_event());
+  // There is only one bundle per packet, so creating the bundle decoder is an
+  // "okay" expense.
+  protos::pbzero::FtraceEventBundle::Decoder bundle_decoder(bundle.as_bytes());
+
+  // Even through we have `bundle_decoder` create a simpler decoder to iterate
+  // over every field.
+  protozero::ProtoDecoder decoder(bundle.as_bytes());
+
+  // Treat FtraceEvent as a special case.
+  for (auto f = decoder.ReadField(); f.valid(); f = decoder.ReadField()) {
+    if (f.id() == protos::pbzero::FtraceEventBundle::kEventFieldNumber) {
+      RedactEvent(context, bundle_decoder, f, message->add_event());
     } else {
-      proto_util::AppendField(field, message);
+      proto_util::AppendField(f, message);
     }
   }
 }
 
 void RedactFtraceEvent::RedactEvent(
     const Context& context,
-    protozero::ConstBytes bytes,
+    const protos::pbzero::FtraceEventBundle::Decoder& bundle,
+    protozero::Field event,
     protos::pbzero::FtraceEvent* message) const {
-  protozero::ProtoDecoder event(bytes);
+  PERFETTO_DCHECK(event.id() ==
+                  protos::pbzero::FtraceEventBundle::kEventFieldNumber);
 
-  for (auto field = event.ReadField(); field.valid();
-       field = event.ReadField()) {
-    auto mod = FindRedactionFor(field.id());
+  // A modifier can/will change the decoder by calling ReadField(). To avoid a
+  // modifier from interfering with the this function's loop, a reusable decoder
+  // is used for each modifier call.
+  protozero::ProtoDecoder outer_decoder(event.as_bytes());
+  protozero::ProtoDecoder inner_decoder(event.as_bytes());
 
-    if (mod) {
-      protos::pbzero::FtraceEvent::Decoder event_decoder(bytes);
-      mod->Redact(context, event_decoder, field.as_bytes(), message);
+  // If there is a handler for a field, treat it as a special case.
+  for (auto f = outer_decoder.ReadField(); f.valid();
+       f = outer_decoder.ReadField()) {
+    auto* mod = redactions_.Find(f.id());
+    if (mod && mod->get()) {
+      // Reset the decoder so that it appears like a "new" decoder to the
+      // modifier.
+      inner_decoder.Reset();
+      mod->get()->Redact(context, bundle, inner_decoder, message);
     } else {
-      proto_util::AppendField(field, message);
+      proto_util::AppendField(f, message);
     }
   }
 }
-
-const FtraceEventRedaction* RedactFtraceEvent::FindRedactionFor(
-    uint32_t i) const {
-  for (const auto& modification : redactions_) {
-    if (modification->field_id() == i) {
-      return modification.get();
-    }
-  }
-
-  return nullptr;
-}
-
 }  // namespace perfetto::trace_redaction

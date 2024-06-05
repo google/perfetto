@@ -17,34 +17,89 @@
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include <cstddef>
 
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
+#include "src/trace_processor/importers/proto/track_event_sequence_state.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+
+PacketSequenceStateGeneration::CustomState::~CustomState() = default;
+
+// static
+RefPtr<PacketSequenceStateGeneration>
+PacketSequenceStateGeneration::CreateFirst(TraceProcessorContext* context) {
+  return RefPtr<PacketSequenceStateGeneration>(
+      new PacketSequenceStateGeneration(
+          context, TrackEventSequenceState::CreateFirst(), false));
+}
 
 PacketSequenceStateGeneration::PacketSequenceStateGeneration(
-    PacketSequenceState* state,
-    size_t generation_index,
-    PacketSequenceStateGeneration* prev_gen,
-    TraceBlobView defaults)
-    : state_(state),
-      generation_index_(generation_index),
-      interned_data_(prev_gen->interned_data_),
-      trace_packet_defaults_(InternedMessageView(std::move(defaults))),
-      trackers_(prev_gen->trackers_) {
-  for (auto& t : trackers_) {
-    if (t.get() != nullptr) {
-      t->set_generation(this);
+    TraceProcessorContext* context,
+    InternedFieldMap interned_data,
+    TrackEventSequenceState track_event_sequence_state,
+    CustomStateArray custom_state,
+    TraceBlobView trace_packet_defaults,
+    bool is_incremental_state_valid)
+    : context_(context),
+      interned_data_(std::move(interned_data)),
+      track_event_sequence_state_(std::move(track_event_sequence_state)),
+      custom_state_(std::move(custom_state)),
+      trace_packet_defaults_(std::move(trace_packet_defaults)),
+      is_incremental_state_valid_(is_incremental_state_valid) {
+  for (auto& s : custom_state_) {
+    if (s.get() != nullptr) {
+      s->set_generation(this);
     }
   }
 }
 
-PacketSequenceStateGeneration::InternedDataTracker::~InternedDataTracker() =
-    default;
+RefPtr<PacketSequenceStateGeneration>
+PacketSequenceStateGeneration::OnPacketLoss() {
+  // No need to increment the generation. If any future packet depends on
+  // previous messages to update the incremental state its packet (if the
+  // DataSource is behaving correctly) would have the
+  // SEQ_NEEDS_INCREMENTAL_STATE bit set and such a packet will be dropped by
+  // the ProtoTraceReader and never make it far enough to update any incremental
+  // state.
+  track_event_sequence_state_.OnPacketLoss();
+  is_incremental_state_valid_ = false;
+  return RefPtr<PacketSequenceStateGeneration>(this);
+}
 
-TraceProcessorContext* PacketSequenceStateGeneration::GetContext() const {
-  return state_->context();
+RefPtr<PacketSequenceStateGeneration>
+PacketSequenceStateGeneration::OnIncrementalStateCleared() {
+  return RefPtr<PacketSequenceStateGeneration>(
+      new PacketSequenceStateGeneration(
+          context_, track_event_sequence_state_.OnIncrementalStateCleared(),
+          true));
+}
+
+RefPtr<PacketSequenceStateGeneration>
+PacketSequenceStateGeneration::OnNewTracePacketDefaults(
+    TraceBlobView trace_packet_defaults) {
+  return RefPtr<PacketSequenceStateGeneration>(
+      new PacketSequenceStateGeneration(
+          context_, interned_data_,
+          track_event_sequence_state_.OnIncrementalStateCleared(),
+          custom_state_, std::move(trace_packet_defaults),
+          is_incremental_state_valid_));
+}
+
+InternedMessageView* PacketSequenceStateGeneration::GetInternedMessageView(
+    uint32_t field_id,
+    uint64_t iid) {
+  auto field_it = interned_data_.find(field_id);
+  if (field_it != interned_data_.end()) {
+    auto* message_map = &field_it->second;
+    auto it = message_map->find(iid);
+    if (it != message_map->end()) {
+      return &it->second;
+    }
+  }
+
+  context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
+  return nullptr;
 }
 
 void PacketSequenceStateGeneration::InternMessage(uint32_t field_id,
@@ -59,8 +114,7 @@ void PacketSequenceStateGeneration::InternMessage(uint32_t field_id,
   auto field = decoder.FindField(kIidFieldNumber);
   if (PERFETTO_UNLIKELY(!field)) {
     PERFETTO_DLOG("Interned message without interning_id");
-    state_->context()->storage->IncrementStats(
-        stats::interned_data_tokenizer_errors);
+    context_->storage->IncrementStats(stats::interned_data_tokenizer_errors);
     return;
   }
   iid = field.as_uint64();
@@ -79,21 +133,4 @@ void PacketSequenceStateGeneration::InternMessage(uint32_t field_id,
                           message_size) == 0));
 }
 
-InternedMessageView* PacketSequenceStateGeneration::GetInternedMessageView(
-    uint32_t field_id,
-    uint64_t iid) {
-  auto field_it = interned_data_.find(field_id);
-  if (field_it != interned_data_.end()) {
-    auto* message_map = &field_it->second;
-    auto it = message_map->find(iid);
-    if (it != message_map->end()) {
-      return &it->second;
-    }
-  }
-  state_->context()->storage->IncrementStats(
-      stats::interned_data_tokenizer_errors);
-  return nullptr;
-}
-
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

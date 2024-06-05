@@ -16,6 +16,8 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_redaction/collect_frame_cookies.h"
+#include "src/trace_redaction/collect_system_info.h"
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/filter_ftrace_using_allowlist.h"
 #include "src/trace_redaction/filter_packet_using_allowlist.h"
@@ -23,13 +25,13 @@
 #include "src/trace_redaction/filter_sched_waking_events.h"
 #include "src/trace_redaction/filter_task_rename.h"
 #include "src/trace_redaction/find_package_uid.h"
-#include "src/trace_redaction/optimize_timeline.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/redact_ftrace_event.h"
 #include "src/trace_redaction/redact_process_free.h"
 #include "src/trace_redaction/redact_sched_switch.h"
 #include "src/trace_redaction/redact_task_newtask.h"
+#include "src/trace_redaction/remap_scheduling_events.h"
 #include "src/trace_redaction/scrub_ftrace_events.h"
 #include "src/trace_redaction/scrub_process_stats.h"
 #include "src/trace_redaction/scrub_process_trees.h"
@@ -49,15 +51,19 @@ static base::Status Main(std::string_view input,
   // Add all collectors.
   redactor.emplace_collect<FindPackageUid>();
   redactor.emplace_collect<CollectTimelineEvents>();
+  redactor.emplace_collect<CollectFrameCookies>();
+  redactor.emplace_collect<CollectSystemInfo>();
 
   // Add all builders.
   redactor.emplace_build<PopulateAllowlists>();
   redactor.emplace_build<AllowSuspendResume>();
-  redactor.emplace_build<OptimizeTimeline>();
+  redactor.emplace_build<ReduceFrameCookies>();
+  redactor.emplace_build<BuildSyntheticThreads>();
 
   // Add all transforms.
   auto* scrub_packet = redactor.emplace_transform<ScrubTracePacket>();
   scrub_packet->emplace_back<FilterPacketUsingAllowlist>();
+  scrub_packet->emplace_back<FilterFrameEvents>();
 
   auto* scrub_ftrace_events = redactor.emplace_transform<ScrubFtraceEvents>();
   scrub_ftrace_events->emplace_back<FilterFtraceUsingAllowlist>();
@@ -74,9 +80,29 @@ static base::Status Main(std::string_view input,
   redactor.emplace_transform<ScrubProcessStats>();
 
   auto* redact_ftrace_events = redactor.emplace_transform<RedactFtraceEvent>();
-  redact_ftrace_events->emplace_back<RedactSchedSwitch>();
-  redact_ftrace_events->emplace_back<RedactTaskNewTask>();
-  redact_ftrace_events->emplace_back<RedactProcessFree>();
+  redact_ftrace_events
+      ->emplace_back<RedactSchedSwitch::kFieldId, RedactSchedSwitch>();
+  redact_ftrace_events
+      ->emplace_back<RedactTaskNewTask::kFieldId, RedactTaskNewTask>();
+  redact_ftrace_events
+      ->emplace_back<RedactProcessFree::kFieldId, RedactProcessFree>();
+
+  // This set of transformations will change pids. This will break the
+  // connections between pids and the timeline (the synth threads are not in the
+  // timeline). If a transformation uses the timeline, it must be before this
+  // transformation.
+  auto* redact_sched_events = redactor.emplace_transform<RedactFtraceEvent>();
+  redact_sched_events->emplace_back<ThreadMergeRemapFtraceEventPid::kFieldId,
+                                    ThreadMergeRemapFtraceEventPid>();
+  redact_sched_events->emplace_back<ThreadMergeRemapSchedSwitchPid::kFieldId,
+                                    ThreadMergeRemapSchedSwitchPid>();
+  redact_sched_events->emplace_back<ThreadMergeRemapSchedWakingPid::kFieldId,
+                                    ThreadMergeRemapSchedWakingPid>();
+  redact_sched_events->emplace_back<
+      ThreadMergeDropField::kTaskNewtaskFieldNumber, ThreadMergeDropField>();
+  redact_sched_events
+      ->emplace_back<ThreadMergeDropField::kSchedProcessFreeFieldNumber,
+                     ThreadMergeDropField>();
 
   Context context;
   context.package_name = package_name;

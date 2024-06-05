@@ -20,8 +20,8 @@ import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {asSliceSqlId} from '../frontend/sql_types';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
-import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
-import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/frames';
+import {SLICE_TRACK_KIND} from '../core_plugins/chrome_slices/chrome_slice_track';
+import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../core_plugins/frames';
 
 import {Controller} from './controller';
 

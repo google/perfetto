@@ -44,7 +44,7 @@ import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
 import {TrackManager} from '../common/track_cache';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
-import {Engine} from '../trace_processor/engine';
+import {EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 
 import {Analytics, initAnalytics} from './analytics';
@@ -55,6 +55,7 @@ import {ServiceWorkerController} from './service_worker_controller';
 import {SliceSqlId} from './sql_types';
 import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
+import {exists} from '../base/utils';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -220,6 +221,32 @@ export interface LegacySelectionArgs {
   pendingScrollId: number | undefined;
 }
 
+export interface TraceTime {
+  readonly start: time;
+  readonly end: time;
+
+  // This is the ts value at the time of the Unix epoch.
+  // Normally some large negative value, because the unix epoch is normally in
+  // the past compared to ts=0.
+  readonly realtimeOffset: time;
+
+  // This is the timestamp that we should use for our offset when in UTC mode.
+  // Usually the most recent UTC midnight compared to the trace start time.
+  readonly utcOffset: time;
+
+  // Trace TZ is like UTC but keeps into account also the timezone_off_mins
+  // recorded into the trace, to show timestamps in the device local time.
+  readonly traceTzOffset: time;
+}
+
+export const defaultTraceTime: TraceTime = {
+  start: Time.ZERO,
+  end: Time.fromSeconds(10),
+  realtimeOffset: Time.ZERO,
+  utcOffset: Time.ZERO,
+  traceTzOffset: Time.ZERO,
+};
+
 /**
  * Global accessors for state/dispatch in the frontend.
  */
@@ -259,9 +286,6 @@ class Globals {
   private _embeddedMode?: boolean = undefined;
   private _hideSidebar?: boolean = undefined;
   private _cmdManager = new CommandManager();
-  private _realtimeOffset = Time.ZERO;
-  private _utcOffset = Time.ZERO;
-  private _traceTzOffset = Time.ZERO;
   private _tabManager = new TabManager();
   private _trackManager = new TrackManager(this._store);
   private _selectionManager = new SelectionManager(this._store);
@@ -272,12 +296,14 @@ class Globals {
   newVersionAvailable = false;
   showPanningHint = false;
 
+  traceTime = defaultTraceTime;
+
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
 
   private _currentSearchResults: CurrentSearchResults = {
-    sliceIds: new Float64Array(0),
-    tsStarts: new BigInt64Array(0),
+    eventIds: new Float64Array(0),
+    tses: new BigInt64Array(0),
     utids: new Float64Array(0),
     trackKeys: [],
     sources: [],
@@ -289,7 +315,7 @@ class Globals {
     count: new Uint8Array(0),
   };
 
-  engines = new Map<string, Engine>();
+  engines = new Map<string, EngineBase>();
 
   initialize(dispatch: Dispatch, router: Router) {
     this._dispatch = dispatch;
@@ -648,8 +674,8 @@ class Globals {
     this._numQueriesQueued = 0;
     this._metricResult = undefined;
     this._currentSearchResults = {
-      sliceIds: new Float64Array(0),
-      tsStarts: new BigInt64Array(0),
+      eventIds: new Float64Array(0),
+      tses: new BigInt64Array(0),
       utids: new Float64Array(0),
       trackKeys: [],
       sources: [],
@@ -690,19 +716,19 @@ class Globals {
 
   // Get a timescale that covers the entire trace
   getTraceTimeScale(pxSpan: PxSpan): TimeScale {
-    const {start, end} = this.state.traceTime;
+    const {start, end} = this.traceTime;
     const traceTime = HighPrecisionTimeSpan.fromTime(start, end);
     return TimeScale.fromHPTimeSpan(traceTime, pxSpan);
   }
 
   // Get the trace time bounds
   stateTraceTime(): Span<HighPrecisionTime> {
-    const {start, end} = this.state.traceTime;
+    const {start, end} = this.traceTime;
     return HighPrecisionTimeSpan.fromTime(start, end);
   }
 
   stateTraceTimeTP(): Span<time, duration> {
-    const {start, end} = this.state.traceTime;
+    const {start, end} = this.traceTime;
     return new TimeSpan(start, end);
   }
 
@@ -722,37 +748,6 @@ class Globals {
     return assertExists(this._cmdManager);
   }
 
-  // This is the ts value at the time of the Unix epoch.
-  // Normally some large negative value, because the unix epoch is normally in
-  // the past compared to ts=0.
-  get realtimeOffset(): time {
-    return this._realtimeOffset;
-  }
-
-  set realtimeOffset(time: time) {
-    this._realtimeOffset = time;
-  }
-
-  // This is the timestamp that we should use for our offset when in UTC mode.
-  // Usually the most recent UTC midnight compared to the trace start time.
-  get utcOffset(): time {
-    return this._utcOffset;
-  }
-
-  set utcOffset(offset: time) {
-    this._utcOffset = offset;
-  }
-
-  // Trace TZ is like UTC but keeps into account also the timezone_off_mins
-  // recorded into the trace, to show timestamps in the device local time.
-  get traceTzOffset(): time {
-    return this._traceTzOffset;
-  }
-
-  set traceTzOffset(offset: time) {
-    this._traceTzOffset = offset;
-  }
-
   get tabManager() {
     return this._tabManager;
   }
@@ -767,14 +762,14 @@ class Globals {
     switch (fmt) {
       case TimestampFormat.Timecode:
       case TimestampFormat.Seconds:
-        return this.state.traceTime.start;
+        return this.traceTime.start;
       case TimestampFormat.Raw:
       case TimestampFormat.RawLocale:
         return Time.ZERO;
       case TimestampFormat.UTC:
-        return this.utcOffset;
+        return this.traceTime.utcOffset;
       case TimestampFormat.TraceTz:
-        return this.traceTzOffset;
+        return this.traceTime.traceTzOffset;
       default:
         const x: never = fmt;
         throw new Error(`Unsupported format ${x}`);
@@ -786,46 +781,25 @@ class Globals {
     return Time.sub(ts, this.timestampOffset());
   }
 
-  findTimeRangeOfSelection(): {start: time; end: time} {
+  findTimeRangeOfSelection(): {start: time; end: time} | undefined {
     const selection = getLegacySelection(this.state);
-    let start = Time.INVALID;
-    let end = Time.INVALID;
     if (selection === null) {
-      return {start, end};
-    } else if (
-      selection.kind === 'SLICE' ||
-      selection.kind === 'CHROME_SLICE'
-    ) {
+      return undefined;
+    }
+
+    if (selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
       const slice = this.sliceDetails;
-      if (slice.ts && slice.dur !== undefined && slice.dur > 0) {
-        start = slice.ts;
-        end = Time.add(start, slice.dur);
-      } else if (slice.ts) {
-        start = slice.ts;
-        // This will handle either:
-        // a)slice.dur === -1 -> unfinished slice
-        // b)slice.dur === 0  -> instant event
-        end =
-          slice.dur === -1n
-            ? Time.add(start, INCOMPLETE_SLICE_DURATION)
-            : Time.add(start, INSTANT_FOCUS_DURATION);
-      }
+      return findTimeRangeOfSlice(slice);
     } else if (selection.kind === 'THREAD_STATE') {
       const threadState = this.threadStateDetails;
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (threadState.ts && threadState.dur) {
-        start = threadState.ts;
-        end = Time.add(start, threadState.dur);
-      }
+      return findTimeRangeOfSlice(threadState);
     } else if (selection.kind === 'COUNTER') {
-      start = selection.leftTs;
-      end = selection.rightTs;
+      return {start: selection.leftTs, end: selection.rightTs};
     } else if (selection.kind === 'AREA') {
       const selectedArea = this.state.areas[selection.areaId];
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (selectedArea) {
-        start = selectedArea.start;
-        end = selectedArea.end;
+        return {start: selectedArea.start, end: selectedArea.end};
       }
     } else if (selection.kind === 'NOTE') {
       const selectedNote = this.state.notes[selection.id];
@@ -833,25 +807,55 @@ class Globals {
       // above in the AREA case.
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (selectedNote && selectedNote.noteType === 'DEFAULT') {
-        start = selectedNote.timestamp;
-        end = Time.add(selectedNote.timestamp, INSTANT_FOCUS_DURATION);
+        return {
+          start: selectedNote.timestamp,
+          end: Time.add(selectedNote.timestamp, INSTANT_FOCUS_DURATION),
+        };
       }
     } else if (selection.kind === 'LOG') {
       // TODO(hjd): Make focus selection work for logs.
     } else if (selection.kind === 'GENERIC_SLICE') {
-      start = selection.start;
-      if (selection.duration > 0) {
-        end = Time.add(start, selection.duration);
-      } else {
-        end = Time.add(start, INSTANT_FOCUS_DURATION);
-      }
+      return findTimeRangeOfSlice({
+        ts: selection.start,
+        dur: selection.duration,
+      });
     }
 
-    return {start, end};
+    return undefined;
   }
 
   panToTimestamp(ts: time): void {
     horizontalScrollToTs(ts);
+  }
+}
+
+interface SliceLike {
+  ts: time;
+  dur: duration;
+}
+
+// Returns the start and end points of a slice-like object If slice is instant
+// or incomplete, dummy time will be returned which instead.
+function findTimeRangeOfSlice(slice: Partial<SliceLike>): {
+  start: time;
+  end: time;
+} {
+  if (exists(slice.ts) && exists(slice.dur)) {
+    if (slice.dur === -1n) {
+      return {
+        start: slice.ts,
+        end: Time.add(slice.ts, INCOMPLETE_SLICE_DURATION),
+      };
+    } else if (slice.dur === 0n) {
+      return {
+        start: slice.ts,
+        end: Time.add(slice.ts, INSTANT_FOCUS_DURATION),
+      };
+    } else {
+      return {start: slice.ts, end: Time.add(slice.ts, slice.dur)};
+    }
+  } else {
+    return {start: Time.INVALID, end: Time.INVALID};
   }
 }
 

@@ -37,7 +37,7 @@ import {
   STR_NULL,
   timeFromSql,
 } from '../trace_processor/query_result';
-import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
+import {SLICE_TRACK_KIND} from '../core_plugins/chrome_slices/chrome_slice_track';
 
 import {Controller} from './controller';
 
@@ -441,7 +441,7 @@ export class SelectionController extends Controller<'main'> {
           IFNULL(value, 0) as value
         FROM counter WHERE ts < ${ts} and track_id = ${trackId}`);
     const previousValue = previous.firstRow({value: NUM}).value;
-    const endTs = rightTs !== -1n ? rightTs : globals.state.traceTime.end;
+    const endTs = rightTs !== -1n ? rightTs : globals.traceTime.end;
     const delta = value - previousValue;
     const duration = endTs - ts;
     const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);

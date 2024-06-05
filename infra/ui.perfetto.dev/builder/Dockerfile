@@ -15,16 +15,14 @@
 # The image that builds the Perfetto UI and deploys to GCS.
 # See go/perfetto-ui-autopush for docs on how this works end-to-end.
 
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 
 ENV PATH=/builder/google-cloud-sdk/bin/:$PATH
 RUN set -ex; \
     export DEBIAN_FRONTEND=noninteractive; \
     apt-get update; \
     apt-get -y install python3 python3-distutils python3-pip git curl tar tini \
-            pkg-config zip libc-dev libgcc-8-dev; \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1; \
-    pip3 install --quiet protobuf crcmod; \
+            pkg-config zip libc-dev python3-protobuf python3-crcmod; \
     mkdir -p /builder && \
     curl -s -o - https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz | tar -zx -C /builder; \
     /builder/google-cloud-sdk/install.sh \
@@ -35,6 +33,10 @@ RUN set -ex; \
     git config --system credential.helper gcloud.sh; \
     useradd -d /home/perfetto perfetto; \
     apt-get -y autoremove; \
-    rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/*;
+    rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/*; \
+    rm -rf /builder/google-cloud-sdk/.install/.backup;
+
+ADD ui_builder_entrypoint.sh /ui_builder_entrypoint.sh
+RUN chmod 755 /ui_builder_entrypoint.sh
 
 ENTRYPOINT [ "tini", "-g", "--" ]

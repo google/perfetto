@@ -28,6 +28,10 @@ executable("trace_redactor") {
 
 source_set("trace_redaction") {
   sources = [
+    "collect_frame_cookies.cc",
+    "collect_frame_cookies.h",
+    "collect_system_info.cc",
+    "collect_system_info.h",
     "collect_timeline_events.cc",
     "collect_timeline_events.h",
     "filter_ftrace_using_allowlist.cc",
@@ -42,8 +46,9 @@ source_set("trace_redaction") {
     "filter_task_rename.h",
     "find_package_uid.cc",
     "find_package_uid.h",
-    "optimize_timeline.cc",
-    "optimize_timeline.h",
+    "frame_cookie.h",
+    "modify_process_trees.cc",
+    "modify_process_trees.h",
     "populate_allow_lists.cc",
     "populate_allow_lists.h",
     "process_thread_timeline.cc",
@@ -60,6 +65,8 @@ source_set("trace_redaction") {
     "redact_sched_switch.h",
     "redact_task_newtask.cc",
     "redact_task_newtask.h",
+    "remap_scheduling_events.cc",
+    "remap_scheduling_events.h",
     "scrub_ftrace_events.cc",
     "scrub_ftrace_events.h",
     "scrub_process_stats.cc",
@@ -98,6 +105,7 @@ source_set("integrationtests") {
     "filter_task_rename_integrationtest.cc",
     "prune_package_list_integrationtest.cc",
     "redact_sched_switch_integrationtest.cc",
+    "remap_scheduling_events_integrationtest.cc",
     "scrub_ftrace_events_integrationtest.cc",
     "scrub_process_stats_integrationtest.cc",
     "scrub_process_trees_integrationtest.cc",
@@ -122,6 +130,8 @@ source_set("integrationtests") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "collect_frame_cookies_unittest.cc",
+    "collect_system_info_unittest.cc",
     "collect_timeline_events_unittest.cc",
     "filter_ftrace_using_allowlist_unittest.cc",
     "filter_packet_using_allowlist_unittest.cc",
@@ -134,6 +144,7 @@ perfetto_unittest_source_set("unittests") {
     "redact_process_free_unittest.cc",
     "redact_sched_switch_unittest.cc",
     "redact_task_newtask_unittest.cc",
+    "remap_scheduling_events_unittest.cc",
     "suspend_resume_unittest.cc",
   ]
   deps = [
@@ -147,10 +158,12 @@ perfetto_unittest_source_set("unittests") {
     "../../protos/perfetto/trace:non_minimal_cpp",
     "../../protos/perfetto/trace:zero",
     "../../protos/perfetto/trace/android:cpp",
+    "../../protos/perfetto/trace/android:zero",
     "../../protos/perfetto/trace/ftrace:cpp",
     "../../protos/perfetto/trace/ftrace:zero",
     "../../protos/perfetto/trace/ps:cpp",
     "../../protos/perfetto/trace/ps:zero",
     "../base:test_support",
+    "../trace_processor/util:util",
   ]
 }

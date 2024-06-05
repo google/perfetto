@@ -632,6 +632,13 @@ class Parsing(TestSuite):
           timestamp: 101000002
         }
         packet {
+          chrome_trigger {
+            trigger_name_hash: 1595654158
+          }
+          trusted_packet_sequence_id: 1
+          timestamp: 101000002
+        }
+        packet {
           trusted_packet_sequence_id: 1
           timestamp: 101000002
           chrome_metadata {

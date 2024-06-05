@@ -26,7 +26,7 @@ packet {
   # 2. a synthetic tree whose dominator tree is itself. It's drawn below with
   #    each object represented by it's class name. Number in the bracket is the
   #    size of each node in bytes.
-  #                 S[1]     java.lang.ref.FinalizerReference[1024]
+  #                 S[1]     sun.misc.Cleaner[1024]
   #                /    \    /
   #            M[2]      N[4]
   #           /   \      /   \
@@ -191,7 +191,7 @@ packet {
     }
     objects {
       id: 0x18
-      type_id: 24 # "java.lang.ref.FinalizerReference"
+      type_id: 24 # "sun.misc.Cleaner"
       self_size: 1024
       reference_object_id: 0x0e
     }
@@ -335,8 +335,14 @@ packet {
     }
     types {
       id: 24
-      class_name: "java.lang.ref.FinalizerReference"
+      class_name: "sun.misc.Cleaner"
+      kind: KIND_PHANTOM_REFERENCE
+      reference_field_id: 123
       location_id: 1
+    }
+    field_names {
+      iid: 123
+      str: "java.lang.ref.Reference.referent"
     }
     continued: false
     index: 1

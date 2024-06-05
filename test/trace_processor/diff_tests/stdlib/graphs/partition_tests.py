@@ -38,7 +38,8 @@ class GraphPartitionTests(TestSuite):
             (4, 2,    2),
             (5, 4,    1),
             (6, 4,    3),
-            (7, 4,    2)
+            (7, 4,    2),
+            (8, 4,    1)
           )
           SELECT * FROM data;
 
@@ -55,4 +56,5 @@ class GraphPartitionTests(TestSuite):
         5,2,1
         6,"[NULL]",3
         7,4,2
+        8,2,1
         """))

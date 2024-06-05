@@ -21,5 +21,6 @@ perfetto_sql_source_set("startup") {
     "startups_maxsdk28.sql",
     "startups_minsdk29.sql",
     "startups_minsdk33.sql",
+    "time_to_display.sql",
   ]
 }

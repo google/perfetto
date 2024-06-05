@@ -446,220 +446,56 @@
   header.stale {
     color: grey;
   }
+}
 
-  .rows {
-    position: relative;
-    direction: ltr;
-    width: 100%;
+.pf-ftrace-explorer {
+  height: 100%;
+  font-size: 11px;
+  font-family: var(--monospace-font);
 
-    .row {
-      @include transition();
-      position: absolute;
-      width: 100%;
-      height: 20px;
-      line-height: 20px;
-      background-color: hsl(214, 22%, 100%);
+  .pf-ftrace-namebox {
+    display: flex;
+    align-items: center;
 
-      &.D {
-        color: hsl(122, 20%, 40%);
-      }
-      &.V {
-        color: hsl(122, 20%, 30%);
-      }
-      &.I {
-        color: hsl(0, 0%, 20%);
-      }
-      &.W {
-        color: hsl(45, 60%, 45%);
-      }
-      &.E {
-        color: hsl(4, 90%, 58%);
-      }
-      &.F {
-        color: hsl(291, 64%, 42%);
-      }
-      &.stale {
-        color: #aaa;
-      }
-      &:nth-child(even) {
-        background-color: hsl(214, 22%, 95%);
-      }
-      &:hover {
-        background-color: $table-hover-color;
-      }
-      .cell {
-        font-size: 11px;
-        font-family: var(--monospace-font);
-        white-space: nowrap;
-        overflow: scroll;
-        padding-left: 10px;
-        padding-right: 10px;
-        display: inline-block;
-        &:first-child {
-          padding-left: 5px;
-        }
-        &:last-child {
-          padding-right: 5px;
-        }
-        &:only-child {
-          width: 100%;
-        }
-
-        // The following children will be used as columns in the table showing
-        // Android logs.
-
-        // 1.Timestamp
-        &:nth-child(1) {
-          width: 7rem;
-          text-overflow: clip;
-          text-align: right;
-        }
-        // 2.Level
-        &:nth-child(2) {
-          width: 4rem;
-        }
-        // 3.Tag
-        &:nth-child(3) {
-          width: 13rem;
-        }
-
-        &.with-process {
-          // 4.Process name
-          &:nth-child(4) {
-            width: 18rem;
-          }
-          // 5.Message - a long string, will take most of the display space.
-          &:nth-child(5) {
-            width: calc(100% - 42rem);
-          }
-        }
-
-        &.no-process {
-          // 4.Message - a long string, will take most of the display space.
-          &:nth-child(4) {
-            width: calc(100% - 24rem);
-          }
-        }
-
-        &.row-header {
-          text-align: left;
-          font-weight: bold;
-          font-size: 13px;
-        }
-
-        &.row-header:first-child {
-          padding-left: 15px;
-        }
-      }
+    .pf-ftrace-colorbox {
+      display: inline-block;
+      height: 10px;
+      width: 10px;
+      margin-right: 4px;
     }
+  }
+}
+
+.pf-android-logs-table {
+  height: 100%;
+  font-size: 11px;
+  font-family: var(--monospace-font);
+
+  .D {
+    color: hsl(122, 20%, 40%);
+  }
+  .V {
+    color: hsl(122, 20%, 30%);
+  }
+  .I {
+    color: hsl(0, 0%, 20%);
+  }
+  .W {
+    color: hsl(45, 60%, 45%);
+  }
+  .E {
+    color: hsl(4, 90%, 58%);
+  }
+  .F {
+    color: hsl(291, 64%, 42%);
+  }
+  .pf-highlighted {
+    background: #d2efe0;
   }
 }
 
 .pf-details-table {
   margin: 10px;
-}
-
-.ftrace-panel {
-  display: contents;
-
-  .sticky {
-    position: sticky;
-    top: 0;
-    left: 0;
-    z-index: 1;
-    background-color: white;
-    color: #3c4b5d;
-    padding: 5px 10px;
-    display: grid;
-    grid-template-columns: auto auto;
-    justify-content: space-between;
-  }
-
-  .ftrace-rows-label {
-    display: flex;
-    align-items: center;
-  }
-
-  header.stale {
-    color: grey;
-  }
-
-  .rows {
-    position: relative;
-    direction: ltr;
-    min-width: 100%;
-    font-size: 12px;
-
-    .row {
-      @include transition();
-      position: absolute;
-      min-width: 100%;
-      line-height: 20px;
-      background-color: hsl(214, 22%, 100%);
-      white-space: nowrap;
-
-      &:nth-child(even) {
-        background-color: hsl(214, 22%, 95%);
-      }
-
-      &:hover {
-        background-color: $table-hover-color;
-      }
-
-      .cell {
-        font-family: var(--monospace-font);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        margin-right: 8px;
-        display: inline-block;
-
-        .colour {
-          display: inline-block;
-          height: 10px;
-          width: 10px;
-          margin-right: 4px;
-        }
-
-        &:first-child {
-          margin-left: 8px;
-        }
-
-        &:last-child {
-          margin-right: 8px;
-        }
-
-        &:only-child {
-          width: 100%;
-        }
-
-        // Timestamp
-        &:nth-child(1) {
-          width: 13em;
-          // text-align: right;
-        }
-
-        // Name
-        &:nth-child(2) {
-          width: 24em;
-        }
-
-        // CPU
-        &:nth-child(3) {
-          width: 3em;
-        }
-
-        // Process
-        &:nth-child(4) {
-          width: 24em;
-        }
-
-        &.row-header {
-          font-weight: bold;
-        }
-      }
-    }
-  }
 }
 
 .screenshot-panel {

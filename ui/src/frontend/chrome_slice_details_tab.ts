@@ -19,7 +19,7 @@ import {duration, Time, TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
 import {runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../trace_processor/query_result';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
@@ -167,7 +167,7 @@ function getSliceContextMenuItems(slice: SliceDetails) {
   return ITEMS.filter((item) => item.shouldDisplay(slice));
 }
 
-function getEngine(): EngineProxy | undefined {
+function getEngine(): Engine | undefined {
   const engineId = globals.getCurrentEngine()?.id;
   if (engineId === undefined) {
     return undefined;
@@ -177,7 +177,7 @@ function getEngine(): EngineProxy | undefined {
 }
 
 async function getAnnotationSlice(
-  engine: EngineProxy,
+  engine: Engine,
   id: number,
 ): Promise<SliceDetails | undefined> {
   const query = await engine.query(`
@@ -218,11 +218,11 @@ async function getAnnotationSlice(
 }
 
 async function getSliceDetails(
-  engine: EngineProxy,
+  engine: Engine,
   id: number,
   table: string,
 ): Promise<SliceDetails | undefined> {
-  if (table === 'annotation') {
+  if (table === 'annotation_slice') {
     return getAnnotationSlice(engine, id);
   } else {
     return getSlice(engine, asSliceSqlId(id));
@@ -300,7 +300,7 @@ export class ChromeSliceDetailsTab extends BottomTab<ChromeSliceDetailsTabConfig
     return !exists(this.sliceDetails);
   }
 
-  private renderRhs(engine: EngineProxy, slice: SliceDetails): m.Children {
+  private renderRhs(engine: Engine, slice: SliceDetails): m.Children {
     const precFlows = this.renderPrecedingFlows(slice);
     const followingFlows = this.renderFollowingFlows(slice);
     const args =

@@ -22,7 +22,6 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
 #include "protos/perfetto/trace/ftrace/sched.gen.h"
-#include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
@@ -46,36 +45,54 @@ constexpr std::string_view kCommB = "comm-b";
 class RedactSchedSwitchTest : public testing::Test {
  protected:
   void SetUp() override {
-    timeline_ = std::make_unique<ProcessThreadTimeline>();
-    timeline_->Append(
-        ProcessThreadTimeline::Event::Open(0, kPidA, kNoParent, kUidA));
-    timeline_->Append(
-        ProcessThreadTimeline::Event::Open(0, kPidB, kNoParent, kUidB));
-    timeline_->Sort();
+    auto* event = bundle_.add_event();
 
-    protozero::HeapBuffered<protos::pbzero::FtraceEvent> event;
     event->set_timestamp(123456789);
     event->set_pid(kPidA);
 
-    auto* sched_switch = event->set_sched_switch();
-    sched_switch->set_prev_comm(kCommA.data(), kCommA.size());
+    auto* sched_switch = event->mutable_sched_switch();
+    sched_switch->set_prev_comm(std::string(kCommA));
     sched_switch->set_prev_pid(kPidA);
-    sched_switch->set_next_comm(kCommB.data(), kCommB.size());
+    sched_switch->set_next_comm(std::string(kCommB));
     sched_switch->set_next_pid(kPidB);
+  }
 
-    event_string_ = event.SerializeAsString();
+  base::Status Redact(const Context& context,
+                      protos::pbzero::FtraceEvent* event_message) {
+    RedactSchedSwitch redact;
+
+    auto bundle_str = bundle_.SerializeAsString();
+    protos::pbzero::FtraceEventBundle::Decoder bundle_decoder(bundle_str);
+
+    auto event_str = bundle_.event().back().SerializeAsString();
+    protos::pbzero::FtraceEvent::Decoder event_decoder(event_str);
+
+    return redact.Redact(context, bundle_decoder, event_decoder, event_message);
   }
 
   const std::string& event_string() const { return event_string_; }
 
-  std::unique_ptr<ProcessThreadTimeline> timeline() {
-    return std::move(timeline_);
+  // This test breaks the rules for task_newtask and the timeline. The
+  // timeline will report the task existing before the new task event. This
+  // should not happen in the field, but it makes the test more robust.
+  std::unique_ptr<ProcessThreadTimeline> CreatePopulatedTimeline() {
+    auto timeline = std::make_unique<ProcessThreadTimeline>();
+
+    timeline->Append(
+        ProcessThreadTimeline::Event::Open(0, kPidA, kNoParent, kUidA));
+    timeline->Append(
+        ProcessThreadTimeline::Event::Open(0, kPidB, kNoParent, kUidB));
+    timeline->Sort();
+
+    return timeline;
   }
 
  private:
   std::string event_string_;
 
   std::unique_ptr<ProcessThreadTimeline> timeline_;
+
+  protos::gen::FtraceEventBundle bundle_;
 };
 
 TEST_F(RedactSchedSwitchTest, RejectMissingPackageUid) {
@@ -84,12 +101,8 @@ TEST_F(RedactSchedSwitchTest, RejectMissingPackageUid) {
   Context context;
   context.timeline = std::make_unique<ProcessThreadTimeline>();
 
-  protos::pbzero::FtraceEvent::Decoder event_decoder(event_string());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
-
-  auto result =
-      redact.Redact(context, event_decoder, event_decoder.sched_switch(),
-                    event_message.get());
+  auto result = Redact(context, event_message.get());
   ASSERT_FALSE(result.ok());
 }
 
@@ -99,31 +112,23 @@ TEST_F(RedactSchedSwitchTest, RejectMissingTimeline) {
   Context context;
   context.package_uid = kUidA;
 
-  protos::pbzero::FtraceEvent::Decoder event_decoder(event_string());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
-
-  auto result =
-      redact.Redact(context, event_decoder, event_decoder.sched_switch(),
-                    event_message.get());
+  auto result = Redact(context, event_message.get());
   ASSERT_FALSE(result.ok());
 }
 
-TEST_F(RedactSchedSwitchTest, ClearsPrevAndNext) {
+TEST_F(RedactSchedSwitchTest, ReplacePrevAndNextWithEmptyStrings) {
   RedactSchedSwitch redact;
 
   Context context;
-  context.timeline = timeline();
+  context.timeline = CreatePopulatedTimeline();
 
   // Neither pid is connected to the target package (see timeline
   // initialization).
   context.package_uid = kUidC;
 
-  protos::pbzero::FtraceEvent::Decoder event_decoder(event_string());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
-
-  auto result =
-      redact.Redact(context, event_decoder, event_decoder.sched_switch(),
-                    event_message.get());
+  auto result = Redact(context, event_message.get());
   ASSERT_OK(result) << result.c_message();
 
   protos::gen::FtraceEvent event;
@@ -131,30 +136,27 @@ TEST_F(RedactSchedSwitchTest, ClearsPrevAndNext) {
 
   ASSERT_TRUE(event.has_sched_switch());
 
-  // Pid should always carry over; only the comm value should get removed.
-  ASSERT_TRUE(event.sched_switch().has_next_pid());
-  ASSERT_FALSE(event.sched_switch().has_next_comm());
+  // Cleared prev and next comm.
+  ASSERT_TRUE(event.sched_switch().has_prev_comm());
+  ASSERT_TRUE(event.sched_switch().prev_comm().empty());
 
-  ASSERT_TRUE(event.sched_switch().has_prev_pid());
-  ASSERT_FALSE(event.sched_switch().has_prev_comm());
+  ASSERT_TRUE(event.sched_switch().has_next_comm());
+  ASSERT_TRUE(event.sched_switch().next_comm().empty());
 }
 
-TEST_F(RedactSchedSwitchTest, ClearsPrev) {
+TEST_F(RedactSchedSwitchTest, ReplacePrevWithEmptyStrings) {
   RedactSchedSwitch redact;
 
   Context context;
-  context.timeline = timeline();
+  context.timeline = CreatePopulatedTimeline();
 
   // Only next pid is connected to the target package (see timeline
   // initialization).
   context.package_uid = kUidB;
 
-  protos::pbzero::FtraceEvent::Decoder event_decoder(event_string());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
+  auto result = Redact(context, event_message.get());
 
-  auto result =
-      redact.Redact(context, event_decoder, event_decoder.sched_switch(),
-                    event_message.get());
   ASSERT_OK(result) << result.c_message();
 
   protos::gen::FtraceEvent event;
@@ -162,30 +164,26 @@ TEST_F(RedactSchedSwitchTest, ClearsPrev) {
 
   ASSERT_TRUE(event.has_sched_switch());
 
-  // Pid should always carry over; only the comm value should get removed.
-  ASSERT_TRUE(event.sched_switch().has_next_pid());
-  ASSERT_TRUE(event.sched_switch().has_next_comm());
+  // Only cleared the prev comm.
+  ASSERT_TRUE(event.sched_switch().has_prev_comm());
+  ASSERT_TRUE(event.sched_switch().prev_comm().empty());
 
-  ASSERT_TRUE(event.sched_switch().has_prev_pid());
-  ASSERT_FALSE(event.sched_switch().has_prev_comm());
+  ASSERT_TRUE(event.sched_switch().has_next_comm());
+  ASSERT_FALSE(event.sched_switch().next_comm().empty());
 }
 
-TEST_F(RedactSchedSwitchTest, ClearNext) {
+TEST_F(RedactSchedSwitchTest, ReplaceNextWithEmptyStrings) {
   RedactSchedSwitch redact;
 
   Context context;
-  context.timeline = timeline();
+  context.timeline = CreatePopulatedTimeline();
 
   // Only prev pid is connected to the target package (see timeline
   // initialization).
   context.package_uid = kUidA;
 
-  protos::pbzero::FtraceEvent::Decoder event_decoder(event_string());
   protozero::HeapBuffered<protos::pbzero::FtraceEvent> event_message;
-
-  auto result =
-      redact.Redact(context, event_decoder, event_decoder.sched_switch(),
-                    event_message.get());
+  auto result = Redact(context, event_message.get());
   ASSERT_OK(result) << result.c_message();
 
   protos::gen::FtraceEvent event;
@@ -193,12 +191,12 @@ TEST_F(RedactSchedSwitchTest, ClearNext) {
 
   ASSERT_TRUE(event.has_sched_switch());
 
-  // Pid should always carry over; only the comm value should get removed.
-  ASSERT_TRUE(event.sched_switch().has_next_pid());
-  ASSERT_FALSE(event.sched_switch().has_next_comm());
-
-  ASSERT_TRUE(event.sched_switch().has_prev_pid());
   ASSERT_TRUE(event.sched_switch().has_prev_comm());
+  ASSERT_FALSE(event.sched_switch().prev_comm().empty());
+
+  // Only cleared the next comm.
+  ASSERT_TRUE(event.sched_switch().has_next_comm());
+  ASSERT_TRUE(event.sched_switch().next_comm().empty());
 }
 
 }  // namespace perfetto::trace_redaction

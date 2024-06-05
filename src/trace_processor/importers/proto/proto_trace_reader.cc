@@ -34,8 +34,6 @@
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
-#include "src/trace_processor/importers/proto/proto_incremental_state.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -236,13 +234,13 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
       for (ProtoImporterModule* global_module :
            context_->modules_for_all_fields) {
         ModuleResult res = global_module->TokenizePacket(
-            decoder, &packet, timestamp, state, field_id);
+            decoder, &packet, timestamp, state->current_generation(), field_id);
         if (!res.ignored())
           return res.ToStatus();
       }
       for (ProtoImporterModule* module : modules[field_id]) {
-        ModuleResult res = module->TokenizePacket(decoder, &packet, timestamp,
-                                                  state, field_id);
+        ModuleResult res = module->TokenizePacket(
+            decoder, &packet, timestamp, state->current_generation(), field_id);
         if (!res.ignored())
           return res.ToStatus();
       }

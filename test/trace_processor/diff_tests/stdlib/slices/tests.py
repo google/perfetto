@@ -76,21 +76,23 @@ class Slices(TestSuite):
 
         SELECT e.name, e.ts, e.dur, e.depth
         FROM _slice_flattened e
-        JOIN thread_track ON e.track_id = thread_track.id
-        JOIN thread USING(utid)
-        WHERE thread.tid = 30944;
+          JOIN thread_track ON e.track_id = thread_track.id
+          JOIN thread USING(utid)
+        WHERE thread.tid = 30196
+        LIMIT 10;
       """,
         out=Csv("""
         "name","ts","dur","depth"
-        "ThreadControllerImpl::RunTask",174793737042797,3937000,0
-        "ThreadControllerImpl::RunTask",174793741016797,5930000,0
-        "ThreadControllerImpl::RunTask",174793747000797,47000,0
-        "Receive mojo message",174793747047797,136000,1
-        "ThreadControllerImpl::RunTask",174793747183797,17000,0
-        "Looper.dispatch: android.os.Handler(Kx3@57873a8)",174793747546797,119000,0
-        "ThreadControllerImpl::RunTask",174796099970797,186000,0
-        "Looper.dispatch: jy3(null)",174800056530797,1368000,0
-        "ThreadControllerImpl::RunTask",174800107962797,132000,0
+        "EventForwarder::OnTouchEvent",1035865509936036,211000,0
+        "EventForwarder::OnTouchEvent",1035865510234036,48000,0
+        "EventForwarder::OnTouchEvent",1035865510673036,10000,0
+        "GestureProvider::OnTouchEvent",1035865510147036,87000,1
+        "RenderWidgetHostImpl::ForwardTouchEvent",1035865510282036,41000,1
+        "RenderWidgetHostImpl::ForwardTouchEvent",1035865510331036,16000,1
+        "RenderWidgetHostImpl::ForwardTouchEvent",1035865510670036,3000,1
+        "LatencyInfo.Flow",1035865510323036,8000,2
+        "PassthroughTouchEventQueue::QueueEvent",1035865510347036,30000,2
+        "PassthroughTouchEventQueue::QueueEvent",1035865510666036,4000,2
       """))
 
   def test_thread_slice_cpu_time(self):

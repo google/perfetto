@@ -138,62 +138,90 @@ std::string CreateTableStatementFromSchema(const Table::Schema& schema,
   return stmt;
 }
 
-base::StatusOr<SqlValue> SqliteValueToSqlValueChecked(sqlite3_value* value,
-                                                      const Constraint& cs) {
-  SqlValue v = sqlite::utils::SqliteValueToSqlValue(value);
+int SqliteValueToSqlValueChecked(SqlValue* sql_val,
+                                 sqlite3_value* value,
+                                 const Constraint& cs,
+                                 sqlite3_vtab* vtab) {
+  *sql_val = sqlite::utils::SqliteValueToSqlValue(value);
   if constexpr (regex::IsRegexSupported()) {
     if (cs.op == FilterOp::kRegex) {
-      if (v.type != SqlValue::kString) {
-        return base::ErrStatus("Value has to be a string");
+      if (cs.value.type != SqlValue::kString) {
+        return sqlite::utils::SetError(vtab, "Value has to be a string");
       }
-      if (auto st = regex::Regex::Create(v.AsString()); !st.ok()) {
-        return st.status();
+      if (auto st = regex::Regex::Create(cs.value.AsString()); !st.ok()) {
+        return sqlite::utils::SetError(vtab, st.status().c_message());
       }
     }
   }
-  return v;
+  return SQLITE_OK;
 }
 
-int UpdateConstraintsAndOrderByFromIndex(DbSqliteModule::Cursor* c,
-                                         const char* idx_str,
-                                         sqlite3_value** argv) {
+inline uint32_t ReadLetterAndInt(char letter, base::StringSplitter* splitter) {
+  PERFETTO_CHECK(splitter->Next());
+  PERFETTO_DCHECK(splitter->cur_token_size() >= 2);
+  PERFETTO_DCHECK(splitter->cur_token()[0] == letter);
+  return *base::CStringToUInt32(splitter->cur_token() + 1);
+}
+
+int ReadIdxStrAndUpdateCursor(DbSqliteModule::Cursor* cursor,
+                              const char* idx_str,
+                              sqlite3_value** argv) {
   base::StringSplitter splitter(idx_str, ',');
-  PERFETTO_CHECK(splitter.Next());
-  PERFETTO_DCHECK(splitter.cur_token_size() >= 2);
-  PERFETTO_DCHECK(splitter.cur_token()[0] == 'C');
 
-  uint32_t cs_count = *base::CStringToUInt32(splitter.cur_token() + 1);
+  uint32_t cs_count = ReadLetterAndInt('C', &splitter);
 
-  // We reuse this vector to reduce memory allocations on nested subqueries.
+  Query q;
+  q.constraints.resize(cs_count);
+
   uint32_t c_offset = 0;
-  c->constraints.resize(cs_count);
-  for (auto& cs : c->constraints) {
+  for (auto& cs : q.constraints) {
     PERFETTO_CHECK(splitter.Next());
     cs.col_idx = *base::CStringToUInt32(splitter.cur_token());
     PERFETTO_CHECK(splitter.Next());
     cs.op = static_cast<FilterOp>(*base::CStringToUInt32(splitter.cur_token()));
 
-    auto value_or = SqliteValueToSqlValueChecked(argv[c_offset++], cs);
-    if (!value_or.ok()) {
-      return sqlite::utils::SetError(c->pVtab, value_or.status().c_message());
+    if (int ret = SqliteValueToSqlValueChecked(&cs.value, argv[c_offset++], cs,
+                                               cursor->pVtab);
+        ret != SQLITE_OK) {
+      return ret;
     }
-    cs.value = *value_or;
   }
 
-  PERFETTO_CHECK(splitter.Next());
-  PERFETTO_DCHECK(splitter.cur_token_size() >= 2);
-  PERFETTO_DCHECK(splitter.cur_token()[0] == 'O');
+  uint32_t ob_count = ReadLetterAndInt('O', &splitter);
 
-  uint32_t ob_count = *base::CStringToUInt32(splitter.cur_token() + 1);
-
-  // We reuse this vector to reduce memory allocations on nested subqueries.
-  c->orders.resize(ob_count);
-  for (auto& ob : c->orders) {
+  q.orders.resize(ob_count);
+  for (auto& ob : q.orders) {
     PERFETTO_CHECK(splitter.Next());
     ob.col_idx = *base::CStringToUInt32(splitter.cur_token());
     PERFETTO_CHECK(splitter.Next());
     ob.desc = *base::CStringToUInt32(splitter.cur_token());
   }
+
+  // DISTINCT
+  q.order_type =
+      static_cast<Query::OrderType>(ReadLetterAndInt('D', &splitter));
+
+  // LIMIT
+  if (ReadLetterAndInt('L', &splitter)) {
+    auto val_op = sqlite::utils::SqliteValueToSqlValue(argv[c_offset++]);
+    if (val_op.type != SqlValue::kLong) {
+      return sqlite::utils::SetError(cursor->pVtab,
+                                     "LIMIT value has to be an INT");
+    }
+    q.limit = val_op.AsLong();
+  }
+
+  // OFFSET
+  if (ReadLetterAndInt('O', &splitter)) {
+    auto val_op = sqlite::utils::SqliteValueToSqlValue(argv[c_offset++]);
+    if (val_op.type != SqlValue::kLong) {
+      return sqlite::utils::SetError(cursor->pVtab,
+                                     "OFFSET value has to be an INT");
+    }
+    q.offset = static_cast<uint32_t>(val_op.AsLong());
+  }
+
+  cursor->query = std::move(q);
   return SQLITE_OK;
 }
 
@@ -216,13 +244,13 @@ PERFETTO_ALWAYS_INLINE void TryCacheCreateSortedTable(
 
   // If we have more than one constraint, we can't cache the table using
   // this method.
-  if (cursor->constraints.size() != 1) {
+  if (cursor->query.constraints.size() != 1) {
     return;
   }
 
   // If the constraing is not an equality constraint, there's little
   // benefit to caching
-  const auto& c = cursor->constraints.front();
+  const auto& c = cursor->query.constraints.front();
   if (c.op != FilterOp::kEq) {
     return;
   }
@@ -242,7 +270,7 @@ void FilterAndSortMetatrace(const std::string& table_name,
                             DbSqliteModule::Cursor* cursor,
                             metatrace::Record* r) {
   r->AddArg("Table", table_name);
-  for (const Constraint& c : cursor->constraints) {
+  for (const Constraint& c : cursor->query.constraints) {
     SafeStringWriter writer;
     writer.AppendString(schema.columns[c.col_idx].name);
 
@@ -303,7 +331,7 @@ void FilterAndSortMetatrace(const std::string& table_name,
     r->AddArg("Constraint", writer.GetStringView());
   }
 
-  for (const auto& o : cursor->orders) {
+  for (const auto& o : cursor->query.orders) {
     SafeStringWriter writer;
     writer.AppendString(schema.columns[o.col_idx].name);
     if (o.desc)
@@ -413,6 +441,13 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   }
 
   std::vector<int> cs_idxes;
+
+  // Limit and offset are a nonstandard type of constraint. We can check if they
+  // are present in the query here, but we won't save them as standard
+  // constraints and only add them to `idx_str` later.
+  int limit = -1;
+  int offset = -1;
+
   cs_idxes.reserve(static_cast<uint32_t>(info->nConstraint));
   for (int i = 0; i < info->nConstraint; ++i) {
     const auto& c = info->aConstraint[i];
@@ -420,6 +455,11 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
       continue;
     }
     if (std::optional<FilterOp> opt_op = SqliteOpToFilterOp(c.op); !opt_op) {
+      if (c.op == SQLITE_INDEX_CONSTRAINT_LIMIT) {
+        limit = i;
+      } else if (c.op == SQLITE_INDEX_CONSTRAINT_OFFSET) {
+        offset = i;
+      }
       continue;
     }
     cs_idxes.push_back(i);
@@ -486,7 +526,22 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
     ob_idxes.resize(ob_idxes.size() - static_cast<uint32_t>(pop_count));
   }
 
-  std::string cs_idx_str;
+  // Create index string. It contains information query Trace Processor will
+  // have to run. It can be split into 3 segments: C (constraints), O (orders)
+  // and D (distinct). It can be directly mapped into `Query` type. The number
+  // after C and O signifies how many constraints/orders there are. The number
+  // after D maps to the Query::Distinct enum value.
+  // "C2,0,0,2,1,O1,0,1,D1,L0,O1" maps to:
+  // - "C2,0,0,2,1" - two constraints: kEq on first column and kNe on third
+  //   column.
+  // - "O1,0,1" - one order by: descending on first column.
+  // - "D1" - kUnsorted distinct.
+  // - "L1" - LIMIT set. "L0" if no limit.
+  // - "O1" - OFFSET set. Can only be set if "L1".
+
+  // Constraints:
+  std::string idx_str = "C";
+  idx_str += std::to_string(cs_idxes.size());
   for (int i : cs_idxes) {
     const auto& c = info->aConstraint[i];
     auto& o = info->aConstraintUsage[i];
@@ -496,16 +551,14 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
     auto op = SqliteOpToFilterOp(c.op);
     PERFETTO_DCHECK(op);
 
-    cs_idx_str += ',';
-    cs_idx_str += std::to_string(c.iColumn);
-    cs_idx_str += ',';
-    cs_idx_str += std::to_string(static_cast<uint32_t>(*op));
+    idx_str += ',';
+    idx_str += std::to_string(c.iColumn);
+    idx_str += ',';
+    idx_str += std::to_string(static_cast<uint32_t>(*op));
   }
-
-  std::string idx_str = "C";
-  idx_str += std::to_string(cs_idxes.size());
-  idx_str += cs_idx_str;
   idx_str += ",";
+
+  // Orders:
   idx_str += "O";
   idx_str += std::to_string(ob_idxes.size());
   for (int i : ob_idxes) {
@@ -514,9 +567,60 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
     idx_str += ',';
     idx_str += std::to_string(info->aOrderBy[i].desc);
   }
+  idx_str += ",";
+
+  // Distinct:
+  idx_str += "D";
+  if (ob_idxes.size() == 1) {
+    switch (sqlite3_vtab_distinct(info)) {
+      case 0:
+      case 1:
+        idx_str += std::to_string(static_cast<int>(Query::OrderType::kSort));
+        break;
+      case 2:
+        idx_str +=
+            std::to_string(static_cast<int>(Query::OrderType::kDistinct));
+        break;
+      case 3:
+        idx_str += std::to_string(
+            static_cast<int>(Query::OrderType::kDistinctAndSort));
+        break;
+      default:
+        PERFETTO_FATAL("Invalid sqlite3_vtab_distinct result");
+    }
+  } else {
+    // TODO(mayzner): Remove this if condition after implementing multicolumn
+    // distinct.
+    idx_str += std::to_string(static_cast<int>(Query::OrderType::kSort));
+  }
+  idx_str += ",";
+
+  // LIMIT. Save as "L1" if limit is present and "L0" if not.
+  idx_str += "L";
+  if (limit == -1) {
+    idx_str += "0";
+  } else {
+    auto& o = info->aConstraintUsage[limit];
+    o.omit = true;
+    o.argvIndex = argv_index++;
+    idx_str += "1";
+  }
+  idx_str += ",";
+
+  // OFFSET. Save as "O1" if offset is present and "O0" if not.
+  idx_str += "O";
+  if (offset == -1) {
+    idx_str += "0";
+  } else {
+    auto& o = info->aConstraintUsage[offset];
+    o.omit = true;
+    o.argvIndex = argv_index++;
+    idx_str += "1";
+  }
+
+  info->idxStr = sqlite3_mprintf("%s", idx_str.c_str());
 
   info->idxNum = t->best_index_num++;
-  info->idxStr = sqlite3_mprintf("%s", idx_str.c_str());
   info->needToFreeIdxStr = true;
 
   // We can sort on any column correctly.
@@ -571,15 +675,15 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
   size_t offset = c->table_function_arguments.size();
   bool is_same_idx = idx_num == c->last_idx_num;
   if (PERFETTO_LIKELY(is_same_idx)) {
-    for (auto& cs : c->constraints) {
-      auto value_or = SqliteValueToSqlValueChecked(argv[offset++], cs);
-      if (!value_or.ok()) {
-        return sqlite::utils::SetError(c->pVtab, value_or.status().c_message());
+    for (auto& cs : c->query.constraints) {
+      if (int ret = SqliteValueToSqlValueChecked(&cs.value, argv[offset++], cs,
+                                                 c->pVtab);
+          ret != SQLITE_OK) {
+        return ret;
       }
-      cs.value = *value_or;
     }
   } else {
-    if (int r = UpdateConstraintsAndOrderByFromIndex(c, idx_str, argv + offset);
+    if (int r = ReadIdxStrAndUpdateCursor(c, idx_str, argv + offset);
         r != SQLITE_OK) {
       return r;
     }
@@ -623,7 +727,7 @@ int DbSqliteModule::Filter(sqlite3_vtab_cursor* cursor,
 
   const auto* source_table =
       c->sorted_cache_table ? &*c->sorted_cache_table : c->upstream_table;
-  RowMap filter_map = source_table->QueryToRowMap(c->constraints, c->orders);
+  RowMap filter_map = source_table->QueryToRowMap(c->query);
   if (filter_map.IsRange() && filter_map.size() <= 1) {
     // Currently, our criteria where we have a special fast path is if it's
     // a single ranged row. We have this fast path for joins on id columns

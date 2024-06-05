@@ -203,10 +203,41 @@ message AndroidBootMetric {
     optional int64 alloc_gc_count = 11;
     optional double mb_per_ms_of_gc = 12;
   }
+  message OomAdjusterTransitionCounts {
+    // name of the item aggregated by. example: process_name, oom_adjuster_reason.
+    optional string name = 1;
+    // name of previous oom bucket.
+    optional string src_bucket = 2;
+    // name of oom bucket.
+    optional string dest_bucket = 3;
+    // count of transitions
+    optional int64 count = 4;
+  }
+  message OomAdjBucketDurationAggregation {
+    // name of the item aggregated by. example: process_name, oom_adjuster_reason
+    optional string name = 1;
+    // name of oom bucket.
+    optional string bucket = 2;
+    // Duration of the time in the bucket
+    optional int64 total_dur = 3;
+  }
+  message OomAdjDurationAggregation {
+    optional int64 min_oom_adj_dur = 1;
+    optional int64 max_oom_adj_dur = 2;
+    optional double avg_oom_adj_dur = 3;
+    optional int64 oom_adj_event_count = 4;
+    optional string oom_adj_reason = 5;
+  }
   optional ProcessStartAggregation full_trace_process_start_aggregation = 6;
   optional ProcessStartAggregation post_boot_process_start_aggregation = 7;
   optional GarbageCollectionAggregation full_trace_gc_aggregation = 8;
   optional GarbageCollectionAggregation post_boot_gc_aggregation = 9;
+  repeated OomAdjusterTransitionCounts post_boot_oom_adjuster_transition_counts_global = 10;
+  repeated OomAdjusterTransitionCounts post_boot_oom_adjuster_transition_counts_by_process = 11;
+  repeated OomAdjusterTransitionCounts post_boot_oom_adjuster_transition_counts_by_oom_adj_reason = 12;
+  repeated OomAdjBucketDurationAggregation post_boot_oom_adj_bucket_duration_agg_global = 13;
+  repeated OomAdjBucketDurationAggregation post_boot_oom_adj_bucket_duration_agg_by_process = 14;
+  repeated OomAdjDurationAggregation post_boot_oom_adj_duration_agg = 15;
 }
 
 // End of protos/perfetto/metrics/android/android_boot.proto
@@ -365,6 +396,43 @@ message AndroidFrameTimelineMetric {
 
 // End of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
 
+// Begin of protos/perfetto/metrics/android/android_oom_adjuster_metric.proto
+
+message AndroidOomAdjusterMetric {
+  message OomAdjusterTransitionCounts {
+    // name of the item aggregated by. example: process_name, oom_adjuster_reason.
+    optional string name = 1;
+    // name of previous oom bucket.
+    optional string src_bucket = 2;
+    // name of oom bucket.
+    optional string dest_bucket = 3;
+    // count of transitions
+    optional int64 count = 4;
+  }
+  message OomAdjBucketDurationAggregation {
+    // name of the item aggregated by. example: process_name, oom_adjuster_reason
+    optional string name = 1;
+    // name of oom bucket.
+    optional string bucket = 2;
+    // Duration of the time in the bucket
+    optional int64 total_dur = 3;
+  }
+  message OomAdjDurationAggregation {
+    optional int64 min_oom_adj_dur = 1;
+    optional int64 max_oom_adj_dur = 2;
+    optional double avg_oom_adj_dur = 3;
+    optional int64 oom_adj_event_count = 4;
+    optional string oom_adj_reason = 5;
+  }
+  repeated OomAdjusterTransitionCounts oom_adjuster_transition_counts_global = 1;
+  repeated OomAdjusterTransitionCounts oom_adjuster_transition_counts_by_process = 2;
+  repeated OomAdjusterTransitionCounts oom_adjuster_transition_counts_by_oom_adj_reason = 3;
+  repeated OomAdjBucketDurationAggregation oom_adj_bucket_duration_agg_global = 4;
+  repeated OomAdjBucketDurationAggregation oom_adj_bucket_duration_agg_by_process = 5;
+  repeated OomAdjDurationAggregation oom_adj_duration_agg = 6;
+}
+// End of protos/perfetto/metrics/android/android_oom_adjuster_metric.proto
+
 // Begin of protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto
 
 // Blocking calls inside System UI Notifications. Shows count and total duration for each.
@@ -405,6 +473,42 @@ message AndroidTrustyWorkqueues {}
   }
 }
 // End of protos/perfetto/metrics/android/anr_metric.proto
+
+// Begin of protos/perfetto/metrics/android/auto_metric.proto
+
+// Metrics for Multiuser events, such as switching users.
+message AndroidAutoMultiuserMetric {
+  message EventData {
+    // Id of the user the system has been switched to
+    optional int32 user_id = 1;
+
+    // The end event name for which the duration_ms is measured
+    optional string start_event = 2;
+
+    // The end event name for which the duration_ms is measured
+    optional string end_event = 3;
+
+    // Duration of the event (in milliseconds).
+    optional int64 duration_ms = 4;
+
+    // Previous user resource usage info during user switch
+    message UserData {
+      // Id of the user the system has been switched from
+      optional int32 user_id = 1;
+
+      optional int64 total_cpu_time_ms = 2;
+
+      optional int64 total_memory_usage_kb = 3;
+    }
+
+    optional UserData previous_user_info = 5;
+  }
+
+  // Metrics for a user switch.
+  repeated EventData user_switch = 1;
+}
+
+// End of protos/perfetto/metrics/android/auto_metric.proto
 
 // Begin of protos/perfetto/metrics/android/batt_metric.proto
 
@@ -1373,6 +1477,41 @@ message AndroidJankCujMetric {
 
 // End of protos/perfetto/metrics/android/jank_cuj_metric.proto
 
+// Begin of protos/perfetto/metrics/android/java_heap_class_stats.proto
+
+message JavaHeapClassStats {
+  // Next id: 11
+  message TypeCount {
+    optional string type_name = 1;
+    optional int64 obj_count = 2;
+    optional int64 size_bytes = 3;
+    optional int64 native_size_bytes = 4;
+    optional int64 reachable_obj_count = 5;
+    optional int64 reachable_size_bytes = 6;
+    optional int64 reachable_native_size_bytes = 7;
+    optional int64 dominated_obj_count = 8;
+    optional int64 dominated_size_bytes = 9;
+    optional int64 dominated_native_size_bytes = 10;
+  }
+
+  message Sample {
+    optional int64 ts = 1;
+    repeated TypeCount type_count = 2;
+  }
+
+  // Stats per process. One sample per dump (with continuous dump you can
+  // have more samples differentiated by ts).
+  message InstanceStats {
+    optional uint32 upid = 1;
+    optional perfetto.protos.AndroidProcessMetadata process = 2;
+    repeated Sample samples = 3;
+  }
+
+  repeated InstanceStats instance_stats = 1;
+}
+
+// End of protos/perfetto/metrics/android/java_heap_class_stats.proto
+
 // Begin of protos/perfetto/metrics/android/java_heap_histogram.proto
 
 message JavaHeapHistogram {
@@ -2063,7 +2202,8 @@ message AndroidStartupMetric {
     // The actual duration of the process start (based on the zygote slice).
     optional Slice time_during_start_process = 11;
 
-    // The duration from launch to first running state thread of startup process.
+    // The duration from launch to first running state thread of startup
+    // process.
     optional Slice time_to_running_state = 35;
 
     optional Slice to_post_fork = 18;
@@ -2177,11 +2317,11 @@ message AndroidStartupMetric {
   message SystemState {
     // Whether the dex2oat64 process was running concurrent to the startup.
     // Deprecated as of 10/2022.
-    optional bool dex2oat_running = 1 [deprecated=true];
+    optional bool dex2oat_running = 1 [deprecated = true];
 
     // Whether the installd process was running concurrent to the startup.
     // Deprecated as of 10/2022.
-    optional bool installd_running = 2 [deprecated=true];
+    optional bool installd_running = 2 [deprecated = true];
 
     // The number of broadcasts dispatched by the system during the app
     // launch.
@@ -2211,7 +2351,114 @@ message AndroidStartupMetric {
     optional string details = 2;
   }
 
-  // Next id: 22
+  // Contains information for slow startup causes.
+  message SlowStartReason {
+    // Points to reason description and solution.
+    enum ReasonId {
+      REASON_ID_UNSPECIFIED = 0;
+      NO_BASELINE_OR_CLOUD_PROFILES = 1;
+      RUN_FROM_APK = 2;
+      UNLOCK_RUNNING = 3;
+      APP_IN_DEBUGGABLE_MODE = 4;
+      GC_ACTIVITY = 5;
+      DEX2OAT_RUNNING = 6;
+      INSTALLD_RUNNING = 7;
+      MAIN_THREAD_TIME_SPENT_IN_RUNNABLE = 8;
+      MAIN_THREAD_TIME_SPENT_IN_INTERRUPTIBLE_SLEEP = 9;
+      MAIN_THREAD_TIME_SPENT_IN_BLOCKING_IO = 10;
+      MAIN_THREAD_TIME_SPENT_IN_OPEN_DEX_FILES_FROM_OAT = 11;
+      TIME_SPENT_IN_BIND_APPLICATION = 12;
+      TIME_SPENT_IN_VIEW_INFLATION = 13;
+      TIME_SPENT_IN_RESOURCES_MANAGER_GET_RESOURCES = 14;
+      TIME_SPENT_VERIFYING_CLASSES = 15;
+      POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS = 16;
+      JIT_ACTIVITY = 17;
+      MAIN_THREAD_LOCK_CONTENTION = 18;
+      MAIN_THREAD_MONITOR_CONTENTION = 19;
+      JIT_COMPILED_METHODS = 20;
+      BROADCAST_DISPATCHED_COUNT = 21;
+      BROADCAST_RECEIVED_COUNT = 22;
+      STARTUP_RUNNING_CONCURRENT = 23;
+      MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKED = 24;
+    }
+    optional ReasonId reason_id = 1;
+
+    // Brief description for human readability.
+    optional string reason = 2;
+
+    // Expected value (inherited from threshold definition).
+    optional ThresholdValue expected_value = 3;
+
+    // Actual value, can be used to decide severity level.
+    optional ActualValue actual_value = 4;
+
+    // Launch duration
+    optional int64 launch_dur = 5;
+
+    // Sum of durations of slices and thread states in trace_slices_or_threads.
+    // Can be used to decide if a couple of top slices or threads caused the
+    // issue.
+    optional int64 duration = 6;
+
+    // Information of a subset of slice and thread sections to focused on,
+    // sorted by the duration in descending order.
+    // By checking out the top slices/threads, developers can identify specific
+    // slices or threads for further investigation.
+    repeated TraceSliceSection trace_slice_sections = 7;
+    repeated TraceThreadSection trace_thread_sections = 8;
+
+    // Details specific for a reason.
+    optional string additional_info = 9;
+  }
+
+  message ThresholdValue {
+    // Expected value. 1 for true and 0 for false for booleans.
+    optional int64 value = 1;
+
+    // Expected value unit. Enum, e.g. "ns", "%"
+    enum ThresholdUnit {
+      THRESHOLD_UNIT_UNSPECIFIED = 0;
+      NS = 1;
+      PERCENTAGE = 2;
+      TRUE_OR_FALSE = 3;
+    }
+    optional ThresholdUnit unit = 2;
+
+    // For numeric threshold values only. When higher_expected is true,
+    // an app startup is considered performant if actual value is higher
+    // than the threshold.
+    optional bool higher_expected = 3;
+  }
+
+  message ActualValue {
+    // Actual value. 1 for true and 0 for false for booleans.
+    optional int64 value = 1;
+
+    // Actual duration for percentage thresholds only.
+    // E.g. if the threashold is 20% and the launch_duration is 1000ms,
+    // then the actual duration is more than 200ms.
+    optional int64 dur = 2;
+  }
+
+  // Contains information for a section of a slice.
+  message TraceSliceSection {
+    optional int64 start_timestamp = 1;
+
+    optional int64 end_timestamp = 2;
+
+    optional uint32 slice_id = 3;
+  }
+
+  // Contains information for a section of a thread.
+  message TraceThreadSection {
+    optional int64 start_timestamp = 1;
+
+    optional int64 end_timestamp = 2;
+
+    optional uint32 thread_utid = 3;
+  }
+
+  // Next id: 24
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -2240,6 +2487,17 @@ message AndroidStartupMetric {
     // error. If > 1, the process died during startup and the system respawned
     // it.
     optional uint32 activity_hosting_process_count = 6;
+
+    // Time it takes to display the first frame of the app`s UI.
+    // Details:
+    // https://developer.android.com/topic/performance/vitals/launch-time#time-initial
+    optional int64 time_to_initial_display = 22;
+
+    // Time to full display (TTFD) is the time ittakes for an app to become
+    // interactive for the user.
+    // Datails:
+    // https://developer.android.com/topic/performance/vitals/launch-time#time-full
+    optional int64 time_to_full_display = 23;
 
     // Contains timestamps of important events which happened during
     // the startup.
@@ -2540,7 +2798,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 66
+// Next id: 68
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2591,6 +2849,9 @@ message TraceMetrics {
 
   // If the trace contains a heap graph, output histogram.
   optional JavaHeapHistogram java_heap_histogram = 21;
+
+  // If the trace contains a heap graph, output stats per heap class.
+  optional JavaHeapClassStats java_heap_class_stats = 67;
 
   // Metrics used to find potential culprits of low-memory kills.
   optional AndroidLmkReasonMetric android_lmk_reason = 18;
@@ -2716,11 +2977,15 @@ message TraceMetrics {
 
   // Multiuser - metrics for switching users.
   // Specific for Android Auto
-  optional AndroidMultiuserMetric android_auto_multiuser = 64;
+  optional AndroidAutoMultiuserMetric android_auto_multiuser = 64;
 
   // All blocking calls (e.g. binder calls) for a trace.
   optional AndroidBlockingCallsUnagg android_blocking_calls_unagg = 65;
 
+  // Android OOM unaggregated metrics.
+  optional AndroidOomAdjusterMetric android_oom_adjuster = 66;
+
+  // Android
   // Demo extensions.
   extensions 450 to 499;
 

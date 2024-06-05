@@ -371,6 +371,12 @@ class GeneratorJob {
           // name of this message is used to group them.
           std::string extension_name = extension->extension_scope()->name();
           extensions_[extension_name].push_back(extension);
+
+          if (extension->message_type()) {
+            // Emit a forward declaration of nested message types, as the outer
+            // class will refer to them when creating type aliases.
+            referenced_messages_.insert(extension->message_type());
+          }
         }
       } else {
         messages_.push_back(message);
@@ -387,8 +393,9 @@ class GeneratorJob {
     for (int i = 0; i < source_->enum_type_count(); ++i)
       enums_.push_back(source_->enum_type(i));
 
-    if (source_->extension_count() > 0)
-      Abort("top-level extension blocks are not supported");
+    if (source_->extension_count() > 0) {
+      // TODO(b/336524288): emit field numbers
+    }
 
     for (const Descriptor* message : messages_) {
       for (int i = 0; i < message->enum_type_count(); ++i) {
@@ -755,6 +762,15 @@ case $full_class$::$value_name$:
       if (field->is_repeated() && !field->is_packed())
         has_nonpacked_repeated_fields = true;
     }
+    // Iterate over all fields in "extend" blocks.
+    for (int i = 0; i < message->extension_range_count(); ++i) {
+      Descriptor::ExtensionRange::Proto range;
+      message->extension_range(i)->CopyTo(&range);
+      int candidate = range.end() - 1;
+      if (candidate > kMaxDecoderFieldId)
+        continue;
+      max_field_id = std::max(max_field_id, candidate);
+    }
 
     std::string class_name = GetCppClassName(message) + "_Decoder";
     stub_h_->Print(
@@ -880,7 +896,8 @@ case $full_class$::$value_name$:
   }
 
   void GenerateConstantsForMessageFields(const Descriptor* message) {
-    const bool has_fields = (message->field_count() > 0);
+    const bool has_fields =
+        message->field_count() > 0 || message->extension_count() > 0;
 
     // Field number constants.
     if (has_fields) {
@@ -893,6 +910,15 @@ case $full_class$::$value_name$:
                        GetFieldNumberConstant(field), "id",
                        std::to_string(field->number()));
       }
+
+      for (int i = 0; i < message->extension_count(); ++i) {
+        const FieldDescriptor* field = message->extension(i);
+
+        stub_h_->Print("$name$ = $id$,\n", "name",
+                       GetFieldNumberConstant(field), "id",
+                       std::to_string(field->number()));
+      }
+
       stub_h_->Outdent();
       stub_h_->Print("};\n");
     }
@@ -1049,6 +1075,20 @@ static constexpr $field_metadata_type$ $field_metadata_var${};
       }
       GenerateFieldDescriptor(extension_name, field);
     }
+
+    if (!descriptors.empty()) {
+      stub_h_->Print("enum : int32_t {\n");
+      stub_h_->Indent();
+
+      for (const FieldDescriptor* field : descriptors) {
+        stub_h_->Print("$name$ = $id$,\n", "name",
+                       GetFieldNumberConstant(field), "id",
+                       std::to_string(field->number()));
+      }
+      stub_h_->Outdent();
+      stub_h_->Print("};\n");
+    }
+
     stub_h_->Outdent();
     stub_h_->Print("};\n");
   }

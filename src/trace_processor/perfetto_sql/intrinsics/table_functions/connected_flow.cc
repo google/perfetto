@@ -159,7 +159,9 @@ class BFS {
     const TypedColumn<SliceId>& start_col =
         flow_direction == FlowDirection::OUTGOING ? flow.slice_out()
                                                   : flow.slice_in();
-    auto it = flow.FilterToIterator({start_col.eq(slice_id.value)});
+    Query q;
+    q.constraints = {start_col.eq(slice_id.value)};
+    auto it = flow.FilterToIterator(q);
     for (; it; ++it) {
       flow_rows_.push_back(it.row_number());
 

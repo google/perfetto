@@ -15,23 +15,33 @@
  */
 
 #include "src/trace_processor/importers/proto/winscope/protolog_parser.h"
-#include "src/trace_processor/importers/proto/winscope/protolog_messages_tracker.h"
 
+#include <cinttypes>
+#include <cstddef>
+#include <cstdint>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "protos/perfetto/trace/android/protolog.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
 #include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
-#include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
+#include "src/trace_processor/importers/proto/winscope/protolog_messages_tracker.h"
 #include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
-#include "src/trace_processor/importers/proto/winscope/winscope_args_parser.h"
+#include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
-#include <sstream>
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
 
 enum ProtoLogLevel : int32_t {
   DEBUG = 1,
@@ -79,44 +89,27 @@ void ProtoLogParser::ParseProtoLogMessage(
 
   std::vector<std::string> string_params;
   if (protolog_message.has_str_param_iids()) {
-    if (sequence_state->state()->IsIncrementalStateValid()) {
-      for (auto it = protolog_message.str_param_iids(); it; ++it) {
-        auto decoder =
-            sequence_state->state()
-                ->current_generation()
-                ->LookupInternedMessage<protos::pbzero::InternedData::
-                                            kProtologStringArgsFieldNumber,
-                                        protos::pbzero::InternedString>(
-                    it.field().as_uint32());
-
-        if (!decoder) {
-          // This shouldn't happen since we already checked the incremental
-          // state is valid.
-          string_params.emplace_back("<ERROR>");
-          context_->storage->IncrementStats(
-              stats::winscope_protolog_missing_interned_arg_parse_errors);
-          continue;
-        }
-
-        string_params.emplace_back(decoder->str().ToStdString());
+    for (auto it = protolog_message.str_param_iids(); it; ++it) {
+      auto* decoder = sequence_state->LookupInternedMessage<
+          protos::pbzero::InternedData::kProtologStringArgsFieldNumber,
+          protos::pbzero::InternedString>(it.field().as_uint32());
+      if (!decoder) {
+        // This shouldn't happen since we already checked the incremental
+        // state is valid.
+        string_params.emplace_back("<ERROR>");
+        context_->storage->IncrementStats(
+            stats::winscope_protolog_missing_interned_arg_parse_errors);
+        continue;
       }
-    } else {
-      // If the incremental state is not valid we will not be able to decode
-      // the interned strings correctly with 100% certainty so we will provide
-      // string parameters that are not decoded.
-      string_params.emplace_back("<MISSING_STR_ARG>");
+      string_params.emplace_back(decoder->str().ToStdString());
     }
   }
 
   std::optional<StringId> stacktrace = std::nullopt;
   if (protolog_message.has_stacktrace_iid()) {
-    auto stacktrace_decoder =
-        sequence_state->state()
-            ->current_generation()
-            ->LookupInternedMessage<
-                protos::pbzero::InternedData::kProtologStacktraceFieldNumber,
-                protos::pbzero::InternedString>(
-                protolog_message.stacktrace_iid());
+    auto* stacktrace_decoder = sequence_state->LookupInternedMessage<
+        protos::pbzero::InternedData::kProtologStacktraceFieldNumber,
+        protos::pbzero::InternedString>(protolog_message.stacktrace_iid());
 
     if (!stacktrace_decoder) {
       // This shouldn't happen since we already checked the incremental
@@ -135,7 +128,7 @@ void ProtoLogParser::ParseProtoLogMessage(
   tables::ProtoLogTable::Row row;
   auto row_id = protolog_table->Insert(row).id;
 
-  auto protolog_message_tracker =
+  auto* protolog_message_tracker =
       ProtoLogMessagesTracker::GetOrCreate(context_);
   struct ProtoLogMessagesTracker::TrackedProtoLogMessage tracked_message = {
       protolog_message.message_id(),
@@ -154,13 +147,13 @@ void ProtoLogParser::ParseProtoLogViewerConfig(protozero::ConstBytes blob) {
 
   protos::pbzero::ProtoLogViewerConfig::Decoder protolog_viewer_config(blob);
 
-  std::unordered_map<uint32_t, std::string> group_tags;
+  base::FlatHashMap<uint32_t, std::string> group_tags;
   for (auto it = protolog_viewer_config.groups(); it; ++it) {
     protos::pbzero::ProtoLogViewerConfig::Group::Decoder group(*it);
-    group_tags.insert({group.id(), group.tag().ToStdString()});
+    group_tags.Insert(group.id(), group.tag().ToStdString());
   }
 
-  auto protolog_message_tracker =
+  auto* protolog_message_tracker =
       ProtoLogMessagesTracker::GetOrCreate(context_);
 
   for (auto it = protolog_viewer_config.messages(); it; ++it) {
@@ -172,7 +165,7 @@ void ProtoLogParser::ParseProtoLogViewerConfig(protozero::ConstBytes blob) {
             message_data.message_id());
 
     if (tracked_messages_opt.has_value()) {
-      auto group_tag = group_tags.find(message_data.group_id())->second;
+      auto* group_tag = group_tags.Find(message_data.group_id());
 
       for (const auto& tracked_message : *tracked_messages_opt.value()) {
         auto formatted_message = FormatMessage(
@@ -211,7 +204,8 @@ void ProtoLogParser::ParseProtoLogViewerConfig(protozero::ConstBytes blob) {
         }
         row.set_level(level);
 
-        auto tag = context_->storage->InternString(base::StringView(group_tag));
+        auto tag =
+            context_->storage->InternString(base::StringView(*group_tag));
         row.set_tag(tag);
 
         auto message = context_->storage->InternString(
@@ -227,7 +221,7 @@ void ProtoLogParser::ParseProtoLogViewerConfig(protozero::ConstBytes blob) {
 }
 
 std::string ProtoLogParser::FormatMessage(
-    const std::string message,
+    const std::string& message,
     const std::vector<int64_t>& sint64_params,
     const std::vector<double>& double_params,
     const std::vector<bool>& boolean_params,
@@ -282,13 +276,14 @@ std::string ProtoLogParser::FormatMessage(
           break;
         }
         case 's': {
-          formatted_message.append(str_params_itr->c_str());
+          formatted_message.append(*str_params_itr);
           ++str_params_itr;
           break;
-          case 'b':
-            formatted_message.append(*boolean_params_itr ? "true" : "false");
-            ++boolean_params_itr;
-            break;
+        }
+        case 'b': {
+          formatted_message.append(*boolean_params_itr ? "true" : "false");
+          ++boolean_params_itr;
+          break;
         }
         default:
           // Should never happen
@@ -306,5 +301,4 @@ std::string ProtoLogParser::FormatMessage(
   return formatted_message;
 }
 
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor

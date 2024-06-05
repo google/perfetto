@@ -24,7 +24,6 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 #include "src/trace_processor/importers/proto/v8_sequence_state.h"
 #include "src/trace_processor/importers/proto/v8_tracker.h"
@@ -58,11 +57,12 @@ V8Module::V8Module(TraceProcessorContext* context)
 
 V8Module::~V8Module() = default;
 
-ModuleResult V8Module::TokenizePacket(const TracePacket::Decoder&,
-                                      TraceBlobView* /*packet*/,
-                                      int64_t /*packet_timestamp*/,
-                                      PacketSequenceState* /*state*/,
-                                      uint32_t /*field_id*/) {
+ModuleResult V8Module::TokenizePacket(
+    const TracePacket::Decoder&,
+    TraceBlobView* /*packet*/,
+    int64_t /*packet_timestamp*/,
+    RefPtr<PacketSequenceStateGeneration> /*state*/,
+    uint32_t /*field_id*/) {
   return ModuleResult::Ignored();
 }
 
@@ -142,7 +142,8 @@ std::optional<uint32_t> V8Module::GetDefaultTid(
 void V8Module::ParseV8JsCode(protozero::ConstBytes bytes,
                              int64_t ts,
                              const TracePacketData& data) {
-  V8SequenceState& state = *data.sequence_state->GetOrCreate<V8SequenceState>();
+  V8SequenceState& state =
+      *data.sequence_state->GetCustomState<V8SequenceState>();
 
   V8JsCode::Decoder code(bytes);
 
@@ -169,7 +170,8 @@ void V8Module::ParseV8JsCode(protozero::ConstBytes bytes,
 void V8Module::ParseV8InternalCode(protozero::ConstBytes bytes,
                                    int64_t ts,
                                    const TracePacketData& data) {
-  V8SequenceState& state = *data.sequence_state->GetOrCreate<V8SequenceState>();
+  V8SequenceState& state =
+      *data.sequence_state->GetCustomState<V8SequenceState>();
 
   V8InternalCode::Decoder code(bytes);
 
@@ -190,7 +192,8 @@ void V8Module::ParseV8InternalCode(protozero::ConstBytes bytes,
 void V8Module::ParseV8WasmCode(protozero::ConstBytes bytes,
                                int64_t ts,
                                const TracePacketData& data) {
-  V8SequenceState& state = *data.sequence_state->GetOrCreate<V8SequenceState>();
+  V8SequenceState& state =
+      *data.sequence_state->GetCustomState<V8SequenceState>();
 
   V8WasmCode::Decoder code(bytes);
 
@@ -217,7 +220,8 @@ void V8Module::ParseV8WasmCode(protozero::ConstBytes bytes,
 void V8Module::ParseV8RegExpCode(protozero::ConstBytes bytes,
                                  int64_t ts,
                                  const TracePacketData& data) {
-  V8SequenceState& state = *data.sequence_state->GetOrCreate<V8SequenceState>();
+  V8SequenceState& state =
+      *data.sequence_state->GetCustomState<V8SequenceState>();
 
   V8RegExpCode::Decoder code(bytes);
 
@@ -238,7 +242,8 @@ void V8Module::ParseV8RegExpCode(protozero::ConstBytes bytes,
 void V8Module::ParseV8CodeMove(protozero::ConstBytes bytes,
                                int64_t,
                                const TracePacketData& data) {
-  V8SequenceState& state = *data.sequence_state->GetOrCreate<V8SequenceState>();
+  V8SequenceState& state =
+      *data.sequence_state->GetCustomState<V8SequenceState>();
   protos::pbzero::V8CodeMove::Decoder v8_code_move(bytes);
 
   std::optional<IsolateId> isolate_id =

@@ -190,6 +190,10 @@ enum perf_event_type {
   PERF_RECORD_CGROUP = 19,
   PERF_RECORD_TEXT_POKE = 20,
   PERF_RECORD_AUX_OUTPUT_HW_ID = 21,
+
+  PERF_RECORD_USER_TYPE_START = 64,
+  PERF_RECORD_AUXTRACE_INFO = 70,
+  PERF_RECORD_AUXTRACE = 71,
   PERF_RECORD_MAX, /* non-ABI */
 };
 
@@ -232,6 +236,30 @@ enum perf_record_misc {
   PERF_RECORD_MISC_HYPERVISOR = 3,
   PERF_RECORD_MISC_GUEST_KERNEL = 4,
   PERF_RECORD_MISC_GUEST_USER = 5,
+
+  PERF_RECORD_MISC_MMAP_BUILD_ID = 1U << 14,
+};
+
+enum perf_event_read_format {
+  PERF_FORMAT_TOTAL_TIME_ENABLED = 1U << 0,
+  PERF_FORMAT_TOTAL_TIME_RUNNING = 1U << 1,
+  PERF_FORMAT_ID = 1U << 2,
+  PERF_FORMAT_GROUP = 1U << 3,
+  PERF_FORMAT_LOST = 1U << 4,
+
+  PERF_FORMAT_MAX = 1U << 5, /* non-ABI */
+};
+
+enum perf_callchain_context {
+  PERF_CONTEXT_HV = static_cast<uint64_t>(-32),
+  PERF_CONTEXT_KERNEL = static_cast<uint64_t>(-128),
+  PERF_CONTEXT_USER = static_cast<uint64_t>(-512),
+
+  PERF_CONTEXT_GUEST = static_cast<uint64_t>(-2048),
+  PERF_CONTEXT_GUEST_KERNEL = static_cast<uint64_t>(-2176),
+  PERF_CONTEXT_GUEST_USER = static_cast<uint64_t>(-2560),
+
+  PERF_CONTEXT_MAX = static_cast<uint64_t>(-4095),
 };
 
 #endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PERF_PERF_EVENT_H_

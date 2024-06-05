@@ -62,8 +62,20 @@ void DummyStorage::ChainImpl::StableSort(SortToken*,
   PERFETTO_FATAL("Shouldn't be called");
 }
 
+void DummyStorage::ChainImpl::Distinct(Indices&) const {
+  PERFETTO_FATAL("Shouldn't be called");
+}
+
 uint32_t DummyStorage::ChainImpl::size() const {
   return 0;
+}
+
+std::optional<Token> DummyStorage::ChainImpl::MaxElement(Indices&) const {
+  PERFETTO_FATAL("Shouldn't be called");
+}
+
+std::optional<Token> DummyStorage::ChainImpl::MinElement(Indices&) const {
+  PERFETTO_FATAL("Shouldn't be called");
 }
 
 void DummyStorage::ChainImpl::Serialize(StorageProto*) const {

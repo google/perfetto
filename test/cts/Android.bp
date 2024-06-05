@@ -9,6 +9,7 @@ package {
 
 cc_test {
   name: "CtsPerfettoTestCases",
+  team: "trendy_team_perfetto",
   srcs: [
     "device_feature_test_cts.cc",
     "heapprofd_java_test_cts.cc",

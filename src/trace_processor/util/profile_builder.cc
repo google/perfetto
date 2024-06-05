@@ -466,9 +466,9 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForSymbolSetId(
   using RowRef =
       perfetto::trace_processor::tables::SymbolTable::ConstRowReference;
   std::vector<RowRef> symbol_set;
-  for (auto it = symbols.FilterToIterator(
-           {symbols.symbol_set_id().eq(*symbol_set_id)});
-       it; ++it) {
+  Query q;
+  q.constraints = {symbols.symbol_set_id().eq(*symbol_set_id)};
+  for (auto it = symbols.FilterToIterator(q); it; ++it) {
     symbol_set.push_back(it.row_reference());
   }
 

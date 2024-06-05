@@ -170,6 +170,10 @@ template("proto_library") {
       ]
     }
 
+    metadata = {
+      proto_import_dirs = import_dirs
+    }
+
     if (generate_cc) {
       cc_generator_options_ = ""
       if (defined(invoker.cc_generator_options)) {

@@ -15,7 +15,6 @@
 import m from 'mithril';
 
 import {showModal} from '../../widgets/modal';
-import {globals} from '../globals';
 import {ArgumentPopup} from '../pivot_table_argument_popup';
 
 export class AttributeModalHolder {
@@ -45,8 +44,6 @@ export class AttributeModalHolder {
 
   private renderModalContents() {
     return m(ArgumentPopup, {
-      knownArguments:
-        globals.state.nonSerializableState.pivotTable.argumentNames,
       onArgumentChange: (arg) => {
         this.typedArgument = arg;
       },

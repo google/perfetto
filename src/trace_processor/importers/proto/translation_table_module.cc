@@ -17,6 +17,7 @@
 
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
+#include "src/trace_processor/importers/proto/packet_sequence_state_generation.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/translation/translation_table.pbzero.h"
@@ -37,7 +38,7 @@ ModuleResult TranslationTableModule::TokenizePacket(
     const protos::pbzero::TracePacket_Decoder& decoder,
     TraceBlobView* /*packet*/,
     int64_t /*packet_timestamp*/,
-    PacketSequenceState* /*state*/,
+    RefPtr<PacketSequenceStateGeneration> /*state*/,
     uint32_t field_id) {
   if (field_id != TracePacket::kTranslationTableFieldNumber) {
     return ModuleResult::Ignored();

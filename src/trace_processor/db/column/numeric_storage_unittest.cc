@@ -187,6 +187,11 @@ TEST(NumericStorage, SingleSearch) {
             SingleSearchResult::kMatch);
   ASSERT_EQ(chain->SingleSearch(FilterOp::kGe, SqlValue::Long(0), 5),
             SingleSearchResult::kNoMatch);
+
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNull, SqlValue(), 0),
+            SingleSearchResult::kNoMatch);
+  ASSERT_EQ(chain->SingleSearch(FilterOp::kIsNotNull, SqlValue(), 0),
+            SingleSearchResult::kMatch);
 }
 
 TEST(NumericStorage, Search) {
@@ -759,6 +764,19 @@ TEST(NumericStorage, StableSort) {
     ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
                 ElementsAre(3, 2, 4, 0, 1));
   }
+}
+
+TEST(NumericStorage, DistinctFromIndexVector) {
+  std::vector<int64_t> data{
+      1, 100, 2, 100, 2,
+  };
+  NumericStorage<int64_t> storage(&data, ColumnType::kInt64, false);
+  auto chain = storage.MakeChain();
+
+  auto indices = Indices::CreateWithIndexPayloadForTesting(
+      {2, 1, 0, 3}, Indices::State::kNonmonotonic);
+  chain->Distinct(indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices), ElementsAre(0, 1, 2));
 }
 
 }  // namespace

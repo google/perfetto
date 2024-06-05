@@ -299,7 +299,39 @@ class AndroidMetrics(TestSuite):
        out=TextProto(r"""
        android_auto_multiuser {
          user_switch {
-           duration_ms: 3878
+            user_id: 11
+            start_event: "UserController.startUser-11-fg-start-mode-1"
+            end_event: "com.android.car.carlauncher"
+            duration_ms: 3877
+            previous_user_info {
+            }
          }
        }
        """))
+
+  def test_android_auto_multiuser_switch_with_previous_user_data(self):
+    return DiffTestBlueprint(
+       trace=Path("android_auto_multiuser.textproto"),
+       query=Metric('android_auto_multiuser'),
+       out=TextProto(r"""
+       android_auto_multiuser {
+         user_switch {
+            user_id: 11
+            start_event: "UserController.startUser-11-fg-start-mode-1"
+            end_event: "com.android.car.carlauncher"
+            duration_ms: 999
+            previous_user_info {
+                user_id: 10
+                total_cpu_time_ms: 9
+                total_memory_usage_kb: 2048
+            }
+         }
+       }
+       """))
+
+  def test_android_oom_adjuster(self):
+    return DiffTestBlueprint(
+      trace=DataPath('android_postboot_unlock.pftrace'),
+      query=Metric("android_oom_adjuster"),
+      out=Path('android_oom_adjuster.out')
+    )

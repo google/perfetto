@@ -70,8 +70,8 @@ LEFT JOIN package_list plist
     )
     OR
     (
-      -- isolated processes can only be matched based on the name prefix
+      -- isolated processes can only be matched based on the name
       process.android_appid >= 90000 AND process.android_appid < 100000
-      AND STR_SPLIT(process.name, ':', 0) GLOB plist.package_name || '*'
+      AND STR_SPLIT(process.name, ':', 0) = plist.package_name
     )
   );

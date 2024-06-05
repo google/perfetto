@@ -35,6 +35,7 @@ namespace {
 
 using testing::ElementsAre;
 using testing::IsEmpty;
+using testing::UnorderedElementsAre;
 
 using Indices = DataLayerChain::Indices;
 using OrderedIndices = DataLayerChain::OrderedIndices;
@@ -235,6 +236,23 @@ TEST(DenseNullOverlay, StableSort) {
     ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
                 ElementsAre(6, 1, 5, 3, 4, 0, 2));
   }
+}
+
+TEST(DenseNullOverlay, Distinct) {
+  std::vector<uint32_t> numeric_data{0, 3, 0, 1, 0, 2, 4};
+  NumericStorage<uint32_t> numeric(&numeric_data, ColumnType::kUint32, false);
+
+  // NULL, 1, NULL, 1, 0, 2, 4
+  BitVector null{0, 1, 0, 1, 1, 1, 1};
+  DenseNullOverlay overlay(&null);
+  auto chain = overlay.MakeChain(numeric.MakeChain());
+
+  // NULL, 0, 1, 1
+  auto indices = Indices::CreateWithIndexPayloadForTesting(
+      {0, 1, 3, 3}, Indices::State::kNonmonotonic);
+  chain->Distinct(indices);
+  ASSERT_THAT(utils::ExtractPayloadForTesting(indices),
+              UnorderedElementsAre(0, 1, 2));
 }
 
 }  // namespace

@@ -37,7 +37,7 @@ using SchedProcessFreeFtraceEvent = protos::pbzero::SchedProcessFreeFtraceEvent;
 using TaskNewtaskFtraceEvent = protos::pbzero::TaskNewtaskFtraceEvent;
 
 void MarkOpen(uint64_t ts,
-              ProcessTree::Process::Decoder process,
+              const ProcessTree::Process::Decoder& process,
               ProcessThreadTimeline* timeline) {
   // The uid in the process tree is a int32_t, but in the package list, the uid
   // is a uint64_t.
@@ -48,14 +48,14 @@ void MarkOpen(uint64_t ts,
 }
 
 void MarkOpen(uint64_t ts,
-              ProcessTree::Thread::Decoder thread,
+              const ProcessTree::Thread::Decoder& thread,
               ProcessThreadTimeline* timeline) {
   auto e = ProcessThreadTimeline::Event::Open(ts, thread.tid(), thread.tgid());
   timeline->Append(e);
 }
 
 void MarkClose(const FtraceEvent::Decoder& event,
-               SchedProcessFreeFtraceEvent::Decoder process_free,
+               const SchedProcessFreeFtraceEvent::Decoder process_free,
                ProcessThreadTimeline* timeline) {
   auto e = ProcessThreadTimeline::Event::Close(event.timestamp(),
                                                process_free.pid());
@@ -63,7 +63,7 @@ void MarkClose(const FtraceEvent::Decoder& event,
 }
 
 void MarkOpen(const FtraceEvent::Decoder& event,
-              TaskNewtaskFtraceEvent::Decoder new_task,
+              const TaskNewtaskFtraceEvent::Decoder new_task,
               ProcessThreadTimeline* timeline) {
   // Event though pid() is uint32_t. all other pid values use int32_t, so it's
   // assumed to be safe to narrow-cast it.
@@ -74,7 +74,7 @@ void MarkOpen(const FtraceEvent::Decoder& event,
 }
 
 void AppendEvents(uint64_t ts,
-                  ProcessTree::Decoder tree,
+                  const ProcessTree::Decoder& tree,
                   ProcessThreadTimeline* timeline) {
   for (auto it = tree.processes(); it; ++it) {
     MarkOpen(ts, ProcessTree::Process::Decoder(*it), timeline);
@@ -85,7 +85,7 @@ void AppendEvents(uint64_t ts,
   }
 }
 
-void AppendEvents(FtraceEventBundle::Decoder ftrace_events,
+void AppendEvents(const FtraceEventBundle::Decoder& ftrace_events,
                   ProcessThreadTimeline* timeline) {
   for (auto it = ftrace_events.event(); it; ++it) {
     FtraceEvent::Decoder event(*it);

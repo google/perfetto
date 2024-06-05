@@ -38,26 +38,6 @@ class SliceTestParams {
   uint64_t uid_;
 };
 
-class DepthTestParams {
- public:
-  DepthTestParams(uint64_t ts,
-                  int32_t pid,
-                  std::optional<size_t> raw_depth,
-                  std::optional<size_t> flat_depth)
-      : ts_(ts), pid_(pid), raw_depth_(raw_depth), flat_depth_(flat_depth) {}
-
-  uint64_t ts() const { return ts_; }
-  int32_t pid() const { return pid_; }
-  std::optional<size_t> raw_depth() const { return raw_depth_; }
-  std::optional<size_t> flat_depth() const { return flat_depth_; }
-
- private:
-  uint64_t ts_;
-  int32_t pid_;
-  std::optional<size_t> raw_depth_;
-  std::optional<size_t> flat_depth_;
-};
-
 constexpr uint64_t kTimeA = 0;
 constexpr uint64_t kTimeB = 10;
 constexpr uint64_t kTimeC = 20;
@@ -66,260 +46,176 @@ constexpr uint64_t kTimeE = 40;
 constexpr uint64_t kTimeF = 50;
 constexpr uint64_t kTimeG = 60;
 constexpr uint64_t kTimeH = 70;
-constexpr uint64_t kTimeI = 70;
 
 constexpr int32_t kPidA = 1;
 constexpr int32_t kPidB = 2;
 constexpr int32_t kPidC = 3;
+constexpr int32_t kPidD = 4;
 
-constexpr uint64_t kNoPackage = 0;
-
-constexpr int32_t kUidA = 98;
-constexpr int32_t kUidB = 99;
+constexpr uint64_t kUidA = 97;
+constexpr uint64_t kUidC = 99;
 
 }  // namespace
 
-class TimelineEventsTest : public testing::Test,
-                           public testing::WithParamInterface<SliceTestParams> {
+// B        C        D   E   F        G        H
+// *        *        *   *   *        *        *
+// |----- PID B -----|   .   |----- PID B -----|
+//          |--------- PID C ---------|
+//          | <- PID D (no duration)
+class ProcessThreadTimelineTest : public testing::Test {
  protected:
+  void SetUp() {
+    for (auto e : pid_b_events_) {
+      timeline_.Append(e);
+    }
+
+    for (auto e : pid_c_events_) {
+      timeline_.Append(e);
+    }
+
+    for (auto e : pid_d_events_) {
+      timeline_.Append(e);
+    }
+
+    timeline_.Sort();
+  }
+
+  ProcessThreadTimeline::Event invalid_ = {};
+
+  std::array<ProcessThreadTimeline::Event, 4> pid_b_events_ = {
+      ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA),
+      ProcessThreadTimeline::Event::Close(kTimeD, kPidB),
+      ProcessThreadTimeline::Event::Open(kTimeF, kPidB, kPidA, kUidA),
+      ProcessThreadTimeline::Event::Close(kTimeH, kPidB),
+  };
+
+  std::array<ProcessThreadTimeline::Event, 2> pid_c_events_ = {
+      ProcessThreadTimeline::Event::Open(kTimeC, kPidC, kPidA, kUidA),
+      ProcessThreadTimeline::Event::Close(kTimeG, kPidC),
+  };
+
+  // A process with no duration.
+  std::array<ProcessThreadTimeline::Event, 2> pid_d_events_{
+      ProcessThreadTimeline::Event::Open(kTimeC, kPidD, kPidA, kUidA),
+      ProcessThreadTimeline::Event::Close(kTimeC, kPidD),
+  };
+
   ProcessThreadTimeline timeline_;
 };
 
-class TimelineEventsOpenAndCloseSingleTest : public TimelineEventsTest {};
-
-TEST_P(TimelineEventsOpenAndCloseSingleTest, PidsEndOnClose) {
-  auto params = GetParam();
-
-  timeline_.Append(
-      ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeD, kPidB));
-
-  timeline_.Sort();
-  timeline_.Flatten();
-
-  auto slice = timeline_.Search(params.ts(), params.pid());
-  ASSERT_EQ(slice.pid, params.pid());
-  ASSERT_EQ(slice.uid, params.uid());
+TEST_F(ProcessThreadTimelineTest, NoEventBeforeFirstSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeA, kPidB);
+  ASSERT_EQ(event, invalid_);
 }
 
-INSTANTIATE_TEST_SUITE_P(AcrossWholeTimeline,
-                         TimelineEventsOpenAndCloseSingleTest,
-                         testing::Values(
-                             // No UID found before opening event.
-                             SliceTestParams(kTimeA, kPidB, kNoPackage),
-
-                             // UID found when opening event starts.
-                             SliceTestParams(kTimeB, kPidB, kUidA),
-
-                             // UID found between opening and close events.
-                             SliceTestParams(kTimeC, kPidB, kUidA),
-
-                             // UID is no longer found at the close event.
-                             SliceTestParams(kTimeD, kPidB, kNoPackage),
-
-                             // UID is no longer found after the close event.
-                             SliceTestParams(kTimeE, kPidB, kNoPackage)));
-
-class TimelineEventsOpenAfterOpenTest : public TimelineEventsTest {};
-
-// |--- PID A --- >
-//                 |--- PID A --- >
-TEST_P(TimelineEventsOpenAfterOpenTest, FindsUid) {
-  auto params = GetParam();
-
-  timeline_.Append(
-      ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA, kUidA));
-  timeline_.Append(
-      ProcessThreadTimeline::Event::Open(kTimeD, kPidB, kPidA, kUidB));
-
-  timeline_.Sort();
-
-  auto slice = timeline_.Search(params.ts(), params.pid());
-  ASSERT_EQ(slice.pid, params.pid());
-  ASSERT_EQ(slice.uid, params.uid());
+TEST_F(ProcessThreadTimelineTest, OpenEventAtStartOfFirstSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeB, kPidB);
+  ASSERT_EQ(event, pid_b_events_[0]);
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    AcrossWholeTimeline,
-    TimelineEventsOpenAfterOpenTest,
-    testing::Values(SliceTestParams(kTimeA, kPidB, kNoPackage),
-                    SliceTestParams(kTimeB, kPidB, kUidA),
-                    SliceTestParams(kTimeC, kPidB, kUidA),
-                    SliceTestParams(kTimeD, kPidB, kUidB),
-                    SliceTestParams(kTimeE, kPidB, kUidB)));
-
-class TimelineEventsOverlappingRangesTest : public TimelineEventsTest {};
-
-TEST_P(TimelineEventsOverlappingRangesTest, FindsUid) {
-  auto params = GetParam();
-
-  // |----- PID_A -----|
-  //          |----- PID_B -----|
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeA, kPidA, 0, kUidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeC, kPidB, 0, kUidB));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeE, kPidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeG, kPidB));
-
-  timeline_.Sort();
-
-  auto slice = timeline_.Search(params.ts(), params.pid());
-  ASSERT_EQ(slice.pid, params.pid());
-  ASSERT_EQ(slice.uid, params.uid());
+TEST_F(ProcessThreadTimelineTest, OpenEventWithinFirstSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeC, kPidB);
+  ASSERT_EQ(event, pid_b_events_[0]);
 }
 
-INSTANTIATE_TEST_SUITE_P(AcrossWholeTimeline,
-                         TimelineEventsOverlappingRangesTest,
-                         testing::Values(
-                             // When pid A starts and before pid B starts.
-                             SliceTestParams(kTimeA, kPidA, kUidA),
-                             SliceTestParams(kTimeA, kPidB, kNoPackage),
-
-                             // After pid A starts and before pid B starts.
-                             SliceTestParams(kTimeB, kPidA, kUidA),
-                             SliceTestParams(kTimeB, kPidB, kNoPackage),
-
-                             // After pid A starts and when pid B starts.
-                             SliceTestParams(kTimeC, kPidA, kUidA),
-                             SliceTestParams(kTimeC, kPidB, kUidB),
-
-                             // After pid A and pid starts.
-                             SliceTestParams(kTimeD, kPidA, kUidA),
-                             SliceTestParams(kTimeD, kPidB, kUidB),
-
-                             // When pid A closes but before pid B closes.
-                             SliceTestParams(kTimeE, kPidA, kNoPackage),
-                             SliceTestParams(kTimeE, kPidB, kUidB),
-
-                             // After pid A closes but before pid B closes.
-                             SliceTestParams(kTimeF, kPidA, kNoPackage),
-                             SliceTestParams(kTimeF, kPidB, kUidB),
-
-                             // After pid A closes and when pid B closes.
-                             SliceTestParams(kTimeG, kPidA, kNoPackage),
-                             SliceTestParams(kTimeG, kPidB, kNoPackage)));
-
-class TimelineEventsParentChildTest : public TimelineEventsTest {};
-
-TEST_P(TimelineEventsParentChildTest, FindsUid) {
-  auto params = GetParam();
-
-  // |------------- PID_A ------------->
-  //         |----- PID_B -----|
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeA, kPidA, 0, kUidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeC, kPidB, kPidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeE, kPidB));
-
-  timeline_.Sort();
-
-  auto slice = timeline_.Search(params.ts(), params.pid());
-  ASSERT_EQ(slice.pid, params.pid());
-  ASSERT_EQ(slice.uid, params.uid());
+TEST_F(ProcessThreadTimelineTest, CloseEventAtEndOfFirstSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeD, kPidB);
+  ASSERT_EQ(event, pid_b_events_[1]);
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    AcrossWholeTimeline,
-    TimelineEventsParentChildTest,
-    testing::Values(SliceTestParams(kTimeB, kPidB, kNoPackage),
-                    SliceTestParams(kTimeC, kPidB, kUidA),
-                    SliceTestParams(kTimeD, kPidB, kUidA),
-                    SliceTestParams(kTimeE, kPidB, kNoPackage)));
+TEST_F(ProcessThreadTimelineTest, CloseEventBetweenSpans) {
+  auto event = timeline_.FindPreviousEvent(kTimeE, kPidB);
+  ASSERT_EQ(event, pid_b_events_[1]);
+}
 
-class TimelineEventsFlattenTest
-    : public testing::Test,
-      public testing::WithParamInterface<DepthTestParams> {
+TEST_F(ProcessThreadTimelineTest, OpenEventAtStartOfSecondSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeF, kPidB);
+  ASSERT_EQ(event, pid_b_events_[2]);
+}
+
+TEST_F(ProcessThreadTimelineTest, OpenEventWithinSecondSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeG, kPidB);
+  ASSERT_EQ(event, pid_b_events_[2]);
+}
+
+TEST_F(ProcessThreadTimelineTest, CloseEventAtEndOfSecondSpan) {
+  auto event = timeline_.FindPreviousEvent(kTimeH, kPidB);
+  ASSERT_EQ(event, pid_b_events_[3]);
+}
+
+// Pid B is active. But Pid C is not active. At this point, Pid C should report
+// as invalid event though another pid is active.
+TEST_F(ProcessThreadTimelineTest, InvalidEventWhenAnotherSpanIsActive) {
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeB, kPidB), pid_b_events_[0]);
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeB, kPidC), invalid_);
+}
+
+// When both pids are active, they should both report as active (using their
+// open events).
+TEST_F(ProcessThreadTimelineTest, ConcurrentSpansBothReportAsActive) {
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeC, kPidB), pid_b_events_[0]);
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeC, kPidC), pid_c_events_[0]);
+}
+
+// There are three test cases here:
+//
+// 1. Before open/close
+// 2. At open/close
+// 3. After open/close
+//
+// Normally these would be tree different test cases, but the naming gets
+// complicated, so it is easier to do it in one case.
+TEST_F(ProcessThreadTimelineTest, ZeroDuration) {
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeB, kPidD), invalid_);
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeC, kPidD), pid_d_events_[1]);
+  ASSERT_EQ(timeline_.FindPreviousEvent(kTimeD, kPidD), pid_d_events_[1]);
+}
+
+// |----- UID A -----| |----- UID C -----|
+//  |---- PID A ----|   |---- PID C ----|
+//    |-- PID B --|
+//
+// NOTE: The notation above does not represent time, it represent relationship.
+// For example, PID B is a child of PID A.
+class ProcessThreadTimelineIsConnectedTest : public testing::Test {
  protected:
+  void SetUp() {
+    timeline_.Append(ProcessThreadTimeline::Event::Open(
+        kTimeB, kPidA, ProcessThreadTimeline::Event::kUnknownPid, kUidA));
+    timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeB, kPidB, kPidA));
+    timeline_.Append(ProcessThreadTimeline::Event::Open(
+        kTimeB, kPidC, ProcessThreadTimeline::Event::kUnknownPid, kUidC));
+    timeline_.Sort();
+  }
+
   ProcessThreadTimeline timeline_;
 };
 
-TEST_P(TimelineEventsFlattenTest, BeforeFlatten) {
-  auto params = GetParam();
-
-  // |---------- PID_A ----------|
-  //      |----- PID_B -----|
-  //         |-- PID_C --|
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeB, kPidA, 0, kUidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeC, kPidB, kPidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeD, kPidC, kPidB));
-
-  // Time E is when all spans are valid.
-
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeF, kPidC));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeG, kPidB));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeH, kPidA));
-
-  timeline_.Sort();
-
-  auto depth = timeline_.GetDepth(params.ts(), params.pid());
-  ASSERT_EQ(depth, params.raw_depth());
+// PID A is directly connected to UID A.
+TEST_F(ProcessThreadTimelineIsConnectedTest, DirectPidAndUid) {
+  ASSERT_TRUE(timeline_.PidConnectsToUid(kTimeB, kPidA, kUidA));
 }
 
-TEST_P(TimelineEventsFlattenTest, AfterFlatten) {
-  auto params = GetParam();
-
-  // |---------- PID_A ----------|
-  //      |----- PID_B -----|
-  //         |-- PID_C --|
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeB, kPidA, 0, kUidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeC, kPidB, kPidA));
-  timeline_.Append(ProcessThreadTimeline::Event::Open(kTimeD, kPidC, kPidB));
-
-  // Time E is when all spans are valid.
-
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeF, kPidC));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeG, kPidB));
-  timeline_.Append(ProcessThreadTimeline::Event::Close(kTimeH, kPidA));
-
-  timeline_.Sort();
-  timeline_.Flatten();
-
-  auto depth = timeline_.GetDepth(params.ts(), params.pid());
-  ASSERT_EQ(depth, params.flat_depth());
+// PID B is indirectly connected to UID A through PID A.
+TEST_F(ProcessThreadTimelineIsConnectedTest, IndirectPidAndUid) {
+  ASSERT_TRUE(timeline_.PidConnectsToUid(kTimeB, kPidB, kUidA));
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    AcrossWholeTimeline,
-    TimelineEventsFlattenTest,
-    testing::Values(
-        // Pid A
-        DepthTestParams(kTimeA, kPidA, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeB, kPidA, 0, 0),
-        DepthTestParams(kTimeC, kPidA, 0, 0),
-        DepthTestParams(kTimeD, kPidA, 0, 0),
-        DepthTestParams(kTimeE, kPidA, 0, 0),
-        DepthTestParams(kTimeF, kPidA, 0, 0),
-        DepthTestParams(kTimeG, kPidA, 0, 0),
-        DepthTestParams(kTimeH,
-                        kPidA,
-                        std::nullopt,
-                        std::nullopt),  // pid A ends
-        DepthTestParams(kTimeI, kPidA, std::nullopt, std::nullopt),
+// UID A and UID C are valid packages. However, PID B is connected to UID A, not
+// UID C.
+TEST_F(ProcessThreadTimelineIsConnectedTest, NotConnectedToOtherUid) {
+  ASSERT_FALSE(timeline_.PidConnectsToUid(kTimeB, kPidB, kUidC));
+}
 
-        // Pid B
-        DepthTestParams(kTimeA, kPidB, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeB, kPidB, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeC, kPidB, 1, 0),
-        DepthTestParams(kTimeD, kPidB, 1, 0),
-        DepthTestParams(kTimeE, kPidB, 1, 0),
-        DepthTestParams(kTimeF, kPidB, 1, 0),
-        DepthTestParams(kTimeG,
-                        kPidB,
-                        std::nullopt,
-                        std::nullopt),  // pid B ends
-        DepthTestParams(kTimeH, kPidB, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeI, kPidB, std::nullopt, std::nullopt),
+// PID D is not in the timeline, so it shouldn't be connected to anything.
+TEST_F(ProcessThreadTimelineIsConnectedTest, MissingPid) {
+  ASSERT_FALSE(timeline_.PidConnectsToUid(kTimeB, kPidD, kUidA));
+}
 
-        // Pid C
-        DepthTestParams(kTimeA, kPidC, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeB, kPidC, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeC, kPidC, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeD, kPidC, 2, 0),
-        DepthTestParams(kTimeE, kPidC, 2, 0),
-        DepthTestParams(kTimeF,
-                        kPidC,
-                        std::nullopt,
-                        std::nullopt),  // pid C ends
-        DepthTestParams(kTimeG, kPidC, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeH, kPidC, std::nullopt, std::nullopt),
-        DepthTestParams(kTimeI, kPidC, std::nullopt, std::nullopt)));
+// Even through there is a connection between PID A and UID A, the query is too
+// soon (events are at TIME B, but the query is at TIME A).
+TEST_F(ProcessThreadTimelineIsConnectedTest, PrematureDirectPidAndUid) {
+  ASSERT_FALSE(timeline_.PidConnectsToUid(kTimeA, kPidA, kUidA));
+}
 
 }  // namespace perfetto::trace_redaction

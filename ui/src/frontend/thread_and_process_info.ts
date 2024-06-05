@@ -17,7 +17,7 @@ import m from 'mithril';
 import {copyToClipboard} from '../base/clipboard';
 import {Icons} from '../base/semantic_icons';
 import {exists} from '../base/utils';
-import {EngineProxy} from '../trace_processor/engine';
+import {Engine} from '../trace_processor/engine';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../trace_processor/query_result';
 import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
@@ -43,7 +43,7 @@ export interface ProcessInfo {
 }
 
 export async function getProcessInfo(
-  engine: EngineProxy,
+  engine: Engine,
   upid: Upid,
 ): Promise<ProcessInfo> {
   const it = (
@@ -137,7 +137,7 @@ export interface ThreadInfo {
 }
 
 export async function getThreadInfo(
-  engine: EngineProxy,
+  engine: Engine,
   utid: Utid,
 ): Promise<ThreadInfo> {
   const it = (

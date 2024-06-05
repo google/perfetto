@@ -64,6 +64,12 @@ class SelectorOverlay final : public DataLayer {
                     SortToken* end,
                     SortDirection) const override;
 
+    void Distinct(Indices&) const override;
+
+    std::optional<Token> MaxElement(Indices&) const override;
+
+    std::optional<Token> MinElement(Indices&) const override;
+
     void Serialize(StorageProto*) const override;
 
     uint32_t size() const override { return selector_->size(); }
@@ -71,6 +77,7 @@ class SelectorOverlay final : public DataLayer {
     std::string DebugString() const override { return "SelectorOverlay"; }
 
    private:
+    void TranslateToInnerIndices(Indices& indices) const;
     std::unique_ptr<DataLayerChain> inner_ = nullptr;
     const BitVector* selector_ = nullptr;
   };

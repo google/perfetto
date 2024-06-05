@@ -1,59 +1,915 @@
 android_boot {
-    system_server_durations {
-        total_dur: 90219646678
-        uninterruptible_sleep_dur: 618417159
-    }
-    systemui_durations {
-        total_dur: 48481027953
-        uninterruptible_sleep_dur: 796263
-    }
-    launcher_durations {
-        total_dur: 23595248987
-        uninterruptible_sleep_dur: 257290255
-    }
-    gms_durations {
-        total_dur: 27804143410
-        uninterruptible_sleep_dur: 101685087
-    }
-    launcher_breakdown {
-        cold_start_dur: 403543498
-    }
-    full_trace_process_start_aggregation {
-        total_start_sum: 10678297679
-        num_of_processes: 29
-        average_start_time: 368217161.3448276
-    }
-    post_boot_process_start_aggregation {
-        total_start_sum: 6112984648
-        num_of_processes: 21
-        average_start_time: 291094507.04761904
-    }
-    full_trace_gc_aggregation {
-        total_gc_count: 4
-        num_of_processes_with_gc: 4
-        num_of_threads_with_gc: 4
-        avg_gc_duration: 260516077.75
-        avg_running_gc_duration: 3902628.5
-        full_gc_count: 4
-        collector_transition_gc_count: 0
-        young_gc_count: 0
-        native_alloc_gc_count: 0
-        explicit_gc_count: 0
-        alloc_gc_count: 0
-        mb_per_ms_of_gc: 0.8829305684617432
-    }
-    post_boot_gc_aggregation {
-        total_gc_count: 4
-        num_of_processes_with_gc: 4
-        num_of_threads_with_gc: 4
-        avg_gc_duration: 260516077.75
-        avg_running_gc_duration: 3902628.5
-        full_gc_count: 4
-        collector_transition_gc_count: 0
-        young_gc_count: 0
-        native_alloc_gc_count: 0
-        explicit_gc_count: 0
-        alloc_gc_count: 0
-        mb_per_ms_of_gc: 0.8829305684617432
-    }
+system_server_durations {
+total_dur: 90219646678
+uninterruptible_sleep_dur: 618417159
+}
+systemui_durations {
+total_dur: 48481027953
+uninterruptible_sleep_dur: 796263
+}
+launcher_durations {
+total_dur: 23595248987
+uninterruptible_sleep_dur: 257290255
+}
+gms_durations {
+total_dur: 27804143410
+uninterruptible_sleep_dur: 101685087
+}
+launcher_breakdown {
+cold_start_dur: 403543498
+}
+full_trace_process_start_aggregation {
+total_start_sum: 10678297679
+num_of_processes: 29
+average_start_time: 368217161.3448276
+}
+post_boot_process_start_aggregation {
+total_start_sum: 6112984648
+num_of_processes: 21
+average_start_time: 291094507.04761904
+}
+full_trace_gc_aggregation {
+total_gc_count: 4
+num_of_processes_with_gc: 4
+num_of_threads_with_gc: 4
+avg_gc_duration: 260516077.75
+avg_running_gc_duration: 3902628.5
+full_gc_count: 4
+collector_transition_gc_count: 0
+young_gc_count: 0
+native_alloc_gc_count: 0
+explicit_gc_count: 0
+alloc_gc_count: 0
+mb_per_ms_of_gc: 0.8829305684617432
+}
+post_boot_gc_aggregation {
+total_gc_count: 4
+num_of_processes_with_gc: 4
+num_of_threads_with_gc: 4
+avg_gc_duration: 260516077.75
+avg_running_gc_duration: 3902628.5
+full_gc_count: 4
+collector_transition_gc_count: 0
+young_gc_count: 0
+native_alloc_gc_count: 0
+explicit_gc_count: 0
+alloc_gc_count: 0
+mb_per_ms_of_gc: 0.8829305684617432
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 16
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "foreground_app"
+dest_bucket: "cached_app"
+count: 3
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "previous_app"
+dest_bucket: "cached_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_global {
+dest_bucket: "foreground_app"
+count: 21
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "cached_app"
+dest_bucket: "foreground_app"
+count: 4
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "perceptible_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "perceptible_low_app"
+dest_bucket: "foreground_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "previous_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "visible_app"
+dest_bucket: "foreground_app"
+count: 3
+}
+post_boot_oom_adjuster_transition_counts_global {
+dest_bucket: "native"
+count: 4
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "foreground_app"
+dest_bucket: "perceptible_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "foreground_app"
+dest_bucket: "perceptible_low_app"
+count: 3
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "foreground_app"
+dest_bucket: "persistent_service"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_global {
+src_bucket: "foreground_app"
+dest_bucket: "visible_app"
+count: 4
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "/system/bin/apexd"
+dest_bucket: "native"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "<pre-initialized>"
+dest_bucket: "native"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "android.process.acore"
+src_bucket: "previous_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.amazon.mp3"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.android.keychain"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.android.printspooler"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.android.providers.calendar"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.android.settings"
+src_bucket: "foreground_app"
+dest_bucket: "cached_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.apple.android.music"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.blinkslabs.blinkist.android"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.books"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.dreamliner"
+src_bucket: "foreground_app"
+dest_bucket: "cached_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.dreamliner"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.dreamliner"
+src_bucket: "perceptible_low_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.dreamliner"
+src_bucket: "foreground_app"
+dest_bucket: "perceptible_low_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.messaging"
+dest_bucket: "native"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.messaging:rcs"
+src_bucket: "perceptible_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.messaging:rcs"
+src_bucket: "foreground_app"
+dest_bucket: "perceptible_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.nexuslauncher"
+src_bucket: "visible_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.wallpaper"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.wellbeing"
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 5
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.wellbeing"
+src_bucket: "cached_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.work.clouddpc"
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.apps.youtube.music"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.as.oss"
+src_bucket: "foreground_app"
+dest_bucket: "cached_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.as.oss"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.as.oss"
+src_bucket: "perceptible_low_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.as.oss"
+src_bucket: "foreground_app"
+dest_bucket: "perceptible_low_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.calendar"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.carrier"
+src_bucket: "previous_app"
+dest_bucket: "cached_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.cellbroadcastreceiver"
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.deskclock"
+src_bucket: "cached_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.devicelockcontroller"
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.devicelockcontroller"
+src_bucket: "cached_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.devicelockcontroller"
+src_bucket: "visible_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.devicelockcontroller"
+src_bucket: "foreground_app"
+dest_bucket: "visible_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.dialer"
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 4
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.gms"
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.gms"
+src_bucket: "cached_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.gms"
+src_bucket: "visible_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.gms"
+src_bucket: "foreground_app"
+dest_bucket: "visible_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.googlequicksearchbox:interactor"
+src_bucket: "foreground_app"
+dest_bucket: "visible_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.googlequicksearchbox:search"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.keep"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.permissioncontroller"
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.providers.media.module"
+src_bucket: "foreground_app"
+dest_bucket: "persistent_service"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.android.youtube"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.ar.core"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.ar.core"
+src_bucket: "foreground_app"
+dest_bucket: "perceptible_low_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.google.euiccpixel"
+src_bucket: "previous_app"
+dest_bucket: "cached_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.overdrive.mobile.android.libby"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.patreon.android"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "com.spotify.music"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "org.thoughtcrime.securesms"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_process {
+name: "org.videolan.vlc"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "activityChange"
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 3
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "bindService"
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 5
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "getProvider"
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "startReceiver"
+src_bucket: "cached_app"
+dest_bucket: "cached_app"
+count: 7
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "activityChange"
+src_bucket: "foreground_app"
+dest_bucket: "cached_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "executingService"
+src_bucket: "foreground_app"
+dest_bucket: "cached_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "activityChange"
+src_bucket: "previous_app"
+dest_bucket: "cached_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "processBegin"
+dest_bucket: "foreground_app"
+count: 21
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "getProvider"
+src_bucket: "cached_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "startReceiver"
+src_bucket: "cached_app"
+dest_bucket: "foreground_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "startService"
+src_bucket: "cached_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "startService"
+src_bucket: "perceptible_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "unbindService"
+src_bucket: "perceptible_low_app"
+dest_bucket: "foreground_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "getProvider"
+src_bucket: "previous_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "bindService"
+src_bucket: "visible_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "getProvider"
+src_bucket: "visible_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "startService"
+src_bucket: "visible_app"
+dest_bucket: "foreground_app"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "executingService"
+dest_bucket: "native"
+count: 4
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "executingService"
+src_bucket: "foreground_app"
+dest_bucket: "perceptible_app"
+count: 2
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "executingService"
+src_bucket: "foreground_app"
+dest_bucket: "perceptible_low_app"
+count: 3
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "startService"
+src_bucket: "foreground_app"
+dest_bucket: "persistent_service"
+count: 1
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "executingService"
+src_bucket: "foreground_app"
+dest_bucket: "visible_app"
+count: 3
+}
+post_boot_oom_adjuster_transition_counts_by_oom_adj_reason {
+name: "finishReceiver"
+src_bucket: "foreground_app"
+dest_bucket: "visible_app"
+count: 1
+}
+post_boot_oom_adj_bucket_duration_agg_global {
+bucket: "cached_app"
+total_dur: 10419196404
+}
+post_boot_oom_adj_bucket_duration_agg_global {
+bucket: "foreground_app"
+total_dur: 23641055480
+}
+post_boot_oom_adj_bucket_duration_agg_global {
+bucket: "native"
+total_dur: 101590616
+}
+post_boot_oom_adj_bucket_duration_agg_global {
+bucket: "perceptible_app"
+total_dur: 940071238
+}
+post_boot_oom_adj_bucket_duration_agg_global {
+bucket: "perceptible_low_app"
+total_dur: 199288116
+}
+post_boot_oom_adj_bucket_duration_agg_global {
+bucket: "persistent_service"
+total_dur: 1546461864
+}
+post_boot_oom_adj_bucket_duration_agg_global {
+bucket: "visible_app"
+total_dur: 2769744731
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "/system/bin/apexd"
+bucket: "native"
+total_dur: 25397654
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "<pre-initialized>"
+bucket: "native"
+total_dur: 50795308
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "android.process.acore"
+bucket: "foreground_app"
+total_dur: 823432282
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.amazon.mp3"
+bucket: "foreground_app"
+total_dur: 1322230378
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.android.keychain"
+bucket: "foreground_app"
+total_dur: 196867340
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.android.printspooler"
+bucket: "foreground_app"
+total_dur: 343904124
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.android.providers.calendar"
+bucket: "foreground_app"
+total_dur: 281386139
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.android.settings"
+bucket: "cached_app"
+total_dur: 967052521
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.apple.android.music"
+bucket: "foreground_app"
+total_dur: 1268519522
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.blinkslabs.blinkist.android"
+bucket: "foreground_app"
+total_dur: 1250421540
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.books"
+bucket: "foreground_app"
+total_dur: 1076963328
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.dreamliner"
+bucket: "cached_app"
+total_dur: 1086183503
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.dreamliner"
+bucket: "foreground_app"
+total_dur: 402609904
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.dreamliner"
+bucket: "perceptible_low_app"
+total_dur: 7658935
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.messaging"
+bucket: "native"
+total_dur: 25397654
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.messaging:rcs"
+bucket: "foreground_app"
+total_dur: 109047811
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.messaging:rcs"
+bucket: "perceptible_app"
+total_dur: 940071238
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.nexuslauncher"
+bucket: "foreground_app"
+total_dur: 1661132477
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.wallpaper"
+bucket: "foreground_app"
+total_dur: 177919993
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.wellbeing"
+bucket: "cached_app"
+total_dur: 816703328
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.wellbeing"
+bucket: "foreground_app"
+total_dur: 884970246
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.work.clouddpc"
+bucket: "cached_app"
+total_dur: 1695452790
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.apps.youtube.music"
+bucket: "foreground_app"
+total_dur: 1558635529
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.as.oss"
+bucket: "cached_app"
+total_dur: 621111806
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.as.oss"
+bucket: "foreground_app"
+total_dur: 303909018
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.as.oss"
+bucket: "perceptible_low_app"
+total_dur: 9431030
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.calendar"
+bucket: "foreground_app"
+total_dur: 1573637523
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.carrier"
+bucket: "cached_app"
+total_dur: 870239329
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.cellbroadcastreceiver"
+bucket: "cached_app"
+total_dur: 870311514
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.deskclock"
+bucket: "foreground_app"
+total_dur: 1674669994
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.devicelockcontroller"
+bucket: "cached_app"
+total_dur: 11603068
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.devicelockcontroller"
+bucket: "foreground_app"
+total_dur: 115664632
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.devicelockcontroller"
+bucket: "visible_app"
+total_dur: 1568444611
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.dialer"
+bucket: "cached_app"
+total_dur: 1701572215
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.gms"
+bucket: "cached_app"
+total_dur: 38437012
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.gms"
+bucket: "foreground_app"
+total_dur: 1259805736
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.gms"
+bucket: "visible_app"
+total_dur: 397030029
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.googlequicksearchbox:interactor"
+bucket: "visible_app"
+total_dur: 804270091
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.googlequicksearchbox:search"
+bucket: "foreground_app"
+total_dur: 1467442984
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.keep"
+bucket: "foreground_app"
+total_dur: 576153188
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.permissioncontroller"
+bucket: "cached_app"
+total_dur: 870388947
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.providers.media.module"
+bucket: "persistent_service"
+total_dur: 1546461864
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.android.youtube"
+bucket: "foreground_app"
+total_dur: 1450400991
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.ar.core"
+bucket: "foreground_app"
+total_dur: 733794515
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.ar.core"
+bucket: "perceptible_low_app"
+total_dur: 182198151
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.google.euiccpixel"
+bucket: "cached_app"
+total_dur: 870140371
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.overdrive.mobile.android.libby"
+bucket: "foreground_app"
+total_dur: 889039012
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.patreon.android"
+bucket: "foreground_app"
+total_dur: 608530141
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "com.spotify.music"
+bucket: "foreground_app"
+total_dur: 566682160
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "org.thoughtcrime.securesms"
+bucket: "foreground_app"
+total_dur: 701758738
+}
+post_boot_oom_adj_bucket_duration_agg_by_process {
+name: "org.videolan.vlc"
+bucket: "foreground_app"
+total_dur: 361526235
+}
+post_boot_oom_adj_duration_agg {
+min_oom_adj_dur: 266887
+max_oom_adj_dur: 7292196
+avg_oom_adj_dur: 6121311.166666667
+oom_adj_event_count: 2
+oom_adj_reason: "activityChange"
+}
+post_boot_oom_adj_duration_agg {
+min_oom_adj_dur: 67180
+max_oom_adj_dur: 225871
+avg_oom_adj_dur: 160115.83333333334
+oom_adj_event_count: 5
+oom_adj_reason: "bindService"
+}
+post_boot_oom_adj_duration_agg {
+min_oom_adj_dur: 64657
+max_oom_adj_dur: 565674
+avg_oom_adj_dur: 232660.2142857143
+oom_adj_event_count: 11
+oom_adj_reason: "executingService"
+}
+post_boot_oom_adj_duration_agg {
+min_oom_adj_dur: 198120
+max_oom_adj_dur: 198120
+avg_oom_adj_dur: 198120.0
+oom_adj_event_count: 1
+oom_adj_reason: "finishReceiver"
+}
+post_boot_oom_adj_duration_agg {
+min_oom_adj_dur: 193766
+max_oom_adj_dur: 626302
+avg_oom_adj_dur: 383901.0
+oom_adj_event_count: 4
+oom_adj_reason: "getProvider"
+}
+post_boot_oom_adj_duration_agg {
+min_oom_adj_dur: 92366
+max_oom_adj_dur: 1461914
+avg_oom_adj_dur: 257078.14285714287
+oom_adj_event_count: 21
+oom_adj_reason: "processBegin"
+}
+post_boot_oom_adj_duration_agg {
+min_oom_adj_dur: 238525
+max_oom_adj_dur: 5160522
+avg_oom_adj_dur: 883870.1111111111
+oom_adj_event_count: 4
+oom_adj_reason: "startReceiver"
+}
+post_boot_oom_adj_duration_agg {
+min_oom_adj_dur: 68645
+max_oom_adj_dur: 2294270
+avg_oom_adj_dur: 747080.5
+oom_adj_event_count: 4
+oom_adj_reason: "startService"
+}
+post_boot_oom_adj_duration_agg {
+min_oom_adj_dur: 165242
+max_oom_adj_dur: 380290
+avg_oom_adj_dur: 272766.0
+oom_adj_event_count: 2
+oom_adj_reason: "unbindService"
+}
 }
