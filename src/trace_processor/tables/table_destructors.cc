@@ -40,6 +40,9 @@ namespace tables {
 AndroidDumpstateTable::~AndroidDumpstateTable() = default;
 AndroidGameInterventionListTable::~AndroidGameInterventionListTable() = default;
 AndroidLogTable::~AndroidLogTable() = default;
+AndroidKeyEventsTable::~AndroidKeyEventsTable() = default;
+AndroidMotionEventsTable::~AndroidMotionEventsTable() = default;
+AndroidInputEventDispatchTable::~AndroidInputEventDispatchTable() = default;
 
 // counter_tables_py.h
 CounterTable::~CounterTable() = default;
