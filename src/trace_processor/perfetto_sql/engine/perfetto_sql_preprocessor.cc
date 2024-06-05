@@ -16,18 +16,84 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 
+#include <cstdint>
 #include <optional>
+#include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_tokenizer.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
+namespace perfetto::trace_processor {
+namespace {
+
+base::Status ErrorAtToken(const SqliteTokenizer& tokenizer,
+                          const SqliteTokenizer::Token& token,
+                          const char* error) {
+  std::string traceback = tokenizer.AsTraceback(token);
+  return base::ErrStatus("%s%s", traceback.c_str(), error);
+}
+
+struct InvocationArg {
+  std::optional<SqlSource> arg;
+  bool has_more;
+};
+
+base::StatusOr<InvocationArg> ParseMacroInvocationArg(
+    SqliteTokenizer& tokenizer,
+    SqliteTokenizer::Token& tok,
+    bool has_prev_args) {
+  uint32_t nested_parens = 0;
+  bool seen_token_in_arg = false;
+  auto start = tokenizer.NextNonWhitespace();
+  for (tok = start;; tok = tokenizer.NextNonWhitespace()) {
+    if (tok.IsTerminal()) {
+      if (tok.token_type == SqliteTokenType::TK_SEMI) {
+        // TODO(b/290185551): add a link to macro documentation.
+        return ErrorAtToken(tokenizer, tok,
+                            "Semi-colon is not allowed in macro invocation");
+      }
+      // TODO(b/290185551): add a link to macro documentation.
+      return ErrorAtToken(tokenizer, tok, "Macro invocation not complete");
+    }
+
+    bool is_arg_terminator = tok.token_type == SqliteTokenType::TK_RP ||
+                             tok.token_type == SqliteTokenType::TK_COMMA;
+    if (nested_parens == 0 && is_arg_terminator) {
+      bool token_required =
+          has_prev_args || tok.token_type != SqliteTokenType::TK_RP;
+      if (!seen_token_in_arg && token_required) {
+        // TODO(b/290185551): add a link to macro documentation.
+        return ErrorAtToken(tokenizer, tok, "Macro arg is empty");
+      }
+      return InvocationArg{
+          seen_token_in_arg ? std::make_optional(tokenizer.Substr(start, tok))
+                            : std::optional<SqlSource>(std::nullopt),
+          tok.token_type == SqliteTokenType::TK_COMMA,
+      };
+    }
+    seen_token_in_arg = true;
+
+    if (tok.token_type == SqliteTokenType::TK_LP) {
+      nested_parens++;
+      continue;
+    }
+    if (tok.token_type == SqliteTokenType::TK_RP) {
+      nested_parens--;
+      continue;
+    }
+  }
+}
+
+}  // namespace
 
 PerfettoSqlPreprocessor::PerfettoSqlPreprocessor(
     SqlSource source,
@@ -165,62 +231,7 @@ PerfettoSqlPreprocessor::ParseMacroInvocation(
                         "Macro invoked with too few args");
   }
   PERFETTO_CHECK(inner_bindings.size() == macro->args.size());
-  return MacroInvocation{macro, inner_bindings};
+  return MacroInvocation{macro, std::move(inner_bindings)};
 }
 
-base::StatusOr<PerfettoSqlPreprocessor::InvocationArg>
-PerfettoSqlPreprocessor::ParseMacroInvocationArg(SqliteTokenizer& tokenizer,
-                                                 SqliteTokenizer::Token& tok,
-                                                 bool has_prev_args) {
-  uint32_t nested_parens = 0;
-  bool seen_token_in_arg = false;
-  auto start = tokenizer.NextNonWhitespace();
-  for (tok = start;; tok = tokenizer.NextNonWhitespace()) {
-    if (tok.IsTerminal()) {
-      if (tok.token_type == SqliteTokenType::TK_SEMI) {
-        // TODO(b/290185551): add a link to macro documentation.
-        return ErrorAtToken(tokenizer, tok,
-                            "Semi-colon is not allowed in macro invocation");
-      }
-      // TODO(b/290185551): add a link to macro documentation.
-      return ErrorAtToken(tokenizer, tok, "Macro invocation not complete");
-    }
-
-    bool is_arg_terminator = tok.token_type == SqliteTokenType::TK_RP ||
-                             tok.token_type == SqliteTokenType::TK_COMMA;
-    if (nested_parens == 0 && is_arg_terminator) {
-      bool token_required =
-          has_prev_args || tok.token_type != SqliteTokenType::TK_RP;
-      if (!seen_token_in_arg && token_required) {
-        // TODO(b/290185551): add a link to macro documentation.
-        return ErrorAtToken(tokenizer, tok, "Macro arg is empty");
-      }
-      return InvocationArg{
-          seen_token_in_arg ? std::make_optional(tokenizer.Substr(start, tok))
-                            : std::optional<SqlSource>(std::nullopt),
-          tok.token_type == SqliteTokenType::TK_COMMA,
-      };
-    }
-    seen_token_in_arg = true;
-
-    if (tok.token_type == SqliteTokenType::TK_LP) {
-      nested_parens++;
-      continue;
-    }
-    if (tok.token_type == SqliteTokenType::TK_RP) {
-      nested_parens--;
-      continue;
-    }
-  }
-}
-
-base::Status PerfettoSqlPreprocessor::ErrorAtToken(
-    const SqliteTokenizer& tokenizer,
-    const SqliteTokenizer::Token& token,
-    const char* error) {
-  std::string traceback = tokenizer.AsTraceback(token);
-  return base::ErrStatus("%s%s", traceback.c_str(), error);
-}
-
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor
