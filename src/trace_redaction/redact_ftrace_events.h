@@ -45,11 +45,6 @@ class FilterFtracesUsingAllowlist : public FtraceEventFilter {
   bool Includes(const Context& context, protozero::Field event) const override;
 };
 
-class FilterFtraceUsingSuspendResume : public FtraceEventFilter {
- public:
-  bool Includes(const Context& context, protozero::Field event) const override;
-};
-
 class WriteFtracesPassthrough : public FtraceEventWriter {
   base::Status WriteTo(
       const Context& context,
