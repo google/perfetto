@@ -13,7 +13,11 @@ Unreleased:
     * Added "time to initial display" and "time to full display" metrics to
       the Android startup metric.
   UI:
-    *
+    * Added plugin for synchronizing two instances of the UI - search for 
+      'Enable timeline sync with other Perfetto UI tabs' in the command palette.
+    * Add builtin prompt functionality to the plugin API:
+      I.e. `await PluginContextTrace.prompt('...')`
+    * Fixed various bits of tech debt.
   SDK:
     * The TRACE_COUNTER macro and CounterTrack constructor no longer accept
       `const char *` track names. In case your code fails to compile,
