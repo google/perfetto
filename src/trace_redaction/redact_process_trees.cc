@@ -42,30 +42,38 @@ base::Status ProcessTreeCreateSynthThreads::Modify(
     protos::pbzero::ProcessTree* message) const {
   PERFETTO_DCHECK(message);
 
-  if (!context.synthetic_threads.has_value()) {
+  if (!context.synthetic_process) {
     return base::ErrStatus(
         "ProcessTreeCreateSynthThreads: missing synthetic thread group");
   }
 
-  // There should be one thread per cpu. If there are no threads, it means there
-  // were no cpus. That wrong.
-  if (context.synthetic_threads->tids.empty()) {
+  const auto& tids = context.synthetic_process->tids();
+
+  // At the very least there needs to be a main thread and one CPU thread. If
+  // not, something is wrong.
+  if (tids.size() < 2) {
     return base::ErrStatus(
         "ProcessTreeCreateSynthThreads: missing synthetic threads");
   }
 
-  // uid 0 and ppid 2 means it is a system process.
+  auto it = tids.begin();
+
   auto* process = message->add_processes();
-  process->set_uid(0);
-  process->set_ppid(2);
-  process->set_pid(context.synthetic_threads->tgid);
+  process->set_uid(context.synthetic_process->uid());
+  process->set_ppid(context.synthetic_process->ppid());
+  process->set_pid(*it);
   process->add_cmdline("MergedThreads");
 
-  for (auto tid : context.synthetic_threads->tids) {
+  ++it;
+
+  for (; it != tids.end(); ++it) {
+    auto name = std::to_string(*it);
+    name.insert(0, "cpu-");
+
     auto* thread = message->add_threads();
-    thread->set_tgid(context.synthetic_threads->tgid);
-    thread->set_tid(tid);
-    thread->set_name("CPU");
+    thread->set_tgid(context.synthetic_process->tgid());
+    thread->set_tid(*it);
+    thread->set_name(name);
   }
 
   return base::OkStatus();
@@ -83,7 +91,7 @@ base::Status RedactProcessTrees::Transform(const Context& context,
     return base::ErrStatus("RedactProcessTrees: missing timeline.");
   }
 
-  if (!context.synthetic_threads.has_value()) {
+  if (!context.synthetic_process) {
     return base::ErrStatus("RedactProcessTrees: missing synthentic threads.");
   }
 
