@@ -20,7 +20,6 @@ import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
-import "protos/perfetto/trace/android/android_input_event.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/android_system_property.proto";
 import "protos/perfetto/trace/android/camera_event.proto";
@@ -239,10 +238,6 @@ message TracePacket {
     V8WasmCode v8_wasm_code = 101;
     V8RegExpCode v8_reg_exp_code = 102;
     V8CodeMove v8_code_move = 103;
-
-    // InputFlinger traces
-    AndroidInputEvent android_input_event = 106;
-
     // Clock synchronization with remote machines.
     RemoteClockSync remote_clock_sync = 107;
 
@@ -257,6 +252,9 @@ message TracePacket {
     //   the field id is large enough.
     TestEvent for_testing = 900;
   }
+
+  // AndroidInputEvent android_input_event (moved to winscope_extensions)
+  reserved 106;
 
   // Trusted user id of the producer which generated this packet. Keep in sync
   // with TrustedPacket.trusted_uid.

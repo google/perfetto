@@ -19,6 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 import public "protos/perfetto/trace/android/winscope_extensions.proto";
+import "protos/perfetto/trace/android/android_input_event.proto";
 import "protos/perfetto/trace/android/inputmethodeditor.proto";
 import "protos/perfetto/trace/android/viewcapture.proto";
 
@@ -29,5 +30,6 @@ message WinscopeExtensionsImpl {
     optional InputMethodManagerServiceTraceProto inputmethod_manager_service =
         3;
     optional ViewCapture viewcapture = 4;
+    optional AndroidInputEvent android_input_event = 5;
   }
 }

@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/proto/android_input_event_module.h"
+#include "src/trace_processor/importers/proto/winscope/android_input_event_parser.h"
 
 #include "protos/perfetto/trace/android/android_input_event.pbzero.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/proto/args_parser.h"
-#include "src/trace_processor/importers/proto/trace.descriptor.h"
+#include "src/trace_processor/importers/proto/winscope/winscope.descriptor.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/tables/android_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -32,22 +32,16 @@ using perfetto::protos::pbzero::AndroidMotionEvent;
 using perfetto::protos::pbzero::AndroidWindowInputDispatchEvent;
 using perfetto::protos::pbzero::TracePacket;
 
-AndroidInputEventModule::AndroidInputEventModule(TraceProcessorContext* context)
-    : context_(*context), args_parser_(pool_) {
-  pool_.AddFromFileDescriptorSet(kTraceDescriptor.data(),
-                                 kTraceDescriptor.size());
-  RegisterForField(TracePacket::kAndroidInputEventFieldNumber, context);
+AndroidInputEventParser::AndroidInputEventParser(TraceProcessorContext* context)
+    : context_(*context), args_parser_{pool_} {
+  pool_.AddFromFileDescriptorSet(kWinscopeDescriptor.data(),
+                                 kWinscopeDescriptor.size());
 }
 
-void AndroidInputEventModule::ParseTracePacketData(
-    const TracePacket::Decoder& decoder,
+void AndroidInputEventParser::ParseAndroidInputEvent(
     int64_t packet_ts,
-    const TracePacketData&,
-    uint32_t field_id) {
-  if (field_id != TracePacket::kAndroidInputEventFieldNumber)
-    return;
-
-  auto input_event = AndroidInputEvent::Decoder(decoder.android_input_event());
+    const protozero::ConstBytes& bytes) {
+  auto input_event = AndroidInputEvent::Decoder(bytes);
 
   constexpr static auto supported_fields = std::array{
       AndroidInputEvent::kDispatcherMotionEventFieldNumber,
@@ -79,7 +73,7 @@ void AndroidInputEventModule::ParseTracePacketData(
   }
 }
 
-void AndroidInputEventModule::ParseMotionEvent(
+void AndroidInputEventParser::ParseMotionEvent(
     int64_t packet_ts,
     const protozero::ConstBytes& bytes) {
   AndroidMotionEvent::Decoder event_proto(bytes);
@@ -100,7 +94,7 @@ void AndroidInputEventModule::ParseMotionEvent(
     context_.storage->IncrementStats(stats::android_input_event_parse_errors);
 }
 
-void AndroidInputEventModule::ParseKeyEvent(
+void AndroidInputEventParser::ParseKeyEvent(
     int64_t packet_ts,
     const protozero::ConstBytes& bytes) {
   AndroidKeyEvent::Decoder event_proto(bytes);
@@ -121,7 +115,7 @@ void AndroidInputEventModule::ParseKeyEvent(
     context_.storage->IncrementStats(stats::android_input_event_parse_errors);
 }
 
-void AndroidInputEventModule::ParseWindowDispatchEvent(
+void AndroidInputEventParser::ParseWindowDispatchEvent(
     int64_t packet_ts,
     const protozero::ConstBytes& bytes) {
   AndroidWindowInputDispatchEvent::Decoder event_proto(bytes);
