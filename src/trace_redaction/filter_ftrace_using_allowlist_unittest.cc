@@ -34,7 +34,6 @@ class FilterFtraceUsingAllowlistTest : public testing::Test {
  protected:
   void SetUp() override {
     transform_.emplace_filter<FilterFtracesUsingAllowlist>();
-    transform_.emplace_writer<WriteFtracesPassthrough>();
   }
 
   // task_rename should be in the allow-list.

@@ -45,7 +45,6 @@ class ScrubFtraceEventsIntegrationTest
     auto* redact_with_allowlist =
         trace_redactor()->emplace_transform<RedactFtraceEvents>();
     redact_with_allowlist->emplace_filter<FilterFtracesUsingAllowlist>();
-    redact_with_allowlist->emplace_writer<WriteFtracesPassthrough>();
   }
 
   // Gets spans for `event` messages that contain `sched_switch` messages.

@@ -63,13 +63,15 @@ static base::Status Main(std::string_view input,
   scrub_packet->emplace_back<FilterPacketUsingAllowlist>();
   scrub_packet->emplace_back<FilterFrameEvents>();
 
-  auto* ftrace_allowlist = redactor.emplace_transform<RedactFtraceEvents>();
-  ftrace_allowlist->emplace_filter<FilterFtracesUsingAllowlist>();
-  ftrace_allowlist->emplace_writer<WriteFtracesPassthrough>();
+  {
+    auto* primitive = redactor.emplace_transform<RedactFtraceEvents>();
+    primitive->emplace_filter<FilterFtracesUsingAllowlist>();
+  }
 
-  auto* ftrace_suspend_resume =
-      redactor.emplace_transform<RedactFtraceEvents>();
-  ftrace_suspend_resume->emplace_writer<WriteFtracesPassthrough>();
+  {
+    auto* primitive = redactor.emplace_transform<RedactFtraceEvents>();
+    primitive->emplace_filter<FilterFtraceUsingSuspendResume>();
+  }
 
   // Scrub packets and ftrace events first as they will remove the largest
   // chucks of data from the trace. This will reduce the amount of data that the
