@@ -44,6 +44,12 @@ export function isMacOs(userAgent: string) {
 export function isLinux(userAgent: string) {
   return userAgent.toLowerCase().includes(' linux ');
 }
+// Sample user agent for Chrome on Windows:
+// Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
+// like Gecko) Chrome/125.0.0.0 Safari/537.36
+export function isWindows(userAgent: string) {
+  return userAgent.toLowerCase().includes('windows ');
+}
 
 // Sample user agent for Chrome on Chrome OS:
 // "Mozilla/5.0 (X11; CrOS x86_64 14816.99.0) AppleWebKit/537.36
