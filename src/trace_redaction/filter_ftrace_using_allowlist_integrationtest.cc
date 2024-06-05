@@ -40,7 +40,6 @@ class FilterFtraceUsingAllowlistTest
     auto redact_with_allowlist =
         trace_redactor()->emplace_transform<RedactFtraceEvents>();
     redact_with_allowlist->emplace_filter<FilterFtracesUsingAllowlist>();
-    redact_with_allowlist->emplace_writer<WriteFtracesPassthrough>();
   }
 
   // Parse the given buffer and gather field ids from across all events. This

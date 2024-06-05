@@ -17,6 +17,9 @@
 #ifndef SRC_TRACE_REDACTION_SCRUB_PROCESS_STATS_H_
 #define SRC_TRACE_REDACTION_SCRUB_PROCESS_STATS_H_
 
+#include <memory>
+
+#include "src/trace_redaction/redact_sched_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
@@ -25,6 +28,24 @@ class ScrubProcessStats : public TransformPrimitive {
  public:
   base::Status Transform(const Context& context,
                          std::string* packet) const override;
+
+  template <class Filter>
+  void emplace_filter() {
+    filter_ = std::make_unique<Filter>();
+  }
+
+ private:
+  base::Status OnProcessStats(const Context& context,
+                              uint64_t ts,
+                              protozero::ConstBytes bytes,
+                              protos::pbzero::ProcessStats* message) const;
+
+  base::Status OnProcess(const Context& context,
+                         uint64_t ts,
+                         protozero::Field field,
+                         protos::pbzero::ProcessStats* message) const;
+
+  std::unique_ptr<PidFilter> filter_;
 };
 
 }  // namespace perfetto::trace_redaction
