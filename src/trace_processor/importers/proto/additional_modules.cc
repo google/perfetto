@@ -18,6 +18,7 @@
 #include "src/trace_processor/importers/etw/etw_module_impl.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module_impl.h"
 #include "src/trace_processor/importers/proto/android_camera_event_module.h"
+#include "src/trace_processor/importers/proto/android_input_event_module.h"
 #include "src/trace_processor/importers/proto/android_probes_module.h"
 #include "src/trace_processor/importers/proto/graphics_event_module.h"
 #include "src/trace_processor/importers/proto/heap_graph_module.h"
@@ -45,6 +46,7 @@ void RegisterAdditionalModules(TraceProcessorContext* context) {
   context->modules.emplace_back(new MetadataModule(context));
   context->modules.emplace_back(new V8Module(context));
   context->modules.emplace_back(new WinscopeModule(context));
+  context->modules.emplace_back(new AndroidInputEventModule(context));
 
   // Ftrace/Etw modules are special, because it has one extra method for parsing
   // ftrace/etw packets. So we need to store a pointer to it separately.
