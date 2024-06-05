@@ -56,11 +56,11 @@ class NetworkTraceModule : public ProtoImporterModule {
                             uint32_t field_id) override;
 
  private:
-  void ParseGenericEvent(
-      int64_t ts,
-      int64_t dur,
-      protos::pbzero::NetworkPacketEvent::Decoder& evt,
-      std::function<void(ArgsTracker::BoundInserter*)> extra_args);
+  void ParseGenericEvent(int64_t ts,
+                         int64_t dur,
+                         int64_t length,
+                         int64_t count,
+                         protos::pbzero::NetworkPacketEvent::Decoder& evt);
 
   void ParseNetworkPacketEvent(int64_t ts, protozero::ConstBytes blob);
   void ParseNetworkPacketBundle(int64_t ts, protozero::ConstBytes blob);
@@ -69,6 +69,8 @@ class NetworkTraceModule : public ProtoImporterModule {
   // the packet buffer and uses this to push for sorting and reset the buffer.
   void PushPacketBufferForSort(int64_t timestamp,
                                RefPtr<PacketSequenceStateGeneration> state);
+
+  StringId GetIpProto(protos::pbzero::NetworkPacketEvent::Decoder& evt);
 
   TraceProcessorContext* context_;
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet_buffer_;

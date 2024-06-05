@@ -876,6 +876,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->expected_frame_timeline_slice_table());
   RegisterStaticTable(storage->actual_frame_timeline_slice_table());
 
+  RegisterStaticTable(storage->android_network_packets_table());
+
   RegisterStaticTable(storage->v8_isolate_table());
   RegisterStaticTable(storage->v8_js_script_table());
   RegisterStaticTable(storage->v8_wasm_script_table());
