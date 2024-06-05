@@ -19,6 +19,7 @@
 #include <string>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "src/trace_processor/util/status_macros.h"
 #include "src/trace_redaction/proto_util.h"
 
@@ -122,6 +123,10 @@ base::Status RedactProcessEvents::OnFtraceEvent(
         break;
       case protos::pbzero::FtraceEvent::kPrintFieldNumber:
         RETURN_IF_ERROR(OnPrint(context, ts.as_uint64(), bytes, message));
+        break;
+      case protos::pbzero::FtraceEvent::kSuspendResumeFieldNumber:
+        RETURN_IF_ERROR(
+            OnSuspendResume(context, ts.as_uint64(), bytes, message));
         break;
       default:
         proto_util::AppendField(it, message);
@@ -343,6 +348,51 @@ base::Status RedactProcessEvents::OnPrint(
 
   if (filter_->Includes(context, ts, pid.as_int32())) {
     proto_util::AppendField(print, parent_message);
+  }
+
+  return base::OkStatus();
+}
+
+base::Status RedactProcessEvents::OnSuspendResume(
+    const Context& context,
+    uint64_t ts,
+    protozero::ConstBytes event_bytes,
+    protos::pbzero::FtraceEvent* parent_message) const {
+  PERFETTO_DCHECK(parent_message);
+
+  // Values are taken from "suspend_period.textproto". These values would
+  // ideally be provided via the context, but until there are multiple sources,
+  // they can be here.
+  constexpr std::array<std::string_view, 3> kValidActions = {
+      "syscore_suspend", "syscore_resume", "timekeeping_freeze"};
+
+  protozero::ProtoDecoder decoder(event_bytes);
+
+  auto pid = decoder.FindField(protos::pbzero::FtraceEvent::kPidFieldNumber);
+  if (!pid.valid()) {
+    return base::ErrStatus("RedactProcessEvents: missing FtraceEvent::kPid");
+  }
+
+  auto suspend_resume_field =
+      decoder.FindField(protos::pbzero::FtraceEvent::kSuspendResumeFieldNumber);
+  if (!suspend_resume_field.valid()) {
+    return base::ErrStatus(
+        "RedactProcessEvents: missing FtraceEvent::kSuspendResume");
+  }
+
+  protos::pbzero::SuspendResumeFtraceEvent::Decoder suspend_resume(
+      suspend_resume_field.as_bytes());
+
+  auto action = suspend_resume.action();
+  std::string_view action_str(action.data, action.size);
+
+  // Do the allow list first because it should be cheaper (e.g. array look-up vs
+  // timeline query).
+  if (std::find(kValidActions.begin(), kValidActions.end(), action_str) !=
+      kValidActions.end()) {
+    if (filter_->Includes(context, ts, pid.as_int32())) {
+      proto_util::AppendField(suspend_resume_field, parent_message);
+    }
   }
 
   return base::OkStatus();
