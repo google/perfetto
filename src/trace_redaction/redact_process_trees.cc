@@ -62,7 +62,7 @@ base::Status ProcessTreeCreateSynthThreads::Modify(
   process->set_uid(context.synthetic_process->uid());
   process->set_ppid(context.synthetic_process->ppid());
   process->set_pid(*it);
-  process->add_cmdline("MergedThreads");
+  process->add_cmdline("Other-Processes");
 
   ++it;
 

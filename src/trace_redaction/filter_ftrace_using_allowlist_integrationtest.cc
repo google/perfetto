@@ -37,9 +37,9 @@ class FilterFtraceUsingAllowlistTest
   void SetUp() override {
     trace_redactor()->emplace_build<PopulateAllowlists>();
 
-    auto redact_with_allowlist =
-        trace_redactor()->emplace_transform<RedactFtraceEvents>();
-    redact_with_allowlist->emplace_filter<FilterFtracesUsingAllowlist>();
+    auto redact = trace_redactor()->emplace_transform<RedactFtraceEvents>();
+    redact->emplace_ftrace_filter<FilterFtracesUsingAllowlist>();
+    redact->emplace_post_filter_modifier<DoNothing>();
   }
 
   // Parse the given buffer and gather field ids from across all events. This

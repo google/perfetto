@@ -19,12 +19,12 @@
 #include <string>
 
 #include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
-#include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "src/trace_processor/util/status_macros.h"
 #include "src/trace_redaction/proto_util.h"
 
+#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/trace.pbzero.h"
 
 namespace perfetto::trace_redaction {
@@ -131,17 +131,69 @@ base::Status RedactFtraceEvents::OnFtraceEvents(
     const Context& context,
     protozero::Field ftrace_events,
     protos::pbzero::FtraceEventBundle* message) const {
+  // If there are N ftrace events, and all N events are passed to the modifier,
+  // it is far better to have the bundle fully decoded ahead of time.
+  protos::pbzero::FtraceEventBundle::Decoder bundle(ftrace_events.as_bytes());
+
+  if (!bundle.has_cpu()) {
+    return base::ErrStatus(
+        "RedactFtraceEvents: missing field FtraceEventBundle::kCpu.");
+  }
+
   protozero::ProtoDecoder decoder(ftrace_events.as_bytes());
 
-  for (auto field = decoder.ReadField(); field.valid();
-       field = decoder.ReadField()) {
-    if (field.id() != protos::pbzero::FtraceEventBundle::kEventFieldNumber ||
-        filter_->Includes(context, field)) {
-      proto_util::AppendField(field, message);
+  for (auto it = decoder.ReadField(); it.valid(); it = decoder.ReadField()) {
+    if (it.id() == protos::pbzero::FtraceEventBundle::kEventFieldNumber) {
+      OnFtraceEvent(context, bundle, it, message);
+    } else {
+      proto_util::AppendField(it, message);
     }
   }
 
   return base::OkStatus();
+}
+
+void RedactFtraceEvents::OnFtraceEvent(
+    const Context& context,
+    const protos::pbzero::FtraceEventBundle::Decoder& bundle,
+    protozero::Field event,
+    protos::pbzero::FtraceEventBundle* parent_message) const {
+  PERFETTO_DCHECK(filter_);
+  PERFETTO_DCHECK(modifier_);
+
+  if (event.id() != protos::pbzero::FtraceEventBundle::kEventFieldNumber) {
+    proto_util::AppendField(event, parent_message);
+    return;
+  }
+
+  protozero::ProtoDecoder decoder(event.as_bytes());
+
+  auto ts_field =
+      decoder.FindField(protos::pbzero::FtraceEvent::kTimestampFieldNumber);
+  PERFETTO_DCHECK(ts_field.valid());
+
+  auto pid_field =
+      decoder.FindField(protos::pbzero::FtraceEvent::kPidFieldNumber);
+  PERFETTO_DCHECK(pid_field.valid());
+
+  if (!filter_->Includes(context, event)) {
+    return;
+  }
+
+  auto cpu = static_cast<int32_t>(bundle.cpu());
+  auto pid = pid_field.as_int32();
+
+  modifier_->Modify(context, ts_field.as_uint64(), cpu, &pid, nullptr);
+
+  auto* message = parent_message->add_event();
+
+  for (auto it = decoder.ReadField(); it.valid(); it = decoder.ReadField()) {
+    if (it.id() == protos::pbzero::FtraceEvent::kPidFieldNumber) {
+      message->set_pid(static_cast<uint32_t>(pid));
+    } else {
+      proto_util::AppendField(it, message);
+    }
+  }
 }
 
 }  // namespace perfetto::trace_redaction

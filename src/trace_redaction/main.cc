@@ -21,6 +21,7 @@
 #include "src/trace_redaction/collect_timeline_events.h"
 #include "src/trace_redaction/filter_packet_using_allowlist.h"
 #include "src/trace_redaction/find_package_uid.h"
+#include "src/trace_redaction/merge_threads.h"
 #include "src/trace_redaction/populate_allow_lists.h"
 #include "src/trace_redaction/prune_package_list.h"
 #include "src/trace_redaction/redact_ftrace_events.h"
@@ -66,17 +67,20 @@ static base::Status Main(std::string_view input,
 
   {
     auto* primitive = redactor.emplace_transform<RedactFtraceEvents>();
-    primitive->emplace_filter<FilterFtracesUsingAllowlist>();
+    primitive->emplace_ftrace_filter<FilterFtracesUsingAllowlist>();
+    primitive->emplace_post_filter_modifier<DoNothing>();
   }
 
   {
     auto* primitive = redactor.emplace_transform<RedactFtraceEvents>();
-    primitive->emplace_filter<FilterRss>();
+    primitive->emplace_ftrace_filter<FilterRss>();
+    primitive->emplace_post_filter_modifier<DoNothing>();
   }
 
   {
     auto* primitive = redactor.emplace_transform<RedactFtraceEvents>();
-    primitive->emplace_filter<FilterFtraceUsingSuspendResume>();
+    primitive->emplace_ftrace_filter<FilterFtraceUsingSuspendResume>();
+    primitive->emplace_post_filter_modifier<DoNothing>();
   }
 
   redactor.emplace_transform<PrunePackageList>();
@@ -108,7 +112,7 @@ static base::Status Main(std::string_view input,
   {
     auto* primitive = redactor.emplace_transform<RedactSchedEvents>();
     primitive->emplace_modifier<ClearComms>();
-    primitive->emplace_filter<ConnectedToPackage>();
+    primitive->emplace_waking_filter<ConnectedToPackage>();
   }
 
   // Redacts all new task, rename task, process free events. This should use the
@@ -119,7 +123,29 @@ static base::Status Main(std::string_view input,
     primitive->emplace_filter<ConnectedToPackage>();
   }
 
-  // TODO(vaage): Implement and add thread merging primitives.
+  // Merge Threads (part 1): Remove all waking events that connected to the
+  // target package. Change the pids not connected to the target package.
+  {
+    auto* primitive = redactor.emplace_transform<RedactSchedEvents>();
+    primitive->emplace_modifier<MergeThreadsPids>();
+    primitive->emplace_waking_filter<ConnectedToPackage>();
+  }
+
+  // Merge Threads (part 2): Drop all process events not belonging to the
+  // target package. No modification is needed.
+  {
+    auto* primitive = redactor.emplace_transform<RedactProcessEvents>();
+    primitive->emplace_modifier<DoNothing>();
+    primitive->emplace_filter<ConnectedToPackage>();
+  }
+
+  // Merge Threads (part 3): Replace ftrace event's pid (not the task's pid)
+  // for all pids not connected to the target package.
+  {
+    auto* primitive = redactor.emplace_transform<RedactFtraceEvents>();
+    primitive->emplace_post_filter_modifier<MergeThreadsPids>();
+    primitive->emplace_ftrace_filter<AllowAll>();
+  }
 
   // Configure the primitive to remove processes and threads that don't belong
   // to the target package and adds a process and threads for the synth thread

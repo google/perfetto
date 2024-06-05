@@ -14,26 +14,24 @@
  * limitations under the License.
  */
 
-#include "src/trace_redaction/filtering.h"
+#ifndef SRC_TRACE_REDACTION_MERGE_THREADS_H_
+#define SRC_TRACE_REDACTION_MERGE_THREADS_H_
+
+#include "src/trace_redaction/redact_sched_events.h"
+#include "src/trace_redaction/trace_redaction_framework.h"
 
 namespace perfetto::trace_redaction {
 
-PidFilter::~PidFilter() = default;
-
-bool ConnectedToPackage::Includes(const Context& context,
-                                  uint64_t ts,
-                                  int32_t pid) const {
-  PERFETTO_DCHECK(context.timeline);
-  PERFETTO_DCHECK(context.package_uid.has_value());
-  return context.timeline->PidConnectsToUid(ts, pid, *context.package_uid);
-}
-
-bool AllowAll::Includes(const Context&, uint64_t, int32_t) const {
-  return true;
-}
-
-bool AllowAll::Includes(const Context&, protozero::Field) const {
-  return true;
-}
+// If 'pid' is not connected to the target package, replace it with a synthetic
+// pid.
+class MergeThreadsPids : public PidCommModifier {
+  void Modify(const Context& context,
+              uint64_t ts,
+              int32_t cpu,
+              int32_t* pid,
+              std::string* comm) const override;
+};
 
 }  // namespace perfetto::trace_redaction
+
+#endif  // SRC_TRACE_REDACTION_MERGE_THREADS_H_

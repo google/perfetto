@@ -52,7 +52,7 @@ class RedactSchedWakingIntegrationTest
     auto* redact_sched_events =
         trace_redactor()->emplace_transform<RedactSchedEvents>();
     redact_sched_events->emplace_modifier<ClearComms>();
-    redact_sched_events->emplace_filter<ConnectedToPackage>();
+    redact_sched_events->emplace_waking_filter<ConnectedToPackage>();
 
     context()->package_name = kPackageName;
   }

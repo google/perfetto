@@ -32,6 +32,13 @@ class PidFilter {
                         int32_t pid) const = 0;
 };
 
+class FtraceEventFilter {
+ public:
+  virtual ~FtraceEventFilter();
+  virtual bool Includes(const Context& context,
+                        protozero::Field event) const = 0;
+};
+
 class ConnectedToPackage : public PidFilter {
  public:
   bool Includes(const Context& context,
@@ -39,9 +46,11 @@ class ConnectedToPackage : public PidFilter {
                 int32_t pid) const override;
 };
 
-class AllowAll : public PidFilter {
+class AllowAll : public PidFilter, public FtraceEventFilter {
  public:
   bool Includes(const Context&, uint64_t, int32_t) const override;
+
+  bool Includes(const Context& context, protozero::Field event) const override;
 };
 
 }  // namespace perfetto::trace_redaction
