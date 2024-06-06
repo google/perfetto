@@ -63,13 +63,13 @@ TEST_F(CollectSystemInfoTest, UpdatesCpuCountUsingFtraceEvents) {
   AppendSchedSwitch(9);
 
   ASSERT_OK(Collect());
-  ASSERT_EQ(context_.system_info->last_cpu(), 7u);
+  ASSERT_EQ(context_.system_info->cpu_count(), 8u);
 
   AppendFtraceEvent(11, 8);
   AppendSchedSwitch(9);
 
   ASSERT_OK(Collect());
-  ASSERT_EQ(context_.system_info->last_cpu(), 11u);
+  ASSERT_EQ(context_.system_info->cpu_count(), 12u);
 }
 
 // The first synth thread pid should be beyond the range of valid pids.
@@ -80,7 +80,7 @@ TEST(SystemInfoTest, FirstSynthThreadPidIsNotAValidPid) {
   ASSERT_GT(pid, 1 << 22);
 }
 
-TEST(BuildSyntheticThreadsTest, CreatesThreadsPerCpu) {
+TEST(BuildSyntheticProcessTest, CreatesThreadsPerCpu) {
   Context context;
   context.system_info.emplace();
 
@@ -90,8 +90,10 @@ TEST(BuildSyntheticThreadsTest, CreatesThreadsPerCpu) {
   BuildSyntheticThreads build;
   ASSERT_OK(build.Build(&context));
 
-  ASSERT_NE(context.synthetic_threads->tgid, 0);
-  ASSERT_EQ(context.synthetic_threads->tids.size(), 8u);
+  ASSERT_NE(context.synthetic_process->tgid(), 0);
+
+  // One main thread and 1 thread per CPU.
+  ASSERT_EQ(context.synthetic_process->tids().size(), 9u);
 }
 
 }  // namespace perfetto::trace_redaction

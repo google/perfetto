@@ -42,16 +42,14 @@ constexpr uint64_t NormalizeUid(uint64_t uid) {
 
 class SystemInfo {
  public:
-  int32_t AllocateSynthThread() {
-    return (1 << kSynthShift) | (++next_synth_thread_);
-  }
+  int32_t AllocateSynthThread() { return ++next_synth_thread_; }
 
   uint32_t ReserveCpu(uint32_t cpu) {
     last_cpu_ = std::max(last_cpu_, cpu);
     return last_cpu_;
   }
 
-  uint32_t last_cpu() const { return last_cpu_; }
+  uint32_t cpu_count() const { return last_cpu_ + 1; }
 
  private:
   // This is the last allocated tid. Using a tid equal to or less than this tid
@@ -79,18 +77,36 @@ class SystemInfo {
   //      2^22 (PID_MAX_LIMIT, approximately 4 million).
   //
   // SOURCE: https://man7.org/linux/man-pages/man5/proc.5.html
-  static constexpr auto kSynthShift = 22;
-  int32_t next_synth_thread_ = 0;
+  int32_t next_synth_thread_ = 1 << 22;
 
   // The last CPU index seen. If this value is 7, it means there are at least
   // 8 CPUs.
   uint32_t last_cpu_ = 0;
 };
 
-class SyntheticThreadGroup {
+class SyntheticProcess {
  public:
-  int32_t tgid;
-  std::vector<int32_t> tids;
+  explicit SyntheticProcess(const std::vector<int32_t>& tids) : tids_(tids) {}
+
+  // Use the SYSTEM_UID (i.e. 1000) because it best represents this "type" of
+  // process.
+  int32_t uid() const { return 1000; }
+
+  // Use ppid == 1 which is normally considered to be init on Linux?
+  int32_t ppid() const { return 1; }
+
+  int32_t tgid() const { return tids_.front(); }
+
+  const std::vector<int32_t>& tids() const { return tids_; }
+
+  int32_t RunningOn(uint32_t cpu) const { return tids_.at(1 + cpu); }
+
+  int32_t RunningOn(int32_t cpu) const {
+    return tids_.at(1 + static_cast<size_t>(cpu));
+  }
+
+ private:
+  std::vector<int32_t> tids_;
 };
 
 // Primitives should be stateless. All state should be stored in the context.
@@ -286,7 +302,7 @@ class Context {
 
   std::optional<SystemInfo> system_info;
 
-  std::optional<SyntheticThreadGroup> synthetic_threads;
+  std::unique_ptr<SyntheticProcess> synthetic_process;
 };
 
 // Extracts low-level data from the trace and writes it into the context. The

@@ -120,7 +120,7 @@ class RedactSchedSwitchFtraceEventTest : public testing::Test {
     context_.timeline->Sort();
 
     redact_.emplace_modifier<ClearComms>();
-    redact_.emplace_filter<AllowAll>();
+    redact_.emplace_waking_filter<AllowAll>();
   }
 
   protos::gen::TracePacket packet_;
@@ -204,7 +204,7 @@ class RedactCompactSchedSwitchTest : public testing::Test {
     compact_sched->add_intern_table(kCommB);
 
     redact_.emplace_modifier<ClearComms>();
-    redact_.emplace_filter<AllowAll>();
+    redact_.emplace_waking_filter<AllowAll>();
   }
 
   void AddSwitchEvent(uint64_t ts,
@@ -406,7 +406,7 @@ class RedactSchedWakingFtraceEventTest : public testing::Test {
     context_.timeline->Sort();
 
     redact.emplace_modifier<ClearComms>();
-    redact.emplace_filter<AllowAll>();
+    redact.emplace_waking_filter<AllowAll>();
   }
 
   protos::gen::TracePacket packet_;
@@ -546,7 +546,7 @@ class FilterCompactSchedWakingEventsTest : public testing::Test {
 
     // Default to "allow all" and "change nothing" so a test only needs to
     // override what they need.
-    redact_.emplace_filter<AllowAll>();
+    redact_.emplace_waking_filter<AllowAll>();
     redact_.emplace_modifier<DoNothing>();
   }
 
@@ -569,7 +569,7 @@ class FilterCompactSchedWakingEventsTest : public testing::Test {
 // Because the filter will only keep events where pid is being waked, only the
 // first of the two events should remain.
 TEST_F(FilterCompactSchedWakingEventsTest, FilterCompactSched) {
-  redact_.emplace_filter<ConnectedToPackage>();
+  redact_.emplace_waking_filter<ConnectedToPackage>();
 
   protos::gen::TracePacket packet_builder;
   packet_builder.mutable_ftrace_events()->set_cpu(kCpuA);
@@ -684,7 +684,7 @@ TEST_F(FilterCompactSchedWakingEventsTest,
 
   auto bytes = packet_builder.SerializeAsString();
 
-  redact_.emplace_filter<ConnectedToPackage>();
+  redact_.emplace_waking_filter<ConnectedToPackage>();
   ASSERT_OK(redact_.Transform(context_, &bytes));
 
   protos::gen::TracePacket packet;
@@ -779,7 +779,7 @@ TEST_F(FilterCompactSchedWakingEventsTest, RemovingWakingEventsThrashing) {
 
   auto bytes = packet_builder.SerializeAsString();
 
-  redact_.emplace_filter<ConnectedToPackage>();
+  redact_.emplace_waking_filter<ConnectedToPackage>();
   ASSERT_OK(redact_.Transform(context_, &bytes));
 
   protos::gen::TracePacket packet;

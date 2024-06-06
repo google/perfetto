@@ -15,10 +15,13 @@
  */
 
 #include "src/trace_redaction/modify.h"
+#include "src/trace_redaction/proto_util.h"
 
 namespace perfetto::trace_redaction {
 
 PidCommModifier::~PidCommModifier() = default;
+
+FtraceEventModifier::~FtraceEventModifier() = default;
 
 void ClearComms::Modify(const Context& context,
                         uint64_t ts,
@@ -40,5 +43,16 @@ void DoNothing::Modify(const Context&,
                        int32_t,
                        int32_t*,
                        std::string*) const {}
+
+// Because FtraceEventModifier is responsible for modifying and writing
+// (compared to PidCommModifier), it needs to pass the value through to the
+// message.
+void DoNothing::Modify(
+    const Context&,
+    const protos::pbzero::FtraceEventBundle::Decoder&,
+    protozero::Field event,
+    protos::pbzero::FtraceEventBundle* parent_message) const {
+  proto_util::AppendField(event, parent_message);
+}
 
 }  // namespace perfetto::trace_redaction
