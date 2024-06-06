@@ -15,8 +15,8 @@
 
 -- Find all dropped frames, i.e. all PipelineReporters slices whose
 -- state is 'STATE_DROPPED'.
-DROP VIEW IF EXISTS dropped_pipeline_reporter_slice;
-CREATE PERFETTO VIEW dropped_pipeline_reporter_slice AS
+DROP TABLE IF EXISTS dropped_pipeline_reporter_slice;
+CREATE PERFETTO TABLE dropped_pipeline_reporter_slice AS
 SELECT slice.* FROM slice
 JOIN args
   ON slice.arg_set_id = args.arg_set_id
