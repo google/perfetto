@@ -106,6 +106,7 @@ class FtraceParser {
                                 protozero::ConstBytes,
                                 bool grow);
   void ParseIonStat(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseBclIrq(int64_t timestamp, protozero::ConstBytes);
   void ParseDmaHeapStat(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseSignalGenerate(int64_t timestamp, protozero::ConstBytes);
   void ParseSignalDeliver(int64_t timestamp,
@@ -336,6 +337,15 @@ class FtraceParser {
   const StringId dma_buffer_id_;
   const StringId ion_total_unknown_id_;
   const StringId ion_change_unknown_id_;
+  const StringId bcl_irq_id_;
+  const StringId bcl_irq_throttle_;
+  const StringId bcl_irq_cpu0_;
+  const StringId bcl_irq_cpu1_;
+  const StringId bcl_irq_cpu2_;
+  const StringId bcl_irq_tpu_;
+  const StringId bcl_irq_gpu_;
+  const StringId bcl_irq_voltage_;
+  const StringId bcl_irq_capacity_;
   const StringId signal_generate_id_;
   const StringId signal_deliver_id_;
   const StringId oom_score_adj_id_;
