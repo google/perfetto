@@ -100,7 +100,7 @@ const NETWORK_SUMMARY = `
               when t.name glob '*rmnet*' then 'modem'
               else 'unknown'
           end as dev_type,
-          lower(substr(t.name, instr(t.name, ' ') + 1, 1)) || 'x' as dir,
+          s.name as pkg,
           sum(EXTRACT_ARG(arg_set_id, 'packet_length')) AS value
       from slice s join track t on s.track_id = t.id
       where (t.name glob '*Received' or t.name glob '*Transmitted')
@@ -111,14 +111,14 @@ const NETWORK_SUMMARY = `
       select
           ts,
           dev_type,
-          dir,
+          pkg,
           value
       from base
       union all
       select
           ts + 5000000000 as ts,
           dev_type,
-          dir,
+          pkg,
           0 as value
       from base
   ),
@@ -126,7 +126,7 @@ const NETWORK_SUMMARY = `
       select
           ts,
           dev_type,
-          dir,
+          pkg,
           sum(value) as value
       from zeroes
       group by 1, 2, 3
@@ -1277,69 +1277,25 @@ class AndroidLongBatteryTracing implements Plugin {
     if (features.has('net.wifi')) {
       this.addCounterTrack(
         ctx,
-        'Wifi bytes',
+        'Wifi total',
         `select ts, sum(value) as value from network_summary where dev_type = 'wifi' group by 1`,
         groupName,
         {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
       );
-      this.addCounterTrack(
-        ctx,
-        'Wifi TX bytes',
-        `select ts, value from network_summary where dev_type = 'wifi' and dir = 'tx'`,
-        groupName,
-        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+      const result = await e.query(
+        `select pkg, sum(value) from network_summary where dev_type='wifi' group by 1 order by 2 desc limit 10`,
       );
-      this.addCounterTrack(
-        ctx,
-        'Wifi RX bytes',
-        `select ts, value from network_summary where dev_type = 'wifi' and dir = 'rx'`,
-        groupName,
-        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
-      );
+      const it = result.iter({pkg: 'str'});
+      for (; it.valid(); it.next()) {
+        this.addCounterTrack(
+          ctx,
+          `Top wifi: ${it.pkg}`,
+          `select ts, value from network_summary where dev_type = 'wifi' and pkg = '${it.pkg}'`,
+          groupName,
+          {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+        );
+      }
     }
-    if (features.has('net.modem')) {
-      this.addCounterTrack(
-        ctx,
-        'Modem bytes',
-        `select ts, sum(value) as value from network_summary where dev_type = 'modem' group by 1`,
-        groupName,
-        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
-      );
-      this.addCounterTrack(
-        ctx,
-        'Modem TX bytes',
-        `select ts, value from network_summary where dev_type = 'modem' and dir = 'tx'`,
-        groupName,
-        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
-      );
-      this.addCounterTrack(
-        ctx,
-        'Modem RX bytes',
-        `select ts, value from network_summary where dev_type = 'modem' and dir = 'rx'`,
-        groupName,
-        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
-      );
-    }
-    this.addBatteryStatsState(
-      ctx,
-      'Cellular interface',
-      'battery_stats.mobile_radio',
-      groupName,
-      features,
-    );
-    this.addSliceTrack(
-      ctx,
-      'Cellular connection',
-      `select ts, dur, name from radio_transport`,
-      groupName,
-    );
-    this.addBatteryStatsState(
-      ctx,
-      'Cellular strength',
-      'battery_stats.phone_signal_strength',
-      groupName,
-      features,
-    );
     this.addBatteryStatsState(
       ctx,
       'Wifi interface',
@@ -1358,6 +1314,48 @@ class AndroidLongBatteryTracing implements Plugin {
       ctx,
       'Wifi strength',
       'battery_stats.wifi_signal_strength',
+      groupName,
+      features,
+    );
+    if (features.has('net.modem')) {
+      this.addCounterTrack(
+        ctx,
+        'Modem total',
+        `select ts, sum(value) as value from network_summary where dev_type = 'modem' group by 1`,
+        groupName,
+        {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+      );
+      const result = await e.query(
+        `select pkg, sum(value) from network_summary where dev_type='modem' group by 1 order by 2 desc limit 10`,
+      );
+      const it = result.iter({pkg: 'str'});
+      for (; it.valid(); it.next()) {
+        this.addCounterTrack(
+          ctx,
+          `Top modem: ${it.pkg}`,
+          `select ts, value from network_summary where dev_type = 'modem' and pkg = '${it.pkg}'`,
+          groupName,
+          {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
+        );
+      }
+    }
+    this.addBatteryStatsState(
+      ctx,
+      'Cellular interface',
+      'battery_stats.mobile_radio',
+      groupName,
+      features,
+    );
+    this.addSliceTrack(
+      ctx,
+      'Cellular connection',
+      `select ts, dur, name from radio_transport`,
+      groupName,
+    );
+    this.addBatteryStatsState(
+      ctx,
+      'Cellular strength',
+      'battery_stats.phone_signal_strength',
       groupName,
       features,
     );
