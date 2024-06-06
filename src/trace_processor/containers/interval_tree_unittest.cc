@@ -54,7 +54,7 @@ TEST(IntervalTree, Trivial) {
   std::vector<Interval> interval({{10, 20, 5}});
   IntervalTree tree(interval);
   std::vector<uint32_t> overlaps;
-  tree.FindOverlaps({5, 30, 0}, overlaps);
+  tree.FindOverlaps(5, 30, overlaps);
 
   ASSERT_THAT(overlaps, UnorderedElementsAre(5));
 }
@@ -63,7 +63,7 @@ TEST(IntervalTree, Simple) {
   auto intervals = CreateIntervals({{0, 10}, {5, 20}, {30, 40}});
   IntervalTree tree(intervals);
   std::vector<uint32_t> overlaps;
-  tree.FindOverlaps({4, 30, 0}, overlaps);
+  tree.FindOverlaps(4, 30, overlaps);
 
   ASSERT_THAT(overlaps, UnorderedElementsAre(0, 1));
 }
@@ -74,13 +74,13 @@ TEST(IntervalTree, SinglePointOverlap) {
   std::vector<uint32_t> overlaps;
 
   // Overlaps at the start point only
-  tree.FindOverlaps({10, 10, 0}, overlaps);
+  tree.FindOverlaps(10, 10, overlaps);
   ASSERT_THAT(overlaps, IsEmpty());
 
   overlaps.clear();
 
   // Overlaps at the end point only
-  tree.FindOverlaps({20, 20, 0}, overlaps);
+  tree.FindOverlaps(20, 20, overlaps);
   ASSERT_THAT(overlaps, IsEmpty());
 }
 
@@ -90,17 +90,17 @@ TEST(IntervalTree, NoOverlaps) {
   std::vector<uint32_t> overlaps;
 
   // Before all intervals
-  tree.FindOverlaps({5, 9, 0}, overlaps);
+  tree.FindOverlaps(5, 9, overlaps);
   ASSERT_THAT(overlaps, IsEmpty());
   overlaps.clear();
 
   // Between intervals
-  tree.FindOverlaps({21, 29, 0}, overlaps);
+  tree.FindOverlaps(21, 29, overlaps);
   ASSERT_THAT(overlaps, IsEmpty());
   overlaps.clear();
 
   // After all intervals
-  tree.FindOverlaps({41, 50, 0}, overlaps);
+  tree.FindOverlaps(41, 50, overlaps);
   ASSERT_THAT(overlaps, IsEmpty());
 }
 
@@ -108,7 +108,7 @@ TEST(IntervalTree, IdenticalIntervals) {
   auto intervals = CreateIntervals({{10, 20}, {10, 20}});
   IntervalTree tree(intervals);
   std::vector<uint32_t> overlaps;
-  tree.FindOverlaps({10, 20, 0}, overlaps);
+  tree.FindOverlaps(10, 20, overlaps);
   ASSERT_THAT(overlaps, UnorderedElementsAre(0, 1));
 }
 
@@ -118,17 +118,17 @@ TEST(IntervalTree, MultipleOverlapsVariousPositions) {
 
   std::vector<uint32_t> overlaps;
   /// Starts before, ends within
-  tree.FindOverlaps({9, 11, 0}, overlaps);
+  tree.FindOverlaps(9, 11, overlaps);
   ASSERT_THAT(overlaps, UnorderedElementsAre(0, 1));
 
   overlaps.clear();
   // Starts within, ends within
-  tree.FindOverlaps({13, 21, 0}, overlaps);
-  ASSERT_THAT(overlaps, UnorderedElementsAre(1, 2));
+  tree.FindOverlaps(13, 21, overlaps);
+  ASSERT_THAT(overlaps, UnorderedElementsAre(0, 1, 2));
 
   overlaps.clear();
   // Starts within, ends after
-  tree.FindOverlaps({18, 26, 0}, overlaps);
+  tree.FindOverlaps(18, 26, overlaps);
   ASSERT_THAT(overlaps, UnorderedElementsAre(1, 2, 3));
 }
 
@@ -137,7 +137,7 @@ TEST(IntervalTree, OverlappingEndpoints) {
   IntervalTree tree(intervals);
   std::vector<uint32_t> overlaps;
 
-  tree.FindOverlaps({19, 21, 0}, overlaps);
+  tree.FindOverlaps(19, 21, overlaps);
   ASSERT_THAT(overlaps, UnorderedElementsAre(0, 1));
 }
 
@@ -153,10 +153,9 @@ TEST(IntervalTree, Stress) {
         {prev_max, prev_max + (static_cast<uint32_t>(rng()) % 100)});
   }
   auto intervals = CreateIntervals(periods);
-  Interval query_i{periods.front().first, periods.back().first + 1, 5};
   IntervalTree tree(intervals);
   std::vector<uint32_t> overlaps;
-  tree.FindOverlaps(query_i, overlaps);
+  tree.FindOverlaps(periods.front().first, periods.back().first + 1, overlaps);
 
   EXPECT_EQ(overlaps.size(), kCount);
 }
