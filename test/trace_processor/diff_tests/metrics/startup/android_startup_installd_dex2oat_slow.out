@@ -73,6 +73,7 @@ android_startup {
         value: 1
       }
       launch_dur: 100000000000
+      additional_info: "Process: dex2oat64"
     }
   }
   startup {
@@ -121,6 +122,7 @@ android_startup {
         value: 1
       }
       launch_dur: 250000000000
+      additional_info: "Process: dex2oat64"
     }
     slow_start_reason_with_details {
       reason_id: INSTALLD_RUNNING
@@ -133,6 +135,7 @@ android_startup {
         value: 1
       }
       launch_dur: 250000000000
+      additional_info: "Process: installd"
     }
     slow_start_reason_with_details {
       reason_id: STARTUP_RUNNING_CONCURRENT
@@ -145,6 +148,7 @@ android_startup {
         value: 1
       }
       launch_dur: 250000000000
+      additional_info: "Package: com.google.android.gm"
     }
     startup_concurrent_to_launch: "com.google.android.gm"
   }
@@ -192,6 +196,7 @@ android_startup {
         value: 1
       }
       launch_dur: 100000000000
+      additional_info: "Process: dex2oat64"
     }
     slow_start_reason_with_details {
       reason_id: INSTALLD_RUNNING
@@ -204,6 +209,7 @@ android_startup {
         value: 1
       }
       launch_dur: 100000000000
+      additional_info: "Process: installd"
     }
     slow_start_reason_with_details {
       reason_id: STARTUP_RUNNING_CONCURRENT
@@ -216,6 +222,7 @@ android_startup {
         value: 1
       }
       launch_dur: 100000000000
+      additional_info: "Package: com.google.android.deskclock"
     }
     startup_concurrent_to_launch: "com.google.android.deskclock"
   }

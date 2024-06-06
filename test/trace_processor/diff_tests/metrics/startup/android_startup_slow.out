@@ -78,6 +78,12 @@ android_startup {
         dur: 80000000000
       }
       launch_dur: 108000000000
+      trace_thread_sections {
+        start_timestamp: 130000000000
+        end_timestamp: 210000000000
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_INTERRUPTIBLE_SLEEP
@@ -91,6 +97,12 @@ android_startup {
         value: 5000000000
       }
       launch_dur: 108000000000
+      trace_thread_sections {
+        start_timestamp: 120000000000
+        end_timestamp: 125000000000
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_BLOCKING_IO
@@ -104,6 +116,12 @@ android_startup {
         value: 5000000000
       }
       launch_dur: 108000000000
+      trace_thread_sections {
+        start_timestamp: 125000000000
+        end_timestamp: 130000000000
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
     slow_start_reason_with_details {
       reason_id: POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS
@@ -117,6 +135,12 @@ android_startup {
         value: 80000000000
       }
       launch_dur: 108000000000
+      trace_thread_sections {
+        start_timestamp: 130000000000
+        end_timestamp: 210000000000
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
   }
 }

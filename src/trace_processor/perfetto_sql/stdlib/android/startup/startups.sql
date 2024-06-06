@@ -220,7 +220,9 @@ CREATE PERFETTO FUNCTION android_slices_for_startup_and_slice_name(
   -- Glob of the slice.
   slice_name STRING)
 RETURNS TABLE(
--- Name of the slice.
+  -- Id of the slice.
+  slice_id INT,
+  -- Name of the slice.
   slice_name STRING,
   -- Timestamp of start of the slice.
   slice_ts INT,
@@ -231,7 +233,7 @@ RETURNS TABLE(
   -- Arg set id.
   arg_set_id INT
 ) AS
-SELECT slice_name, slice_ts, slice_dur, thread_name, arg_set_id
+SELECT slice_id, slice_name, slice_ts, slice_dur, thread_name, arg_set_id
 FROM android_thread_slices_for_all_startups
 WHERE startup_id = $startup_id AND slice_name GLOB $slice_name;
 

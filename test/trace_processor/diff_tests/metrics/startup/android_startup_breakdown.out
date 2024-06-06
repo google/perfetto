@@ -125,6 +125,12 @@ android_startup {
         value: 1
       }
       launch_dur: 108000000000
+      trace_slice_sections {
+        start_timestamp: 204000000000
+        end_timestamp: 205000000000
+        slice_id: 13
+        slice_name: "location=/system/framework/oat/arm/com.google.android.calendar.odex status=up-to-date filter=speed reason=install-dm"
+      }
     }
     slow_start_reason_with_details {
       reason_id: RUN_FROM_APK
@@ -137,6 +143,12 @@ android_startup {
         value: 1
       }
       launch_dur: 108000000000
+      trace_slice_sections {
+        start_timestamp: 200000000000
+        end_timestamp: 202000000000
+        slice_id: 12
+        slice_name: "location=error status=io-error-no-oat filter=run-from-apk reason=unknown"
+      }
     }
     slow_start_reason_with_details {
       reason_id: TIME_SPENT_IN_BIND_APPLICATION
@@ -150,6 +162,12 @@ android_startup {
         value: 2000000000
       }
       launch_dur: 108000000000
+      trace_slice_sections {
+        start_timestamp: 185000000000
+        end_timestamp: 187000000000
+        slice_id: 4
+        slice_name: "bindApplication"
+      }
     }
     slow_start_reason_with_details {
       reason_id: TIME_SPENT_IN_VIEW_INFLATION
@@ -163,6 +181,18 @@ android_startup {
         value: 2000000000
       }
       launch_dur: 108000000000
+      trace_slice_sections {
+        start_timestamp: 188000000000
+        end_timestamp: 189000000000
+        slice_id: 6
+        slice_name: "inflate"
+      }
+      trace_slice_sections {
+        start_timestamp: 191000000000
+        end_timestamp: 192000000000
+        slice_id: 8
+        slice_name: "inflate"
+      }
     }
     slow_start_reason_with_details {
       reason_id: TIME_SPENT_IN_RESOURCES_MANAGER_GET_RESOURCES
@@ -176,6 +206,12 @@ android_startup {
         value: 1000000000
       }
       launch_dur: 108000000000
+      trace_slice_sections {
+        start_timestamp: 188000000000
+        end_timestamp: 189000000000
+        slice_id: 7
+        slice_name: "ResourcesManager#getResources"
+      }
     }
     slow_start_reason_with_details {
       reason_id: POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS
@@ -189,6 +225,12 @@ android_startup {
         value: 5000000000
       }
       launch_dur: 108000000000
+      trace_thread_sections {
+        start_timestamp: 205000000000
+        end_timestamp: 210000000000
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
     startup_type: "cold"
   }

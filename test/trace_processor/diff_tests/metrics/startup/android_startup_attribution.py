@@ -118,7 +118,7 @@ trace.add_atrace_end(ts=280, pid=APP_PID, tid=SECOND_APP_TID)
 
 # JIT compilation slices
 trace.add_atrace_begin(
-    ts=150, pid=APP_PID, tid=JIT_TID, buf='JIT compiling someting')
+    ts=150, pid=APP_PID, tid=JIT_TID, buf='JIT compiling something')
 trace.add_atrace_end(ts=160, pid=APP_PID, tid=JIT_TID)
 
 trace.add_sched(ts=155, prev_pid=0, next_pid=JIT_TID)
