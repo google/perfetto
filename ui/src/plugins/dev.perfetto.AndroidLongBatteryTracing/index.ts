@@ -436,17 +436,36 @@ const THERMAL_THROTTLING = `
   where severity != 'NONE'`;
 
 const KERNEL_WAKELOCKS = `
-  drop table if exists kernel_wakelocks;
-  create table kernel_wakelocks as
-  with step1 as (
+  create or replace perfetto table kernel_wakelocks as
+  with kernel_wakelock_args as (
     select
-      ts,
-      EXTRACT_ARG(arg_set_id, 'kernel_wakelock.name') as wakelock_name,
-      EXTRACT_ARG(arg_set_id, 'kernel_wakelock.count') as count,
-      EXTRACT_ARG(arg_set_id, 'kernel_wakelock.time_micros') as time_micros
-    from track t join slice s on t.id = s.track_id
-    where t.name = 'Statsd Atoms'
-      and s.name = 'kernel_wakelock'
+      arg_set_id,
+      min(iif(key = 'kernel_wakelock.name', string_value, null)) as wakelock_name,
+      min(iif(key = 'kernel_wakelock.count', int_value, null)) as count,
+      min(iif(key = 'kernel_wakelock.time_micros', int_value, null)) as time_micros
+    from args
+    where key in (
+      'kernel_wakelock.name',
+      'kernel_wakelock.count',
+      'kernel_wakelock.time_micros'
+    )
+    group by 1
+  ),
+  interesting as (
+    select wakelock_name
+    from (
+      select wakelock_name, max(time_micros)-min(time_micros) as delta_us
+      from kernel_wakelock_args
+      group by 1
+    )
+    -- Only consider wakelocks with over 1 second of time during the whole trace
+    where delta_us > 1e6
+  ),
+  step1 as (
+    select ts, wakelock_name, count, time_micros
+    from kernel_wakelock_args
+    join interesting using (wakelock_name)
+    join slice using (arg_set_id)
   ),
   step2 as (
     select
@@ -488,9 +507,8 @@ const KERNEL_WAKELOCKS_SUMMARY = `
   order by 1;`;
 
 const HIGH_CPU = `
-  drop table if exists high_cpu;
-  create table high_cpu as
-  with cpu_cycles_args as (
+  create or replace perfetto table high_cpu as
+  with cpu_cycles_args AS (
     select
       arg_set_id,
       min(iif(key = 'cpu_cycles_per_uid_cluster.uid', int_value, null)) as uid,
@@ -504,13 +522,21 @@ const HIGH_CPU = `
     )
     group by 1
   ),
+  interesting AS (
+    select uid, cluster
+    from (
+      select uid, cluster, max(time_millis)-min(time_millis) as delta_ms
+      from cpu_cycles_args
+      group by 1, 2
+    )
+    -- Only consider tracks with over 1 second of cpu during the whole trace
+    where delta_ms > 1e3
+  ),
   base as (
     select ts, uid, cluster, sum(time_millis) as time_millis
-    from track t
-    join slice s on t.id = s.track_id
-    join cpu_cycles_args using (arg_set_id)
-    where t.name = 'Statsd Atoms'
-      and s.name = 'cpu_cycles_per_uid_cluster'
+    from cpu_cycles_args
+    join interesting using (uid, cluster)
+    join slice using (arg_set_id)
     group by 1, 2, 3
   ),
   with_windows as (
