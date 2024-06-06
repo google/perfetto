@@ -28,12 +28,26 @@
 #include "protos/perfetto/trace/trace_packet.gen.h"
 
 namespace perfetto::trace_redaction {
+namespace {
+constexpr uint64_t kTime = 10;
+
+constexpr int32_t kPidA = 7;
+constexpr int32_t kPidB = 8;
+constexpr int32_t kPidC = 9;
+
+constexpr int32_t kCpu = 3;
+}  // namespace
 
 // Tests which nested messages and fields are removed.
 class FilterFtraceUsingAllowlistTest : public testing::Test {
  protected:
   void SetUp() override {
-    transform_.emplace_filter<FilterFtracesUsingAllowlist>();
+    transform_.emplace_ftrace_filter<FilterFtracesUsingAllowlist>();
+    transform_.emplace_post_filter_modifier<DoNothing>();
+
+    // RedactFtraceEvents expects ftrace events bundles to have a cpu value.
+    // These tests don't rely on one, so set it here and forget about it.
+    packet_.mutable_ftrace_events()->set_cpu(kCpu);
   }
 
   // task_rename should be in the allow-list.
@@ -42,47 +56,45 @@ class FilterFtraceUsingAllowlistTest : public testing::Test {
                             const std::string& old_comm,
                             const std::string& new_comm) {
     auto* e = bundle->add_event();
+    e->set_pid(static_cast<uint32_t>(pid));
+    e->set_timestamp(kTime);
     e->mutable_task_rename()->set_pid(pid);
     e->mutable_task_rename()->set_oldcomm(old_comm);
     e->mutable_task_rename()->set_newcomm(new_comm);
   }
 
   static void AddClockSetRate(protos::gen::FtraceEventBundle* bundle,
+                              int32_t pid,
                               uint64_t cpu,
                               const std::string& name,
                               uint64_t state) {
     auto* e = bundle->add_event();
+    e->set_pid(static_cast<uint32_t>(pid));
+    e->set_timestamp(kTime);
     e->mutable_clock_set_rate()->set_cpu_id(cpu);
     e->mutable_clock_set_rate()->set_name(name);
     e->mutable_clock_set_rate()->set_state(state);
   }
 
   RedactFtraceEvents transform_;
+
+  protos::gen::TracePacket packet_;
 };
 
 TEST_F(FilterFtraceUsingAllowlistTest, ReturnErrorForNullPacket) {
-  // Have something in the allow-list to avoid that error.
   Context context;
-  context.ftrace_packet_allow_list = {
-      protos::pbzero::FtraceEvent::kTaskRenameFieldNumber};
-
   ASSERT_FALSE(transform_.Transform(context, nullptr).ok());
 }
 
 TEST_F(FilterFtraceUsingAllowlistTest, ReturnErrorForEmptyPacket) {
-  // Have something in the allow-list to avoid that error.
-  Context context;
-  context.ftrace_packet_allow_list = {
-      protos::pbzero::FtraceEvent::kTaskRenameFieldNumber};
-
   std::string packet_str = "";
 
+  Context context;
   ASSERT_FALSE(transform_.Transform(context, &packet_str).ok());
 }
 
 TEST_F(FilterFtraceUsingAllowlistTest, IgnorePacketWithNoFtraceEvents) {
-  protos::gen::TracePacket trace_packet;
-  auto* tree = trace_packet.mutable_process_tree();
+  auto* tree = packet_.mutable_process_tree();
 
   auto& process = tree->mutable_processes()->emplace_back();
   process.set_pid(1);
@@ -94,7 +106,7 @@ TEST_F(FilterFtraceUsingAllowlistTest, IgnorePacketWithNoFtraceEvents) {
   thread.set_tgid(1);
   thread.set_tid(135);
 
-  auto original_packet = trace_packet.SerializeAsString();
+  auto original_packet = packet_.SerializeAsString();
   auto packet = original_packet;
 
   Context context;
@@ -112,14 +124,13 @@ TEST_F(FilterFtraceUsingAllowlistTest, IgnorePacketWithNoFtraceEvents) {
 // There are some values in a ftrace event that sits behind the ftrace bundle.
 // These values should be retained.
 TEST_F(FilterFtraceUsingAllowlistTest, KeepsFtraceBundleSiblingValues) {
-  protos::gen::TracePacket trace_packet;
-  auto* ftrace_events = trace_packet.mutable_ftrace_events();
+  auto* ftrace_events = packet_.mutable_ftrace_events();
 
-  ftrace_events->set_cpu(7);
-  AddTaskRename(ftrace_events, 7, "old_comm", "new_comm_7");
-  AddClockSetRate(ftrace_events, 7, "cool cpu name", 1);
+  ftrace_events->set_cpu(kCpu);
+  AddTaskRename(ftrace_events, kPidA, "old_comm", "new_comm_7");
+  AddClockSetRate(ftrace_events, kPidA, kCpu, "cool cpu name", 1);
 
-  auto original_packet = trace_packet.SerializeAsString();
+  auto original_packet = packet_.SerializeAsString();
   auto packet = original_packet;
 
   Context context;
@@ -137,7 +148,7 @@ TEST_F(FilterFtraceUsingAllowlistTest, KeepsFtraceBundleSiblingValues) {
   // Because the CPU sits beside the event list, and not inside the event list,
   // the CPU value should be retained.
   ASSERT_TRUE(gen_events.has_cpu());
-  ASSERT_EQ(gen_events.cpu(), 7u);
+  ASSERT_EQ(gen_events.cpu(), static_cast<uint32_t>(kCpu));
 
   // ClockSetRate should be dropped. Only TaskRename should remain.
   ASSERT_EQ(gen_events.event_size(), 1);
@@ -151,12 +162,14 @@ TEST_F(FilterFtraceUsingAllowlistTest, KeepsAllowedEvents) {
       protos::pbzero::FtraceEvent::kTaskRenameFieldNumber,
   };
 
-  protos::gen::TracePacket before;
-  AddTaskRename(before.mutable_ftrace_events(), 7, "old_comm", "new_comm_7");
-  AddTaskRename(before.mutable_ftrace_events(), 8, "old_comm", "new_comm_8");
-  AddTaskRename(before.mutable_ftrace_events(), 9, "old_comm", "new_comm_9");
+  AddTaskRename(packet_.mutable_ftrace_events(), kPidA, "old_comm",
+                "new_comm_7");
+  AddTaskRename(packet_.mutable_ftrace_events(), kPidB, "old_comm",
+                "new_comm_8");
+  AddTaskRename(packet_.mutable_ftrace_events(), kPidC, "old_comm",
+                "new_comm_9");
 
-  auto before_str = before.SerializeAsString();
+  auto before_str = packet_.SerializeAsString();
   auto after_str = before_str;
 
   ASSERT_OK(transform_.Transform(context, &after_str));
@@ -174,17 +187,17 @@ TEST_F(FilterFtraceUsingAllowlistTest, KeepsAllowedEvents) {
   ASSERT_EQ(events.size(), 3u);
 
   ASSERT_TRUE(events[0].has_task_rename());
-  ASSERT_EQ(events[0].task_rename().pid(), 7);
+  ASSERT_EQ(events[0].task_rename().pid(), kPidA);
   ASSERT_EQ(events[0].task_rename().oldcomm(), "old_comm");
   ASSERT_EQ(events[0].task_rename().newcomm(), "new_comm_7");
 
   ASSERT_TRUE(events[1].has_task_rename());
-  ASSERT_EQ(events[1].task_rename().pid(), 8);
+  ASSERT_EQ(events[1].task_rename().pid(), kPidB);
   ASSERT_EQ(events[1].task_rename().oldcomm(), "old_comm");
   ASSERT_EQ(events[1].task_rename().newcomm(), "new_comm_8");
 
   ASSERT_TRUE(events[2].has_task_rename());
-  ASSERT_EQ(events[2].task_rename().pid(), 9);
+  ASSERT_EQ(events[2].task_rename().pid(), kPidC);
   ASSERT_EQ(events[2].task_rename().oldcomm(), "old_comm");
   ASSERT_EQ(events[2].task_rename().newcomm(), "new_comm_9");
 }
@@ -193,16 +206,15 @@ TEST_F(FilterFtraceUsingAllowlistTest, KeepsAllowedEvents) {
 TEST_F(FilterFtraceUsingAllowlistTest, OnlyDropsNotAllowedEvents) {
   // AddTaskRename >> Keep
   // AddClockSetRate >> Drop
-  protos::gen::TracePacket original_packet;
-  AddTaskRename(original_packet.mutable_ftrace_events(), 7, "old_comm",
+  AddTaskRename(packet_.mutable_ftrace_events(), kPidA, "old_comm",
                 "new_comm_7");
-  AddClockSetRate(original_packet.mutable_ftrace_events(), 0, "cool cpu name",
+  AddClockSetRate(packet_.mutable_ftrace_events(), kPidA, kCpu, "cool cpu name",
                   1);
-  AddTaskRename(original_packet.mutable_ftrace_events(), 8, "old_comm",
+  AddTaskRename(packet_.mutable_ftrace_events(), kPidB, "old_comm",
                 "new_comm_8");
-  AddTaskRename(original_packet.mutable_ftrace_events(), 9, "old_comm",
+  AddTaskRename(packet_.mutable_ftrace_events(), kPidC, "old_comm",
                 "new_comm_9");
-  auto packet = original_packet.SerializeAsString();
+  auto packet = packet_.SerializeAsString();
 
   Context context;
   context.ftrace_packet_allow_list = {
@@ -222,13 +234,13 @@ TEST_F(FilterFtraceUsingAllowlistTest, OnlyDropsNotAllowedEvents) {
   const auto& events = modified_packet.ftrace_events().event();
 
   ASSERT_TRUE(events.at(0).has_task_rename());
-  ASSERT_EQ(events.at(0).task_rename().pid(), 7);
+  ASSERT_EQ(events.at(0).task_rename().pid(), kPidA);
 
   ASSERT_TRUE(events.at(1).has_task_rename());
-  ASSERT_EQ(events.at(1).task_rename().pid(), 8);
+  ASSERT_EQ(events.at(1).task_rename().pid(), kPidB);
 
   ASSERT_TRUE(events.at(2).has_task_rename());
-  ASSERT_EQ(events.at(2).task_rename().pid(), 9);
+  ASSERT_EQ(events.at(2).task_rename().pid(), kPidC);
 }
 
 }  // namespace perfetto::trace_redaction

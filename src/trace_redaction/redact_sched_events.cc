@@ -109,7 +109,7 @@ std::string_view InternTable::Find(size_t index) const {
 base::Status RedactSchedEvents::Transform(const Context& context,
                                           std::string* packet) const {
   PERFETTO_DCHECK(modifier_);
-  PERFETTO_DCHECK(filter_);
+  PERFETTO_DCHECK(waking_filter_);
 
   if (!context.timeline) {
     return base::ErrStatus("RedactSchedEvents: missing timeline.");
@@ -318,7 +318,7 @@ base::Status RedactSchedEvents::OnFtraceEventWaking(
 
   auto pid = sched_waking.pid();
 
-  if (!filter_->Includes(context, ts, pid)) {
+  if (!waking_filter_->Includes(context, ts, pid)) {
     return base::OkStatus();
   }
 
@@ -574,7 +574,7 @@ base::Status RedactSchedEvents::OnCompactSchedWaking(
     ts_bucket += *it_timestamp;  // add time to the bucket
     ts_absolute += *it_timestamp;
 
-    if (filter_->Includes(context, ts_absolute, *it_pid)) {
+    if (waking_filter_->Includes(context, ts_absolute, *it_pid)) {
       // Now that the waking event will be kept, it can be modified using the
       // same rules as switch events.
       auto pid = *it_pid;

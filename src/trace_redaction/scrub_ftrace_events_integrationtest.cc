@@ -42,103 +42,71 @@ class ScrubFtraceEventsIntegrationTest
     context()->ftrace_packet_allow_list.insert(
         protos::pbzero::FtraceEvent::kSchedSwitchFieldNumber);
 
-    auto* redact_with_allowlist =
-        trace_redactor()->emplace_transform<RedactFtraceEvents>();
-    redact_with_allowlist->emplace_filter<FilterFtracesUsingAllowlist>();
+    auto* redact = trace_redactor()->emplace_transform<RedactFtraceEvents>();
+    redact->emplace_ftrace_filter<FilterFtracesUsingAllowlist>();
+    redact->emplace_post_filter_modifier<DoNothing>();
   }
 
   // Gets spans for `event` messages that contain `sched_switch` messages.
-  static std::vector<protozero::ConstBytes> GetEventsWithSchedSwitch(
-      protos::pbzero::TracePacket::Decoder packet) {
-    std::vector<protozero::ConstBytes> ranges;
-
+  void FindAllEvents(const protos::pbzero::TracePacket::Decoder& packet,
+                     std::vector<protozero::ConstBytes>* events) const {
     if (!packet.has_ftrace_events()) {
-      return ranges;
+      return;
     }
 
-    protos::pbzero::FtraceEventBundle::Decoder bundle(packet.ftrace_events());
+    protos::pbzero::FtraceEventBundle::Decoder ftrace_events(
+        packet.ftrace_events());
 
-    if (!bundle.has_event()) {
-      return ranges;
+    for (auto it = ftrace_events.event(); it; ++it) {
+      events->push_back(*it);
     }
-
-    for (auto event_it = bundle.event(); event_it; ++event_it) {
-      protos::pbzero::FtraceEvent::Decoder event(*event_it);
-
-      if (event.has_sched_switch()) {
-        ranges.push_back(*event_it);
-      }
-    }
-
-    return ranges;
   }
 
-  // Instead of using the allow-list created by PopulateAllowlist, use a simpler
-  // allowlist; an allowlist that contains most value types.
-  //
-  // uint64....FtraceEvent...............timestamp
-  // uint32....FtraceEvent...............pid
-  //
-  // int32.....SchedSwitchFtraceEvent....prev_pid
-  // int64.....SchedSwitchFtraceEvent....prev_state
-  // string....SchedSwitchFtraceEvent....next_comm
-  //
-  // Compare all switch events in each trace. The comparison is only on the
-  // switch packets, not on the data leading up to or around them.
-  static void ComparePackets(protos::pbzero::TracePacket::Decoder left,
-                             protos::pbzero::TracePacket::Decoder right) {
-    auto left_switches = GetEventsWithSchedSwitch(std::move(left));
-    auto right_switches = GetEventsWithSchedSwitch(std::move(right));
+  std::vector<protozero::ConstBytes> FindAllEvents(
+      const std::string& data) const {
+    protos::pbzero::Trace::Decoder decoder(data);
+    std::vector<protozero::ConstBytes> events;
 
-    ASSERT_EQ(left_switches.size(), right_switches.size());
-
-    auto left_switch_it = left_switches.begin();
-    auto right_switch_it = right_switches.begin();
-
-    while (left_switch_it != left_switches.end() &&
-           right_switch_it != right_switches.end()) {
-      auto left_switch_str = left_switch_it->ToStdString();
-      auto right_switch_str = right_switch_it->ToStdString();
-
-      ASSERT_EQ(left_switch_str, right_switch_str);
-
-      ++left_switch_it;
-      ++right_switch_it;
+    for (auto it = decoder.packet(); it; ++it) {
+      protos::pbzero::TracePacket::Decoder packet(*it);
+      FindAllEvents(packet, &events);
     }
 
-    ASSERT_EQ(left_switches.size(), right_switches.size());
+    return events;
+  }
+
+  static bool IsNotSwitchEvent(protozero::ConstBytes field) {
+    protos::pbzero::FtraceEvent::Decoder event(field);
+    return event.has_sched_switch();
   }
 };
 
 TEST_F(ScrubFtraceEventsIntegrationTest, FindsPackageAndFiltersPackageList) {
-  auto redacted = Redact();
-  ASSERT_OK(redacted) << redacted.message();
+  ASSERT_OK(Redact());
 
-  // Load source.
-  auto before_raw_trace = LoadOriginal();
-  ASSERT_OK(before_raw_trace) << before_raw_trace.status().message();
-  protos::pbzero::Trace::Decoder before_trace(before_raw_trace.value());
-  auto before_it = before_trace.packet();
+  // Load unredacted trace - make sure there are non-allow-listed events.
+  {
+    auto raw = LoadOriginal();
+    ASSERT_OK(raw);
 
-  // Load redacted.
-  auto after_raw_trace = LoadRedacted();
-  ASSERT_OK(after_raw_trace) << after_raw_trace.status().message();
-  protos::pbzero::Trace::Decoder after_trace(after_raw_trace.value());
-  auto after_it = after_trace.packet();
+    auto fields = FindAllEvents(*raw);
 
-  while (before_it && after_it) {
-    protos::pbzero::TracePacket::Decoder before_packet(*before_it);
-    protos::pbzero::TracePacket::Decoder after_packet(*after_it);
-
-    ComparePackets(std::move(before_packet), std::move(after_packet));
-
-    ++before_it;
-    ++after_it;
+    // More than switch events should be found.
+    auto it = std::find_if(fields.begin(), fields.end(), IsNotSwitchEvent);
+    ASSERT_NE(it, fields.end());
   }
 
-  // Both should be at the end.
-  ASSERT_FALSE(before_it);
-  ASSERT_FALSE(after_it);
+  // Load redacted trace - make sure there are only allow-listed events.
+  {
+    auto raw = LoadRedacted();
+    ASSERT_OK(raw);
+
+    auto field = FindAllEvents(*raw);
+
+    // Only switch events should be found.
+    auto it = std::find_if_not(field.begin(), field.end(), IsNotSwitchEvent);
+    ASSERT_EQ(it, field.end());
+  }
 }
 
 }  // namespace perfetto::trace_redaction
