@@ -438,6 +438,11 @@ export interface PluginContextTrace extends PluginContext {
 
   trace: TraceContext;
 
+  // When the trace is opened via postMessage deep-linking, returns the sub-set
+  // of postMessageData.pluginArgs[pluginId] for the current plugin. If not
+  // present returns undefined.
+  readonly openerPluginArgs?: {[key: string]: unknown};
+
   prompt(text: string, options?: PromptOption[]): Promise<string>;
 }
 

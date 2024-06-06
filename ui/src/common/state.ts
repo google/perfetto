@@ -210,6 +210,10 @@ export interface TraceArrayBufferSource {
   uuid?: string;
   // if |localOnly| is true then the trace should not be shared or downloaded.
   localOnly?: boolean;
+
+  // The set of extra args, keyed by plugin, that can be passed when opening the
+  // trace via postMessge deep-linking. See post_message_handler.ts for details.
+  pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
 }
 
 export interface TraceUrlSource {

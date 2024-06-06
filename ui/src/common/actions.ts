@@ -86,6 +86,16 @@ export interface PostedTrace {
   uuid?: string;
   localOnly?: boolean;
   keepApiOpen?: boolean;
+
+  // Allows to pass extra arguments to plugins. This can be read by plugins
+  // onTraceLoad() and can be used to trigger plugin-specific-behaviours (e.g.
+  // allow dashboards like APC to pass extra data to materialize onto tracks).
+  // The format is the following:
+  // pluginArgs: {
+  //   'dev.perfetto.PluginFoo': { 'key1': 'value1', 'key2': 1234 }
+  //   'dev.perfetto.PluginBar': { 'key3': '...', 'key4': ... }
+  // }
+  pluginArgs?: {[pluginId: string]: {[key: string]: unknown}};
 }
 
 export interface PostedScrollToRange {
