@@ -22,7 +22,8 @@ CREATE PERFETTO TABLE android_power_rails_counters (
     ts INT,
     -- Power rail name. From `counter_track.name`.
     power_rail_name INT,
-    -- Power rails counter value in micro watts.
+    -- The energy accumulated by this rail since boot in microwatt-seconds
+    -- (uWs) (AKA micro-joules).
     value DOUBLE
 )
 AS
