@@ -164,6 +164,21 @@ class ArgsTracker {
         id);
   }
 
+  BoundInserter AddArgsTo(tables::AndroidKeyEventsTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_android_key_events_table(),
+                     id);
+  }
+
+  BoundInserter AddArgsTo(tables::AndroidMotionEventsTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_android_motion_events_table(),
+                     id);
+  }
+
+  BoundInserter AddArgsTo(tables::AndroidInputEventDispatchTable::Id id) {
+    return AddArgsTo(
+        context_->storage->mutable_android_input_event_dispatch_table(), id);
+  }
+
   BoundInserter AddArgsTo(MetadataId id) {
     auto* table = context_->storage->mutable_metadata_table();
     uint32_t row = *table->id().IndexOf(id);

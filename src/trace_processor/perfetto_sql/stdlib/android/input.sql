@@ -130,3 +130,62 @@ JOIN (SELECT * FROM _input_message_sent WHERE thread_name != 'InputDispatcher') 
     AND dispatch.event_seq = finish.event_seq
 JOIN (SELECT * FROM _input_message_received WHERE event_type = '0x2') finish_ack
   ON finish_ack.event_channel = dispatch.event_channel AND dispatch.event_seq = finish_ack.event_seq;
+
+-- Key events processed by the Android framework (from android.input.inputevent data source).
+CREATE PERFETTO VIEW android_key_events(
+  -- ID of the trace entry
+  id INT,
+  -- The randomly-generated ID associated with each input event processed
+  -- by Android Framework, used to track the event through the input pipeline
+  event_id INT,
+  -- The timestamp associated with the input event
+  ts INT,
+  -- Details of the input event parsed from the proto message
+  arg_set_id INT
+) AS
+SELECT
+  id,
+  event_id,
+  ts,
+  arg_set_id
+FROM __intrinsic_android_key_events;
+
+-- Motion events processed by the Android framework (from android.input.inputevent data source).
+CREATE PERFETTO VIEW android_motion_events(
+  -- ID of the trace entry
+  id INT,
+  -- The randomly-generated ID associated with each input event processed
+  -- by Android Framework, used to track the event through the input pipeline
+  event_id INT,
+  -- The timestamp associated with the input event
+  ts INT,
+  -- Details of the input event parsed from the proto message
+  arg_set_id INT
+) AS
+SELECT
+  id,
+  event_id,
+  ts,
+  arg_set_id
+FROM __intrinsic_android_motion_events;
+
+-- Input event dispatching information in Android (from android.input.inputevent data source).
+CREATE PERFETTO VIEW android_input_event_dispatch(
+  -- ID of the trace entry
+  id INT,
+  -- Event ID of the input event that was dispatched
+  event_id INT,
+  -- Extra args parsed from the proto message
+  arg_set_id INT,
+  -- Vsync ID that identifies the state of the windows during which the dispatch decision was made
+  vsync_id INT,
+  -- Window ID of the window receiving the event
+  window_id INT
+) AS
+SELECT
+  id,
+  event_id,
+  arg_set_id,
+  vsync_id,
+  window_id
+FROM __intrinsic_android_input_event_dispatch;
