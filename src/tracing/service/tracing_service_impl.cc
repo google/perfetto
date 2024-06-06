@@ -496,8 +496,6 @@ void TracingServiceImpl::DisconnectConsumer(ConsumerEndpointImpl* consumer) {
   PERFETTO_DLOG("Consumer %p disconnected", reinterpret_cast<void*>(consumer));
   PERFETTO_DCHECK(consumers_.count(consumer));
 
-  // TODO(primiano) : Check that this is safe (what happens if there are
-  // ReadBuffers() calls posted in the meantime? They need to become noop).
   if (consumer->tracing_session_id_)
     FreeBuffers(consumer->tracing_session_id_);  // Will also DisableTracing().
   consumers_.erase(consumer);
@@ -2644,9 +2642,22 @@ void TracingServiceImpl::FreeBuffers(TracingSessionID tsid) {
   bool is_long_trace =
       (tracing_session->config.write_into_file() &&
        tracing_session->config.file_write_period_ms() < kMillisPerDay);
+  auto pending_clones = std::move(tracing_session->pending_clones);
   tracing_sessions_.erase(tsid);
   tracing_session = nullptr;
   UpdateMemoryGuardrail();
+
+  for (const auto& id_to_clone_op : pending_clones) {
+    const PendingClone& clone_op = id_to_clone_op.second;
+    if (clone_op.weak_consumer) {
+      task_runner_->PostTask([weak_consumer = clone_op.weak_consumer] {
+        if (weak_consumer) {
+          weak_consumer->consumer_->OnSessionCloned(
+              {false, "Original session ended", {}});
+        }
+      });
+    }
+  }
 
   PERFETTO_LOG("Tracing session %" PRIu64 " ended, total sessions:%zu", tsid,
                tracing_sessions_.size());
@@ -3217,9 +3228,9 @@ void TracingServiceImpl::UpdateMemoryGuardrail() {
   // Sum up all the cloned traced buffers.
   for (const auto& id_to_ts : tracing_sessions_) {
     const TracingSession& ts = id_to_ts.second;
-    for (const auto& id_to_pending_clone : ts.pending_clones) {
-      const PendingClone& pending_clone = id_to_pending_clone.second;
-      for (const std::unique_ptr<TraceBuffer>& buf : pending_clone.buffers) {
+    for (const auto& id_to_clone_op : ts.pending_clones) {
+      const PendingClone& clone_op = id_to_clone_op.second;
+      for (const std::unique_ptr<TraceBuffer>& buf : clone_op.buffers) {
         if (buf) {
           total_buffer_bytes += buf->size();
         }
@@ -3709,10 +3720,11 @@ size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
   return trigger_count;
 }
 
-void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
-                                              TracingSessionID tsid,
-                                              bool skip_trace_filter,
-                                              bool for_bugreport) {
+base::Status TracingServiceImpl::FlushAndCloneSession(
+    ConsumerEndpointImpl* consumer,
+    TracingSessionID tsid,
+    bool skip_trace_filter,
+    bool for_bugreport) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto clone_target = FlushFlags::CloneTarget::kUnknown;
 
@@ -3725,9 +3737,8 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
     PERFETTO_LOG("Looking for sessions for bugreport");
     TracingSession* session = FindTracingSessionWithMaxBugreportScore();
     if (!session) {
-      consumer->consumer_->OnSessionCloned(
-          {false, "No tracing sessions eligible for bugreport found", {}});
-      return;
+      return base::ErrStatus(
+          "No tracing sessions eligible for bugreport found");
     }
     tsid = session->id;
     clone_target = FlushFlags::CloneTarget::kBugreport;
@@ -3739,9 +3750,14 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
 
   TracingSession* session = GetTracingSession(tsid);
   if (!session) {
-    consumer->consumer_->OnSessionCloned(
-        {false, "Tracing session not found", {}});
-    return;
+    return base::ErrStatus("Tracing session not found");
+  }
+
+  // Skip the UID check for sessions marked with a bugreport_score > 0.
+  // Those sessions, by design, can be stolen by any other consumer for the
+  // sake of creating snapshots for bugreports.
+  if (!session->IsCloneAllowed(consumer->uid_)) {
+    return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
   }
 
   // If any of the buffers are marked as clear_before_clone, reset them before
@@ -3773,9 +3789,8 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
       // We cannot leave the original tracing session buffer-less as it would
       // cause crashes when data sources commit new data.
       buf = std::move(old_buf);
-      consumer->consumer_->OnSessionCloned(
-          {false, "Buffer allocation failed while attempting to clone", {}});
-      return;
+      return base::ErrStatus(
+          "Buffer allocation failed while attempting to clone");
     }
   }
 
@@ -3821,6 +3836,8 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
         FlushFlags(FlushFlags::Initiator::kTraced,
                    FlushFlags::Reason::kTraceClone, clone_target));
   }
+
+  return base::OkStatus();
 }
 
 std::map<ProducerID, std::vector<DataSourceInstanceID>>
@@ -3956,13 +3973,6 @@ base::Status TracingServiceImpl::FinishCloneSession(
   if (consumer->tracing_session_id_) {
     return PERFETTO_SVC_ERR(
         "The consumer is already attached to another tracing session");
-  }
-
-  // Skip the UID check for sessions marked with a bugreport_score > 0.
-  // Those sessions, by design, can be stolen by any other consumer for the
-  // sake of creating snapshots for bugreports.
-  if (!src->IsCloneAllowed(consumer->uid_)) {
-    return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
   }
 
   std::vector<BufferID> buf_ids =
@@ -4405,8 +4415,12 @@ void TracingServiceImpl::ConsumerEndpointImpl::CloneSession(
     CloneSessionArgs args) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // FlushAndCloneSession will call OnSessionCloned after the async flush.
-  service_->FlushAndCloneSession(this, tsid, args.skip_trace_filter,
-                                 args.for_bugreport);
+  base::Status result = service_->FlushAndCloneSession(
+      this, tsid, args.skip_trace_filter, args.for_bugreport);
+
+  if (!result.ok()) {
+    consumer_->OnSessionCloned({false, result.message(), {}});
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

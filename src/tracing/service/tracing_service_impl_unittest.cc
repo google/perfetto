@@ -5221,7 +5221,7 @@ TEST_F(TracingServiceImplTest, CloneMainSessionStopped) {
 }
 
 TEST_F(TracingServiceImplTest, CloneConsumerDisconnect) {
-  // The consumer the creates the initial tracing session.
+  // The consumer that creates the initial tracing session.
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
 
@@ -5274,6 +5274,71 @@ TEST_F(TracingServiceImplTest, CloneConsumerDisconnect) {
   consumer->DisableTracing();
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
+}
+
+TEST_F(TracingServiceImplTest, CloneMainSessionGoesAwayDuringFlush) {
+  // The consumer that creates the initial tracing session.
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer1");
+  producer1->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);  // Buf 0.
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  consumer->EnableTracing(trace_config);
+  producer1->WaitForTracingSetup();
+  producer1->WaitForDataSourceSetup("ds_1");
+  producer1->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer1 = producer1->CreateTraceWriter("ds_1");
+
+  {
+    auto tp = writer1->NewTracePacket();
+    tp->set_for_testing()->set_str("buf1_beforeflush");
+  }
+  writer1->Flush();
+
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+
+  EXPECT_CALL(*clone_consumer, OnSessionCloned)
+      .Times(1)
+      .WillOnce(Invoke([](const Consumer::OnSessionClonedArgs& args) {
+        EXPECT_FALSE(args.success);
+        EXPECT_THAT(args.error, HasSubstr("Original session ended"));
+      }));
+  clone_consumer->CloneSession(1);
+
+  std::string producer1_flush_checkpoint_name = "producer1_flush_requested";
+  auto flush1_requested =
+      task_runner.CreateCheckpoint(producer1_flush_checkpoint_name);
+  FlushRequestID flush1_req_id;
+
+  // CloneSession() will issue a flush.
+  EXPECT_CALL(*producer1, Flush(_, _, _, _))
+      .WillOnce([&](FlushRequestID flush_id, const DataSourceInstanceID*,
+                    size_t, FlushFlags) {
+        flush1_req_id = flush_id;
+        flush1_requested();
+      });
+
+  task_runner.RunUntilCheckpoint(producer1_flush_checkpoint_name);
+
+  // The main session goes away.
+  consumer->DisableTracing();
+  producer1->WaitForDataSourceStop("ds_1");
+  consumer->WaitForTracingDisabled();
+  consumer.reset();
+
+  // producer1 replies to flush much later.
+  producer1->endpoint()->NotifyFlushComplete(flush1_req_id);
+  task_runner.RunUntilIdle();
 }
 
 TEST_F(TracingServiceImplTest, CloneTransferFlush) {
