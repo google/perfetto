@@ -17,117 +17,130 @@
 #ifndef SRC_TRACE_PROCESSOR_CONTAINERS_INTERVAL_TREE_H_
 #define SRC_TRACE_PROCESSOR_CONTAINERS_INTERVAL_TREE_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <memory>
+#include <optional>
+#include <set>
 #include <vector>
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/small_vector.h"
 
 namespace perfetto::trace_processor {
 
-// An implementation of an interval tree data structure, designed to efficiently
-// perform overlap queries on a set of intervals. Used by `interval_intersect`,
-// where one set of intervals (generally the bigger one) has interval tree
-// created based on it, as another queries `FindOverlaps` function for each
-// interval.
-// As interval tree is build on sorted (by `start`) set of N intervals, the
-// complexity of creating a tree goes down from O(N*logN) to O(N) and the
-// created tree is optimally balanced. Each call to `FindOverlaps` is O(logN).
+using Ts = uint64_t;
+using Id = uint32_t;
+
+// An implementation of a centered interval tree data structure, designed to
+// efficiently find all overlap queries on a set of intervals. Centered interval
+// tree has a build complexity of O(N*logN) and a query time of O(logN + k),
+// where k is the number of overlaps in the dataset.
 class IntervalTree {
  public:
+  // Maps to one trace processor slice.
   struct Interval {
-    uint32_t start;
-    uint32_t end;
-    uint32_t id;
+    Ts start;
+    Ts end;
+    Id id;
   };
 
-  // Takes vector of sorted intervals.
-  explicit IntervalTree(std::vector<Interval>& sorted_intervals) {
-    tree_root_ = BuildFromSortedIntervals(
-        sorted_intervals, 0, static_cast<int32_t>(sorted_intervals.size() - 1));
+  // Creates an interval tree from the vector of intervals.
+  explicit IntervalTree(const std::vector<Interval>& sorted_intervals) {
+    nodes_.reserve(sorted_intervals.size());
+    Node root_node(sorted_intervals.data(), sorted_intervals.size(), nodes_);
+    nodes_.emplace_back(std::move(root_node));
+    root_ = nodes_.size() - 1;
   }
 
-  // Modifies |overlaps| to contain ids of all intervals in the interval tree
-  // that overlap with |interval|.
-  void FindOverlaps(Interval interval, std::vector<uint32_t>& overlaps) const {
-    if (tree_root_) {
-      FindOverlaps(*tree_root_, interval, overlaps);
+  // Modifies |res| to contain Interval::Id of all intervals that overlap
+  // interval (s, e). Has a complexity of O(log(size of tree) + (number of
+  // overlaps)).
+  void FindOverlaps(uint64_t s, uint64_t e, std::vector<Id>& res) const {
+    std::vector<const Node*> stack{nodes_.data() + root_};
+    while (!stack.empty()) {
+      const Node* n = stack.back();
+      stack.pop_back();
+
+      for (const Interval& i : n->intervals_) {
+        // As we know that each interval overlaps the center, if the interval
+        // starts after the |end| we know [start,end] can't intersect the
+        // center.
+        if (i.start > e) {
+          break;
+        }
+
+        if (e > i.start && s < i.end) {
+          res.push_back(i.id);
+        }
+      }
+
+      if (e > n->center_ &&
+          n->right_node_ != std::numeric_limits<size_t>::max()) {
+        stack.push_back(&nodes_[n->right_node_]);
+      }
+      if (s < n->center_ &&
+          n->left_node_ != std::numeric_limits<size_t>::max()) {
+        stack.push_back(&nodes_[n->left_node_]);
+      }
     }
   }
 
  private:
   struct Node {
-    Interval interval;
-    uint32_t max;
-    std::unique_ptr<Node> left;
-    std::unique_ptr<Node> right;
+    base::SmallVector<Interval, 2> intervals_;
+    uint64_t center_ = 0;
+    size_t left_node_ = std::numeric_limits<size_t>::max();
+    size_t right_node_ = std::numeric_limits<size_t>::max();
 
-    explicit Node(Interval i) : interval(i), max(i.end) {}
+    explicit Node(const Interval* intervals,
+                  size_t intervals_size,
+                  std::vector<Node>& nodes) {
+      const Interval& mid_interval = intervals[intervals_size / 2];
+      center_ = (mid_interval.start + mid_interval.end) / 2;
+
+      // Find intervals that overlap the center_ and intervals that belong to
+      // the left node (finish before the center_). If an interval starts after
+      // the center break and assign all remining intervals to the right node.
+      // We can do this as the provided intervals are in sorted order.
+      std::vector<Interval> left;
+      for (uint32_t i = 0; i < intervals_size; i++) {
+        const Interval& inter = intervals[i];
+        // Starts after the center. As intervals are sorted on timestamp we
+        // know the rest of intervals will go to the right node.
+        if (inter.start > center_) {
+          Node n(intervals + i, intervals_size - i, nodes);
+          nodes.emplace_back(std::move(n));
+          right_node_ = nodes.size() - 1;
+          break;
+        }
+
+        // Finishes before the center.
+        if (inter.end < center_) {
+          left.push_back(intervals[i]);
+        } else {
+          // Overlaps the center.
+          intervals_.emplace_back(intervals[i]);
+        }
+      }
+
+      if (!left.empty()) {
+        Node n(left.data(), left.size(), nodes);
+        nodes.emplace_back(std::move(n));
+        left_node_ = nodes.size() - 1;
+      }
+    }
+
+    Node(const Node&) = delete;
+    Node& operator=(const Node&) = delete;
+
+    Node(Node&&) = default;
+    Node& operator=(Node&&) = default;
   };
 
-  static std::unique_ptr<Node> Insert(std::unique_ptr<Node> root, Interval i) {
-    if (root == nullptr) {
-      return std::make_unique<Node>(i);
-    }
-
-    if (i.start < root->interval.start) {
-      root->left = Insert(std::move(root->left), i);
-    } else {
-      root->right = Insert(std::move(root->right), i);
-    }
-
-    if (root->max < i.end) {
-      root->max = i.end;
-    }
-
-    return root;
-  }
-
-  static std::unique_ptr<Node> BuildFromSortedIntervals(
-      const std::vector<Interval>& is,
-      int32_t start,
-      int32_t end) {
-    // |start == end| happens if there is one element so we need to check for
-    // |start > end| that happens in the next recursive call.
-    if (start > end) {
-      return nullptr;
-    }
-
-    int32_t mid = start + (end - start) / 2;
-    auto node = std::make_unique<Node>(is[static_cast<uint32_t>(mid)]);
-
-    node->left = BuildFromSortedIntervals(is, start, mid - 1);
-    node->right = BuildFromSortedIntervals(is, mid + 1, end);
-
-    uint32_t max_from_children = std::max(
-        node->left ? node->left->max : std::numeric_limits<uint32_t>::min(),
-        node->right ? node->right->max : std::numeric_limits<uint32_t>::min());
-
-    node->max = std::max(node->interval.end, max_from_children);
-
-    return node;
-  }
-
-  static void FindOverlaps(const Node& node,
-                           const Interval& i,
-                           std::vector<uint32_t>& overlaps) {
-    // Intervals overlap if one starts before the other ends and ends after it
-    // starts.
-    if (node.interval.start < i.end && node.interval.end > i.start) {
-      overlaps.push_back(node.interval.id);
-    }
-
-    // Try to find overlaps with left.
-    if (i.start <= node.interval.start && node.left) {
-      FindOverlaps(*node.left, i, overlaps);
-    }
-
-    // Try to find overlaps with right.
-    if (i.start < node.max && node.right) {
-      FindOverlaps(*node.right, i, overlaps);
-    }
-  }
-
-  std::unique_ptr<Node> tree_root_;
+  size_t root_;
+  std::vector<Node> nodes_;
 };
 
 }  // namespace perfetto::trace_processor
