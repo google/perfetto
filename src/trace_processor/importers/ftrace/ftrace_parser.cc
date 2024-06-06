@@ -1218,6 +1218,32 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
                                                      fld_bytes);
         break;
       }
+      case FtraceEvent::kMaliMaliPMMCUHCTLCORESDOWNSCALENOTIFYPENDFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUHCTLCORESNOTIFYPENDFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUHCTLCOREINACTIVEPENDFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUHCTLMCUONRECHECKFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUHCTLSHADERSCOREOFFPENDFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUHCTLSHADERSPENDOFFFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUHCTLSHADERSPENDONFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUHCTLSHADERSREADYOFFFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUINSLEEPFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUOFFFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUONFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUONCOREATTRUPDATEPENDFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUONGLBREINITPENDFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUONHALTFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUONHWCNTDISABLEFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUONHWCNTENABLEFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUONPENDHALTFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUONPENDSLEEPFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUONSLEEPINITIATEFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUPENDOFFFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUPENDONRELOADFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCUPOWERDOWNFieldNumber:
+      case FtraceEvent::kMaliMaliPMMCURESETWAITFieldNumber: {
+        mali_gpu_event_tracker_.ParseMaliGpuMcuStateEvent(ts, fld.id());
+        break;
+      }
       case FtraceEvent::kTracingMarkWriteFieldNumber: {
         ParseMdssTracingMarkWrite(ts, pid, fld_bytes);
         break;

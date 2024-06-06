@@ -9247,6 +9247,121 @@ message MaliMaliCSFINTERRUPTENDFtraceEvent {
   optional uint32 kctx_id = 2;
   optional uint64 info_val = 3;
 }
+message MaliMaliPMMCUHCTLCORESDOWNSCALENOTIFYPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLCORESNOTIFYPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLCOREINACTIVEPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLMCUONRECHECKFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLSHADERSCOREOFFPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLSHADERSPENDOFFFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLSHADERSPENDONFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUHCTLSHADERSREADYOFFFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUINSLEEPFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUOFFFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONCOREATTRUPDATEPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONGLBREINITPENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONHALTFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONHWCNTDISABLEFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONHWCNTENABLEFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONPENDHALTFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONPENDSLEEPFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUONSLEEPINITIATEFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUPENDOFFFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUPENDONRELOADFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCUPOWERDOWNFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliPMMCURESETWAITFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
 
 // End of protos/perfetto/trace/ftrace/mali.proto
 
@@ -10886,6 +11001,42 @@ message FtraceEvent {
         507;
     DcvshFreqFtraceEvent dcvsh_freq = 508;
     KgslGpuFrequencyFtraceEvent kgsl_gpu_frequency = 509;
+    MaliMaliPMMCUHCTLCORESDOWNSCALENOTIFYPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_CORES_DOWN_SCALE_NOTIFY_PEND = 510;
+    MaliMaliPMMCUHCTLCORESNOTIFYPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_CORES_NOTIFY_PEND = 511;
+    MaliMaliPMMCUHCTLCOREINACTIVEPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_CORE_INACTIVE_PEND = 512;
+    MaliMaliPMMCUHCTLMCUONRECHECKFtraceEvent
+        mali_mali_PM_MCU_HCTL_MCU_ON_RECHECK = 513;
+    MaliMaliPMMCUHCTLSHADERSCOREOFFPENDFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_CORE_OFF_PEND = 514;
+    MaliMaliPMMCUHCTLSHADERSPENDOFFFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_PEND_OFF = 515;
+    MaliMaliPMMCUHCTLSHADERSPENDONFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_PEND_ON = 516;
+    MaliMaliPMMCUHCTLSHADERSREADYOFFFtraceEvent
+        mali_mali_PM_MCU_HCTL_SHADERS_READY_OFF = 517;
+    MaliMaliPMMCUINSLEEPFtraceEvent mali_mali_PM_MCU_IN_SLEEP = 518;
+    MaliMaliPMMCUOFFFtraceEvent mali_mali_PM_MCU_OFF = 519;
+    MaliMaliPMMCUONFtraceEvent mali_mali_PM_MCU_ON = 520;
+    MaliMaliPMMCUONCOREATTRUPDATEPENDFtraceEvent
+        mali_mali_PM_MCU_ON_CORE_ATTR_UPDATE_PEND = 521;
+    MaliMaliPMMCUONGLBREINITPENDFtraceEvent
+        mali_mali_PM_MCU_ON_GLB_REINIT_PEND = 522;
+    MaliMaliPMMCUONHALTFtraceEvent mali_mali_PM_MCU_ON_HALT = 523;
+    MaliMaliPMMCUONHWCNTDISABLEFtraceEvent mali_mali_PM_MCU_ON_HWCNT_DISABLE =
+        524;
+    MaliMaliPMMCUONHWCNTENABLEFtraceEvent mali_mali_PM_MCU_ON_HWCNT_ENABLE =
+        525;
+    MaliMaliPMMCUONPENDHALTFtraceEvent mali_mali_PM_MCU_ON_PEND_HALT = 526;
+    MaliMaliPMMCUONPENDSLEEPFtraceEvent mali_mali_PM_MCU_ON_PEND_SLEEP = 527;
+    MaliMaliPMMCUONSLEEPINITIATEFtraceEvent mali_mali_PM_MCU_ON_SLEEP_INITIATE =
+        528;
+    MaliMaliPMMCUPENDOFFFtraceEvent mali_mali_PM_MCU_PEND_OFF = 529;
+    MaliMaliPMMCUPENDONRELOADFtraceEvent mali_mali_PM_MCU_PEND_ON_RELOAD = 530;
+    MaliMaliPMMCUPOWERDOWNFtraceEvent mali_mali_PM_MCU_POWER_DOWN = 531;
+    MaliMaliPMMCURESETWAITFtraceEvent mali_mali_PM_MCU_RESET_WAIT = 532;
   }
 }
 
