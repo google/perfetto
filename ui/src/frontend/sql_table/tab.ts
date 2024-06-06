@@ -29,9 +29,8 @@ import {Engine} from '../../public';
 import {globals} from '../globals';
 import {assertExists} from '../../base/logging';
 import {uuidv4} from '../../base/uuid';
-import {BottomTabToTabAdapter} from '../../public/utils';
-import {Actions} from '../../common/actions';
 import {BottomTab, NewBottomTabArgs} from '../bottom_tab';
+import {addEphemeralTab} from '../../common/addEphemeralTab';
 
 interface SqlTableTabConfig {
   table: SqlTableDescription;
@@ -46,15 +45,7 @@ export function addSqlTableTab(config: SqlTableTabConfig): void {
     uuid: uuidv4(),
   });
 
-  const uri = 'sqlTable#' + uuidv4();
-
-  globals.tabManager.registerTab({
-    uri,
-    content: new BottomTabToTabAdapter(queryResultsTab),
-    isEphemeral: true,
-  });
-
-  globals.dispatch(Actions.showTab({uri}));
+  addEphemeralTab(queryResultsTab, 'sqlTable');
 }
 
 // TODO(stevegolton): Find a way to make this more elegant.
