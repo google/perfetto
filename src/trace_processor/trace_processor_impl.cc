@@ -85,6 +85,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/interval_intersect_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/slice_mipmap_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h"
@@ -766,6 +767,10 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->sqlite_engine()->RegisterVirtualTableModule<SliceMipmapOperator>(
       "__intrinsic_slice_mipmap",
       std::make_unique<SliceMipmapOperator::Context>(engine_.get()));
+  engine_->sqlite_engine()
+      ->RegisterVirtualTableModule<IntervalIntersectOperator>(
+          "__intrinsic_ii_with_interval_tree",
+          std::make_unique<IntervalIntersectOperator::Context>(engine_.get()));
 
   // Initalize the tables and views in the prelude.
   InitializePreludeTablesViews(db);
