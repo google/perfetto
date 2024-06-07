@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <array>
 #include <cstdint>
 
 #include "src/trace_redaction/process_thread_timeline.h"
