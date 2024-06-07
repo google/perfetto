@@ -80,8 +80,6 @@ export interface VisibleState extends Timestamped {
   resolution: duration;
 }
 
-export type AreaById = Area & {id: string};
-
 export interface Area {
   start: time;
   end: time;
@@ -153,7 +151,8 @@ export const MAX_TIME = 180;
 // 55. Rename TrackGroupState.id -> TrackGroupState.key.
 // 56. Renamed chrome slice to thread slice everywhere.
 // 57. Remove flamegraph related code from state.
-export const STATE_VERSION = 57;
+// 58. Remove area map.
+export const STATE_VERSION = 58;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -279,10 +278,11 @@ export interface Note {
   text: string;
 }
 
-export interface AreaNote {
-  noteType: 'AREA';
+export interface SpanNote {
+  noteType: 'SPAN';
   id: string;
-  areaId: string;
+  start: time;
+  end: time;
   color: string;
   text: string;
 }
@@ -337,7 +337,8 @@ export interface PivotTableResult {
 
 // Input parameters to check whether the pivot table needs to be re-queried.
 export interface PivotTableAreaState {
-  areaId: string;
+  start: time;
+  end: time;
   tracks: string[];
 }
 
@@ -425,14 +426,13 @@ export interface State {
   trackGroups: ObjectByKey<TrackGroupState>;
   tracks: ObjectByKey<TrackState>;
   utidToThreadSortKey: UtidToTrackSortKey;
-  areas: ObjectById<AreaById>;
   aggregatePreferences: ObjectById<AggregationState>;
   scrollingTracks: string[];
   pinnedTracks: string[];
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;
-  notes: ObjectById<Note | AreaNote>;
+  notes: ObjectById<Note | SpanNote>;
   status: Status;
   selection: Selection;
   traceConversionInProgress: boolean;

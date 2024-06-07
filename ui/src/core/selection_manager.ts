@@ -29,14 +29,9 @@ export enum ProfileType {
 // LEGACY Selection types:
 export interface AreaSelection {
   kind: 'AREA';
-  areaId: string;
-  // When an area is marked it will be assigned a unique note id and saved as
-  // an AreaNote for the user to return to later. id = 0 is the special id that
-  // is overwritten when a new area is marked. Any other id is a persistent
-  // marking that will not be overwritten.
-  // When not set, the area selection will be replaced with any
-  // new area selection (i.e. not saved anywhere).
-  noteId?: string;
+  start: time;
+  end: time;
+  tracks: string[];
 }
 
 export interface NoteSelection {

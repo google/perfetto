@@ -19,7 +19,7 @@ import {Icons} from '../base/semantic_icons';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {randomColor} from '../core/colorizer';
-import {AreaNote, Note, getLegacySelection} from '../common/state';
+import {SpanNote, Note, getLegacySelection} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Button, ButtonBar} from '../widgets/button';
 
@@ -36,6 +36,8 @@ import {PanelSize} from './panel';
 import {Panel} from './panel_container';
 import {isTraceLoaded} from './sidebar';
 import {Timestamp} from './widgets/timestamp';
+import {uuidv4} from '../base/uuid';
+import {assertUnreachable} from '../base/logging';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -46,11 +48,15 @@ function toSummary(s: string) {
   return s.slice(0, Math.min(newlineIndex, s.length, 16));
 }
 
-function getStartTimestamp(note: Note | AreaNote) {
-  if (note.noteType === 'AREA') {
-    return globals.state.areas[note.areaId].start;
-  } else {
-    return note.timestamp;
+function getStartTimestamp(note: Note | SpanNote) {
+  const noteType = note.noteType;
+  switch (noteType) {
+    case 'SPAN':
+      return note.start;
+    case 'DEFAULT':
+      return note.timestamp;
+    default:
+      assertUnreachable(noteType);
   }
 }
 
@@ -154,32 +160,29 @@ export class NotesPanel implements Panel {
       // TODO(hjd): We should still render area selection marks in viewport is
       // *within* the area (e.g. both lhs and rhs are out of bounds).
       if (
-        (note.noteType !== 'AREA' && !span.contains(timestamp)) ||
-        (note.noteType === 'AREA' &&
-          !span.contains(globals.state.areas[note.areaId].end) &&
-          !span.contains(globals.state.areas[note.areaId].start))
+        (note.noteType === 'DEFAULT' && !span.contains(note.timestamp)) ||
+        (note.noteType === 'SPAN' && !span.intersects(note.start, note.end))
       ) {
         continue;
       }
       const currentIsHovered =
-        this.hoveredX !== null && this.mouseOverNote(this.hoveredX, note);
+        this.hoveredX !== null && this.hitTestNote(this.hoveredX, note);
       if (currentIsHovered) aNoteIsHovered = true;
 
       const selection = getLegacySelection(globals.state);
       const isSelected =
         selection !== null &&
-        ((selection.kind === 'NOTE' && selection.id === note.id) ||
-          (selection.kind === 'AREA' && selection.noteId === note.id));
+        selection.kind === 'NOTE' &&
+        selection.id === note.id;
       const x = visibleTimeScale.timeToPx(timestamp);
       const left = Math.floor(x + TRACK_SHELL_WIDTH);
 
       // Draw flag or marker.
-      if (note.noteType === 'AREA') {
-        const area = globals.state.areas[note.areaId];
+      if (note.noteType === 'SPAN') {
         this.drawAreaMarker(
           ctx,
           left,
-          Math.floor(visibleTimeScale.timeToPx(area.end) + TRACK_SHELL_WIDTH),
+          Math.floor(visibleTimeScale.timeToPx(note.end) + TRACK_SHELL_WIDTH),
           note.color,
           isSelected,
         );
@@ -288,34 +291,32 @@ export class NotesPanel implements Panel {
   }
 
   private onClick(x: number, _: number) {
+    // Select the hovered note, or create a new single note & select it
     if (x < 0) return;
-    const {visibleTimeScale} = globals.timeline;
-    const timestamp = visibleTimeScale.pxToHpTime(x).toTime();
     for (const note of Object.values(globals.state.notes)) {
-      if (this.hoveredX !== null && this.mouseOverNote(this.hoveredX, note)) {
-        if (note.noteType === 'AREA') {
-          globals.makeSelection(
-            Actions.reSelectArea({areaId: note.areaId, noteId: note.id}),
-          );
-        } else {
-          globals.makeSelection(Actions.selectNote({id: note.id}));
-        }
+      if (this.hoveredX !== null && this.hitTestNote(this.hoveredX, note)) {
+        globals.makeSelection(Actions.selectNote({id: note.id}));
         return;
       }
     }
+    const {visibleTimeScale} = globals.timeline;
+    const timestamp = visibleTimeScale.pxToHpTime(x).toTime();
+    const id = uuidv4();
     const color = randomColor();
-    globals.makeSelection(Actions.addNote({timestamp, color}));
+    globals.dispatchMultiple([
+      Actions.addNote({id, timestamp, color}),
+      Actions.selectNote({id}),
+    ]);
   }
 
-  private mouseOverNote(x: number, note: AreaNote | Note): boolean {
+  private hitTestNote(x: number, note: SpanNote | Note): boolean {
     const timeScale = globals.timeline.visibleTimeScale;
     const noteX = timeScale.timeToPx(getStartTimestamp(note));
-    if (note.noteType === 'AREA') {
-      const noteArea = globals.state.areas[note.areaId];
+    if (note.noteType === 'SPAN') {
       return (
         (noteX <= x && x < noteX + AREA_TRIANGLE_WIDTH) ||
-        (timeScale.timeToPx(noteArea.end) > x &&
-          x > timeScale.timeToPx(noteArea.end) - AREA_TRIANGLE_WIDTH)
+        (timeScale.timeToPx(note.end) > x &&
+          x > timeScale.timeToPx(note.end) - AREA_TRIANGLE_WIDTH)
       );
     } else {
       const width = FLAG_WIDTH;

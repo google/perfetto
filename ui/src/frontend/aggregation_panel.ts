@@ -159,8 +159,7 @@ export class AggregationPanel
   showTimeRange() {
     const selection = getLegacySelection(globals.state);
     if (selection === null || selection.kind !== 'AREA') return undefined;
-    const selectedArea = globals.state.areas[selection.areaId];
-    const duration = selectedArea.end - selectedArea.start;
+    const duration = selection.end - selection.start;
     return m(
       '.time-range',
       'Selected range: ',

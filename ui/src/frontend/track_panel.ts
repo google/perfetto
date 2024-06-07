@@ -61,15 +61,14 @@ function getTitleSize(title: string): string | undefined {
   return undefined;
 }
 
-function isPinned(id: string) {
-  return globals.state.pinnedTracks.indexOf(id) !== -1;
+function isTrackPinned(trackKey: string) {
+  return globals.state.pinnedTracks.indexOf(trackKey) !== -1;
 }
 
-function isSelected(id: string) {
+function isTrackSelected(trackKey: string) {
   const selection = getLegacySelection(globals.state);
   if (selection === null || selection.kind !== 'AREA') return false;
-  const selectedArea = globals.state.areas[selection.areaId];
-  return selectedArea.tracks.includes(id);
+  return selection.tracks.includes(trackKey);
 }
 
 interface TrackChipAttrs {
@@ -149,7 +148,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     }
 
     const currentSelection = getLegacySelection(globals.state);
-    const pinned = isPinned(attrs.trackKey);
+    const pinned = isTrackPinned(attrs.trackKey);
 
     return m(
       `.track-shell[draggable=true]`,
@@ -206,10 +205,10 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
                   e.stopPropagation();
                 },
                 compact: true,
-                icon: isSelected(attrs.trackKey)
+                icon: isTrackSelected(attrs.trackKey)
                   ? Icons.Checkbox
                   : Icons.BlankCheckbox,
-                title: isSelected(attrs.trackKey)
+                title: isTrackSelected(attrs.trackKey)
                   ? 'Remove track'
                   : 'Add track to selection',
               })
@@ -467,12 +466,11 @@ export class TrackPanel implements Panel {
     if (!selection || selection.kind !== 'AREA') {
       return;
     }
-    const selectedArea = globals.state.areas[selection.areaId];
-    const selectedAreaDuration = selectedArea.end - selectedArea.start;
-    if (selectedArea.tracks.includes(this.attrs.trackKey)) {
+    const selectedAreaDuration = selection.end - selection.start;
+    if (selection.tracks.includes(this.attrs.trackKey)) {
       ctx.fillStyle = SELECTION_FILL_COLOR;
       ctx.fillRect(
-        visibleTimeScale.timeToPx(selectedArea.start) + TRACK_SHELL_WIDTH,
+        visibleTimeScale.timeToPx(selection.start) + TRACK_SHELL_WIDTH,
         0,
         visibleTimeScale.durationToPx(selectedAreaDuration),
         size.height,
@@ -589,13 +587,13 @@ export function renderNoteVerticals(
   // All marked areas should have semi-transparent vertical lines
   // marking the start and end.
   for (const note of Object.values(globals.state.notes)) {
-    if (note.noteType === 'AREA') {
+    if (note.noteType === 'SPAN') {
       const transparentNoteColor =
         'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
       drawVerticalLineAtTime(
         ctx,
         visibleTimeScale,
-        globals.state.areas[note.areaId].start,
+        note.start,
         size.height,
         transparentNoteColor,
         1,
@@ -603,7 +601,7 @@ export function renderNoteVerticals(
       drawVerticalLineAtTime(
         ctx,
         visibleTimeScale,
-        globals.state.areas[note.areaId].end,
+        note.end,
         size.height,
         transparentNoteColor,
         1,

@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
+import {arrayEquals} from '../base/array_utils';
 import {Actions} from '../common/actions';
 import {
+  Area,
   AreaSelection,
+  PivotTableAreaState,
   PivotTableQuery,
   PivotTableQueryMetadata,
   PivotTableResult,
@@ -187,7 +190,7 @@ function createEmptyQueryResult(
 export class PivotTableController extends Controller<{}> {
   static detailsCount = 0;
   engine: Engine;
-  lastQueryAreaId = '';
+  lastQueryArea?: PivotTableAreaState;
   lastQueryAreaTracks = new Set<string>();
 
   constructor(args: {engine: Engine}) {
@@ -215,12 +218,12 @@ export class PivotTableController extends Controller<{}> {
       return false;
     }
 
-    const newTracks = new Set(globals.state.areas[selection.areaId].tracks);
+    const newTracks = new Set(selection.tracks);
     if (
-      this.lastQueryAreaId !== state.selectionArea.areaId ||
+      this.lastQueryArea !== state.selectionArea ||
       !this.sameTracks(newTracks)
     ) {
-      this.lastQueryAreaId = state.selectionArea.areaId;
+      this.lastQueryArea = state.selectionArea;
       this.lastQueryAreaTracks = newTracks;
       return true;
     }
@@ -297,9 +300,17 @@ export class PivotTableController extends Controller<{}> {
       selection !== null &&
       selection.kind === 'AREA' &&
       (pivotTableState.selectionArea === undefined ||
-        pivotTableState.selectionArea.areaId !== selection.areaId)
+        !areasEqual(pivotTableState.selectionArea, selection))
     ) {
-      globals.dispatch(Actions.togglePivotTable({areaId: selection.areaId}));
+      globals.dispatch(Actions.togglePivotTable({area: selection}));
     }
   }
+}
+
+// Returns true if two areas and exactly equivalent, false otherwise
+function areasEqual(a: Area, b: Area): boolean {
+  if (a.start !== b.start) return false;
+  if (a.end !== b.end) return false;
+  if (!arrayEquals(a.tracks, b.tracks)) return false;
+  return true;
 }

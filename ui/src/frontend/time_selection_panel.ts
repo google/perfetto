@@ -176,9 +176,8 @@ export class TimeSelectionPanel implements Panel {
       const end = Time.max(localArea.start, localArea.end);
       this.renderSpan(ctx, size, new TimeSpan(start, end));
     } else if (selection !== null && selection.kind === 'AREA') {
-      const selectedArea = globals.state.areas[selection.areaId];
-      const start = Time.min(selectedArea.start, selectedArea.end);
-      const end = Time.max(selectedArea.start, selectedArea.end);
+      const start = Time.min(selection.start, selection.end);
+      const end = Time.max(selection.start, selection.end);
       this.renderSpan(ctx, size, new TimeSpan(start, end));
     }
 
@@ -189,15 +188,10 @@ export class TimeSelectionPanel implements Panel {
     for (const note of Object.values(globals.state.notes)) {
       const noteIsSelected =
         selection !== null &&
-        selection.kind === 'AREA' &&
-        selection.noteId === note.id;
-      if (note.noteType === 'AREA' && !noteIsSelected) {
-        const selectedArea = globals.state.areas[note.areaId];
-        this.renderSpan(
-          ctx,
-          size,
-          new TimeSpan(selectedArea.start, selectedArea.end),
-        );
+        selection.kind === 'NOTE' &&
+        selection.id === note.id;
+      if (note.noteType === 'SPAN' && !noteIsSelected) {
+        this.renderSpan(ctx, size, new TimeSpan(note.start, note.end));
       }
     }
 

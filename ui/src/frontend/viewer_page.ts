@@ -57,7 +57,7 @@ function onTimeRangeBoundary(mousePos: number): 'START' | 'END' | null {
     // time range and need to use that value instead.
     const area = globals.timeline.selectedArea
       ? globals.timeline.selectedArea
-      : globals.state.areas[selection.areaId];
+      : selection;
     const {visibleTimeScale} = globals.timeline;
     const start = visibleTimeScale.timeToPx(area.start);
     const end = visibleTimeScale.timeToPx(area.end);
@@ -136,7 +136,7 @@ class TraceViewer implements m.ClassComponent {
           if (selection !== null && selection.kind === 'AREA') {
             const area = globals.timeline.selectedArea
               ? globals.timeline.selectedArea
-              : globals.state.areas[selection.areaId];
+              : selection;
             let newTime = visibleTimeScale
               .pxToHpTime(currentX - TRACK_SHELL_WIDTH)
               .toTime();
@@ -161,7 +161,7 @@ class TraceViewer implements m.ClassComponent {
             timeline.selectArea(
               Time.max(Time.min(keepTime, newTime), traceTime.start),
               Time.min(Time.max(keepTime, newTime), traceTime.end),
-              globals.state.areas[selection.areaId].tracks,
+              selection.tracks,
             );
           }
         } else {
@@ -190,12 +190,10 @@ class TraceViewer implements m.ClassComponent {
         if (edit) {
           const selection = getLegacySelection(globals.state);
           if (selection !== null && selection.kind === 'AREA' && area) {
-            globals.dispatch(
-              Actions.editArea({area, areaId: selection.areaId}),
-            );
+            globals.dispatch(Actions.selectArea({...area}));
           }
         } else if (area) {
-          globals.makeSelection(Actions.selectArea({area}));
+          globals.makeSelection(Actions.selectArea({...area}));
         }
         // Now the selection has ended we stored the final selected area in the
         // global state and can remove the in progress selection from the

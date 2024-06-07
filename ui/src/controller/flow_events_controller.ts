@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {Area, getLegacySelection} from '../common/state';
+import {AreaSelection, getLegacySelection} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {Flow, globals} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
@@ -24,6 +24,7 @@ import {THREAD_SLICE_TRACK_KIND} from '../core_plugins/thread_slice/thread_slice
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../core_plugins/frames';
 
 import {Controller} from './controller';
+import {Monitor} from '../base/monitor';
 
 export interface FlowEventsControllerArgs {
   engine: Engine;
@@ -39,9 +40,7 @@ const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
 });
 
 export class FlowEventsController extends Controller<'main'> {
-  private lastSelectedSliceId?: number;
-  private lastSelectedArea?: Area;
-  private lastSelectedKind: 'SLICE' | 'AREA' | 'NONE' = 'NONE';
+  private readonly monitor = new Monitor([() => globals.state.selection]);
 
   constructor(private args: FlowEventsControllerArgs) {
     super('main');
@@ -305,15 +304,6 @@ export class FlowEventsController extends Controller<'main'> {
   }
 
   sliceSelected(sliceId: number) {
-    if (
-      this.lastSelectedKind === 'SLICE' &&
-      this.lastSelectedSliceId === sliceId
-    ) {
-      return;
-    }
-    this.lastSelectedSliceId = sliceId;
-    this.lastSelectedKind = 'SLICE';
-
     const connectedFlows = SHOW_INDIRECT_PRECEDING_FLOWS_FLAG.get()
       ? `(
            select * from directly_connected_flow(${sliceId})
@@ -363,21 +353,7 @@ export class FlowEventsController extends Controller<'main'> {
     );
   }
 
-  areaSelected(areaId: string) {
-    const area = globals.state.areas[areaId];
-    if (
-      this.lastSelectedKind === 'AREA' &&
-      this.lastSelectedArea &&
-      this.lastSelectedArea.tracks.join(',') === area.tracks.join(',') &&
-      this.lastSelectedArea.end === area.end &&
-      this.lastSelectedArea.start === area.start
-    ) {
-      return;
-    }
-
-    this.lastSelectedArea = area;
-    this.lastSelectedKind = 'AREA';
-
+  private areaSelected(area: AreaSelection) {
     const trackIds: number[] = [];
 
     for (const uiTrackId of area.tracks) {
@@ -443,9 +419,12 @@ export class FlowEventsController extends Controller<'main'> {
   }
 
   refreshVisibleFlows() {
+    if (!this.monitor.ifStateChanged()) {
+      return;
+    }
+
     const selection = getLegacySelection(globals.state);
     if (!selection) {
-      this.lastSelectedKind = 'NONE';
       publishConnectedFlows([]);
       publishSelectedFlows([]);
       return;
@@ -460,7 +439,7 @@ export class FlowEventsController extends Controller<'main'> {
     }
 
     if (selection.kind === 'AREA') {
-      this.areaSelected(selection.areaId);
+      this.areaSelected(selection);
     } else {
       publishSelectedFlows([]);
     }

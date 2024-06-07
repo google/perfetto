@@ -80,15 +80,14 @@ export class TrackGroupPanel implements Panel {
     const trackGroup = globals.state.trackGroups[groupKey];
     let checkBox = Icons.BlankCheckbox;
     if (selection !== null && selection.kind === 'AREA') {
-      const selectedArea = globals.state.areas[selection.areaId];
       if (
-        selectedArea.tracks.includes(groupKey) &&
-        trackGroup.tracks.every((id) => selectedArea.tracks.includes(id))
+        selection.tracks.includes(groupKey) &&
+        trackGroup.tracks.every((id) => selection.tracks.includes(id))
       ) {
         checkBox = Icons.Checkbox;
       } else if (
-        selectedArea.tracks.includes(groupKey) ||
-        trackGroup.tracks.some((id) => selectedArea.tracks.includes(id))
+        selection.tracks.includes(groupKey) ||
+        trackGroup.tracks.some((id) => selection.tracks.includes(id))
       ) {
         checkBox = Icons.IndeterminateCheckbox;
       }
@@ -175,12 +174,11 @@ export class TrackGroupPanel implements Panel {
     const {visibleTimeScale} = globals.timeline;
     const selection = getLegacySelection(globals.state);
     if (!selection || selection.kind !== 'AREA') return;
-    const selectedArea = globals.state.areas[selection.areaId];
-    const selectedAreaDuration = selectedArea.end - selectedArea.start;
-    if (selectedArea.tracks.includes(this.groupKey)) {
+    const selectedAreaDuration = selection.end - selection.start;
+    if (selection.tracks.includes(this.groupKey)) {
       ctx.fillStyle = 'rgba(131, 152, 230, 0.3)';
       ctx.fillRect(
-        visibleTimeScale.timeToPx(selectedArea.start) + TRACK_SHELL_WIDTH,
+        visibleTimeScale.timeToPx(selection.start) + TRACK_SHELL_WIDTH,
         0,
         visibleTimeScale.durationToPx(selectedAreaDuration),
         size.height,
