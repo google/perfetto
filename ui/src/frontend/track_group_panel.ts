@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
-import {getContainingGroupKey, getLegacySelection} from '../common/state';
+import {getContainingGroupKey} from '../common/state';
 import {TrackCacheEntry} from '../common/track_cache';
 import {TrackTags} from '../public';
 
@@ -75,11 +75,11 @@ export class TrackGroupPanel implements Panel {
       }
     }
 
-    const selection = getLegacySelection(globals.state);
+    const selection = globals.state.selection;
 
     const trackGroup = globals.state.trackGroups[groupKey];
     let checkBox = Icons.BlankCheckbox;
-    if (selection !== null && selection.kind === 'AREA') {
+    if (selection.kind === 'area') {
       if (
         selection.tracks.includes(groupKey) &&
         trackGroup.tracks.every((id) => selection.tracks.includes(id))
@@ -133,8 +133,7 @@ export class TrackGroupPanel implements Panel {
         m(
           '.track-buttons',
           error && m(CrashButton, {error}),
-          selection &&
-            selection.kind === 'AREA' &&
+          selection.kind === 'area' &&
             m(Button, {
               onclick: (e: MouseEvent) => {
                 globals.dispatch(
@@ -172,8 +171,8 @@ export class TrackGroupPanel implements Panel {
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const {visibleTimeScale} = globals.timeline;
-    const selection = getLegacySelection(globals.state);
-    if (!selection || selection.kind !== 'AREA') return;
+    const selection = globals.state.selection;
+    if (selection.kind !== 'area') return;
     const selectedAreaDuration = selection.end - selection.start;
     if (selection.tracks.includes(this.groupKey)) {
       ctx.fillStyle = 'rgba(131, 152, 230, 0.3)';

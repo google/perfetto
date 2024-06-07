@@ -22,7 +22,7 @@ export class Notes implements Disposable {
   private trash = new Trash();
 
   constructor() {
-    const unregister = globals.tabManager.registerDetailsPanel(
+    const unregister = globals.tabManager.registerLegacyDetailsPanel(
       new BottomTabToSCSAdapter({
         tabFactory: (selection) => {
           if (selection.kind === 'NOTE') {

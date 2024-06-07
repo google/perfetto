@@ -744,8 +744,10 @@ export const StateActions = {
     const {start, end, tracks} = args;
     assertTrue(start <= end);
     state.selection = {
-      kind: 'legacy',
-      legacySelection: {kind: 'AREA', start, end, tracks},
+      kind: 'area',
+      start,
+      end,
+      tracks,
     };
   },
 
@@ -754,32 +756,29 @@ export const StateActions = {
     args: {key: string; isTrackGroup: boolean},
   ) {
     const selection = state.selection;
-    if (
-      selection.kind !== 'legacy' ||
-      selection.legacySelection.kind !== 'AREA'
-    ) {
+    if (selection.kind !== 'area') {
       return;
     }
-    const areaSelection = selection.legacySelection;
-    const index = areaSelection.tracks.indexOf(args.key);
+
+    const index = selection.tracks.indexOf(args.key);
     if (index > -1) {
-      areaSelection.tracks.splice(index, 1);
+      selection.tracks.splice(index, 1);
       if (args.isTrackGroup) {
         // Also remove all child tracks.
         for (const childTrack of state.trackGroups[args.key].tracks) {
-          const childIndex = areaSelection.tracks.indexOf(childTrack);
+          const childIndex = selection.tracks.indexOf(childTrack);
           if (childIndex > -1) {
-            areaSelection.tracks.splice(childIndex, 1);
+            selection.tracks.splice(childIndex, 1);
           }
         }
       }
     } else {
-      areaSelection.tracks.push(args.key);
+      selection.tracks.push(args.key);
       if (args.isTrackGroup) {
         // Also add all child tracks.
         for (const childTrack of state.trackGroups[args.key].tracks) {
-          if (!areaSelection.tracks.includes(childTrack)) {
-            areaSelection.tracks.push(childTrack);
+          if (!selection.tracks.includes(childTrack)) {
+            selection.tracks.push(childTrack);
           }
         }
       }

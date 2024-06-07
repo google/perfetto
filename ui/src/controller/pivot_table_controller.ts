@@ -24,7 +24,6 @@ import {
   PivotTableQueryMetadata,
   PivotTableResult,
   PivotTableState,
-  getLegacySelection,
 } from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {globals} from '../frontend/globals';
@@ -280,12 +279,11 @@ export class PivotTableController extends Controller<{}> {
     }
 
     const pivotTableState = globals.state.nonSerializableState.pivotTable;
-    const selection = getLegacySelection(globals.state);
+    const selection = globals.state.selection;
 
     if (
       pivotTableState.queryRequested ||
-      (selection !== null &&
-        selection.kind === 'AREA' &&
+      (selection.kind === 'area' &&
         this.shouldRerun(pivotTableState, selection))
     ) {
       globals.dispatch(
@@ -297,8 +295,7 @@ export class PivotTableController extends Controller<{}> {
     }
 
     if (
-      selection !== null &&
-      selection.kind === 'AREA' &&
+      selection.kind === 'area' &&
       (pivotTableState.selectionArea === undefined ||
         !areasEqual(pivotTableState.selectionArea, selection))
     ) {

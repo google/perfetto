@@ -764,6 +764,11 @@ class Globals {
   }
 
   findTimeRangeOfSelection(): {start: time; end: time} | undefined {
+    const sel = globals.state.selection;
+    if (sel.kind === 'area') {
+      return sel;
+    }
+
     const selection = getLegacySelection(this.state);
     if (selection === null) {
       return undefined;
@@ -777,8 +782,6 @@ class Globals {
       return findTimeRangeOfSlice(threadState);
     } else if (selection.kind === 'COUNTER') {
       return {start: selection.leftTs, end: selection.rightTs};
-    } else if (selection.kind === 'AREA') {
-      return {start: selection.start, end: selection.end};
     } else if (selection.kind === 'NOTE') {
       const selectedNote = this.state.notes[selection.id];
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions

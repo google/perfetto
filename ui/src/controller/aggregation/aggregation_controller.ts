@@ -21,7 +21,7 @@ import {
   ColumnDef,
   ThreadStateExtra,
 } from '../../common/aggregation_data';
-import {Area, Sorting, getLegacySelection} from '../../common/state';
+import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {publishAggregateData} from '../../frontend/publish';
 import {Engine} from '../../trace_processor/engine';
@@ -64,8 +64,8 @@ export abstract class AggregationController extends Controller<'main'> {
 
   run() {
     if (this.monitor.ifStateChanged()) {
-      const selection = getLegacySelection(globals.state);
-      if (selection === null || selection.kind !== 'AREA') {
+      const selection = globals.state.selection;
+      if (selection.kind !== 'area') {
         publishAggregateData({
           data: {
             tabName: this.getTabName(),

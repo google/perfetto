@@ -66,8 +66,8 @@ function isTrackPinned(trackKey: string) {
 }
 
 function isTrackSelected(trackKey: string) {
-  const selection = getLegacySelection(globals.state);
-  if (selection === null || selection.kind !== 'AREA') return false;
+  const selection = globals.state.selection;
+  if (selection.kind !== 'area') return false;
   return selection.tracks.includes(trackKey);
 }
 
@@ -147,7 +147,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
       }
     }
 
-    const currentSelection = getLegacySelection(globals.state);
+    const currentSelection = globals.state.selection;
     const pinned = isTrackPinned(attrs.trackKey);
 
     return m(
@@ -193,7 +193,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             title: pinned ? 'Unpin' : 'Pin to top',
             compact: true,
           }),
-          currentSelection !== null && currentSelection.kind === 'AREA'
+          currentSelection.kind === 'area'
             ? m(Button, {
                 onclick: (e: MouseEvent) => {
                   globals.dispatch(
@@ -462,8 +462,8 @@ export class TrackPanel implements Panel {
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const {visibleTimeScale} = globals.timeline;
-    const selection = getLegacySelection(globals.state);
-    if (!selection || selection.kind !== 'AREA') {
+    const selection = globals.state.selection;
+    if (selection.kind !== 'area') {
       return;
     }
     const selectedAreaDuration = selection.end - selection.start;

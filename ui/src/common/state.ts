@@ -152,7 +152,8 @@ export const MAX_TIME = 180;
 // 56. Renamed chrome slice to thread slice everywhere.
 // 57. Remove flamegraph related code from state.
 // 58. Remove area map.
-export const STATE_VERSION = 58;
+// 59. Deprecate old area selection type.
+export const STATE_VERSION = 59;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 

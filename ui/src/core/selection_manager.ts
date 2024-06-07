@@ -27,13 +27,6 @@ export enum ProfileType {
 }
 
 // LEGACY Selection types:
-export interface AreaSelection {
-  kind: 'AREA';
-  start: time;
-  end: time;
-  tracks: string[];
-}
-
 export interface NoteSelection {
   kind: 'NOTE';
   id: string;
@@ -110,7 +103,6 @@ export type LegacySelection = (
   | CpuProfileSampleSelection
   | ThreadSliceSelection
   | ThreadStateSelection
-  | AreaSelection
   | PerfSamplesSelection
   | LogSelection
   | GenericSliceSelection
@@ -129,9 +121,9 @@ export interface SingleSelection {
   eventId: string;
 }
 
-export interface NewAreaSelection {
+export interface AreaSelection {
   kind: 'area';
-  trackKey: string;
+  tracks: string[];
   start: time;
   end: time;
 }
@@ -147,7 +139,7 @@ export interface EmptySelection {
 
 export type Selection =
   | SingleSelection
-  | NewAreaSelection
+  | AreaSelection
   | UnionSelection
   | EmptySelection
   | LegacySelectionWrapper;

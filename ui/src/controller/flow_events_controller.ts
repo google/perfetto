@@ -423,22 +423,27 @@ export class FlowEventsController extends Controller<'main'> {
       return;
     }
 
-    const selection = getLegacySelection(globals.state);
-    if (!selection) {
+    const selection = globals.state.selection;
+    if (selection.kind === 'empty') {
       publishConnectedFlows([]);
       publishSelectedFlows([]);
       return;
     }
 
+    const legacySelection = getLegacySelection(globals.state);
     // TODO(b/155483804): This is a hack as annotation slices don't contain
     // flows. We should tidy this up when fixing this bug.
-    if (selection.kind === 'SLICE' && selection.table !== 'annotation') {
-      this.sliceSelected(selection.id);
+    if (
+      legacySelection &&
+      legacySelection.kind === 'SLICE' &&
+      legacySelection.table !== 'annotation'
+    ) {
+      this.sliceSelected(legacySelection.id);
     } else {
       publishConnectedFlows([]);
     }
 
-    if (selection.kind === 'AREA') {
+    if (selection.kind === 'area') {
       this.areaSelected(selection);
     } else {
       publishSelectedFlows([]);

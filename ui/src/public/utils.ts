@@ -17,7 +17,7 @@ import m from 'mithril';
 import {LegacySelection} from '../common/state';
 import {BottomTab} from '../frontend/bottom_tab';
 
-import {DetailsPanel, Tab} from '.';
+import {LegacyDetailsPanel, Tab} from '.';
 
 export function getTrackName(
   args: Partial<{
@@ -128,7 +128,7 @@ export interface BottomTabAdapterAttrs {
       },
     })
  */
-export class BottomTabToSCSAdapter implements DetailsPanel {
+export class BottomTabToSCSAdapter implements LegacyDetailsPanel {
   private oldSelection?: LegacySelection;
   private bottomTab?: BottomTab;
   private attrs: BottomTabAdapterAttrs;

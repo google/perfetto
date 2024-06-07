@@ -170,12 +170,12 @@ export class TimeSelectionPanel implements Panel {
     }
 
     const localArea = globals.timeline.selectedArea;
-    const selection = getLegacySelection(globals.state);
+    const selection = globals.state.selection;
     if (localArea !== undefined) {
       const start = Time.min(localArea.start, localArea.end);
       const end = Time.max(localArea.start, localArea.end);
       this.renderSpan(ctx, size, new TimeSpan(start, end));
-    } else if (selection !== null && selection.kind === 'AREA') {
+    } else if (selection.kind === 'area') {
       const start = Time.min(selection.start, selection.end);
       const end = Time.max(selection.start, selection.end);
       this.renderSpan(ctx, size, new TimeSpan(start, end));
@@ -185,11 +185,12 @@ export class TimeSelectionPanel implements Panel {
       this.renderHover(ctx, size, globals.state.hoverCursorTimestamp);
     }
 
+    const legacySelection = getLegacySelection(globals.state);
     for (const note of Object.values(globals.state.notes)) {
       const noteIsSelected =
-        selection !== null &&
-        selection.kind === 'NOTE' &&
-        selection.id === note.id;
+        legacySelection !== null &&
+        legacySelection.kind === 'NOTE' &&
+        legacySelection.id === note.id;
       if (note.noteType === 'SPAN' && !noteIsSelected) {
         this.renderSpan(ctx, size, new TimeSpan(note.start, note.end));
       }

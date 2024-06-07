@@ -21,7 +21,6 @@ import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {Actions} from '../common/actions';
-import {getLegacySelection} from '../common/state';
 import {
   DurationPrecision,
   setDurationPrecision,
@@ -133,8 +132,8 @@ export class App implements m.ClassComponent {
   }
 
   private getFirstUtidOfSelectionOrVisibleWindow(): number {
-    const selection = getLegacySelection(globals.state);
-    if (selection && selection.kind === 'AREA') {
+    const selection = globals.state.selection;
+    if (selection.kind === 'area') {
       const firstThreadStateTrack = selection.tracks.find((trackId) => {
         return globals.state.tracks[trackId];
       });
@@ -457,12 +456,13 @@ export class App implements m.ClassComponent {
         //   selected, then select the entire trace. This allows double tapping
         //   Ctrl+A to select the entire track, then select the entire trace.
         let tracksToSelect: string[] = [];
-        const selection = getLegacySelection(globals.state);
-        if (selection !== null && selection.kind === 'AREA') {
-          const area = selection;
+        const selection = globals.state.selection;
+        if (selection.kind === 'area') {
+          // Something is already selected, let's see if it covers the entire
+          // span of the trace or not
           const coversEntireTimeRange =
-            globals.traceContext.start === area.start &&
-            globals.traceContext.end === area.end;
+            globals.traceContext.start === selection.start &&
+            globals.traceContext.end === selection.end;
           if (!coversEntireTimeRange) {
             // If the current selection is an area which does not cover the
             // entire time range, preserve the list of selected tracks and

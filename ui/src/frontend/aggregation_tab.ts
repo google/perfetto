@@ -27,7 +27,7 @@ import {
   FlamegraphDetailsPanel,
   FlamegraphSelectionParams,
 } from './flamegraph_panel';
-import {ProfileType, TrackState, getLegacySelection} from '../common/state';
+import {ProfileType, TrackState} from '../common/state';
 import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../core_plugins/perf_samples_profile';
 import {assertExists} from '../base/logging';
 import {Monitor} from '../base/monitor';
@@ -156,8 +156,8 @@ class AreaDetailsPanel implements m.ClassComponent {
   }
 
   private computeFlamegraphSelection() {
-    const currentSelection = getLegacySelection(globals.state);
-    if (currentSelection?.kind !== 'AREA') {
+    const currentSelection = globals.state.selection;
+    if (currentSelection.kind !== 'area') {
       return undefined;
     }
     if (!this.monitor.ifStateChanged()) {
@@ -192,7 +192,7 @@ export class AggregationsTabs implements Disposable {
   constructor() {
     const unregister = globals.tabManager.registerDetailsPanel({
       render(selection) {
-        if (selection.kind === 'AREA') {
+        if (selection.kind === 'area') {
           return m(AreaDetailsPanel);
         } else {
           return undefined;

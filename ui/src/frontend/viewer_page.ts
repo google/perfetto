@@ -39,7 +39,6 @@ import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
 import {assertExists} from '../base/logging';
-import {getLegacySelection} from '../common/state';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -51,8 +50,8 @@ const OVERVIEW_PANEL_FLAG = featureFlags.register({
 // Checks if the mousePos is within 3px of the start or end of the
 // current selected time range.
 function onTimeRangeBoundary(mousePos: number): 'START' | 'END' | null {
-  const selection = getLegacySelection(globals.state);
-  if (selection !== null && selection.kind === 'AREA') {
+  const selection = globals.state.selection;
+  if (selection.kind === 'area') {
     // If frontend selectedArea exists then we are in the process of editing the
     // time range and need to use that value instead.
     const area = globals.timeline.selectedArea
@@ -132,8 +131,8 @@ class TraceViewer implements m.ClassComponent {
         const {visibleTimeScale} = timeline;
         this.keepCurrentSelection = true;
         if (editing) {
-          const selection = getLegacySelection(globals.state);
-          if (selection !== null && selection.kind === 'AREA') {
+          const selection = globals.state.selection;
+          if (selection.kind === 'area') {
             const area = globals.timeline.selectedArea
               ? globals.timeline.selectedArea
               : selection;
@@ -188,8 +187,8 @@ class TraceViewer implements m.ClassComponent {
         // If we are editing we need to pass the current id through to ensure
         // the marked area with that id is also updated.
         if (edit) {
-          const selection = getLegacySelection(globals.state);
-          if (selection !== null && selection.kind === 'AREA' && area) {
+          const selection = globals.state.selection;
+          if (selection.kind === 'area' && area) {
             globals.dispatch(Actions.selectArea({...area}));
           }
         } else if (area) {
