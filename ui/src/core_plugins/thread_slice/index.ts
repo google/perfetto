@@ -28,11 +28,7 @@ class ThreadSlicesPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
-        with max_depth_materialized as (
-          select track_id, max(depth) as maxDepth
-          from slice
-          group by track_id
-        )
+        INCLUDE PERFETTO MODULE viz.summary.slices;
         select
           thread_track.utid as utid,
           thread_track.id as trackId,
@@ -41,11 +37,11 @@ class ThreadSlicesPlugin implements Plugin {
                       'is_root_in_scope') as isDefaultTrackForScope,
           tid,
           thread.name as threadName,
-          maxDepth,
+          max_depth as maxDepth,
           thread.upid as upid
         from thread_track
         join thread using(utid)
-        join max_depth_materialized mdd on mdd.track_id = thread_track.id
+        join _slice_track_summary sts on sts.id = thread_track.id
   `);
 
     const it = result.iter({
