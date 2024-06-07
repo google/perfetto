@@ -770,6 +770,14 @@ class TraceStorage {
     return &actual_frame_timeline_slice_table_;
   }
 
+  const tables::AndroidNetworkPacketsTable& android_network_packets_table()
+      const {
+    return android_network_packets_table_;
+  }
+  tables::AndroidNetworkPacketsTable* mutable_android_network_packets_table() {
+    return &android_network_packets_table_;
+  }
+
   const tables::V8IsolateTable& v8_isolate_table() const {
     return v8_isolate_table_;
   }
@@ -1164,6 +1172,10 @@ class TraceStorage {
   tables::ExpectedFrameTimelineSliceTable expected_frame_timeline_slice_table_{
       &string_pool_, &slice_table_};
   tables::ActualFrameTimelineSliceTable actual_frame_timeline_slice_table_{
+      &string_pool_, &slice_table_};
+
+  // AndroidNetworkPackets tables
+  tables::AndroidNetworkPacketsTable android_network_packets_table_{
       &string_pool_, &slice_table_};
 
   // V8 tables
