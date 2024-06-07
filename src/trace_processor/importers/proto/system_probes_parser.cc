@@ -734,6 +734,13 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
         metadata::android_sdk_version, Variadic::Integer(*opt_sdk_version));
   }
 
+  if (packet.has_android_soc_model()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::android_soc_model,
+        Variadic::String(
+	    context_->storage->InternString(packet.android_soc_model())));
+  }
+
   page_size_ = packet.page_size();
   if (!page_size_) {
     page_size_ = 4096;
