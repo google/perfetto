@@ -144,6 +144,10 @@ inline int SetError(sqlite3_vtab* tab, const char* status) {
   return SQLITE_ERROR;
 }
 
+inline int SetError(sqlite3_vtab* tab, base::Status s) {
+  return SetError(tab, s.c_message());
+}
+
 inline void SetError(sqlite3_context* ctx, const base::Status& status) {
   PERFETTO_CHECK(!status.ok());
   sqlite::result::Error(ctx, status.c_message());
