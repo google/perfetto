@@ -175,6 +175,9 @@ devDependencies:
   rollup-plugin-sourcemaps:
     specifier: ^0.6.3
     version: 0.6.3(@types/node@14.18.51)(rollup@2.79.1)
+  rollup-plugin-uglify:
+    specifier: ^6.0.4
+    version: 6.0.4(rollup@2.79.1)
   tslib:
     specifier: ^2.5.3
     version: 2.5.3
@@ -4098,6 +4101,14 @@ packages:
       string-length: 4.0.2
     dev: true
 
+  /jest-worker@24.9.0:
+    resolution: {integrity: sha512-51PE4haMSXcHohnSMdM42anbvZANYTqMrr52tVKPqqsPJMzoP6FYYDVqahX/HrAoKEKz3uUPzSvKs9A3qR4iVw==}
+    engines: {node: '>= 6'}
+    dependencies:
+      merge-stream: 2.0.0
+      supports-color: 6.1.0
+    dev: true
+
   /jest-worker@26.6.2:
     resolution: {integrity: sha512-KWYVV1c4i+jbMpaBC+U++4Va0cp8OisU185o73T1vo99hqi7w8tSJfUXYswwqqrjzwxa6KpRK54WhPvwf5w6PQ==}
     engines: {node: '>= 10.13.0'}
@@ -5177,6 +5188,18 @@ packages:
       source-map-resolve: 0.6.0
     dev: true
 
+  /rollup-plugin-uglify@6.0.4(rollup@2.79.1):
+    resolution: {integrity: sha512-ddgqkH02klveu34TF0JqygPwZnsbhHVI6t8+hGTcYHngPkQb5MIHI0XiztXIN/d6V9j+efwHAqEL7LspSxQXGw==}
+    peerDependencies:
+      rollup: '>=0.66.0 <2'
+    dependencies:
+      '@babel/code-frame': 7.22.5
+      jest-worker: 24.9.0
+      rollup: 2.79.1
+      serialize-javascript: 2.1.2
+      uglify-js: 3.17.4
+    dev: true
+
   /rollup-pluginutils@2.8.2:
     resolution: {integrity: sha512-EEp9NhnUkwY8aif6bxgovPHMoMoNr2FulJziTndpt5H9RdwC47GSGuII9XxpSdzVGM0GWrNPHV6ie1LTNJPaLQ==}
     dependencies:
@@ -5274,6 +5297,10 @@ packages:
     hasBin: true
     dependencies:
       lru-cache: 6.0.0
+    dev: true
+
+  /serialize-javascript@2.1.2:
+    resolution: {integrity: sha512-rs9OggEUF0V4jUSecXazOYsLfu7OGK2qIn3c7IPBiffz32XniEp/TX9Xmc9LQfK2nQ2QKHvZ2oygKUGU0lG4jQ==}
     dev: true
 
   /set-blocking@2.0.0:
@@ -5550,6 +5577,13 @@ packages:
       has-flag: 3.0.0
     dev: true
 
+  /supports-color@6.1.0:
+    resolution: {integrity: sha512-qe1jfm1Mg7Nq/NSh6XE24gPXROEVsWHxC1LIx//XNlD9iw7YZQGjZNjYN7xGaEG6iKdA8EtNFW6R0gjnVXp+wQ==}
+    engines: {node: '>=6'}
+    dependencies:
+      has-flag: 3.0.0
+    dev: true
+
   /supports-color@7.2.0:
     resolution: {integrity: sha512-qpCAvRl9stuOHveKsn7HncJRvv501qIacKzQlO/+Lwxc9+0q2wLyv4Dfvt80/DPn2pqOBsJdDiogXGR9+OvwRw==}
     engines: {node: '>=8'}
@@ -5769,7 +5803,6 @@ packages:
     resolution: {integrity: sha512-T9q82TJI9e/C1TAxYvfb16xO120tMVFZrGA3f9/P4424DNu6ypK103y0GPFVa17yotwSyZW5iYXgjYHkGrJW/g==}
     engines: {node: '>=0.8.0'}
     hasBin: true
-    dev: false
 
   /unbzip2-stream@1.4.3:
     resolution: {integrity: sha512-mlExGW4w71ebDJviH16lQLtZS32VKqsSfk80GCfUlwT/4/hNRFsoscrF/c++9xinkMzECL1uL9DDwXqFWkruPg==}
@@ -6475,4 +6508,5 @@ packages:
   file:src/base/utils:
     resolution: {directory: src/base/utils, type: directory}
     name: custom_utils
+    version: 0.0.1
     dev: false
