@@ -97,6 +97,7 @@ GraphicsFrameSliceTable::~GraphicsFrameSliceTable() = default;
 ExpectedFrameTimelineSliceTable::~ExpectedFrameTimelineSliceTable() = default;
 ActualFrameTimelineSliceTable::~ActualFrameTimelineSliceTable() = default;
 ExperimentalFlatSliceTable::~ExperimentalFlatSliceTable() = default;
+AndroidNetworkPacketsTable::~AndroidNetworkPacketsTable() = default;
 
 // track_tables_py.h
 TrackTable::~TrackTable() = default;

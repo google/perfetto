@@ -46,27 +46,31 @@ CREATE PERFETTO VIEW android_network_packets(
   -- 1-byte ICMP type identifier.
   packet_icmp_type INT,
   -- 1-byte ICMP code identifier.
-  packet_icmp_code INT
+  packet_icmp_code INT,
+  -- Packet's tcp flags bitmask (e.g. FIN=0x1, SYN=0x2).
+  packet_tcp_flags_int INT,
+  -- Packet's socket tag as an integer.
+  socket_tag_int INT
 ) AS
 SELECT
   ts,
   dur,
-  track.name AS track_name,
-  slice.name AS package_name,
-  str_split(track.name, ' ', 0) AS iface,
-  str_split(track.name, ' ', 1) AS direction,
-  ifnull(extract_arg(arg_set_id, 'packet_count'), 1) AS packet_count,
-  extract_arg(arg_set_id, 'packet_length') AS packet_length,
-  extract_arg(arg_set_id, 'packet_transport') AS packet_transport,
-  extract_arg(arg_set_id, 'packet_tcp_flags') AS packet_tcp_flags,
-  extract_arg(arg_set_id, 'socket_tag') AS socket_tag,
-  extract_arg(arg_set_id, 'socket_uid') AS socket_uid,
-  extract_arg(arg_set_id, 'local_port') AS local_port,
-  extract_arg(arg_set_id, 'remote_port') AS remote_port,
-  extract_arg(arg_set_id, 'packet_icmp_type') AS packet_icmp_type,
-  extract_arg(arg_set_id, 'packet_icmp_code') AS packet_icmp_code
-FROM slice
-JOIN track
-  ON slice.track_id = track.id
-WHERE (track.name GLOB '* Transmitted' OR
-       track.name GLOB '* Received');
+  category AS track_name,
+  name AS package_name,
+  iface,
+  direction,
+  packet_count,
+  packet_length,
+  packet_transport,
+  -- For backwards compatibility, the _str suffixed flags (which the ui shows)
+  -- are exposed without suffix, and the integer fields get suffix instead.
+  packet_tcp_flags_str AS packet_tcp_flags,
+  packet_tcp_flags AS packet_tcp_flags_int,
+  socket_tag_str AS socket_tag,
+  socket_tag AS socket_tag_int,
+  socket_uid,
+  local_port,
+  remote_port,
+  packet_icmp_type,
+  packet_icmp_code
+FROM __intrinsic_android_network_packets;

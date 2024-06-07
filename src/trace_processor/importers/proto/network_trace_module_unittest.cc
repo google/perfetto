@@ -180,8 +180,8 @@ TEST_F(NetworkTraceModuleTest, TokenizeAndParseAggregateBundle) {
   EXPECT_EQ(slices.ts()[0], 123);
   EXPECT_EQ(slices.dur()[0], 10);
 
-  EXPECT_TRUE(HasArg(1u, "packet_length", Variadic::UnsignedInteger(172)));
-  EXPECT_TRUE(HasArg(1u, "packet_count", Variadic::UnsignedInteger(2)));
+  EXPECT_TRUE(HasArg(1u, "packet_length", Variadic::Integer(172)));
+  EXPECT_TRUE(HasArg(1u, "packet_count", Variadic::Integer(2)));
 }
 
 }  // namespace
