@@ -27,11 +27,6 @@ export enum ProfileType {
 }
 
 // LEGACY Selection types:
-export interface NoteSelection {
-  kind: 'NOTE';
-  id: string;
-}
-
 export interface SliceSelection {
   kind: 'SCHED_SLICE';
   id: number;
@@ -96,7 +91,6 @@ export interface GenericSliceSelection {
 }
 
 export type LegacySelection = (
-  | NoteSelection
   | SliceSelection
   | CounterSelection
   | HeapProfileSelection
@@ -128,6 +122,11 @@ export interface AreaSelection {
   end: time;
 }
 
+export interface NoteSelection {
+  kind: 'note';
+  id: string;
+}
+
 export interface UnionSelection {
   kind: 'union';
   selections: Selection[];
@@ -140,6 +139,7 @@ export interface EmptySelection {
 export type Selection =
   | SingleSelection
   | AreaSelection
+  | NoteSelection
   | UnionSelection
   | EmptySelection
   | LegacySelectionWrapper;
@@ -151,6 +151,7 @@ export function selectionToLegacySelection(
     case 'area':
     case 'single':
     case 'empty':
+    case 'note':
       return null;
     case 'union':
       for (const child of selection.selections) {
@@ -199,6 +200,7 @@ export class SelectionManager {
         case 'single':
         case 'legacy':
         case 'area':
+        case 'note':
           draft.selection = {
             kind: 'union',
             selections: [draft.selection, selection],

@@ -32,7 +32,6 @@ import {
 import {PanelSize} from './panel';
 import {Panel} from './panel_container';
 import {renderDuration} from './widgets/duration';
-import {getLegacySelection} from '../common/state';
 
 export interface BBox {
   x: number;
@@ -185,12 +184,9 @@ export class TimeSelectionPanel implements Panel {
       this.renderHover(ctx, size, globals.state.hoverCursorTimestamp);
     }
 
-    const legacySelection = getLegacySelection(globals.state);
     for (const note of Object.values(globals.state.notes)) {
       const noteIsSelected =
-        legacySelection !== null &&
-        legacySelection.kind === 'NOTE' &&
-        legacySelection.id === note.id;
+        selection.kind === 'note' && selection.id === note.id;
       if (note.noteType === 'SPAN' && !noteIsSelected) {
         this.renderSpan(ctx, size, new TimeSpan(note.start, note.end));
       }

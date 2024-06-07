@@ -19,11 +19,10 @@ import {Icons} from '../base/semantic_icons';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {randomColor} from '../core/colorizer';
-import {SpanNote, Note, getLegacySelection} from '../common/state';
+import {SpanNote, Note, Selection} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Button, ButtonBar} from '../widgets/button';
 
-import {BottomTab, NewBottomTabArgs} from './bottom_tab';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {
@@ -38,6 +37,7 @@ import {isTraceLoaded} from './sidebar';
 import {Timestamp} from './widgets/timestamp';
 import {uuidv4} from '../base/uuid';
 import {assertUnreachable} from '../base/logging';
+import {DetailsPanel} from '../public';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -169,11 +169,8 @@ export class NotesPanel implements Panel {
         this.hoveredX !== null && this.hitTestNote(this.hoveredX, note);
       if (currentIsHovered) aNoteIsHovered = true;
 
-      const selection = getLegacySelection(globals.state);
-      const isSelected =
-        selection !== null &&
-        selection.kind === 'NOTE' &&
-        selection.id === note.id;
+      const selection = globals.state.selection;
+      const isSelected = selection.kind === 'note' && selection.id === note.id;
       const x = visibleTimeScale.timeToPx(timestamp);
       const left = Math.floor(x + TRACK_SHELL_WIDTH);
 
@@ -325,29 +322,17 @@ export class NotesPanel implements Panel {
   }
 }
 
-interface NotesEditorTabConfig {
-  id: string;
-}
+export class NotesEditorTab implements DetailsPanel {
+  render(selection: Selection) {
+    if (selection.kind !== 'note') {
+      return undefined;
+    }
 
-export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
-  static readonly kind = 'org.perfetto.NotesEditorTab';
+    const id = selection.id;
 
-  static create(args: NewBottomTabArgs<NotesEditorTabConfig>): NotesEditorTab {
-    return new NotesEditorTab(args);
-  }
-
-  constructor(args: NewBottomTabArgs<NotesEditorTabConfig>) {
-    super(args);
-  }
-
-  getTitle() {
-    return 'Current Selection';
-  }
-
-  viewTab() {
-    const note = globals.state.notes[this.config.id];
+    const note = globals.state.notes[id];
     if (note === undefined) {
-      return m('.', `No Note with id ${this.config.id}`);
+      return m('.', `No Note with id ${id}`);
     }
     const startTime = getStartTimestamp(note);
     return m(
@@ -365,7 +350,7 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
             const newText = (e.target as HTMLInputElement).value;
             globals.dispatch(
               Actions.changeNoteText({
-                id: this.config.id,
+                id,
                 newText,
               }),
             );
@@ -380,7 +365,7 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
               const newColor = (e.target as HTMLInputElement).value;
               globals.dispatch(
                 Actions.changeNoteColor({
-                  id: this.config.id,
+                  id,
                   newColor,
                 }),
               );
@@ -391,7 +376,7 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
           label: 'Remove',
           icon: Icons.Delete,
           onclick: () => {
-            globals.dispatch(Actions.removeNote({id: this.config.id}));
+            globals.dispatch(Actions.removeNote({id}));
             raf.scheduleFullRedraw();
           },
         }),

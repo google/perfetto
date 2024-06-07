@@ -1,16 +1,7 @@
 import {Disposable, Trash} from '../base/disposable';
-import {assertExists} from '../base/logging';
-import {uuidv4} from '../base/uuid';
-import {BottomTabToSCSAdapter} from '../public';
 
 import {globals} from './globals';
 import {NotesEditorTab} from './notes_panel';
-
-function getEngine() {
-  const engineId = assertExists(globals.getCurrentEngine()).id;
-  const engine = assertExists(globals.engines.get(engineId));
-  return engine;
-}
 
 /**
  * Registers with the tab manager to show notes details panels when notes are
@@ -22,22 +13,8 @@ export class Notes implements Disposable {
   private trash = new Trash();
 
   constructor() {
-    const unregister = globals.tabManager.registerLegacyDetailsPanel(
-      new BottomTabToSCSAdapter({
-        tabFactory: (selection) => {
-          if (selection.kind === 'NOTE') {
-            return new NotesEditorTab({
-              config: {
-                id: selection.id,
-              },
-              engine: getEngine().getProxy('Notes'),
-              uuid: uuidv4(),
-            });
-          } else {
-            return undefined;
-          }
-        },
-      }),
+    const unregister = globals.tabManager.registerDetailsPanel(
+      new NotesEditorTab(),
     );
     this.trash.add(unregister);
   }

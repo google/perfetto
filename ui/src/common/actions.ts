@@ -477,15 +477,10 @@ export const StateActions = {
   },
 
   selectNote(state: StateDraft, args: {id: string}): void {
-    if (args.id) {
-      state.selection = {
-        kind: 'legacy',
-        legacySelection: {
-          kind: 'NOTE',
-          id: args.id,
-        },
-      };
-    }
+    state.selection = {
+      kind: 'note',
+      id: args.id,
+    };
   },
 
   addNote(
@@ -542,11 +537,7 @@ export const StateActions = {
     delete state.notes[args.id];
 
     // Clear the selection if this note was selected
-    if (
-      state.selection.kind === 'legacy' &&
-      state.selection.legacySelection.kind === 'NOTE' &&
-      state.selection.legacySelection.id === args.id
-    ) {
+    if (state.selection.kind === 'note' && state.selection.id === args.id) {
       state.selection = {kind: 'empty'};
     }
   },

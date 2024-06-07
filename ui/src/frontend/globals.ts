@@ -767,23 +767,8 @@ class Globals {
     const sel = globals.state.selection;
     if (sel.kind === 'area') {
       return sel;
-    }
-
-    const selection = getLegacySelection(this.state);
-    if (selection === null) {
-      return undefined;
-    }
-
-    if (selection.kind === 'SCHED_SLICE' || selection.kind === 'SLICE') {
-      const slice = this.sliceDetails;
-      return findTimeRangeOfSlice(slice);
-    } else if (selection.kind === 'THREAD_STATE') {
-      const threadState = this.threadStateDetails;
-      return findTimeRangeOfSlice(threadState);
-    } else if (selection.kind === 'COUNTER') {
-      return {start: selection.leftTs, end: selection.rightTs};
-    } else if (selection.kind === 'NOTE') {
-      const selectedNote = this.state.notes[selection.id];
+    } else if (sel.kind === 'note') {
+      const selectedNote = this.state.notes[sel.id];
       // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (selectedNote) {
         const kind = selectedNote.noteType;
@@ -802,6 +787,21 @@ class Globals {
             assertUnreachable(kind);
         }
       }
+    }
+
+    const selection = getLegacySelection(this.state);
+    if (selection === null) {
+      return undefined;
+    }
+
+    if (selection.kind === 'SCHED_SLICE' || selection.kind === 'SLICE') {
+      const slice = this.sliceDetails;
+      return findTimeRangeOfSlice(slice);
+    } else if (selection.kind === 'THREAD_STATE') {
+      const threadState = this.threadStateDetails;
+      return findTimeRangeOfSlice(threadState);
+    } else if (selection.kind === 'COUNTER') {
+      return {start: selection.leftTs, end: selection.rightTs};
     } else if (selection.kind === 'LOG') {
       // TODO(hjd): Make focus selection work for logs.
     } else if (selection.kind === 'GENERIC_SLICE') {

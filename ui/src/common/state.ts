@@ -153,7 +153,8 @@ export const MAX_TIME = 180;
 // 57. Remove flamegraph related code from state.
 // 58. Remove area map.
 // 59. Deprecate old area selection type.
-export const STATE_VERSION = 59;
+// 60. Deprecate old note selection type.
+export const STATE_VERSION = 60;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
