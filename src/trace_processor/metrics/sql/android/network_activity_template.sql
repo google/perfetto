@@ -50,16 +50,17 @@ WITH quantized AS (
 with_last AS (
   SELECT
     *,
-    LAG(ts+dur) OVER (
+    MAX(ts+dur) OVER (
       PARTITION BY {{group_by}}
       ORDER BY ts
-    ) AS last_ts
+      ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+    ) AS max_end_so_far
   FROM quantized
 ),
 with_group AS (
   SELECT
     *,
-    COUNT(IIF(ts-last_ts>{{idle_ns}}, 1, null)) OVER (
+    COUNT(IIF(ts-max_end_so_far>{{idle_ns}}, 1, null)) OVER (
       PARTITION BY {{group_by}}
       ORDER BY ts
     ) AS group_id
