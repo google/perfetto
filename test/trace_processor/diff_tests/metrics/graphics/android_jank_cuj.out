@@ -11,11 +11,6 @@ android_jank_cuj {
         apk_version_code: 1
         debuggable: false
       }
-      packages_for_uid {
-        package_name: "com.android.systemui"
-        apk_version_code: 1
-        debuggable: false
-      }
       pid: 1000
     }
     ts: 0
@@ -188,11 +183,6 @@ android_jank_cuj {
       name: "com.android.systemui"
       uid: 10001
       package {
-        package_name: "com.android.systemui"
-        apk_version_code: 1
-        debuggable: false
-      }
-      packages_for_uid {
         package_name: "com.android.systemui"
         apk_version_code: 1
         debuggable: false
