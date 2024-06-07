@@ -63,11 +63,6 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
-      packages_for_uid {
-        package_name: "com.some.app"
-        apk_version_code: 123
-        debuggable: false
-      }
       pid: 3
     }
     event_timestamps {

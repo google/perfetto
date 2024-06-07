@@ -46,11 +46,6 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
-      packages_for_uid {
-        package_name: "com.google.android.calendar"
-        apk_version_code: 123
-        debuggable: false
-      }
       pid: 3
     }
     event_timestamps {
@@ -125,11 +120,6 @@ android_startup {
       name: "com.google.android.calendar"
       uid: 10001
       package {
-        package_name: "com.google.android.calendar"
-        apk_version_code: 123
-        debuggable: false
-      }
-      packages_for_uid {
         package_name: "com.google.android.calendar"
         apk_version_code: 123
         debuggable: false

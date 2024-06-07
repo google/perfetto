@@ -36,16 +36,6 @@ android_lmk_reason {
           apk_version_code: 123
           debuggable: false
         }
-        packages_for_uid {
-          package_name: "app"
-          apk_version_code: 123
-          debuggable: false
-        }
-        packages_for_uid {
-          package_name: "shared_uid_app"
-          apk_version_code: 345
-          debuggable: false
-        }
       }
       oom_score_adj: 0
       size: 5000

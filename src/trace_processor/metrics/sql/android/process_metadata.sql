@@ -27,18 +27,6 @@ SELECT * FROM _uid_package_count;
 
 DROP VIEW IF EXISTS process_metadata;
 CREATE PERFETTO VIEW process_metadata AS
-WITH upid_packages AS (
-  SELECT
-    upid,
-    RepeatedField(AndroidProcessMetadata_Package(
-      'package_name', package_list.package_name,
-      'apk_version_code', package_list.version_code,
-      'debuggable', package_list.debuggable
-    )) AS packages_for_uid
-  FROM process
-  JOIN package_list ON process.android_appid = package_list.uid
-  GROUP BY upid
-)
 SELECT
   upid,
   NULL_IF_EMPTY(AndroidProcessMetadata(
@@ -49,11 +37,9 @@ SELECT
       'package_name', package_name,
       'apk_version_code', version_code,
       'debuggable', debuggable
-    )),
-    'packages_for_uid', packages_for_uid
+    ))
   )) AS metadata
-FROM process_metadata_table
-LEFT JOIN upid_packages USING (upid);
+FROM process_metadata_table;
 
 -- Given a process name, return if it is debuggable.
 CREATE OR REPLACE PERFETTO FUNCTION is_process_debuggable(process_name STRING)

@@ -38,14 +38,8 @@ message AndroidProcessMetadata {
   // match this field is empty.
   optional Package package = 7;
 
-  // All packages using this uid.
-  //
-  // Shared uid documentation:
-  // https://developer.android.com/guide/topics/manifest/manifest-element#uid
-  repeated Package packages_for_uid = 8;
-
   // Pid of the process name.
   optional int64 pid = 9;
 
-  reserved 3, 4, 5, 6;
+  reserved 3, 4, 5, 6, 8;
 }
