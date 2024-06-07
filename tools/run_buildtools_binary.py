@@ -56,10 +56,12 @@ def run_buildtools_binary(args):
   if sys_name == 'windows':
     # execl() behaves oddly on Windows: the spawned process doesn't seem to
     # receive CTRL+C. Use subprocess instead.
-    return subprocess.call([exe_path] + args)
+    exit_code = subprocess.call([exe_path] + args)
+    # exit from here to behave the same as when using os.execl
+    sys.exit(exit_code)
   else:
     os.execl(exe_path, os.path.basename(exe_path), *args)
 
 
 if __name__ == '__main__':
-  sys.exit(run_buildtools_binary(sys.argv[1:]))
+  run_buildtools_binary(sys.argv[1:])
