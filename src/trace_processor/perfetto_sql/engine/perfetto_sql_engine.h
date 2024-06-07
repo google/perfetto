@@ -208,6 +208,15 @@ class PerfettoSqlEngine {
            runtime_function_count_ + macros_.size();
   }
 
+  // Find static table (Static or Runtime) registered with engine with provided
+  // name.
+  const Table* GetTableOrNull(std::string_view name) const {
+    if (auto maybe_runtime = GetRuntimeTableOrNull(name); maybe_runtime) {
+      return maybe_runtime;
+    }
+    return GetStaticTableOrNull(name);
+  }
+
   // Find RuntimeTable registered with engine with provided name.
   const RuntimeTable* GetRuntimeTableOrNull(std::string_view) const;
 
