@@ -51,4 +51,14 @@
 #define PERFETTO_NULL NULL
 #endif
 
+#if defined(__clang__)
+#define PERFETTO_ALWAYS_INLINE __attribute__((__always_inline__))
+#define PERFETTO_NO_INLINE __attribute__((__noinline__))
+#else
+// GCC is too pedantic and often fails with the error:
+// "always_inline function might not be inlinable"
+#define PERFETTO_ALWAYS_INLINE
+#define PERFETTO_NO_INLINE
+#endif
+
 #endif  // INCLUDE_PERFETTO_PUBLIC_COMPILER_H_

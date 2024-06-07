@@ -42,16 +42,6 @@
 #define PERFETTO_UNUSED
 #endif
 
-#if defined(__clang__)
-#define PERFETTO_ALWAYS_INLINE __attribute__((__always_inline__))
-#define PERFETTO_NO_INLINE __attribute__((__noinline__))
-#else
-// GCC is too pedantic and often fails with the error:
-// "always_inline function might not be inlinable"
-#define PERFETTO_ALWAYS_INLINE
-#define PERFETTO_NO_INLINE
-#endif
-
 #if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_NORETURN __attribute__((__noreturn__))
 #else
