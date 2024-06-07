@@ -90,21 +90,19 @@ const TETHERING = `
   select ts_end - dur as ts, dur, 'Tethering' as name from base`;
 
 const NETWORK_SUMMARY = `
-  drop table if exists network_summary;
-  create table network_summary as
+  create or replace perfetto table network_summary as
   with base as (
       select
-          cast(s.ts / 5000000000 as int) * 5000000000 as ts,
+          cast(ts / 5000000000 as int64) * 5000000000 AS ts,
           case
-              when t.name glob '*wlan*' then 'wifi'
-              when t.name glob '*rmnet*' then 'modem'
+              when track_name glob '*wlan*' then 'wifi'
+              when track_name glob '*rmnet*' then 'modem'
               else 'unknown'
           end as dev_type,
-          s.name as pkg,
-          sum(EXTRACT_ARG(arg_set_id, 'packet_length')) AS value
-      from slice s join track t on s.track_id = t.id
-      where (t.name glob '*Received' or t.name glob '*Transmitted')
-      and (t.name glob '*wlan*' or t.name glob '*rmnet*')
+          package_name as pkg,
+          sum(packet_length) AS value
+      from android_network_packets
+      where (track_name glob '*wlan*' or track_name glob '*rmnet*')
       group by 1,2,3
   ),
   zeroes as (
@@ -1292,6 +1290,7 @@ class AndroidLongBatteryTracing implements Plugin {
 
     const e = ctx.engine;
     await e.query(`INCLUDE PERFETTO MODULE android.battery_stats;`);
+    await e.query(`INCLUDE PERFETTO MODULE android.network_packets;`);
     await e.query(NETWORK_SUMMARY);
     await e.query(RADIO_TRANSPORT_TYPE);
 
