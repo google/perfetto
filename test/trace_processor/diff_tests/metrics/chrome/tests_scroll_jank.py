@@ -429,18 +429,55 @@ class ChromeScrollJankMetrics(TestSuite):
         query=Metric('chrome_scroll_jank_v3'),
         out=TextProto(r"""
         [perfetto.protos.chrome_scroll_jank_v3] {
-          trace_num_frames: 354
-          trace_num_janky_frames: 1
-          trace_scroll_jank_percentage: 0.2824858757062147
-          vsync_interval_ms: 10.483
+          trace_num_frames: 364
+          trace_num_janky_frames: 6
+          trace_scroll_jank_percentage: 1.6483516483516483
+          vsync_interval_ms: 10.318
           scrolls {
-            num_frames: 122
+            num_frames: 119
             num_janky_frames: 1
-            scroll_jank_percentage: 0.819672131147541
-            max_delay_since_last_frame: 2.13021081751407
+            scroll_jank_percentage: 0.8403361344537815
+            max_delay_since_last_frame: 2.153421205660012
+            scroll_jank_causes {
+              cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+              sub_cause: "StartDrawToSwapStart"
+              delay_since_last_frame: 2.153421205660012
+            }
+          }
+          scrolls {
+            num_frames: 6
+            num_janky_frames: 1
+            scroll_jank_percentage: 16.666666666666668
+            max_delay_since_last_frame: 2.155456483814693
+            scroll_jank_causes {
+              cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+              sub_cause: "StartDrawToSwapStart"
+              delay_since_last_frame: 2.155456483814693
+            }
+          }
+          scrolls {
+            num_frames: 129
+            num_janky_frames: 4
+            scroll_jank_percentage: 3.10077519379845
+            max_delay_since_last_frame: 2.1642760224849775
+            scroll_jank_causes {
+              cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+              sub_cause: "StartDrawToSwapStart"
+              delay_since_last_frame: 2.1556503198294243
+            }
+            scroll_jank_causes {
+              cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+              sub_cause: "BufferReadyToLatch"
+              delay_since_last_frame: 2.1564256638883506
+            }
+            scroll_jank_causes {
+              cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+              sub_cause: "StartDrawToSwapStart"
+              delay_since_last_frame: 2.15758867997674
+            }
             scroll_jank_causes {
               cause: "RendererCompositorQueueingDelay"
-              delay_since_last_frame: 2.13021081751407
+              delay_since_last_frame: 2.1642760224849775
             }
           }
         }
