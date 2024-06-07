@@ -78,12 +78,42 @@ TEST_F(VerifyIntegrityUnitTest, ValidPacketNobodyUid) {
   ASSERT_OK(Verify(packet));
 }
 
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceBundleHasLostEvents) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kSystemUid);
+
+  packet.mutable_ftrace_events()->set_lost_events(true);
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
+TEST_F(VerifyIntegrityUnitTest, ValidPacketFtraceBundleHasNoLostEvents) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kSystemUid);
+
+  packet.mutable_ftrace_events()->set_lost_events(false);
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
 TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceBundleMissingCpu) {
   protos::gen::TracePacket packet;
 
   packet.set_trusted_uid(kSystemUid);
 
   packet.mutable_ftrace_events();
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
+
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketFtraceBundleHasErrors) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kSystemUid);
+
+  packet.mutable_ftrace_events()->add_error();
 
   ASSERT_FALSE(Verify(packet).ok());
 }
