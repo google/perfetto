@@ -233,13 +233,6 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
         return util::OkStatus();
       }
       timestamp = trace_ts.value();
-      // TODO(lalitm): Ideally this guard is implemented in TraceSorter
-      // to allow for checking of other trace formats
-      if (timestamp < 0) {
-        return base::ErrStatus("Failed due to negative timestamp, %" PRId64
-                               "is negative.",
-                               timestamp);
-      }
     }
   } else {
     timestamp = std::max(latest_timestamp_, context_->sorter->max_timestamp());

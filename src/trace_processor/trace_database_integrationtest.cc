@@ -811,11 +811,5 @@ TEST_F(TraceProcessorIntegrationTest, CreateTableDuplicateNames) {
   ASSERT_THAT(it.Status().message(), HasSubstr("duplicate_b"));
 }
 
-TEST_F(TraceProcessorIntegrationTest, NegativeTimestampError) {
-  base::Status status = LoadTrace("trace_with_negative_timestamp", 4096);
-  ASSERT_FALSE(status.ok());
-  ASSERT_THAT(status.message(), HasSubstr("negative timestamp"));
-}
-
 }  // namespace
 }  // namespace perfetto::trace_processor
