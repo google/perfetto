@@ -40,15 +40,21 @@ CREATE PERFETTO TABLE _frames_maxsdk_28(
     -- "maxsdk28"
     sdk STRING
 ) AS
-WITH do_frames AS (
+WITH choreographer AS (
+  SELECT id
+  FROM slice
+  WHERE name = 'Choreographer#doFrame'
+),
+do_frames AS (
     SELECT
         id,
         ts,
         LEAD(ts, 1, TRACE_END()) OVER (PARTITION BY upid ORDER BY ts) AS next_do_frame,
         utid,
         upid
-    FROM thread_slice
-    WHERE name = 'Choreographer#doFrame' AND is_main_thread = 1
+    FROM choreographer
+    JOIN thread_slice USING (id)
+    WHERE is_main_thread = 1
     ORDER BY ts
 ),
 draw_frames AS (
