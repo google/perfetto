@@ -283,7 +283,6 @@ class Globals {
 
   scrollToTrackKey?: string | number;
   httpRpcState: HttpRpcState = {connected: false};
-  newVersionAvailable = false;
   showPanningHint = false;
   permalinkHash?: string;
 
