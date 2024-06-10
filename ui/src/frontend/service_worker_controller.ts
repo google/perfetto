@@ -54,7 +54,6 @@ class BypassCache {
 }
 
 export class ServiceWorkerController {
-  private _initialWorker: ServiceWorker | null = null;
   private _bypassed = false;
   private _installing = false;
 
@@ -84,13 +83,6 @@ export class ServiceWorkerController {
       this._installing = true;
     } else if (sw.state === 'activated') {
       this._installing = false;
-      // Don't show the notification if the site was served straight
-      // from the network (e.g., on the very first visit or after
-      // Ctrl+Shift+R). In these cases, we are already at the last
-      // version.
-      if (sw !== this._initialWorker && this._initialWorker) {
-        globals.newVersionAvailable = true;
-      }
     }
   }
 
@@ -134,8 +126,6 @@ export class ServiceWorkerController {
     const versionDir = globals.root.split('/').slice(-2)[0];
     const swUri = `/service_worker.js?v=${versionDir}`;
     navigator.serviceWorker.register(swUri).then((registration) => {
-      this._initialWorker = registration.active;
-
       // At this point there are two options:
       // 1. This is the first time we visit the site (or cache was cleared) and
       //    no SW is installed yet. In this case |installing| will be set.

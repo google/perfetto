@@ -16,7 +16,6 @@ import m from 'mithril';
 
 import {classNames} from '../base/classnames';
 import {raf} from '../core/raf_scheduler';
-import {VERSION} from '../gen/perfetto_version';
 
 import {globals} from './globals';
 import {taskTracker} from './task_tracker';
@@ -35,25 +34,6 @@ class Progress implements m.ClassComponent {
       (engine && !engine.ready) ||
       globals.numQueuedQueries > 0 ||
       taskTracker.hasPendingTasks()
-    );
-  }
-}
-
-class NewVersionNotification implements m.ClassComponent {
-  view() {
-    return m(
-      '.new-version-toast',
-      `Updated to ${VERSION} and ready for offline use!`,
-      m(
-        'button.notification-btn.preferred',
-        {
-          onclick: () => {
-            globals.newVersionAvailable = false;
-            raf.scheduleFullRedraw();
-          },
-        },
-        'Dismiss',
-      ),
     );
   }
 }
@@ -130,7 +110,7 @@ export class Topbar implements m.ClassComponent<TopbarAttrs> {
     return m(
       '.topbar',
       {class: globals.state.sidebarVisible ? '' : 'hide-sidebar'},
-      globals.newVersionAvailable ? m(NewVersionNotification) : omnibox,
+      omnibox,
       m(Progress),
       m(HelpPanningNotification),
       m(TraceErrorIcon),
