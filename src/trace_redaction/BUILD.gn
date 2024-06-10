@@ -45,8 +45,6 @@ source_set("trace_redaction") {
     "merge_threads.h",
     "modify.cc",
     "modify.h",
-    "modify_process_trees.cc",
-    "modify_process_trees.h",
     "populate_allow_lists.cc",
     "populate_allow_lists.h",
     "process_thread_timeline.cc",
