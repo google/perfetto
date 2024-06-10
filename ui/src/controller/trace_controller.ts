@@ -574,7 +574,7 @@ export class TraceController extends Controller<States> {
       const reliableRangeStart = await computeTraceReliableRangeStart(engine);
       if (reliableRangeStart > 0) {
         globals.dispatch(
-          Actions.addAutomaticNote({
+          Actions.addNote({
             timestamp: reliableRangeStart,
             color: '#ff0000',
             text: 'Reliable Range Start',

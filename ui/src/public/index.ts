@@ -18,7 +18,7 @@ import {Hotkey} from '../base/hotkeys';
 import {Span, duration, time} from '../base/time';
 import {Migrate, Store} from '../base/store';
 import {ColorScheme} from '../core/colorizer';
-import {LegacySelection} from '../common/state';
+import {LegacySelection, Selection} from '../common/state';
 import {PanelSize} from '../frontend/panel';
 import {Engine} from '../trace_processor/engine';
 import {UntypedEventSet} from '../core/event_set';
@@ -338,8 +338,13 @@ export interface TabDescriptor {
   onShow?(): void;
 }
 
-export interface DetailsPanel {
+export interface LegacyDetailsPanel {
   render(selection: LegacySelection): m.Children;
+  isLoading?(): boolean;
+}
+
+export interface DetailsPanel {
+  render(selection: Selection): m.Children;
   isLoading?(): boolean;
 }
 
@@ -431,7 +436,7 @@ export interface PluginContextTrace extends PluginContext {
 
   // Register a hook into the current selection tab rendering logic that allows
   // customization of the current selection tab content.
-  registerDetailsPanel(sel: DetailsPanel): void;
+  registerDetailsPanel(sel: LegacyDetailsPanel): void;
 
   // Create a store mounted over the top of this plugin's persistent state.
   mountStore<T>(migrate: Migrate<T>): Store<T>;

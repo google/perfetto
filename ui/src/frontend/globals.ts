@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {BigintMath} from '../base/bigint_math';
-import {assertExists} from '../base/logging';
+import {assertExists, assertUnreachable} from '../base/logging';
 import {createStore, Store} from '../base/store';
 import {duration, Span, Time, time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
@@ -763,6 +763,31 @@ class Globals {
   }
 
   findTimeRangeOfSelection(): {start: time; end: time} | undefined {
+    const sel = globals.state.selection;
+    if (sel.kind === 'area') {
+      return sel;
+    } else if (sel.kind === 'note') {
+      const selectedNote = this.state.notes[sel.id];
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
+      if (selectedNote) {
+        const kind = selectedNote.noteType;
+        switch (kind) {
+          case 'SPAN':
+            return {
+              start: selectedNote.start,
+              end: selectedNote.end,
+            };
+          case 'DEFAULT':
+            return {
+              start: selectedNote.timestamp,
+              end: Time.add(selectedNote.timestamp, INSTANT_FOCUS_DURATION),
+            };
+          default:
+            assertUnreachable(kind);
+        }
+      }
+    }
+
     const selection = getLegacySelection(this.state);
     if (selection === null) {
       return undefined;
@@ -776,23 +801,6 @@ class Globals {
       return findTimeRangeOfSlice(threadState);
     } else if (selection.kind === 'COUNTER') {
       return {start: selection.leftTs, end: selection.rightTs};
-    } else if (selection.kind === 'AREA') {
-      const selectedArea = this.state.areas[selection.areaId];
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (selectedArea) {
-        return {start: selectedArea.start, end: selectedArea.end};
-      }
-    } else if (selection.kind === 'NOTE') {
-      const selectedNote = this.state.notes[selection.id];
-      // Notes can either be default or area notes. Area notes are handled
-      // above in the AREA case.
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      if (selectedNote && selectedNote.noteType === 'DEFAULT') {
-        return {
-          start: selectedNote.timestamp,
-          end: Time.add(selectedNote.timestamp, INSTANT_FOCUS_DURATION),
-        };
-      }
     } else if (selection.kind === 'LOG') {
       // TODO(hjd): Make focus selection work for logs.
     } else if (selection.kind === 'GENERIC_SLICE') {

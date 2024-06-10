@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Disposable, DisposableCallback} from '../base/disposable';
-import {DetailsPanel, TabDescriptor} from '../public';
+import {DetailsPanel, LegacyDetailsPanel, TabDescriptor} from '../public';
 
 export interface ResolvedTab {
   uri: string;
@@ -27,7 +27,8 @@ export interface ResolvedTab {
 export class TabManager implements Disposable {
   private _registry = new Map<string, TabDescriptor>();
   private _defaultTabs = new Set<string>();
-  private _detailsPanelsRegistry = new Set<DetailsPanel>();
+  private _legacyDetailsPanelRegistry = new Set<LegacyDetailsPanel>();
+  private _detailsPanelRegistry = new Set<DetailsPanel>();
   private _currentTabs = new Map<string, TabDescriptor>();
 
   dispose(): void {
@@ -52,10 +53,17 @@ export class TabManager implements Disposable {
     });
   }
 
-  registerDetailsPanel(section: DetailsPanel): Disposable {
-    this._detailsPanelsRegistry.add(section);
+  registerLegacyDetailsPanel(section: LegacyDetailsPanel): Disposable {
+    this._legacyDetailsPanelRegistry.add(section);
     return new DisposableCallback(() => {
-      this._detailsPanelsRegistry.delete(section);
+      this._legacyDetailsPanelRegistry.delete(section);
+    });
+  }
+
+  registerDetailsPanel(section: DetailsPanel): Disposable {
+    this._detailsPanelRegistry.add(section);
+    return new DisposableCallback(() => {
+      this._detailsPanelRegistry.delete(section);
     });
   }
 
@@ -71,8 +79,12 @@ export class TabManager implements Disposable {
     return Array.from(this._defaultTabs);
   }
 
+  get legacyDetailsPanels(): LegacyDetailsPanel[] {
+    return Array.from(this._legacyDetailsPanelRegistry);
+  }
+
   get detailsPanels(): DetailsPanel[] {
-    return Array.from(this._detailsPanelsRegistry);
+    return Array.from(this._detailsPanelRegistry);
   }
 
   /**

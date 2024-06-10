@@ -93,7 +93,6 @@ export function createEmptyState(): State {
     trackGroups: {},
     pinnedTracks: [],
     scrollingTracks: [],
-    areas: {},
     queries: {},
     notes: {},
 

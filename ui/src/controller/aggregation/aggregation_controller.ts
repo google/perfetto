@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {AsyncLimiter} from '../../base/async_limiter';
+import {Monitor} from '../../base/monitor';
 import {isString} from '../../base/object_utils';
 import {
   AggregateData,
@@ -19,12 +21,11 @@ import {
   ColumnDef,
   ThreadStateExtra,
 } from '../../common/aggregation_data';
-import {Area, Sorting, getLegacySelection} from '../../common/state';
+import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {publishAggregateData} from '../../frontend/publish';
 import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
-import {AreaSelectionHandler} from '../area_selection_handler';
 import {Controller} from '../controller';
 
 export interface AggregationControllerArgs {
@@ -38,10 +39,8 @@ function isStringColumn(column: Column): boolean {
 
 export abstract class AggregationController extends Controller<'main'> {
   readonly kind: string;
-  private areaSelectionHandler: AreaSelectionHandler;
-  private previousSorting?: Sorting;
-  private requestingData = false;
-  private queuedRequest = false;
+  private readonly monitor: Monitor;
+  private readonly limiter = new AsyncLimiter();
 
   abstract createAggregateView(engine: Engine, area: Area): Promise<boolean>;
 
@@ -57,47 +56,32 @@ export abstract class AggregationController extends Controller<'main'> {
   constructor(private args: AggregationControllerArgs) {
     super('main');
     this.kind = this.args.kind;
-    this.areaSelectionHandler = new AreaSelectionHandler();
+    this.monitor = new Monitor([
+      () => globals.state.selection,
+      () => globals.state.aggregatePreferences[this.args.kind],
+    ]);
   }
 
   run() {
-    const selection = getLegacySelection(globals.state);
-    if (selection === null || selection.kind !== 'AREA') {
-      publishAggregateData({
-        data: {
-          tabName: this.getTabName(),
-          columns: [],
-          strings: [],
-          columnSums: [],
-        },
-        kind: this.args.kind,
-      });
-      return;
-    }
-    const aggregatePreferences =
-      globals.state.aggregatePreferences[this.args.kind];
-
-    const sortingChanged =
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      aggregatePreferences &&
-      this.previousSorting !== aggregatePreferences.sorting;
-    const [hasAreaChanged, area] = this.areaSelectionHandler.getAreaChange();
-    if ((!hasAreaChanged && !sortingChanged) || !area) return;
-
-    if (this.requestingData) {
-      this.queuedRequest = true;
-    } else {
-      this.requestingData = true;
-      if (sortingChanged) this.previousSorting = aggregatePreferences.sorting;
-      this.getAggregateData(area, hasAreaChanged)
-        .then((data) => publishAggregateData({data, kind: this.args.kind}))
-        .finally(() => {
-          this.requestingData = false;
-          if (this.queuedRequest) {
-            this.queuedRequest = false;
-            this.run();
-          }
+    if (this.monitor.ifStateChanged()) {
+      const selection = globals.state.selection;
+      if (selection.kind !== 'area') {
+        publishAggregateData({
+          data: {
+            tabName: this.getTabName(),
+            columns: [],
+            strings: [],
+            columnSums: [],
+          },
+          kind: this.args.kind,
         });
+        return;
+      } else {
+        this.limiter.schedule(async () => {
+          const data = await this.getAggregateData(selection, true);
+          publishAggregateData({data, kind: this.args.kind});
+        });
+      }
     }
   }
 
