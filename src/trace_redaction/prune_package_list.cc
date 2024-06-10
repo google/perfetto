@@ -26,21 +26,6 @@
 #include "protos/perfetto/trace/android/packages_list.pbzero.h"
 
 namespace perfetto::trace_redaction {
-namespace {
-
-bool ShouldKeepPackageInfo(protozero::Field package_info, uint64_t uid) {
-  PERFETTO_DCHECK(package_info.id() ==
-                  protos::pbzero::PackagesList::kPackagesFieldNumber);
-
-  protozero::ProtoDecoder decoder(package_info.as_bytes());
-  auto uid_field = decoder.FindField(
-      protos::pbzero::PackagesList::PackageInfo::kUidFieldNumber);
-
-  return uid_field.valid() &&
-         NormalizeUid(uid_field.as_uint64()) == NormalizeUid(uid);
-}
-
-}  // namespace
 
 base::Status PrunePackageList::Transform(const Context& context,
                                          std::string* packet) const {
@@ -48,49 +33,60 @@ base::Status PrunePackageList::Transform(const Context& context,
     return base::ErrStatus("PrunePackageList: missing package uid.");
   }
 
-  protozero::ProtoDecoder packet_decoder(*packet);
+  protozero::ProtoDecoder decoder(*packet);
 
   protos::pbzero::TracePacket::Decoder trace_packet_decoder(*packet);
 
-  auto package_list = packet_decoder.FindField(
-      protos::pbzero::TracePacket::kPackagesListFieldNumber);
+  auto package_list =
+      decoder.FindField(protos::pbzero::TracePacket::kPackagesListFieldNumber);
 
   if (!package_list.valid()) {
     return base::OkStatus();
   }
 
-  auto uid = context.package_uid.value();
-
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet_message;
 
-  for (auto packet_field = packet_decoder.ReadField(); packet_field.valid();
-       packet_field = packet_decoder.ReadField()) {
-    if (packet_field.id() !=
-        protos::pbzero::TracePacket::kPackagesListFieldNumber) {
-      proto_util::AppendField(packet_field, packet_message.get());
-      continue;
-    }
-
-    auto* package_list_message = packet_message->set_packages_list();
-
-    protozero::ProtoDecoder package_list_decoder(packet_field.as_bytes());
-
-    for (auto package_field = package_list_decoder.ReadField();
-         package_field.valid();
-         package_field = package_list_decoder.ReadField()) {
-      // If not packages, keep.
-      // If packages and uid matches, keep.
-      if (package_field.id() !=
-              protos::pbzero::PackagesList::kPackagesFieldNumber ||
-          ShouldKeepPackageInfo(package_field, uid)) {
-        proto_util::AppendField(package_field, package_list_message);
-      }
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() == protos::pbzero::TracePacket::kPackagesListFieldNumber) {
+      OnPackageList(context, field.as_bytes(),
+                    packet_message->set_packages_list());
+    } else {
+      proto_util::AppendField(field, packet_message.get());
     }
   }
 
   packet->assign(packet_message.SerializeAsString());
 
   return base::OkStatus();
+}
+
+void PrunePackageList::OnPackageList(
+    const Context& context,
+    protozero::ConstBytes bytes,
+    protos::pbzero::PackagesList* message) const {
+  PERFETTO_DCHECK(message);
+
+  protozero::ProtoDecoder decoder(bytes);
+
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() == protos::pbzero::PackagesList::kPackagesFieldNumber) {
+      // The package uid should already be normalized (see
+      // find_package_info.cc).
+      //
+      // If there are more than one package entry (see
+      // trace_redaction_framework.h for more details), we need to match all
+      // instances here because retained processes will reference them.
+      protos::pbzero::PackagesList::PackageInfo::Decoder info(field.as_bytes());
+
+      if (info.has_uid() && NormalizeUid(info.uid()) == context.package_uid) {
+        proto_util::AppendField(field, message);
+      }
+    } else {
+      proto_util::AppendField(field, message);
+    }
+  }
 }
 
 }  // namespace perfetto::trace_redaction
