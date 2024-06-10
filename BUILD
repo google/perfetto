@@ -1765,8 +1765,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_importers_proto_winscope_full",
     srcs = [
-        "src/trace_processor/importers/proto/winscope/android_input_event_parser.cc",
-        "src/trace_processor/importers/proto/winscope/android_input_event_parser.h",
         "src/trace_processor/importers/proto/winscope/protolog_messages_tracker.cc",
         "src/trace_processor/importers/proto/winscope/protolog_messages_tracker.h",
         "src/trace_processor/importers/proto/winscope/protolog_parser.cc",
@@ -1805,6 +1803,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/additional_modules.h",
         "src/trace_processor/importers/proto/android_camera_event_module.cc",
         "src/trace_processor/importers/proto/android_camera_event_module.h",
+        "src/trace_processor/importers/proto/android_input_event_module.cc",
+        "src/trace_processor/importers/proto/android_input_event_module.h",
         "src/trace_processor/importers/proto/android_probes_module.cc",
         "src/trace_processor/importers/proto/android_probes_module.h",
         "src/trace_processor/importers/proto/android_probes_parser.cc",
@@ -4786,6 +4786,7 @@ perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
     srcs = [
         "protos/perfetto/trace/android/android_game_intervention_list.proto",
+        "protos/perfetto/trace/android/android_input_event.proto",
         "protos/perfetto/trace/android/android_log.proto",
         "protos/perfetto/trace/android/android_system_property.proto",
         "protos/perfetto/trace/android/camera_event.proto",
@@ -4844,7 +4845,6 @@ perfetto_proto_descriptor(
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_winscope_extensions_protos",
     srcs = [
-        "protos/perfetto/trace/android/android_input_event.proto",
         "protos/perfetto/trace/android/graphics/pixelformat.proto",
         "protos/perfetto/trace/android/inputmethodeditor.proto",
         "protos/perfetto/trace/android/inputmethodservice/inputmethodservice.proto",

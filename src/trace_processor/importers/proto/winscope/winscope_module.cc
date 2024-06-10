@@ -33,8 +33,7 @@ WinscopeModule::WinscopeModule(TraceProcessorContext* context)
       surfaceflinger_layers_parser_(context),
       surfaceflinger_transactions_parser_(context),
       shell_transitions_parser_(context),
-      protolog_parser_(context),
-      android_input_event_parser_(context) {
+      protolog_parser_(context) {
   RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber,
                    context);
   RegisterForField(TracePacket::kSurfaceflingerTransactionsFieldNumber,
@@ -106,11 +105,6 @@ void WinscopeModule::ParseWinscopeExtensionsData(protozero::ConstBytes blob,
              field.valid()) {
     ParseViewCaptureData(timestamp, field.as_bytes(),
                          data.sequence_state.get());
-  } else if (field = decoder.Get(
-                 WinscopeExtensionsImpl::kAndroidInputEventFieldNumber);
-             field.valid()) {
-    android_input_event_parser_.ParseAndroidInputEvent(timestamp,
-                                                       field.as_bytes());
   }
 }
 
