@@ -76,11 +76,9 @@ class TrackUtilsPlugin implements Plugin {
             const traceTime = globals.stateTraceTimeTP();
             globals.makeSelection(
               Actions.selectArea({
-                area: {
-                  start: traceTime.start,
-                  end: traceTime.end,
-                  tracks: [firstTrack.key],
-                },
+                start: traceTime.start,
+                end: traceTime.end,
+                tracks: [firstTrack.key],
               }),
             );
           } else {

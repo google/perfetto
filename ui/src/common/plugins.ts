@@ -20,7 +20,7 @@ import {Span, duration, time} from '../base/time';
 import {TraceContext, globals} from '../frontend/globals';
 import {
   Command,
-  DetailsPanel,
+  LegacyDetailsPanel,
   MetricVisualisation,
   Migrate,
   Plugin,
@@ -157,11 +157,11 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     this.trash.add(remove);
   }
 
-  registerDetailsPanel(section: DetailsPanel): void {
+  registerDetailsPanel(detailsPanel: LegacyDetailsPanel): void {
     if (!this.alive) return;
 
     const tabMan = globals.tabManager;
-    const unregister = tabMan.registerDetailsPanel(section);
+    const unregister = tabMan.registerLegacyDetailsPanel(detailsPanel);
     this.trash.add(unregister);
   }
 

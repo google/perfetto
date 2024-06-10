@@ -63,7 +63,7 @@ export class TabPanel implements m.ClassComponent {
 
     if (
       !this.hasBeenDragged &&
-      (tabs.length > 0 || getLegacySelection(globals.state))
+      (tabs.length > 0 || globals.state.selection.kind !== 'empty')
     ) {
       this.detailsHeight = getDefaultDetailsHeight();
     }
@@ -129,8 +129,9 @@ export class TabPanel implements m.ClassComponent {
   }
 
   private renderCSTabContent(): {isLoading: boolean; content: m.Children} {
-    const cs = getLegacySelection(globals.state);
-    if (!cs) {
+    const currentSelection = globals.state.selection;
+    const legacySelection = getLegacySelection(globals.state);
+    if (currentSelection.kind === 'empty') {
       return {
         isLoading: false,
         content: m(
@@ -145,14 +146,27 @@ export class TabPanel implements m.ClassComponent {
     }
 
     // Get the first "truthy" details panel
-    const panel = globals.tabManager.detailsPanels
-      .map((dp) => {
-        return {
-          content: dp.render(cs),
-          isLoading: dp.isLoading?.() ?? false,
-        };
-      })
-      .find(({content}) => content);
+    let detailsPanels = globals.tabManager.detailsPanels.map((dp) => {
+      return {
+        content: dp.render(currentSelection),
+        isLoading: dp.isLoading?.() ?? false,
+      };
+    });
+
+    if (legacySelection !== null) {
+      const legacyDetailsPanels = globals.tabManager.legacyDetailsPanels.map(
+        (dp) => {
+          return {
+            content: dp.render(legacySelection),
+            isLoading: dp.isLoading?.() ?? false,
+          };
+        },
+      );
+
+      detailsPanels = detailsPanels.concat(legacyDetailsPanels);
+    }
+
+    const panel = detailsPanels.find(({content}) => content);
 
     if (panel) {
       return panel;
@@ -166,7 +180,7 @@ export class TabPanel implements m.ClassComponent {
             title: 'No details available',
             icon: 'warning',
           },
-          `Selection kind: '${cs.kind}'`,
+          `Selection kind: '${currentSelection.kind}'`,
         ),
       };
     }

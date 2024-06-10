@@ -73,7 +73,7 @@ export class SelectionController extends Controller<'main'> {
 
   run() {
     const selection = getLegacySelection(globals.state);
-    if (!selection || selection.kind === 'AREA') return;
+    if (!selection) return;
 
     const selectWithId: SelectionKind[] = [
       'SLICE',
