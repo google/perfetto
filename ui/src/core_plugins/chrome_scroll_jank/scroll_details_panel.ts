@@ -39,9 +39,9 @@ import {dictToTreeNodes, Tree} from '../../widgets/tree';
 
 import {
   buildScrollOffsetsGraph,
-  getAppliedScrollDeltas,
+  getInputScrollDeltas,
   getJankIntervals,
-  getUserScrollDeltas,
+  getPresentedScrollDeltas,
 } from './scroll_delta_graph';
 import {
   getScrollJankSlices,
@@ -232,15 +232,10 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
 
   private async loadScrollOffsets() {
     if (exists(this.data)) {
-      const userDeltas = await getUserScrollDeltas(
+      const inputDeltas = await getInputScrollDeltas(this.engine, this.data.id);
+      const presentedDeltas = await getPresentedScrollDeltas(
         this.engine,
-        this.data.ts,
-        this.data.dur,
-      );
-      const appliedDeltas = await getAppliedScrollDeltas(
-        this.engine,
-        this.data.ts,
-        this.data.dur,
+        this.data.id,
       );
       const jankIntervals = await getJankIntervals(
         this.engine,
@@ -248,19 +243,19 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
         this.data.dur,
       );
       this.scrollDeltas = buildScrollOffsetsGraph(
-        userDeltas,
-        appliedDeltas,
+        inputDeltas,
+        presentedDeltas,
         jankIntervals,
       );
 
-      if (appliedDeltas.length > 0) {
-        this.metrics.startOffset = appliedDeltas[0].scrollOffset;
+      if (presentedDeltas.length > 0) {
+        this.metrics.startOffset = presentedDeltas[0].scrollOffset;
         this.metrics.endOffset =
-          appliedDeltas[appliedDeltas.length - 1].scrollOffset;
+          presentedDeltas[presentedDeltas.length - 1].scrollOffset;
 
         let pixelsScrolled = 0;
-        for (let i = 0; i < appliedDeltas.length; i++) {
-          pixelsScrolled += Math.abs(appliedDeltas[i].scrollDelta);
+        for (let i = 0; i < presentedDeltas.length; i++) {
+          pixelsScrolled += Math.abs(presentedDeltas[i].scrollDelta);
         }
 
         if (pixelsScrolled != 0) {

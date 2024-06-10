@@ -19,11 +19,11 @@ import {Engine} from '../../trace_processor/engine';
 import {LONG, NUM} from '../../trace_processor/query_result';
 import {VegaView} from '../../widgets/vega_view';
 
-const USER_CATEGORY = 'User';
-const APPLIED_CATEGORY = 'Applied';
+const INPUT_CATEGORY = 'Input';
+const PRESENTED_CATEGORY = 'Presented';
 
 interface ScrollDeltaPlotDatum {
-  // What type of data this is - user scroll or applied scroll. This is used
+  // What type of data this is - input scroll or presented scroll. This is used
   // to denote the color of the data point.
   category: string;
   offset: number;
@@ -44,10 +44,9 @@ export interface JankIntervalPlotDetails {
   end_ts: number;
 }
 
-export async function getUserScrollDeltas(
+export async function getInputScrollDeltas(
   engine: Engine,
-  startTs: time,
-  dur: duration,
+  scrollId: number,
 ): Promise<ScrollDeltaDetails[]> {
   const queryResult = await engine.query(`
     INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
@@ -58,7 +57,7 @@ export async function getUserScrollDeltas(
       delta_y AS deltaY,
       relative_offset_y AS offsetY
     FROM chrome_scroll_input_offsets
-    WHERE ts >= ${startTs} AND ts <= ${startTs + dur};
+    WHERE scroll_id = ${scrollId};
   `);
 
   const it = queryResult.iter({
@@ -81,10 +80,9 @@ export async function getUserScrollDeltas(
   return deltas;
 }
 
-export async function getAppliedScrollDeltas(
+export async function getPresentedScrollDeltas(
   engine: Engine,
-  startTs: time,
-  dur: duration,
+  scrollId: number,
 ): Promise<ScrollDeltaDetails[]> {
   const queryResult = await engine.query(`
     INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
@@ -95,7 +93,7 @@ export async function getAppliedScrollDeltas(
       delta_y AS deltaY,
       relative_offset_y AS offsetY
     FROM chrome_presented_scroll_offsets
-    WHERE ts >= ${startTs} AND ts <= ${startTs + dur}
+    WHERE scroll_id = ${scrollId}
       AND delta_y IS NOT NULL;
   `);
 
@@ -155,19 +153,19 @@ export async function getJankIntervals(
 }
 
 export function buildScrollOffsetsGraph(
-  userDeltas: ScrollDeltaDetails[],
-  appliedDeltas: ScrollDeltaDetails[],
+  inputDeltas: ScrollDeltaDetails[],
+  presentedDeltas: ScrollDeltaDetails[],
   jankIntervals: JankIntervalPlotDetails[],
 ): m.Child {
-  const userData = buildOffsetData(userDeltas, USER_CATEGORY);
-  const appliedData = buildOffsetData(appliedDeltas, APPLIED_CATEGORY);
+  const inputData = buildOffsetData(inputDeltas, INPUT_CATEGORY);
+  const presentedData = buildOffsetData(presentedDeltas, PRESENTED_CATEGORY);
   const jankData = buildJankLayerData(jankIntervals);
 
   return m(VegaView, {
     spec: `
 {
   "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-  "description": "Scatter plot showcasing the pixel offset deltas between user scrolling and applied scrolling.",
+  "description": "Scatter plot showcasing the pixel offset deltas between input frames and presented frames.",
   "width": "container",
   "height": 200,
   "padding": 5,
@@ -224,7 +222,7 @@ export function buildScrollOffsetsGraph(
           "field": "category",
           "type": "nominal",
           "scale": {
-            "domain": ["${USER_CATEGORY}", "${APPLIED_CATEGORY}"],
+            "domain": ["${INPUT_CATEGORY}", "${PRESENTED_CATEGORY}"],
             "range": ["blue", "red"]
           },
           "legend": {
@@ -244,7 +242,7 @@ export function buildScrollOffsetsGraph(
   ]
 }
 `,
-    data: {table: userData.concat(appliedData)},
+    data: {table: inputData.concat(presentedData)},
   });
 }
 
