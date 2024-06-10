@@ -30,6 +30,11 @@ class PrunePackageList final : public TransformPrimitive {
  public:
   base::Status Transform(const Context& context,
                          std::string* packet) const override;
+
+ private:
+  void OnPackageList(const Context& context,
+                     protozero::ConstBytes bytes,
+                     protos::pbzero::PackagesList* message) const;
 };
 
 }  // namespace perfetto::trace_redaction
