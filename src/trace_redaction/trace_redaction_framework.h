@@ -143,8 +143,8 @@ class Context {
   // the collection are allowed.
   std::vector<int32_t> trusted_uids = {1000, 9999};
 
-  // The package list maps a package name to a uid. It is possible for multiple
-  // package names to map to the same uid, for example:
+  // With Android, packages are treated as users. This means they use uid as
+  // identifiers.
   //
   //    packages {
   //      name: "com.google.android.gms"
@@ -153,17 +153,32 @@ class Context {
   //      profileable_from_shell: false
   //      version_code: 235013038
   //    }
-  //    packages {
-  //      name: "com.google.android.gsf"
+  //
+  // Processes reference their package using a uid:
+  //
+  //    processes {
+  //      pid: 18176
+  //      ppid: 904
+  //      cmdline: "com.google.android.gms.persistent"
   //      uid: 10113
-  //      debuggable: false
-  //      profileable_from_shell: false
-  //      version_code: 34
   //    }
   //
-  // The process tree maps processes to packages via the uid value. However
-  // multiple processes can map to the same uid, only differed by some multiple
-  // of 100000, for example:
+  // An oddity within Android is that two or more processes can reference the
+  // same package using different uids:
+  //
+  //    A = package(M * 100000 + X)
+  //    B = package(N * 100000 + X)
+  //
+  // A and B map to the same package. This happens when there are two or more
+  // profiles on the device (e.g. a work profile and a personal profile).
+  //
+  // From the example above:
+  //
+  //  uid = package_uid_for("com.google.android.gms")
+  //  pid = main_thread_for(uid)
+  //  ASSERT(pid == 18176)
+  //
+  // However, if there is another profile:
   //
   //    processes {
   //      pid: 18176
@@ -177,6 +192,41 @@ class Context {
   //      cmdline: "com.google.android.gms.persistent"
   //      uid: 1010113
   //    }
+  //
+  // The logic from before still hold, however, if the traced process was pid
+  // 21388, it will be merged with the other threads.
+  //
+  // To avoid this problem from happening, we normalize the uids and treat
+  // both instances as a single process:
+  //
+  //    processes {
+  //      pid: 18176
+  //      ppid: 904
+  //      cmdline: "com.google.android.gms.persistent"
+  //      uid: 10113
+  //    }
+  //    processes {
+  //      pid: 21388
+  //      ppid: 904
+  //      cmdline: "com.google.android.gms.persistent"
+  // -    uid: 1010113
+  // +    uid: 10113
+  //    }
+  //
+  // It sounds like there would be a privacy concern, but because both processes
+  // are from the same app and are being collected from the same user, there
+  // are no new privacy issues by doing this.
+  //
+  // But where should the uids be normalized? The dividing line is the timeline
+  // interface, specifically, should the timeline know anything about uids
+  // (other than "it's a number").
+  //
+  // To avoid expanding the timeline's scope, the uid normalizations is done
+  // outside of the timeline. When a uid is passed into the timeline, it should
+  // be normalized (i.e. 5 != 100005). When the timeline is queried, the uid
+  // should be normalized. This increases the risk for error, but there are only
+  // two places where uids are set, writing the uid to the context and writing
+  // the uid to the timeline.
   std::optional<uint64_t> package_uid;
 
   // Trace packets contain a "one of" entry called "data". This field can be

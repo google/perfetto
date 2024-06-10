@@ -106,8 +106,7 @@ TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
   ASSERT_OK(after_raw_trace) << after_raw_trace.status().message();
 
   ASSERT_TRUE(context()->package_uid.has_value());
-  ASSERT_EQ(NormalizeUid(context()->package_uid.value()),
-            NormalizeUid(kPackageUid));
+  ASSERT_EQ(*context()->package_uid, kPackageUid);
 
   protos::pbzero::Trace::Decoder redacted_trace(after_raw_trace.value());
   auto packages = GetPackageInfo(redacted_trace);
@@ -119,7 +118,7 @@ TEST_F(PrunePackageListIntegrationTest, FindsPackageAndFiltersPackageList) {
     ASSERT_EQ(package.name(), kPackageName);
 
     ASSERT_TRUE(package.has_uid());
-    ASSERT_EQ(NormalizeUid(package.uid()), NormalizeUid(kPackageUid));
+    ASSERT_EQ(NormalizeUid(package.uid()), kPackageUid);
   }
 }
 

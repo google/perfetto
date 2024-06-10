@@ -43,7 +43,6 @@ base::Status FindPackageUid::Collect(
     return base::OkStatus();
   }
 
-  // Skip package and move onto the next packet.
   if (!packet.has_packages_list()) {
     return base::OkStatus();
   }
@@ -52,24 +51,28 @@ base::Status FindPackageUid::Collect(
       packet.packages_list());
 
   for (auto package = packages_list_decoder.packages(); package; ++package) {
-    protozero::ProtoDecoder package_decoder(*package);
+    protos::pbzero::PackagesList::PackageInfo::Decoder info(*package);
 
-    auto name = package_decoder.FindField(
-        protos::pbzero::PackagesList::PackageInfo::kNameFieldNumber);
-    auto uid = package_decoder.FindField(
-        protos::pbzero::PackagesList::PackageInfo::kUidFieldNumber);
-
-    if (name.valid() && uid.valid()) {
-      // Package names should be lowercase, but this check is meant to be more
-      // forgiving.
-      if (base::StringView(context->package_name)
-              .CaseInsensitiveEq(name.as_string())) {
-        context->package_uid = NormalizeUid(uid.as_uint64());
-        return base::OkStatus();
-      }
+    if (!info.has_name() || !info.uid()) {
+      continue;
     }
+
+    // Package names should be lowercase, but this check is meant to be more
+    // forgiving.
+    base::StringView expected_name(context->package_name.data(),
+                                   context->package_name.size());
+    base::StringView actual_name(info.name().data, info.name().size);
+    if (!actual_name.CaseInsensitiveEq(expected_name)) {
+      continue;
+    }
+
+    // See "trace_redaction_framework.cc" for info.uid() must be normalized.
+    context->package_uid = NormalizeUid(info.uid());
+    return base::OkStatus();
   }
 
+  // Nothing was found. There should only be one package list, but we keep
+  // looking just incase. The error case will be handled in End().
   return base::OkStatus();
 }
 
