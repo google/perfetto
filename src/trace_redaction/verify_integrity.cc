@@ -26,22 +26,15 @@ namespace perfetto::trace_redaction {
 
 base::Status VerifyIntegrity::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
-    Context* context) const {
+    Context*) const {
   if (!packet.has_trusted_uid()) {
     return base::ErrStatus(
         "VerifyIntegrity: missing field (TracePacket::kTrustedUid).");
   }
 
-  // Use an empty list as "trust everyone".
-  const auto& trusted_uids = context->trusted_uids;
-
-  if (!trusted_uids.empty()) {
-    auto trusted_uid = packet.trusted_uid();
-
-    if (std::find(trusted_uids.begin(), trusted_uids.end(), trusted_uid) ==
-        trusted_uids.end()) {
-      return base::ErrStatus("VerifyIntegrity: untrusted uid.");
-    }
+  if (packet.trusted_uid() > Context::kMaxTrustedUid) {
+    return base::ErrStatus("VerifyIntegrity: untrusted uid (uid = %d).",
+                           packet.trusted_uid());
   }
 
   if (packet.has_ftrace_events()) {
