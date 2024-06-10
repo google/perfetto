@@ -32,7 +32,6 @@ import {
 import {PanelSize} from './panel';
 import {Panel} from './panel_container';
 import {renderDuration} from './widgets/duration';
-import {getLegacySelection} from '../common/state';
 
 export interface BBox {
   x: number;
@@ -170,15 +169,14 @@ export class TimeSelectionPanel implements Panel {
     }
 
     const localArea = globals.timeline.selectedArea;
-    const selection = getLegacySelection(globals.state);
+    const selection = globals.state.selection;
     if (localArea !== undefined) {
       const start = Time.min(localArea.start, localArea.end);
       const end = Time.max(localArea.start, localArea.end);
       this.renderSpan(ctx, size, new TimeSpan(start, end));
-    } else if (selection !== null && selection.kind === 'AREA') {
-      const selectedArea = globals.state.areas[selection.areaId];
-      const start = Time.min(selectedArea.start, selectedArea.end);
-      const end = Time.max(selectedArea.start, selectedArea.end);
+    } else if (selection.kind === 'area') {
+      const start = Time.min(selection.start, selection.end);
+      const end = Time.max(selection.start, selection.end);
       this.renderSpan(ctx, size, new TimeSpan(start, end));
     }
 
@@ -188,16 +186,9 @@ export class TimeSelectionPanel implements Panel {
 
     for (const note of Object.values(globals.state.notes)) {
       const noteIsSelected =
-        selection !== null &&
-        selection.kind === 'AREA' &&
-        selection.noteId === note.id;
-      if (note.noteType === 'AREA' && !noteIsSelected) {
-        const selectedArea = globals.state.areas[note.areaId];
-        this.renderSpan(
-          ctx,
-          size,
-          new TimeSpan(selectedArea.start, selectedArea.end),
-        );
+        selection.kind === 'note' && selection.id === note.id;
+      if (note.noteType === 'SPAN' && !noteIsSelected) {
+        this.renderSpan(ctx, size, new TimeSpan(note.start, note.end));
       }
     }
 

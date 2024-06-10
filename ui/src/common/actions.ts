@@ -45,7 +45,6 @@ import {
 } from './metatracing';
 import {
   AdbRecordingTarget,
-  Area,
   EngineMode,
   LoadedConfig,
   NewEngineMode,
@@ -478,92 +477,43 @@ export const StateActions = {
   },
 
   selectNote(state: StateDraft, args: {id: string}): void {
-    if (args.id) {
-      state.selection = {
-        kind: 'legacy',
-        legacySelection: {
-          kind: 'NOTE',
-          id: args.id,
-        },
-      };
-    }
+    state.selection = {
+      kind: 'note',
+      id: args.id,
+    };
   },
 
-  addAutomaticNote(
+  addNote(
     state: StateDraft,
-    args: {timestamp: time; color: string; text: string},
+    args: {timestamp: time; color: string; id?: string; text?: string},
   ): void {
-    const id = generateNextId(state);
+    const {timestamp, color, id = generateNextId(state), text = ''} = args;
     state.notes[id] = {
       noteType: 'DEFAULT',
       id,
-      timestamp: args.timestamp,
-      color: args.color,
-      text: args.text,
+      timestamp,
+      color,
+      text,
     };
   },
 
-  addNote(state: StateDraft, args: {timestamp: time; color: string}): void {
-    const id = generateNextId(state);
-    state.notes[id] = {
-      noteType: 'DEFAULT',
-      id,
-      timestamp: args.timestamp,
-      color: args.color,
-      text: '',
-    };
-    this.selectNote(state, {id});
-  },
-
-  markCurrentArea(
+  addSpanNote(
     state: StateDraft,
-    args: {color: string; persistent: boolean},
+    args: {start: time; end: time; id?: string; color?: string},
   ): void {
-    if (state.selection.kind !== 'legacy') {
-      return;
-    }
-    if (state.selection.legacySelection.kind !== 'AREA') {
-      return;
-    }
-    const legacySelection = state.selection.legacySelection;
-    const id = args.persistent ? generateNextId(state) : '0';
-    const color = args.persistent ? args.color : '#344596';
+    const {
+      id = generateNextId(state),
+      color = randomColor(),
+      end,
+      start,
+    } = args;
+
     state.notes[id] = {
-      noteType: 'AREA',
+      noteType: 'SPAN',
+      start,
+      end,
+      color,
       id,
-      areaId: legacySelection.areaId,
-      color,
-      text: '',
-    };
-    legacySelection.noteId = id;
-  },
-
-  toggleMarkCurrentArea(state: StateDraft, args: {persistent: boolean}) {
-    const selection = state.selection;
-    if (
-      selection.kind === 'legacy' &&
-      selection.legacySelection.kind === 'AREA' &&
-      selection.legacySelection.noteId !== undefined
-    ) {
-      this.removeNote(state, {id: selection.legacySelection.noteId});
-    } else {
-      const color = randomColor();
-      this.markCurrentArea(state, {color, persistent: args.persistent});
-    }
-  },
-
-  markArea(state: StateDraft, args: {area: Area; persistent: boolean}): void {
-    const {start, end, tracks} = args.area;
-    assertTrue(start <= end);
-    const areaId = generateNextId(state);
-    state.areas[areaId] = {id: areaId, start, end, tracks};
-    const noteId = args.persistent ? generateNextId(state) : '0';
-    const color = args.persistent ? randomColor() : '#344596';
-    state.notes[noteId] = {
-      noteType: 'AREA',
-      id: noteId,
-      areaId,
-      color,
       text: '',
     };
   },
@@ -584,23 +534,11 @@ export const StateActions = {
   },
 
   removeNote(state: StateDraft, args: {id: string}): void {
-    if (state.notes[args.id] === undefined) return;
     delete state.notes[args.id];
-    // For regular notes, we clear the current selection but for an area note
-    // we only want to clear the note/marking and leave the area selected.
-    if (state.selection.kind !== 'legacy') return;
-    if (
-      state.selection.legacySelection.kind === 'NOTE' &&
-      state.selection.legacySelection.id === args.id
-    ) {
-      state.selection = {
-        kind: 'empty',
-      };
-    } else if (
-      state.selection.legacySelection.kind === 'AREA' &&
-      state.selection.legacySelection.noteId === args.id
-    ) {
-      state.selection.legacySelection.noteId = undefined;
+
+    // Clear the selection if this note was selected
+    if (state.selection.kind === 'note' && state.selection.id === args.id) {
+      state.selection = {kind: 'empty'};
     }
   },
 
@@ -790,34 +728,17 @@ export const StateActions = {
     state.omniboxState.mode = args.mode;
   },
 
-  selectArea(state: StateDraft, args: {area: Area}): void {
-    const {start, end, tracks} = args.area;
-    assertTrue(start <= end);
-    const areaId = generateNextId(state);
-    state.areas[areaId] = {id: areaId, start, end, tracks};
-    state.selection = {
-      kind: 'legacy',
-      legacySelection: {kind: 'AREA', areaId},
-    };
-  },
-
-  editArea(state: StateDraft, args: {area: Area; areaId: string}): void {
-    const {start, end, tracks} = args.area;
-    assertTrue(start <= end);
-    state.areas[args.areaId] = {id: args.areaId, start, end, tracks};
-  },
-
-  reSelectArea(
+  selectArea(
     state: StateDraft,
-    args: {areaId: string; noteId: string},
+    args: {start: time; end: time; tracks: string[]},
   ): void {
+    const {start, end, tracks} = args;
+    assertTrue(start <= end);
     state.selection = {
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'AREA',
-        areaId: args.areaId,
-        noteId: args.noteId,
-      },
+      kind: 'area',
+      start,
+      end,
+      tracks,
     };
   },
 
@@ -826,32 +747,29 @@ export const StateActions = {
     args: {key: string; isTrackGroup: boolean},
   ) {
     const selection = state.selection;
-    if (
-      selection.kind !== 'legacy' ||
-      selection.legacySelection.kind !== 'AREA'
-    ) {
+    if (selection.kind !== 'area') {
       return;
     }
-    const areaId = selection.legacySelection.areaId;
-    const index = state.areas[areaId].tracks.indexOf(args.key);
+
+    const index = selection.tracks.indexOf(args.key);
     if (index > -1) {
-      state.areas[areaId].tracks.splice(index, 1);
+      selection.tracks.splice(index, 1);
       if (args.isTrackGroup) {
         // Also remove all child tracks.
         for (const childTrack of state.trackGroups[args.key].tracks) {
-          const childIndex = state.areas[areaId].tracks.indexOf(childTrack);
+          const childIndex = selection.tracks.indexOf(childTrack);
           if (childIndex > -1) {
-            state.areas[areaId].tracks.splice(childIndex, 1);
+            selection.tracks.splice(childIndex, 1);
           }
         }
       }
     } else {
-      state.areas[areaId].tracks.push(args.key);
+      selection.tracks.push(args.key);
       if (args.isTrackGroup) {
         // Also add all child tracks.
         for (const childTrack of state.trackGroups[args.key].tracks) {
-          if (!state.areas[areaId].tracks.includes(childTrack)) {
-            state.areas[areaId].tracks.push(childTrack);
+          if (!selection.tracks.includes(childTrack)) {
+            selection.tracks.push(childTrack);
           }
         }
       }
@@ -971,17 +889,12 @@ export const StateActions = {
     }
   },
 
-  togglePivotTable(state: StateDraft, args: {areaId: string | null}) {
-    state.nonSerializableState.pivotTable.selectionArea =
-      args.areaId === null
-        ? undefined
-        : {areaId: args.areaId, tracks: state.areas[args.areaId].tracks};
-    if (
-      args.areaId !==
-      state.nonSerializableState.pivotTable.selectionArea?.areaId
-    ) {
-      state.nonSerializableState.pivotTable.queryResult = null;
-    }
+  togglePivotTable(
+    state: StateDraft,
+    args: {area?: {start: time; end: time; tracks: string[]}},
+  ) {
+    state.nonSerializableState.pivotTable.selectionArea = args.area;
+    state.nonSerializableState.pivotTable.queryResult = null;
   },
 
   setPivotStateQueryResult(

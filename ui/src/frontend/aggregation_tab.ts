@@ -27,10 +27,10 @@ import {
   FlamegraphDetailsPanel,
   FlamegraphSelectionParams,
 } from './flamegraph_panel';
-import {ProfileType, TrackState, getLegacySelection} from '../common/state';
-import {AreaSelectionHandler} from '../controller/area_selection_handler';
+import {ProfileType, TrackState} from '../common/state';
 import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../core_plugins/perf_samples_profile';
 import {assertExists} from '../base/logging';
+import {Monitor} from '../base/monitor';
 
 interface View {
   key: string;
@@ -39,8 +39,8 @@ interface View {
 }
 
 class AreaDetailsPanel implements m.ClassComponent {
+  private readonly monitor = new Monitor([() => globals.state.selection]);
   private currentTab: string | undefined = undefined;
-  private areaSelectionHandler = new AreaSelectionHandler();
   private flamegraphSelection?: FlamegraphSelectionParams;
 
   private getCurrentView(): string | undefined {
@@ -156,21 +156,17 @@ class AreaDetailsPanel implements m.ClassComponent {
   }
 
   private computeFlamegraphSelection() {
-    const currentSelection = getLegacySelection(globals.state);
-    if (currentSelection?.kind !== 'AREA') {
+    const currentSelection = globals.state.selection;
+    if (currentSelection.kind !== 'area') {
       return undefined;
     }
-    const [hasAreaChanged, area] = this.areaSelectionHandler.getAreaChange();
-    if (area === undefined) {
-      return undefined;
-    }
-    if (!hasAreaChanged) {
-      // If the AreaSelectionHandler says things have not changed, just return
-      // a copy of the last seen selection.
+    if (!this.monitor.ifStateChanged()) {
+      // If the selection has not changed, just return a copy of the last seen
+      // selection.
       return this.flamegraphSelection;
     }
     const upids = [];
-    for (const trackId of area.tracks) {
+    for (const trackId of currentSelection.tracks) {
       const track: TrackState | undefined = globals.state.tracks[trackId];
       const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
       if (trackInfo?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
@@ -183,8 +179,8 @@ class AreaDetailsPanel implements m.ClassComponent {
     }
     return {
       profileType: ProfileType.PERF_SAMPLE,
-      start: area.start,
-      end: area.end,
+      start: currentSelection.start,
+      end: currentSelection.end,
       upids,
     };
   }
@@ -196,7 +192,7 @@ export class AggregationsTabs implements Disposable {
   constructor() {
     const unregister = globals.tabManager.registerDetailsPanel({
       render(selection) {
-        if (selection.kind === 'AREA') {
+        if (selection.kind === 'area') {
           return m(AreaDetailsPanel);
         } else {
           return undefined;

@@ -21,7 +21,6 @@ import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {Actions} from '../common/actions';
-import {getLegacySelection} from '../common/state';
 import {
   DurationPrecision,
   setDurationPrecision,
@@ -51,7 +50,6 @@ import {SqlTables} from './sql_table/well_known_tables';
 import {
   findCurrentSelection,
   focusOtherFlow,
-  lockSliceSpan,
   moveByFocusedFlow,
 } from './keyboard_event_handler';
 import {publishPermalinkHash} from './publish';
@@ -134,10 +132,9 @@ export class App implements m.ClassComponent {
   }
 
   private getFirstUtidOfSelectionOrVisibleWindow(): number {
-    const selection = getLegacySelection(globals.state);
-    if (selection && selection.kind === 'AREA') {
-      const selectedArea = globals.state.areas[selection.areaId];
-      const firstThreadStateTrack = selectedArea.tracks.find((trackId) => {
+    const selection = globals.state.selection;
+    if (selection.kind === 'area') {
+      const firstThreadStateTrack = selection.tracks.find((trackId) => {
         return globals.state.tracks[trackId];
       });
 
@@ -394,27 +391,31 @@ export class App implements m.ClassComponent {
       defaultHotkey: 'Escape',
     },
     {
-      id: 'perfetto.MarkArea',
-      name: 'Mark area',
+      id: 'perfetto.SetTemporarySpanNote',
+      name: 'Set the temporary span note based on the current selection',
       callback: () => {
-        const selection = getLegacySelection(globals.state);
-        if (selection && selection.kind === 'AREA') {
-          globals.dispatch(Actions.toggleMarkCurrentArea({persistent: false}));
-        } else if (selection) {
-          lockSliceSpan(false);
+        const range = globals.findTimeRangeOfSelection();
+        if (range) {
+          globals.dispatch(
+            Actions.addSpanNote({
+              start: range.start,
+              end: range.end,
+              id: '__temp__',
+            }),
+          );
         }
       },
       defaultHotkey: 'M',
     },
     {
-      id: 'perfetto.MarkAreaPersistent',
-      name: 'Mark area (persistent)',
+      id: 'perfetto.AddSpanNote',
+      name: 'Add a new span note based on the current selection',
       callback: () => {
-        const selection = getLegacySelection(globals.state);
-        if (selection && selection.kind === 'AREA') {
-          globals.dispatch(Actions.toggleMarkCurrentArea({persistent: true}));
-        } else if (selection) {
-          lockSliceSpan(true);
+        const range = globals.findTimeRangeOfSelection();
+        if (range) {
+          globals.dispatch(
+            Actions.addSpanNote({start: range.start, end: range.end}),
+          );
         }
       },
       defaultHotkey: 'Shift+M',
@@ -447,19 +448,26 @@ export class App implements m.ClassComponent {
       id: 'perfetto.SelectAll',
       name: 'Select all',
       callback: () => {
+        // This is a dual state command:
+        // - If one ore more tracks are already area selected, expand the time
+        //   range to include the entire trace, but keep the selection on just
+        //   these tracks.
+        // - If nothing is selected, or all selected tracks are entirely
+        //   selected, then select the entire trace. This allows double tapping
+        //   Ctrl+A to select the entire track, then select the entire trace.
         let tracksToSelect: string[] = [];
-
-        const selection = getLegacySelection(globals.state);
-        if (selection !== null && selection.kind === 'AREA') {
-          const area = globals.state.areas[selection.areaId];
+        const selection = globals.state.selection;
+        if (selection.kind === 'area') {
+          // Something is already selected, let's see if it covers the entire
+          // span of the trace or not
           const coversEntireTimeRange =
-            globals.traceContext.start === area.start &&
-            globals.traceContext.end === area.end;
+            globals.traceContext.start === selection.start &&
+            globals.traceContext.end === selection.end;
           if (!coversEntireTimeRange) {
             // If the current selection is an area which does not cover the
             // entire time range, preserve the list of selected tracks and
             // expand the time range.
-            tracksToSelect = area.tracks;
+            tracksToSelect = selection.tracks;
           } else {
             // If the entire time range is already covered, update the selection
             // to cover all tracks.
@@ -472,11 +480,9 @@ export class App implements m.ClassComponent {
         const {start, end} = globals.traceContext;
         globals.dispatch(
           Actions.selectArea({
-            area: {
-              start,
-              end,
-              tracks: tracksToSelect,
-            },
+            start,
+            end,
+            tracks: tracksToSelect,
           }),
         );
       },
