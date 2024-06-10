@@ -16,22 +16,43 @@
 
 #include "src/tracing/service/tracing_service_impl.h"
 
-#include <string.h>
+#include <atomic>
+#include <cinttypes>
+#include <cstdint>
+#include <cstring>
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include <set>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 
+#include "perfetto/base/build_config.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/base/proc_utils.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/base/uuid.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/consumer.h"
-#include "perfetto/ext/tracing/core/observable_events.h"
 #include "perfetto/ext/tracing/core/producer.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
-#include "perfetto/ext/tracing/core/trace_packet.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
-#include "perfetto/tracing/core/data_source_config.h"
-#include "perfetto/tracing/core/data_source_descriptor.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/protozero/contiguous_memory_range.h"
+#include "perfetto/protozero/message_arena.h"
+#include "perfetto/protozero/scattered_stream_writer.h"
+#include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/flush_flags.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "protos/perfetto/common/builtin_clock.gen.h"
 #include "protos/perfetto/trace/clock_snapshot.gen.h"
@@ -65,6 +86,7 @@ using ::testing::AssertionFailure;
 using ::testing::AssertionResult;
 using ::testing::AssertionSuccess;
 using ::testing::Contains;
+using ::testing::ContainsRegex;
 using ::testing::DoAll;
 using ::testing::Each;
 using ::testing::ElementsAreArray;
@@ -114,6 +136,12 @@ AssertionResult HasTriggerModeInternal(
 
 MATCHER_P(HasTriggerMode, mode, "") {
   return HasTriggerModeInternal(arg, mode);
+}
+
+MATCHER_P(LowerCase,
+          m,
+          "Lower case " + testing::DescribeMatcher<std::string>(m, negation)) {
+  return ExplainMatchResult(m, base::ToLower(arg), result_listener);
 }
 
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
@@ -5820,6 +5848,129 @@ TEST_F(TracingServiceImplTest, RelayEndpointDisconnect) {
     clock_sync_packet_seen = true;
   }
   ASSERT_FALSE(clock_sync_packet_seen);
+}
+
+TEST_F(TracingServiceImplTest, SessionSemaphoreMutexSingleSession) {
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);  // Buf 0.
+  trace_config.add_session_semaphores()->set_name("mutex");
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  consumer->EnableTracing(trace_config);
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabledWithError(IsEmpty());
+}
+
+TEST_F(TracingServiceImplTest, SessionSemaphoreMutexMultipleSession) {
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+  trace_config.add_session_semaphores()->set_name("mutex");
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  consumer->EnableTracing(trace_config);
+
+  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
+  consumer2->Connect(svc.get());
+  consumer2->EnableTracing(trace_config);
+  consumer2->WaitForTracingDisabledWithError(LowerCase(HasSubstr("semaphore")));
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabledWithError(IsEmpty());
+}
+
+TEST_F(TracingServiceImplTest, SessionSemaphoreHigherCurrentFails) {
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+
+  auto* session_semaphore = trace_config.add_session_semaphores();
+  session_semaphore->set_name("diff_value_semaphore");
+  session_semaphore->set_max_other_session_count(0);
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  consumer->EnableTracing(trace_config);
+
+  // The second consumer sets a higher count.
+  session_semaphore->set_max_other_session_count(1);
+
+  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
+  consumer2->Connect(svc.get());
+  consumer2->EnableTracing(trace_config);
+  consumer2->WaitForTracingDisabledWithError(LowerCase(HasSubstr("semaphore")));
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabledWithError(IsEmpty());
+}
+
+TEST_F(TracingServiceImplTest, SessionSemaphoreHigherPreviousFails) {
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+
+  auto* session_semaphore = trace_config.add_session_semaphores();
+  session_semaphore->set_name("diff_value_semaphore");
+  session_semaphore->set_max_other_session_count(1);
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  consumer->EnableTracing(trace_config);
+
+  // The second consumer sets a lower count.
+  session_semaphore->set_max_other_session_count(0);
+
+  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
+  consumer2->Connect(svc.get());
+  consumer2->EnableTracing(trace_config);
+  consumer2->WaitForTracingDisabledWithError(LowerCase(HasSubstr("semaphore")));
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabledWithError(IsEmpty());
+}
+
+TEST_F(TracingServiceImplTest, SessionSemaphoreAllowedUpToLimit) {
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+
+  auto* session_semaphore = trace_config.add_session_semaphores();
+  session_semaphore->set_name("multi_semaphore");
+  session_semaphore->set_max_other_session_count(3);
+
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+  consumer->EnableTracing(trace_config);
+
+  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
+  consumer2->Connect(svc.get());
+  consumer2->EnableTracing(trace_config);
+
+  std::unique_ptr<MockConsumer> consumer3 = CreateMockConsumer();
+  consumer3->Connect(svc.get());
+  consumer3->EnableTracing(trace_config);
+
+  std::unique_ptr<MockConsumer> consumer4 = CreateMockConsumer();
+  consumer4->Connect(svc.get());
+  consumer4->EnableTracing(trace_config);
+
+  std::unique_ptr<MockConsumer> consumer5 = CreateMockConsumer();
+  consumer5->Connect(svc.get());
+  consumer5->EnableTracing(trace_config);
+  consumer5->WaitForTracingDisabledWithError(LowerCase(HasSubstr("semaphore")));
+
+  consumer4->DisableTracing();
+  consumer4->WaitForTracingDisabledWithError(IsEmpty());
+
+  consumer3->DisableTracing();
+  consumer3->WaitForTracingDisabledWithError(IsEmpty());
+
+  consumer2->DisableTracing();
+  consumer2->WaitForTracingDisabledWithError(IsEmpty());
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabledWithError(IsEmpty());
 }
 
 }  // namespace perfetto
