@@ -19,9 +19,10 @@
 
 #include <memory>
 
-#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "src/trace_redaction/redact_sched_events.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
+
+#include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto::trace_redaction {
 
@@ -99,6 +100,12 @@ class RedactProcessEvents : public TransformPrimitive {
                        protos::pbzero::FtraceEvent* parent_message) const;
 
   base::Status OnSuspendResume(
+      const Context& context,
+      uint64_t ts,
+      protozero::ConstBytes event_bytes,
+      protos::pbzero::FtraceEvent* parent_message) const;
+
+  base::Status OnSchedBlockedReason(
       const Context& context,
       uint64_t ts,
       protozero::ConstBytes event_bytes,

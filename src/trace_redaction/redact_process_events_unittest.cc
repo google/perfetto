@@ -15,16 +15,14 @@
  */
 
 #include "src/trace_redaction/redact_process_events.h"
-#include "perfetto/protozero/scattered_heap_buffer.h"
-#include "protos/perfetto/trace/ftrace/ftrace.gen.h"
-#include "protos/perfetto/trace/ftrace/power.gen.h"
-#include "protos/perfetto/trace/ftrace/sched.gen.h"
 #include "src/base/test/status_matchers.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/trace/ftrace/ftrace.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
-#include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.gen.h"
+#include "protos/perfetto/trace/ftrace/power.gen.h"
+#include "protos/perfetto/trace/ftrace/sched.gen.h"
 #include "protos/perfetto/trace/ftrace/task.gen.h"
 #include "protos/perfetto/trace/trace.gen.h"
 #include "protos/perfetto/trace/trace_packet.gen.h"
@@ -40,6 +38,9 @@ constexpr uint64_t kUidB = 2;
 constexpr int32_t kNoParent = 10;
 constexpr int32_t kPidA = 11;
 constexpr int32_t kPidB = 12;
+
+// Used as a child of kPidA.
+constexpr int32_t kPidAA = kPidA * 10;
 
 constexpr uint64_t kTimeA = 0;
 constexpr uint64_t kTimeB = 1000;
@@ -729,6 +730,92 @@ TEST_F(RedactSuspendResumeTest, DropTaskOutsidePackage) {
   ASSERT_FALSE(packet.ftrace_events().event().at(1).has_suspend_resume());
   ASSERT_FALSE(packet.ftrace_events().event().at(2).has_suspend_resume());
   ASSERT_FALSE(packet.ftrace_events().event().at(3).has_suspend_resume());
+}
+
+class RedactSchedBlockReasonTest : public testing::Test {
+ protected:
+  void SetUp() {
+    auto* events = packet_.mutable_ftrace_events();
+    events->set_cpu(kCpu);
+
+    {
+      auto* event = events->add_event();
+      event->set_timestamp(kTimeB);
+      event->set_pid(kPidB);
+
+      auto* reason = event->mutable_sched_blocked_reason();
+      reason->set_caller(3);
+      reason->set_io_wait(7);
+      reason->set_pid(kPidAA);
+    }
+
+    context_.timeline = std::make_unique<ProcessThreadTimeline>();
+
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidA, kNoParent, kUidA));
+
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidAA, kPidA));
+
+    context_.timeline->Append(
+        ProcessThreadTimeline::Event::Open(kTimeA, kPidB, kNoParent, kUidB));
+
+    context_.timeline->Sort();
+
+    redact_.emplace_modifier<DoNothing>();
+    redact_.emplace_filter<AllowAll>();
+  }
+
+  RedactProcessEvents redact_;
+  protos::gen::TracePacket packet_;
+  Context context_;
+};
+
+// Implementation detail: No events are removed, only inner messages.
+TEST_F(RedactSchedBlockReasonTest, KeepTaskInsidePackage) {
+  redact_.emplace_filter<ConnectedToPackage>();
+
+  // The blocking events target kPidA is connected to kUidA. Since the target is
+  // kUidA, the blocking events should be retained.
+  context_.package_uid = kUidA;
+
+  auto packet_str = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_str));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_str));
+
+  ASSERT_TRUE(packet.has_ftrace_events());
+  ASSERT_EQ(packet.ftrace_events().event().size(), 1u);
+
+  // Assumption, event order does not change. The first event was connected to
+  // kUidA.
+  const auto& event = packet.ftrace_events().event().at(0);
+  ASSERT_TRUE(event.has_sched_blocked_reason());
+  ASSERT_EQ(event.sched_blocked_reason().pid(), kPidAA);
+}
+
+// Implementation detail: No events are removed, only inner messages.
+TEST_F(RedactSchedBlockReasonTest, DropTaskOutsidePackage) {
+  redact_.emplace_filter<ConnectedToPackage>();
+
+  // The blocking events target kPidA is connected to kUidA. Since the target is
+  // kUidB, the blocking events should be dropped.
+  context_.package_uid = kUidB;
+
+  auto packet_str = packet_.SerializeAsString();
+  ASSERT_OK(redact_.Transform(context_, &packet_str));
+
+  protos::gen::TracePacket packet;
+  ASSERT_TRUE(packet.ParseFromString(packet_str));
+
+  ASSERT_TRUE(packet.has_ftrace_events());
+  ASSERT_EQ(packet.ftrace_events().event().size(), 1u);
+
+  // Assumption, event order does not change. The first event was connected to
+  // kUidA.
+  const auto& event = packet.ftrace_events().event().at(0);
+  ASSERT_FALSE(event.has_sched_blocked_reason());
 }
 
 }  // namespace perfetto::trace_redaction
