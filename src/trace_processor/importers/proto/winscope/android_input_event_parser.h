@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_INPUT_EVENT_MODULE_H_
-#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_INPUT_EVENT_MODULE_H_
+#ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_ANDROID_INPUT_EVENT_PARSER_H_
+#define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_ANDROID_INPUT_EVENT_PARSER_H_
 
 #include <cstdint>
 #include "perfetto/base/build_config.h"
@@ -27,14 +27,12 @@
 
 namespace perfetto::trace_processor {
 
-class AndroidInputEventModule : public ProtoImporterModule {
+class AndroidInputEventParser {
  public:
-  explicit AndroidInputEventModule(TraceProcessorContext* context);
+  explicit AndroidInputEventParser(TraceProcessorContext* context);
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder&,
-                            int64_t packet_ts,
-                            const TracePacketData&,
-                            uint32_t field_id) override;
+  void ParseAndroidInputEvent(int64_t packet_ts,
+                            const protozero::ConstBytes& bytes);
 
  private:
   TraceProcessorContext& context_;
@@ -48,4 +46,4 @@ class AndroidInputEventModule : public ProtoImporterModule {
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_INPUT_EVENT_MODULE_H_
+#endif  // SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_WINSCOPE_ANDROID_INPUT_EVENT_PARSER_H_
