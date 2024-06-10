@@ -421,6 +421,21 @@ export class App implements m.ClassComponent {
       defaultHotkey: 'Shift+M',
     },
     {
+      id: 'perfetto.RemoveSelectedNote',
+      name: 'Remove selected note',
+      callback: () => {
+        const selection = globals.state.selection;
+        if (selection.kind === 'note') {
+          globals.dispatch(
+            Actions.removeNote({
+              id: selection.id,
+            }),
+          );
+        }
+      },
+      defaultHotkey: 'Delete',
+    },
+    {
       id: 'perfetto.NextFlow',
       name: 'Next flow',
       callback: () => focusOtherFlow('Forward'),
