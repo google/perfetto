@@ -557,7 +557,7 @@ const HIGH_CPU = `
   with_ratio as (
     select
       ts,
-      iif(dur is null, 0, 100.0 * cpu_dur / dur) as value,
+      iif(dur is null, 0, max(0, 100.0 * cpu_dur / dur)) as value,
       case cluster when 0 then 'little' when 1 then 'mid' when 2 then 'big' else 'cl-' || cluster end as cluster,
       case
           when uid = 0 then 'AID_ROOT'
@@ -1259,7 +1259,7 @@ class AndroidLongBatteryTracing implements Plugin {
             str_value AS name,
             ifnull(
             (select package_name from package_list where uid = int_value % 100000),
-            int_value) as package
+            "uid="||int_value) as package
         FROM android_battery_stats_event_slices
         WHERE track_name = "battery_stats.longwake"`,
       undefined,
