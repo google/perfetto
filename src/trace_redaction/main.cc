@@ -16,10 +16,10 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_redaction/broadphase_packet_filter.h"
 #include "src/trace_redaction/collect_frame_cookies.h"
 #include "src/trace_redaction/collect_system_info.h"
 #include "src/trace_redaction/collect_timeline_events.h"
-#include "src/trace_redaction/filter_packet_using_allowlist.h"
 #include "src/trace_redaction/find_package_uid.h"
 #include "src/trace_redaction/merge_threads.h"
 #include "src/trace_redaction/populate_allow_lists.h"
@@ -29,7 +29,6 @@
 #include "src/trace_redaction/redact_process_trees.h"
 #include "src/trace_redaction/redact_sched_events.h"
 #include "src/trace_redaction/scrub_process_stats.h"
-#include "src/trace_redaction/scrub_trace_packet.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 #include "src/trace_redaction/trace_redactor.h"
 #include "src/trace_redaction/verify_integrity.h"
@@ -55,20 +54,14 @@ static base::Status Main(std::string_view input,
   redactor.emplace_collect<CollectSystemInfo>();
 
   // Add all builders.
-  redactor.emplace_build<PopulateAllowlists>();
   redactor.emplace_build<ReduceFrameCookies>();
   redactor.emplace_build<BuildSyntheticThreads>();
 
   {
-    auto* primitive = redactor.emplace_transform<ScrubTracePacket>();
-    primitive->emplace_back<FilterPacketUsingAllowlist>();
-    primitive->emplace_back<FilterFrameEvents>();
-  }
-
-  {
-    auto* primitive = redactor.emplace_transform<RedactFtraceEvents>();
-    primitive->emplace_ftrace_filter<FilterFtracesUsingAllowlist>();
-    primitive->emplace_post_filter_modifier<DoNothing>();
+    // In order for BroadphasePacketFilter to work, something needs to populate
+    // the masks (i.e. PopulateAllowlists).
+    redactor.emplace_build<PopulateAllowlists>();
+    redactor.emplace_transform<BroadphasePacketFilter>();
   }
 
   {
