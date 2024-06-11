@@ -126,17 +126,32 @@ class SyntheticProcess {
 //                        trace packets.
 class Context {
  public:
-  // Each packet will have a trusted uid. This is the package emitting the
-  // event. In production we only expect to see system uids. 9999 is the
-  // last allowed uid (allow all uids less than or equal to 9999).
-  static constexpr int32_t kMaxTrustedUid = 9999;
-
   // The package that should not be redacted. This must be populated before
   // running any primitives.
   std::string package_name;
 
-  // With Android, packages are treated as users. This means they use uid as
-  // identifiers.
+  struct VerifyConfig {
+    // Each packet will have a trusted uid. This is the package emitting the
+    // event. In production we only expect to see system uids. 9999 is the
+    // last allowed uid (allow all uids less than or equal to 9999).
+    static constexpr int32_t kMaxTrustedUid = 9999;
+
+    // Some test traces will have failed patches because they used:
+    //
+    // trace_config {
+    //   buffers {
+    //   size_kb: 5376
+    //   fill_policy: DISCARD
+    // }
+    //
+    // This flag should only be used in testing.
+    bool verify_failed_patches = true;
+  };
+
+  VerifyConfig verify_config;
+
+  // The package list maps a package name to a uid. It is possible for multiple
+  // package names to map to the same uid, for example:
   //
   //    packages {
   //      name: "com.google.android.gms"
