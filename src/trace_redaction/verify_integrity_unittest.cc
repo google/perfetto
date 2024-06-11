@@ -232,8 +232,38 @@ TEST_F(VerifyIntegrityUnitTest, InvalidPacketTraceStatsNoFlushFailed) {
   ASSERT_OK(Verify(packet));
 }
 
-// TODO(vaage): Write tests for final_flush_outcome. Type-compile errors were
-// getting in the way of moving forward.
+TEST_F(VerifyIntegrityUnitTest, ValidPacketFinalFlushSucceeded) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->set_final_flush_outcome(
+      protos::gen::TraceStats::FINAL_FLUSH_SUCCEEDED);
+
+  ASSERT_OK(Verify(packet));
+}
+
+TEST_F(VerifyIntegrityUnitTest, ValidPacketFinalFlushUnspecified) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->set_final_flush_outcome(
+      protos::gen::TraceStats::FINAL_FLUSH_UNSPECIFIED);
+
+  ASSERT_OK(Verify(packet));
+}
+
+TEST_F(VerifyIntegrityUnitTest, InvalidPacketFinalFlushFailed) {
+  protos::gen::TracePacket packet;
+
+  packet.set_trusted_uid(kValid);
+
+  packet.mutable_trace_stats()->set_final_flush_outcome(
+      protos::gen::TraceStats::FINAL_FLUSH_FAILED);
+
+  ASSERT_FALSE(Verify(packet).ok());
+}
 
 TEST_F(VerifyIntegrityUnitTest, InvalidPacketBufferStatsPatchesFailed) {
   protos::gen::TracePacket packet;
