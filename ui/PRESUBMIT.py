@@ -109,7 +109,10 @@ def CheckPrettier(input_api, output_api):
   cmd = [prettier_path, '--check'] + paths
   if subprocess.call(cmd):
     s = ' '.join(cmd)
-    return [output_api.PresubmitError(f"prettier errors. Run: $ {s}")]
+    return [
+        output_api.PresubmitError(f"""Prettier errors. To fix, run:
+{prettier_path} -w {'_'.join(paths)}""")
+    ]
   return []
 
 
