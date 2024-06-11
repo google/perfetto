@@ -223,6 +223,17 @@ message AndroidBootMetric {
     optional int64 oom_adj_event_count = 4;
     optional string oom_adj_reason = 5;
   }
+  message BroadcastCountAggregation {
+    optional string name = 1;
+    optional int64 count = 2;
+  }
+  // Stats for Broadcasts aggregated with duration.
+  message BroadcastDurationAggregation {
+    optional string name = 1;
+    optional double avg_duration = 2;
+    optional int64 max_duration = 3;
+    optional int64 sum_duration = 4;
+}
   optional ProcessStartAggregation full_trace_process_start_aggregation = 6;
   optional ProcessStartAggregation post_boot_process_start_aggregation = 7;
   optional GarbageCollectionAggregation full_trace_gc_aggregation = 8;
@@ -238,6 +249,11 @@ message AndroidBootMetric {
   repeated OomAdjBucketDurationAggregation
       post_boot_oom_adj_bucket_duration_agg_by_process = 14;
   repeated OomAdjDurationAggregation post_boot_oom_adj_duration_agg = 15;
+  repeated BroadcastCountAggregation post_boot_broadcast_process_count_by_intent = 16;
+  repeated BroadcastCountAggregation post_boot_broadcast_count_by_process = 17;
+  repeated BroadcastDurationAggregation post_boot_brodcast_duration_agg_by_intent = 18;
+  repeated BroadcastDurationAggregation post_boot_brodcast_duration_agg_by_process = 19;
+
 }
 
 // End of protos/perfetto/metrics/android/android_boot.proto
@@ -325,6 +341,31 @@ message AndroidBootUnagg {
 }
 
 // End of protos/perfetto/metrics/android/android_boot_unagg.proto
+
+// Begin of protos/perfetto/metrics/android/android_broadcasts_metric.proto
+
+  // Provides aggregated information about broadcasts
+  message AndroidBroadcastsMetric {
+    // Next id: 5
+    // Stats for Broadcasts aggregated with count.
+    message BroadcastCountAggregation {
+      optional string name = 1;
+      optional int64 count = 2;
+    }
+    // Stats for Broadcasts aggregated with duration.
+    message BroadcastDurationAggregation {
+      optional string name = 1;
+      optional double avg_duration = 2;
+      optional int64 max_duration = 3;
+      optional int64 sum_duration = 4;
+    }
+    repeated BroadcastCountAggregation process_count_by_intent = 1;
+    repeated BroadcastCountAggregation broadcast_count_by_process = 2;
+    repeated BroadcastDurationAggregation brodcast_duration_agg_by_intent = 3;
+    repeated BroadcastDurationAggregation brodcast_duration_agg_by_process = 4;
+  }
+
+// End of protos/perfetto/metrics/android/android_broadcasts_metric.proto
 
 // Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
 
@@ -2814,7 +2855,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 68
+// Next id: 69
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -3005,6 +3046,9 @@ message TraceMetrics {
 
   // Android OOM unaggregated metrics.
   optional AndroidOomAdjusterMetric android_oom_adjuster = 66;
+
+  // Android Broadcasts aggregated metrics
+  optional AndroidBroadcastsMetric android_broadcasts = 68;
 
   // Android
   // Demo extensions.
