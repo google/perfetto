@@ -115,20 +115,39 @@ static int RelayServiceMain(int argc, char** argv) {
     base::Daemonize([] { return 0; });
   }
 
-  auto listen_socket = GetProducerSocket();
-  remove(listen_socket);
-  if (!listen_socket_group.empty()) {
-    auto status = base::SetFilePermissions(listen_socket, listen_socket_group,
-                                           listen_socket_mode_bits);
-    if (!status.ok()) {
-      PERFETTO_ELOG("Failed to set socket permissions: %s", status.c_message());
-      return 1;
-    }
-  }
-
   base::UnixTaskRunner task_runner;
   auto svc = std::make_unique<RelayService>(&task_runner);
-  svc->Start(listen_socket, GetRelaySocket());
+
+  // traced_relay binds to the producer socket of the `traced` service. When
+  // built for Android, this socket is created and bound during init, and its
+  // file descriptor is passed through the environment variable.
+  const char* env_prod = getenv("ANDROID_SOCKET_traced_producer");
+  base::ScopedFile producer_fd;
+  if (env_prod) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    PERFETTO_CHECK(false);
+#else
+    auto opt_fd = base::CStringToInt32(env_prod);
+    if (opt_fd.has_value())
+      producer_fd.reset(*opt_fd);
+
+    svc->Start(std::move(producer_fd), GetRelaySocket());
+#endif
+  } else {
+    auto listen_socket = GetProducerSocket();
+    remove(listen_socket);
+    if (!listen_socket_group.empty()) {
+      auto status = base::SetFilePermissions(listen_socket, listen_socket_group,
+                                             listen_socket_mode_bits);
+      if (!status.ok()) {
+        PERFETTO_ELOG("Failed to set socket permissions: %s",
+                      status.c_message());
+        return 1;
+      }
+    }
+
+    svc->Start(listen_socket, GetRelaySocket());
+  }
 
   // Set the CPU limit and start the watchdog running. The memory limit will
   // be set inside the service code as it relies on the size of buffers.
