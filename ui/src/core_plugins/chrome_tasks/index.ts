@@ -14,6 +14,7 @@
 
 import {uuidv4} from '../../base/uuid';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
+import {addSqlTableTab} from '../../frontend/sql_table/tab';
 import {asUtid} from '../../frontend/sql_types';
 import {
   BottomTabToSCSAdapter,
@@ -26,12 +27,26 @@ import {
 } from '../../public';
 
 import {ChromeTasksDetailsTab} from './details';
+import {chromeTasksTable} from './table';
 import {ChromeTasksThreadTrack} from './track';
 
 class ChromeTasksPlugin implements Plugin {
   onActivate() {}
 
   async onTraceLoad(ctx: PluginContextTrace) {
+    await this.createTracks(ctx);
+
+    ctx.registerCommand({
+      id: 'org.chromium.ChromeTasks.ShowChromeTasksTable',
+      name: 'Show chrome_tasks table',
+      callback: () =>
+        addSqlTableTab({
+          table: chromeTasksTable,
+        }),
+    });
+  }
+
+  async createTracks(ctx: PluginContextTrace) {
     const it = (
       await ctx.engine.query(`
       INCLUDE PERFETTO MODULE chrome.tasks;
