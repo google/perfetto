@@ -46,6 +46,7 @@ TARGET_TEMPLATE = """
   public_deps = {deps}
   public_configs = ["..:{config_name}"]
   configs -= [ "//gn/standalone:extra_warnings" ]
+  check_includes = {check_includes}
 }}"""
 
 LIBRARY_IGNORE_LIST = set([
@@ -53,6 +54,8 @@ LIBRARY_IGNORE_LIST = set([
     'grpc++_reflection',
     'benchmark_helpers',
     'boringssl_test_util',
+    'grpcpp_otel_plugin',
+    'otel_plugin_test',
 ])
 
 TARGET_ALLOW_LIST = set([
@@ -64,6 +67,8 @@ STATIC_LIBRARY_TARGETS = set([
     're2',
     'boringssl',
     'grpc++',
+    'upb_json_lib',
+    'upb_textformat_lib',
 ])
 
 DEP_DENYLIST = set([
@@ -131,7 +136,9 @@ def yaml_to_gn_targets(desc: Dict[str, Any], build_types: list[str],
         config_name=config_name,
         srcs=json.dumps(srcs),
         deps=json.dumps(deps),
-        target_type=get_library_target_type(lib['name']))
+        target_type=get_library_target_type(lib['name']),
+        check_includes='false' if lib['name'] == 'upb_json_lib' or
+        lib['name'] == 'upb_textformat_lib' else 'true')
     out.append(library_target)
 
   for bin in desc.get('targets', []):
@@ -142,7 +149,7 @@ def yaml_to_gn_targets(desc: Dict[str, Any], build_types: list[str],
     srcs = json.dumps([f'src/{file}' for file in bin['src'] + bin['headers']])
     deps = [
         bazel_label_to_gn_dep(dep)
-        for dep in lib.get('deps', [])
+        for dep in bin.get('deps', [])
         if dep not in DEP_DENYLIST
     ]
     binary_target = TARGET_TEMPLATE.format(
@@ -150,7 +157,8 @@ def yaml_to_gn_targets(desc: Dict[str, Any], build_types: list[str],
         config_name=config_name,
         srcs=srcs,
         deps=json.dumps(deps),
-        target_type='executable')
+        target_type='executable',
+        check_includes='true')
     out.append(binary_target)
   return out
 
