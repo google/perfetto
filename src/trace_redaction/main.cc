@@ -76,6 +76,12 @@ static base::Status Main(std::string_view input,
     primitive->emplace_post_filter_modifier<DoNothing>();
   }
 
+  {
+    // Remove all frame timeline events that don't belong to the target package.
+    auto* primitive = redactor.emplace_transform<ScrubTracePacket>();
+    primitive->emplace_back<FilterFrameEvents>();
+  }
+
   redactor.emplace_transform<PrunePackageList>();
 
   // Process stats includes per-process information, such as:
