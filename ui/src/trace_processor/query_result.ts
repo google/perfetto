@@ -57,6 +57,11 @@ import {assertExists, assertFalse, assertTrue} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';
 import {Duration, duration, Time, time} from '../base/time';
 
+export type SqlValue = string | number | bigint | null | Uint8Array;
+// TODO(altimin): Replace ColumnType with SqlValue across the codebase and
+// remove export here.
+export type ColumnType = SqlValue;
+
 export const UNKNOWN: ColumnType = null;
 export const NUM = 0;
 export const STR = 'str';
@@ -66,9 +71,6 @@ export const BLOB: Uint8Array = new Uint8Array();
 export const BLOB_NULL: Uint8Array | null = new Uint8Array();
 export const LONG: bigint = 0n;
 export const LONG_NULL: bigint | null = 1n;
-
-export type ColumnType = string | number | bigint | null | Uint8Array;
-export type SqlValue = ColumnType;
 
 const SHIFT_32BITS = 32n;
 

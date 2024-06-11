@@ -19,14 +19,17 @@ import {Time} from '../../../base/time';
 import {exists} from '../../../base/utils';
 import {raf} from '../../../core/raf_scheduler';
 import {Engine} from '../../../public';
-import {Row, SqlValue} from '../../../trace_processor/query_result';
+import {Row} from '../../../trace_processor/query_result';
+import {
+  SqlValue,
+  sqlValueToReadableString,
+} from '../../../trace_processor/sql_utils';
 import {Anchor} from '../../../widgets/anchor';
 import {renderError} from '../../../widgets/error';
 import {SqlRef} from '../../../widgets/sql_ref';
 import {Tree, TreeNode} from '../../../widgets/tree';
 import {hasArgs, renderArguments} from '../../slice_args';
 import {asArgSetId} from '../../sql_types';
-import {sqlValueToString} from '../../sql_utils';
 import {DurationWidget} from '../../widgets/duration';
 import {Timestamp as TimestampWidget} from '../../widgets/timestamp';
 import {Arg, getArgs} from '../args';
@@ -663,7 +666,7 @@ function renderValue(
       if (data.values[value.source] === null && value.skipIfNull) return null;
       return m(TreeNode, {
         left: key,
-        right: sqlValueToString(data.values[value.source]),
+        right: sqlValueToReadableString(data.values[value.source]),
       });
     case 'url': {
       const url = data.values[value.source];

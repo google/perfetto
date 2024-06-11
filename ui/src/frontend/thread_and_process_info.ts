@@ -19,11 +19,11 @@ import {Icons} from '../base/semantic_icons';
 import {exists} from '../base/utils';
 import {Engine} from '../trace_processor/engine';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../trace_processor/query_result';
+import {fromNumNull} from '../trace_processor/sql_utils';
 import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 
 import {Upid, Utid} from './sql_types';
-import {fromNumNull} from './sql_utils';
 
 // Interface definitions for process and thread-related information
 // and functions to extract them from SQL.

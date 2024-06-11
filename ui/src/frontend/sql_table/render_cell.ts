@@ -19,13 +19,16 @@ import {isString} from '../../base/object_utils';
 import {Icons} from '../../base/semantic_icons';
 import {sqliteString} from '../../base/string_utils';
 import {Duration, Time} from '../../base/time';
-import {Row, SqlValue} from '../../trace_processor/query_result';
+import {Row} from '../../trace_processor/query_result';
+import {
+  SqlValue,
+  sqlValueToReadableString,
+} from '../../trace_processor/sql_utils';
 import {Anchor} from '../../widgets/anchor';
 import {renderError} from '../../widgets/error';
 import {MenuItem, PopupMenu2} from '../../widgets/menu';
 import {SliceRef} from '../sql/slice';
 import {asSliceSqlId} from '../sql_types';
-import {sqlValueToString} from '../sql_utils';
 import {DurationWidget} from '../widgets/duration';
 import {Timestamp} from '../widgets/timestamp';
 
@@ -103,7 +106,7 @@ function displayValue(value: SqlValue): m.Child {
   if (value === null) {
     return m('i', 'NULL');
   }
-  return sqlValueToString(value);
+  return sqlValueToReadableString(value);
 }
 
 function display(column: Column, row: Row): m.Children {
@@ -208,7 +211,9 @@ function renderSliceIdColumn(
       `Wrong type for ${type} column ${name}: bigint expected, ${typeof value} found`,
     );
 
-  if (typeof id !== 'bigint') return sqlValueToString(id);
+  if (typeof id !== 'bigint') {
+    return sqlValueToReadableString(id);
+  }
   if (ts === undefined) return columnNotFoundError('Timestamp', config.ts);
   if (typeof ts !== 'bigint') return wrongTypeError('timestamp', config.ts, ts);
   if (dur === undefined) return columnNotFoundError('Duration', config.dur);

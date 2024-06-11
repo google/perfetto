@@ -19,7 +19,6 @@ import {exists} from '../../base/utils';
 import {raf} from '../../core/raf_scheduler';
 import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
-import {sqlValueToString} from '../../frontend/sql_utils';
 import {
   ColumnDescriptor,
   numberColumn,
@@ -37,6 +36,7 @@ import {SqlRef} from '../../widgets/sql_ref';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {dictToTreeNodes, Tree} from '../../widgets/tree';
 
+import {ScrollJankV3TrackKind} from './common';
 import {
   buildScrollOffsetsGraph,
   getInputScrollDeltas,
@@ -48,7 +48,6 @@ import {
   getSliceForTrack,
   ScrollJankSlice,
 } from './scroll_jank_slice';
-import {ScrollJankV3TrackKind} from './common';
 
 interface Data {
   // Scroll ID.
@@ -338,7 +337,7 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
         columns: columns,
       });
     } else {
-      return sqlValueToString('None');
+      return 'None';
     }
   }
 
@@ -389,7 +388,7 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
     }
 
     const details = dictToTreeNodes({
-      'Scroll ID': sqlValueToString(this.data.id),
+      'Scroll ID': this.data.id,
       'Start time': m(Timestamp, {ts: this.data.ts}),
       'Duration': m(DurationWidget, {dur: this.data.dur}),
       'SQL ID': m(SqlRef, {table: 'chrome_scrolls', id: this.config.id}),
