@@ -23,7 +23,7 @@ import {
   constraintsToQueryPrefix,
   constraintsToQuerySuffix,
   SQLConstraints,
-} from '../sql_utils';
+} from '../../trace_processor/sql_utils';
 
 import {
   Column,

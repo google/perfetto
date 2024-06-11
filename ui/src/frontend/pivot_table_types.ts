@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {SortDirection} from '../base/comparison_utils';
 import {EqualsBuilder} from '../common/comparator_builder';
-import {SortDirection} from '../common/state';
 import {ColumnType} from '../trace_processor/query_result';
 
 // Node in the hierarchical pivot tree. Only leaf nodes contain data from the

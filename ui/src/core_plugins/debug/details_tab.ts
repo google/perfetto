@@ -17,11 +17,11 @@ import m from 'mithril';
 import {duration, Time, time} from '../../base/time';
 import {raf} from '../../core/raf_scheduler';
 import {BottomTab, NewBottomTabArgs} from '../../frontend/bottom_tab';
+import {ARG_PREFIX} from '../../frontend/debug_tracks';
 import {GenericSliceDetailsTabConfig} from '../../frontend/generic_slice_details_tab';
 import {hasArgs, renderArguments} from '../../frontend/slice_args';
 import {getSlice, SliceDetails, sliceRef} from '../../frontend/sql/slice';
 import {asSliceSqlId, Utid} from '../../frontend/sql_types';
-import {sqlValueToString} from '../../frontend/sql_utils';
 import {
   getProcessName,
   getThreadName,
@@ -40,11 +40,11 @@ import {
   STR,
   timeFromSql,
 } from '../../trace_processor/query_result';
+import {sqlValueToReadableString} from '../../trace_processor/sql_utils';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {dictToTree, dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
-import {ARG_PREFIX} from '../../frontend/debug_tracks';
 
 function sqlValueToNumber(value?: ColumnType): number | undefined {
   if (typeof value === 'bigint') return Number(value);
@@ -215,7 +215,7 @@ export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig
       sqlValueToNumber(this.data.args['id']),
       this.data.ts,
       this.data.dur,
-      sqlValueToString(this.data.args['table_name']),
+      sqlValueToReadableString(this.data.args['table_name']),
       sqlValueToUtid(this.data.args['utid']),
     );
 
@@ -224,7 +224,7 @@ export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig
         sqlValueToNumber(this.data.args['slice_id']),
       this.data.ts,
       this.data.dur,
-      sqlValueToString(this.data.args['table_name']),
+      sqlValueToReadableString(this.data.args['table_name']),
       sqlValueToNumber(this.data.args['track_id']),
     );
 
@@ -251,7 +251,7 @@ export class DebugSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConfig
 
     const args: {[key: string]: m.Child} = {};
     for (const key of Object.keys(this.data.args)) {
-      args[key] = sqlValueToString(this.data.args[key]);
+      args[key] = sqlValueToReadableString(this.data.args[key]);
     }
 
     return m(
