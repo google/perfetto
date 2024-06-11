@@ -356,3 +356,9 @@ class AndroidMetrics(TestSuite):
         trace=DataPath('android_postboot_unlock.pftrace'),
         query=Metric("android_oom_adjuster"),
         out=Path('android_oom_adjuster.out'))
+
+  def test_android_broadcasts(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_postboot_unlock.pftrace'),
+        query=Metric("android_broadcasts"),
+        out=Path('android_broadcasts.out'))
