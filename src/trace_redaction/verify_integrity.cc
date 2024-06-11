@@ -133,10 +133,11 @@ base::Status VerifyIntegrity::OnTraceStats(
   }
 
   if (trace_stats.has_final_flush_outcome() &&
-      trace_stats.final_flush_outcome() !=
-          protos::pbzero::TraceStats::FINAL_FLUSH_SUCCEEDED) {
+      trace_stats.final_flush_outcome() ==
+          protos::pbzero::TraceStats::FINAL_FLUSH_FAILED) {
     return base::ErrStatus(
-        "VerifyIntegrity: detected TraceStats final flush failed.");
+        "VerifyIntegrity: TraceStats final_flush_outcome is "
+        "FINAL_FLUSH_FAILED.");
   }
 
   for (auto it = trace_stats.buffer_stats(); it; ++it) {
