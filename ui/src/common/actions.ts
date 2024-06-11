@@ -14,9 +14,11 @@
 
 import {Draft} from 'immer';
 
+import {SortDirection} from '../base/comparison_utils';
 import {assertExists, assertTrue} from '../base/logging';
 import {duration, time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
+import {randomColor} from '../core/colorizer';
 import {
   GenericSliceDetailsTabConfig,
   GenericSliceDetailsTabConfigBase,
@@ -30,7 +32,6 @@ import {
 } from '../frontend/pivot_table_types';
 import {PrimaryTrackSortKey} from '../public/index';
 
-import {randomColor} from '../core/colorizer';
 import {
   computeIntervals,
   DropDirection,
@@ -55,7 +56,6 @@ import {
   ProfileType,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
-  SortDirection,
   State,
   Status,
   ThreadTrackSortKey,

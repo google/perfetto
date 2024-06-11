@@ -14,8 +14,10 @@
 
 import m from 'mithril';
 
+import {GenericSliceDetailsTabConfig} from '../core/generic_slice_details_types';
 import {raf} from '../core/raf_scheduler';
 import {ColumnType} from '../trace_processor/query_result';
+import {sqlValueToReadableString} from '../trace_processor/sql_utils';
 import {DetailsShell} from '../widgets/details_shell';
 import {GridLayout} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
@@ -23,15 +25,12 @@ import {SqlRef} from '../widgets/sql_ref';
 import {dictToTree, Tree, TreeNode} from '../widgets/tree';
 
 import {BottomTab, NewBottomTabArgs} from './bottom_tab';
-import {sqlValueToString} from './sql_utils';
-
-import {GenericSliceDetailsTabConfig} from '../core/generic_slice_details_types';
 
 export {
   ColumnConfig,
   Columns,
-  GenericSliceDetailsTabConfigBase,
   GenericSliceDetailsTabConfig,
+  GenericSliceDetailsTabConfigBase,
 } from '../core/generic_slice_details_types';
 
 // A details tab, which fetches slice-like object from a given SQL table by id
@@ -73,11 +72,11 @@ export class GenericSliceDetailsTab extends BottomTab<GenericSliceDetailsTabConf
         if (this.config.columns[key].displayName !== undefined) {
           argKey = this.config.columns[key].displayName!;
         }
-        args[argKey] = sqlValueToString(this.data[key]);
+        args[argKey] = sqlValueToReadableString(this.data[key]);
       }
     } else {
       for (const key of Object.keys(this.data)) {
-        args[key] = sqlValueToString(this.data[key]);
+        args[key] = sqlValueToReadableString(this.data[key]);
       }
     }
 

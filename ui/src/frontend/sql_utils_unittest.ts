@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {constraintsToQueryPrefix, constraintsToQuerySuffix} from './sql_utils';
+import {
+  constraintsToQueryPrefix,
+  constraintsToQuerySuffix,
+} from '../trace_processor/sql_utils';
 
 // Clean up repeated whitespaces to allow for easier testing.
 function normalize(s: string): string {

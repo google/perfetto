@@ -15,9 +15,11 @@
 import {uuidv4} from '../base/uuid';
 import {Actions, DeferredAction} from '../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../common/state';
-import {globals} from './globals';
-import {Engine, PrimaryTrackSortKey} from '../public';
 import {DebugTrackV2Config} from '../core_plugins/debug/slice_track';
+import {Engine, PrimaryTrackSortKey} from '../public';
+import {matchesSqlValue} from '../trace_processor/sql_utils';
+
+import {globals} from './globals';
 
 export const ARG_PREFIX = 'arg_';
 export const DEBUG_SLICE_TRACK_URI = 'perfetto.DebugSlices';
@@ -109,7 +111,9 @@ export async function addPivotDebugSliceTracks(
       const pivotDataSource: SqlDataSource = {
         sqlSource: `select * from
         (${data.sqlSource})
-        where ${sliceColumns.pivot} = '${iter.get(sliceColumns.pivot)}'`,
+        where ${sliceColumns.pivot} ${matchesSqlValue(
+          iter.get(sliceColumns.pivot),
+        )}`,
       };
 
       const actions = await createDebugSliceTrackActions(

@@ -22,8 +22,6 @@ import {
 } from '../frontend/pivot_table_types';
 import {PrimaryTrackSortKey} from '../public/index';
 
-import {Direction} from '../core/event_set';
-
 import {
   selectionToLegacySelection,
   Selection,
@@ -343,8 +341,6 @@ export interface PivotTableAreaState {
   end: time;
   tracks: string[];
 }
-
-export type SortDirection = keyof typeof Direction;
 
 export interface PivotTableState {
   // Currently selected area, if null, pivot table is not going to be visible.
