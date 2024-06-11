@@ -17,23 +17,25 @@
 
 #include "src/trace_redaction/verify_integrity.h"
 
+#include "src/trace_processor/util/status_macros.h"
+
+#include "protos/perfetto/common/trace_stats.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_redaction {
 
 base::Status VerifyIntegrity::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
-    Context*) const {
+    Context* context) const {
   if (!packet.has_trusted_uid()) {
     return base::ErrStatus(
         "VerifyIntegrity: missing field (TracePacket::kTrustedUid).");
   }
 
-  if (packet.trusted_uid() > Context::kMaxTrustedUid) {
-    return base::ErrStatus("VerifyIntegrity: untrusted uid (uid = %d).",
+  if (packet.trusted_uid() > Context::VerifyConfig::kMaxTrustedUid) {
+    return base::ErrStatus("VerifyIntegrity: untrusted uid found (uid = %d).",
                            packet.trusted_uid());
   }
 
@@ -55,6 +57,10 @@ base::Status VerifyIntegrity::Collect(
     return base::ErrStatus(
         "VerifyIntegrity: missing fields (TracePacket::kProcessStats + "
         "TracePacket::kTimestamp).");
+  }
+
+  if (packet.has_trace_stats()) {
+    RETURN_IF_ERROR(OnTraceStats(context->verify_config, packet.trace_stats()));
   }
 
   return base::OkStatus();
@@ -112,6 +118,56 @@ base::Status VerifyIntegrity::OnFtraceEvent(
   if (!event.has_pid()) {
     return base::ErrStatus(
         "VerifyIntegrity: missing field (FtraceEvent::kPid).");
+  }
+
+  return base::OkStatus();
+}
+
+base::Status VerifyIntegrity::OnTraceStats(
+    const Context::VerifyConfig& config,
+    const protozero::ConstBytes bytes) const {
+  protos::pbzero::TraceStats::Decoder trace_stats(bytes);
+
+  if (trace_stats.has_flushes_failed() && trace_stats.flushes_failed()) {
+    return base::ErrStatus("VerifyIntegrity: detected TraceStats flush fails.");
+  }
+
+  if (trace_stats.has_final_flush_outcome() &&
+      trace_stats.final_flush_outcome() !=
+          protos::pbzero::TraceStats::FINAL_FLUSH_SUCCEEDED) {
+    return base::ErrStatus(
+        "VerifyIntegrity: detected TraceStats final flush failed.");
+  }
+
+  for (auto it = trace_stats.buffer_stats(); it; ++it) {
+    RETURN_IF_ERROR(OnBufferStats(config, *it));
+  }
+
+  return base::OkStatus();
+}
+
+base::Status VerifyIntegrity::OnBufferStats(
+    const Context::VerifyConfig& config,
+    const protozero::ConstBytes bytes) const {
+  protos::pbzero::TraceStats::BufferStats::Decoder stats(bytes);
+
+  if (config.verify_failed_patches && stats.has_patches_failed() &&
+      stats.patches_failed()) {
+    return base::ErrStatus(
+        "VerifyIntegrity: detected BufferStats patch fails.");
+  }
+
+  if (stats.has_abi_violations() && stats.abi_violations()) {
+    return base::ErrStatus(
+        "VerifyIntegrity: detected BufferStats abi violations.");
+  }
+
+  auto has_loss = stats.has_trace_writer_packet_loss();
+  auto value = stats.trace_writer_packet_loss();
+
+  if (has_loss && value) {
+    return base::ErrStatus(
+        "VerifyIntegrity: detected BufferStats writer packet loss.");
   }
 
   return base::OkStatus();

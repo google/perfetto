@@ -26,10 +26,22 @@ class VerifyIntegrityIntegrationTest : public testing::Test,
                                        public TraceRedactionIntegrationFixure {
 };
 
-// The trace used in the integration tests should pass the verify primitive.
-TEST_F(VerifyIntegrityIntegrationTest, VerifiesValidTrace) {
+// Because the test trace has failed patches, if we verify failed patches (i.e.
+// equal 0), redaction will failed. To cover this, these one without verifying
+// that field and a second time verifying that field.
+
+TEST_F(VerifyIntegrityIntegrationTest, VerifiesWithoutVerifyingFailedPatches) {
   trace_redactor()->emplace_collect<VerifyIntegrity>();
+
+  context()->verify_config.verify_failed_patches = false;
   ASSERT_OK(Redact());
+}
+
+TEST_F(VerifyIntegrityIntegrationTest, VerifiesWithVerifyingFailedPatches) {
+  trace_redactor()->emplace_collect<VerifyIntegrity>();
+
+  // By default context() has verify_trace_config.verify_failed_patches = true.
+  ASSERT_FALSE(Redact().ok());
 }
 
 }  // namespace perfetto::trace_redaction
