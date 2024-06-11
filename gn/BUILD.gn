@@ -374,6 +374,13 @@ if (enable_perfetto_trace_processor_json) {
   }
 }
 
+if (enable_perfetto_grpc) {
+  group("grpc") {
+    public_configs = [ "//buildtools:grpc_public_config" ]
+    public_deps = [ "//buildtools/grpc:grpc++" ]
+  }
+}
+
 if (enable_perfetto_trace_processor_linenoise) {
   # Used by the trace_processor_shell for REPL history.
   # Only available in standalone builds.
