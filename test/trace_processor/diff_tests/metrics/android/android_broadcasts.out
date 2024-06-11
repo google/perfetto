@@ -1,0 +1,302 @@
+android_broadcasts {
+process_count_by_intent {
+name: "android.appwidget.action.APPWIDGET_ENABLED"
+count: 2
+}
+process_count_by_intent {
+name: "android.appwidget.action.APPWIDGET_UPDATE"
+count: 2
+}
+process_count_by_intent {
+name: "android.appwidget.action.APPWIDGET_UPDATE_OPTIONS"
+count: 1
+}
+process_count_by_intent {
+name: "android.intent.action.BATTERY_CHANGED"
+count: 2
+}
+process_count_by_intent {
+name: "android.intent.action.SIM_STATE_CHANGED"
+count: 38
+}
+process_count_by_intent {
+name: "android.intent.action.USER_PRESENT"
+count: 10
+}
+process_count_by_intent {
+name: "android.intent.action.USER_UNLOCKED"
+count: 105
+}
+process_count_by_intent {
+name: "android.net.conn.CONNECTIVITY_CHANGE"
+count: 1
+}
+process_count_by_intent {
+name: "android.net.wifi.WIFI_STATE_CHANGED"
+count: 2
+}
+process_count_by_intent {
+name: "com.google.android.calendar.APPWIDGET_REFRESH_MODEL"
+count: 1
+}
+broadcast_count_by_process {
+name: "com.android.phone"
+count: 43
+}
+broadcast_count_by_process {
+name: "com.android.settings"
+count: 1
+}
+broadcast_count_by_process {
+name: "com.android.systemui"
+count: 5
+}
+broadcast_count_by_process {
+name: "com.google.android.apps.nexuslauncher"
+count: 2
+}
+broadcast_count_by_process {
+name: "com.google.android.apps.scone"
+count: 9
+}
+broadcast_count_by_process {
+name: "com.google.android.apps.wellbeing"
+count: 11
+}
+broadcast_count_by_process {
+name: "com.google.android.apps.work.clouddpc"
+count: 11
+}
+broadcast_count_by_process {
+name: "com.google.android.apps.youtube.music"
+count: 1
+}
+broadcast_count_by_process {
+name: "com.google.android.bluetooth"
+count: 2
+}
+broadcast_count_by_process {
+name: "com.google.android.calendar"
+count: 4
+}
+broadcast_count_by_process {
+name: "com.google.android.connectivitythermalpowermanager"
+count: 4
+}
+broadcast_count_by_process {
+name: "com.google.android.deskclock"
+count: 11
+}
+broadcast_count_by_process {
+name: "com.google.android.devicelockcontroller"
+count: 1
+}
+broadcast_count_by_process {
+name: "com.google.android.dialer"
+count: 14
+}
+broadcast_count_by_process {
+name: "com.google.android.euicc"
+count: 11
+}
+broadcast_count_by_process {
+name: "com.google.android.gms"
+count: 2
+}
+broadcast_count_by_process {
+name: "com.google.android.gms.persistent"
+count: 5
+}
+broadcast_count_by_process {
+name: "com.google.android.ims"
+count: 2
+}
+broadcast_count_by_process {
+name: "com.shannon.imsservice"
+count: 2
+}
+broadcast_count_by_process {
+name: "system"
+count: 23
+}
+brodcast_duration_agg_by_intent {
+name: "android.appwidget.action.APPWIDGET_ENABLED"
+avg_duration: 832137248.0
+max_duration: 1604539755
+sum_duration: 1664274496
+}
+brodcast_duration_agg_by_intent {
+name: "android.appwidget.action.APPWIDGET_UPDATE"
+avg_duration: 91613911.5
+max_duration: 183227824
+sum_duration: 183227823
+}
+brodcast_duration_agg_by_intent {
+name: "android.appwidget.action.APPWIDGET_UPDATE_OPTIONS"
+avg_duration: 105377889.0
+max_duration: 105377889
+sum_duration: 105377889
+}
+brodcast_duration_agg_by_intent {
+name: "android.intent.action.BATTERY_CHANGED"
+avg_duration: 165913.5
+max_duration: 222493
+sum_duration: 331827
+}
+brodcast_duration_agg_by_intent {
+name: "android.intent.action.SIM_STATE_CHANGED"
+avg_duration: 9982735.5
+max_duration: 195921793
+sum_duration: 379343949
+}
+brodcast_duration_agg_by_intent {
+name: "android.intent.action.USER_PRESENT"
+avg_duration: 14583.3
+max_duration: 20304
+sum_duration: 145833
+}
+brodcast_duration_agg_by_intent {
+name: "android.intent.action.USER_UNLOCKED"
+avg_duration: 66119.10476190476
+max_duration: 1414754
+sum_duration: 6942506
+}
+brodcast_duration_agg_by_intent {
+name: "android.net.conn.CONNECTIVITY_CHANGE"
+avg_duration: 50415.0
+max_duration: 50415
+sum_duration: 50415
+}
+brodcast_duration_agg_by_intent {
+name: "android.net.wifi.WIFI_STATE_CHANGED"
+avg_duration: 290506.5
+max_duration: 538533
+sum_duration: 581013
+}
+brodcast_duration_agg_by_intent {
+name: "com.google.android.calendar.APPWIDGET_REFRESH_MODEL"
+avg_duration: -1.0
+max_duration: -1
+sum_duration: -1
+}
+brodcast_duration_agg_by_process {
+name: "com.android.phone"
+avg_duration: 3517922.534883721
+max_duration: 146637410
+sum_duration: 151270669
+}
+brodcast_duration_agg_by_process {
+name: "com.android.settings"
+avg_duration: 38697.0
+max_duration: 38697
+sum_duration: 38697
+}
+brodcast_duration_agg_by_process {
+name: "com.android.systemui"
+avg_duration: 95906.4
+max_duration: 189982
+sum_duration: 479532
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.apps.nexuslauncher"
+avg_duration: 33793.0
+max_duration: 50252
+sum_duration: 67586
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.apps.scone"
+avg_duration: 22935.666666666668
+max_duration: 41830
+sum_duration: 206421
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.apps.wellbeing"
+avg_duration: 69202.63636363637
+max_duration: 523967
+sum_duration: 761229
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.apps.work.clouddpc"
+avg_duration: 53555.63636363636
+max_duration: 371867
+sum_duration: 589112
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.apps.youtube.music"
+avg_duration: 50415.0
+max_duration: 50415
+sum_duration: 50415
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.bluetooth"
+avg_duration: 221008.0
+max_duration: 406819
+sum_duration: 442016
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.calendar"
+avg_duration: 87085113.25
+max_duration: 183227824
+sum_duration: 348340453
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.connectivitythermalpowermanager"
+avg_duration: 228210.0
+max_duration: 538533
+sum_duration: 912840
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.deskclock"
+avg_duration: 145975538.0
+max_duration: 1604539755
+sum_duration: 1605730918
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.devicelockcontroller"
+avg_duration: 23682.0
+max_duration: 23682
+sum_duration: 23682
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.dialer"
+avg_duration: 138898.5
+max_duration: 1414754
+sum_duration: 1944579
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.euicc"
+avg_duration: 47296.72727272727
+max_duration: 305339
+sum_duration: 520264
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.gms"
+avg_duration: 113945576.5
+max_duration: 195921793
+sum_duration: 227891153
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.gms.persistent"
+avg_duration: 18220.8
+max_duration: 32430
+sum_duration: 91104
+}
+brodcast_duration_agg_by_process {
+name: "com.google.android.ims"
+avg_duration: 307169.5
+max_duration: 436726
+sum_duration: 614339
+}
+brodcast_duration_agg_by_process {
+name: "com.shannon.imsservice"
+avg_duration: 40283.0
+max_duration: 46305
+sum_duration: 80566
+}
+brodcast_duration_agg_by_process {
+name: "system"
+avg_duration: 9572.826086956522
+max_duration: 26774
+sum_duration: 220175
+}
+}

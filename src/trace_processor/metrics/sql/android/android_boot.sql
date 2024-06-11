@@ -14,10 +14,11 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE android.process_metadata;
 INCLUDE PERFETTO MODULE android.app_process_starts;
+INCLUDE PERFETTO MODULE android.broadcasts;
 INCLUDE PERFETTO MODULE android.garbage_collection;
 INCLUDE PERFETTO MODULE android.oom_adjuster;
+INCLUDE PERFETTO MODULE android.process_metadata;
 
 DROP VIEW IF EXISTS android_oom_adj_intervals_with_detailed_bucket_name;
 CREATE PERFETTO VIEW android_oom_adj_intervals_with_detailed_bucket_name AS
@@ -339,6 +340,77 @@ SELECT AndroidBootMetric(
       FROM android_oom_adj_intervals_with_detailed_bucket_name
       WHERE ts > first_user_unlocked()
       GROUP BY oom_adj_reason
+      )
+    ),
+  'post_boot_broadcast_process_count_by_intent', (
+    SELECT RepeatedField(
+      AndroidBootMetric_BroadcastCountAggregation(
+        'name', intent_action,
+        'count', process_name_counts
+      )
+    )
+    FROM (
+      SELECT
+        intent_action,
+        COUNT(process_name) as process_name_counts
+      FROM _android_broadcasts_minsdk_u
+      WHERE ts > first_user_unlocked()
+      GROUP BY intent_action
+    )
+  ),
+  'post_boot_broadcast_count_by_process', (
+    SELECT RepeatedField(
+      AndroidBootMetric_BroadcastCountAggregation(
+        'name', process_name,
+        'count', broadcast_counts
+      )
+    )
+    FROM (
+      SELECT
+        process_name,
+        COUNT(id) as broadcast_counts
+      FROM _android_broadcasts_minsdk_u
+      WHERE ts > first_user_unlocked()
+      GROUP BY process_name
+    )
+  ),
+  'post_boot_brodcast_duration_agg_by_intent', (
+    SELECT RepeatedField(
+      AndroidBootMetric_BroadcastDurationAggregation(
+        'name', intent_action,
+        'avg_duration', avg_duration,
+        'max_duration', max_duration,
+        'sum_duration', sum_duration
+      )
+    )
+    FROM (
+      SELECT
+        intent_action,
+        AVG(dur) as avg_duration,
+        SUM(dur) as sum_duration,
+        MAX(dur) as max_duration
+      FROM _android_broadcasts_minsdk_u
+      WHERE ts > first_user_unlocked()
+      GROUP BY intent_action
+    )
+  ),  'post_boot_brodcast_duration_agg_by_process', (
+    SELECT RepeatedField(
+      AndroidBootMetric_BroadcastDurationAggregation(
+        'name', process_name,
+        'avg_duration', avg_duration,
+        'max_duration', max_duration,
+        'sum_duration', sum_duration
+      )
+    )
+    FROM (
+      SELECT
+        process_name,
+        AVG(dur) as avg_duration,
+        SUM(dur) as sum_duration,
+        MAX(dur) as max_duration
+      FROM _android_broadcasts_minsdk_u
+      WHERE ts > first_user_unlocked()
+      GROUP BY process_name
     )
   )
 );
