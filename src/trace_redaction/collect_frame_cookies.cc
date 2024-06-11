@@ -19,6 +19,8 @@
 #include "perfetto/base/status.h"
 #include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/scattered_heap_buffer.h"
+#include "src/trace_redaction/proto_util.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/android/frame_timeline_event.pbzero.h"
@@ -160,17 +162,44 @@ base::Status ReduceFrameCookies::Build(Context* context) const {
   return base::OkStatus();
 }
 
+base::Status FilterFrameEvents::Transform(const Context& context,
+                                          std::string* packet) const {
+  if (packet == nullptr || packet->empty()) {
+    return base::ErrStatus("FilterFrameEvents: null or empty packet.");
+  }
+
+  protozero::ProtoDecoder decoder(*packet);
+
+  if (!decoder
+           .FindField(
+               protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber)
+           .valid()) {
+    return base::OkStatus();
+  }
+
+  protozero::HeapBuffered<protos::pbzero::TracePacket> message;
+
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    if (field.id() ==
+        protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber) {
+      if (KeepField(context, field)) {
+        proto_util::AppendField(field, message.get());
+      }
+
+    } else {
+      proto_util::AppendField(field, message.get());
+    }
+  }
+
+  packet->assign(message.SerializeAsString());
+  return base::OkStatus();
+}
+
 bool FilterFrameEvents::KeepField(const Context& context,
                                   const protozero::Field& field) const {
-  // If this field is not a timeline event, then this primitive has no reason to
-  // reject this field.
-  //
-  // If it is a timeline event, the event's cookie must be in the package's
-  // cookies.
-  if (field.id() !=
-      protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber) {
-    return true;
-  }
+  PERFETTO_DCHECK(field.id() ==
+                  protos::pbzero::TracePacket::kFrameTimelineEventFieldNumber);
 
   protozero::ProtoDecoder timeline_event_decoder(field.as_bytes());
 

@@ -78,8 +78,7 @@ static base::Status Main(std::string_view input,
 
   {
     // Remove all frame timeline events that don't belong to the target package.
-    auto* primitive = redactor.emplace_transform<ScrubTracePacket>();
-    primitive->emplace_back<FilterFrameEvents>();
+    redactor.emplace_transform<FilterFrameEvents>();
   }
 
   redactor.emplace_transform<PrunePackageList>();

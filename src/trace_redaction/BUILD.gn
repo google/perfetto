@@ -63,8 +63,6 @@ source_set("trace_redaction") {
     "redact_sched_events.h",
     "scrub_process_stats.cc",
     "scrub_process_stats.h",
-    "scrub_trace_packet.cc",
-    "scrub_trace_packet.h",
     "trace_redaction_framework.cc",
     "trace_redaction_framework.h",
     "trace_redactor.cc",
