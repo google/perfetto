@@ -18,12 +18,22 @@ import("../../gn/test.gni")
 assert(
     enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite)
 
-executable("orchestrator_main") {
-  sources = [ "orchestrator_main.cc" ]
-  deps = [ "../../gn:default_deps" ]
-}
+if (enable_perfetto_grpc) {
+  executable("orchestrator_main") {
+    sources = [ "orchestrator_main.cc" ]
+    deps = [
+      "../../gn:default_deps",
+      "../../gn:grpc",
+      "../base",
+    ]
+  }
 
-executable("worker_main") {
-  sources = [ "worker_main.cc" ]
-  deps = [ "../../gn:default_deps" ]
+  executable("worker_main") {
+    sources = [ "worker_main.cc" ]
+    deps = [
+      "../../gn:default_deps",
+      "../../gn:grpc",
+      "../base",
+    ]
+  }
 }
