@@ -35,6 +35,12 @@ class VerifyIntegrity : public CollectPrimitive {
   base::Status OnFtraceEvents(const protozero::ConstBytes bytes) const;
 
   base::Status OnFtraceEvent(const protozero::ConstBytes bytes) const;
+
+  base::Status OnTraceStats(const Context::VerifyConfig& config,
+                            const protozero::ConstBytes bytes) const;
+
+  base::Status OnBufferStats(const Context::VerifyConfig& config,
+                             const protozero::ConstBytes bytes) const;
 };
 
 }  // namespace perfetto::trace_redaction
