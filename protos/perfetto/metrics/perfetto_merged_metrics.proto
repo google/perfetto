@@ -73,6 +73,10 @@ message AndroidBlockingCall {
     optional int64 max_dur_ns = 7;
     // Minimal duration within the CUJ in nanoseconds
     optional int64 min_dur_ns = 8;
+    // Avg duration within the CUJ
+    optional int64 avg_dur_ms = 9;
+    // Avg duration within the CUJ in nanoseconds
+    optional int64 avg_dur_ns = 10;
 }
 
 // End of protos/perfetto/metrics/android/android_blocking_call.proto
