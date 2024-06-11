@@ -430,7 +430,7 @@ GRPC_DEPS = [
     Dependency(
         'buildtools/grpc/src',
         'https://chromium.googlesource.com/external/github.com/grpc/grpc.git',
-        '874396561538e0ff7847a4b69cd7586346a673a1', 'all', 'all', True),
+        '4795c5e69b25e8c767b498bea784da0ef8c96fd5', 'all', 'all', True),
 ]
 
 # Sysroots required to cross-compile Linux targets (linux-arm{,64}).

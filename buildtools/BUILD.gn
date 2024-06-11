@@ -1522,8 +1522,8 @@ if (enable_perfetto_grpc) {
     include_dirs = [
       "grpc/src",
       "grpc/src/include",
-      "grpc/src/src/core/ext/upb-generated",
-      "grpc/src/src/core/ext/upbdefs-generated",
+      "grpc/src/src/core/ext/upb-gen",
+      "grpc/src/src/core/ext/upbdefs-gen",
       "grpc/src/third_party/address_sorting/include",
       "grpc/src/third_party/upb",
       "grpc/src/third_party/utf8_range",
@@ -1552,5 +1552,13 @@ if (enable_perfetto_grpc) {
         "-Wno-suggest-destructor-override",
       ]
     }
+  }
+
+  config("grpc_public_config") {
+    visibility = _buildtools_visibility
+    cflags = [
+      perfetto_isystem_cflag,
+      rebase_path("grpc/src/include", root_build_dir),
+    ]
   }
 }
