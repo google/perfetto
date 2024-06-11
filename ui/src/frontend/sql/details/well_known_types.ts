@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {asUpid} from '../../sql_types';
+import {asSliceSqlId, asUpid, asUtid} from '../../sql_types';
 import {
   getProcessInfo,
+  getThreadInfo,
   ProcessInfo,
   renderProcessRef,
+  renderThreadRef,
+  ThreadInfo,
 } from '../../thread_and_process_info';
+import {getSlice, SliceDetails, sliceRef} from '../slice';
 
 import {createSqlIdRefRenderer, SqlIdRefRenderer} from './details';
 
@@ -26,6 +30,23 @@ export const wellKnownTypes: {[key: string]: SqlIdRefRenderer} = {
     async (engine, id) => await getProcessInfo(engine, asUpid(Number(id))),
     (data: ProcessInfo) => ({
       value: renderProcessRef(data),
+    }),
+  ),
+  thread: createSqlIdRefRenderer<ThreadInfo>(
+    async (engine, id) => await getThreadInfo(engine, asUtid(Number(id))),
+    (data: ThreadInfo) => ({
+      value: renderThreadRef(data),
+    }),
+  ),
+  slice: createSqlIdRefRenderer<{slice: SliceDetails | undefined; id: bigint}>(
+    async (engine, id) => {
+      return {
+        id,
+        slice: await getSlice(engine, asSliceSqlId(Number(id))),
+      };
+    },
+    ({id, slice}) => ({
+      value: slice !== undefined ? sliceRef(slice) : `Unknown slice ${id}`,
     }),
   ),
 };

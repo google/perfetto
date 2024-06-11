@@ -161,6 +161,33 @@ export async function getThreadInfo(
   };
 }
 
+export function renderThreadRef(info: ThreadInfo): m.Children {
+  const name = info.name;
+  return m(
+    PopupMenu2,
+    {
+      trigger: m(Anchor, getThreadName(info)),
+    },
+    exists(name) &&
+      m(MenuItem, {
+        icon: Icons.Copy,
+        label: 'Copy thread name',
+        onclick: () => copyToClipboard(name),
+      }),
+    exists(info.tid) &&
+      m(MenuItem, {
+        icon: Icons.Copy,
+        label: 'Copy tid',
+        onclick: () => copyToClipboard(`${info.tid}`),
+      }),
+    m(MenuItem, {
+      icon: Icons.Copy,
+      label: 'Copy utid',
+      onclick: () => copyToClipboard(`${info.utid}`),
+    }),
+  );
+}
+
 export function getThreadName(info?: ThreadInfo): string | undefined {
   return getDisplayName(info?.name, info?.tid);
 }
