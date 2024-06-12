@@ -89,7 +89,10 @@ message ChromeFrameReporter {
   optional bool has_smooth_input_main = 9;
 
   // Whether the frame contained any missing content (i.e. whether there was
-  // checkerboarding in the frame).
+  // checkerboarding in the frame).  If has_missing_content,
+  // checkerboarded_needs_raster and checkerboarded_needs_record all have
+  // values, has_missing_content should equal checkerboarded_needs_raster ||
+  // checkerboarded_needs_record.
   optional bool has_missing_content = 10;
 
   // The id of layer_tree_host that the frame has been produced for.
@@ -111,4 +114,10 @@ message ChromeFrameReporter {
   // The breakdown stage of PipelineReporter that is most likely accountable for
   // high latency.
   repeated string high_latency_contribution_stage = 14;
+
+  // Whether the frame contained any content that is not fully rastered.
+  optional bool checkerboarded_needs_raster = 15;
+
+  // Whether the frame contained any content that is not fully recorded.
+  optional bool checkerboarded_needs_record = 16;
 }
