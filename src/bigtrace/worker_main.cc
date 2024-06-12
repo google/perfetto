@@ -17,18 +17,30 @@
 #include <grpcpp/grpcpp.h>
 
 #include "perfetto/base/status.h"
+#include "protos/perfetto/bigtrace/worker.grpc.pb.h"
+#include "protos/perfetto/bigtrace/worker.pb.h"
 
 namespace perfetto {
 namespace bigtrace {
 namespace {
 
+class WorkerImpl final : public protos::BigtraceWorker::Service {
+  grpc::Status QueryTrace(grpc::ServerContext*,
+                          const protos::BigtraceQueryTraceArgs*,
+                          protos::BigtraceQueryTraceResponse*) override {
+    return grpc::Status::OK;
+  }
+};
+
 base::Status WorkerMain(int, char**) {
-  std::string server_address("127.0.0.1:5052");
+  // Setup the Worker Server
+  std::string server_address("localhost:5052");
+  auto service = std::make_unique<WorkerImpl>();
   grpc::ServerBuilder builder;
-  auto cq = builder.AddCompletionQueue();
+  builder.RegisterService(service.get());
   builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-  PERFETTO_LOG("Orchestrator server listening on %s", server_address.c_str());
+  PERFETTO_LOG("Worker server listening on %s", server_address.c_str());
 
   server->Wait();
 
