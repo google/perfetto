@@ -31,21 +31,6 @@ namespace perfetto::trace_redaction {
 
 FtraceEventFilter::~FtraceEventFilter() = default;
 
-bool FilterFtracesUsingAllowlist::Includes(const Context& context,
-                                           protozero::Field event) const {
-  PERFETTO_DCHECK(!context.ftrace_packet_allow_list.empty());
-
-  protozero::ProtoDecoder decoder(event.as_bytes());
-
-  for (auto it = decoder.ReadField(); it.valid(); it = decoder.ReadField()) {
-    if (context.ftrace_packet_allow_list.count(it.id())) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 bool FilterFtraceUsingSuspendResume::Includes(const Context&,
                                               protozero::Field event) const {
   // Values are taken from "suspend_period.textproto". These values would

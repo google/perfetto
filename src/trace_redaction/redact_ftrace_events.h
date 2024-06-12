@@ -26,11 +26,6 @@
 
 namespace perfetto::trace_redaction {
 
-class FilterFtracesUsingAllowlist : public FtraceEventFilter {
- public:
-  bool Includes(const Context& context, protozero::Field event) const override;
-};
-
 class FilterFtraceUsingSuspendResume : public FtraceEventFilter {
  public:
   bool Includes(const Context& context, protozero::Field event) const override;
