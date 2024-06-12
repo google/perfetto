@@ -33,7 +33,6 @@ export {
   SelectionKind,
   NoteSelection,
   SliceSelection,
-  CounterSelection,
   HeapProfileSelection,
   PerfSamplesSelection,
   LegacySelection,

@@ -53,7 +53,7 @@ import {ServiceWorkerController} from './service_worker_controller';
 import {SliceSqlId} from './sql_types';
 import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
-import {exists} from '../base/utils';
+import {Optional, exists} from '../base/utils';
 import {OmniboxManager} from './omnibox_manager';
 import {CallsiteInfo} from '../common/flamegraph_util';
 import {FlamegraphCache} from './flamegraph_panel';
@@ -129,14 +129,6 @@ export interface Flow {
   flowToDescendant: boolean;
 
   category?: string;
-  name?: string;
-}
-
-export interface CounterDetails {
-  startTime?: time;
-  value?: number;
-  delta?: number;
-  duration?: duration;
   name?: string;
 }
 
@@ -260,7 +252,6 @@ class Globals {
   private _connectedFlows?: Flow[] = undefined;
   private _selectedFlows?: Flow[] = undefined;
   private _visibleFlowCategories?: Map<string, boolean> = undefined;
-  private _counterDetails?: CounterDetails = undefined;
   private _cpuProfileDetails?: CpuProfileDetails = undefined;
   private _numQueriesQueued = 0;
   private _bufferUsage?: number = undefined;
@@ -334,7 +325,6 @@ class Globals {
     this._connectedFlows = [];
     this._selectedFlows = [];
     this._visibleFlowCategories = new Map<string, boolean>();
-    this._counterDetails = {};
     this._threadStateDetails = {};
     this._cpuProfileDetails = {};
     this.engines.clear();
@@ -444,14 +434,6 @@ class Globals {
 
   set visibleFlowCategories(visibleFlowCategories: Map<string, boolean>) {
     this._visibleFlowCategories = assertExists(visibleFlowCategories);
-  }
-
-  get counterDetails() {
-    return assertExists(this._counterDetails);
-  }
-
-  set counterDetails(click: CounterDetails) {
-    this._counterDetails = assertExists(click);
   }
 
   get aggregateDataStore(): AggregateDataStore {
@@ -616,20 +598,38 @@ class Globals {
 
   setLegacySelection(
     legacySelection: LegacySelection,
-    args: LegacySelectionArgs,
+    args: Partial<LegacySelectionArgs> = {},
   ): void {
     this._selectionManager.setLegacy(legacySelection);
-    if (args.clearSearch) {
+    this.handleSelectionArgs(args);
+  }
+
+  selectSingleEvent(
+    trackKey: string,
+    eventId: number,
+    args: Partial<LegacySelectionArgs> = {},
+  ): void {
+    this._selectionManager.setEvent(trackKey, eventId);
+    this.handleSelectionArgs(args);
+  }
+
+  private handleSelectionArgs(args: Partial<LegacySelectionArgs> = {}): void {
+    const {
+      clearSearch = true,
+      switchToCurrentSelectionTab = true,
+      pendingScrollId = undefined,
+    } = args;
+    if (clearSearch) {
       globals.dispatch(Actions.setSearchIndex({index: -1}));
     }
-    if (args.pendingScrollId !== undefined) {
+    if (pendingScrollId !== undefined) {
       globals.dispatch(
         Actions.setPendingScrollId({
-          pendingScrollId: args.pendingScrollId,
+          pendingScrollId,
         }),
       );
     }
-    if (args.switchToCurrentSelectionTab) {
+    if (switchToCurrentSelectionTab) {
       globals.dispatch(Actions.showTab({uri: 'current_selection'}));
     }
   }
@@ -762,7 +762,9 @@ class Globals {
     return Time.sub(ts, this.timestampOffset());
   }
 
-  findTimeRangeOfSelection(): {start: time; end: time} | undefined {
+  async findTimeRangeOfSelection(): Promise<
+    Optional<{start: time; end: time}>
+  > {
     const sel = globals.state.selection;
     if (sel.kind === 'area') {
       return sel;
@@ -786,6 +788,20 @@ class Globals {
             assertUnreachable(kind);
         }
       }
+    } else if (sel.kind === 'single') {
+      const uri = globals.state.tracks[sel.trackKey]?.uri;
+      if (uri) {
+        const bounds = await globals.trackManager
+          .resolveTrackInfo(uri)
+          ?.getEventBounds?.(sel.eventId);
+        if (bounds) {
+          return {
+            start: bounds.ts,
+            end: Time.add(bounds.ts, bounds.dur),
+          };
+        }
+      }
+      return undefined;
     }
 
     const selection = getLegacySelection(this.state);
@@ -799,8 +815,6 @@ class Globals {
     } else if (selection.kind === 'THREAD_STATE') {
       const threadState = this.threadStateDetails;
       return findTimeRangeOfSlice(threadState);
-    } else if (selection.kind === 'COUNTER') {
-      return {start: selection.leftTs, end: selection.rightTs};
     } else if (selection.kind === 'LOG') {
       // TODO(hjd): Make focus selection work for logs.
     } else if (selection.kind === 'GENERIC_SLICE') {
@@ -850,8 +864,10 @@ function findTimeRangeOfSlice(slice: Partial<SliceLike>): {
 
 // Returns the time span of the current selection, or the visible window if
 // there is no current selection.
-export function getTimeSpanOfSelectionOrVisibleWindow(): Span<time, duration> {
-  const range = globals.findTimeRangeOfSelection();
+export async function getTimeSpanOfSelectionOrVisibleWindow(): Promise<
+  Span<time, duration>
+> {
+  const range = await globals.findTimeRangeOfSelection();
   if (exists(range)) {
     return new TimeSpan(range.start, range.end);
   } else {

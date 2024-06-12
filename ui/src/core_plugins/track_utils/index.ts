@@ -31,8 +31,8 @@ class TrackUtilsPlugin implements Plugin {
     ctx.registerCommand({
       id: 'perfetto.RunQueryInSelectedTimeWindow',
       name: `Run query in selected time window`,
-      callback: () => {
-        const window = getTimeSpanOfSelectionOrVisibleWindow();
+      callback: async () => {
+        const window = await getTimeSpanOfSelectionOrVisibleWindow();
         globals.omnibox.setMode(OmniboxMode.Query);
         globals.omnibox.setText(
           `select  where ts >= ${window.start} and ts < ${window.end}`,

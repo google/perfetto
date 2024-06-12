@@ -24,6 +24,7 @@ import {Engine} from '../trace_processor/engine';
 import {UntypedEventSet} from '../core/event_set';
 import {TraceContext} from '../frontend/globals';
 import {PromptOption} from '../frontend/omnibox_manager';
+import {Optional} from '../base/utils';
 
 export {Engine} from '../trace_processor/engine';
 export {
@@ -258,6 +259,12 @@ export interface TrackDescriptor {
 
   // Placeholder - presently unused.
   displayName?: string;
+
+  // Optional: method to look up the start and duration of an event on this track
+  getEventBounds?: (id: number) => Promise<Optional<{ts: time; dur: duration}>>;
+
+  // Optional: A details panel to use when this track is selected.
+  detailsPanel?: TrackSelectionDetailsPanel;
 }
 
 // Tracks within track groups (usually corresponding to processes) are sorted.
@@ -345,6 +352,11 @@ export interface LegacyDetailsPanel {
 
 export interface DetailsPanel {
   render(selection: Selection): m.Children;
+  isLoading?(): boolean;
+}
+
+export interface TrackSelectionDetailsPanel {
+  render(id: number): m.Children;
   isLoading?(): boolean;
 }
 

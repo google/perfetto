@@ -552,22 +552,6 @@ export const StateActions = {
     }
   },
 
-  selectCounter(
-    state: StateDraft,
-    args: {leftTs: time; rightTs: time; id: number; trackKey: string},
-  ): void {
-    state.selection = {
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'COUNTER',
-        leftTs: args.leftTs,
-        rightTs: args.rightTs,
-        id: args.id,
-        trackKey: args.trackKey,
-      },
-    };
-  },
-
   selectHeapProfile(
     state: StateDraft,
     args: {id: number; upid: number; ts: time; type: ProfileType},

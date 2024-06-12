@@ -24,3 +24,6 @@ export function exists<T>(value: T): value is NonNullable<T> {
 export type Result<T, E = {}> =
   | {success: true; result: T}
   | {success: false; error: E};
+
+// Generic "optional" type
+export type Optional<T> = T | undefined;
