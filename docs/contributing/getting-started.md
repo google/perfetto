@@ -43,22 +43,25 @@ tools/ninja -C out/mac_debug
 ### Contributing
 
 1. Create an account at [android.googlesource.com](https://android.googlesource.com/).
-2. Download `depot_tools`, a collection of helper scripts which make uploading changes to Android gerrit easier.
+2. (if you are a Googler) Follow go/sync#get-credentials to allow uploading to
+Android Gerrit.
+3. Download `depot_tools`, a collection of helper scripts which make uploading changes
+to Android Gerrit easier.
 ```sh
 cd perfetto
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 ```
-3. Add `depot_tools` to your path:
+4. Add `depot_tools` to your PATH (you may want to add this to your .bashrc/.zshrc):
 ```sh
 depot_path="$(realpath depot_tools)"
 export PATH=$depot_path:$PATH
 ```
-4. Create a branch with the change:
+5. Create a branch with the change:
 ```sh
 git new-branch first-contribution
 ```
-5. Make change in the repo.
-5. Add and commit the change:
+6. Make change in the repo.
+7. Add, commit and upload the change:
 ```sh
 git add .
 git commit -m "My first contribution"
