@@ -350,6 +350,14 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     return globals.traceContext;
   }
 
+  get openerPluginArgs(): {[key: string]: unknown} | undefined {
+    if (globals.state.engine?.source.type !== 'ARRAY_BUFFER') {
+      return undefined;
+    }
+    const pluginArgs = globals.state.engine?.source.pluginArgs;
+    return (pluginArgs ?? {})[this.pluginId];
+  }
+
   async prompt(
     text: string,
     options?: PromptOption[] | undefined,
