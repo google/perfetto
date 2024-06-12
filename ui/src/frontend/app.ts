@@ -56,7 +56,7 @@ import {publishPermalinkHash} from './publish';
 import {OmniboxMode, PromptOption} from './omnibox_manager';
 import {Utid} from './sql_types';
 import {getThreadInfo} from './thread_and_process_info';
-import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
+import {THREAD_STATE_TRACK_KIND} from '../core/track_kinds';
 
 function renderPermalink(): m.Children {
   const hash = globals.permalinkHash;
@@ -218,7 +218,13 @@ export class App implements m.ClassComponent {
             `INCLUDE PERFETTO MODULE sched.thread_executing_span;`,
           );
           await addDebugSliceTrack(
-            engine,
+            // NOTE(stevegolton): This is a temporary patch, this menu should
+            // become part of a critical path plugin, at which point we can just
+            // use the plugin's context object.
+            {
+              engine,
+              registerTrack: (x) => globals.trackManager.registerTrack(x),
+            },
             {
               sqlSource: `
                    SELECT
@@ -260,7 +266,13 @@ export class App implements m.ClassComponent {
             `INCLUDE PERFETTO MODULE sched.thread_executing_span_with_slice;`,
           );
           await addDebugSliceTrack(
-            engine,
+            // NOTE(stevegolton): This is a temporary patch, this menu should
+            // become part of a critical path plugin, at which point we can just
+            // use the plugin's context object.
+            {
+              engine,
+              registerTrack: (x) => globals.trackManager.registerTrack(x),
+            },
             {
               sqlSource: `
                         SELECT cr.id, cr.utid, cr.ts, cr.dur, cr.name, cr.table_name

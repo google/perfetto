@@ -12,15 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {
+  ACTUAL_FRAMES_SLICE_TRACK_KIND,
+  EXPECTED_FRAMES_SLICE_TRACK_KIND,
+} from '../../public';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../../trace_processor/query_result';
 
 import {ActualFramesTrack} from './actual_frames_track';
 import {ExpectedFramesTrack} from './expected_frames_track';
-
-export const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
-export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
 class FramesPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {

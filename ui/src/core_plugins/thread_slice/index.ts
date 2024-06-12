@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {uuidv4} from '../../base/uuid';
+import {THREAD_SLICE_TRACK_KIND} from '../../public';
 import {ThreadSliceDetailsTab} from '../../frontend/thread_slice_details_tab';
 import {
   BottomTabToSCSAdapter,
@@ -22,7 +23,7 @@ import {
 } from '../../public';
 import {getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {ThreadSliceTrack, THREAD_SLICE_TRACK_KIND} from './thread_slice_track';
+import {ThreadSliceTrack} from './thread_slice_track';
 
 class ThreadSlicesPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {

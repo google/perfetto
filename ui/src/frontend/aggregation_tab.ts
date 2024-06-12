@@ -28,9 +28,9 @@ import {
   FlamegraphSelectionParams,
 } from './flamegraph_panel';
 import {ProfileType, TrackState} from '../common/state';
-import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../core_plugins/perf_samples_profile';
 import {assertExists} from '../base/logging';
 import {Monitor} from '../base/monitor';
+import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../core/track_kinds';
 
 interface View {
   key: string;

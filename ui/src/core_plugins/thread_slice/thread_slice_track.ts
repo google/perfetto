@@ -25,8 +25,6 @@ import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {LONG_NULL} from '../../trace_processor/query_result';
 
-export const THREAD_SLICE_TRACK_KIND = 'ThreadSliceTrack';
-
 export const THREAD_SLICE_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
   ...NAMED_ROW,

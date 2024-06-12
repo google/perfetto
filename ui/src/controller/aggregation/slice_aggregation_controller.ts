@@ -16,10 +16,12 @@ import {ColumnDef} from '../../common/aggregation_data';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
-import {ASYNC_SLICE_TRACK_KIND} from '../../core_plugins/async_slices';
-import {THREAD_SLICE_TRACK_KIND} from '../../core_plugins/thread_slice/thread_slice_track';
 
 import {AggregationController} from './aggregation_controller';
+import {
+  ASYNC_SLICE_TRACK_KIND,
+  THREAD_SLICE_TRACK_KIND,
+} from '../../core/track_kinds';
 
 export function getSelectedTrackKeys(area: Area): number[] {
   const selectedTrackKeys: number[] = [];

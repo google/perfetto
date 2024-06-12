@@ -17,13 +17,7 @@ import {exists} from '../base/utils';
 import {Registry} from '../base/registry';
 import {Store} from '../base/store';
 import {PanelSize} from '../frontend/panel';
-import {
-  Migrate,
-  Track,
-  TrackContext,
-  TrackDescriptor,
-  TrackRef,
-} from '../public';
+import {Track, TrackContext, TrackDescriptor, TrackRef} from '../public';
 
 import {ObjectByKey, State, TrackState} from './state';
 
@@ -126,10 +120,6 @@ export class TrackManager {
       // Cached track doesn't exist or is out of date, create a new one.
       const trackContext: TrackContext = {
         trackKey: key,
-        mountStore: <T>(migrate: Migrate<T>) => {
-          const path = ['tracks', key, 'state'];
-          return this.store.createSubStore(path, migrate);
-        },
         params,
       };
       const track = trackDesc.trackFactory(trackContext);

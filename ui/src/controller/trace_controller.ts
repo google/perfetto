@@ -95,7 +95,8 @@ import {
   TraceStream,
 } from '../core/trace_stream';
 import {decideTracks} from './track_decider';
-import {FlamegraphCache, profileType} from '../frontend/flamegraph_panel';
+import {profileType} from '../frontend/flamegraph_panel';
+import {FlamegraphCache} from '../core/flamegraph_cache';
 
 type States = 'init' | 'loading_trace' | 'ready';
 

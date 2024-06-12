@@ -18,6 +18,10 @@ export interface Disposable {
   dispose(): void;
 }
 
+export interface AsyncDisposable {
+  dispose(): Promise<void>;
+}
+
 // Perform some operation using a disposable object guaranteeing it is disposed
 // of after the operation completes.
 // This can be replaced by the native "using" when Typescript 5.2 lands.
@@ -46,6 +50,25 @@ export class DisposableCallback implements Disposable {
   dispose() {
     if (this.callback) {
       this.callback();
+      this.callback = undefined;
+    }
+  }
+}
+
+export class AsyncDisposableCallback implements AsyncDisposable {
+  private callback?: () => Promise<void>;
+
+  constructor(callback: () => Promise<void>) {
+    this.callback = callback;
+  }
+
+  static from(callback: () => Promise<void>): AsyncDisposable {
+    return new AsyncDisposableCallback(callback);
+  }
+
+  async dispose() {
+    if (this.callback) {
+      await this.callback();
       this.callback = undefined;
     }
   }
@@ -81,6 +104,25 @@ export class Trash implements Disposable {
         break;
       }
       d.dispose();
+    }
+  }
+}
+
+export class AsyncTrash implements AsyncDisposable {
+  private resources: AsyncDisposable[] = [];
+
+  add(d: AsyncDisposable) {
+    this.resources.push(d);
+  }
+
+  addCallback(callback: () => Promise<void>) {
+    this.add(AsyncDisposableCallback.from(callback));
+  }
+
+  async dispose(): Promise<void> {
+    while (this.resources.length) {
+      const d = this.resources.pop();
+      await d?.dispose();
     }
   }
 }

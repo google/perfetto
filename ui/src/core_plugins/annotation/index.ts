@@ -13,13 +13,11 @@
 // limitations under the License.
 
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
-import {
-  ThreadSliceTrack,
-  THREAD_SLICE_TRACK_KIND,
-} from '../thread_slice/thread_slice_track';
+import {ThreadSliceTrack} from '../thread_slice/thread_slice_track';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
 import {COUNTER_TRACK_KIND} from '../counter';
 import {TraceProcessorCounterTrack} from '../counter/trace_processor_counter_track';
+import {THREAD_SLICE_TRACK_KIND} from '../../public';
 
 class AnnotationPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {

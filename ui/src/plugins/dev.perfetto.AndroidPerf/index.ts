@@ -18,11 +18,10 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {Engine} from '../../trace_processor/engine';
 
 class AndroidPerf implements Plugin {
   async addAppProcessStartsDebugTrack(
-    engine: Engine,
+    ctx: PluginContextTrace,
     reason: string,
     sliceName: string,
   ): Promise<void> {
@@ -36,7 +35,7 @@ class AndroidPerf implements Plugin {
       'table_name',
     ];
     await addDebugSliceTrack(
-      engine,
+      ctx,
       {
         sqlSource: `
                     SELECT
@@ -172,11 +171,7 @@ class AndroidPerf implements Plugin {
 
         const startReason = ['activity', 'service', 'broadcast', 'provider'];
         for (const reason of startReason) {
-          await this.addAppProcessStartsDebugTrack(
-            ctx.engine,
-            reason,
-            'process_name',
-          );
+          await this.addAppProcessStartsDebugTrack(ctx, reason, 'process_name');
         }
       },
     });
@@ -191,11 +186,7 @@ class AndroidPerf implements Plugin {
 
         const startReason = ['activity', 'service', 'broadcast'];
         for (const reason of startReason) {
-          await this.addAppProcessStartsDebugTrack(
-            ctx.engine,
-            reason,
-            'intent',
-          );
+          await this.addAppProcessStartsDebugTrack(ctx, reason, 'intent');
         }
       },
     });

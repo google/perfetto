@@ -18,7 +18,7 @@ import {Hotkey} from '../base/hotkeys';
 import {Span, duration, time} from '../base/time';
 import {Migrate, Store} from '../base/store';
 import {ColorScheme} from '../core/colorizer';
-import {LegacySelection, Selection} from '../common/state';
+import {LegacySelection, PrimaryTrackSortKey, Selection} from '../common/state';
 import {PanelSize} from '../frontend/panel';
 import {Engine} from '../trace_processor/engine';
 import {UntypedEventSet} from '../core/event_set';
@@ -38,12 +38,10 @@ export {
 export {BottomTabToSCSAdapter} from './utils';
 export {createStore, Migrate, Store} from '../base/store';
 export {PromptOption} from '../frontend/omnibox_manager';
+export {PrimaryTrackSortKey} from '../common/state';
 
-// This is a temporary fix until this is available in the plugin API.
-export {
-  createDebugSliceTrackActions,
-  addDebugSliceTrack,
-} from '../frontend/debug_tracks';
+export {addDebugSliceTrack} from '../frontend/debug_tracks/debug_tracks';
+export * from '../core/track_kinds';
 
 export interface Slice {
   // These properties are updated only once per query result when the Slice
@@ -159,16 +157,6 @@ export interface TrackContext {
 
   // Set of params passed in when the track was created.
   params: unknown;
-
-  // Creates a new store overlaying the track instance's state object.
-  // A migrate function must be passed to convert any existing state to a
-  // compatible format.
-  // When opening a fresh trace, the value of |init| will be undefined, and
-  // state should be updated to an appropriate default value.
-  // When loading a permalink, the value of |init| will be whatever was saved
-  // when the permalink was shared, which might be from an old version of this
-  // track.
-  mountStore<State>(migrate: Migrate<State>): Store<State>;
 }
 
 export interface SliceRect {
@@ -265,36 +253,6 @@ export interface TrackDescriptor {
 
   // Optional: A details panel to use when this track is selected.
   detailsPanel?: TrackSelectionDetailsPanel;
-}
-
-// Tracks within track groups (usually corresponding to processes) are sorted.
-// As we want to group all tracks related to a given thread together, we use
-// two keys:
-// - Primary key corresponds to a priority of a track block (all tracks related
-//   to a given thread or a single track if it's not thread-associated).
-// - Secondary key corresponds to a priority of a given thread-associated track
-//   within its thread track block.
-// Each track will have a sort key, which either a primary sort key
-// (for non-thread tracks) or a tid and secondary sort key (mapping of tid to
-// primary sort key is done independently).
-export enum PrimaryTrackSortKey {
-  DEBUG_TRACK,
-  NULL_TRACK,
-  PROCESS_SCHEDULING_TRACK,
-  PROCESS_SUMMARY_TRACK,
-  EXPECTED_FRAMES_SLICE_TRACK,
-  ACTUAL_FRAMES_SLICE_TRACK,
-  PERF_SAMPLES_PROFILE_TRACK,
-  HEAP_PROFILE_TRACK,
-  MAIN_THREAD,
-  RENDER_THREAD,
-  GPU_COMPLETION_THREAD,
-  CHROME_IO_THREAD,
-  CHROME_COMPOSITOR_THREAD,
-  ORDINARY_THREAD,
-  COUNTER_TRACK,
-  ASYNC_SLICE_TRACK,
-  ORDINARY_TRACK,
 }
 
 export interface SliceTrackColNames {

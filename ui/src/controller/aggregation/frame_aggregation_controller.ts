@@ -14,9 +14,9 @@
 
 import {ColumnDef} from '../../common/aggregation_data';
 import {Area, Sorting} from '../../common/state';
+import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../../core/track_kinds';
 import {globals} from '../../frontend/globals';
 import {Engine} from '../../trace_processor/engine';
-import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../../core_plugins/frames';
 
 import {AggregationController} from './aggregation_controller';
 

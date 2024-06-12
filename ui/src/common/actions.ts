@@ -30,7 +30,6 @@ import {
   tableColumnEquals,
   toggleEnabled,
 } from '../frontend/pivot_table_types';
-import {PrimaryTrackSortKey} from '../public/index';
 
 import {
   computeIntervals,
@@ -53,6 +52,7 @@ import {
   OmniboxState,
   PendingDeeplinkState,
   PivotTableResult,
+  PrimaryTrackSortKey,
   ProfileType,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,

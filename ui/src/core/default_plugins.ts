@@ -45,7 +45,7 @@ export const defaultPlugins = [
   'perfetto.CpuProfile',
   'perfetto.CpuSlices',
   'perfetto.CriticalUserInteraction',
-  'perfetto.DebugSlices',
+  'perfetto.DebugTracks',
   'perfetto.Flows',
   'perfetto.Frames',
   'perfetto.FtraceRaw',

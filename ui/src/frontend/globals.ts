@@ -56,7 +56,7 @@ import {SelectionManager, LegacySelection} from '../core/selection_manager';
 import {Optional, exists} from '../base/utils';
 import {OmniboxManager} from './omnibox_manager';
 import {CallsiteInfo} from '../common/flamegraph_util';
-import {FlamegraphCache} from './flamegraph_panel';
+import {FlamegraphCache} from '../core/flamegraph_cache';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;

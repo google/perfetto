@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {Engine, TrackContext} from '../public';
 import {BaseCounterTrack, CounterOptions} from './base_counter_track';
-import {CounterColumns, SqlDataSource} from './debug_tracks';
+import {CounterColumns, SqlDataSource} from './debug_tracks/debug_tracks';
 import {Disposable, DisposableCallback} from '../base/disposable';
 import {uuidv4Sql} from '../base/uuid';
 

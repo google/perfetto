@@ -20,6 +20,7 @@ import {
   ThreadSliceSelection,
   getLegacySelection,
 } from '../common/state';
+import {THREAD_SLICE_TRACK_KIND} from '../core/track_kinds';
 import {globals, SliceDetails, ThreadStateDetails} from '../frontend/globals';
 import {
   publishSliceDetails,
@@ -35,7 +36,6 @@ import {
   STR_NULL,
   timeFromSql,
 } from '../trace_processor/query_result';
-import {THREAD_SLICE_TRACK_KIND} from '../core_plugins/thread_slice/thread_slice_track';
 
 import {Controller} from './controller';
 

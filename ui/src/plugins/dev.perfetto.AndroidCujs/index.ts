@@ -171,7 +171,7 @@ class AndroidCujs implements Plugin {
       callback: () => {
         ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() => {
           addDebugSliceTrack(
-            ctx.engine,
+            ctx,
             {
               sqlSource: JANK_CUJ_QUERY,
               columns: JANK_COLUMNS,
@@ -199,7 +199,7 @@ class AndroidCujs implements Plugin {
       name: 'Add track: Android latency CUJs',
       callback: () => {
         addDebugSliceTrack(
-          ctx.engine,
+          ctx,
           {
             sqlSource: LATENCY_CUJ_QUERY,
             columns: LATENCY_COLUMNS,
@@ -224,7 +224,7 @@ class AndroidCujs implements Plugin {
       callback: () => {
         ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() =>
           addDebugSliceTrack(
-            ctx.engine,
+            ctx,
             {
               sqlSource: BLOCKING_CALLS_DURING_CUJS_QUERY,
               columns: BLOCKING_CALLS_DURING_CUJS_COLUMNS,
