@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_REDACTION_TRACE_REDACTION_FRAMEWORK_H_
 #define SRC_TRACE_REDACTION_TRACE_REDACTION_FRAMEWORK_H_
 
+#include <bitset>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -257,9 +258,13 @@ class Context {
   //    - protos::pbzero::TracePacket::kProcessStatsFieldNumber
   //    - protos::pbzero::TracePacket::kClockSnapshotFieldNumber
   //
-  // Because "data" is a "one of", if no field in "trace_packet_allow_list" can
-  // be found, it packet should be removed.
-  base::FlatSet<uint32_t> trace_packet_allow_list;
+  // If the mask is set to 0x00, all fields would be removed. This should not
+  // happen as some metadata provides context between packets.
+  //
+  // Important note, 128 is used because it's the first power-of-2 after
+  // TracePacket::kMaxFieldNumber.
+  using TracePacketMask = std::bitset<128>;
+  TracePacketMask packet_mask;
 
   // Ftrace packets contain a "one of" entry called "event". Within the scope of
   // a ftrace event, the event can be considered the payload and other other
@@ -298,7 +303,8 @@ class Context {
   //
   //  3.  In this example, a cpu_idle event populates the one-of slot in the
   //      ftrace event
-  base::FlatSet<uint32_t> ftrace_packet_allow_list;
+  using FtraceEventMask = std::bitset<512>;
+  FtraceEventMask ftrace_mask;
 
   //  message SuspendResumeFtraceEvent {
   //    optional string action = 1 [(datapol.semantic_type) = ST_NOT_REQUIRED];

@@ -47,8 +47,10 @@ class ReduceFrameCookies : public BuildPrimitive {
   base::Status Build(Context* context) const override;
 };
 
-// Flags start-frame and end-frame events as keep/drop using
-// Context::package_frame_cookies.
+// TODO: Now that the allowlist primitive has been replaced with the broad-phase
+// filter, this the only class using ScrubTracePacket. ScrubTracePacket should
+// removed and this class should either be change to use a different "runner" or
+// should directly implement TransformPrimitive.
 class FilterFrameEvents : public TracePacketFilter {
  public:
   bool KeepField(const Context& context,
