@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {NullDisposable} from '../../base/disposable';
 import {uuidv4} from '../../base/uuid';
 import {Actions} from '../../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
@@ -26,6 +25,7 @@ import {CloseTrackButton} from '../../frontend/close_track_button';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
 import {PrimaryTrackSortKey} from '../../public';
+import {DisposableStack} from '../../base/disposable';
 
 export function addRunnableThreadCountTrack() {
   const key = uuidv4();
@@ -65,7 +65,7 @@ export class RunnableThreadCountTrack extends BaseCounterTrack {
     await this.engine.query(
       `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`,
     );
-    return new NullDisposable();
+    return new DisposableStack();
   }
 
   getSqlSource() {

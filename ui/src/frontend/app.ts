@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {copyToClipboard} from '../base/clipboard';
-import {Trash} from '../base/disposable';
+import {DisposableStack} from '../base/disposable';
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
@@ -112,14 +112,14 @@ const criticalPathsliceLiteColumnNames = [
 ];
 
 export class App implements m.ClassComponent {
-  private trash = new Trash();
+  private trash = new DisposableStack();
   static readonly OMNIBOX_INPUT_REF = 'omnibox';
   private omniboxInputEl?: HTMLInputElement;
   private recentCommands: string[] = [];
 
   constructor() {
-    this.trash.add(new Notes());
-    this.trash.add(new AggregationsTabs());
+    this.trash.use(new Notes());
+    this.trash.use(new AggregationsTabs());
   }
 
   private getEngine(): Engine | undefined {
@@ -819,7 +819,7 @@ export class App implements m.ClassComponent {
     // Register each command with the command manager
     this.cmds.forEach((cmd) => {
       const dispose = globals.commandManager.registerCommand(cmd);
-      this.trash.add(dispose);
+      this.trash.use(dispose);
     });
   }
 

@@ -21,7 +21,7 @@ import {Icons} from '../../base/semantic_icons';
 import {ThreadSliceTrack} from '../thread_slice/thread_slice_track';
 import {uuidv4Sql} from '../../base/uuid';
 import {NewTrackArgs} from '../../frontend/track';
-import {Disposable, DisposableCallback} from '../../base/disposable';
+import {Disposable} from '../../base/disposable';
 
 // Similar to a SliceTrack, but creates a view
 export class VisualisedArgsTrack extends ThreadSliceTrack {
@@ -67,9 +67,9 @@ export class VisualisedArgsTrack extends ThreadSliceTrack {
         order by id;
     `);
 
-    return new DisposableCallback(() => {
-      this.engine.tryQuery(`drop view ${this.viewName}`);
-    });
+    return {
+      dispose: () => this.engine.tryQuery(`drop view ${this.viewName}`),
+    };
   }
 
   getTrackShellButtons(): m.Children {

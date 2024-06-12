@@ -14,7 +14,7 @@
 
 import {v4 as uuidv4} from 'uuid';
 
-import {Disposable, DisposableCallback} from '../../base/disposable';
+import {Disposable} from '../../base/disposable';
 import {Actions} from '../../common/actions';
 import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
 import {LegacySelection} from '../../common/state';
@@ -89,10 +89,12 @@ export abstract class CustomSqlTableSliceTrack<
         whereClause: config.whereClause,
       });
     await this.engine.query(sql);
-    return DisposableCallback.from(() => {
-      this.engine.tryQuery(`DROP VIEW ${this.tableName}`);
-      config.dispose?.dispose();
-    });
+    return {
+      dispose: () => {
+        this.engine.tryQuery(`DROP VIEW ${this.tableName}`);
+        config.dispose?.dispose();
+      },
+    };
   }
 
   getSqlSource(): string {

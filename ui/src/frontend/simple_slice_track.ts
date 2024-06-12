@@ -21,7 +21,6 @@ import {
 import {NamedSliceTrackTypes} from './named_slice_track';
 import {SliceColumns, SqlDataSource} from './debug_tracks/debug_tracks';
 import {uuidv4Sql} from '../base/uuid';
-import {DisposableCallback} from '../base/disposable';
 import {ARG_PREFIX, DebugSliceDetailsTab} from './debug_tracks/details_tab';
 
 export interface SimpleSliceTrackConfig {
@@ -56,7 +55,9 @@ export class SimpleSliceTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTy
     );
     return {
       sqlTableName: this.sqlTableName,
-      dispose: new DisposableCallback(() => this.destroyTrackTable()),
+      dispose: {
+        dispose: () => this.destroyTrackTable(),
+      },
     };
   }
 

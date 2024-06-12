@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable, DisposableCallback} from '../base/disposable';
+import {Disposable} from '../base/disposable';
 import {exists} from '../base/utils';
 import {Registry} from '../base/registry';
 import {Store} from '../base/store';
@@ -76,9 +76,9 @@ export class TrackManager {
 
   addPotentialTrack(track: TrackRef): Disposable {
     this.defaultTracks.add(track);
-    return new DisposableCallback(() => {
-      this.defaultTracks.delete(track);
-    });
+    return {
+      dispose: () => this.defaultTracks.delete(track),
+    };
   }
 
   findPotentialTracks(): TrackRef[] {

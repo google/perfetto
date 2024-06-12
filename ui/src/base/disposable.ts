@@ -19,82 +19,28 @@ export interface Disposable {
 }
 
 export interface AsyncDisposable {
-  dispose(): Promise<void>;
-}
-
-// Perform some operation using a disposable object guaranteeing it is disposed
-// of after the operation completes.
-// This can be replaced by the native "using" when Typescript 5.2 lands.
-// See: https://www.totaltypescript.com/typescript-5-2-new-keyword-using
-// Usage:
-//   using(createDisposable(), (x) => {doSomethingWith(x)});
-export function using<T extends Disposable>(x: T, func?: (x: T) => void) {
-  try {
-    func && func(x);
-  } finally {
-    x.dispose();
-  }
-}
-
-export class DisposableCallback implements Disposable {
-  private callback?: () => void;
-
-  constructor(callback: () => void) {
-    this.callback = callback;
-  }
-
-  static from(callback: () => void): Disposable {
-    return new DisposableCallback(callback);
-  }
-
-  dispose() {
-    if (this.callback) {
-      this.callback();
-      this.callback = undefined;
-    }
-  }
-}
-
-export class AsyncDisposableCallback implements AsyncDisposable {
-  private callback?: () => Promise<void>;
-
-  constructor(callback: () => Promise<void>) {
-    this.callback = callback;
-  }
-
-  static from(callback: () => Promise<void>): AsyncDisposable {
-    return new AsyncDisposableCallback(callback);
-  }
-
-  async dispose() {
-    if (this.callback) {
-      await this.callback();
-      this.callback = undefined;
-    }
-  }
-}
-
-export class NullDisposable implements Disposable {
-  dispose() {}
+  disposeAsync(): Promise<void>;
 }
 
 // A collection of Disposables.
 // Disposables can be added one by one, (e.g. during the lifecycle of a
 // component) then can all be disposed at once (e.g. when the component
 // is destroyed). Resources are disposed LIFO.
-export class Trash implements Disposable {
+export class DisposableStack implements Disposable {
   private resources: Disposable[];
 
   constructor() {
     this.resources = [];
   }
 
-  add(d: Disposable) {
+  use(d: Disposable) {
     this.resources.push(d);
   }
 
-  addCallback(callback: () => void) {
-    this.add(DisposableCallback.from(callback));
+  defer(onDispose: () => void) {
+    this.use({
+      dispose: onDispose,
+    });
   }
 
   dispose() {
@@ -108,21 +54,26 @@ export class Trash implements Disposable {
   }
 }
 
-export class AsyncTrash implements AsyncDisposable {
+export class AsyncDisposableStack implements AsyncDisposable {
   private resources: AsyncDisposable[] = [];
 
-  add(d: AsyncDisposable) {
+  use(d: AsyncDisposable) {
     this.resources.push(d);
   }
 
-  addCallback(callback: () => Promise<void>) {
-    this.add(AsyncDisposableCallback.from(callback));
+  defer(onDispose: () => Promise<void>) {
+    this.use({
+      disposeAsync: onDispose,
+    });
   }
 
-  async dispose(): Promise<void> {
-    while (this.resources.length) {
+  async disposeAsync(): Promise<void> {
+    while (true) {
       const d = this.resources.pop();
-      await d?.dispose();
+      if (d === undefined) {
+        break;
+      }
+      await d.disposeAsync();
     }
   }
 }

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {SortDirection} from '../base/comparison_utils';
-import {AsyncDisposable, AsyncDisposableCallback} from '../base/disposable';
+import {AsyncDisposable} from '../base/disposable';
 import {isString} from '../base/object_utils';
 import {sqliteString} from '../base/string_utils';
 
@@ -183,7 +183,9 @@ export async function createPerfettoTable(
   expression: string,
 ): Promise<AsyncDisposable> {
   await engine.query(`CREATE PERFETTO TABLE ${tableName} AS ${expression}`);
-  return new AsyncDisposableCallback(async () => {
-    await engine.tryQuery(`DROP TABLE IF EXISTS ${tableName}`);
-  });
+  return {
+    disposeAsync: async () => {
+      await engine.tryQuery(`DROP TABLE IF EXISTS ${tableName}`);
+    },
+  };
 }

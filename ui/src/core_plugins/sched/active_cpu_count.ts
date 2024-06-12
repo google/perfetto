@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {NullDisposable} from '../../base/disposable';
 import {sqliteString} from '../../base/string_utils';
 import {uuidv4} from '../../base/uuid';
 import {Actions} from '../../common/actions';
@@ -26,6 +25,7 @@ import {
 import {CloseTrackButton} from '../../frontend/close_track_button';
 import {globals} from '../../frontend/globals';
 import {Engine, PrimaryTrackSortKey, TrackContext} from '../../public';
+import {DisposableStack} from '../../base/disposable';
 
 export function addActiveCPUCountTrack(cpuType?: string) {
   const cpuTypeName = cpuType === undefined ? '' : ` ${cpuType} `;
@@ -85,7 +85,7 @@ export class ActiveCPUCountTrack extends BaseCounterTrack {
     await this.engine.query(
       `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`,
     );
-    return new NullDisposable();
+    return new DisposableStack();
   }
 
   getSqlSource() {

@@ -16,7 +16,7 @@ import m from 'mithril';
 import {Engine, TrackContext} from '../public';
 import {BaseCounterTrack, CounterOptions} from './base_counter_track';
 import {CounterColumns, SqlDataSource} from './debug_tracks/debug_tracks';
-import {Disposable, DisposableCallback} from '../base/disposable';
+import {Disposable} from '../base/disposable';
 import {uuidv4Sql} from '../base/uuid';
 
 export type SimpleCounterTrackConfig = {
@@ -46,10 +46,12 @@ export class SimpleCounterTrack extends BaseCounterTrack {
   async onInit(): Promise<Disposable> {
     const trash = await super.onInit();
     await this.createTrackTable();
-    return new DisposableCallback(() => {
-      trash.dispose();
-      this.dropTrackTable();
-    });
+    return {
+      dispose: () => {
+        trash.dispose();
+        this.dropTrackTable();
+      },
+    };
   }
 
   getTrackShellButtons(): m.Children {
