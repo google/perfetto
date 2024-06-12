@@ -18,7 +18,6 @@
 #define SRC_TRACE_REDACTION_COLLECT_FRAME_COOKIES_H_
 
 #include "perfetto/protozero/field.h"
-#include "src/trace_redaction/scrub_trace_packet.h"
 #include "src/trace_redaction/trace_redaction_framework.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
@@ -47,14 +46,17 @@ class ReduceFrameCookies : public BuildPrimitive {
   base::Status Build(Context* context) const override;
 };
 
-// TODO: Now that the allowlist primitive has been replaced with the broad-phase
-// filter, this the only class using ScrubTracePacket. ScrubTracePacket should
-// removed and this class should either be change to use a different "runner" or
-// should directly implement TransformPrimitive.
-class FilterFrameEvents : public TracePacketFilter {
+class FilterFrameEvents : public TransformPrimitive {
  public:
-  bool KeepField(const Context& context,
-                 const protozero::Field& field) const override;
+  base::Status Transform(const Context& context,
+                         std::string* packet) const override;
+
+  // TODO: When this class was changed to implement TransformPrimitive instead
+  // of the scrub trace packet filter interface, updating the tests was more
+  // work than needed. To avoid updating the tests, the filter function was kept
+  // and exposed. If this was to follow the currently used patterns, this would
+  // be a OnFrameTimelineEvent function.
+  bool KeepField(const Context& context, const protozero::Field& field) const;
 };
 
 }  // namespace perfetto::trace_redaction
