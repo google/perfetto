@@ -1520,14 +1520,16 @@ if (enable_perfetto_grpc) {
   config("grpc_internal_config") {
     visibility = _buildtools_visibility
     include_dirs = [
+      "grpc/protobuf_include",
       "grpc/src",
       "grpc/src/include",
       "grpc/src/src/core/ext/upb-gen",
       "grpc/src/src/core/ext/upbdefs-gen",
+      "grpc/src/third_party/abseil-cpp",
       "grpc/src/third_party/address_sorting/include",
+      "grpc/src/third_party/re2",
       "grpc/src/third_party/upb",
       "grpc/src/third_party/utf8_range",
-      "grpc/src/third_party/re2",
       "grpc/src/third_party/xxhash",
     ]
     cflags = [ "-DGRPC_ARES=0" ]
