@@ -152,8 +152,10 @@ void BM_Shlib_TeDisabled(benchmark::State& state) {
 
 void BM_Shlib_TeBasic(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"));
@@ -163,8 +165,10 @@ void BM_Shlib_TeBasic(benchmark::State& state) {
 
 void BM_Shlib_TeBasicNoIntern(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"),
@@ -175,8 +179,10 @@ void BM_Shlib_TeBasicNoIntern(benchmark::State& state) {
 
 void BM_Shlib_TeDebugAnnotations(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"),
@@ -187,8 +193,10 @@ void BM_Shlib_TeDebugAnnotations(benchmark::State& state) {
 
 void BM_Shlib_TeLlBasic(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
@@ -239,8 +247,10 @@ void BM_Shlib_TeLlBasic(benchmark::State& state) {
 
 void BM_Shlib_TeLlBasicNoIntern(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
@@ -288,8 +298,10 @@ void BM_Shlib_TeLlBasicNoIntern(benchmark::State& state) {
 
 void BM_Shlib_TeLlDebugAnnotations(benchmark::State& state) {
   EnsureInitialized();
-  TracingSession tracing_session =
-      TracingSession::Builder().set_data_source_name("track_event").Build();
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
 
   while (state.KeepRunning()) {
     if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
