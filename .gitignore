@@ -33,3 +33,4 @@ examples/sdk/build/
 GPATH
 GRTAGS
 GTAGS
+depot_tools/
