@@ -13621,7 +13621,6 @@ filegroup {
         "src/trace_redaction/redact_process_trees.cc",
         "src/trace_redaction/redact_sched_events.cc",
         "src/trace_redaction/scrub_process_stats.cc",
-        "src/trace_redaction/scrub_trace_packet.cc",
         "src/trace_redaction/trace_redaction_framework.cc",
         "src/trace_redaction/trace_redactor.cc",
         "src/trace_redaction/verify_integrity.cc",
