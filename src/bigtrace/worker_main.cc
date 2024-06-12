@@ -14,6 +14,36 @@
  * limitations under the License.
  */
 
-int main(int, char**) {
+#include <grpcpp/grpcpp.h>
+
+#include "perfetto/base/status.h"
+
+namespace perfetto {
+namespace bigtrace {
+namespace {
+
+base::Status WorkerMain(int, char**) {
+  std::string server_address("127.0.0.1:5052");
+  grpc::ServerBuilder builder;
+  auto cq = builder.AddCompletionQueue();
+  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+  PERFETTO_LOG("Orchestrator server listening on %s", server_address.c_str());
+
+  server->Wait();
+
+  return base::OkStatus();
+}
+
+}  // namespace
+}  // namespace bigtrace
+}  // namespace perfetto
+
+int main(int argc, char** argv) {
+  auto status = perfetto::bigtrace::WorkerMain(argc, argv);
+  if (!status.ok()) {
+    fprintf(stderr, "%s\n", status.c_message());
+    return 1;
+  }
   return 0;
 }

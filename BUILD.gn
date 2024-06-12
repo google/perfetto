@@ -45,8 +45,10 @@ if (enable_perfetto_platform_services) {
 }
 
 if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
-  all_targets += [ "src/bigtrace:orchestrator_main" ]
-  all_targets += [ "src/bigtrace:worker_main" ]
+  if (enable_perfetto_grpc) {
+    all_targets += [ "src/bigtrace:orchestrator_main" ]
+    all_targets += [ "src/bigtrace:worker_main" ]
+  }
   all_targets += [ "src/trace_processor:trace_processor_shell" ]
 }
 
