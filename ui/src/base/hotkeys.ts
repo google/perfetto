@@ -96,8 +96,8 @@ export type Modifier =
   | 'Ctrl+'
   | 'Alt+'
   | 'Mod+Shift+'
-  | 'Mod+Alt'
-  | 'Mod+Shift+Alt'
+  | 'Mod+Alt+'
+  | 'Mod+Shift+Alt+'
   | 'Ctrl+Shift+'
   | 'Ctrl+Alt'
   | 'Ctrl+Shift+Alt';
