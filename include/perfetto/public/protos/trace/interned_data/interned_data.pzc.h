@@ -193,5 +193,25 @@ PERFETTO_PB_FIELD(perfetto_protos_InternedData,
                   perfetto_protos_InternedString,
                   protolog_stacktrace,
                   37);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_InternedString,
+                  viewcapture_package_name,
+                  38);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_InternedString,
+                  viewcapture_window_name,
+                  39);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_InternedString,
+                  viewcapture_view_id,
+                  40);
+PERFETTO_PB_FIELD(perfetto_protos_InternedData,
+                  MSG,
+                  perfetto_protos_InternedString,
+                  viewcapture_class_name,
+                  41);
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PROTOS_TRACE_INTERNED_DATA_INTERNED_DATA_PZC_H_

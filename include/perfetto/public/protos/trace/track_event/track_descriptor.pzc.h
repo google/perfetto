@@ -44,6 +44,11 @@ PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   name,
                   2);
 PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
+                  STRING,
+                  const char*,
+                  static_name,
+                  10);
+PERFETTO_PB_FIELD(perfetto_protos_TrackDescriptor,
                   MSG,
                   perfetto_protos_ProcessDescriptor,
                   process,
