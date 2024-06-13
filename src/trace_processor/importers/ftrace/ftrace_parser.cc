@@ -1571,20 +1571,19 @@ void FtraceParser::ParseSchedProcessFree(int64_t timestamp, ConstBytes blob) {
 void FtraceParser::ParseCpuFreq(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::CpuFrequencyFtraceEvent::Decoder freq(blob.data, blob.size);
   uint32_t cpu = freq.cpu_id();
-  uint32_t new_freq = freq.state();
+  uint32_t new_freq_khz = freq.state();
   TrackId track =
       context_->track_tracker->InternCpuCounterTrack(cpu_freq_name_id_, cpu);
-  context_->event_tracker->PushCounter(timestamp, new_freq, track);
+  context_->event_tracker->PushCounter(timestamp, new_freq_khz, track);
 }
 
 void FtraceParser::ParseCpuFreqThrottle(int64_t timestamp, ConstBytes blob) {
   protos::pbzero::DcvshFreqFtraceEvent::Decoder freq(blob.data, blob.size);
   uint32_t cpu = static_cast<uint32_t>(freq.cpu());
-  // Source data is frequency / 1000, so we correct that here:
-  double new_freq = static_cast<double>(freq.freq()) * 1000.0;
+  double new_freq_khz = static_cast<double>(freq.freq());
   TrackId track = context_->track_tracker->InternCpuCounterTrack(
       cpu_freq_throttle_name_id_, cpu);
-  context_->event_tracker->PushCounter(timestamp, new_freq, track);
+  context_->event_tracker->PushCounter(timestamp, new_freq_khz, track);
 }
 
 void FtraceParser::ParseGpuFreq(int64_t timestamp, ConstBytes blob) {
