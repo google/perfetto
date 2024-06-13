@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
 import {Engine, TrackContext} from '../public';
 import {BaseCounterTrack, CounterOptions} from './base_counter_track';
 import {CounterColumns, SqlDataSource} from './debug_tracks/debug_tracks';
@@ -52,10 +51,6 @@ export class SimpleCounterTrack extends BaseCounterTrack {
         this.dropTrackTable();
       },
     };
-  }
-
-  getTrackShellButtons(): m.Children {
-    return this.getCounterContextMenu();
   }
 
   getSqlSource(): string {
