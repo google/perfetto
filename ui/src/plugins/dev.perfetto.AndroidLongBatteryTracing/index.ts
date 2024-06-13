@@ -24,6 +24,15 @@ import {
   SimpleCounterTrackConfig,
 } from '../../frontend/simple_counter_track';
 
+interface ContainedTrace {
+  uuid: string;
+  subscription: string;
+  trigger: string;
+  // NB: these are millis.
+  ts: number;
+  dur: number;
+}
+
 const DEFAULT_NETWORK = `
   with base as (
       select
@@ -1723,6 +1732,38 @@ class AndroidLongBatteryTracing implements Plugin {
     );
   }
 
+  async addContainedTraces(
+    ctx: PluginContextTrace,
+    containedTraces: ContainedTrace[],
+  ): Promise<void> {
+    const bySubscription = new Map<string, ContainedTrace[]>();
+    for (const trace of containedTraces) {
+      if (!bySubscription.has(trace.subscription)) {
+        bySubscription.set(trace.subscription, []);
+      }
+      bySubscription.get(trace.subscription)!.push(trace);
+    }
+
+    bySubscription.forEach((traces, subscription) =>
+      this.addSliceTrack(
+        ctx,
+        subscription,
+        traces
+          .map(
+            (t) => `SELECT
+          CAST(${t.ts} * 1e6 AS int) AS ts,
+          CAST(${t.dur} * 1e6 AS int) AS dur,
+          '${t.trigger === '' ? 'Trace' : t.trigger}' AS name,
+          'http://go/trace-uuid/${t.uuid}' AS link
+        `,
+          )
+          .join(' UNION ALL '),
+        'Other traces',
+        ['link'],
+      ),
+    );
+  }
+
   async findFeatures(e: Engine): Promise<Set<string>> {
     const features = new Set<string>();
 
@@ -1762,6 +1803,9 @@ class AndroidLongBatteryTracing implements Plugin {
   async addTracks(ctx: PluginContextTrace): Promise<void> {
     const features: Set<string> = await this.findFeatures(ctx.engine);
 
+    const containedTraces = (ctx.openerPluginArgs?.containedTraces ??
+      []) as ContainedTrace[];
+
     await this.addNetworkSummary(ctx, features),
       await this.addModemDetail(ctx, features);
     await this.addKernelWakelocks(ctx, features);
@@ -1769,6 +1813,7 @@ class AndroidLongBatteryTracing implements Plugin {
     await this.addDeviceState(ctx, features);
     await this.addHighCpu(ctx, features);
     await this.addBluetooth(ctx, features);
+    await this.addContainedTraces(ctx, containedTraces);
   }
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
