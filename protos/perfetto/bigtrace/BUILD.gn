@@ -12,31 +12,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../gn/perfetto.gni")
-import("../../gn/test.gni")
+import("../../../gn/proto_library.gni")
 
-assert(
-    enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite)
+perfetto_proto_library("worker_@TYPE@") {
+  proto_generators = [
+    "lite",
+    "zero",
+    "source_set",
+  ]
+  deps = [ "../trace_processor:@TYPE@" ]  # needed for descriptor.proto.
+  sources = [ "worker.proto" ]
+}
+
+perfetto_proto_library("orchestrator_@TYPE@") {
+  proto_generators = [
+    "lite",
+    "zero",
+    "source_set",
+  ]
+  sources = [ "orchestrator.proto" ]
+}
 
 if (enable_perfetto_grpc) {
-  executable("orchestrator_main") {
-    sources = [ "orchestrator_main.cc" ]
-    deps = [
-      "../../gn:default_deps",
-      "../../gn:grpc",
-      "../../protos/perfetto/bigtrace:orchestrator_grpc",
-      "../../protos/perfetto/bigtrace:worker_grpc",
-      "../base",
-    ]
+  perfetto_grpc_library("orchestrator_grpc") {
+    deps = [ ":orchestrator_lite" ]
+    sources = [ "orchestrator.proto" ]
   }
 
-  executable("worker_main") {
-    sources = [ "worker_main.cc" ]
-    deps = [
-      "../../gn:default_deps",
-      "../../gn:grpc",
-      "../../protos/perfetto/bigtrace:worker_grpc",
-      "../base",
-    ]
+  perfetto_grpc_library("worker_grpc") {
+    deps = [ ":worker_lite" ]
+    sources = [ "worker.proto" ]
   }
 }
