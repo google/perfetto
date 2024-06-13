@@ -42,24 +42,24 @@ class Tables(TestSuite):
         query="""
 
         CREATE PERFETTO TABLE A AS
-          WITH data(id, ts, ts_end) AS (
+          WITH data(id, ts, ts_end, c0, c1) AS (
             VALUES
-            (0, 1, 7)
+            (0, 1, 7, 10, 3)
           )
           SELECT * FROM data;
 
         CREATE PERFETTO TABLE B AS
-          WITH data(id, ts, ts_end) AS (
+          WITH data(id, ts, ts_end, c0, c2) AS (
             VALUES
-            (0, 0, 2),
-            (1, 3, 5),
-            (2, 6, 8)
+            (0, 0, 2, 10, 100),
+            (1, 3, 5, 10, 200),
+            (2, 6, 8, 20, 300)
           )
           SELECT * FROM data;
 
         SELECT a.id AS a_id, b.id AS b_id
-        FROM __intrinsic_ii_with_interval_tree('A') a
-        JOIN __intrinsic_ii_with_interval_tree('B') b
+        FROM __intrinsic_ii_with_interval_tree('A', 'c0, c1') a
+        JOIN __intrinsic_ii_with_interval_tree('B', 'c0, c2') b
         WHERE a.ts < b.ts_end AND a.ts_end > b.ts
         """,
         out=Csv("""
@@ -108,8 +108,8 @@ class Tables(TestSuite):
           MAX(ts) AS max_ts, MAX(dur) AS max_dur
         FROM (
           SELECT a.id AS left_id, b.id AS right_id, 0 AS ts, 0 AS dur, "it" AS cat
-          FROM __intrinsic_ii_with_interval_tree('big_foo') a
-          JOIN __intrinsic_ii_with_interval_tree('small_foo') b
+          FROM __intrinsic_ii_with_interval_tree('big_foo', '') a
+          JOIN __intrinsic_ii_with_interval_tree('small_foo', '') b
           WHERE a.ts < b.ts_end AND a.ts_end > b.ts
           UNION
           SELECT left_id, right_id, ts, dur, "ii" AS cat
@@ -127,6 +127,131 @@ class Tables(TestSuite):
           "good","bad"
           314,"[NULL]"
         """))
+
+  def test_compare_with_span_join(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE big_foo AS
+        SELECT
+          ts,
+          ts + dur as ts_end,
+          id * 10 AS id,
+          cpu AS c0
+        FROM sched
+        WHERE dur != -1;
+
+        CREATE PERFETTO TABLE small_foo AS
+        SELECT
+          ts + 1000 AS ts,
+          ts + dur + 1000 AS ts_end,
+          id,
+          cpu AS c0
+        FROM sched
+        WHERE dur != -1;
+
+        CREATE PERFETTO TABLE small_foo_for_sj AS
+        SELECT 
+          id AS small_id, 
+          ts, 
+          ts_end - ts AS dur, 
+          c0
+        FROM small_foo
+        WHERE dur != 0;
+
+        CREATE PERFETTO TABLE big_foo_for_sj AS
+        SELECT 
+          id AS big_id, 
+          ts, 
+          ts_end - ts AS dur, 
+          c0
+        FROM big_foo
+        WHERE dur != 0;
+
+        CREATE VIRTUAL TABLE sj_res
+        USING SPAN_JOIN(
+          small_foo_for_sj PARTITIONED c0, 
+          big_foo_for_sj PARTITIONED c0);
+        
+        CREATE PERFETTO TABLE both AS
+        SELECT
+          left_id,
+          right_id,
+          cat,
+          count() AS c,
+          MAX(ts) AS max_ts, MAX(dur) AS max_dur
+        FROM (
+          SELECT a.id AS left_id, b.id AS right_id, 0 AS ts, 0 AS dur, "it" AS cat
+          FROM __intrinsic_ii_with_interval_tree('big_foo', 'c0') a
+          JOIN __intrinsic_ii_with_interval_tree('small_foo', 'c0') b
+          USING (c0)
+          WHERE a.ts < b.ts_end AND a.ts_end > b.ts
+          UNION
+          SELECT big_id AS left_id, small_id AS right_id, ts, dur, "sj" AS cat FROM sj_res
+        )
+          GROUP BY left_id, right_id;
+
+        SELECT
+          SUM(c) FILTER (WHERE c == 2) AS good,
+          SUM(c) FILTER (WHERE c != 2) AS bad
+        FROM both;
+        """,
+        out=Csv("""
+          "good","bad"
+          1538288,"[NULL]"
+        """))
+  
+  def test_ii_partitioned_big(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE big_foo AS
+        SELECT
+          ts,
+          ts + dur as ts_end,
+          id * 10 AS id,
+          cpu AS c0
+        FROM sched
+        WHERE dur != -1;
+
+        CREATE PERFETTO TABLE small_foo AS
+        SELECT
+          ts + 1000 AS ts,
+          ts + dur + 1000 AS ts_end,
+          id,
+          cpu AS c0
+        FROM sched
+        WHERE dur != -1;
+        
+        CREATE PERFETTO TABLE res AS
+        SELECT a.id AS a_id, b.id AS b_id
+        FROM __intrinsic_ii_with_interval_tree('small_foo', 'c0') a
+        JOIN __intrinsic_ii_with_interval_tree('big_foo', 'c0') b
+        USING (c0)
+        WHERE a.ts < b.ts_end AND a.ts_end > b.ts;
+
+        SELECT * FROM res
+        ORDER BY a_id, b_id
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "a_id","b_id"
+        0,0
+        0,10
+        1,10
+        1,430
+        2,20
+        2,30
+        3,30
+        3,40
+        4,40
+        4,50
+        """))
+
 
   def test_ii_operator_big(self):
     return DiffTestBlueprint(
@@ -152,8 +277,8 @@ class Tables(TestSuite):
 
         CREATE PERFETTO TABLE res AS
         SELECT a.id AS a_id, b.id AS b_id
-        FROM __intrinsic_ii_with_interval_tree('small_foo') a
-        JOIN __intrinsic_ii_with_interval_tree('big_foo') b
+        FROM __intrinsic_ii_with_interval_tree('small_foo', '') a
+        JOIN __intrinsic_ii_with_interval_tree('big_foo', '') b
         WHERE a.ts < b.ts_end AND a.ts_end > b.ts;
 
         SELECT * FROM res

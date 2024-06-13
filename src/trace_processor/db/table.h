@@ -94,21 +94,6 @@ class Table {
     // Returns the storage index for the last overlay.
     uint32_t StorageIndexForLastOverlay() const { return its_.back().index(); }
 
-    // Looks for a column in a table.
-    // TODO(mayzner): This is not a long term function, it should be used with
-    // caution.
-    std::optional<uint32_t> ColumnIdxFromName(
-        const std::string& col_name) const {
-      auto x = std::find_if(table_->columns_.begin(), table_->columns_.end(),
-                            [col_name](const ColumnLegacy& col) {
-                              return col_name.compare(col.name()) == 0;
-                            });
-
-      return (x == table_->columns_.end())
-                 ? std::nullopt
-                 : std::make_optional(x->index_in_table());
-    }
-
    private:
     const Table* table_ = nullptr;
     std::vector<ColumnStorageOverlay> overlays_;
@@ -163,6 +148,19 @@ class Table {
 
   // Creates a copy of this table.
   Table Copy() const;
+
+  // Looks for a column in a table.
+  // TODO(mayzner): This is not a long term function, it should be used with
+  // caution.
+  std::optional<uint32_t> ColumnIdxFromName(const std::string& col_name) const {
+    auto x = std::find_if(columns_.begin(), columns_.end(),
+                          [col_name](const ColumnLegacy& col) {
+                            return col_name.compare(col.name()) == 0;
+                          });
+
+    return (x == columns_.end()) ? std::nullopt
+                                 : std::make_optional(x->index_in_table());
+  }
 
   uint32_t row_count() const { return row_count_; }
   StringPool* string_pool() const { return string_pool_; }
