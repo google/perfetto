@@ -2,6 +2,17 @@ Unreleased:
   Tracing service and probes:
     *
   SQL Standard library:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v46.0 - 2024-06-13:
+  SQL Standard library:
     * Added megacycles support to CPU package. Added tables:
       `cpu_cycles_per_process`, `cpu_cycles_per_thread` and
       `cpu_cycles_per_cpu`.
@@ -13,7 +24,7 @@ Unreleased:
     * Added "time to initial display" and "time to full display" metrics to
       the Android startup metric.
   UI:
-    * Added plugin for synchronizing two instances of the UI - search for 
+    * Added plugin for synchronizing two instances of the UI - search for
       'Enable timeline sync with other Perfetto UI tabs' in the command palette.
     * Add builtin prompt functionality to the plugin API:
       I.e. `await PluginContextTrace.prompt('...')`
