@@ -43,6 +43,7 @@ PERFETTO_PB_MSG_DECL(perfetto_protos_JavaHprofConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_NetworkPacketTraceConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PackagesListConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_PerfEventConfig);
+PERFETTO_PB_MSG_DECL(perfetto_protos_PixelModemConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProcessStatsConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_ProtoLogConfig);
 PERFETTO_PB_MSG_DECL(perfetto_protos_StatsdTracingConfig);
@@ -243,6 +244,11 @@ PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   perfetto_protos_AndroidInputEventConfig,
                   android_input_event_config,
                   128);
+PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
+                  MSG,
+                  perfetto_protos_PixelModemConfig,
+                  pixel_modem_config,
+                  129);
 PERFETTO_PB_FIELD(perfetto_protos_DataSourceConfig,
                   STRING,
                   const char*,
