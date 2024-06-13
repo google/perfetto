@@ -145,6 +145,23 @@ export class TabPanel implements m.ClassComponent {
       };
     }
 
+    // Show single selection panels if they are registered
+    if (currentSelection.kind === 'single') {
+      const trackKey = currentSelection.trackKey;
+      const uri = globals.state.tracks[trackKey]?.uri;
+
+      if (uri) {
+        const trackDesc = globals.trackManager.resolveTrackInfo(uri);
+        const panel = trackDesc?.detailsPanel;
+        if (panel) {
+          return {
+            content: panel.render(currentSelection.eventId),
+            isLoading: panel.isLoading?.() ?? false,
+          };
+        }
+      }
+    }
+
     // Get the first "truthy" details panel
     let detailsPanels = globals.tabManager.detailsPanels.map((dp) => {
       return {

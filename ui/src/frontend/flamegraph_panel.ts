@@ -50,6 +50,7 @@ import {arrayEquals} from '../base/array_utils';
 import {getCurrentTrace} from './sidebar';
 import {convertTraceToPprofAndDownload} from './trace_converter';
 import {AsyncLimiter} from '../base/async_limiter';
+import {FlamegraphCache} from '../core/flamegraph_cache';
 
 const HEADER_HEIGHT = 30;
 
@@ -101,43 +102,6 @@ export function isHeapGraphDominatorTreeViewingOption(
 }
 
 const MIN_PIXEL_DISPLAYED = 1;
-
-export class FlamegraphCache {
-  private cache: Map<string, string>;
-  private prefix: string;
-  private tableId: number;
-  private cacheSizeLimit: number;
-
-  constructor(prefix: string) {
-    this.cache = new Map<string, string>();
-    this.prefix = prefix;
-    this.tableId = 0;
-    this.cacheSizeLimit = 10;
-  }
-
-  async getTableName(engine: Engine, query: string): Promise<string> {
-    let tableName = this.cache.get(query);
-    if (tableName === undefined) {
-      // TODO(hjd): This should be LRU.
-      if (this.cache.size > this.cacheSizeLimit) {
-        for (const name of this.cache.values()) {
-          await engine.query(`drop table ${name}`);
-        }
-        this.cache.clear();
-      }
-      tableName = `${this.prefix}_${this.tableId++}`;
-      await engine.query(
-        `create temp table if not exists ${tableName} as ${query}`,
-      );
-      this.cache.set(query, tableName);
-    }
-    return tableName;
-  }
-
-  hasQuery(query: string): boolean {
-    return this.cache.get(query) !== undefined;
-  }
-}
 
 function toSelectedCallsite(c: CallsiteInfo | undefined): string {
   if (c !== undefined && c.name !== undefined) {

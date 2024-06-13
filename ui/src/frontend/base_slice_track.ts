@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable, NullDisposable} from '../base/disposable';
+import {Disposable, DisposableStack} from '../base/disposable';
 import {assertExists} from '../base/logging';
 import {clamp, floatEqual} from '../base/math_utils';
 import {Time, time} from '../base/time';
@@ -224,7 +224,7 @@ export abstract class BaseSliceTrack<
   // called on the returned hook. In the common case of where
   // the data for this track is a SQL fragment this does nothing.
   async onInit(): Promise<Disposable> {
-    return new NullDisposable();
+    return new DisposableStack();
   }
 
   // This should be an SQL expression returning all the columns listed

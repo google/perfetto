@@ -14,7 +14,7 @@
 
 import {v4 as uuidv4} from 'uuid';
 
-import {Disposable, Trash} from '../base/disposable';
+import {Disposable, DisposableStack} from '../base/disposable';
 import {Registry} from '../base/registry';
 import {Span, duration, time} from '../base/time';
 import {TraceContext, globals} from '../frontend/globals';
@@ -52,7 +52,7 @@ import {PromptOption} from '../frontend/omnibox_manager';
 // plugins.
 // The PluginContext exists for the whole duration a plugin is active.
 export class PluginContextImpl implements PluginContext, Disposable {
-  private trash = new Trash();
+  private trash = new DisposableStack();
   private alive = true;
 
   readonly sidebar = {
@@ -80,7 +80,7 @@ export class PluginContextImpl implements PluginContext, Disposable {
     if (!this.alive) return;
 
     const disposable = globals.commandManager.registerCommand(cmd);
-    this.trash.add(disposable);
+    this.trash.use(disposable);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,13 +101,13 @@ export class PluginContextImpl implements PluginContext, Disposable {
 // The PluginContextTrace exists for the whole duration a plugin is active AND a
 // trace is loaded.
 class PluginContextTraceImpl implements PluginContextTrace, Disposable {
-  private trash = new Trash();
+  private trash = new DisposableStack();
   private alive = true;
   readonly engine: Engine;
 
   constructor(private ctx: PluginContext, engine: EngineBase) {
     const engineProxy = engine.getProxy(ctx.pluginId);
-    this.trash.add(engineProxy);
+    this.trash.use(engineProxy);
     this.engine = engineProxy;
   }
 
@@ -116,7 +116,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     if (!this.alive) return;
 
     const dispose = globals.commandManager.registerCommand(cmd);
-    this.trash.add(dispose);
+    this.trash.use(dispose);
   }
 
   registerTrack(trackDesc: TrackDescriptor): void {
@@ -124,7 +124,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     if (!this.alive) return;
 
     const dispose = globals.trackManager.registerTrack(trackDesc);
-    this.trash.add(dispose);
+    this.trash.use(dispose);
   }
 
   addDefaultTrack(track: TrackRef): void {
@@ -132,7 +132,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     if (!this.alive) return;
 
     const dispose = globals.trackManager.addPotentialTrack(track);
-    this.trash.add(dispose);
+    this.trash.use(dispose);
   }
 
   registerStaticTrack(track: TrackDescriptor & TrackRef): void {
@@ -149,12 +149,12 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     if (!this.alive) return;
 
     const unregister = globals.tabManager.registerTab(desc);
-    this.trash.add(unregister);
+    this.trash.use(unregister);
   }
 
   addDefaultTab(uri: string): void {
     const remove = globals.tabManager.addDefaultTab(uri);
-    this.trash.add(remove);
+    this.trash.use(remove);
   }
 
   registerDetailsPanel(detailsPanel: LegacyDetailsPanel): void {
@@ -162,7 +162,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
     const tabMan = globals.tabManager;
     const unregister = tabMan.registerLegacyDetailsPanel(detailsPanel);
-    this.trash.add(unregister);
+    this.trash.use(unregister);
   }
 
   get sidebar() {
@@ -189,14 +189,13 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
   readonly timeline = {
     // Add a new track to the timeline, returning its key.
-    addTrack(uri: string, displayName: string, params?: unknown): string {
+    addTrack(uri: string, displayName: string): string {
       const trackKey = uuidv4();
       globals.dispatch(
         Actions.addTrack({
           key: trackKey,
           uri,
           name: displayName,
-          params,
           trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
           trackGroup: SCROLLING_TRACK_GROUP,
         }),
@@ -315,7 +314,6 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
         return {
           displayName: trackState.name,
           uri: trackState.uri,
-          params: trackState.params,
           key: trackState.key,
           groupName: group?.name,
           isPinned: pinnedTracks.includes(trackState.key),

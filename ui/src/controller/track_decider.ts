@@ -29,20 +29,20 @@ import {PrimaryTrackSortKey} from '../public';
 import {getTrackName} from '../public/utils';
 import {Engine, EngineBase} from '../trace_processor/engine';
 import {NUM, NUM_NULL, STR, STR_NULL} from '../trace_processor/query_result';
-import {ASYNC_SLICE_TRACK_KIND} from '../core_plugins/async_slices';
 import {
   ENABLE_SCROLL_JANK_PLUGIN_V2,
   getScrollJankTracks,
 } from '../core_plugins/chrome_scroll_jank';
 import {decideTracks as scrollJankDecideTracks} from '../core_plugins/chrome_scroll_jank/chrome_tasks_scroll_jank_track';
 import {COUNTER_TRACK_KIND} from '../core_plugins/counter';
+import {decideTracks as screenshotDecideTracks} from '../core_plugins/screenshots';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
+  ASYNC_SLICE_TRACK_KIND,
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
-} from '../core_plugins/frames';
-import {decideTracks as screenshotDecideTracks} from '../core_plugins/screenshots';
-import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
-import {THREAD_SLICE_TRACK_KIND} from '../core_plugins/thread_slice/thread_slice_track';
+  THREAD_SLICE_TRACK_KIND,
+  THREAD_STATE_TRACK_KIND,
+} from '../core/track_kinds';
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';
@@ -1400,7 +1400,6 @@ class TrackDecider {
         // 'sort keys' which the user can use to choose a sort order.
         trackSortKey: info.sortKey ?? PrimaryTrackSortKey.ORDINARY_TRACK,
         trackGroup: groupUuid,
-        params: info.params,
       });
     }
   }

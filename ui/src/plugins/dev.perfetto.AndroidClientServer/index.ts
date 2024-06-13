@@ -173,7 +173,7 @@ class AndroidClientServer implements Plugin {
         for (; it.valid(); it.next()) {
           if (it.tstate_upid !== null) {
             await addDebugSliceTrack(
-              ctx.engine,
+              ctx,
               {
                 sqlSource: `
                   SELECT ts, dur, name
@@ -187,7 +187,7 @@ class AndroidClientServer implements Plugin {
             );
           }
           await addDebugSliceTrack(
-            ctx.engine,
+            ctx,
             {
               sqlSource: `
                 SELECT ts, dur, name

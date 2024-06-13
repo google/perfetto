@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Trash} from '../base/disposable';
+import {DisposableStack} from '../base/disposable';
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {Rect} from '../base/geom';
 import {assertExists} from '../base/logging';
@@ -144,7 +144,7 @@ export interface VirtualTableRow {
 export class VirtualTable implements m.ClassComponent<VirtualTableAttrs> {
   private readonly CONTAINER_REF = 'CONTAINER';
   private readonly SLIDER_REF = 'SLIDER';
-  private readonly trash = new Trash();
+  private readonly trash = new DisposableStack();
   private renderBounds = {rowStart: 0, rowEnd: 0};
 
   view({attrs}: m.Vnode<VirtualTableAttrs>): m.Children {
@@ -253,7 +253,7 @@ export class VirtualTable implements m.ClassComponent<VirtualTableAttrs> {
         },
       },
     ]);
-    this.trash.add(virtualScrollHelper);
+    this.trash.use(virtualScrollHelper);
   }
 
   onremove(_: m.VnodeDOM<VirtualTableAttrs>) {

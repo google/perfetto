@@ -22,7 +22,6 @@ import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {getLegacySelection} from '../common/state';
 
 import {
-  CounterDetails,
   CpuProfileDetails,
   Flow,
   globals,
@@ -73,11 +72,6 @@ export function publishSelectedFlows(selectedFlows: Flow[]) {
 export function publishHttpRpcState(httpRpcState: HttpRpcState) {
   globals.httpRpcState = httpRpcState;
   raf.scheduleFullRedraw();
-}
-
-export function publishCounterDetails(click: CounterDetails) {
-  globals.counterDetails = click;
-  globals.publishRedraw();
 }
 
 export function publishCpuProfileDetails(details: CpuProfileDetails) {
