@@ -33,8 +33,8 @@ namespace {
 void ExportFirefoxProfile(trace_processor::TraceProcessor& tp,
                           std::ostream* output) {
   auto it = tp.ExecuteQuery(R"(
-      INCLUDE PERFETTO MODULE export.firefox;
-      SELECT CAST(export_firefox_profile() AS BLOB);
+      INCLUDE PERFETTO MODULE export.to_firefox_profile;
+      SELECT CAST(export_to_firefox_profile() AS BLOB);
     )");
   PERFETTO_CHECK(it.Next());
 
