@@ -18,9 +18,14 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_OPERATORS_INTERVAL_INTERSECT_OPERATOR_H_
 
 #include <sqlite3.h>
+#include <array>
+#include <cstdint>
 #include <memory>
+#include <vector>
 
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_module.h"
@@ -29,45 +34,65 @@
 namespace perfetto::trace_processor {
 
 struct IntervalIntersectOperator : sqlite::Module<IntervalIntersectOperator> {
+  static constexpr uint16_t kSchemaColumnsCount = 16;
+  using SchemaCol = uint16_t;
+  using SchemaToTableColumnMap =
+      std::array<std::optional<SchemaCol>, kSchemaColumnsCount>;
+
   enum OperatorType { kInner = 0, kOuter = 1 };
   struct State {
     PerfettoSqlEngine* engine;
+    std::array<std::optional<uint16_t>, kSchemaColumnsCount> argv_to_col_map{};
   };
+
   struct Context {
     explicit Context(PerfettoSqlEngine* _engine) : engine(_engine) {}
     PerfettoSqlEngine* engine;
     sqlite::ModuleStateManager<IntervalIntersectOperator> manager;
   };
+
   struct Vtab : sqlite::Module<IntervalIntersectOperator>::Vtab {
     sqlite::ModuleStateManager<IntervalIntersectOperator>::PerVtabState* state;
   };
 
   struct Cursor : sqlite::Module<IntervalIntersectOperator>::Cursor {
+    using TreesKey = uint64_t;
+    using TreesMap = base::FlatHashMap<TreesKey,
+                                       std::unique_ptr<IntervalTree>,
+                                       base::AlreadyHashed<TreesKey>>;
+
     struct InnerData {
-      std::unique_ptr<IntervalTree> tree;
-      std::vector<uint32_t> result_ids;
+      TreesMap trees;
+      SchemaToTableColumnMap additional_cols;
+
+      std::vector<uint32_t> query_results;
       uint32_t index = 0;
 
-      inline uint32_t GetResultId() const { return result_ids[index]; }
-      inline void Query(uint64_t start, uint64_t end) {
-        result_ids.clear();
+      inline uint32_t GetResultId() const { return query_results[index]; }
+      inline void Query(uint64_t start,
+                        uint64_t end,
+                        const TreesKey& tree_key) {
+        query_results.clear();
         index = 0;
-        tree->FindOverlaps(start, end, result_ids);
+        auto* tree_ptr = trees.Find(tree_key);
+        PERFETTO_DCHECK(tree_ptr);
+        (*tree_ptr)->FindOverlaps(start, end, query_results);
       }
     };
+
     struct OuterData {
       std::unique_ptr<Table::Iterator> it;
-      uint32_t ts_col_id = 0;
-      uint32_t ts_end_col_id = 0;
-      uint32_t id_col_id = 0;
+      SchemaToTableColumnMap additional_cols;
 
-      int64_t GetTs() { return it->Get(ts_col_id).AsLong(); }
-      int64_t GetId() { return it->Get(id_col_id).AsLong(); }
-      int64_t GetTsEnd() { return it->Get(ts_end_col_id).AsLong(); }
+      inline SqlValue Get(int col) {
+        return it->Get(*additional_cols[static_cast<size_t>(col)]);
+      }
     };
 
     OperatorType type;
     std::string table_name;
+    std::string exposed_cols_str;
+    const Table* table = nullptr;
 
     // Only one of those can be non null.
     InnerData inner;
