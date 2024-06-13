@@ -73,7 +73,6 @@ export interface AddTrackArgs {
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
-  params?: unknown;
   closeable?: boolean;
 }
 
@@ -215,7 +214,6 @@ export const StateActions = {
         trackGroup: track.trackGroup,
         labels: track.labels,
         uri: track.uri,
-        params: track.params,
         closeable: track.closeable,
       };
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {

@@ -154,9 +154,6 @@ export interface PluginContext {
 export interface TrackContext {
   // This track's key, used for making selections et al.
   trackKey: string;
-
-  // Set of params passed in when the track was created.
-  params: unknown;
 }
 
 export interface SliceRect {
@@ -454,9 +451,6 @@ export interface TrackRef {
 
   // A human readable name for this track - displayed in the track shell.
   displayName: string;
-
-  // Optional: An opaque object used to customize this instance of the track.
-  params?: unknown;
 
   // Optional: Used to define default sort order for new traces.
   // Note: This will be deprecated soon in favour of tags & sort rules.

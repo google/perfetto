@@ -189,14 +189,13 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
   readonly timeline = {
     // Add a new track to the timeline, returning its key.
-    addTrack(uri: string, displayName: string, params?: unknown): string {
+    addTrack(uri: string, displayName: string): string {
       const trackKey = uuidv4();
       globals.dispatch(
         Actions.addTrack({
           key: trackKey,
           uri,
           name: displayName,
-          params,
           trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
           trackGroup: SCROLLING_TRACK_GROUP,
         }),
@@ -315,7 +314,6 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
         return {
           displayName: trackState.name,
           uri: trackState.uri,
-          params: trackState.params,
           key: trackState.key,
           groupName: group?.name,
           isPinned: pinnedTracks.includes(trackState.key),

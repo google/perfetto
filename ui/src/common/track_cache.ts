@@ -97,11 +97,7 @@ export class TrackManager {
 
   // Creates a new track using |uri| and |params| or retrieves a cached track if
   // |key| exists in the cache.
-  resolveTrack(
-    key: string,
-    trackDesc: TrackDescriptor,
-    params?: unknown,
-  ): TrackCacheEntry {
+  resolveTrack(key: string, trackDesc: TrackDescriptor): TrackCacheEntry {
     // Search for a cached version of this track,
     const cached = this.currentTracks.get(key);
 
@@ -120,7 +116,6 @@ export class TrackManager {
       // Cached track doesn't exist or is out of date, create a new one.
       const trackContext: TrackContext = {
         trackKey: key,
-        params,
       };
       const track = trackDesc.trackFactory(trackContext);
       const entry = new TrackFSM(track, trackDesc, trackContext);

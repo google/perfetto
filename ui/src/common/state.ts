@@ -180,7 +180,8 @@ export const MAX_TIME = 180;
 // 58. Remove area map.
 // 59. Deprecate old area selection type.
 // 60. Deprecate old note selection type.
-export const STATE_VERSION = 60;
+// 61. Remove params/state from TrackState.
+export const STATE_VERSION = 61;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -265,8 +266,6 @@ export interface TrackState {
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
-  params?: unknown;
-  state?: unknown;
   closeable?: boolean;
 }
 

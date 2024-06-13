@@ -1400,7 +1400,6 @@ class TrackDecider {
         // 'sort keys' which the user can use to choose a sort order.
         trackSortKey: info.sortKey ?? PrimaryTrackSortKey.ORDINARY_TRACK,
         trackGroup: groupUuid,
-        params: info.params,
       });
     }
   }

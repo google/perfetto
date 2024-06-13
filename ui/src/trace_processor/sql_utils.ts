@@ -170,12 +170,12 @@ export {SqlValue};
  * const tableName = 'my_perfetto_table';
  * const expression = 'SELECT * FROM source_table';
  *
- * const disposable = await createPerfettoTable(engine, tableName, expression);
+ * const table = await createPerfettoTable(engine, tableName, expression);
  *
  * // Use the table...
  *
  * // Cleanup the table when done
- * await disposable.dispose();
+ * await table.disposeAsync();
  */
 export async function createPerfettoTable(
   engine: Engine,
