@@ -18,6 +18,7 @@
 
 #include <sqlite3.h>
 #include <algorithm>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
@@ -26,11 +27,14 @@
 #include <string>
 #include <utility>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
@@ -41,25 +45,68 @@
 namespace perfetto::trace_processor {
 namespace {
 
-using Cursor = IntervalIntersectOperator::Cursor;
-using Manager = sqlite::ModuleStateManager<IntervalIntersectOperator>;
+using Op = IntervalIntersectOperator;
+using Cursor = Op::Cursor;
+using Manager = sqlite::ModuleStateManager<Op>;
+using ColumnsMap = Op::SchemaToTableColumnMap;
 
 constexpr char kSliceSchema[] = R"(
   CREATE TABLE x(
     tab TEXT HIDDEN,
+    exposed_cols_str TEXT HIDDEN,
     ts BIGINT,
     ts_end BIGINT,
     id BIGINT,
+    c0 ANY,
+    c1 ANY,
+    c2 ANY,
+    c3 ANY,
+    c4 ANY,
+    c5 ANY,
+    c6 ANY,
+    c7 ANY,
+    c8 ANY,
     PRIMARY KEY(id)
   ) WITHOUT ROWID
 )";
 
-enum SchemaColumns { kTableName = 0, kTs = 1, kTsEnd = 2, kId = 3 };
+enum SchemaColumnIds {
+  kTableName = 0,
+  kExposedCols = 1,
+  kTs = 2,
+  kTsEnd = 3,
+  kId = 4,
+  kAdditional = 5,
+  kMaxCol = 13
+};
 
-base::StatusOr<uint32_t> ColIdForName(const Table::Iterator& it,
-                                      std::string col_name,
-                                      std::string table_name) {
-  auto x = it.ColumnIdxFromName(col_name);
+constexpr uint32_t kArgsCount = 2;
+
+inline void HashSqlValue(base::Hasher& h, const SqlValue& v) {
+  switch (v.type) {
+    case SqlValue::Type::kString:
+      h.Update(v.AsString());
+      break;
+    case SqlValue::Type::kDouble:
+      h.Update(v.AsDouble());
+      break;
+    case SqlValue::Type::kLong:
+      h.Update(v.AsLong());
+      break;
+    case SqlValue::Type::kBytes:
+      PERFETTO_FATAL("Wrong type");
+      break;
+    case SqlValue::Type::kNull:
+      h.Update(nullptr);
+      break;
+  }
+  return;
+}
+
+base::StatusOr<uint32_t> ColIdForName(const Table* t,
+                                      const std::string& col_name,
+                                      const std::string& table_name) {
+  auto x = t->ColumnIdxFromName(col_name);
   if (!x.has_value()) {
     return base::ErrStatus("interval_intersect: No column '%s' in table '%s'",
                            col_name.c_str(), table_name.c_str());
@@ -67,85 +114,123 @@ base::StatusOr<uint32_t> ColIdForName(const Table::Iterator& it,
   return *x;
 }
 
-base::StatusOr<IntervalTree> CreateIntervalTree(Table::Iterator it,
-                                                std::string table_name) {
+base::StatusOr<Cursor::TreesMap> CreateIntervalTrees(
+    const Table* t,
+    const std::string& table_name,
+    const ColumnsMap& cols) {
   uint32_t ts_col_idx = 0;
-  ASSIGN_OR_RETURN(ts_col_idx, ColIdForName(it, "ts", table_name));
+  ASSIGN_OR_RETURN(ts_col_idx, ColIdForName(t, "ts", table_name));
   uint32_t ts_end_col_idx = 0;
-  ASSIGN_OR_RETURN(ts_end_col_idx, ColIdForName(it, "ts_end", table_name));
+  ASSIGN_OR_RETURN(ts_end_col_idx, ColIdForName(t, "ts_end", table_name));
   uint32_t id_col_idx = 0;
-  ASSIGN_OR_RETURN(id_col_idx, ColIdForName(it, "id", table_name));
+  ASSIGN_OR_RETURN(id_col_idx, ColIdForName(t, "id", table_name));
 
-  std::vector<IntervalTree::Interval> sorted_intervals;
-  for (; it; ++it) {
+  std::vector<Op::SchemaCol> cols_for_tree;
+  for (const auto& c : cols) {
+    if (c) {
+      cols_for_tree.push_back(*c);
+    }
+  }
+
+  base::FlatHashMap<Cursor::TreesKey, std::vector<IntervalTree::Interval>>
+      sorted_intervals;
+  for (Table::Iterator it = t->IterateRows(); it; ++it) {
     IntervalTree::Interval i;
     i.start = static_cast<uint64_t>(it.Get(ts_col_idx).AsLong());
     i.end = static_cast<uint64_t>(it.Get(ts_end_col_idx).AsLong());
     i.id = static_cast<uint32_t>(it.Get(id_col_idx).AsLong());
-    sorted_intervals.push_back(i);
+
+    base::Hasher h;
+    for (const auto& c : cols_for_tree) {
+      SqlValue v = it.Get(c);
+      HashSqlValue(h, v);
+    }
+    sorted_intervals[h.digest()].push_back(i);
   }
 
-  return IntervalTree(sorted_intervals);
+  Cursor::TreesMap ret;
+  for (auto it = sorted_intervals.GetIterator(); it; ++it) {
+    IntervalTree x(it.value());
+    ret[it.key()] = std::make_unique<IntervalTree>(std::move(x));
+  }
+  return std::move(ret);
 }
 
-// Can only be called in BestIndex
-base::Status RowsCount(PerfettoSqlEngine* engine,
-                       sqlite3_index_info* info,
-                       uint32_t* rows_count) {
+base::StatusOr<SqlValue> GetRhsValue(sqlite3_index_info* info,
+                                     SchemaColumnIds col) {
   sqlite3_value* val = nullptr;
 
   int ret = -1;
   for (int i = 0; i < info->nConstraint; ++i) {
-    if (sqlite::utils::IsOpEq(info->aConstraint[i].op))
+    auto c = info->aConstraint[i];
+    if (sqlite::utils::IsOpEq(c.op) && c.iColumn == col)
       ret = sqlite3_vtab_rhs_value(info, i, &val);
   }
   if (ret != SQLITE_OK) {
     return base::ErrStatus("Invalid RHS value.");
   }
 
-  SqlValue table_name_val = sqlite::utils::SqliteValueToSqlValue(val);
+  return sqlite::utils::SqliteValueToSqlValue(val);
+}
+
+base::StatusOr<const Table*> GetTableFromRhsValue(PerfettoSqlEngine* engine,
+                                                  sqlite3_index_info* info) {
+  ASSIGN_OR_RETURN(SqlValue table_name_val, GetRhsValue(info, kTableName));
   if (table_name_val.type != SqlValue::kString) {
     return base::ErrStatus("Table name is not a string");
   }
 
-  std::string table_name = table_name_val.AsString();
+  const std::string table_name = table_name_val.AsString();
   const Table* t = engine->GetTableOrNull(table_name);
   if (!t) {
     return base::ErrStatus("Table not registered");
   }
-  *rows_count = t->row_count();
-  return base::OkStatus();
+  return t;
+}
+
+base::StatusOr<ColumnsMap> GetExposedColumns(
+    const std::string& exposed_cols_str,
+    const Table* tab) {
+  ColumnsMap ret;
+  for (const std::string& col : base::SplitString(exposed_cols_str, ",")) {
+    std::string col_name = base::TrimWhitespace(col);
+    auto table_i = tab->ColumnIdxFromName(col_name);
+    if (!table_i) {
+      return base::ErrStatus("Didn't find column '%s'", col_name.c_str());
+    }
+    uint32_t schema_idx =
+        *base::CStringToUInt32(
+            std::string(col_name.begin() + 1, col_name.end()).c_str()) +
+        kAdditional;
+    ret[schema_idx] = static_cast<uint16_t>(*table_i);
+  }
+  return ret;
 }
 
 base::Status CreateCursorInnerData(Cursor::InnerData* inner,
                                    PerfettoSqlEngine* engine,
-                                   std::string table_name) {
+                                   const std::string& table_name,
+                                   const ColumnsMap& cols) {
   // Build the tree for the runtime table if possible
   const Table* t = engine->GetTableOrNull(table_name);
   if (!t) {
     return base::ErrStatus("interval_intersect operator: table not found");
   }
-  ASSIGN_OR_RETURN(IntervalTree tree,
-                   CreateIntervalTree(t->IterateRows(), table_name));
-  inner->tree = std::make_unique<IntervalTree>(std::move(tree));
+  ASSIGN_OR_RETURN(inner->trees, CreateIntervalTrees(t, table_name, cols));
   return base::OkStatus();
 }
 
-base::Status CreateCursorOuterData(Cursor::OuterData* outer,
-                                   PerfettoSqlEngine* engine,
-                                   std::string table_name) {
-  const Table* t = engine->GetTableOrNull(table_name);
-  if (!t) {
-    return base::ErrStatus("interval_intersect operator: table not found");
-  }
+base::Status CreateCursorOuterData(const Table* t,
+                                   Cursor::OuterData* outer,
+                                   const std::string& table_name) {
   outer->it = std::make_unique<Table::Iterator>(t->IterateRows());
 
-  ASSIGN_OR_RETURN(outer->id_col_id,
-                   ColIdForName(*outer->it, "id", table_name));
-  ASSIGN_OR_RETURN(outer->ts_col_id,
-                   ColIdForName(*outer->it, "ts", table_name));
-  ASSIGN_OR_RETURN(outer->ts_end_col_id,
-                   ColIdForName(*outer->it, "ts_end", table_name));
+  ASSIGN_OR_RETURN(outer->additional_cols[kId],
+                   ColIdForName(t, "id", table_name));
+  ASSIGN_OR_RETURN(outer->additional_cols[kTs],
+                   ColIdForName(t, "ts", table_name));
+  ASSIGN_OR_RETURN(outer->additional_cols[kTsEnd],
+                   ColIdForName(t, "ts_end", table_name));
 
   return base::OkStatus();
 }
@@ -182,68 +267,71 @@ int IntervalIntersectOperator::Disconnect(sqlite3_vtab* vtab) {
 
 int IntervalIntersectOperator::BestIndex(sqlite3_vtab* t,
                                          sqlite3_index_info* info) {
-  // We expect 1 constraint for operators that we will be queried multiple times
-  // - those should have interval trees build on them. 3 constraints mean that
-  // we got the table name, `ts` and `ts_end`, so this is the table that should
-  // query the interval tree.
   int n = info->nConstraint;
-
-  if (n != 3) {
-    return SQLITE_CONSTRAINT;
-  }
 
   // Validate `table_name` constraint. We expect it to be a constraint on
   // equality and on the kTableName column.
-  base::Status table_name_status = sqlite::utils::ValidateFunctionArguments(
-      info, 1, [](int c) { return c == SchemaColumns::kTableName; });
-  if (!table_name_status.ok()) {
+  base::Status args_status =
+      sqlite::utils::ValidateFunctionArguments(info, kArgsCount, [](int c) {
+        return c == SchemaColumnIds::kTableName ||
+               c == SchemaColumnIds::kExposedCols;
+      });
+
+  PERFETTO_CHECK(args_status.ok());
+  if (!args_status.ok()) {
     return SQLITE_CONSTRAINT;
   }
 
-  uint32_t rows_num;
-  if (auto status = RowsCount(Manager::GetState(GetVtab(t)->state)->engine,
-                              info, &rows_num);
-      !status.ok()) {
-    return sqlite::utils::SetError(t, status.c_message());
+  // Find real rows count
+  PerfettoSqlEngine* engine = Manager::GetState(GetVtab(t)->state)->engine;
+  SQLITE_ASSIGN_OR_RETURN(t, const Table* tab,
+                          GetTableFromRhsValue(engine, info));
+  if (!t) {
+    return sqlite::utils::SetError(t, "Table not registered");
   }
-  info->estimatedRows = rows_num;
+  uint32_t rows_count = tab->row_count();
+  info->estimatedRows = rows_count;
 
-  // Both of operator types will have `nConstraint==3`, but the `kOuter` will
-  // only have 1 usable constraint.
-
+  // Count usable constraints among args and required schema.
   uint32_t count_usable = 0;
   for (int i = 0; i < n; ++i) {
-    count_usable += info->aConstraint[i].usable;
+    auto c = info->aConstraint[i];
+    if (c.iColumn < kAdditional) {
+      count_usable += c.usable;
+    }
   }
 
-  // There is nothing more to do for one constraint, which happens for the
-  // kOuter operator.
-  if (count_usable == 1) {
+  // There is nothing more to do for only args constraints, which happens for
+  // the kOuter operator.
+  if (count_usable == kArgsCount) {
     info->idxNum = kOuter;
-    info->estimatedCost = rows_num;
+    info->estimatedCost = rows_count;
     return SQLITE_OK;
   }
 
   // For inner we expect all constraints to be usable.
-  if (count_usable != 3) {
+  PERFETTO_CHECK(count_usable == 4);
+  if (count_usable != 4) {
     return SQLITE_CONSTRAINT;
   }
 
   info->idxNum = kInner;
 
   // Cost of querying centered interval tree.
-  info->estimatedCost = log2(rows_num);
+  info->estimatedCost = log2(rows_count);
 
   // We are now doing BestIndex of kInner.
 
   auto ts_found = false;
   auto ts_end_found = false;
+  int argv_index = kAdditional;
+  auto* s = Manager::GetState(GetVtab(t)->state);
 
   for (int i = 0; i < n; ++i) {
     const auto& c = info->aConstraint[i];
 
     // Ignore table_name constraints as we validated it before.
-    if (c.iColumn == kTableName) {
+    if (c.iColumn == kTableName || c.iColumn == kExposedCols) {
       continue;
     }
 
@@ -276,8 +364,18 @@ int IntervalIntersectOperator::BestIndex(sqlite3_vtab* t,
                                        "interval_intersect operator: `ts_end` "
                                        "columns has wrong operation");
       }
-      // The index is moved by one.
       usage.argvIndex = kTsEnd + 1;
+      continue;
+    }
+
+    if (c.iColumn >= kAdditional) {
+      if (!sqlite::utils::IsOpEq(c.op)) {
+        return sqlite::utils::SetError(t,
+                                       "interval_intersect operator: `ts_end` "
+                                       "columns has wrong operation");
+      }
+      usage.argvIndex = argv_index++;
+      s->argv_to_col_map[static_cast<size_t>(c.iColumn)] = usage.argvIndex;
       continue;
     }
 
@@ -303,51 +401,70 @@ int IntervalIntersectOperator::Close(sqlite3_vtab_cursor* cursor) {
 int IntervalIntersectOperator::Filter(sqlite3_vtab_cursor* cursor,
                                       int idxNum,
                                       const char*,
-                                      int argc,
+                                      int,
                                       sqlite3_value** argv) {
   auto* c = GetCursor(cursor);
   c->type = static_cast<OperatorType>(idxNum);
-  PERFETTO_DCHECK(argc == 1 || argc == 3);
 
   auto* t = GetVtab(c->pVtab);
+  PerfettoSqlEngine* engine = Manager::GetState(t->state)->engine;
 
   // Table name constraint.
-  auto table_name = sqlite::utils::SqliteValueToSqlValue(argv[0]);
-  if (table_name.type != SqlValue::kString) {
+  auto table_name_sql_val = sqlite::utils::SqliteValueToSqlValue(argv[0]);
+  if (table_name_sql_val.type != SqlValue::kString) {
     return sqlite::utils::SetError(
         t, "interval_intersect operator: table name is not a string");
   }
+  std::string table_name = table_name_sql_val.AsString();
 
-  // If the cursor has different table cached reset the cursor.
-  if (c->table_name != table_name.AsString()) {
-    c->inner.tree.reset();
+  // Exposed columns constraint.
+  auto exposed_cols_sql_val = sqlite::utils::SqliteValueToSqlValue(argv[1]);
+  if (exposed_cols_sql_val.type != SqlValue::kString) {
+    return sqlite::utils::SetError(
+        t, "interval_intersect operator: exposed columns is not a string");
+  }
+  std::string exposed_cols_str = exposed_cols_sql_val.AsString();
+
+  // If the cursor has different table cached or differenct cols reset the
+  // cursor.
+  if (c->table_name != table_name || exposed_cols_str != c->exposed_cols_str) {
+    c->inner.trees.Clear();
     c->outer.it.reset();
   }
+  c->exposed_cols_str = exposed_cols_str;
 
   if (c->type == kOuter) {
     // We expect this function to be called only once per table, so recreate
     // this if needed.
-    c->table_name = table_name.AsString();
-    if (auto s = CreateCursorOuterData(&c->outer,
-                                       Manager::GetState(t->state)->engine,
-                                       table_name.AsString());
-        !s.ok()) {
-      return sqlite::utils::SetError(t, s);
-    }
+    c->table = engine->GetTableOrNull(table_name);
+    c->table_name = table_name;
+    SQLITE_ASSIGN_OR_RETURN(t, c->outer.additional_cols,
+                            GetExposedColumns(c->exposed_cols_str, c->table));
+    SQLITE_RETURN_IF_ERROR(
+        t, CreateCursorOuterData(c->table, &c->outer, table_name));
     return SQLITE_OK;
   }
 
   PERFETTO_DCHECK(c->type == kInner);
+  const auto argv_map = Manager::GetState(GetVtab(t)->state)->argv_to_col_map;
 
-  // Create |c.tree| if it doesn't exist.
-  if (c->inner.tree == nullptr) {
-    c->table_name = table_name.AsString();
-    if (auto s = CreateCursorInnerData(&c->inner,
-                                       Manager::GetState(t->state)->engine,
-                                       table_name.AsString());
-        !s.ok()) {
-      return sqlite::utils::SetError(t, s);
+  // Create inner cursor if tree doesn't exist.
+  if (c->inner.trees.size() == 0) {
+    c->table = engine->GetTableOrNull(table_name);
+    c->table_name = table_name;
+    Op::SchemaToTableColumnMap exposed_cols_map;
+    SQLITE_ASSIGN_OR_RETURN(t, exposed_cols_map,
+                            GetExposedColumns(c->exposed_cols_str, c->table));
+    SchemaToTableColumnMap new_map;
+    for (uint32_t i = 0; i < Op::kSchemaColumnsCount; i++) {
+      if (argv_map[i]) {
+        new_map[i] = exposed_cols_map[i];
+      }
     }
+
+    SQLITE_RETURN_IF_ERROR(
+        c->pVtab,
+        CreateCursorInnerData(&c->inner, engine, table_name, new_map));
   }
 
   // Query |c.tree| on the interval and materialize the results.
@@ -366,7 +483,16 @@ int IntervalIntersectOperator::Filter(sqlite3_vtab_cursor* cursor,
 
   uint64_t end = static_cast<uint64_t>(ts_constraint.AsLong());
   uint64_t start = static_cast<uint64_t>(ts_end_constraint.AsLong());
-  c->inner.Query(start, end);
+
+  base::Hasher h;
+  for (uint32_t i = 0; i < argv_map.size(); i++) {
+    if (argv_map[i]) {
+      uint32_t x = *argv_map[i];
+      HashSqlValue(h, sqlite::utils::SqliteValueToSqlValue(argv[x - 1]));
+    }
+  }
+
+  c->inner.Query(start, end, h.digest());
 
   return SQLITE_OK;
 }
@@ -391,7 +517,7 @@ int IntervalIntersectOperator::Eof(sqlite3_vtab_cursor* cursor) {
 
   switch (c->type) {
     case kInner:
-      return c->inner.index >= c->inner.result_ids.size();
+      return c->inner.index >= c->inner.query_results.size();
     case kOuter:
       return !(*c->outer.it);
   }
@@ -413,18 +539,23 @@ int IntervalIntersectOperator::Column(sqlite3_vtab_cursor* cursor,
 
   switch (N) {
     case kTs:
-      sqlite::result::Long(ctx, c->outer.GetTs());
+      sqlite::result::Long(ctx, c->outer.Get(kTs).AsLong());
       break;
     case kTsEnd:
-      sqlite::result::Long(ctx, c->outer.GetTsEnd());
+      sqlite::result::Long(ctx, c->outer.Get(kTsEnd).AsLong());
       break;
     case kId:
-      sqlite::result::Long(ctx, c->outer.GetId());
+      sqlite::result::Long(ctx, c->outer.Get(kId).AsLong());
       break;
-    default:
+    case kExposedCols:
+    case kTableName:
       return sqlite::utils::SetError(
           GetVtab(cursor->pVtab),
           "interval_intersect operator: invalid column");
+    default:
+      PERFETTO_DCHECK(N >= kAdditional && N <= kMaxCol);
+      sqlite::utils::ReportSqlValue(ctx, c->outer.Get(N));
+      break;
   }
 
   return SQLITE_OK;
