@@ -362,3 +362,21 @@ class AndroidMetrics(TestSuite):
         trace=DataPath('android_postboot_unlock.pftrace'),
         query=Metric("android_broadcasts"),
         out=Path('android_broadcasts.out'))
+
+  def test_wattson_app_startup_output(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_calculator_startup.pb'),
+        query=Metric("wattson_app_startup"),
+        out=Csv("""
+        wattson_app_startup {
+          metric_version: 1
+          period_info {
+            period_id: 1
+            period_dur: 385136434
+            rail {
+              name: "cpu_subsystem"
+              estimate_mw: 4568.159180
+            }
+          }
+        }
+        """))

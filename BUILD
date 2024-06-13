@@ -2158,6 +2158,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/sysui_notif_shade_list_builder_slices.sql",
         "src/trace_processor/metrics/sql/android/sysui_update_notif_on_ui_mode_changed_metric.sql",
         "src/trace_processor/metrics/sql/android/unsymbolized_frames.sql",
+        "src/trace_processor/metrics/sql/android/wattson_app_startup.sql",
     ],
 )
 
@@ -4742,6 +4743,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/thread_time_in_state_metric.proto",
         "protos/perfetto/metrics/android/trace_quality.proto",
         "protos/perfetto/metrics/android/unsymbolized_frames.proto",
+        "protos/perfetto/metrics/android/wattson_app_startup.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
