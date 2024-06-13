@@ -422,6 +422,7 @@ packet {
     # Creates a mapping from the iid "1" to the string name: any |name_iid| field
     # in this packet onwards will transparently be remapped to this string by trace
     # processor.
+    # Note: iid 0 is *not* a valid IID and should not be used.
     event_names {
       iid: 1
       name: "A very very very long slice name which we don't want to repeat"
