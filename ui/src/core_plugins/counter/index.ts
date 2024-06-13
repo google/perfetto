@@ -12,9 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
-import {CounterDetailsPanel} from '../../frontend/counter_panel';
 import {
   NUM_NULL,
   STR_NULL,
@@ -25,10 +22,15 @@ import {
   PluginDescriptor,
   PrimaryTrackSortKey,
   STR,
+  LONG,
+  Engine,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
 import {CounterOptions} from '../../frontend/base_counter_track';
 import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
+import {CounterDetailsPanel} from './counter_details_panel';
+import {Time, duration, time} from '../../base/time';
+import {Optional} from '../../base/utils';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
@@ -105,6 +107,34 @@ function getDefaultCounterOptions(name: string): Partial<CounterOptions> {
   return options;
 }
 
+async function getCounterEventBounds(
+  engine: Engine,
+  trackId: number,
+  id: number,
+): Promise<Optional<{ts: time; dur: duration}>> {
+  const query = `
+    WITH CTE AS (
+      SELECT
+        id,
+        ts as leftTs,
+        LEAD(ts) OVER (ORDER BY ts) AS rightTs
+      FROM counter
+      WHERE track_id = ${trackId}
+    )
+    SELECT * FROM CTE WHERE id = ${id}
+  `;
+
+  const counter = await engine.query(query);
+  const row = counter.iter({
+    leftTs: LONG,
+    rightTs: LONG_NULL,
+  });
+  const leftTs = Time.fromRaw(row.leftTs);
+  const rightTs = row.rightTs !== null ? Time.fromRaw(row.rightTs) : leftTs;
+  const duration = rightTs - leftTs;
+  return {ts: leftTs, dur: duration};
+}
+
 class CounterPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addCounterTracks(ctx);
@@ -113,16 +143,6 @@ class CounterPlugin implements Plugin {
     await this.addCpuPerfCounterTracks(ctx);
     await this.addThreadCounterTracks(ctx);
     await this.addProcessCounterTracks(ctx);
-
-    ctx.registerDetailsPanel({
-      render: (sel) => {
-        if (sel.kind === 'COUNTER') {
-          return m(CounterDetailsPanel);
-        } else {
-          return undefined;
-        }
-      },
-    });
   }
 
   private async addCounterTracks(ctx: PluginContextTrace) {
@@ -170,6 +190,10 @@ class CounterPlugin implements Plugin {
           });
         },
         sortKey: PrimaryTrackSortKey.COUNTER_TRACK,
+        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, displayName),
+        getEventBounds: async (id) => {
+          return await getCounterEventBounds(ctx.engine, trackId, id);
+        },
       });
     }
   }
@@ -228,6 +252,10 @@ class CounterPlugin implements Plugin {
             trackId: trackId,
             options: getDefaultCounterOptions(name),
           });
+        },
+        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
+        getEventBounds: async (id) => {
+          return await getCounterEventBounds(ctx.engine, trackId, id);
         },
       });
     }
@@ -288,6 +316,10 @@ class CounterPlugin implements Plugin {
             options: getDefaultCounterOptions(name),
           });
         },
+        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
+        getEventBounds: async (id) => {
+          return await getCounterEventBounds(ctx.engine, trackId, id);
+        },
       });
     }
   }
@@ -338,6 +370,10 @@ class CounterPlugin implements Plugin {
             options: getDefaultCounterOptions(name),
           });
         },
+        detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
+        getEventBounds: async (id) => {
+          return await getCounterEventBounds(ctx.engine, trackId, id);
+        },
       });
     }
   }
@@ -372,6 +408,10 @@ class CounterPlugin implements Plugin {
               trackId: trackId,
               options: getDefaultCounterOptions(name),
             });
+          },
+          detailsPanel: new CounterDetailsPanel(ctx.engine, trackId, name),
+          getEventBounds: async (id) => {
+            return await getCounterEventBounds(ctx.engine, trackId, id);
           },
         });
       }

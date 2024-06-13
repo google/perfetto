@@ -117,11 +117,11 @@ export function moveByFocusedFlow(direction: Direction): void {
   }
 }
 
-export function findCurrentSelection() {
+export async function findCurrentSelection() {
   const selection = getLegacySelection(globals.state);
   if (selection === null) return;
 
-  const range = globals.findTimeRangeOfSelection();
+  const range = await globals.findTimeRangeOfSelection();
   if (exists(range)) {
     focusHorizontalRange(range.start, range.end);
   }

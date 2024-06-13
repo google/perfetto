@@ -20,14 +20,9 @@ import {
   ThreadSliceSelection,
   getLegacySelection,
 } from '../common/state';
+import {THREAD_SLICE_TRACK_KIND} from '../core/track_kinds';
+import {globals, SliceDetails, ThreadStateDetails} from '../frontend/globals';
 import {
-  CounterDetails,
-  globals,
-  SliceDetails,
-  ThreadStateDetails,
-} from '../frontend/globals';
-import {
-  publishCounterDetails,
   publishSliceDetails,
   publishThreadStateDetails,
 } from '../frontend/publish';
@@ -41,7 +36,6 @@ import {
   STR_NULL,
   timeFromSql,
 } from '../trace_processor/query_result';
-import {THREAD_SLICE_TRACK_KIND} from '../core_plugins/thread_slice/thread_slice_track';
 
 import {Controller} from './controller';
 
@@ -77,7 +71,6 @@ export class SelectionController extends Controller<'main'> {
 
     const selectWithId: SelectionKind[] = [
       'SLICE',
-      'COUNTER',
       'SCHED_SLICE',
       'HEAP_PROFILE',
       'THREAD_STATE',
@@ -97,21 +90,7 @@ export class SelectionController extends Controller<'main'> {
 
     if (selectedId === undefined) return;
 
-    if (selection.kind === 'COUNTER') {
-      this.counterDetails(
-        selection.leftTs,
-        selection.rightTs,
-        selection.id,
-      ).then((results) => {
-        if (
-          results !== undefined &&
-          selection.kind === selectedKind &&
-          selection.id === selectedId
-        ) {
-          publishCounterDetails(results);
-        }
-      });
-    } else if (selection.kind === 'SCHED_SLICE') {
+    if (selection.kind === 'SCHED_SLICE') {
       this.schedSliceDetails(selectedId as number);
     } else if (selection.kind === 'THREAD_STATE') {
       this.threadStateDetails(selection.id);
@@ -422,35 +401,6 @@ export class SelectionController extends Controller<'main'> {
           publishSliceDetails(selected);
         });
     }
-  }
-
-  async counterDetails(
-    ts: time,
-    rightTs: time,
-    id: number,
-  ): Promise<CounterDetails> {
-    const counter = await this.args.engine.query(
-      `SELECT value, track_id as trackId FROM counter WHERE id = ${id}`,
-    );
-    const row = counter.iter({
-      value: NUM,
-      trackId: NUM,
-    });
-    const value = row.value;
-    const trackId = row.trackId;
-    // Finding previous value. If there isn't previous one, it will return 0 for
-    // ts and value.
-    const previous = await this.args.engine.query(`SELECT
-          MAX(ts),
-          IFNULL(value, 0) as value
-        FROM counter WHERE ts < ${ts} and track_id = ${trackId}`);
-    const previousValue = previous.firstRow({value: NUM}).value;
-    const endTs = rightTs !== -1n ? rightTs : globals.traceContext.end;
-    const delta = value - previousValue;
-    const duration = endTs - ts;
-    const trackKey = globals.trackManager.trackKeyByTrackId.get(trackId);
-    const name = trackKey ? globals.state.tracks[trackKey].name : undefined;
-    return {startTime: ts, value, delta, duration, name};
   }
 
   async schedulingDetails(ts: time, utid: number) {

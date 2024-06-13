@@ -227,6 +227,21 @@ RULES = [
         r'/core/.*',
         'instead plugins should depend on the API exposed at ui/src/public.',
     ),
+    NoDirectDep(
+        r"/frontend/.*",
+        r"/core_plugins/.*",
+        "core code should not depend on plugins.",
+    ),
+    NoDirectDep(
+        r"/core/.*",
+        r"/core_plugins/.*",
+        "core code should not depend on plugins.",
+    ),
+    NoDirectDep(
+        r"/base/.*",
+        r"/core_plugins/.*",
+        "core code should not depend on plugins.",
+    ),
     #NoDirectDep(
     #    r'/tracks/.*',
     #    r'/core/.*',

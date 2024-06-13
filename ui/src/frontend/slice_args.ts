@@ -13,30 +13,22 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {v4 as uuidv4} from 'uuid';
 
 import {isString} from '../base/object_utils';
 import {Icons} from '../base/semantic_icons';
 import {sqliteString} from '../base/string_utils';
 import {exists} from '../base/utils';
-import {Actions, AddTrackArgs} from '../common/actions';
-import {InThreadTrackSortKey} from '../common/state';
 import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
 import {Engine} from '../trace_processor/engine';
-import {NUM} from '../trace_processor/query_result';
-import {
-  VISUALISED_ARGS_SLICE_TRACK_URI,
-  VisualisedArgsState,
-} from './visualized_args_tracks';
+import {addVisualisedArgTracks} from './visualized_args_tracks';
 import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {TreeNode} from '../widgets/tree';
 
-import {globals} from './globals';
 import {Arg} from './sql/args';
 import {addSqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
-import {assertExists} from '../base/logging';
+import {globals} from './globals';
 
 // Renders slice arguments (key/value pairs) as a subtree.
 export function renderArguments(engine: Engine, args: Arg[]): m.Children {
@@ -111,83 +103,17 @@ function renderArgKey(engine: Engine, key: string, value?: Arg): m.Children {
         label: 'Visualise argument values',
         icon: 'query_stats',
         onclick: () => {
-          addVisualisedArg(engine, fullKey);
+          addVisualisedArgTracks(
+            {
+              engine,
+              registerTrack: (t) => globals.trackManager.registerTrack(t),
+            },
+            fullKey,
+          );
         },
       }),
     );
   }
-}
-
-async function addVisualisedArg(engine: Engine, argName: string) {
-  const escapedArgName = argName.replace(/[^a-zA-Z]/g, '_');
-  const tableName = `__arg_visualisation_helper_${escapedArgName}_slice`;
-
-  const result = await engine.query(`
-        drop table if exists ${tableName};
-
-        create table ${tableName} as
-        with slice_with_arg as (
-          select
-            slice.id,
-            slice.track_id,
-            slice.ts,
-            slice.dur,
-            slice.thread_dur,
-            NULL as cat,
-            args.display_value as name
-          from slice
-          join args using (arg_set_id)
-          where args.key='${argName}'
-        )
-        select
-          *,
-          (select count()
-           from ancestor_slice(s1.id) s2
-           join slice_with_arg s3 on s2.id=s3.id
-          ) as depth
-        from slice_with_arg s1
-        order by id;
-
-        select
-          track_id as trackId,
-          max(depth) as maxDepth
-        from ${tableName}
-        group by track_id;
-    `);
-
-  const tracksToAdd: AddTrackArgs[] = [];
-  const it = result.iter({trackId: NUM, maxDepth: NUM});
-  const addedTrackKeys: string[] = [];
-  for (; it.valid(); it.next()) {
-    const trackKey = globals.trackManager.trackKeyByTrackId.get(it.trackId);
-    const track = globals.state.tracks[assertExists(trackKey)];
-    const utid = (track.trackSortKey as {utid?: number}).utid;
-    const key = uuidv4();
-    addedTrackKeys.push(key);
-
-    const params: VisualisedArgsState = {
-      maxDepth: it.maxDepth,
-      trackId: it.trackId,
-      argName: argName,
-    };
-
-    tracksToAdd.push({
-      key,
-      trackGroup: track.trackGroup,
-      name: argName,
-      trackSortKey:
-        utid === undefined
-          ? track.trackSortKey
-          : {utid, priority: InThreadTrackSortKey.VISUALISED_ARGS_TRACK},
-      params,
-      uri: VISUALISED_ARGS_SLICE_TRACK_URI,
-    });
-  }
-
-  globals.dispatchMultiple([
-    Actions.addTracks({tracks: tracksToAdd}),
-    Actions.sortThreadTracks({}),
-  ]);
 }
 
 function renderArgValue({value}: Arg): m.Children {

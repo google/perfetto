@@ -26,9 +26,8 @@ import {
   addDebugCounterTrack,
   addDebugSliceTrack,
   addPivotDebugSliceTracks,
-} from '../../frontend/debug_tracks';
-
-export const ARG_PREFIX = 'arg_';
+} from './debug_tracks';
+import {globals} from '../globals';
 
 export function uuidToViewName(uuid: string): string {
   return `view_${uuid.split('-').join('_')}`;
@@ -186,7 +185,13 @@ export class AddDebugTrackMenu
             case 'slice':
               if (this.renderParams.pivot === '') {
                 addDebugSliceTrack(
-                  vnode.attrs.engine,
+                  // NOTE(stevegolton): This is a temporary patch, this menu
+                  // should become part of the debug tracks plugin, at which
+                  // point we can just use the plugin's context object.
+                  {
+                    engine: vnode.attrs.engine,
+                    registerTrack: (x) => globals.trackManager.registerTrack(x),
+                  },
                   vnode.attrs.dataSource,
                   this.name,
                   {
@@ -198,7 +203,10 @@ export class AddDebugTrackMenu
                 );
               } else {
                 addPivotDebugSliceTracks(
-                  vnode.attrs.engine,
+                  {
+                    engine: vnode.attrs.engine,
+                    registerTrack: globals.trackManager.registerTrack,
+                  },
                   vnode.attrs.dataSource,
                   this.name,
                   {
@@ -212,10 +220,21 @@ export class AddDebugTrackMenu
               }
               break;
             case 'counter':
-              addDebugCounterTrack(vnode.attrs.dataSource, this.name, {
-                ts: this.renderParams.ts,
-                value: this.renderParams.value,
-              });
+              addDebugCounterTrack(
+                // TODO(stevegolton): This is a temporary patch, this menu
+                // should become part of the debug tracks plugin, at which
+                // point we can just use the plugin's context object.
+                {
+                  engine: vnode.attrs.engine,
+                  registerTrack: (x) => globals.trackManager.registerTrack(x),
+                },
+                vnode.attrs.dataSource,
+                this.name,
+                {
+                  ts: this.renderParams.ts,
+                  value: this.renderParams.value,
+                },
+              );
               break;
           }
         },

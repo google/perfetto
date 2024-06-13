@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time} from '../../base/time';
-import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
 import {LONG, LONG_NULL, NUM} from '../../public';
 import {
@@ -80,23 +78,8 @@ export class TraceProcessorCounterTrack extends BaseCounterTrack {
       if (!it.valid()) {
         return;
       }
-      const trackKey = this.trackKey;
       const id = it.id;
-      const leftTs = Time.fromRaw(it.leftTs);
-
-      // TODO(stevegolton): Don't try to guess times and durations here, make it
-      // obvious to the user that this counter sample has no duration as it's
-      // the last one in the series
-      const rightTs = Time.fromRaw(it.rightTs ?? leftTs);
-
-      globals.makeSelection(
-        Actions.selectCounter({
-          leftTs,
-          rightTs,
-          id,
-          trackKey,
-        }),
-      );
+      globals.selectSingleEvent(this.trackKey, id);
     });
 
     return true;

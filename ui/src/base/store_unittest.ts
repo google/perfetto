@@ -14,7 +14,6 @@
 
 import {Draft} from 'immer';
 
-import {using} from './disposable';
 import {createStore} from './store';
 
 interface Bar {
@@ -145,7 +144,7 @@ describe('root store', () => {
     const callback = jest.fn();
 
     // Subscribe then immediately unsubscribe
-    using(store.subscribe(callback));
+    store.subscribe(callback).dispose();
 
     // Make an arbitrary edit
     store.edit((draft) => {
@@ -236,7 +235,7 @@ describe('sub-store', () => {
     const callback = jest.fn();
 
     // Subscribe then immediately unsubscribe
-    using(subStore.subscribe(callback));
+    subStore.subscribe(callback).dispose();
 
     // Make an arbitrary edit
     subStore.edit((draft) => {

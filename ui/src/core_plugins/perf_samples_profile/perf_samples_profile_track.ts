@@ -25,8 +25,6 @@ import {TimeScale} from '../../frontend/time_scale';
 import {Engine, Track} from '../../public';
 import {LONG} from '../../trace_processor/query_result';
 
-export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
-
 export interface Data extends TrackData {
   tsStarts: BigInt64Array;
 }

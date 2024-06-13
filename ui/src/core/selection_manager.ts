@@ -32,13 +32,6 @@ export interface SliceSelection {
   id: number;
 }
 
-export interface CounterSelection {
-  kind: 'COUNTER';
-  leftTs: time;
-  rightTs: time;
-  id: number;
-}
-
 export interface HeapProfileSelection {
   kind: 'HEAP_PROFILE';
   id: number;
@@ -92,7 +85,6 @@ export interface GenericSliceSelection {
 
 export type LegacySelection = (
   | SliceSelection
-  | CounterSelection
   | HeapProfileSelection
   | CpuProfileSampleSelection
   | ThreadSliceSelection
@@ -112,7 +104,7 @@ export interface LegacySelectionWrapper {
 export interface SingleSelection {
   kind: 'single';
   trackKey: string;
-  eventId: string;
+  eventId: number;
 }
 
 export interface AreaSelection {
@@ -225,7 +217,7 @@ export class SelectionManager {
 
   setEvent(
     trackKey: string,
-    eventId: string,
+    eventId: number,
     legacySelection?: LegacySelection,
   ) {
     this.clear();
@@ -234,7 +226,7 @@ export class SelectionManager {
 
   addEvent(
     trackKey: string,
-    eventId: string,
+    eventId: number,
     legacySelection?: LegacySelection,
   ) {
     this.addSelection({

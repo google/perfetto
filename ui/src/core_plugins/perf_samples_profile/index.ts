@@ -13,16 +13,15 @@
 // limitations under the License.
 
 import {TrackData} from '../../common/track_data';
+import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../../public';
+import {FlamegraphCache} from '../../core/flamegraph_cache';
 import {
-  FlamegraphCache,
   FlamegraphDetailsPanel,
   profileType,
 } from '../../frontend/flamegraph_panel';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {NUM} from '../../trace_processor/query_result';
 import {PerfSamplesProfileTrack} from './perf_samples_profile_track';
-
-export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
 export interface Data extends TrackData {
   tsStarts: BigInt64Array;

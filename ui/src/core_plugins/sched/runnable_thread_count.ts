@@ -14,32 +14,13 @@
 
 import m from 'mithril';
 
-import {NullDisposable} from '../../base/disposable';
-import {uuidv4} from '../../base/uuid';
-import {Actions} from '../../common/actions';
-import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../frontend/base_counter_track';
 import {CloseTrackButton} from '../../frontend/close_track_button';
-import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
-import {PrimaryTrackSortKey} from '../../public';
-
-export function addRunnableThreadCountTrack() {
-  const key = uuidv4();
-  globals.dispatchMultiple([
-    Actions.addTrack({
-      key,
-      uri: RunnableThreadCountTrack.kind,
-      name: `Runnable thread count`,
-      trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
-      trackGroup: SCROLLING_TRACK_GROUP,
-    }),
-    Actions.toggleTrackPinned({trackKey: key}),
-  ]);
-}
+import {DisposableStack} from '../../base/disposable';
 
 export class RunnableThreadCountTrack extends BaseCounterTrack {
   static readonly kind = 'dev.perfetto.Sched.RunnableThreadCount';
@@ -65,7 +46,7 @@ export class RunnableThreadCountTrack extends BaseCounterTrack {
     await this.engine.query(
       `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`,
     );
-    return new NullDisposable();
+    return new DisposableStack();
   }
 
   getSqlSource() {

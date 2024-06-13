@@ -83,7 +83,7 @@ class AndroidPerfTraceCounters implements Plugin {
         `;
 
         await addDebugSliceTrack(
-          ctx.engine,
+          ctx,
           {
             sqlSource:
               sqlPrefix +

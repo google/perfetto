@@ -12,18 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable, DisposableCallback} from '../base/disposable';
+import {Disposable} from '../base/disposable';
 import {exists} from '../base/utils';
 import {Registry} from '../base/registry';
 import {Store} from '../base/store';
 import {PanelSize} from '../frontend/panel';
-import {
-  Migrate,
-  Track,
-  TrackContext,
-  TrackDescriptor,
-  TrackRef,
-} from '../public';
+import {Track, TrackContext, TrackDescriptor, TrackRef} from '../public';
 
 import {ObjectByKey, State, TrackState} from './state';
 
@@ -82,9 +76,9 @@ export class TrackManager {
 
   addPotentialTrack(track: TrackRef): Disposable {
     this.defaultTracks.add(track);
-    return new DisposableCallback(() => {
-      this.defaultTracks.delete(track);
-    });
+    return {
+      dispose: () => this.defaultTracks.delete(track),
+    };
   }
 
   findPotentialTracks(): TrackRef[] {
@@ -103,11 +97,7 @@ export class TrackManager {
 
   // Creates a new track using |uri| and |params| or retrieves a cached track if
   // |key| exists in the cache.
-  resolveTrack(
-    key: string,
-    trackDesc: TrackDescriptor,
-    params?: unknown,
-  ): TrackCacheEntry {
+  resolveTrack(key: string, trackDesc: TrackDescriptor): TrackCacheEntry {
     // Search for a cached version of this track,
     const cached = this.currentTracks.get(key);
 
@@ -126,11 +116,6 @@ export class TrackManager {
       // Cached track doesn't exist or is out of date, create a new one.
       const trackContext: TrackContext = {
         trackKey: key,
-        mountStore: <T>(migrate: Migrate<T>) => {
-          const path = ['tracks', key, 'state'];
-          return this.store.createSubStore(path, migrate);
-        },
-        params,
       };
       const track = trackDesc.trackFactory(trackContext);
       const entry = new TrackFSM(track, trackDesc, trackContext);

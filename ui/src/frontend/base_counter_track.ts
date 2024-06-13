@@ -15,16 +15,18 @@
 import m from 'mithril';
 
 import {searchSegment} from '../base/binary_search';
-import {Disposable, NullDisposable} from '../base/disposable';
+import {Disposable, DisposableStack} from '../base/disposable';
 import {assertTrue, assertUnreachable} from '../base/logging';
 import {Time, time} from '../base/time';
 import {uuidv4Sql} from '../base/uuid';
 import {drawTrackHoverTooltip} from '../common/canvas_utils';
 import {raf} from '../core/raf_scheduler';
 import {CacheKey} from '../core/timeline_cache';
-import {Engine, LONG, NUM, Track} from '../public';
+import {Track} from '../public';
 import {Button} from '../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
+import {Engine} from '../trace_processor/engine';
+import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
@@ -233,7 +235,7 @@ export abstract class BaseCounterTrack implements Track {
   // state in trace_processor should be cleaned up when dispose is
   // called on the returned hook.
   async onInit(): Promise<Disposable> {
-    return new NullDisposable();
+    return new DisposableStack();
   }
 
   // This should be an SQL expression returning the columns `ts` and `value`.

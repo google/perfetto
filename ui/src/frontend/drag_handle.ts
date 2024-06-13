@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {Trash} from '../base/disposable';
+import {DisposableStack} from '../base/disposable';
 import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
@@ -103,7 +103,7 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   // We can't get real fullscreen height until the pan_and_zoom_handler
   // exists.
   private fullscreenHeight = 0;
-  private trash = new Trash();
+  private trash = new DisposableStack();
 
   oncreate({dom, attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
@@ -111,7 +111,7 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     this.isClosed = this.height <= 0;
     this.fullscreenHeight = getFullScreenHeight();
     const elem = dom as HTMLElement;
-    this.trash.add(
+    this.trash.use(
       new DragGestureHandler(
         elem,
         this.onDrag.bind(this),
@@ -127,7 +127,7 @@ export class DragHandle implements m.ClassComponent<DragHandleAttrs> {
         this.toggleVisibility();
       },
     });
-    this.trash.add(cmd);
+    this.trash.use(cmd);
   }
 
   private toggleVisibility() {
