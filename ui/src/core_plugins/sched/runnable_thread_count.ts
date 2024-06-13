@@ -14,32 +14,13 @@
 
 import m from 'mithril';
 
-import {uuidv4} from '../../base/uuid';
-import {Actions} from '../../common/actions';
-import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {
   BaseCounterTrack,
   CounterOptions,
 } from '../../frontend/base_counter_track';
 import {CloseTrackButton} from '../../frontend/close_track_button';
-import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
-import {PrimaryTrackSortKey} from '../../public';
 import {DisposableStack} from '../../base/disposable';
-
-export function addRunnableThreadCountTrack() {
-  const key = uuidv4();
-  globals.dispatchMultiple([
-    Actions.addTrack({
-      key,
-      uri: RunnableThreadCountTrack.kind,
-      name: `Runnable thread count`,
-      trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
-      trackGroup: SCROLLING_TRACK_GROUP,
-    }),
-    Actions.toggleTrackPinned({trackKey: key}),
-  ]);
-}
 
 export class RunnableThreadCountTrack extends BaseCounterTrack {
   static readonly kind = 'dev.perfetto.Sched.RunnableThreadCount';
