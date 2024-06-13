@@ -56,7 +56,6 @@ export const defaultPlugins = [
   'perfetto.Sched',
   'perfetto.Screenshots',
   'perfetto.ThreadState',
-  'perfetto.VisualisedArgs',
   'org.kernel.LinuxKernelDevices',
   'perfetto.TrackUtils',
   'com.google.PixelMemory',

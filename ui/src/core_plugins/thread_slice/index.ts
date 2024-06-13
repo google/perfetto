@@ -23,7 +23,7 @@ import {
 } from '../../public';
 import {getTrackName} from '../../public/utils';
 import {NUM, NUM_NULL, STR_NULL} from '../../trace_processor/query_result';
-import {ThreadSliceTrack} from './thread_slice_track';
+import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
 
 class ThreadSlicesPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
