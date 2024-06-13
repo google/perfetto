@@ -16,7 +16,6 @@ import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {translateState} from '../common/thread_state';
-import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
 import {Anchor} from '../widgets/anchor';
 import {DetailsShell} from '../widgets/details_shell';
 import {GridLayout} from '../widgets/grid_layout';
@@ -29,6 +28,7 @@ import {scrollToTrackAndTs} from './scroll_helper';
 import {SlicePanel} from './slice_panel';
 import {DurationWidget} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
+import {THREAD_STATE_TRACK_KIND} from '../core/track_kinds';
 
 const MIN_NORMAL_SCHED_PRIORITY = 100;
 

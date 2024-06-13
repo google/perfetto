@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable, DisposableCallback} from '../base/disposable';
+import {Disposable} from '../base/disposable';
 import {DetailsPanel, LegacyDetailsPanel, TabDescriptor} from '../public';
 
 export interface ResolvedTab {
@@ -41,30 +41,30 @@ export class TabManager implements Disposable {
 
   registerTab(desc: TabDescriptor): Disposable {
     this._registry.set(desc.uri, desc);
-    return new DisposableCallback(() => {
-      this._registry.delete(desc.uri);
-    });
+    return {
+      dispose: () => this._registry.delete(desc.uri),
+    };
   }
 
   addDefaultTab(uri: string): Disposable {
     this._defaultTabs.add(uri);
-    return new DisposableCallback(() => {
-      this._defaultTabs.delete(uri);
-    });
+    return {
+      dispose: () => this._defaultTabs.delete(uri),
+    };
   }
 
   registerLegacyDetailsPanel(section: LegacyDetailsPanel): Disposable {
     this._legacyDetailsPanelRegistry.add(section);
-    return new DisposableCallback(() => {
-      this._legacyDetailsPanelRegistry.delete(section);
-    });
+    return {
+      dispose: () => this._legacyDetailsPanelRegistry.delete(section),
+    };
   }
 
   registerDetailsPanel(section: DetailsPanel): Disposable {
     this._detailsPanelRegistry.add(section);
-    return new DisposableCallback(() => {
-      this._detailsPanelRegistry.delete(section);
-    });
+    return {
+      dispose: () => this._detailsPanelRegistry.delete(section),
+    };
   }
 
   resolveTab(uri: string): TabDescriptor | undefined {

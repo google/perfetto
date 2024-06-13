@@ -18,7 +18,6 @@ import {assertExists} from '../base/logging';
 import {PrimaryTrackSortKey} from '../public';
 import {HEAP_PROFILE_TRACK_KIND} from '../core_plugins/heap_profile';
 import {PROCESS_SCHEDULING_TRACK_KIND} from '../core_plugins/process_summary/process_scheduling_track';
-import {THREAD_STATE_TRACK_KIND} from '../core_plugins/thread_state';
 
 import {StateActions} from './actions';
 import {createEmptyState} from './empty_state';
@@ -29,7 +28,10 @@ import {
   TraceUrlSource,
   TrackSortKey,
 } from './state';
-import {THREAD_SLICE_TRACK_KIND} from '../core_plugins/thread_slice/thread_slice_track';
+import {
+  THREAD_SLICE_TRACK_KIND,
+  THREAD_STATE_TRACK_KIND,
+} from '../core/track_kinds';
 
 function fakeTrack(
   state: State,

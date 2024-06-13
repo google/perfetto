@@ -38,7 +38,7 @@ import {
 } from './sql/thread_state';
 import {asSliceSqlId} from './sql_types';
 import {DurationWidget} from './widgets/duration';
-import {addDebugSliceTrack} from './debug_tracks';
+import {addDebugSliceTrack} from './debug_tracks/debug_tracks';
 import {addQueryResultsTab} from './query_result_tab';
 
 interface ContextMenuItem {
@@ -112,7 +112,13 @@ const ITEMS: ContextMenuItem[] = [
         )
         .then(() =>
           addDebugSliceTrack(
-            engine,
+            // NOTE(stevegolton): This is a temporary patch, this menu should
+            // become part of another plugin, at which point we can just use the
+            // plugin's context object.
+            {
+              engine,
+              registerTrack: (x) => globals.trackManager.registerTrack(x),
+            },
             {
               sqlSource: `
                                 WITH merged AS (

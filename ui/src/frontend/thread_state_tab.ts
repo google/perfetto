@@ -42,7 +42,8 @@ import {
 } from './thread_state';
 import {DurationWidget, renderDuration} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
-import {addDebugSliceTrack} from './debug_tracks';
+import {addDebugSliceTrack} from './debug_tracks/debug_tracks';
+import {globals} from './globals';
 
 interface ThreadStateTabConfig {
   // Id into |thread_state| sql table.
@@ -325,7 +326,13 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
             .query(`INCLUDE PERFETTO MODULE sched.thread_executing_span;`)
             .then(() =>
               addDebugSliceTrack(
-                this.engine,
+                // NOTE(stevegolton): This is a temporary patch, this menu
+                // should become part of a critical path plugin, at which point
+                // we can just use the plugin's context object.
+                {
+                  engine: this.engine,
+                  registerTrack: (x) => globals.trackManager.registerTrack(x),
+                },
                 {
                   sqlSource: `
                     SELECT
@@ -363,7 +370,13 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
             )
             .then(() =>
               addDebugSliceTrack(
-                this.engine,
+                // NOTE(stevegolton): This is a temporary patch, this menu
+                // should become part of a critical path plugin, at which point
+                // we can just use the plugin's context object.
+                {
+                  engine: this.engine,
+                  registerTrack: (x) => globals.trackManager.registerTrack(x),
+                },
                 {
                   sqlSource: `
                     SELECT cr.id, cr.utid, cr.ts, cr.dur, cr.name, cr.table_name

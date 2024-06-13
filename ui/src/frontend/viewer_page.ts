@@ -333,10 +333,10 @@ class TraceViewer implements m.ClassComponent {
   // Resolve a track and its metadata through the track cache
   private resolveTrack(key: string): TrackBundle {
     const trackState = globals.state.tracks[key];
-    const {uri, params, name, labels, closeable} = trackState;
+    const {uri, name, labels, closeable} = trackState;
     const trackDesc = globals.trackManager.resolveTrackInfo(uri);
     const trackCacheEntry =
-      trackDesc && globals.trackManager.resolveTrack(key, trackDesc, params);
+      trackDesc && globals.trackManager.resolveTrack(key, trackDesc);
     const trackFSM = trackCacheEntry;
     const tags = trackCacheEntry?.desc.tags;
     const trackIds = trackCacheEntry?.desc.trackIds;

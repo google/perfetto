@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Disposable, Trash} from '../base/disposable';
+import {Disposable, DisposableStack} from '../base/disposable';
 import {AggregationPanel} from './aggregation_panel';
 import {globals} from './globals';
 import {isEmptyData} from '../common/aggregation_data';
@@ -28,9 +28,9 @@ import {
   FlamegraphSelectionParams,
 } from './flamegraph_panel';
 import {ProfileType, TrackState} from '../common/state';
-import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../core_plugins/perf_samples_profile';
 import {assertExists} from '../base/logging';
 import {Monitor} from '../base/monitor';
+import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../core/track_kinds';
 
 interface View {
   key: string;
@@ -187,7 +187,7 @@ class AreaDetailsPanel implements m.ClassComponent {
 }
 
 export class AggregationsTabs implements Disposable {
-  private trash = new Trash();
+  private trash = new DisposableStack();
 
   constructor() {
     const unregister = globals.tabManager.registerDetailsPanel({
@@ -200,7 +200,7 @@ export class AggregationsTabs implements Disposable {
       },
     });
 
-    this.trash.add(unregister);
+    this.trash.use(unregister);
   }
 
   dispose(): void {

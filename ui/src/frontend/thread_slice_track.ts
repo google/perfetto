@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath as BIMath} from '../../base/bigint_math';
-import {clamp} from '../../base/math_utils';
-import {OnSliceClickArgs} from '../../frontend/base_slice_track';
-import {globals} from '../../frontend/globals';
+import {BigintMath as BIMath} from '../base/bigint_math';
+import {clamp} from '../base/math_utils';
+import {OnSliceClickArgs} from './base_slice_track';
+import {globals} from './globals';
 import {
   NAMED_ROW,
   NamedSliceTrack,
   NamedSliceTrackTypes,
-} from '../../frontend/named_slice_track';
-import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
-import {NewTrackArgs} from '../../frontend/track';
-import {LONG_NULL} from '../../trace_processor/query_result';
-
-export const THREAD_SLICE_TRACK_KIND = 'ThreadSliceTrack';
+} from './named_slice_track';
+import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from './slice_layout';
+import {NewTrackArgs} from './track';
+import {LONG_NULL} from '../trace_processor/query_result';
 
 export const THREAD_SLICE_ROW = {
   // Base columns (tsq, ts, dur, id, depth).

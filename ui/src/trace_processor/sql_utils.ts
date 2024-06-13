@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {SortDirection} from '../base/comparison_utils';
+import {AsyncDisposable} from '../base/disposable';
 import {isString} from '../base/object_utils';
 import {sqliteString} from '../base/string_utils';
 
@@ -152,4 +153,39 @@ export async function getTableRowCount(
     count: NUM,
   }).count;
 }
+
 export {SqlValue};
+
+/**
+ * Asynchronously creates a 'perfetto' table using the given engine and returns
+ * an disposable object to handle its cleanup.
+ *
+ * @param engine - The database engine to execute the query.
+ * @param tableName - The name of the table to be created.
+ * @param expression - The SQL expression to define the table.
+ * @returns An AsyncDisposable which drops the created table when disposed.
+ *
+ * @example
+ * const engine = new Engine();
+ * const tableName = 'my_perfetto_table';
+ * const expression = 'SELECT * FROM source_table';
+ *
+ * const table = await createPerfettoTable(engine, tableName, expression);
+ *
+ * // Use the table...
+ *
+ * // Cleanup the table when done
+ * await table.disposeAsync();
+ */
+export async function createPerfettoTable(
+  engine: Engine,
+  tableName: string,
+  expression: string,
+): Promise<AsyncDisposable> {
+  await engine.query(`CREATE PERFETTO TABLE ${tableName} AS ${expression}`);
+  return {
+    disposeAsync: async () => {
+      await engine.tryQuery(`DROP TABLE IF EXISTS ${tableName}`);
+    },
+  };
+}

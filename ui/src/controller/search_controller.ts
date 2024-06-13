@@ -21,12 +21,12 @@ import {
   SearchSummary,
 } from '../common/search_data';
 import {OmniboxState} from '../common/state';
+import {CPU_SLICE_TRACK_KIND} from '../core/track_kinds';
 import {globals} from '../frontend/globals';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';
 import {LONG, NUM, STR} from '../trace_processor/query_result';
 import {escapeSearchQuery} from '../trace_processor/query_utils';
-import {CPU_SLICE_TRACK_KIND} from '../core_plugins/cpu_slices';
 
 import {Controller} from './controller';
 

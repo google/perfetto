@@ -30,7 +30,6 @@ import {
   tableColumnEquals,
   toggleEnabled,
 } from '../frontend/pivot_table_types';
-import {PrimaryTrackSortKey} from '../public/index';
 
 import {
   computeIntervals,
@@ -53,6 +52,7 @@ import {
   OmniboxState,
   PendingDeeplinkState,
   PivotTableResult,
+  PrimaryTrackSortKey,
   ProfileType,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
@@ -73,7 +73,6 @@ export interface AddTrackArgs {
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
-  params?: unknown;
   closeable?: boolean;
 }
 
@@ -215,7 +214,6 @@ export const StateActions = {
         trackGroup: track.trackGroup,
         labels: track.labels,
         uri: track.uri,
-        params: track.params,
         closeable: track.closeable,
       };
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
@@ -550,22 +548,6 @@ export const StateActions = {
     if (state.selection.kind === 'note' && state.selection.id === args.id) {
       state.selection = {kind: 'empty'};
     }
-  },
-
-  selectCounter(
-    state: StateDraft,
-    args: {leftTs: time; rightTs: time; id: number; trackKey: string},
-  ): void {
-    state.selection = {
-      kind: 'legacy',
-      legacySelection: {
-        kind: 'COUNTER',
-        leftTs: args.leftTs,
-        rightTs: args.rightTs,
-        id: args.id,
-        trackKey: args.trackKey,
-      },
-    };
   },
 
   selectHeapProfile(

@@ -14,7 +14,7 @@
 
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 
-import {addDebugCounterTrack} from '../../frontend/debug_tracks';
+import {addDebugCounterTrack} from '../../frontend/debug_tracks/debug_tracks';
 
 class PixelMemory implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -39,6 +39,7 @@ class PixelMemory implements Plugin {
         `;
         await ctx.engine.query(RSS_ALL);
         await addDebugCounterTrack(
+          ctx,
           {
             sqlSource: `
                 SELECT

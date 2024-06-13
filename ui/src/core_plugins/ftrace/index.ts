@@ -22,7 +22,7 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {NUM} from '../../trace_processor/query_result';
-import {Trash} from '../../base/disposable';
+import {DisposableStack} from '../../base/disposable';
 import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceRawTrack} from './ftrace_track';
 
@@ -36,7 +36,7 @@ const DEFAULT_STATE: FtracePluginState = {
 };
 
 class FtraceRawPlugin implements Plugin {
-  private trash = new Trash();
+  private trash = new DisposableStack();
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const store = ctx.mountStore<FtracePluginState>((init: unknown) => {
@@ -51,13 +51,13 @@ class FtraceRawPlugin implements Plugin {
         return DEFAULT_STATE;
       }
     });
-    this.trash.add(store);
+    this.trash.use(store);
 
     const filterStore = store.createSubStore(
       ['filter'],
       (x) => x as FtraceFilter,
     );
-    this.trash.add(filterStore);
+    this.trash.use(filterStore);
 
     const cpus = await this.lookupCpuCores(ctx.engine);
     for (const cpuNum of cpus) {
