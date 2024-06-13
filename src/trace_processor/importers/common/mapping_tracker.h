@@ -141,7 +141,7 @@ class MappingTracker {
 
   base::FlatHashMap<UniquePid, AddressRangeMap<JitCache*>> jit_caches_;
 
-  VirtualMemoryMapping* dummy_mapping_;
+  VirtualMemoryMapping* dummy_mapping_ = nullptr;
 };
 
 }  // namespace trace_processor
