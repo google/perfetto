@@ -34,6 +34,21 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 
+// Analogous to ASSIGN_OR_RETURN macro. Returns an sqlite error.
+#define SQLITE_RETURN_IF_ERROR(vtab, expr)                                  \
+  do {                                                                      \
+    base::Status status_macro_internal_status = (expr);                     \
+    if (!status_macro_internal_status.ok())                                 \
+      return sqlite::utils::SetError((vtab), status_macro_internal_status); \
+  } while (0)
+
+// Analogous to ASSIGN_OR_RETURN macro. Returns an sqlite error.
+#define SQLITE_ASSIGN_OR_RETURN(vtab, lhs, rhs)                            \
+  PERFETTO_INTERNAL_MACRO_CONCAT(auto status_or, __LINE__) = rhs;          \
+  SQLITE_RETURN_IF_ERROR(                                                  \
+      vtab, PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__).status()); \
+  lhs = std::move(PERFETTO_INTERNAL_MACRO_CONCAT(status_or, __LINE__).value())
+
 namespace perfetto::trace_processor::sqlite::utils {
 
 const auto kSqliteStatic = reinterpret_cast<sqlite3_destructor_type>(0);
@@ -162,7 +177,7 @@ inline void SetError(sqlite3_context* ctx,
 
 // For a given |sqlite3_index_info| struct received in a BestIndex call, returns
 // whether all |arg_count| arguments (with |is_arg_column| indicating whether a
-// given column is a function argument) have exactly one equaltiy constraint
+// given column is a function argument) have exactly one equality constraint
 // associated with them.
 //
 // If so, the associated constraint is omitted and the argvIndex is mapped to
