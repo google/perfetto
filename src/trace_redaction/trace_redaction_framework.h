@@ -246,9 +246,8 @@ class Context {
   // If the mask is set to 0x00, all fields would be removed. This should not
   // happen as some metadata provides context between packets.
   //
-  // Important note, 128 is used because it's the first power-of-2 after
-  // TracePacket::kMaxFieldNumber.
-  using TracePacketMask = std::bitset<128>;
+  // TracePacket has kForTestingFieldNumber which is set to 900.
+  using TracePacketMask = std::bitset<1024>;
   TracePacketMask packet_mask;
 
   // Ftrace packets contain a "one of" entry called "event". Within the scope of
@@ -288,7 +287,9 @@ class Context {
   //
   //  3.  In this example, a cpu_idle event populates the one-of slot in the
   //      ftrace event
-  using FtraceEventMask = std::bitset<512>;
+  //
+  // Ftrace event has kMaliMaliPMMCURESETWAITFieldNumber which is set to 532.
+  using FtraceEventMask = std::bitset<1024>;
   FtraceEventMask ftrace_mask;
 
   //  message SuspendResumeFtraceEvent {
