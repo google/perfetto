@@ -189,3 +189,37 @@ export async function createPerfettoTable(
     },
   };
 }
+
+/**
+ * Asynchronously creates a SQL view using the given engine and returns an
+ * disposable object to handle its cleanup.
+ *
+ * @param engine - The database engine to execute the query.
+ * @param viewName - The name of the view to be created.
+ * @param expression - The SQL expression to define the table.
+ * @returns An AsyncDisposable which drops the created table when disposed.
+ *
+ * @example
+ * const engine = new Engine();
+ * const viewName = 'my_view';
+ * const expression = 'SELECT * FROM source_table';
+ *
+ * const view = await createView(engine, viewName, expression);
+ *
+ * // Use the view...
+ *
+ * // Cleanup the view when done
+ * await view.disposeAsync();
+ */
+export async function createView(
+  engine: Engine,
+  viewName: string,
+  expression: string,
+): Promise<AsyncDisposable> {
+  await engine.query(`CREATE VIEW ${viewName} AS ${expression}`);
+  return {
+    disposeAsync: async () => {
+      await engine.tryQuery(`DROP VIEW IF EXISTS ${viewName}`);
+    },
+  };
+}

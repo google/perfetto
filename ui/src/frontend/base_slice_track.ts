@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable, DisposableStack} from '../base/disposable';
+import {AsyncDisposable, AsyncDisposableStack} from '../base/disposable';
 import {assertExists} from '../base/logging';
 import {clamp, floatEqual} from '../base/math_utils';
 import {Time, time} from '../base/time';
@@ -209,8 +209,7 @@ export abstract class BaseSliceTrack<
   private computedSliceHeight = 0;
   private computedRowSpacing = 0;
 
-  // Cleanup hook for onInit.
-  private initState?: Disposable;
+  private readonly trash: AsyncDisposableStack;
 
   // Extension points.
   // Each extension point should take a dedicated argument type (e.g.,
@@ -223,9 +222,7 @@ export abstract class BaseSliceTrack<
   // state in trace_processor should be cleaned up when dispose is
   // called on the returned hook. In the common case of where
   // the data for this track is a SQL fragment this does nothing.
-  async onInit(): Promise<Disposable> {
-    return new DisposableStack();
-  }
+  async onInit(): Promise<AsyncDisposable | void> {}
 
   // This should be an SQL expression returning all the columns listed
   // mentioned by getRowSpec() excluding tsq and tsqEnd.
@@ -266,6 +263,8 @@ export abstract class BaseSliceTrack<
     const allCols = Object.keys(this.getRowSpec());
     const baseCols = Object.keys(BASE_ROW);
     this.extraSqlColumns = allCols.filter((key) => !baseCols.includes(key));
+
+    this.trash = new AsyncDisposableStack();
   }
 
   setSliceLayout(sliceLayout: SliceLayout) {
@@ -316,7 +315,8 @@ export abstract class BaseSliceTrack<
   }
 
   async onCreate(): Promise<void> {
-    this.initState = await this.onInit();
+    const result = await this.onInit();
+    result && this.trash.use(result);
 
     // TODO(hjd): Consider case below:
     // raw:
@@ -376,6 +376,10 @@ export abstract class BaseSliceTrack<
         where dur != -1
       ));
     `);
+
+    this.trash.defer(async () => {
+      await this.engine.tryQuery(`drop table ${this.getTableName()}`);
+    });
   }
 
   async onUpdate(): Promise<void> {
@@ -662,11 +666,7 @@ export abstract class BaseSliceTrack<
   }
 
   async onDestroy(): Promise<void> {
-    if (this.initState) {
-      this.initState.dispose();
-      this.initState = undefined;
-    }
-    await this.engine.tryQuery(`drop table ${this.getTableName()}`);
+    await this.trash.disposeAsync();
   }
 
   // This method figures out if the visible window is outside the bounds of
