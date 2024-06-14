@@ -30,6 +30,8 @@ class TraceRedactionIntegrationFixure {
  protected:
   TraceRedactionIntegrationFixure();
 
+  void SetSourceTrace(std::string_view source_file);
+
   // Redact the source file and write it to the destination file. The contents
   // of each file can be read using LoadOriginal() and LoadRedacted().
   base::Status Redact(const TraceRedactor& redactor, Context* context);
