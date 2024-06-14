@@ -22,9 +22,17 @@
 namespace perfetto::trace_redaction {
 
 TraceRedactionIntegrationFixure::TraceRedactionIntegrationFixure() {
-  src_trace_ =
-      base::GetTestDataPath("test/data/trace-redaction-general.pftrace");
   dest_trace_ = tmp_dir_.AbsolutePath("dst.pftrace");
+
+  // TODO: Most of the tests were written usng this trace. Those tests make a
+  // lot of assumption around using this trace. Those tests should be
+  // transitioned to the other constructor to remove this assumption.
+  SetSourceTrace("test/data/trace-redaction-general.pftrace");
+}
+
+void TraceRedactionIntegrationFixure::SetSourceTrace(
+    std::string_view source_file) {
+  src_trace_ = base::GetTestDataPath(std::string(source_file));
 }
 
 base::Status TraceRedactionIntegrationFixure::Redact(

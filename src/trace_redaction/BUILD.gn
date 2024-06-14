@@ -97,6 +97,7 @@ source_set("integrationtests") {
     "redact_process_trees_integrationtest.cc",
     "redact_sched_events_integrationtest.cc",
     "scrub_process_stats_integrationtest.cc",
+    "trace_processor_integrationtest.cc",
     "trace_redaction_integration_fixture.cc",
     "trace_redaction_integration_fixture.h",
   ]
@@ -105,6 +106,7 @@ source_set("integrationtests") {
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
     "../../include/perfetto/ext/base",
+    "../../include/perfetto/trace_processor:trace_processor",
     "../../protos/perfetto/trace:non_minimal_cpp",
     "../../protos/perfetto/trace:non_minimal_zero",
     "../../protos/perfetto/trace/android:cpp",
