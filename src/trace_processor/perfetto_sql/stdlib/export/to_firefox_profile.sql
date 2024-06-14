@@ -29,87 +29,6 @@ SELECT json_object(
       -- threadId?: Tid[]
       'length', 0);
 
--- Returns an instance of `SamplesTable` as defined in
--- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
-CREATE PERFETTO MACRO _export_firefox_samples_table(samples_table TableOrSubquery)
-RETURNS Expr
-AS (
-  SELECT
-    json_object(
-      -- responsiveness?: Array<?Milliseconds>
-      -- eventDelay?: Array<?Milliseconds>
-      'stack', json_group_array(stack ORDER BY idx),
-      'time',  json_group_array(time ORDER BY idx),
-      'weight', NULL,
-      'weightType', 'samples',
-      -- threadCPUDelta?: Array<number | null>
-      -- threadId?: Tid[]
-      'length', COUNT(*))
-  FROM samples_table
-);
-
--- Returns an instance of `StackTable` as defined in
--- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
-CREATE PERFETTO MACRO _export_firefox_stack_table(stack_table TableOrSubquery)
-RETURNS Expr
-AS (
-  SELECT
-    json_object(
-      'frame', json_group_array(frame ORDER BY idx),
-      'category', json_group_array(category ORDER BY idx),
-      'subcategory', json_group_array(subcategory ORDER BY idx),
-      'prefix', json_group_array(prefix ORDER BY idx),
-      'length', COUNT(*))
-  FROM stack_table
-);
-
--- Returns an instance of `FrameTable` as defined in
--- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
-CREATE PERFETTO MACRO _export_firefox_frame_table(frame_table TableOrSubquery)
-RETURNS Expr
-AS (
-  SELECT
-    json_object(
-      'address', json_group_array(address ORDER BY idx),
-      'inlineDepth', json_group_array(inline_depth ORDER BY idx),
-      'category', json_group_array(category ORDER BY idx),
-      'subcategory', json_group_array(subcategory ORDER BY idx),
-      'func', json_group_array(func ORDER BY idx),
-      'nativeSymbol', json_group_array(native_symbol ORDER BY idx),
-      'innerWindowID', json_group_array(inner_window_id ORDER BY idx),
-      'implementation', json_group_array(implementation ORDER BY idx),
-      'line', json_group_array(line ORDER BY idx),
-      'column', json_group_array(column ORDER BY idx),
-      'length', COUNT(*))
-  FROM frame_table
-);
-
--- Returns an array of strings.
-CREATE PERFETTO MACRO _export_firefox_string_array(string_table TableOrSubquery)
-RETURNS Expr
-AS (
-  SELECT json_group_array(str ORDER BY idx)
-  FROM string_table
-);
-
--- Returns an instance of `FuncTable` as defined in
--- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
-CREATE PERFETTO MACRO _export_firefox_func_table(func_table TableOrSubquery)
-RETURNS Expr
-AS (
-  SELECT
-    json_object(
-      'name', json_group_array(name ORDER BY idx),
-      'isJS', json_group_array(is_js ORDER BY idx),
-      'relevantForJS', json_group_array(relevant_for_js ORDER BY idx),
-      'resource', json_group_array(resource ORDER BY idx),
-      'fileName', json_group_array(file_name ORDER BY idx),
-      'lineNumber', json_group_array(line_number ORDER BY idx),
-      'columnNumber', json_group_array(column_number ORDER BY idx),
-      'length', COUNT(*))
-  FROM func_table
-);
-
 -- Returns an empty instance of `NativeSymbolTable` as defined in
 -- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
 CREATE PERFETTO FUNCTION _export_firefox_native_symbol_table()
@@ -137,11 +56,9 @@ SELECT
     'host', json_array(),
     'type', json_array());
 
--- Returns an instance of `Thread` as defined in
--- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
--- for the given `utid`.
-CREATE PERFETTO FUNCTION _export_firefox_thread(utid INT)
-RETURNS STRING
+-- Materialize this intermediate table and sort by `callsite_id` to speedup the
+-- generation of the stack_table further down.
+CREATE PERFETTO TABLE _export_to_firefox_table
 AS
 WITH
   symbol AS (
@@ -183,31 +100,31 @@ WITH
   ),
   callsite_recursive AS (
     SELECT
+      s.utid,
       spc.id,
       spc.parent_id,
-      spc.frame_id,
-      TRUE AS is_leaf
+      spc.frame_id
     FROM
-      (SELECT DISTINCT callsite_id FROM perf_sample WHERE utid = $utid) s,
+      (SELECT DISTINCT callsite_id, utid FROM perf_sample) s,
       stack_profile_callsite spc
     ON (spc.id = s.callsite_id)
     UNION ALL
     SELECT
+      child.utid,
       parent.id,
       parent.parent_id,
-      parent.frame_id,
-      FALSE AS is_leaf
+      parent.frame_id
     FROM callsite_recursive AS child, stack_profile_callsite AS parent
     ON (child.parent_id = parent.id)
   ),
   unique_callsite AS (
     SELECT DISTINCT * FROM callsite_recursive
   ),
-  expanded_callsite_base AS (
+  expanded_callsite AS (
     SELECT
+      c.utid,
       c.id,
       c.parent_id,
-      c.is_leaf,
       c.frame_id,
       COALESCE(s.name, spf.name, '') AS name,
       COALESCE(s.inline_depth, 0) AS inline_depth,
@@ -216,36 +133,112 @@ WITH
     ON (c.frame_id = spf.id)
     LEFT JOIN symbol s
       USING (symbol_set_id)
-  ),
-  expanded_callsite AS (
+  )
+SELECT
+  utid,
+  id AS callsite_id,
+  parent_id AS parent_callsite_id,
+  name,
+  inline_depth,
+  inline_depth = max_inline_depth AS is_most_inlined,
+  DENSE_RANK()
+    OVER (PARTITION BY utid ORDER BY id, inline_depth) - 1 AS stack_table_index,
+  DENSE_RANK()
+    OVER (PARTITION BY utid ORDER BY frame_id, inline_depth) - 1
+    AS frame_table_index,
+  DENSE_RANK() OVER (PARTITION BY utid ORDER BY name) - 1 AS func_table_index,
+  DENSE_RANK() OVER (PARTITION BY utid ORDER BY name) - 1 AS string_table_index
+FROM expanded_callsite
+ORDER BY utid, id;
+
+-- Returns an instance of `SamplesTable` as defined in
+-- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
+-- for the given `utid`.
+CREATE PERFETTO FUNCTION _export_firefox_samples_table(utid INT)
+RETURNS STRING
+AS
+WITH
+  samples_table AS (
     SELECT
-      *,
-      DENSE_RANK() OVER (ORDER BY id, inline_depth) - 1 AS stack_table_index,
-      DENSE_RANK()
-        OVER (ORDER BY frame_id, inline_depth) - 1 AS frame_table_index,
-      DENSE_RANK() OVER (ORDER BY name) - 1 AS func_table_index,
-      DENSE_RANK() OVER (ORDER BY name) - 1 AS string_table_index
-    FROM expanded_callsite_base
-  ),
-  string_table AS (
-    SELECT DISTINCT
-      string_table_index AS idx,
-      name AS str
+      ROW_NUMBER() OVER (ORDER BY s.id) - 1 AS idx,
+      s.ts AS time,
+      t.stack_table_index AS stack
     FROM
-      expanded_callsite
+      perf_sample AS s,
+      _export_to_firefox_table AS t
+    USING (utid, callsite_id)
+    WHERE utid = $utid AND t.is_most_inlined
+  )
+SELECT
+  json_object(
+    -- responsiveness?: Array<?Milliseconds>
+    -- eventDelay?: Array<?Milliseconds>
+    'stack', json_group_array(stack ORDER BY idx),
+    'time',  json_group_array(time ORDER BY idx),
+    'weight', NULL,
+    'weightType', 'samples',
+    -- threadCPUDelta?: Array<number | null>
+    -- threadId?: Tid[]
+    'length', COUNT(*))
+FROM samples_table;
+
+-- Returns an instance of `StackTable` as defined in
+-- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
+-- for the given `utid`.
+CREATE PERFETTO FUNCTION _export_firefox_stack_table(utid INT)
+RETURNS STRING
+AS
+WITH
+  parent AS (
+    SELECT *
+    FROM _export_to_firefox_table
+    WHERE utid = $utid
   ),
-  func_table AS (
-    SELECT DISTINCT
-      func_table_index AS idx,
-      string_table_index AS name,
-      FALSE AS is_js,
-      FALSE AS relevant_for_js,
-      - 1 AS resource,
-      NULL AS file_name,
-      NULL AS line_number,
-      NULL AS column_number
-    FROM expanded_callsite
-  ),
+  stack_table AS (
+    SELECT
+      stack_table_index AS idx,
+      frame_table_index AS frame,
+      0 AS category,
+      0 AS subcategory,
+      -- It is key that this lookup is fast. That is why we have materialized
+      -- the `_export_to_firefox_table` table and sorted it by `utid` and
+      -- `callsite_id`.
+      IIF(
+        child.inline_depth = 0,
+        (
+          SELECT stack_table_index
+          FROM parent
+          WHERE
+            child.parent_callsite_id = parent.callsite_id
+            AND parent.is_most_inlined
+        ),
+        (
+          SELECT stack_table_index
+          FROM parent
+          WHERE
+            child.callsite_id = parent.callsite_id
+            AND child.inline_depth - 1 = parent.inline_depth
+        )) AS prefix
+    FROM _export_to_firefox_table AS child
+    WHERE child.utid = $utid
+  )
+SELECT
+  json_object(
+    'frame', json_group_array(frame ORDER BY idx),
+    'category', json_group_array(category ORDER BY idx),
+    'subcategory', json_group_array(subcategory ORDER BY idx),
+    'prefix', json_group_array(prefix ORDER BY idx),
+    'length', COUNT(*))
+FROM stack_table;
+
+
+-- Returns an instance of `FrameTable` as defined in
+-- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
+-- for the given `utid`.
+CREATE PERFETTO FUNCTION _export_firefox_frame_table(utid INT)
+RETURNS STRING
+AS
+WITH
   frame_table AS (
     SELECT DISTINCT
       frame_table_index AS idx,
@@ -259,40 +252,79 @@ WITH
       NULL AS implementation,
       NULL AS line,
       NULL AS column
-    FROM expanded_callsite
-  ),
-  stack_table AS (
-    SELECT
-      stack_table_index AS idx,
-      frame_table_index AS frame,
-      0 AS category,
-      0 AS subcategory,
-      (
-        SELECT stack_table_index
-        FROM expanded_callsite AS parent
-        WHERE
-          (
-            child.inline_depth = 0
-            AND child.parent_id = parent.id
-            AND parent.inline_depth = parent.max_inline_depth)
-          OR (
-            child.inline_depth - 1 = parent.inline_depth
-            AND child.id = parent.id)
-      ) AS prefix
-    FROM expanded_callsite AS child
-  ),
-  samples_table AS (
-    SELECT
-      ROW_NUMBER() OVER(ORDER BY s.id) - 1 AS idx,
-      s.ts AS time,
-      (
-        SELECT stack_table_index
-        FROM expanded_callsite c
-        WHERE s.callsite_id = c.id AND c.inline_depth = c.max_inline_depth
-      ) AS stack
-    FROM perf_sample AS s
+    FROM _export_to_firefox_table
     WHERE utid = $utid
   )
+SELECT
+  json_object(
+    'address', json_group_array(address ORDER BY idx),
+    'inlineDepth', json_group_array(inline_depth ORDER BY idx),
+    'category', json_group_array(category ORDER BY idx),
+    'subcategory', json_group_array(subcategory ORDER BY idx),
+    'func', json_group_array(func ORDER BY idx),
+    'nativeSymbol', json_group_array(native_symbol ORDER BY idx),
+    'innerWindowID', json_group_array(inner_window_id ORDER BY idx),
+    'implementation', json_group_array(implementation ORDER BY idx),
+    'line', json_group_array(line ORDER BY idx),
+    'column', json_group_array(column ORDER BY idx),
+    'length', COUNT(*))
+FROM frame_table;
+
+-- Returns an array of strings for the given `utid`.
+CREATE PERFETTO FUNCTION _export_firefox_string_array(utid INT)
+RETURNS STRING
+AS
+WITH
+  string_table AS (
+    SELECT DISTINCT
+      string_table_index AS idx,
+      name AS str
+    FROM
+      _export_to_firefox_table
+    WHERE utid = $utid
+  )
+SELECT json_group_array(str ORDER BY idx)
+FROM string_table;
+
+-- Returns an instance of `FuncTable` as defined in
+-- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
+-- for the given `utid`.
+CREATE PERFETTO FUNCTION _export_firefox_func_table(utid INT)
+RETURNS STRING
+AS
+WITH
+  func_table AS (
+    SELECT DISTINCT
+      func_table_index AS idx,
+      string_table_index AS name,
+      FALSE AS is_js,
+      FALSE AS relevant_for_js,
+      -1 AS resource,
+      NULL AS file_name,
+      NULL AS line_number,
+      NULL AS column_number
+    FROM _export_to_firefox_table
+    WHERE utid = $utid
+  )
+SELECT
+  json_object(
+    'name', json_group_array(name ORDER BY idx),
+    'isJS', json_group_array(is_js ORDER BY idx),
+    'relevantForJS', json_group_array(relevant_for_js ORDER BY idx),
+    'resource', json_group_array(resource ORDER BY idx),
+    'fileName', json_group_array(file_name ORDER BY idx),
+    'lineNumber', json_group_array(line_number ORDER BY idx),
+    'columnNumber', json_group_array(column_number ORDER BY idx),
+    'length', COUNT(*))
+FROM func_table;
+
+
+-- Returns an instance of `Thread` as defined in
+-- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
+-- for the given `utid`.
+CREATE PERFETTO FUNCTION _export_firefox_thread(utid INT)
+RETURNS STRING
+AS
 SELECT
   json_object(
     'processType', 'default',
@@ -309,14 +341,14 @@ SELECT
     -- isJsTracer?: boolean
     'pid', COALESCE(process.pid, 0),
     'tid', COALESCE(thread.tid, 0),
-    'samples', _export_firefox_samples_table!(samples_table),
+    'samples', json(_export_firefox_samples_table($utid)),
     -- jsAllocations?: JsAllocationsTable
     -- nativeAllocations?: NativeAllocationsTable
     'markers', json(_export_firefox_thread_markers()),
-    'stackTable', _export_firefox_stack_table!(stack_table),
-    'frameTable', _export_firefox_frame_table!(frame_table),
-    'stringArray', _export_firefox_string_array!(string_table),
-    'funcTable', _export_firefox_func_table!(func_table),
+    'stackTable', json(_export_firefox_stack_table($utid)),
+    'frameTable', json(_export_firefox_frame_table($utid)),
+    'stringArray', json(_export_firefox_string_array($utid)),
+    'funcTable', json(_export_firefox_func_table($utid)),
     'resourceTable', json(_export_firefox_resource_table()),
     'nativeSymbols', json(_export_firefox_native_symbol_table())
     -- jsTracer?: JsTracerTable
@@ -337,45 +369,27 @@ SELECT json_group_array(json(_export_firefox_thread(utid))) FROM thread;
 
 -- Returns an instance of `ProfileMeta` as defined in
 -- https://github.com/firefox-devtools/profiler/blob/main/src/types/profile.js
-CREATE
-  PERFETTO FUNCTION _export_firefox_meta()
+CREATE PERFETTO FUNCTION _export_firefox_meta()
 RETURNS STRING
 AS
 SELECT
   json_object(
     'interval', 1,
     'startTime', 0,
-    -- startTime: Milliseconds
     -- endTime?: Milliseconds
     -- profilingStartTime?: Milliseconds
     -- profilingEndTime?: Milliseconds
-    -- processType: number
-    'processType',
-    0,  -- default
+    'processType', 0,  -- default
     -- extensions?: ExtensionTable
-    -- categories?: CategoryList
-    'categories',
-    json_array(
-      json_object(
-        'name',
-        'Other',
-        'color',
-        'grey',
-        'subcategories',
-        json_array('Other'))),
-    -- product: 'Firefox' | string
-    'product',
-    'Perfetto',
-    -- stackwalk: 0 | 1
-    'stackwalk',
-    1,
+    'categories', json_array(json_object(
+        'name', 'Other',
+        'color', 'grey',
+        'subcategories', json_array('Other'))),
+    'product', 'Perfetto',
+    'stackwalk', 1,
     -- debug?: boolean
-    -- version: number
-    'version',
-    29,  -- Taken from a generated profile
-    -- preprocessedProfileVersion: number
-    'preprocessedProfileVersion',
-    48,  -- Taken from a generated profile
+    'version', 29,  -- Taken from a generated profile
+    'preprocessedProfileVersion', 48,  -- Taken from a generated profile
     -- abi?: string
     -- misc?: string
     -- oscpu?: string
