@@ -82,3 +82,34 @@ class StdlibIntervals(TestSuite):
         0
         1
         """))
+
+  def test_intervals_flatten(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.overlap;
+
+        WITH roots_data (id, ts, dur) AS (
+          VALUES
+            (0, 0, 7),
+            (1, 8, 1)
+        ), children_data (root_id, id, parent_id, ts, dur) AS (
+          VALUES
+            (0, 2, 0, 1, 3),
+            (0, 3, 0, 5, 1),
+            (0, 4, 2, 2, 1)
+        )
+        SELECT ts, dur, id, parent_id, root_id
+        FROM _intervals_flatten!(roots_data, children_data) ORDER BY ts
+        """,
+        out=Csv("""
+        "ts","dur","id","parent_id","root_id"
+        0,1,0,"[NULL]",0
+        1,1,2,0,0
+        2,1,4,2,0
+        3,1,2,0,0
+        4,1,0,"[NULL]",0
+        5,1,3,0,0
+        6,1,0,"[NULL]",0
+        8,1,1,"[NULL]",1
+        """))

@@ -91,3 +91,113 @@ WITH ts_with_next AS (
 SELECT count() AS has_overlaps
 FROM filtered
 );
+
+-- Partition and flatten a hierarchy of intervals into non-overlapping intervals where
+-- each resulting interval is the leaf in the hierarchy at any given time. The result also
+-- denotes the 'self-time' of each interval.
+--
+-- Each interval is a (root_id, id, parent_id, ts, dur) and the overlap is also represented as a
+-- (root_id, id, parent_id, ts, dur).
+-- Note that, children intervals must not be longer than any ancestor interval.
+CREATE PERFETTO MACRO _intervals_flatten(
+  -- Table or subquery containing all the root intervals: (id, ts, dur). Note that parent_id
+  -- is not necessary in this table as it will be NULL anyways.
+  roots_table TableOrSubquery,
+  -- Table or subquery containing all the child intervals. (root_id, id, parent_id, ts, dur)
+  children_table TableOrSubquery)
+RETURNS TableOrSubquery
+  AS (
+    -- Algorithm: Sort all the start and end timestamps of the children within a root.
+    -- The interval duration between one timestamp and the next is one result.
+    -- If the timestamp is a start, the id is the id of the interval, if it's an end,
+    -- it's the parent_id.
+    -- Special case the edges of the roots and roots without children.
+  WITH
+    _roots AS (
+      SELECT * FROM ($roots_table) WHERE dur > 0
+    ),
+    _children AS (
+      SELECT * FROM ($children_table) WHERE dur > 0
+    ),
+    _roots_without_children AS (
+      SELECT id FROM _roots
+      EXCEPT
+      SELECT DISTINCT parent_id AS id FROM _children
+    ),
+    _children_with_root_ts_and_dur AS (
+      SELECT
+        _roots.id AS root_id,
+        _roots.ts AS root_ts,
+        _roots.dur AS root_dur,
+        _children.id,
+        _children.parent_id,
+        _children.ts,
+        _children.dur
+      FROM _children
+      JOIN _roots ON _roots.id = root_id
+    ),
+    _ends AS (
+      SELECT
+        child.root_id,
+        child.root_ts,
+        child.root_dur,
+        IFNULL(parent.id, child.root_id) AS id,
+        parent.parent_id,
+        child.ts + child.dur AS ts
+      FROM _children_with_root_ts_and_dur child
+      LEFT JOIN _children_with_root_ts_and_dur parent
+        ON child.parent_id = parent.id
+    ),
+    _events AS (
+      SELECT root_id, root_ts, root_dur, id, parent_id, ts FROM _children_with_root_ts_and_dur
+      UNION ALL
+      SELECT root_id, root_ts, root_dur, id, parent_id, ts FROM _ends
+    ),
+    _intervals AS (
+      SELECT
+        root_id,
+        root_ts,
+        root_dur,
+        id,
+        parent_id,
+        ts,
+        LEAD(ts)
+          OVER (PARTITION BY root_id ORDER BY ts) - ts AS dur
+      FROM _events
+    ),
+    _only_middle AS (
+      SELECT * FROM _intervals WHERE dur > 0
+    ),
+    _only_start AS (
+      SELECT
+        root_id,
+        parent_id AS id,
+        NULL AS parent_id,
+        root_ts AS ts,
+        MIN(ts) - root_ts AS dur
+      FROM _only_middle
+      GROUP BY root_id
+    ),
+    _only_end AS (
+      SELECT
+        root_id,
+        parent_id AS id,
+        NULL AS parent_id,
+        MAX(ts + dur) AS ts,
+        root_ts + root_dur - MAX(ts + dur) AS dur
+      FROM _only_middle
+      GROUP BY root_id
+    ),
+    _only_singleton AS (
+      SELECT id AS root_id, id, NULL AS parent_id, ts, dur
+      FROM _roots
+      JOIN _roots_without_children USING (id)
+    )
+  SELECT root_id, id, parent_id, ts, dur FROM _only_middle
+  UNION ALL
+  SELECT root_id, id, parent_id, ts, dur FROM _only_start
+  UNION ALL
+  SELECT root_id, id, parent_id, ts, dur FROM _only_end
+  UNION ALL
+  SELECT root_id, id, parent_id, ts, dur FROM _only_singleton
+);
