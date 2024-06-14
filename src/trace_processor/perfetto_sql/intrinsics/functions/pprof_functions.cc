@@ -49,8 +49,6 @@ namespace {
 
 using protos::pbzero::Stack;
 
-constexpr char kFunctionName[] = "EXPERIMENTAL_PROFILE";
-
 template <typename T>
 std::unique_ptr<T> WrapUnique(T* ptr) {
   return std::unique_ptr<T>(ptr);
@@ -182,15 +180,16 @@ base::Status StepStatus(sqlite3_context* ctx,
 }
 
 struct ProfileBuilder {
+  static constexpr char kName[] = "EXPERIMENTAL_PROFILE";
+  static constexpr int kArgCount = -1;
   using UserDataContext = TraceProcessorContext;
 
   static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
     PERFETTO_CHECK(argc >= 0);
 
     base::Status status = StepStatus(ctx, static_cast<size_t>(argc), argv);
-
     if (!status.ok()) {
-      sqlite::utils::SetError(ctx, kFunctionName, status);
+      sqlite::utils::SetError(ctx, kName, status);
     }
   }
 
@@ -212,8 +211,7 @@ struct ProfileBuilder {
 
 base::Status PprofFunctions::Register(PerfettoSqlEngine& engine,
                                       TraceProcessorContext* context) {
-  return engine.RegisterSqliteAggregateFunction<ProfileBuilder>(kFunctionName,
-                                                                -1, context);
+  return engine.RegisterSqliteAggregateFunction<ProfileBuilder>(context);
 }
 
 }  // namespace perfetto::trace_processor

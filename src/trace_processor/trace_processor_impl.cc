@@ -184,6 +184,8 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
 
 class ValueAtMaxTs : public SqliteAggregateFunction<ValueAtMaxTs> {
  public:
+  static constexpr char kName[] = "VALUE_AT_MAX_TS";
+  static constexpr int kArgCount = 2;
   struct Context {
     bool initialized;
     int value_type;
@@ -246,8 +248,7 @@ class ValueAtMaxTs : public SqliteAggregateFunction<ValueAtMaxTs> {
   }
 
   static void Final(sqlite3_context* ctx) {
-    Context* fn_ctx =
-        reinterpret_cast<Context*>(sqlite3_aggregate_context(ctx, 0));
+    auto* fn_ctx = static_cast<Context*>(sqlite3_aggregate_context(ctx, 0));
     if (!fn_ctx) {
       sqlite::result::Null(ctx);
       return;
@@ -261,8 +262,8 @@ class ValueAtMaxTs : public SqliteAggregateFunction<ValueAtMaxTs> {
 };
 
 void RegisterValueAtMaxTsFunction(PerfettoSqlEngine& engine) {
-  base::Status status = engine.RegisterSqliteAggregateFunction<ValueAtMaxTs>(
-      "VALUE_AT_MAX_TS", 2, nullptr);
+  base::Status status =
+      engine.RegisterSqliteAggregateFunction<ValueAtMaxTs>(nullptr);
   if (!status.ok()) {
     PERFETTO_ELOG("Error initializing VALUE_AT_MAX_TS");
   }
@@ -788,7 +789,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   {
     base::Status status =
         engine_->RegisterSqliteAggregateFunction<metrics::RepeatedField>(
-            "RepeatedField", 1, nullptr);
+            nullptr);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
@@ -965,12 +966,10 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   // Value table aggregate functions.
   engine_->RegisterSqliteAggregateFunction<Dfs>(
-      Dfs::kName, Dfs::kArgCount, context_.storage->mutable_string_pool());
+      context_.storage->mutable_string_pool());
   engine_->RegisterSqliteAggregateFunction<DominatorTree>(
-      DominatorTree::kName, DominatorTree::kArgCount,
       context_.storage->mutable_string_pool());
   engine_->RegisterSqliteAggregateFunction<StructuralTreePartition>(
-      StructuralTreePartition::kName, StructuralTreePartition::kArgCount,
       context_.storage->mutable_string_pool());
 
   // Metrics.
