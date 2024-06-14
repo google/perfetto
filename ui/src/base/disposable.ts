@@ -12,6 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// An (almost) ESnext spec-compliant shim/polyfill/replacement for:
+// - Disposable
+// - AsyncDisposable
+// - DisposableStack
+// - AsyncDisposableStack
+//
+// Typescript 5.2 introduces support for ESnext's explicit resource management,
+// but upgrading to it is not straightforward. However, because we still want to
+// take advantage of disposables, this file acts as a shim, implementing the
+// basics of disposables, which can be used in the meantime.
+//
+// See:
+// - https://github.com/tc39/proposal-explicit-resource-management
+// - https://www.typescriptlang.org/docs/handbook/release-notes/typescript-5-2.html
+
 // Represents an object that can/should be disposed of to release resources or
 // perform cleanup operations.
 export interface Disposable {
