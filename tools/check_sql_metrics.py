@@ -74,6 +74,7 @@ def match_drop_view_pattern_to_dict(sql: str,
 
 
 def check(path: str, metrics_sources: str) -> List[str]:
+  errors = []
   with open(path) as f:
     sql = f.read()
 
@@ -98,10 +99,10 @@ def check(path: str, metrics_sources: str) -> List[str]:
       sql, CREATE_TABLE_VIEW_PATTERN)
   drop_table_view_dir = match_drop_view_pattern_to_dict(
       sql, DROP_TABLE_VIEW_PATTERN)
-  errors = check_banned_create_table_as(sql,
-                                        path.split(ROOT_DIR)[1],
-                                        metrics_sources.split(ROOT_DIR)[1],
-                                        CREATE_TABLE_ALLOWLIST)
+  errors += check_banned_create_table_as(sql,
+                                         path.split(ROOT_DIR)[1],
+                                         metrics_sources.split(ROOT_DIR)[1],
+                                         CREATE_TABLE_ALLOWLIST)
   errors += check_banned_create_view_as(sql, path.split(ROOT_DIR)[1])
   for name, [line, type] in create_table_view_dir.items():
     if name not in drop_table_view_dir:
