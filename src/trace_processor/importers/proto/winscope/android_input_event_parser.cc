@@ -79,7 +79,7 @@ void AndroidInputEventParser::ParseMotionEvent(
   AndroidMotionEvent::Decoder event_proto(bytes);
   tables::AndroidMotionEventsTable::Row event_row;
   event_row.event_id = event_proto.event_id();
-  event_row.ts = event_proto.event_time_nanos();
+  event_row.ts = packet_ts;
 
   auto event_row_id = context_.storage->mutable_android_motion_events_table()
                           ->Insert(event_row)
@@ -100,7 +100,7 @@ void AndroidInputEventParser::ParseKeyEvent(
   AndroidKeyEvent::Decoder event_proto(bytes);
   tables::AndroidKeyEventsTable::Row event_row;
   event_row.event_id = event_proto.event_id();
-  event_row.ts = event_proto.event_time_nanos();
+  event_row.ts = packet_ts;
 
   auto event_row_id = context_.storage->mutable_android_key_events_table()
                           ->Insert(event_row)

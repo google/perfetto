@@ -138,7 +138,7 @@ CREATE PERFETTO VIEW android_key_events(
   -- The randomly-generated ID associated with each input event processed
   -- by Android Framework, used to track the event through the input pipeline
   event_id INT,
-  -- The timestamp associated with the input event
+  -- The timestamp of when the input event was processed by the system
   ts INT,
   -- Details of the input event parsed from the proto message
   arg_set_id INT
@@ -157,7 +157,7 @@ CREATE PERFETTO VIEW android_motion_events(
   -- The randomly-generated ID associated with each input event processed
   -- by Android Framework, used to track the event through the input pipeline
   event_id INT,
-  -- The timestamp associated with the input event
+  -- The timestamp of when the input event was processed by the system
   ts INT,
   -- Details of the input event parsed from the proto message
   arg_set_id INT
