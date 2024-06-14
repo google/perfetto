@@ -20,8 +20,8 @@ import {Button} from '../widgets/button';
 import {Icons} from '../base/semantic_icons';
 import {ThreadSliceTrack} from './thread_slice_track';
 import {uuidv4Sql} from '../base/uuid';
-import {Disposable} from '../base/disposable';
 import {Engine} from '../trace_processor/engine';
+import {createView} from '../trace_processor/sql_utils';
 
 export interface VisualizedArgsTrackAttrs {
   readonly trackKey: string;
@@ -51,9 +51,11 @@ export class VisualisedArgsTrack extends ThreadSliceTrack {
     this.argName = argName;
   }
 
-  async onInit(): Promise<Disposable> {
-    await this.engine.query(`
-        create view ${this.viewName} as
+  async onInit() {
+    return await createView(
+      this.engine,
+      this.viewName,
+      `
         with slice_with_arg as (
           select
             slice.id,
@@ -74,12 +76,9 @@ export class VisualisedArgsTrack extends ThreadSliceTrack {
           join slice_with_arg s3 on s2.id=s3.id
           ) as depth
         from slice_with_arg s1
-        order by id;
-    `);
-
-    return {
-      dispose: () => this.engine.tryQuery(`drop view ${this.viewName}`),
-    };
+        order by id
+      `,
+    );
   }
 
   getTrackShellButtons(): m.Children {

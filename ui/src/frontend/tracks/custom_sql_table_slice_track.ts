@@ -14,7 +14,7 @@
 
 import {v4 as uuidv4} from 'uuid';
 
-import {Disposable} from '../../base/disposable';
+import {AsyncDisposable, AsyncDisposableStack} from '../../base/disposable';
 import {Actions} from '../../common/actions';
 import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
 import {LegacySelection} from '../../common/state';
@@ -23,6 +23,7 @@ import {GenericSliceDetailsTabConfigBase} from '../generic_slice_details_tab';
 import {globals} from '../globals';
 import {NamedSliceTrack, NamedSliceTrackTypes} from '../named_slice_track';
 import {NewTrackArgs} from '../track';
+import {createView} from '../../trace_processor/sql_utils';
 
 export interface CustomSqlImportConfig {
   modules: string[];
@@ -34,7 +35,7 @@ export interface CustomSqlTableDefConfig {
   // Table columns
   columns?: string[];
   whereClause?: string;
-  dispose?: Disposable;
+  disposable?: AsyncDisposable;
 }
 
 export interface CustomSqlDetailsPanelConfig {
@@ -71,30 +72,29 @@ export abstract class CustomSqlTableSliceTrack<
     };
   }
 
-  async onInit(): Promise<Disposable> {
+  async onInit() {
     await this.loadImports();
     const config = await Promise.resolve(this.getSqlDataSource());
     let columns = ['*'];
     if (config.columns !== undefined) {
       columns = config.columns;
     }
-
-    const sql =
-      `CREATE VIEW ${this.tableName} AS ` +
-      generateSqlWithInternalLayout({
-        columns: columns,
-        sourceTable: config.sqlTableName,
-        ts: 'ts',
-        dur: 'dur',
-        whereClause: config.whereClause,
-      });
-    await this.engine.query(sql);
-    return {
-      dispose: () => {
-        this.engine.tryQuery(`DROP VIEW ${this.tableName}`);
-        config.dispose?.dispose();
-      },
-    };
+    const trash = new AsyncDisposableStack();
+    config.disposable && trash.use(config.disposable);
+    trash.use(
+      await createView(
+        this.engine,
+        this.tableName,
+        generateSqlWithInternalLayout({
+          columns: columns,
+          sourceTable: config.sqlTableName,
+          ts: 'ts',
+          dur: 'dur',
+          whereClause: config.whereClause,
+        }),
+      ),
+    );
+    return trash;
   }
 
   getSqlSource(): string {
