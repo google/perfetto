@@ -179,7 +179,7 @@ RETURNS PROTO  AS
     ORDER BY slice_dur DESC
     LIMIT $num_slices);
 
-CREATE PERFETTO FUNCTION get_dur_on_main_thread_for_startup_and_slice(
+CREATE OR REPLACE PERFETTO FUNCTION get_dur_on_main_thread_for_startup_and_slice(
   startup_id LONG, slice_name STRING, num_slices INT)
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceSliceSection(
@@ -240,7 +240,7 @@ RETURNS PROTO AS
       s.ts BETWEEN launch.ts AND launch.ts_end
     ORDER BY dur DESC LIMIT $num_slices);
 
-CREATE PERFETTO FUNCTION get_slices_for_startup_and_slice_name(
+CREATE OR REPLACE PERFETTO FUNCTION get_slices_for_startup_and_slice_name(
   startup_id INT, slice_name STRING, num_slices INT)
 RETURNS PROTO AS
   SELECT RepeatedField(AndroidStartupMetric_TraceSliceSection(
