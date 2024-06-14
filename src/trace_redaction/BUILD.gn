@@ -99,7 +99,6 @@ source_set("integrationtests") {
     "scrub_process_stats_integrationtest.cc",
     "trace_redaction_integration_fixture.cc",
     "trace_redaction_integration_fixture.h",
-    "verify_integrity_integrationtest.cc",
   ]
   deps = [
     ":trace_redaction",

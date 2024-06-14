@@ -29,7 +29,7 @@ namespace {
 // The trace packet uid must be less than or equal to 9999 (nobody). If it is
 // anything else, the packet is invalid.
 int32_t kValid = 1000;
-int32_t kLastValid = Context::VerifyConfig::kMaxTrustedUid;
+int32_t kLastValid = Context::kMaxTrustedUid;
 int32_t kInvalidUid = 12000;
 
 uint64_t kSomeTime = 1234;
