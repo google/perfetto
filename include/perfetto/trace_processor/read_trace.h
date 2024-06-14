@@ -32,7 +32,8 @@ class TraceProcessor;
 util::Status PERFETTO_EXPORT_COMPONENT ReadTrace(
     TraceProcessor* tp,
     const char* filename,
-    const std::function<void(uint64_t parsed_size)>& progress_callback = {});
+    const std::function<void(uint64_t parsed_size)>& progress_callback =
+        [](uint64_t) {});
 
 util::Status PERFETTO_EXPORT_COMPONENT
 DecompressTrace(const uint8_t* data, size_t size, std::vector<uint8_t>* output);

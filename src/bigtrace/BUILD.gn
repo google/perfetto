@@ -35,7 +35,10 @@ if (enable_perfetto_grpc) {
     deps = [
       "../../gn:default_deps",
       "../../gn:grpc",
+      "../../include/perfetto/ext/trace_processor/rpc:query_result_serializer",
       "../../protos/perfetto/bigtrace:worker_grpc",
+      "../../src/trace_processor",
+      "../../src/trace_processor/rpc:rpc",
       "../base",
     ]
   }
