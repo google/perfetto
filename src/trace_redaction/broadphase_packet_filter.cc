@@ -48,11 +48,14 @@ base::Status BroadphasePacketFilter::Transform(const Context& context,
 
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
-    if (mask.test(field.id()) &&
-        field.id() == protos::pbzero::TracePacket::kFtraceEventsFieldNumber) {
-      OnFtraceEvents(context, field.as_bytes(), message->set_ftrace_events());
-    } else if (mask.test(field.id())) {
-      proto_util::AppendField(field, message.get());
+    // Make sure the id can be references. If it is out of bounds, it is by
+    // definition "no set".
+    if (field.id() < mask.size() && mask.test(field.id())) {
+      if (field.id() == protos::pbzero::TracePacket::kFtraceEventsFieldNumber) {
+        OnFtraceEvents(context, field.as_bytes(), message->set_ftrace_events());
+      } else {
+        proto_util::AppendField(field, message.get());
+      }
     }
   }
 
@@ -90,7 +93,9 @@ void BroadphasePacketFilter::OnFtraceEvent(
 
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
-    if (mask.test(field.id())) {
+    // Make sure the id can be references. If it is out of bounds, it is by
+    // definition "no set".
+    if (field.id() < mask.size() && mask.test(field.id())) {
       proto_util::AppendField(field, message);
     }
   }
