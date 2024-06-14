@@ -20,7 +20,6 @@ import {
 } from '../../frontend/base_counter_track';
 import {CloseTrackButton} from '../../frontend/close_track_button';
 import {NewTrackArgs} from '../../frontend/track';
-import {DisposableStack} from '../../base/disposable';
 
 export class RunnableThreadCountTrack extends BaseCounterTrack {
   static readonly kind = 'dev.perfetto.Sched.RunnableThreadCount';
@@ -46,7 +45,6 @@ export class RunnableThreadCountTrack extends BaseCounterTrack {
     await this.engine.query(
       `INCLUDE PERFETTO MODULE sched.thread_level_parallelism`,
     );
-    return new DisposableStack();
   }
 
   getSqlSource() {

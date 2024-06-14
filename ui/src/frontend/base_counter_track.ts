@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {searchSegment} from '../base/binary_search';
-import {Disposable, DisposableStack} from '../base/disposable';
+import {AsyncDisposable, AsyncDisposableStack} from '../base/disposable';
 import {assertTrue, assertUnreachable} from '../base/logging';
 import {Time, time} from '../base/time';
 import {uuidv4Sql} from '../base/uuid';
@@ -203,15 +203,14 @@ export abstract class BaseCounterTrack implements Track {
     displayValueRange: [0, 0],
   };
 
-  // Cleanup hook for onInit.
-  private initState?: Disposable;
-
   private limits?: CounterLimits;
 
   private mousePos = {x: 0, y: 0};
   private hover?: CounterTooltipState;
   private defaultOptions: Partial<CounterOptions>;
   private options?: CounterOptions;
+
+  private readonly trash: AsyncDisposableStack;
 
   private getCounterOptions(): CounterOptions {
     if (this.options === undefined) {
@@ -234,9 +233,7 @@ export abstract class BaseCounterTrack implements Track {
   // queries using the result of getSqlSource(). All persistent
   // state in trace_processor should be cleaned up when dispose is
   // called on the returned hook.
-  async onInit(): Promise<Disposable> {
-    return new DisposableStack();
-  }
+  async onInit(): Promise<AsyncDisposable | void> {}
 
   // This should be an SQL expression returning the columns `ts` and `value`.
   abstract getSqlSource(): string;
@@ -254,6 +251,7 @@ export abstract class BaseCounterTrack implements Track {
     this.engine = args.engine;
     this.trackKey = args.trackKey;
     this.defaultOptions = args.options ?? {};
+    this.trash = new AsyncDisposableStack();
   }
 
   getHeight() {
@@ -442,7 +440,8 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   async onCreate(): Promise<void> {
-    this.initState = await this.onInit();
+    const result = await this.onInit();
+    result && this.trash.use(result);
     this.limits = await this.createTableAndFetchLimits(false);
   }
 
@@ -686,11 +685,7 @@ export abstract class BaseCounterTrack implements Track {
   }
 
   async onDestroy(): Promise<void> {
-    if (this.initState) {
-      this.initState.dispose();
-      this.initState = undefined;
-    }
-    await this.engine.tryQuery(`drop table if exists ${this.getTableName()}`);
+    await this.trash.disposeAsync();
   }
 
   // Compute the range of values to display and range label.
@@ -894,6 +889,10 @@ export abstract class BaseCounterTrack implements Track {
         trace_start(), trace_end(), trace_dur()
       );
     `);
+
+    this.trash.defer(async () => {
+      this.engine.tryQuery(`drop table if exists ${this.getTableName()}`);
+    });
 
     const {minDisplayValue, maxDisplayValue} = displayValueQuery.firstRow({
       minDisplayValue: NUM,
