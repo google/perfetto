@@ -36,13 +36,13 @@ class ScrubProcessStatsTest : public testing::Test,
                               protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    trace_redactor()->emplace_collect<CollectTimelineEvents>();
+    trace_redactor_.emplace_collect<CollectTimelineEvents>();
 
-    auto* scrub = trace_redactor()->emplace_transform<ScrubProcessStats>();
+    auto* scrub = trace_redactor_.emplace_transform<ScrubProcessStats>();
     scrub->emplace_filter<ConnectedToPackage>();
 
     // Package "com.Unity.com.unity.multiplayer.samples.coop";
-    context()->package_uid = 10252;
+    context_.package_uid = 10252;
   }
 
   // Gets pids from all process_stats messages in the trace (bytes).
@@ -70,6 +70,9 @@ class ScrubProcessStatsTest : public testing::Test,
 
     return pids;
   }
+
+  Context context_;
+  TraceRedactor trace_redactor_;
 };
 
 // This test is a canary for changes to the test data. If the test data was to
@@ -128,7 +131,7 @@ TEST_F(ScrubProcessStatsTest, VerifyTraceStats) {
 // Package name: "com.Unity.com.unity.multiplayer.samples.coop"
 // Package pid: 7105
 TEST_F(ScrubProcessStatsTest, OnlyKeepsStatsForPackage) {
-  auto result = Redact();
+  auto result = Redact(trace_redactor_, &context_);
   ASSERT_OK(result) << result.c_message();
 
   auto redacted = LoadRedacted();
