@@ -75,6 +75,12 @@ android_startup {
         dur: 80
       }
       launch_dur: 108
+      trace_thread_sections {
+        start_timestamp: 130
+        end_timestamp: 210
+        thread_utid: 3
+        thread_name: "com.google.android.calendar"
+      }
     }
     startup_type: "warm"
   }

@@ -41,6 +41,12 @@ android_startup {
         value: 1
       }
       launch_dur: 100
+      trace_slice_sections {
+        start_timestamp: 130
+        end_timestamp: 133
+        slice_id: 1
+        slice_name: "KeyguardUpdateMonitor#onAuthenticationSucceeded"
+      }
     }
   }
 }

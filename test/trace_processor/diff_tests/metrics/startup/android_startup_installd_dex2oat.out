@@ -73,6 +73,7 @@ android_startup {
         value: 1
       }
       launch_dur: 100
+      additional_info: "Process: dex2oat64"
     }
   }
   startup {
@@ -118,6 +119,7 @@ android_startup {
         value: 1
       }
       launch_dur: 100
+      additional_info: "Process: installd"
     }
   }
   startup {
@@ -165,6 +167,7 @@ android_startup {
         value: 1
       }
       launch_dur: 100
+      additional_info: "Process: dex2oat64"
     }
     slow_start_reason_with_details {
       reason_id: INSTALLD_RUNNING
@@ -177,6 +180,7 @@ android_startup {
         value: 1
       }
       launch_dur: 100
+      additional_info: "Process: installd"
     }
   }
 }

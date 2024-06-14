@@ -126,7 +126,7 @@ trace.add_atrace_end(ts=to_s(280), pid=APP_PID, tid=SECOND_APP_TID)
 for t in range(100, 160, 1):
   # JIT compilation slices
   trace.add_atrace_begin(
-      ts=to_s(t), pid=APP_PID, tid=JIT_TID, buf='JIT compiling someting')
+      ts=to_s(t), pid=APP_PID, tid=JIT_TID, buf='JIT compiling something')
   trace.add_atrace_end(ts=to_s(t + 1), pid=APP_PID, tid=JIT_TID)
 
 trace.add_sched(ts=to_s(155), prev_pid=0, next_pid=JIT_TID)

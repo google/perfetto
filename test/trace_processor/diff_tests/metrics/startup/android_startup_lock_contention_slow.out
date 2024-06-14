@@ -79,6 +79,12 @@ android_startup {
         value: 3000000000
       }
       launch_dur: 100000000000
+      trace_slice_sections {
+        start_timestamp: 112000000000
+        end_timestamp: 115000000000
+        slice_id: 1
+        slice_name: "bindApplication"
+      }
     }
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_LOCK_CONTENTION
