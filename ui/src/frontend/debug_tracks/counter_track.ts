@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
 import {BaseCounterTrack} from '../../frontend/base_counter_track';
 import {TrackContext} from '../../public';
 import {Engine} from '../../trace_processor/engine';
@@ -27,10 +25,6 @@ export class DebugCounterTrack extends BaseCounterTrack {
       trackKey: ctx.trackKey,
     });
     this.sqlTableName = tableName;
-  }
-
-  getTrackShellButtons(): m.Children {
-    return this.getCounterContextMenu();
   }
 
   getSqlSource(): string {
