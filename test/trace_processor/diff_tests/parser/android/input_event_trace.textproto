@@ -3,27 +3,27 @@ packet {
     primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
     clocks {
       clock_id: 6
-      timestamp: 178674061789798
+      timestamp: 674770590741767
     }
     clocks {
       clock_id: 2
-      timestamp: 1715375168889637820
+      timestamp: 1718386902201012395
     }
     clocks {
       clock_id: 4
-      timestamp: 64176147060835
+      timestamp: 517479917684233
     }
     clocks {
       clock_id: 1
-      timestamp: 1715375168892622806
+      timestamp: 1718386902204523056
     }
     clocks {
       clock_id: 3
-      timestamp: 64176150045943
+      timestamp: 517479921194975
     }
     clocks {
       clock_id: 5
-      timestamp: 64176150046147
+      timestamp: 517479921195099
     }
   }
   trusted_uid: 9999
@@ -34,27 +34,27 @@ packet {
     primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
     clocks {
       clock_id: 6
-      timestamp: 178674061806929
+      timestamp: 674770590825792
     }
     clocks {
       clock_id: 2
-      timestamp: 1715375168889637820
+      timestamp: 1718386902201012395
     }
     clocks {
       clock_id: 4
-      timestamp: 64176147060835
+      timestamp: 517479917684233
     }
     clocks {
       clock_id: 1
-      timestamp: 1715375168892639855
+      timestamp: 1718386902204607000
     }
     clocks {
       clock_id: 3
-      timestamp: 64176150062992
+      timestamp: 517479921278919
     }
     clocks {
       clock_id: 5
-      timestamp: 64176150063155
+      timestamp: 517479921279042
     }
   }
   trusted_uid: 9999
@@ -86,38 +86,38 @@ packet {
     statsd_metadata {
     }
     statsd_logging: STATSD_LOGGING_DISABLED
-    trace_uuid_msb: 6148766808500972866
-    trace_uuid_lsb: -1402094119056663186
+    trace_uuid_msb: 8003899888869335060
+    trace_uuid_lsb: -5519492449794714505
   }
 }
 packet {
   trusted_uid: 9999
   trusted_packet_sequence_id: 1
   trace_uuid {
-    lsb: -1402094119056663186
-    msb: 6148766808500972866
+    lsb: -5519492449794714505
+    msb: 8003899888869335060
   }
 }
 packet {
   system_info {
-    tracing_service_version: "Perfetto v44.0 (N/A)"
-    timezone_off_mins: 0
+    tracing_service_version: "Perfetto v45.0 (N/A)"
+    timezone_off_mins: -240
     utsname {
       sysname: "Linux"
-      version: "#1 SMP PREEMPT Thu Mar 28 12:45:51 UTC 2024"
+      version: "#1 SMP PREEMPT Thu May 23 13:08:51 UTC 2024"
       machine: "aarch64"
-      release: "5.10.209-android13-4-02808-g9f408f561c85-ab11640454"
+      release: "5.10.209-android13-4-02835-gce4db2481eb5-ab11882700"
     }
     page_size: 4096
     num_cpus: 8
-    android_build_fingerprint: "google/tangorpro/tangorpro:VanillaIceCream/MAIN/eng.prabir.20240508.183909:eng/dev-keys"
+    android_build_fingerprint: "google/tangorpro/tangorpro:VanillaIceCream/MAIN/eng.prabir.20240606.172326:eng/dev-keys"
     android_sdk_version: 35
   }
   trusted_uid: 9999
   trusted_packet_sequence_id: 1
 }
 packet {
-  timestamp: 178674061798587
+  timestamp: 674770590804552
   trusted_uid: 9999
   trusted_packet_sequence_id: 1
   service_event {
@@ -125,7 +125,7 @@ packet {
   }
 }
 packet {
-  timestamp: 178674065835493
+  timestamp: 674770593089261
   trusted_uid: 9999
   trusted_packet_sequence_id: 1
   service_event {
@@ -133,7 +133,7 @@ packet {
   }
 }
 packet {
-  timestamp: 178683982315600
+  timestamp: 674775802354888
   trusted_uid: 9999
   trusted_packet_sequence_id: 1
   service_event {
@@ -141,7 +141,7 @@ packet {
   }
 }
 packet {
-  timestamp: 178683984185189
+  timestamp: 674775804499013
   trusted_uid: 9999
   trusted_packet_sequence_id: 1
   service_event {
@@ -150,18 +150,20 @@ packet {
 }
 packet {
   first_packet_on_sequence: true
+  timestamp: 517481517002349
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_motion_event {
-        event_id: 104114844
-        event_time_nanos: 64179212500000
-        down_time_nanos: 64179212500000
+        event_id: 330184796
+        event_time_nanos: 517481507875000
+        down_time_nanos: 517481507875000
         source: 4098
         action: 0
         device_id: 4
         display_id: 0
         classification: 0
-        flags: 0
+        flags: 128
         policy_flags: 1644167168
         cursor_position_x: nan
         cursor_position_y: nan
@@ -171,39 +173,39 @@ packet {
           tool_type: 1
           axis_value {
             axis: 0
-            value: 580.000000
+            value: 431.000000
           }
           axis_value {
             axis: 1
-            value: 798.000000
+            value: 624.000000
           }
           axis_value {
             axis: 2
-            value: 1.003906
+            value: 1.324219
           }
           axis_value {
             axis: 3
-            value: 0.033998
+            value: 0.039273
           }
           axis_value {
             axis: 4
-            value: 92.000000
+            value: 110.000000
           }
           axis_value {
             axis: 5
-            value: 82.000000
+            value: 91.000000
           }
           axis_value {
             axis: 6
-            value: 92.000000
+            value: 110.000000
           }
           axis_value {
             axis: 7
-            value: 82.000000
+            value: 91.000000
           }
           axis_value {
             axis: 8
-            value: 0.983282
+            value: 1.120190
           }
         }
       }
@@ -211,22 +213,24 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
   previous_packet_dropped: true
 }
 packet {
+  timestamp: 517481517002349
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_motion_event {
-        event_id: 1141228253
-        event_time_nanos: 64179212500000
-        down_time_nanos: 64179212500000
+        event_id: 1327679296
+        event_time_nanos: 517481507875000
+        down_time_nanos: 517481507875000
         source: 4098
         action: 4
         device_id: 4
         display_id: 0
         classification: 0
-        flags: 0
+        flags: 128
         policy_flags: 1644167168
         cursor_position_x: nan
         cursor_position_y: nan
@@ -236,39 +240,39 @@ packet {
           tool_type: 1
           axis_value {
             axis: 0
-            value: 580.000000
+            value: 431.000000
           }
           axis_value {
             axis: 1
-            value: 798.000000
+            value: 624.000000
           }
           axis_value {
             axis: 2
-            value: 1.003906
+            value: 1.324219
           }
           axis_value {
             axis: 3
-            value: 0.033998
+            value: 0.039273
           }
           axis_value {
             axis: 4
-            value: 92.000000
+            value: 110.000000
           }
           axis_value {
             axis: 5
-            value: 82.000000
+            value: 91.000000
           }
           axis_value {
             axis: 6
-            value: 92.000000
+            value: 110.000000
           }
           axis_value {
             axis: 7
-            value: 82.000000
+            value: 91.000000
           }
           axis_value {
             axis: 8
-            value: 0.983282
+            value: 1.120190
           }
         }
       }
@@ -276,31 +280,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481517002349
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 1141228253
-        vsync_id: 182239
-        window_id: 105
-        resolved_flags: 0
+        event_id: 1327679296
+        vsync_id: 89110
+        window_id: 98
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: -681.000000
+            value: -830.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.554132
+            value: -0.450654
           }
         }
       }
@@ -308,31 +314,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481517002349
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 104114844
-        vsync_id: 182239
-        window_id: 181
-        resolved_flags: 0
+        event_id: 330184796
+        vsync_id: 89110
+        window_id: 212
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.554157
+            value: -0.450638
           }
         }
       }
@@ -340,31 +348,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481517002349
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 104114844
-        vsync_id: 182239
-        window_id: 58
-        resolved_flags: 3
+        event_id: 330184796
+        vsync_id: 89110
+        window_id: 64
+        resolved_flags: 131
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1718.181641
+            value: 1876.363281
           }
           axis_value_in_window {
             axis: 1
-            value: 600.000000
+            value: 464.545898
           }
           axis_value_in_window {
             axis: 8
-            value: 2.554074
+            value: -0.450681
           }
         }
       }
@@ -372,31 +382,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481517002349
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 104114844
-        vsync_id: 182239
-        window_id: 76
-        resolved_flags: 0
+        event_id: 330184796
+        vsync_id: 89110
+        window_id: 82
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.554157
+            value: -0.450638
           }
         }
       }
@@ -404,31 +416,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481517002349
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 104114844
-        vsync_id: 182239
-        window_id: 68
-        resolved_flags: 0
+        event_id: 330184796
+        vsync_id: 89110
+        window_id: 75
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.554157
+            value: -0.450638
           }
         }
       }
@@ -436,31 +450,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481517002349
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 104114844
+        event_id: 330184796
         vsync_id: 0
         window_id: 0
-        resolved_flags: 0
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.554157
+            value: -0.450638
           }
         }
       }
@@ -468,21 +484,23 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481538183257
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_motion_event {
-        event_id: 843076721
-        event_time_nanos: 64179262122000
-        down_time_nanos: 64179212500000
+        event_id: 557261353
+        event_time_nanos: 517481533371000
+        down_time_nanos: 517481507875000
         source: 4098
         action: 2
         device_id: 4
         display_id: 0
         classification: 1
-        flags: 0
+        flags: 128
         policy_flags: 1644167168
         cursor_position_x: nan
         cursor_position_y: nan
@@ -492,11 +510,483 @@ packet {
           tool_type: 1
           axis_value {
             axis: 0
-            value: 580.000000
+            value: 431.000000
           }
           axis_value {
             axis: 1
-            value: 798.000000
+            value: 624.000000
+          }
+          axis_value {
+            axis: 2
+            value: 1.320312
+          }
+          axis_value {
+            axis: 3
+            value: 0.039273
+          }
+          axis_value {
+            axis: 4
+            value: 110.000000
+          }
+          axis_value {
+            axis: 5
+            value: 91.000000
+          }
+          axis_value {
+            axis: 6
+            value: 110.000000
+          }
+          axis_value {
+            axis: 7
+            value: 91.000000
+          }
+          axis_value {
+            axis: 8
+            value: 1.120190
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481538183257
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 557261353
+        vsync_id: 89110
+        window_id: 212
+        resolved_flags: 128
+        dispatched_pointer {
+          pointer_id: 0
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
+          axis_value_in_window {
+            axis: 0
+            value: 1936.000000
+          }
+          axis_value_in_window {
+            axis: 1
+            value: 431.000000
+          }
+          axis_value_in_window {
+            axis: 8
+            value: -0.450638
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481538183257
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 557261353
+        vsync_id: 89110
+        window_id: 64
+        resolved_flags: 131
+        dispatched_pointer {
+          pointer_id: 0
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
+          axis_value_in_window {
+            axis: 0
+            value: 1876.363281
+          }
+          axis_value_in_window {
+            axis: 1
+            value: 464.545898
+          }
+          axis_value_in_window {
+            axis: 8
+            value: -0.450681
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481538183257
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 557261353
+        vsync_id: 89110
+        window_id: 82
+        resolved_flags: 128
+        dispatched_pointer {
+          pointer_id: 0
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
+          axis_value_in_window {
+            axis: 0
+            value: 1936.000000
+          }
+          axis_value_in_window {
+            axis: 1
+            value: 431.000000
+          }
+          axis_value_in_window {
+            axis: 8
+            value: -0.450638
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481538183257
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 557261353
+        vsync_id: 89110
+        window_id: 75
+        resolved_flags: 128
+        dispatched_pointer {
+          pointer_id: 0
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
+          axis_value_in_window {
+            axis: 0
+            value: 1936.000000
+          }
+          axis_value_in_window {
+            axis: 1
+            value: 431.000000
+          }
+          axis_value_in_window {
+            axis: 8
+            value: -0.450638
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481538183257
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 557261353
+        vsync_id: 0
+        window_id: 0
+        resolved_flags: 128
+        dispatched_pointer {
+          pointer_id: 0
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
+          axis_value_in_window {
+            axis: 0
+            value: 1936.000000
+          }
+          axis_value_in_window {
+            axis: 1
+            value: 431.000000
+          }
+          axis_value_in_window {
+            axis: 8
+            value: -0.450638
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481543976511
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 106022695
+        event_time_nanos: 517481540876000
+        down_time_nanos: 517481507875000
+        source: 4098
+        action: 2
+        device_id: 4
+        display_id: 0
+        classification: 1
+        flags: 128
+        policy_flags: 1644167168
+        cursor_position_x: nan
+        cursor_position_y: nan
+        meta_state: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value {
+            axis: 0
+            value: 431.000000
+          }
+          axis_value {
+            axis: 1
+            value: 624.000000
+          }
+          axis_value {
+            axis: 2
+            value: 1.105469
+          }
+          axis_value {
+            axis: 3
+            value: 0.035952
+          }
+          axis_value {
+            axis: 4
+            value: 101.000000
+          }
+          axis_value {
+            axis: 5
+            value: 83.000000
+          }
+          axis_value {
+            axis: 6
+            value: 101.000000
+          }
+          axis_value {
+            axis: 7
+            value: 83.000000
+          }
+          axis_value {
+            axis: 8
+            value: 1.175413
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481543976511
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 106022695
+        vsync_id: 89110
+        window_id: 212
+        resolved_flags: 128
+        dispatched_pointer {
+          pointer_id: 0
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
+          axis_value_in_window {
+            axis: 0
+            value: 1936.000000
+          }
+          axis_value_in_window {
+            axis: 1
+            value: 431.000000
+          }
+          axis_value_in_window {
+            axis: 8
+            value: -0.395468
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481543976511
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 106022695
+        vsync_id: 89110
+        window_id: 64
+        resolved_flags: 131
+        dispatched_pointer {
+          pointer_id: 0
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
+          axis_value_in_window {
+            axis: 0
+            value: 1876.363281
+          }
+          axis_value_in_window {
+            axis: 1
+            value: 464.545898
+          }
+          axis_value_in_window {
+            axis: 8
+            value: -0.395334
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481543976511
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 106022695
+        vsync_id: 89110
+        window_id: 82
+        resolved_flags: 128
+        dispatched_pointer {
+          pointer_id: 0
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
+          axis_value_in_window {
+            axis: 0
+            value: 1936.000000
+          }
+          axis_value_in_window {
+            axis: 1
+            value: 431.000000
+          }
+          axis_value_in_window {
+            axis: 8
+            value: -0.395468
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481543976511
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 106022695
+        vsync_id: 89110
+        window_id: 75
+        resolved_flags: 128
+        dispatched_pointer {
+          pointer_id: 0
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
+          axis_value_in_window {
+            axis: 0
+            value: 1936.000000
+          }
+          axis_value_in_window {
+            axis: 1
+            value: 431.000000
+          }
+          axis_value_in_window {
+            axis: 8
+            value: -0.395468
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481543976511
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_window_dispatch_event {
+        event_id: 106022695
+        vsync_id: 0
+        window_id: 0
+        resolved_flags: 128
+        dispatched_pointer {
+          pointer_id: 0
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
+          axis_value_in_window {
+            axis: 0
+            value: 1936.000000
+          }
+          axis_value_in_window {
+            axis: 1
+            value: 431.000000
+          }
+          axis_value_in_window {
+            axis: 8
+            value: -0.395468
+          }
+        }
+      }
+    }
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 31778
+}
+packet {
+  timestamp: 517481553353301
+  timestamp_clock_id: 3
+  winscope_extensions {
+    [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
+      dispatcher_motion_event {
+        event_id: 313395000
+        event_time_nanos: 517481550152000
+        down_time_nanos: 517481507875000
+        source: 4098
+        action: 2
+        device_id: 4
+        display_id: 0
+        classification: 1
+        flags: 128
+        policy_flags: 1644167168
+        cursor_position_x: nan
+        cursor_position_y: nan
+        meta_state: 0
+        pointer {
+          pointer_id: 0
+          tool_type: 1
+          axis_value {
+            axis: 0
+            value: 431.000000
+          }
+          axis_value {
+            axis: 1
+            value: 624.000000
           }
           axis_value {
             axis: 2
@@ -524,7 +1014,7 @@ packet {
           }
           axis_value {
             axis: 8
-            value: 0.912335
+            value: 1.175413
           }
         }
       }
@@ -532,31 +1022,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481553353301
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 843076721
-        vsync_id: 182239
-        window_id: 181
-        resolved_flags: 0
+        event_id: 313395000
+        vsync_id: 89110
+        window_id: 212
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.483198
+            value: -0.395468
           }
         }
       }
@@ -564,31 +1056,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481553353301
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 843076721
-        vsync_id: 182239
-        window_id: 58
-        resolved_flags: 3
+        event_id: 313395000
+        vsync_id: 89110
+        window_id: 64
+        resolved_flags: 131
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1718.181641
+            value: 1876.363281
           }
           axis_value_in_window {
             axis: 1
-            value: 600.000000
+            value: 464.545898
           }
           axis_value_in_window {
             axis: 8
-            value: 2.483237
+            value: -0.395334
           }
         }
       }
@@ -596,31 +1090,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481553353301
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 843076721
-        vsync_id: 182239
-        window_id: 76
-        resolved_flags: 0
+        event_id: 313395000
+        vsync_id: 89110
+        window_id: 82
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.483198
+            value: -0.395468
           }
         }
       }
@@ -628,31 +1124,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481553353301
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 843076721
-        vsync_id: 182239
-        window_id: 68
-        resolved_flags: 0
+        event_id: 313395000
+        vsync_id: 89110
+        window_id: 75
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.483198
+            value: -0.395468
           }
         }
       }
@@ -660,31 +1158,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481553353301
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 843076721
+        event_id: 313395000
         vsync_id: 0
         window_id: 0
-        resolved_flags: 0
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.483198
+            value: -0.395468
           }
         }
       }
@@ -692,21 +1192,23 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481558399200
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_motion_event {
-        event_id: 744146837
-        event_time_nanos: 64179268985000
-        down_time_nanos: 64179212500000
+        event_id: 436499943
+        event_time_nanos: 517481557012000
+        down_time_nanos: 517481507875000
         source: 4098
         action: 1
         device_id: 4
         display_id: 0
         classification: 1
-        flags: 0
+        flags: 128
         policy_flags: 1644167168
         cursor_position_x: nan
         cursor_position_y: nan
@@ -716,11 +1218,11 @@ packet {
           tool_type: 1
           axis_value {
             axis: 0
-            value: 580.000000
+            value: 431.000000
           }
           axis_value {
             axis: 1
-            value: 798.000000
+            value: 624.000000
           }
           axis_value {
             axis: 2
@@ -748,7 +1250,7 @@ packet {
           }
           axis_value {
             axis: 8
-            value: 0.912335
+            value: 1.175413
           }
         }
       }
@@ -756,31 +1258,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481558399200
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 744146837
-        vsync_id: 182239
-        window_id: 181
-        resolved_flags: 0
+        event_id: 436499943
+        vsync_id: 89110
+        window_id: 212
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.483198
+            value: -0.395468
           }
         }
       }
@@ -788,31 +1292,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481558399200
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 744146837
-        vsync_id: 182239
-        window_id: 58
-        resolved_flags: 3
+        event_id: 436499943
+        vsync_id: 89110
+        window_id: 64
+        resolved_flags: 131
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1718.181641
+            value: 1876.363281
           }
           axis_value_in_window {
             axis: 1
-            value: 600.000000
+            value: 464.545898
           }
           axis_value_in_window {
             axis: 8
-            value: 2.483237
+            value: -0.395334
           }
         }
       }
@@ -820,31 +1326,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481558399200
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 744146837
-        vsync_id: 182239
-        window_id: 76
-        resolved_flags: 0
+        event_id: 436499943
+        vsync_id: 89110
+        window_id: 82
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.483198
+            value: -0.395468
           }
         }
       }
@@ -852,31 +1360,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481558399200
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 744146837
-        vsync_id: 182239
-        window_id: 68
-        resolved_flags: 0
+        event_id: 436499943
+        vsync_id: 89110
+        window_id: 75
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.483198
+            value: -0.395468
           }
         }
       }
@@ -884,31 +1394,33 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517481558399200
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 744146837
+        event_id: 436499943
         vsync_id: 0
         window_id: 0
-        resolved_flags: 0
+        resolved_flags: 128
         dispatched_pointer {
           pointer_id: 0
-          x_in_display: 1762.000000
-          y_in_display: 580.000000
+          x_in_display: 1936.000000
+          y_in_display: 431.000000
           axis_value_in_window {
             axis: 0
-            value: 1762.000000
+            value: 1936.000000
           }
           axis_value_in_window {
             axis: 1
-            value: 580.000000
+            value: 431.000000
           }
           axis_value_in_window {
             axis: 8
-            value: 2.483198
+            value: -0.395468
           }
         }
       }
@@ -916,15 +1428,17 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517482831698151
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_key_event {
-        event_id: 324105269
-        event_time_nanos: 64182660299000
-        down_time_nanos: 64182660299000
+        event_id: 759309047
+        event_time_nanos: 517482680619000
+        down_time_nanos: 517482680619000
         source: 257
         action: 0
         device_id: 2
@@ -932,36 +1446,40 @@ packet {
         repeat_count: 0
         flags: 8
         policy_flags: 1644167168
-        key_code: 25
-        scan_code: 114
+        key_code: 24
+        scan_code: 115
         meta_state: 0
       }
     }
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517482831698151
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 324105269
-        vsync_id: 182239
-        window_id: 181
+        event_id: 759309047
+        vsync_id: 89110
+        window_id: 212
         resolved_flags: 8
       }
     }
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517482831698151
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 324105269
+        event_id: 759309047
         vsync_id: 0
         window_id: 0
         resolved_flags: 8
@@ -970,15 +1488,17 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517482839729238
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_key_event {
-        event_id: 60594531
-        event_time_nanos: 64182816340000
-        down_time_nanos: 64182660299000
+        event_id: 894093732
+        event_time_nanos: 517482832173000
+        down_time_nanos: 517482680619000
         source: 257
         action: 1
         device_id: 2
@@ -986,36 +1506,40 @@ packet {
         repeat_count: 0
         flags: 8
         policy_flags: 1644167168
-        key_code: 25
-        scan_code: 114
+        key_code: 24
+        scan_code: 115
         meta_state: 0
       }
     }
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517482839729238
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 60594531
-        vsync_id: 182239
-        window_id: 181
+        event_id: 894093732
+        vsync_id: 89110
+        window_id: 212
         resolved_flags: 8
       }
     }
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
+  timestamp: 517482839729238
+  timestamp_clock_id: 3
   winscope_extensions {
     [perfetto.protos.WinscopeExtensionsImpl.android_input_event] {
       dispatcher_window_dispatch_event {
-        event_id: 60594531
+        event_id: 894093732
         vsync_id: 0
         window_id: 0
         resolved_flags: 8
@@ -1024,10 +1548,10 @@ packet {
   }
   trusted_uid: 1000
   trusted_packet_sequence_id: 2
-  trusted_pid: 1722
+  trusted_pid: 31778
 }
 packet {
-  timestamp: 178683985660693
+  timestamp: 674775805961781
   trusted_uid: 9999
   trusted_packet_sequence_id: 1
   service_event {
@@ -1043,13 +1567,13 @@ packet {
       bytes_written: 4096
       chunks_written: 1
     }
-    producers_connected: 13
-    producers_seen: 16
-    data_sources_registered: 40
-    data_sources_seen: 13
+    producers_connected: 18
+    producers_seen: 838
+    data_sources_registered: 51
+    data_sources_seen: 197
     tracing_sessions: 2
     total_buffers: 4
-    chunks_discarded: 7
+    chunks_discarded: 78
     patches_discarded: 0
     invalid_packets: 0
     flushes_requested: 1
