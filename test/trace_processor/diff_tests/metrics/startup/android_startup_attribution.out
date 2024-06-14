@@ -140,6 +140,12 @@ android_startup {
         value: 1
       }
       launch_dur: 999999900
+      trace_slice_sections {
+        start_timestamp: 340
+        end_timestamp: 390
+        slice_id: 18
+        slice_name: "CollectorTransition mark sweep GC"
+      }
     }
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_OPEN_DEX_FILES_FROM_OAT
@@ -154,6 +160,18 @@ android_startup {
         dur: 499999845
       }
       launch_dur: 999999900
+      trace_slice_sections {
+        start_timestamp: 170
+        end_timestamp: 500000000
+        slice_id: 9
+        slice_name: "OpenDexFilesFromOat(something else)"
+      }
+      trace_slice_sections {
+        start_timestamp: 150
+        end_timestamp: 165
+        slice_id: 5
+        slice_name: "OpenDexFilesFromOat(something)"
+      }
     }
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKED
@@ -166,6 +184,12 @@ android_startup {
         value: 1
       }
       launch_dur: 999999900
+      trace_slice_sections {
+        start_timestamp: 10000000
+        end_timestamp: 50000000
+        slice_id: 19
+        slice_name: "binder transaction"
+      }
     }
   }
 }
