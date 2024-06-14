@@ -28,13 +28,13 @@ namespace perfetto::trace_redaction {
 
 base::Status VerifyIntegrity::Collect(
     const protos::pbzero::TracePacket::Decoder& packet,
-    Context* context) const {
+    Context*) const {
   if (!packet.has_trusted_uid()) {
     return base::ErrStatus(
         "VerifyIntegrity: missing field (TracePacket::kTrustedUid).");
   }
 
-  if (packet.trusted_uid() > Context::VerifyConfig::kMaxTrustedUid) {
+  if (packet.trusted_uid() > Context::kMaxTrustedUid) {
     return base::ErrStatus("VerifyIntegrity: untrusted uid found (uid = %d).",
                            packet.trusted_uid());
   }
@@ -60,7 +60,7 @@ base::Status VerifyIntegrity::Collect(
   }
 
   if (packet.has_trace_stats()) {
-    RETURN_IF_ERROR(OnTraceStats(context->verify_config, packet.trace_stats()));
+    RETURN_IF_ERROR(OnTraceStats(packet.trace_stats()));
   }
 
   return base::OkStatus();
@@ -124,7 +124,6 @@ base::Status VerifyIntegrity::OnFtraceEvent(
 }
 
 base::Status VerifyIntegrity::OnTraceStats(
-    const Context::VerifyConfig& config,
     const protozero::ConstBytes bytes) const {
   protos::pbzero::TraceStats::Decoder trace_stats(bytes);
 
@@ -141,19 +140,17 @@ base::Status VerifyIntegrity::OnTraceStats(
   }
 
   for (auto it = trace_stats.buffer_stats(); it; ++it) {
-    RETURN_IF_ERROR(OnBufferStats(config, *it));
+    RETURN_IF_ERROR(OnBufferStats(*it));
   }
 
   return base::OkStatus();
 }
 
 base::Status VerifyIntegrity::OnBufferStats(
-    const Context::VerifyConfig& config,
     const protozero::ConstBytes bytes) const {
   protos::pbzero::TraceStats::BufferStats::Decoder stats(bytes);
 
-  if (config.verify_failed_patches && stats.has_patches_failed() &&
-      stats.patches_failed()) {
+  if (stats.has_patches_failed() && stats.patches_failed()) {
     return base::ErrStatus(
         "VerifyIntegrity: detected BufferStats patch fails.");
   }
