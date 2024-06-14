@@ -119,9 +119,6 @@ class PerfettoSqlEngine {
   //
   // The format of the function is given by the |SqliteAggregateFunction|.
   //
-  // |name|:          name of the function in SQL
-  // |argc|:          number of arguments for this function. This can be -1 if
-  //                  the number of arguments is variable.
   // |ctx|:           context object for the function; this object *must*
   //                  outlive the function so should likely be either static or
   //                  scoped to the lifetime of TraceProcessor.
@@ -129,8 +126,6 @@ class PerfettoSqlEngine {
   //                  same set of arguments.
   template <typename Function>
   base::Status RegisterSqliteAggregateFunction(
-      const char* name,
-      int argc,
       typename Function::UserDataContext* ctx,
       bool deterministic = true);
 
@@ -359,13 +354,12 @@ base::Status PerfettoSqlEngine::RegisterStaticFunction(
 
 template <typename Function>
 base::Status PerfettoSqlEngine::RegisterSqliteAggregateFunction(
-    const char* name,
-    int argc,
     typename Function::UserDataContext* ctx,
     bool deterministic) {
   static_aggregate_function_count_++;
   return engine_->RegisterAggregateFunction(
-      name, argc, Function::Step, Function::Final, ctx, nullptr, deterministic);
+      Function::kName, Function::kArgCount, Function::Step, Function::Final,
+      ctx, nullptr, deterministic);
 }
 
 template <typename Function>
