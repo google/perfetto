@@ -90,6 +90,7 @@ source_set("integrationtests") {
   testonly = true
   sources = [
     "boardphase_packet_filter_integrationtest.cc",
+    "collect_frame_cookies_integrationtest.cc",
     "filter_sched_waking_events_integrationtest.cc",
     "filter_task_rename_integrationtest.cc",
     "process_thread_timeline_integrationtest.cc",
