@@ -27,8 +27,10 @@ TraceRedactionIntegrationFixure::TraceRedactionIntegrationFixure() {
   dest_trace_ = tmp_dir_.AbsolutePath("dst.pftrace");
 }
 
-base::Status TraceRedactionIntegrationFixure::Redact() {
-  auto status = trace_redactor_.Redact(src_trace_, dest_trace_, &context_);
+base::Status TraceRedactionIntegrationFixure::Redact(
+    const TraceRedactor& redactor,
+    Context* context) {
+  auto status = redactor.Redact(src_trace_, dest_trace_, context);
 
   if (status.ok()) {
     tmp_dir_.TrackFile("dst.pftrace");

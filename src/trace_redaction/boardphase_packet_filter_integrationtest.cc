@@ -32,8 +32,8 @@ class BroadphasePacketFilterIntegrationTest
       protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    trace_redactor()->emplace_build<PopulateAllowlists>();
-    trace_redactor()->emplace_transform<BroadphasePacketFilter>();
+    trace_redactor_.emplace_build<PopulateAllowlists>();
+    trace_redactor_.emplace_transform<BroadphasePacketFilter>();
   }
 
   Context::TracePacketMask ScanPacketFields(const std::string& trace) {
@@ -70,6 +70,9 @@ class BroadphasePacketFilterIntegrationTest
     return mask;
   }
 
+  Context context_;
+  TraceRedactor trace_redactor_;
+
  private:
   Context::FtraceEventMask CopyEventFields(protozero::ConstBytes bytes) {
     protozero::ProtoDecoder decoder(bytes);
@@ -90,12 +93,12 @@ class BroadphasePacketFilterIntegrationTest
 // through redaction and checks that no excluded fields passed through
 // redaction.
 TEST_F(BroadphasePacketFilterIntegrationTest, OnlyKeepsIncludedPacketFields) {
-  ASSERT_OK(Redact());
+  ASSERT_OK(Redact(trace_redactor_, &context_));
 
   auto trace = LoadRedacted();
   ASSERT_OK(trace);
 
-  auto include_mask = context()->packet_mask;
+  auto include_mask = context_.packet_mask;
   auto exclude_mask = ~include_mask;
 
   auto fields = ScanPacketFields(*trace);
@@ -112,12 +115,12 @@ TEST_F(BroadphasePacketFilterIntegrationTest, OnlyKeepsIncludedPacketFields) {
 // redaction.
 TEST_F(BroadphasePacketFilterIntegrationTest,
        OnlyKeepsIncludedFtraceEventFields) {
-  ASSERT_OK(Redact());
+  ASSERT_OK(Redact(trace_redactor_, &context_));
 
   auto trace = LoadRedacted();
   ASSERT_OK(trace);
 
-  auto include_mask = context()->ftrace_mask;
+  auto include_mask = context_.ftrace_mask;
   auto exclude_mask = ~include_mask;
 
   auto fields = ScanFtraceEventFields(*trace);

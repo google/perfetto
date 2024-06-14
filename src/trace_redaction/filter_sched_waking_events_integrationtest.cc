@@ -46,16 +46,19 @@ class RedactSchedWakingIntegrationTest
       protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    trace_redactor()->emplace_collect<FindPackageUid>();
-    trace_redactor()->emplace_collect<CollectTimelineEvents>();
+    trace_redactor_.emplace_collect<FindPackageUid>();
+    trace_redactor_.emplace_collect<CollectTimelineEvents>();
 
     auto* redact_sched_events =
-        trace_redactor()->emplace_transform<RedactSchedEvents>();
+        trace_redactor_.emplace_transform<RedactSchedEvents>();
     redact_sched_events->emplace_modifier<ClearComms>();
     redact_sched_events->emplace_waking_filter<ConnectedToPackage>();
 
-    context()->package_name = kPackageName;
+    context_.package_name = kPackageName;
   }
+
+  Context context_;
+  TraceRedactor trace_redactor_;
 };
 
 // >>> SELECT uid
@@ -110,7 +113,7 @@ class RedactSchedWakingIntegrationTest
 //     +------+-----------------+
 
 TEST_F(RedactSchedWakingIntegrationTest, OnlyKeepsPackageEvents) {
-  auto result = Redact();
+  auto result = Redact(trace_redactor_, &context_);
   ASSERT_OK(result) << result.c_message();
 
   auto original = LoadOriginal();
