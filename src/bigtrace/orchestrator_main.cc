@@ -17,11 +17,14 @@
 #include <chrono>
 #include <memory>
 
+#include <grpcpp/client_context.h>
 #include <grpcpp/grpcpp.h>
 
 #include "perfetto/base/status.h"
 #include "protos/perfetto/bigtrace/orchestrator.grpc.pb.h"
 #include "protos/perfetto/bigtrace/orchestrator.pb.h"
+#include "protos/perfetto/bigtrace/worker.grpc.pb.h"
+#include "protos/perfetto/bigtrace/worker.pb.h"
 
 namespace perfetto {
 namespace bigtrace {
@@ -52,6 +55,26 @@ base::Status OrchestratorMain(int, char**) {
                                              std::chrono::milliseconds(5000));
 
   PERFETTO_CHECK(connected);
+
+  std::string example_trace = "test/data/api34_startup_cold.perfetto-trace";
+  std::string example_query = "SELECT * FROM slice";
+
+  auto stub = protos::BigtraceWorker::NewStub(channel);
+  grpc::ClientContext context;
+  protos::BigtraceQueryTraceArgs args;
+  protos::BigtraceQueryTraceResponse response;
+
+  args.set_trace(example_trace);
+  args.set_sql_query(example_query);
+
+  grpc::Status status = stub->QueryTrace(&context, args, &response);
+
+  if (status.ok()) {
+    PERFETTO_LOG("Received response with result_size: %i",
+                 response.result_size());
+  } else {
+    PERFETTO_LOG("Failed to query trace");
+  }
 
   // Build and start the Orchestrator server
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
