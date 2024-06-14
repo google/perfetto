@@ -38,12 +38,16 @@ class ProcessThreadTimelineIntegrationTest
       protected TraceRedactionIntegrationFixure {
  protected:
   void SetUp() override {
-    context()->package_name = "com.Unity.com.unity.multiplayer.samples.coop";
-    trace_redactor()->emplace_collect<FindPackageUid>();
-    trace_redactor()->emplace_collect<CollectTimelineEvents>();
+    context_.package_name = "com.Unity.com.unity.multiplayer.samples.coop";
 
-    ASSERT_OK(Redact());
+    trace_redactor_.emplace_collect<FindPackageUid>();
+    trace_redactor_.emplace_collect<CollectTimelineEvents>();
+
+    ASSERT_OK(Redact(trace_redactor_, &context_));
   }
+
+  Context context_;
+  TraceRedactor trace_redactor_;
 };
 
 TEST_F(ProcessThreadTimelineIntegrationTest, PackageThreadsAreConnected) {
@@ -63,8 +67,8 @@ TEST_F(ProcessThreadTimelineIntegrationTest, PackageThreadsAreConnected) {
 
   for (auto pid : threads) {
     // Use EXPECT instead of ASSERT to test all values.
-    EXPECT_TRUE(context()->timeline->PidConnectsToUid(kTime, pid,
-                                                      *context()->package_uid));
+    EXPECT_TRUE(
+        context_.timeline->PidConnectsToUid(kTime, pid, *context_.package_uid));
   }
 }
 
@@ -73,8 +77,8 @@ TEST_F(ProcessThreadTimelineIntegrationTest, MainThreadIsConnected) {
   //   select uid from package_list where
   //   package_name='com.Unity.com.unity.multiplayer.samples.coop')
 
-  ASSERT_TRUE(context()->timeline->PidConnectsToUid(kTime, 7105,
-                                                    *context()->package_uid));
+  ASSERT_TRUE(
+      context_.timeline->PidConnectsToUid(kTime, 7105, *context_.package_uid));
 }
 
 TEST_F(ProcessThreadTimelineIntegrationTest,
@@ -96,8 +100,8 @@ TEST_F(ProcessThreadTimelineIntegrationTest,
 
   for (auto pid : threads) {
     // Use EXPECT instead of ASSERT to test all values.
-    EXPECT_FALSE(context()->timeline->PidConnectsToUid(
-        kTime, pid, *context()->package_uid));
+    EXPECT_FALSE(
+        context_.timeline->PidConnectsToUid(kTime, pid, *context_.package_uid));
   }
 }
 
