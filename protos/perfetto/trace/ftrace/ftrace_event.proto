@@ -21,6 +21,7 @@
 syntax = "proto2";
 
 import "protos/perfetto/trace/ftrace/android_fs.proto";
+import "protos/perfetto/trace/ftrace/bcl_exynos.proto";
 import "protos/perfetto/trace/ftrace/binder.proto";
 import "protos/perfetto/trace/ftrace/block.proto";
 import "protos/perfetto/trace/ftrace/cgroup.proto";
@@ -668,5 +669,6 @@ message FtraceEvent {
     MaliMaliPMMCUPENDONRELOADFtraceEvent mali_mali_PM_MCU_PEND_ON_RELOAD = 530;
     MaliMaliPMMCUPOWERDOWNFtraceEvent mali_mali_PM_MCU_POWER_DOWN = 531;
     MaliMaliPMMCURESETWAITFtraceEvent mali_mali_PM_MCU_RESET_WAIT = 532;
+    BclIrqTriggerFtraceEvent bcl_irq_trigger = 533;
   }
 }

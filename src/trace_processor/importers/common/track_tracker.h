@@ -43,6 +43,7 @@ class TrackTracker {
     kDeviceState,
     kThermals,
     kClockFrequency,
+    kBatteryMitigation,
 
     // Keep this last.
     kSizeSentinel,

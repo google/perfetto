@@ -46,6 +46,7 @@
 
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
 #include "protos/perfetto/trace/ftrace/android_fs.pbzero.h"
+#include "protos/perfetto/trace/ftrace/bcl_exynos.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cma.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
@@ -341,6 +342,15 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       ion_total_unknown_id_(context->storage->InternString("mem.ion.unknown")),
       ion_change_unknown_id_(
           context->storage->InternString("mem.ion_change.unknown")),
+      bcl_irq_id_(context_->storage->InternString("bcl_irq_id")),
+      bcl_irq_throttle_(context_->storage->InternString("bcl_irq_throttle")),
+      bcl_irq_cpu0_(context_->storage->InternString("bcl_irq_cpu0")),
+      bcl_irq_cpu1_(context_->storage->InternString("bcl_irq_cpu1")),
+      bcl_irq_cpu2_(context_->storage->InternString("bcl_irq_cpu2")),
+      bcl_irq_tpu_(context_->storage->InternString("bcl_irq_tpu")),
+      bcl_irq_gpu_(context_->storage->InternString("bcl_irq_gpu")),
+      bcl_irq_voltage_(context_->storage->InternString("bcl_irq_voltage")),
+      bcl_irq_capacity_(context_->storage->InternString("bcl_irq_capacity")),
       signal_generate_id_(context->storage->InternString("signal_generate")),
       signal_deliver_id_(context->storage->InternString("signal_deliver")),
       oom_score_adj_id_(context->storage->InternString("oom_score_adj")),
@@ -1284,6 +1294,10 @@ base::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseDevicePmCallbackEnd(ts, fld_bytes);
         break;
       }
+      case FtraceEvent::kBclIrqTriggerFieldNumber: {
+        ParseBclIrq(ts, fld_bytes);
+        break;
+      }
       default:
         break;
     }
@@ -1872,6 +1886,59 @@ void FtraceParser::ParseIonStat(int64_t timestamp,
         context_->async_track_set_tracker->End(async_track, ion.buffer_id());
     context_->slice_tracker->End(timestamp, end_id);
   }
+}
+
+void FtraceParser::ParseBclIrq(int64_t ts, protozero::ConstBytes data) {
+  protos::pbzero::BclIrqTriggerFtraceEvent::Decoder bcl(data.data, data.size);
+  int throttle = bcl.throttle();
+  // id
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackTracker::Group::kBatteryMitigation, bcl_irq_id_);
+  context_->event_tracker->PushCounter(ts,
+                                       throttle ? bcl.id() : -1,
+                                       track);
+  // throttle
+  track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackTracker::Group::kBatteryMitigation, bcl_irq_throttle_);
+  context_->event_tracker->PushCounter(ts, throttle, track);
+  // cpu0_limit
+  track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackTracker::Group::kBatteryMitigation, bcl_irq_cpu0_);
+  context_->event_tracker->PushCounter(ts,
+                                       throttle ? bcl.cpu0_limit() : 0,
+                                       track);
+  // cpu1_limit
+  track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackTracker::Group::kBatteryMitigation, bcl_irq_cpu1_);
+  context_->event_tracker->PushCounter(ts,
+                                       throttle ? bcl.cpu1_limit() : 0,
+                                       track);
+  // cpu2_limit
+  track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackTracker::Group::kBatteryMitigation, bcl_irq_cpu2_);
+  context_->event_tracker->PushCounter(ts,
+                                       throttle ? bcl.cpu2_limit() : 0,
+                                       track);
+  // tpu_limit
+  track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackTracker::Group::kBatteryMitigation, bcl_irq_tpu_);
+  context_->event_tracker->PushCounter(ts,
+                                       throttle ? bcl.tpu_limit(): 0,
+                                       track);
+  // gpu_limit
+  track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackTracker::Group::kBatteryMitigation, bcl_irq_gpu_);
+  context_->event_tracker->PushCounter(ts,
+                                       throttle ? bcl.gpu_limit() : 0,
+                                       track);
+  // voltage
+  track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackTracker::Group::kBatteryMitigation, bcl_irq_voltage_);
+  context_->event_tracker->PushCounter(ts, bcl.voltage(), track);
+  // capacity
+  track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackTracker::Group::kBatteryMitigation, bcl_irq_capacity_);
+  context_->event_tracker->PushCounter(ts, bcl.capacity(), track);
 }
 
 void FtraceParser::ParseDmaHeapStat(int64_t timestamp,
