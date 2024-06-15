@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 533> descriptors{{
+std::array<FtraceMessageDescriptor, 534> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5865,6 +5865,22 @@ std::array<FtraceMessageDescriptor, 533> descriptors{{
             {"kctx_tgid", ProtoSchemaType::kInt32},
             {"kctx_id", ProtoSchemaType::kUint32},
             {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "bcl_exynos_bcl_irq_trigger",
+        9,
+        {
+            {},
+            {"id", ProtoSchemaType::kInt32},
+            {"throttle", ProtoSchemaType::kInt32},
+            {"cpu0_limit", ProtoSchemaType::kInt32},
+            {"cpu1_limit", ProtoSchemaType::kInt32},
+            {"cpu2_limit", ProtoSchemaType::kInt32},
+            {"tpu_limit", ProtoSchemaType::kInt32},
+            {"gpu_limit", ProtoSchemaType::kInt32},
+            {"voltage", ProtoSchemaType::kInt32},
+            {"capacity", ProtoSchemaType::kInt32},
         },
     },
 }};

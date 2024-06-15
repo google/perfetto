@@ -527,3 +527,4 @@ mali/mali_PM_MCU_PEND_OFF
 mali/mali_PM_MCU_PEND_ON_RELOAD
 mali/mali_PM_MCU_POWER_DOWN
 mali/mali_PM_MCU_RESET_WAIT
+bcl_exynos/bcl_irq_trigger

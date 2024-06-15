@@ -6814,6 +6814,22 @@ message AndroidFsFsyncStartFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/android_fs.proto
 
+// Begin of protos/perfetto/trace/ftrace/bcl_exynos.proto
+
+message BclIrqTriggerFtraceEvent {
+  optional int32 id = 1;
+  optional int32 throttle = 2;
+  optional int32 cpu0_limit = 3;
+  optional int32 cpu1_limit = 4;
+  optional int32 cpu2_limit = 5;
+  optional int32 tpu_limit = 6;
+  optional int32 gpu_limit = 7;
+  optional int32 voltage = 8;
+  optional int32 capacity = 9;
+}
+
+// End of protos/perfetto/trace/ftrace/bcl_exynos.proto
+
 // Begin of protos/perfetto/trace/ftrace/binder.proto
 
 message BinderTransactionFtraceEvent {
@@ -10963,6 +10979,7 @@ message FtraceEvent {
     MaliMaliPMMCUPENDONRELOADFtraceEvent mali_mali_PM_MCU_PEND_ON_RELOAD = 530;
     MaliMaliPMMCUPOWERDOWNFtraceEvent mali_mali_PM_MCU_POWER_DOWN = 531;
     MaliMaliPMMCURESETWAITFtraceEvent mali_mali_PM_MCU_RESET_WAIT = 532;
+    BclIrqTriggerFtraceEvent bcl_irq_trigger = 533;
   }
 }
 
