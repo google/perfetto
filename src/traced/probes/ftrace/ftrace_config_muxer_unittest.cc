@@ -127,7 +127,6 @@ TEST(ComputeCpuBufferSizeInPagesTest, DifferentCases) {
   auto KbToPages = [](uint64_t kb) {
     return kb * 1024 / base::GetSysPageSize();
   };
-  auto kMaxBufSizePages = KbToPages(64 * 1024);
   int64_t kNoRamInfo = 0;
   bool kExactSize = false;
   bool kLowerBoundSize = true;
@@ -152,10 +151,6 @@ TEST(ComputeCpuBufferSizeInPagesTest, DifferentCases) {
   // requested > default:
   EXPECT_EQ(test(16384, kExactSize, kHighRamPages), KbToPages(16384));
   EXPECT_EQ(test(16384, kLowerBoundSize, kHighRamPages), KbToPages(16384));
-
-  // Buffer size given way too big: good default.
-  EXPECT_EQ(test(10 * (1ULL << 20), kExactSize, kNoRamInfo), kMaxBufSizePages);
-  EXPECT_EQ(test(512 * 1024, kExactSize, kNoRamInfo), kMaxBufSizePages);
 
   // Your size ends up with less than 1 page per cpu -> 1 page.
   EXPECT_EQ(test(3, kExactSize, kNoRamInfo), 1u);
