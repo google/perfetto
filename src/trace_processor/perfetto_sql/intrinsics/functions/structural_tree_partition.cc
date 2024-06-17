@@ -29,7 +29,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
-#include "src/trace_processor/sqlite/sqlite_value.h"
+#include "src/trace_processor/sqlite/bindings/sqlite_value.h"
 
 namespace perfetto::trace_processor {
 namespace tables {
@@ -81,8 +81,8 @@ void StructuralTreePartition::StructuralTreePartition::Step(
 
   // For performance reasons, we don't typecheck the arguments and assume they
   // are longs.
-  auto id = static_cast<uint32_t>(sqlite::value::Long(argv[0]));
-  auto group = static_cast<uint32_t>(sqlite::value::Long(argv[2]));
+  auto id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
+  auto group = static_cast<uint32_t>(sqlite::value::Int64(argv[2]));
 
   // Keep track of the maximum group seen.
   agg_ctx.max_group = std::max(agg_ctx.max_group, group);
@@ -101,7 +101,7 @@ void StructuralTreePartition::StructuralTreePartition::Step(
   }
 
   // Otherwise, this is a non-root. Increment the child count of its parent.
-  auto parent_id = static_cast<uint32_t>(sqlite::value::Long(parent_id_value));
+  auto parent_id = static_cast<uint32_t>(sqlite::value::Int64(parent_id_value));
   uint32_t max_id = std::max(id, parent_id);
   if (max_id >= agg_ctx.child_count_by_id.size()) {
     agg_ctx.child_count_by_id.resize(max_id + 1);
