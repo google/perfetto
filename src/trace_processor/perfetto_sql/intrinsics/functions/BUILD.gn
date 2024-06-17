@@ -19,6 +19,8 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 source_set("functions") {
   sources = [
+    "array.cc",
+    "array.h",
     "base64.cc",
     "base64.h",
     "clock_functions.h",
@@ -42,6 +44,8 @@ source_set("functions") {
     "sqlite3_str_split.h",
     "stack_functions.cc",
     "stack_functions.h",
+    "struct.cc",
+    "struct.h",
     "structural_tree_partition.cc",
     "structural_tree_partition.h",
     "to_ftrace.cc",
@@ -77,6 +81,7 @@ source_set("functions") {
     "../../../util:sql_argument",
     "../../../util:stdlib",
     "../../engine",
+    "../types",
   ]
   public_deps = [ ":interface" ]
 }
