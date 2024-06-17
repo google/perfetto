@@ -81,6 +81,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/struct.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h"
@@ -750,6 +751,11 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   }
   {
     base::Status status = RegisterArrayFunctions(*engine_);
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterStructFunctions(*engine_);
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }

@@ -263,6 +263,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
+        ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
@@ -2359,6 +2360,8 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.h",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/struct.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/struct.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.h",
         "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.cc",
@@ -2458,6 +2461,15 @@ perfetto_cc_tp_tables(
     ],
     outs = [
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/intrinsics/types:types
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_intrinsics_types_types",
+    srcs = [
+        "src/trace_processor/perfetto_sql/intrinsics/types/struct.h",
+        "src/trace_processor/perfetto_sql/intrinsics/types/value.h",
     ],
 )
 
@@ -2868,6 +2880,7 @@ perfetto_filegroup(
     name = "src_trace_processor_sqlite_bindings_bindings",
     srcs = [
         "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h",
+        "src/trace_processor/sqlite/bindings/sqlite_function.h",
         "src/trace_processor/sqlite/bindings/sqlite_module.h",
         "src/trace_processor/sqlite/bindings/sqlite_result.h",
         "src/trace_processor/sqlite/bindings/sqlite_type.h",
@@ -6081,6 +6094,7 @@ perfetto_cc_library(
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
+        ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
         ":src_trace_processor_sqlite_sqlite",
@@ -6261,6 +6275,7 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
+        ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_rpc_stdiod",
@@ -6501,6 +6516,7 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
+        ":src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_bindings_bindings",
         ":src_trace_processor_sqlite_sqlite",

@@ -2436,6 +2436,7 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_operators_operators",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_sqlite",
@@ -12920,6 +12921,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/struct.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.cc",
     ],
@@ -13069,6 +13071,11 @@ filegroup {
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice_unittest.cc",
         "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout_unittest.cc",
     ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/intrinsics/types:types
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
 }
 
 // GN: //src/trace_processor/perfetto_sql/prelude:prelude
@@ -15168,6 +15175,7 @@ cc_test {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_unittests",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_unittests",
         ":perfetto_src_trace_processor_sorter_sorter",
@@ -16195,6 +16203,7 @@ cc_binary {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_operators_operators",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":perfetto_src_trace_processor_rpc_httpd",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_stdiod",
@@ -16593,6 +16602,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_operators_operators",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_types_types",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_bindings_bindings",
         ":perfetto_src_trace_processor_sqlite_sqlite",
