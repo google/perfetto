@@ -21,6 +21,8 @@ source_set("bindings") {
     "sqlite_aggregate_function.h",
     "sqlite_module.h",
     "sqlite_result.h",
+    "sqlite_type.h",
+    "sqlite_value.h",
     "sqlite_window_function.h",
   ]
   deps = [

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2024 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_RESULT_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_BINDINGS_SQLITE_RESULT_H_
 
-#include <sqlite3.h>
+#include <sqlite3.h>  // IWYU pragma: export
 #include <cstdint>
 
 namespace perfetto::trace_processor::sqlite::result {
