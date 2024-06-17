@@ -30,6 +30,7 @@
 #include <variant>
 #include <vector>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -313,6 +314,12 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
       auto sql = macro->sql;
       RETURN_IF_ERROR(ExecuteCreateMacro(*macro));
       source = RewriteToDummySql(sql);
+    } else if (auto* index = std::get_if<PerfettoSqlParser::CreateIndex>(
+                   &parser.statement())) {
+      // TODO(mayzner): Enable.
+      base::ignore_result(index);
+      return base::ErrStatus("CREATE PERFETTO INDEX not implemented");
+      // source = RewriteToDummySql(parser.statement_sql());
     } else {
       // If none of the above matched, this must just be an SQL statement
       // directly executable by SQLite.
