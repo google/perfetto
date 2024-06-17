@@ -61,6 +61,12 @@ constexpr bool operator==(const PerfettoSqlParser::CreateMacro& a,
          std::tie(b.replace, b.name, b.sql, b.args);
 }
 
+constexpr bool operator==(const PerfettoSqlParser::CreateIndex& a,
+                          const PerfettoSqlParser::CreateIndex& b) {
+  return std::tie(a.replace, a.name, a.table_name, a.col_name) ==
+         std::tie(b.replace, b.name, b.table_name, b.col_name);
+}
+
 inline std::ostream& operator<<(std::ostream& stream, const SqlSource& sql) {
   return stream << "SqlSource(sql=" << testing::PrintToString(sql.sql()) << ")";
 }
