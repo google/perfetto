@@ -51,11 +51,7 @@ class FilterFrameEvents : public TransformPrimitive {
   base::Status Transform(const Context& context,
                          std::string* packet) const override;
 
-  // TODO: When this class was changed to implement TransformPrimitive instead
-  // of the scrub trace packet filter interface, updating the tests was more
-  // work than needed. To avoid updating the tests, the filter function was kept
-  // and exposed. If this was to follow the currently used patterns, this would
-  // be a OnFrameTimelineEvent function.
+ private:
   bool KeepField(const Context& context, const protozero::Field& field) const;
 };
 
