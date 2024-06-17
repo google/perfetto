@@ -153,11 +153,14 @@ RowMap Select(const std::vector<uint32_t>& iv,
   return RowMap(row_map_algorithms::SelectIvWithIv(iv, selector));
 }
 
+// O(N), but 64 times faster than doing it bit by bit, as we compare words in
+// BitVectors.
 Variant IntersectInternal(BitVector& first, const BitVector& second) {
   first.And(second);
   return std::move(first);
 }
 
+// O(1) complexity.
 Variant IntersectInternal(Range first, Range second) {
   // If both RowMaps have ranges, we can just take the smallest intersection
   // of them as the new RowMap.
@@ -168,6 +171,8 @@ Variant IntersectInternal(Range first, Range second) {
   return Range{start, end};
 }
 
+// O(N + k) complexity, where N is the size of |second| and k is the number of
+// elements that have to be removed from |first|.
 Variant IntersectInternal(std::vector<OutputIndex>& first,
                           const std::vector<OutputIndex>& second) {
   std::unordered_set<OutputIndex> lookup(second.begin(), second.end());
@@ -179,6 +184,7 @@ Variant IntersectInternal(std::vector<OutputIndex>& first,
   return std::move(first);
 }
 
+// O(1) complexity.
 Variant IntersectInternal(Range range, const BitVector& bv) {
   return bv.IntersectRange(range.start, range.end);
 }
