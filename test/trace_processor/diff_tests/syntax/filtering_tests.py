@@ -235,3 +235,46 @@ class PerfettoFiltering(TestSuite):
         0,"[NULL]"
         2,"[NULL]"
         """))
+
+  def test_like_limit_one(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        SELECT 'foo' AS strings
+        UNION ALL
+        SELECT 'binder x'
+        UNION ALL
+        SELECT 'binder y'
+        UNION ALL
+        SELECT 'bar';
+
+        SELECT * FROM foo WHERE strings LIKE '%binder%' LIMIT 1;
+        """,
+        out=Csv("""
+        "strings"
+        "binder x"
+        """))
+
+  def test_like_limit_multiple(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        SELECT 'foo' AS strings
+        UNION ALL
+        SELECT 'binder x'
+        UNION ALL
+        SELECT 'binder y'
+        UNION ALL
+        SELECT 'bar'
+        UNION ALL
+        SELECT 'binder z';
+
+        SELECT * FROM foo WHERE strings LIKE '%binder%' LIMIT 2;
+        """,
+        out=Csv("""
+        "strings"
+        "binder x"
+        "binder y"
+        """))
