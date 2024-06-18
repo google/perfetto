@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_GRAPH_TRAVERSAL_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_GRAPH_TRAVERSAL_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_GRAPH_HELPERS_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_GRAPH_HELPERS_H_
 
 #include "perfetto/base/status.h"
 
@@ -25,15 +25,13 @@ class PerfettoSqlEngine;
 class StringPool;
 
 // Registers the following array related functions with SQLite:
-//  * __intrinsic_dfs: a scalar function which performs a DFS traversal
-//    of the graph.
-//  * __intrinsic_bfs: a scalar function which performs a BFS traversal
-//    of the graph.
+//  * __intrinsic_node_agg: an aggregate function which groups together
+//    the edges of a graph corresponding to a node.
 // TODO(lalitm): once we have some stability here, expand the comments
 // here.
-base::Status RegisterGraphTraversalFunctions(PerfettoSqlEngine& engine,
-                                             StringPool& string_pool);
+base::Status RegisterGraphHelperFunctions(PerfettoSqlEngine& engine,
+                                          StringPool& string_pool);
 
 }  // namespace perfetto::trace_processor
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_GRAPH_TRAVERSAL_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_GRAPH_HELPERS_H_

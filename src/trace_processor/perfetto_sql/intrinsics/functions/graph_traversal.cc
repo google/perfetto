@@ -21,17 +21,22 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/circular_queue.h"
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/tables_py.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/types/node.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_value.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto::trace_processor {
 namespace tables {
@@ -40,9 +45,9 @@ TreeTable::~TreeTable() = default;
 
 namespace {
 
-struct Node {
-  std::vector<uint32_t> dest_nodes;
-  bool visited = false;
+struct State {
+  uint32_t id;
+  std::optional<uint32_t> parent_id;
 };
 
 // An SQL aggregate-function which performs a DFS from a given start node in a
@@ -53,75 +58,111 @@ struct Node {
 // user-friendly.
 struct Dfs : public SqliteAggregateFunction<Dfs> {
   static constexpr char kName[] = "__intrinsic_dfs";
-  static constexpr int kArgCount = 3;
+  static constexpr int kArgCount = 2;
   using UserDataContext = StringPool;
 
-  struct AggCtx : SqliteAggregateContext<AggCtx> {
-    std::vector<Node> nodes;
-    std::optional<uint32_t> start_id;
-  };
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_DCHECK(argc == kArgCount);
 
-  static void Step(sqlite3_context*, int argc, sqlite3_value** argv);
-  static void Final(sqlite3_context* ctx);
-};
+    auto* graph = sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
+    auto table = std::make_unique<tables::TreeTable>(GetUserData(ctx));
+    if (!graph) {
+      return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
+    }
+    PERFETTO_DCHECK(!graph->empty());
 
-void Dfs::Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-  PERFETTO_DCHECK(argc == kArgCount);
+    auto* start_ids =
+        sqlite::value::Pointer<perfetto_sql::IntArray>(argv[1], "ARRAY<LONG>");
+    if (!start_ids) {
+      return sqlite::result::Error(
+          ctx, "dfs: second argument must a non-empty array of integers");
+    }
+    PERFETTO_DCHECK(!start_ids->empty());
 
-  auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
-  auto source = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
-  auto dest = static_cast<uint32_t>(sqlite::value::Int64(argv[1]));
-
-  uint32_t max = std::max(source, dest);
-  if (max >= agg_ctx.nodes.size()) {
-    agg_ctx.nodes.resize(max + 1);
-  }
-  agg_ctx.nodes[source].dest_nodes.push_back(dest);
-
-  if (PERFETTO_UNLIKELY(!agg_ctx.start_id)) {
-    agg_ctx.start_id = static_cast<uint32_t>(sqlite::value::Int64(argv[2]));
-  }
-}
-
-void Dfs::Final(sqlite3_context* ctx) {
-  auto raw_agg_ctx = AggCtx::GetContextOrNullForFinal(ctx);
-  auto table = std::make_unique<tables::TreeTable>(GetUserData(ctx));
-  if (auto* agg_ctx = raw_agg_ctx.get(); agg_ctx) {
-    struct State {
-      uint32_t id;
-      std::optional<uint32_t> parent_id;
-    };
-
-    std::vector<State> stack{{*agg_ctx->start_id, std::nullopt}};
+    std::vector<bool> visited(graph->size());
+    std::vector<State> stack;
+    for (int64_t x : *start_ids) {
+      stack.emplace_back(State{static_cast<uint32_t>(x), std::nullopt});
+    }
     while (!stack.empty()) {
       State state = stack.back();
       stack.pop_back();
 
-      Node& node = agg_ctx->nodes[state.id];
-      if (node.visited) {
+      auto& node = (*graph)[state.id];
+      if (visited[state.id]) {
         continue;
       }
       table->Insert({state.id, state.parent_id});
-      node.visited = true;
+      visited[state.id] = true;
 
-      const auto& children = node.dest_nodes;
+      const auto& children = node.outgoing_edges;
       for (auto it = children.rbegin(); it != children.rend(); ++it) {
         stack.emplace_back(State{*it, state.id});
       }
     }
+    return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
   }
-  return sqlite::result::RawPointer(ctx, table.release(), "TABLE",
-                                    [](void* ptr) {
-                                      std::unique_ptr<tables::TreeTable>(
-                                          static_cast<tables::TreeTable*>(ptr));
-                                    });
-}
+};
+
+// An SQL aggregate-function which performs a BFS from a given start node in a
+// graph and returns all the nodes which are reachable from the start node.
+//
+// Note: this function is not intended to be used directly from SQL: instead
+// macros exist in the standard library, wrapping it and making it
+// user-friendly.
+struct Bfs : public SqliteAggregateFunction<Bfs> {
+  static constexpr char kName[] = "__intrinsic_bfs";
+  static constexpr int kArgCount = 2;
+  using UserDataContext = StringPool;
+
+  static void Step(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
+    PERFETTO_DCHECK(argc == kArgCount);
+
+    auto* graph = sqlite::value::Pointer<perfetto_sql::Graph>(argv[0], "GRAPH");
+    auto table = std::make_unique<tables::TreeTable>(GetUserData(ctx));
+    if (!graph) {
+      return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
+    }
+    PERFETTO_DCHECK(!graph->empty());
+
+    auto* start_ids =
+        sqlite::value::Pointer<perfetto_sql::IntArray>(argv[1], "ARRAY<LONG>");
+    if (!start_ids) {
+      return sqlite::result::Error(
+          ctx, "bfs: second argument must a non-empty array of integers");
+    }
+    PERFETTO_DCHECK(!start_ids->empty());
+
+    std::vector<bool> visited(graph->size());
+    base::CircularQueue<State> queue;
+    for (int64_t x : *start_ids) {
+      queue.emplace_back(State{static_cast<uint32_t>(x), std::nullopt});
+    }
+    while (!queue.empty()) {
+      State state = queue.front();
+      queue.pop_front();
+
+      auto& node = (*graph)[state.id];
+      if (visited[state.id]) {
+        continue;
+      }
+      table->Insert({state.id, state.parent_id});
+      visited[state.id] = true;
+
+      for (uint32_t n : node.outgoing_edges) {
+        queue.emplace_back(State{n, state.id});
+      }
+    }
+    return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
+  }
+};
 
 }  // namespace
 
 base::Status RegisterGraphTraversalFunctions(PerfettoSqlEngine& engine,
-                                             StringPool& string_pool) {
-  return engine.RegisterSqliteAggregateFunction<Dfs>(&string_pool);
+                                             StringPool& pool) {
+  RETURN_IF_ERROR(engine.RegisterSqliteFunction<Dfs>(&pool));
+  return engine.RegisterSqliteFunction<Bfs>(&pool);
 }
 
 }  // namespace perfetto::trace_processor
