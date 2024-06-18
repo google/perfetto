@@ -66,7 +66,8 @@ WITH
     WHERE slice.parent_id IS NOT NULL
   ),
   flat_slices AS (
-    SELECT id, ts, dur FROM _intervals_flatten !(root_slices, child_slices)
+    SELECT id, ts, dur
+    FROM _intervals_flatten !(_intervals_merge_root_and_children!(root_slices, child_slices))
   )
 SELECT
   id AS slice_id,
