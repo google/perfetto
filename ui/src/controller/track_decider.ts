@@ -2280,7 +2280,6 @@ class TrackDecider {
     }
 
     const gpuQueueTrackIds = new Set<number>();
-    const vulkanEventsTrackIds = new Set<number>();
     const it = result.iter({
       id: NUM,
       scope: STR,
@@ -2291,7 +2290,7 @@ class TrackDecider {
           gpuQueueTrackIds.add(it.id);
           break;
         case 'vulkan_events':
-          vulkanEventsTrackIds.add(it.id);
+          gpuQueueTrackIds.add(it.id);
           break;
         default:
           break; // Group TBD
@@ -2308,8 +2307,6 @@ class TrackDecider {
         }
         if (gpuQueueTrackIds.has(trackId)) {
           track.trackGroup = gpuQueuesGroup();
-        } else if (vulkanEventsTrackIds.has(trackId)) {
-          track.trackGroup = this.gpuGroup();
         }
       }
     }
