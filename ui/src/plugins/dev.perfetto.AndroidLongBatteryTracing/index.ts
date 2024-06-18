@@ -1419,7 +1419,7 @@ class AndroidLongBatteryTracing implements Plugin {
         name,
         `select ts, ${col}_ratio as value from modem_activity_info`,
         groupName,
-        {yRangeSharingKey: 'modem_activity', unit: '%'},
+        {yOverrideMaximum: 100, unit: '%'},
       );
 
     await ctx.engine.query(MODEM_ACTIVITY_INFO);
