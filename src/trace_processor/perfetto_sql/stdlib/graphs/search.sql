@@ -13,10 +13,10 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Computes the "reachable" set of nodes in a directed graph from a given
--- starting node by performing a depth-first search on the graph. The returned
--- nodes are structured as a tree with parent-child relationships corresponding
--- to the order in which nodes were encountered by the DFS.
+-- Computes the "reachable" set of nodes in a directed graph from a given set
+-- of starting nodes by performing a depth-first search on the graph. The
+-- returned nodes are structured as a tree with parent-child relationships
+-- corresponding to the order in which nodes were encountered by the DFS.
 --
 -- While this macro can be used directly by end users (hence being public),
 -- it is primarily intended as a lower-level building block upon which higher
@@ -34,7 +34,7 @@
 --     FROM heap_graph_reference
 --     WHERE owned_id IS NOT NULL
 --   ),
---   (SELECT id FROM heap_graph_object WHERE root_type IS NOT NULL LIMIT 1)
+--   (SELECT id FROM heap_graph_object WHERE root_type IS NOT NULL)
 -- );
 -- ```
 CREATE PERFETTO MACRO graph_reachable_dfs(
@@ -49,9 +49,9 @@ CREATE PERFETTO MACRO graph_reachable_dfs(
   -- this criteria is not, can lead to enormous amounts of memory being
   -- allocated.
   graph_table TableOrSubquery,
-  -- The start node to |graph_table| which will be the root of the reachability
-  -- tree.
-  start_node_id Expr
+  -- A table/view/subquery corresponding to the list of start nodes for
+  -- the BFS. This table must have a single column "node_id".
+  start_nodes TableOrSubquery
 )
 -- The returned table has the schema (node_id UINT32, parent_node_id UINT32).
 -- |node_id| is the id of the node from the input graph and |parent_node_id|
@@ -61,10 +61,67 @@ RETURNS TableOrSubquery AS
 (
   -- Rename the generic columns of __intrinsic_table_ptr to the actual columns.
   SELECT c0 AS node_id, c1 AS parent_node_id
-  FROM __intrinsic_table_ptr((
-    -- Aggregate function to perform a DFS on the nodes on the input graph.
-    SELECT __intrinsic_dfs(g.source_node_id, g.dest_node_id, $start_node_id)
-    FROM $graph_table g
+  FROM __intrinsic_table_ptr(__intrinsic_dfs(
+    (SELECT __intrinsic_graph_agg(g.source_node_id, g.dest_node_id) FROM $graph_table g),
+    (SELECT __intrinsic_array_agg(t.node_id) arr FROM $start_nodes t)
+  ))
+  -- Bind the dynamic columns in the |__intrinsic_table_ptr| to the columns of
+  -- the DFS table.
+  WHERE __intrinsic_table_ptr_bind(c0, 'node_id')
+    AND __intrinsic_table_ptr_bind(c1, 'parent_node_id')
+);
+
+-- Computes the "reachable" set of nodes in a directed graph from a given
+-- starting node by performing a breadth-first search on the graph. The returned
+-- nodes are structured as a tree with parent-child relationships corresponding
+-- to the order in which nodes were encountered by the BFS.
+--
+-- While this macro can be used directly by end users (hence being public),
+-- it is primarily intended as a lower-level building block upon which higher
+-- level functions/macros in the standard library can be built.
+--
+-- Example usage on traces containing heap graphs:
+-- ```
+-- -- Compute the reachable nodes from all heap roots.
+-- SELECT *
+-- FROM graph_reachable_bfs!(
+--   (
+--     SELECT
+--       owner_id AS source_node_id,
+--       owned_id as dest_node_id
+--     FROM heap_graph_reference
+--     WHERE owned_id IS NOT NULL
+--   ),
+--   (SELECT id FROM heap_graph_object WHERE root_type IS NOT NULL)
+-- );
+-- ```
+CREATE PERFETTO MACRO graph_reachable_bfs(
+  -- A table/view/subquery corresponding to a directed graph on which the
+  -- reachability search should be performed. This table must have the columns
+  -- "source_node_id" and "dest_node_id" corresponding to the two nodes on
+  -- either end of the edges in the graph.
+  --
+  -- Note: the columns must contain uint32 similar to ids in trace processor
+  -- tables (i.e. the values should be relatively dense and close to zero). The
+  -- implementation makes assumptions on this for performance reasons and, if
+  -- this criteria is not, can lead to enormous amounts of memory being
+  -- allocated.
+  graph_table TableOrSubquery,
+  -- A table/view/subquery corresponding to the list of start nodes for
+  -- the BFS. This table must have a single column "node_id".
+  start_nodes TableOrSubquery
+)
+-- The returned table has the schema (node_id UINT32, parent_node_id UINT32).
+-- |node_id| is the id of the node from the input graph and |parent_node_id|
+-- is the id of the node which was the first encountered predecessor in a BFS
+-- search of the graph.
+RETURNS TableOrSubquery AS
+(
+  -- Rename the generic columns of __intrinsic_table_ptr to the actual columns.
+  SELECT c0 AS node_id, c1 AS parent_node_id
+  FROM __intrinsic_table_ptr(__intrinsic_bfs(
+    (SELECT __intrinsic_graph_agg(g.source_node_id, g.dest_node_id) FROM $graph_table g),
+    (SELECT __intrinsic_array_agg(t.node_id) arr FROM $start_nodes t)
   ))
   -- Bind the dynamic columns in the |__intrinsic_table_ptr| to the columns of
   -- the DFS table.
