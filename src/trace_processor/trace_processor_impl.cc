@@ -73,8 +73,8 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/dfs.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/import.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
@@ -759,6 +759,12 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
+  {
+    base::Status status = RegisterGraphTraversalFunctions(
+        *engine_, *context_.storage->mutable_string_pool());
+    if (!status.ok())
+      PERFETTO_FATAL("%s", status.c_message());
+  }
 
   TraceStorage* storage = context_.storage.get();
 
@@ -977,8 +983,6 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       context_.storage->mutable_string_pool()));
 
   // Value table aggregate functions.
-  engine_->RegisterSqliteAggregateFunction<Dfs>(
-      context_.storage->mutable_string_pool());
   engine_->RegisterSqliteAggregateFunction<DominatorTree>(
       context_.storage->mutable_string_pool());
   engine_->RegisterSqliteAggregateFunction<StructuralTreePartition>(
