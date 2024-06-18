@@ -16,10 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/array.h"
 
-#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>
@@ -32,6 +29,7 @@
 #include "perfetto/public/compiler.h"
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_result.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_type.h"
@@ -40,9 +38,9 @@
 namespace perfetto::trace_processor {
 namespace {
 
-using ArrayVariant = std::variant<std::vector<int64_t>,
-                                  std::vector<double>,
-                                  std::vector<std::string>>;
+using Array = std::variant<perfetto_sql::IntArray,
+                           perfetto_sql::DoubleArray,
+                           perfetto_sql::StringArray>;
 
 struct AggCtx : SqliteAggregateContext<AggCtx> {
   template <typename T>
@@ -67,7 +65,7 @@ struct AggCtx : SqliteAggregateContext<AggCtx> {
     });
   }
 
-  std::optional<ArrayVariant> array;
+  std::optional<Array> array;
 };
 
 // An SQL aggregate-function which creates an array.
@@ -109,11 +107,13 @@ void ArrayAgg::Final(sqlite3_context* ctx) {
   auto& array = *raw_agg_ctx.get()->array;
   switch (array.index()) {
     case 0 /* int64_t */:
-      return raw_agg_ctx.get()->Result<int64_t>(ctx, "ARRAY<INT64>");
+      return raw_agg_ctx.get()->Result<int64_t>(ctx, "ARRAY<LONG>");
     case 1 /* double */:
       return raw_agg_ctx.get()->Result<double>(ctx, "ARRAY<DOUBLE>");
     case 2 /* std::string */:
       return raw_agg_ctx.get()->Result<std::string>(ctx, "ARRAY<STRING>");
+    default:
+      PERFETTO_FATAL("%zu is not a valid index", array.index());
   }
 }
 

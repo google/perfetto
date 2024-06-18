@@ -30,6 +30,8 @@ source_set("functions") {
     "create_view_function.h",
     "dominator_tree.cc",
     "dominator_tree.h",
+    "graph_helpers.cc",
+    "graph_helpers.h",
     "graph_traversal.cc",
     "graph_traversal.h",
     "import.cc",
