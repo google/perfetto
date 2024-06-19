@@ -62,3 +62,23 @@ class PerfettoMacro(TestSuite):
         "res"
         2
         """))
+
+  def test_stringify(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query='''
+        SELECT __intrinsic_stringify!(foo)
+        UNION ALL
+        SELECT __intrinsic_stringify!(foo bar baz)
+        UNION ALL
+        SELECT __intrinsic_stringify!(foo'')
+        UNION ALL
+        SELECT __intrinsic_stringify!(bar())
+        ''',
+        out=Csv("""
+        "'foo'"
+        "foo"
+        "foo bar baz"
+        "foo'"
+        "bar()"
+        """))

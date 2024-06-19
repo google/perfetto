@@ -93,6 +93,23 @@ base::StatusOr<InvocationArg> ParseMacroInvocationArg(
   }
 }
 
+base::StatusOr<SqlSource> ExecuteStringify(
+    SqliteTokenizer& tokenizer,
+    SqliteTokenizer::Token& tok,
+    const SqliteTokenizer::Token& name_token) {
+  ASSIGN_OR_RETURN(InvocationArg invocation_arg,
+                   ParseMacroInvocationArg(tokenizer, tok, false));
+  if (!invocation_arg.arg || invocation_arg.has_more) {
+    return ErrorAtToken(tokenizer, name_token,
+                        "stringify: stringify must have exactly one argument");
+  }
+  std::string res = "'";
+  res.append(invocation_arg.arg->sql());
+  res.append("'");
+  return invocation_arg.arg->RewriteAllIgnoreExisting(
+      SqlSource::FromTraceProcessorImplementation(std::move(res)));
+}
+
 }  // namespace
 
 PerfettoSqlPreprocessor::PerfettoSqlPreprocessor(
@@ -153,14 +170,42 @@ base::StatusOr<SqlSource> PerfettoSqlPreprocessor::RewriteInternal(
       continue;
     }
 
-    ASSIGN_OR_RETURN(MacroInvocation invocation,
-                     ParseMacroInvocation(tokenizer, tok, prev, arg_bindings));
+    const auto& name_token = prev;
+    if (name_token.token_type == SqliteTokenType::TK_VARIABLE) {
+      // TODO(b/290185551): add a link to macro documentation.
+      return ErrorAtToken(tokenizer, name_token,
+                          "Macro name cannot contain a variable");
+    }
+    if (name_token.token_type != SqliteTokenType::TK_ID) {
+      // TODO(b/290185551): add a link to macro documentation.
+      return ErrorAtToken(tokenizer, name_token, "Macro invocation is invalid");
+    }
 
-    seen_macros_.emplace(invocation.macro->name);
-    ASSIGN_OR_RETURN(SqlSource res, RewriteInternal(invocation.macro->sql,
-                                                    invocation.arg_bindings));
-    seen_macros_.erase(invocation.macro->name);
+    // Get the opening left parenthesis.
+    tok = tokenizer.NextNonWhitespace();
+    if (tok.token_type != SqliteTokenType::TK_LP) {
+      // TODO(b/290185551): add a link to macro documentation.
+      return ErrorAtToken(tokenizer, tok,
+                          "( expected to open macro invocation");
+    }
 
+    std::string macro_name(name_token.str);
+    if (macro_name == "__intrinsic_stringify") {
+      ASSIGN_OR_RETURN(SqlSource res,
+                       ExecuteStringify(tokenizer, tok, name_token));
+      tokenizer.Rewrite(rewriter, prev, tok, std::move(res),
+                        SqliteTokenizer::EndToken::kInclusive);
+      continue;
+    }
+
+    ASSIGN_OR_RETURN(
+        MacroInvocation invocation,
+        ParseMacroInvocation(tokenizer, tok, prev, macro_name, arg_bindings));
+    const Macro* m = invocation.macro;
+    seen_macros_.emplace(m->name);
+    ASSIGN_OR_RETURN(SqlSource res,
+                     RewriteInternal(m->sql, invocation.arg_bindings));
+    seen_macros_.erase(m->name);
     tokenizer.Rewrite(rewriter, prev, tok, std::move(res),
                       SqliteTokenizer::EndToken::kInclusive);
   }
@@ -172,25 +217,8 @@ PerfettoSqlPreprocessor::ParseMacroInvocation(
     SqliteTokenizer& tokenizer,
     SqliteTokenizer::Token& tok,
     const SqliteTokenizer::Token& name_token,
+    const std::string& macro_name,
     const std::unordered_map<std::string, SqlSource>& arg_bindings) {
-  if (name_token.token_type == SqliteTokenType::TK_VARIABLE) {
-    // TODO(b/290185551): add a link to macro documentation.
-    return ErrorAtToken(tokenizer, name_token,
-                        "Macro name cannot contain a variable");
-  }
-  if (name_token.token_type != SqliteTokenType::TK_ID) {
-    // TODO(b/290185551): add a link to macro documentation.
-    return ErrorAtToken(tokenizer, name_token, "Macro invocation is invalid");
-  }
-
-  // Get the opening left parenthesis.
-  tok = tokenizer.NextNonWhitespace();
-  if (tok.token_type != SqliteTokenType::TK_LP) {
-    // TODO(b/290185551): add a link to macro documentation.
-    return ErrorAtToken(tokenizer, tok, "( expected to open macro invocation");
-  }
-
-  std::string macro_name(name_token.str);
   Macro* macro = macros_->Find(macro_name);
   if (!macro) {
     // TODO(b/290185551): add a link to macro documentation.
