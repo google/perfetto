@@ -68,13 +68,11 @@
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/engine/table_pointer_module.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/array.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/base64.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_helpers.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/import.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
@@ -82,9 +80,9 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/struct.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/operators/counter_mipmap_operator.h"
@@ -751,23 +749,12 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
-    base::Status status = RegisterArrayFunctions(*engine_);
-    if (!status.ok())
-      PERFETTO_FATAL("%s", status.c_message());
-  }
-  {
-    base::Status status = RegisterStructFunctions(*engine_);
+    base::Status status = RegisterTypeBuilderFunctions(*engine_);
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
   }
   {
     base::Status status = RegisterGraphTraversalFunctions(
-        *engine_, *context_.storage->mutable_string_pool());
-    if (!status.ok())
-      PERFETTO_FATAL("%s", status.c_message());
-  }
-  {
-    base::Status status = RegisterGraphHelperFunctions(
         *engine_, *context_.storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
