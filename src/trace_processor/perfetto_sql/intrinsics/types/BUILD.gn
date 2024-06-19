@@ -21,6 +21,7 @@ source_set("types") {
   sources = [
     "array.h",
     "node.h",
+    "row_dataframe.h",
     "struct.h",
     "value.h",
   ]
