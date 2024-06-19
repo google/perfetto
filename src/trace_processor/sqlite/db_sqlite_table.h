@@ -48,7 +48,7 @@ enum class TableComputation {
 // Implements the SQLite table interface for db tables.
 struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
   struct State {
-    State(const Table*, Table::Schema);
+    State(Table*, Table::Schema);
     explicit State(std::unique_ptr<RuntimeTable>);
     explicit State(std::unique_ptr<StaticTableFunction>);
 
@@ -57,7 +57,7 @@ struct DbSqliteModule : public sqlite::Module<DbSqliteModule> {
     int argument_count = 0;
 
     // Only valid when computation == TableComputation::kStatic.
-    const Table* static_table = nullptr;
+    Table* static_table = nullptr;
 
     // Only valid when computation == TableComputation::kRuntime.
     std::unique_ptr<RuntimeTable> runtime_table;

@@ -172,7 +172,7 @@ class PerfettoSqlEngine {
 
   // Registers a trace processor C++ table with SQLite with an SQL name of
   // |name|.
-  void RegisterStaticTable(const Table&,
+  void RegisterStaticTable(Table*,
                            const std::string& name,
                            Table::Schema schema);
 
@@ -216,8 +216,7 @@ class PerfettoSqlEngine {
            runtime_function_count_ + macros_.size();
   }
 
-  // Find static table (Static or Runtime) registered with engine with provided
-  // name.
+  // Find table (Static or Runtime) registered with engine with provided name.
   const Table* GetTableOrNull(std::string_view name) const {
     if (auto maybe_runtime = GetRuntimeTableOrNull(name); maybe_runtime) {
       return maybe_runtime;
@@ -230,6 +229,21 @@ class PerfettoSqlEngine {
 
   // Find static table registered with engine with provided name.
   const Table* GetStaticTableOrNull(std::string_view) const;
+
+  // Find table (Static or Runtime) registered with engine with provided name.
+  Table* GetMutableTableOrNull(std::string_view name) {
+    if (auto maybe_runtime = GetMutableRuntimeTableOrNull(name);
+        maybe_runtime) {
+      return maybe_runtime;
+    }
+    return GetMutableStaticTableOrNull(name);
+  }
+
+  // Find RuntimeTable registered with engine with provided name.
+  RuntimeTable* GetMutableRuntimeTableOrNull(std::string_view);
+
+  // Find static table registered with engine with provided name.
+  Table* GetMutableStaticTableOrNull(std::string_view);
 
  private:
   base::Status ExecuteCreateFunction(const PerfettoSqlParser::CreateFunction&);
