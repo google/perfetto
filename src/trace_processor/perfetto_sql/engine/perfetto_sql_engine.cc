@@ -207,14 +207,14 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
   }
 }
 
-void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
+void PerfettoSqlEngine::RegisterStaticTable(Table* table,
                                             const std::string& table_name,
                                             Table::Schema schema) {
   // Make sure we didn't accidentally leak a state from a previous table
   // creation.
   PERFETTO_CHECK(!static_table_context_->temporary_create_state);
   static_table_context_->temporary_create_state =
-      std::make_unique<DbSqliteModule::State>(&table, std::move(schema));
+      std::make_unique<DbSqliteModule::State>(table, std::move(schema));
 
   base::StackString<1024> sql(
       R"(
@@ -926,8 +926,19 @@ const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(
   return state ? state->runtime_table.get() : nullptr;
 }
 
+RuntimeTable* PerfettoSqlEngine::GetMutableRuntimeTableOrNull(
+    std::string_view name) {
+  auto* state = runtime_table_context_->manager.FindStateByName(name);
+  return state ? state->runtime_table.get() : nullptr;
+}
+
 const Table* PerfettoSqlEngine::GetStaticTableOrNull(
     std::string_view name) const {
+  auto* state = static_table_context_->manager.FindStateByName(name);
+  return state ? state->static_table : nullptr;
+}
+
+Table* PerfettoSqlEngine::GetMutableStaticTableOrNull(std::string_view name) {
   auto* state = static_table_context_->manager.FindStateByName(name);
   return state ? state->static_table : nullptr;
 }

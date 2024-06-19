@@ -899,7 +899,7 @@ DbSqliteModule::QueryCost DbSqliteModule::EstimateCost(
   return QueryCost{final_cost, current_row_count};
 }
 
-DbSqliteModule::State::State(const Table* _table, Table::Schema _schema)
+DbSqliteModule::State::State(Table* _table, Table::Schema _schema)
     : State(TableComputation::kStatic, std::move(_schema)) {
   static_table = _table;
 }
