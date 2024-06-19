@@ -299,10 +299,10 @@ TEST_F(PerfettoSqlEngineTest, MismatchedRange) {
   tables::SliceTable parent(&pool_);
   tables::ExpectedFrameTimelineSliceTable child(&pool_, &parent);
 
-  engine_.RegisterStaticTable(parent, "parent",
+  engine_.RegisterStaticTable(&parent, "parent",
                               tables::SliceTable::ComputeStaticSchema());
   engine_.RegisterStaticTable(
-      child, "child",
+      &child, "child",
       tables::ExpectedFrameTimelineSliceTable::ComputeStaticSchema());
 
   for (uint32_t i = 0; i < 5; i++) {

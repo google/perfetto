@@ -102,7 +102,7 @@ class TraceProcessorImpl : public TraceProcessor,
   friend class IteratorImpl;
 
   template <typename Table>
-  void RegisterStaticTable(const Table& table) {
+  void RegisterStaticTable(Table* table) {
     engine_->RegisterStaticTable(table, Table::Name(),
                                  Table::ComputeStaticSchema());
   }
