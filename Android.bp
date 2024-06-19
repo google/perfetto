@@ -12909,12 +12909,10 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_functions",
     srcs: [
-        "src/trace_processor/perfetto_sql/intrinsics/functions/array.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/base64.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/dominator_tree.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/functions/graph_helpers.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/import.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.cc",
@@ -12922,9 +12920,9 @@ filegroup {
         "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/functions/struct.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/structural_tree_partition.cc",
         "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/type_builders.cc",
     ],
 }
 
