@@ -353,6 +353,11 @@ class BitVector {
   PERFETTO_WARN_UNUSED_RESULT static BitVector FromSortedIndexVector(
       const std::vector<int64_t>&);
 
+  // Creates BitVector from a vector of unsorted indices. Set bits in the
+  // resulting BitVector are values from the index vector.
+  PERFETTO_WARN_UNUSED_RESULT static BitVector FromUnsortedIndexVector(
+      const std::vector<uint32_t>&);
+
   // Creates a BitVector of size `min(range_end, size())` with bits between
   // |start| and |end| filled with corresponding bits from |this| BitVector.
   PERFETTO_WARN_UNUSED_RESULT BitVector
