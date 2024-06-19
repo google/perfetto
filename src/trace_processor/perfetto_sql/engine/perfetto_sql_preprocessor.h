@@ -81,6 +81,7 @@ class PerfettoSqlPreprocessor {
       SqliteTokenizer& tokenizer,
       SqliteTokenizer::Token& token,
       const SqliteTokenizer::Token& name_token,
+      const std::string& name,
       const std::unordered_map<std::string, SqlSource>& arg_bindings);
 
   SqliteTokenizer global_tokenizer_;
