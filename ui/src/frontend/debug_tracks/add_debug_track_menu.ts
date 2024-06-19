@@ -205,7 +205,7 @@ export class AddDebugTrackMenu
                 addPivotDebugSliceTracks(
                   {
                     engine: vnode.attrs.engine,
-                    registerTrack: globals.trackManager.registerTrack,
+                    registerTrack: (x) => globals.trackManager.registerTrack(x),
                   },
                   vnode.attrs.dataSource,
                   this.name,
