@@ -1311,7 +1311,7 @@ class AndroidLongBatteryTracing implements Plugin {
     if (features.has('net.wifi')) {
       this.addCounterTrack(
         ctx,
-        'Wifi total',
+        'Wifi total bytes',
         `select ts, sum(value) as value from network_summary where dev_type = 'wifi' group by 1`,
         groupName,
         {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
@@ -1354,7 +1354,7 @@ class AndroidLongBatteryTracing implements Plugin {
     if (features.has('net.modem')) {
       this.addCounterTrack(
         ctx,
-        'Modem total',
+        'Modem total bytes',
         `select ts, sum(value) as value from network_summary where dev_type = 'modem' group by 1`,
         groupName,
         {yDisplay: 'log', yRangeSharingKey: 'net_bytes', unit: 'byte'},
