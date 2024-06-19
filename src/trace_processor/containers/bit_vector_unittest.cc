@@ -633,14 +633,14 @@ TEST(BitVectorUnittest, BuilderStressTest) {
   ASSERT_TRUE(bv.IsSet(8 * 1024));
 }
 
-TEST(BitVectorUnittest, FromIndexVectorEmpty) {
+TEST(BitVectorUnittest, FromSortedIndexVectorEmpty) {
   std::vector<int64_t> indices{};
   BitVector bv = BitVector::FromSortedIndexVector(indices);
 
   ASSERT_EQ(bv.size(), 0u);
 }
 
-TEST(BitVectorUnittest, FromIndexVector) {
+TEST(BitVectorUnittest, FromSortedIndexVector) {
   std::vector<int64_t> indices{0, 100, 200, 2000};
   BitVector bv = BitVector::FromSortedIndexVector(indices);
 
@@ -652,9 +652,41 @@ TEST(BitVectorUnittest, FromIndexVector) {
   ASSERT_TRUE(bv.IsSet(2000));
 }
 
-TEST(BitVectorUnittest, FromIndexVectorStressTestLargeValues) {
+TEST(BitVectorUnittest, FromSortedIndexVectorStressTestLargeValues) {
   std::vector<int64_t> indices{0, 1 << 2, 1 << 10, 1 << 20, 1 << 30};
   BitVector bv = BitVector::FromSortedIndexVector(indices);
+
+  ASSERT_EQ(bv.size(), (1 << 30) + 1u);
+  ASSERT_EQ(bv.CountSetBits(), 5u);
+  ASSERT_TRUE(bv.IsSet(0));
+  ASSERT_TRUE(bv.IsSet(1 << 2));
+  ASSERT_TRUE(bv.IsSet(1 << 10));
+  ASSERT_TRUE(bv.IsSet(1 << 20));
+  ASSERT_TRUE(bv.IsSet(1 << 30));
+}
+
+TEST(BitVectorUnittest, FromUnsortedIndexVectorEmpty) {
+  std::vector<uint32_t> indices{};
+  BitVector bv = BitVector::FromUnsortedIndexVector(indices);
+
+  ASSERT_EQ(bv.size(), 0u);
+}
+
+TEST(BitVectorUnittest, FromUnsortedIndexVector) {
+  std::vector<uint32_t> indices{0, 2000, 200, 100};
+  BitVector bv = BitVector::FromUnsortedIndexVector(indices);
+
+  ASSERT_EQ(bv.size(), 2001u);
+  ASSERT_EQ(bv.CountSetBits(), 4u);
+  ASSERT_TRUE(bv.IsSet(0));
+  ASSERT_TRUE(bv.IsSet(100));
+  ASSERT_TRUE(bv.IsSet(200));
+  ASSERT_TRUE(bv.IsSet(2000));
+}
+
+TEST(BitVectorUnittest, FromUnsortedIndexVectorStressTestLargeValues) {
+  std::vector<uint32_t> indices{0, 1 << 30, 1 << 10, 1 << 2, 1 << 20};
+  BitVector bv = BitVector::FromUnsortedIndexVector(indices);
 
   ASSERT_EQ(bv.size(), (1 << 30) + 1u);
   ASSERT_EQ(bv.CountSetBits(), 5u);
