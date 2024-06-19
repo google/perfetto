@@ -273,9 +273,7 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
     return base::ErrStatus("%s", status.c_message());
 
   // Export real and virtual tables.
-  auto tables_it = g_tp->ExecuteQuery(
-      "SELECT name FROM perfetto_tables UNION "
-      "SELECT name FROM sqlite_master WHERE type='table'");
+  auto tables_it = g_tp->ExecuteQuery("SELECT name FROM perfetto_tables");
   while (tables_it.Next()) {
     std::string table_name = tables_it.Get(0).string_value;
     PERFETTO_CHECK(!base::Contains(table_name, '\''));
