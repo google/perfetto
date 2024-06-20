@@ -36,6 +36,8 @@ trace.add_thread_track_descriptor(
 
 trace.add_track_event_slice("AsyncSlice", ts=1, dur=2, track=async_track_id)
 trace.add_track_event_slice("ProcessSlice", ts=3, dur=4, track=process_track)
-trace.add_track_event_slice("ThreadSlice", ts=5, dur=6, track=thread_track)
+trace.add_track_event_slice("ThreadSlice", ts=5, dur=8, track=thread_track)
+trace.add_track_event_slice(
+    "NestedThreadSlice", ts=6, dur=1, track=thread_track)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
