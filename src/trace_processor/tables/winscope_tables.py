@@ -14,6 +14,7 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import CppInt64
+from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import TableDoc
@@ -172,7 +173,7 @@ PROTOLOG_TABLE = Table(
     class_name='ProtoLogTable',
     sql_name='protolog',
     columns=[
-        C('ts', CppInt64()),
+        C('ts', CppInt64(), ColumnFlag.SORTED),
         C('level', CppString()),
         C('tag', CppString()),
         C('message', CppString()),
