@@ -19,6 +19,8 @@
 
 #include <grpcpp/client_context.h>
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/impl/service_type.h>
+#include <grpcpp/support/status.h>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/getopt.h"
@@ -55,10 +57,36 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 }
 
 class OrchestratorImpl final : public protos::BigtraceOrchestrator::Service {
+ public:
+  explicit OrchestratorImpl(std::unique_ptr<protos::BigtraceWorker::Stub> _stub)
+      : stub(std::move(_stub)) {}
+
+ private:
+  std::unique_ptr<protos::BigtraceWorker::Stub> stub;
   grpc::Status Query(
       grpc::ServerContext*,
-      const protos::BigtraceQueryArgs*,
-      grpc::ServerWriter<protos::BigtraceQueryResponse>*) override {
+      const protos::BigtraceQueryArgs* args,
+      grpc::ServerWriter<protos::BigtraceQueryResponse>* writer) override {
+    const std::string& sql_query = args->sql_query();
+    for (const std::string& trace : args->traces()) {
+      grpc::ClientContext client_context;
+      protos::BigtraceQueryTraceArgs trace_args;
+      protos::BigtraceQueryTraceResponse trace_response;
+
+      trace_args.set_sql_query(sql_query);
+      trace_args.set_trace(trace);
+      grpc::Status status =
+          stub->QueryTrace(&client_context, trace_args, &trace_response);
+      if (!status.ok()) {
+        return status;
+      }
+      protos::BigtraceQueryResponse response;
+      response.set_trace(trace_response.trace());
+      for (const protos::QueryResult& query_result : trace_response.result()) {
+        response.add_result()->CopyFrom(query_result);
+      }
+      writer->Write(response);
+    }
     return grpc::Status::OK;
   }
 };
@@ -71,12 +99,6 @@ base::Status OrchestratorMain(int argc, char** argv) {
                                    ? options.worker_address
                                    : "localhost:5052";
 
-  // Setup the Orchestrator Server
-  auto service = std::make_unique<OrchestratorImpl>();
-  grpc::ServerBuilder builder;
-  builder.RegisterService(service.get());
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-
   // Setup the Orchestrator Client
   auto channel =
       grpc::CreateChannel(worker_address, grpc::InsecureChannelCredentials());
@@ -85,27 +107,13 @@ base::Status OrchestratorMain(int argc, char** argv) {
 
   PERFETTO_CHECK(connected);
 
-  std::string example_trace = "test/data/api34_startup_cold.perfetto-trace";
-  std::string example_query = "SELECT * FROM slice";
-
   auto stub = protos::BigtraceWorker::NewStub(channel);
-  grpc::ClientContext context;
-  protos::BigtraceQueryTraceArgs args;
-  protos::BigtraceQueryTraceResponse response;
+  auto service = std::make_unique<OrchestratorImpl>(std::move(stub));
 
-  args.set_trace(example_trace);
-  args.set_sql_query(example_query);
-
-  grpc::Status status = stub->QueryTrace(&context, args, &response);
-
-  if (status.ok()) {
-    PERFETTO_LOG("Received response with result_size: %i",
-                 response.result_size());
-  } else {
-    PERFETTO_LOG("Failed to query trace");
-  }
-
-  // Build and start the Orchestrator server
+  // Setup the Orchestrator Server
+  grpc::ServerBuilder builder;
+  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  builder.RegisterService(service.get());
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
   PERFETTO_LOG("Orchestrator server listening on %s", server_address.c_str());
 

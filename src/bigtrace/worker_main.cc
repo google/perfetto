@@ -15,6 +15,7 @@
  */
 
 #include <grpcpp/grpcpp.h>
+#include <grpcpp/support/status.h>
 #include <cstdint>
 #include <memory>
 
@@ -41,9 +42,9 @@ class WorkerImpl final : public protos::BigtraceWorker::Service {
     base::Status status =
         trace_processor::ReadTrace(tp.get(), args->trace().c_str());
     if (!status.ok()) {
-      return grpc::Status::CANCELLED;
+      const std::string& error_message = status.c_message();
+      return grpc::Status(grpc::StatusCode::INTERNAL, error_message);
     }
-
     auto iter = tp->ExecuteQuery(args->sql_query());
     trace_processor::QueryResultSerializer serializer =
         trace_processor::QueryResultSerializer(std::move(iter));
@@ -55,6 +56,7 @@ class WorkerImpl final : public protos::BigtraceWorker::Service {
       response->add_result()->ParseFromArray(
           serialized.data(), static_cast<int>(serialized.size()));
     }
+    response->set_trace(args->trace());
 
     return grpc::Status::OK;
   }

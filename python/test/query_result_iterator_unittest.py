@@ -14,13 +14,12 @@
 
 import unittest
 
-from perfetto.trace_processor.api import TraceProcessor
-from perfetto.trace_processor.api import TraceProcessorException
+from perfetto.common.exceptions import PerfettoException
+from perfetto.common.query_result_iterator import QueryResultIterator
 from perfetto.trace_processor.api import PLATFORM_DELEGATE
 from perfetto.trace_processor.protos import ProtoFactory
 
 PROTO_FACTORY = ProtoFactory(PLATFORM_DELEGATE())
-
 
 class TestQueryResultIterator(unittest.TestCase):
   # The numbers input into cells correspond the CellType enum values
@@ -47,8 +46,8 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(
-        ['foo_id', 'foo_num', 'foo_null'], [batch])
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num', 'foo_null'],
+                                      [batch])
 
     for num, row in enumerate(qr_iterator):
       self.assertEqual(row.foo_id, str_values[num])
@@ -85,8 +84,8 @@ class TestQueryResultIterator(unittest.TestCase):
     batch_2.string_cells = "\0".join(str_values[2:]) + "\0"
     batch_2.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(
-        ['foo_id', 'foo_num', 'foo_null'], [batch_1, batch_2])
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num', 'foo_null'],
+                                      [batch_1, batch_2])
 
     for num, row in enumerate(qr_iterator):
       self.assertEqual(row.foo_id, str_values[num])
@@ -97,7 +96,7 @@ class TestQueryResultIterator(unittest.TestCase):
     batch = PROTO_FACTORY.CellsBatch()
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator([], [batch])
+    qr_iterator = QueryResultIterator([], [batch])
 
     for num, row in enumerate(qr_iterator):
       self.assertIsNone(row.foo_id)
@@ -109,7 +108,7 @@ class TestQueryResultIterator(unittest.TestCase):
     # Since the batch isn't defined as the last batch, the QueryResultsIterator
     # expects another batch and thus raises IndexError as no next batch exists.
     with self.assertRaises(IndexError):
-      qr_iterator = TraceProcessor.QueryResultIterator([], [batch])
+      qr_iterator = QueryResultIterator([], [batch])
 
   def test_null_cells(self):
     int_values = [100, 200, 300, 500, 600]
@@ -131,8 +130,8 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(
-        ['foo_id', 'foo_num', 'foo_num_2'], [batch])
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num', 'foo_num_2'],
+                                      [batch])
 
     # Any cell (and thus column in a row) can be set to null
     # In this query result, foo_num_2 of row 2 was set to null
@@ -155,8 +154,7 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
-                                                     [batch])
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num'], [batch])
 
     # The batch specifies there ought to be 2 cells of type VARINT and 2 cells
     # of type STRING, but there are no string cells defined in the batch. Thus
@@ -175,9 +173,10 @@ class TestQueryResultIterator(unittest.TestCase):
 
     # It's always the case that the number of cells is a multiple of the number
     # of columns. However, here this is clearly not the case, so raise a
-    # TraceProcessorException during the data integrity check in the constructor
-    with self.assertRaises(TraceProcessorException):
-      qr_iterator = TraceProcessor.QueryResultIterator(
+    # PerfettoException during the data integrity check in
+    # the constructor
+    with self.assertRaises(PerfettoException):
+      qr_iterator = QueryResultIterator(
           ['foo_id', 'foo_num', 'foo_dur', 'foo_ms'], [batch])
 
   def test_invalid_cell_type(self):
@@ -189,13 +188,12 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.varint_cells.extend([100, 200])
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
-                                                     [batch])
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num'], [batch])
 
     # In this batch we declare the columns types to be CELL_INVALID,
     # CELL_VARINT but that doesn't match the data which are both ints*
-    # so we should raise a TraceProcessorException.
-    with self.assertRaises(TraceProcessorException):
+    # so we should raise a PerfettoException.
+    with self.assertRaises(PerfettoException):
       for row in qr_iterator:
         pass
 
@@ -216,8 +214,8 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(
-        ['foo_id', 'foo_num', 'foo_null'], [batch])
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num', 'foo_null'],
+                                      [batch])
 
     qr_df = qr_iterator.as_pandas_dataframe()
     for num, row in qr_df.iterrows():
@@ -255,8 +253,8 @@ class TestQueryResultIterator(unittest.TestCase):
     batch_2.string_cells = "\0".join(str_values[2:]) + "\0"
     batch_2.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(
-        ['foo_id', 'foo_num', 'foo_null'], [batch_1, batch_2])
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num', 'foo_null'],
+                                      [batch_1, batch_2])
 
     qr_df = qr_iterator.as_pandas_dataframe()
     for num, row in qr_df.iterrows():
@@ -268,7 +266,7 @@ class TestQueryResultIterator(unittest.TestCase):
     batch = PROTO_FACTORY.CellsBatch()
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator([], [batch])
+    qr_iterator = QueryResultIterator([], [batch])
 
     qr_df = qr_iterator.as_pandas_dataframe()
     for num, row in qr_df.iterrows():
@@ -295,8 +293,8 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(
-        ['foo_id', 'foo_num', 'foo_num_2'], [batch])
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num', 'foo_num_2'],
+                                      [batch])
     qr_df = qr_iterator.as_pandas_dataframe()
 
     # Any cell (and thus column in a row) can be set to null
@@ -320,8 +318,7 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.string_cells = "\0".join(str_values) + "\0"
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
-                                                     [batch])
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num'], [batch])
 
     # The batch specifies there ought to be 2 cells of type VARINT and 2 cells
     # of type STRING, but there are no string cells defined in the batch. Thus
@@ -338,11 +335,10 @@ class TestQueryResultIterator(unittest.TestCase):
     batch.varint_cells.extend([100, 200])
     batch.is_last_batch = True
 
-    qr_iterator = TraceProcessor.QueryResultIterator(['foo_id', 'foo_num'],
-                                                     [batch])
+    qr_iterator = QueryResultIterator(['foo_id', 'foo_num'], [batch])
 
     # In this batch we declare the columns types to be CELL_INVALID,
     # CELL_VARINT but that doesn't match the data which are both ints*
-    # so we should raise a TraceProcessorException.
-    with self.assertRaises(TraceProcessorException):
+    # so we should raise a PerfettoException.
+    with self.assertRaises(PerfettoException):
       _ = qr_iterator.as_pandas_dataframe()
