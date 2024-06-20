@@ -327,3 +327,20 @@ class PerfettoTable(TestSuite):
         "id","numeric","string","nullable"
         0,3111,460,0
         """))
+
+  def test_create_perfetto_index(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        CREATE PERFETTO INDEX foo ON internal_slice(track_id);
+        CREATE PERFETTO INDEX foo_name ON internal_slice(name);
+
+        SELECT
+          COUNT() FILTER (WHERE track_id > 10) AS track_idx,
+          COUNT() FILTER (WHERE name > "g") AS name_idx
+        FROM internal_slice;
+        """,
+        out=Csv("""
+        "track_idx","name_idx"
+        20717,7098
+        """))

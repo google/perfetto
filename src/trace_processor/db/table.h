@@ -37,6 +37,10 @@
 
 namespace perfetto::trace_processor {
 
+namespace {
+using OrderedIndexes = column::DataLayerChain::OrderedIndices;
+}
+
 // Represents a table of data with named, strongly typed columns.
 class Table {
  public:
@@ -140,6 +144,32 @@ class Table {
     return Iterator(this, std::move(rm));
   }
 
+  // Returns if there was an index created on column.
+  bool HasIndexOnCol(uint32_t col_idx) const {
+    PERFETTO_DCHECK(col_idx < indexes_.size());
+    return indexes_[col_idx].has_value();
+  }
+
+  // Returns OrderedIndices created based on index on the column.
+  const column::DataLayerChain::OrderedIndices GetIndexOnCol(
+      uint32_t col_idx) const {
+    PERFETTO_DCHECK(HasIndexOnCol(col_idx));
+    OrderedIndexes o;
+    o.data = indexes_[col_idx]->data();
+    o.size = static_cast<uint32_t>(indexes_[col_idx]->size());
+    return o;
+  }
+
+  // Adds an index onto column. Returns false if there is already index on this
+  // column.
+  bool SetIndex(uint32_t col_idx, std::vector<uint32_t> index) {
+    if (HasIndexOnCol(col_idx)) {
+      return false;
+    }
+    indexes_[col_idx] = std::move(index);
+    return true;
+  }
+
   // Sorts the table using the specified order by constraints.
   Table Sort(const std::vector<Order>&) const;
 
@@ -225,6 +255,8 @@ class Table {
   std::vector<RefPtr<column::DataLayer>> null_layers_;
   std::vector<RefPtr<column::DataLayer>> overlay_layers_;
   mutable std::vector<std::unique_ptr<column::DataLayerChain>> chains_;
+
+  std::vector<std::optional<std::vector<uint32_t>>> indexes_;
 };
 
 }  // namespace perfetto::trace_processor
