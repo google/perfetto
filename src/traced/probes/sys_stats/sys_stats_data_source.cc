@@ -96,7 +96,6 @@ SysStatsDataSource::SysStatsDataSource(
   psi_cpu_fd_ = open_fn("/proc/pressure/cpu");
   psi_io_fd_ = open_fn("/proc/pressure/io");
   psi_memory_fd_ = open_fn("/proc/pressure/memory");
-
   read_buf_ = base::PagedMemory::Allocate(kReadBufSize);
 
   // Build a lookup map that allows to quickly translate strings like "MemTotal"
@@ -148,8 +147,8 @@ SysStatsDataSource::SysStatsDataSource(
     stat_enabled_fields_ |= 1ul << static_cast<uint32_t>(*counter);
   }
 
-  std::array<uint32_t, 8> periods_ms{};
-  std::array<uint32_t, 8> ticks{};
+  std::array<uint32_t, 9> periods_ms{};
+  std::array<uint32_t, 9> ticks{};
   static_assert(periods_ms.size() == ticks.size(), "must have same size");
 
   periods_ms[0] = ClampTo10Ms(cfg.meminfo_period_ms(), "meminfo_period_ms");
@@ -160,6 +159,7 @@ SysStatsDataSource::SysStatsDataSource(
   periods_ms[5] = ClampTo10Ms(cfg.buddyinfo_period_ms(), "buddyinfo_period_ms");
   periods_ms[6] = ClampTo10Ms(cfg.diskstat_period_ms(), "diskstat_period_ms");
   periods_ms[7] = ClampTo10Ms(cfg.psi_period_ms(), "psi_period_ms");
+  periods_ms[8] = ClampTo10Ms(cfg.thermal_period_ms(), "thermal_period_ms");
 
   tick_period_ms_ = 0;
   for (uint32_t ms : periods_ms) {
@@ -186,6 +186,7 @@ SysStatsDataSource::SysStatsDataSource(
   buddyinfo_ticks_ = ticks[5];
   diskstat_ticks_ = ticks[6];
   psi_ticks_ = ticks[7];
+  thermal_ticks_ = ticks[8];
 }
 
 void SysStatsDataSource::Start() {
@@ -241,10 +242,82 @@ void SysStatsDataSource::ReadSysStats() {
   if (psi_ticks_ && tick_ % psi_ticks_ == 0)
     ReadPsi(sys_stats);
 
+  if (thermal_ticks_ && tick_ % thermal_ticks_ == 0)
+    ReadThermalZones(sys_stats);
+
   sys_stats->set_collection_end_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
 
   tick_++;
+}
+
+base::ScopedDir SysStatsDataSource::OpenDirAndLogOnErrorOnce(
+    const std::string& dir_path,
+    bool* already_logged) {
+  base::ScopedDir dir(opendir(dir_path.c_str()));
+  if (!dir && !(*already_logged)) {
+    PERFETTO_PLOG("Failed to open %s", dir_path.c_str());
+    *already_logged = true;
+  }
+  return dir;
+}
+
+std::optional<uint64_t> SysStatsDataSource::ReadThermalZoneTemp(
+    const std::string& thermal_zone) {
+  base::StackString<256> thermal_zone_temp_path("/sys/class/thermal/%s/temp",
+                                                thermal_zone.c_str());
+  base::ScopedFile fd = OpenReadOnly(thermal_zone_temp_path.c_str());
+  if (!fd) {
+    return std::nullopt;
+  }
+  size_t rsize = ReadFile(&fd, thermal_zone_temp_path.c_str());
+  if (!rsize)
+    return std::nullopt;
+
+  return static_cast<uint64_t>(
+      strtoll(static_cast<char*>(read_buf_.Get()), nullptr, 10));
+}
+
+std::optional<std::string> SysStatsDataSource::ReadThermalZoneType(
+    const std::string& thermal_zone) {
+  base::StackString<256> thermal_zone_type_path("/sys/class/thermal/%s/type",
+                                                thermal_zone.c_str());
+  base::ScopedFile fd = OpenReadOnly(thermal_zone_type_path.c_str());
+  if (!fd) {
+    return std::nullopt;
+  }
+  size_t rsize = ReadFile(&fd, thermal_zone_type_path.c_str());
+  if (!rsize)
+    return std::nullopt;
+  return base::StripSuffix(static_cast<char*>(read_buf_.Get()), "\n");
+}
+
+void SysStatsDataSource::ReadThermalZones(protos::pbzero::SysStats* sys_stats) {
+  std::string base_dir = "/sys/class/thermal/";
+  base::ScopedDir thermal_dir =
+      OpenDirAndLogOnErrorOnce(base_dir, &thermal_error_logged_);
+  if (!thermal_dir) {
+    return;
+  }
+  while (struct dirent* dir_ent = readdir(*thermal_dir)) {
+    // Entries in /sys/class/thermal are symlinks to /devices/virtual
+    if (dir_ent->d_type != DT_LNK)
+      continue;
+    const char* name = dir_ent->d_name;
+    if (!base::StartsWith(name, "thermal_zone")) {
+      continue;
+    }
+    auto* thermal_zone = sys_stats->add_thermal_zone();
+    thermal_zone->set_name(name);
+    auto temp = ReadThermalZoneTemp(name);
+    if (temp) {
+      thermal_zone->set_temp(*temp / 1000);
+    }
+    auto type = ReadThermalZoneType(name);
+    if (type) {
+      thermal_zone->set_type(*type);
+    }
+  }
 }
 
 void SysStatsDataSource::ReadDiskStat(protos::pbzero::SysStats* sys_stats) {
@@ -380,19 +453,22 @@ void SysStatsDataSource::ReadBuddyInfo(protos::pbzero::SysStats* sys_stats) {
 }
 
 void SysStatsDataSource::ReadDevfreq(protos::pbzero::SysStats* sys_stats) {
-  base::ScopedDir devfreq_dir = OpenDevfreqDir();
-  if (devfreq_dir) {
-    while (struct dirent* dir_ent = readdir(*devfreq_dir)) {
-      // Entries in /sys/class/devfreq are symlinks to /devices/platform
-      if (dir_ent->d_type != DT_LNK)
-        continue;
-      const char* name = dir_ent->d_name;
-      const char* file_content = ReadDevfreqCurFreq(name);
-      auto value = static_cast<uint64_t>(strtoll(file_content, nullptr, 10));
-      auto* devfreq = sys_stats->add_devfreq();
-      devfreq->set_key(name);
-      devfreq->set_value(value);
-    }
+  std::string base_dir = "/sys/class/devfreq/";
+  base::ScopedDir devfreq_dir =
+      OpenDirAndLogOnErrorOnce(base_dir, &devfreq_error_logged_);
+  if (!devfreq_dir) {
+    return;
+  }
+  while (struct dirent* dir_ent = readdir(*devfreq_dir)) {
+    // Entries in /sys/class/devfreq are symlinks to /devices/platform
+    if (dir_ent->d_type != DT_LNK)
+      continue;
+    const char* name = dir_ent->d_name;
+    const char* file_content = ReadDevfreqCurFreq(name);
+    auto value = static_cast<uint64_t>(strtoll(file_content, nullptr, 10));
+    auto* devfreq = sys_stats->add_devfreq();
+    devfreq->set_key(name);
+    devfreq->set_value(value);
   }
 }
 
@@ -401,16 +477,6 @@ void SysStatsDataSource::ReadCpufreq(protos::pbzero::SysStats* sys_stats) {
 
   for (const auto& c : cpufreq)
     sys_stats->add_cpufreq_khz(c);
-}
-
-base::ScopedDir SysStatsDataSource::OpenDevfreqDir() {
-  const char* base_dir = "/sys/class/devfreq/";
-  base::ScopedDir devfreq_dir(opendir(base_dir));
-  if (!devfreq_dir && !devfreq_error_logged_) {
-    devfreq_error_logged_ = true;
-    PERFETTO_PLOG("failed to opendir(/sys/class/devfreq)");
-  }
-  return devfreq_dir;
 }
 
 const char* SysStatsDataSource::ReadDevfreqCurFreq(
