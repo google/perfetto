@@ -50,6 +50,7 @@ Table::Table(StringPool* pool,
       row_count_(row_count),
       overlays_(std::move(overlays)),
       columns_(std::move(columns)) {
+  indexes_.resize(columns_.size());
   PERFETTO_DCHECK(string_pool_);
 }
 
@@ -61,6 +62,7 @@ Table& Table::operator=(Table&& other) noexcept {
 
   overlays_ = std::move(other.overlays_);
   columns_ = std::move(other.columns_);
+  indexes_ = std::move(other.indexes_);
 
   storage_layers_ = std::move(other.storage_layers_);
   null_layers_ = std::move(other.null_layers_);

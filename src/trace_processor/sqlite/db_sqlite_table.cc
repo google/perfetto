@@ -413,15 +413,24 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   auto* t = GetVtab(vtab);
   auto* s = sqlite::ModuleStateManager<DbSqliteModule>::GetState(t->state);
 
+  const Table* table = nullptr;
+  switch (s->computation) {
+    case TableComputation::kStatic:
+      table = s->static_table;
+      break;
+    case TableComputation::kRuntime:
+      table = s->runtime_table.get();
+      break;
+    case TableComputation::kTableFunction:
+      break;
+  }
+
   uint32_t row_count;
   int argv_index;
   switch (s->computation) {
     case TableComputation::kStatic:
-      row_count = s->static_table->row_count();
-      argv_index = 1;
-      break;
     case TableComputation::kRuntime:
-      row_count = s->runtime_table->row_count();
+      row_count = table->row_count();
       argv_index = 1;
       break;
     case TableComputation::kTableFunction:
@@ -474,30 +483,41 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
   // Reorder constraints to consider the constraints on columns which are
   // cheaper to filter first.
   {
-    std::sort(cs_idxes.begin(), cs_idxes.end(), [s, info](int a, int b) {
-      auto a_idx = static_cast<uint32_t>(info->aConstraint[a].iColumn);
-      auto b_idx = static_cast<uint32_t>(info->aConstraint[b].iColumn);
-      const auto& a_col = s->schema.columns[a_idx];
-      const auto& b_col = s->schema.columns[b_idx];
+    std::sort(
+        cs_idxes.begin(), cs_idxes.end(), [s, info, &table](int a, int b) {
+          auto a_idx = static_cast<uint32_t>(info->aConstraint[a].iColumn);
+          auto b_idx = static_cast<uint32_t>(info->aConstraint[b].iColumn);
+          const auto& a_col = s->schema.columns[a_idx];
+          const auto& b_col = s->schema.columns[b_idx];
 
-      // Id columns are always very cheap to filter on so try and get them
-      // first.
-      if (a_col.is_id || b_col.is_id)
-        return a_col.is_id && !b_col.is_id;
+          // Id columns are the most efficient to filter, as they don't have a
+          // support in real data.
+          if (a_col.is_id || b_col.is_id)
+            return a_col.is_id && !b_col.is_id;
 
-      // Set id columns are always very cheap to filter on so try and get them
-      // second.
-      if (a_col.is_set_id || b_col.is_set_id)
-        return a_col.is_set_id && !b_col.is_set_id;
+          // Set id columns are inherently sorted and have fast filtering
+          // operations.
+          if (a_col.is_set_id || b_col.is_set_id)
+            return a_col.is_set_id && !b_col.is_set_id;
 
-      // Sorted columns are also quite cheap to filter so order them after
-      // any id/set id columns.
-      if (a_col.is_sorted || b_col.is_sorted)
-        return a_col.is_sorted && !b_col.is_sorted;
+          // Intrinsically sorted column is more efficient to sort than
+          // extrinsically sorted column.
+          if (a_col.is_sorted || b_col.is_sorted)
+            return a_col.is_sorted && !b_col.is_sorted;
 
-      // TODO(lalitm): introduce more orderings here based on empirical data.
-      return false;
-    });
+          // Extrinsically sorted column is more efficient to sort than unsorted
+          // column.
+          if (table) {
+            bool a_has_idx = table->HasIndexOnCol(a_idx);
+            bool b_has_idx = table->HasIndexOnCol(b_idx);
+            if (a_has_idx || b_has_idx)
+              return a_has_idx && !b_has_idx;
+          }
+
+          // TODO(lalitm): introduce more orderings here based on empirical
+          // data.
+          return false;
+        });
   }
 
   // Remove any order by constraints which also have an equality constraint.
