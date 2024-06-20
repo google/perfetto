@@ -316,10 +316,8 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
       source = RewriteToDummySql(sql);
     } else if (auto* index = std::get_if<PerfettoSqlParser::CreateIndex>(
                    &parser.statement())) {
-      // TODO(mayzner): Enable.
-      base::ignore_result(index);
-      return base::ErrStatus("CREATE PERFETTO INDEX not implemented");
-      // source = RewriteToDummySql(parser.statement_sql());
+      RETURN_IF_ERROR(ExecuteCreateIndex(*index));
+      source = RewriteToDummySql(parser.statement_sql());
     } else {
       // If none of the above matched, this must just be an SQL statement
       // directly executable by SQLite.
@@ -598,6 +596,39 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
                            key.c_str());
   }
   return IncludeModuleImpl(*module, key, parser);
+}
+
+base::Status PerfettoSqlEngine::ExecuteCreateIndex(
+    const PerfettoSqlParser::CreateIndex& index) {
+  // TODO(mayzner): Enable after implementing DROP.
+  if (index.replace) {
+    return base::ErrStatus("CREATE PERFETTO INDEX: Index can't be replaced");
+  }
+  Table* t = GetMutableTableOrNull(index.table_name);
+  if (!t) {
+    return base::ErrStatus("CREATE PERFETTO INDEX: Table '%s' not found",
+                           index.table_name.c_str());
+  }
+
+  const std::optional<uint32_t> opt_col = t->ColumnIdxFromName(index.col_name);
+  if (!opt_col) {
+    return base::ErrStatus(
+        "CREATE PERFETTO INDEX: Column '%s' not found in table '%s'",
+        index.col_name.c_str(), index.table_name.c_str());
+  }
+
+  Order o;
+  o.col_idx = *opt_col;
+  Query q;
+  q.orders = {o};
+  RowMap sorted_rm = t->QueryToRowMap(q);
+
+  PERFETTO_CHECK(sorted_rm.IsIndexVector());
+  std::vector<uint32_t> sorted_indices =
+      std::move(sorted_rm).TakeAsIndexVector();
+
+  t->SetIndex(*opt_col, std::move(sorted_indices));
+  return base::OkStatus();
 }
 
 base::Status PerfettoSqlEngine::IncludeModuleImpl(

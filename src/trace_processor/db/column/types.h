@@ -94,7 +94,7 @@ struct Constraint {
 // Represents an order by operation on a column.
 struct Order {
   uint32_t col_idx;
-  bool desc;
+  bool desc = false;
 };
 
 // Structured data used to determine what Trace Processor will query using

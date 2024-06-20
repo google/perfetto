@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/data_layer.h"
 #include "src/trace_processor/db/column/types.h"
@@ -33,6 +34,10 @@ namespace perfetto::trace_processor {
 namespace {
 
 using Range = RowMap::Range;
+using Indices = column::DataLayerChain::Indices;
+using OrderedIndices = column::DataLayerChain::OrderedIndices;
+
+static constexpr uint32_t kIndexVectorThreshold = 1024;
 
 }  // namespace
 
@@ -116,7 +121,6 @@ void QueryExecutor::IndexSearch(const Constraint& c,
   // Create outmost TableIndexVector.
   std::vector<uint32_t> table_indices = std::move(*rm).TakeAsIndexVector();
 
-  using Indices = column::DataLayerChain::Indices;
   Indices indices = Indices::Create(table_indices, Indices::State::kMonotonic);
   chain.IndexSearch(c.op, c.value, indices);
 
@@ -132,7 +136,37 @@ void QueryExecutor::IndexSearch(const Constraint& c,
 RowMap QueryExecutor::FilterLegacy(const Table* table,
                                    const std::vector<Constraint>& c_vec) {
   RowMap rm(0, table->row_count());
-  for (const auto& c : c_vec) {
+  if (c_vec.empty()) {
+    return rm;
+  }
+
+  uint32_t i = 0;
+  const auto& front_c = c_vec.front();
+
+  // Filter on index.
+  if (front_c.op != FilterOp::kGlob && front_c.op != FilterOp::kRegex &&
+      front_c.op != FilterOp::kNe &&
+      table->HasIndexOnCol(c_vec.front().col_idx)) {
+    i = 1;
+    OrderedIndices index = table->GetIndexOnCol(front_c.col_idx);
+
+    Range r = table->ChainForColumn(front_c.col_idx)
+                  .OrderedIndexSearch(front_c.op, front_c.value, index);
+
+    std::vector<uint32_t> in_table(index.data + r.start, index.data + r.end);
+
+    // For small vectors the cost of creating a BitVector might potentially be
+    // bigger than gain with better RowMap base.
+    if (in_table.size() < kIndexVectorThreshold) {
+      std::sort(in_table.begin(), in_table.end());
+      rm = RowMap(std::move(in_table));
+    } else {
+      rm = RowMap(BitVector::FromUnsortedIndexVector(std::move(in_table)));
+    }
+  }
+
+  for (; i < c_vec.size(); i++) {
+    const auto& c = c_vec[i];
     FilterColumn(c, table->ChainForColumn(c.col_idx), &rm);
   }
   return rm;

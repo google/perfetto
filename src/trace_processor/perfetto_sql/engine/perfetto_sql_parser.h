@@ -80,7 +80,7 @@ class PerfettoSqlParser {
   // Indicates that the specified SQL was a CREATE PERFETTO INDEX statement
   // with the following parameters.
   struct CreateIndex {
-    bool replace;
+    bool replace = false;
     std::string name;
     std::string table_name;
     std::string col_name;

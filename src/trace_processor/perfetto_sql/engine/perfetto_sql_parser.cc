@@ -218,8 +218,8 @@ bool PerfettoSqlParser::Next() {
           return ParseCreatePerfettoIndex(replace, *first_non_space_token);
         }
         base::StackString<1024> err(
-            "Expected 'FUNCTION', 'TABLE' or 'MACRO' after 'CREATE PERFETTO', "
-            "received '%*s'.",
+            "Expected 'FUNCTION', 'TABLE', 'MACRO' OR 'INDEX' after 'CREATE "
+            "PERFETTO', received '%*s'.",
             static_cast<int>(token.str.size()), token.str.data());
         return ErrorAtToken(token, err.c_str());
     }
