@@ -2581,11 +2581,9 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/common/args.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/counters.sql",
-        "src/trace_processor/perfetto_sql/stdlib/common/cpus.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/metadata.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/percentiles.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/slices.sql",
-        "src/trace_processor/perfetto_sql/stdlib/common/thread_states.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/timestamps.sql",
     ],
 )
@@ -2613,10 +2611,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_cpu_cpu",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/cpu/cpus.sql",
         "src/trace_processor/perfetto_sql/stdlib/cpu/freq.sql",
         "src/trace_processor/perfetto_sql/stdlib/cpu/idle.sql",
-        "src/trace_processor/perfetto_sql/stdlib/cpu/size.sql",
     ],
 )
 
@@ -2626,11 +2622,9 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/args.sql",
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/counters.sql",
-        "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/cpus.sql",
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/metadata.sql",
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/percentiles.sql",
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/slices.sql",
-        "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/thread_states.sql",
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/timestamps.sql",
     ],
 )
@@ -2785,6 +2779,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/viz:viz
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_viz_viz",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/viz/core_type.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/wattson:wattson
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_wattson_wattson",
@@ -2832,6 +2834,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_time_time",
         ":src_trace_processor_perfetto_sql_stdlib_v8_v8",
         ":src_trace_processor_perfetto_sql_stdlib_viz_summary_summary",
+        ":src_trace_processor_perfetto_sql_stdlib_viz_viz",
         ":src_trace_processor_perfetto_sql_stdlib_wattson_wattson",
     ],
     outs = [
