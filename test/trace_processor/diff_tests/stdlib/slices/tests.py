@@ -33,7 +33,8 @@ class Slices(TestSuite):
       """,
         out=Csv("""
         "name","ts","dur","depth","thread_name","tid","process_name","pid"
-        "ThreadSlice",5,6,0,"Thread",5,"Process",3
+        "ThreadSlice",5,8,0,"Thread",5,"Process",3
+        "NestedThreadSlice",6,1,1,"Thread",5,"Process",3
       """))
 
   def test_process_slice(self):
@@ -63,7 +64,44 @@ class Slices(TestSuite):
         "name","ts","dur","depth","thread_name","tid","process_name","pid"
         "AsyncSlice",1,2,0,"[NULL]","[NULL]","[NULL]","[NULL]"
         "ProcessSlice",3,4,0,"[NULL]","[NULL]","Process",3
-        "ThreadSlice",5,6,0,"Thread",5,"Process",3
+        "ThreadSlice",5,8,0,"Thread",5,"Process",3
+        "NestedThreadSlice",6,1,1,"Thread",5,"Process",3
+      """))
+
+  # Ancestor / descendant wrappers.
+
+  def test_slice_ancestor_and_self(self):
+    return DiffTestBlueprint(
+        trace=Path('trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE slices.hierarchy;
+
+        SELECT name, ts, dur, depth
+        FROM _slice_ancestor_and_self(
+          (SELECT id FROM slice WHERE name = 'NestedThreadSlice')
+        );
+      """,
+        out=Csv("""
+        "name","ts","dur","depth"
+        "NestedThreadSlice",6,1,1
+        "ThreadSlice",5,8,0
+      """))
+
+  def test_slice_descendant_and_self(self):
+    return DiffTestBlueprint(
+        trace=Path('trace.py'),
+        query="""
+        INCLUDE PERFETTO MODULE slices.hierarchy;
+
+        SELECT name, ts, dur, depth
+        FROM _slice_descendant_and_self(
+          (SELECT id FROM slice WHERE name = 'ThreadSlice')
+        );
+      """,
+        out=Csv("""
+        "name","ts","dur","depth"
+        "ThreadSlice",5,8,0
+        "NestedThreadSlice",6,1,1
       """))
 
   # Common functions
