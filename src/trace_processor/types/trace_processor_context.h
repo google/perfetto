@@ -146,6 +146,7 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> v8_tracker;                // V8Tracker
   std::unique_ptr<Destructible> jit_tracker;               // JitTracker
   std::unique_ptr<Destructible> perf_dso_tracker;          // DsoTracker
+  std::unique_ptr<Destructible> protolog_message_decoder;  // ProtoLogMessageDecoder
   // clang-format on
 
   std::unique_ptr<ProtoTraceParser> proto_trace_parser;
