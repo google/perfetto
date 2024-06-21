@@ -20,58 +20,13 @@ from python.generators.diff_tests.testing import TestSuite
 from python.generators.diff_tests.testing import PrintProfileProto
 
 
-class Memory(TestSuite):
-
-  def test_memory_rss_and_swap_per_process(self):
-    return DiffTestBlueprint(
-        trace=DataPath('android_postboot_unlock.pftrace'),
-        query="""
-        INCLUDE PERFETTO MODULE memory.linux.process;
-
-        SELECT *
-        FROM memory_rss_and_swap_per_process
-        WHERE upid = 1
-        LIMIT 5
-        """,
-        out=Csv("""
-        "ts","dur","upid","pid","process_name","anon_rss","file_rss","shmem_rss","rss","swap","anon_rss_and_swap","rss_and_swap"
-        37592474220,12993896,1,1982,"com.android.systemui",125865984,"[NULL]","[NULL]","[NULL]","[NULL]",125865984,"[NULL]"
-        37605468116,1628,1,1982,"com.android.systemui",126050304,"[NULL]","[NULL]","[NULL]","[NULL]",126050304,"[NULL]"
-        37605469744,1302,1,1982,"com.android.systemui",126050304,"[NULL]",2990080,"[NULL]","[NULL]",126050304,"[NULL]"
-        37605471046,685791,1,1982,"com.android.systemui",126046208,"[NULL]",2990080,"[NULL]","[NULL]",126046208,"[NULL]"
-        37606156837,6510,1,1982,"com.android.systemui",126042112,"[NULL]",2990080,"[NULL]","[NULL]",126042112,"[NULL]"
-            """))
-
-  def test_memory_rss_high_watermark_per_process(self):
-    return DiffTestBlueprint(
-        trace=DataPath('android_postboot_unlock.pftrace'),
-        query="""
-        INCLUDE PERFETTO MODULE memory.linux.high_watermark;
-
-        SELECT *
-        FROM memory_rss_high_watermark_per_process
-        WHERE upid = 1
-        LIMIT 10;
-        """,
-        out=Csv("""
-        "ts","dur","upid","pid","process_name","rss_high_watermark"
-        37592474220,12993896,1,1982,"com.android.systemui",125865984
-        37605468116,1628,1,1982,"com.android.systemui",126050304
-        37605469744,333774129,1,1982,"com.android.systemui",129040384
-        37939243873,120479574,1,1982,"com.android.systemui",372977664
-        38059723447,936,1,1982,"com.android.systemui",373043200
-        38059724383,6749186,1,1982,"com.android.systemui",373174272
-        38066473569,7869426,1,1982,"com.android.systemui",373309440
-        38074342995,11596761,1,1982,"com.android.systemui",373444608
-        38085939756,4877848,1,1982,"com.android.systemui",373579776
-        38090817604,11930827,1,1982,"com.android.systemui",373714944
-              """))
+class AndroidMemory(TestSuite):
 
   def test_memory_oom_score_with_rss_and_swap_per_process(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        INCLUDE PERFETTO MODULE memory.linux.process;
+        INCLUDE PERFETTO MODULE android.memory.process;
         SELECT *
         FROM memory_oom_score_with_rss_and_swap_per_process
         WHERE oom_adj_reason IS NOT NULL
@@ -90,22 +45,4 @@ class Memory(TestSuite):
         1737068933602,2932231608,975,"cached",286,"com.android.gallery3d",2371,332,1737064421516,29484835,1217,"binder:642_1","processEnd","IActivityManager#1598246212",49561600,54521856,831488,104914944,0,49561600,104914944
         1737069091010,682459310,975,"cached",289,"com.android.packageinstaller",2480,332,1737064421516,29484835,1217,"binder:642_1","processEnd","IActivityManager#1598246212",49364992,52539392,827392,102731776,0,49364992,102731776
         1737069240534,489635,985,"cached",268,"com.android.managedprovisioning",1868,332,1737064421516,29484835,1217,"binder:642_1","processEnd","IActivityManager#1598246212",50683904,53985280,815104,105484288,0,50683904,105484288
-         """))
-
-  def test_memory_gpu_per_process(self):
-    return DiffTestBlueprint(
-        trace=Path('../../metrics/graphics/gpu_metric.py'),
-        query="""
-        INCLUDE PERFETTO MODULE memory.android.gpu;
-        SELECT *
-        FROM memory_gpu_per_process;
-        """,
-        out=Csv("""
-        "ts","dur","upid","gpu_memory"
-        2,2,2,6
-        4,6,2,8
-        4,5,1,2
-        9,1,1,8
-        6,1,3,7
-        7,3,3,10
          """))

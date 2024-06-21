@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE memory.linux.process;
 INCLUDE PERFETTO MODULE counters.intervals;
+INCLUDE PERFETTO MODULE linux.memory.process;
 
 CREATE PERFETTO TABLE _memory_rss_high_watermark_per_process_table AS
 WITH with_rss AS (
