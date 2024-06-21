@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE cpu.freq;
+INCLUDE PERFETTO MODULE linux.cpu.frequency;
 
 -- Returns the timestamp of the start of the partition that contains the |ts|.
 CREATE PERFETTO FUNCTION _partition_start(ts INT, size INT) RETURNS INT AS
@@ -83,7 +83,7 @@ SELECT
     dur,
     cpu,
     freq
-FROM cpu_freq_counters;
+FROM cpu_frequency_counters;
 
 CREATE PERFETTO VIEW _sched_without_id AS
 SELECT ts, dur, utid, cpu
