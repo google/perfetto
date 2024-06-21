@@ -595,7 +595,7 @@ export class FlamegraphDetailsPanel
     }
 
     await engine.query(`
-      INCLUDE PERFETTO MODULE memory.heap_graph_dominator_tree;
+      INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;
 
       -- heap graph dominator tree with objects as nodes and all relavant
       -- object self stats and dominated stats
@@ -609,7 +609,7 @@ export class FlamegraphDetailsPanel
       obj.type_id,
       obj.root_type,
       obj.self_size + obj.native_size AS self_size
-      FROM memory_heap_graph_dominator_tree node
+      FROM heap_graph_dominator_tree node
       JOIN heap_graph_object obj USING(id)
       WHERE obj.upid = ${upid} AND obj.graph_sample_ts = ${timestamp}
       -- required to accelerate the recursive cte below

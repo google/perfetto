@@ -16,24 +16,32 @@
 
 SELECT RUN_METRIC('android/process_metadata.sql');
 
-INCLUDE PERFETTO MODULE memory.heap_graph_dominator_tree;
+INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;
 INCLUDE PERFETTO MODULE graphs.partition;
+
+CREATE OR REPLACE PERFETTO FUNCTION _partition_tree_super_root_fn()
+-- The assigned id of the "super root".
+RETURNS INT AS
+SELECT id + 1
+FROM heap_graph_object
+ORDER BY id DESC
+LIMIT 1;
 
 DROP TABLE IF EXISTS _heap_graph_dominator_tree_for_partition;
 CREATE PERFETTO TABLE _heap_graph_dominator_tree_for_partition AS
 SELECT
   tree.id,
-  tree.idom_id as parent_id,
+  IFNULL(tree.idom_id, _partition_tree_super_root_fn()) as parent_id,
   obj.type_id as group_key
-FROM memory_heap_graph_dominator_tree tree
+FROM heap_graph_dominator_tree tree
 JOIN heap_graph_object obj USING(id)
 UNION ALL
 -- provide a single root required by tree partition if heap graph exists.
 SELECT
-  memory_heap_graph_super_root_fn() AS id,
+  _partition_tree_super_root_fn() AS id,
   NULL AS parent_id,
-  (SELECT MAX(id) + 1 FROM heap_graph_class) AS group_key
-WHERE memory_heap_graph_super_root_fn() IS NOT NULL;
+  (SELECT id + 1 FROM heap_graph_class ORDER BY id desc LIMIT 1) AS group_key
+WHERE _partition_tree_super_root_fn() IS NOT NULL;
 
 DROP TABLE IF EXISTS _heap_object_marked_for_dominated_stats;
 CREATE PERFETTO TABLE _heap_object_marked_for_dominated_stats AS
@@ -61,7 +69,7 @@ SELECT
 FROM heap_graph_object obj
 -- Left joins to preserve unreachable objects.
 LEFT JOIN _heap_object_marked_for_dominated_stats USING(id)
-LEFT JOIN memory_heap_graph_dominator_tree USING(id)
+LEFT JOIN heap_graph_dominator_tree USING(id)
 GROUP BY 1, 2, 3
 ORDER BY 1, 2, 3;
 

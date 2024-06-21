@@ -1,0 +1,350 @@
+packet {
+  process_tree {
+    processes {
+      pid: 1
+      ppid: 0
+      cmdline: "init"
+      uid: 0
+    }
+    processes {
+      pid: 2
+      ppid: 1
+      cmdline: "system_server"
+      uid: 1000
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+
+  # The heap graph contains two separate parts.
+  # Each object has a unique class name for easy demo and debug.
+  # The two parts of the graph are:
+  # 1. the Lengauer-Tarjan example graph, with a root object of type "R". All
+  #    objects in this part are 3 bytes in size.
+  # 2. a synthetic tree whose dominator tree is itself. It's drawn below with
+  #    each object represented by it's class name. Number in the bracket is the
+  #    size of each node in bytes.
+  #                 S[1]     sun.misc.Cleaner[1024]
+  #                /    \    /
+  #            M[2]      N[4]
+  #           /   \      /   \
+  #        O[8]  P[16] Q[32] T[64]
+  #      /  |  \
+  #     U   V   W
+  # [128] [256] [512]
+
+  heap_graph {
+    pid: 2
+    roots {
+      root_type: ROOT_JNI_GLOBAL
+      object_ids: 0x12  # root of the Lengauer-Tarjan example graph
+      object_ids: 0x13  # root of the synthetic tree
+      object_ids: 0x18  # just to test type exclusion
+    }
+    objects {
+      id: 0x01
+      type_id: 1
+      self_size: 3
+      reference_object_id: 0x04
+    }
+    objects {
+      id: 0x02
+      type_id: 2
+      self_size: 3
+      reference_object_id: 0x01
+      reference_object_id: 0x04
+      reference_object_id: 0x05
+    }
+    objects {
+      id: 0x03
+      type_id: 3
+      self_size: 3
+      reference_object_id: 0x06
+      reference_object_id: 0x07
+    }
+    objects {
+      id: 0x04
+      type_id: 4
+      self_size: 3
+      reference_object_id: 0x0c
+    }
+    objects {
+      id: 0x05
+      type_id: 5
+      self_size: 3
+      reference_field_id: 2
+      reference_object_id: 0x08
+    }
+    objects {
+      id: 0x06
+      type_id: 6
+      self_size: 3
+      reference_object_id: 0x09
+    }
+    objects {
+      id: 0x07
+      type_id: 7
+      self_size: 3
+      reference_object_id: 0x09
+      reference_object_id: 0x0a
+    }
+    objects {
+      id: 0x08
+      type_id: 8
+      self_size: 3
+      reference_object_id: 0x05
+      reference_object_id: 0x0b
+    }
+    objects {
+      id: 0x09
+      type_id: 9
+      self_size: 3
+      reference_object_id: 0x0b
+    }
+    objects {
+      id: 0x0a
+      type_id: 10
+      self_size: 3
+      reference_object_id: 0x09
+    }
+    objects {
+      id: 0x0b
+      type_id: 11
+      self_size: 3
+      reference_object_id: 0x09
+      reference_object_id: 0x12
+    }
+    objects {
+      id: 0x0c
+      type_id: 12
+      self_size: 3
+      reference_object_id: 0x08
+    }
+    objects {
+      id: 0x0d
+      type_id: 13
+      self_size: 2
+      reference_object_id: 0x0f
+      reference_object_id: 0x10
+    }
+    objects {
+      id: 0x0e
+      type_id: 14
+      self_size: 4
+      reference_object_id: 0x11
+      reference_object_id: 0x14
+    }
+    objects {
+      id: 0x0f
+      type_id: 15
+      self_size: 8
+      reference_object_id: 0x15
+      reference_object_id: 0x16
+      reference_object_id: 0x17
+    }
+    objects {
+      id: 0x10
+      type_id: 16
+      self_size: 16
+    }
+    objects {
+      id: 0x11
+      type_id: 17
+      self_size: 32
+    }
+    objects {
+      id: 0x12
+      type_id: 18
+      self_size: 3
+      reference_object_id: 0x01
+      reference_object_id: 0x02
+      reference_object_id: 0x03
+    }
+    objects {
+      id: 0x13
+      type_id: 19
+      self_size: 1
+      reference_object_id: 0x0d
+      reference_object_id: 0x0e
+    }
+    objects {
+      id: 0x14
+      type_id: 20
+      self_size: 64
+    }
+    objects {
+      id: 0x15
+      type_id: 21
+      self_size: 128
+    }
+    objects {
+      id: 0x16
+      type_id: 22
+      self_size: 256
+    }
+    objects {
+      id: 0x17
+      type_id: 23
+      self_size: 512
+    }
+    objects {
+      id: 0x18
+      type_id: 24 # "sun.misc.Cleaner"
+      self_size: 1024
+      reference_object_id: 0x0e
+    }
+    objects {
+      id: 0x19
+      type_id: 1 # unreachable, should be excluded
+      self_size: 1024
+    }
+    continued: true
+    index: 0
+  }
+}
+packet {
+  trusted_packet_sequence_id: 999
+  timestamp: 10
+  heap_graph {
+    pid: 2
+    location_names {
+      iid: 1
+      str: "/data/app/~~ASDFG==/invalid.test.android-SDASD/test.apk"
+    }
+    types {
+      id: 1
+      class_name: "A"
+      location_id: 1
+      object_size: 64
+    }
+    types {
+      id: 2
+      class_name: "B"
+      location_id: 1
+      object_size: 64
+    }
+    types {
+      id: 3
+      class_name: "C"
+      location_id: 1
+      object_size: 64
+    }
+    types {
+      id: 4
+      class_name: "D"
+      location_id: 1
+      object_size: 128
+    }
+    types {
+      id: 5
+      class_name: "E"
+      location_id: 1
+      object_size: 1024
+    }
+    types {
+      id: 6
+      class_name: "F"
+      location_id: 1
+    }
+    types {
+      id: 7
+      class_name: "G"
+      location_id: 1
+    }
+    types {
+      id: 8
+      class_name: "H"
+      location_id: 1
+    }
+    types {
+      id: 9
+      class_name: "I"
+      location_id: 1
+    }
+    types {
+      id: 10
+      class_name: "J"
+      location_id: 1
+    }
+    types {
+      id: 11
+      class_name: "K"
+      location_id: 1
+    }
+    types {
+      id: 12
+      class_name: "L"
+      location_id: 1
+    }
+    types {
+      id: 13
+      class_name: "M"
+      location_id: 1
+    }
+    types {
+      id: 14
+      class_name: "N"
+      location_id: 1
+    }
+    types {
+      id: 15
+      class_name: "O"
+      location_id: 1
+    }
+    types {
+      id: 16
+      class_name: "P"
+      location_id: 1
+    }
+    types {
+      id: 17
+      class_name: "Q"
+      location_id: 1
+    }
+    types {
+      id: 18
+      class_name: "R"
+      location_id: 1
+    }
+    types {
+      id: 19
+      class_name: "S"
+      location_id: 1
+    }
+    types {
+      id: 20
+      class_name: "T"
+      location_id: 1
+    }
+    types {
+      id: 21
+      class_name: "U"
+      location_id: 1
+    }
+    types {
+      id: 22
+      class_name: "V"
+      location_id: 1
+    }
+    types {
+      id: 23
+      class_name: "W"
+      location_id: 1
+    }
+    types {
+      id: 24
+      class_name: "sun.misc.Cleaner"
+      kind: KIND_PHANTOM_REFERENCE
+      reference_field_id: 123
+      location_id: 1
+    }
+    field_names {
+      iid: 123
+      str: "java.lang.ref.Reference.referent"
+    }
+    continued: false
+    index: 1
+  }
+}

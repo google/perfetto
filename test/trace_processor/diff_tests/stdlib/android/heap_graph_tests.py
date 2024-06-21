@@ -19,13 +19,13 @@ from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
 
-class HeapGraphDominatorTree(TestSuite):
+class HeapGraph(TestSuite):
 
   def test_heap_graph_dominator_tree(self):
     return DiffTestBlueprint(
         trace=Path('heap_graph_for_dominator_tree.textproto'),
         query="""
-          INCLUDE PERFETTO MODULE memory.heap_graph_dominator_tree;
+          INCLUDE PERFETTO MODULE android.memory.heap_graph.dominator_tree;
 
           SELECT
             node.id,
@@ -34,14 +34,13 @@ class HeapGraphDominatorTree(TestSuite):
             node.dominated_size_bytes,
             node.depth,
             cls.name AS type_name
-          FROM memory_heap_graph_dominator_tree node
+          FROM heap_graph_dominator_tree node
           JOIN heap_graph_object obj USING(id)
           JOIN heap_graph_class cls ON obj.type_id = cls.id
           ORDER BY type_name;
         """,
         out=Csv("""
-          "id","idom_id","dominated_obj_count","dominated_size_bytes",\
-"depth","type_name"
+          "id","idom_id","dominated_obj_count","dominated_size_bytes","depth","type_name"
           0,12,1,3,2,"A"
           2,12,1,3,2,"B"
           4,12,4,12,2,"C"
@@ -59,24 +58,11 @@ class HeapGraphDominatorTree(TestSuite):
           14,13,4,904,3,"O"
           15,13,1,16,3,"P"
           17,16,1,32,3,"Q"
-          12,25,13,39,1,"R"
-          22,25,10,1023,1,"S"
+          12,"[NULL]",13,39,1,"R"
+          22,"[NULL]",10,1023,1,"S"
           18,16,1,64,3,"T"
           19,14,1,128,4,"U"
           20,14,1,256,4,"V"
           21,14,1,512,4,"W"
-          23,25,1,1024,1,"sun.misc.Cleaner"
-        """))
-
-  def test_heap_graph_super_root_fn(self):
-    return DiffTestBlueprint(
-        trace=Path('heap_graph_for_dominator_tree.textproto'),
-        query="""
-          INCLUDE PERFETTO MODULE memory.heap_graph_dominator_tree;
-
-          SELECT memory_heap_graph_super_root_fn();
-        """,
-        out=Csv("""
-          "memory_heap_graph_super_root_fn()"
-          25
+          23,"[NULL]",1,1024,1,"sun.misc.Cleaner"
         """))
