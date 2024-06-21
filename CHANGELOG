@@ -9,6 +9,13 @@ Unreleased:
     * Moved `cpu.utilization` package to `linux.cpu.utilization`. The
       functionality inside this package only works properly on Linux
       and Linux derived OSes (e.g. Android).
+    * Moved `cpu.freq` module to `linux.cpu.frequency` and renamed
+      `cpu_freq_counters` to `cpu_frequency_counters` for the same
+      reason as above.
+    * Moved `cpu.idle` module to `linux.cpu.idle` for the same
+      reason as above.
+    * Moved `linux.cpu_idle` to `linux.cpu.idle` to make it
+      consistent with above changes.
   Trace Processor:
     *
   UI:

@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE cpu.idle;
+INCLUDE PERFETTO MODULE linux.cpu.idle;
 INCLUDE PERFETTO MODULE wattson.device_infos;
 
 -- Get the corresponding deep idle time offset based on device and CPU.
