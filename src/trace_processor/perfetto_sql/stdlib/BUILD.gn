@@ -25,7 +25,6 @@ perfetto_amalgamated_sql_header("stdlib") {
     "counters",
     "deprecated/v42/common",
     "export",
-    "gpu",
     "graphs",
     "intervals",
     "linux",

@@ -2519,6 +2519,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_gpu_gpu",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/gpu/frequency.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/gpu/memory.sql",
     ],
 )
@@ -2638,14 +2639,6 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_export_export",
     srcs = [
         "src/trace_processor/perfetto_sql/stdlib/export/to_firefox_profile.sql",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/stdlib/gpu:gpu
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_gpu_gpu",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/gpu/frequency.sql",
     ],
 )
 
@@ -2825,7 +2818,6 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_counters_counters",
         ":src_trace_processor_perfetto_sql_stdlib_deprecated_v42_common_common",
         ":src_trace_processor_perfetto_sql_stdlib_export_export",
-        ":src_trace_processor_perfetto_sql_stdlib_gpu_gpu",
         ":src_trace_processor_perfetto_sql_stdlib_graphs_graphs",
         ":src_trace_processor_perfetto_sql_stdlib_intervals_intervals",
         ":src_trace_processor_perfetto_sql_stdlib_linux_cpu_cpu",
