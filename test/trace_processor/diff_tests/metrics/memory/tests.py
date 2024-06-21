@@ -371,3 +371,53 @@ class MemoryMetrics(TestSuite):
         "name","ts","dur","name"
         "mem.dma_buffer",100,100,"1 kB"
         """))
+
+  def test_android_dma_heap_inode(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100
+              pid: 1
+              dma_heap_stat {
+                inode: 123
+                len: 1024
+                total_allocated: 2048
+              }
+            }
+          }
+        }
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 200
+              pid: 1
+              dma_heap_stat {
+                inode: 123
+                len: -1024
+                total_allocated: 1024
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT
+          tt.name,
+          tt.utid,
+          c.ts,
+          CAST(c.value AS INT) AS value,
+          args.int_value AS inode
+        FROM thread_counter_track tt
+          JOIN counter c ON c.track_id = tt.id
+          JOIN args USING (arg_set_id)
+        WHERE tt.name = 'mem.dma_heap_change' AND args.key = 'inode';
+        """,
+        out=Csv("""
+        "name","utid","ts","value","inode"
+        "mem.dma_heap_change",1,100,1024,123
+        "mem.dma_heap_change",1,200,-1024,123
+        """))
