@@ -6,6 +6,9 @@ Unreleased:
       for guessing core type were inaccurate and often misleading.
       There is no replacement for these as there is no accurate data
       source available.
+    * Moved `cpu.utilization` package to `linux.cpu.utilization`. The
+      functionality inside this package only works properly on Linux
+      and Linux derived OSes (e.g. Android).
   Trace Processor:
     *
   UI:

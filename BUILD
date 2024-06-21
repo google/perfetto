@@ -2596,17 +2596,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/perfetto_sql/stdlib/cpu/utilization:utilization
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_cpu_utilization_utilization",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/cpu/utilization/general.sql",
-        "src/trace_processor/perfetto_sql/stdlib/cpu/utilization/process.sql",
-        "src/trace_processor/perfetto_sql/stdlib/cpu/utilization/system.sql",
-        "src/trace_processor/perfetto_sql/stdlib/cpu/utilization/thread.sql",
-    ],
-)
-
 # GN target: //src/trace_processor/perfetto_sql/stdlib/cpu:cpu
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_cpu_cpu",
@@ -2662,6 +2651,22 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/intervals/intersect.sql",
         "src/trace_processor/perfetto_sql/stdlib/intervals/overlap.sql",
     ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization:utilization
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_linux_cpu_utilization_utilization",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/general.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/process.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/system.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/utilization/thread.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/perfetto_sql/stdlib/linux/cpu:cpu
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_linux_cpu_cpu",
 )
 
 # GN target: //src/trace_processor/perfetto_sql/stdlib/linux:linux
@@ -2816,12 +2821,13 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_common_common",
         ":src_trace_processor_perfetto_sql_stdlib_counters_counters",
         ":src_trace_processor_perfetto_sql_stdlib_cpu_cpu",
-        ":src_trace_processor_perfetto_sql_stdlib_cpu_utilization_utilization",
         ":src_trace_processor_perfetto_sql_stdlib_deprecated_v42_common_common",
         ":src_trace_processor_perfetto_sql_stdlib_export_export",
         ":src_trace_processor_perfetto_sql_stdlib_gpu_gpu",
         ":src_trace_processor_perfetto_sql_stdlib_graphs_graphs",
         ":src_trace_processor_perfetto_sql_stdlib_intervals_intervals",
+        ":src_trace_processor_perfetto_sql_stdlib_linux_cpu_cpu",
+        ":src_trace_processor_perfetto_sql_stdlib_linux_cpu_utilization_utilization",
         ":src_trace_processor_perfetto_sql_stdlib_linux_linux",
         ":src_trace_processor_perfetto_sql_stdlib_memory_android_android",
         ":src_trace_processor_perfetto_sql_stdlib_memory_linux_linux",
