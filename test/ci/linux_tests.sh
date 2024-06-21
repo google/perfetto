@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# TODO(ivankc) Remove this when controller rolls out
 INSTALL_BUILD_DEPS_ARGS=""
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
@@ -30,18 +31,18 @@ ${OUT_PATH}/trace_processor_minimal_smoke_tests
 # that is copied into the target directory (OUT_PATH) cannot run because depends
 # on libc++.so within the same folder (which is built using target bitness,
 # not host bitness).
-TP_SHELL=${OUT_PATH}/gcc_like_host/trace_processor_shell
-if [ ! -f ${TP_SHELL} ]; then
-  TP_SHELL=${OUT_PATH}/trace_processor_shell
+HOST_OUT_PATH=${OUT_PATH}/gcc_like_host
+if [ ! -f ${HOST_OUT_PATH}/trace_processor_shell ]; then
+  HOST_OUT_PATH=${OUT_PATH}
 fi
 
 mkdir -p /ci/artifacts/perf
 
 tools/diff_test_trace_processor.py \
   --perf-file=/ci/artifacts/perf/tp-perf-all.json \
-  ${TP_SHELL}
+  ${HOST_OUT_PATH}/trace_processor_shell
 
-python/run_tests.py ${TP_SHELL}
+python/run_tests.py ${HOST_OUT_PATH}
 
 # Don't run benchmarks under x86 (running out of address space because of 4GB)
 # limit or debug (too slow and pointless).
