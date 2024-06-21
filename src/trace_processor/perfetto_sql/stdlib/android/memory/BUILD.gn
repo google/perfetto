@@ -16,5 +16,5 @@ import("../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("memory") {
   deps = [ "heap_graph" ]
-  sources = []
+  sources = [ "process.sql" ]
 }

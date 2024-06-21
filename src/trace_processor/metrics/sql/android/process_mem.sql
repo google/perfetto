@@ -14,7 +14,8 @@
 -- limitations under the License.
 --
 
-INCLUDE PERFETTO MODULE memory.linux.process;
+INCLUDE PERFETTO MODULE android.memory.process;
+INCLUDE PERFETTO MODULE linux.memory.process;
 
 SELECT RUN_METRIC('android/process_oom_score.sql');
 
