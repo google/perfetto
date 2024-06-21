@@ -339,6 +339,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       dma_heap_change_id_(
           context->storage->InternString("mem.dma_heap_change")),
       dma_buffer_id_(context->storage->InternString("mem.dma_buffer")),
+      inode_arg_id_(context->storage->InternString("inode")),
       ion_total_unknown_id_(context->storage->InternString("mem.ion.unknown")),
       ion_change_unknown_id_(
           context->storage->InternString("mem.ion_change.unknown")),
@@ -1957,8 +1958,13 @@ void FtraceParser::ParseDmaHeapStat(int64_t timestamp,
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   track = context_->track_tracker->InternThreadCounterTrack(dma_heap_change_id_,
                                                             utid);
-  context_->event_tracker->PushCounter(
+
+  auto opt_counter_id = context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(dma_heap.len()), track);
+  if (opt_counter_id) {
+    context_->args_tracker->AddArgsTo(*opt_counter_id)
+        .AddArg(inode_arg_id_, Variadic::UnsignedInteger(dma_heap.inode()));
+  }
 
   // Global track for individual buffer tracking
   auto async_track =
