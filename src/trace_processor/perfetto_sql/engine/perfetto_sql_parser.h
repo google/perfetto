@@ -83,7 +83,7 @@ class PerfettoSqlParser {
     bool replace = false;
     std::string name;
     std::string table_name;
-    std::string col_name;
+    std::vector<std::string> col_names;
   };
   // Indicates that the specified SQL was a INCLUDE PERFETTO MODULE statement
   // with the following parameter.
