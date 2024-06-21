@@ -36,6 +36,7 @@ interface SqlTableTabConfig {
   table: SqlTableDescription;
   displayName?: string;
   filters?: Filter[];
+  imports?: string[];
 }
 
 export function addSqlTableTab(config: SqlTableTabConfig): void {
@@ -67,6 +68,7 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
       this.engine,
       this.config.table,
       this.config.filters,
+      this.config.imports,
     );
   }
 
