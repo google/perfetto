@@ -339,16 +339,20 @@ bool PerfettoSqlParser::ParseCreatePerfettoIndex(bool replace,
     return ErrorAtToken(token, err.c_str());
   }
 
-  Token col_name_tok = tokenizer_.NextNonWhitespace();
-  if (col_name_tok.token_type != SqliteTokenType::TK_ID) {
-    base::StackString<1024> err("Invalid column name %.*s",
-                                static_cast<int>(col_name_tok.str.size()),
-                                col_name_tok.str.data());
-    return ErrorAtToken(col_name_tok, err.c_str());
-  }
-  std::string col_name(col_name_tok.str);
+  std::vector<std::string> cols;
 
-  token = tokenizer_.NextNonWhitespace();
+  do {
+    Token col_name_tok = tokenizer_.NextNonWhitespace();
+    if (col_name_tok.token_type != SqliteTokenType::TK_ID) {
+      base::StackString<1024> err("Invalid column name %.*s",
+                                  static_cast<int>(col_name_tok.str.size()),
+                                  col_name_tok.str.data());
+      return ErrorAtToken(col_name_tok, err.c_str());
+    }
+    cols.push_back(std::string(col_name_tok.str));
+    token = tokenizer_.NextNonWhitespace();
+  } while (token.token_type == SqliteTokenType::TK_COMMA);
+
   if (token.token_type != SqliteTokenType::TK_RP) {
     base::StackString<1024> err("Expected closed parenthesis, received %*s.",
                                 static_cast<int>(token.str.size()),
@@ -358,7 +362,7 @@ bool PerfettoSqlParser::ParseCreatePerfettoIndex(bool replace,
 
   Token terminal = tokenizer_.NextTerminal();
   statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
-  statement_ = CreateIndex{replace, index_name, table_name, col_name};
+  statement_ = CreateIndex{replace, index_name, table_name, cols};
   return true;
 }
 
