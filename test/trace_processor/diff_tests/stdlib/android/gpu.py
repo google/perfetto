@@ -39,3 +39,20 @@ class AndroidGpu(TestSuite):
         6,1,3,7
         7,3,3,10
          """))
+
+  def test_gpu_frequency(self):
+    return DiffTestBlueprint(
+        trace=Path('../../metrics/graphics/gpu_frequency_metric.textproto'),
+        query="""
+        INCLUDE PERFETTO MODULE android.gpu.frequency;
+        SELECT *
+        FROM android_gpu_frequency;
+      """,
+        out=Csv("""
+        "ts","dur","gpu_id","gpu_freq"
+        200001000000,2000000,0,585000
+        200003000000,1000000,0,0
+        200004000000,2000000,0,603000
+        200002000000,3000000,1,400000
+        200005000000,1000000,1,758000
+      """))

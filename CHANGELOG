@@ -12,6 +12,8 @@ Unreleased:
     * Moved `cpu.freq` module to `linux.cpu.frequency` and renamed
       `cpu_freq_counters` to `cpu_frequency_counters` for the same
       reason as above.
+    * Moved `gpu.frequency` to `android.gpu.frequency` for the same reason as
+      above.
     * Moved `cpu.idle` module to `linux.cpu.idle` for the same
       reason as above.
     * Moved content of `linux.cpu_idle` into `linux.cpu.idle` to make it
