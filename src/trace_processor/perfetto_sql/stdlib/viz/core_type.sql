@@ -19,6 +19,8 @@
 -- that we replace all the functionality in this module with something
 -- more accurate.
 
+INCLUDE PERFETTO MODULE intervals.overlap;
+
 CREATE PERFETTO TABLE _cpu_sizes AS
 SELECT 0 AS n, 'little' AS size
 UNION
