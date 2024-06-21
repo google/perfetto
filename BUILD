@@ -2515,6 +2515,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/android/gpu:gpu
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_android_gpu_gpu",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/gpu/memory.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph:heap_graph
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_memory_heap_graph_heap_graph",
@@ -2526,6 +2534,9 @@ perfetto_filegroup(
 # GN target: //src/trace_processor/perfetto_sql/stdlib/android/memory:memory
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_memory_memory",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/process.sql",
+    ],
 )
 
 # GN target: //src/trace_processor/perfetto_sql/stdlib/android/startup:startup
@@ -2677,32 +2688,19 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/linux/memory:memory
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_linux_memory_memory",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/linux/memory/general.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/memory/high_watermark.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/memory/process.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/linux:linux
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_linux_linux",
-)
-
-# GN target: //src/trace_processor/perfetto_sql/stdlib/memory/android:android
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_memory_android_android",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/memory/android/gpu.sql",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/stdlib/memory/linux:linux
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_memory_linux_linux",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/memory/linux/general.sql",
-        "src/trace_processor/perfetto_sql/stdlib/memory/linux/high_watermark.sql",
-        "src/trace_processor/perfetto_sql/stdlib/memory/linux/process.sql",
-    ],
-)
-
-# GN target: //src/trace_processor/perfetto_sql/stdlib/memory:memory
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_memory_memory",
 )
 
 # GN target: //src/trace_processor/perfetto_sql/stdlib/pkvm:pkvm
@@ -2817,6 +2815,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_android",
         ":src_trace_processor_perfetto_sql_stdlib_android_auto_auto",
         ":src_trace_processor_perfetto_sql_stdlib_android_frames_frames",
+        ":src_trace_processor_perfetto_sql_stdlib_android_gpu_gpu",
         ":src_trace_processor_perfetto_sql_stdlib_android_memory_heap_graph_heap_graph",
         ":src_trace_processor_perfetto_sql_stdlib_android_memory_memory",
         ":src_trace_processor_perfetto_sql_stdlib_android_startup_startup",
@@ -2832,9 +2831,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_linux_cpu_cpu",
         ":src_trace_processor_perfetto_sql_stdlib_linux_cpu_utilization_utilization",
         ":src_trace_processor_perfetto_sql_stdlib_linux_linux",
-        ":src_trace_processor_perfetto_sql_stdlib_memory_android_android",
-        ":src_trace_processor_perfetto_sql_stdlib_memory_linux_linux",
-        ":src_trace_processor_perfetto_sql_stdlib_memory_memory",
+        ":src_trace_processor_perfetto_sql_stdlib_linux_memory_memory",
         ":src_trace_processor_perfetto_sql_stdlib_pkvm_pkvm",
         ":src_trace_processor_perfetto_sql_stdlib_prelude_prelude",
         ":src_trace_processor_perfetto_sql_stdlib_sched_sched",

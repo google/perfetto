@@ -14,10 +14,16 @@ Unreleased:
       reason as above.
     * Moved `cpu.idle` module to `linux.cpu.idle` for the same
       reason as above.
-    * Moved `linux.cpu_idle` to `linux.cpu.idle` to make it
+    * Moved content of `linux.cpu_idle` into `linux.cpu.idle` to make it
       consistent with above changes.
+    * Moved `memory.android.gpu` to `android.memory.gpu`  to make it consistent
+      with above changes.`
+    * Moved contents of `memory.linux.process` to `linux.memory.process` and
+      `android.memory.process` to make it consistent with above changes.
+    * Moved `memory.linux.high_watermark` to `linux.memory.high_watermark` to
+      make it consistent with above changes.
     * Moved `memory.heap_graph_dominator_tree` to
-      `android.memory.heap_graph.dominator_tree`. This is to prepare for the
+      `android.memory.heap_graph.dominator_tree`. This is to allow for the
       addition of more modules related to heap graphs.
   Trace Processor:
     *
