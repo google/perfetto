@@ -5335,11 +5335,14 @@ TEST_F(TracingServiceImplTest, CloneMainSessionGoesAwayDuringFlush) {
   std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
   clone_consumer->Connect(svc.get());
 
+  std::string clone_done_name = "consumer1_clone_done";
+  auto clone_done = task_runner.CreateCheckpoint(clone_done_name);
   EXPECT_CALL(*clone_consumer, OnSessionCloned)
       .Times(1)
-      .WillOnce(Invoke([](const Consumer::OnSessionClonedArgs& args) {
+      .WillOnce(Invoke([&](const Consumer::OnSessionClonedArgs& args) {
         EXPECT_FALSE(args.success);
         EXPECT_THAT(args.error, HasSubstr("Original session ended"));
+        clone_done();
       }));
   clone_consumer->CloneSession(1);
 
@@ -5363,6 +5366,8 @@ TEST_F(TracingServiceImplTest, CloneMainSessionGoesAwayDuringFlush) {
   producer1->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
   consumer.reset();
+
+  task_runner.RunUntilCheckpoint(clone_done_name);
 
   // producer1 replies to flush much later.
   producer1->endpoint()->NotifyFlushComplete(flush1_req_id);
