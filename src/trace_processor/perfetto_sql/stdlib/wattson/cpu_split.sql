@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE cpu.freq;
+INCLUDE PERFETTO MODULE linux.cpu.frequency;
 INCLUDE PERFETTO MODULE time.conversion;
 INCLUDE PERFETTO MODULE wattson.arm_dsu;
 INCLUDE PERFETTO MODULE wattson.cpu_idle;
@@ -28,7 +28,7 @@ SELECT
   freq,
   cf.cpu,
   d_map.policy
-FROM cpu_freq_counters as cf
+FROM cpu_frequency_counters as cf
 JOIN _dev_cpu_policy_map as d_map
 ON cf.cpu = d_map.cpu;
 
@@ -51,7 +51,7 @@ WITH window_start AS (
 ),
 window_end AS (
   SELECT ts + dur as end_ts
-  FROM cpu_freq_counters
+  FROM cpu_frequency_counters
   ORDER by ts DESC
   LIMIT 1
 )

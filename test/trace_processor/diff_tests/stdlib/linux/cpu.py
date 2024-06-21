@@ -13,12 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Csv, Path, DataPath
+from python.generators.diff_tests.testing import Csv, DataPath, TextProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
 
-class Cpu(TestSuite):
+class LinuxCpu(TestSuite):
 
   def test_cpu_utilization_per_second(self):
     return DiffTestBlueprint(
@@ -189,13 +189,13 @@ class Cpu(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_cpu_eos.pb'),
         query=("""
-             INCLUDE PERFETTO MODULE cpu.freq;
+             INCLUDE PERFETTO MODULE linux.cpu.frequency;
              select
                track_id,
                freq,
                cpu,
                sum(dur) as dur
-             from cpu_freq_counters
+             from cpu_frequency_counters
              GROUP BY freq, cpu
              """),
         out=Csv("""
@@ -223,7 +223,7 @@ class Cpu(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_cpu_eos.pb'),
         query=("""
-             INCLUDE PERFETTO MODULE cpu.idle;
+             INCLUDE PERFETTO MODULE linux.cpu.idle;
              select
                track_id,
                idle,
@@ -247,3 +247,80 @@ class Cpu(TestSuite):
              32,1,2,5532102915
              1,1,3,5462026920
             """))
+
+  def test_linux_cpu_idle_stats(self):
+      return DiffTestBlueprint(
+          trace=TextProto(r"""
+          packet {
+            ftrace_events {
+              cpu: 0
+              event: {
+                timestamp: 200000000000
+                pid: 2
+                cpu_frequency: {
+                  state : 1704000
+                  cpu_id: 0
+                }
+              }
+              event: {
+                timestamp: 200000000000
+                pid: 2
+                cpu_idle: {
+                  state: 4294967295
+                  cpu_id: 0
+                }
+              }
+              event {
+                timestamp: 200001000000
+                pid: 2
+                cpu_idle: {
+                  state : 1
+                  cpu_id: 0
+                }
+              }
+              event: {
+                timestamp: 200002000000
+                pid  : 2
+                cpu_idle: {
+                  state : 4294967295
+                  cpu_id: 0
+                }
+              }
+              event {
+                timestamp: 200003000000
+                pid: 2
+                cpu_idle: {
+                  state : 1
+                  cpu_id: 0
+                }
+              }
+              event: {
+                timestamp: 200004000000
+                pid: 2
+                cpu_idle: {
+                  state : 4294967295
+                  cpu_id: 0
+                }
+              }
+              event: {
+                timestamp: 200005000000
+                pid: 2
+                cpu_frequency: {
+                  state: 300000
+                  cpu_id: 0
+                }
+              }
+            }
+            trusted_uid: 9999
+            trusted_packet_sequence_id: 2
+          }
+         """),
+         query="""
+         INCLUDE PERFETTO MODULE linux.cpu.idle;
+         SELECT * FROM cpu_idle_stats;
+         """,
+         out=Csv("""
+         "cpu","state","count","dur","avg_dur","idle_percent"
+         0,2,2,2000000,1000000,40.000000
+         """))
+
