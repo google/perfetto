@@ -2662,6 +2662,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_graphs_graphs",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/graphs/critical_path.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/dominator_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/partition.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/scan.sql",

@@ -110,6 +110,7 @@ from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
 from diff_tests.stdlib.export.tests import ExportTests
+from diff_tests.stdlib.graphs.critical_path_tests import CriticalPathTests
 from diff_tests.stdlib.graphs.dominator_tree_tests import DominatorTree
 from diff_tests.stdlib.graphs.partition_tests import GraphPartitionTests
 from diff_tests.stdlib.graphs.scan_tests import GraphScanTests
@@ -275,6 +276,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
       *LinuxCpu(index_path, 'stdlib/linux/cpu', 'LinuxCpu').fetch(),
       *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
+      *CriticalPathTests(index_path, 'stdlib/graphs', 'CriticalPath').fetch(),
       *GraphScanTests(index_path, 'stdlib/graphs', 'GraphScan').fetch(),
       *ExportTests(index_path, 'stdlib/export', 'ExportTests').fetch(),
       *Frames(index_path, 'stdlib/android', 'Frames').fetch(),
