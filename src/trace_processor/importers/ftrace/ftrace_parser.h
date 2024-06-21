@@ -335,6 +335,7 @@ class FtraceParser {
   const StringId dma_heap_total_id_;
   const StringId dma_heap_change_id_;
   const StringId dma_buffer_id_;
+  const StringId inode_arg_id_;
   const StringId ion_total_unknown_id_;
   const StringId ion_change_unknown_id_;
   const StringId bcl_irq_id_;
