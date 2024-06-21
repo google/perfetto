@@ -165,6 +165,7 @@ parse tree. The following are the supported types:
 | `Expr`            | Corresponds to any SQL scalar expression.         |
 | `TableOrSubquery` | Corresponds to either an SQL table or a subquery  |
 | `ColumnName`      | Corresponds to a column name of a table           |
+| `ColumnNameList`  | Corresponds to a list of column names of a table  |
 
 Example:
 ```sql
