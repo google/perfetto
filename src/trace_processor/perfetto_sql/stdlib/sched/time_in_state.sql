@@ -142,7 +142,6 @@ RETURNS TABLE(
   -- sleep, if it was an IO sleep.
   io_wait BOOL,
   -- Id of the CPU.
-  -- Use `cpu_guess_core_type` to get the CPU size (little/mid/big).
   cpu INT,
   -- Some states can specify the blocked function. Usually NULL.
   blocked_function INT,

@@ -14,8 +14,6 @@
 -- limitations under the License.
 
 INCLUDE PERFETTO MODULE cpu.utilization.general;
-INCLUDE PERFETTO MODULE cpu.size;
-
 INCLUDE PERFETTO MODULE time.conversion;
 
 -- The purpose of this module is to provide high level aggregates of system
@@ -112,8 +110,6 @@ GROUP BY utid, cpu;
 CREATE PERFETTO TABLE cpu_cycles_per_cpu(
   -- The id of CPU
   cpu INT,
-  -- CPU type
-  cpu_type STRING,
   -- Sum of CPU millicycles
   millicycles INT,
   -- Sum of CPU megacycles
@@ -129,7 +125,6 @@ CREATE PERFETTO TABLE cpu_cycles_per_cpu(
 ) AS
 SELECT
   cpu,
-  cpu_guess_core_type(cpu) AS cpu_type,
   cast_int!(SUM(dur * freq) / 1000) AS millicycles,
   cast_int!(SUM(dur * freq) / 1000 / 1e9) AS megacycles,
   SUM(dur) AS runtime,

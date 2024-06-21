@@ -18,7 +18,6 @@
 -- where running at a given point in time.
 
 INCLUDE PERFETTO MODULE intervals.overlap;
-INCLUDE PERFETTO MODULE cpu.cpus;
 
 -- The count of runnable threads over time.
 CREATE PERFETTO TABLE sched_runnable_thread_count(
@@ -53,38 +52,6 @@ tasks AS (
   SELECT ts, dur
   FROM sched
   WHERE utid != 0
-)
-SELECT
-  ts, value as active_cpu_count
-FROM intervals_overlap_count!(tasks, ts, dur)
-ORDER BY ts;
-
--- The count of active CPUs with a given core type over time.
-CREATE PERFETTO FUNCTION sched_active_cpu_count_for_core_type(
-  -- Type of the CPU core as reported by GUESS_CPU_SIZE. Usually 'big', 'mid' or 'little'.
-  core_type STRING
-) RETURNS TABLE(
-  -- Timestamp when the number of active CPU changed.
-  ts LONG,
-  -- Number of active CPUs, covering the range from this timestamp to the next
-  -- row's timestamp.
-  active_cpu_count LONG
-) AS
-WITH
--- Materialise the relevant cores to avoid calling a function for each row of the sched table.
-cores AS MATERIALIZED (
-  SELECT cpu_index
-  FROM cpu_core_types
-  WHERE size = $core_type
-),
--- Filter sched events corresponding to running tasks.
--- utid=0 is the swapper thread / idle task.
-tasks AS (
-  SELECT ts, dur
-  FROM sched
-  WHERE
-    cpu IN (SELECT cpu_index FROM cores)
-    AND utid != 0
 )
 SELECT
   ts, value as active_cpu_count

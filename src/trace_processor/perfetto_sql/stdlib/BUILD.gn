@@ -38,7 +38,7 @@ perfetto_amalgamated_sql_header("stdlib") {
     "stack_trace",
     "time",
     "v8",
-    "viz/summary",
+    "viz",
     "wattson",
   ]
   generated_header = "stdlib.h"

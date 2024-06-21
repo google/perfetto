@@ -112,7 +112,7 @@ class AndroidPerf implements Plugin {
         }
         ctx.tabs.openQuery(
           `
-          INCLUDE PERFETTO MODULE cpu.cpus;
+          INCLUDE PERFETTO MODULE viz.core_types;
           WITH
             total_runtime AS (
               SELECT sum(dur) AS total_runtime
@@ -128,7 +128,7 @@ class AndroidPerf implements Plugin {
             FROM sched s
             LEFT JOIN thread t
               USING (utid)
-            LEFT JOIN cpu_core_types c
+            LEFT JOIN _guessed_core_types c
               ON s.cpu = c.cpu_index
             WHERE t.tid = ${tid}
             GROUP BY 1`,
