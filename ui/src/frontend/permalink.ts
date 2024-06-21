@@ -22,14 +22,7 @@ import {
   createEmptyState,
 } from '../common/empty_state';
 import {EngineConfig, ObjectById, STATE_VERSION, State} from '../common/state';
-import {
-  BUCKET_NAME,
-  TraceGcsUploader,
-  buggyToSha256,
-  deserializeStateObject,
-  saveState,
-  toSha256,
-} from '../common/upload_utils';
+import {BUCKET_NAME, GcsUploader, MIME_JSON} from '../common/gcs_uploader';
 import {
   RecordConfig,
   recordConfigValidator,
@@ -41,6 +34,7 @@ import {
 } from './publish';
 import {Router} from './router';
 import {showModal} from '../widgets/modal';
+import {isString} from '../base/object_utils';
 
 export interface PermalinkOptions {
   isRecordingConfig?: boolean;
@@ -89,23 +83,25 @@ async function createPermalinkInternal(
 
     if (dataToUpload !== undefined) {
       updateStatus(`Uploading ${traceName}`);
-      const uploader = new TraceGcsUploader(dataToUpload, () => {
-        switch (uploader.state) {
-          case 'UPLOADING':
-            const statusTxt = `Uploading ${uploader.getEtaString()}`;
-            updateStatus(statusTxt);
-            break;
-          case 'UPLOADED':
-            // Convert state to use URLs and remove permalink.
-            const url = uploader.uploadedUrl;
-            uploadState = produce(globals.state, (draft) => {
-              assertExists(draft.engine).source = {type: 'URL', url};
-            });
-            break;
-          case 'ERROR':
-            updateStatus(`Upload failed ${uploader.error}`);
-            break;
-        } // switch (state)
+      const uploader = new GcsUploader(dataToUpload, {
+        onProgress: () => {
+          switch (uploader.state) {
+            case 'UPLOADING':
+              const statusTxt = `Uploading ${uploader.getEtaString()}`;
+              updateStatus(statusTxt);
+              break;
+            case 'UPLOADED':
+              // Convert state to use URLs and remove permalink.
+              const url = uploader.uploadedUrl;
+              uploadState = produce(globals.state, (draft) => {
+                assertExists(draft.engine).source = {type: 'URL', url};
+              });
+              break;
+            case 'ERROR':
+              updateStatus(`Upload failed ${uploader.error}`);
+              break;
+          } // switch (state)
+        },
       }); // onProgress
       await uploader.waitForCompletion();
     }
@@ -116,6 +112,13 @@ async function createPermalinkInternal(
   const hash = await saveState(uploadState);
   updateStatus(`Permalink ready`);
   return hash;
+}
+
+async function saveState(stateOrConfig: State | RecordConfig): Promise<string> {
+  const stateJson = serializeStateObject(stateOrConfig);
+  const uploader = new GcsUploader(stateJson, {mimeType: MIME_JSON});
+  await uploader.waitForCompletion();
+  return uploader.uploadedFileName;
 }
 
 function updateStatus(msg: string): void {
@@ -157,22 +160,55 @@ async function loadState(id: string): Promise<State | RecordConfig> {
     );
   }
   const text = await response.text();
-  const stateHash = await toSha256(text);
   const state = deserializeStateObject<State>(text);
-  if (stateHash !== id) {
-    // Old permalinks incorrectly dropped some digits from the
-    // hexdigest of the SHA256. We don't want to invalidate those
-    // links so we also compute the old string and try that here
-    // also.
-    const buggyStateHash = await buggyToSha256(text);
-    if (buggyStateHash !== id) {
-      throw new Error(`State hash does not match ${id} vs. ${stateHash}`);
-    }
-  }
   if (!isRecordConfig(state)) {
     return upgradeState(state);
   }
   return state;
+}
+
+function deserializeStateObject<T>(json: string): T {
+  const object = JSON.parse(json, (_key, value) => {
+    if (isSerializedBigint(value)) {
+      return BigInt(value.value);
+    }
+    return value;
+  });
+  return object as T;
+}
+
+export function serializeStateObject(object: unknown): string {
+  const json = JSON.stringify(object, (key, value) => {
+    if (typeof value === 'bigint') {
+      return {
+        __kind: 'bigint',
+        value: value.toString(),
+      };
+    }
+    return key === 'nonSerializableState' ? undefined : value;
+  });
+  return json;
+}
+
+// Bigint's are not serializable using JSON.stringify, so we use a special
+// object when serialising
+type SerializedBigint = {
+  __kind: 'bigint';
+  value: string;
+};
+
+// Check if a value looks like a serialized bigint
+function isSerializedBigint(value: unknown): value is SerializedBigint {
+  if (value === null) {
+    return false;
+  }
+  if (typeof value !== 'object') {
+    return false;
+  }
+  if ('__kind' in value && 'value' in value) {
+    return value.__kind === 'bigint' && isString(value.value);
+  }
+  return false;
 }
 
 function isRecordConfig(
