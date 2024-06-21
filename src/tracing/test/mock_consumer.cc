@@ -200,4 +200,12 @@ TracingServiceState MockConsumer::QueryServiceState() {
   return res;
 }
 
+void MockConsumer::Detach(std::string key) {
+  service_endpoint_->Detach(key);
+}
+
+void MockConsumer::Attach(std::string key) {
+  service_endpoint_->Attach(key);
+}
+
 }  // namespace perfetto

@@ -53,6 +53,8 @@ class MockConsumer : public Consumer {
   void ForceDisconnect();
   void EnableTracing(const TraceConfig&, base::ScopedFile = base::ScopedFile());
   void StartTracing();
+  void Detach(std::string key);
+  void Attach(std::string key);
   void ChangeTraceConfig(const TraceConfig&);
   void DisableTracing();
   void FreeBuffers();
