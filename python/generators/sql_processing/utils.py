@@ -108,7 +108,7 @@ PATTERN_BY_KIND = {
 }
 
 ALLOWED_PREFIXES = {
-    'android': ['heap_graph'],
+    'android': ['heap_graph', 'memory'],
     'counters': ['counter'],
     'chrome/util': ['cr'],
     'intervals': ['interval'],

@@ -13,18 +13,18 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE memory.linux.general;
+INCLUDE PERFETTO MODULE linux.memory.general;
 
 -- Counter for GPU memory per process with duration.
-CREATE PERFETTO TABLE memory_gpu_per_process(
-    -- Timestamp
-    ts INT,
-    -- Duration
-    dur INT,
-    -- Upid of the process
-    upid INT,
-    -- GPU memory
-    gpu_memory INT
+CREATE PERFETTO TABLE android_gpu_memory_per_process(
+  -- Timestamp
+  ts INT,
+  -- Duration
+  dur INT,
+  -- Upid of the process
+  upid INT,
+  -- GPU memory
+  gpu_memory INT
 ) AS
 SELECT
   ts,
