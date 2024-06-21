@@ -106,7 +106,6 @@ from diff_tests.stdlib.chrome.chrome_stdlib_testsuites import CHROME_STDLIB_TEST
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.counters.tests import StdlibCounterIntervals
-from diff_tests.stdlib.cpu.tests import Cpu
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
 from diff_tests.stdlib.export.tests import ExportTests
 from diff_tests.stdlib.gpu.tests import Gpu
@@ -115,7 +114,7 @@ from diff_tests.stdlib.graphs.partition_tests import GraphPartitionTests
 from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
 from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
-from diff_tests.stdlib.linux.tests import LinuxStdlib
+from diff_tests.stdlib.linux.cpu import LinuxCpu
 from diff_tests.stdlib.memory.heap_graph_dominator_tree_tests import HeapGraphDominatorTree
 from diff_tests.stdlib.memory.tests import Memory
 from diff_tests.stdlib.pkvm.tests import Pkvm
@@ -270,7 +269,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
 
   stdlib_tests = [
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
-      *Cpu(index_path, 'stdlib/cpu', 'Cpu').fetch(),
+      *LinuxCpu(index_path, 'stdlib/linux/cpu', 'LinuxCpu').fetch(),
       *DominatorTree(index_path, 'stdlib/graphs', 'DominatorTree').fetch(),
       *ExportTests(index_path, 'stdlib/export', 'ExportTests').fetch(),
       *Frames(index_path, 'stdlib/android', 'Frames').fetch(),
@@ -283,7 +282,6 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
                               'StdlibCounterIntervals').fetch(),
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
-      *LinuxStdlib(index_path, 'stdlib/linux', 'LinuxStdlib').fetch(),
       *Memory(index_path, 'stdlib/memory', 'Memory').fetch(),
       *PreludeMathFunctions(index_path, 'stdlib/prelude',
                             'PreludeMathFunctions').fetch(),

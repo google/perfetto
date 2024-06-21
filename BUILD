@@ -2596,15 +2596,6 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //src/trace_processor/perfetto_sql/stdlib/cpu:cpu
-perfetto_filegroup(
-    name = "src_trace_processor_perfetto_sql_stdlib_cpu_cpu",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/cpu/freq.sql",
-        "src/trace_processor/perfetto_sql/stdlib/cpu/idle.sql",
-    ],
-)
-
 # GN target: //src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common:common
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_deprecated_v42_common_common",
@@ -2667,14 +2658,15 @@ perfetto_filegroup(
 # GN target: //src/trace_processor/perfetto_sql/stdlib/linux/cpu:cpu
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_linux_cpu_cpu",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/frequency.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/cpu/idle.sql",
+    ],
 )
 
 # GN target: //src/trace_processor/perfetto_sql/stdlib/linux:linux
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_linux_linux",
-    srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/linux/cpu_idle.sql",
-    ],
 )
 
 # GN target: //src/trace_processor/perfetto_sql/stdlib/memory/android:android
@@ -2820,7 +2812,6 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_chrome_chrome_sql",
         ":src_trace_processor_perfetto_sql_stdlib_common_common",
         ":src_trace_processor_perfetto_sql_stdlib_counters_counters",
-        ":src_trace_processor_perfetto_sql_stdlib_cpu_cpu",
         ":src_trace_processor_perfetto_sql_stdlib_deprecated_v42_common_common",
         ":src_trace_processor_perfetto_sql_stdlib_export_export",
         ":src_trace_processor_perfetto_sql_stdlib_gpu_gpu",
