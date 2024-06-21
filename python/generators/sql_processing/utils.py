@@ -108,11 +108,12 @@ PATTERN_BY_KIND = {
 }
 
 ALLOWED_PREFIXES = {
-    'counters': 'counter',
-    'chrome/util': 'cr',
-    'intervals': 'interval',
-    'graphs': 'graph',
-    'slices': 'slice',
+    'counters': ['counter'],
+    'chrome/util': ['cr'],
+    'intervals': ['interval'],
+    'graphs': ['graph'],
+    'slices': ['slice'],
+    'linux': ['cpu', 'memory']
 }
 
 # Allows for nonstandard object names.
