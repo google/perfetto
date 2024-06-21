@@ -2,7 +2,10 @@ Unreleased:
   Tracing service and probes:
     *
   SQL Standard library:
-    *
+    * Removed `cpu.cpus` and `cpu.size` modules. The functions inside
+      for guessing core type were inaccurate and often misleading.
+      There is no replacement for these as there is no accurate data
+      source available.
   Trace Processor:
     *
   UI:

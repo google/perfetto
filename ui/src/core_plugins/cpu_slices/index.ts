@@ -55,10 +55,10 @@ class CpuSlices implements Plugin {
   async guessCpuSizes(engine: Engine): Promise<Map<number, string>> {
     const cpuToSize = new Map<number, string>();
     await engine.query(`
-      include perfetto module cpu.size;
+      include perfetto module viz.core_type;
     `);
     const result = await engine.query(`
-      select cpu, cpu_guess_core_type(cpu) as size
+      select cpu, _guess_core_type(cpu) as size
       from cpu_counter_track
       join _counter_track_summary using (id);
     `);
