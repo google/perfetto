@@ -50,4 +50,3 @@ counter_leading_intervals!((
 )) count_w_dur
 JOIN cpu_counter_track cct
 ON track_id = cct.id;
-
