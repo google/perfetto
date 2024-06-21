@@ -24,7 +24,7 @@ class Cpu(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        INCLUDE PERFETTO MODULE cpu.utilization.system;
+        INCLUDE PERFETTO MODULE linux.cpu.utilization.system;
 
         SELECT * FROM cpu_utilization_per_second;
         """,
@@ -67,7 +67,7 @@ class Cpu(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        INCLUDE PERFETTO MODULE cpu.utilization.process;
+        INCLUDE PERFETTO MODULE linux.cpu.utilization.process;
 
         SELECT *
         FROM cpu_process_utilization_per_second(10);
@@ -91,7 +91,7 @@ class Cpu(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
-        INCLUDE PERFETTO MODULE cpu.utilization.thread;
+        INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
 
         SELECT *
         FROM cpu_thread_utilization_per_second(10);
@@ -126,7 +126,7 @@ class Cpu(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_postboot_unlock.pftrace'),
         query=("""
-             INCLUDE PERFETTO MODULE cpu.utilization.system;
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.system;
 
              SELECT
                *
@@ -148,7 +148,7 @@ class Cpu(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_cpu_eos.pb'),
         query=("""
-             INCLUDE PERFETTO MODULE cpu.utilization.thread;
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.thread;
 
              SELECT
                AVG(millicycles) AS millicycles,
@@ -168,7 +168,7 @@ class Cpu(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_cpu_eos.pb'),
         query=("""
-             INCLUDE PERFETTO MODULE cpu.utilization.process;
+             INCLUDE PERFETTO MODULE linux.cpu.utilization.process;
 
              SELECT
                AVG(millicycles) AS millicycles,

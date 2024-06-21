@@ -59,9 +59,9 @@ def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
   allowed_prefixes = [module]
   for (path_prefix, allowed_name_prefix) in ALLOWED_PREFIXES.items():
     if path.startswith(path_prefix):
-      if prefix == allowed_name_prefix:
+      if prefix in allowed_name_prefix:
         return None
-      allowed_prefixes.append(allowed_name_prefix)
+      allowed_prefixes.extend(allowed_name_prefix)
     if path in OBJECT_NAME_ALLOWLIST and name in OBJECT_NAME_ALLOWLIST[path]:
       return None
   return (
