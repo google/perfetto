@@ -16,6 +16,9 @@ Unreleased:
       reason as above.
     * Moved `linux.cpu_idle` to `linux.cpu.idle` to make it
       consistent with above changes.
+    * Moved `memory.heap_graph_dominator_tree` to
+      `android.memory.heap_graph.dominator_tree`. This is to prepare for the
+      addition of more modules related to heap graphs.
   Trace Processor:
     *
   UI:

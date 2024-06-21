@@ -115,7 +115,7 @@ from diff_tests.stdlib.graphs.search_tests import GraphSearchTests
 from diff_tests.stdlib.intervals.intersect_tests import IntervalsIntersect
 from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.cpu import LinuxCpu
-from diff_tests.stdlib.memory.heap_graph_dominator_tree_tests import HeapGraphDominatorTree
+from diff_tests.stdlib.android.heap_graph_tests import HeapGraph
 from diff_tests.stdlib.memory.tests import Memory
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
@@ -285,8 +285,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *Memory(index_path, 'stdlib/memory', 'Memory').fetch(),
       *PreludeMathFunctions(index_path, 'stdlib/prelude',
                             'PreludeMathFunctions').fetch(),
-      *HeapGraphDominatorTree(index_path, 'stdlib/memory',
-                              'HeapGraphDominatorTree').fetch(),
+      *HeapGraph(index_path, 'stdlib/android',
+                 'HeapGraphDominatorTree').fetch(),
       *PreludePprofFunctions(index_path, 'stdlib/prelude',
                              'PreludePprofFunctions').fetch(),
       *PreludeWindowFunctions(index_path, 'stdlib/prelude',
