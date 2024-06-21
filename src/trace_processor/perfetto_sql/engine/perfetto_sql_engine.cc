@@ -605,17 +605,25 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
   if (index.replace) {
     return base::ErrStatus("CREATE PERFETTO INDEX: Index can't be replaced");
   }
+
+  // TODO(mayzner): Enable after implementing support for multiple columns.
+  if (index.col_names.size() != 1) {
+    return base::ErrStatus(
+        "CREATE PERFETTO INDEX: Index takes exactly one take column");
+  }
+
   Table* t = GetMutableTableOrNull(index.table_name);
   if (!t) {
     return base::ErrStatus("CREATE PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
   }
 
-  const std::optional<uint32_t> opt_col = t->ColumnIdxFromName(index.col_name);
+  const std::optional<uint32_t> opt_col =
+      t->ColumnIdxFromName(index.col_names.front());
   if (!opt_col) {
     return base::ErrStatus(
         "CREATE PERFETTO INDEX: Column '%s' not found in table '%s'",
-        index.col_name.c_str(), index.table_name.c_str());
+        index.col_names.front().c_str(), index.table_name.c_str());
   }
 
   Order o;
