@@ -14,9 +14,9 @@
 
 import {FlamegraphCache} from '../../core/flamegraph_cache';
 import {
-  FlamegraphDetailsPanel,
+  LegacyFlamegraphDetailsPanel,
   profileType,
-} from '../../frontend/flamegraph_panel';
+} from '../../frontend/legacy_flamegraph_panel';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
 import {NUM} from '../../trace_processor/query_result';
 import {HeapProfileTrack} from './heap_profile_track';
@@ -53,7 +53,7 @@ class HeapProfilePlugin implements Plugin {
     ctx.registerDetailsPanel({
       render: (sel) => {
         if (sel.kind === 'HEAP_PROFILE') {
-          return m(FlamegraphDetailsPanel, {
+          return m(LegacyFlamegraphDetailsPanel, {
             cache,
             selection: {
               profileType: profileType(sel.type),

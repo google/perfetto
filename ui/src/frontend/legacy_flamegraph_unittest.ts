@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {splitIfTooBig} from './flamegraph';
+import {splitIfTooBig} from './legacy_flamegraph';
 
 test('textGoingToMultipleLines', () => {
   const text = 'Dummy text to go to multiple lines.';

@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {globals} from './globals';
-import {CallsiteInfo} from '../common/flamegraph_util';
+import {CallsiteInfo} from '../common/legacy_flamegraph_util';
 
 interface CpuProfileDetailsPanelAttrs {}
 
