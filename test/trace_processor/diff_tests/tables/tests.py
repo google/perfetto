@@ -299,6 +299,32 @@ class Tables(TestSuite):
         70,7
         """))
 
+  def test_ii_wrong_partition(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        CREATE PERFETTO TABLE A
+        AS
+        WITH x(id, ts, ts_end, c0) AS (VALUES(1, 1, 2, 1), (2, 3, 4, 2))
+        SELECT * FROM x;
+
+        CREATE PERFETTO TABLE B
+        AS
+        WITH x(id, ts, ts_end, c0) AS (VALUES(1, 5, 6, 3))
+        SELECT * FROM x;
+
+        SELECT
+        a.id AS a_id,
+        b.id AS b_id
+        FROM __intrinsic_ii_with_interval_tree('A', 'c0') a
+        JOIN __intrinsic_ii_with_interval_tree('B', 'c0') b
+        USING (c0)
+        WHERE a.ts < b.ts_end AND a.ts_end > b.ts;
+        """,
+        out=Csv("""
+        "a_id","b_id"
+        """))
+
   # Null printing
   def test_nulls(self):
     return DiffTestBlueprint(
