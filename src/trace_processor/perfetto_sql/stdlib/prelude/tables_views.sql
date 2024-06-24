@@ -12,7 +12,8 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
--- Contains information of CPUs seen during the trace.
+
+-- Contains information about the CPUs on the device this trace was taken on.
 CREATE PERFETTO VIEW cpu (
   -- Unique identifier for this CPU. Identical to |ucpu|, prefer using |ucpu|
   -- instead.
@@ -44,8 +45,9 @@ FROM
 WHERE
   cpu IS NOT NULL;
 
--- Contains information of available frequencies of CPUs.
-CREATE PERFETTO VIEW cpu_frequencies (
+-- Contains the frequency values that the CPUs on the device are capable of
+-- running at.
+CREATE PERFETTO VIEW cpu_available_frequencies (
   -- Unique identifier for this cpu frequency.
   id UINT,
   -- The CPU for this frequency, meaningful only in single machine traces.
