@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {CallsiteInfo} from '../common/flamegraph_util';
+import {CallsiteInfo} from '../common/legacy_flamegraph_util';
 import {searchSegment} from '../base/binary_search';
 import {cropText} from '../common/canvas_utils';
 

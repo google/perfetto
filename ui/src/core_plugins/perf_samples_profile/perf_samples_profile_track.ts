@@ -18,7 +18,7 @@ import {Actions} from '../../common/actions';
 import {ProfileType, getLegacySelection} from '../../common/state';
 import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
-import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
+import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/legacy_flamegraph';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {TimeScale} from '../../frontend/time_scale';

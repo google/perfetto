@@ -55,7 +55,7 @@ import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
 import {Optional, exists} from '../base/utils';
 import {OmniboxManager} from './omnibox_manager';
-import {CallsiteInfo} from '../common/flamegraph_util';
+import {CallsiteInfo} from '../common/legacy_flamegraph_util';
 import {FlamegraphCache} from '../core/flamegraph_cache';
 
 const INSTANT_FOCUS_DURATION = 1n;
