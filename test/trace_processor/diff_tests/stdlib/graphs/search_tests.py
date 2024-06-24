@@ -194,7 +194,7 @@ class GraphSearchTests(TestSuite):
         11,10
         """))
 
-  def test_dfs_lengauer_tarjan_example(self):
+  def test_bfs_lengauer_tarjan_example(self):
     return DiffTestBlueprint(
         trace=DataPath('counters.json'),
         query="""

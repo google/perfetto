@@ -208,6 +208,24 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
   }
 }
 
+base::StatusOr<SqliteEngine::PreparedStatement>
+PerfettoSqlEngine::PrepareSqliteStatement(SqlSource sql_source) {
+  PerfettoSqlParser parser(std::move(sql_source), macros_);
+  if (!parser.Next()) {
+    return base::ErrStatus("No statement found to prepare");
+  }
+  auto* sqlite = std::get_if<PerfettoSqlParser::SqliteSql>(&parser.statement());
+  if (!sqlite) {
+    return base::ErrStatus("Statement was not a valid SQLite statement");
+  }
+  SqliteEngine::PreparedStatement stmt =
+      engine_->PrepareStatement(parser.statement_sql());
+  if (parser.Next()) {
+    return base::ErrStatus("Too many statements found to prepare");
+  }
+  return stmt;
+}
+
 void PerfettoSqlEngine::RegisterStaticTable(Table* table,
                                             const std::string& table_name,
                                             Table::Schema schema) {

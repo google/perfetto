@@ -37,7 +37,7 @@
 // Analogous to ASSIGN_OR_RETURN macro. Returns an sqlite error.
 #define SQLITE_RETURN_IF_ERROR(vtab, expr)                                  \
   do {                                                                      \
-    base::Status status_macro_internal_status = (expr);                     \
+    const base::Status& status_macro_internal_status = (expr);              \
     if (!status_macro_internal_status.ok())                                 \
       return sqlite::utils::SetError((vtab), status_macro_internal_status); \
   } while (0)
