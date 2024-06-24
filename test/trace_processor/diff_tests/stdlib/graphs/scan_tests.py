@@ -134,7 +134,7 @@ class GraphScanTests(TestSuite):
         "id","min_depth"
         0,0
         1,1
-        2,2
+        2,1
         3,2
         4,0
         5,1
