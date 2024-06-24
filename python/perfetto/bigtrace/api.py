@@ -21,7 +21,7 @@ import pandas as pd
 from perfetto.bigtrace.protos.perfetto.bigtrace.orchestrator_pb2 import BigtraceQueryArgs
 from perfetto.bigtrace.protos.perfetto.bigtrace.orchestrator_pb2_grpc import BigtraceOrchestratorStub
 from perfetto.common.query_result_iterator import QueryResultIterator
-
+from perfetto.common.exceptions import PerfettoException
 
 class Bigtrace:
 
@@ -31,23 +31,28 @@ class Bigtrace:
 
   def query(self, traces: List[str], sql_query: str):
     if not traces:
-      raise Exception("Trace list cannot be empty")
+      raise PerfettoException("Trace list cannot be empty")
     if not sql_query:
-      raise Exception("SQL query cannot be empty")
+      raise PerfettoException("SQL query cannot be empty")
     # Query and then convert to pandas
     tables = []
     args = BigtraceQueryArgs(traces=traces, sql_query=sql_query)
-    for response in self.stub.Query(args):
-      repeated_batches = []
-      results = response.result
-      column_names = results[0].column_names
-      for result in results:
-        repeated_batches.extend(result.batch)
-      iterator = QueryResultIterator(column_names, repeated_batches)
-      df = iterator.as_pandas_dataframe()
-      # TODO(ivankc) Investigate whether this is the
-      # best place to insert these addresses for performance
-      df.insert(0, '_trace_address', response.trace)
-      tables.append(df)
-    flattened = pd.concat(tables)
-    return flattened.reset_index(drop=True)
+
+    responses = self.stub.Query(args)
+    try:
+      for response in responses:
+        repeated_batches = []
+        results = response.result
+        column_names = results[0].column_names
+        for result in results:
+          repeated_batches.extend(result.batch)
+        iterator = QueryResultIterator(column_names, repeated_batches)
+        df = iterator.as_pandas_dataframe()
+        # TODO(ivankc) Investigate whether this is the
+        # best place to insert these addresses for performance
+        df.insert(0, '_trace_address', response.trace)
+        tables.append(df)
+      flattened = pd.concat(tables)
+      return flattened.reset_index(drop=True)
+    except grpc.RpcError as e:
+      raise PerfettoException(f"gRPC {e.code().name} error - {e.details()}")
