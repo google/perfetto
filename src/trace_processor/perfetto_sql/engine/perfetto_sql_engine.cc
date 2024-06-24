@@ -223,7 +223,7 @@ PerfettoSqlEngine::PrepareSqliteStatement(SqlSource sql_source) {
   if (parser.Next()) {
     return base::ErrStatus("Too many statements found to prepare");
   }
-  return stmt;
+  return std::move(stmt);
 }
 
 void PerfettoSqlEngine::RegisterStaticTable(Table* table,

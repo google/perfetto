@@ -759,7 +759,7 @@ class Parsing(TestSuite):
         SELECT
           freq,
           GROUP_CONCAT(cpu) AS cpus
-        FROM cpu_frequencies
+        FROM cpu_available_frequencies
         GROUP BY freq
         ORDER BY freq;
         """,
@@ -1395,7 +1395,7 @@ class Parsing(TestSuite):
         SELECT
           freq,
           GROUP_CONCAT(cpu.cpu) AS cpus
-        FROM cpu_frequencies
+        FROM cpu_available_frequencies
         JOIN cpu using (ucpu)
         WHERE machine_id is not NULL
         GROUP BY freq
