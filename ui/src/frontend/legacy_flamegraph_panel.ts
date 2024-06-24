@@ -26,7 +26,7 @@ import {
   findRootSize,
   mergeCallsites,
   viewingOptions,
-} from '../common/flamegraph_util';
+} from '../common/legacy_flamegraph_util';
 import {ProfileType} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';
@@ -36,7 +36,7 @@ import {Popup} from '../widgets/popup';
 import {EmptyState} from '../widgets/empty_state';
 import {Spinner} from '../widgets/spinner';
 
-import {Flamegraph, NodeRendering} from './flamegraph';
+import {Flamegraph, NodeRendering} from './legacy_flamegraph';
 import {globals} from './globals';
 import {debounce} from './rate_limiters';
 import {Router} from './router';
@@ -147,7 +147,7 @@ interface FlamegraphState {
   }>;
 }
 
-export class FlamegraphDetailsPanel
+export class LegacyFlamegraphDetailsPanel
   implements m.ClassComponent<FlamegraphDetailsPanelAttrs>
 {
   private undebouncedFocusRegex = '';
@@ -204,7 +204,7 @@ export class FlamegraphDetailsPanel
       this.state.result = undefined;
       const state = this.state;
       this.queryLimiter.schedule(() => {
-        return FlamegraphDetailsPanel.fetchQueryResults(
+        return LegacyFlamegraphDetailsPanel.fetchQueryResults(
           assertExists(this.getCurrentEngine()),
           attrs.cache,
           state,
@@ -227,7 +227,7 @@ export class FlamegraphDetailsPanel
       );
       this.state.result.renderResults = mergeCallsites(
         expanded,
-        FlamegraphDetailsPanel.getMinSizeDisplayed(
+        LegacyFlamegraphDetailsPanel.getMinSizeDisplayed(
           expanded,
           selected?.totalSize,
         ),
@@ -461,13 +461,13 @@ export class FlamegraphDetailsPanel
     cache: FlamegraphCache,
     state: FlamegraphState,
   ) {
-    const table = await FlamegraphDetailsPanel.prepareViewsAndTables(
+    const table = await LegacyFlamegraphDetailsPanel.prepareViewsAndTables(
       engine,
       cache,
       state,
     );
     const queryResults =
-      await FlamegraphDetailsPanel.getFlamegraphDataFromTables(
+      await LegacyFlamegraphDetailsPanel.getFlamegraphDataFromTables(
         engine,
         table,
         state.viewingOption,

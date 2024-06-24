@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {CallsiteInfo} from '../common/flamegraph_util';
+import {CallsiteInfo} from '../common/legacy_flamegraph_util';
 import {CpuProfileSampleSelection, getLegacySelection} from '../common/state';
 import {CpuProfileDetails, globals} from '../frontend/globals';
 import {publishCpuProfileDetails} from '../frontend/publish';
