@@ -30,7 +30,9 @@ FROM rss_and_swap_span
 JOIN (
   SELECT max(start_ts), upid
   FROM process
-  WHERE name GLOB '*GoogleCamera*'
+  WHERE name GLOB '*GoogleCamera'
+    OR name GLOB '*googlecamera.fishfood'
+    OR name GLOB '*GoogleCameraEng'
   LIMIT 1
 ) AS gca USING (upid);
 
