@@ -25,6 +25,21 @@ namespace perfetto::trace_processor::perfetto_sql {
 
 using Value = std::variant<std::monostate, int64_t, double, std::string>;
 
+template <typename T>
+inline constexpr uint32_t ValueIndex() {
+  if constexpr (std::is_same_v<T, std::monostate>) {
+    return 0;
+  } else if constexpr (std::is_same_v<T, int64_t>) {
+    return 1;
+  } else if constexpr (std::is_same_v<T, double>) {
+    return 2;
+  } else if constexpr (std::is_same_v<T, std::string>) {
+    return 3;
+  } else {
+    static_assert(false);
+  }
+}
+
 }  // namespace perfetto::trace_processor::perfetto_sql
 
 #endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TYPES_VALUE_H_

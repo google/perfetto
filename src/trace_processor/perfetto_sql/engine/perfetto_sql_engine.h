@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -83,6 +84,14 @@ class PerfettoSqlEngine {
   // no valid SQL to run.
   base::StatusOr<ExecutionResult> ExecuteUntilLastStatement(SqlSource sql);
 
+  // Prepares a single SQLite statement in |sql| and returns a
+  // |PreparedStatement| object.
+  //
+  // Returns an error if the preparation of the statement failed or if there was
+  // no valid SQL to run.
+  base::StatusOr<SqliteEngine::PreparedStatement> PrepareSqliteStatement(
+      SqlSource sql);
+
   // Registers a trace processor C++ function to be runnable from SQL.
   //
   // The format of the function is given by the |SqlFunction|.
@@ -127,6 +136,10 @@ class PerfettoSqlEngine {
   template <typename Function>
   base::Status RegisterSqliteFunction(typename Function::UserDataContext* ctx,
                                       bool deterministic = true);
+  template <typename Function>
+  base::Status RegisterSqliteFunction(
+      std::unique_ptr<typename Function::UserDataContext> ctx,
+      bool deterministic = true);
 
   // Registers a trace processor C++ aggregate function to be runnable from SQL.
   //
@@ -388,6 +401,20 @@ base::Status PerfettoSqlEngine::RegisterSqliteFunction(
   static_function_count_++;
   return engine_->RegisterFunction(Function::kName, Function::kArgCount,
                                    Function::Step, ctx, nullptr, deterministic);
+}
+
+template <typename Function>
+base::Status PerfettoSqlEngine::RegisterSqliteFunction(
+    std::unique_ptr<typename Function::UserDataContext> ctx,
+    bool deterministic) {
+  static_function_count_++;
+  return engine_->RegisterFunction(
+      Function::kName, Function::kArgCount, Function::Step, ctx.release(),
+      [](void* ptr) {
+        std::unique_ptr<typename Function::UserDataContext>(
+            static_cast<typename Function::UserDataContext*>(ptr));
+      },
+      deterministic);
 }
 
 template <typename Function>
