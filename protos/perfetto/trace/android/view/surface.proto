@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,11 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-message WinscopeExtensions {
-  extensions 1 to 6;
+message SurfaceProto {
+  enum Rotation {
+    ROTATION_0 = 0;
+    ROTATION_90 = 1;
+    ROTATION_180 = 2;
+    ROTATION_270 = 3;
+  }
 }

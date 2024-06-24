@@ -22,6 +22,7 @@ import public "protos/perfetto/trace/android/winscope_extensions.proto";
 import "protos/perfetto/trace/android/android_input_event.proto";
 import "protos/perfetto/trace/android/inputmethodeditor.proto";
 import "protos/perfetto/trace/android/viewcapture.proto";
+import "protos/perfetto/trace/android/windowmanager.proto";
 
 message WinscopeExtensionsImpl {
   extend WinscopeExtensions {
@@ -31,5 +32,6 @@ message WinscopeExtensionsImpl {
         3;
     optional ViewCapture viewcapture = 4;
     optional AndroidInputEvent android_input_event = 5;
+    optional WindowManagerTraceEntry windowmanager = 6;
   }
 }
