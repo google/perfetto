@@ -398,3 +398,17 @@ class PerfettoTable(TestSuite):
         "MAX(id)"
         20745
         """))
+
+  def test_create_or_replace_perfetto_index(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        CREATE PERFETTO INDEX idx ON internal_slice(track_id, name);
+        DROP PERFETTO INDEX idx ON internal_slice;
+
+        SELECT MAX(id) FROM slice WHERE track_id = 13;
+        """,
+        out=Csv("""
+        "MAX(id)"
+        20745
+        """))
