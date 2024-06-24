@@ -409,6 +409,8 @@ def start_trace(args, print_log=True):
     open_browser = not args.no_open_browser
     open_trace_in_browser(host_file, open_browser, args.origin)
 
+  return host_file
+
 
 def main():
   args = setup_arguments()
