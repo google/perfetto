@@ -78,9 +78,13 @@ function getDefaultCounterOptions(name: string): Partial<CounterOptions> {
     options.yRangeSharingKey = 'power';
   }
 
-  if (name.startsWith('mem.')) {
-    options.yRangeSharingKey = 'mem';
-  }
+  // TODO(stevegolton): We need to rethink how this works for virtual memory.
+  // The problem is we can easily have > 10GB virtual memory which dwarfs
+  // physical memory making other memory tracks difficult to read.
+
+  // if (name.startsWith('mem.')) {
+  //   options.yRangeSharingKey = 'mem';
+  // }
 
   if (name.startsWith('battery_stats.')) {
     options.yRangeSharingKey = 'battery_stats';
