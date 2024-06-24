@@ -50,7 +50,6 @@ Table::Table(StringPool* pool,
       row_count_(row_count),
       overlays_(std::move(overlays)),
       columns_(std::move(columns)) {
-  indexes_.resize(columns_.size());
   PERFETTO_DCHECK(string_pool_);
 }
 

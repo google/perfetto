@@ -606,37 +606,36 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
     return base::ErrStatus("CREATE PERFETTO INDEX: Index can't be replaced");
   }
 
-  // TODO(mayzner): Enable after implementing support for multiple columns.
-  if (index.col_names.size() != 1) {
-    return base::ErrStatus(
-        "CREATE PERFETTO INDEX: Index takes exactly one take column");
-  }
-
   Table* t = GetMutableTableOrNull(index.table_name);
   if (!t) {
     return base::ErrStatus("CREATE PERFETTO INDEX: Table '%s' not found",
                            index.table_name.c_str());
   }
 
-  const std::optional<uint32_t> opt_col =
-      t->ColumnIdxFromName(index.col_names.front());
-  if (!opt_col) {
-    return base::ErrStatus(
-        "CREATE PERFETTO INDEX: Column '%s' not found in table '%s'",
-        index.col_names.front().c_str(), index.table_name.c_str());
+  std::vector<Order> obs;
+  std::vector<uint32_t> col_idxs;
+  for (const std::string& col_name : index.col_names) {
+    const std::optional<uint32_t> opt_col = t->ColumnIdxFromName(col_name);
+    if (!opt_col) {
+      return base::ErrStatus(
+          "CREATE PERFETTO INDEX: Column '%s' not found in table '%s'",
+          index.col_names.front().c_str(), index.table_name.c_str());
+    }
+    Order o;
+    o.col_idx = *opt_col;
+    obs.push_back(o);
+    col_idxs.push_back(*opt_col);
   }
 
-  Order o;
-  o.col_idx = *opt_col;
   Query q;
-  q.orders = {o};
+  q.orders = obs;
   RowMap sorted_rm = t->QueryToRowMap(q);
 
   PERFETTO_CHECK(sorted_rm.IsIndexVector());
   std::vector<uint32_t> sorted_indices =
       std::move(sorted_rm).TakeAsIndexVector();
 
-  t->SetIndex(*opt_col, std::move(sorted_indices));
+  t->SetIndex(index.name, std::move(col_idxs), std::move(sorted_indices));
   return base::OkStatus();
 }
 

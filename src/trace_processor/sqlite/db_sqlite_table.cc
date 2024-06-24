@@ -508,10 +508,16 @@ int DbSqliteModule::BestIndex(sqlite3_vtab* vtab, sqlite3_index_info* info) {
           // Extrinsically sorted column is more efficient to sort than unsorted
           // column.
           if (table) {
-            bool a_has_idx = table->HasIndexOnCol(a_idx);
-            bool b_has_idx = table->HasIndexOnCol(b_idx);
+            auto a_has_idx = table->GetIndex({a_idx});
+            auto b_has_idx = table->GetIndex({b_idx});
             if (a_has_idx || b_has_idx)
               return a_has_idx && !b_has_idx;
+          }
+
+          bool a_is_eq = sqlite::utils::IsOpEq(info->aConstraint[a].op);
+          bool b_is_eq = sqlite::utils::IsOpEq(info->aConstraint[a].op);
+          if (a_is_eq || b_is_eq) {
+            return a_is_eq && !b_is_eq;
           }
 
           // TODO(lalitm): introduce more orderings here based on empirical
