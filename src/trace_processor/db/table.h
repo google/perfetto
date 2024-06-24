@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_TABLE_H_
 #define SRC_TRACE_PROCESSOR_DB_TABLE_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -26,6 +27,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/basic_types.h"
@@ -169,20 +171,28 @@ class Table {
 
   // Adds an index onto column. Returns false if there is already index on this
   // column.
-  bool SetIndex(std::string name,
-                std::vector<uint32_t> col_idxs,
-                std::vector<uint32_t> index) {
-    for (const auto& idx : indexes_) {
+  base::Status SetIndex(const std::string& name,
+                        std::vector<uint32_t> col_idxs,
+                        std::vector<uint32_t> index,
+                        bool replace = false) {
+    for (auto& idx : indexes_) {
       if (idx.name == name) {
-        return false;
+        if (replace) {
+          idx.columns = std::move(col_idxs);
+          idx.index = std::move(index);
+          return base::OkStatus();
+        }
+        return base::ErrStatus(
+            "Index of this name already exists on this table.");
       }
     }
 
     ColumnIndex idx;
+    idx.name = name;
     idx.columns = std::move(col_idxs);
     idx.index = std::move(index);
     indexes_.push_back(std::move(idx));
-    return true;
+    return base::OkStatus();
   }
 
   // Sorts the table using the specified order by constraints.
