@@ -601,11 +601,6 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
 
 base::Status PerfettoSqlEngine::ExecuteCreateIndex(
     const PerfettoSqlParser::CreateIndex& index) {
-  // TODO(mayzner): Enable after implementing DROP.
-  if (index.replace) {
-    return base::ErrStatus("CREATE PERFETTO INDEX: Index can't be replaced");
-  }
-
   Table* t = GetMutableTableOrNull(index.table_name);
   if (!t) {
     return base::ErrStatus("CREATE PERFETTO INDEX: Table '%s' not found",
@@ -635,7 +630,8 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
   std::vector<uint32_t> sorted_indices =
       std::move(sorted_rm).TakeAsIndexVector();
 
-  t->SetIndex(index.name, std::move(col_idxs), std::move(sorted_indices));
+  RETURN_IF_ERROR(t->SetIndex(index.name, std::move(col_idxs),
+                              std::move(sorted_indices), index.replace));
   return base::OkStatus();
 }
 
