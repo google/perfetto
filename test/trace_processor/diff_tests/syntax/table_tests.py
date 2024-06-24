@@ -344,3 +344,43 @@ class PerfettoTable(TestSuite):
         "track_idx","name_idx"
         20717,7098
         """))
+
+  def test_create_perfetto_index_multiple_cols(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        CREATE PERFETTO INDEX foo ON internal_slice(track_id, name);
+
+        SELECT
+          MIN(track_id) AS min_track_id,
+          MAX(name) AS min_name
+        FROM internal_slice
+        WHERE track_id = 13 AND name > "c"
+        """,
+        out=Csv("""
+        "min_track_id","min_name"
+        13,"virtual bool art::ElfOatFile::Load(const std::string &, bool, bool, bool, art::MemMap *, std::string *)"
+        """))
+
+  def test_create_perfetto_index_multiple_smoke(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        CREATE PERFETTO INDEX idx ON internal_slice(track_id, name);
+        CREATE PERFETTO TABLE bar AS SELECT * FROM slice;
+
+       SELECT (
+          SELECT count()
+          FROM bar
+          WHERE track_id = 13 AND dur > 1000 AND name > "b"
+        ) AS non_indexes_stats,
+        (
+          SELECT count()
+          FROM slice
+          WHERE track_id = 13 AND dur > 1000 AND name > "b"
+        ) AS indexed_stats
+        """,
+        out=Csv("""
+        "non_indexes_stats","indexed_stats"
+        39,39
+        """))
