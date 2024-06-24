@@ -28,7 +28,8 @@ Unreleased:
       `android.memory.heap_graph.dominator_tree`. This is to allow for the
       addition of more modules related to heap graphs.
   Trace Processor:
-    *
+    * Added `CREATE PERFETTO INDEX` to add sqlite-like indexes to Perfetto
+      tables. Has the same API as `CREATE INDEX`.
   UI:
     *
   SDK:
