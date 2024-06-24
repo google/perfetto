@@ -47,12 +47,9 @@ import {
   convertTraceToJsonAndDownload,
   convertTraceToSystraceAndDownload,
 } from './trace_converter';
-import {HttpRpcEngine} from '../trace_processor/http_rpc_engine';
 
 const GITILES_URL =
   'https://android.googlesource.com/platform/external/perfetto';
-
-let lastTabTitle = '';
 
 function getBugReportUrl(): string {
   if (globals.isInternalUser) {
@@ -873,42 +870,9 @@ export class Sidebar implements m.ClassComponent {
         );
       }
       if (section.appendOpenedTraceTitle) {
-        const engine = globals.state.engine;
-        if (engine !== undefined) {
-          let traceTitle = '';
-          let traceUrl = '';
-          switch (engine.source.type) {
-            case 'FILE':
-              // Split on both \ and / (because C:\Windows\paths\are\like\this).
-              traceTitle = engine.source.file.name.split(/[/\\]/).pop()!;
-              const fileSizeMB = Math.ceil(engine.source.file.size / 1e6);
-              traceTitle += ` (${fileSizeMB} MB)`;
-              break;
-            case 'URL':
-              traceUrl = engine.source.url;
-              traceTitle = traceUrl.split('/').pop()!;
-              break;
-            case 'ARRAY_BUFFER':
-              traceTitle = engine.source.title;
-              traceUrl = engine.source.url || '';
-              const arrayBufferSizeMB = Math.ceil(
-                engine.source.buffer.byteLength / 1e6,
-              );
-              traceTitle += ` (${arrayBufferSizeMB} MB)`;
-              break;
-            case 'HTTP_RPC':
-              traceTitle = `RPC @ ${HttpRpcEngine.hostAndPort}`;
-              break;
-            default:
-              break;
-          }
-          if (traceTitle !== '') {
-            const tabTitle = `${traceTitle} - Perfetto UI`;
-            if (tabTitle !== lastTabTitle) {
-              document.title = lastTabTitle = tabTitle;
-            }
-            vdomItems.unshift(m('li', createTraceLink(traceTitle, traceUrl)));
-          }
+        if (globals.traceContext.traceTitle) {
+          const {traceTitle, traceUrl} = globals.traceContext;
+          vdomItems.unshift(m('li', createTraceLink(traceTitle, traceUrl)));
         }
       }
       vdomSections.push(
