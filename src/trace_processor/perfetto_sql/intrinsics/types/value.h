@@ -36,7 +36,7 @@ inline constexpr uint32_t ValueIndex() {
   } else if constexpr (std::is_same_v<T, std::string>) {
     return 3;
   } else {
-    static_assert(false);
+    static_assert(!sizeof(T*), "T is not supported");
   }
 }
 
