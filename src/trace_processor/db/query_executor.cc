@@ -16,6 +16,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -38,6 +40,26 @@ using Indices = column::DataLayerChain::Indices;
 using OrderedIndices = column::DataLayerChain::OrderedIndices;
 
 static constexpr uint32_t kIndexVectorThreshold = 1024;
+
+// Returns if |op| is an operation that can use the fact that the data is
+// sorted.
+bool IsSortingOp(FilterOp op) {
+  switch (op) {
+    case FilterOp::kEq:
+    case FilterOp::kLe:
+    case FilterOp::kLt:
+    case FilterOp::kGe:
+    case FilterOp::kGt:
+    case FilterOp::kIsNotNull:
+    case FilterOp::kIsNull:
+      return true;
+    case FilterOp::kGlob:
+    case FilterOp::kRegex:
+    case FilterOp::kNe:
+      return false;
+  }
+  PERFETTO_FATAL("For GCC");
+}
 
 }  // namespace
 
@@ -136,39 +158,72 @@ void QueryExecutor::IndexSearch(const Constraint& c,
 RowMap QueryExecutor::FilterLegacy(const Table* table,
                                    const std::vector<Constraint>& c_vec) {
   RowMap rm(0, table->row_count());
-  if (c_vec.empty()) {
-    return rm;
-  }
 
-  uint32_t i = 0;
-  const auto& front_c = c_vec.front();
+  // Prework - use indexes if possible and decide which one.
+  std::vector<uint32_t> maybe_idx_cols;
 
-  // Filter on index.
-  if (front_c.op != FilterOp::kGlob && front_c.op != FilterOp::kRegex &&
-      front_c.op != FilterOp::kNe &&
-      table->HasIndexOnCol(c_vec.front().col_idx)) {
-    i = 1;
-    OrderedIndices index = table->GetIndexOnCol(front_c.col_idx);
+  for (uint32_t i = 0; i < c_vec.size(); i++) {
+    const Constraint& c = c_vec[i];
+    // Id columns shouldn't use index.
+    if (table->columns()[c.col_idx].IsId()) {
+      break;
+    }
 
-    Range r = table->ChainForColumn(front_c.col_idx)
-                  .OrderedIndexSearch(front_c.op, front_c.value, index);
+    // The operation has to support sorting.
+    if (!IsSortingOp(c.op)) {
+      break;
+    }
 
-    std::vector<uint32_t> in_table(index.data + r.start, index.data + r.end);
+    maybe_idx_cols.push_back(c.col_idx);
 
-    // For small vectors the cost of creating a BitVector might potentially be
-    // bigger than gain with better RowMap base.
-    if (in_table.size() < kIndexVectorThreshold) {
-      std::sort(in_table.begin(), in_table.end());
-      rm = RowMap(std::move(in_table));
-    } else {
-      rm = RowMap(BitVector::FromUnsortedIndexVector(std::move(in_table)));
+    // For the next col to be able to use index, all previous constraints have
+    // to be equality.
+    if (c.op != FilterOp::kEq) {
+      break;
     }
   }
 
-  for (; i < c_vec.size(); i++) {
-    const auto& c = c_vec[i];
+  OrderedIndices o_idxs;
+  while (!maybe_idx_cols.empty()) {
+    if (auto maybe_idx = table->GetIndex(maybe_idx_cols)) {
+      o_idxs = std::move(*maybe_idx);
+      break;
+    }
+    maybe_idx_cols.pop_back();
+  }
+
+  // If we can't use the index just filter in a standard way.
+  if (maybe_idx_cols.empty()) {
+    for (const auto& c : c_vec) {
+      FilterColumn(c, table->ChainForColumn(c.col_idx), &rm);
+    }
+    return rm;
+  }
+
+  for (uint32_t i = 0; i < maybe_idx_cols.size(); i++) {
+    const Constraint& c = c_vec[i];
+
+    Range r = table->ChainForColumn(c.col_idx).OrderedIndexSearch(c.op, c.value,
+                                                                  o_idxs);
+    o_idxs.data += r.start;
+    o_idxs.size = r.size();
+  }
+
+  std::vector<uint32_t> res_vec(o_idxs.data, o_idxs.data + o_idxs.size);
+  if (res_vec.size() < kIndexVectorThreshold) {
+    std::sort(res_vec.begin(), res_vec.end());
+    rm = RowMap(std::move(res_vec));
+  } else {
+    rm = RowMap(BitVector::FromUnsortedIndexVector(std::move(res_vec)));
+  }
+
+  // Filter the rest of constraints in a standard way.
+  for (uint32_t i = static_cast<uint32_t>(maybe_idx_cols.size());
+       i < c_vec.size(); i++) {
+    const Constraint& c = c_vec[i];
     FilterColumn(c, table->ChainForColumn(c.col_idx), &rm);
   }
+
   return rm;
 }
 
@@ -206,12 +261,13 @@ void QueryExecutor::SortLegacy(const Table* table,
   //     the sort is stable).
   //
   // TODO(lalitm): it is possible that we could sort the last constraint (i.e.
-  // the first constraint in the below loop) in a non-stable way. However, this
-  // is more subtle than it appears as we would then need special handling where
-  // there are order bys on a column which is already sorted (e.g. ts, id).
-  // Investigate whether the performance gains from this are worthwhile. This
-  // also needs changes to the constraint modification logic in DbSqliteTable
-  // which currently eliminates constraints on sorted columns.
+  // the first constraint in the below loop) in a non-stable way. However,
+  // this is more subtle than it appears as we would then need special
+  // handling where there are order bys on a column which is already sorted
+  // (e.g. ts, id). Investigate whether the performance gains from this are
+  // worthwhile. This also needs changes to the constraint modification logic
+  // in DbSqliteTable which currently eliminates constraints on sorted
+  // columns.
   for (auto it = ob.rbegin(); it != ob.rend(); ++it) {
     // Reset the index to the payload at the start of each iote
     for (uint32_t i = 0; i < out.size(); ++i) {
