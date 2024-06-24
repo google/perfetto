@@ -75,7 +75,9 @@ struct IntervalIntersectOperator : sqlite::Module<IntervalIntersectOperator> {
         query_results.clear();
         index = 0;
         auto* tree_ptr = trees.Find(tree_key);
-        PERFETTO_DCHECK(tree_ptr);
+        if (!tree_ptr) {
+          return;
+        }
         (*tree_ptr)->FindOverlaps(start, end, query_results);
       }
     };
