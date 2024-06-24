@@ -24,9 +24,9 @@ import {EmptyState} from '../widgets/empty_state';
 import {FlowEventsAreaSelectedPanel} from './flow_events_panel';
 import {PivotTable} from './pivot_table';
 import {
-  FlamegraphDetailsPanel,
+  LegacyFlamegraphDetailsPanel,
   FlamegraphSelectionParams,
-} from './flamegraph_panel';
+} from './legacy_flamegraph_panel';
 import {ProfileType, TrackState} from '../common/state';
 import {assertExists} from '../base/logging';
 import {Monitor} from '../base/monitor';
@@ -69,7 +69,7 @@ class AreaDetailsPanel implements m.ClassComponent {
       views.push({
         key: 'flamegraph_selection',
         name: 'Flamegraph Selection',
-        content: m(FlamegraphDetailsPanel, {
+        content: m(LegacyFlamegraphDetailsPanel, {
           cache: globals.areaFlamegraphCache,
           selection: this.flamegraphSelection,
         }),
