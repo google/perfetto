@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {ErrorDetails} from '../base/logging';
 import {EXTENSION_URL} from '../common/recordingV2/recording_utils';
-import {TraceGcsUploader} from '../common/upload_utils';
+import {GcsUploader} from '../common/gcs_uploader';
 import {RECORDING_V2_FLAG} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
@@ -107,7 +107,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
   private uploadStatus = '';
   private userDescription = '';
   private errorMessage = '';
-  private uploader?: TraceGcsUploader;
+  private uploader?: GcsUploader;
 
   constructor() {
     this.traceState = 'NOT_AVAILABLE';
@@ -232,16 +232,18 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     ) {
       this.traceState = 'UPLOADING';
       this.uploadStatus = '';
-      const uploader = new TraceGcsUploader(this.traceData, () => {
-        raf.scheduleFullRedraw();
-        this.uploadStatus = uploader.getEtaString();
-        if (uploader.state === 'UPLOADED') {
-          this.traceState = 'UPLOADED';
-          this.traceUrl = uploader.uploadedUrl;
-        } else if (uploader.state === 'ERROR') {
-          this.traceState = 'NOT_UPLOADED';
-          this.uploadStatus = uploader.error;
-        }
+      const uploader = new GcsUploader(this.traceData, {
+        onProgress: () => {
+          raf.scheduleFullRedraw();
+          this.uploadStatus = uploader.getEtaString();
+          if (uploader.state === 'UPLOADED') {
+            this.traceState = 'UPLOADED';
+            this.traceUrl = uploader.uploadedUrl;
+          } else if (uploader.state === 'ERROR') {
+            this.traceState = 'NOT_UPLOADED';
+            this.uploadStatus = uploader.error;
+          }
+        },
       });
       this.uploader = uploader;
     } else if (!checked && this.uploader) {
