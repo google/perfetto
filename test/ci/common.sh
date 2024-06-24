@@ -20,7 +20,7 @@ OUT_PATH="out/dist"
 
 export PYTHONUNBUFFERED=1
 
-tools/install-build-deps $INSTALL_BUILD_DEPS_ARGS
+tools/install-build-deps $PERFETTO_INSTALL_BUILD_DEPS_ARGS
 
 # Assumes Linux. Windows should use /win/clang instead.
 if [[ -e buildtools/linux64/clang/bin/llvm-symbolizer ]]; then
