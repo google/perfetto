@@ -97,6 +97,10 @@ import {
 import {decideTracks} from './track_decider';
 import {profileType} from '../frontend/legacy_flamegraph_panel';
 import {FlamegraphCache} from '../core/flamegraph_cache';
+import {
+  deserializeAppStatePhase1,
+  deserializeAppStatePhase2,
+} from '../common/state_serialization';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -507,6 +511,10 @@ export class TraceController extends Controller<States> {
 
     await defineMaxLayoutDepthSqlFunction(engine);
 
+    if (globals.restoreAppStateAfterTraceLoad) {
+      deserializeAppStatePhase1(globals.restoreAppStateAfterTraceLoad);
+    }
+
     await pluginManager.onTraceLoad(engine, (id) => {
       this.updateStatus(`Running plugin: ${id}`);
     });
@@ -584,6 +592,14 @@ export class TraceController extends Controller<States> {
       }
     }
 
+    if (globals.restoreAppStateAfterTraceLoad) {
+      // Wait that plugins have completed their actions and then proceed with
+      // the final phase of app state restore.
+      // TODO(primiano): this can probably be removed once we refactor tracks
+      // to be URI based and can deal with non-existing URIs.
+      deserializeAppStatePhase2(globals.restoreAppStateAfterTraceLoad);
+      globals.restoreAppStateAfterTraceLoad = undefined;
+    }
     return engineMode;
   }
 
