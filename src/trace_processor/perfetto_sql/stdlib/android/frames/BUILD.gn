@@ -16,6 +16,7 @@ import("../../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("frames") {
   sources = [
+    "jank_type.sql",
     "per_frame_metrics.sql",
     "timeline.sql",
     "timeline_maxsdk28.sql",
