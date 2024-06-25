@@ -55,6 +55,7 @@ import {
   VirtualTableAttrs,
   VirtualTableRow,
 } from '../widgets/virtual_table';
+import {TagInput} from '../widgets/tag_input';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -589,6 +590,32 @@ let virtualTableData: {offset: number; rows: VirtualTableRow[]} = {
   offset: 0,
   rows: [],
 };
+
+function TagInputDemo() {
+  const tags: string[] = ['foo', 'bar', 'baz'];
+  let tagInputValue: string = '';
+
+  return {
+    view: () => {
+      return m(TagInput, {
+        tags,
+        value: tagInputValue,
+        onTagAdd: (tag) => {
+          tags.push(tag);
+          tagInputValue = '';
+          raf.scheduleFullRedraw();
+        },
+        onChange: (value) => {
+          tagInputValue = value;
+        },
+        onTagRemove: (index) => {
+          tags.splice(index);
+          raf.scheduleFullRedraw();
+        },
+      });
+    },
+  };
+}
 
 export const WidgetsPage = createPage({
   view() {
@@ -1204,6 +1231,15 @@ export const WidgetsPage = createPage({
           };
           return m(VirtualTable, attrs);
         },
+      }),
+      m(WidgetShowcase, {
+        label: 'Tag Input',
+        description: `
+          TagInput displays Tag elements inside an input, followed by an
+          interactive text input. The container is styled to look like a
+          TextInput, but the actual editable element appears after the last tag.
+          Clicking anywhere on the container will focus the text input.`,
+        renderWidget: () => m(TagInputDemo),
       }),
     );
   },
