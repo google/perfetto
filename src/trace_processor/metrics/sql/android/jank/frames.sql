@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.frames.jank_type;
+
 DROP TABLE IF EXISTS vsync_missed_callback;
 CREATE PERFETTO TABLE vsync_missed_callback AS
 SELECT CAST(STR_SPLIT(name, 'Callback#', 1) AS INTEGER) AS vsync,
@@ -35,14 +37,9 @@ SELECT
   cuj_id,
   vsync,
   -- We use MAX to check if at least one of the layers jank_type matches the pattern
-  MAX(jank_type GLOB '*App Deadline Missed*') AS app_missed,
+  MAX(android_is_app_jank_type(jank_type)) AS app_missed,
   -- We use MAX to check if at least one of the layers jank_type matches the pattern
-  MAX(
-    jank_type GLOB '*SurfaceFlinger CPU Deadline Missed*'
-    OR jank_type GLOB '*SurfaceFlinger GPU Deadline Missed*'
-    OR jank_type GLOB '*SurfaceFlinger Scheduling*'
-    OR jank_type GLOB '*Prediction Error*'
-    OR jank_type GLOB '*Display HAL*') AS sf_missed,
+  MAX(android_is_sf_jank_type(jank_type)) AS sf_missed,
   IFNULL(MAX(sf_callback_missed), 0) AS sf_callback_missed,
   IFNULL(MAX(hwui_callback_missed), 0) AS hwui_callback_missed,
   -- We use MIN to check if ALL layers finished on time

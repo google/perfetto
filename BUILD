@@ -2511,6 +2511,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_frames_frames",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/frames/jank_type.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/frames/per_frame_metrics.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/frames/timeline.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/frames/timeline_maxsdk28.sql",
