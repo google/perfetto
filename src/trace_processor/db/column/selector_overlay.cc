@@ -52,6 +52,10 @@ SingleSearchResult SelectorOverlay::ChainImpl::SingleSearch(FilterOp op,
 SearchValidationResult SelectorOverlay::ChainImpl::ValidateSearchConstraints(
     FilterOp op,
     SqlValue sql_val) const {
+  if (sql_val.is_null() &&
+      !(op == FilterOp::kIsNotNull || op == FilterOp::kIsNull)) {
+    return SearchValidationResult::kNoData;
+  }
   return inner_->ValidateSearchConstraints(op, sql_val);
 }
 
