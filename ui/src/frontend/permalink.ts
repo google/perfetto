@@ -31,8 +31,6 @@ import {
   publishConversionJobStatusUpdate,
   publishPermalinkHash,
 } from './publish';
-import {runValidator} from '../base/validators';
-import {recordConfigValidator} from '../controller/record_config_types';
 import {Router} from './router';
 import {Optional} from '../base/utils';
 import {
@@ -187,11 +185,9 @@ export async function loadPermalink(gcsFileName: string): Promise<void> {
   if (permalink.recordingOpts !== undefined) {
     // This permalink state only contains a RecordConfig. Show the
     // recording page with the config, but keep other state as-is.
-    const validConfig = runValidator(
-      recordConfigValidator,
-      permalink.recordingOpts,
-    ).result;
-    globals.dispatch(Actions.setRecordConfig({config: validConfig}));
+    globals.dispatch(
+      Actions.setRecordConfig({config: permalink.recordingOpts}),
+    );
     Router.navigate('#!/record');
     return;
   }

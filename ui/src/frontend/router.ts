@@ -15,22 +15,11 @@
 import m from 'mithril';
 
 import {assertExists, assertTrue} from '../base/logging';
-import {
-  oneOf,
-  optBool,
-  optStr,
-  record,
-  runValidator,
-  ValidatedType,
-} from '../base/validators';
-
 import {PageAttrs} from './pages';
+import {z} from 'zod';
 
 export const ROUTE_PREFIX = '#!';
 const DEFAULT_ROUTE = '/';
-
-const modes = ['embedded', undefined] as const;
-type Mode = (typeof modes)[number];
 
 // The set of args that can be set on the route via #!/page?a=1&b2.
 // Route args are orthogonal to pages (i.e. should NOT make sense only in a
@@ -48,51 +37,65 @@ type Mode = (typeof modes)[number];
 //   This is client-only. All the routing logic in the Perfetto UI uses only
 //   this.
 
-const routeArgs = record({
-  // The local_cache_key is special and is persisted across navigations.
-  local_cache_key: optStr,
+// We use .catch(undefined) on every field below to make sure that passing an
+// invalid value doesn't invalidate the other keys which might be valid.
+// Zod default behaviour is atomic: either everything validates correctly or
+// the whole parsing fails.
+const ROUTE_SCHEMA = z
+  .object({
+    // The local_cache_key is special and is persisted across navigations.
+    local_cache_key: z.string().optional().catch(undefined),
 
-  // These are transient and are really set only on startup.
+    // These are transient and are really set only on startup.
 
-  // Are we loading a trace via ABT.
-  openFromAndroidBugTool: optBool,
+    // Are we loading a trace via ABT.
+    openFromAndroidBugTool: z.boolean().optional().catch(undefined),
 
-  // For permalink hash.
-  s: optStr,
+    // For permalink hash.
+    s: z.string().optional().catch(undefined),
 
-  // DEPRECATED: for #!/record?p=cpu subpages (b/191255021).
-  p: optStr,
+    // DEPRECATED: for #!/record?p=cpu subpages (b/191255021).
+    p: z.string().optional().catch(undefined),
 
-  // For fetching traces from Cloud Storage or local servers
-  // as with record_android_trace.
-  url: optStr,
+    // For fetching traces from Cloud Storage or local servers
+    // as with record_android_trace.
+    url: z.string().optional().catch(undefined),
 
-  // For connecting to a trace_processor_shell --httpd instance running on a
-  // non-standard port. This requires the CSP_WS_PERMISSIVE_PORT flag to relax
-  // the Content Security Policy.
-  rpc_port: optStr,
+    // For connecting to a trace_processor_shell --httpd instance running on a
+    // non-standard port. This requires the CSP_WS_PERMISSIVE_PORT flag to relax
+    // the Content Security Policy.
+    rpc_port: z.string().regex(/\d+/).optional().catch(undefined),
 
-  // Override the referrer. Useful for scripts such as
-  // record_android_trace to record where the trace is coming from.
-  referrer: optStr,
+    // Override the referrer. Useful for scripts such as
+    // record_android_trace to record where the trace is coming from.
+    referrer: z.string().optional().catch(undefined),
 
-  // For the 'mode' of the UI. For example when the mode is 'embedded'
-  // some features are disabled.
-  mode: oneOf<Mode>(modes, undefined),
+    // For the 'mode' of the UI. For example when the mode is 'embedded'
+    // some features are disabled.
+    mode: z.enum(['embedded']).optional().catch(undefined),
 
-  // Should we hide the sidebar?
-  hideSidebar: optBool,
+    // Should we hide the sidebar?
+    hideSidebar: z.boolean().optional().catch(undefined),
 
-  // Deep link support
-  ts: optStr,
-  dur: optStr,
-  tid: optStr,
-  pid: optStr,
-  query: optStr,
-  visStart: optStr,
-  visEnd: optStr,
-});
-type RouteArgs = ValidatedType<typeof routeArgs>;
+    // Deep link support
+    ts: z.string().optional().catch(undefined),
+    dur: z.string().optional().catch(undefined),
+    tid: z.string().optional().catch(undefined),
+    pid: z.string().optional().catch(undefined),
+    query: z.string().optional().catch(undefined),
+    visStart: z.string().optional().catch(undefined),
+    visEnd: z.string().optional().catch(undefined),
+  })
+  // default({}) ensures at compile-time that every entry is either optional or
+  // has a default value.
+  .default({});
+
+type RouteArgs = z.infer<typeof ROUTE_SCHEMA>;
+
+function safeParseRoute(rawRoute: unknown): RouteArgs {
+  const res = ROUTE_SCHEMA.safeParse(rawRoute);
+  return res.success ? res.data : {};
+}
 
 // A broken down representation of a route.
 // For instance: #!/record/gpu?local_cache_key=a0b1
@@ -239,7 +242,7 @@ export class Router {
       rawArgs = Router.parseQueryString(url.search);
     }
 
-    const args = runValidator(routeArgs, rawArgs).result;
+    const args = safeParseRoute(rawArgs);
 
     // Javascript sadly distinguishes between foo[bar] === undefined
     // and foo[bar] is not set at all. Here we need the second case to
@@ -268,19 +271,7 @@ export class Router {
   private static parseSearchParams(url: string): RouteArgs {
     const query = new URL(url).search;
     const rawArgs = Router.parseQueryString(query);
-    const args = runValidator(routeArgs, rawArgs).result;
-
-    // Javascript sadly distinguishes between foo[bar] === undefined
-    // and foo[bar] is not set at all. Here we need the second case to
-    // avoid making the URL ugly.
-    for (const key of Object.keys(args)) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if ((args as any)[key] === undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        delete (args as any)[key];
-      }
-    }
-
+    const args = safeParseRoute(rawArgs);
     return args;
   }
 
