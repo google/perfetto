@@ -20,7 +20,7 @@ FROM debian:buster
 
 RUN set -ex; \
     export DEBIAN_FRONTEND=noninteractive; \
-    echo deb http://deb.debian.org/debian buster-backports main > \
+    echo deb http://archive.debian.org/debian buster-backports main > \
             /etc/apt/sources.list.d/backports.list; \
     apt-get update; \
     apt-get -y install python3 python3-pip git curl sudo lz4 tar ccache tini \
@@ -33,7 +33,7 @@ RUN set -ex; \
     g++-7 --version; \
     clang-8 --version; \
     clang++-8 --version; \
-    pip3 install --quiet protobuf pandas; \
+    pip3 install protobuf pandas grpcio; \
     groupadd -g 1337 perfetto; \
     useradd -d /ci/ramdisk -u 1337 -g perfetto perfetto; \
     apt-get -y autoremove; \
