@@ -139,8 +139,6 @@ void CollectCookies(const std::string& packet, Context* context) {
   ASSERT_OK(collect_.End(context));
 }
 
-}  // namespace
-
 class FrameCookieTest : public testing::Test {
  protected:
   CollectFrameCookies collect_;
@@ -414,4 +412,6 @@ TEST_F(TransformStartCookiesTest, Drop) {
 
   ASSERT_FALSE(redacted.has_frame_timeline_event());
 }
+
+}  // namespace
 }  // namespace perfetto::trace_redaction
