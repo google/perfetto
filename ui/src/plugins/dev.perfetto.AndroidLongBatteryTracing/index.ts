@@ -1811,7 +1811,7 @@ class AndroidLongBatteryTracing implements Plugin {
       []) as ContainedTrace[];
 
     await ctx.engine.query(PACKAGE_LOOKUP);
-    await this.addNetworkSummary(ctx, features),
+    await this.addNetworkSummary(ctx, features);
     await this.addModemDetail(ctx, features);
     await this.addKernelWakelocks(ctx, features);
     await this.addWakeups(ctx, features);
