@@ -23,7 +23,6 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {NUM} from '../../trace_processor/query_result';
 
 class Wattson implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -36,44 +35,21 @@ class Wattson implements Plugin {
       ctx.registerStaticTrack({
         uri: `perfetto.CpuSubsystemEstimate#CPU${cpu}`,
         displayName: `Cpu${cpu} Estimate`,
-        kind: `CpuEstimateTrack`,
+        kind: `CpuSubsystemEstimateTrack`,
         trackFactory: ({trackKey}) =>
           new CpuSubsystemEstimateTrack(ctx.engine, trackKey, queryKey),
         groupName: `Wattson`,
       });
     }
+
     ctx.registerStaticTrack({
-      uri: `perfetto.CpuSubsystemEstimate#Static`,
-      displayName: `Static Estimate`,
-      kind: `CpuEstimateTrack`,
+      uri: `perfetto.CpuSubsystemEstimate#ScuInterconnect`,
+      displayName: `SCU Interconnect Estimate`,
+      kind: `CpuSubsystemEstimateTrack`,
       trackFactory: ({trackKey}) =>
-        new CpuSubsystemEstimateTrack(ctx.engine, trackKey, `static_curve`),
+        new CpuSubsystemEstimateTrack(ctx.engine, trackKey, `scu`),
       groupName: `Wattson`,
     });
-
-    // Cache estimates for remainder of CPU subsystem
-    const L3RowCount = await ctx.engine.query(`
-        SELECT
-          COUNT(*) as numRows
-        FROM _system_state_curves
-        WHERE l3_hit_value is NOT NULL AND l3_hit_value != 0
-    `);
-    const numL3Rows = L3RowCount.firstRow({numRows: NUM}).numRows;
-
-    if (numL3Rows > 0) {
-      const queryKeys: string[] = [`l3_hit_value`, `l3_miss_value`];
-      for (const queryKey of queryKeys) {
-        const keyName = queryKey.replace(`_value`, ``).replace(`l3`, `L3`);
-        ctx.registerStaticTrack({
-          uri: `perfetto.CpuSubsystemEstimate#${keyName}`,
-          displayName: `${keyName} Estimate`,
-          kind: `CacheEstimateTrack`,
-          trackFactory: ({trackKey}) =>
-            new CpuSubsystemEstimateTrack(ctx.engine, trackKey, queryKey),
-          groupName: `Wattson`,
-        });
-      }
-    }
   }
 }
 
@@ -97,21 +73,19 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
   }
 
   getSqlSource() {
-    const isL3 = this.queryKey.startsWith(`l3`);
-    return isL3
-      ? `
-      select
-        ts,
-        -- scale by 1000 because dividing by ns and LUTs are scaled by 10^6
-        ${this.queryKey} * 1000 / dur as value
-      from _system_state_curves
-    `
-      : `
-      select
-        ts,
-        ${this.queryKey} as value
-      from _system_state_curves
-    `;
+    if (this.queryKey.startsWith(`cpu`)) {
+      return `select ts, ${this.queryKey} as value from _system_state_curves`;
+    } else {
+      return `
+        select
+          ts,
+          -- L3 values are scaled by 1000 because it's divided by ns and L3 LUTs
+          -- are scaled by 10^6. This brings to same units as static_curve (mW)
+          ((IFNULL(l3_hit_value, 0) + IFNULL(l3_miss_value, 0)) * 1000 / dur)
+            + static_curve  as value
+        from _system_state_curves
+      `;
+    }
   }
 }
 
