@@ -274,6 +274,8 @@ class PerfettoSqlEngine {
 
   base::Status ExecuteCreateIndex(const PerfettoSqlParser::CreateIndex&);
 
+  base::Status ExecuteDropIndex(const PerfettoSqlParser::DropIndex&);
+
   template <typename Function>
   base::Status RegisterFunctionWithSqlite(
       const char* name,

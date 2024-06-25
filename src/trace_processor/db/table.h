@@ -169,8 +169,8 @@ class Table {
     return std::nullopt;
   }
 
-  // Adds an index onto column. Returns false if there is already index on this
-  // column.
+  // Adds an index onto column.
+  // Returns an error if index already exists and `!replace`.
   base::Status SetIndex(const std::string& name,
                         std::vector<uint32_t> col_idxs,
                         std::vector<uint32_t> index,
@@ -193,6 +193,18 @@ class Table {
     idx.index = std::move(index);
     indexes_.push_back(std::move(idx));
     return base::OkStatus();
+  }
+
+  // Removes index from the table.
+  // Returns an error if index doesn't exist.
+  base::Status DropIndex(const std::string& name) {
+    for (uint32_t i = 0; i < indexes_.size(); i++) {
+      if (indexes_[i].name == name) {
+        indexes_.erase(indexes_.begin() + i);
+        return base::OkStatus();
+      }
+    }
+    return base::ErrStatus("Index '%s' not found.", name.c_str());
   }
 
   // Sorts the table using the specified order by constraints.
