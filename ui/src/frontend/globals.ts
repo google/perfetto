@@ -57,6 +57,7 @@ import {Optional, exists} from '../base/utils';
 import {OmniboxManager} from './omnibox_manager';
 import {CallsiteInfo} from '../common/legacy_flamegraph_util';
 import {FlamegraphCache} from '../core/flamegraph_cache';
+import {SerializedAppState} from '../common/state_serialization_schema';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -278,6 +279,9 @@ class Globals {
   permalinkHash?: string;
 
   traceContext = defaultTraceContext;
+
+  // Used for permalink load by trace_controller.ts.
+  restoreAppStateAfterTraceLoad?: SerializedAppState;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;

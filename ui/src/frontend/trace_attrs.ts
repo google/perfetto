@@ -74,7 +74,7 @@ export function shareTrace() {
   );
   if (result) {
     globals.logging.logEvent('Trace Actions', 'Create permalink');
-    createPermalink();
+    createPermalink({mode: 'APP_STATE'});
   }
 }
 

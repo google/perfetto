@@ -176,9 +176,7 @@ function Instructions(cssClass: string) {
       ? m(
           'button.permalinkconfig',
           {
-            onclick: () => {
-              createPermalink({isRecordingConfig: true});
-            },
+            onclick: () => createPermalink({mode: 'RECORDING_OPTS'}),
           },
           'Share recording settings',
         )
