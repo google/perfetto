@@ -14,6 +14,7 @@
 
 import {assertTrue} from '../base/logging';
 import {Time, time} from '../base/time';
+import {Optional} from '../base/utils';
 import {Args, ArgValue} from '../common/arg_types';
 import {
   SelectionKind,
@@ -350,16 +351,17 @@ export class SelectionController extends Controller<'main'> {
   }
 
   async schedSliceDetails(id: number) {
-    const sqlQuery = `SELECT
-      sched.ts,
-      sched.dur,
-      sched.priority,
-      sched.end_state as endState,
-      sched.utid,
-      sched.cpu,
-      thread_state.id as threadStateId
-    FROM sched left join thread_state using(ts, utid, cpu)
-    WHERE sched.id = ${id}`;
+    const sqlQuery = `
+      SELECT
+        ts,
+        dur,
+        priority,
+        end_state as endState,
+        utid,
+        cpu
+      FROM sched
+      WHERE sched.id = ${id}
+    `;
     const result = await this.args.engine.query(sqlQuery);
     // Check selection is still the same on completion of query.
     const selection = getLegacySelection(globals.state);
@@ -371,7 +373,6 @@ export class SelectionController extends Controller<'main'> {
         endState: STR_NULL,
         utid: NUM,
         cpu: NUM,
-        threadStateId: NUM_NULL,
       });
       const ts = Time.fromRaw(row.ts);
       const dur = row.dur;
@@ -379,8 +380,6 @@ export class SelectionController extends Controller<'main'> {
       const endState = row.endState;
       const utid = row.utid;
       const cpu = row.cpu;
-      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-      const threadStateId = row.threadStateId || undefined;
       const selected: SliceDetails = {
         ts,
         dur,
@@ -389,8 +388,13 @@ export class SelectionController extends Controller<'main'> {
         cpu,
         id,
         utid,
-        threadStateId,
       };
+
+      selected.threadStateId = await getThreadStateForSchedSlice(
+        this.args.engine,
+        id,
+      );
+
       Object.assign(selected, await this.computeThreadDetails(utid));
 
       this.schedulingDetails(ts, utid)
@@ -515,5 +519,28 @@ export class SelectionController extends Controller<'main'> {
       details.versionCode = packageDetails.versionCode;
     }
     return details;
+  }
+}
+
+// Get the corresponding thread state slice id for a given sched slice
+async function getThreadStateForSchedSlice(
+  engine: Engine,
+  id: number,
+): Promise<Optional<number>> {
+  const sqlQuery = `
+    SELECT
+      thread_state.id as threadStateId
+    FROM sched
+    JOIN thread_state USING(ts, utid, cpu)
+    WHERE sched.id = ${id}
+  `;
+  const threadStateResult = await engine.query(sqlQuery);
+  if (threadStateResult.numRows() === 1) {
+    const row = threadStateResult.firstRow({
+      threadStateId: NUM,
+    });
+    return row.threadStateId;
+  } else {
+    return undefined;
   }
 }
