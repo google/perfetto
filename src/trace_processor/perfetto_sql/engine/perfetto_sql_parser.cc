@@ -350,7 +350,7 @@ bool PerfettoSqlParser::ParseCreatePerfettoIndex(bool replace,
   token = tokenizer_.NextNonWhitespace();
   if (token.token_type != SqliteTokenType::TK_LP) {
     base::StackString<1024> err(
-        "Expected parenthesis after table name, received %*s.",
+        "Expected parenthesis after table name, received '%*s'.",
         static_cast<int>(token.str.size()), token.str.data());
     return ErrorAtToken(token, err.c_str());
   }
@@ -359,18 +359,12 @@ bool PerfettoSqlParser::ParseCreatePerfettoIndex(bool replace,
 
   do {
     Token col_name_tok = tokenizer_.NextNonWhitespace();
-    if (col_name_tok.token_type != SqliteTokenType::TK_ID) {
-      base::StackString<1024> err("Invalid column name %.*s",
-                                  static_cast<int>(col_name_tok.str.size()),
-                                  col_name_tok.str.data());
-      return ErrorAtToken(col_name_tok, err.c_str());
-    }
     cols.push_back(std::string(col_name_tok.str));
     token = tokenizer_.NextNonWhitespace();
   } while (token.token_type == SqliteTokenType::TK_COMMA);
 
   if (token.token_type != SqliteTokenType::TK_RP) {
-    base::StackString<1024> err("Expected closed parenthesis, received %*s.",
+    base::StackString<1024> err("Expected closed parenthesis, received '%*s'.",
                                 static_cast<int>(token.str.size()),
                                 token.str.data());
     return ErrorAtToken(token, err.c_str());

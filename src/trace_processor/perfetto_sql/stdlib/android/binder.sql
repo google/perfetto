@@ -157,7 +157,7 @@ GROUP BY
   binder_txn_id,
   binder_reply_id;
 
-CREATE TABLE _oom_score AS
+CREATE PERFETTO TABLE _oom_score AS
   SELECT
     process.upid,
     CAST(c.value AS INT) AS value,
@@ -168,7 +168,7 @@ CREATE TABLE _oom_score AS
          JOIN process USING (upid)
    WHERE t.name = 'oom_score_adj';
 
-CREATE INDEX _oom_score_idx ON _oom_score(upid, ts);
+CREATE PERFETTO INDEX _oom_score_idx ON _oom_score(upid, ts);
 
 -- Breakdown synchronous binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction.
