@@ -25,7 +25,9 @@ if (enable_perfetto_grpc) {
       "../../gn:default_deps",
       "../../gn:grpc",
       "../../protos/perfetto/bigtrace:orchestrator_grpc",
+      "../../protos/perfetto/bigtrace:orchestrator_lite",
       "../../protos/perfetto/bigtrace:worker_grpc",
+      "../../protos/perfetto/bigtrace:worker_lite",
       "../base",
     ]
   }
@@ -39,6 +41,7 @@ if (enable_perfetto_grpc) {
       "../../protos/perfetto/bigtrace:worker_grpc",
       "../../src/trace_processor",
       "../../src/trace_processor/rpc:rpc",
+      "../../protos/perfetto/bigtrace:worker_lite",
       "../base",
     ]
   }

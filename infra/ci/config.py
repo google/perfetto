@@ -70,58 +70,58 @@ JOB_CONFIGS = {
                                  'non_hermetic_clang_stdlib="libc++" '
                                  'enable_perfetto_merged_protos_check=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'INSTALL_BUILD_DEPS': '',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'linux-clang-x86_64-tsan': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_tsan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'INSTALL_BUILD_DEPS': '',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'linux-clang-x86_64-msan': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_msan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'INSTALL_BUILD_DEPS': '',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'linux-clang-x86_64-asan_lsan': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_asan=true is_lsan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'INSTALL_BUILD_DEPS': '',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'linux-clang-x86-asan_lsan': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_asan=true is_lsan=true '
                                  'target_cpu="x86"',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'INSTALL_BUILD_DEPS': '',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'linux-gcc7-x86_64-release': {
         'PERFETTO_TEST_GN_ARGS':
-            'is_debug=false is_clang=false enable_perfetto_grpc=true'
+            'is_debug=false is_clang=false '
             'cc="gcc-7" cxx="g++-7"',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
-        'INSTALL_BUILD_DEPS': '--grpc',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '--grpc',
     },
     'android-clang-arm-release': {
         'PERFETTO_TEST_GN_ARGS':
             'is_debug=false target_os="android" target_cpu="arm"',
         'PERFETTO_TEST_SCRIPT':
             'test/ci/android_tests.sh',
-        'INSTALL_BUILD_DEPS':
-            '',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS':
+            '--android',
     },
     'linux-clang-x86_64-libfuzzer': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false is_fuzzer=true is_asan=true',
         'PERFETTO_TEST_SCRIPT': 'test/ci/fuzzer_tests.sh',
-        'INSTALL_BUILD_DEPS': '',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'linux-clang-x86_64-bazel': {
         'PERFETTO_TEST_GN_ARGS': '',
         'PERFETTO_TEST_SCRIPT': 'test/ci/bazel_tests.sh',
-        'INSTALL_BUILD_DEPS': '',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '',
     },
     'ui-clang-x86_64-release': {
         'PERFETTO_TEST_GN_ARGS': 'is_debug=false',
         'PERFETTO_TEST_SCRIPT': 'test/ci/ui_tests.sh',
-        'INSTALL_BUILD_DEPS': '',
+        'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '--ui',
     },
 }
 
