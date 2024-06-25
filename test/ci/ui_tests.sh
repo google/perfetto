@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-INSTALL_BUILD_DEPS_ARGS="--ui"
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
 infra/perfetto.dev/build
