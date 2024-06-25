@@ -44,7 +44,8 @@
     "util": "^0.12.5",
     "uuid": "^9.0.0",
     "vega": "^5.25.0",
-    "vega-lite": "^5.11.0"
+    "vega-lite": "^5.11.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^24.1.0",

@@ -12,38 +12,71 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {produce} from 'immer';
 import {assertExists} from '../base/logging';
-import {runValidator} from '../base/validators';
 import {Actions} from '../common/actions';
 import {ConversionJobStatus} from '../common/conversion_jobs';
 import {
-  createEmptyNonSerializableState,
-  createEmptyState,
-} from '../common/empty_state';
-import {EngineConfig, ObjectById, STATE_VERSION, State} from '../common/state';
-import {BUCKET_NAME, GcsUploader, MIME_JSON} from '../common/gcs_uploader';
+  JsonSerialize,
+  parseAppState,
+  serializeAppState,
+} from '../common/state_serialization';
 import {
-  RecordConfig,
-  recordConfigValidator,
-} from '../controller/record_config_types';
+  BUCKET_NAME,
+  MIME_BINARY,
+  MIME_JSON,
+  GcsUploader,
+} from '../common/gcs_uploader';
 import {globals} from './globals';
 import {
   publishConversionJobStatusUpdate,
   publishPermalinkHash,
 } from './publish';
+import {runValidator} from '../base/validators';
+import {recordConfigValidator} from '../controller/record_config_types';
 import {Router} from './router';
+import {Optional} from '../base/utils';
+import {
+  SERIALIZED_STATE_VERSION,
+  SerializedAppState,
+} from '../common/state_serialization_schema';
+import {z} from 'zod';
 import {showModal} from '../widgets/modal';
-import {isString} from '../base/object_utils';
+
+// Permalink serialization has two layers:
+// 1. Serialization of the app state (state_serialization.ts):
+//    This is a JSON object that represents the visual app state (pinned tracks,
+//    visible viewport bounds, etc) BUT not the trace source.
+// 2. An outer layer that contains the app state AND a link to the trace file.
+//    (This file)
+//
+// In a nutshell:
+//   AppState:  {viewport: {...}, pinnedTracks: {...}, notes: {...}}
+//   Permalink: {appState: {see above}, traceUrl: 'https://gcs/trace/file'}
+//
+// This file deals with the outer layer, state_serialization.ts with the inner.
+
+const PERMALINK_SCHEMA = z.object({
+  traceUrl: z.string().optional(),
+
+  // We don't want to enforce validation at this level but want to delegate it
+  // to parseAppState(), for two reasons:
+  // 1. parseAppState() does further semantic checks (e.g. version checking).
+  // 2. We want to still load the traceUrl even if the app state is invalid.
+  appState: z.any().optional(),
+
+  // This is for the very unusual case of clicking on "Share settings" in the
+  // recording page. In this case there is no trace or app state. We just
+  // create a permalink with the recording state.
+  recordingOpts: z.any().optional(),
+});
+
+type PermalinkState = z.infer<typeof PERMALINK_SCHEMA>;
 
 export interface PermalinkOptions {
-  isRecordingConfig?: boolean;
+  mode: 'APP_STATE' | 'RECORDING_OPTS';
 }
 
-export async function createPermalink(
-  options: PermalinkOptions = {},
-): Promise<void> {
-  const {isRecordingConfig = false} = options;
+export async function createPermalink(opts: PermalinkOptions): Promise<void> {
   const jobName = 'create_permalink';
   publishConversionJobStatusUpdate({
     jobName,
@@ -51,7 +84,7 @@ export async function createPermalink(
   });
 
   try {
-    const hash = await createPermalinkInternal(isRecordingConfig);
+    const hash = await createPermalinkInternal(opts);
     publishPermalinkHash(hash);
   } finally {
     publishConversionJobStatusUpdate({
@@ -61,14 +94,18 @@ export async function createPermalink(
   }
 }
 
+// Returns the file name, not the full url (i.e. the name of the GCS object).
 async function createPermalinkInternal(
-  isRecordingConfig: boolean,
+  opts: PermalinkOptions,
 ): Promise<string> {
-  let uploadState: State | RecordConfig = globals.state;
+  const permalinkData: PermalinkState = {};
 
-  if (isRecordingConfig) {
-    uploadState = globals.state.recordConfig;
-  } else {
+  if (opts.mode === 'RECORDING_OPTS') {
+    permalinkData.recordingOpts = globals.state.recordConfig;
+  } else if (opts.mode === 'APP_STATE') {
+    // Check if we need to upload the trace file, before serializing the app
+    // state.
+    let alreadyUploadedUrl = '';
     const engine = assertExists(globals.getCurrentEngine());
     let dataToUpload: File | ArrayBuffer | undefined = undefined;
     let traceName = `trace ${engine.id}`;
@@ -77,48 +114,173 @@ async function createPermalinkInternal(
       traceName = dataToUpload.name;
     } else if (engine.source.type === 'ARRAY_BUFFER') {
       dataToUpload = engine.source.buffer;
-    } else if (engine.source.type !== 'URL') {
+    } else if (engine.source.type === 'URL') {
+      alreadyUploadedUrl = engine.source.url;
+    } else {
       throw new Error(`Cannot share trace ${JSON.stringify(engine.source)}`);
     }
 
-    if (dataToUpload !== undefined) {
+    // Upload the trace file, unless it's already uploaded (type == 'URL').
+    // Internally TraceGcsUploader will skip the upload if an object with the
+    // same hash exists already.
+    if (alreadyUploadedUrl) {
+      permalinkData.traceUrl = alreadyUploadedUrl;
+    } else if (dataToUpload !== undefined) {
       updateStatus(`Uploading ${traceName}`);
-      const uploader = new GcsUploader(dataToUpload, {
-        onProgress: () => {
-          switch (uploader.state) {
-            case 'UPLOADING':
-              const statusTxt = `Uploading ${uploader.getEtaString()}`;
-              updateStatus(statusTxt);
-              break;
-            case 'UPLOADED':
-              // Convert state to use URLs and remove permalink.
-              const url = uploader.uploadedUrl;
-              uploadState = produce(globals.state, (draft) => {
-                assertExists(draft.engine).source = {type: 'URL', url};
-              });
-              break;
-            case 'ERROR':
-              updateStatus(`Upload failed ${uploader.error}`);
-              break;
-          } // switch (state)
-        },
-      }); // onProgress
+      const uploader: GcsUploader = new GcsUploader(dataToUpload, {
+        mimeType: MIME_BINARY,
+        onProgress: () => reportUpdateProgress(uploader),
+      });
       await uploader.waitForCompletion();
+      permalinkData.traceUrl = uploader.uploadedUrl;
+    }
+
+    permalinkData.appState = serializeAppState();
+  }
+
+  // Serialize the permalink with the app state (or recording state) and upload.
+  updateStatus(`Creating permalink...`);
+  const permalinkJson = JsonSerialize(permalinkData);
+  const uploader: GcsUploader = new GcsUploader(permalinkJson, {
+    mimeType: MIME_JSON,
+    onProgress: () => reportUpdateProgress(uploader),
+  });
+  await uploader.waitForCompletion();
+
+  return uploader.uploadedFileName;
+}
+
+/**
+ * Loads a permalink from Google Cloud Storage.
+ * This is invoked when passing !#?s=fileName to URL.
+ * @param gcsFileName the file name of the cloud storage object. This is
+ * expected to be a JSON file that respects the schema defined by
+ * @type {SerializedPermalink}, @see state_serialization.ts.
+ */
+export async function loadPermalink(gcsFileName: string): Promise<void> {
+  // Otherwise, this is a request to load the permalink.
+  const url = `https://storage.googleapis.com/${BUCKET_NAME}/${gcsFileName}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Could not fetch permalink.\n URL: ${url}`);
+  }
+  const text = await response.text();
+  const permalinkJson = JSON.parse(text);
+  let permalink: PermalinkState;
+  let error = '';
+
+  // Try to recover permalinks generated by older versions of the UI before
+  // r.android.com/3119920 .
+  const convertedLegacyPermalink = tryLoadLegacyPermalink(permalinkJson);
+  if (convertedLegacyPermalink !== undefined) {
+    permalink = convertedLegacyPermalink;
+  } else {
+    const res = PERMALINK_SCHEMA.safeParse(permalinkJson);
+    if (res.success) {
+      permalink = res.data;
+    } else {
+      error = res.error.toString();
+      permalink = {};
     }
   }
 
-  // Upload state.
-  updateStatus(`Creating permalink...`);
-  const hash = await saveState(uploadState);
-  updateStatus(`Permalink ready`);
-  return hash;
+  if (permalink.recordingOpts !== undefined) {
+    // This permalink state only contains a RecordConfig. Show the
+    // recording page with the config, but keep other state as-is.
+    const validConfig = runValidator(
+      recordConfigValidator,
+      permalink.recordingOpts,
+    ).result;
+    globals.dispatch(Actions.setRecordConfig({config: validConfig}));
+    Router.navigate('#!/record');
+    return;
+  }
+  if (permalink.appState !== undefined) {
+    // This is the most common case where the permalink contains the app state
+    // (and optionally a traceUrl, below). globals.restoreAppStateAfterTraceLoad
+    // will be processed by trace_controller.ts after the trace has loaded.
+    const parseRes = parseAppState(permalink.appState);
+    if (parseRes.success) {
+      globals.restoreAppStateAfterTraceLoad = parseRes.data;
+    } else {
+      error = parseRes.error;
+    }
+  }
+  if (permalink.traceUrl) {
+    globals.dispatch(Actions.openTraceFromUrl({url: permalink.traceUrl}));
+  }
+
+  if (error) {
+    showModal({
+      title: 'Failed to restore the serialized app state',
+      content: m(
+        'div',
+        m(
+          'p',
+          'Something went wrong when restoring the app state.' +
+            'This is due to some backwards-incompatible change ' +
+            'when the permalink is generated and then opened using ' +
+            'two different UI versions.',
+        ),
+        m(
+          'p',
+          "I'm going to try to open the trace file anyways, but " +
+            'the zoom level, pinned tracks and other UI ' +
+            "state wont't be recovered",
+        ),
+        m('p', 'Error details:'),
+        m('.modal-logs', error),
+      ),
+      buttons: [
+        {
+          text: 'Open only the trace file',
+          primary: true,
+        },
+      ],
+    });
+  }
 }
 
-async function saveState(stateOrConfig: State | RecordConfig): Promise<string> {
-  const stateJson = serializeStateObject(stateOrConfig);
-  const uploader = new GcsUploader(stateJson, {mimeType: MIME_JSON});
-  await uploader.waitForCompletion();
-  return uploader.uploadedFileName;
+// Tries to recover a previous permalink, before the split in two layers,
+// where the permalink JSON contains the app state, which contains inside it
+// the trace URL.
+// If we suceed, convert it to a new-style JSON object preserving some minimal
+// information (really just vieport and pinned tracks).
+function tryLoadLegacyPermalink(data: unknown): Optional<PermalinkState> {
+  const legacyData = data as {
+    version?: number;
+    engine?: {source?: {url?: string}};
+    pinnedTracks?: string[];
+    frontendLocalState?: {
+      visibleState?: {start?: {value?: string}; end?: {value?: string}};
+    };
+  };
+  if (legacyData.version === undefined) return undefined;
+  const vizState = legacyData.frontendLocalState?.visibleState;
+  return {
+    traceUrl: legacyData.engine?.source?.url,
+    appState: {
+      version: SERIALIZED_STATE_VERSION,
+      pinnedTracks: legacyData.pinnedTracks ?? [],
+      viewport: vizState
+        ? {start: vizState.start?.value, end: vizState.end?.value}
+        : undefined,
+    } as SerializedAppState,
+  } as PermalinkState;
+}
+
+function reportUpdateProgress(uploader: GcsUploader) {
+  switch (uploader.state) {
+    case 'UPLOADING':
+      const statusTxt = `Uploading ${uploader.getEtaString()}`;
+      updateStatus(statusTxt);
+      break;
+    case 'ERROR':
+      updateStatus(`Upload failed ${uploader.error}`);
+      break;
+    default:
+      break;
+  } // switch (state)
 }
 
 function updateStatus(msg: string): void {
@@ -129,158 +291,4 @@ function updateStatus(msg: string): void {
       timestamp: Date.now() / 1000,
     }),
   );
-}
-
-export async function loadPermalink(hash: string): Promise<void> {
-  // Otherwise, this is a request to load the permalink.
-  const stateOrConfig = await loadState(hash);
-
-  if (isRecordConfig(stateOrConfig)) {
-    // This permalink state only contains a RecordConfig. Show the
-    // recording page with the config, but keep other state as-is.
-    const validConfig = runValidator(
-      recordConfigValidator,
-      stateOrConfig as unknown,
-    ).result;
-    globals.dispatch(Actions.setRecordConfig({config: validConfig}));
-    Router.navigate('#!/record');
-    return;
-  }
-  globals.dispatch(Actions.setState({newState: stateOrConfig}));
-}
-
-async function loadState(id: string): Promise<State | RecordConfig> {
-  const url = `https://storage.googleapis.com/${BUCKET_NAME}/${id}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(
-      `Could not fetch permalink.\n` +
-        `Are you sure the id (${id}) is correct?\n` +
-        `URL: ${url}`,
-    );
-  }
-  const text = await response.text();
-  const state = deserializeStateObject<State>(text);
-  if (!isRecordConfig(state)) {
-    return upgradeState(state);
-  }
-  return state;
-}
-
-function deserializeStateObject<T>(json: string): T {
-  const object = JSON.parse(json, (_key, value) => {
-    if (isSerializedBigint(value)) {
-      return BigInt(value.value);
-    }
-    return value;
-  });
-  return object as T;
-}
-
-export function serializeStateObject(object: unknown): string {
-  const json = JSON.stringify(object, (key, value) => {
-    if (typeof value === 'bigint') {
-      return {
-        __kind: 'bigint',
-        value: value.toString(),
-      };
-    }
-    return key === 'nonSerializableState' ? undefined : value;
-  });
-  return json;
-}
-
-// Bigint's are not serializable using JSON.stringify, so we use a special
-// object when serialising
-type SerializedBigint = {
-  __kind: 'bigint';
-  value: string;
-};
-
-// Check if a value looks like a serialized bigint
-function isSerializedBigint(value: unknown): value is SerializedBigint {
-  if (value === null) {
-    return false;
-  }
-  if (typeof value !== 'object') {
-    return false;
-  }
-  if ('__kind' in value && 'value' in value) {
-    return value.__kind === 'bigint' && isString(value.value);
-  }
-  return false;
-}
-
-function isRecordConfig(
-  stateOrConfig: State | RecordConfig,
-): stateOrConfig is RecordConfig {
-  const mode = (stateOrConfig as {mode?: string}).mode;
-  return (
-    mode !== undefined &&
-    ['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'].includes(mode)
-  );
-}
-
-function upgradeState(state: State): State {
-  if (state.engine !== undefined && state.engine.source.type !== 'URL') {
-    // All permalink traces should be modified to have a source.type=URL
-    // pointing to the uploaded trace. Due to a bug in some older version
-    // of the UI (b/327049372), an upload failure can end up with a state that
-    // has type=FILE but a null file object. If this happens, invalidate the
-    // trace and show a message.
-    showModal({
-      title: 'Cannot load trace permalink',
-      content: m(
-        'div',
-        'The permalink stored on the server is corrupted ' +
-          'and cannot be loaded.',
-      ),
-    });
-    return createEmptyState();
-  }
-
-  if (state.version !== STATE_VERSION) {
-    const newState = createEmptyState();
-    // Old permalinks from state versions prior to version 24
-    // have multiple engines of which only one is identified as the
-    // current engine via currentEngineId. Handle this case:
-    if (isMultiEngineState(state)) {
-      const engineId = state.currentEngineId;
-      if (engineId !== undefined) {
-        newState.engine = state.engines[engineId];
-      }
-    } else {
-      newState.engine = state.engine;
-    }
-
-    if (newState.engine !== undefined) {
-      newState.engine.ready = false;
-    }
-    const message =
-      `Unable to parse old state version. Discarding state ` +
-      `and loading trace.`;
-    console.warn(message);
-    updateStatus(message);
-    return newState;
-  } else {
-    // Loaded state is presumed to be compatible with the State type
-    // definition in the app. However, a non-serializable part has to be
-    // recreated.
-    state.nonSerializableState = createEmptyNonSerializableState();
-  }
-  return state;
-}
-
-interface MultiEngineState {
-  currentEngineId?: string;
-  engines: ObjectById<EngineConfig>;
-}
-
-function isMultiEngineState(
-  state: State | MultiEngineState,
-): state is MultiEngineState {
-  if ((state as MultiEngineState).engines !== undefined) {
-    return true;
-  }
-  return false;
 }
