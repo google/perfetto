@@ -56,21 +56,60 @@ void ArgsTracker::Flush() {
   if (args_.empty())
     return;
 
-  // We sort here because a single packet may add multiple args with different
-  // rowids.
-  auto comparator = [](const Arg& f, const Arg& s) {
-    // We only care that all args for a specific arg set appear in a contiguous
-    // block and that args within one arg set are sorted by key, but not about
-    // the relative order of one block to another. The simplest way to achieve
-    // that is to sort by table column pointer & row, which identify the arg
-    // set, and then by key.
-    if (f.column == s.column && f.row == s.row)
-      return f.key < s.key;
-    if (f.column == s.column)
-      return f.row < s.row;
-    return f.column < s.column;
+  // We need to ensure that the args with the same arg set (arg_set_id + row)
+  // and key are grouped together. This is important for joining the args from
+  // different events (e.g. trace event begin and trace event end might both
+  // have arguments).
+  //
+  // To achieve that (and do it quickly) we do two steps:
+  // - First, group all of the values within the same key together and compute
+  // the smallest index for each key.
+  // - Then we sort the args by column, row, smallest_index_for_key (to group
+  // keys) and index (to preserve the original ordering).
+
+  struct Entry {
+    size_t index;
+    StringId key;
+    size_t smallest_index_for_key = 0;
+
+    Entry(size_t index, StringId key) : index(index), key(key) {}
   };
-  std::stable_sort(args_.begin(), args_.end(), comparator);
+
+  base::SmallVector<Entry, 16> entries;
+  for (const auto& arg : args_) {
+    entries.emplace_back(entries.size(), arg.key);
+  }
+
+  // Step 1: Compute the `smallest_index_for_key`.
+  std::sort(entries.begin(), entries.end(), [](const Entry& a, const Entry& b) {
+    return std::tie(a.key, a.index) < std::tie(b.key, b.index);
+  });
+
+  // As the data is sorted by (`key`, `index`) now, then the objects with the
+  // same key will be contiguous and within this block it will be sorted by
+  // index. That means that `smallest_index_for_key` for the entire block should
+  // be the value of the first index in the block.
+  entries[0].smallest_index_for_key = entries[0].index;
+  for (size_t i = 1; i < entries.size(); ++i) {
+    entries[i].smallest_index_for_key =
+        entries[i].key == entries[i - 1].key
+            ? entries[i - 1].smallest_index_for_key
+            : entries[i].index;
+  }
+
+  // Step 2: sort in the desired order: grouping by arg set first (column, row),
+  // then ensuring that the args with the same key are grouped together
+  // (smallest_index_for_key) and then preserving the original order within
+  // these group (index).
+  std::sort(
+      entries.begin(), entries.end(), [&](const Entry& a, const Entry& b) {
+        const Arg& first_arg = args_[a.index];
+        const Arg& second_arg = args_[b.index];
+        return std::tie(first_arg.column, first_arg.row,
+                        a.smallest_index_for_key,
+                        a.index) < std::tie(second_arg.column, second_arg.row,
+                                            b.smallest_index_for_key, b.index);
+      });
 
   for (uint32_t i = 0; i < args_.size();) {
     const GlobalArgsTracker::Arg& arg = args_[i];
