@@ -333,9 +333,13 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
       auto sql = macro->sql;
       RETURN_IF_ERROR(ExecuteCreateMacro(*macro));
       source = RewriteToDummySql(sql);
-    } else if (auto* index = std::get_if<PerfettoSqlParser::CreateIndex>(
+    } else if (auto* create_index = std::get_if<PerfettoSqlParser::CreateIndex>(
                    &parser.statement())) {
-      RETURN_IF_ERROR(ExecuteCreateIndex(*index));
+      RETURN_IF_ERROR(ExecuteCreateIndex(*create_index));
+      source = RewriteToDummySql(parser.statement_sql());
+    } else if (auto* drop_index = std::get_if<PerfettoSqlParser::DropIndex>(
+                   &parser.statement())) {
+      RETURN_IF_ERROR(ExecuteDropIndex(*drop_index));
       source = RewriteToDummySql(parser.statement_sql());
     } else {
       // If none of the above matched, this must just be an SQL statement
@@ -650,6 +654,18 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
 
   RETURN_IF_ERROR(t->SetIndex(index.name, std::move(col_idxs),
                               std::move(sorted_indices), index.replace));
+  return base::OkStatus();
+}
+
+base::Status PerfettoSqlEngine::ExecuteDropIndex(
+    const PerfettoSqlParser::DropIndex& index) {
+  Table* t = GetMutableTableOrNull(index.table_name);
+  if (!t) {
+    return base::ErrStatus("DROP PERFETTO INDEX: Table '%s' not found",
+                           index.table_name.c_str());
+  }
+
+  RETURN_IF_ERROR(t->DropIndex(index.name));
   return base::OkStatus();
 }
 
