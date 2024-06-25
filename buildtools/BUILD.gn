@@ -1533,6 +1533,12 @@ if (enable_perfetto_grpc) {
       "grpc/src/third_party/xxhash",
     ]
     cflags = [ "-DGRPC_ARES=0" ]
+    if (is_gcc) {
+      cflags += [
+        "-Wno-attributes",
+        "-Wno-return-type",
+      ]
+    }
   }
 
   config("grpc_gen_config") {

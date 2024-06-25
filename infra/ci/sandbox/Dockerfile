@@ -26,11 +26,11 @@ RUN set -ex; \
     apt-get -y install python3 python3-pip git curl sudo lz4 tar ccache tini \
                        libpulse0 libgl1 libxml2 libc6-dev-i386 libtinfo5 \
                        gnupg2 pkg-config zip g++ zlib1g-dev unzip \
-                       python3-distutils gcc-7 g++-7; \
+                       python3-distutils gcc-8 g++-8; \
     apt-get -y install libc++-8-dev libc++abi-8-dev clang-8; \
     update-alternatives --install /usr/bin/python python /usr/bin/python3.7 1; \
-    gcc-7 --version; \
-    g++-7 --version; \
+    gcc-8 --version; \
+    g++-8 --version; \
     clang-8 --version; \
     clang++-8 --version; \
     pip3 install protobuf pandas grpcio; \

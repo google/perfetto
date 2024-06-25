@@ -20,7 +20,7 @@ perfetto_proto_library("worker_@TYPE@") {
     "zero",
     "source_set",
   ]
-  deps = [ "../trace_processor:@TYPE@" ]  # needed for descriptor.proto.
+  deps = [ "../trace_processor:@TYPE@" ]
   sources = [ "worker.proto" ]
 }
 
@@ -30,6 +30,7 @@ perfetto_proto_library("orchestrator_@TYPE@") {
     "zero",
     "source_set",
   ]
+  deps = [ "../trace_processor:@TYPE@" ]
   sources = [ "orchestrator.proto" ]
 }
 
