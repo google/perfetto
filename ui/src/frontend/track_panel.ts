@@ -68,6 +68,7 @@ function isSelected(id: string) {
 interface TrackShellAttrs {
   track: Track;
   trackState: TrackState;
+  pinnedCopy?: boolean;
 }
 
 class TrackShell implements m.ClassComponent<TrackShellAttrs> {
@@ -75,12 +76,13 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
   private dragging = false;
   private dropping: 'before'|'after'|undefined = undefined;
   private attrs?: TrackShellAttrs;
-  private initialHeight?: number;
+  private defaultHeight?: number;
 
   oninit(vnode: m.Vnode<TrackShellAttrs>) {
     this.attrs = vnode.attrs;
     if (this.attrs) {
-      this.initialHeight = this.attrs.track.getHeight();
+      this.defaultHeight =
+        this.attrs.track.getHeight() / this.attrs.trackState.scaleFactor;
     }
   }
 
@@ -191,10 +193,18 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     }
     let y = this.attrs.track.getHeight();
     const mouseMoveEvent = (evMove: MouseEvent): void => {
+      if (!this.attrs) {
+        return;
+      }
       evMove.preventDefault();
-      y += evMove.movementY;
-        if (this.attrs && this.initialHeight) {
-          const newMultiplier = y / this.initialHeight;
+      let movementY = evMove.movementY;
+      if (this.attrs.pinnedCopy !== true &&
+          isPinned(this.attrs.trackState.id)) {
+        movementY /=2;
+      }
+      y += movementY;
+        if (this.defaultHeight) {
+          const newMultiplier = y / this.defaultHeight;
           if (newMultiplier < 1) {
             this.attrs.trackState.scaleFactor = 1;
           } else {
@@ -386,6 +396,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
 interface TrackComponentAttrs {
   trackState: TrackState;
   track: Track;
+  pinnedCopy?: boolean;
 }
 class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
   view({attrs}: m.CVnode<TrackComponentAttrs>) {
@@ -401,7 +412,10 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
           id: 'track_' + attrs.trackState.id,
         },
         [
-          m(TrackShell, {track: attrs.track, trackState: attrs.trackState}),
+          m(TrackShell, {
+            track: attrs.track,
+            trackState: attrs.trackState,
+            pinnedCopy: attrs.pinnedCopy}),
           m(TrackContent, {track: attrs.track}),
         ]);
   }
@@ -444,6 +458,7 @@ export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
 interface TrackPanelAttrs {
   id: string;
   selectable: boolean;
+  pinnedCopy?: boolean;
 }
 
 export class TrackPanel extends Panel<TrackPanelAttrs> {
@@ -452,10 +467,12 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   // has disappeared.
   private track: Track|undefined;
   private trackState: TrackState|undefined;
+  private pinnedCopy?: boolean;
 
   constructor(vnode: m.CVnode<TrackPanelAttrs>) {
     super();
     const trackId = vnode.attrs.id;
+    this.pinnedCopy = vnode.attrs.pinnedCopy;
     const trackState = globals.state.tracks[trackId];
     if (trackState === undefined) {
       return;
@@ -473,7 +490,10 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     if (this.track === undefined || this.trackState === undefined) {
       return m('div', 'No such track');
     }
-    return m(TrackComponent, {trackState: this.trackState, track: this.track});
+    return m(TrackComponent, {
+      trackState: this.trackState,
+      track: this.track,
+      pinnedCopy: this.pinnedCopy});
   }
 
   oncreate() {

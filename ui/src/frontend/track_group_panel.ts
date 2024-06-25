@@ -62,7 +62,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
   // in trackGroupState() below.
   private lastTrackGroupState: TrackGroupState;
 
-  private initialHeight?: number;
+  private defaultHeight?: number;
 
   constructor(protected attrs: m.CVnode<Attrs>) {
     super();
@@ -77,7 +77,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
     this.lastTrackGroupState = assertExists(
       globals.state.trackGroups[this.trackGroupId]);
       if (this.summaryTrack) {
-        this.initialHeight = this.summaryTrack.getHeight();
+        this.defaultHeight =
+          this.summaryTrack.getHeight() / this.summaryTrackState.scaleFactor;
       }
   }
 
@@ -103,15 +104,15 @@ export class TrackGroupPanel extends Panel<Attrs> {
   resize = (e: MouseEvent): void => {
     e.stopPropagation();
     e.preventDefault();
-    if(!this.summaryTrack){
+    if (!this.summaryTrack) {
       return;
     }
-    let y = this.summaryTrack.getHeight()
+    let y = this.summaryTrack.getHeight();
     const mouseMoveEvent = (evMove: MouseEvent): void => {
       evMove.preventDefault();
       y += evMove.movementY;
-      if (this.attrs && this.initialHeight) {
-        const newMultiplier = y / this.initialHeight;
+      if (this.attrs && this.defaultHeight) {
+        const newMultiplier = y / this.defaultHeight;
         if (newMultiplier < 1) {
           this.summaryTrackState.scaleFactor = 1;
         } else {

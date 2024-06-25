@@ -314,7 +314,11 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
                   m(NotesPanel, {key: 'notes'}),
                   m(TickmarkPanel, {key: 'searchTickmarks'}),
                   ...globals.state.pinnedTracks.map(
-                      (id) => m(TrackPanel, {key: id, id, selectable: true})),
+                      (id) => m(TrackPanel, {
+                        key: id,
+                        id,
+                        selectable: true,
+                        pinnedCopy: true})),
                 ],
                 kind: 'OVERVIEW',
               })),
