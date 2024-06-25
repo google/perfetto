@@ -68,6 +68,7 @@ class CpuSubsystemEstimateTrack extends BaseCounterTrack {
 
   protected getDefaultCounterOptions(): CounterOptions {
     const options = super.getDefaultCounterOptions();
+    options.yRangeSharingKey = `CpuSubsystem`;
     options.unit = `mW`;
     return options;
   }
