@@ -169,18 +169,14 @@ used in conjunction with `--no-build`, and on its own as well.
 We use `eslint` to lint TypeScript and JavaScript, and `prettier` to format
 TypeScript, JavaScript, and SCSS.
 
-Eslint has a `--fix` option which can auto-fix a lot of issues.
+To auto-format all source files, run ui/format-sources, which takes care of
+running both prettier and eslint on the changed files:
 
 ```bash
-ui/eslint-all --fix # Fix all files
-# -- or --
-ui/eslint-all # Just report issues
-```
-
-To auto-format all source files, run:
-
-```bash
-ui/prettier-all
+# By default it formats only files that changed from the upstream Git branch
+# (typicaly origin/main).
+# Pass --all for formatting all files under ui/src
+ui/format-sources
 ```
 
 For VSCode users, we recommend using the eslint & prettier extensions to handle
