@@ -13118,6 +13118,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/input.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/io.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/job_scheduler.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/memory/dmabuf.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/heap_graph/dominator_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/memory/process.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/monitor_contention.sql",
