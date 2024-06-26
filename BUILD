@@ -4159,6 +4159,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/protolog_config.proto",
         "protos/perfetto/config/android/surfaceflinger_layers_config.proto",
         "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
+        "protos/perfetto/config/android/windowmanager_config.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,

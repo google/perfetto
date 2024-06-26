@@ -815,6 +815,39 @@ message SurfaceFlingerTransactionsConfig {
 
 // End of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
 
+// Begin of protos/perfetto/config/android/windowmanager_config.proto
+
+// Custom configuration for the "android.windowmanager" data source.
+message WindowManagerConfig {
+  enum LogFrequency {
+    LOG_FREQUENCY_UNSPECIFIED = 0;
+
+    // Trace state snapshots when a frame is committed.
+    LOG_FREQUENCY_FRAME = 1;
+
+    // Trace state snapshots every time a transaction is committed.
+    LOG_FREQUENCY_TRANSACTION = 2;
+  }
+  optional LogFrequency log_frequency = 1;
+
+  enum LogLevel {
+    LOG_LEVEL_UNSPECIFIED = 0;
+
+    // Logs all elements with maximum amount of information.
+    LOG_LEVEL_VERBOSE = 1;
+
+    // Logs all elements but doesn't write all configuration data.
+    LOG_LEVEL_DEBUG = 2;
+
+    // Logs only visible elements, with the minimum amount of performance
+    // overhead
+    LOG_LEVEL_CRITICAL = 3;
+  }
+  optional LogLevel log_level = 2;
+}
+
+// End of protos/perfetto/config/android/windowmanager_config.proto
+
 // Begin of protos/perfetto/config/chrome/chrome_config.proto
 
 message ChromeConfig {
@@ -3279,7 +3312,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 130
+// Next id: 131
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -3430,6 +3463,9 @@ message DataSourceConfig {
 
   // Data source name: android.pixel.modem
   optional PixelModemConfig pixel_modem_config = 129 [lazy = true];
+
+  // Data source name: android.windowmanager
+  optional WindowManagerConfig windowmanager_config = 130 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
