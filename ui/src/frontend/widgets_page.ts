@@ -609,7 +609,7 @@ function TagInputDemo() {
           tagInputValue = value;
         },
         onTagRemove: (index) => {
-          tags.splice(index);
+          tags.splice(index, 1);
           raf.scheduleFullRedraw();
         },
       });
