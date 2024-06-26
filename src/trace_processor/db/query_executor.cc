@@ -84,12 +84,14 @@ void QueryExecutor::FilterColumn(const Constraint& c,
     }
   }
 
-  // Comparison of NULL with any operation apart from |IS_NULL| and
-  // |IS_NOT_NULL| should return no rows.
-  if (c.value.is_null() && c.op != FilterOp::kIsNull &&
-      c.op != FilterOp::kIsNotNull) {
-    rm->Clear();
-    return;
+  switch (chain.ValidateSearchConstraints(c.op, c.value)) {
+    case SearchValidationResult::kNoData:
+      rm->Clear();
+      return;
+    case SearchValidationResult::kAllData:
+      return;
+    case SearchValidationResult::kOk:
+      break;
   }
 
   uint32_t rm_last = rm->Get(rm_size - 1);
