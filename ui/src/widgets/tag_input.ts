@@ -24,6 +24,7 @@ export interface TagInputAttrs extends HTMLAttrs {
   tags: string[];
   onTagAdd: (text: string) => void;
   onTagRemove: (index: number) => void;
+  placeholder?: string;
 }
 
 const INPUT_REF = 'input';
@@ -80,7 +81,15 @@ const INPUT_REF = 'input';
 
 export class TagInput implements m.ClassComponent<TagInputAttrs> {
   view({attrs}: m.CVnode<TagInputAttrs>) {
-    const {value, onChange, tags, onTagAdd, onTagRemove, ...htmlAttrs} = attrs;
+    const {
+      value,
+      onChange,
+      tags,
+      onTagAdd,
+      onTagRemove,
+      placeholder,
+      ...htmlAttrs
+    } = attrs;
 
     const valueIsControlled = value !== undefined;
 
@@ -100,6 +109,7 @@ export class TagInput implements m.ClassComponent<TagInputAttrs> {
       m('input', {
         ref: INPUT_REF,
         value,
+        placeholder,
         onkeydown: (ev: KeyboardEvent) => {
           if (ev.key === 'Enter') {
             const el = ev.target as HTMLInputElement;
