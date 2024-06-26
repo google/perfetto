@@ -12,10 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {
+  COUNTER_TRACK_KIND,
+  Plugin,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 import {ThreadSliceTrack} from '../../frontend/thread_slice_track';
 import {NUM, NUM_NULL, STR} from '../../trace_processor/query_result';
-import {COUNTER_TRACK_KIND} from '../counter';
 import {TraceProcessorCounterTrack} from '../counter/trace_processor_counter_track';
 import {THREAD_SLICE_TRACK_KIND} from '../../public';
 
