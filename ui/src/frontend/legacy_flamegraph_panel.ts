@@ -50,7 +50,7 @@ import {arrayEquals} from '../base/array_utils';
 import {getCurrentTrace} from './sidebar';
 import {convertTraceToPprofAndDownload} from './trace_converter';
 import {AsyncLimiter} from '../base/async_limiter';
-import {FlamegraphCache} from '../core/flamegraph_cache';
+import {LegacyFlamegraphCache} from '../core/legacy_flamegraph_cache';
 
 const HEADER_HEIGHT = 30;
 
@@ -127,7 +127,7 @@ export interface FlamegraphSelectionParams {
 }
 
 interface FlamegraphDetailsPanelAttrs {
-  cache: FlamegraphCache;
+  cache: LegacyFlamegraphCache;
   selection: FlamegraphSelectionParams;
 }
 
@@ -458,7 +458,7 @@ export class LegacyFlamegraphDetailsPanel
 
   private static async fetchQueryResults(
     engine: Engine,
-    cache: FlamegraphCache,
+    cache: LegacyFlamegraphCache,
     state: FlamegraphState,
   ) {
     const table = await LegacyFlamegraphDetailsPanel.prepareViewsAndTables(
@@ -491,7 +491,7 @@ export class LegacyFlamegraphDetailsPanel
 
   private static async prepareViewsAndTables(
     engine: Engine,
-    cache: FlamegraphCache,
+    cache: LegacyFlamegraphCache,
     state: FlamegraphState,
   ): Promise<string> {
     const flamegraphType = getFlamegraphType(state.selection.profileType);
@@ -584,7 +584,7 @@ export class LegacyFlamegraphDetailsPanel
 
   private static async loadHeapGraphDominatorTreeQuery(
     engine: Engine,
-    cache: FlamegraphCache,
+    cache: LegacyFlamegraphCache,
     upid: number,
     timestamp: time,
   ) {
