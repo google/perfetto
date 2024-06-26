@@ -46,3 +46,99 @@ class AndroidMemory(TestSuite):
         1737069091010,682459310,975,"cached",289,"com.android.packageinstaller",2480,332,1737064421516,29484835,1217,"binder:642_1","processEnd","IActivityManager#1598246212",49364992,52539392,827392,102731776,0,49364992,102731776
         1737069240534,489635,985,"cached",268,"com.android.managedprovisioning",1868,332,1737064421516,29484835,1217,"binder:642_1","processEnd","IActivityManager#1598246212",50683904,53985280,815104,105484288,0,50683904,105484288
          """))
+
+  def test_memory_dmabuf(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 1
+              pid: 3000
+              dma_heap_stat {
+                inode: 13583
+                len: 3000
+                total_allocated: 3000
+              }
+            }
+            event {
+              timestamp: 2
+              pid: 3000
+              dma_heap_stat {
+                inode: 13583
+                len: -3000
+                total_allocated: 0
+              }
+            }
+            event {
+              timestamp: 4144791776152
+              pid: 9403
+              binder_transaction {
+                debug_id: 3052940
+                target_node: 256
+                to_proc: 572
+                to_thread: 0
+                reply: 0
+                code: 1
+                flags: 16
+              }
+            }
+            event {
+              timestamp: 4144791793486
+              pid: 591
+              binder_transaction_received {
+                debug_id: 3052940
+              }
+            }
+            event {
+              timestamp: 4144792258492
+              pid: 591
+              dma_heap_stat {
+                inode: 13583
+                len: 10399744
+                total_allocated: 254873600
+              }
+            }
+            event {
+              timestamp: 4144792517566
+              pid: 591
+              binder_transaction {
+                debug_id: 3052950
+                target_node: 0
+                to_proc: 2051
+                to_thread: 9403
+                reply: 1
+                code: 0
+                flags: 0
+              }
+            }
+            event {
+              timestamp: 4144792572498
+              pid: 9403
+              binder_transaction_received {
+                debug_id: 3052950
+              }
+            }
+            event {
+              timestamp: 4145263509021
+              pid: 613
+              dma_heap_stat {
+                inode: 13583
+                len: -10399744
+                total_allocated: 390160384
+              }
+            }
+          }
+        }"""),
+        query="""
+        INCLUDE PERFETTO MODULE android.memory.dmabuf;
+        SELECT * FROM android_dmabuf_allocs;
+        """,
+        out=Csv("""
+        "ts","buf_size","inode","utid","tid","thread_name","upid","pid","process_name"
+        1,3000,13583,1,3000,"[NULL]","[NULL]","[NULL]","[NULL]"
+        2,-3000,13583,1,3000,"[NULL]","[NULL]","[NULL]","[NULL]"
+        4144792258492,10399744,13583,3,591,"[NULL]","[NULL]","[NULL]","[NULL]"
+        4145263509021,-10399744,13583,3,591,"[NULL]","[NULL]","[NULL]","[NULL]"
+         """))
