@@ -257,12 +257,7 @@ SearchValidationResult NumericStorageBase::ChainImpl::ValidateSearchConstraints(
     if (op == FilterOp::kIsNotNull) {
       return SearchValidationResult::kAllData;
     }
-    if (op == FilterOp::kIsNull) {
-      return SearchValidationResult::kNoData;
-    }
-    PERFETTO_FATAL(
-        "Invalid path. NULL should only be compared with 'IS NULL' and 'IS NOT "
-        "NULL'");
+    return SearchValidationResult::kNoData;
   }
 
   // FilterOp checks. Switch so that we get a warning if new FilterOp is not

@@ -254,6 +254,10 @@ SearchValidationResult StringStorage::ChainImpl::ValidateSearchConstraints(
   // Type checks.
   switch (val.type) {
     case SqlValue::kNull:
+      if (op != FilterOp::kIsNotNull && op != FilterOp::kIsNull) {
+        return SearchValidationResult::kNoData;
+      }
+      break;
     case SqlValue::kString:
       break;
     case SqlValue::kLong:

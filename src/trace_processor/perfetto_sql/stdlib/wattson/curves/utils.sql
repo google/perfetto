@@ -23,7 +23,7 @@ FROM _device_curves_1d as dc
 JOIN _wattson_device as device ON dc.device = device.name
 JOIN _dev_cpu_policy_map as cp ON dc.policy = cp.policy;
 
-CREATE TABLE _filtered_curves_1d AS
+CREATE PERFETTO TABLE _filtered_curves_1d AS
 SELECT policy, freq_khz, -1 as idle, active as curve_value
 FROM _filtered_curves_1d_raw
 UNION
@@ -36,7 +36,7 @@ UNION
 SELECT policy, freq_khz, 255, static
 FROM _filtered_curves_1d_raw;
 
-CREATE INDEX freq_1d ON _filtered_curves_1d(policy, freq_khz, idle);
+CREATE PERFETTO INDEX freq_1d ON _filtered_curves_1d(policy, freq_khz, idle);
 
 -- 2D LUT; with dependency on another CPU
 CREATE PERFETTO TABLE _filtered_curves_2d_raw AS
@@ -52,7 +52,7 @@ FROM _device_curves_2d as dc
 JOIN _wattson_device as device ON dc.device = device.name
 JOIN _dev_cpu_policy_map as cp ON dc.other_policy = cp.policy;
 
-CREATE TABLE _filtered_curves_2d AS
+CREATE PERFETTO TABLE _filtered_curves_2d AS
 SELECT freq_khz, other_policy, other_freq_khz, -1 as idle, active as curve_value
 FROM _filtered_curves_2d_raw
 UNION
@@ -65,7 +65,7 @@ UNION
 SELECT freq_khz, other_policy, other_freq_khz, 255, static
 FROM _filtered_curves_2d_raw;
 
-CREATE INDEX freq_2d
+CREATE PERFETTO INDEX freq_2d
 ON _filtered_curves_2d(freq_khz, other_policy, other_freq_khz, idle);
 
 -- L3 cache LUT
@@ -80,14 +80,14 @@ FROM _device_curves_l3 as dc
 JOIN _wattson_device as device ON dc.device = device.name
 JOIN _dev_cpu_policy_map as cp ON dc.other_policy = cp.policy;
 
-CREATE TABLE _filtered_curves_l3 AS
+CREATE PERFETTO TABLE _filtered_curves_l3 AS
 SELECT
-  freq_khz, other_policy, other_freq_khz, 'hit' as action, l3_hit as curve_value
+  freq_khz, other_policy, other_freq_khz, 'hit' AS action, l3_hit as curve_value
 FROM _filtered_curves_l3_raw
 UNION
 SELECT
-  freq_khz, other_policy, other_freq_khz, 'miss', l3_miss
+  freq_khz, other_policy, other_freq_khz, 'miss' AS action, l3_miss
 FROM _filtered_curves_l3_raw;
 
-CREATE INDEX freq_l3
+CREATE PERFETTO INDEX freq_l3
 ON _filtered_curves_l3(freq_khz, other_policy, other_freq_khz, action);

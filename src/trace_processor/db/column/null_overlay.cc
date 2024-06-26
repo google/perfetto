@@ -148,6 +148,9 @@ SearchValidationResult NullOverlay::ChainImpl::ValidateSearchConstraints(
   if (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull) {
     return SearchValidationResult::kOk;
   }
+  if (sql_val.is_null()) {
+    return SearchValidationResult::kNoData;
+  }
   return inner_->ValidateSearchConstraints(op, sql_val);
 }
 
