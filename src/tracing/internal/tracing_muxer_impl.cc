@@ -1333,6 +1333,7 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     internal_state->data_source = rds.factory();
     internal_state->interceptor = nullptr;
     internal_state->interceptor_id = 0;
+    internal_state->will_notify_on_stop = rds.descriptor.will_notify_on_stop();
 
     if (cfg.has_interceptor_config()) {
       for (size_t j = 0; j < interceptors_.size(); j++) {
@@ -1545,6 +1546,7 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
   const uint32_t mask = ~(1 << ds.instance_idx);
   ds.static_state->valid_instances.fetch_and(mask, std::memory_order_acq_rel);
 
+  bool will_notify_on_stop;
   // Take the mutex to prevent that the data source is in the middle of
   // a Trace() execution where it called GetDataSourceLocked() while we
   // destroy it.
@@ -1558,6 +1560,7 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
     ds.internal_state->interceptor.reset();
     ds.internal_state->config.reset();
     ds.internal_state->async_stop_in_progress = false;
+    will_notify_on_stop = ds.internal_state->will_notify_on_stop;
     startup_buffer_reservation =
         ds.internal_state->startup_target_buffer_reservation.load(
             std::memory_order_relaxed);
@@ -1612,7 +1615,7 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
     // Flush any commits that might have been batched by SharedMemoryArbiter.
     producer->service_->MaybeSharedMemoryArbiter()
         ->FlushPendingCommitDataRequests();
-    if (instance_id)
+    if (instance_id && will_notify_on_stop)
       producer->service_->NotifyDataSourceStopped(instance_id);
   }
   producer->SweepDeadServices();
