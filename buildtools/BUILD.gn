@@ -144,7 +144,7 @@ config("protobuf_config") {
   if (is_mac) {
     cflags += [ "-Wno-deprecated-declarations" ]
   }
-  if (!is_clang && !is_win) {  # implies gcc
+  if (is_gcc) {
     cflags += [ "-Wno-stringop-overread" ]
   }
   if (is_win) {
