@@ -74,8 +74,8 @@ def main():
   else:
     upstream_branch = get_upstream_branch()
     git_cmd = ['git', 'diff', '--name-only', upstream_branch]
-    git_output = subprocess.check_output(git_cmd, text=True)
-    changed_files = set(git_output.strip().split('\n'))
+    git_output = subprocess.check_output(git_cmd, text=True).strip()
+    changed_files = set(git_output.split('\n') if git_output else [])
     changed_files = [os.path.relpath(x, 'ui') for x in changed_files]
     files_to_check = all_files.intersection(changed_files)
 
