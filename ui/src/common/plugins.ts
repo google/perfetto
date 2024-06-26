@@ -36,7 +36,6 @@ import {
   TrackRef,
 } from '../public';
 import {EngineBase, Engine} from '../trace_processor/engine';
-
 import {Actions} from './actions';
 import {SCROLLING_TRACK_GROUP} from './state';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
@@ -46,6 +45,7 @@ import {raf} from '../core/raf_scheduler';
 import {defaultPlugins} from '../core/default_plugins';
 import {HighPrecisionTimeSpan} from './high_precision_time';
 import {PromptOption} from '../frontend/omnibox_manager';
+import {horizontalScrollToTs} from '../frontend/scroll_helper';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -322,7 +322,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     },
 
     panToTimestamp(ts: time): void {
-      globals.panToTimestamp(ts);
+      horizontalScrollToTs(ts);
     },
 
     setViewportTime(start: time, end: time): void {

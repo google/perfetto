@@ -29,3 +29,18 @@ export function fetchWithTimeout(
       .finally(() => clearTimeout(timer));
   });
 }
+
+export function getServingRoot() {
+  // Works out the root directory where the content should be served from
+  // e.g. `http://origin/v1.2.3/`.
+  const script = document.currentScript as HTMLScriptElement;
+
+  // Needed for DOM tests, that do not have script element.
+  if (script === null) {
+    return '';
+  }
+
+  let root = script.src;
+  root = root.substring(0, root.lastIndexOf('/') + 1);
+  return root;
+}
