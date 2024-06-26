@@ -47,7 +47,6 @@ import {EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {Analytics, initAnalytics} from './analytics';
 import {Timeline} from './frontend_local_state';
-import {Router} from './router';
 import {SliceSqlId} from './sql_types';
 import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
@@ -249,7 +248,6 @@ class Globals {
   private _metricError?: string = undefined;
   private _metricResult?: MetricResult = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
-  private _router?: Router = undefined;
   private _embeddedMode?: boolean = undefined;
   private _hideSidebar?: boolean = undefined;
   private _cmdManager = new CommandManager();
@@ -290,9 +288,8 @@ class Globals {
 
   engines = new Map<string, EngineBase>();
 
-  initialize(dispatch: Dispatch, router: Router) {
+  initialize(dispatch: Dispatch) {
     this._dispatch = dispatch;
-    this._router = router;
     this._timeline = new Timeline();
 
     setPerfHooks(
@@ -326,10 +323,6 @@ class Globals {
   // Only initialises the store - useful for testing.
   initStore(initialState: State) {
     this._store = createStore(initialState);
-  }
-
-  get router(): Router {
-    return assertExists(this._router);
   }
 
   get publishRedraw(): () => void {
