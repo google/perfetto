@@ -96,7 +96,7 @@ import {
 } from '../core/trace_stream';
 import {decideTracks} from './track_decider';
 import {profileType} from '../frontend/legacy_flamegraph_panel';
-import {FlamegraphCache} from '../core/flamegraph_cache';
+import {LegacyFlamegraphCache} from '../core/legacy_flamegraph_cache';
 import {
   deserializeAppStatePhase1,
   deserializeAppStatePhase2,
@@ -351,7 +351,7 @@ export class TraceController extends Controller<States> {
 
     // Invalidate the flamegraph cache.
     // TODO(stevegolton): migrate this to the new system when it's ready.
-    globals.areaFlamegraphCache = new FlamegraphCache('area');
+    globals.areaFlamegraphCache = new LegacyFlamegraphCache('area');
   }
 
   private async loadTrace(): Promise<EngineMode> {

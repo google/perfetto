@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FlamegraphCache} from '../../core/flamegraph_cache';
+import {LegacyFlamegraphCache} from '../../core/legacy_flamegraph_cache';
 import {
   LegacyFlamegraphDetailsPanel,
   profileType,
@@ -49,7 +49,7 @@ class HeapProfilePlugin implements Plugin {
       });
     }
 
-    const cache = new FlamegraphCache('heap_profile');
+    const cache = new LegacyFlamegraphCache('heap_profile');
     ctx.registerDetailsPanel({
       render: (sel) => {
         if (sel.kind === 'HEAP_PROFILE') {
