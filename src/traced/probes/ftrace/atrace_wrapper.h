@@ -31,6 +31,7 @@ class AtraceWrapper {
   //   poke at ftrace.
   // - Suppress the checks for "somebody else enabled ftrace unexpectedly".
   virtual bool SupportsUserspaceOnly() = 0;
+  virtual bool SupportsPreferSdk() = 0;
   virtual bool RunAtrace(const std::vector<std::string>& args,
                          std::string* atrace_errors) = 0;
 };
@@ -39,6 +40,7 @@ class AtraceWrapperImpl : public AtraceWrapper {
  public:
   ~AtraceWrapperImpl() override;
   bool SupportsUserspaceOnly() override;
+  bool SupportsPreferSdk() override;
   bool RunAtrace(const std::vector<std::string>& args,
                  std::string* atrace_errors) override;
 };

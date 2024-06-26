@@ -206,6 +206,7 @@ class MockAtraceWrapper : public AtraceWrapper {
  public:
   MOCK_METHOD(bool, RunAtrace, (const std::vector<std::string>&, std::string*));
   MOCK_METHOD(bool, SupportsUserspaceOnly, ());
+  MOCK_METHOD(bool, SupportsPreferSdk, ());
 };
 
 }  // namespace
@@ -298,7 +299,7 @@ std::unique_ptr<TestFtraceController> CreateTestController(
         new MockFtraceProcfs("/root/", cpu_count));
   }
 
-  std::unique_ptr<AtraceWrapper> atrace_wrapper;
+  auto atrace_wrapper = std::make_unique<NiceMock<MockAtraceWrapper>>();
 
   auto table = FakeTable(ftrace_procfs.get());
 
