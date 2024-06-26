@@ -22,7 +22,7 @@ import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {PanelSize} from '../../frontend/panel';
+import {Size} from '../../base/geom';
 import {
   Engine,
   Plugin,
@@ -199,7 +199,7 @@ class CpuFreqTrack implements Track {
     return MARGIN_TOP + RECT_HEIGHT;
   }
 
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: Size): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const {visibleTimeScale, visibleWindowTime} = globals.timeline;
     const data = this.fetcher.data;

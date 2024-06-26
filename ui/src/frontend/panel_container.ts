@@ -41,7 +41,7 @@ import {
   FlowEventsRendererArgs,
 } from './flow_events_renderer';
 import {globals} from './globals';
-import {PanelSize} from './panel';
+import {Size} from '../base/geom';
 import {VirtualCanvas} from './virtual_canvas';
 
 const CANVAS_OVERDRAW_PX = 100;
@@ -52,7 +52,7 @@ export interface Panel {
   readonly selectable: boolean;
   readonly trackKey?: string; // Defined if this panel represents are track
   readonly groupKey?: string; // Defined if this panel represents a group - i.e. a group summary track
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void;
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size): void;
   getSliceRect?(tStart: time, tDur: time, depth: number): SliceRect | undefined;
 }
 
@@ -490,7 +490,7 @@ export class PanelContainer
     panel: Panel,
     renderTime: number,
     ctx: CanvasRenderingContext2D,
-    size: PanelSize,
+    size: Size,
   ) {
     if (!perfDebug()) return;
     let renderStats = this.panelPerfStats.get(panel);

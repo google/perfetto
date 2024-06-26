@@ -34,7 +34,7 @@ import {
   TickGenerator,
   TickType,
 } from './gridline_helper';
-import {PanelSize} from './panel';
+import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {PxSpan, TimeScale} from './time_scale';
 
@@ -99,7 +99,7 @@ export class OverviewTimelinePanel implements Panel {
     });
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
     if (this.width === undefined) return;
     if (this.traceTime === undefined) return;
     if (this.timeScale === undefined) return;

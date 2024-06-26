@@ -19,7 +19,7 @@ import {Span, duration, time} from '../base/time';
 import {Migrate, Store} from '../base/store';
 import {ColorScheme} from '../core/colorizer';
 import {LegacySelection, PrimaryTrackSortKey, Selection} from '../common/state';
-import {PanelSize} from '../frontend/panel';
+import {Size} from '../base/geom';
 import {Engine} from '../trace_processor/engine';
 import {UntypedEventSet} from '../core/event_set';
 import {TraceContext} from '../frontend/globals';
@@ -195,7 +195,7 @@ export interface Track {
    */
   onDestroy?(): Promise<void> | void;
 
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void;
+  render(ctx: CanvasRenderingContext2D, size: Size): void;
   onFullRedraw?(): void;
   getSliceRect?(tStart: time, tEnd: time, depth: number): SliceRect | undefined;
   getHeight(): number;
