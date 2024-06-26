@@ -56,6 +56,7 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
                                    /*print_filter=*/std::nullopt,
                                    /*atrace_apps=*/{},
                                    /*atrace_categories=*/{},
+                                   /*atrace_categories_prefer_track_event=*/{},
                                    /*symbolize_ksyms=*/false,
                                    /*preserve_ftrace_buffer=*/false,
                                    /*syscalls_returning_fd=*/{}};

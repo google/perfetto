@@ -112,6 +112,18 @@ void IntersectInPlace(const std::vector<std::string>& unsorted_a,
   *out = std::move(v);
 }
 
+std::vector<std::string> Subtract(const std::vector<std::string>& unsorted_a,
+                                  const std::vector<std::string>& unsorted_b) {
+  std::vector<std::string> a = unsorted_a;
+  std::sort(a.begin(), a.end());
+  std::vector<std::string> b = unsorted_b;
+  std::sort(b.begin(), b.end());
+  std::vector<std::string> v;
+  std::set_difference(a.begin(), a.end(), b.begin(), b.end(),
+                      std::back_inserter(v));
+  return v;
+}
+
 // This is just to reduce binary size and stack frame size of the insertions.
 // It effectively undoes STL's set::insert inlining.
 void PERFETTO_NO_INLINE InsertEvent(const char* group,
@@ -759,13 +771,16 @@ bool FtraceConfigMuxer::SetupConfig(FtraceConfigId id,
 
   std::vector<std::string> apps(request.atrace_apps());
   std::vector<std::string> categories(request.atrace_categories());
+  std::vector<std::string> categories_sdk_optout = Subtract(
+      request.atrace_categories(), request.atrace_categories_prefer_sdk());
   ds_configs_.emplace(
       std::piecewise_construct, std::forward_as_tuple(id),
       std::forward_as_tuple(
           std::move(filter), std::move(syscall_filter), compact_sched,
           std::move(ftrace_print_filter), std::move(apps),
-          std::move(categories), request.symbolize_ksyms(),
-          request.drain_buffer_percent(), GetSyscallsReturningFds(syscalls_)));
+          std::move(categories), std::move(categories_sdk_optout),
+          request.symbolize_ksyms(), request.drain_buffer_percent(),
+          GetSyscallsReturningFds(syscalls_)));
   return true;
 }
 
@@ -803,12 +818,18 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   EventFilter expected_ftrace_events;
   std::vector<std::string> expected_apps;
   std::vector<std::string> expected_categories;
+  std::vector<std::string> expected_categories_sdk_optout;
   for (const auto& id_config : ds_configs_) {
     const perfetto::FtraceDataSourceConfig& config = id_config.second;
     expected_ftrace_events.EnableEventsFrom(config.event_filter);
     UnionInPlace(config.atrace_apps, &expected_apps);
     UnionInPlace(config.atrace_categories, &expected_categories);
+    UnionInPlace(config.atrace_categories_sdk_optout,
+                 &expected_categories_sdk_optout);
   }
+  std::vector<std::string> expected_categories_prefer_sdk =
+      Subtract(expected_categories, expected_categories_sdk_optout);
+
   // At this point expected_{apps,categories} contains the union of the
   // leftover configs (if any) that should be still on. However we did not
   // necessarily succeed in turning on atrace for each of those configs
@@ -817,6 +838,7 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   // for:
   IntersectInPlace(current_state_.atrace_apps, &expected_apps);
   IntersectInPlace(current_state_.atrace_categories, &expected_categories);
+
   // Work out if there is any difference between the current state and the
   // desired state: It's sufficient to compare sizes here (since we know from
   // above that expected_{apps,categories} is now a subset of
@@ -824,6 +846,10 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
   bool atrace_changed =
       (current_state_.atrace_apps.size() != expected_apps.size()) ||
       (current_state_.atrace_categories.size() != expected_categories.size());
+
+  bool atrace_prefer_sdk_changed =
+      current_state_.atrace_categories_prefer_sdk !=
+      expected_categories_prefer_sdk;
 
   if (!SetSyscallEventFilter(/*extra_syscalls=*/{})) {
     PERFETTO_ELOG("Failed to set raw_syscall ftrace filter in RemoveConfig");
@@ -882,6 +908,14 @@ bool FtraceConfigMuxer::RemoveConfig(FtraceConfigId config_id) {
         current_state_.atrace_apps = expected_apps;
         current_state_.atrace_categories = expected_categories;
       }
+    }
+  }
+
+  if (atrace_prefer_sdk_changed) {
+    if (SetAtracePreferSdk(expected_categories_prefer_sdk,
+                           /*atrace_errors=*/nullptr)) {
+      current_state_.atrace_categories_prefer_sdk =
+          expected_categories_prefer_sdk;
     }
   }
 
@@ -1022,16 +1056,37 @@ void FtraceConfigMuxer::UpdateAtrace(const FtraceConfig& request,
   std::vector<std::string> combined_apps = request.atrace_apps();
   UnionInPlace(current_state_.atrace_apps, &combined_apps);
 
-  if (current_state_.atrace_on &&
-      combined_apps.size() == current_state_.atrace_apps.size() &&
-      combined_categories.size() == current_state_.atrace_categories.size()) {
-    return;
+  // Each data source can list some atrace categories for which the SDK is
+  // preferred (the rest of the categories are considered to opt out of the
+  // SDK). When merging multiple data sources, opting out wins. Therefore this
+  // code does a union of the opt outs for all data sources.
+  std::vector<std::string> combined_categories_sdk_optout = Subtract(
+      request.atrace_categories(), request.atrace_categories_prefer_sdk());
+
+  std::vector<std::string> current_categories_sdk_optout =
+      Subtract(current_state_.atrace_categories,
+               current_state_.atrace_categories_prefer_sdk);
+  UnionInPlace(current_categories_sdk_optout, &combined_categories_sdk_optout);
+
+  std::vector<std::string> combined_categories_prefer_sdk =
+      Subtract(combined_categories, combined_categories_sdk_optout);
+
+  if (combined_categories_prefer_sdk !=
+      current_state_.atrace_categories_prefer_sdk) {
+    if (SetAtracePreferSdk(combined_categories_prefer_sdk, atrace_errors)) {
+      current_state_.atrace_categories_prefer_sdk =
+          combined_categories_prefer_sdk;
+    }
   }
 
-  if (StartAtrace(combined_apps, combined_categories, atrace_errors)) {
-    current_state_.atrace_categories = combined_categories;
-    current_state_.atrace_apps = combined_apps;
-    current_state_.atrace_on = true;
+  if (!current_state_.atrace_on ||
+      combined_apps.size() != current_state_.atrace_apps.size() ||
+      combined_categories.size() != current_state_.atrace_categories.size()) {
+    if (StartAtrace(combined_apps, combined_categories, atrace_errors)) {
+      current_state_.atrace_categories = combined_categories;
+      current_state_.atrace_apps = combined_apps;
+      current_state_.atrace_on = true;
+    }
   }
 }
 
@@ -1059,6 +1114,26 @@ bool FtraceConfigMuxer::StartAtrace(const std::vector<std::string>& apps,
     arg.resize(arg.size() - 1);
     args.push_back(arg);
   }
+
+  bool result = atrace_wrapper_->RunAtrace(args, atrace_errors);
+  PERFETTO_DLOG("...done (%s)", result ? "success" : "fail");
+  return result;
+}
+
+bool FtraceConfigMuxer::SetAtracePreferSdk(
+    const std::vector<std::string>& prefer_sdk_categories,
+    std::string* atrace_errors) {
+  if (!atrace_wrapper_->SupportsPreferSdk()) {
+    return false;
+  }
+  PERFETTO_DLOG("Update atrace prefer sdk categories...");
+
+  std::vector<std::string> args;
+  args.push_back("atrace");  // argv0 for exec()
+  args.push_back("--prefer_sdk");
+
+  for (const auto& category : prefer_sdk_categories)
+    args.push_back(category);
 
   bool result = atrace_wrapper_->RunAtrace(args, atrace_errors);
   PERFETTO_DLOG("...done (%s)", result ? "success" : "fail");
