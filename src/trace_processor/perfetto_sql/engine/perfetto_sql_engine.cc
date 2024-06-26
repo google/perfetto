@@ -648,12 +648,9 @@ base::Status PerfettoSqlEngine::ExecuteCreateIndex(
   q.orders = obs;
   RowMap sorted_rm = t->QueryToRowMap(q);
 
-  PERFETTO_CHECK(sorted_rm.IsIndexVector());
-  std::vector<uint32_t> sorted_indices =
-      std::move(sorted_rm).TakeAsIndexVector();
-
   RETURN_IF_ERROR(t->SetIndex(index.name, std::move(col_idxs),
-                              std::move(sorted_indices), index.replace));
+                              std::move(sorted_rm).TakeAsIndexVector(),
+                              index.replace));
   return base::OkStatus();
 }
 
