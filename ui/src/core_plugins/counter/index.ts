@@ -24,6 +24,7 @@ import {
   STR,
   LONG,
   Engine,
+  COUNTER_TRACK_KIND,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
 import {CounterOptions} from '../../frontend/base_counter_track';
@@ -31,8 +32,6 @@ import {TraceProcessorCounterTrack} from './trace_processor_counter_track';
 import {CounterDetailsPanel} from './counter_details_panel';
 import {Time, duration, time} from '../../base/time';
 import {Optional} from '../../base/utils';
-
-export const COUNTER_TRACK_KIND = 'CounterTrack';
 
 const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
 const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');

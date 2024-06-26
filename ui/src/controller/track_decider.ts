@@ -34,11 +34,11 @@ import {
   getScrollJankTracks,
 } from '../core_plugins/chrome_scroll_jank';
 import {decideTracks as scrollJankDecideTracks} from '../core_plugins/chrome_scroll_jank/chrome_tasks_scroll_jank_track';
-import {COUNTER_TRACK_KIND} from '../core_plugins/counter';
 import {decideTracks as screenshotDecideTracks} from '../core_plugins/screenshots';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   ASYNC_SLICE_TRACK_KIND,
+  COUNTER_TRACK_KIND,
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
   THREAD_SLICE_TRACK_KIND,
   THREAD_STATE_TRACK_KIND,
