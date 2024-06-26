@@ -44,7 +44,7 @@ class SchedPlugin implements Plugin {
     });
 
     const uri = uriForActiveCPUCountTrack();
-    const title = 'Active ${cpuType} CPU count';
+    const title = 'Active CPU count';
     ctx.registerTrack({
       uri,
       displayName: title,
