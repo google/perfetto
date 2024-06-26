@@ -16,8 +16,8 @@ import {Duration} from '../../base/time';
 import {ColumnDef} from '../../common/aggregation_data';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
+import {COUNTER_TRACK_KIND} from '../../public';
 import {Engine} from '../../trace_processor/engine';
-import {COUNTER_TRACK_KIND} from '../../core_plugins/counter';
 
 import {AggregationController} from './aggregation_controller';
 
