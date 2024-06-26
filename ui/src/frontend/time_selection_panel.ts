@@ -29,7 +29,7 @@ import {
   TickType,
   timeScaleForVisibleWindow,
 } from './gridline_helper';
-import {PanelSize} from './panel';
+import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {renderDuration} from './widgets/duration';
 
@@ -144,7 +144,7 @@ export class TimeSelectionPanel implements Panel {
     return m('.time-selection-panel');
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
@@ -195,7 +195,7 @@ export class TimeSelectionPanel implements Panel {
     ctx.restore();
   }
 
-  renderHover(ctx: CanvasRenderingContext2D, size: PanelSize, ts: time) {
+  renderHover(ctx: CanvasRenderingContext2D, size: Size, ts: time) {
     const {visibleTimeScale} = globals.timeline;
     const xPos = TRACK_SHELL_WIDTH + Math.floor(visibleTimeScale.timeToPx(ts));
     const domainTime = globals.toDomainTime(ts);
@@ -205,7 +205,7 @@ export class TimeSelectionPanel implements Panel {
 
   renderSpan(
     ctx: CanvasRenderingContext2D,
-    size: PanelSize,
+    size: Size,
     span: Span<time, duration>,
   ) {
     const {visibleTimeScale} = globals.timeline;
@@ -225,7 +225,7 @@ export class TimeSelectionPanel implements Panel {
     );
   }
 
-  private bounds(size: PanelSize): BBox {
+  private bounds(size: Size): BBox {
     return {
       x: TRACK_SHELL_WIDTH,
       y: 0,
