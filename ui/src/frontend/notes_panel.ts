@@ -31,7 +31,7 @@ import {
   TickType,
   timeScaleForVisibleWindow,
 } from './gridline_helper';
-import {PanelSize} from './panel';
+import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {isTraceLoaded} from './sidebar';
 import {Timestamp} from './widgets/timestamp';
@@ -126,7 +126,7 @@ export class NotesPanel implements Panel {
     );
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
     let aNoteIsHovered = false;
 
     ctx.fillStyle = '#999';

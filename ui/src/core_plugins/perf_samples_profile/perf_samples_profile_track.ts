@@ -20,7 +20,7 @@ import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/legacy_flamegraph';
 import {globals} from '../../frontend/globals';
-import {PanelSize} from '../../frontend/panel';
+import {Size} from '../../base/geom';
 import {TimeScale} from '../../frontend/time_scale';
 import {Engine, Track} from '../../public';
 import {LONG} from '../../trace_processor/query_result';
@@ -96,7 +96,7 @@ export class PerfSamplesProfileTrack implements Track {
     return MARGIN_TOP + RECT_HEIGHT - 1;
   }
 
-  render(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, _size: Size): void {
     const {visibleTimeScale} = globals.timeline;
     const data = this.fetcher.data;
 

@@ -19,7 +19,7 @@ import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {TrackData} from '../../common/track_data';
-import {PanelSize} from '../../frontend/panel';
+import {Size} from '../../base/geom';
 import {Engine, Track} from '../../public';
 import {LONG, STR} from '../../trace_processor/query_result';
 import {FtraceFilter} from './common';
@@ -107,7 +107,7 @@ export class FtraceRawTrack implements Track {
     return result;
   }
 
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: Size): void {
     const {visibleTimeScale} = globals.timeline;
 
     const data = this.fetcher.data;

@@ -16,7 +16,7 @@ import {Disposable} from '../base/disposable';
 import {exists} from '../base/utils';
 import {Registry} from '../base/registry';
 import {Store} from '../base/store';
-import {PanelSize} from '../frontend/panel';
+import {Size} from '../base/geom';
 import {Track, TrackContext, TrackDescriptor, TrackRef} from '../public';
 
 import {ObjectByKey, State, TrackState} from './state';
@@ -25,7 +25,7 @@ export interface TrackCacheEntry {
   track: Track;
   desc: TrackDescriptor;
   update(): void;
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void;
+  render(ctx: CanvasRenderingContext2D, size: Size): void;
   destroy(): void;
   getError(): Error | undefined;
 }
@@ -304,7 +304,7 @@ class TrackFSM implements TrackCacheEntry {
     }
   }
 
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: Size): void {
     try {
       this.track.render(ctx, size);
     } catch {

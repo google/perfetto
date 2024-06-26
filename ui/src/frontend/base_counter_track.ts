@@ -30,7 +30,7 @@ import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
-import {PanelSize} from './panel';
+import {Size} from '../base/geom';
 import {NewTrackArgs} from './track';
 
 function roundAway(n: number): number {
@@ -459,7 +459,7 @@ export abstract class BaseCounterTrack implements Track {
     await this.maybeRequestData(rawCountersKey);
   }
 
-  render(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  render(ctx: CanvasRenderingContext2D, size: Size) {
     const {visibleTimeScale: timeScale} = globals.timeline;
 
     // In any case, draw whatever we have (which might be stale/incomplete).
