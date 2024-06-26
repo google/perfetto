@@ -2471,6 +2471,7 @@ perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_types_types",
     srcs = [
         "src/trace_processor/perfetto_sql/intrinsics/types/array.h",
+        "src/trace_processor/perfetto_sql/intrinsics/types/interval_tree.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/node.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/row_dataframe.h",
         "src/trace_processor/perfetto_sql/intrinsics/types/struct.h",
