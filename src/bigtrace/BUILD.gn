@@ -29,6 +29,7 @@ if (enable_perfetto_grpc) {
       "../../protos/perfetto/bigtrace:worker_grpc",
       "../../protos/perfetto/bigtrace:worker_lite",
       "../base",
+      "../base/threading",
     ]
   }
 
@@ -39,9 +40,9 @@ if (enable_perfetto_grpc) {
       "../../gn:grpc",
       "../../include/perfetto/ext/trace_processor/rpc:query_result_serializer",
       "../../protos/perfetto/bigtrace:worker_grpc",
+      "../../protos/perfetto/bigtrace:worker_lite",
       "../../src/trace_processor",
       "../../src/trace_processor/rpc:rpc",
-      "../../protos/perfetto/bigtrace:worker_lite",
       "../base",
     ]
   }
