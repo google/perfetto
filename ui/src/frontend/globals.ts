@@ -54,7 +54,7 @@ import {SelectionManager, LegacySelection} from '../core/selection_manager';
 import {Optional, exists} from '../base/utils';
 import {OmniboxManager} from './omnibox_manager';
 import {CallsiteInfo} from '../common/legacy_flamegraph_util';
-import {FlamegraphCache} from '../core/flamegraph_cache';
+import {LegacyFlamegraphCache} from '../core/legacy_flamegraph_cache';
 import {SerializedAppState} from '../common/state_serialization_schema';
 import {getServingRoot} from '../base/http_utils';
 
@@ -255,7 +255,7 @@ class Globals {
   private _hasFtrace: boolean = false;
 
   omnibox = new OmniboxManager();
-  areaFlamegraphCache = new FlamegraphCache('area');
+  areaFlamegraphCache = new LegacyFlamegraphCache('area');
 
   scrollToTrackKey?: string | number;
   httpRpcState: HttpRpcState = {connected: false};

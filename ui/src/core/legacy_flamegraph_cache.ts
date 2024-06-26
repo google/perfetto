@@ -14,7 +14,7 @@
 
 import {Engine} from '../trace_processor/engine';
 
-export class FlamegraphCache {
+export class LegacyFlamegraphCache {
   private cache: Map<string, string>;
   private prefix: string;
   private tableId: number;
