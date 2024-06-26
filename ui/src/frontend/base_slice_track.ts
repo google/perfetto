@@ -37,7 +37,7 @@ import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
-import {PanelSize} from './panel';
+import {Size} from '../base/geom';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {NewTrackArgs} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey} from '../core/timeline_cache';
@@ -396,7 +396,7 @@ export abstract class BaseSliceTrack<
     await this.maybeRequestData(rawSlicesKey);
   }
 
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: Size): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
     const {visibleTimeScale: timeScale, visibleWindowTime: vizTime} =

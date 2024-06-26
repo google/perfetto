@@ -24,7 +24,7 @@ import {
   TickType,
   timeScaleForVisibleWindow,
 } from './gridline_helper';
-import {PanelSize} from './panel';
+import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 
 // This is used to display the summary of search results.
@@ -36,7 +36,7 @@ export class TickmarkPanel implements Panel {
     return m('.tickbar');
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
     const {visibleTimeScale} = globals.timeline;
 
     ctx.fillStyle = '#999';

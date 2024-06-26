@@ -27,7 +27,7 @@ import {checkerboard} from './checkerboard';
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
-import {PanelSize} from './panel';
+import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 import {verticalScrollToTrack} from './scroll_helper';
 import {drawVerticalLineAtTime} from './vertical_line_helper';
@@ -460,7 +460,7 @@ export class TrackPanel implements Panel {
     }
   }
 
-  highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: Size) {
     const {visibleTimeScale} = globals.timeline;
     const selection = globals.state.selection;
     if (selection.kind !== 'area') {
@@ -478,7 +478,7 @@ export class TrackPanel implements Panel {
     }
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
     ctx.save();
     canvasClip(
       ctx,
@@ -528,7 +528,7 @@ export class TrackPanel implements Panel {
 export function renderHoveredCursorVertical(
   ctx: CanvasRenderingContext2D,
   visibleTimeScale: TimeScale,
-  size: PanelSize,
+  size: Size,
 ) {
   if (globals.state.hoverCursorTimestamp !== -1n) {
     drawVerticalLineAtTime(
@@ -544,7 +544,7 @@ export function renderHoveredCursorVertical(
 export function renderHoveredNoteVertical(
   ctx: CanvasRenderingContext2D,
   visibleTimeScale: TimeScale,
-  size: PanelSize,
+  size: Size,
 ) {
   if (globals.state.hoveredNoteTimestamp !== -1n) {
     drawVerticalLineAtTime(
@@ -560,7 +560,7 @@ export function renderHoveredNoteVertical(
 export function renderWakeupVertical(
   ctx: CanvasRenderingContext2D,
   visibleTimeScale: TimeScale,
-  size: PanelSize,
+  size: Size,
 ) {
   const currentSelection = getLegacySelection(globals.state);
   if (currentSelection !== null) {
@@ -582,7 +582,7 @@ export function renderWakeupVertical(
 export function renderNoteVerticals(
   ctx: CanvasRenderingContext2D,
   visibleTimeScale: TimeScale,
-  size: PanelSize,
+  size: Size,
 ) {
   // All marked areas should have semi-transparent vertical lines
   // marking the start and end.

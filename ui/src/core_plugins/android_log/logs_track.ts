@@ -17,7 +17,7 @@ import {LIMIT, TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {PanelSize} from '../../frontend/panel';
+import {Size} from '../../base/geom';
 import {Engine, LONG, NUM, Track} from '../../public';
 
 export interface Data extends TrackData {
@@ -102,7 +102,7 @@ export class AndroidLogTrack implements Track {
     return result;
   }
 
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: Size): void {
     const {visibleTimeScale} = globals.timeline;
 
     const data = this.fetcher.data;

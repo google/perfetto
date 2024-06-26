@@ -26,7 +26,7 @@ import {
   TickType,
   timeScaleForVisibleWindow,
 } from './gridline_helper';
-import {PanelSize} from './panel';
+import {Size} from '../base/geom';
 import {Panel} from './panel_container';
 
 export class TimeAxisPanel implements Panel {
@@ -37,7 +37,7 @@ export class TimeAxisPanel implements Panel {
     return m('.time-axis-panel');
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: Size) {
     ctx.fillStyle = '#999';
     ctx.textAlign = 'left';
     ctx.font = '11px Roboto Condensed';
