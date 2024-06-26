@@ -42,14 +42,12 @@ import {TimestampFormat, timestampFormat} from '../core/timestamp_format';
 import {TrackManager} from '../common/track_cache';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
+import {ServiceWorkerController} from './service_worker_controller';
 import {EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
-
 import {Analytics, initAnalytics} from './analytics';
 import {Timeline} from './frontend_local_state';
 import {Router} from './router';
-import {horizontalScrollToTs} from './scroll_helper';
-import {ServiceWorkerController} from './service_worker_controller';
 import {SliceSqlId} from './sql_types';
 import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
@@ -58,6 +56,7 @@ import {OmniboxManager} from './omnibox_manager';
 import {CallsiteInfo} from '../common/legacy_flamegraph_util';
 import {FlamegraphCache} from '../core/flamegraph_cache';
 import {SerializedAppState} from '../common/state_serialization_schema';
+import {getServingRoot} from '../base/http_utils';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -162,21 +161,6 @@ export interface ThreadDesc {
 }
 type ThreadMap = Map<number, ThreadDesc>;
 
-function getRoot() {
-  // Works out the root directory where the content should be served from
-  // e.g. `http://origin/v1.2.3/`.
-  const script = document.currentScript as HTMLScriptElement;
-
-  // Needed for DOM tests, that do not have script element.
-  if (script === null) {
-    return '';
-  }
-
-  let root = script.src;
-  root = root.substr(0, root.lastIndexOf('/') + 1);
-  return root;
-}
-
 // Options for globals.makeSelection().
 export interface MakeSelectionOpts {
   // Whether to switch to the current selection tab or not. Default = true.
@@ -232,7 +216,7 @@ export const defaultTraceContext: TraceContext = {
  * Global accessors for state/dispatch in the frontend.
  */
 class Globals {
-  readonly root = getRoot();
+  readonly root = getServingRoot();
 
   private _testing = false;
   private _dispatch?: Dispatch = undefined;
@@ -829,10 +813,6 @@ class Globals {
     }
 
     return undefined;
-  }
-
-  panToTimestamp(ts: time): void {
-    horizontalScrollToTs(ts);
   }
 }
 
