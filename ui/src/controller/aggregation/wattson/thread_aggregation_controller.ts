@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {exists} from '../../base/utils';
-import {ColumnDef} from '../../common/aggregation_data';
-import {Area, Sorting} from '../../common/state';
-import {globals} from '../../frontend/globals';
-import {Engine} from '../../trace_processor/engine';
-import {NUM} from '../../trace_processor/query_result';
-import {CPU_SLICE_TRACK_KIND} from '../../core/track_kinds';
-import {AggregationController} from './aggregation_controller';
+import {exists} from '../../../base/utils';
+import {ColumnDef} from '../../../common/aggregation_data';
+import {Area, Sorting} from '../../../common/state';
+import {globals} from '../../../frontend/globals';
+import {Engine} from '../../../trace_processor/engine';
+import {NUM} from '../../../trace_processor/query_result';
+import {CPU_SLICE_TRACK_KIND} from '../../../core/track_kinds';
+import {AggregationController} from '../aggregation_controller';
 
 export class WattsonThreadAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
