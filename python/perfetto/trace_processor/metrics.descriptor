@@ -418,13 +418,19 @@ totalDurMs
 avg_dur_ms (RavgDurMsM
 UpdatePowerState3
 avg_runtime_micro_secs (RavgRuntimeMicroSecsJ
-ˆ
-5protos/perfetto/metrics/android/dma_heap_metric.protoperfetto.protos"½
+á
+5protos/perfetto/metrics/android/dma_heap_metric.protoperfetto.protos"–
 AndroidDmaHeapMetric$
 avg_size_bytes (RavgSizeBytes$
 min_size_bytes (RminSizeBytes$
 max_size_bytes (RmaxSizeBytes3
-total_alloc_size_bytes (RtotalAllocSizeBytes
+total_alloc_size_bytes (RtotalAllocSizeBytes*
+total_delta_bytes (RtotalDeltaBytesW
+process_stats (22.perfetto.protos.AndroidDmaHeapMetric.ProcessStatsRprocessStatsR
+ProcessStats!
+process_name (	RprocessName
+delta_bytes (R
+deltaBytes
 ¥
 1protos/perfetto/metrics/android/dvfs_metric.protoperfetto.protos"Þ
 AndroidDvfsMetric`
