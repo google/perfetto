@@ -71,6 +71,7 @@ import {FrameAggregationController} from './aggregation/frame_aggregation_contro
 import {SliceAggregationController} from './aggregation/slice_aggregation_controller';
 import {WattsonAggregationController} from './aggregation/wattson_aggregation_controller';
 import {WattsonThreadAggregationController} from './aggregation/wattson_thread_aggregation_controller';
+import {WattsonProcessAggregationController} from './aggregation/wattson_process_aggregation_controller';
 import {ThreadAggregationController} from './aggregation/thread_aggregation_controller';
 import {Child, Children, Controller} from './controller';
 import {
@@ -334,6 +335,16 @@ export class TraceController extends Controller<States> {
             {
               engine,
               kind: 'wattson_thread_aggregation',
+            },
+          ),
+        );
+        childControllers.push(
+          Child(
+            'wattson_process_aggregation',
+            WattsonProcessAggregationController,
+            {
+              engine,
+              kind: 'wattson_process_aggregation',
             },
           ),
         );
