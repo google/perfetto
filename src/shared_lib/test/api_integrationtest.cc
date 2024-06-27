@@ -40,6 +40,7 @@
 #include "test/gtest_and_gmock.h"
 
 #include "src/shared_lib/reset_for_testing.h"
+#include "src/shared_lib/test/protos/extensions.pzc.h"
 #include "src/shared_lib/test/protos/test_messages.pzc.h"
 #include "src/shared_lib/test/utils.h"
 
@@ -394,6 +395,42 @@ TEST_F(SharedLibProtozeroSerializationTest, NestedMessages) {
               MsgField(ElementsAre(PbField(
                   protozero_test_protos_NestedA_NestedB_NestedC_value_c_field_number,
                   VarIntField(1000)))))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, Extensions) {
+  struct protozero_test_protos_RealFakeEvent base;
+  PerfettoPbMsgInit(&base.msg, &writer);
+
+  {
+    struct protozero_test_protos_SystemA msg_a;
+    protozero_test_protos_BrowserExtension_begin_extension_a(&base, &msg_a);
+    protozero_test_protos_SystemA_set_cstr_string_a(&msg_a, "str_a");
+    protozero_test_protos_BrowserExtension_end_extension_a(&base, &msg_a);
+  }
+  {
+    struct protozero_test_protos_SystemB msg_b;
+    protozero_test_protos_BrowserExtension_begin_extension_b(&base, &msg_b);
+    protozero_test_protos_SystemB_set_cstr_string_b(&msg_b, "str_b");
+    protozero_test_protos_BrowserExtension_end_extension_b(&base, &msg_b);
+  }
+
+  protozero_test_protos_RealFakeEvent_set_cstr_base_string(&base, "str");
+
+  EXPECT_THAT(
+      FieldView(GetData()),
+      ElementsAre(
+          PbField(
+              protozero_test_protos_BrowserExtension_extension_a_field_number,
+              MsgField(ElementsAre(
+                  PbField(protozero_test_protos_SystemA_string_a_field_number,
+                          StringField("str_a"))))),
+          PbField(
+              protozero_test_protos_BrowserExtension_extension_b_field_number,
+              MsgField(ElementsAre(
+                  PbField(protozero_test_protos_SystemB_string_b_field_number,
+                          StringField("str_b"))))),
+          PbField(protozero_test_protos_RealFakeEvent_base_string_field_number,
+                  StringField("str"))));
 }
 
 TEST_F(SharedLibProtozeroSerializationTest, PackedRepeatedMsgVarInt) {
