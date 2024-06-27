@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {assertTrue} from './logging';
+
 export function fetchWithTimeout(
   input: RequestInfo,
   init: RequestInit,
@@ -40,6 +42,12 @@ export function getServingRoot() {
   // Works out the root directory where the content should be served from
   // e.g. `http://origin/v1.2.3/`.
   const script = document.currentScript as HTMLScriptElement;
+
+  if (script === null) {
+    // Can be null in tests.
+    assertTrue(typeof jest !== 'undefined');
+    return '';
+  }
 
   let root = script.src;
   root = root.substring(0, root.lastIndexOf('/') + 1);
