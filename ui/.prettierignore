@@ -2,6 +2,7 @@ node_modules
 src/service_worker
 src/bigtrace
 src/gen
+src/test/diff_viewer
 out
 config
 build.js
