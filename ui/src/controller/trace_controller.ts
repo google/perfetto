@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {BigintMath} from '../base/bigint_math';
 import {assertExists, assertTrue} from '../base/logging';
 import {Duration, duration, Span, time, Time, TimeSpan} from '../base/time';
