@@ -69,6 +69,7 @@ import {CpuAggregationController} from './aggregation/cpu_aggregation_controller
 import {CpuByProcessAggregationController} from './aggregation/cpu_by_process_aggregation_controller';
 import {FrameAggregationController} from './aggregation/frame_aggregation_controller';
 import {SliceAggregationController} from './aggregation/slice_aggregation_controller';
+import {WattsonAggregationController} from './aggregation/wattson_aggregation_controller';
 import {ThreadAggregationController} from './aggregation/thread_aggregation_controller';
 import {Child, Children, Controller} from './controller';
 import {
@@ -317,6 +318,12 @@ export class TraceController extends Controller<States> {
           Child('counter_aggregation', CounterAggregationController, {
             engine,
             kind: 'counter_aggregation',
+          }),
+        );
+        childControllers.push(
+          Child('wattson_aggregation', WattsonAggregationController, {
+            engine,
+            kind: 'wattson_aggregation',
           }),
         );
         childControllers.push(
