@@ -94,6 +94,17 @@ class MemoryMetrics(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(r"""
         packet {
+          timestamp: 1
+          process_tree {
+            processes {
+              pid: 1
+              ppid: 1
+              uid: 0
+              cmdline: "myprocess"
+            }
+          }
+        }
+        packet {
           ftrace_events {
             cpu: 0
             event {
@@ -105,18 +116,22 @@ class MemoryMetrics(TestSuite):
                 total_allocated: 2048
               }
             }
-          }
-        }
-        packet {
-          ftrace_events {
-            cpu: 0
+            event {
+              timestamp: 150
+              pid: 1
+              dma_heap_stat {
+                inode: 124
+                len: 2048
+                total_allocated: 4096
+              }
+            }
             event {
               timestamp: 200
               pid: 1
               dma_heap_stat {
                 inode: 123
                 len: -1024
-                total_allocated: 1024
+                total_allocated: 3072
               }
             }
           }
@@ -125,10 +140,15 @@ class MemoryMetrics(TestSuite):
         query=Metric('android_dma_heap'),
         out=TextProto(r"""
         android_dma_heap {
-            avg_size_bytes: 2048.0
-            min_size_bytes: 1024.0
-            max_size_bytes: 2048.0
-            total_alloc_size_bytes: 1024.0
+            avg_size_bytes: 3072.0
+            min_size_bytes: 2048.0
+            max_size_bytes: 4096.0
+            total_alloc_size_bytes: 3072.0
+            total_delta_bytes: 2048
+            process_stats {
+              process_name: "myprocess"
+              delta_bytes: 2048
+            }
         }
         """))
 

@@ -20,6 +20,13 @@ package perfetto.protos;
 
 // dma-buf heap memory stats on Android.
 message AndroidDmaHeapMetric {
+  message ProcessStats {
+    // process that either directly or indirectly allocated the buffers
+    optional string process_name = 1;
+    // Bytes allocated but not freed during this trace
+    optional int32 delta_bytes = 2;
+  }
+
     optional double avg_size_bytes = 1;
     optional double min_size_bytes = 2;
     optional double max_size_bytes = 3;
@@ -27,4 +34,8 @@ message AndroidDmaHeapMetric {
     // Total allocation size.
     // Essentially the sum of positive allocs.
     optional double total_alloc_size_bytes = 4;
+
+    // Total delta size (bytes allocated but not freed during the trace)
+    optional int32 total_delta_bytes = 5;
+    repeated ProcessStats process_stats = 6;
 }
