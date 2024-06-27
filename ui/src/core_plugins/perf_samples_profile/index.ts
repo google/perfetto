@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {TrackData} from '../../common/track_data';
 import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../../public';
 import {LegacyFlamegraphCache} from '../../core/legacy_flamegraph_cache';
