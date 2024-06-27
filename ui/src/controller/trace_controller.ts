@@ -72,6 +72,7 @@ import {SliceAggregationController} from './aggregation/slice_aggregation_contro
 import {WattsonEstimateAggregationController} from './aggregation/wattson/estimate_aggregation_controller';
 import {WattsonThreadAggregationController} from './aggregation/wattson/thread_aggregation_controller';
 import {WattsonProcessAggregationController} from './aggregation/wattson/process_aggregation_controller';
+import {WattsonPackageAggregationController} from './aggregation/wattson/package_aggregation_controller';
 import {ThreadAggregationController} from './aggregation/thread_aggregation_controller';
 import {Child, Children, Controller} from './controller';
 import {
@@ -349,6 +350,16 @@ export class TraceController extends Controller<States> {
             {
               engine,
               kind: 'wattson_process_aggregation',
+            },
+          ),
+        );
+        childControllers.push(
+          Child(
+            'wattson_package_aggregation',
+            WattsonPackageAggregationController,
+            {
+              engine,
+              kind: 'wattson_package_aggregation',
             },
           ),
         );
