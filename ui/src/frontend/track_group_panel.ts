@@ -34,7 +34,7 @@ import {
 } from './icons';
 import {Panel, PanelSize} from './panel';
 import {Track} from './track';
-import {TrackButton, TrackContent} from './track_panel';
+import {TrackButton, TrackContent, checkTrackForResizability, resizeTrack} from './track_panel';
 import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
@@ -47,7 +47,6 @@ interface Attrs {
   selectable: boolean;
 }
 
-const MOUSE_TARGETING_THRESHOLD_PX = 5;
 export class TrackGroupPanel extends Panel<Attrs> {
   private readonly trackGroupId: string;
   private shellWidth = 0;
@@ -101,55 +100,28 @@ export class TrackGroupPanel extends Panel<Attrs> {
   get summaryTrackState(): TrackState {
     return assertExists(globals.state.tracks[this.trackGroupState.tracks[0]]);
   }
+
   resize = (e: MouseEvent): void => {
     e.stopPropagation();
     e.preventDefault();
-    if (!this.summaryTrack) {
+    if (!this.summaryTrack || !this.defaultHeight) {
       return;
     }
-    let y = this.summaryTrack.getHeight();
-    const mouseMoveEvent = (evMove: MouseEvent): void => {
-      evMove.preventDefault();
-      y += evMove.movementY;
-      if (this.attrs && this.defaultHeight) {
-        const newMultiplier = y / this.defaultHeight;
-        if (newMultiplier < 1) {
-          this.summaryTrackState.scaleFactor = 1;
-        } else {
-          this.summaryTrackState.scaleFactor = newMultiplier;
-        }
-        globals.rafScheduler.scheduleFullRedraw();
-      }
-    };
-    const mouseUpEvent = (): void => {
-      document.removeEventListener('mousemove', mouseMoveEvent);
-      document.removeEventListener('mouseup', mouseUpEvent);
-    };
-    document.addEventListener('mousemove', mouseMoveEvent);
-    document.addEventListener('mouseup', mouseUpEvent);
-    document.removeEventListener('mousedown', this.resize);
+    resizeTrack(
+      e,
+      this.summaryTrack,
+      this.summaryTrackState,
+      this.defaultHeight);
     };
 
   onmousemove(e: MouseEvent) {
-    if (this.summaryTrack && this.summaryTrack.supportsResizing) {
-      if (e.currentTarget instanceof HTMLElement &&
-          e.pageY - e.currentTarget.getBoundingClientRect().top >=
-          e.currentTarget.clientHeight - MOUSE_TARGETING_THRESHOLD_PX
-          ) {
-            document.addEventListener('mousedown', this.resize);
-          e.currentTarget.style.cursor = 'row-resize';
-          return;
-      } else if (e.currentTarget instanceof HTMLElement) {
-        e.currentTarget.style.cursor = 'unset';
-      }
+    if (this.summaryTrack) {
+      checkTrackForResizability(e, this.summaryTrack, this.resize);
     }
-    document.removeEventListener('mousedown', this.resize);
   }
   onmouseleave(e: MouseEvent) {
-    if (this.summaryTrack && this.summaryTrack.supportsResizing &&
-        e.currentTarget instanceof HTMLElement) {
-      e.currentTarget.style.cursor = 'unset';
-      document.removeEventListener('mousedown', this.resize);
+    if (this.summaryTrack) {
+      checkTrackForResizability(e, this.summaryTrack, this.resize);
     }
   }
 

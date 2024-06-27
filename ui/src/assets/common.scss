@@ -522,6 +522,10 @@ canvas.main-canvas {
   user-select: none;
 }
 
+.scrolling-panel-container > .panels > *:last-child {
+  margin-bottom: 500px;
+}
+
 .panel {
   position: relative; // Otherwise canvas covers panel dom.
 
