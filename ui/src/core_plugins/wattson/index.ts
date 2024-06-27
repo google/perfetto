@@ -23,6 +23,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {CPUSS_ESTIMATE_TRACK_KIND} from '../../core/track_kinds';
 
 class Wattson implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -35,7 +36,7 @@ class Wattson implements Plugin {
       ctx.registerStaticTrack({
         uri: `perfetto.CpuSubsystemEstimate#CPU${cpu}`,
         displayName: `Cpu${cpu} Estimate`,
-        kind: `CpuSubsystemEstimateTrack`,
+        kind: CPUSS_ESTIMATE_TRACK_KIND,
         trackFactory: ({trackKey}) =>
           new CpuSubsystemEstimateTrack(ctx.engine, trackKey, queryKey),
         groupName: `Wattson`,
@@ -45,7 +46,7 @@ class Wattson implements Plugin {
     ctx.registerStaticTrack({
       uri: `perfetto.CpuSubsystemEstimate#ScuInterconnect`,
       displayName: `SCU Interconnect Estimate`,
-      kind: `CpuSubsystemEstimateTrack`,
+      kind: CPUSS_ESTIMATE_TRACK_KIND,
       trackFactory: ({trackKey}) =>
         new CpuSubsystemEstimateTrack(ctx.engine, trackKey, `scu`),
       groupName: `Wattson`,
