@@ -26,9 +26,33 @@
 #include "protos/perfetto/bigtrace/worker.grpc.pb.h"
 #include "protos/perfetto/bigtrace/worker.pb.h"
 
+#include "perfetto/ext/base/getopt.h"
+
 namespace perfetto {
 namespace bigtrace {
 namespace {
+
+struct CommandLineOptions {
+  std::string port;
+};
+
+CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
+  CommandLineOptions command_line_options;
+  static option long_options[] = {{"port", required_argument, nullptr, 'p'},
+                                  {nullptr, 0, nullptr, 0}};
+  int c;
+  while ((c = getopt_long(argc, argv, "w:", long_options, nullptr)) != -1) {
+    switch (c) {
+      case 'p':
+        command_line_options.port = optarg;
+        break;
+      default:
+        PERFETTO_ELOG("Usage: %s --port=port", argv[0]);
+        break;
+    }
+  }
+  return command_line_options;
+}
 
 class WorkerImpl final : public protos::BigtraceWorker::Service {
   grpc::Status QueryTrace(
@@ -38,6 +62,8 @@ class WorkerImpl final : public protos::BigtraceWorker::Service {
     trace_processor::Config config;
     std::unique_ptr<trace_processor::TraceProcessor> tp =
         trace_processor::TraceProcessor::CreateInstance(config);
+
+    PERFETTO_ELOG("RECEIVED REQUEST: %s", args->trace().c_str());
 
     base::Status status =
         trace_processor::ReadTrace(tp.get(), args->trace().c_str());
@@ -62,9 +88,12 @@ class WorkerImpl final : public protos::BigtraceWorker::Service {
   }
 };
 
-base::Status WorkerMain(int, char**) {
+base::Status WorkerMain(int argc, char** argv) {
   // Setup the Worker Server
-  std::string server_address("localhost:5052");
+  CommandLineOptions options = ParseCommandLineOptions(argc, argv);
+  std::string port = !options.port.empty() ? options.port : "5052";
+
+  std::string server_address("localhost:" + port);
   auto service = std::make_unique<WorkerImpl>();
   grpc::ServerBuilder builder;
   builder.RegisterService(service.get());
