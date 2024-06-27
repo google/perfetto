@@ -25,6 +25,7 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/bigtrace/worker.grpc.pb.h"
 #include "protos/perfetto/bigtrace/worker.pb.h"
+#include "src/bigtrace/worker/worker_impl.h"
 
 #include "perfetto/ext/base/getopt.h"
 
@@ -53,40 +54,6 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   }
   return command_line_options;
 }
-
-class WorkerImpl final : public protos::BigtraceWorker::Service {
-  grpc::Status QueryTrace(
-      grpc::ServerContext*,
-      const protos::BigtraceQueryTraceArgs* args,
-      protos::BigtraceQueryTraceResponse* response) override {
-    trace_processor::Config config;
-    std::unique_ptr<trace_processor::TraceProcessor> tp =
-        trace_processor::TraceProcessor::CreateInstance(config);
-
-    PERFETTO_ELOG("RECEIVED REQUEST: %s", args->trace().c_str());
-
-    base::Status status =
-        trace_processor::ReadTrace(tp.get(), args->trace().c_str());
-    if (!status.ok()) {
-      const std::string& error_message = status.c_message();
-      return grpc::Status(grpc::StatusCode::INTERNAL, error_message);
-    }
-    auto iter = tp->ExecuteQuery(args->sql_query());
-    trace_processor::QueryResultSerializer serializer =
-        trace_processor::QueryResultSerializer(std::move(iter));
-
-    std::vector<uint8_t> serialized;
-    for (bool has_more = true; has_more;) {
-      serialized.clear();
-      has_more = serializer.Serialize(&serialized);
-      response->add_result()->ParseFromArray(
-          serialized.data(), static_cast<int>(serialized.size()));
-    }
-    response->set_trace(args->trace());
-
-    return grpc::Status::OK;
-  }
-};
 
 base::Status WorkerMain(int argc, char** argv) {
   // Setup the Worker Server
