@@ -276,6 +276,7 @@ RETURNS PROTO AS
       SELECT RepeatedField(AndroidStartupMetric_SlowStartReason(
         'reason_id', reason_id,
         'reason', slow_cause,
+        'severity', severity,
         'launch_dur', launch_dur,
         'expected_value', expected_val,
         'actual_value', actual_val,
@@ -286,6 +287,7 @@ RETURNS PROTO AS
         SELECT 'No baseline or cloud profiles' as slow_cause,
           launch.dur as launch_dur,
           'NO_BASELINE_OR_CLOUD_PROFILES' as reason_id,
+          'ERROR' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', FALSE,
             'unit', 'TRUE_OR_FALSE') as expected_val,
@@ -303,6 +305,7 @@ RETURNS PROTO AS
         SELECT 'Optimized artifacts missing, run from apk' as slow_cause,
           launch.dur as launch_dur,
           'RUN_FROM_APK' as reason_id,
+          'ERROR' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', FALSE,
             'unit', 'TRUE_OR_FALSE') as expected_val,
@@ -319,6 +322,7 @@ RETURNS PROTO AS
         SELECT 'Unlock running during launch' as slow_cause,
           launch.dur as launch_dur,
           'UNLOCK_RUNNING' as reason_id,
+          'ERROR' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', FALSE,
             'unit', 'TRUE_OR_FALSE') as expected_val,
@@ -335,6 +339,7 @@ RETURNS PROTO AS
         SELECT 'App in debuggable mode' as slow_cause,
           launch.dur as launch_dur,
           'APP_IN_DEBUGGABLE_MODE' as reason_id,
+          'ERROR' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', FALSE,
             'unit', 'TRUE_OR_FALSE') as expected_val,
@@ -351,6 +356,7 @@ RETURNS PROTO AS
         SELECT 'GC Activity' as slow_cause,
           launch.dur as launch_dur,
           'GC_ACTIVITY' as reason_id,
+          'ERROR' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', FALSE,
             'unit', 'TRUE_OR_FALSE') as expected_val,
@@ -367,6 +373,7 @@ RETURNS PROTO AS
         SELECT 'dex2oat running during launch' AS slow_cause,
           launch.dur as launch_dur,
           'DEX2OAT_RUNNING' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', FALSE,
             'unit', 'TRUE_OR_FALSE') as expected_val,
@@ -384,6 +391,7 @@ RETURNS PROTO AS
         SELECT 'installd running during launch' AS slow_cause,
           launch.dur as launch_dur,
           'INSTALLD_RUNNING' as reason_id,
+          'ERROR' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', FALSE,
             'unit', 'TRUE_OR_FALSE') as expected_val,
@@ -401,6 +409,7 @@ RETURNS PROTO AS
         SELECT 'Main Thread - Time spent in Runnable state' as slow_cause,
           launch.dur as launch_dur,
           'MAIN_THREAD_TIME_SPENT_IN_RUNNABLE' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 15,
             'unit', 'PERCENTAGE',
@@ -420,6 +429,7 @@ RETURNS PROTO AS
         SELECT 'Main Thread - Time spent in interruptible sleep state' as slow_cause,
           launch.dur as launch_dur,
           'MAIN_THREAD_TIME_SPENT_IN_INTERRUPTIBLE_SLEEP' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 2900000000,
             'unit', 'NS',
@@ -437,6 +447,7 @@ RETURNS PROTO AS
         SELECT 'Main Thread - Time spent in Blocking I/O' as slow_cause,
           launch.dur as launch_dur,
           'MAIN_THREAD_TIME_SPENT_IN_BLOCKING_IO' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 450000000,
             'unit', 'NS',
@@ -456,6 +467,7 @@ RETURNS PROTO AS
         SELECT 'Main Thread - Time spent in OpenDexFilesFromOat*' as slow_cause,
           launch.dur as launch_dur,
           'MAIN_THREAD_TIME_SPENT_IN_OPEN_DEX_FILES_FROM_OAT' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 20,
             'unit', 'PERCENTAGE',
@@ -478,6 +490,7 @@ RETURNS PROTO AS
         SELECT 'Time spent in bindApplication' as slow_cause,
           launch.dur as launch_dur,
           'TIME_SPENT_IN_BIND_APPLICATION' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 1250000000,
             'unit', 'NS',
@@ -497,6 +510,7 @@ RETURNS PROTO AS
         SELECT 'Time spent in view inflation' as slow_cause,
           launch.dur as launch_dur,
           'TIME_SPENT_IN_VIEW_INFLATION' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 450000000,
             'unit', 'NS',
@@ -516,6 +530,7 @@ RETURNS PROTO AS
         SELECT 'Time spent in ResourcesManager#getResources' as slow_cause,
           launch.dur as launch_dur,
           'TIME_SPENT_IN_RESOURCES_MANAGER_GET_RESOURCES' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 130000000,
             'unit', 'NS',
@@ -536,6 +551,7 @@ RETURNS PROTO AS
         SELECT 'Time spent verifying classes' as slow_cause,
           launch.dur as launch_dur,
           'TIME_SPENT_VERIFYING_CLASSES' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 15,
             'unit', 'PERCENTAGE',
@@ -558,6 +574,7 @@ RETURNS PROTO AS
         SELECT 'Potential CPU contention with another process' AS slow_cause,
           launch.dur as launch_dur,
           'POTENTIAL_CPU_CONTENTION_WITH_ANOTHER_PROCESS' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 100000000,
             'unit', 'NS',
@@ -577,6 +594,7 @@ RETURNS PROTO AS
         SELECT 'JIT Activity' as slow_cause,
           launch.dur as launch_dur,
           'JIT_ACTIVITY' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 100000000,
             'unit', 'NS',
@@ -600,6 +618,7 @@ RETURNS PROTO AS
         SELECT 'Main Thread - Lock contention' as slow_cause,
           launch.dur as launch_dur,
           'MAIN_THREAD_LOCK_CONTENTION' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 20,
             'unit', 'PERCENTAGE',
@@ -624,6 +643,7 @@ RETURNS PROTO AS
         SELECT 'Main Thread - Monitor contention' as slow_cause,
           launch.dur as launch_dur,
           'MAIN_THREAD_MONITOR_CONTENTION' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 15,
             'unit', 'PERCENTAGE',
@@ -648,6 +668,7 @@ RETURNS PROTO AS
         SELECT 'JIT compiled methods' as slow_cause,
           launch.dur as launch_dur,
           'JIT_COMPILED_METHODS' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 65,
             'unit', 'COUNT',
@@ -671,6 +692,7 @@ RETURNS PROTO AS
         SELECT 'Broadcast dispatched count' as slow_cause,
           launch.dur as launch_dur,
           'BROADCAST_DISPATCHED_COUNT' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 15,
             'unit', 'COUNT',
@@ -692,6 +714,7 @@ RETURNS PROTO AS
         SELECT 'Broadcast received count' as slow_cause,
           launch.dur as launch_dur,
           'BROADCAST_RECEIVED_COUNT' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', 50,
             'unit', 'COUNT',
@@ -713,6 +736,7 @@ RETURNS PROTO AS
         SELECT 'Startup running concurrent to launch' as slow_cause,
           launch.dur as launch_dur,
           'STARTUP_RUNNING_CONCURRENT' as reason_id,
+          'ERROR' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', FALSE,
             'unit', 'TRUE_OR_FALSE') as expected_val,
@@ -738,6 +762,7 @@ RETURNS PROTO AS
         SELECT 'Main Thread - Binder transactions blocked' as slow_cause,
           launch.dur as launch_dur,
           'MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKED' as reason_id,
+          'WARNING' as severity,
           AndroidStartupMetric_ThresholdValue(
             'value', FALSE,
             'unit', 'TRUE_OR_FALSE') as expected_val,

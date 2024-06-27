@@ -2415,6 +2415,7 @@ message AndroidStartupMetric {
   }
 
   // Contains information for slow startup causes.
+  // Next id: 11.
   message SlowStartReason {
     // Points to reason description and solution.
     enum ReasonId {
@@ -2448,6 +2449,15 @@ message AndroidStartupMetric {
 
     // Brief description for human readability.
     optional string reason = 2;
+
+    // Severity level for a reason.
+    enum SeverityLevel {
+      SEVERITY_UNSPECIFIED = 0;
+      ERROR = 1;
+      WARNING = 2;
+      INFO = 3;
+    }
+    optional SeverityLevel severity = 10;
 
     // Expected value (inherited from threshold definition).
     optional ThresholdValue expected_value = 3;
