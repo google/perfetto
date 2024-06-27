@@ -16,7 +16,9 @@ import {assertExists} from '../base/logging';
 import {uuidv4} from '../base/uuid';
 import {Actions, AddTrackArgs} from '../common/actions';
 import {InThreadTrackSortKey} from '../common/state';
-import {Engine, NUM, TrackDescriptor} from '../public';
+import {TrackDescriptor} from '../public/tracks';
+import {Engine} from '../trace_processor/engine';
+import {NUM} from '../trace_processor/query_result';
 import {globals} from './globals';
 import {VisualisedArgsTrack} from './visualized_args_track';
 

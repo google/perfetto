@@ -22,7 +22,7 @@ import {uuidv4Sql} from '../base/uuid';
 import {drawTrackHoverTooltip} from '../common/canvas_utils';
 import {raf} from '../core/raf_scheduler';
 import {CacheKey} from '../core/timeline_cache';
-import {Track} from '../public';
+import {Track} from '../public/tracks';
 import {Button} from '../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
 import {Engine} from '../trace_processor/engine';
