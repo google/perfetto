@@ -16,4 +16,8 @@ module.exports = {
   transform: {},
   testRegex: '_(unittest|jsdomtest)[.]js$',
   testEnvironment: __dirname + '/JestJsdomEnv.js',
+  setupFiles: [
+    'jest-canvas-mock',
+    'jest-localstorage-mock',
+  ],
 };
