@@ -42,7 +42,8 @@ WITH data(device, wattson_device) AS (
   ("oriole", "Tensor"),
   ("raven", "Tensor"),
   ("bluejay", "Tensor"),
-  ("eos", "monaco")
+  ("eos", "monaco"),
+  ("aurora", "monaco")
 )
 select * from data;
 
