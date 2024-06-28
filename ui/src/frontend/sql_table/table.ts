@@ -119,8 +119,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
       sorted === 'ASC'
         ? Icons.SortedAsc
         : sorted === 'DESC'
-        ? Icons.SortedDesc
-        : Icons.ContextMenu;
+          ? Icons.SortedDesc
+          : Icons.ContextMenu;
     return m(
       PopupMenu2,
       {

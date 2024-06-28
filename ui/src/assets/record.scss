@@ -33,7 +33,9 @@
   min-height: 500px;
   margin: auto;
   border-radius: $pf-border-radius;
-  box-shadow: 0 1px 2px 0 #aaa, 0 1px 3px 1px #eee;
+  box-shadow:
+    0 1px 2px 0 #aaa,
+    0 1px 3px 1px #eee;
   background-color: #fff;
   display: grid;
   grid-template-rows: auto 1fr;
@@ -595,7 +597,9 @@
     }
 
     > img {
-      transition: filter 0.2s ease, opacity 0.2s ease;
+      transition:
+        filter 0.2s ease,
+        opacity 0.2s ease;
       grid-area: img;
       width: 210px;
       box-sizing: content-box;

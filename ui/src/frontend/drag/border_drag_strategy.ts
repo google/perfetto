@@ -17,7 +17,10 @@ import {DragStrategy} from './drag_strategy';
 export class BorderDragStrategy extends DragStrategy {
   private moveStart = false;
 
-  constructor(map: TimeScale, private pixelBounds: [number, number]) {
+  constructor(
+    map: TimeScale,
+    private pixelBounds: [number, number],
+  ) {
     super(map);
   }
 

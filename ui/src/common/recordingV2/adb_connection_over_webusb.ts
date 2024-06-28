@@ -93,7 +93,10 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
   // Once we've sent the public key, for future recordings we only need to
   // sign with the private key, so the user doesn't need to give permissions
   // again.
-  constructor(private device: USBDevice, private keyManager: AdbKeyManager) {
+  constructor(
+    private device: USBDevice,
+    private keyManager: AdbKeyManager,
+  ) {
     super();
   }
 
