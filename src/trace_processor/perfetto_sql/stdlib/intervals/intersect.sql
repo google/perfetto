@@ -50,4 +50,32 @@ CREATE PERFETTO MACRO _interval_intersect_single(
         $dur AS dur
     )
   )
+);
+
+CREATE PERFETTO MACRO _new_interval_intersect(
+  t1 TableOrSubquery,
+  t2 TableOrSubquery
 )
+RETURNS TableOrSubquery AS
+(
+  SELECT
+    c0 AS ts,
+    c1 AS dur,
+    c2 AS id_0,
+    c3 AS id_1
+  FROM __intrinsic_table_ptr(
+    __intrinsic_interval_intersect(
+      (select
+        __intrinsic_interval_tree_intervals_agg(id, ts, dur)
+      FROM $t1),
+      (select
+        __intrinsic_interval_tree_intervals_agg(id, ts, dur)
+      FROM $t2),
+      "cheese"
+    )
+  )
+  WHERE __intrinsic_table_ptr_bind(c0, 'ts')
+    AND __intrinsic_table_ptr_bind(c1, 'dur')
+    AND __intrinsic_table_ptr_bind(c2, 'id_0')
+    AND __intrinsic_table_ptr_bind(c3, 'id_1')
+);
