@@ -28,7 +28,12 @@ import {
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {pluginManager} from '../common/plugins';
-import {EngineMode, PendingDeeplinkState, ProfileType} from '../common/state';
+import {
+  EngineConfig,
+  EngineMode,
+  PendingDeeplinkState,
+  ProfileType,
+} from '../common/state';
 import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {
   defaultTraceContext,
@@ -461,7 +466,10 @@ export class TraceController extends Controller<States> {
     // traceUuid will be '' if the trace is not cacheable (URL or RPC).
     const traceUuid = await this.cacheCurrentTrace();
 
-    const traceDetails = await getTraceTimeDetails(this.engine);
+    const traceDetails = await getTraceTimeDetails(this.engine, engineCfg);
+    if (traceDetails.traceTitle) {
+      document.title = `${traceDetails.traceTitle} - Perfetto UI`;
+    }
     publishTraceContext(traceDetails);
 
     const shownJsonWarning =
@@ -1170,7 +1178,10 @@ async function computeVisibleTime(
   return HighPrecisionTimeSpan.fromTime(visibleStart, visibleEnd);
 }
 
-async function getTraceTimeDetails(engine: Engine): Promise<TraceContext> {
+async function getTraceTimeDetails(
+  engine: Engine,
+  engineCfg: EngineConfig,
+): Promise<TraceContext> {
   const traceTime = await getTraceTimeBounds(engine);
 
   // Find the first REALTIME or REALTIME_COARSE clock snapshot.
@@ -1236,8 +1247,38 @@ async function getTraceTimeDetails(engine: Engine): Promise<TraceContext> {
     Time.sub(realtimeOffset, Time.fromSeconds(tzOffMin * 60)),
   );
 
+  let traceTitle = '';
+  let traceUrl = '';
+  switch (engineCfg.source.type) {
+    case 'FILE':
+      // Split on both \ and / (because C:\Windows\paths\are\like\this).
+      traceTitle = engineCfg.source.file.name.split(/[/\\]/).pop()!;
+      const fileSizeMB = Math.ceil(engineCfg.source.file.size / 1e6);
+      traceTitle += ` (${fileSizeMB} MB)`;
+      break;
+    case 'URL':
+      traceUrl = engineCfg.source.url;
+      traceTitle = traceUrl.split('/').pop()!;
+      break;
+    case 'ARRAY_BUFFER':
+      traceTitle = engineCfg.source.title;
+      traceUrl = engineCfg.source.url || '';
+      const arrayBufferSizeMB = Math.ceil(
+        engineCfg.source.buffer.byteLength / 1e6,
+      );
+      traceTitle += ` (${arrayBufferSizeMB} MB)`;
+      break;
+    case 'HTTP_RPC':
+      traceTitle = `RPC @ ${HttpRpcEngine.hostAndPort}`;
+      break;
+    default:
+      break;
+  }
+
   return {
     ...traceTime,
+    traceTitle,
+    traceUrl,
     realtimeOffset,
     utcOffset,
     traceTzOffset,
