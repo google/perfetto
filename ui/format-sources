@@ -79,7 +79,7 @@ def main():
     changed_files = [os.path.relpath(x, 'ui') for x in changed_files]
     files_to_check = all_files.intersection(changed_files)
 
-  prettier_args = ['--loglevel=warn']
+  prettier_args = ['--log-level=warn']
   eslint_args = []
   if args.check_only:
     prettier_args += ['--check']

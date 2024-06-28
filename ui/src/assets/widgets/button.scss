@@ -18,7 +18,9 @@
   font-family: $pf-font;
   line-height: 1;
   user-select: none;
-  transition: background $pf-anim-timing, box-shadow $pf-anim-timing;
+  transition:
+    background $pf-anim-timing,
+    box-shadow $pf-anim-timing;
   border-radius: $pf-border-radius;
   padding: 4px 8px;
   white-space: nowrap;

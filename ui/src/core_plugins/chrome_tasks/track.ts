@@ -24,7 +24,11 @@ import {Engine} from '../../public';
 import {ChromeTasksDetailsTab} from './details';
 
 export class ChromeTasksThreadTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
-  constructor(engine: Engine, trackKey: string, private utid: Utid) {
+  constructor(
+    engine: Engine,
+    trackKey: string,
+    private utid: Utid,
+  ) {
     super({engine, trackKey});
   }
 

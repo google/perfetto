@@ -21,7 +21,10 @@ import {
 } from '../recording_interfaces_v2';
 
 export class AndroidVirtualTarget implements RecordingTargetV2 {
-  constructor(private name: string, private androidApiLevel: number) {}
+  constructor(
+    private name: string,
+    private androidApiLevel: number,
+  ) {}
 
   canConnectWithoutContention(): Promise<boolean> {
     return Promise.resolve(true);

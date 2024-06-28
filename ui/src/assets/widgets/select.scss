@@ -23,7 +23,9 @@
   border: none; // Disable the default border
   border-bottom: solid 1px $pf-minimal-foreground; // Thin underline
   background: none;
-  transition: border $pf-anim-timing, box-shadow $pf-anim-timing,
+  transition:
+    border $pf-anim-timing,
+    box-shadow $pf-anim-timing,
     background $pf-anim-timing;
   // Round only the top corners to avoid rounding the edges of the underline
   border-radius: $pf-border-radius $pf-border-radius 0 0;
