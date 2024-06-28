@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {MetricHandler} from './metricUtils';
+import {pinCujScopedJankInstance} from './pinCujScoped';
 
 // TODO: b/337774166 - Add handlers for the metric name categories here
-export const METRIC_HANDLERS: MetricHandler[] = [];
+export const METRIC_HANDLERS: MetricHandler[] = [pinCujScopedJankInstance];
