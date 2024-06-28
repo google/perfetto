@@ -76,6 +76,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_scan.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/graph_traversal.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/import.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/interval_intersect.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
@@ -765,6 +766,10 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
         *engine_, *context_.storage->mutable_string_pool());
     if (!status.ok())
       PERFETTO_FATAL("%s", status.c_message());
+  }
+  {
+    base::Status status = RegisterIntervalIntersectFunctions(
+        *engine_, context_.storage->mutable_string_pool());
   }
 
   TraceStorage* storage = context_.storage.get();

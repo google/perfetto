@@ -280,21 +280,16 @@ struct IntervalTreeIntervalsAgg
   };
 
   static void Step(sqlite3_context* ctx, int rargc, sqlite3_value** argv) {
-    auto argc = static_cast<uint32_t>(rargc);
-    if (argc != kArgCount) {
-      return sqlite::result::Error(
-          ctx, "INTERVAL_TREE_AGG: must have exactly 3 arguments");
-    }
+    PERFETTO_DCHECK(rargc == kArgCount);
 
     auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
-    for (uint32_t i = 0; i < argc; i++) {
-      IntervalTree::Interval interval;
-      interval.id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
-      interval.start = static_cast<uint64_t>(sqlite::value::Int64(argv[1]));
-      interval.end =
-          interval.start + static_cast<uint64_t>(sqlite::value::Int64(argv[2]));
-      agg_ctx.intervals.push_back(std::move(interval));
-    }
+
+    IntervalTree::Interval interval;
+    interval.id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
+    interval.start = static_cast<uint64_t>(sqlite::value::Int64(argv[1]));
+    interval.end =
+        interval.start + static_cast<uint64_t>(sqlite::value::Int64(argv[2]));
+    agg_ctx.intervals.push_back(std::move(interval));
   }
 
   static void Final(sqlite3_context* ctx) {
