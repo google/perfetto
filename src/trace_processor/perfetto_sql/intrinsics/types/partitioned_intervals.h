@@ -14,18 +14,22 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TYPES_INTERVAL_TREE_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TYPES_INTERVAL_TREE_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TYPES_PARTITIONED_INTERVALS_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TYPES_PARTITIONED_INTERVALS_H_
 
 #include <cstdint>
 #include <string>
 #include <vector>
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/containers/interval_tree.h"
 
 namespace perfetto::trace_processor::perfetto_sql {
 
-using SortedIntervals = std::vector<IntervalTree::Interval>;
+using PartitionedIntervals =
+    base::FlatHashMap<uint64_t,
+                      std::vector<IntervalTree::Interval>,
+                      base::AlreadyHashed<uint64_t>>;
 
 }  // namespace perfetto::trace_processor::perfetto_sql
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TYPES_INTERVAL_TREE_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TYPES_PARTITIONED_INTERVALS_H_
