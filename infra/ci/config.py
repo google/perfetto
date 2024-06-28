@@ -95,7 +95,7 @@ JOB_CONFIGS = {
     },
     'linux-gcc8-x86_64-release': {
         'PERFETTO_TEST_GN_ARGS':
-            'is_debug=false is_clang=false enable_perfetto_grpc=true'
+            'is_debug=false is_clang=false enable_perfetto_grpc=true '
             'cc="gcc-8" cxx="g++-8"',
         'PERFETTO_TEST_SCRIPT': 'test/ci/linux_tests.sh',
         'PERFETTO_INSTALL_BUILD_DEPS_ARGS': '--grpc',
