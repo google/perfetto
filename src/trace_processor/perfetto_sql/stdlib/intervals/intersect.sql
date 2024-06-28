@@ -13,30 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE PERFETTO MACRO _ii_df_agg(x Expr, y Expr)
-RETURNS Expr AS ,__intrinsic_stringify!($x), $y;
-
-CREATE PERFETTO MACRO _interval_agg(
-  tab TableOrSubquery,
-  agg_columns ColumnNameList
-)
-RETURNS TableOrSubquery AS
-(
-  SELECT
-    __intrinsic_interval_tree_intervals_agg(
-      id,
-      ts,
-      dur
-      __intrinsic_token_zip_join!(
-        $agg_columns,
-        $agg_columns,
-        _ii_df_agg,
-        __intrinsic_token_comma!()
-      )
-    )
-  FROM $tab
-);
-
 CREATE PERFETTO MACRO _interval_intersect(
   left_table TableOrSubquery,
   right_table TableOrSubquery
@@ -78,8 +54,7 @@ CREATE PERFETTO MACRO _interval_intersect_single(
 
 CREATE PERFETTO MACRO _new_interval_intersect(
   t1 TableOrSubquery,
-  t2 TableOrSubquery,
-  agg_columns ColumnNameList
+  t2 TableOrSubquery
 )
 RETURNS TableOrSubquery AS
 (
@@ -90,8 +65,13 @@ RETURNS TableOrSubquery AS
     c3 AS id_1
   FROM __intrinsic_table_ptr(
     __intrinsic_interval_intersect(
-      _interval_agg!($t1, $agg_columns),
-      _interval_agg!($t2, $agg_columns)
+      (select
+        __intrinsic_interval_tree_intervals_agg(id, ts, dur)
+      FROM $t1),
+      (select
+        __intrinsic_interval_tree_intervals_agg(id, ts, dur)
+      FROM $t2),
+      "cheese"
     )
   )
   WHERE __intrinsic_table_ptr_bind(c0, 'ts')

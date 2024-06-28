@@ -51,30 +51,14 @@ class RuntimeTable : public Table {
                                       StringStorage,
                                       DoubleStorage,
                                       NullDoubleStorage>;
-  enum BuilderColumnType {
-    kNull,
-    kInt,
-    kNullInt,
-    kString,
-    kDouble,
-    kNullDouble
-  };
-
   class Builder {
    public:
     Builder(StringPool* pool, std::vector<std::string> col_names);
-    Builder(StringPool* pool,
-            std::vector<std::string> col_names,
-            std::vector<BuilderColumnType> col_types);
 
     base::Status AddNull(uint32_t idx);
     base::Status AddInteger(uint32_t idx, int64_t res);
     base::Status AddFloat(uint32_t idx, double res);
     base::Status AddText(uint32_t idx, const char* ptr);
-
-    void AddNonNullIntegerUnchecked(uint32_t idx, int64_t res) {
-      std::get<IntStorage>(*storage_[idx]).Append(res);
-    }
 
     base::StatusOr<std::unique_ptr<RuntimeTable>> Build(uint32_t rows) &&;
 
