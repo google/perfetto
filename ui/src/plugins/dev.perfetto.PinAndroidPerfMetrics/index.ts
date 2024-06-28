@@ -13,9 +13,15 @@
 // limitations under the License.
 
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {TrackType} from '../dev.perfetto.AndroidCujs/trackUtils';
 import {METRIC_HANDLERS} from './handlers/handlerRegistry';
+import {MetricHandlerMatch} from './handlers/metricUtils';
 
-const PLUGIN_ID = 'dev.perfetto.PinAndroidPerfMetrics';
+export const PLUGIN_ID = 'dev.perfetto.PinAndroidPerfMetrics';
+
+const JANK_CUJ_QUERY_PRECONDITIONS = `
+  SELECT RUN_METRIC('android/android_blocking_calls_cuj_metric.sql');
+`;
 
 /**
  * Plugin that adds and pins the debug track for the metric passed
@@ -50,19 +56,22 @@ class PinAndroidPerfMetrics implements Plugin {
     }
   }
 
-  private callHandlers(
+  private async callHandlers(
     metricsList: string[],
     ctx: PluginContextTrace,
-    type: 'static' | 'debug',
+    type: TrackType,
   ) {
-    for (const metric of metricsList) {
-      for (const metricHandler of METRIC_HANDLERS) {
-        const match = metricHandler.match(metric);
-        if (match) {
-          metricHandler.addDebugTrack(match, ctx, type);
-          break;
-        }
-      }
+    // List of metrics that actually match some handler
+    const metricsToShow: MetricHandlerMatch[] =
+      this.getMetricsToShow(metricsList);
+
+    if (metricsToShow.length === 0) {
+      return;
+    }
+
+    await ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS);
+    for (const {metricData, metricHandler} of metricsToShow) {
+      metricHandler.addMetricTrack(metricData, ctx, type);
     }
   }
 
@@ -79,6 +88,30 @@ class PinAndroidPerfMetrics implements Plugin {
     } else {
       return [capturedString];
     }
+  }
+
+  private getMetricsToShow(metricList: string[]) {
+    const validMetrics: MetricHandlerMatch[] = [];
+    metricList.forEach((metric) => {
+      const matchedHandler = this.matchMetricToHandler(metric);
+      if (matchedHandler) {
+        validMetrics.push(matchedHandler);
+      }
+    });
+    return validMetrics;
+  }
+
+  private matchMetricToHandler(metric: string): MetricHandlerMatch | null {
+    for (const metricHandler of METRIC_HANDLERS) {
+      const match = metricHandler.match(metric);
+      if (match) {
+        return {
+          metricData: match,
+          metricHandler: metricHandler,
+        };
+      }
+    }
+    return null;
   }
 }
 
