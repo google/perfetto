@@ -34,6 +34,8 @@ source_set("functions") {
     "graph_traversal.h",
     "import.cc",
     "import.h",
+    "interval_intersect.cc",
+    "interval_intersect.h",
     "layout_functions.cc",
     "layout_functions.h",
     "math.cc",
