@@ -20,15 +20,14 @@ assert(enable_perfetto_trace_processor_sqlite)
 source_set("types") {
   sources = [
     "array.h",
+    "interval_tree.h",
     "node.h",
-    "partitioned_intervals.h",
     "row_dataframe.h",
     "struct.h",
     "value.h",
   ]
   deps = [
     "../../../../../gn:default_deps",
-    "../../../../../include/perfetto/ext/base:base",
     "../../../containers",
   ]
 }
