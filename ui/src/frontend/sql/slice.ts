@@ -165,8 +165,8 @@ export async function getSliceFromConstraints(
       thread !== undefined
         ? thread.process
         : upid === undefined
-        ? undefined
-        : await getProcessInfo(engine, upid);
+          ? undefined
+          : await getProcessInfo(engine, upid);
 
     result.push({
       id: asSliceSqlId(it.id),

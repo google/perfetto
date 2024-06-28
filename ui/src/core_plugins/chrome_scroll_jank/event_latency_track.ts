@@ -39,7 +39,10 @@ export interface EventLatencyTrackTypes extends NamedSliceTrackTypes {
 }
 
 export class EventLatencyTrack extends CustomSqlTableSliceTrack<EventLatencyTrackTypes> {
-  constructor(args: NewTrackArgs, private baseTable: string) {
+  constructor(
+    args: NewTrackArgs,
+    private baseTable: string,
+  ) {
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
       kind: CHROME_EVENT_LATENCY_TRACK_KIND,

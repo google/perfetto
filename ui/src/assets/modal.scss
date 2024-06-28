@@ -133,7 +133,8 @@
     overflow: visible;
     margin: 5px;
     width: fit-content;
-    transition: border-color 0.25s var(--anim-easing),
+    transition:
+      border-color 0.25s var(--anim-easing),
       background-color 0.25s var(--anim-easing);
 
     &:focus {

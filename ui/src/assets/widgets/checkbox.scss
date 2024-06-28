@@ -87,7 +87,8 @@
       border-width: 0;
       transform-origin: 0% 100%; // Put the origin at the short edge of the tick
       transform: rotate(45deg);
-      transition: height $tick-anim-time-height $tick-easing,
+      transition:
+        height $tick-anim-time-height $tick-easing,
         width $tick-anim-time-width $tick-anim-time-height $tick-easing,
         border-width 0ms $tick-anim-time;
     }
@@ -112,7 +113,8 @@
     width: $tick-width;
     height: $tick-height;
     border-width: 0 2px 2px 0;
-    transition: width $tick-anim-time-height $tick-easing,
+    transition:
+      width $tick-anim-time-height $tick-easing,
       height $tick-anim-time-height $tick-anim-time-width $tick-easing,
       border-width 0ms;
   }

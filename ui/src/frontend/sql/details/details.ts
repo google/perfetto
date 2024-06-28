@@ -323,7 +323,10 @@ type ResolvedDict = {
 
 // Description of an array in the schema.
 class ArraySchema {
-  constructor(public data: ValueDesc[], public params?: ContainerParams) {}
+  constructor(
+    public data: ValueDesc[],
+    public params?: ContainerParams,
+  ) {}
 }
 
 // Resolved version of an array.

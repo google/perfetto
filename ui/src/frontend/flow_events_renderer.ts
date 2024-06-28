@@ -60,7 +60,10 @@ export class FlowEventsRendererArgs {
   trackIdToTrackPanel: Map<number, TrackPanelInfo>;
   groupIdToTrackGroupPanel: Map<string, TrackGroupPanelInfo>;
 
-  constructor(public canvasWidth: number, public canvasHeight: number) {
+  constructor(
+    public canvasWidth: number,
+    public canvasHeight: number,
+  ) {
     this.trackIdToTrackPanel = new Map<number, TrackPanelInfo>();
     this.groupIdToTrackGroupPanel = new Map<string, TrackGroupPanelInfo>();
   }
