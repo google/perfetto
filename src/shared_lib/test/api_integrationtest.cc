@@ -1904,4 +1904,37 @@ TEST_F(SharedLibTrackEventTest, ScopedFunc) {
   }
 }
 
+TEST_F(SharedLibTrackEventTest, TrackEventHlProtoFieldString) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("*")
+                                       .Build();
+
+  PERFETTO_TE(
+      cat1, PERFETTO_TE_INSTANT("event"),
+      PERFETTO_TE_PROTO_FIELDS(PERFETTO_TE_PROTO_FIELD_NESTED(
+          perfetto_protos_TrackEvent_debug_annotations_field_number,
+          PERFETTO_TE_PROTO_FIELD_CSTR(
+              perfetto_protos_DebugAnnotation_name_field_number, "name"),
+          PERFETTO_TE_PROTO_FIELD_VARINT(
+              perfetto_protos_DebugAnnotation_uint_value_field_number, 42))));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          AllFieldsWithId(
+              perfetto_protos_TracePacket_track_event_field_number,
+              ElementsAre(AllFieldsWithId(
+                  perfetto_protos_TrackEvent_debug_annotations_field_number,
+                  ElementsAre(MsgField(UnorderedElementsAre(
+                      PbField(perfetto_protos_DebugAnnotation_name_field_number,
+                              StringField("name")),
+                      PbField(
+                          perfetto_protos_DebugAnnotation_uint_value_field_number,
+                          VarIntField(42)))))))))));
+}
+
 }  // namespace

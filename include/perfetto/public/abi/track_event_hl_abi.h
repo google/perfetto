@@ -36,6 +36,76 @@
 extern "C" {
 #endif
 
+// The type of the proto field.
+enum PerfettoTeHlProtoFieldType {
+  PERFETTO_TE_HL_PROTO_TYPE_CSTR = 0,
+  PERFETTO_TE_HL_PROTO_TYPE_BYTES = 1,
+  PERFETTO_TE_HL_PROTO_TYPE_NESTED = 2,
+  PERFETTO_TE_HL_PROTO_TYPE_VARINT = 3,
+  PERFETTO_TE_HL_PROTO_TYPE_FIXED64 = 4,
+  PERFETTO_TE_HL_PROTO_TYPE_FIXED32 = 5,
+  PERFETTO_TE_HL_PROTO_TYPE_DOUBLE = 6,
+  PERFETTO_TE_HL_PROTO_TYPE_FLOAT = 7,
+};
+
+// Common header for all the proto fields.
+struct PerfettoTeHlProtoField {
+  enum PerfettoTeHlProtoFieldType type;
+  // Proto field id.
+  uint32_t id;
+};
+
+// PERFETTO_TE_HL_PROTO_TYPE_CSTR
+struct PerfettoTeHlProtoFieldCstr {
+  struct PerfettoTeHlProtoField header;
+  // Null terminated string.
+  const char* str;
+};
+
+// PERFETTO_TE_HL_PROTO_TYPE_BYTES
+struct PerfettoTeHlProtoFieldBytes {
+  struct PerfettoTeHlProtoField header;
+  const void* buf;
+  size_t len;
+};
+
+// PERFETTO_TE_HL_PROTO_TYPE_NESTED
+struct PerfettoTeHlProtoFieldNested {
+  struct PerfettoTeHlProtoField header;
+  // Array of pointers to the fields. The last pointer should be NULL.
+  struct PerfettoTeHlProtoField* const* fields;
+};
+
+// PERFETTO_TE_HL_PROTO_TYPE_VARINT
+struct PerfettoTeHlProtoFieldVarInt {
+  struct PerfettoTeHlProtoField header;
+  uint64_t value;
+};
+
+// PERFETTO_TE_HL_PROTO_TYPE_FIXED64
+struct PerfettoTeHlProtoFieldFixed64 {
+  struct PerfettoTeHlProtoField header;
+  uint64_t value;
+};
+
+// PERFETTO_TE_HL_PROTO_TYPE_FIXED32
+struct PerfettoTeHlProtoFieldFixed32 {
+  struct PerfettoTeHlProtoField header;
+  uint32_t value;
+};
+
+// PERFETTO_TE_HL_PROTO_TYPE_DOUBLE
+struct PerfettoTeHlProtoFieldDouble {
+  struct PerfettoTeHlProtoField header;
+  double value;
+};
+
+// PERFETTO_TE_HL_PROTO_TYPE_FLOAT
+struct PerfettoTeHlProtoFieldFloat {
+  struct PerfettoTeHlProtoField header;
+  float value;
+};
+
 // The type of an event extra parameter.
 enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK = 1,
@@ -54,6 +124,7 @@ enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_TERMINATING_FLOW = 14,
   PERFETTO_TE_HL_EXTRA_TYPE_FLUSH = 15,
   PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN = 16,
+  PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS = 17,
 };
 
 // List of extra event parameters. Each type of parameter should embed this as
@@ -172,6 +243,13 @@ struct PerfettoTeHlExtraFlow {
   // Specifies that this event starts (or terminates) a flow (i.e. a link
   // between two events) identified by this id.
   uint64_t id;
+};
+
+// PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS
+struct PerfettoTeHlExtraProtoFields {
+  struct PerfettoTeHlExtra header;
+  // Array of pointers to the fields. The last pointer should be NULL.
+  struct PerfettoTeHlProtoField* const* fields;
 };
 
 // Emits an event on all active instances of the track event data source.
