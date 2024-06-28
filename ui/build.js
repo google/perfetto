@@ -410,14 +410,7 @@ function compileScss() {
 function compileProtos() {
   const dstJs = pjoin(cfg.outGenDir, 'protos.js');
   const dstTs = pjoin(cfg.outGenDir, 'protos.d.ts');
-  // We've ended up pulling in all the protos (via trace.proto,
-  // trace_packet.proto) below which means |dstJs| ends up being
-  // 23k lines/12mb. We should probably not do that.
-  // TODO(hjd): Figure out how to use lazy with pbjs/pbts.
   const inputs = [
-    'protos/perfetto/common/trace_stats.proto',
-    'protos/perfetto/common/tracing_service_capabilities.proto',
-    'protos/perfetto/config/perfetto_config.proto',
     'protos/perfetto/ipc/consumer_port.proto',
     'protos/perfetto/ipc/wire_protocol.proto',
     'protos/perfetto/trace/perfetto/perfetto_metatrace.proto',
