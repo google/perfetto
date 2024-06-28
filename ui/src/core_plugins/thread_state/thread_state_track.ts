@@ -45,7 +45,10 @@ export interface ThreadStateTrackTypes extends BaseSliceTrackTypes {
 export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
   protected sliceLayout: SliceLayout = {...SLICE_LAYOUT_FLAT_DEFAULTS};
 
-  constructor(args: NewTrackArgs, private utid: number) {
+  constructor(
+    args: NewTrackArgs,
+    private utid: number,
+  ) {
     super(args);
   }
 

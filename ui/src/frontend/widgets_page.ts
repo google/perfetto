@@ -365,7 +365,10 @@ type Options = {
 };
 
 class EnumOption {
-  constructor(public initial: string, public options: string[]) {}
+  constructor(
+    public initial: string,
+    public options: string[],
+  ) {}
 }
 
 interface WidgetTitleAttrs {

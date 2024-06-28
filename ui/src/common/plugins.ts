@@ -105,7 +105,10 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   private alive = true;
   readonly engine: Engine;
 
-  constructor(private ctx: PluginContext, engine: EngineBase) {
+  constructor(
+    private ctx: PluginContext,
+    engine: EngineBase,
+  ) {
     const engineProxy = engine.getProxy(ctx.pluginId);
     this.trash.use(engineProxy);
     this.engine = engineProxy;
