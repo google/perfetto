@@ -151,9 +151,39 @@ RuntimeTable::~RuntimeTable() = default;
 
 RuntimeTable::Builder::Builder(StringPool* pool,
                                std::vector<std::string> col_names)
+    : Builder(pool,
+              col_names,
+              std::vector<BuilderColumnType>(col_names.size(), kNull)) {}
+
+RuntimeTable::Builder::Builder(StringPool* pool,
+                               std::vector<std::string> col_names,
+                               std::vector<BuilderColumnType> col_types)
     : string_pool_(pool), col_names_(std::move(col_names)) {
-  for (uint32_t i = 0; i < col_names_.size(); i++) {
-    storage_.emplace_back(std::make_unique<VariantStorage>());
+  for (BuilderColumnType type : col_types) {
+    switch (type) {
+      case kNull:
+        storage_.emplace_back(std::make_unique<VariantStorage>());
+        break;
+      case kInt:
+        storage_.emplace_back(std::make_unique<VariantStorage>(IntStorage()));
+        break;
+      case kNullInt:
+        storage_.emplace_back(
+            std::make_unique<VariantStorage>(NullIntStorage()));
+        break;
+      case kDouble:
+        storage_.emplace_back(
+            std::make_unique<VariantStorage>(DoubleStorage()));
+        break;
+      case kNullDouble:
+        storage_.emplace_back(
+            std::make_unique<VariantStorage>(NullDoubleStorage()));
+        break;
+      case kString:
+        storage_.emplace_back(
+            std::make_unique<VariantStorage>(StringStorage()));
+        break;
+    }
   }
 }
 
@@ -271,31 +301,37 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
       *col = Fill<NullIntStorage>(*leading_nulls, std::nullopt);
     }
 
-    if (auto* ints = std::get_if<NullIntStorage>(col)) {
+    if (auto* null_ints = std::get_if<NullIntStorage>(col)) {
       // The `ints` column
-      PERFETTO_CHECK(ints->size() == rows);
+      PERFETTO_CHECK(null_ints->size() == rows);
 
-      if (ints->non_null_size() == ints->size()) {
+      if (null_ints->non_null_size() == null_ints->size()) {
         // The column doesn't have any nulls so we construct a new nonnullable
         // column.
-        *col = IntStorage::CreateFromAssertNonNull(std::move(*ints));
+        *col = IntStorage::CreateFromAssertNonNull(std::move(*null_ints));
         CreateNonNullableIntsColumn(
             i, col_names_[i].c_str(), std::get_if<IntStorage>(col),
             storage_layers, overlay_layers, legacy_columns, legacy_overlays);
       } else {
         // Nullable ints column.
-        legacy_columns.emplace_back(col_names_[i].c_str(), ints,
+        legacy_columns.emplace_back(col_names_[i].c_str(), null_ints,
                                     ColumnLegacy::Flag::kNoFlag, i, 0);
         storage_layers[i].reset(new column::NumericStorage<int64_t>(
-            &ints->non_null_vector(), ColumnType::kInt64, false));
+            &null_ints->non_null_vector(), ColumnType::kInt64, false));
         null_layers[i].reset(
-            new column::NullOverlay(&ints->non_null_bit_vector()));
+            new column::NullOverlay(&null_ints->non_null_bit_vector()));
       }
 
-      // The doubles column.
-    } else if (auto* doubles = std::get_if<NullDoubleStorage>(col)) {
-      PERFETTO_CHECK(doubles->size() == rows);
+    } else if (auto* ints = std::get_if<IntStorage>(col)) {
+      // The `ints` column for tables where column types was provided before.
+      PERFETTO_CHECK(ints->size() == rows);
+      CreateNonNullableIntsColumn(
+          i, col_names_[i].c_str(), std::get_if<IntStorage>(col),
+          storage_layers, overlay_layers, legacy_columns, legacy_overlays);
 
+    } else if (auto* doubles = std::get_if<NullDoubleStorage>(col)) {
+      // The doubles column.
+      PERFETTO_CHECK(doubles->size() == rows);
       if (doubles->non_null_size() == doubles->size()) {
         // The column is not nullable.
         *col = DoubleStorage::CreateFromAssertNonNull(std::move(*doubles));
@@ -310,7 +346,6 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
                                     flags, i, 0);
         storage_layers[i].reset(new column::NumericStorage<double>(
             &non_null_doubles->vector(), ColumnType::kDouble, is_sorted));
-
       } else {
         // The column is nullable.
         legacy_columns.emplace_back(col_names_[i].c_str(), doubles,
@@ -328,7 +363,6 @@ base::StatusOr<std::unique_ptr<RuntimeTable>> RuntimeTable::Builder::Build(
                                   ColumnLegacy::Flag::kNonNull, i, 0);
       storage_layers[i].reset(
           new column::StringStorage(string_pool_, &strings->vector()));
-
     } else {
       PERFETTO_FATAL("Unexpected column type");
     }
