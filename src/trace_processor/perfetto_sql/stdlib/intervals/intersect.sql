@@ -38,45 +38,6 @@ RETURNS TableOrSubquery AS
 );
 
 CREATE PERFETTO MACRO _interval_intersect(
-  left_table TableOrSubquery,
-  right_table TableOrSubquery
-)
-RETURNS TableOrSubquery AS
-(
-  WITH
-    __temp_left_table AS (SELECT * FROM $left_table ORDER BY ts),
-    __temp_right_table AS (SELECT * FROM $right_table ORDER BY ts)
-  SELECT ii.ts, ii.dur, ii.left_id, ii.right_id
-  FROM __intrinsic_interval_intersect(
-    (SELECT RepeatedField(id) FROM __temp_left_table),
-    (SELECT RepeatedField(ts) FROM __temp_left_table),
-    (SELECT RepeatedField(dur) FROM __temp_left_table),
-    (SELECT RepeatedField(id) FROM __temp_right_table),
-    (SELECT RepeatedField(ts) FROM __temp_right_table),
-    (SELECT RepeatedField(dur) FROM __temp_right_table)
-  ) ii
-);
-
-CREATE PERFETTO MACRO _interval_intersect_single(
-  ts Expr,
-  dur Expr,
-  intervals_table TableOrSubquery
-) RETURNS TableOrSubquery AS (
-  SELECT
-    left_id AS id,
-    ts,
-    dur
-  FROM _interval_intersect!(
-    $intervals_table,
-    (SELECT
-        0 AS id,
-        $ts AS ts,
-        $dur AS dur
-    )
-  )
-);
-
-CREATE PERFETTO MACRO _new_interval_intersect(
   t1 TableOrSubquery,
   t2 TableOrSubquery,
   agg_columns ColumnNameList
@@ -98,4 +59,22 @@ RETURNS TableOrSubquery AS
     AND __intrinsic_table_ptr_bind(c1, 'dur')
     AND __intrinsic_table_ptr_bind(c2, 'id_0')
     AND __intrinsic_table_ptr_bind(c3, 'id_1')
+);
+
+CREATE PERFETTO MACRO _interval_intersect_single(
+  ts Expr,
+  dur Expr,
+  t TableOrSubquery
+)
+RETURNS TableOrSubquery AS
+(
+  SELECT
+  id_0 AS id,
+  ts,
+  dur
+  FROM _interval_intersect!(
+    $t,
+    (SELECT 0 AS id, $ts AS ts, $dur AS dur),
+    ()
+  )
 );

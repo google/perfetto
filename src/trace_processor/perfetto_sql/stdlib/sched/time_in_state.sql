@@ -122,7 +122,7 @@ JOIN
     $ts, $dur,
     (SELECT id, ts, dur
     FROM thread_state
-    WHERE utid = $utid))) ii USING (id)
+    WHERE utid = $utid AND dur > 0))) ii USING (id)
 GROUP BY 1, 2, 3
 ORDER BY 4 DESC;
 
@@ -159,7 +159,7 @@ JOIN
     $ts, $dur,
     (SELECT id, ts, dur
     FROM thread_state
-    WHERE utid = $utid))) ii USING (id)
+    WHERE utid = $utid AND dur > 0))) ii USING (id)
 GROUP BY 1, 2, 3, 4
 ORDER BY 5 DESC;
 
