@@ -118,3 +118,102 @@ class StdlibIntervals(TestSuite):
         8,1,0,0
         9,1,1,1
         """))
+
+  def test_intervals_intersect_easy(self):
+    return DiffTestBlueprint(
+        trace=DataPath("example_android_trace_30s.pb"),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 1, 6)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur) AS (
+            VALUES
+            (0, 0, 2),
+            (1, 3, 2),
+            (2, 6, 2)
+          )
+          SELECT * FROM data;
+
+        SELECT * FROM _new_interval_intersect!(A, B)
+        ORDER BY ts;
+        """,
+        out=Csv("""
+        "ts","dur","id_0","id_1"
+        1,1,0,0
+        3,2,0,1
+        6,1,0,2
+        """))
+
+  def test_compare_with_span_join(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE big_foo AS
+        SELECT
+          ts,
+          dur,
+          id
+        FROM sched
+        WHERE dur > 0
+        AND cpu = 0;
+
+        CREATE PERFETTO TABLE small_foo AS
+        SELECT
+          ts + 1000 AS ts,
+          dur + 1000 AS dur,
+          id * 10 AS id
+        FROM sched
+        WHERE dur > 0
+        AND cpu = 0;
+
+        CREATE PERFETTO TABLE small_foo_for_sj AS
+        SELECT 
+          id AS small_id, 
+          ts, 
+          dur
+        FROM small_foo;
+
+        CREATE PERFETTO TABLE big_foo_for_sj AS
+        SELECT 
+          id AS big_id, 
+          ts, 
+          dur
+        FROM big_foo;
+
+        CREATE VIRTUAL TABLE sj_res
+        USING SPAN_JOIN(
+          small_foo_for_sj, 
+          big_foo_for_sj);
+        
+        CREATE PERFETTO TABLE both AS
+        SELECT
+          left_id,
+          right_id,
+          cat,
+          count() AS c
+        FROM (
+          SELECT id_0 AS left_id, id_1 AS right_id, ts, dur, "ii" AS cat
+          FROM _new_interval_intersect!(big_foo, small_foo)
+          UNION
+          SELECT big_id AS left_id, small_id AS right_id, ts, dur, "sj" AS cat FROM sj_res
+        )
+          GROUP BY left_id, right_id;
+
+        SELECT
+          SUM(c) FILTER (WHERE c == 2) AS good,
+          SUM(c) FILTER (WHERE c != 2) AS bad
+        FROM both;
+        """,
+        out=Csv("""
+          "good","bad"
+          188662,"[NULL]"
+        """))
