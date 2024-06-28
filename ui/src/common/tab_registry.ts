@@ -90,7 +90,7 @@ export class TabManager implements Disposable {
   /**
    * Resolves a list of URIs to tabs and manages tab lifecycles.
    * @param tabUris List of tabs.
-   * @return List of resolved tabs.
+   * @returns List of resolved tabs.
    */
   resolveTabs(tabUris: string[]): ResolvedTab[] {
     // Refresh the list of old tabs

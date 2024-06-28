@@ -1,4 +1,4 @@
-// Copyright (C) 2019 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,8 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-module.exports = {
-  transform: {},
-  testRegex: '_(unittest|jsdomtest)[.]js$',
-  testEnvironment: __dirname + '/JestJsdomEnv.js',
-};
+const JSDOMEnvironment = require('jest-environment-jsdom');
+
+// vega-lite, which is pulled in by tests, depends on structuredClone.
+// The jsdom envinronment doesn't emulate it yet. So here we create a wrapper
+// around it that fills the gap.
+// See https://github.com/jsdom/jsdom/issues/3363 .
+module.exports = class JestJsdomEnv extends JSDOMEnvironment {
+  constructor(...args) {
+    super(...args);
+
+    this.global.structuredClone = structuredClone;
+  }
+}

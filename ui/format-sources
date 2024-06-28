@@ -53,7 +53,7 @@ def main():
     print('Run tools/install-build-deps --ui')
     return 1
 
-  with open('.eslintignore', 'r') as f:
+  with open('.prettierignore', 'r') as f:
     ignorelist = set(f.read().strip().split('\n'))
 
   all_files = set()
@@ -79,13 +79,13 @@ def main():
     changed_files = [os.path.relpath(x, 'ui') for x in changed_files]
     files_to_check = all_files.intersection(changed_files)
 
-  prettier_args = []
+  prettier_args = ['--loglevel=warn']
   eslint_args = []
   if args.check_only:
-    prettier_args = ['--loglevel=silent', '--check']
+    prettier_args += ['--check']
   else:
-    eslint_args = ['--fix']
-    prettier_args = ['--write']
+    eslint_args += ['--fix']
+    prettier_args += ['--write']
 
   if len(files_to_check) == 0:
     if not args.check_only:
@@ -113,7 +113,7 @@ def call_or_die(cmd):
   try:
     subprocess.check_call(cmd)
   except subprocess.CalledProcessError as ex:
-    print('`%s` returned %d' % (' '.join(cmd), ex.returncode))
+    print('`%s` returned %d' % (' '.join(cmd)[:128], ex.returncode))
     sys.exit(ex.returncode)
 
 

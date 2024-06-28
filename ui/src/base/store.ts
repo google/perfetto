@@ -26,7 +26,7 @@ export type Callback<T> = (store: Store<T>, previous: T) => void;
  *
  * @template T The type of this store's state.
  * @param {T} initialState Initial state of the store.
- * @return {Store<T>} The newly created store.
+ * @returns {Store<T>} The newly created store.
  */
 export function createStore<T>(initialState: T): Store<T> {
   return new RootStore<T>(initialState);
@@ -41,7 +41,7 @@ export interface Store<T> extends Disposable {
   /**
    * Mutate the store's state.
    *
-   * @param {Edit<T> | Edit<T>[]} edits The edit (or edits) to the store.
+   * @param edits The edit (or edits) to the store.
    */
   edit(edits: Edit<T> | Edit<T>[]): void;
 
@@ -88,7 +88,7 @@ export interface Store<T> extends Disposable {
    * const migrate = (init: unknown) => (init ?? {foo: 'bar'}) as SubState;
    * const subStore = store.createSubStore(store, ['dict', 'foo'], migrate);
    * // |dict['foo']| will be created the first time we edit our sub-store.
-   * @warning Migration functions should properly validate the incoming state.
+   * Warning: Migration functions should properly validate the incoming state.
    * Blindly using type assertions can lead to instability.
    * @returns {Store<U>} The newly created sub-store.
    */

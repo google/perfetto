@@ -159,7 +159,7 @@ export class GcsUploader {
 
 /**
  * Computes the SHA-1 of a string or ArrayBuffer(View)
- * @param data: a string or ArrayBuffer to hash
+ * @param data a string or ArrayBuffer to hash.
  */
 async function sha1(data: string | ArrayBuffer): Promise<string> {
   let buffer: ArrayBuffer;
@@ -181,7 +181,7 @@ async function sha1(data: string | ArrayBuffer): Promise<string> {
  * SHA-1 of each chunk.
  * Speed: ~800 MB/s on a M2 Macbook Air 2023.
  * @param file The file to hash.
- * @return A hex-encoded string containing the hash of the file.
+ * @returns A hex-encoded string containing the hash of the file.
  */
 async function hashFileStreaming(file: Blob): Promise<string> {
   const fileStream = new TraceFileStream(file);

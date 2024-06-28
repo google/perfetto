@@ -16,7 +16,10 @@
 import os
 import sys
 
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
+ROOT_DIR = os.path.dirname(TOOLS_DIR)
+# Add the /tools dir to the front of the PATH so our hermetic node is used.
+os.environ['PATH'] = TOOLS_DIR + os.pathsep + os.environ['PATH']
 sys.path.append(ROOT_DIR)
 __package__ = 'tools'
 from .run_buildtools_binary import run_buildtools_binary
