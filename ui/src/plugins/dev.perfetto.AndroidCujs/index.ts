@@ -12,14 +12,68 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {SimpleSliceTrackConfig} from '../../frontend/simple_slice_track';
 import {addDebugSliceTrack} from '../../public';
 import {Plugin, PluginContextTrace, PluginDescriptor} from '../../public';
+import {addAndPinSliceTrack, TrackType} from './trackUtils';
+
+/**
+ * Adds the Debug Slice Track for given Jank CUJ name
+ *
+ * @param {PluginContextTrace} ctx For properties and methods of trace viewer
+ * @param {string} trackName Display Name of the track
+ * @param {TrackType} type Track type for jank CUJ slice track
+ * @param {string | string[]} cujNames List of Jank CUJs to pin
+ * @param {string} uri Identifier for the track in case of 'static' type
+ */
+export function addJankCUJDebugTrack(
+  ctx: PluginContextTrace,
+  trackName: string,
+  type: TrackType,
+  cujNames?: string | string[],
+  uri?: string,
+) {
+  const jankCujTrackConfig: SimpleSliceTrackConfig =
+    generateJankCujTrackConfig(cujNames);
+  addAndPinSliceTrack(ctx, jankCujTrackConfig, trackName, type, uri);
+}
 
 const JANK_CUJ_QUERY_PRECONDITIONS = `
   SELECT RUN_METRIC('android/android_jank_cuj.sql');
-  SELECT RUN_METRIC('android/jank/internal/counters.sql');
   INCLUDE PERFETTO MODULE android.critical_blocking_calls;
 `;
+
+/**
+ * Generate the Track config for a multiple Jank CUJ slices
+ *
+ * @param {string | string[]} cujNames List of Jank CUJs to pin, default empty
+ * @returns {SimpleSliceTrackConfig} Returns the track config for given CUJs
+ */
+function generateJankCujTrackConfig(
+  cujNames: string | string[] = [],
+): SimpleSliceTrackConfig {
+  // This method expects the caller to have run JANK_CUJ_QUERY_PRECONDITIONS
+  // Not running the precondition query here to save time in case already run
+  const jankCujQuery = JANK_CUJ_QUERY;
+  const jankCujColumns = JANK_COLUMNS;
+  const cujNamesList = typeof cujNames === 'string' ? [cujNames] : cujNames;
+  const filterCuj =
+    cujNamesList?.length > 0
+      ? ` AND cuj.name IN (${cujNamesList
+          .map((name) => `'J<${name}>'`)
+          .join(',')})`
+      : '';
+
+  const jankCujTrackConfig: SimpleSliceTrackConfig = {
+    data: {
+      sqlSource: `${jankCujQuery}${filterCuj}`,
+      columns: jankCujColumns,
+    },
+    columns: {ts: 'ts', dur: 'dur', name: 'name'},
+    argColumns: jankCujColumns,
+  };
+  return jankCujTrackConfig;
+}
 
 const JANK_CUJ_QUERY = `
     SELECT
@@ -170,16 +224,7 @@ class AndroidCujs implements Plugin {
       name: 'Add track: Android jank CUJs',
       callback: () => {
         ctx.engine.query(JANK_CUJ_QUERY_PRECONDITIONS).then(() => {
-          addDebugSliceTrack(
-            ctx,
-            {
-              sqlSource: JANK_CUJ_QUERY,
-              columns: JANK_COLUMNS,
-            },
-            'Jank CUJs',
-            {ts: 'ts', dur: 'dur', name: 'name'},
-            JANK_COLUMNS,
-          );
+          addJankCUJDebugTrack(ctx, 'Jank CUJs', 'debug');
         });
       },
     });
