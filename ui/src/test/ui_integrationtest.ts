@@ -52,7 +52,7 @@ beforeAll(async () => {
 // test('') name and compare the screenshot with the expected one in
 // /test/data/ui-screenshots.
 afterEach(async () => {
-  let testName = expect.getState().currentTestName;
+  let testName = assertExists(expect.getState().currentTestName);
   testName = testName.replace(/[^a-z0-9-]/gim, '_').toLowerCase();
   const page = await getPage();
 

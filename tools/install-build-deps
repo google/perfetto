@@ -371,18 +371,18 @@ TYPEFACES_SHA256 = '1065172aaf0e9c22bc4f206ed9fdf5f1b4355d233fb21f9f26a89cd66c94
 UI_DEPS = [
     Dependency(
         'buildtools/mac/nodejs.tgz',
-        'https://storage.googleapis.com/chromium-nodejs/16.13.0/31859fc1fa0994a95f44f09c367d6ff63607cfde',
-        'd9cf1f36b16e08ce52cfbdef427c6596eed2bd2f3608a79112d25b4ec8f75753',
+        'https://storage.googleapis.com/chromium-nodejs/20.11.0/5b5681e12a21cda986410f69e03e6220a21dd4d2',
+        'cecb99fbb369a9090dddc27e228b66335cd72555b44fa8839ef78e56c51682c5',
         'darwin', 'arm64'),
     Dependency(
         'buildtools/mac/nodejs.tgz',
-        'https://storage.googleapis.com/chromium-nodejs/16.13.0/16dfd094763b71988933a31735f9dea966f9abd6',
-        '065ced7e93f0e26276cb74d9688706674323865c4a8fc89e4adfa6868d4ebb4d',
+        'https://storage.googleapis.com/chromium-nodejs/20.11.0/e3c0fd53caae857309815f3f8de7c2dce49d7bca',
+        '20affacca2480c368b75a1d91ec1a2720604b325207ef0cf39cfef3c235dad19',
         'darwin', 'x64'),
     Dependency(
         'buildtools/linux64/nodejs.tgz',
-        'https://storage.googleapis.com/chromium-nodejs/16.13.0/ab9544e24e752d3d17f335fb7b2055062e582d11',
-        '3b5ca150a55f3aadfa18f3a10a4495aaf9653614ba3e460647170fef5287ec4f',
+        'https://storage.googleapis.com/chromium-nodejs/20.11.0/f9a337cfa0e2b92d3e5c671c26b454bd8e99769e',
+        '0ba9cc91698c1f833a1fdc1fe0cb392d825ad484c71b0d84388ac80bfd3d6079',
         'linux', 'x64'),
     Dependency(
         'buildtools/mac/emsdk.tgz',

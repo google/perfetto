@@ -155,7 +155,7 @@ async function createPermalinkInternal(
  * This is invoked when passing !#?s=fileName to URL.
  * @param gcsFileName the file name of the cloud storage object. This is
  * expected to be a JSON file that respects the schema defined by
- * @type {SerializedPermalink}, @see state_serialization.ts.
+ * PERMALINK_SCHEMA.
  */
 export async function loadPermalink(gcsFileName: string): Promise<void> {
   // Otherwise, this is a request to load the permalink.

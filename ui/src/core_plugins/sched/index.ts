@@ -77,7 +77,7 @@ class SchedPlugin implements Plugin {
 
 function uriForActiveCPUCountTrack(cpuType?: CPUType): string {
   const prefix = `perfetto.sched#ActiveCPUCount`;
-  if (cpuType) {
+  if (cpuType !== undefined) {
     return `${prefix}.${cpuType}`;
   } else {
     return prefix;

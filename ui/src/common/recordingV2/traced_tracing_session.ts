@@ -52,6 +52,7 @@ import {
   PARSING_UNRECOGNIZED_PORT,
   RECORDING_IN_PROGRESS,
 } from './recording_utils';
+import {exists} from '../../base/utils';
 
 // See wire_protocol.proto for more details.
 const WIRE_PROTOCOL_HEADER_SIZE = 4;
@@ -240,8 +241,7 @@ export class TracedTracingSession implements TracingSession {
       return;
     }
     const method = this.availableMethods.find((m) => m.name === methodName);
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (!method || !method.id) {
+    if (!exists(method) || !exists(method.id)) {
       throw new RecordingError(
         `Method ${methodName} not supported by the target`,
       );
@@ -327,13 +327,11 @@ export class TracedTracingSession implements TracingSession {
     const frame = IPCFrame.decode(frameBuffer.slice());
     if (frame.msg === 'msgBindServiceReply') {
       const msgBindServiceReply = frame.msgBindServiceReply;
-      /* eslint-disable @typescript-eslint/strict-boolean-expressions */
       if (
-        msgBindServiceReply &&
-        msgBindServiceReply.methods &&
-        msgBindServiceReply.serviceId
+        exists(msgBindServiceReply) &&
+        exists(msgBindServiceReply.methods) &&
+        exists(msgBindServiceReply.serviceId)
       ) {
-        /* eslint-enable */
         assertTrue(msgBindServiceReply.success === true);
         this.availableMethods = msgBindServiceReply.methods;
         this.serviceId = msgBindServiceReply.serviceId;

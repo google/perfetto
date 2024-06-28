@@ -30,7 +30,7 @@ import {State} from '../common/state';
 import {initController, runControllers} from '../controller';
 import {isGetCategoriesResponse} from '../controller/chrome_proxy_record_controller';
 import {RECORDING_V2_FLAG, featureFlags} from '../core/feature_flags';
-import {initLiveReloadIfLocalhost} from '../core/live_reload';
+import {initLiveReload} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {initWasm} from '../trace_processor/wasm_engine_proxy';
 import {setScheduleFullRedraw} from '../widgets/raf';
@@ -342,7 +342,14 @@ function onCssLoaded() {
     m.render(document.body, m(App, globals.router.resolve()));
   };
 
-  initLiveReloadIfLocalhost(globals.embeddedMode);
+  if (
+    (location.origin.startsWith('http://localhost:') ||
+      location.origin.startsWith('http://127.0.0.1:')) &&
+    !globals.embeddedMode &&
+    !globals.testing
+  ) {
+    initLiveReload();
+  }
 
   if (!RECORDING_V2_FLAG.get()) {
     updateAvailableAdbDevices();

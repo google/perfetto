@@ -497,7 +497,7 @@ class Globals {
   }
 
   getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {
-    return this.getJobStatusMap().get(name) || ConversionJobStatus.NotRunning;
+    return this.getJobStatusMap().get(name) ?? ConversionJobStatus.NotRunning;
   }
 
   setConversionJobStatus(name: ConversionJobName, status: ConversionJobStatus) {
