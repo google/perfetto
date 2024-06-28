@@ -52,6 +52,7 @@ def CheckChange(input, output):
             '/perfetto_build_flags.h$',
             "infra/luci/.*",
             "^ui/.*\.[jt]s$",  # TS/JS handled by eslint
+            "^ui/pnpm-lock.yaml$",
         ])
 
   results = []

@@ -993,7 +993,6 @@ class WaitableQueryResultImpl
 
   // eslint and clang-format disagree on how to format get[foo](). Let
   // clang-format win:
-  // eslint-disable-next-line keyword-spacing
   get [Symbol.toStringTag](): string {
     return 'Promise<WaitableQueryResult>';
   }

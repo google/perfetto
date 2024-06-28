@@ -50,7 +50,10 @@ function getInitialCategories(): MetatraceCategories | undefined {
 let enabledCategories: MetatraceCategories | undefined = getInitialCategories();
 
 export function enableMetatracing(categories?: MetatraceCategories) {
-  enabledCategories = categories || MetatraceCategories.ALL;
+  enabledCategories =
+    categories === undefined || categories === MetatraceCategories.NONE
+      ? MetatraceCategories.ALL
+      : categories;
 }
 
 export function disableMetatracingAndGetTrace(): Uint8Array {

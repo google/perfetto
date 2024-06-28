@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import commonjs from '@rollup/plugin-commonjs';
-import nodeResolve from '@rollup/plugin-node-resolve';
-import replace from 'rollup-plugin-re';
-import sourcemaps from 'rollup-plugin-sourcemaps';
-import {uglify} from 'rollup-plugin-uglify';
 
+const {uglify} = require('rollup-plugin-uglify')
+const commonjs = require('@rollup/plugin-commonjs');
+const nodeResolve = require('@rollup/plugin-node-resolve');
 const path = require('path');
+const replace = require('rollup-plugin-re');
+const sourcemaps = require('rollup-plugin-sourcemaps');
+
 const ROOT_DIR = path.dirname(path.dirname(__dirname)); // The repo root.
 const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
 
@@ -63,7 +64,7 @@ function defBundle(tsRoot, bundle, distDir) {
       // Ignore circular dependency warnings coming from third party code.
       if (
         warning.code === 'CIRCULAR_DEPENDENCY' &&
-        warning.importer.includes('node_modules')
+        warning.message.includes('node_modules')
       ) {
         return;
       }
@@ -112,7 +113,7 @@ const maybeOpenPerfettoTrace = process.env['ENABLE_OPEN_PERFETTO_TRACE']
   ? [defBundle('tsc', 'open_perfetto_trace', 'dist/open_perfetto_trace')]
   : [];
 
-export default [
+module.exports = [
   defBundle('tsc', 'frontend', 'dist_version'),
   defBundle('tsc', 'engine', 'dist_version'),
   defBundle('tsc', 'traceconv', 'dist_version'),

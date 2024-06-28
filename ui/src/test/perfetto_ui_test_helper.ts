@@ -113,7 +113,7 @@ export async function compareScreenshots(
       reportPath,
       `${path.basename(actualFilename)};${path.basename(diffFilename)}\n`,
     );
-    fail(`Diff test failed on ${diffFilename}, delta: ${diff} pixels`);
+    throw new Error(`Diff test failed ${diffFilename}, delta: ${diff} pixels`);
   }
   return diff;
 }
