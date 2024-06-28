@@ -141,7 +141,7 @@ class StdlibIntervals(TestSuite):
           )
           SELECT * FROM data;
 
-        SELECT * FROM _new_interval_intersect!(A, B)
+        SELECT * FROM _new_interval_intersect!(A, B, ())
         ORDER BY ts;
         """,
         out=Csv("""
@@ -151,7 +151,7 @@ class StdlibIntervals(TestSuite):
         6,1,0,2
         """))
 
-  def test_compare_with_span_join(self):
+  def test_compare_with_span_join_partitioned(self):
     return DiffTestBlueprint(
         trace=DataPath('example_android_trace_30s.pb'),
         query="""
@@ -161,39 +161,41 @@ class StdlibIntervals(TestSuite):
         SELECT
           ts,
           dur,
-          id
+          id,
+          cpu
         FROM sched
-        WHERE dur > 0
-        AND cpu = 0;
+        WHERE dur > 0 AND utid != 0;
 
         CREATE PERFETTO TABLE small_foo AS
         SELECT
           ts + 1000 AS ts,
           dur + 1000 AS dur,
-          id * 10 AS id
+          id * 10 AS id,
+          cpu
         FROM sched
-        WHERE dur > 0
-        AND cpu = 0;
+        WHERE dur > 0 AND utid != 0;
 
         CREATE PERFETTO TABLE small_foo_for_sj AS
-        SELECT 
-          id AS small_id, 
-          ts, 
-          dur
+        SELECT
+          id AS small_id,
+          ts,
+          dur,
+          cpu
         FROM small_foo;
 
         CREATE PERFETTO TABLE big_foo_for_sj AS
-        SELECT 
-          id AS big_id, 
-          ts, 
-          dur
+        SELECT
+          id AS big_id,
+          ts,
+          dur,
+          cpu
         FROM big_foo;
 
         CREATE VIRTUAL TABLE sj_res
         USING SPAN_JOIN(
-          small_foo_for_sj, 
-          big_foo_for_sj);
-        
+          small_foo_for_sj PARTITIONED cpu,
+          big_foo_for_sj PARTITIONED cpu);
+
         CREATE PERFETTO TABLE both AS
         SELECT
           left_id,
@@ -202,7 +204,7 @@ class StdlibIntervals(TestSuite):
           count() AS c
         FROM (
           SELECT id_0 AS left_id, id_1 AS right_id, ts, dur, "ii" AS cat
-          FROM _new_interval_intersect!(big_foo, small_foo)
+          FROM _new_interval_intersect!(big_foo, small_foo, (cpu))
           UNION
           SELECT big_id AS left_id, small_id AS right_id, ts, dur, "sj" AS cat FROM sj_res
         )
@@ -215,5 +217,124 @@ class StdlibIntervals(TestSuite):
         """,
         out=Csv("""
           "good","bad"
-          188662,"[NULL]"
+          880364,"[NULL]"
+        """))
+
+  def test_compare_with_span_join_partitioned(self):
+    return DiffTestBlueprint(
+        trace=DataPath('example_android_trace_30s.pb'),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE big_foo AS
+        SELECT
+          ts,
+          dur,
+          id
+        FROM sched
+        WHERE dur > 0 AND utid == 44;
+
+        CREATE PERFETTO TABLE small_foo AS
+        SELECT
+          ts,
+          dur,
+          id
+        FROM sched
+        WHERE dur > 0 AND utid == 103;
+
+        CREATE PERFETTO TABLE small_foo_for_sj AS
+        SELECT
+          id AS small_id,
+          ts,
+          dur
+        FROM small_foo;
+
+        CREATE PERFETTO TABLE big_foo_for_sj AS
+        SELECT
+          id AS big_id,
+          ts,
+          dur
+        FROM big_foo;
+
+        CREATE VIRTUAL TABLE sj_res
+        USING SPAN_JOIN(
+          small_foo_for_sj,
+          big_foo_for_sj);
+
+        CREATE PERFETTO TABLE both AS
+        SELECT
+          left_id,
+          right_id,
+          cat,
+          count() AS c
+        FROM (
+          SELECT id_0 AS left_id, id_1 AS right_id, ts, dur, "ii" AS cat
+          FROM _new_interval_intersect!(big_foo, small_foo, ())
+          UNION
+          SELECT big_id AS left_id, small_id AS right_id, ts, dur, "sj" AS cat FROM sj_res
+        )
+          GROUP BY left_id, right_id;
+
+        SELECT
+          SUM(c) FILTER (WHERE c == 2) AS good,
+          SUM(c) FILTER (WHERE c != 2) AS bad
+        FROM both;
+        """,
+        out=Csv("""
+          "good","bad"
+          28,"[NULL]"
+        """))
+
+  def test_simple_interval_intersect_rev(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A AS
+          WITH data(id, ts, dur, c0, c1) AS (
+            VALUES
+            (0, 1, 6, 10, 3)
+          )
+          SELECT * FROM data;
+
+        CREATE PERFETTO TABLE B AS
+          WITH data(id, ts, dur, c0, c2) AS (
+            VALUES
+            (0, 0, 2, 10, 100),
+            (1, 3, 2, 10, 200),
+            (2, 6, 2, 20, 300)
+          )
+          SELECT * FROM data;
+
+        SELECT id_0, id_1
+        FROM _new_interval_intersect!(A, B, (c0))
+        ORDER BY 1, 2;
+        """,
+        out=Csv("""
+        "id_0","id_1"
+        0,0
+        0,1
+        """))
+
+  def test_ii_wrong_partition(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        INCLUDE PERFETTO MODULE intervals.intersect;
+
+        CREATE PERFETTO TABLE A
+        AS
+        WITH x(id, ts, dur, c0) AS (VALUES(1, 1, 1, 1), (2, 3, 1, 2))
+        SELECT * FROM x;
+
+        CREATE PERFETTO TABLE B
+        AS
+        WITH x(id, ts, dur, c0) AS (VALUES(1, 5, 1, 3))
+        SELECT * FROM x;
+
+        SELECT ts FROM _new_interval_intersect!(A, B, (c0));
+        """,
+        out=Csv("""
+        "ts"
         """))
