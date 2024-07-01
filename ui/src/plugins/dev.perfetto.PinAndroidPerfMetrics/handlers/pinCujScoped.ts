@@ -20,12 +20,12 @@ import {
 } from './metricUtils';
 import {PluginContextTrace} from '../../../public';
 import {SimpleSliceTrackConfig} from '../../../frontend/simple_slice_track';
-import {PLUGIN_ID} from '..';
 import {addJankCUJDebugTrack} from '../../dev.perfetto.AndroidCujs';
 import {
   addAndPinSliceTrack,
   TrackType,
 } from '../../dev.perfetto.AndroidCujs/trackUtils';
+import {PLUGIN_ID} from '../pluginId';
 
 class PinCujScopedJank implements MetricHandler {
   /**
