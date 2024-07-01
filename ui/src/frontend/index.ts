@@ -78,21 +78,9 @@ class FrontendApi {
   }
 
   private handleStoreUpdate = (store: Store<State>, oldState: State) => {
-    const newState = store.state;
-
-    // If the visible time in the global state has been updated more
-    // recently than the visible time handled by the frontend @ 60fps,
-    // update it. This typically happens when restoring the state from a
-    // permalink.
-    globals.timeline.mergeState(newState.frontendLocalState);
-
-    // Only redraw if something other than the frontendLocalState changed.
-    let key: keyof State;
-    for (key in store.state) {
-      if (key !== 'frontendLocalState' && oldState[key] !== newState[key]) {
-        raf.scheduleFullRedraw();
-        break;
-      }
+    // Only redraw if something actually changed
+    if (oldState !== store.state) {
+      raf.scheduleFullRedraw();
     }
 
     // Run in microtask to avoid avoid reentry
