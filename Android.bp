@@ -10381,6 +10381,50 @@ genrule {
     ],
 }
 
+// GN: //protos/third_party/pprof:cpp
+filegroup {
+    name: "perfetto_protos_third_party_pprof_cpp",
+    srcs: [
+        "protos/third_party/pprof/profile.proto",
+    ],
+}
+
+// GN: //protos/third_party/pprof:cpp
+genrule {
+    name: "perfetto_protos_third_party_pprof_cpp_gen",
+    srcs: [
+        ":perfetto_protos_third_party_pprof_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_third_party_pprof_cpp)",
+    out: [
+        "external/perfetto/protos/third_party/pprof/profile.gen.cc",
+    ],
+}
+
+// GN: //protos/third_party/pprof:cpp
+genrule {
+    name: "perfetto_protos_third_party_pprof_cpp_gen_headers",
+    srcs: [
+        ":perfetto_protos_third_party_pprof_cpp",
+    ],
+    tools: [
+        "aprotoc",
+        "perfetto_src_protozero_protoc_plugin_cppgen_plugin",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location perfetto_src_protozero_protoc_plugin_cppgen_plugin) --plugin_out=wrapper_namespace=gen:$(genDir)/external/perfetto/ $(locations :perfetto_protos_third_party_pprof_cpp)",
+    out: [
+        "external/perfetto/protos/third_party/pprof/profile.gen.h",
+    ],
+    export_include_dirs: [
+        ".",
+        "protos",
+    ],
+}
+
 // GN: //protos/third_party/pprof:zero
 filegroup {
     name: "perfetto_protos_third_party_pprof_zero",
@@ -13738,6 +13782,8 @@ filegroup {
 filegroup {
     name: "perfetto_src_traceconv_unittests",
     srcs: [
+        "src/traceconv/pprof_reader.cc",
+        "src/traceconv/trace_to_pprof_unittest.cc",
         "src/traceconv/trace_to_text_unittest.cc",
     ],
 }
@@ -15033,6 +15079,7 @@ cc_test {
         ":perfetto_protos_perfetto_trace_translation_cpp_gen",
         ":perfetto_protos_perfetto_trace_translation_lite_gen",
         ":perfetto_protos_perfetto_trace_translation_zero_gen",
+        ":perfetto_protos_third_party_pprof_cpp_gen",
         ":perfetto_protos_third_party_pprof_zero_gen",
         ":perfetto_protos_third_party_simpleperf_zero_gen",
         ":perfetto_protos_third_party_statsd_config_zero_gen",
@@ -15413,6 +15460,7 @@ cc_test {
         "perfetto_protos_perfetto_trace_translation_cpp_gen_headers",
         "perfetto_protos_perfetto_trace_translation_lite_gen_headers",
         "perfetto_protos_perfetto_trace_translation_zero_gen_headers",
+        "perfetto_protos_third_party_pprof_cpp_gen_headers",
         "perfetto_protos_third_party_pprof_zero_gen_headers",
         "perfetto_protos_third_party_simpleperf_zero_gen_headers",
         "perfetto_protos_third_party_statsd_config_zero_gen_headers",
