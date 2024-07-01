@@ -16,7 +16,6 @@
 
 #include "test/gtest_and_gmock.h"
 
-#include <dirent.h>
 #include <fstream>
 
 #include "perfetto/base/logging.h"
