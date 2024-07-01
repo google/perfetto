@@ -16,6 +16,13 @@
 INSTALL_BUILD_DEPS_ARGS=""
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
+# Save CI time by skipping runs on {UI,docs,infra}-only changes
+if [[ $UI_DOCS_INFRA_ONLY_CHANGE == 1 ]]; then
+echo "Detected non-code change, probably a UI-only change."
+echo "skipping build + test runs"
+exit 0
+fi
+
 bazel build //:all --verbose_failures
 bazel build //python:all --verbose_failures
 

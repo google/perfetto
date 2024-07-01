@@ -36,3 +36,9 @@ rm -rf out/tmp.protoc
 # Performs checks on SQL files.
 tools/check_sql_modules.py
 tools/check_sql_metrics.py
+
+if !(git diff --name-only HEAD^1 HEAD | egrep -qv '^(ui|docs|infra)/'); then
+export UI_DOCS_INFRA_ONLY_CHANGE=1
+else
+export UI_DOCS_INFRA_ONLY_CHANGE=0
+fi
