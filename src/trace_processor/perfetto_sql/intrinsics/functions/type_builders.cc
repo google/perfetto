@@ -29,11 +29,14 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/containers/interval_tree.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/array.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/types/interval_tree.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/node.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/types/partitioned_intervals.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/row_dataframe.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/types/struct.h"
 #include "src/trace_processor/sqlite/bindings/sqlite_aggregate_function.h"
@@ -46,6 +49,27 @@
 
 namespace perfetto::trace_processor {
 namespace {
+
+inline void HashSqlValue(base::Hasher& h, const SqlValue& v) {
+  switch (v.type) {
+    case SqlValue::Type::kString:
+      h.Update(v.AsString());
+      break;
+    case SqlValue::Type::kDouble:
+      h.Update(v.AsDouble());
+      break;
+    case SqlValue::Type::kLong:
+      h.Update(v.AsLong());
+      break;
+    case SqlValue::Type::kBytes:
+      PERFETTO_FATAL("Wrong type");
+      break;
+    case SqlValue::Type::kNull:
+      h.Update(nullptr);
+      break;
+  }
+  return;
+}
 
 using Array = std::variant<perfetto_sql::IntArray,
                            perfetto_sql::DoubleArray,
@@ -272,16 +296,16 @@ struct RowDataframeAgg : public SqliteAggregateFunction<Struct> {
 };
 
 struct IntervalTreeIntervalsAgg
-    : public SqliteAggregateFunction<perfetto_sql::SortedIntervals> {
+    : public SqliteAggregateFunction<perfetto_sql::PartitionedIntervals> {
   static constexpr char kName[] = "__intrinsic_interval_tree_intervals_agg";
-  static constexpr int kArgCount = 3;
+  static constexpr int kArgCount = -1;
   struct AggCtx : SqliteAggregateContext<AggCtx> {
-    std::vector<IntervalTree::Interval> intervals;
+    perfetto_sql::PartitionedIntervals intervals;
   };
 
   static void Step(sqlite3_context* ctx, int rargc, sqlite3_value** argv) {
-    PERFETTO_DCHECK(rargc == kArgCount);
-
+    auto argc = static_cast<uint32_t>(rargc);
+    PERFETTO_DCHECK(argc >= 3);
     auto& agg_ctx = AggCtx::GetOrCreateContextForStep(ctx);
 
     IntervalTree::Interval interval;
@@ -289,7 +313,20 @@ struct IntervalTreeIntervalsAgg
     interval.start = static_cast<uint64_t>(sqlite::value::Int64(argv[1]));
     interval.end =
         interval.start + static_cast<uint64_t>(sqlite::value::Int64(argv[2]));
-    agg_ctx.intervals.push_back(std::move(interval));
+
+    if (argc == 3) {
+      agg_ctx.intervals[0].push_back(std::move(interval));
+      return;
+    }
+
+    // Create a partition.
+    base::Hasher h;
+    for (uint32_t i = 3 + 1; i < argc; i += 2) {
+      HashSqlValue(h, sqlite::utils::SqliteValueToSqlValue(argv[i]));
+    }
+
+    // Push the interval into the partition.
+    agg_ctx.intervals[h.digest()].push_back(interval);
   }
 
   static void Final(sqlite3_context* ctx) {
@@ -299,9 +336,9 @@ struct IntervalTreeIntervalsAgg
     }
     return sqlite::result::UniquePointer(
         ctx,
-        std::make_unique<perfetto_sql::SortedIntervals>(
+        std::make_unique<perfetto_sql::PartitionedIntervals>(
             std::move(raw_agg_ctx.get()->intervals)),
-        "INTERVAL_TREE_INTERVALS");
+        "INTERVAL_TREE_PARTITIONS");
   }
 };
 
