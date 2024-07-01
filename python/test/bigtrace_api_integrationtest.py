@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
-import subprocess
-import perfetto.bigtrace.api
 import os
+import perfetto.bigtrace.api
+import subprocess
+import time
+import unittest
 
 from perfetto.common.exceptions import PerfettoException
 
@@ -26,8 +27,10 @@ class BigtraceTest(unittest.TestCase):
   def setUpClass(self):
     self.root_dir = os.environ["ROOT_DIR"]
     self.worker = subprocess.Popen(os.environ["WORKER_PATH"])
-    self.orchestrator = subprocess.Popen(os.environ["ORCHESTRATOR_PATH"])
+    self.orchestrator = subprocess.Popen(
+        [os.environ["ORCHESTRATOR_PATH"], "-l", "127.0.0.1:5052"])
     self.client = perfetto.bigtrace.api.Bigtrace()
+    time.sleep(1)
 
   @classmethod
   def tearDownClass(self):
@@ -41,8 +44,16 @@ class BigtraceTest(unittest.TestCase):
         f"{self.root_dir}/test/data/api24_startup_hot.perfetto-trace"
     ], "SELECT count(1) as count FROM slice LIMIT 5")
 
-    self.assertEqual(result['count'][0], 9726)
-    self.assertEqual(result['count'][1], 5726)
+    self.assertEqual(
+        result.loc[
+            result['_trace_address'] ==
+            f"{self.root_dir}/test/data/api24_startup_cold.perfetto-trace",
+            'count'].iloc[0], 9726)
+    self.assertEqual(
+        result.loc[
+            result['_trace_address'] ==
+            f"{self.root_dir}/test/data/api24_startup_hot.perfetto-trace",
+            'count'].iloc[0], 5726)
 
   def test_empty_traces(self):
     with self.assertRaises(PerfettoException):

@@ -19,7 +19,7 @@ import sys
 import unittest
 
 from test import api_integrationtest
-# from test import bigtrace_api_integrationtest
+from test import bigtrace_api_integrationtest
 from test import query_result_iterator_unittest
 from test import resolver_unittest
 from test import stdlib_unittest
@@ -54,8 +54,8 @@ def main():
   suite.addTests(loader.loadTestsFromModule(resolver_unittest))
   suite.addTests(loader.loadTestsFromModule(api_integrationtest))
   suite.addTests(loader.loadTestsFromModule(stdlib_unittest))
-  # TODO(ivankc) Uncomment this out when controller rolls out
-  # suite.addTests(loader.loadTestsFromModule(bigtrace_api_integrationtest))
+  if os.path.exists(os.environ["WORKER_PATH"]):
+    suite.addTests(loader.loadTestsFromModule(bigtrace_api_integrationtest))
 
   # Initialise runner to run all tests in suite
   runner = unittest.TextTestRunner(verbosity=3)

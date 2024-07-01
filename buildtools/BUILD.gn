@@ -1501,6 +1501,9 @@ if (enable_perfetto_grpc) {
   config("grpc_boringssl_config") {
     visibility = _buildtools_visibility
     include_dirs = [ "grpc/src/third_party/boringssl-with-bazel/src/include" ]
+    if (is_gcc) {
+      cflags = [ "-Wno-stringop-overflow" ]
+    }
   }
 
   config("grpc_upb_config") {
