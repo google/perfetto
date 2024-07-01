@@ -20,35 +20,29 @@
 #include <memory>
 
 #include "perfetto/base/status.h"
-#include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
-#include "perfetto/trace_processor/read_trace.h"
-#include "perfetto/trace_processor/trace_processor.h"
-#include "protos/perfetto/bigtrace/worker.grpc.pb.h"
-#include "protos/perfetto/bigtrace/worker.pb.h"
-#include "src/bigtrace/worker/worker_impl.h"
-
 #include "perfetto/ext/base/getopt.h"
+#include "src/bigtrace/worker/worker_impl.h"
 
 namespace perfetto {
 namespace bigtrace {
 namespace {
 
 struct CommandLineOptions {
-  std::string port;
+  std::string socket;
 };
 
 CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   CommandLineOptions command_line_options;
-  static option long_options[] = {{"port", required_argument, nullptr, 'p'},
+  static option long_options[] = {{"socket", required_argument, nullptr, 's'},
                                   {nullptr, 0, nullptr, 0}};
   int c;
-  while ((c = getopt_long(argc, argv, "w:", long_options, nullptr)) != -1) {
+  while ((c = getopt_long(argc, argv, "s:", long_options, nullptr)) != -1) {
     switch (c) {
-      case 'p':
-        command_line_options.port = optarg;
+      case 's':
+        command_line_options.socket = optarg;
         break;
       default:
-        PERFETTO_ELOG("Usage: %s --port=port", argv[0]);
+        PERFETTO_ELOG("Usage: %s --socket=address:port", argv[0]);
         break;
     }
   }
@@ -58,15 +52,14 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 base::Status WorkerMain(int argc, char** argv) {
   // Setup the Worker Server
   CommandLineOptions options = ParseCommandLineOptions(argc, argv);
-  std::string port = !options.port.empty() ? options.port : "5052";
-
-  std::string server_address("localhost:" + port);
+  std::string socket =
+      options.socket.empty() ? "127.0.0.1:5052" : options.socket;
   auto service = std::make_unique<WorkerImpl>();
   grpc::ServerBuilder builder;
   builder.RegisterService(service.get());
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  builder.AddListeningPort(socket, grpc::InsecureServerCredentials());
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-  PERFETTO_LOG("Worker server listening on %s", server_address.c_str());
+  PERFETTO_LOG("Worker server listening on %s", socket.c_str());
 
   server->Wait();
 
