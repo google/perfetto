@@ -175,9 +175,6 @@ devDependencies:
   jest-localstorage-mock:
     specifier: ^2.4.26
     version: 2.4.26
-  node-watch:
-    specifier: ^0.7.4
-    version: 0.7.4
   pixelmatch:
     specifier: ^5.3.0
     version: 5.3.0
@@ -4726,11 +4723,6 @@ packages:
 
   /node-releases@2.0.14:
     resolution: {integrity: sha512-y10wOWt8yZpqXmOgRo77WaHEmhYQYGNA6y421PKsKYWEK8aW+cqAphborZDhqfyKrbZEN92CN1X2KbafY2s7Yw==}
-    dev: true
-
-  /node-watch@0.7.4:
-    resolution: {integrity: sha512-RinNxoz4W1cep1b928fuFhvAQ5ag/+1UlMDV7rbyGthBIgsiEouS4kvRayvvboxii4m8eolKOIBo3OjDqbc+uQ==}
-    engines: {node: '>=6'}
     dev: true
 
   /noice-json-rpc@1.2.0:
