@@ -181,10 +181,10 @@ export class CpuSliceTrack implements Track {
       visibleTimeScale.timeToPx(data.end),
     );
 
-    this.renderSlices(ctx, data);
+    this.renderSlices(ctx, size, data);
   }
 
-  renderSlices(ctx: CanvasRenderingContext2D, data: Data): void {
+  renderSlices(ctx: CanvasRenderingContext2D, size: Size, data: Data): void {
     const {visibleTimeScale, visibleTimeSpan, visibleWindowTime} =
       globals.timeline;
     assertTrue(data.startQs.length === data.endQs.length);
@@ -371,7 +371,6 @@ export class CpuSliceTrack implements Track {
     }
 
     const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
-    const maxHeight = this.getHeight();
     if (hoveredThread !== undefined && this.mousePos !== undefined) {
       const tidText = `T: ${hoveredThread.threadName}
       [${hoveredThread.tid}]`;
@@ -379,9 +378,9 @@ export class CpuSliceTrack implements Track {
       if (hoveredThread.pid) {
         const pidText = `P: ${hoveredThread.procName}
         [${hoveredThread.pid}]`;
-        drawTrackHoverTooltip(ctx, this.mousePos, maxHeight, pidText, tidText);
+        drawTrackHoverTooltip(ctx, this.mousePos, size, pidText, tidText);
       } else {
-        drawTrackHoverTooltip(ctx, this.mousePos, maxHeight, tidText);
+        drawTrackHoverTooltip(ctx, this.mousePos, size, tidText);
       }
     }
   }

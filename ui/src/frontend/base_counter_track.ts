@@ -622,7 +622,7 @@ export abstract class BaseCounterTrack implements Track {
       }
 
       // Draw the tooltip.
-      drawTrackHoverTooltip(ctx, this.mousePos, this.getHeight(), text);
+      drawTrackHoverTooltip(ctx, this.mousePos, size, text);
     }
 
     // Write the Y scale on the top left corner.
