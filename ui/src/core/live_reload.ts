@@ -21,7 +21,7 @@ const changedPaths = new Set<string>();
 export function initLiveReload() {
   const monitor = new EventSource('/live_reload');
   monitor.onmessage = (msg) => {
-    const change = msg.data;
+    const change = String(msg.data);
     console.log('Live reload:', change);
     changedPaths.add(change);
     if (change.endsWith('.css')) {

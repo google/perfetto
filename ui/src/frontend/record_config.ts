@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {exists} from '../base/utils';
 import {getDefaultRecordingTargets, RecordingTarget} from '../common/state';
 import {
   createEmptyRecordConfig,
@@ -47,7 +48,7 @@ export class RecordConfigStore {
     // modifications of local storage from a different tab.
     this.reloadFromLocalStorage();
 
-    const savedTitle = title ? title : new Date().toJSON();
+    const savedTitle = title ?? new Date().toJSON();
     const config: NamedRecordConfig = {
       title: savedTitle,
       config: recordConfig,
@@ -109,7 +110,7 @@ export class RecordConfigStore {
       LOCAL_STORAGE_RECORD_CONFIGS_KEY,
     );
 
-    if (configsLocalStorage) {
+    if (exists(configsLocalStorage)) {
       this.recordConfigNames.clear();
 
       try {

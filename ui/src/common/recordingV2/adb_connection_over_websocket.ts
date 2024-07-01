@@ -189,8 +189,8 @@ export class AdbOverWebsocketStream implements ByteStream {
     this.messageProcessedSignals.add(messageProcessed);
     try {
       if (!this._isConnected) {
-        const txt = await evt.data.text();
-        const prefix = txt.substr(0, 4);
+        const txt = (await evt.data.text()) as string;
+        const prefix = txt.substring(0, 4);
         if (prefix === 'OKAY') {
           this._isConnected = true;
           this.websocket.send(buildAbdWebsocketCommand(destination));

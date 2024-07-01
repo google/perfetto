@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {VERSION} from '../gen/perfetto_version';
+import {exists} from './utils';
 
 export type ErrorType = 'ERROR' | 'PROMISE_REJ' | 'OTHER';
 export interface ErrorStackEntry {
@@ -140,7 +141,7 @@ export function reportError(err: ErrorEvent | PromiseRejectionEvent | {}) {
     // titles that are undistinguishable from each other. Instead try using the
     // first entry of the stack that contains a perfetto:: function name.
     const wasmFunc = stack.find((e) => e.name.includes('perfetto::'))?.name;
-    if (errMsg.includes('RuntimeError') && wasmFunc) {
+    if (errMsg.includes('RuntimeError') && exists(wasmFunc)) {
       errMsg += ` @ ${wasmFunc.trim()}`;
     }
   }

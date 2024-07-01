@@ -214,7 +214,7 @@ export async function showModal(userAttrs: ModalAttrs): Promise<void> {
 
   // If the user doesn't specify a key (to match the closeModal), generate a
   // random key to distinguish two showModal({key:undefined}) calls.
-  const key = userAttrs.key || `${++generationCounter}`;
+  const key = userAttrs.key ?? `${++generationCounter}`;
   const attrs: ModalAttrs = {
     ...userAttrs,
     key,

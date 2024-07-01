@@ -58,7 +58,7 @@ class KeyMappingsHelp implements m.ClassComponent {
       .catch((e) => {
         if (
           e instanceof NotSupportedError ||
-          e.toString().includes('SecurityError')
+          String(e).includes('SecurityError')
         ) {
           // Keyboard layout is unavailable. Since showing the keyboard
           // mappings correct for the user's keyboard layout is a nice-to-

@@ -1038,7 +1038,7 @@ class TrackDecider {
         name,
         trackSortKey: await this.resolveTrackSortKeyForProcessCounterTrack(
           upid,
-          trackName || undefined,
+          trackName ?? undefined,
         ),
         trackGroup: uuid,
       });

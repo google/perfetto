@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {exists} from './utils';
+
 // Errors in JavaScript are (sadly) extremely free form. Three common
 // cases are:
 // - the error is a string
@@ -31,12 +33,12 @@ interface ErrorLikeObject {
 // Attempt to coerce an error object into a string message.
 // Sometimes an error message is wrapped in an Error object, sometimes not.
 export function getErrorMessage(e: unknown | undefined | null) {
-  if (e && typeof e === 'object') {
+  if (exists(e) && typeof e === 'object') {
     const errorObject = e as ErrorLikeObject;
-    if (errorObject.message) {
+    if (exists(errorObject.message)) {
       // regular Error Object
       return String(errorObject.message);
-    } else if (errorObject.error?.message) {
+    } else if (exists(errorObject.error) && exists(errorObject.error.message)) {
       // API result
       return String(errorObject.error.message);
     }

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {exists} from '../../base/utils';
 import {
   createStore,
   Plugin,
@@ -31,7 +32,7 @@ class ExampleState implements Plugin {
 
   private migrate(initialState: unknown): State {
     if (
-      initialState &&
+      exists(initialState) &&
       typeof initialState === 'object' &&
       'counter' in initialState &&
       typeof initialState.counter === 'number'

@@ -92,7 +92,7 @@ export function addAndPinSliceTrack(
   uri?: string,
 ) {
   if (type == 'static') {
-    addDebugTrackOnTraceLoad(ctx, config, trackName, uri ? uri : '');
+    addDebugTrackOnTraceLoad(ctx, config, trackName, uri ?? '');
   } else if (type == 'debug') {
     addDebugTrackOnCommand(ctx, config, trackName);
   }

@@ -169,7 +169,7 @@ class FlagImpl implements Flag {
     this.state = state;
     this.description = settings.description;
     this.defaultValue = settings.defaultValue;
-    this.name = settings.name || settings.id;
+    this.name = settings.name ?? settings.id;
     this.devOnly = settings.devOnly || false;
   }
 
@@ -215,7 +215,7 @@ class LocalStorageStore implements FlagStore {
     const s = localStorage.getItem(LocalStorageStore.KEY);
     let parsed: object;
     try {
-      parsed = JSON.parse(s || '{}');
+      parsed = JSON.parse(s ?? '{}');
     } catch (e) {
       return {};
     }

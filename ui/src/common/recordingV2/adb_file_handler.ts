@@ -78,7 +78,7 @@ export class AdbFileHandler {
 
   private onStreamData(data: Uint8Array, transferFinished: Deferred<void>) {
     this.sentByteCount = 0;
-    const response = textDecoder.decode(data);
+    const response = textDecoder.decode(data) as string;
     if (response.split('\n')[0].includes('FAIL')) {
       // Sample failure response (when the file is transferred successfully
       // but the date is not formatted correctly):

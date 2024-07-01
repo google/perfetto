@@ -99,8 +99,7 @@ export async function getThreadStateFromConstraints(
 
   for (; it.valid(); it.next()) {
     const ioWait = it.ioWait === null ? undefined : it.ioWait > 0;
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    const wakerUtid = asUtid(it.wakerUtid || undefined);
+    const wakerUtid = asUtid(it.wakerUtid ?? undefined);
 
     // TODO(altimin): Consider fetcing thread / process info using a single
     // query instead of one per row.
@@ -110,8 +109,8 @@ export async function getThreadStateFromConstraints(
       ts: Time.fromRaw(it.ts),
       dur: it.dur,
       cpu: fromNumNull(it.cpu),
-      state: translateState(it.state || undefined, ioWait),
-      blockedFunction: it.blockedFunction || undefined,
+      state: translateState(it.state ?? undefined, ioWait),
+      blockedFunction: it.blockedFunction ?? undefined,
       thread: await getThreadInfo(engine, asUtid(it.utid)),
       wakerThread: wakerUtid
         ? await getThreadInfo(engine, wakerUtid)

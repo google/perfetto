@@ -132,7 +132,7 @@ async function maybeOpenCachedTrace(traceUuid: string) {
 
   const navigateToOldTraceUuid = () => {
     Router.navigate(
-      `#!/viewer?local_cache_key=${globals.state.traceUuid || ''}`,
+      `#!/viewer?local_cache_key=${globals.state.traceUuid ?? ''}`,
     );
   };
 
@@ -226,7 +226,7 @@ function loadTraceFromUrl(url: string) {
     // traces from a local webserver and killing it immediately after having
     // seen the HTTP GET request. In those cases store the trace as a file, so
     // when users click on share we don't fail the re-fetch().
-    const fileName = url.split('/').pop() || 'local_trace.pftrace';
+    const fileName = url.split('/').pop() ?? 'local_trace.pftrace';
     const request = fetch(url)
       .then((response) => response.blob())
       .then((blob) => {

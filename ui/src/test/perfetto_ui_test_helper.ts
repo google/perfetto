@@ -44,9 +44,9 @@ export async function waitForPerfettoIdle(page: Page, minIdleMs?: number) {
     await new Promise((r) => setTimeout(r, tickMs));
     const isShowingMsg = !!(await page.$('.omnibox.message-mode'));
     const isShowingAnim = !!(await page.$('.progress.progress-anim'));
-    const hasPendingRedraws = await (
-      await page.evaluateHandle('raf.hasPendingRedraws')
-    ).jsonValue();
+    const hasPendingRedraws = Boolean(
+      await (await page.evaluateHandle('raf.hasPendingRedraws')).jsonValue(),
+    );
 
     if (isShowingAnim || isShowingMsg || hasPendingRedraws) {
       consecutiveIdleTicks = 0;

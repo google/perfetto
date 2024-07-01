@@ -89,7 +89,7 @@ class AndroidNetwork implements Plugin {
         const groupCols = groupby.replaceAll(' ', '').split(',');
         await this.addSimpleTrack(
           ctx,
-          trackName || 'Network Activity',
+          trackName ?? 'Network Activity',
           `android_network_activity_${suffix}`,
           ['ts', 'dur', ...groupCols, 'packet_length', 'packet_count'],
         );

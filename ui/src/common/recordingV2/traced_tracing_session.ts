@@ -342,7 +342,7 @@ export class TracedTracingSession implements TracingSession {
       // We process messages without a `replyProto` field (for instance
       // `FreeBuffers` does not have `replyProto`). However, we ignore messages
       // without a valid 'success' field.
-      if (!msgInvokeMethodReply || !msgInvokeMethodReply.success) {
+      if (msgInvokeMethodReply?.success !== true) {
         return;
       }
 
@@ -359,25 +359,23 @@ export class TracedTracingSession implements TracingSession {
       const data = {...decoder(msgInvokeMethodReply.replyProto)};
 
       if (method === 'ReadBuffers') {
-        if (data.slices) {
-          for (const slice of data.slices) {
-            this.partialPacket.push(slice);
-            if (slice.lastSliceForPacket) {
-              let bufferSize = 0;
-              for (const slice of this.partialPacket) {
-                bufferSize += slice.data!.length;
-              }
-              const tracePacket = new Uint8Array(bufferSize);
-              let written = 0;
-              for (const slice of this.partialPacket) {
-                const data = slice.data!;
-                tracePacket.set(data, written);
-                written += data.length;
-              }
-              this.traceProtoWriter.uint32(TRACE_PACKET_PROTO_TAG);
-              this.traceProtoWriter.bytes(tracePacket);
-              this.partialPacket = [];
+        for (const slice of data.slices ?? []) {
+          this.partialPacket.push(slice);
+          if (slice.lastSliceForPacket === true) {
+            let bufferSize = 0;
+            for (const slice of this.partialPacket) {
+              bufferSize += slice.data!.length;
             }
+            const tracePacket = new Uint8Array(bufferSize);
+            let written = 0;
+            for (const slice of this.partialPacket) {
+              const data = slice.data!;
+              tracePacket.set(data, written);
+              written += data.length;
+            }
+            this.traceProtoWriter.uint32(TRACE_PACKET_PROTO_TAG);
+            this.traceProtoWriter.bytes(tracePacket);
+            this.partialPacket = [];
           }
         }
         if (msgInvokeMethodReply.hasMore === false) {
@@ -394,7 +392,7 @@ export class TracedTracingSession implements TracingSession {
       } else if (method === 'GetTraceStats') {
         const maybePendingStatsMessage = this.pendingStatsMessages.shift();
         if (maybePendingStatsMessage) {
-          maybePendingStatsMessage.resolve(data?.traceStats?.bufferStats || []);
+          maybePendingStatsMessage.resolve(data?.traceStats?.bufferStats ?? []);
         }
       } else if (method === 'FreeBuffers') {
         // No action required. If we successfully read a whole trace,
