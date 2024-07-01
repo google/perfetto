@@ -15,6 +15,7 @@
 source_set("protos") {
   testonly = true
   sources = [
+    "extensions.pzc.h",
     "library.pzc.h",
     "library_internals/galaxies.pzc.h",
     "test_messages.pzc.h",
