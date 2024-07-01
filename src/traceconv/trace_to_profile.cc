@@ -168,5 +168,20 @@ int TraceToPerfProfile(std::istream* input,
       ToConversionFlags(annotate_frames), "perf_profile-", filename_fn);
 }
 
+int TraceToJavaHeapProfile(std::istream* input,
+                           std::ostream* output,
+                           const uint64_t pid,
+                           const std::vector<uint64_t>& timestamps,
+                           const bool annotate_frames) {
+  int file_idx = 0;
+  auto filename_fn = [&file_idx](const SerializedProfile& profile) {
+    return "java_heap_dump." + std::to_string(++file_idx) + "." +
+           std::to_string(profile.pid) + ".pb";
+  };
+
+  return TraceToProfile(
+      input, output, pid, timestamps, ConversionMode::kJavaHeapProfile,
+      ToConversionFlags(annotate_frames), "heap_profile-", filename_fn);
+}
 }  // namespace trace_to_text
 }  // namespace perfetto

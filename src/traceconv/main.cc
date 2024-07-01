@@ -51,7 +51,7 @@ int Usage(const char* argv0) {
       "Usage: %s MODE [OPTIONS] [input file] [output file]\n"
       "modes:\n"
       "  systrace|json|ctrace|text|profile|hprof|symbolize|deobfuscate|firefox"
-      "|decompress_packets\n"
+      "|java_heap_profile|decompress_packets\n"
       "options:\n"
       "  [--truncate start|end]\n"
       "  [--full-sort]\n"
@@ -212,6 +212,11 @@ int Main(int argc, char** argv) {
                                     timestamps, !profile_no_annotations)
                : TraceToHeapProfile(input_stream, output_stream, pid,
                                     timestamps, !profile_no_annotations);
+  }
+
+  if (format == "java_heap_profile") {
+    return TraceToJavaHeapProfile(input_stream, output_stream, pid, timestamps,
+                                  !profile_no_annotations);
   }
 
   if (format == "hprof")
