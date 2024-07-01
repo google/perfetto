@@ -18,10 +18,10 @@ import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
-import {Area} from '../common/state';
+import {Area, State} from '../common/state';
 import {raf} from '../core/raf_scheduler';
+import {Store} from '../public';
 
-import {globals} from './globals';
 import {ratelimit} from './rate_limiters';
 import {PxSpan, TimeScale} from './time_scale';
 
@@ -39,13 +39,21 @@ interface Range {
 export class TimeWindow {
   readonly hpTimeSpan = HighPrecisionTimeSpan.ZERO;
   readonly timeSpan = TimeSpan.ZERO;
-
+  private readonly limits;
   private readonly MIN_DURATION_NS = 10;
 
-  constructor(start = HighPrecisionTime.ZERO, durationNanos = 1e9) {
+  constructor(
+    limits: Span<time, duration>,
+    start = HighPrecisionTime.ZERO,
+    durationNanos = 1e9,
+  ) {
+    this.limits = limits;
     durationNanos = Math.max(this.MIN_DURATION_NS, durationNanos);
 
-    const traceTimeSpan = globals.stateTraceTime();
+    const traceTimeSpan = HighPrecisionTimeSpan.fromTime(
+      limits.start,
+      limits.end,
+    );
     const traceDurationNanos = traceTimeSpan.duration.nanos;
 
     if (durationNanos > traceDurationNanos) {
@@ -72,13 +80,17 @@ export class TimeWindow {
     );
   }
 
-  static fromHighPrecisionTimeSpan(span: Span<HighPrecisionTime>): TimeWindow {
-    return new TimeWindow(span.start, span.duration.nanos);
+  static fromHighPrecisionTimeSpan(
+    limits: Span<time, duration>,
+    span: Span<HighPrecisionTime>,
+  ): TimeWindow {
+    return new TimeWindow(limits, span.start, span.duration.nanos);
   }
 
   // Pan the window by certain number of seconds
   pan(offset: HighPrecisionTime) {
     return new TimeWindow(
+      this.limits,
       this.hpTimeSpan.start.add(offset),
       this.hpTimeSpan.duration.nanos,
     );
@@ -88,7 +100,10 @@ export class TimeWindow {
   // Offset represents the center of the zoom as a normalized value between 0
   // and 1 where 0 is the start of the time window and 1 is the end
   zoom(ratio: number, offset: number) {
-    const traceDuration = globals.stateTraceTime().duration;
+    const traceDuration = HighPrecisionTimeSpan.fromTime(
+      this.limits.start,
+      this.limits.end,
+    ).duration;
     const minDuration = Math.min(this.MIN_DURATION_NS, traceDuration.nanos);
     const currentDurationNanos = this.hpTimeSpan.duration.nanos;
     const newDurationNanos = Math.max(
@@ -104,7 +119,7 @@ export class TimeWindow {
     // If new duration is longer - move start to left
     const start = this.hpTimeSpan.start.addNanos(durationDeltaNanos * offset);
     const durationNanos = newDurationNanos;
-    return new TimeWindow(start, durationNanos);
+    return new TimeWindow(this.limits, start, durationNanos);
   }
 
   createTimeScale(startPx: number, endPx: number): TimeScale {
@@ -129,14 +144,22 @@ export class TimeWindow {
  * controller. This state is updated at 60fps.
  */
 export class Timeline {
-  private visibleWindow = new TimeWindow();
-  private _timeScale = this.visibleWindow.createTimeScale(0, 0);
+  private visibleWindow;
+  private _timeScale;
   private _windowSpan = PxSpan.ZERO;
+  private readonly traceSpan;
+  private readonly store;
 
   // This is used to calculate the tracks within a Y range for area selection.
   areaY: Range = {};
-
   private _selectedArea?: Area;
+
+  constructor(store: Store<State>, traceSpan: Span<time, duration>) {
+    this.store = store;
+    this.traceSpan = traceSpan;
+    this.visibleWindow = new TimeWindow(traceSpan);
+    this._timeScale = this.visibleWindow.createTimeScale(0, 0);
+  }
 
   // This is a giant hack. Basically, removing visible window from the state
   // means that we no longer update the state periodically while navigating
@@ -145,7 +168,7 @@ export class Timeline {
   //
   // TODO(stevegolton): When we remove controllers, we can remove this!
   private readonly rateLimitedPoker = ratelimit(
-    () => globals.store.edit(() => {}),
+    () => this.store.edit(() => {}),
     50,
   );
 
@@ -195,10 +218,14 @@ export class Timeline {
   }
 
   updateVisibleTime(ts: Span<HighPrecisionTime>) {
-    const traceBounds = globals.stateTraceTime();
+    const traceBounds = HighPrecisionTimeSpan.fromTime(
+      this.traceSpan.start,
+      this.traceSpan.end,
+    );
     const start = ts.start.clamp(traceBounds.start, traceBounds.end);
     const end = ts.end.clamp(traceBounds.start, traceBounds.end);
     this.visibleWindow = TimeWindow.fromHighPrecisionTimeSpan(
+      this.traceSpan,
       new HighPrecisionTimeSpan(start, end),
     );
     this._timeScale = this.visibleWindow.createTimeScale(
