@@ -634,6 +634,57 @@ void ResetIncrementalStateIfRequired(
   }
 }
 
+// Appends the fields described by `fields` to `msg`.
+void AppendHlProtoFields(protozero::Message* msg,
+                         PerfettoTeHlProtoField* const* fields) {
+  for (PerfettoTeHlProtoField* const* p = fields; *p != nullptr; p++) {
+    switch ((*p)->type) {
+      case PERFETTO_TE_HL_PROTO_TYPE_CSTR: {
+        auto field = reinterpret_cast<PerfettoTeHlProtoFieldCstr*>(*p);
+        msg->AppendString(field->header.id, field->str);
+        break;
+      }
+      case PERFETTO_TE_HL_PROTO_TYPE_BYTES: {
+        auto field = reinterpret_cast<PerfettoTeHlProtoFieldBytes*>(*p);
+        msg->AppendBytes(field->header.id, field->buf, field->len);
+        break;
+      }
+      case PERFETTO_TE_HL_PROTO_TYPE_NESTED: {
+        auto field = reinterpret_cast<PerfettoTeHlProtoFieldNested*>(*p);
+        auto* nested =
+            msg->BeginNestedMessage<protozero::Message>(field->header.id);
+        AppendHlProtoFields(nested, field->fields);
+        break;
+      }
+      case PERFETTO_TE_HL_PROTO_TYPE_VARINT: {
+        auto field = reinterpret_cast<PerfettoTeHlProtoFieldVarInt*>(*p);
+        msg->AppendVarInt(field->header.id, field->value);
+        break;
+      }
+      case PERFETTO_TE_HL_PROTO_TYPE_FIXED64: {
+        auto field = reinterpret_cast<PerfettoTeHlProtoFieldFixed64*>(*p);
+        msg->AppendFixed(field->header.id, field->value);
+        break;
+      }
+      case PERFETTO_TE_HL_PROTO_TYPE_FIXED32: {
+        auto field = reinterpret_cast<PerfettoTeHlProtoFieldFixed32*>(*p);
+        msg->AppendFixed(field->header.id, field->value);
+        break;
+      }
+      case PERFETTO_TE_HL_PROTO_TYPE_DOUBLE: {
+        auto field = reinterpret_cast<PerfettoTeHlProtoFieldDouble*>(*p);
+        msg->AppendFixed(field->header.id, field->value);
+        break;
+      }
+      case PERFETTO_TE_HL_PROTO_TYPE_FLOAT: {
+        auto field = reinterpret_cast<PerfettoTeHlProtoFieldFloat*>(*p);
+        msg->AppendFixed(field->header.id, field->value);
+        break;
+      }
+    }
+  }
+}
+
 void WriteTrackEvent(perfetto::shlib::TrackEventIncrementalState* incr,
                      perfetto::protos::pbzero::TrackEvent* event,
                      PerfettoTeCategoryImpl* cat,
@@ -776,6 +827,15 @@ void WriteTrackEvent(perfetto::shlib::TrackEventIncrementalState* incr,
     if (it->type == PERFETTO_TE_HL_EXTRA_TYPE_TERMINATING_FLOW) {
       event->add_terminating_flow_ids(
           reinterpret_cast<const struct PerfettoTeHlExtraFlow*>(it)->id);
+    }
+  }
+
+  for (const auto* it = extra_data; it; it = it->next) {
+    if (it->type == PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS) {
+      const auto* fields =
+          reinterpret_cast<const struct PerfettoTeHlExtraProtoFields*>(it)
+              ->fields;
+      AppendHlProtoFields(event, fields);
     }
   }
 }
