@@ -77,7 +77,7 @@ function saveUserTrustedOrigin(hostname: string) {
   const s = window.localStorage.getItem(TRUSTED_ORIGINS_KEY);
   let origins: string[];
   try {
-    origins = JSON.parse(s || '[]');
+    origins = JSON.parse(s ?? '[]');
     if (origins.includes(hostname)) return;
     origins.push(hostname);
     window.localStorage.setItem(TRUSTED_ORIGINS_KEY, JSON.stringify(origins));

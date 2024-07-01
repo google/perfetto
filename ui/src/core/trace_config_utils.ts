@@ -60,11 +60,7 @@ export function browserSupportsPerfettoConfig(): boolean {
 
 export function hasSystemDataSourceConfig(config: TraceConfig): boolean {
   for (const ds of config.dataSources) {
-    if (
-      ds.config &&
-      ds.config.name &&
-      !ds.config.name.startsWith('org.chromium.')
-    ) {
+    if (!(ds.config?.name ?? '').startsWith('org.chromium.')) {
       return true;
     }
   }

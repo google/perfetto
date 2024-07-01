@@ -167,7 +167,7 @@ export class LogPanel implements m.ClassComponent<LogPanelAttrs> {
     for (let i = 0; i < this.entries.timestamps.length; i++) {
       const priorityLetter = LOG_PRIORITIES[priorities[i]][0];
       const ts = timestamps[i];
-      const prioClass = priorityLetter || '';
+      const prioClass = priorityLetter ?? '';
 
       rows.push({
         id: i,

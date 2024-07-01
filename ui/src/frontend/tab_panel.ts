@@ -79,9 +79,10 @@ export class TabPanel implements m.ClassComponent {
       .filter((tab) => tab.isEphemeral === false)
       .map(({content, uri}): TabDropdownEntry => {
         // Check if the tab is already open
-        const isOpen = globals.state.tabs.openTabs.find((openTabUri) => {
-          return openTabUri === uri;
-        });
+        const isOpen =
+          globals.state.tabs.openTabs.find((openTabUri) => {
+            return openTabUri === uri;
+          }) !== undefined;
         const clickAction = isOpen
           ? Actions.hideTab({uri})
           : Actions.showTab({uri});

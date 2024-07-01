@@ -43,7 +43,7 @@ export function isDownloadable() {
 
 export function shareTrace() {
   const engine = assertExists(globals.getCurrentEngine());
-  const traceUrl = (engine.source as TraceArrayBufferSource).url || '';
+  const traceUrl = (engine.source as TraceArrayBufferSource).url ?? '';
 
   // If the trace is not shareable (has been pushed via postMessage()) but has
   // a url, create a pseudo-permalink by echoing back the URL.

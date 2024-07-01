@@ -247,9 +247,9 @@ export abstract class EngineBase implements Engine {
           pendingComputeMetric.reject(error);
         } else {
           const result =
-            metricRes.metricsAsPrototext ||
-            metricRes.metricsAsJson ||
-            metricRes.metrics ||
+            metricRes.metricsAsPrototext ??
+            metricRes.metricsAsJson ??
+            metricRes.metrics ??
             '';
           pendingComputeMetric.resolve(result);
         }

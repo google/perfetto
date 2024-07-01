@@ -101,8 +101,8 @@ export async function cacheTrace(
     case 'ARRAY_BUFFER':
       trace = traceSource.buffer;
       title = traceSource.title;
-      fileName = traceSource.fileName || '';
-      url = traceSource.url || '';
+      fileName = traceSource.fileName ?? '';
+      url = traceSource.url ?? '';
       contentLength = traceSource.buffer.byteLength;
       localOnly = traceSource.localOnly || false;
       break;
@@ -146,9 +146,9 @@ export async function tryGetTrace(
   return {
     type: 'ARRAY_BUFFER',
     buffer: await response.arrayBuffer(),
-    title: decodeURI(response.headers.get('x-trace-title') || ''),
-    fileName: response.headers.get('x-trace-filename') || undefined,
-    url: response.headers.get('x-trace-url') || undefined,
+    title: decodeURI(response.headers.get('x-trace-title') ?? ''),
+    fileName: response.headers.get('x-trace-filename') ?? undefined,
+    url: response.headers.get('x-trace-url') ?? undefined,
     uuid: traceUuid,
     localOnly: response.headers.get('x-trace-local-only') === 'true',
   };

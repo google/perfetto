@@ -1223,7 +1223,7 @@ async function getTraceTimeDetails(
       break;
     case 'ARRAY_BUFFER':
       traceTitle = engineCfg.source.title;
-      traceUrl = engineCfg.source.url || '';
+      traceUrl = engineCfg.source.url ?? '';
       const arrayBufferSizeMB = Math.ceil(
         engineCfg.source.buffer.byteLength / 1e6,
       );

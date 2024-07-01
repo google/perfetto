@@ -139,8 +139,8 @@ export class FlowEventsPanel implements m.ClassComponent {
       ];
 
       if (haveCategories) {
-        data.push(m('td.flow-info', flow.category || '-'));
-        data.push(m('td.flow-info', flow.name || '-'));
+        data.push(m('td.flow-info', flow.category ?? '-'));
+        data.push(m('td.flow-info', flow.name ?? '-'));
       }
 
       rows.push(m('tr', data));

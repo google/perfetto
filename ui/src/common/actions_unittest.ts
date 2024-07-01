@@ -46,14 +46,14 @@ function fakeTrack(
 ): State {
   return produce(state, (draft) => {
     StateActions.addTrack(draft, {
-      uri: args.uri || 'sometrack',
+      uri: args.uri ?? 'sometrack',
       key: args.key,
-      name: args.name || 'A track',
+      name: args.name ?? 'A track',
       trackSortKey:
         args.trackSortKey === undefined
           ? PrimaryTrackSortKey.ORDINARY_TRACK
           : args.trackSortKey,
-      trackGroup: args.trackGroup || SCROLLING_TRACK_GROUP,
+      trackGroup: args.trackGroup ?? SCROLLING_TRACK_GROUP,
     });
   });
 }
