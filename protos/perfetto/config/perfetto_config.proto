@@ -3163,6 +3163,10 @@ message SysStatsConfig {
   // Polls /sys/class/thermal/* every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 thermal_period_ms = 12;
+
+  // Polls /sys/devices/system/cpu/cpu*/cpuidle/state* every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 cpuidle_period_ms = 13;
 }
 
 // End of protos/perfetto/config/sys_stats/sys_stats_config.proto

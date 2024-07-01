@@ -210,6 +210,8 @@ full avg10=9.00 avg60=19.20 avg300=3.23 total=205933)";
 
 const uint64_t kMockThermalTemp = 25000;
 const char kMockThermalType[] = "TSR0";
+const uint64_t kMockCpuIdleStateTime = 10000;
+const char kMockCpuIdleStateName[] = "MOCK_STATE_NAME";
 
 class TestSysStatsDataSource : public SysStatsDataSource {
  public:
@@ -235,15 +237,16 @@ class TestSysStatsDataSource : public SysStatsDataSource {
               (const std::string& deviceName),
               (override));
   MOCK_METHOD(std::optional<uint64_t>,
-              ReadThermalZoneTemp,
+              ReadFileToUInt64,
               (const std::string& name),
               (override));
   MOCK_METHOD(std::optional<std::string>,
-              ReadThermalZoneType,
+              ReadFileToString,
               (const std::string& name),
               (override));
   bool* GetDevfreqErrorLoggedAddress() { return &devfreq_error_logged_; }
   bool* GetThermalErrorLoggedAddress() { return &thermal_error_logged_; }
+  bool* GetCpuIdleErrorLoggedAddress() { return &cpuidle_error_logged_; }
 };
 
 base::ScopedFile MockOpenReadOnly(const char* path) {
@@ -488,9 +491,11 @@ TEST_F(SysStatsDataSourceTest, ThermalZones) {
         return base::ScopedDir(opendir(fake_thermal_symdir.path().c_str()));
       }));
 
-  EXPECT_CALL(*data_source, ReadThermalZoneTemp("thermal_zone0"))
+  EXPECT_CALL(*data_source,
+              ReadFileToUInt64("/sys/class/thermal/thermal_zone0/temp"))
       .WillRepeatedly(Return(std::optional<uint64_t>(kMockThermalTemp)));
-  EXPECT_CALL(*data_source, ReadThermalZoneType("thermal_zone0"))
+  EXPECT_CALL(*data_source,
+              ReadFileToString("/sys/class/thermal/thermal_zone0/type"))
       .WillRepeatedly(Return(std::optional<std::string>(kMockThermalType)));
 
   WaitTick(data_source.get());
@@ -508,6 +513,72 @@ TEST_F(SysStatsDataSourceTest, ThermalZones) {
     base::Rmdir(path);
   for (const std::string& path : symlinks_to_delete)
     remove(path.c_str());
+}
+
+TEST_F(SysStatsDataSourceTest, CpuIdleStates) {
+  DataSourceConfig config;
+  protos::gen::SysStatsConfig sys_cfg;
+  sys_cfg.set_cpuidle_period_ms(10);
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
+
+  // Create dirs.
+  std::vector<std::string> dirs_to_delete;
+  auto make_cpuidle_paths = [&dirs_to_delete](base::TempDir& temp_dir,
+                                              std::string name) {
+    std::string path = temp_dir.path() + "/" + name;
+    dirs_to_delete.push_back(path);
+    mkdir(path.c_str(), 0755);
+  };
+  auto fake_cpuidle = base::TempDir::Create();
+
+  std::string cpu_name[3] = {"/cpu0", "/cpu0/cpuidle", "/cpu0/cpuidle/state0"};
+  for (const std::string& path : cpu_name) {
+    make_cpuidle_paths(fake_cpuidle, path);
+  }
+
+  EXPECT_CALL(*data_source, OpenDirAndLogOnErrorOnce(
+                                "/sys/devices/system/cpu/",
+                                data_source->GetCpuIdleErrorLoggedAddress()))
+      .WillOnce(Invoke([&fake_cpuidle] {
+        return base::ScopedDir(opendir(fake_cpuidle.path().c_str()));
+      }));
+
+  EXPECT_CALL(*data_source, OpenDirAndLogOnErrorOnce(
+                                "/sys/devices/system/cpu/cpu0/cpuidle/",
+                                data_source->GetCpuIdleErrorLoggedAddress()))
+      .WillRepeatedly(Invoke([&fake_cpuidle] {
+        std::string path = fake_cpuidle.path() + "/cpu0/cpuidle";
+        return base::ScopedDir(opendir(path.c_str()));
+      }));
+
+  EXPECT_CALL(
+      *data_source,
+      ReadFileToUInt64("/sys/devices/system/cpu/cpu0/cpuidle/state0/time"))
+      .WillRepeatedly(Return(std::optional<uint64_t>(kMockCpuIdleStateTime)));
+  EXPECT_CALL(
+      *data_source,
+      ReadFileToString("/sys/devices/system/cpu/cpu0/cpuidle/state0/name"))
+      .WillRepeatedly(
+          Return(std::optional<std::string>(kMockCpuIdleStateName)));
+
+  WaitTick(data_source.get());
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
+  EXPECT_EQ(sys_stats.cpuidle_state_size(), 1);
+  uint32_t cpu_id = 0;
+  EXPECT_EQ(sys_stats.cpuidle_state()[0].cpu_id(), cpu_id);
+  EXPECT_EQ(sys_stats.cpuidle_state()[0].cpuidle_state_entry_size(), 1);
+  EXPECT_EQ(sys_stats.cpuidle_state()[0].cpuidle_state_entry()[0].state(),
+            kMockCpuIdleStateName);
+  EXPECT_EQ(sys_stats.cpuidle_state()[0].cpuidle_state_entry()[0].duration_us(),
+            kMockCpuIdleStateTime);
+
+  for (auto i = dirs_to_delete.size(); i > 0; i--) {
+    base::Rmdir(dirs_to_delete[i - 1]);
+  }
 }
 
 TEST_F(SysStatsDataSourceTest, DevfreqAll) {
