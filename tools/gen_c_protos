@@ -48,6 +48,7 @@ SOURCE_FILES = [
   },
   {
     'files': [
+      'src/protozero/test/example_proto/extensions.proto',
       'src/protozero/test/example_proto/library.proto',
       'src/protozero/test/example_proto/library_internals/galaxies.proto',
       'src/protozero/test/example_proto/other_package/test_messages.proto',
