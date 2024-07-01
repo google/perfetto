@@ -37,10 +37,11 @@ async function getPage(): Promise<Page> {
   return pages[pages.length - 1];
 }
 
+jest.setTimeout(60000);
+
 // Executed once at the beginning of the test. Navigates to the UI.
 beforeAll(async () => {
   await failIfTraceProcessorHttpdIsActive();
-  jest.setTimeout(60000);
   const page = await getPage();
   await page.setViewport({width: 1920, height: 1080});
 
