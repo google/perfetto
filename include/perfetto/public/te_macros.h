@@ -19,7 +19,12 @@
 
 #include <assert.h>
 
+#ifdef __cplusplus
+#include <initializer_list>
+#endif
+
 #include "perfetto/public/abi/track_event_hl_abi.h"
+#include "perfetto/public/pb_utils.h"
 #include "perfetto/public/track_event.h"
 
 // This header defines the PERFETTO_TE macros and its possible params (at the
@@ -80,12 +85,15 @@
 #ifndef __cplusplus
 #define PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(STRUCT, ...) \
   &(struct STRUCT)__VA_ARGS__
+#define PERFETTO_I_TE_COMPOUND_LITERAL_ARRAY(TYPE, ...) (TYPE[]) __VA_ARGS__
 #define PERFETTO_I_TE_EXTRA(STRUCT, ...)                           \
   ((struct PerfettoTeHlExtra*)PERFETTO_I_TE_COMPOUND_LITERAL_ADDR( \
       STRUCT, __VA_ARGS__))
 #else
 #define PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(STRUCT, ...) \
   &(STRUCT{} = STRUCT __VA_ARGS__)
+#define PERFETTO_I_TE_COMPOUND_LITERAL_ARRAY(TYPE, ...) \
+  static_cast<TYPE const*>((std::initializer_list<TYPE> __VA_ARGS__).begin())
 #define PERFETTO_I_TE_EXTRA(STRUCT, ...)       \
   reinterpret_cast<struct PerfettoTeHlExtra*>( \
       PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(STRUCT, __VA_ARGS__))
@@ -136,6 +144,87 @@ static inline void PerfettoTeHlCall(struct PerfettoTeCategoryImpl* cat,
 // specify that the category will be provided dynamically as a param.
 #define PERFETTO_TE_DYNAMIC_CATEGORY PerfettoTeRegisteredDynamicCategory()
 
+// ---------------------------------------------------------------
+// Possible types of fields for the PERFETTO_TE_PROTO_FIELDS macro
+// ---------------------------------------------------------------
+
+// A string or bytes protobuf field (with field id `ID`) and value `VAL` (a null
+// terminated string).
+#define PERFETTO_TE_PROTO_FIELD_CSTR(ID, VAL)                    \
+  PERFETTO_REINTERPRET_CAST(struct PerfettoTeHlProtoField*,      \
+                            PERFETTO_I_TE_COMPOUND_LITERAL_ADDR( \
+                                PerfettoTeHlProtoFieldCstr,      \
+                                {{PERFETTO_TE_HL_PROTO_TYPE_CSTR, ID}, VAL}))
+
+// A string or bytes protobuf field (with field id `ID`) with a `SIZE` long
+// value starting from `VAL`.
+#define PERFETTO_TE_PROTO_FIELD_BYTES(ID, VAL, SIZE) \
+  PERFETTO_REINTERPRET_CAST(                         \
+      struct PerfettoTeHlProtoField*,                \
+      PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(           \
+          PerfettoTeHlProtoFieldBytes,               \
+          {{PERFETTO_TE_HL_PROTO_TYPE_BYTES, ID}, VAL, SIZE}))
+
+// An varint protobuf field (with field id `ID`) and value `VAL`.
+#define PERFETTO_TE_PROTO_FIELD_VARINT(ID, VAL)                          \
+  PERFETTO_REINTERPRET_CAST(struct PerfettoTeHlProtoField*,              \
+                            PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(         \
+                                PerfettoTeHlProtoFieldVarInt,            \
+                                {{PERFETTO_TE_HL_PROTO_TYPE_VARINT, ID}, \
+                                 PERFETTO_STATIC_CAST(uint64_t, VAL)}))
+
+// An zigzag (sint*) protobuf field (with field id `ID`) and value `VAL`.
+#define PERFETTO_TE_PROTO_FIELD_ZIGZAG(ID, VAL)    \
+  PERFETTO_REINTERPRET_CAST(                       \
+      struct PerfettoTeHlProtoField*,              \
+      PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(         \
+          PerfettoTeHlProtoFieldVarInt,            \
+          {{PERFETTO_TE_HL_PROTO_TYPE_VARINT, ID}, \
+           PerfettoPbZigZagEncode64(PERFETTO_STATIC_CAST(int64_t, VAL))}))
+
+// A fixed64 protobuf field (with field id `ID`) and value `VAL`.
+#define PERFETTO_TE_PROTO_FIELD_FIXED64(ID, VAL)                          \
+  PERFETTO_REINTERPRET_CAST(struct PerfettoTeHlProtoField*,               \
+                            PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(          \
+                                PerfettoTeHlProtoFieldFixed64,            \
+                                {{PERFETTO_TE_HL_PROTO_TYPE_FIXED64, ID}, \
+                                 PERFETTO_STATIC_CAST(uint64_t, VAL)}))
+
+// A fixed32 protobuf field (with field id `ID`) and value `VAL`.
+#define PERFETTO_TE_PROTO_FIELD_FIXED32(ID, VAL)                          \
+  PERFETTO_REINTERPRET_CAST(struct PerfettoTeHlProtoField*,               \
+                            PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(          \
+                                PerfettoTeHlProtoFieldFixed32,            \
+                                {{PERFETTO_TE_HL_PROTO_TYPE_FIXED32, ID}, \
+                                 PERFETTO_STATIC_CAST(uint32_t, VAL)}))
+
+// A double protobuf field (with field id `ID`) and value `VAL`.
+#define PERFETTO_TE_PROTO_FIELD_DOUBLE(ID, VAL)                          \
+  PERFETTO_REINTERPRET_CAST(struct PerfettoTeHlProtoField*,              \
+                            PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(         \
+                                PerfettoTeHlProtoFieldDouble,            \
+                                {{PERFETTO_TE_HL_PROTO_TYPE_DOUBLE, ID}, \
+                                 PERFETTO_STATIC_CAST(double, VAL)}))
+
+// A float protobuf field (with field id `ID`) and value `VAL`.
+#define PERFETTO_TE_PROTO_FIELD_FLOAT(ID, VAL)                                 \
+  PERFETTO_REINTERPRET_CAST(                                                   \
+      struct PerfettoTeHlProtoField*,                                          \
+      PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(                                     \
+          PerfettoTeHlProtoFieldFloat, {{PERFETTO_TE_HL_PROTO_TYPE_FLOAT, ID}, \
+                                        PERFETTO_STATIC_CAST(float, VAL)}))
+
+// A nested message protobuf field (with field id `ID`). The rest of the
+// argument can be PERFETTO_TE_PROTO_FIELD_*.
+#define PERFETTO_TE_PROTO_FIELD_NESTED(ID, ...)                          \
+  PERFETTO_REINTERPRET_CAST(struct PerfettoTeHlProtoField*,              \
+                            PERFETTO_I_TE_COMPOUND_LITERAL_ADDR(         \
+                                PerfettoTeHlProtoFieldNested,            \
+                                {{PERFETTO_TE_HL_PROTO_TYPE_NESTED, ID}, \
+                                 PERFETTO_I_TE_COMPOUND_LITERAL_ARRAY(   \
+                                     struct PerfettoTeHlProtoField*,     \
+                                     {__VA_ARGS__, PERFETTO_NULL})}))
+
 // -------------------------------------------------
 // Possible types of event for the PERFETTO_TE macro
 // -------------------------------------------------
@@ -158,9 +247,9 @@ static inline void PerfettoTeHlCall(struct PerfettoTeCategoryImpl* cat,
 #define PERFETTO_TE_COUNTER() \
   { PERFETTO_NULL, PERFETTO_TE_TYPE_COUNTER }
 
-// -------------------------------------------------
-// Possible types of event for the PERFETTO_TE macro
-// -------------------------------------------------
+// -----------------------------------------------------------
+// Possible types of extra arguments for the PERFETTO_TE macro
+// -----------------------------------------------------------
 
 // The value (`C`) of an integer counter. A separate parameter must describe the
 // counter track this refers to. This should only be used for events with
@@ -294,6 +383,16 @@ static inline void PerfettoTeHlCall(struct PerfettoTeCategoryImpl* cat,
 #define PERFETTO_TE_NO_INTERN()          \
   PERFETTO_I_TE_EXTRA(PerfettoTeHlExtra, \
                       {PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN, PERFETTO_NULL})
+
+// Adds some proto fields to the event. The arguments should use the
+// PERFETTO_TE_PROTO_FIELD_* macros and should be fields of the
+// perfetto.protos.TrackEvent protobuf message.
+#define PERFETTO_TE_PROTO_FIELDS(...)                                       \
+  PERFETTO_I_TE_EXTRA(                                                      \
+      PerfettoTeHlExtraProtoFields,                                         \
+      {{PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS, PERFETTO_NULL},             \
+       PERFETTO_I_TE_COMPOUND_LITERAL_ARRAY(struct PerfettoTeHlProtoField*, \
+                                            {__VA_ARGS__, PERFETTO_NULL})})
 
 // ----------------------------------
 // The main PERFETTO_TE tracing macro

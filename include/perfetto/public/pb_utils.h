@@ -19,6 +19,7 @@
 
 #include <assert.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "perfetto/public/compiler.h"
 
@@ -159,6 +160,18 @@ static inline int64_t PerfettoPbZigZagDecode64(uint64_t value) {
   uint64_t mask =
       PERFETTO_STATIC_CAST(uint64_t, -PERFETTO_STATIC_CAST(int64_t, value & 1));
   return PERFETTO_STATIC_CAST(int64_t, ((value >> 1) ^ mask));
+}
+
+static inline uint64_t PerfettoPbDoubleToFixed64(double value) {
+  uint64_t val;
+  memcpy(&val, &value, sizeof val);
+  return val;
+}
+
+static inline uint32_t PerfettoPbFloatToFixed32(float value) {
+  uint32_t val;
+  memcpy(&val, &value, sizeof val);
+  return val;
 }
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PB_UTILS_H_
