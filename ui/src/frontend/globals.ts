@@ -46,7 +46,7 @@ import {ServiceWorkerController} from './service_worker_controller';
 import {EngineBase} from '../trace_processor/engine';
 import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 import {Analytics, initAnalytics} from './analytics';
-import {Timeline} from './frontend_local_state';
+import {Timeline} from './timeline';
 import {SliceSqlId} from './sql_types';
 import {PxSpan, TimeScale} from './time_scale';
 import {SelectionManager, LegacySelection} from '../core/selection_manager';
@@ -698,12 +698,6 @@ class Globals {
     return new TimeSpan(start, end);
   }
 
-  // Get the state version of the visible time bounds
-  stateVisibleTime(): Span<time, duration> {
-    const {start, end} = this.state.frontendLocalState.visibleState;
-    return new TimeSpan(start, end);
-  }
-
   // How many pixels to use for one quanta of horizontal resolution
   get quantPx(): number {
     const quantPx = (self as {} as {quantPx: number | undefined}).quantPx;
@@ -852,7 +846,7 @@ export async function getTimeSpanOfSelectionOrVisibleWindow(): Promise<
   if (exists(range)) {
     return new TimeSpan(range.start, range.end);
   } else {
-    return globals.stateVisibleTime();
+    return globals.timeline.visibleTimeSpan;
   }
 }
 

@@ -61,7 +61,6 @@ import {
   ThreadTrackSortKey,
   TrackSortKey,
   UtidToTrackSortKey,
-  VisibleState,
 } from './state';
 
 type StateDraft = Draft<State>;
@@ -771,10 +770,6 @@ export const StateActions = {
     // if (oldSelection !== state.selection) etc.
     // To solve this re-create the selection object here:
     state.selection = Object.assign({}, state.selection);
-  },
-
-  setVisibleTraceTime(state: StateDraft, args: VisibleState): void {
-    state.frontendLocalState.visibleState = {...args};
   },
 
   setChromeCategories(state: StateDraft, args: {categories: string[]}): void {

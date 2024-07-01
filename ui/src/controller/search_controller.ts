@@ -69,18 +69,13 @@ export class SearchController extends Controller<'main'> {
       return;
     }
 
-    const visibleState = globals.state.frontendLocalState.visibleState;
     const omniboxState = globals.state.omniboxState;
-    if (
-      visibleState === undefined ||
-      omniboxState === undefined ||
-      omniboxState.mode === 'COMMAND'
-    ) {
+    if (omniboxState === undefined || omniboxState.mode === 'COMMAND') {
       return;
     }
-    const newSpan = globals.stateVisibleTime();
+    const newSpan = globals.timeline.visibleTimeSpan;
     const newOmniboxState = omniboxState;
-    const newResolution = visibleState.resolution;
+    const newResolution = globals.getCurResolution();
     if (
       this.previousSpan.contains(newSpan) &&
       this.previousResolution === newResolution &&

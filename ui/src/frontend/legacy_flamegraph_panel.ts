@@ -16,7 +16,7 @@ import m, {Vnode} from 'mithril';
 
 import {findRef} from '../base/dom_utils';
 import {assertExists, assertTrue} from '../base/logging';
-import {Duration, time} from '../base/time';
+import {time} from '../base/time';
 import {Actions} from '../common/actions';
 import {
   CallsiteInfo,
@@ -877,16 +877,17 @@ export class LegacyFlamegraphDetailsPanel
     flamegraphData: ReadonlyArray<CallsiteInfo>,
     rootSize?: number,
   ): number {
-    const timeState = globals.state.frontendLocalState.visibleState;
-    const dur = globals.stateVisibleTime().duration;
-    // TODO(stevegolton): Does this actually do what we want???
-    let width = Duration.toSeconds(dur / timeState.resolution);
-    // TODO(168048193): Remove screen size hack:
-    width = Math.max(width, 800);
+    // Note: This is a hack. Really we should obtain the size of the canvas and
+    // use that to determine the number of buckets to display, but this code is
+    // legacy and going away soon, and the calculation before was just plain
+    // wrong anyway so this isn't really any worse.
+    //
+    // 800 buckets is a decent placeholder until the new flamegraph code lands.
+    const bucketCount = 800;
     if (rootSize === undefined) {
       rootSize = findRootSize(flamegraphData);
     }
-    return (MIN_PIXEL_DISPLAYED * rootSize) / width;
+    return (MIN_PIXEL_DISPLAYED * rootSize) / bucketCount;
   }
 
   private static serializeUpidGroup(upids: number[]) {
