@@ -90,17 +90,16 @@ class TraceViewer implements m.ClassComponent {
   private readonly PAN_ZOOM_CONTENT_REF = 'pan-and-zoom-content';
 
   oncreate(vnode: m.CVnodeDOM) {
-    const timeline = globals.timeline;
     const panZoomElRaw = findRef(vnode.dom, this.PAN_ZOOM_CONTENT_REF);
     const panZoomEl = toHTMLElement(assertExists(panZoomElRaw));
 
     this.zoomContent = new PanAndZoomHandler({
       element: panZoomEl,
       onPanned: (pannedPx: number) => {
-        const {visibleTimeScale} = globals.timeline;
+        const timeline = globals.timeline;
 
         this.keepCurrentSelection = true;
-        const tDelta = visibleTimeScale.pxDeltaToDuration(pannedPx);
+        const tDelta = timeline.visibleTimeScale.pxDeltaToDuration(pannedPx);
         timeline.panVisibleWindow(tDelta);
 
         // If the user has panned they no longer need the hint.
@@ -108,6 +107,7 @@ class TraceViewer implements m.ClassComponent {
         raf.scheduleRedraw();
       },
       onZoomed: (zoomedPositionPx: number, zoomRatio: number) => {
+        const timeline = globals.timeline;
         // TODO(hjd): Avoid hardcoding TRACK_SHELL_WIDTH.
         // TODO(hjd): Improve support for zooming in overview timeline.
         const zoomPx = zoomedPositionPx - TRACK_SHELL_WIDTH;
@@ -128,6 +128,7 @@ class TraceViewer implements m.ClassComponent {
         editing: boolean,
       ) => {
         const traceTime = globals.traceContext;
+        const timeline = globals.timeline;
         const {visibleTimeScale} = timeline;
         this.keepCurrentSelection = true;
         if (editing) {
