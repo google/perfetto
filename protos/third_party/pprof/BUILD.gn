@@ -17,6 +17,7 @@ import("../../../gn/proto_library.gni")
 perfetto_proto_library("@TYPE@") {
   proto_generators = [
     "zero",
+    "cpp",
     "source_set",
   ]
   sources = [ "profile.proto" ]
