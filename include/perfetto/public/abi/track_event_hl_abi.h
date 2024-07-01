@@ -127,13 +127,11 @@ enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_PROTO_FIELDS = 17,
 };
 
-// List of extra event parameters. Each type of parameter should embed this as
-// its first member.
+// An extra event parameter. Each type of parameter should embed this as its
+// first member.
 struct PerfettoTeHlExtra {
   // enum PerfettoTeHlExtraType. Identifies the exact type of this.
   uint32_t type;
-  // Pointer to the next PerfettoTeHlExtra in the list or NULL.
-  const struct PerfettoTeHlExtra* next;
 };
 
 // PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK
@@ -260,12 +258,13 @@ struct PerfettoTeHlExtraProtoFields {
 //           PerfettoTeType`.
 // * `name`: All events (except when PERFETTO_TE_TYPE_SLICE_END) can have an
 //           associated name. It can be nullptr.
-// * `extra_data`: Optional parameters associated with the events.
+// * `extra_data`: Optional parameters associated with the events. Array of
+// pointers to each event. The last pointer should be NULL.
 PERFETTO_SDK_EXPORT void PerfettoTeHlEmitImpl(
     struct PerfettoTeCategoryImpl* cat,
     int32_t type,
     const char* name,
-    const struct PerfettoTeHlExtra* extra_data);
+    struct PerfettoTeHlExtra* const* extra_data);
 
 #ifdef __cplusplus
 }
