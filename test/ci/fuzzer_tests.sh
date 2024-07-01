@@ -16,6 +16,13 @@
 INSTALL_BUILD_DEPS_ARGS=""
 source $(dirname ${BASH_SOURCE[0]})/common.sh
 
+# Save CI time by skipping runs on {UI,docs,infra}-only changes
+if [[ $UI_DOCS_INFRA_ONLY_CHANGE == 1 ]]; then
+echo "Detected non-code change, probably a UI-only change."
+echo "skipping build + test runs"
+exit 0
+fi
+
 tools/gn gen ${OUT_PATH} --args="${PERFETTO_TEST_GN_ARGS}" --check
 tools/ninja -C ${OUT_PATH} ${PERFETTO_TEST_NINJA_ARGS} fuzzers
 
