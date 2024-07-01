@@ -16,7 +16,7 @@ import {v4 as uuidv4} from 'uuid';
 
 import {Disposable, DisposableStack} from '../base/disposable';
 import {Registry} from '../base/registry';
-import {Span, duration, time} from '../base/time';
+import {Span, TimeSpan, duration, time} from '../base/time';
 import {TraceContext, globals} from '../frontend/globals';
 import {
   Command,
@@ -43,7 +43,6 @@ import {Flag, featureFlags} from '../core/feature_flags';
 import {assertExists} from '../base/logging';
 import {raf} from '../core/raf_scheduler';
 import {defaultPlugins} from '../core/default_plugins';
-import {HighPrecisionTimeSpan} from './high_precision_time';
 import {PromptOption} from '../frontend/omnibox_manager';
 import {horizontalScrollToTs} from '../frontend/scroll_helper';
 
@@ -329,8 +328,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
     },
 
     setViewportTime(start: time, end: time): void {
-      const interval = HighPrecisionTimeSpan.fromTime(start, end);
-      globals.timeline.updateVisibleTime(interval);
+      globals.timeline.updateVisibleTime(new TimeSpan(start, end));
     },
 
     get viewport(): Span<time, duration> {

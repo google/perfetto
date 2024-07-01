@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {globals} from '../frontend/globals';
-import {HighPrecisionTimeSpan} from './high_precision_time';
 import {
   SERIALIZED_STATE_VERSION,
   APP_STATE_SCHEMA,
@@ -23,6 +22,7 @@ import {
   SerializedAppState,
 } from './state_serialization_schema';
 import {ProfileType} from './state';
+import {TimeSpan} from '../base/time';
 
 // When it comes to serialization & permalinks there are two different use cases
 // 1. Uploading the current trace in a Cloud Storage (GCS) file AND serializing
@@ -183,7 +183,7 @@ export function deserializeAppStatePhase1(appState: SerializedAppState): void {
 export function deserializeAppStatePhase2(appState: SerializedAppState): void {
   if (appState.viewport !== undefined) {
     globals.timeline.updateVisibleTime(
-      new HighPrecisionTimeSpan(appState.viewport.start, appState.viewport.end),
+      new TimeSpan(appState.viewport.start, appState.viewport.end),
     );
   }
   globals.store.edit((draft) => {
