@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import produce, {Draft} from 'immer';
+import {produce, Draft} from 'immer';
 
 import {Disposable} from './disposable';
 import {getPath, Path, setPath} from './object_utils';
