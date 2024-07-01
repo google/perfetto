@@ -121,7 +121,8 @@ base::StatusOr<CommandLineOptions> ParseCommandLineOptions(int argc,
 
   if (has_worker_address_port_and_count == has_worker_list) {
     return base::ErrStatus(
-        "Error: You must specify a worker address and count OR a worker list");
+        "Error: You must specify a worker address, port and count OR a worker "
+        "list");
   }
 
   if (command_line_options.worker_count <= 0 && !has_worker_list) {
