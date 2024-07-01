@@ -167,7 +167,7 @@ function renderValue(name: string, value: Value): m.Children {
           onclick: button.action,
           title: button.hoverText,
         },
-        button.icon ? button.icon : 'call_made',
+        button.icon ?? 'call_made',
       );
     };
     if (value.kind === 'STRING') {

@@ -286,7 +286,7 @@ export class SelectionController extends Controller<'main'> {
     });
     for (; it.valid(); it.next()) {
       const name = it.name;
-      const value = it.value || 'NULL';
+      const value = it.value ?? 'NULL';
       if (name === 'destination slice id' && !isNaN(Number(value))) {
         const destTrackId = await this.getDestTrackId(value);
         args.set('Destination Slice', {
@@ -475,7 +475,7 @@ export class SelectionController extends Controller<'main'> {
     ).firstRow({tid: NUM, name: STR_NULL, upid: NUM_NULL});
     const threadDetails = {
       tid: threadInfo.tid,
-      threadName: threadInfo.name || undefined,
+      threadName: threadInfo.name ?? undefined,
     };
     // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (threadInfo.upid) {
@@ -496,7 +496,7 @@ export class SelectionController extends Controller<'main'> {
               `)
     ).firstRow({pid: NUM, name: STR_NULL, uid: NUM_NULL});
     details.pid = processResult.pid;
-    details.processName = processResult.name || undefined;
+    details.processName = processResult.name ?? undefined;
     if (processResult.uid === null) {
       return details;
     }

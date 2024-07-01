@@ -119,9 +119,7 @@ export class HistogramTab extends BottomTab<HistogramTabConfig> {
   }
 
   getDescription(): string {
-    let desc = `Count distribution for ${
-      this.config.tableDisplay ? this.config.tableDisplay : ''
-    } table`;
+    let desc = `Count distribution for ${this.config.tableDisplay ?? ''} table`;
 
     if (this.config.filters) {
       const filterStrings: string[] = [];

@@ -15,6 +15,7 @@
 import {Draft} from 'immer';
 
 import {createStore} from './store';
+import {exists} from './utils';
 
 interface Bar {
   value: number;
@@ -32,7 +33,7 @@ function migrateFoo(init: unknown): Foo {
       value: 456,
     },
   };
-  if (init && typeof init === 'object') {
+  if (exists(init) && typeof init === 'object') {
     if ('counter' in init && typeof init.counter === 'number') {
       migrated.counter = init.counter;
     }

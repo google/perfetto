@@ -268,10 +268,8 @@ export class CpuSliceTrack implements Track {
       let title = `[utid:${utid}]`;
       let subTitle = '';
       if (threadInfo) {
-        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
-        if (threadInfo.pid) {
-          /* eslint-enable */
-          let procName = threadInfo.procName || '';
+        if (threadInfo.pid !== undefined && threadInfo.pid !== 0) {
+          let procName = threadInfo.procName ?? '';
           if (procName.startsWith('/')) {
             // Remove folder paths from name
             procName = procName.substring(procName.lastIndexOf('/') + 1);

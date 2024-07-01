@@ -127,7 +127,7 @@ export function drawTrackHoverTooltip(
 
   // TODO(hjd): Avoid measuring text all the time (just use monospace?)
   const textMetrics = ctx.measureText(text);
-  const text2Metrics = ctx.measureText(text2 || '');
+  const text2Metrics = ctx.measureText(text2 ?? '');
 
   // Padding on each side of the box containing the tooltip:
   const paddingPx = 4;

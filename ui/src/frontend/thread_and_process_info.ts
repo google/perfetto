@@ -57,13 +57,13 @@ export async function getProcessInfo(
   const result: ProcessInfo = {
     upid,
     pid: it.pid,
-    name: it.name || undefined,
+    name: it.name ?? undefined,
   };
 
   if (it.pid === null) {
     return result;
   }
-  result.pid = it.pid || undefined;
+  result.pid = it.pid ?? undefined;
 
   if (it.uid === undefined) {
     return result;
@@ -83,7 +83,7 @@ export async function getProcessInfo(
       versionCode: NUM,
     });
     result.packageName = packageDetails.packageName;
-    result.versionCode = packageDetails.versionCode || undefined;
+    result.versionCode = packageDetails.versionCode ?? undefined;
   }
   return result;
 }
@@ -156,7 +156,7 @@ export async function getThreadInfo(
   return {
     utid,
     tid: it.tid,
-    name: it.name || undefined,
+    name: it.name ?? undefined,
     process: upid ? await getProcessInfo(engine, upid) : undefined,
   };
 }
