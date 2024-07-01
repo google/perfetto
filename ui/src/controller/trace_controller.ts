@@ -35,7 +35,6 @@ import {
 } from '../common/state';
 import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {
-  defaultTraceContext,
   globals,
   QuantizedLoad,
   ThreadDesc,
@@ -47,7 +46,6 @@ import {
   publishMetricError,
   publishOverviewData,
   publishThreads,
-  publishTraceContext,
 } from '../frontend/publish';
 import {addQueryResultsTab} from '../frontend/query_result_tab';
 import {Router} from '../frontend/router';
@@ -469,7 +467,7 @@ export class TraceController extends Controller<States> {
     if (traceDetails.traceTitle) {
       document.title = `${traceDetails.traceTitle} - Perfetto UI`;
     }
-    publishTraceContext(traceDetails);
+    globals.setTraceContext(traceDetails);
 
     const shownJsonWarning =
       window.localStorage.getItem(SHOWN_JSON_WARNING_KEY) !== null;
@@ -1113,26 +1111,6 @@ async function computeVisibleTime(
   isJsonTrace: boolean,
   engine: Engine,
 ): Promise<Span<HighPrecisionTime>> {
-  // if we have non-default visible state, update the visible time to it
-  const previousVisibleState = globals.timeline.visibleTimeSpan;
-  const defaultTraceSpan = new TimeSpan(
-    defaultTraceContext.start,
-    defaultTraceContext.end,
-  );
-  if (
-    !(
-      previousVisibleState.start === defaultTraceSpan.start &&
-      previousVisibleState.end === defaultTraceSpan.end
-    ) &&
-    previousVisibleState.start >= traceStart &&
-    previousVisibleState.end <= traceEnd
-  ) {
-    return HighPrecisionTimeSpan.fromTime(
-      previousVisibleState.start,
-      previousVisibleState.end,
-    );
-  }
-
   // initialise visible time to the trace time bounds
   let visibleStart = traceStart;
   let visibleEnd = traceEnd;

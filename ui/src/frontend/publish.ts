@@ -29,7 +29,6 @@ import {
   SliceDetails,
   ThreadDesc,
   ThreadStateDetails,
-  TraceContext,
 } from './globals';
 import {findCurrentSelection} from './keyboard_event_handler';
 
@@ -81,11 +80,6 @@ export function publishCpuProfileDetails(details: CpuProfileDetails) {
 
 export function publishHasFtrace(value: boolean): void {
   globals.hasFtrace = value;
-  globals.publishRedraw();
-}
-
-export function publishTraceContext(details: TraceContext): void {
-  globals.traceContext = details;
   globals.publishRedraw();
 }
 

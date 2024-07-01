@@ -266,6 +266,13 @@ class Globals {
 
   traceContext = defaultTraceContext;
 
+  setTraceContext(traceCtx: TraceContext): void {
+    this.traceContext = traceCtx;
+    const {start, end} = this.traceContext;
+    const traceSpan = new TimeSpan(start, end);
+    this._timeline = new Timeline(this._store, traceSpan);
+  }
+
   // Used for permalink load by trace_controller.ts.
   restoreAppStateAfterTraceLoad?: SerializedAppState;
 
@@ -288,9 +295,13 @@ class Globals {
 
   engines = new Map<string, EngineBase>();
 
+  constructor() {
+    const {start, end} = defaultTraceContext;
+    this._timeline = new Timeline(this._store, new TimeSpan(start, end));
+  }
+
   initialize(dispatch: Dispatch) {
     this._dispatch = dispatch;
-    this._timeline = new Timeline();
 
     setPerfHooks(
       () => this.state.perfDebug,
