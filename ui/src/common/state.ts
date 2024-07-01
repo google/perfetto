@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {BigintMath} from '../base/bigint_math';
-import {duration, time} from '../base/time';
+import {time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
@@ -85,10 +85,6 @@ export interface ObjectByKey<Class extends {key: string}> {
   [key: string]: Class;
 }
 
-export interface Timestamped {
-  lastUpdate: number;
-}
-
 export type OmniboxMode = 'SEARCH' | 'COMMAND';
 
 export interface OmniboxState {
@@ -99,12 +95,6 @@ export interface OmniboxState {
 
 // This is simply an arbitrarily large number to default to.
 export const RESOLUTION_DEFAULT = BigintMath.bitFloor(1_000_000_000_000n);
-
-export interface VisibleState extends Timestamped {
-  start: time;
-  end: time;
-  resolution: duration;
-}
 
 export interface Area {
   start: time;
@@ -292,10 +282,6 @@ export interface QueryConfig {
   query: string;
 }
 
-export interface FrontendLocalState {
-  visibleState: VisibleState;
-}
-
 export interface Status {
   msg: string;
   timestamp: number; // Epoch in seconds (Date.now() / 1000).
@@ -466,14 +452,6 @@ export interface State {
   selection: Selection;
   traceConversionInProgress: boolean;
   flamegraphModalDismissed: boolean;
-
-  /**
-   * This state is updated on the frontend at 60Hz and eventually syncronised to
-   * the controller at 10Hz. When the controller sends state updates to the
-   * frontend the frontend has special logic to pick whichever version of this
-   * key is most up to date.
-   */
-  frontendLocalState: FrontendLocalState;
 
   // Show track perf debugging overlay
   perfDebug: boolean;

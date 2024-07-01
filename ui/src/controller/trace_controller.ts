@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {BigintMath} from '../base/bigint_math';
 import {assertExists, assertTrue} from '../base/logging';
 import {Duration, duration, Span, time, Time, TimeSpan} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
@@ -507,17 +506,8 @@ export class TraceController extends Controller<States> {
       isJsonTrace,
       this.engine,
     );
-    // We don't know the resolution at this point. However this will be
-    // replaced in 50ms so a guess is fine.
-    const resolution = visibleTimeSpan.duration.divide(1000).toTime();
-    actions.push(
-      Actions.setVisibleTraceTime({
-        start: visibleTimeSpan.start.toTime(),
-        end: visibleTimeSpan.end.toTime(),
-        lastUpdate: Date.now() / 1000,
-        resolution: BigintMath.max(resolution, 1n),
-      }),
-    );
+
+    globals.timeline.updateVisibleTime(visibleTimeSpan);
 
     globals.dispatchMultiple(actions);
     Router.navigate(`#!/viewer?local_cache_key=${traceUuid}`);
@@ -1092,15 +1082,8 @@ export class TraceController extends Controller<States> {
       return;
     }
 
-    const res = (visualEnd - visualStart) / 1000n;
-
-    globals.dispatch(
-      Actions.setVisibleTraceTime({
-        start: visualStart,
-        end: visualEnd,
-        resolution: BigintMath.max(res, 1n),
-        lastUpdate: Date.now() / 1000,
-      }),
+    globals.timeline.updateVisibleTime(
+      HighPrecisionTimeSpan.fromTime(visualStart, visualEnd),
     );
   }
 }
@@ -1131,7 +1114,7 @@ async function computeVisibleTime(
   engine: Engine,
 ): Promise<Span<HighPrecisionTime>> {
   // if we have non-default visible state, update the visible time to it
-  const previousVisibleState = globals.stateVisibleTime();
+  const previousVisibleState = globals.timeline.visibleTimeSpan;
   const defaultTraceSpan = new TimeSpan(
     defaultTraceContext.start,
     defaultTraceContext.end,

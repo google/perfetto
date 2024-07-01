@@ -13,18 +13,12 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-import {duration, Span, Time, time, TimeSpan} from '../base/time';
-import {Actions} from '../common/actions';
+import {duration, Span, time, TimeSpan} from '../base/time';
 import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
-import {
-  Area,
-  FrontendLocalState as FrontendState,
-  Timestamped,
-  VisibleState,
-} from '../common/state';
+import {Area} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
@@ -34,16 +28,6 @@ import {PxSpan, TimeScale} from './time_scale';
 interface Range {
   start?: number;
   end?: number;
-}
-
-function chooseLatest<T extends Timestamped>(current: T, next: T): T {
-  if (next !== current && next.lastUpdate > current.lastUpdate) {
-    // |next| is from state. Callers may mutate the return value of
-    // this function so we need to clone |next| to prevent bad mutations
-    // of state:
-    return Object.assign({}, next);
-  }
-  return current;
 }
 
 // Immutable object describing a (high precision) time window, providing methods
@@ -152,14 +136,18 @@ export class Timeline {
   // This is used to calculate the tracks within a Y range for area selection.
   areaY: Range = {};
 
-  private _visibleState: VisibleState = {
-    lastUpdate: 0,
-    start: Time.ZERO,
-    end: Time.fromSeconds(10),
-    resolution: 1n,
-  };
-
   private _selectedArea?: Area;
+
+  // This is a giant hack. Basically, removing visible window from the state
+  // means that we no longer update the state periodically while navigating
+  // the timeline, which means that controllers are not running. This keeps
+  // making null edits to the store which triggers the controller to run.
+  //
+  // TODO(stevegolton): When we remove controllers, we can remove this!
+  private readonly rateLimitedPoker = ratelimit(
+    () => globals.store.edit(() => {}),
+    50,
+  );
 
   // TODO: there is some redundancy in the fact that both |visibleWindowTime|
   // and a |timeScale| have a notion of time range. That should live in one
@@ -171,7 +159,7 @@ export class Timeline {
       this._windowSpan.start,
       this._windowSpan.end,
     );
-    this.kickUpdateLocalState();
+    this.rateLimitedPoker();
   }
 
   panVisibleWindow(delta: HighPrecisionTime) {
@@ -180,28 +168,7 @@ export class Timeline {
       this._windowSpan.start,
       this._windowSpan.end,
     );
-    this.kickUpdateLocalState();
-  }
-
-  mergeState(state: FrontendState): void {
-    // This is unfortunately subtle. This class mutates this._visibleState.
-    // Since we may not mutate |state| (in order to make immer's immutable
-    // updates work) this means that we have to make a copy of the visibleState.
-    // when updating it. We don't want to have to do that unnecessarily so
-    // chooseLatest returns a shallow clone of state.visibleState *only* when
-    // that is the newer state. All of these complications should vanish when
-    // we remove this class.
-    const previousVisibleState = this._visibleState;
-    this._visibleState = chooseLatest(this._visibleState, state.visibleState);
-    const visibleStateWasUpdated = previousVisibleState !== this._visibleState;
-    if (visibleStateWasUpdated) {
-      this.updateLocalTime(
-        new HighPrecisionTimeSpan(
-          HighPrecisionTime.fromTime(this._visibleState.start),
-          HighPrecisionTime.fromTime(this._visibleState.end),
-        ),
-      );
-    }
+    this.rateLimitedPoker();
   }
 
   // Set the highlight box to draw
@@ -227,11 +194,7 @@ export class Timeline {
     return this._selectedArea;
   }
 
-  private ratelimitedUpdateVisible = ratelimit(() => {
-    globals.dispatch(Actions.setVisibleTraceTime(this._visibleState));
-  }, 50);
-
-  private updateLocalTime(ts: Span<HighPrecisionTime>) {
+  updateVisibleTime(ts: Span<HighPrecisionTime>) {
     const traceBounds = globals.stateTraceTime();
     const start = ts.start.clamp(traceBounds.start, traceBounds.end);
     const end = ts.end.clamp(traceBounds.start, traceBounds.end);
@@ -242,30 +205,10 @@ export class Timeline {
       this._windowSpan.start,
       this._windowSpan.end,
     );
-    this.updateResolution();
+
+    this.rateLimitedPoker();
   }
 
-  private updateResolution() {
-    this._visibleState.lastUpdate = Date.now() / 1000;
-    this._visibleState.resolution = globals.getCurResolution();
-    this.ratelimitedUpdateVisible();
-  }
-
-  private kickUpdateLocalState() {
-    this._visibleState.lastUpdate = Date.now() / 1000;
-    this._visibleState.start = this.visibleWindowTime.start.toTime();
-    this._visibleState.end = this.visibleWindowTime.end.toTime();
-    this._visibleState.resolution = globals.getCurResolution();
-    this.ratelimitedUpdateVisible();
-  }
-
-  updateVisibleTime(ts: Span<HighPrecisionTime>) {
-    this.updateLocalTime(ts);
-    this.kickUpdateLocalState();
-  }
-
-  // Whenever start/end px of the timeScale is changed, update
-  // the resolution.
   updateLocalLimits(pxStart: number, pxEnd: number) {
     // Numbers received here can be negative or equal, but we should fix that
     // before updating the timescale.
@@ -274,7 +217,6 @@ export class Timeline {
     if (pxStart === pxEnd) pxEnd = pxStart + 1;
     this._timeScale = this.visibleWindow.createTimeScale(pxStart, pxEnd);
     this._windowSpan = new PxSpan(pxStart, pxEnd);
-    this.updateResolution();
   }
 
   // Get the time scale for the visible window

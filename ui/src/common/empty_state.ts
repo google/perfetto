@@ -102,15 +102,6 @@ export function createEmptyState(): State {
     displayConfigAsPbtxt: false,
     lastLoadedConfig: {type: 'NONE'},
 
-    frontendLocalState: {
-      visibleState: {
-        start: Time.ZERO,
-        end: Time.fromSeconds(10),
-        lastUpdate: 0,
-        resolution: 0n,
-      },
-    },
-
     omniboxState: {
       omnibox: '',
       mode: 'SEARCH',

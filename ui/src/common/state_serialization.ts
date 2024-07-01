@@ -52,7 +52,7 @@ import {ProfileType} from './state';
  * @returns A @type {SerializedAppState} object, @see state_serialization_schema.ts
  */
 export function serializeAppState(): SerializedAppState {
-  const vizState = globals.state.frontendLocalState.visibleState;
+  const vizWindow = globals.timeline.visibleTimeSpan;
 
   const notes = new Array<SerializedNote>();
   for (const [id, note] of Object.entries(globals.state.notes)) {
@@ -125,8 +125,8 @@ export function serializeAppState(): SerializedAppState {
     version: SERIALIZED_STATE_VERSION,
     pinnedTracks: globals.state.pinnedTracks,
     viewport: {
-      start: vizState.start,
-      end: vizState.end,
+      start: vizWindow.start,
+      end: vizWindow.end,
     },
     notes,
     selection,
