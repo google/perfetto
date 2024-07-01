@@ -26,11 +26,11 @@
 // and the rollup bundler in --watch mode. Any other attempt, leads to O(10s)
 // incremental-build times.
 // This script allows mixing build tools that support --watch mode (tsc and
-// rollup) and auto-triggering-on-file-change rules via node-watch.
+// rollup) and auto-triggering-on-file-change rules via fs.watch.
 // When invoked without any argument (e.g., for production builds), this script
 // just runs all the build tasks serially. It doesn't to do any mtime-based
 // check, it always re-runs all the tasks.
-// When invoked with --watch, it mounts a pipeline of tasks based on node-watch
+// When invoked with --watch, it mounts a pipeline of tasks based on fs.watch
 // and runs them together with tsc --watch and rollup --watch.
 // The output directory structure is carefully crafted so that any change to UI
 // sources causes cascading triggers of the next steps.
@@ -71,7 +71,6 @@ const crypto = require('crypto');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-const fswatch = require('node-watch');  // Like fs.watch(), but works on Linux.
 const pjoin = path.join;
 
 const ROOT_DIR = path.dirname(__dirname);  // The repo root.
@@ -741,7 +740,7 @@ function scanDir(dir, regex) {
   const absDir = path.isAbsolute(dir) ? dir : pjoin(ROOT_DIR, dir);
   // Add a fs watch if in watch mode.
   if (cfg.watch) {
-    fswatch(absDir, {recursive: true}, (_eventType, filePath) => {
+    fs.watch(absDir, {recursive: true}, (_eventType, filePath) => {
       if (!filterFn(filePath)) return;
       if (cfg.verbose) {
         console.log('File change detected', _eventType, filePath);
