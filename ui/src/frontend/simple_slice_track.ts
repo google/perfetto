@@ -18,7 +18,6 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from './tracks/custom_sql_table_slice_track';
-import {NamedSliceTrackTypes} from './named_slice_track';
 import {SliceColumns, SqlDataSource} from './debug_tracks/debug_tracks';
 import {uuidv4Sql} from '../base/uuid';
 import {ARG_PREFIX, DebugSliceDetailsTab} from './debug_tracks/details_tab';
@@ -30,7 +29,7 @@ export interface SimpleSliceTrackConfig {
   argColumns: string[];
 }
 
-export class SimpleSliceTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+export class SimpleSliceTrack extends CustomSqlTableSliceTrack {
   private config: SimpleSliceTrackConfig;
   private sqlTableName: string;
 

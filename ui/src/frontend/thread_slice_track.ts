@@ -16,14 +16,11 @@ import {BigintMath as BIMath} from '../base/bigint_math';
 import {clamp} from '../base/math_utils';
 import {OnSliceClickArgs} from './base_slice_track';
 import {globals} from './globals';
-import {
-  NAMED_ROW,
-  NamedSliceTrack,
-  NamedSliceTrackTypes,
-} from './named_slice_track';
+import {NAMED_ROW, NamedSliceTrack} from './named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from './slice_layout';
 import {NewTrackArgs} from './track';
 import {LONG_NULL} from '../trace_processor/query_result';
+import {Slice} from 'src/public';
 
 export const THREAD_SLICE_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
@@ -34,11 +31,7 @@ export const THREAD_SLICE_ROW = {
 };
 export type ThreadSliceRow = typeof THREAD_SLICE_ROW;
 
-export interface ThreadSliceTrackTypes extends NamedSliceTrackTypes {
-  row: ThreadSliceRow;
-}
-
-export class ThreadSliceTrack extends NamedSliceTrack<ThreadSliceTrackTypes> {
+export class ThreadSliceTrack extends NamedSliceTrack<Slice, ThreadSliceRow> {
   constructor(
     args: NewTrackArgs,
     private trackId: number,
@@ -53,7 +46,7 @@ export class ThreadSliceTrack extends NamedSliceTrack<ThreadSliceTrackTypes> {
   }
 
   // This is used by the base class to call iter().
-  getRowSpec() {
+  protected getRowSpec() {
     return THREAD_SLICE_ROW;
   }
 
@@ -72,10 +65,8 @@ export class ThreadSliceTrack extends NamedSliceTrack<ThreadSliceTrackTypes> {
   }
 
   // Converts a SQL result row to an "Impl" Slice.
-  rowToSlice(
-    row: ThreadSliceTrackTypes['row'],
-  ): ThreadSliceTrackTypes['slice'] {
-    const namedSlice = super.rowToSlice(row);
+  rowToSlice(row: ThreadSliceRow): Slice {
+    const namedSlice = this.rowToSliceBase(row);
 
     if (row.dur > 0n && row.threadDur !== null) {
       const fillRatio = clamp(BIMath.ratio(row.threadDur, row.dur), 0, 1);
@@ -85,13 +76,13 @@ export class ThreadSliceTrack extends NamedSliceTrack<ThreadSliceTrackTypes> {
     }
   }
 
-  onUpdatedSlices(slices: ThreadSliceTrackTypes['slice'][]) {
+  onUpdatedSlices(slices: Slice[]) {
     for (const slice of slices) {
       slice.isHighlighted = slice === this.hoveredSlice;
     }
   }
 
-  onSliceClick(args: OnSliceClickArgs<ThreadSliceTrackTypes['slice']>) {
+  onSliceClick(args: OnSliceClickArgs<Slice>) {
     globals.setLegacySelection(
       {
         kind: 'SLICE',
