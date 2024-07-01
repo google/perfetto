@@ -645,22 +645,15 @@ export abstract class BaseSliceTrack<
 
     // If a slice is hovered, draw the tooltip.
     const tooltip = this.hoverTooltip;
-    const height = this.getHeight();
     if (
       this.hoveredSlice !== undefined &&
       tooltip.length > 0 &&
       this.hoverPos !== undefined
     ) {
       if (tooltip.length === 1) {
-        drawTrackHoverTooltip(ctx, this.hoverPos, height, tooltip[0]);
+        drawTrackHoverTooltip(ctx, this.hoverPos, size, tooltip[0]);
       } else {
-        drawTrackHoverTooltip(
-          ctx,
-          this.hoverPos,
-          height,
-          tooltip[0],
-          tooltip[1],
-        );
+        drawTrackHoverTooltip(ctx, this.hoverPos, size, tooltip[0], tooltip[1]);
       }
     } // if (hoveredSlice)
   }
