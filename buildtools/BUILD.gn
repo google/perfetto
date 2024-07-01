@@ -1564,3 +1564,89 @@ if (enable_perfetto_grpc) {
     ]
   }
 }
+
+config("pigweed_config") {
+  include_dirs = [
+    "pigweed/pw_assert_log/public",
+    "pigweed/pw_log/public",
+    "pigweed/pw_log_null/public",
+    "pigweed/pw_log_null/public_overrides",
+    "pigweed/pw_assert/public",
+    "pigweed/pw_base64/public",
+    "pigweed/pw_bytes/public",
+    "pigweed/pw_containers/public",
+    "pigweed/pw_polyfill/public",
+    "pigweed/pw_preprocessor/public",
+    "pigweed/pw_result/public",
+    "pigweed/pw_span/public",
+    "pigweed/pw_status/public",
+    "pigweed/pw_string/public",
+    "pigweed/pw_varint/public",
+    "pigweed/stdcompat/public",
+    "pigweed/pw_assert/assert_compatibility_public_overrides",
+    "pigweed/pw_assert_log/check_backend_public_overrides/",
+    "pigweed/third_party/fuchsia/repo/sdk/lib/stdcompat/include",
+  ]
+  cflags = [
+    # This header pulls in some warnings in the places where used, use the usual
+    # -isystem trick that suppresses warnings in 3p headers.
+    perfetto_isystem_cflag,
+    rebase_path("pigweed/pw_tokenizer/public", root_build_dir),
+  ]
+  visibility = _buildtools_visibility
+}
+
+source_set("pigweed") {
+  visibility = _buildtools_visibility
+  include_dirs = [ rebase_path("pigweed", root_build_dir) ]
+  sources = [
+    "pigweed/pw_assert/public/pw_assert/assert.h",
+    "pigweed/pw_assert_log/assert_log.cc",
+    "pigweed/pw_base64/base64.cc",
+    "pigweed/pw_base64/public/pw_base64/base64.h",
+    "pigweed/pw_bytes/public/pw_bytes/array.h",
+    "pigweed/pw_bytes/public/pw_bytes/bit.h",
+    "pigweed/pw_bytes/public/pw_bytes/endian.h",
+    "pigweed/pw_bytes/public/pw_bytes/span.h",
+    "pigweed/pw_containers/public/pw_containers/to_array.h",
+    "pigweed/pw_polyfill/public/pw_polyfill/language_feature_macros.h",
+    "pigweed/pw_polyfill/public/pw_polyfill/standard.h",
+    "pigweed/pw_polyfill/public/pw_polyfill/static_assert.h",
+    "pigweed/pw_preprocessor/public/pw_preprocessor/compiler.h",
+    "pigweed/pw_preprocessor/public/pw_preprocessor/util.h",
+    "pigweed/pw_result/public/pw_result/internal/result_internal.h",
+    "pigweed/pw_result/public/pw_result/result.h",
+    "pigweed/pw_span/public/pw_span/internal/config.h",
+    "pigweed/pw_span/public/pw_span/internal/span_impl.h",
+    "pigweed/pw_span/public/pw_span/span.h",
+    "pigweed/pw_status/public/pw_status/internal/config.h",
+    "pigweed/pw_status/public/pw_status/status.h",
+    "pigweed/pw_string/public/pw_string/internal/string_common_functions.inc",
+    "pigweed/pw_string/public/pw_string/internal/string_impl.h",
+    "pigweed/pw_string/public/pw_string/string.h",
+    "pigweed/pw_tokenizer/base64.cc",
+    "pigweed/pw_tokenizer/decode.cc",
+    "pigweed/pw_tokenizer/detokenize.cc",
+    "pigweed/pw_tokenizer/public/pw_tokenizer/base64.h",
+    "pigweed/pw_tokenizer/public/pw_tokenizer/config.h",
+    "pigweed/pw_tokenizer/public/pw_tokenizer/detokenize.h",
+    "pigweed/pw_tokenizer/public/pw_tokenizer/hash.h",
+    "pigweed/pw_tokenizer/public/pw_tokenizer/internal/decode.h",
+    "pigweed/pw_tokenizer/public/pw_tokenizer/internal/tokenize_string.h",
+    "pigweed/pw_tokenizer/public/pw_tokenizer/nested_tokenization.h",
+    "pigweed/pw_tokenizer/public/pw_tokenizer/token_database.h",
+    "pigweed/pw_tokenizer/token_database.cc",
+    "pigweed/pw_varint/public/pw_varint/varint.h",
+    "pigweed/pw_varint/varint.cc",
+    "pigweed/pw_varint/varint_c.c",
+    "pigweed/third_party/fuchsia/repo/sdk/lib/stdcompat/include/lib/stdcompat/bit.h",
+    "pigweed/third_party/fuchsia/repo/sdk/lib/stdcompat/include/lib/stdcompat/internal/bit.h",
+    "pigweed/third_party/fuchsia/repo/sdk/lib/stdcompat/include/lib/stdcompat/internal/type_traits.h",
+    "pigweed/third_party/fuchsia/repo/sdk/lib/stdcompat/include/lib/stdcompat/memory.h",
+    "pigweed/third_party/fuchsia/repo/sdk/lib/stdcompat/include/lib/stdcompat/type_traits.h",
+    "pigweed/third_party/fuchsia/repo/sdk/lib/stdcompat/include/lib/stdcompat/version.h",
+  ]
+  configs -= [ "//gn/standalone:extra_warnings" ]
+  public_configs = [ ":pigweed_config" ]
+  deps = [ "//gn:default_deps" ]
+}
