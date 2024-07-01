@@ -47,12 +47,12 @@ class IntervalsIntersect(TestSuite):
           )
           SELECT * FROM data;
 
-        SELECT ts, dur, left_id, right_id
-        FROM _interval_intersect!(A, B)
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!(A, B, ())
         ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","left_id","right_id"
+        "ts","dur","id_0","id_1"
         1,1,0,0
         3,2,0,1
         6,1,0,2
@@ -84,12 +84,12 @@ class IntervalsIntersect(TestSuite):
           )
           SELECT * FROM data;
 
-        SELECT ts, dur, left_id, right_id
-        FROM _interval_intersect!(B, A)
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!(B, A, ())
         ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","left_id","right_id"
+        "ts","dur","id_0","id_1"
         1,1,0,0
         3,2,1,0
         6,1,2,0
@@ -118,12 +118,12 @@ class IntervalsIntersect(TestSuite):
           )
           SELECT * FROM data;
 
-        SELECT ts, dur, left_id, right_id
-        FROM _interval_intersect!(A, B)
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!(A, B, ())
         ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","left_id","right_id"
+        "ts","dur","id_0","id_1"
         """))
 
   def test_no_overlap_rev(self):
@@ -149,12 +149,12 @@ class IntervalsIntersect(TestSuite):
           )
           SELECT * FROM data;
 
-        SELECT ts, dur, left_id, right_id
-        FROM _interval_intersect!(B, A)
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!(B, A, ())
         ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","left_id","right_id"
+        "ts","dur","id_0","id_1"
         """))
 
   def test_no_empty(self):
@@ -176,12 +176,12 @@ class IntervalsIntersect(TestSuite):
         CREATE PERFETTO TABLE B AS
         SELECT * FROM A LIMIT 0;
 
-        SELECT ts, dur, left_id, right_id
-        FROM _interval_intersect!(A, B)
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!(A, B, ())
         ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","left_id","right_id"
+        "ts","dur","id_0","id_1"
         """))
 
   def test_no_empty_rev(self):
@@ -203,12 +203,12 @@ class IntervalsIntersect(TestSuite):
         CREATE PERFETTO TABLE B AS
         SELECT * FROM A LIMIT 0;
 
-        SELECT ts, dur, left_id, right_id
-        FROM _interval_intersect!(B, A)
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!(B, A, ())
         ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","left_id","right_id"
+        "ts","dur","id_0","id_1"
         """))
 
   def test_single_point_overlap(self):
@@ -234,12 +234,12 @@ class IntervalsIntersect(TestSuite):
           )
           SELECT * FROM data;
 
-        SELECT ts, dur, left_id, right_id
-        FROM _interval_intersect!(A, B)
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!(A, B, ())
         ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","left_id","right_id"
+        "ts","dur","id_0","id_1"
         """))
 
   def test_single_point_overlap_rev(self):
@@ -265,12 +265,12 @@ class IntervalsIntersect(TestSuite):
           )
           SELECT * FROM data;
 
-        SELECT ts, dur, left_id, right_id
-        FROM _interval_intersect!(B, A)
+        SELECT ts, dur, id_0, id_1
+        FROM _interval_intersect!(B, A, ())
         ORDER BY ts;
         """,
         out=Csv("""
-        "ts","dur","left_id","right_id"
+        "ts","dur","id_0","id_1"
         """))
 
   def test_single_interval(self):
@@ -330,7 +330,7 @@ class IntervalsIntersect(TestSuite):
 
         WITH ii AS (
           SELECT *
-          FROM _interval_intersect!(trace_interval, non_overlapping)
+          FROM _interval_intersect!(trace_interval, non_overlapping, ())
         )
         SELECT
           (SELECT count(*) FROM ii) AS ii_count,
