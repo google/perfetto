@@ -311,8 +311,12 @@ struct IntervalTreeIntervalsAgg
     IntervalTree::Interval interval;
     interval.id = static_cast<uint32_t>(sqlite::value::Int64(argv[0]));
     interval.start = static_cast<uint64_t>(sqlite::value::Int64(argv[1]));
-    interval.end =
-        interval.start + static_cast<uint64_t>(sqlite::value::Int64(argv[2]));
+    int64_t dur = sqlite::value::Int64(argv[2]);
+    if (dur < 1) {
+      sqlite::result::Error(
+          ctx, "Interval intersect only works on intervals with dur > 0");
+    }
+    interval.end = interval.start + static_cast<uint64_t>(dur);
 
     if (argc == 3) {
       agg_ctx.intervals[0].push_back(std::move(interval));
