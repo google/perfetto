@@ -22,7 +22,8 @@ namespace perfetto {
 namespace bigtrace {
 OrchestratorImpl::OrchestratorImpl(
     std::unique_ptr<protos::BigtraceWorker::Stub> stub)
-    : stub_(std::move(stub)), pool_(base::ThreadPool(5)) {}
+    : stub_(std::move(stub)),
+      pool_(base::ThreadPool(std::thread::hardware_concurrency())) {}
 
 grpc::Status OrchestratorImpl::Query(
     grpc::ServerContext*,

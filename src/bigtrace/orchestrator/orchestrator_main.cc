@@ -28,67 +28,143 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/getopt.h"
-#include "perfetto/ext/base/threading/thread_pool.h"
-#include "perfetto/ext/base/waitable_event.h"
-#include "protos/perfetto/bigtrace/orchestrator.grpc.pb.h"
-#include "protos/perfetto/bigtrace/orchestrator.pb.h"
+#include "perfetto/ext/base/status_or.h"
 #include "protos/perfetto/bigtrace/worker.grpc.pb.h"
-#include "protos/perfetto/bigtrace/worker.pb.h"
-#include "src/cpp/server/thread_pool_interface.h"
-
 #include "src/bigtrace/orchestrator/orchestrator_impl.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace bigtrace {
 namespace {
 
 struct CommandLineOptions {
+  std::string server_socket;
   std::string worker_address;
+  uint16_t worker_port;
   uint64_t worker_count;
+  std::string worker_address_list;
+  std::string name_resolution_scheme;
 };
 
-CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
+void PrintUsage(char** argv) {
+  PERFETTO_ELOG(R"(
+Orchestrator main executable.
+Usage: %s [OPTIONS]
+Options:
+ -h, --help                             Prints this guide.
+ -s, --server_socket ADDRESS:PORT       Input the socket for the
+                                        gRPC service to run on
+ -w, --worker_address ADDRESS           Input the address of the workers
+                                        (for single address and
+                                        incrementing port)
+ -p  --worker_port PORT                 Input the starting port of
+                                        the workers
+ -n  --worker_count NUM_WORKERS         Input the number of workers
+                                        (this will specify workers
+                                        starting from the worker_port
+                                        and counting up)
+ -l  --worker_list SOCKET1,SOCKET2,...  Input a string of comma a separated
+                                        worker sockets
+                                        (use either -l or
+                                         -w -p -n EXCLUSIVELY)
+ -r --name_resolution_scheme SCHEME     Specify the name resolution
+                                        scheme for gRPC (e.g. ipv4:, dns://))",
+                argv[0]);
+}
+
+base::StatusOr<CommandLineOptions> ParseCommandLineOptions(int argc,
+                                                           char** argv) {
   CommandLineOptions command_line_options;
+
   static option long_options[] = {
-      {"worker", required_argument, nullptr, 'w'},
-      {"num_workers", required_argument, nullptr, 'n'},
+      {"help", optional_argument, nullptr, 'h'},
+      {"server_socket", optional_argument, nullptr, 's'},
+      {"worker_address", optional_argument, nullptr, 'w'},
+      {"worker_port", optional_argument, nullptr, 'p'},
+      {"worker_count", optional_argument, nullptr, 'n'},
+      {"worker_list", optional_argument, nullptr, 'l'},
+      {"name_resolution_scheme", optional_argument, nullptr, 'r'},
       {nullptr, 0, nullptr, 0}};
   int c;
-  while ((c = getopt_long(argc, argv, "w:n:", long_options, nullptr)) != -1) {
+  while ((c = getopt_long(argc, argv, "s:p:w:q:n:l:r:", long_options,
+                          nullptr)) != -1) {
     switch (c) {
+      case 's':
+        command_line_options.server_socket = optarg;
+        break;
       case 'w':
         command_line_options.worker_address = optarg;
+        break;
+      case 'p':
+        command_line_options.worker_port = static_cast<uint16_t>(atoi(optarg));
         break;
       case 'n':
         command_line_options.worker_count = static_cast<uint64_t>(atoi(optarg));
         break;
-      default:
-        PERFETTO_ELOG(
-            "Usage: %s --worker=worker_address --worker_count=worker_count",
-            argv[0]);
+      case 'l':
+        command_line_options.worker_address_list = optarg;
         break;
+      case 'r':
+        command_line_options.name_resolution_scheme = optarg;
+        break;
+      default:
+        PrintUsage(argv);
+        exit(c == 'h' ? 0 : 1);
     }
+  }
+
+  bool has_worker_address_port_and_count =
+      command_line_options.worker_count && command_line_options.worker_port &&
+      !command_line_options.worker_address.empty();
+
+  bool has_worker_list = !command_line_options.worker_address_list.empty();
+
+  if (has_worker_address_port_and_count == has_worker_list) {
+    return base::ErrStatus(
+        "Error: You must specify a worker address and count OR a worker list");
+  }
+
+  if (command_line_options.worker_count <= 0 && !has_worker_list) {
+    return base::ErrStatus(
+        "Error: You must specify a worker count greater than 0 OR a worker "
+        "list");
   }
 
   return command_line_options;
 }
 
 base::Status OrchestratorMain(int argc, char** argv) {
-  CommandLineOptions options = ParseCommandLineOptions(argc, argv);
+  ASSIGN_OR_RETURN(base::StatusOr<CommandLineOptions> options,
+                   ParseCommandLineOptions(argc, argv));
 
-  std::string server_address("localhost:5051");
+  std::string server_socket = options->server_socket.empty()
+                                  ? "127.0.0.1:5051"
+                                  : options->server_socket;
+
   std::string worker_address =
-      !options.worker_address.empty() ? options.worker_address : "localhost";
+      options->worker_address.empty() ? "127.0.0.1" : options->worker_address;
 
-  uint64_t worker_count = options.worker_count;
-  PERFETTO_CHECK(worker_count > 0);
+  uint16_t worker_port =
+      options->worker_port == 0 ? 5052 : options->worker_port;
+  std::string worker_address_list = options->worker_address_list;
+  uint64_t worker_count = options->worker_count;
 
   // TODO(ivankc) Replace with DNS resolver
-  std::string target_address = "ipv4:";
+  std::string target_address = options->name_resolution_scheme.empty()
+                                   ? "ipv4:"
+                                   : options->name_resolution_scheme;
 
-  for (uint64_t i = 0; i < worker_count; ++i) {
-    std::string address = worker_address + ":" + std::to_string(5052 + i) + ",";
-    target_address += address;
+  if (worker_address_list.empty()) {
+    // Use a set of n workers incrementing from a starting port
+    PERFETTO_DCHECK(worker_count > 0 && !worker_address.empty());
+    for (uint64_t i = 0; i < worker_count; ++i) {
+      std::string address =
+          worker_address + ":" + std::to_string(worker_port + i) + ",";
+      target_address += address;
+    }
+  } else {
+    // Use a list of workers passed as an option
+    target_address += worker_address_list;
   }
 
   grpc::ChannelArguments args;
@@ -105,10 +181,10 @@ base::Status OrchestratorMain(int argc, char** argv) {
 
   // Setup the Orchestrator Server
   grpc::ServerBuilder builder;
-  builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+  builder.AddListeningPort(server_socket, grpc::InsecureServerCredentials());
   builder.RegisterService(service.get());
   std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
-  PERFETTO_LOG("Orchestrator server listening on %s", server_address.c_str());
+  PERFETTO_LOG("Orchestrator server listening on %s", server_socket.c_str());
 
   server->Wait();
 
