@@ -100,14 +100,27 @@ base::StatusOr<std::optional<SqlSource>> ExecuteStringify(
     const SqliteTokenizer& tokenizer,
     const SqliteTokenizer::Token& name_token,
     const std::vector<SqlSource>& args) {
-  if (args.size() != 1) {
+  if (args.empty()) {
     return ErrorAtToken(tokenizer, name_token,
-                        "stringify: stringify must have exactly one argument");
+                        "stringify: stringify must not be empty");
   }
+
+  // Track the set of variables that, even if we see during stringify, we ignore
+  // and stringify them anyway.
+  std::unordered_set<std::string> ignored_variables;
+  for (uint32_t i = 1; i < args.size(); ++i) {
+    ignored_variables.emplace(args[i].sql());
+  }
+
+  // Ensure that we don't stringifiy any SQL variables present (unless they were
+  // explcitily marked as ignored).
   SqliteTokenizer t(args[0]);
-  auto tok = t.NextNonWhitespace();
-  if (tok.token_type == SqliteTokenType::TK_VARIABLE) {
-    return {std::nullopt};
+  for (auto tok = t.NextNonWhitespace(); !tok.IsTerminal();
+       tok = t.NextNonWhitespace()) {
+    if (tok.token_type == SqliteTokenType::TK_VARIABLE &&
+        !ignored_variables.count(std::string(tok.str.substr(1)))) {
+      return {std::nullopt};
+    }
   }
   std::string res = "'" + args[0].sql() + "'";
   return {SqlSource::FromTraceProcessorImplementation(std::move(res))};
@@ -164,7 +177,10 @@ base::StatusOr<SqlSource> PerfettoSqlPreprocessor::RewriteInternal(
       }
       auto binding_it = arg_bindings.find(std::string(tok.str.substr(1)));
       if (binding_it == arg_bindings.end()) {
-        return ErrorAtToken(tokenizer, tok, "Variable not found");
+        // TODO(lalitm): reenable making this an error once we actually pass
+        // macros around in graph_scan instead of bare-SQL.
+        // return ErrorAtToken(tokenizer, tok, "Variable not found");
+        continue;
       }
       tokenizer.RewriteToken(rewriter, tok, binding_it->second);
       continue;
@@ -196,6 +212,19 @@ base::StatusOr<SqlSource> PerfettoSqlPreprocessor::RewriteInternal(
       if (res) {
         tokenizer.Rewrite(rewriter, prev, tok, *std::move(res),
                           SqliteTokenizer::EndToken::kInclusive);
+      } else {
+        // We failed to stringify because a variable was still present in SQL.
+        // Just readd the stringify SQL with newly expanded token list.
+        std::vector<std::string> pieces;
+        pieces.reserve(token_list.size());
+        for (const auto& list : token_list) {
+          pieces.push_back(list.sql());
+        }
+        tokenizer.Rewrite(
+            rewriter, prev, tok,
+            SqlSource::FromTraceProcessorImplementation(
+                "__intrinsic_stringify!(" + base::Join(pieces, ", ") + ")"),
+            SqliteTokenizer::EndToken::kInclusive);
       }
       continue;
     }
