@@ -19,11 +19,11 @@ import {Duration, duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {getLegacySelection} from '../../common/state';
 import {
-  cropText,
   drawDoubleHeadedArrow,
   drawIncompleteSlice,
   drawTrackHoverTooltip,
 } from '../../common/canvas_utils';
+import {cropText} from '../../base/string_utils';
 import {Color} from '../../core/color';
 import {colorForThread} from '../../core/colorizer';
 import {TrackData} from '../../common/track_data';

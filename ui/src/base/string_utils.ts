@@ -126,3 +126,25 @@ export function undoCommonChatAppReplacements(str: string): string {
   // Replace non-breaking spaces with normal spaces.
   return str.replaceAll('\u00A0', ' ');
 }
+
+export function cropText(str: string, charWidth: number, rectWidth: number) {
+  let displayText = '';
+  const maxLength = Math.floor(rectWidth / charWidth) - 1;
+  if (str.length <= maxLength) {
+    displayText = str;
+  } else {
+    let limit = maxLength;
+    let maybeTripleDot = '';
+    if (maxLength > 1) {
+      limit = maxLength - 1;
+      maybeTripleDot = '\u2026';
+    }
+    // Javascript strings are UTF-16. |limit| could point in the middle of a
+    // 32-bit double-wchar codepoint (e.g., an emoji). Here we detect if the
+    // |limit|-th wchar is a leading surrogate and attach the trailing one.
+    const lastCharCode = str.charCodeAt(limit - 1);
+    limit += lastCharCode >= 55296 && lastCharCode < 56320 ? 1 : 0;
+    displayText = str.substring(0, limit) + maybeTripleDot;
+  }
+  return displayText;
+}

@@ -135,21 +135,25 @@ struct Bfs : public SqliteAggregateFunction<Bfs> {
 
     std::vector<bool> visited(graph->size());
     base::CircularQueue<State> queue;
-    for (int64_t x : *start_ids) {
-      queue.emplace_back(State{static_cast<uint32_t>(x), std::nullopt});
+    for (int64_t raw_id : *start_ids) {
+      auto id = static_cast<uint32_t>(raw_id);
+      if (id >= graph->size() || visited[id]) {
+        continue;
+      }
+      visited[id] = true;
+      queue.emplace_back(State{id, std::nullopt});
     }
     while (!queue.empty()) {
       State state = queue.front();
       queue.pop_front();
+      table->Insert({state.id, state.parent_id});
 
       auto& node = (*graph)[state.id];
-      if (visited[state.id]) {
-        continue;
-      }
-      table->Insert({state.id, state.parent_id});
-      visited[state.id] = true;
-
       for (uint32_t n : node.outgoing_edges) {
+        if (visited[n]) {
+          continue;
+        }
+        visited[n] = true;
         queue.emplace_back(State{n, state.id});
       }
     }

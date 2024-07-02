@@ -405,7 +405,11 @@ struct GraphScan : public SqliteFunction<GraphScan> {
     }
     if (col_names != init->column_names) {
       return sqlite::result::Error(
-          ctx, "graph_scan: column list does not match initial table list");
+          ctx, base::ErrStatus("graph_scan: column list '%s' does not match "
+                               "initial table list '%s'",
+                               base::Join(col_names, ",").c_str(),
+                               base::Join(init->column_names, ",").c_str())
+                   .c_message());
     }
 
     const auto* nodes =

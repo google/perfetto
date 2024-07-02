@@ -19,10 +19,10 @@ import {Time, time} from '../base/time';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {
-  cropText,
   drawIncompleteSlice,
   drawTrackHoverTooltip,
 } from '../common/canvas_utils';
+import {cropText} from '../base/string_utils';
 import {colorCompare} from '../core/color';
 import {UNEXPECTED_PINK} from '../core/colorizer';
 import {

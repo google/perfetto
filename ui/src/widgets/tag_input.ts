@@ -21,9 +21,11 @@ import {findRef} from '../base/dom_utils';
 export interface TagInputAttrs extends HTMLAttrs {
   value?: string;
   onChange?: (text: string) => void;
-  tags: string[];
+  tags: ReadonlyArray<string>;
   onTagAdd: (text: string) => void;
   onTagRemove: (index: number) => void;
+  onfocus?: () => void;
+  onblur?: () => void;
   placeholder?: string;
 }
 
@@ -87,6 +89,8 @@ export class TagInput implements m.ClassComponent<TagInputAttrs> {
       tags,
       onTagAdd,
       onTagRemove,
+      onfocus,
+      onblur,
       placeholder,
       ...htmlAttrs
     } = attrs;
@@ -132,6 +136,8 @@ export class TagInput implements m.ClassComponent<TagInputAttrs> {
           const el = ev.target as HTMLInputElement;
           onChange?.(el.value);
         },
+        onfocus,
+        onblur,
       }),
     );
   }
