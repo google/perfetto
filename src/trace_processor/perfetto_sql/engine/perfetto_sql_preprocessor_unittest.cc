@@ -161,15 +161,33 @@ TEST_F(PerfettoSqlPreprocessorUnittest, NestedMacro) {
 }
 
 TEST_F(PerfettoSqlPreprocessorUnittest, Stringify) {
-  auto foo = SqlSource::FromExecuteQuery(
+  auto sf = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO MACRO sf(a Expr, b Expr) Returns Expr AS "
       "__intrinsic_stringify!($a + $b)");
   macros_.Insert("sf", Macro{
                            false,
                            "sf",
                            {"a", "b"},
-                           FindSubstr(foo, "__intrinsic_stringify!($a + $b)"),
+                           FindSubstr(sf, "__intrinsic_stringify!($a + $b)"),
                        });
+  auto bar = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO MACRO bar(a Expr, b Expr) Returns Expr AS "
+      "sf!((SELECT $a), (SELECT $b))");
+  macros_.Insert("bar", Macro{
+                            false,
+                            "bar",
+                            {"a", "b"},
+                            FindSubstr(bar, "sf!((SELECT $a), (SELECT $b))"),
+                        });
+  auto baz = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO MACRO baz(a Expr, b Expr) Returns Expr AS "
+      "SELECT bar!((SELECT $a), (SELECT $b))");
+  macros_.Insert("baz", Macro{
+                            false,
+                            "baz",
+                            {"a", "b"},
+                            FindSubstr(baz, "bar!((SELECT $a), (SELECT $b))"),
+                        });
 
   {
     auto source =
@@ -191,6 +209,16 @@ TEST_F(PerfettoSqlPreprocessorUnittest, Stringify) {
   }
 
   {
+    auto source = SqlSource::FromExecuteQuery("baz!(1, 2)");
+    PerfettoSqlPreprocessor preprocessor(source, macros_);
+    ASSERT_TRUE(preprocessor.NextStatement())
+        << preprocessor.status().message();
+    ASSERT_EQ(preprocessor.statement().sql(),
+              "'(SELECT (SELECT 1)) + (SELECT (SELECT 2))'");
+    ASSERT_FALSE(preprocessor.NextStatement());
+  }
+
+  {
     auto source = SqlSource::FromExecuteQuery("__intrinsic_stringify!()");
     PerfettoSqlPreprocessor preprocessor(source, macros_);
     ASSERT_FALSE(preprocessor.NextStatement());
@@ -199,7 +227,7 @@ TEST_F(PerfettoSqlPreprocessorUnittest, Stringify) {
               "  File \"stdin\" line 1 col 1\n"
               "    __intrinsic_stringify!()\n"
               "    ^\n"
-              "stringify: stringify must have exactly one argument");
+              "stringify: stringify must not be empty");
   }
 }
 

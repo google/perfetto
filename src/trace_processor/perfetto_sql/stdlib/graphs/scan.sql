@@ -72,7 +72,7 @@ RETURNS TableOrSubquery AS
       )
       from $init_table s
     ),
-    __intrinsic_stringify!($agg_query),
+    __intrinsic_stringify!($agg_query, table),
     __intrinsic_stringify!($agg_columns)
   ))
   where __intrinsic_table_ptr_bind(c0, 'id')
