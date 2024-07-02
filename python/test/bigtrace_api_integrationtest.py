@@ -20,7 +20,6 @@ import unittest
 
 from perfetto.common.exceptions import PerfettoException
 
-
 class BigtraceTest(unittest.TestCase):
 
   @classmethod
@@ -29,13 +28,15 @@ class BigtraceTest(unittest.TestCase):
     self.worker = subprocess.Popen(os.environ["WORKER_PATH"])
     self.orchestrator = subprocess.Popen(
         [os.environ["ORCHESTRATOR_PATH"], "-l", "127.0.0.1:5052"])
-    self.client = perfetto.bigtrace.api.Bigtrace()
-    time.sleep(1)
+    self.client = perfetto.bigtrace.api.Bigtrace(
+        wait_for_ready_for_testing=True)
 
   @classmethod
   def tearDownClass(self):
     self.worker.kill()
+    self.worker.wait()
     self.orchestrator.kill()
+    self.orchestrator.wait()
     del self.client
 
   def test_valid_traces(self):
