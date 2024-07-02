@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {globals} from '../../frontend/globals';
-import {NamedRow, NamedSliceTrackTypes} from '../../frontend/named_slice_track';
+import {NamedRow} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {PrimaryTrackSortKey, Slice} from '../../public';
 import {
@@ -34,11 +34,7 @@ import {
 
 export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
-export interface EventLatencyTrackTypes extends NamedSliceTrackTypes {
-  config: {baseTable: string};
-}
-
-export class EventLatencyTrack extends CustomSqlTableSliceTrack<EventLatencyTrackTypes> {
+export class EventLatencyTrack extends CustomSqlTableSliceTrack {
   constructor(
     args: NewTrackArgs,
     private baseTable: string,
@@ -85,7 +81,7 @@ export class EventLatencyTrack extends CustomSqlTableSliceTrack<EventLatencyTrac
     }
   }
 
-  onUpdatedSlices(slices: EventLatencyTrackTypes['slice'][]) {
+  onUpdatedSlices(slices: Slice[]) {
     for (const slice of slices) {
       const currentSelection = getLegacySelection(globals.state);
       const isSelected =

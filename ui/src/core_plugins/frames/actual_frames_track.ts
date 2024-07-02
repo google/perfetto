@@ -14,11 +14,7 @@
 
 import {HSLColor} from '../../core/color';
 import {ColorScheme, makeColorScheme} from '../../core/colorizer';
-import {
-  NAMED_ROW,
-  NamedSliceTrack,
-  NamedSliceTrackTypes,
-} from '../../frontend/named_slice_track';
+import {NAMED_ROW, NamedSliceTrack} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {Engine, Slice, STR_NULL} from '../../public';
 
@@ -48,11 +44,7 @@ export const ACTUAL_FRAME_ROW = {
 };
 export type ActualFrameRow = typeof ACTUAL_FRAME_ROW;
 
-export interface ActualFrameTrackTypes extends NamedSliceTrackTypes {
-  row: ActualFrameRow;
-}
-
-export class ActualFramesTrack extends NamedSliceTrack<ActualFrameTrackTypes> {
+export class ActualFramesTrack extends NamedSliceTrack<Slice, ActualFrameRow> {
   constructor(
     engine: Engine,
     maxDepth: number,
@@ -67,7 +59,7 @@ export class ActualFramesTrack extends NamedSliceTrack<ActualFrameTrackTypes> {
   }
 
   // This is used by the base class to call iter().
-  getRowSpec() {
+  protected getRowSpec() {
     return ACTUAL_FRAME_ROW;
   }
 
@@ -89,7 +81,7 @@ export class ActualFramesTrack extends NamedSliceTrack<ActualFrameTrackTypes> {
   }
 
   rowToSlice(row: ActualFrameRow): Slice {
-    const baseSlice = super.rowToSlice(row);
+    const baseSlice = this.rowToSliceBase(row);
     return {
       ...baseSlice,
       colorScheme: getColorSchemeForJank(row.jankTag, row.jankSeverityType),
