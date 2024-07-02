@@ -1,6 +1,6 @@
 android_startup {
   startup {
-    startup_id: 1
+    startup_id: 0
     package_name: "com.some.app"
     process_name: "com.some.app"
     zygote_new_process: false
