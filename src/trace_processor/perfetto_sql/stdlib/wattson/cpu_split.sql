@@ -73,8 +73,8 @@ FROM _idle_freq_filtered iff
 -- Left join since some CPUs may only match the 2D LUT
 LEFT JOIN _filtered_curves_1d lut ON
   iff.policy = lut.policy AND
-  iff.idle = lut.idle AND
-  iff.freq = lut.freq_khz;
+  iff.freq = lut.freq_khz AND
+  iff.idle = lut.idle;
 
 CREATE PERFETTO TABLE _stats_cpu0
 AS
