@@ -135,7 +135,7 @@ const USE_NEW_FLAMEGRAPH_IMPL = featureFlags.register({
   id: 'useNewFlamegraphImpl',
   name: 'Use new flamegraph implementation',
   description: 'Use new flamgraph implementation in details panels.',
-  defaultValue: true,
+  defaultValue: false,
 });
 
 class HeapProfileFlamegraphDetailsPanel implements LegacyDetailsPanel {
@@ -165,7 +165,7 @@ class HeapProfileFlamegraphDetailsPanel implements LegacyDetailsPanel {
       return undefined;
     }
     if (
-      sel.type !== ProfileType.JAVA_HEAP_GRAPH &&
+      sel.type !== ProfileType.JAVA_HEAP_GRAPH ||
       !USE_NEW_FLAMEGRAPH_IMPL.get()
     ) {
       this.sel = undefined;
