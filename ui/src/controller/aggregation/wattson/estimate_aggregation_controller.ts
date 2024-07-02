@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnDef} from '../../common/aggregation_data';
-import {Area, Sorting} from '../../common/state';
-import {globals} from '../../frontend/globals';
-import {Engine} from '../../trace_processor/engine';
-import {CPUSS_ESTIMATE_TRACK_KIND} from '../../core/track_kinds';
-import {AggregationController} from './aggregation_controller';
+import {ColumnDef} from '../../../common/aggregation_data';
+import {Area, Sorting} from '../../../common/state';
+import {globals} from '../../../frontend/globals';
+import {Engine} from '../../../trace_processor/engine';
+import {CPUSS_ESTIMATE_TRACK_KIND} from '../../../core/track_kinds';
+import {AggregationController} from '../aggregation_controller';
 
-export class WattsonAggregationController extends AggregationController {
+export class WattsonEstimateAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     await engine.query(`drop view if exists ${this.kind};`);
 
