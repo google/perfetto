@@ -141,6 +141,7 @@ external_deps = {
         'PERFETTO_CONFIG.deps.sqlite_ext_percentile'
     ],
     '//gn:zlib': ['PERFETTO_CONFIG.deps.zlib'],
+    '//gn:pigweed': ['PERFETTO_CONFIG.deps.pigweed'],
     '//gn:llvm_demangle': ['PERFETTO_CONFIG.deps.llvm_demangle'],
     '//src/trace_processor:demangle': ['PERFETTO_CONFIG.deps.demangle_wrapper'],
     gn_utils.GEN_VERSION_TARGET: ['PERFETTO_CONFIG.deps.version_header'],

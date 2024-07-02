@@ -321,6 +321,10 @@ declare_args() {
   enable_perfetto_llvm_demangle =
       is_clang && enable_perfetto_trace_processor && perfetto_build_standalone
 
+  # Enables the Trace Processor module to parse pigweed.dev tokenized logs.
+  enable_perfetto_trace_processor_pigweed =
+      enable_perfetto_trace_processor && perfetto_build_standalone
+
   # Enables gRPC in the Perfetto codebase. gRPC significantly increases build
   # times and the general footprint of Perfetto. As it only required for
   # BigTrace and even then only to build the final ready-to-ship binary, don't
