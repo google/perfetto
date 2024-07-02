@@ -49,5 +49,6 @@ perfetto_sql_source_set("android") {
     "statsd.sql",
     "suspend.sql",
     "thread.sql",
+    "version.sql",
   ]
 }
