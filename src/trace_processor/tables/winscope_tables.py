@@ -26,7 +26,7 @@ INPUTMETHOD_CLIENTS_TABLE = Table(
     class_name='InputMethodClientsTable',
     sql_name='__intrinsic_inputmethod_clients',
     columns=[
-        C('ts', CppInt64()),
+        C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppUint32()),
     ],
     tabledoc=TableDoc(
@@ -42,7 +42,7 @@ INPUTMETHOD_MANAGER_SERVICE_TABLE = Table(
     class_name='InputMethodManagerServiceTable',
     sql_name='__intrinsic_inputmethod_manager_service',
     columns=[
-        C('ts', CppInt64()),
+        C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppUint32()),
     ],
     tabledoc=TableDoc(
@@ -58,7 +58,7 @@ INPUTMETHOD_SERVICE_TABLE = Table(
     class_name='InputMethodServiceTable',
     sql_name='__intrinsic_inputmethod_service',
     columns=[
-        C('ts', CppInt64()),
+        C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppUint32()),
     ],
     tabledoc=TableDoc(
@@ -74,7 +74,7 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     class_name='SurfaceFlingerLayersSnapshotTable',
     sql_name='surfaceflinger_layers_snapshot',
     columns=[
-        C('ts', CppInt64()),
+        C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppUint32()),
     ],
     tabledoc=TableDoc(
@@ -106,7 +106,7 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
     class_name='SurfaceFlingerTransactionsTable',
     sql_name='surfaceflinger_transactions',
     columns=[
-        C('ts', CppInt64()),
+        C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppUint32()),
     ],
     tabledoc=TableDoc(
@@ -123,7 +123,7 @@ VIEWCAPTURE_TABLE = Table(
     class_name='ViewCaptureTable',
     sql_name='__intrinsic_viewcapture',
     columns=[
-        C('ts', CppInt64()),
+        C('ts', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppUint32()),
     ],
     tabledoc=TableDoc(
@@ -140,7 +140,7 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
     sql_name='window_manager_shell_transitions',
     columns=[
         C('ts', CppInt64()),
-        C('transition_id', CppInt64()),
+        C('transition_id', CppInt64(), ColumnFlag.SORTED),
         C('arg_set_id', CppUint32()),
     ],
     tabledoc=TableDoc(
