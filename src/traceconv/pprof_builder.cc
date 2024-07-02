@@ -974,7 +974,7 @@ LocationTracker PreprocessLocationsForJavaHeap(
 
       // Find parent of the parent
       auto parent_id_it = parents.find(current_parent_id);
-      PERFETTO_CHECK(parent_id_it != interned_ids.end());
+      PERFETTO_CHECK(parent_id_it != parents.end());
 
       current_parent_id = parent_id_it->second;
     }
