@@ -195,6 +195,15 @@ source_set("full") {
     "../syscalls:full",
     "winscope:full",
   ]
+  if (enable_perfetto_trace_processor_pigweed) {
+    sources += [
+      "pixel_modem_module.cc",
+      "pixel_modem_module.h",
+      "pixel_modem_parser.cc",
+      "pixel_modem_parser.h",
+    ]
+    deps += [ "../../../../gn:pigweed" ]
+  }
 }
 
 source_set("proto_importer_module") {

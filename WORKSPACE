@@ -21,7 +21,7 @@ workspace(name = "perfetto")
 new_local_repository(
     name = "perfetto_cfg",
     path = "bazel/standalone",
-    build_file_content = ""
+    build_file_content = "",
 )
 
 load("@perfetto//bazel:deps.bzl", "perfetto_deps")
@@ -29,3 +29,7 @@ perfetto_deps()
 
 load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 protobuf_deps()
+
+load("@rules_fuzzing//fuzzing:repositories.bzl", "rules_fuzzing_dependencies")
+rules_fuzzing_dependencies()
+
