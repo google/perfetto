@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NamedSliceTrackTypes} from '../named_slice_track';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
@@ -22,7 +21,7 @@ import {TrackContext} from '../../public';
 import {Engine} from '../../trace_processor/engine';
 import {DebugSliceDetailsTab} from './details_tab';
 
-export class DebugSliceTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+export class DebugSliceTrack extends CustomSqlTableSliceTrack {
   private readonly sqlTableName: string;
 
   constructor(engine: Engine, ctx: TrackContext, tableName: string) {

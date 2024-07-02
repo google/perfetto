@@ -14,25 +14,29 @@
 
 import {InThreadTrackSortKey} from '../../common/state';
 import {
+  NAMED_ROW,
+  NamedRow,
   NamedSliceTrack,
-  NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
+import {Slice} from '../../public';
 import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
 import {DecideTracksResult, ENABLE_CHROME_SCROLL_JANK_PLUGIN} from './common';
 
-interface ChromeTasksScrollJankTrackConfig {}
-
-interface ChromeTasksScrollJankTrackTypes extends NamedSliceTrackTypes {
-  config: ChromeTasksScrollJankTrackConfig;
-}
-
-export class ChromeTasksScrollJankTrack extends NamedSliceTrack<ChromeTasksScrollJankTrackTypes> {
+export class ChromeTasksScrollJankTrack extends NamedSliceTrack {
   static readonly kind = 'org.chromium.ScrollJank.BrowserUIThreadLongTasks';
 
   constructor(args: NewTrackArgs) {
     super(args);
+  }
+
+  getRowSpec(): NamedRow {
+    return NAMED_ROW;
+  }
+
+  rowToSlice(row: NamedRow): Slice {
+    return this.rowToSliceBase(row);
   }
 
   getSqlSource(): string {

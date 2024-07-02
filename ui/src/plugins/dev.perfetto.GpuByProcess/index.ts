@@ -18,8 +18,13 @@ import {
   PluginContextTrace,
   PluginDescriptor,
   STR_NULL,
+  Slice,
 } from '../../public';
-import {NamedSliceTrack} from '../../frontend/named_slice_track';
+import {
+  NAMED_ROW,
+  NamedRow,
+  NamedSliceTrack,
+} from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 
 class GpuPidTrack extends NamedSliceTrack {
@@ -28,6 +33,14 @@ class GpuPidTrack extends NamedSliceTrack {
   constructor(args: NewTrackArgs, upid: number) {
     super(args);
     this.upid = upid;
+  }
+
+  protected getRowSpec(): NamedRow {
+    return NAMED_ROW;
+  }
+
+  protected rowToSlice(row: NamedRow): Slice {
+    return this.rowToSliceBase(row);
   }
 
   getSqlSource(): string {

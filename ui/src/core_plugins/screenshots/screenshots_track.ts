@@ -17,10 +17,9 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../../frontend/tracks/custom_sql_table_slice_track';
-import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {ScreenshotTab} from './screenshot_panel';
 
-export class ScreenshotsTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+export class ScreenshotsTrack extends CustomSqlTableSliceTrack {
   static readonly kind = 'dev.perfetto.ScreenshotsTrack';
 
   getSqlDataSource(): CustomSqlTableDefConfig {

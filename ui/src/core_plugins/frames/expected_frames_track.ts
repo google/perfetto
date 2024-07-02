@@ -14,7 +14,11 @@
 
 import {HSLColor} from '../../core/color';
 import {makeColorScheme} from '../../core/colorizer';
-import {NamedRow, NamedSliceTrack} from '../../frontend/named_slice_track';
+import {
+  NAMED_ROW,
+  NamedRow,
+  NamedSliceTrack,
+} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {Engine, Slice} from '../../public';
 
@@ -49,7 +53,11 @@ export class ExpectedFramesTrack extends NamedSliceTrack {
   }
 
   rowToSlice(row: NamedRow): Slice {
-    const baseSlice = super.rowToSlice(row);
+    const baseSlice = this.rowToSliceBase(row);
     return {...baseSlice, colorScheme: GREEN};
+  }
+
+  getRowSpec(): NamedRow {
+    return NAMED_ROW;
   }
 }

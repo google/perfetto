@@ -18,7 +18,6 @@ import {ProfileType, LegacySelection} from '../../common/state';
 import {
   BASE_ROW,
   BaseSliceTrack,
-  BaseSliceTrackTypes,
   OnSliceClickArgs,
   OnSliceOverArgs,
 } from '../../frontend/base_slice_track';
@@ -38,12 +37,10 @@ interface HeapProfileSlice extends Slice {
   type: ProfileType;
 }
 
-interface HeapProfileTrackTypes extends BaseSliceTrackTypes {
-  row: HeapProfileRow;
-  slice: HeapProfileSlice;
-}
-
-export class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
+export class HeapProfileTrack extends BaseSliceTrack<
+  HeapProfileSlice,
+  HeapProfileRow
+> {
   private upid: number;
 
   constructor(args: NewTrackArgs, upid: number) {
@@ -80,13 +77,15 @@ export class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
   }
 
   rowToSlice(row: HeapProfileRow): HeapProfileSlice {
-    const slice = super.rowToSlice(row);
+    const slice = this.rowToSliceBase(row);
     let type = row.type;
     if (type === 'heap_profile:libc.malloc,com.android.art') {
       type = 'heap_profile:com.android.art,libc.malloc';
     }
-    slice.type = profileType(type);
-    return slice;
+    return {
+      ...slice,
+      type: profileType(type),
+    };
   }
 
   onSliceOver(args: OnSliceOverArgs<HeapProfileSlice>) {
