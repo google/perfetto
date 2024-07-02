@@ -32,17 +32,17 @@ export class WattsonProcessAggregationController extends AggregationController {
     `);
     if (deviceInfo.firstRow({isValid: NUM}).isValid === 0) return false;
 
-    const estimateProcesses: number[] = [];
+    const selectedCpus: number[] = [];
     for (const trackKey of area.tracks) {
       const track = globals.state.tracks[trackKey];
       if (track?.uri) {
         const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
         if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
-          exists(trackInfo.cpu) && estimateProcesses.push(trackInfo.cpu);
+          exists(trackInfo.cpu) && selectedCpus.push(trackInfo.cpu);
         }
       }
     }
-    if (estimateProcesses.length === 0) return false;
+    if (selectedCpus.length === 0) return false;
 
     const duration = area.end - area.start;
     const queryPrefix = `
@@ -52,7 +52,7 @@ export class WattsonProcessAggregationController extends AggregationController {
         ${area.start} as ts,
         ${duration} as dur;
     `;
-    engine.query(this.getEstimateProcessQuery(queryPrefix, estimateProcesses));
+    engine.query(this.getEstimateProcessQuery(queryPrefix, selectedCpus));
 
     return true;
   }
@@ -64,14 +64,11 @@ export class WattsonProcessAggregationController extends AggregationController {
   // 1. Window and associate process with proper Wattson estimate slice
   // 2. Group all processes over time on a per CPU basis
   // 3. Group all processes over all CPUs
-  getEstimateProcessQuery(
-    queryPrefix: string,
-    estimateProcesses: number[],
-  ): string {
+  getEstimateProcessQuery(queryPrefix: string, selectedCpus: number[]): string {
     let query = queryPrefix;
 
     // Estimate and total per UPID per CPU
-    estimateProcesses.forEach((cpu) => {
+    selectedCpus.forEach((cpu) => {
       query += `
         -- Processes filtered by CPU
         DROP TABLE IF EXISTS _per_cpu_threads;
@@ -120,7 +117,7 @@ export class WattsonProcessAggregationController extends AggregationController {
       CREATE VIEW ${this.kind} AS
       WITH _unioned_per_process_per_cpu AS (
     `;
-    estimateProcesses.forEach((cpu, i) => {
+    selectedCpus.forEach((cpu, i) => {
       query += i != 0 ? `UNION ALL\n` : ``;
       query += `SELECT * from _total_per_process_cpu${cpu}\n`;
     });

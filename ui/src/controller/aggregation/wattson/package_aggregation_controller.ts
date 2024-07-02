@@ -39,17 +39,17 @@ export class WattsonPackageAggregationController extends AggregationController {
     `);
     if (packageInfo.firstRow({isValid: NUM}).isValid === 0) return false;
 
-    const estimatePackages: number[] = [];
+    const selectedCpus: number[] = [];
     for (const trackKey of area.tracks) {
       const track = globals.state.tracks[trackKey];
       if (track?.uri) {
         const trackInfo = globals.trackManager.resolveTrackInfo(track.uri);
         if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
-          exists(trackInfo.cpu) && estimatePackages.push(trackInfo.cpu);
+          exists(trackInfo.cpu) && selectedCpus.push(trackInfo.cpu);
         }
       }
     }
-    if (estimatePackages.length === 0) return false;
+    if (selectedCpus.length === 0) return false;
 
     const duration = area.end - area.start;
     const queryPrefix = `
@@ -59,7 +59,7 @@ export class WattsonPackageAggregationController extends AggregationController {
         ${area.start} as ts,
         ${duration} as dur;
     `;
-    engine.query(this.getEstimatePackageQuery(queryPrefix, estimatePackages));
+    engine.query(this.getEstimatePackageQuery(queryPrefix, selectedCpus));
 
     return true;
   }
@@ -71,14 +71,11 @@ export class WattsonPackageAggregationController extends AggregationController {
   // 1. Window and associate package with proper Wattson estimate slice
   // 2. Group all packages over time on a per CPU basis
   // 3. Group all packages over all CPUs
-  getEstimatePackageQuery(
-    queryPrefix: string,
-    estimatePackages: number[],
-  ): string {
+  getEstimatePackageQuery(queryPrefix: string, selectedCpus: number[]): string {
     let query = queryPrefix;
 
     // Estimate and total per UID per CPU
-    estimatePackages.forEach((cpu) => {
+    selectedCpus.forEach((cpu) => {
       query += `
         -- Packages filtered by CPU
         DROP TABLE IF EXISTS _per_cpu_threads;
@@ -125,7 +122,7 @@ export class WattsonPackageAggregationController extends AggregationController {
       CREATE VIEW ${this.kind} AS
       WITH _unioned_per_package_per_cpu AS (
     `;
-    estimatePackages.forEach((cpu, i) => {
+    selectedCpus.forEach((cpu, i) => {
       query += i != 0 ? `UNION ALL\n` : ``;
       query += `SELECT * from _total_per_package_cpu${cpu}\n`;
     });
