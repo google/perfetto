@@ -53,7 +53,10 @@ export function initCssConstants() {
 function getCssStr(prop: string): string | undefined {
   if (typeof window === 'undefined') return undefined;
   const body = window.document.body;
-  return window.getComputedStyle(body).getPropertyValue(prop);
+  const value = window.getComputedStyle(body).getPropertyValue(prop);
+  // Note: getPropertyValue() returns an empty string if not set
+  // https://developer.mozilla.org/en-US/docs/Web/API/CSSStyleDeclaration/getPropertyValue#return_value
+  return value === '' ? undefined : value;
 }
 
 function getCssNum(prop: string): number | undefined {
