@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NamedSliceTrack} from '../../frontend/named_slice_track';
+import {
+  NAMED_ROW,
+  NamedRow,
+  NamedSliceTrack,
+} from '../../frontend/named_slice_track';
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {Slice} from '../../public';
@@ -28,6 +32,14 @@ export class AsyncSliceTrack extends NamedSliceTrack {
       ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
       depthGuess: maxDepth,
     };
+  }
+
+  getRowSpec(): NamedRow {
+    return NAMED_ROW;
+  }
+
+  rowToSlice(row: NamedRow): Slice {
+    return this.rowToSliceBase(row);
   }
 
   getSqlSource(): string {

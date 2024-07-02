@@ -158,20 +158,14 @@ interface SliceInternal {
 
 // We use this to avoid exposing subclasses to the properties that live on
 // SliceInternal. Within BaseSliceTrack the underlying storage and private
-// methods use CastInternal<T['slice']> (i.e. whatever the subclass requests
+// methods use CastInternal<S> (i.e. whatever the subclass requests
 // plus our implementation fields) but when we call 'virtual' methods that
-// the subclass should implement we use just T['slice'] hiding x & w.
+// the subclass should implement we use just S hiding x & w.
 type CastInternal<S extends Slice> = S & SliceInternal;
 
-// The meta-type which describes the types used to extend the BaseSliceTrack.
-// Derived classes can extend this interface to override these types if needed.
-export interface BaseSliceTrackTypes {
-  slice: Slice;
-  row: BaseRow;
-}
-
 export abstract class BaseSliceTrack<
-  T extends BaseSliceTrackTypes = BaseSliceTrackTypes,
+  SliceT extends Slice = Slice,
+  RowT extends BaseRow = BaseRow,
 > implements Track
 {
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
@@ -183,24 +177,24 @@ export abstract class BaseSliceTrack<
   private slicesKey: CacheKey = CacheKey.zero();
 
   // This is the currently 'cached' slices:
-  private slices = new Array<CastInternal<T['slice']>>();
+  private slices = new Array<CastInternal<SliceT>>();
 
   // Incomplete slices (dur = -1). Rather than adding a lot of logic to
   // the SQL queries to handle this case we materialise them one off
   // then unconditionally render them. This should be efficient since
   // there are at most |depth| slices.
-  private incomplete = new Array<CastInternal<T['slice']>>();
+  private incomplete = new Array<CastInternal<SliceT>>();
 
   // The currently selected slice.
   // TODO(hjd): We should fetch this from the underlying data rather
   // than just remembering it when we see it.
-  private selectedSlice?: CastInternal<T['slice']>;
+  private selectedSlice?: CastInternal<SliceT>;
 
   private extraSqlColumns: string[];
 
   private charWidth = -1;
   private hoverPos?: {x: number; y: number};
-  protected hoveredSlice?: T['slice'];
+  protected hoveredSlice?: SliceT;
   private hoverTooltip: string[] = [];
   private maxDataDepth = 0;
 
@@ -213,7 +207,7 @@ export abstract class BaseSliceTrack<
 
   // Extension points.
   // Each extension point should take a dedicated argument type (e.g.,
-  // OnSliceOverArgs {slice?: T['slice']}) so it makes future extensions
+  // OnSliceOverArgs {slice?: S}) so it makes future extensions
   // non-API-breaking (e.g. if we want to add the X position).
 
   // onInit hook lets you do asynchronous set up e.g. creating a table
@@ -230,12 +224,10 @@ export abstract class BaseSliceTrack<
   // `select id, ts, dur, 0 as depth from foo where bar = 'baz'`
   abstract getSqlSource(): string;
 
-  getRowSpec(): T['row'] {
-    return BASE_ROW;
-  }
-  onSliceOver(_args: OnSliceOverArgs<T['slice']>): void {}
-  onSliceOut(_args: OnSliceOutArgs<T['slice']>): void {}
-  onSliceClick(_args: OnSliceClickArgs<T['slice']>): void {}
+  protected abstract getRowSpec(): RowT;
+  onSliceOver(_args: OnSliceOverArgs<SliceT>): void {}
+  onSliceOut(_args: OnSliceOutArgs<SliceT>): void {}
+  onSliceClick(_args: OnSliceClickArgs<SliceT>): void {}
 
   // The API contract of onUpdatedSlices() is:
   //  - I am going to draw these slices in the near future.
@@ -244,14 +236,14 @@ export abstract class BaseSliceTrack<
   //    state update.
   //  - This is NOT guaranteed to be called on every frame. For instance you
   //    cannot use this to do some colour-based animation.
-  onUpdatedSlices(slices: Array<T['slice']>): void {
+  onUpdatedSlices(slices: Array<SliceT>): void {
     this.highlightHovererdAndSameTitle(slices);
   }
 
   // TODO(hjd): Remove.
   drawSchedLatencyArrow(
     _: CanvasRenderingContext2D,
-    _selectedSlice?: T['slice'],
+    _selectedSlice?: SliceT,
   ): void {}
 
   constructor(args: NewTrackArgs) {
@@ -360,7 +352,7 @@ export abstract class BaseSliceTrack<
         having dur = -1
       `);
     }
-    const incomplete = new Array<CastInternal<T['slice']>>(queryRes.numRows());
+    const incomplete = new Array<CastInternal<SliceT>>(queryRes.numRows());
     const it = queryRes.iter(this.getRowSpec());
     for (let i = 0; it.valid(); it.next(), ++i) {
       incomplete[i] = this.rowToSliceInternal(it);
@@ -426,7 +418,7 @@ export abstract class BaseSliceTrack<
     if (selectedId === undefined) {
       this.selectedSlice = undefined;
     }
-    let discoveredSelection: CastInternal<T['slice']> | undefined;
+    let discoveredSelection: CastInternal<SliceT> | undefined;
 
     // Believe it or not, doing 4xO(N) passes is ~2x faster than trying to draw
     // everything in one go. The key is that state changes operations on the
@@ -700,7 +692,7 @@ export abstract class BaseSliceTrack<
     // Here convert each row to a Slice. We do what we can do
     // generically in the base class, and delegate the rest to the impl
     // via that rowToSlice() abstract call.
-    const slices = new Array<CastInternal<T['slice']>>();
+    const slices = new Array<CastInternal<SliceT>>();
     const it = queryRes.iter(this.getRowSpec());
 
     let maxDataDepth = this.maxDataDepth;
@@ -723,8 +715,8 @@ export abstract class BaseSliceTrack<
     raf.scheduleRedraw();
   }
 
-  private rowToSliceInternal(row: T['row']): CastInternal<T['slice']> {
-    const slice = this.rowToSlice(row) as CastInternal<T['slice']>;
+  private rowToSliceInternal(row: RowT): CastInternal<SliceT> {
+    const slice = this.rowToSlice(row);
 
     // If this is a more updated version of the selected slice throw
     // away the old one.
@@ -732,12 +724,16 @@ export abstract class BaseSliceTrack<
       this.selectedSlice = undefined;
     }
 
-    slice.x = -1;
-    slice.w = -1;
-    return slice;
+    return {
+      ...slice,
+      x: -1,
+      w: -1,
+    };
   }
 
-  rowToSlice(row: T['row']): T['slice'] {
+  protected abstract rowToSlice(row: RowT): SliceT;
+
+  protected rowToSliceBase(row: RowT): Slice {
     let flags = 0;
     if (row.dur === -1n) {
       flags |= SLICE_FLAGS_INCOMPLETE;
@@ -766,7 +762,7 @@ export abstract class BaseSliceTrack<
     };
   }
 
-  private findSlice({x, y}: {x: number; y: number}): undefined | Slice {
+  private findSlice({x, y}: {x: number; y: number}): undefined | SliceT {
     const trackHeight = this.computedTrackHeight;
     const sliceHeight = this.computedSliceHeight;
     const padding = this.sliceLayout.padding;
@@ -825,7 +821,7 @@ export abstract class BaseSliceTrack<
     this.updateHoveredSlice(undefined);
   }
 
-  private updateHoveredSlice(slice?: T['slice']): void {
+  private updateHoveredSlice(slice?: SliceT): void {
     const lastHoveredSlice = this.hoveredSlice;
     this.hoveredSlice = slice;
 
@@ -838,7 +834,7 @@ export abstract class BaseSliceTrack<
       this.hoverTooltip = [];
       this.hoverPos = undefined;
     } else {
-      const args: OnSliceOverArgs<T['slice']> = {slice: this.hoveredSlice};
+      const args: OnSliceOverArgs<SliceT> = {slice: this.hoveredSlice};
       globals.dispatch(
         Actions.setHighlightedSliceId({sliceId: this.hoveredSlice.id}),
       );
@@ -852,7 +848,7 @@ export abstract class BaseSliceTrack<
     if (slice === undefined) {
       return false;
     }
-    const args: OnSliceClickArgs<T['slice']> = {slice};
+    const args: OnSliceClickArgs<SliceT> = {slice};
     this.onSliceClick(args);
     return true;
   }
@@ -860,7 +856,7 @@ export abstract class BaseSliceTrack<
   private getVisibleSlicesInternal(
     start: time,
     end: time,
-  ): Array<CastInternal<T['slice']>> {
+  ): Array<CastInternal<SliceT>> {
     // Slice visibility is computed using tsq / endTsq. The means an
     // event at ts=100n can end up with tsq=90n depending on the bucket
     // calculation. start and end here are the direct unquantised
@@ -874,7 +870,7 @@ export abstract class BaseSliceTrack<
     start = Time.sub(start, this.slicesKey.bucketSize);
     end = Time.add(end, this.slicesKey.bucketSize);
 
-    let slices = filterVisibleSlices<CastInternal<T['slice']>>(
+    let slices = filterVisibleSlices<CastInternal<SliceT>>(
       this.slices,
       start,
       end,
