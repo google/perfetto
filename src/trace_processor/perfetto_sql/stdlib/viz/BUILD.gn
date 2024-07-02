@@ -15,6 +15,9 @@
 import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("viz") {
-  sources = [ "core_type.sql" ]
+  sources = [
+    "core_type.sql",
+    "flamegraph.sql",
+  ]
   deps = [ "summary" ]
 }

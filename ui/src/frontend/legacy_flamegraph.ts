@@ -14,7 +14,7 @@
 
 import {CallsiteInfo} from '../common/legacy_flamegraph_util';
 import {searchSegment} from '../base/binary_search';
-import {cropText} from '../common/canvas_utils';
+import {cropText} from '../base/string_utils';
 
 interface Node {
   width: number;
