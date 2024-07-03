@@ -26,13 +26,12 @@ import {
 import {
   isLinux,
   isMacOs,
-  isWindows,
   WEBSOCKET_CLOSED_ABNORMALLY_CODE,
 } from '../recording_utils';
 import {TracedTracingSession} from '../traced_tracing_session';
 
 export class HostOsTarget implements RecordingTargetV2 {
-  private readonly targetType: 'LINUX' | 'MACOS' | 'WINDOWS';
+  private readonly targetType: 'LINUX' | 'MACOS';
   private readonly name: string;
   private websocket: WebSocket;
   private streams = new Set<HostOsByteStream>();
@@ -50,9 +49,6 @@ export class HostOsTarget implements RecordingTargetV2 {
     } else if (isLinux(navigator.userAgent)) {
       this.name = 'Linux';
       this.targetType = 'LINUX';
-    } else if (isWindows(navigator.userAgent)) {
-      this.name = 'Windows Desktop';
-      this.targetType = 'WINDOWS';
     } else {
       throw new RecordingError(
         'Host OS target created on an unsupported operating system.',

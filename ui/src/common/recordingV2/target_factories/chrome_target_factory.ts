@@ -22,6 +22,7 @@ import {
   EXTENSION_ID,
   EXTENSION_NOT_INSTALLED,
   isCrOS,
+  isWindows,
 } from '../recording_utils';
 import {targetFactoryRegistry} from '../target_factory_registry';
 import {ChromeTarget} from '../targets/chrome_target';
@@ -54,6 +55,11 @@ export class ChromeTargetFactory implements TargetFactory {
     this.targets.push(new ChromeTarget('Chrome', 'CHROME'));
     if (isCrOS(navigator.userAgent)) {
       this.targets.push(new ChromeTarget('ChromeOS', 'CHROME_OS'));
+    }
+    // Pass through the chrome target since it launches ETW on windows through
+    // same path as when we start chrome tracing.
+    if (isWindows(navigator.userAgent)) {
+      this.targets.push(new ChromeTarget('Windows Desktop', 'WINDOWS'));
     }
   }
 
