@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM debian
+FROM debian:12
 
 RUN apt update && apt install -y git python3 curl build-essential
 RUN  git clone --depth 1 https://android.googlesource.com/platform/external/perfetto/

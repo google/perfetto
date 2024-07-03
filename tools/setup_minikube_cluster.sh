@@ -1,3 +1,4 @@
+#!/bin/bash
 # Copyright (C) 2024 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,18 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM debian:12
+cd $PROJECT_ROOT/src/bigtrace
 
-RUN apt update && apt install -y git python3 curl build-essential
-RUN  git clone --depth 1 https://android.googlesource.com/platform/external/perfetto/
-WORKDIR /perfetto
-RUN tools/install-build-deps --grpc
-RUN tools/gn gen out/dist '--args=is_clang=true enable_perfetto_grpc=true'
-RUN tools/ninja -C out/dist orchestrator_main
+minikube start
+eval $(minikube docker-env)
 
-CMD [ \
-"/perfetto/out/dist/orchestrator_main", \
-"-l", "worker:5052", \
-"-r", "dns:///", \
-"-s", "0.0.0.0:5051" \
-]
+docker build -t orchestrator_image ./orchestrator
+docker build -t worker_image ./worker
+
+minikube kubectl -- apply -f worker-deployment.yaml
+minikube kubectl -- apply -f worker-service.yaml
+minikube kubectl -- apply -f orchestrator-deployment.yaml
+minikube kubectl -- apply -f orchestrator-service.yaml
+
+eval $(minikube docker-env -u)
