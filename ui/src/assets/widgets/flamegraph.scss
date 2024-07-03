@@ -13,8 +13,8 @@
 // limitations under the License.
 
 .pf-flamegraph {
-  overflow: auto;
   height: 100%;
+  overflow-y: hidden;
 
   .loading-container {
     font-size: larger;
@@ -39,10 +39,55 @@
       }
     }
   }
+
+  .popup-anchor {
+    width: 0px;
+    height: 0px;
+    position: absolute;
+  }
+
+  canvas {
+    user-select: none;
+  }
+
+  .canvas-container {
+    height: 100%;
+    position: relative;
+    overflow-y: auto;
+  }
 }
 
 .pf-flamegraph-filter-bar-popup-content {
   white-space: pre-line;
   width: max-content;
   font-family: "Roboto Condensed", sans-serif;
+}
+
+.pf-flamegraph-tooltip-popup {
+  width: max-content;
+  font-family: "Roboto Condensed", sans-serif;
+  font-size: 15px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+
+  .tooltip-text-line {
+    display: flex;
+    cursor: text;
+    padding-top: 4px;
+    gap: 4px;
+  }
+
+  .tooltip-text {
+    cursor: text;
+  }
+
+  .tooltip-bold-text {
+    font-weight: 600;
+    cursor: text;
+  }
+
+  .pf-button-bar {
+    padding-top: 16px;
+  }
 }
