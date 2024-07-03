@@ -25,13 +25,11 @@ import {Select} from './select';
 import {Spinner} from './spinner';
 import {TagInput} from './tag_input';
 import {scheduleFullRedraw} from './raf';
+import {Button, ButtonBar} from './button';
 
-const ROLLOVER_FONT_STYLE = '12px Roboto Condensed';
 const LABEL_FONT_STYLE = '12px Roboto Mono';
-const NODE_HEIGHT = 18;
+const NODE_HEIGHT = 20;
 const MIN_PIXEL_DISPLAYED = 1;
-const TOOLTOP_PADDING_PX = 8;
-const TOOLTIP_OFFSET_PX = 4;
 const FILTER_COMMON_TEXT = `
 - "Show Frame: foo" or "SF: foo" to show only frames containing "foo"
 - "Hide Frame: foo" or "HF: foo" to hide all frames containing "foo"
@@ -157,7 +155,7 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
   private filterFocus: boolean = false;
   private filterChangeFail: boolean = false;
 
-  private zoomRegionMonitor = new Monitor([() => this.attrs.data]);
+  private dataChangeMonitor = new Monitor([() => this.attrs.data]);
   private zoomRegion?: ZoomRegion;
 
   private renderNodesMonitor = new Monitor([
@@ -166,6 +164,13 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     () => this.zoomRegion,
   ]);
   private renderNodes?: ReadonlyArray<RenderNode>;
+
+  private tooltipPos?: {
+    node: RenderNode;
+    x: number;
+    state: 'HOVER' | 'CLICK' | 'DECLICK';
+  };
+  private lastClickedNode?: RenderNode;
 
   private hoveredX?: number;
   private hoveredY?: number;
@@ -179,6 +184,11 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
 
   view({attrs}: m.Vnode<FlamegraphAttrs, this>): void | m.Children {
     this.attrs = attrs;
+    if (this.dataChangeMonitor.ifStateChanged()) {
+      this.zoomRegion = undefined;
+      this.lastClickedNode = undefined;
+      this.tooltipPos = undefined;
+    }
     if (attrs.data === undefined) {
       return m(
         '.pf-flamegraph',
@@ -202,44 +212,120 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     return m(
       '.pf-flamegraph',
       this.renderFilterBar(attrs),
-      m(`canvas[ref=canvas]`, {
-        style: `height:${canvasHeight}px; width:100%`,
-        onmousemove: ({offsetX, offsetY}: MouseEvent) => {
-          this.hoveredX = offsetX;
-          this.hoveredY = offsetY;
-          scheduleFullRedraw();
-        },
-        onmouseout: () => {
-          this.hoveredX = undefined;
-          this.hoveredY = undefined;
-          document.body.style.cursor = 'default';
-          scheduleFullRedraw();
-        },
-        onclick: ({offsetX, offsetY}: MouseEvent) => {
-          const renderNode = this.renderNodes?.find((n) =>
-            isHovered(offsetX, offsetY, n),
-          );
-          // TODO(lalitm): ignore merged nodes for now as we haven't quite
-          // figured out the UX for this.
-          if (renderNode?.source.kind === 'MERGED') {
-            return;
-          }
-          this.zoomRegion = renderNode?.source;
-          scheduleFullRedraw();
-        },
-      }),
+      m(
+        '.canvas-container',
+        m(
+          Popup,
+          {
+            trigger: m('.popup-anchor', {
+              style: {
+                left: this.tooltipPos?.x + 'px',
+                top: this.tooltipPos?.node.y + 'px',
+              },
+            }),
+            position: PopupPosition.Bottom,
+            isOpen:
+              this.tooltipPos?.state === 'HOVER' ||
+              this.tooltipPos?.state === 'CLICK',
+            className: 'pf-flamegraph-tooltip-popup',
+            offset: NODE_HEIGHT,
+          },
+          this.renderTooltip(),
+        ),
+        m(`canvas[ref=canvas]`, {
+          style: `height:${canvasHeight}px; width:100%`,
+          onmousemove: ({offsetX, offsetY}: MouseEvent) => {
+            scheduleFullRedraw();
+            this.hoveredX = offsetX;
+            this.hoveredY = offsetY;
+            if (this.tooltipPos?.state === 'CLICK') {
+              return;
+            }
+            const renderNode = this.renderNodes?.find((n) =>
+              isIntersecting(offsetX, offsetY, n),
+            );
+            if (renderNode === undefined) {
+              this.tooltipPos = undefined;
+              return;
+            }
+            if (
+              isIntersecting(
+                this.tooltipPos?.x,
+                this.tooltipPos?.node.y,
+                renderNode,
+              )
+            ) {
+              return;
+            }
+            this.tooltipPos = {
+              x: offsetX,
+              node: renderNode,
+              state: 'HOVER',
+            };
+          },
+          onmouseout: () => {
+            this.hoveredX = undefined;
+            this.hoveredY = undefined;
+            document.body.style.cursor = 'default';
+            if (
+              this.tooltipPos?.state === 'HOVER' ||
+              this.tooltipPos?.state === 'DECLICK'
+            ) {
+              this.tooltipPos = undefined;
+            }
+            scheduleFullRedraw();
+          },
+          onclick: ({offsetX, offsetY}: MouseEvent) => {
+            const renderNode = this.renderNodes?.find((n) =>
+              isIntersecting(offsetX, offsetY, n),
+            );
+            this.lastClickedNode = renderNode;
+            if (renderNode === undefined) {
+              this.tooltipPos = undefined;
+            } else if (
+              isIntersecting(
+                this.tooltipPos?.x,
+                this.tooltipPos?.node.y,
+                renderNode,
+              )
+            ) {
+              this.tooltipPos!.state =
+                this.tooltipPos?.state === 'CLICK' ? 'DECLICK' : 'CLICK';
+            } else {
+              this.tooltipPos = {
+                x: offsetX,
+                node: renderNode,
+                state: 'CLICK',
+              };
+            }
+            scheduleFullRedraw();
+          },
+          ondblclick: ({offsetX, offsetY}: MouseEvent) => {
+            const renderNode = this.renderNodes?.find((n) =>
+              isIntersecting(offsetX, offsetY, n),
+            );
+            // TODO(lalitm): ignore merged nodes for now as we haven't quite
+            // figured out the UX for this.
+            if (renderNode?.source.kind === 'MERGED') {
+              return;
+            }
+            this.zoomRegion = renderNode?.source;
+            scheduleFullRedraw();
+          },
+        }),
+      ),
     );
   }
 
   oncreate({dom}: m.VnodeDOM<FlamegraphAttrs, this>) {
-    this.renderCanvas(dom);
+    this.drawCanvas(dom);
   }
 
   onupdate({dom}: m.VnodeDOM<FlamegraphAttrs, this>) {
-    this.renderCanvas(dom);
+    this.drawCanvas(dom);
   }
 
-  private renderCanvas(dom: Element) {
+  private drawCanvas(dom: Element) {
     const canvas = findRef(dom, 'canvas');
     if (canvas === null || !(canvas instanceof HTMLCanvasElement)) {
       return;
@@ -252,21 +338,24 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     canvas.height = canvas.offsetHeight * devicePixelRatio;
     this.canvasWidth = canvas.offsetWidth;
 
-    if (this.zoomRegionMonitor.ifStateChanged()) {
-      this.zoomRegion = undefined;
-    }
     if (this.renderNodesMonitor.ifStateChanged()) {
-      this.renderNodes =
-        this.attrs.data === undefined
-          ? undefined
-          : computeRenderNodes(
-              this.attrs.data,
-              this.zoomRegion ?? {
-                queryXStart: 0,
-                queryXEnd: this.attrs.data.allRootsCumulativeValue,
-              },
-              canvas.offsetWidth,
-            );
+      if (this.attrs.data === undefined) {
+        this.renderNodes = undefined;
+        this.lastClickedNode = undefined;
+      } else {
+        this.renderNodes = computeRenderNodes(
+          this.attrs.data,
+          this.zoomRegion ?? {
+            queryXStart: 0,
+            queryXEnd: this.attrs.data.allRootsCumulativeValue,
+          },
+          canvas.offsetWidth,
+        );
+        this.lastClickedNode = this.renderNodes?.find((n) =>
+          isIntersecting(this.lastClickedNode?.x, this.lastClickedNode?.y, n),
+        );
+      }
+      this.tooltipPos = undefined;
     }
     if (this.attrs.data === undefined || this.renderNodes === undefined) {
       return;
@@ -293,8 +382,10 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
     for (let i = 0; i < this.renderNodes.length; i++) {
       const node = this.renderNodes[i];
       const {x, y, width: width, source, state} = node;
-      const hover = isHovered(this.hoveredX, this.hoveredY, node);
-      hoveredNode = hover ? node : hoveredNode;
+      const hover = isIntersecting(this.hoveredX, this.hoveredY, node);
+      if (hover) {
+        hoveredNode = node;
+      }
       let name: string;
       if (source.kind === 'ROOT') {
         name = `root: ${displaySize(allRootsCumulativeValue, unit)}`;
@@ -316,90 +407,30 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
         y + (NODE_HEIGHT - 1) / 2,
         maxLabelWidth,
       );
+      if (this.lastClickedNode?.x === x && this.lastClickedNode?.y === y) {
+        ctx.strokeStyle = 'blue';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + width, y);
+        ctx.lineTo(x + width, y + NODE_HEIGHT - 1);
+        ctx.lineTo(x, y + NODE_HEIGHT - 1);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = 'white';
+      ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(x + width, y);
       ctx.lineTo(x + width, y + NODE_HEIGHT);
       ctx.stroke();
     }
-    if (hoveredNode !== undefined) {
-      this.drawTooltip(
-        ctx,
-        canvas.offsetWidth,
-        canvas.offsetHeight,
-        hoveredNode,
-      );
-    }
-    const kind = hoveredNode?.source.kind;
-    if (kind === 'ROOT' || kind === 'NODE') {
-      canvas.style.cursor = 'pointer';
-    } else {
+    if (hoveredNode === undefined) {
       canvas.style.cursor = 'default';
+    } else {
+      canvas.style.cursor = 'pointer';
     }
     ctx.restore();
-  }
-
-  private drawTooltip(
-    ctx: CanvasRenderingContext2D,
-    canvasWidth: number,
-    canvasHeight: number,
-    node: RenderNode,
-  ) {
-    ctx.font = ROLLOVER_FONT_STYLE;
-    ctx.textBaseline = 'top';
-
-    const {unit} = assertExists(this.selectedMetric);
-    const {nodes, allRootsCumulativeValue} = assertExists(this.attrs.data);
-    const nodeSource = node.source;
-    let lines: string[];
-    if (nodeSource.kind === 'NODE') {
-      const {name, cumulativeValue, selfValue} = nodes[nodeSource.queryIdx];
-      const cdisp = displaySize(cumulativeValue, unit);
-      const cpercentage = (cumulativeValue / allRootsCumulativeValue) * 100;
-      const sdisp = displaySize(selfValue, unit);
-      const spercentage = (selfValue / allRootsCumulativeValue) * 100;
-      lines = [
-        name,
-        `Cumulative: ${cdisp} (${cpercentage.toFixed(2)}%)`,
-        `Self: ${sdisp} (${spercentage.toFixed(2)}%)`,
-      ];
-    } else if (nodeSource.kind === 'ROOT') {
-      lines = [
-        'root',
-        `Cumulative: ${allRootsCumulativeValue} (100%)`,
-        'Self: 0',
-      ];
-    } else {
-      lines = ['(merged)', 'Too small to show, use filters'];
-    }
-    const measured = ctx.measureText(lines.join('\n'));
-
-    const heightSample = ctx.measureText(
-      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
-    );
-    const lineHeight = Math.round(heightSample.actualBoundingBoxDescent * 1.5);
-
-    const rectWidth = measured.width + 2 * TOOLTOP_PADDING_PX;
-    const rectHeight = lineHeight * lines.length + 2 * TOOLTOP_PADDING_PX;
-
-    let rectXStart = assertExists(this.hoveredX) + TOOLTIP_OFFSET_PX;
-    let rectYStart = assertExists(this.hoveredY) + TOOLTIP_OFFSET_PX;
-    if (rectXStart + rectWidth > canvasWidth) {
-      rectXStart = canvasWidth - rectWidth;
-    }
-    if (rectYStart + rectHeight > canvasHeight) {
-      rectYStart = canvasHeight - rectHeight;
-    }
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.fillRect(rectXStart, rectYStart, rectWidth, rectHeight);
-    ctx.fillStyle = 'hsl(200, 50%, 40%)';
-    ctx.textAlign = 'left';
-    for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(
-        lines[i],
-        rectXStart + TOOLTOP_PADDING_PX,
-        rectYStart + TOOLTOP_PADDING_PX + i * lineHeight,
-      );
-    }
   }
 
   private renderFilterBar(attrs: FlamegraphAttrs) {
@@ -472,6 +503,96 @@ export class Flamegraph implements m.ClassComponent<FlamegraphAttrs> {
             : FILTER_INVALID_TEXT
           ).trim(),
         ),
+      ),
+    );
+  }
+
+  private renderTooltip() {
+    if (this.tooltipPos === undefined) {
+      return undefined;
+    }
+    const {node} = this.tooltipPos;
+    if (node.source.kind === 'MERGED') {
+      return m(
+        'div',
+        m('.tooltip-bold-text', '(merged)'),
+        m('.tooltip-text', 'Nodes too small to show, please use filters'),
+      );
+    }
+    const {nodes, allRootsCumulativeValue} = assertExists(this.attrs.data);
+    const {unit} = assertExists(this.selectedMetric);
+    if (node.source.kind === 'ROOT') {
+      return m(
+        'div',
+        m('.tooltip-bold-text', 'root'),
+        m(
+          '.tooltip-text-line',
+          m('.tooltip-bold-text', 'Cumulative:'),
+          m('.tooltip-text', displaySize(allRootsCumulativeValue, unit)),
+        ),
+      );
+    }
+    const {queryIdx} = node.source;
+    const {name, cumulativeValue, selfValue} = nodes[queryIdx];
+    return m(
+      'div',
+      m('.tooltip-bold-text', name),
+      m(
+        '.tooltip-text-line',
+        m('.tooltip-bold-text', 'Cumulative:'),
+        m('.tooltip-text', displaySize(cumulativeValue, unit)),
+      ),
+      m(
+        '.tooltip-text-line',
+        m('.tooltip-bold-text', 'Self:'),
+        m('.tooltip-text', displaySize(selfValue, unit)),
+      ),
+      m(
+        ButtonBar,
+        {},
+        m(Button, {
+          label: 'Zoom',
+          onclick: () => {
+            this.zoomRegion = node.source;
+            scheduleFullRedraw();
+          },
+        }),
+        m(Button, {
+          label: 'Show Stack',
+          onclick: () => {
+            this.rawFilters = [...this.rawFilters, `Show Stack: ${name}`];
+            this.attrs.onFiltersChanged(computeFilters(this.rawFilters));
+            this.tooltipPos = undefined;
+            scheduleFullRedraw();
+          },
+        }),
+        m(Button, {
+          label: 'Hide Stack',
+          onclick: () => {
+            this.rawFilters = [...this.rawFilters, `Hide Stack: ${name}`];
+            this.attrs.onFiltersChanged(computeFilters(this.rawFilters));
+            this.tooltipPos = undefined;
+            scheduleFullRedraw();
+          },
+        }),
+        m(Button, {
+          label: 'Show Frame',
+          onclick: () => {
+            this.rawFilters = [...this.rawFilters, `Show Frame: ${name}`];
+            this.attrs.onFiltersChanged(computeFilters(this.rawFilters));
+            this.tooltipPos = undefined;
+            scheduleFullRedraw();
+          },
+        }),
+        m(Button, {
+          label: 'Hide Frame',
+          onclick: () => {
+            this.rawFilters = [...this.rawFilters, `Hide Frame: ${name}`];
+            this.attrs.onFiltersChanged(computeFilters(this.rawFilters));
+            this.tooltipPos = undefined;
+            scheduleFullRedraw();
+          },
+        }),
       ),
     );
   }
@@ -578,7 +699,7 @@ function computeState(qXStart: number, qXEnd: number, zoomRegion: ZoomRegion) {
   return 'NORMAL';
 }
 
-function isHovered(
+function isIntersecting(
   needleX: number | undefined,
   needleY: number | undefined,
   {x, y, width}: RenderNode,
@@ -588,9 +709,9 @@ function isHovered(
   }
   return (
     needleX >= x &&
-    needleX <= x + width &&
+    needleX < x + width &&
     needleY >= y &&
-    needleY <= y + NODE_HEIGHT
+    needleY < y + NODE_HEIGHT
   );
 }
 
