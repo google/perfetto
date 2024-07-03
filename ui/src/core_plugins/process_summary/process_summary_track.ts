@@ -107,7 +107,7 @@ export class ProcessSummaryTrack implements Track {
   }
 
   async onUpdate(): Promise<void> {
-    this.fetcher.requestDataForCurrentTime();
+    await this.fetcher.requestDataForCurrentTime();
   }
 
   async onBoundsChange(
