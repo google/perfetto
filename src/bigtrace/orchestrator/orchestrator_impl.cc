@@ -16,14 +16,16 @@
 
 #include "src/bigtrace/orchestrator/orchestrator_impl.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/threading/thread_pool.h"
 #include "perfetto/ext/base/waitable_event.h"
 
 namespace perfetto {
 namespace bigtrace {
 OrchestratorImpl::OrchestratorImpl(
-    std::unique_ptr<protos::BigtraceWorker::Stub> stub)
+    std::unique_ptr<protos::BigtraceWorker::Stub> stub,
+    uint32_t pool_size)
     : stub_(std::move(stub)),
-      pool_(base::ThreadPool(std::thread::hardware_concurrency())) {}
+      pool_(std::make_unique<base::ThreadPool>(pool_size)) {}
 
 grpc::Status OrchestratorImpl::Query(
     grpc::ServerContext*,
@@ -34,7 +36,7 @@ grpc::Status OrchestratorImpl::Query(
   base::WaitableEvent pool_completion;
   const std::string& sql_query = args->sql_query();
   for (const std::string& trace : args->traces()) {
-    pool_.PostTask([&]() {
+    pool_->PostTask([&]() {
       grpc::ClientContext client_context;
       protos::BigtraceQueryTraceArgs trace_args;
       protos::BigtraceQueryTraceResponse trace_response;
