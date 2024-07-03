@@ -12,18 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM debian:12
-
-RUN apt update && apt install -y git python3 curl build-essential
-RUN  git clone --depth 1 https://android.googlesource.com/platform/external/perfetto/
-WORKDIR /perfetto
-RUN tools/install-build-deps --grpc
-RUN tools/gn gen out/dist '--args=is_clang=true enable_perfetto_grpc=true'
-RUN tools/ninja -C out/dist orchestrator_main
-
-CMD [ \
-"/perfetto/out/dist/orchestrator_main", \
-"-l", "worker:5052", \
-"-r", "dns:///", \
-"-s", "0.0.0.0:5051" \
-]
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+spec:
+  type: NodePort
+  ports:
+  - protocol: TCP
+    nodePort: 30051
+    port: 5051
+    targetPort: 5051
+  selector:
+    app: orchestrator-deployment
