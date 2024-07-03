@@ -24,9 +24,13 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {CPUSS_ESTIMATE_TRACK_KIND} from '../../core/track_kinds';
+import {hasWattsonSupport} from '../../core/trace_config_utils';
 
 class Wattson implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    // Short circuit if Wattson is not supported for this Perfetto trace
+    if (!(await hasWattsonSupport(ctx.engine))) return;
+
     ctx.engine.query(`INCLUDE PERFETTO MODULE wattson.curves.ungrouped;`);
 
     // CPUs estimate as part of CPU subsystem

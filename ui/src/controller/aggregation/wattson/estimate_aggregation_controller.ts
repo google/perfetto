@@ -18,10 +18,14 @@ import {globals} from '../../../frontend/globals';
 import {Engine} from '../../../trace_processor/engine';
 import {CPUSS_ESTIMATE_TRACK_KIND} from '../../../core/track_kinds';
 import {AggregationController} from '../aggregation_controller';
+import {hasWattsonSupport} from '../../../core/trace_config_utils';
 
 export class WattsonEstimateAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     await engine.query(`drop view if exists ${this.kind};`);
+
+    // Short circuit if Wattson is not supported for this Perfetto trace
+    if (!(await hasWattsonSupport(engine))) return false;
 
     const estimateTracks: (string | undefined)[] = [];
     for (const trackKey of area.tracks) {

@@ -20,18 +20,14 @@ import {Engine} from '../../../trace_processor/engine';
 import {NUM} from '../../../trace_processor/query_result';
 import {CPU_SLICE_TRACK_KIND} from '../../../core/track_kinds';
 import {AggregationController} from '../aggregation_controller';
+import {hasWattsonSupport} from '../../../core/trace_config_utils';
 
 export class WattsonPackageAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     await engine.query(`drop view if exists ${this.kind};`);
 
     // Short circuit if Wattson is not supported for this Perfetto trace
-    const deviceInfo = await engine.query(`
-      INCLUDE PERFETTO MODULE wattson.device_infos;
-      SELECT COUNT(*) as isValid FROM _wattson_device
-    `);
-    if (deviceInfo.firstRow({isValid: NUM}).isValid === 0) return false;
-
+    if (!(await hasWattsonSupport(engine))) return false;
     const packageInfo = await engine.query(`
       INCLUDE PERFETTO MODULE android.process_metadata;
       SELECT COUNT(*) as isValid FROM android_process_metadata
