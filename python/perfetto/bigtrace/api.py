@@ -25,8 +25,10 @@ from perfetto.common.exceptions import PerfettoException
 
 class Bigtrace:
 
-  def __init__(self, wait_for_ready_for_testing=False):
-    channel = grpc.insecure_channel("localhost:5051")
+  def __init__(self,
+               orchestrator_address="127.0.0.1:5051",
+               wait_for_ready_for_testing=False):
+    channel = grpc.insecure_channel(orchestrator_address)
     self.stub = BigtraceOrchestratorStub(channel)
     self.wait_for_ready_for_testing = wait_for_ready_for_testing
 
