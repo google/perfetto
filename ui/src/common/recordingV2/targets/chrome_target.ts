@@ -27,7 +27,7 @@ export class ChromeTarget implements RecordingTargetV2 {
 
   constructor(
     private name: string,
-    private targetType: 'CHROME' | 'CHROME_OS',
+    private targetType: 'CHROME' | 'CHROME_OS' | 'WINDOWS',
   ) {}
 
   getInfo(): ChromeTargetInfo {
