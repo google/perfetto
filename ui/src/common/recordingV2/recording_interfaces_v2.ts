@@ -75,11 +75,11 @@ export interface AndroidTargetInfo extends TargetInfoBase {
 }
 
 export interface ChromeTargetInfo extends TargetInfoBase {
-  targetType: 'CHROME' | 'CHROME_OS';
+  targetType: 'CHROME' | 'CHROME_OS' | 'WINDOWS';
 }
 
 export interface HostOsTargetInfo extends TargetInfoBase {
-  targetType: 'LINUX' | 'MACOS' | 'WINDOWS';
+  targetType: 'LINUX' | 'MACOS';
 }
 
 // Holds information about a target. It's used by the UI and the logic which
