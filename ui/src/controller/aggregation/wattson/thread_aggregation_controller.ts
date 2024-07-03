@@ -133,7 +133,7 @@ export class WattsonThreadAggregationController extends AggregationController {
     // Final table outputted in UI
     query += `
       CREATE VIEW ${this.kind} AS
-      SELECT tpt.*, thread.name as t_name, process.name as p_name, thread.upid
+      SELECT tpt.*, thread.name as t_name, thread.upid
       FROM _total_per_thread as tpt
       JOIN thread on tpt.utid = thread.utid
       JOIN process on thread.upid = process.upid;
@@ -145,28 +145,22 @@ export class WattsonThreadAggregationController extends AggregationController {
   getColumnDefinitions(): ColumnDef[] {
     return [
       {
-        title: 'Process Name',
-        kind: 'STRING',
-        columnConstructor: Uint16Array,
-        columnId: 'p_name',
-      },
-      {
         title: 'Thread Name',
         kind: 'STRING',
         columnConstructor: Uint16Array,
         columnId: 't_name',
       },
       {
-        title: 'UPID',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
-        columnId: 'upid',
-      },
-      {
         title: 'UTID',
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
         columnId: 'utid',
+      },
+      {
+        title: 'UPID',
+        kind: 'NUMBER',
+        columnConstructor: Uint16Array,
+        columnId: 'upid',
       },
       {
         title: 'Occurences',
