@@ -33,7 +33,8 @@ export class WattsonPackageAggregationController extends AggregationController {
     if (deviceInfo.firstRow({isValid: NUM}).isValid === 0) return false;
 
     const packageInfo = await engine.query(`
-      SELECT COUNT(*) as isValid FROM package_list
+      INCLUDE PERFETTO MODULE android.process_metadata;
+      SELECT COUNT(*) as isValid FROM android_process_metadata
       WHERE package_name IS NOT NULL
     `);
     if (packageInfo.firstRow({isValid: NUM}).isValid === 0) return false;
@@ -109,11 +110,9 @@ export class WattsonPackageAggregationController extends AggregationController {
           package.package_name as p_name,
           cpu
         FROM _windowed_thread_curve as _thread_lvl
-        -- Need to go from thread -> process -> package
         JOIN thread on _thread_lvl.utid = thread.utid
-        JOIN process on thread.upid = process.upid
-        JOIN package_list as package on process.uid = package.uid
-        GROUP BY package.uid;
+        JOIN android_process_metadata as package on thread.upid = package.upid
+        GROUP BY uid;
       `;
     });
 
