@@ -13163,6 +13163,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/deprecated/v42/common/timestamps.sql",
         "src/trace_processor/perfetto_sql/stdlib/export/to_firefox_profile.sql",
+        "src/trace_processor/perfetto_sql/stdlib/graphs/critical_path.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/dominator_tree.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/partition.sql",
         "src/trace_processor/perfetto_sql/stdlib/graphs/scan.sql",
