@@ -13178,6 +13178,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/linux/memory/general.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/memory/high_watermark.sql",
         "src/trace_processor/perfetto_sql/stdlib/linux/memory/process.sql",
+        "src/trace_processor/perfetto_sql/stdlib/linux/perf/samples.sql",
         "src/trace_processor/perfetto_sql/stdlib/pkvm/hypervisor.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/casts.sql",
         "src/trace_processor/perfetto_sql/stdlib/prelude/slices.sql",

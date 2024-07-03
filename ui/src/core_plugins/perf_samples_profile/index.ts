@@ -109,23 +109,15 @@ class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
           ...metricsFromTableOrSubquery(
             `
               (
-                with agg_callsites as (
-                  select p.callsite_id, count() as cnt
+                select *
+                from _perf_callsites_for_samples!((
+                  select p.callsite_id
                   from perf_sample p
                   join thread t using (utid)
                   where p.ts >= ${leftTs}
                     and p.ts <= ${rightTs}
                     and t.upid = ${upid}
-                  group by p.callsite_id
-                )
-                select
-                  c.id,
-                  c.parent_id as parentId,
-                  ifnull(f.deobfuscated_name, f.name) as name,
-                  ifnull(cnt, 0) as self_count
-                from stack_profile_callsite c
-                join stack_profile_frame f on c.frame_id = f.id
-                left join agg_callsites a on c.id = a.callsite_id
+                ))
               )
             `,
             [
@@ -135,6 +127,7 @@ class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
                 columnName: 'self_count',
               },
             ],
+            'INCLUDE PERFETTO MODULE linux.perf.samples',
           ),
         ],
       };
