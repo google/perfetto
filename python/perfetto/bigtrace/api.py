@@ -25,9 +25,10 @@ from perfetto.common.exceptions import PerfettoException
 
 class Bigtrace:
 
-  def __init__(self):
+  def __init__(self, wait_for_ready_for_testing=False):
     channel = grpc.insecure_channel("localhost:5051")
     self.stub = BigtraceOrchestratorStub(channel)
+    self.wait_for_ready_for_testing = wait_for_ready_for_testing
 
   def query(self, traces: List[str], sql_query: str):
     if not traces:
@@ -38,7 +39,8 @@ class Bigtrace:
     tables = []
     args = BigtraceQueryArgs(traces=traces, sql_query=sql_query)
 
-    responses = self.stub.Query(args)
+    responses = self.stub.Query(
+        args, wait_for_ready=self.wait_for_ready_for_testing)
     try:
       for response in responses:
         repeated_batches = []

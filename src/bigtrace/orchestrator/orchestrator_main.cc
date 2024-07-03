@@ -29,6 +29,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/bigtrace/worker.grpc.pb.h"
 #include "src/bigtrace/orchestrator/orchestrator_impl.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -40,10 +41,11 @@ namespace {
 struct CommandLineOptions {
   std::string server_socket;
   std::string worker_address;
-  uint16_t worker_port;
-  uint64_t worker_count;
+  uint16_t worker_port = 0;
+  uint64_t worker_count = 0;
   std::string worker_address_list;
   std::string name_resolution_scheme;
+  uint32_t pool_size = 0;
 };
 
 void PrintUsage(char** argv) {
@@ -68,7 +70,11 @@ Options:
                                         (use either -l or
                                          -w -p -n EXCLUSIVELY)
  -r --name_resolution_scheme SCHEME     Specify the name resolution
-                                        scheme for gRPC (e.g. ipv4:, dns://))",
+                                        scheme for gRPC (e.g. ipv4:, dns://)
+ -t -thread_pool_size POOL_SIZE         Specify the size of the thread pool
+                                        which determines number of concurrent
+                                        gRPCs from the Orchestrator
+                                        )",
                 argv[0]);
 }
 
@@ -84,9 +90,10 @@ base::StatusOr<CommandLineOptions> ParseCommandLineOptions(int argc,
       {"worker_count", optional_argument, nullptr, 'n'},
       {"worker_list", optional_argument, nullptr, 'l'},
       {"name_resolution_scheme", optional_argument, nullptr, 'r'},
+      {"thread_pool_size", optional_argument, nullptr, 't'},
       {nullptr, 0, nullptr, 0}};
   int c;
-  while ((c = getopt_long(argc, argv, "s:p:w:q:n:l:r:", long_options,
+  while ((c = getopt_long(argc, argv, "s:p:w:q:n:l:r:t:h", long_options,
                           nullptr)) != -1) {
     switch (c) {
       case 's':
@@ -106,6 +113,9 @@ base::StatusOr<CommandLineOptions> ParseCommandLineOptions(int argc,
         break;
       case 'r':
         command_line_options.name_resolution_scheme = optarg;
+        break;
+      case 't':
+        command_line_options.pool_size = static_cast<uint32_t>(atoi(optarg));
         break;
       default:
         PrintUsage(argv);
@@ -137,14 +147,11 @@ base::StatusOr<CommandLineOptions> ParseCommandLineOptions(int argc,
 base::Status OrchestratorMain(int argc, char** argv) {
   ASSIGN_OR_RETURN(base::StatusOr<CommandLineOptions> options,
                    ParseCommandLineOptions(argc, argv));
-
   std::string server_socket = options->server_socket.empty()
                                   ? "127.0.0.1:5051"
                                   : options->server_socket;
-
   std::string worker_address =
       options->worker_address.empty() ? "127.0.0.1" : options->worker_address;
-
   uint16_t worker_port =
       options->worker_port == 0 ? 5052 : options->worker_port;
   std::string worker_address_list = options->worker_address_list;
@@ -155,30 +162,28 @@ base::Status OrchestratorMain(int argc, char** argv) {
                                    ? "ipv4:"
                                    : options->name_resolution_scheme;
 
+  uint32_t pool_size = options->pool_size == 0 ? 5 : options->pool_size;
+
   if (worker_address_list.empty()) {
     // Use a set of n workers incrementing from a starting port
     PERFETTO_DCHECK(worker_count > 0 && !worker_address.empty());
+    std::vector<std::string> worker_addresses;
     for (uint64_t i = 0; i < worker_count; ++i) {
       std::string address =
-          worker_address + ":" + std::to_string(worker_port + i) + ",";
-      target_address += address;
+          worker_address + ":" + std::to_string(worker_port + i);
+      worker_addresses.push_back(address);
     }
+    target_address += base::Join(worker_addresses, ",");
   } else {
     // Use a list of workers passed as an option
     target_address += worker_address_list;
   }
-
   grpc::ChannelArguments args;
   args.SetLoadBalancingPolicyName("round_robin");
   auto channel = grpc::CreateCustomChannel(
       target_address, grpc::InsecureChannelCredentials(), args);
-  bool connected = channel->WaitForConnected(std::chrono::system_clock::now() +
-                                             std::chrono::milliseconds(5000));
-
-  PERFETTO_CHECK(connected);
-
   auto stub = protos::BigtraceWorker::NewStub(channel);
-  auto service = std::make_unique<OrchestratorImpl>(std::move(stub));
+  auto service = std::make_unique<OrchestratorImpl>(std::move(stub), pool_size);
 
   // Setup the Orchestrator Server
   grpc::ServerBuilder builder;

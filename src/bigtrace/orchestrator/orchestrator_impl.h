@@ -25,7 +25,8 @@ namespace perfetto {
 namespace bigtrace {
 class OrchestratorImpl final : public protos::BigtraceOrchestrator::Service {
  public:
-  explicit OrchestratorImpl(std::unique_ptr<protos::BigtraceWorker::Stub> stub);
+  explicit OrchestratorImpl(std::unique_ptr<protos::BigtraceWorker::Stub> stub,
+                            uint32_t pool_size);
   grpc::Status Query(
       grpc::ServerContext*,
       const protos::BigtraceQueryArgs* args,
@@ -33,7 +34,7 @@ class OrchestratorImpl final : public protos::BigtraceOrchestrator::Service {
 
  private:
   std::unique_ptr<protos::BigtraceWorker::Stub> stub_;
-  base::ThreadPool pool_;
+  std::unique_ptr<base::ThreadPool> pool_;
   std::mutex write_lock_;
 };
 }  // namespace bigtrace
