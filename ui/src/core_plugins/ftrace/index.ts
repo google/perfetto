@@ -109,7 +109,7 @@ class FtraceRawPlugin implements Plugin {
   }
 
   private async lookupCpuCores(engine: Engine): Promise<number[]> {
-    const query = 'select distinct cpu from ftrace_event';
+    const query = 'select distinct cpu from ftrace_event order by cpu';
 
     const result = await engine.query(query);
     const it = result.iter({cpu: NUM});
