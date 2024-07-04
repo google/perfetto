@@ -120,7 +120,7 @@ SELECT
   receive.dur AS receive_dur,
   receive.track_id AS receive_track_id
 FROM (SELECT * FROM _input_message_sent WHERE thread_name = 'InputDispatcher') dispatch
-JOIN (SELECT * FROM _input_message_received WHERE event_type != '0x2') receive
+JOIN (SELECT * FROM _input_message_received WHERE event_type NOT IN ('0x2', 'FINISHED')) receive
   ON
     REPLACE(receive.event_channel, '(client)', '(server)') = dispatch.event_channel
     AND dispatch.event_seq = receive.event_seq
@@ -128,7 +128,7 @@ JOIN (SELECT * FROM _input_message_sent WHERE thread_name != 'InputDispatcher') 
   ON
     REPLACE(finish.event_channel, '(client)', '(server)') = dispatch.event_channel
     AND dispatch.event_seq = finish.event_seq
-JOIN (SELECT * FROM _input_message_received WHERE event_type = '0x2') finish_ack
+JOIN (SELECT * FROM _input_message_received WHERE event_type IN ('0x2', 'FINISHED')) finish_ack
   ON finish_ack.event_channel = dispatch.event_channel AND dispatch.event_seq = finish_ack.event_seq;
 
 -- Key events processed by the Android framework (from android.input.inputevent data source).
