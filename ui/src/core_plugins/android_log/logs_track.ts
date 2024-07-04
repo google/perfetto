@@ -59,7 +59,7 @@ export class AndroidLogTrack implements Track {
   }
 
   async onDestroy(): Promise<void> {
-    this.fetcher.dispose();
+    this.fetcher[Symbol.dispose]();
   }
 
   getHeight(): number {

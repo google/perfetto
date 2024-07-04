@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {Disposable, DisposableStack} from '../base/disposable';
+
 import {AggregationPanel} from './aggregation_panel';
 import {globals} from './globals';
 import {isEmptyData} from '../common/aggregation_data';
@@ -37,6 +37,7 @@ import {
   USE_NEW_FLAMEGRAPH_IMPL,
   metricsFromTableOrSubquery,
 } from '../core/query_flamegraph';
+import {DisposableStack} from '../base/disposable_stack';
 
 interface View {
   key: string;
@@ -273,7 +274,7 @@ export class AggregationsTabs implements Disposable {
     this.trash.use(unregister);
   }
 
-  dispose(): void {
+  [Symbol.dispose]() {
     this.trash.dispose();
   }
 }

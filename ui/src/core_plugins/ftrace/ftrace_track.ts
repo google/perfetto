@@ -62,7 +62,7 @@ export class FtraceRawTrack implements Track {
   }
 
   async onDestroy?(): Promise<void> {
-    this.fetcher.dispose();
+    this.fetcher[Symbol.dispose]();
   }
 
   getHeight(): number {

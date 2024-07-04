@@ -63,7 +63,7 @@ class ExampleState implements Plugin {
   }
 
   async onTraceUnload(_: PluginContextTrace): Promise<void> {
-    this.store.dispose();
+    this.store[Symbol.dispose]();
   }
 }
 

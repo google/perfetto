@@ -22,9 +22,10 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {NUM} from '../../trace_processor/query_result';
-import {DisposableStack} from '../../base/disposable';
+
 import {FtraceFilter, FtracePluginState} from './common';
 import {FtraceRawTrack} from './ftrace_track';
+import {DisposableStack} from '../../base/disposable_stack';
 
 const VERSION = 1;
 
@@ -105,7 +106,7 @@ class FtraceRawPlugin implements Plugin {
   }
 
   async onTraceUnload(): Promise<void> {
-    this.trash.dispose();
+    this.trash[Symbol.dispose]();
   }
 
   private async lookupCpuCores(engine: Engine): Promise<number[]> {

@@ -16,7 +16,6 @@ import m from 'mithril';
 import * as vega from 'vega';
 import * as vegaLite from 'vega-lite';
 
-import {Disposable} from '../base/disposable';
 import {getErrorMessage} from '../base/errors';
 import {isString, shallowEquals} from '../base/object_utils';
 import {SimpleResizeObserver} from '../base/resize_observer';
@@ -247,7 +246,7 @@ class VegaWrapper {
     scheduleFullRedraw();
   }
 
-  dispose() {
+  [Symbol.dispose]() {
     this._data = undefined;
     this._spec = undefined;
     this.updateView();
@@ -279,11 +278,11 @@ export class VegaView implements m.ClassComponent<VegaViewAttrs> {
 
   onremove() {
     if (this.resize) {
-      this.resize.dispose();
+      this.resize[Symbol.dispose]();
       this.resize = undefined;
     }
     if (this.wrapper) {
-      this.wrapper.dispose();
+      this.wrapper[Symbol.dispose]();
       this.wrapper = undefined;
     }
   }

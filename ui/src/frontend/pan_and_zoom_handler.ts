@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable, DisposableStack} from '../base/disposable';
+import {DisposableStack} from '../base/disposable_stack';
 import {currentTargetOffset, elementIsEditable} from '../base/dom_utils';
 import {raf} from '../core/raf_scheduler';
 
@@ -202,7 +202,7 @@ export class PanAndZoomHandler implements Disposable {
     );
   }
 
-  dispose() {
+  [Symbol.dispose]() {
     this.trash.dispose();
   }
 

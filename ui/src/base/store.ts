@@ -14,7 +14,6 @@
 
 import {produce, Draft} from 'immer';
 
-import {Disposable} from './disposable';
 import {getPath, Path, setPath} from './object_utils';
 
 export type Migrate<T> = (init: unknown) => T;
@@ -98,7 +97,7 @@ export interface Store<T> extends Disposable {
    * Subscribe for notifications when any edits are made to this store.
    *
    * @param callback The function to be called.
-   * @returns {Disposable} When this is disposed, the subscription is removed.
+   * @returns When this is disposed, the subscription is removed.
    */
   subscribe(callback: Callback<T>): Disposable;
 }
@@ -151,13 +150,13 @@ class RootStore<T> implements Store<T> {
   subscribe(callback: Callback<T>): Disposable {
     this.subscriptions.add(callback);
     return {
-      dispose: () => {
+      [Symbol.dispose]: () => {
         this.subscriptions.delete(callback);
       },
     };
   }
 
-  dispose(): void {
+  [Symbol.dispose]() {
     // No-op
   }
 }
@@ -259,13 +258,13 @@ class SubStore<T, ParentT> implements Store<T> {
   subscribe(callback: Callback<T>): Disposable {
     this.subscriptions.add(callback);
     return {
-      dispose: () => {
+      [Symbol.dispose]: () => {
         this.subscriptions.delete(callback);
       },
     };
   }
 
-  dispose(): void {
-    this.parentStoreSubscription.dispose();
+  [Symbol.dispose]() {
+    this.parentStoreSubscription[Symbol.dispose]();
   }
 }
