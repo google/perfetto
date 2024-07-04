@@ -205,8 +205,7 @@ export class TrackGroupPanel implements Panel {
       ctx.translate(TRACK_SHELL_WIDTH, 0);
       const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
       if (!track.getError()) {
-        track.update();
-        track.track.render(ctx, trackSize);
+        track.render(ctx, trackSize);
       }
       ctx.restore();
     }
