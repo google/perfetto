@@ -594,7 +594,6 @@ std::string SpanJoinOperatorModule::TableDefinition::CreateSqlQuery(
   sql += IsPartitioned() ? base::Join({"`" + partition_col() + "`", "ts"}, ", ")
                          : "ts";
   sql += ";";
-  PERFETTO_DLOG("%s", sql.c_str());
   return sql;
 }
 
@@ -726,8 +725,6 @@ int SpanJoinOperatorModule::Create(sqlite3* db,
   base::StackString<1024> create_table_str(
       kStmt, partition.c_str(), t1_section.c_str(), t2_section.c_str(),
       primary_key.c_str());
-  PERFETTO_DLOG("SPAN_JOIN: create table statement: %s",
-                create_table_str.c_str());
   state->create_table_stmt = create_table_str.ToStdString();
   if (int ret = sqlite3_declare_vtab(db, create_table_str.c_str());
       ret != SQLITE_OK) {
@@ -837,10 +834,9 @@ int SpanJoinOperatorModule::Close(sqlite3_vtab_cursor* cursor) {
 int SpanJoinOperatorModule::Filter(sqlite3_vtab_cursor* cursor,
                                    int,
                                    const char* idxStr,
-                                   int argc,
+                                   int,
                                    sqlite3_value** argv) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "SPAN_JOIN_XFILTER");
-  PERFETTO_DLOG("SpanJoin::Filter: argc=%d, idxStr=%s", argc, idxStr);
 
   Cursor* c = GetCursor(cursor);
   Vtab* table = GetVtab(cursor->pVtab);
