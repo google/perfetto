@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {copyToClipboard} from '../base/clipboard';
-import {DisposableStack} from '../base/disposable';
+
 import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists, assertUnreachable} from '../base/logging';
@@ -57,6 +57,7 @@ import {OmniboxMode, PromptOption} from './omnibox_manager';
 import {Utid} from './sql_types';
 import {getThreadInfo} from './thread_and_process_info';
 import {THREAD_STATE_TRACK_KIND} from '../core/track_kinds';
+import {DisposableStack} from '../base/disposable_stack';
 
 function renderPermalink(): m.Children {
   const hash = globals.permalinkHash;

@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable} from '../base/disposable';
 import {DetailsPanel, LegacyDetailsPanel, TabDescriptor} from '../public';
 
 export interface ResolvedTab {
@@ -31,7 +30,7 @@ export class TabManager implements Disposable {
   private _detailsPanelRegistry = new Set<DetailsPanel>();
   private _currentTabs = new Map<string, TabDescriptor>();
 
-  dispose(): void {
+  [Symbol.dispose]() {
     // Dispose of all tabs that are currently alive
     for (const tab of this._currentTabs.values()) {
       this.disposeTab(tab);
@@ -42,28 +41,28 @@ export class TabManager implements Disposable {
   registerTab(desc: TabDescriptor): Disposable {
     this._registry.set(desc.uri, desc);
     return {
-      dispose: () => this._registry.delete(desc.uri),
+      [Symbol.dispose]: () => this._registry.delete(desc.uri),
     };
   }
 
   addDefaultTab(uri: string): Disposable {
     this._defaultTabs.add(uri);
     return {
-      dispose: () => this._defaultTabs.delete(uri),
+      [Symbol.dispose]: () => this._defaultTabs.delete(uri),
     };
   }
 
   registerLegacyDetailsPanel(section: LegacyDetailsPanel): Disposable {
     this._legacyDetailsPanelRegistry.add(section);
     return {
-      dispose: () => this._legacyDetailsPanelRegistry.delete(section),
+      [Symbol.dispose]: () => this._legacyDetailsPanelRegistry.delete(section),
     };
   }
 
   registerDetailsPanel(section: DetailsPanel): Disposable {
     this._detailsPanelRegistry.add(section);
     return {
-      dispose: () => this._detailsPanelRegistry.delete(section),
+      [Symbol.dispose]: () => this._detailsPanelRegistry.delete(section),
     };
   }
 

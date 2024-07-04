@@ -13,6 +13,7 @@
 // limitations under the License.
 
 // Keep this import first.
+import '../base/disposable_polyfill';
 import '../base/static_initializers';
 import '../gen/all_plugins';
 import '../gen/all_core_plugins';

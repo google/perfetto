@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {BigintMath} from '../base/bigint_math';
-import {Disposable} from '../base/disposable';
+
 import {duration, Time, time, TimeSpan} from '../base/time';
 export {Store} from '../base/store';
 import {raf} from '../core/raf_scheduler';
@@ -74,7 +74,7 @@ export class TimelineFetcher<Data> implements Disposable {
     this.data_ = undefined;
   }
 
-  dispose() {
+  [Symbol.dispose]() {
     this.data_ = undefined;
   }
 

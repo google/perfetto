@@ -206,7 +206,7 @@ class TraceViewer implements m.ClassComponent {
   }
 
   onremove() {
-    if (this.zoomContent) this.zoomContent.dispose();
+    if (this.zoomContent) this.zoomContent[Symbol.dispose]();
   }
 
   view() {

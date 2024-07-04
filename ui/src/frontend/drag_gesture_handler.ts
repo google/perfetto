@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable} from '../base/disposable';
-
 export class DragGestureHandler implements Disposable {
   private readonly boundOnMouseDown = this.onMouseDown.bind(this);
   private readonly boundOnMouseMove = this.onMouseMove.bind(this);
@@ -82,7 +80,7 @@ export class DragGestureHandler implements Disposable {
     return this._isDragging;
   }
 
-  dispose() {
+  [Symbol.dispose]() {
     if (this._isDragging) {
       this.onMouseUp();
     }

@@ -145,7 +145,7 @@ describe('root store', () => {
     const callback = jest.fn();
 
     // Subscribe then immediately unsubscribe
-    store.subscribe(callback).dispose();
+    store.subscribe(callback)[Symbol.dispose]();
 
     // Make an arbitrary edit
     store.edit((draft) => {
@@ -236,7 +236,7 @@ describe('sub-store', () => {
     const callback = jest.fn();
 
     // Subscribe then immediately unsubscribe
-    subStore.subscribe(callback).dispose();
+    subStore.subscribe(callback)[Symbol.dispose]();
 
     // Make an arbitrary edit
     subStore.edit((draft) => {

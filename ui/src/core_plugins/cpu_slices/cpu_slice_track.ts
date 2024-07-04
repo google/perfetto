@@ -156,7 +156,7 @@ export class CpuSliceTrack implements Track {
     await this.engine.tryQuery(
       `drop table if exists cpu_slice_${this.trackUuid}`,
     );
-    this.fetcher.dispose();
+    this.fetcher[Symbol.dispose]();
   }
 
   getHeight(): number {

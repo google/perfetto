@@ -82,7 +82,7 @@ export class OverviewTimelinePanel implements Panel {
 
   onremove({dom}: m.CVnodeDOM) {
     if (this.gesture) {
-      this.gesture.dispose();
+      this.gesture[Symbol.dispose]();
       this.gesture = undefined;
     }
     (dom as HTMLElement).removeEventListener(

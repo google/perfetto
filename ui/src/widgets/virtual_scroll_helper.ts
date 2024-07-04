@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {DisposableStack} from '../base/disposable';
+import {DisposableStack} from '../base/disposable_stack';
 import * as Geometry from '../base/geom';
 
 export interface VirtualScrollHelperOpts {
@@ -67,7 +67,7 @@ export class VirtualScrollHelper {
     });
   }
 
-  dispose() {
+  [Symbol.dispose]() {
     this._trash.dispose();
   }
 }

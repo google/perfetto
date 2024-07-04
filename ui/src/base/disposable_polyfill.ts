@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2024 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,21 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export class SimpleResizeObserver implements Disposable {
-  private observer?: ResizeObserver;
+// Polyfill for Firefox and Safari which don't define the symbols yet.
 
-  constructor(dom: Element, callback: () => void) {
-    const observer = new ResizeObserver(() => {
-      callback();
-    });
-    observer.observe(dom);
-    this.observer = observer;
-  }
+// @ts-ignore
+Symbol.dispose ??= Symbol('Symbol.dispose');
 
-  [Symbol.dispose]() {
-    if (this.observer) {
-      this.observer.disconnect();
-      this.observer = undefined;
-    }
-  }
-}
+// @ts-ignore
+Symbol.asyncDispose ??= Symbol('Symbol.asyncDispose');

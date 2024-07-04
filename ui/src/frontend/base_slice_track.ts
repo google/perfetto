@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncDisposable, AsyncDisposableStack} from '../base/disposable';
 import {assertExists} from '../base/logging';
 import {clamp, floatEqual} from '../base/math_utils';
 import {Time, time} from '../base/time';
@@ -42,6 +41,7 @@ import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {NewTrackArgs} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey} from '../core/timeline_cache';
 import {uuidv4Sql} from '../base/uuid';
+import {AsyncDisposableStack} from '../base/disposable_stack';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -651,7 +651,7 @@ export abstract class BaseSliceTrack<
   }
 
   async onDestroy(): Promise<void> {
-    await this.trash.disposeAsync();
+    await this.trash.asyncDispose();
   }
 
   // This method figures out if the visible window is outside the bounds of
