@@ -172,6 +172,7 @@ export class WattsonPackageAggregationController extends AggregationController {
         kind: 'NUMBER',
         columnConstructor: Float64Array,
         columnId: 'total_mws',
+        sum: true,
       },
     ];
   }
