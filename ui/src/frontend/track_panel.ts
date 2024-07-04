@@ -497,8 +497,7 @@ export class TrackPanel implements Panel {
     if (track !== undefined) {
       const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
       if (!track.getError()) {
-        track.update();
-        track.track.render(ctx, trackSize);
+        track.render(ctx, trackSize);
       }
     } else {
       checkerboard(ctx, size.height, 0, size.width - TRACK_SHELL_WIDTH);
