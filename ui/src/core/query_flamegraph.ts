@@ -12,15 +12,135 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncDisposableStack} from '../base/disposable';
+import m from 'mithril';
 
+import {AsyncDisposableStack} from '../base/disposable';
 import {Engine} from '../trace_processor/engine';
 import {NUM, STR} from '../trace_processor/query_result';
 import {createPerfettoTable} from '../trace_processor/sql_utils';
+import {
+  Flamegraph,
+  FlamegraphFilters,
+  FlamegraphQueryData,
+} from '../widgets/flamegraph';
+import {AsyncLimiter} from '../base/async_limiter';
+import {assertExists} from '../base/logging';
+import {Monitor} from '../base/monitor';
+import {featureFlags} from './feature_flags';
 
-export async function computeFlamegraphTree(
+interface QueryFlamegraphMetric {
+  // The human readable name of the metric: will be shown to the user to change
+  // between metrics.
+  readonly name: string;
+
+  // The human readable SI-style unit of `selfValue`. Values will be shown to the
+  // user suffixed with this.
+  readonly unit: string;
+
+  // SQL statement which need to be run in preparation for being able to execute
+  // `statement`.
+  readonly dependencySql?: string;
+
+  // A single SQL statement which returns the columns `id`, `parentId`, `name` and
+  // `selfValue`
+  readonly statement: string;
+}
+
+// Given a table and columns on those table (corresponding to metrics),
+// returns an array of `QueryFlamegraphMetric` structs which can be passed
+// in QueryFlamegraph's attrs.
+//
+// `tableOrSubquery` should have the columns `id`, `parentId`, `name` and all
+// columns specified by `tableMetrics[].name`.
+export function metricsFromTableOrSubquery(
+  tableOrSubquery: string,
+  tableMetrics: ReadonlyArray<{name: string; unit: string; columnName: string}>,
+  dependencySql?: string,
+): QueryFlamegraphMetric[] {
+  const metrics = [];
+  for (const {name, unit, columnName} of tableMetrics) {
+    metrics.push({
+      name,
+      unit,
+      dependencySql,
+      statement: `
+        select id, parentId, name, ${columnName} as value
+        from ${tableOrSubquery}
+      `,
+    });
+  }
+  return metrics;
+}
+
+export interface QueryFlamegraphAttrs {
+  readonly engine: Engine;
+  readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
+}
+
+// A Mithril component which wraps the `Flamegraph` widget and fetches the data for the
+// widget by querying an `Engine`.
+export class QueryFlamegraph implements m.ClassComponent<QueryFlamegraphAttrs> {
+  private selectedMetricName;
+  private data?: FlamegraphQueryData;
+  private filters: FlamegraphFilters = {
+    showStack: [],
+    hideStack: [],
+    showFrame: [],
+    hideFrame: [],
+  };
+  private attrs: QueryFlamegraphAttrs;
+  private selMonitor = new Monitor([() => this.attrs.metrics]);
+  private queryLimiter = new AsyncLimiter();
+
+  constructor({attrs}: m.Vnode<QueryFlamegraphAttrs>) {
+    this.attrs = attrs;
+    this.selectedMetricName = attrs.metrics[0].name;
+  }
+
+  view({attrs}: m.Vnode<QueryFlamegraphAttrs>) {
+    this.attrs = attrs;
+    if (this.selMonitor.ifStateChanged()) {
+      this.selectedMetricName = attrs.metrics[0].name;
+      this.data = undefined;
+      this.fetchData(attrs);
+    }
+    return m(Flamegraph, {
+      metrics: attrs.metrics,
+      selectedMetricName: this.selectedMetricName,
+      data: this.data,
+      onMetricChange: (name) => {
+        this.selectedMetricName = name;
+        this.data = undefined;
+        this.fetchData(attrs);
+      },
+      onFiltersChanged: (filters) => {
+        this.filters = filters;
+        this.data = undefined;
+        this.fetchData(attrs);
+      },
+    });
+  }
+
+  private async fetchData(attrs: QueryFlamegraphAttrs) {
+    const {statement, dependencySql} = assertExists(
+      attrs.metrics.find((metric) => metric.name === this.selectedMetricName),
+    );
+    const engine = attrs.engine;
+    const filters = this.filters;
+    this.queryLimiter.schedule(async () => {
+      this.data = await computeFlamegraphTree(
+        engine,
+        dependencySql,
+        statement,
+        filters,
+      );
+    });
+  }
+}
+
+async function computeFlamegraphTree(
   engine: Engine,
-  dependencySql: string,
+  dependencySql: string | undefined,
   sql: string,
   {
     showStack,
@@ -52,7 +172,9 @@ export async function computeFlamegraphTree(
       ? 'false'
       : hideFrame.map((x) => `name like '%${x}%'`).join(' OR ');
 
-  await engine.query(dependencySql);
+  if (dependencySql !== undefined) {
+    await engine.query(dependencySql);
+  }
   await engine.query(`include perfetto module viz.flamegraph;`);
 
   const disposable = new AsyncDisposableStack();
@@ -158,3 +280,10 @@ export async function computeFlamegraphTree(
     await disposable.disposeAsync();
   }
 }
+
+export const USE_NEW_FLAMEGRAPH_IMPL = featureFlags.register({
+  id: 'useNewFlamegraphImpl',
+  name: 'Use new flamegraph implementation',
+  description: 'Use new flamgraph implementation in details panels.',
+  defaultValue: false,
+});

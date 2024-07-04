@@ -14,11 +14,8 @@
 
 import m from 'mithril';
 
-import {AsyncLimiter} from '../../base/async_limiter';
 import {assertExists} from '../../base/logging';
 import {Monitor} from '../../base/monitor';
-import {time} from '../../base/time';
-import {featureFlags} from '../../core/feature_flags';
 import {LegacyFlamegraphCache} from '../../core/legacy_flamegraph_cache';
 import {
   HeapProfileSelection,
@@ -37,16 +34,16 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {computeFlamegraphTree} from '../../core/flamegraph_query_utils';
 import {NUM} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
-import {
-  Flamegraph,
-  FlamegraphFilters,
-  FlamegraphQueryData,
-} from '../../widgets/flamegraph';
 
 import {HeapProfileTrack} from './heap_profile_track';
+import {
+  QueryFlamegraph,
+  QueryFlamegraphAttrs,
+  USE_NEW_FLAMEGRAPH_IMPL,
+  metricsFromTableOrSubquery,
+} from '../../core/query_flamegraph';
 
 export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 
@@ -79,65 +76,6 @@ class HeapProfilePlugin implements Plugin {
   }
 }
 
-const FLAMEGRAPH_METRICS = [
-  {
-    name: 'Object Size',
-    unit: 'B',
-    dependencySql: `
-      include perfetto module android.memory.heap_graph.class_tree;
-    `,
-    sqlFn: (ts: time, upid: number) => `
-      select id, parent_id as parentId, name, self_size as value
-      from _heap_graph_class_tree
-      where graph_sample_ts = ${ts} and upid = ${upid}
-    `,
-  },
-  {
-    name: 'Object Count',
-    unit: '',
-    dependencySql: `
-      include perfetto module android.memory.heap_graph.class_tree;
-    `,
-    sqlFn: (ts: time, upid: number) => `
-      select id, parent_id as parentId, name, self_count as value
-      from _heap_graph_class_tree
-      where graph_sample_ts = ${ts} and upid = ${upid}
-    `,
-  },
-  {
-    name: 'Dominated Object Size',
-    unit: 'B',
-    dependencySql: `
-      include perfetto module android.memory.heap_graph.dominator_class_tree;
-    `,
-    sqlFn: (ts: time, upid: number) => `
-      select id, parent_id as parentId, name, self_size as value
-      from _heap_graph_dominator_class_tree
-      where graph_sample_ts = ${ts} and upid = ${upid}
-    `,
-  },
-  {
-    name: 'Dominated Object Count',
-    unit: '',
-    dependencySql: `
-      include perfetto module android.memory.heap_graph.dominator_class_tree;
-    `,
-    sqlFn: (ts: time, upid: number) => `
-      select id, parent_id as parentId, name, self_count as value
-      from _heap_graph_dominator_class_tree
-      where graph_sample_ts = ${ts} and upid = ${upid}
-    `,
-  },
-];
-const DEFAULT_SELECTED_METRIC_NAME = 'Object Size';
-
-const USE_NEW_FLAMEGRAPH_IMPL = featureFlags.register({
-  id: 'useNewFlamegraphImpl',
-  name: 'Use new flamegraph implementation',
-  description: 'Use new flamgraph implementation in details panels.',
-  defaultValue: false,
-});
-
 class HeapProfileFlamegraphDetailsPanel implements LegacyDetailsPanel {
   private sel?: HeapProfileSelection;
   private selMonitor = new Monitor([
@@ -145,17 +83,8 @@ class HeapProfileFlamegraphDetailsPanel implements LegacyDetailsPanel {
     () => this.sel?.upid,
     () => this.sel?.type,
   ]);
+  private flamegraphAttrs?: QueryFlamegraphAttrs;
   private cache = new LegacyFlamegraphCache('heap_profile');
-  private queryLimiter = new AsyncLimiter();
-
-  private selectedMetricName = DEFAULT_SELECTED_METRIC_NAME;
-  private data?: FlamegraphQueryData;
-  private filters: FlamegraphFilters = {
-    showStack: [],
-    hideStack: [],
-    showFrame: [],
-    hideFrame: [],
-  };
 
   constructor(private engine: Engine) {}
 
@@ -180,11 +109,58 @@ class HeapProfileFlamegraphDetailsPanel implements LegacyDetailsPanel {
       });
     }
 
+    const {ts, upid} = sel;
     this.sel = sel;
     if (this.selMonitor.ifStateChanged()) {
-      this.selectedMetricName = DEFAULT_SELECTED_METRIC_NAME;
-      this.data = undefined;
-      this.fetchData();
+      this.flamegraphAttrs = {
+        engine: this.engine,
+        metrics: [
+          ...metricsFromTableOrSubquery(
+            `
+              (
+                select id, parent_id as parentId, name, self_size, self_count
+                from _heap_graph_class_tree
+                where graph_sample_ts = ${ts} and upid = ${upid}
+              )
+            `,
+            [
+              {
+                name: 'Object Size',
+                unit: 'B',
+                columnName: 'self_size',
+              },
+              {
+                name: 'Object Size',
+                unit: '',
+                columnName: 'self_count',
+              },
+            ],
+            'include perfetto module android.memory.heap_graph.class_tree;',
+          ),
+          ...metricsFromTableOrSubquery(
+            `
+              (
+                select id, parent_id as parentId, name, self_size, self_count
+                from _heap_graph_dominator_class_tree
+                where graph_sample_ts = ${ts} and upid = ${upid}
+              )
+            `,
+            [
+              {
+                name: 'Dominated Object Size',
+                unit: 'B',
+                columnName: 'self_size',
+              },
+              {
+                name: 'Dominated Object Count',
+                unit: '',
+                columnName: 'self_count',
+              },
+            ],
+            'include perfetto module android.memory.heap_graph.dominator_class_tree;',
+          ),
+        ],
+      };
     }
     return m(
       '.flamegraph-profile',
@@ -192,56 +168,13 @@ class HeapProfileFlamegraphDetailsPanel implements LegacyDetailsPanel {
         DetailsShell,
         {
           fillParent: true,
-          title: m('div.title', 'Java Heap Graph'),
+          title: m('.title', 'Java Heap Graph'),
           description: [],
-          buttons: [
-            m(
-              'div.time',
-              `Snapshot time: `,
-              m(Timestamp, {
-                ts: sel.ts,
-              }),
-            ),
-          ],
+          buttons: [m('.time', `Snapshot time: `, m(Timestamp, {ts}))],
         },
-        m(Flamegraph, {
-          metrics: FLAMEGRAPH_METRICS,
-          selectedMetricName: this.selectedMetricName,
-          data: this.data,
-          onMetricChange: (name) => {
-            this.selectedMetricName = name;
-            this.data = undefined;
-            this.fetchData();
-          },
-          onFiltersChanged: (filters) => {
-            this.filters = filters;
-            this.data = undefined;
-            this.fetchData();
-          },
-        }),
+        m(QueryFlamegraph, assertExists(this.flamegraphAttrs)),
       ),
     );
-  }
-
-  private async fetchData() {
-    if (this.sel === undefined) {
-      return;
-    }
-    const {ts, upid} = this.sel;
-    const selectedMetricName = this.selectedMetricName;
-    const filters = this.filters;
-    this.queryLimiter.schedule(async () => {
-      const {sqlFn, dependencySql} = assertExists(
-        FLAMEGRAPH_METRICS.find((metric) => metric.name === selectedMetricName),
-      );
-      const sql = sqlFn(ts, upid);
-      this.data = await computeFlamegraphTree(
-        this.engine,
-        dependencySql,
-        sql,
-        filters,
-      );
-    });
   }
 }
 

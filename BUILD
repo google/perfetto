@@ -2709,6 +2709,14 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/linux/perf:perf
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_linux_perf_perf",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/linux/perf/samples.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/linux:linux
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_linux_linux",
@@ -2844,6 +2852,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_linux_cpu_utilization_utilization",
         ":src_trace_processor_perfetto_sql_stdlib_linux_linux",
         ":src_trace_processor_perfetto_sql_stdlib_linux_memory_memory",
+        ":src_trace_processor_perfetto_sql_stdlib_linux_perf_perf",
         ":src_trace_processor_perfetto_sql_stdlib_pkvm_pkvm",
         ":src_trace_processor_perfetto_sql_stdlib_prelude_prelude",
         ":src_trace_processor_perfetto_sql_stdlib_sched_sched",
