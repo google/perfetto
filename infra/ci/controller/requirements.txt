@@ -1,0 +1,7 @@
+Flask[async]==2.2.5
+google-auth
+google-cloud
+google-cloud-logging
+gunicorn
+oauth2client
+requests
