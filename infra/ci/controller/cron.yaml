@@ -12,25 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 cron:
-- description: "Run postsubmits"
-  url: /controller/queue_postsubmit_jobs?branch=main
-  schedule: every 1 hours
+- description: "Gerrit poller"
   target: controller
+  url: /controller/tick
+  schedule: every 1 minutes
 
-- description: "Logs cleanup"
-  url: /controller/delete_expired_logs
-  schedule: every 24 hours
+- description: "Run postsubmits"
   target: controller
+  url: /controller/queue_postsubmit_jobs
+  schedule: every 1 hours
+
+- description: "Delete stale workers"
+  target: controller
+  url: /controller/delete_stale_workers
+  schedule: every 1 hours
 
 - description: "Delete stale jobs from the running queue"
+  target: controller
   url: /controller/delete_stale_jobs
   schedule: every 15 minutes
-  target: controller
 
-# This is unnecessary if everything works fine all the time, because each
-# /worker/tick task enqueues the next one. However if anything goes wrong the
-# chain would break. We use this cron job to re-kick it if this happens.
-- description: "Gerrit poller failsafe"
-  url: /controller/tick
-  schedule: every 5 minutes
+- description: "Logs cleanup"
   target: controller
+  url: /controller/delete_expired_logs
+  schedule: every 15 minutes

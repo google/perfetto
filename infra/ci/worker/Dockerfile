@@ -16,7 +16,8 @@
 FROM docker:stable
 
 RUN apk update && apk add python3 py-pip sudo tini
-RUN pip3 install oauth2client httplib2
+RUN pip3 install oauth2client httplib2 google-auth google-cloud requests;
+
 
 # Unfortunately Docker doesn't allow to copy a file from ../. So we copy instead
 # the config files into tmp/ from the Makefile that runs docker build.

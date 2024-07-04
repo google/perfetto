@@ -18,7 +18,8 @@ This file is either imported from other python scripts or executed to generate
 makefile dumps of the variables. This is so all vars can live in one place.
 '''
 
-from __future__ import print_function
+import os
+import sys
 
 # Gerrit config
 GERRIT_HOST = 'android-review.googlesource.com'
@@ -26,32 +27,32 @@ GERRIT_PROJECT = 'platform/external/perfetto'
 GERRIT_REVIEW_URL = ('https://android-review.googlesource.com/c/' +
                      GERRIT_PROJECT)
 REPO_URL = 'https://android.googlesource.com/' + GERRIT_PROJECT
-GERRIT_POLL_SEC = 15
 GERRIT_VOTING_ENABLED = True
 LOGLEVEL = 'info'
 
 # Cloud config (GCE = Google Compute Engine, GAE = Google App Engine)
 PROJECT = 'perfetto-ci'
+
 GAE_VERSION = 'prod'
 DB_ROOT = 'https://%s.firebaseio.com' % PROJECT
 DB = DB_ROOT + '/ci'
-SANDBOX_IMG = 'eu.gcr.io/%s/sandbox' % PROJECT
-WORKER_IMG = 'eu.gcr.io/%s/worker' % PROJECT
+SANDBOX_IMG = 'us-docker.pkg.dev/%s/containers/sandbox' % PROJECT
+WORKER_IMG = 'us-docker.pkg.dev/%s/containers/worker' % PROJECT
 CI_SITE = 'https://ci.perfetto.dev'
 GCS_ARTIFACTS = 'perfetto-ci-artifacts'
 
-JOB_TIMEOUT_SEC = 45 * 60
-CL_TIMEOUT_SEC = 60 * 60 * 3
+JOB_TIMEOUT_SEC = 45 * 60  # 45 min
+CL_TIMEOUT_SEC = 60 * 60 * 3  # 3 hours
 LOGS_TTL_DAYS = 15
 TRUSTED_EMAILS = '^.*@google.com$'
 
-GCE_ZONES = 'us-central1-b us-east1-b us-west1-b'
+GCE_REGIONS = 'us-west1'
 GCE_VM_NAME = 'ci-worker'
-GCE_VM_TYPE = 'c2-standard-8'
+GCE_VM_TYPE = 'c2d-standard-32'
 GCE_TEMPLATE = 'ci-worker-template'
 GCE_GROUP_NAME = 'ci'
-NUM_VMS = 3
-NUM_WORKERS_PER_VM = 2
+MAX_VMS_PER_REGION = 8
+NUM_WORKERS_PER_VM = 4
 
 GCE_SCOPES = [
     'https://www.googleapis.com/auth/cloud-platform',
