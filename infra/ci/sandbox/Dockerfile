@@ -60,6 +60,11 @@ RUN set -ex; \
                xdg-utils fonts-liberation fonts-ipafont-gothic fonts-wqy-zenhei \
                fonts-thai-tlwg fonts-kacst fonts-freefont-ttf
 
+# Cleanup to reduce image size
+RUN     apt-get -y autoremove; \
+        rm -rf /var/lib/apt/lists/* /usr/share/man/* /usr/share/doc/*; \
+        rm -rf /root/.cache/;
+
 COPY testrunner.sh /ci/testrunner.sh
 COPY init.sh /ci/init.sh
 RUN chmod -R a+rx /ci/
