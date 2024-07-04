@@ -396,17 +396,19 @@ TEST_F(ProtoTraceParserTest, LoadEventsIntoRaw) {
   ASSERT_EQ(raw.row_count(), 2u);
   const auto& args = context_.storage->arg_table();
   ASSERT_EQ(args.row_count(), 6u);
-  // Order is by row and then by StringIds.
-  ASSERT_EQ(args.key()[0], context_.storage->InternString("comm"));
-  ASSERT_EQ(args.key()[1], context_.storage->InternString("pid"));
-  ASSERT_EQ(args.key()[2], context_.storage->InternString("oom_score_adj"));
-  ASSERT_EQ(args.key()[3], context_.storage->InternString("clone_flags"));
-  ASSERT_EQ(args.key()[4], context_.storage->InternString("ip"));
-  ASSERT_EQ(args.key()[5], context_.storage->InternString("buf"));
-  ASSERT_STREQ(args.string_value().GetString(0).c_str(), task_newtask);
-  ASSERT_EQ(args.int_value()[1], 123);
-  ASSERT_EQ(args.int_value()[2], 15);
-  ASSERT_EQ(args.int_value()[3], 12);
+  // Order is by row and then in the same order as encountered in the trace.
+  std::vector<std::string> expected_keys;
+  for (uint32_t i = 0; i < args.row_count(); i++) {
+    expected_keys.push_back(
+        context_.storage->GetString(args.key()[i]).ToStdString());
+  }
+  ASSERT_THAT(expected_keys,
+              testing::ElementsAre("pid", "comm", "clone_flags",
+                                   "oom_score_adj", "ip", "buf"));
+  ASSERT_EQ(args.int_value()[0], 123);
+  ASSERT_STREQ(args.string_value().GetString(1).c_str(), task_newtask);
+  ASSERT_EQ(args.int_value()[2], 12);
+  ASSERT_EQ(args.int_value()[3], 15);
   ASSERT_EQ(args.int_value()[4], 20);
   ASSERT_STREQ(args.string_value().GetString(5).c_str(), buf_value);
 

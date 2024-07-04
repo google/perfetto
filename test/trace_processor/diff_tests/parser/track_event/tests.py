@@ -391,7 +391,7 @@ class TrackEvent(TestSuite):
         LEFT JOIN thread ON thread_track.utid = thread.utid
         LEFT JOIN process thread_process ON thread.upid = thread_process.upid
         LEFT JOIN args ON slice.arg_set_id = args.arg_set_id
-        ORDER BY ts ASC;
+        ORDER BY slice.ts, args.id;
         """,
         out=Path('legacy_async_event.out'))
 
