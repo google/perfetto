@@ -28,7 +28,7 @@ export abstract class DragStrategy {
 
   protected updateGlobals(tStart: HighPrecisionTime, tEnd: HighPrecisionTime) {
     const vizTime = new HighPrecisionTimeSpan(tStart, tEnd);
-    globals.timeline.updateVisibleTime(vizTime);
+    globals.timeline.updateVisibleTimeHP(vizTime);
     raf.scheduleRedraw();
   }
 }
