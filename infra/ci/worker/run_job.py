@@ -28,10 +28,8 @@ import sys
 import threading
 import time
 
-from datetime import datetime, timedelta
-from oauth2client.client import GoogleCredentials
 from config import DB, SANDBOX_IMG
-from common_utils import init_logging, req, ConcurrentModificationError, SCOPES
+from common_utils import init_logging, req, SCOPES
 
 CUR_DIR = os.path.dirname(__file__)
 SCOPES.append('https://www.googleapis.com/auth/firebase.database')

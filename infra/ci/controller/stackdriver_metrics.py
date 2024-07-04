@@ -12,12 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from config import PROJECT
+
 STACKDRIVER_METRICS = {
     'ci_job_queue_len': {
         'name': 'ci_job_queue_len',
         'displayName': 'ci_job_queue_len',
         'description': 'Length of the CI jobs queue',
-        'type': 'custom.googleapis.com/perfetto-ci/ci_job_queue_len',
+        'type': 'custom.googleapis.com/%s/ci_job_queue_len' % PROJECT,
         'metricKind': 'GAUGE',
         'valueType': 'INT64',
         'metadata': {
@@ -31,7 +33,7 @@ STACKDRIVER_METRICS = {
         'name': 'ci_job_queue_time',
         'displayName': 'ci_job_queue_time',
         'description': 'Queueing time of CI jobs, before they start running',
-        'type': 'custom.googleapis.com/perfetto-ci/ci_job_queue_time',
+        'type': 'custom.googleapis.com/%s/ci_job_queue_time' % PROJECT,
         'metricKind': 'GAUGE',
         'valueType': 'INT64',
         'unit': 's',
@@ -49,7 +51,7 @@ STACKDRIVER_METRICS = {
         'name': 'ci_job_run_time',
         'displayName': 'ci_job_run_time',
         'description': 'Running time of CI jobs',
-        'type': 'custom.googleapis.com/perfetto-ci/ci_job_run_time',
+        'type': 'custom.googleapis.com/%s/ci_job_run_time' % PROJECT,
         'metricKind': 'GAUGE',
         'valueType': 'INT64',
         'unit': 's',
@@ -67,7 +69,7 @@ STACKDRIVER_METRICS = {
         'name': 'ci_cl_completion_time',
         'displayName': 'ci_cl_completion_time',
         'description': 'Time it takes for all jobs of a CL to complete',
-        'type': 'custom.googleapis.com/perfetto-ci/ci_cl_completion_time',
+        'type': 'custom.googleapis.com/%s/ci_cl_completion_time' % PROJECT,
         'metricKind': 'GAUGE',
         'valueType': 'INT64',
         'unit': 's',

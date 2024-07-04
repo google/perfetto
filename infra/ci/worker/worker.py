@@ -19,7 +19,6 @@ It also handles timeouts and graceful container termination.
 
 import logging
 import os
-import random
 import signal
 import socket
 import subprocess
@@ -50,7 +49,7 @@ def try_acquire_job(job_id):
   uri = '%s/jobs/%s.json' % (DB, job_id)
   job, etag = req('GET', uri, req_etag=True)
   if job['status'] != 'QUEUED':
-    return None  # Somebody else took it
+    return None  # Somebody else took it or the job is CANCELLED/INTERRUPTED
   try:
     job['status'] = 'STARTED'
     job['time_started'] = utc_now_iso()
@@ -72,7 +71,7 @@ def make_worker_obj(status, job_id=None):
 
 def worker_loop():
   ''' Pulls a job from the queue and runs it invoking run_job.py  '''
-  uri = '%s/jobs_queued.json?orderBy="$key"&limitToLast=10' % DB
+  uri = '%s/jobs_queued.json?orderBy="$key"&limitToLast=100' % DB
   jobs = req('GET', uri)
   if not jobs:
     return
@@ -95,8 +94,7 @@ def worker_loop():
     job = try_acquire_job(job_id)
     if job is not None:
       break
-    logging.info('Raced while trying to acquire job %s, retrying', job_id)
-    time.sleep(worker_num * 2 + random.random())
+    time.sleep(worker_num)
   if job is None:
     logging.error('Failed to acquire a job')
     return

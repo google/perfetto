@@ -15,9 +15,17 @@
 
 set -eux -o pipefail
 
-# num-workers is set at VM creation time in the Makefile.
-URL='http://metadata.google.internal/computeMetadata/v1/instance/attributes/num-workers'
+# num-workers, {sandbox,worker}-img are set at VM creation time in the Makefile.
+
+ATTRS='http://metadata.google.internal/computeMetadata/v1/instance/attributes'
+URL="$ATTRS/num-workers"
 NUM_WORKERS=$(curl --silent --fail -H'Metadata-Flavor:Google' $URL || echo 1)
+
+URL="$ATTRS/sandbox-img"
+SANDBOX_IMG=$(curl --silent --fail -H'Metadata-Flavor:Google' $URL)
+
+URL="$ATTRS/worker-img"
+WORKER_IMG=$(curl --silent --fail -H'Metadata-Flavor:Google' $URL)
 
 for SSD in /dev/nvme0n*; do
 mkswap $SSD
@@ -25,23 +33,23 @@ swapon -p -1 $SSD
 done
 
 # This is used by the sandbox containers, NOT needed by the workers.
-# Rationale for size=100G: by default tmpfs mount are set to RAM/2, which makes
+# Rationale for size=500G: by default tmpfs mount are set to RAM/2, which makes
 # the CI depend too much on the underlying VM. Here and below, we pick an
 # arbitrary fixed size (we use local scratch NVME as a swap device).
 export SHARED_WORKER_CACHE=/mnt/disks/shared_worker_cache
 rm -rf $SHARED_WORKER_CACHE
 mkdir -p $SHARED_WORKER_CACHE
-mount -t tmpfs tmpfs $SHARED_WORKER_CACHE -o mode=777,size=100G
+mount -t tmpfs tmpfs $SHARED_WORKER_CACHE -o mode=777,size=500G
 
 # This is used to queue build artifacts that are uploaded to GCS.
 export ARTIFACTS_DIR=/mnt/disks/artifacts
 rm -rf $ARTIFACTS_DIR
 mkdir -p $ARTIFACTS_DIR
-mount -t tmpfs tmpfs $ARTIFACTS_DIR -o mode=777,size=100G
+mount -t tmpfs tmpfs $ARTIFACTS_DIR -o mode=777,size=500G
 
 # Pull the latest images from the registry.
-docker pull eu.gcr.io/perfetto-ci/worker
-docker pull eu.gcr.io/perfetto-ci/sandbox
+docker pull $WORKER_IMG
+docker pull $SANDBOX_IMG
 
 # Create the restricted bridge for the sandbox container.
 # Prevent access to the metadata server and impersonation of service accounts.
@@ -78,7 +86,7 @@ docker run -d \
   --name worker-$i \
   --hostname worker-$i \
   --log-driver gcplogs \
-  eu.gcr.io/perfetto-ci/worker
+  $WORKER_IMG
 done
 
 
@@ -86,7 +94,7 @@ done
 cat > /etc/systemd/system/graceful_shutdown.sh <<EOF
 #!/bin/sh
 logger 'Shutting down worker containers'
-docker ps -q  -f 'name=worker-\d+$' | xargs docker stop -t 30
+docker ps -q  -f 'name=worker-\d+$' | xargs docker stop -t 120
 exit 0
 EOF
 
