@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
@@ -52,7 +53,9 @@ class V8Tracker : public Destructible {
 
   ~V8Tracker() override;
 
-  IsolateId InternIsolate(protozero::ConstBytes bytes);
+  // Might return `std::nullopt` if we can not create an isolate because it has
+  // no code range (we do not support this yet).
+  std::optional<IsolateId> InternIsolate(protozero::ConstBytes bytes);
   tables::V8JsScriptTable::Id InternJsScript(protozero::ConstBytes bytes,
                                              IsolateId isolate_id);
   tables::V8WasmScriptTable::Id InternWasmScript(protozero::ConstBytes bytes,
@@ -171,7 +174,8 @@ class V8Tracker : public Destructible {
   // those here.
   base::FlatHashMap<UniquePid, SharedCodeRanges> shared_code_ranges_;
 
-  base::FlatHashMap<IsolateKey, IsolateId, IsolateKey::Hasher> isolate_index_;
+  base::FlatHashMap<IsolateKey, std::optional<IsolateId>, IsolateKey::Hasher>
+      isolate_index_;
   base::FlatHashMap<std::pair<IsolateId, int32_t>,
                     tables::V8JsScriptTable::Id,
                     ScriptIndexHash>

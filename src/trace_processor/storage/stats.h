@@ -302,6 +302,10 @@ namespace stats {
   F(v8_intern_errors,                                                          \
                                           kSingle,  kDataLoss, kAnalysis,      \
       "Failed to resolve V8 interned data."),                                  \
+  F(v8_isolate_has_no_code_range,                                              \
+                                          kSingle,  kError,    kAnalysis,      \
+      "V8 isolate had no code range. THis is currently no supported and means" \
+      "we will be unable to parse JS code events for this isolate."),          \
   F(v8_no_defaults,                                                            \
                                           kSingle,  kDataLoss, kAnalysis,      \
       "Failed to resolve V8 default data."),                                   \
