@@ -27,10 +27,16 @@ import {
   LegacyFlamegraphDetailsPanel,
   FlamegraphSelectionParams,
 } from './legacy_flamegraph_panel';
-import {ProfileType, TrackState} from '../common/state';
+import {AreaSelection, ProfileType, TrackState} from '../common/state';
 import {assertExists} from '../base/logging';
 import {Monitor} from '../base/monitor';
 import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../core/track_kinds';
+import {
+  QueryFlamegraph,
+  QueryFlamegraphAttrs,
+  USE_NEW_FLAMEGRAPH_IMPL,
+  metricsFromTableOrSubquery,
+} from '../core/query_flamegraph';
 
 interface View {
   key: string;
@@ -41,7 +47,8 @@ interface View {
 class AreaDetailsPanel implements m.ClassComponent {
   private readonly monitor = new Monitor([() => globals.state.selection]);
   private currentTab: string | undefined = undefined;
-  private flamegraphSelection?: FlamegraphSelectionParams;
+  private flamegraphAttrs?: QueryFlamegraphAttrs;
+  private legacyFlamegraphSelection?: FlamegraphSelectionParams;
 
   private getCurrentView(): string | undefined {
     const types = this.getViews().map(({key}) => key);
@@ -62,18 +69,12 @@ class AreaDetailsPanel implements m.ClassComponent {
   }
 
   private getViews(): View[] {
-    const views = [];
+    const views: View[] = [];
 
-    this.flamegraphSelection = this.computeFlamegraphSelection();
-    if (this.flamegraphSelection !== undefined) {
-      views.push({
-        key: 'flamegraph_selection',
-        name: 'Flamegraph Selection',
-        content: m(LegacyFlamegraphDetailsPanel, {
-          cache: globals.areaFlamegraphCache,
-          selection: this.flamegraphSelection,
-        }),
-      });
+    if (USE_NEW_FLAMEGRAPH_IMPL.get()) {
+      this.addFlamegraphView(views);
+    } else {
+      this.addLegacyFlamegraphView(views);
     }
 
     for (const [key, value] of globals.aggregateDataStore.entries()) {
@@ -155,7 +156,78 @@ class AreaDetailsPanel implements m.ClassComponent {
     );
   }
 
-  private computeFlamegraphSelection() {
+  private addFlamegraphView(views: View[]) {
+    this.flamegraphAttrs = this.computeFlamegraphAttrs();
+    if (this.flamegraphAttrs === undefined) {
+      return;
+    }
+    views.push({
+      key: 'flamegraph_selection',
+      name: 'Flamegraph Selection',
+      content: m(QueryFlamegraph, this.flamegraphAttrs),
+    });
+  }
+
+  private computeFlamegraphAttrs() {
+    const currentSelection = globals.state.selection;
+    if (currentSelection.kind !== 'area') {
+      return undefined;
+    }
+    if (!this.monitor.ifStateChanged()) {
+      // If the selection has not changed, just return a copy of the last seen
+      // attrs.
+      return this.flamegraphAttrs;
+    }
+    const upids = getUpidsFromAreaSelection(currentSelection);
+    if (upids.length === 0) {
+      return undefined;
+    }
+    return {
+      engine: assertExists(this.getCurrentEngine()),
+      metrics: [
+        ...metricsFromTableOrSubquery(
+          `
+            (
+              select *
+              from _perf_callsites_for_samples!((
+                select p.callsite_id
+                from perf_sample p
+                join thread t using (utid)
+                where p.ts >= ${currentSelection.start}
+                  and p.ts <= ${currentSelection.end}
+                  and t.upid in (${upids.join(',')})
+              ))
+            )
+          `,
+          [
+            {
+              name: 'Perf Samples',
+              unit: '',
+              columnName: 'self_count',
+            },
+          ],
+          'INCLUDE PERFETTO MODULE linux.perf.samples',
+        ),
+      ],
+    };
+  }
+
+  private addLegacyFlamegraphView(views: View[]) {
+    this.legacyFlamegraphSelection = this.computeLegacyFlamegraphSelection();
+    if (this.legacyFlamegraphSelection === undefined) {
+      return;
+    }
+    views.push({
+      key: 'flamegraph_selection',
+      name: 'Flamegraph Selection',
+      content: m(LegacyFlamegraphDetailsPanel, {
+        cache: globals.areaFlamegraphCache,
+        selection: this.legacyFlamegraphSelection,
+      }),
+    });
+  }
+
+  private computeLegacyFlamegraphSelection() {
     const currentSelection = globals.state.selection;
     if (currentSelection.kind !== 'area') {
       return undefined;
@@ -163,17 +235,9 @@ class AreaDetailsPanel implements m.ClassComponent {
     if (!this.monitor.ifStateChanged()) {
       // If the selection has not changed, just return a copy of the last seen
       // selection.
-      return this.flamegraphSelection;
+      return this.legacyFlamegraphSelection;
     }
-    const upids = [];
-    for (const trackId of currentSelection.tracks) {
-      const track: TrackState | undefined = globals.state.tracks[trackId];
-      const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
-      if (trackInfo?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
-        continue;
-      }
-      upids.push(assertExists(trackInfo.upid));
-    }
+    const upids = getUpidsFromAreaSelection(currentSelection);
     if (upids.length === 0) {
       return undefined;
     }
@@ -183,6 +247,12 @@ class AreaDetailsPanel implements m.ClassComponent {
       end: currentSelection.end,
       upids,
     };
+  }
+
+  private getCurrentEngine() {
+    const engineId = globals.getCurrentEngine()?.id;
+    if (engineId === undefined) return undefined;
+    return globals.engines.get(engineId);
   }
 }
 
@@ -206,4 +276,17 @@ export class AggregationsTabs implements Disposable {
   dispose(): void {
     this.trash.dispose();
   }
+}
+
+function getUpidsFromAreaSelection(currentSelection: AreaSelection) {
+  const upids = [];
+  for (const trackId of currentSelection.tracks) {
+    const track: TrackState | undefined = globals.state.tracks[trackId];
+    const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
+    if (trackInfo?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
+      continue;
+    }
+    upids.push(assertExists(trackInfo.upid));
+  }
+  return upids;
 }
