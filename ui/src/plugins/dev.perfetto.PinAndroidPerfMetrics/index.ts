@@ -82,11 +82,13 @@ class PinAndroidPerfMetrics implements Plugin {
       return [];
     }
     const capturedString = match[1];
+    let metricList: string[] = [];
     if (capturedString.includes('--')) {
-      return capturedString.split('--');
+      metricList = capturedString.split('--');
     } else {
-      return [capturedString];
+      metricList = [capturedString];
     }
+    return metricList.map((metric) => decodeURIComponent(metric));
   }
 
   private getMetricsToShow(metricList: string[]) {
