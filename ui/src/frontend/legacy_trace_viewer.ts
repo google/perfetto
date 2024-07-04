@@ -14,12 +14,11 @@
 
 import m from 'mithril';
 import {inflate} from 'pako';
-
 import {assertTrue} from '../base/logging';
 import {isString} from '../base/object_utils';
 import {showModal} from '../widgets/modal';
-
 import {globals} from './globals';
+import {utf8Decode} from '../base/string_utils';
 
 const CTRACE_HEADER = 'TRACE:\n';
 
@@ -133,8 +132,7 @@ export function openBufferWithLegacyTraceViewer(
     }
 
     // Handle .ctrace files.
-    const enc = new TextDecoder('utf-8');
-    const header = enc.decode(data.slice(0, 128));
+    const header = utf8Decode(data.slice(0, 128));
     if (header.includes(CTRACE_HEADER)) {
       const offset = header.indexOf(CTRACE_HEADER) + CTRACE_HEADER.length;
       data = inflate(new Uint8Array(data.slice(offset)), {to: 'string'});

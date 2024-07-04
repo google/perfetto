@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {_TextDecoder, _TextEncoder} from 'custom_utils';
-
 import {assertExists} from '../base/logging';
 import {isString} from '../base/object_utils';
-
+import {utf8Decode, utf8Encode} from '../base/string_utils';
 import {Adb, AdbMsg, AdbStream, CmdType} from './adb_interfaces';
-
-const textEncoder = new _TextEncoder();
-const textDecoder = new _TextDecoder();
 
 export const VERSION_WITH_CHECKSUM = 0x01000000;
 export const VERSION_NO_CHECKSUM = 0x01000001;
@@ -279,7 +274,7 @@ export class AdbOverWebUsb implements Adb {
     console.assert(msg.cmd === 'CNXN');
 
     this.maxPayload = msg.arg1;
-    this.devProps = textDecoder.decode(msg.data);
+    this.devProps = utf8Decode(msg.data);
 
     const deviceVersion = msg.arg0;
 
@@ -324,7 +319,7 @@ export class AdbOverWebUsb implements Adb {
 
     return new Promise<string>((resolve, _) => {
       const output: string[] = [];
-      shell.onData = (raw) => output.push(textDecoder.decode(raw));
+      shell.onData = (raw) => output.push(utf8Decode(raw));
       shell.onClose = () => resolve(output.join());
     });
   }
@@ -431,7 +426,6 @@ export class AdbStreamImpl implements AdbStream {
   private remoteStreamId = -1;
   private state: AdbStreamState = AdbStreamState.WAITING_INITIAL_OKAY;
   private writeQueue: Uint8Array[] = [];
-
   private sendInProgress = false;
 
   onData: AdbStreamReadCallback = (_) => {};
@@ -457,7 +451,7 @@ export class AdbStreamImpl implements AdbStream {
   }
 
   async write(msg: string | Uint8Array) {
-    const raw = isString(msg) ? textEncoder.encode(msg) : msg;
+    const raw = isString(msg) ? utf8Encode(msg) : msg;
     if (
       this.sendInProgress ||
       this.state === AdbStreamState.WAITING_INITIAL_OKAY
@@ -574,7 +568,7 @@ export class AdbMsgImpl implements AdbMsg {
   }
 
   get dataStr() {
-    return textDecoder.decode(this.data);
+    return utf8Decode(this.data);
   }
 
   toString() {
@@ -594,7 +588,7 @@ export class AdbMsgImpl implements AdbMsg {
   // };
   static decodeHeader(dv: DataView): AdbMsgImpl {
     console.assert(dv.byteLength === ADB_MSG_SIZE);
-    const cmd = textDecoder.decode(dv.buffer.slice(0, 4)) as CmdType;
+    const cmd = utf8Decode(dv.buffer.slice(0, 4)) as CmdType;
     const cmdNum = dv.getUint32(0, true);
     const arg0 = dv.getUint32(4, true);
     const arg1 = dv.getUint32(8, true);
@@ -608,7 +602,7 @@ export class AdbMsgImpl implements AdbMsg {
   encodeHeader(): Uint8Array {
     const buf = new Uint8Array(ADB_MSG_SIZE);
     const dv = new DataView(buf.buffer);
-    const cmdBytes: Uint8Array = textEncoder.encode(this.cmd);
+    const cmdBytes: Uint8Array = utf8Encode(this.cmd);
     const rawMsg = AdbMsgImpl.encodeData(this.data);
     const checksum = this.useChecksum ? AdbOverWebUsb.checksum(rawMsg) : 0;
     for (let i = 0; i < 4; i++) dv.setUint8(i, cmdBytes[i]);
@@ -624,7 +618,7 @@ export class AdbMsgImpl implements AdbMsg {
 
   static encodeData(data?: Uint8Array | string): Uint8Array {
     if (data === undefined) return new Uint8Array([]);
-    if (isString(data)) return textEncoder.encode(data + '\0');
+    if (isString(data)) return utf8Encode(data + '\0');
     return data;
   }
 }
