@@ -68,9 +68,6 @@ dependencies:
   color-convert:
     specifier: ^2.0.1
     version: 2.0.1
-  custom_utils:
-    specifier: file:src/base/utils
-    version: file:src/base/utils
   devtools-protocol:
     specifier: 0.0.1319565
     version: 0.0.1319565
@@ -6129,9 +6126,3 @@ packages:
 
   /zod@3.23.8:
     resolution: {integrity: sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==}
-
-  file:src/base/utils:
-    resolution: {directory: src/base/utils, type: directory}
-    name: custom_utils
-    version: 0.0.1
-    dev: false

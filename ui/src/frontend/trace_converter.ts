@@ -14,6 +14,7 @@
 
 import {download} from '../base/clipboard';
 import {ErrorDetails} from '../base/logging';
+import {utf8Decode} from '../base/string_utils';
 import {time} from '../base/time';
 import {Actions} from '../common/actions';
 import {
@@ -73,7 +74,7 @@ function handleOnMessage(msg: MessageEvent): void {
   } else if (args.kind === 'downloadFile') {
     download(new File([new Blob([args.buffer])], args.name));
   } else if (args.kind === 'openTraceInLegacy') {
-    const str = new TextDecoder('utf-8').decode(args.buffer);
+    const str = utf8Decode(args.buffer);
     openBufferWithLegacyTraceViewer('trace.json', str, 0);
   } else if (args.kind === 'error') {
     maybeShowErrorDialog(args.error);

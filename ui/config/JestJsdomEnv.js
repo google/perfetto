@@ -14,14 +14,17 @@
 
 const JSDOMEnvironment = require('jest-environment-jsdom').default;
 
-// vega-lite, which is pulled in by tests, depends on structuredClone.
-// The jsdom envinronment doesn't emulate it yet. So here we create a wrapper
-// around it that fills the gap.
-// See https://github.com/jsdom/jsdom/issues/3363 .
 module.exports = class JestJsdomEnv extends JSDOMEnvironment {
   constructor(...args) {
     super(...args);
 
+    // vega-lite, which is pulled in by tests, depends on structuredClone.
+    // The jsdom envinronment doesn't emulate it yet. So here we create a wrapper
+    // around it that fills the gap.
+    // See https://github.com/jsdom/jsdom/issues/3363 .
     this.global.structuredClone = structuredClone;
+
+    this.global.TextDecoder = TextDecoder;
+    this.global.TextEncoder = TextEncoder;
   }
-}
+};
