@@ -136,7 +136,7 @@ export class WattsonThreadAggregationController extends AggregationController {
       SELECT tpt.*, thread.name as t_name, thread.upid
       FROM _total_per_thread as tpt
       JOIN thread on tpt.utid = thread.utid
-      JOIN process on thread.upid = process.upid;
+      LEFT JOIN process on thread.upid = process.upid;
     `;
 
     return query;

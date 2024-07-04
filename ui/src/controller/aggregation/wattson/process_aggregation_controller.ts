@@ -106,7 +106,7 @@ export class WattsonProcessAggregationController extends AggregationController {
           cpu
         FROM _windowed_thread_curve as _thread_lvl
         JOIN thread on _thread_lvl.utid = thread.utid
-        JOIN process on thread.upid = process.upid
+        LEFT JOIN process on thread.upid = process.upid
         GROUP BY thread.upid;
       `;
     });

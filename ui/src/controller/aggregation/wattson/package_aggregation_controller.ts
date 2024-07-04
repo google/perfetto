@@ -111,7 +111,7 @@ export class WattsonPackageAggregationController extends AggregationController {
           cpu
         FROM _windowed_thread_curve as _thread_lvl
         JOIN thread on _thread_lvl.utid = thread.utid
-        JOIN android_process_metadata as package on thread.upid = package.upid
+        LEFT JOIN android_process_metadata as package on thread.upid = package.upid
         GROUP BY uid;
       `;
     });
