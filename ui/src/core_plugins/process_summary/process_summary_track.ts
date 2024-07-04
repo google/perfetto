@@ -176,7 +176,7 @@ export class ProcessSummaryTrack implements Track {
         'window',
       )}; drop table if exists ${this.tableName('span')}`,
     );
-    this.fetcher.dispose();
+    this.fetcher[Symbol.dispose]();
   }
 
   getHeight(): number {

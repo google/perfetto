@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncDisposable} from './disposable';
 import {assertFalse} from './logging';
 
 /**
@@ -24,47 +23,31 @@ import {assertFalse} from './logging';
  *
  * @example
  * ```ts
- * // Create a shared disposable around an arbitrary disposable resource
- * const sharedResource = SharedAsyncDisposable.wrap(resource);
+ * {
+ *   // Create a shared disposable around an arbitrary disposable resource
+ *   await using sharedResource = SharedAsyncDisposable.wrap(resource);
  *
- * // Pass a the shared resource somewhere else (notice we don't await here,
- * // which detaches their lifecycle from ours - i.e. we don't know which task
- * // will finish first, us or them)
- * doStuff(sharedResource);
+ *   // Pass a the shared resource somewhere else (notice we don't await here,
+ *   // which detaches their lifecycle from ours - i.e. we don't know which task
+ *   // will finish first, us or them)
+ *   doStuff(sharedResource);
  *
- * // Do something with the resource
- * await sharedResource.get().doStuff(...);
+ *   // Do something with the resource
+ *   await sharedResource.get().doStuff(...);
  *
- * // Dispose of our shared resource, the underlying resource will only be
- * // disposed once doStuff() is done with it too
- * await sharedResource.disposeAsync();
+ *   // Our shard resource is disposed here, but the underlying resource will
+ *   // only be disposed once doStuff() is done with it too
+ * }
  *
  * // --cut--
  *
  * async function doStuff(shared) {
- *   const res = shared.clone();
+ *   await using res = shared.clone();
  *
  *   // Do stuff with the resource
  *   await res.get().doStuff(...);
  *
- *   // Dispose of the resource when we're done
- *   // Note: We should wrap this in a try-finally so errors don't stop the
- *   // cleanup from happening
- *   await res.disposeAsync();
- * }
- * ```
- *
- * This object will really come into it's own once we update to Typescript 5.2+
- * which introduces support for the 'using' keyword, which automatically calls
- * dispose on a disposable when it falls out of scope.
- *
- * @example
- * ```ts
- * {
- *   await using shared = SharedAsyncDisposable.wrap(resource);
- *   doStuff(shared);
- *   await shared.get().doStuff(...);
- *   // shared is automatically disposed here
+ *   // res is automatically disposed here
  * }
  * ```
  */
@@ -104,8 +87,9 @@ export class SharedAsyncDisposable<T extends AsyncDisposable>
   }
 
   /**
-   * Check whether this is disposed. If true, clone() and disposeAsync() will
-   * return throw. Can be used to check state before cloning.
+   * Check whether this is disposed. If true, clone() and
+   * [Symbol.asyncDispose]() will return throw. Can be used to check state
+   * before cloning.
    */
   get isDisposed(): boolean {
     return this._isDisposed;
@@ -135,7 +119,7 @@ export class SharedAsyncDisposable<T extends AsyncDisposable>
    * Dispose of this object, decrementing the reference count. If the reference
    * count drops to 0, the underlying disposable is disposed.
    */
-  async disposeAsync(): Promise<void> {
+  async [Symbol.asyncDispose](): Promise<void> {
     // Disposing multiple times indicates invalid usage
     assertFalse(this._isDisposed);
 
@@ -143,7 +127,7 @@ export class SharedAsyncDisposable<T extends AsyncDisposable>
     this.sharedCore.refCount--;
 
     if (this.sharedCore.refCount === 0) {
-      await this.disposable.disposeAsync();
+      await this.disposable[Symbol.asyncDispose]();
     }
   }
 }

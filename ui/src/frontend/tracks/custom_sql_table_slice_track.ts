@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AsyncDisposable, AsyncDisposableStack} from '../../base/disposable';
 import {Actions} from '../../common/actions';
 import {generateSqlWithInternalLayout} from '../../common/internal_layout_utils';
 import {LegacySelection} from '../../common/state';
@@ -24,6 +23,7 @@ import {NewTrackArgs} from '../track';
 import {createView} from '../../trace_processor/sql_utils';
 import {Slice} from '../../public';
 import {uuidv4} from '../../base/uuid';
+import {AsyncDisposableStack} from '../../base/disposable_stack';
 
 export interface CustomSqlImportConfig {
   modules: string[];

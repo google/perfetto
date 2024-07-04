@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {AsyncDisposableStack} from '../base/disposable';
+import {AsyncDisposableStack} from '../base/disposable_stack';
 import {Engine} from '../trace_processor/engine';
 import {NUM, STR} from '../trace_processor/query_result';
 import {createPerfettoTable} from '../trace_processor/sql_utils';
@@ -277,7 +277,7 @@ async function computeFlamegraphTree(
     }
     return {nodes, allRootsCumulativeValue, maxDepth};
   } finally {
-    await disposable.disposeAsync();
+    await disposable.asyncDispose();
   }
 }
 

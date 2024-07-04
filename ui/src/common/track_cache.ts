@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable} from '../base/disposable';
 import {Optional, exists} from '../base/utils';
 import {Registry} from '../base/registry';
 import {Store} from '../base/store';
@@ -23,11 +22,10 @@ import {ObjectByKey, State, TrackState} from './state';
 import {AsyncLimiter} from '../base/async_limiter';
 import {assertFalse} from '../base/logging';
 
-export interface TrackCacheEntry {
+export interface TrackCacheEntry extends Disposable {
   track: Track;
   desc: TrackDescriptor;
   render(ctx: CanvasRenderingContext2D, size: Size): void;
-  dispose(): void;
   getError(): Optional<Error>;
 }
 
@@ -78,7 +76,7 @@ export class TrackManager {
   addPotentialTrack(track: TrackRef): Disposable {
     this.defaultTracks.add(track);
     return {
-      dispose: () => this.defaultTracks.delete(track),
+      [Symbol.dispose]: () => this.defaultTracks.delete(track),
     };
   }
 
@@ -131,7 +129,7 @@ export class TrackManager {
   flushOldTracks() {
     for (const [key, entry] of this.currentTracks.entries()) {
       if (!this.newTracks.has(key)) {
-        entry.dispose();
+        entry[Symbol.dispose]();
       }
     }
 
@@ -244,7 +242,7 @@ class TrackFSM implements TrackCacheEntry {
     this.track.render(ctx, size);
   }
 
-  dispose(): void {
+  [Symbol.dispose](): void {
     assertFalse(this.isDisposed);
     this.isDisposed = true;
 

@@ -36,7 +36,7 @@ import {
 } from './query_result';
 
 import TPM = TraceProcessorRpc.TraceProcessorMethod;
-import {Disposable} from '../base/disposable';
+
 import {Result} from '../base/utils';
 
 export interface LoadingTracker {
@@ -525,7 +525,7 @@ export class EngineProxy implements Engine, Disposable {
     return this.engine.id;
   }
 
-  dispose() {
+  [Symbol.dispose]() {
     this._isAlive = false;
   }
 }

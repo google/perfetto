@@ -32,7 +32,7 @@
  * using the "floating" canvas technique described above.
  */
 
-import {Disposable, DisposableStack} from '../base/disposable';
+import {DisposableStack} from '../base/disposable_stack';
 import {
   Rect,
   Size,
@@ -251,7 +251,7 @@ export class VirtualCanvas implements Disposable {
   /**
    * Stop listening to DOM events.
    */
-  dispose(): void {
+  [Symbol.dispose]() {
     this._trash.dispose();
   }
 

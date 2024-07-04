@@ -19,7 +19,7 @@ describe('SharedDisposableAsync', () => {
     const order: string[] = [];
 
     const disposable = {
-      disposeAsync: async () => {
+      [Symbol.asyncDispose]: async () => {
         order.push('dispose');
       },
     };
@@ -33,7 +33,7 @@ describe('SharedDisposableAsync', () => {
     const order: string[] = [];
 
     const disposable = {
-      disposeAsync: async () => {
+      [Symbol.asyncDispose]: async () => {
         order.push('dispose');
       },
     };
@@ -45,10 +45,10 @@ describe('SharedDisposableAsync', () => {
     const b = a.clone();
 
     order.push('dispose a');
-    await a.disposeAsync();
+    await a[Symbol.asyncDispose]();
 
     order.push('dispose b');
-    await b.disposeAsync();
+    await b[Symbol.asyncDispose]();
 
     expect(order).toEqual([
       'create a',
@@ -61,23 +61,23 @@ describe('SharedDisposableAsync', () => {
 
   it('throws on double dispose', async () => {
     const disposable = {
-      disposeAsync: async () => {},
+      [Symbol.asyncDispose]: async () => {},
     };
 
     const shared = SharedAsyncDisposable.wrap(disposable);
-    await shared.disposeAsync();
+    await shared[Symbol.asyncDispose]();
 
     // Second dispose should fail
-    await expect(shared.disposeAsync()).rejects.toThrow();
+    await expect(shared[Symbol.asyncDispose]()).rejects.toThrow();
   });
 
   it('throws on clone after dispose', async () => {
     const disposable = {
-      disposeAsync: async () => {},
+      [Symbol.asyncDispose]: async () => {},
     };
 
     const shared = SharedAsyncDisposable.wrap(disposable);
-    await shared.disposeAsync();
+    await shared[Symbol.asyncDispose]();
 
     // Clone after dispose should fail
     expect(() => shared.clone()).toThrow();
@@ -85,13 +85,13 @@ describe('SharedDisposableAsync', () => {
 
   it('reveals isDisposed status', async () => {
     const disposable = {
-      disposeAsync: async () => {},
+      [Symbol.asyncDispose]: async () => {},
     };
 
     const shared = SharedAsyncDisposable.wrap(disposable);
     expect(shared.isDisposed).toBe(false);
 
-    await shared.disposeAsync();
+    await shared[Symbol.asyncDispose]();
     expect(shared.isDisposed).toBe(true);
   });
 });

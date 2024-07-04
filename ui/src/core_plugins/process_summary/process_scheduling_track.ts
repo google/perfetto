@@ -113,7 +113,7 @@ export class ProcessSchedulingTrack implements Track {
   }
 
   async onDestroy(): Promise<void> {
-    this.fetcher.dispose();
+    this.fetcher[Symbol.dispose]();
     await this.engine.tryQuery(`
       drop table process_scheduling_${this.trackUuid}
     `);

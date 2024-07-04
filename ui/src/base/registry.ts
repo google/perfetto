@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable} from '../base/disposable';
-
 export interface HasKind {
   kind: string;
 }
@@ -48,7 +46,7 @@ export class Registry<T> {
     this.registry.set(kind, registrant);
 
     return {
-      dispose: () => this.registry.delete(kind),
+      [Symbol.dispose]: () => this.registry.delete(kind),
     };
   }
 

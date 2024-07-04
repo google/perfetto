@@ -63,7 +63,7 @@ describe('TrackManager', () => {
     expect(mockTrack.onCreate).toHaveBeenCalledTimes(1);
     expect(mockTrack.onUpdate).toHaveBeenCalledTimes(1);
 
-    entry.dispose();
+    entry[Symbol.dispose]();
     await settle();
     expect(mockTrack.onDestroy).toHaveBeenCalledTimes(1);
   });
@@ -168,7 +168,7 @@ describe('TrackManager', () => {
     await settle();
 
     // Ensure we don't crash while disposing
-    entry.dispose();
+    entry[Symbol.dispose]();
     await settle();
   });
 });

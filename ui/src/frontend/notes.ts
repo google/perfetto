@@ -14,11 +14,10 @@
 
 import m from 'mithril';
 
-import {Disposable, DisposableStack} from '../base/disposable';
-
 import {globals} from './globals';
 import {NotesManager} from './notes_manager';
 import {NotesEditorTab} from './notes_panel';
+import {DisposableStack} from '../base/disposable_stack';
 
 /**
  * Registers with the tab manager to show notes details panels when notes are
@@ -46,7 +45,7 @@ export class Notes implements Disposable {
     );
   }
 
-  dispose(): void {
+  [Symbol.dispose]() {
     this.trash.dispose();
   }
 }

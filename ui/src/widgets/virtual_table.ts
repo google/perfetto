@@ -13,13 +13,14 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {DisposableStack} from '../base/disposable';
+
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {Rect} from '../base/geom';
 import {assertExists} from '../base/logging';
 import {Style} from './common';
 import {scheduleFullRedraw} from './raf';
 import {VirtualScrollHelper} from './virtual_scroll_helper';
+import {DisposableStack} from '../base/disposable_stack';
 
 /**
  * The |VirtualTable| widget can be useful when attempting to render a large

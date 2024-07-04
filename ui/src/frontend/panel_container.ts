@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {DisposableStack} from '../base/disposable';
 import {findRef, toHTMLElement} from '../base/dom_utils';
 import {assertExists, assertFalse} from '../base/logging';
 import {time} from '../base/time';
@@ -43,6 +42,7 @@ import {
 import {globals} from './globals';
 import {Size} from '../base/geom';
 import {VirtualCanvas} from './virtual_canvas';
+import {DisposableStack} from '../base/disposable_stack';
 
 const CANVAS_OVERDRAW_PX = 100;
 

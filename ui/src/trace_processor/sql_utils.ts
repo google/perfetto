@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {SortDirection} from '../base/comparison_utils';
-import {AsyncDisposable} from '../base/disposable';
+
 import {isString} from '../base/object_utils';
 import {sqliteString} from '../base/string_utils';
 
@@ -175,7 +175,7 @@ export {SqlValue};
  * // Use the table...
  *
  * // Cleanup the table when done
- * await table.disposeAsync();
+ * await table[Symbol.asyncDispose]();
  */
 export async function createPerfettoTable(
   engine: Engine,
@@ -184,7 +184,7 @@ export async function createPerfettoTable(
 ): Promise<AsyncDisposable> {
   await engine.query(`CREATE PERFETTO TABLE ${tableName} AS ${expression}`);
   return {
-    disposeAsync: async () => {
+    [Symbol.asyncDispose]: async () => {
       await engine.tryQuery(`DROP TABLE IF EXISTS ${tableName}`);
     },
   };
@@ -209,7 +209,7 @@ export async function createPerfettoTable(
  * // Use the view...
  *
  * // Cleanup the view when done
- * await view.disposeAsync();
+ * await view[Symbol.asyncDispose]();
  */
 export async function createView(
   engine: Engine,
@@ -218,7 +218,7 @@ export async function createView(
 ): Promise<AsyncDisposable> {
   await engine.query(`CREATE VIEW ${viewName} AS ${expression}`);
   return {
-    disposeAsync: async () => {
+    [Symbol.asyncDispose]: async () => {
       await engine.tryQuery(`DROP VIEW IF EXISTS ${viewName}`);
     },
   };

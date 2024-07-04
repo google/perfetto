@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {DisposableStack} from '../base/disposable';
 import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
@@ -22,6 +21,7 @@ import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from './css_constants';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
+import {DisposableStack} from '../base/disposable_stack';
 
 const DRAG_HANDLE_HEIGHT_PX = 28;
 const UP_ICON = 'keyboard_arrow_up';
