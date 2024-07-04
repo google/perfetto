@@ -217,7 +217,13 @@ export class Timeline {
     return this._selectedArea;
   }
 
-  updateVisibleTime(ts: Span<HighPrecisionTime>) {
+  // Set visible window using an integer time span
+  updateVisibleTime(ts: Span<time, duration>) {
+    this.updateVisibleTimeHP(new HighPrecisionTimeSpan(ts.start, ts.end));
+  }
+
+  // Set visible window using a high precision time span
+  updateVisibleTimeHP(ts: Span<HighPrecisionTime>) {
     const traceBounds = HighPrecisionTimeSpan.fromTime(
       this.traceSpan.start,
       this.traceSpan.end,
