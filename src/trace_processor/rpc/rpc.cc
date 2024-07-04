@@ -393,7 +393,6 @@ void Rpc::Query(const uint8_t* args,
 Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
   protos::pbzero::QueryArgs::Decoder query(args, len);
   std::string sql = query.sql_query().ToStdString();
-  PERFETTO_DLOG("[RPC] Query < %s", sql.c_str());
   PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_QUERY",
                     [&](metatrace::Record* r) {
                       r->AddArg("SQL", sql);
