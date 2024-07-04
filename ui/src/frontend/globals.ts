@@ -60,7 +60,7 @@ import {getServingRoot} from '../base/http_utils';
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
 
-type Dispatch = (action: DeferredAction) => void;
+type DispatchMultiple = (actions: DeferredAction[]) => void;
 type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {} | undefined>;
 type AggregateDataStore = Map<string, AggregateData>;
@@ -222,7 +222,7 @@ class Globals {
   readonly root = getServingRoot();
 
   private _testing = false;
-  private _dispatch?: Dispatch = undefined;
+  private _dispatchMultiple?: DispatchMultiple = undefined;
   private _store = createStore<State>(createEmptyState());
   private _timeline?: Timeline = undefined;
   private _serviceWorkerController?: ServiceWorkerController = undefined;
@@ -300,8 +300,8 @@ class Globals {
     this._timeline = new Timeline(this._store, new TimeSpan(start, end));
   }
 
-  initialize(dispatch: Dispatch) {
-    this._dispatch = dispatch;
+  initialize(dispatchMultiple: DispatchMultiple) {
+    this._dispatchMultiple = dispatchMultiple;
 
     setPerfHooks(
       () => this.state.perfDebug,
@@ -352,15 +352,12 @@ class Globals {
     return assertExists(this._store);
   }
 
-  get dispatch(): Dispatch {
-    return assertExists(this._dispatch);
+  dispatch(action: DeferredAction) {
+    this.dispatchMultiple([action]);
   }
 
-  dispatchMultiple(actions: DeferredAction[]): void {
-    const dispatch = this.dispatch;
-    for (const action of actions) {
-      dispatch(action);
-    }
+  dispatchMultiple(actions: DeferredAction[]) {
+    assertExists(this._dispatchMultiple)(actions);
   }
 
   get timeline() {
@@ -636,7 +633,7 @@ class Globals {
   }
 
   resetForTesting() {
-    this._dispatch = undefined;
+    this._dispatchMultiple = undefined;
     this._timeline = undefined;
     this._serviceWorkerController = undefined;
 
