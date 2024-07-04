@@ -78,7 +78,8 @@ export class WattsonEstimateAggregationController extends AggregationController 
       query += `
         SELECT
         '${estimateTrack}' as name,
-        ROUND(SUM(${estimateTrack}_curve * dur) / ${duration}, 2) as value
+        ROUND(SUM(${estimateTrack}_curve * dur) / ${duration}, 2) as power,
+        ROUND(SUM(${estimateTrack}_curve * dur) / 1000000000, 2) as energy
         FROM _windowed_cpuss_estimate
       `;
     });
@@ -99,7 +100,14 @@ export class WattsonEstimateAggregationController extends AggregationController 
         title: 'Average estimate (mW)',
         kind: 'NUMBER',
         columnConstructor: Float64Array,
-        columnId: 'value',
+        columnId: 'power',
+      },
+      {
+        title: 'Total estimate (mWs)',
+        kind: 'NUMBER',
+        columnConstructor: Float64Array,
+        columnId: 'energy',
+        sum: true,
       },
     ];
   }
@@ -107,7 +115,7 @@ export class WattsonEstimateAggregationController extends AggregationController 
   async getExtra() {}
 
   getTabName() {
-    return 'Power Estimates';
+    return 'Wattson estimates';
   }
 
   getDefaultSorting(): Sorting {
