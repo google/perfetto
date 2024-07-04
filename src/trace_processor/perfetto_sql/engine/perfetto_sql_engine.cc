@@ -390,9 +390,6 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
                           record->AddArg("Original SQL", res->original_sql());
                           record->AddArg("Executed SQL", res->sql());
                         });
-      PERFETTO_DLOG("Executing statement");
-      PERFETTO_DLOG("Original SQL: %s", res->original_sql());
-      PERFETTO_DLOG("Executed SQL: %s", res->sql());
       res->Step();
       RETURN_IF_ERROR(res->status());
     }
