@@ -28,6 +28,8 @@
 namespace perfetto {
 namespace {
 
+using testing::Contains;
+
 pprof::PprofProfileReader convert_trace_to_pprof(
     const std::string& input_file_name) {
   const std::string trace_file = base::GetTestDataPath(input_file_name);
@@ -81,92 +83,45 @@ class TraceToPprofTest : public ::testing::Test {
   void TearDown() override { delete pprof; }
 };
 
-TEST_F(TraceToPprofTest, AllocationCountForClass) {
+TEST_F(TraceToPprofTest, SummaryValues) {
   const auto pprof =
       convert_trace_to_pprof("test/data/heap_graph/heap_graph.pb");
 
-  const int64_t total_allocation_count =
-      pprof.get_samples_value_sum("Foo", "Total allocation count");
-
-  EXPECT_EQ(total_allocation_count, 1);
-}
-
-TEST_F(TraceToPprofTest, AllocationSizeForClass) {
-  const auto pprof =
-      convert_trace_to_pprof("test/data/heap_graph/heap_graph.pb");
-
-  const int64_t total_allocation_size =
-      pprof.get_samples_value_sum("Foo", "Total allocation size");
-
-  EXPECT_EQ(total_allocation_size, 32);
-}
-
-TEST_F(TraceToPprofTest, ObjectSampleCount) {
-  const auto pprof =
-      convert_trace_to_pprof("test/data/heap_graph/heap_graph.pb");
-
-  const auto samples = pprof.get_samples("Foo");
-
-  EXPECT_EQ(samples.size(), 1U);
-}
-
-TEST_F(TraceToPprofTest, TotalSampleCount) {
-  const auto pprof =
-      convert_trace_to_pprof("test/data/heap_graph/heap_graph.pb");
-
-  const uint64_t sample_count = pprof.get_sample_count();
-  EXPECT_EQ(sample_count, 3U);
-}
-
-TEST_F(TraceToPprofTest, LocationFunctionNames) {
-  const auto pprof =
-      convert_trace_to_pprof("test/data/heap_graph/heap_graph.pb");
-
-  const auto samples_function_names = get_samples_function_names(pprof, "Foo");
+  EXPECT_EQ(pprof.get_samples_value_sum("Foo", "Total allocation count"), 1);
+  EXPECT_EQ(pprof.get_samples_value_sum("Foo", "Total allocation size"), 32);
+  EXPECT_EQ(pprof.get_samples("Foo").size(), 1U);
+  EXPECT_EQ(pprof.get_sample_count(), 3U);
 
   const std::vector<std::string> expected_function_names = {
       "Foo", "FactoryProducerDelegateImplActor [ROOT_JAVA_FRAME]"};
-  EXPECT_THAT(samples_function_names,
-              testing::Contains(expected_function_names));
+  EXPECT_THAT(get_samples_function_names(pprof, "Foo"),
+              Contains(expected_function_names));
 }
 
 TEST_F(TraceToPprofTest, TreeLocationFunctionNames) {
   const auto pprof =
       convert_trace_to_pprof("test/data/heap_graph/heap_graph_branching.pb");
 
-  const auto left_child0_samples_function_names =
-      get_samples_function_names(pprof, "LeftChild0");
-  EXPECT_THAT(left_child0_samples_function_names,
-              testing::Contains(std::vector<std::string>{
-                  "LeftChild0", "RootNode [ROOT_JAVA_FRAME]"}));
-
-  const auto left_child1_samples_function_names =
-      get_samples_function_names(pprof, "LeftChild1");
-  EXPECT_THAT(left_child1_samples_function_names,
-              testing::Contains(std::vector<std::string>{
-                  "LeftChild1", "LeftChild0", "RootNode [ROOT_JAVA_FRAME]"}));
-
-  const auto right_child0_samples_function_names =
-      get_samples_function_names(pprof, "RightChild0");
-  EXPECT_THAT(right_child0_samples_function_names,
-              testing::Contains(std::vector<std::string>{
-                  "RightChild0", "RootNode [ROOT_JAVA_FRAME]"}));
-
-  const auto right_child1_samples_function_names =
-      get_samples_function_names(pprof, "RightChild1");
-  EXPECT_THAT(right_child1_samples_function_names,
-              testing::Contains(std::vector<std::string>{
-                  "RightChild1", "RightChild0", "RootNode [ROOT_JAVA_FRAME]"}));
+  EXPECT_THAT(get_samples_function_names(pprof, "LeftChild0"),
+              Contains(std::vector<std::string>{"LeftChild0",
+                                                "RootNode [ROOT_JAVA_FRAME]"}));
+  EXPECT_THAT(get_samples_function_names(pprof, "LeftChild1"),
+              Contains(std::vector<std::string>{"LeftChild1", "LeftChild0",
+                                                "RootNode [ROOT_JAVA_FRAME]"}));
+  EXPECT_THAT(get_samples_function_names(pprof, "RightChild0"),
+              Contains(std::vector<std::string>{"RightChild0",
+                                                "RootNode [ROOT_JAVA_FRAME]"}));
+  EXPECT_THAT(get_samples_function_names(pprof, "RightChild1"),
+              Contains(std::vector<std::string>{"RightChild1", "RightChild0",
+                                                "RootNode [ROOT_JAVA_FRAME]"}));
 }
 
 TEST_F(TraceToPprofTest, HugeSizes) {
   const auto pprof =
       convert_trace_to_pprof("test/data/heap_graph/heap_graph_huge_size.pb");
-
-  const int64_t total_allocation_size = pprof.get_samples_value_sum(
-      "dev.perfetto.BigStuff", "Total allocation size");
-
-  EXPECT_EQ(total_allocation_size, 3000000000);
+  EXPECT_EQ(pprof.get_samples_value_sum("dev.perfetto.BigStuff",
+                                        "Total allocation size"),
+            3000000000);
 }
 
 class TraceToPprofRealTraceTest : public ::testing::Test {
@@ -185,48 +140,19 @@ TEST_F(TraceToPprofRealTraceTest, AllocationCountForClass) {
   const auto pprof =
       convert_trace_to_pprof("test/data/system-server-heap-graph-new.pftrace");
 
-  const int64_t total_allocation_count = pprof.get_samples_value_sum(
-      "android.content.pm.parsing.component.ParsedActivity",
-      "Total allocation count");
-
-  EXPECT_EQ(total_allocation_count, 5108);
-}
-
-TEST_F(TraceToPprofRealTraceTest, AllocationSizeForClass) {
-  const auto pprof =
-      convert_trace_to_pprof("test/data/system-server-heap-graph-new.pftrace");
-
-  const int64_t total_allocation_size = pprof.get_samples_value_sum(
-      "android.content.pm.parsing.component.ParsedActivity",
-      "Total allocation size");
-
-  EXPECT_EQ(total_allocation_size, 817280);
-}
-
-TEST_F(TraceToPprofRealTraceTest, ActivitySampleCount) {
-  const auto pprof =
-      convert_trace_to_pprof("test/data/system-server-heap-graph-new.pftrace");
-
-  const auto activity_samples =
-      pprof.get_samples("android.content.pm.parsing.component.ParsedActivity");
-
-  EXPECT_EQ(activity_samples.size(), 5U);
-}
-
-TEST_F(TraceToPprofRealTraceTest, TotalSampleCount) {
-  const auto pprof =
-      convert_trace_to_pprof("test/data/system-server-heap-graph-new.pftrace");
-
-  const uint64_t sample_count = pprof.get_sample_count();
-  EXPECT_EQ(sample_count, 83256U);
-}
-
-TEST_F(TraceToPprofRealTraceTest, LocationFunctionNames) {
-  const auto pprof =
-      convert_trace_to_pprof("test/data/system-server-heap-graph-new.pftrace");
-
-  const auto samples_function_names = get_samples_function_names(
-      pprof, "android.content.pm.parsing.component.ParsedActivity");
+  EXPECT_EQ(pprof.get_samples_value_sum(
+                "android.content.pm.parsing.component.ParsedActivity",
+                "Total allocation count"),
+            5108);
+  EXPECT_EQ(pprof.get_samples_value_sum(
+                "android.content.pm.parsing.component.ParsedActivity",
+                "Total allocation size"),
+            817280);
+  EXPECT_EQ(
+      pprof.get_samples("android.content.pm.parsing.component.ParsedActivity")
+          .size(),
+      5U);
+  EXPECT_EQ(pprof.get_sample_count(), 83256U);
 
   const std::vector<std::string> expected_function_names = {
       "android.content.pm.parsing.component.ParsedActivity",
@@ -239,8 +165,9 @@ TEST_F(TraceToPprofRealTraceTest, LocationFunctionNames) {
       "com.android.server.pm.Settings",
       "com.android.server.pm.PackageManagerService [ROOT_JNI_GLOBAL]"};
 
-  EXPECT_THAT(samples_function_names,
-              testing::Contains(expected_function_names));
+  EXPECT_THAT(get_samples_function_names(
+                  pprof, "android.content.pm.parsing.component.ParsedActivity"),
+              Contains(expected_function_names));
 }
 
 }  // namespace
