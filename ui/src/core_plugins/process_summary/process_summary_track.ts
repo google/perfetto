@@ -12,25 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
 import {BigintMath} from '../../base/bigint_math';
-import {assertExists, assertFalse} from '../../base/logging';
+import {assertExists, assertTrue} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
 import {colorForTid} from '../../core/colorizer';
-import {LIMIT, TrackData} from '../../common/track_data';
+import {TrackData} from '../../common/track_data';
 import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {Size} from '../../base/geom';
 import {Engine, Track} from '../../public';
-import {NUM} from '../../trace_processor/query_result';
+import {LONG, NUM} from '../../trace_processor/query_result';
+import {uuidv4Sql} from '../../base/uuid';
 
 export const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 
-// TODO(dproy): Consider deduping with CPU summary data.
 interface Data extends TrackData {
-  bucketSize: duration;
+  starts: BigInt64Array;
   utilizations: Float64Array;
 }
 
@@ -48,62 +46,59 @@ const SUMMARY_HEIGHT = TRACK_HEIGHT - MARGIN_TOP;
 export class ProcessSummaryTrack implements Track {
   private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
   private engine: Engine;
-  private uuid = uuidv4();
   private config: Config;
+  private uuid = uuidv4Sql();
 
   constructor(engine: Engine, config: Config) {
     this.engine = engine;
     this.config = config;
   }
 
-  // Returns a valid SQL table name with the given prefix that should be unique
-  // for each track.
-  private tableName(prefix: string) {
-    // Derive table name from, since that is unique for each track.
-    // Track ID can be UUID but '-' is not valid for sql table name.
-    const idSuffix = this.uuid.split('-').join('_');
-    return `${prefix}_${idSuffix}`;
-  }
-
   async onCreate(): Promise<void> {
-    await this.engine.query(
-      `create virtual table ${this.tableName('window')} using window;`,
-    );
-
-    let utids: number[];
-    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
-    if (this.config.upid) {
-      const threadQuery = await this.engine.query(
-        `select utid from thread where upid=${this.config.upid}`,
-      );
-      utids = [];
-      for (const it = threadQuery.iter({utid: NUM}); it.valid(); it.next()) {
-        utids.push(it.utid);
-      }
+    let trackIdQuery: string;
+    if (this.config.upid !== null) {
+      trackIdQuery = `
+        select tt.id as track_id
+        from thread_track as tt
+        join _thread_available_info_summary using (utid)
+        join thread using (utid)
+        where thread.upid = ${this.config.upid}
+        order by slice_count desc
+      `;
     } else {
-      utids = [assertExists(this.config.utid)];
+      trackIdQuery = `
+        select tt.id as track_id
+        from thread_track as tt
+        join _thread_available_info_summary using (utid)
+        where tt.utid = ${assertExists(this.config.utid)}
+        order by slice_count desc
+      `;
     }
-
-    const trackQuery = await this.engine.query(
-      `select id from thread_track where utid in (${utids.join(',')})`,
-    );
-    const tracks = [];
-    for (const it = trackQuery.iter({id: NUM}); it.valid(); it.next()) {
-      tracks.push(it.id);
-    }
-
-    const processSliceView = this.tableName('process_slice_view');
-    await this.engine.query(
-      `create view ${processSliceView} as ` +
-        // 0 as cpu is a dummy column to perform span join on.
-        `select ts, dur/${utids.length} as dur ` +
-        `from slice s ` +
-        `where depth = 0 and track_id in ` +
-        `(${tracks.join(',')})`,
-    );
-    await this.engine.query(`create virtual table ${this.tableName('span')}
-        using span_join(${processSliceView},
-                        ${this.tableName('window')});`);
+    await this.engine.query(`
+      create virtual table process_summary_${this.uuid}
+      using __intrinsic_counter_mipmap((
+        with
+          tt as materialized (
+            ${trackIdQuery}
+          ),
+          ss as (
+            select ts, 1.0 as value
+            from slice
+            join tt using (track_id)
+            where slice.depth = 0
+            union all
+            select ts + dur as ts, -1.0 as value
+            from slice
+            join tt using (track_id)
+            where slice.depth = 0
+          )
+        select
+          ts,
+          sum(value) over (order by ts) / (select count() from tt) as value
+        from ss
+        order by ts
+      ));
+    `);
   }
 
   async onUpdate(): Promise<void> {
@@ -115,66 +110,39 @@ export class ProcessSummaryTrack implements Track {
     end: time,
     resolution: duration,
   ): Promise<Data> {
-    assertFalse(resolution === 0n, 'Resolution cannot be 0');
+    // Resolution must always be a power of 2 for this logic to work
+    assertTrue(
+      BigintMath.popcount(resolution) === 1,
+      `${resolution} not pow of 2`,
+    );
 
-    // |resolution| is in ns/px we want # ns for 10px window:
-    // Max value with 1 so we don't end up with resolution 0.
-    const bucketSize = resolution * 10n;
-    const windowStart = Time.quant(start, bucketSize);
-    const windowDur = BigintMath.max(1n, end - windowStart);
-
-    await this.engine.query(`update ${this.tableName('window')} set
-      window_start=${windowStart},
-      window_dur=${windowDur},
-      quantum=${bucketSize}
-      where rowid = 0;`);
-
-    return this.computeSummary(windowStart, end, resolution, bucketSize);
-  }
-
-  private async computeSummary(
-    start: time,
-    end: time,
-    resolution: duration,
-    bucketSize: duration,
-  ): Promise<Data> {
-    const duration = end - start;
-    const numBuckets = Math.min(Number(duration / bucketSize), LIMIT);
-
-    const query = `select
-      quantum_ts as bucket,
-      sum(dur)/cast(${bucketSize} as float) as utilization
-      from ${this.tableName('span')}
-      group by quantum_ts
-      limit ${LIMIT}`;
-
-    const summary: Data = {
+    const queryRes = await this.engine.query(`
+      select last_ts as ts, last_value as utilization
+      from process_summary_${this.uuid}(${start}, ${end}, ${resolution});
+    `);
+    const numRows = queryRes.numRows();
+    const slices: Data = {
       start,
       end,
       resolution,
-      length: numBuckets,
-      bucketSize,
-      utilizations: new Float64Array(numBuckets),
+      length: numRows,
+      starts: new BigInt64Array(numRows),
+      utilizations: new Float64Array(numRows),
     };
-
-    const queryRes = await this.engine.query(query);
-    const it = queryRes.iter({bucket: NUM, utilization: NUM});
-    for (; it.valid(); it.next()) {
-      const bucket = it.bucket;
-      if (bucket > numBuckets) {
-        continue;
-      }
-      summary.utilizations[bucket] = it.utilization;
+    const it = queryRes.iter({
+      ts: LONG,
+      utilization: NUM,
+    });
+    for (let row = 0; it.valid(); it.next(), row++) {
+      slices.starts[row] = it.ts;
+      slices.utilizations[row] = it.utilization;
     }
-
-    return summary;
+    return slices;
   }
 
   async onDestroy(): Promise<void> {
     await this.engine.tryQuery(
-      `drop table if exists ${this.tableName(
-        'window',
-      )}; drop table if exists ${this.tableName('span')}`,
+      `drop table if exists process_summary_${this.uuid};`,
     );
     this.fetcher[Symbol.dispose]();
   }
@@ -186,8 +154,12 @@ export class ProcessSummaryTrack implements Track {
   render(ctx: CanvasRenderingContext2D, size: Size): void {
     const {visibleTimeScale} = globals.timeline;
     const data = this.fetcher.data;
-    if (data === undefined) return; // Can't possibly draw anything.
+    if (data === undefined) {
+      return;
+    }
 
+    // If the cached trace slices don't fully cover the visible time range,
+    // show a gray rectangle with a "Loading..." label.
     checkerboardExcept(
       ctx,
       this.getHeight(),
@@ -197,30 +169,20 @@ export class ProcessSummaryTrack implements Track {
       visibleTimeScale.timeToPx(data.end),
     );
 
-    this.renderSummary(ctx, data);
-  }
-
-  // TODO(dproy): Dedup with CPU slices.
-  renderSummary(ctx: CanvasRenderingContext2D, data: Data): void {
-    const {visibleTimeScale} = globals.timeline;
     const startPx = 0;
     const bottomY = TRACK_HEIGHT;
 
     let lastX = startPx;
     let lastY = bottomY;
 
-    // TODO(hjd): Dedupe this math.
     const color = colorForTid(this.config.pidForColor);
     ctx.fillStyle = color.base.cssString;
     ctx.beginPath();
     ctx.moveTo(lastX, lastY);
     for (let i = 0; i < data.utilizations.length; i++) {
-      // TODO(dproy): Investigate why utilization is > 1 sometimes.
-      const utilization = Math.min(data.utilizations[i], 1);
-      const startTime = Time.fromRaw(BigInt(i) * data.bucketSize + data.start);
-
+      const startTime = Time.fromRaw(data.starts[i]);
+      const utilization = data.utilizations[i];
       lastX = Math.floor(visibleTimeScale.timeToPx(startTime));
-
       ctx.lineTo(lastX, lastY);
       lastY = MARGIN_TOP + Math.round(SUMMARY_HEIGHT * (1 - utilization));
       ctx.lineTo(lastX, lastY);
