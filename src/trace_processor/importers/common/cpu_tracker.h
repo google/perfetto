@@ -47,6 +47,7 @@ class CpuTracker {
     if (PERFETTO_LIKELY(cpu_ids_[cpu]))
       return tables::CpuTable::Id(ucpu);
 
+    cpu_ids_.set(cpu);
     // Populate the optional |cpu| column.
     context_->storage->mutable_cpu_table()->mutable_cpu()->Set(ucpu, cpu);
     return tables::CpuTable::Id(ucpu);
