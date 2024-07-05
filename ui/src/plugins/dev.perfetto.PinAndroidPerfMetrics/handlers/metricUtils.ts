@@ -33,8 +33,23 @@ export interface CujScopedMetricData {
   jankType: JankType;
 }
 
-// TODO: b/337774166 - Blocking Call handler MetricData
-export interface BlockingCallMetricData {}
+/**
+ * Represents data for a Blocking Call metric
+ * Eg.- perfetto_android_blocking_call-cuj-name-com.google.android.apps.nexuslauncher-name-TASKBAR_EXPAND-blocking_calls-name-animation-total_dur_ms-mean
+ */
+export interface BlockingCallMetricData {
+  /** Process name (e.g., com.google.android.apps.nexuslauncher) */
+  process: string;
+
+  /** Cuj interaction name (e.g., TASKBAR_EXPAND) */
+  cujName: string;
+
+  /** Blocking Call name (e.g., animation) */
+  blockingCallName: string;
+
+  /** aggregation type (e.g., total_dur_ms-mean) */
+  aggregation: string;
+}
 
 // Common MetricData for all handler. If new needed then add here.
 export type MetricData =
