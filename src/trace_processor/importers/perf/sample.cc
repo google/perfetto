@@ -17,12 +17,18 @@
 #include "src/trace_processor/importers/perf/sample.h"
 
 #include <cstdint>
+#include <optional>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/public/compiler.h"
+#include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/reader.h"
 #include "src/trace_processor/importers/perf/record.h"
+
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
 
 namespace perfetto::trace_processor::perf_importer {
 namespace {
