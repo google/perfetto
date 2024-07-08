@@ -19,6 +19,7 @@ import {
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
 import {getContainingGroupKey} from '../common/state';
+import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
 
@@ -107,6 +108,8 @@ export function focusHorizontalRange(
   } else {
     globals.timeline.updateVisibleTimeHP(view);
   }
+
+  raf.scheduleRedraw();
 }
 
 // Given a track id, find a track with that id and scroll it into view. If the
