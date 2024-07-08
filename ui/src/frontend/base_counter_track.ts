@@ -59,7 +59,7 @@ function toLabel(n: number): string {
   [largestMultiplier, largestUnit] = units[0];
   const absN = Math.abs(n);
   for (const [multiplier, unit] of units) {
-    if (multiplier >= absN) {
+    if (multiplier > absN) {
       break;
     }
     [largestMultiplier, largestUnit] = [multiplier, unit];
