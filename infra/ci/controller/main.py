@@ -409,6 +409,14 @@ async def queue_postsubmit_jobs(branch: str, revision: str = None):
     url = 'https://%s/a/projects/%s/branches/%s' % (GERRIT_HOST, prj, branch)
     revision = (await req_async('GET', url, gerrit=True))['revision']
     assert (revision)
+    # If the latest entry matches the revision, quit without queueing another
+    # set of jobs for the same CL. This is an optimization to avoid wasting
+    # compute over the weekend to rebuild the same revision every hour.
+    filt = 'orderBy="$key"&limitToLast=1'
+    cl_objs = await req_async('GET', '%s/branches.json?%s' % (DB, filt)) or {}
+    if cl_objs and next(iter(cl_objs.values())).get('rev') == revision:
+      logging.debug('Skipping postsubmits for %s: already run', revision)
+      return
     await queue_postsubmit_jobs(branch=branch, revision=revision)
     return
 
