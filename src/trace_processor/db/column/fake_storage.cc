@@ -126,7 +126,7 @@ std::optional<Token> FakeStorageChain::MinElement(Indices&) const {
   PERFETTO_FATAL("Not implemented");
 }
 
-void FakeStorageChain::StableSort(SortToken*, SortToken*, SortDirection) const {
+void FakeStorageChain::StableSort(Token*, Token*, SortDirection) const {
   PERFETTO_FATAL("Not implemented");
 }
 

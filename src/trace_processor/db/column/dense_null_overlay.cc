@@ -222,12 +222,12 @@ void DenseNullOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
   inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-void DenseNullOverlay::ChainImpl::StableSort(SortToken* start,
-                                             SortToken* end,
+void DenseNullOverlay::ChainImpl::StableSort(Token* start,
+                                             Token* end,
                                              SortDirection direction) const {
-  SortToken* it = std::stable_partition(
-      start, end,
-      [this](const SortToken& idx) { return !non_null_->IsSet(idx.index); });
+  Token* it = std::stable_partition(start, end, [this](const Token& idx) {
+    return !non_null_->IsSet(idx.index);
+  });
   inner_->StableSort(it, end, direction);
   if (direction == SortDirection::kDescending) {
     std::rotate(start, it, end);

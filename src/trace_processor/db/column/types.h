@@ -162,6 +162,12 @@ struct Token {
   };
 };
 
+// Indicates the direction of the sort on a single chain.
+enum class SortDirection {
+  kAscending,
+  kDescending,
+};
+
 }  // namespace perfetto::trace_processor
 
 #endif  // SRC_TRACE_PROCESSOR_DB_COLUMN_TYPES_H_

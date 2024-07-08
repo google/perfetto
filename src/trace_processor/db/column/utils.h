@@ -157,8 +157,7 @@ std::optional<Range> CanReturnEarly(SearchValidationResult,
 bool CanReturnEarly(SearchValidationResult res,
                     DataLayerChain::Indices& indices);
 
-std::vector<uint32_t> ExtractPayloadForTesting(
-    std::vector<column::DataLayerChain::SortToken>&);
+std::vector<uint32_t> ExtractPayloadForTesting(std::vector<Token>&);
 
 std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector&);
 

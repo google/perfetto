@@ -123,10 +123,10 @@ void RangeOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
   inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-void RangeOverlay::ChainImpl::StableSort(SortToken* start,
-                                         SortToken* end,
+void RangeOverlay::ChainImpl::StableSort(Token* start,
+                                         Token* end,
                                          SortDirection direction) const {
-  for (SortToken* it = start; it != end; ++it) {
+  for (Token* it = start; it != end; ++it) {
     it->index += range_->start;
   }
   inner_->StableSort(start, end, direction);
