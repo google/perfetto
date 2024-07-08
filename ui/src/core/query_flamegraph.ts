@@ -177,13 +177,12 @@ async function computeFlamegraphTree(
   }
   await engine.query(`include perfetto module viz.flamegraph;`);
 
-  const disposable = new AsyncDisposableStack();
-  try {
-    disposable.use(
-      await createPerfettoTable(
-        engine,
-        '_flamegraph_source',
-        `
+  await using disposable = new AsyncDisposableStack();
+  disposable.use(
+    await createPerfettoTable(
+      engine,
+      '_flamegraph_source',
+      `
         select *
         from _viz_flamegraph_prepare_filter!(
           (${sql}),
@@ -194,51 +193,51 @@ async function computeFlamegraphTree(
           ${1 << showStack.length}
         )
       `,
-      ),
-    );
-    disposable.use(
-      await createPerfettoTable(
-        engine,
-        '_flamegraph_raw_top_down',
-        `select * from _viz_flamegraph_filter_and_hash!(_flamegraph_source)`,
-      ),
-    );
-    disposable.use(
-      await createPerfettoTable(
-        engine,
-        '_flamegraph_top_down',
-        `
+    ),
+  );
+  disposable.use(
+    await createPerfettoTable(
+      engine,
+      '_flamegraph_raw_top_down',
+      `select * from _viz_flamegraph_filter_and_hash!(_flamegraph_source)`,
+    ),
+  );
+  disposable.use(
+    await createPerfettoTable(
+      engine,
+      '_flamegraph_top_down',
+      `
         select * from _viz_flamegraph_merge_hashes!(
           _flamegraph_raw_top_down,
           _flamegraph_source
         )
       `,
-      ),
-    );
-    disposable.use(
-      await createPerfettoTable(
-        engine,
-        '_flamegraph_raw_bottom_up',
-        `
+    ),
+  );
+  disposable.use(
+    await createPerfettoTable(
+      engine,
+      '_flamegraph_raw_bottom_up',
+      `
         select *
         from _viz_flamegraph_accumulate!(_flamegraph_top_down, ${allStackBits})
       `,
-      ),
-    );
-    disposable.use(
-      await createPerfettoTable(
-        engine,
-        '_flamegraph_windowed',
-        `
+    ),
+  );
+  disposable.use(
+    await createPerfettoTable(
+      engine,
+      '_flamegraph_windowed',
+      `
         select *
         from _viz_flamegraph_local_layout!(
           _flamegraph_raw_bottom_up,
           _flamegraph_top_down
         );
       `,
-      ),
-    );
-    const res = await engine.query(`
+    ),
+  );
+  const res = await engine.query(`
       select *
       from _viz_flamegraph_global_layout!(
         _flamegraph_windowed,
@@ -246,39 +245,36 @@ async function computeFlamegraphTree(
         _flamegraph_top_down
       )
     `);
-    const it = res.iter({
-      id: NUM,
-      parentId: NUM,
-      depth: NUM,
-      name: STR,
-      selfValue: NUM,
-      cumulativeValue: NUM,
-      xStart: NUM,
-      xEnd: NUM,
+  const it = res.iter({
+    id: NUM,
+    parentId: NUM,
+    depth: NUM,
+    name: STR,
+    selfValue: NUM,
+    cumulativeValue: NUM,
+    xStart: NUM,
+    xEnd: NUM,
+  });
+  let allRootsCumulativeValue = 0;
+  let maxDepth = 0;
+  const nodes = [];
+  for (; it.valid(); it.next()) {
+    nodes.push({
+      id: it.id,
+      parentId: it.parentId,
+      depth: it.depth,
+      name: it.name,
+      selfValue: it.selfValue,
+      cumulativeValue: it.cumulativeValue,
+      xStart: it.xStart,
+      xEnd: it.xEnd,
     });
-    let allRootsCumulativeValue = 0;
-    let maxDepth = 0;
-    const nodes = [];
-    for (; it.valid(); it.next()) {
-      nodes.push({
-        id: it.id,
-        parentId: it.parentId,
-        depth: it.depth,
-        name: it.name,
-        selfValue: it.selfValue,
-        cumulativeValue: it.cumulativeValue,
-        xStart: it.xStart,
-        xEnd: it.xEnd,
-      });
-      if (it.parentId === -1) {
-        allRootsCumulativeValue += it.cumulativeValue;
-      }
-      maxDepth = Math.max(maxDepth, it.depth);
+    if (it.parentId === -1) {
+      allRootsCumulativeValue += it.cumulativeValue;
     }
-    return {nodes, allRootsCumulativeValue, maxDepth};
-  } finally {
-    await disposable.asyncDispose();
+    maxDepth = Math.max(maxDepth, it.depth);
   }
+  return {nodes, allRootsCumulativeValue, maxDepth};
 }
 
 export const USE_NEW_FLAMEGRAPH_IMPL = featureFlags.register({
