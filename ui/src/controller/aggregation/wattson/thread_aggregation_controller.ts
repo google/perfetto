@@ -52,7 +52,9 @@ export class WattsonThreadAggregationController extends AggregationController {
         ${area.start} as ts,
         ${duration} as dur;
     `;
-    engine.query(this.getEstimateThreadsQuery(queryPrefix, selectedCpus));
+    engine.query(
+      this.getEstimateThreadsQuery(queryPrefix, selectedCpus, duration),
+    );
 
     return true;
   }
@@ -64,7 +66,11 @@ export class WattsonThreadAggregationController extends AggregationController {
   // 1. Window and associate thread with proper Wattson estimate slice
   // 2. Group all threads over time on a per CPU basis
   // 3. Group all threads over all CPUs
-  getEstimateThreadsQuery(queryPrefix: string, selectedCpu: number[]): string {
+  getEstimateThreadsQuery(
+    queryPrefix: string,
+    selectedCpu: number[],
+    duration: bigint,
+  ): string {
     let query = queryPrefix;
 
     // Estimate and total per UTID per CPU
@@ -121,7 +127,7 @@ export class WattsonThreadAggregationController extends AggregationController {
     query += `
       )
       SELECT
-        ROUND(SUM(total_pws) / SUM(dur), 2) as avg_mw,
+        ROUND(SUM(total_pws) / ${duration}, 2) as avg_mw,
         ROUND(SUM(total_pws) / 1000000000, 2) as total_mws,
         utid
       FROM _unioned_per_thread_per_cpu
