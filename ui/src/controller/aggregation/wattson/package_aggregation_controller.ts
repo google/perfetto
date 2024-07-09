@@ -59,7 +59,9 @@ export class WattsonPackageAggregationController extends AggregationController {
         ${area.start} as ts,
         ${duration} as dur;
     `;
-    engine.query(this.getEstimatePackageQuery(queryPrefix, selectedCpus));
+    engine.query(
+      this.getEstimatePackageQuery(queryPrefix, selectedCpus, duration),
+    );
 
     return true;
   }
@@ -71,7 +73,11 @@ export class WattsonPackageAggregationController extends AggregationController {
   // 1. Window and associate package with proper Wattson estimate slice
   // 2. Group all packages over time on a per CPU basis
   // 3. Group all packages over all CPUs
-  getEstimatePackageQuery(queryPrefix: string, selectedCpus: number[]): string {
+  getEstimatePackageQuery(
+    queryPrefix: string,
+    selectedCpus: number[],
+    duration: bigint,
+  ): string {
     let query = queryPrefix;
 
     // Estimate and total per UID per CPU
@@ -129,7 +135,7 @@ export class WattsonPackageAggregationController extends AggregationController {
     query += `
       )
       SELECT
-        ROUND(SUM(total_pws) / SUM(dur), 2) as avg_mw,
+        ROUND(SUM(total_pws) / ${duration}, 2) as avg_mw,
         ROUND(SUM(total_pws) / 1000000000, 2) as total_mws,
         ROUND(SUM(dur) / 1000000.0, 2) as dur_ms,
         uid,
