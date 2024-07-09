@@ -259,15 +259,15 @@ void NullOverlay::ChainImpl::IndexSearchValidated(FilterOp op,
   inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-void NullOverlay::ChainImpl::StableSort(SortToken* start,
-                                        SortToken* end,
+void NullOverlay::ChainImpl::StableSort(Token* start,
+                                        Token* end,
                                         SortDirection direction) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB,
                     "NullOverlay::ChainImpl::StableSort");
-  SortToken* middle = std::stable_partition(
-      start, end,
-      [this](const SortToken& idx) { return !non_null_->IsSet(idx.index); });
-  for (SortToken* it = middle; it != end; ++it) {
+  Token* middle = std::stable_partition(start, end, [this](const Token& idx) {
+    return !non_null_->IsSet(idx.index);
+  });
+  for (Token* it = middle; it != end; ++it) {
     it->index = non_null_->CountSetBits(it->index);
   }
   inner_->StableSort(middle, end, direction);

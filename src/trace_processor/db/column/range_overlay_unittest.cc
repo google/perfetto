@@ -117,12 +117,12 @@ TEST(RangeOverlay, StableSort) {
   auto chain = storage.MakeChain(numeric.MakeChain());
 
   std::vector tokens{
-      column::DataLayerChain::SortToken{0, 0},
-      column::DataLayerChain::SortToken{1, 1},
-      column::DataLayerChain::SortToken{2, 2},
+      Token{0, 0},
+      Token{1, 1},
+      Token{2, 2},
   };
   chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
-                    column::DataLayerChain::SortDirection::kAscending);
+                    SortDirection::kAscending);
   ASSERT_THAT(utils::ExtractPayloadForTesting(tokens), ElementsAre(1, 2, 0));
 }
 

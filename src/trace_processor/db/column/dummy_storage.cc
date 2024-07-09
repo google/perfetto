@@ -50,9 +50,7 @@ void DummyStorage::ChainImpl::IndexSearchValidated(FilterOp,
   PERFETTO_FATAL("Shouldn't be called");
 }
 
-void DummyStorage::ChainImpl::StableSort(SortToken*,
-                                         SortToken*,
-                                         SortDirection) const {
+void DummyStorage::ChainImpl::StableSort(Token*, Token*, SortDirection) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 
