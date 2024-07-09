@@ -126,8 +126,6 @@ export class WattsonProcessAggregationController extends AggregationController {
       SELECT
         ROUND(SUM(total_pws) / SUM(dur), 2) as avg_mw,
         ROUND(SUM(total_pws) / 1000000000, 2) as total_mws,
-        ROUND(SUM(dur) / 1000000.0, 2) as dur,
-        SUM(occurences) as occurences,
         upid,
         p_name,
         t_name
@@ -151,18 +149,6 @@ export class WattsonProcessAggregationController extends AggregationController {
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
         columnId: 'upid',
-      },
-      {
-        title: 'Occurences',
-        kind: 'NUMBER',
-        columnConstructor: Uint16Array,
-        columnId: 'occurences',
-      },
-      {
-        title: 'Total Duration (ms)',
-        kind: 'NUMBER',
-        columnConstructor: Float64Array,
-        columnId: 'dur',
       },
       {
         title: 'Average estimated power (mW)',
