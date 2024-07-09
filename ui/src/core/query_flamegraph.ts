@@ -85,7 +85,6 @@ export class QueryFlamegraph implements m.ClassComponent<QueryFlamegraphAttrs> {
   private filters: FlamegraphFilters = {
     showStack: [],
     hideStack: [],
-    showFrame: [],
     hideFrame: [],
   };
   private attrs: QueryFlamegraphAttrs;
@@ -145,12 +144,10 @@ async function computeFlamegraphTree(
   {
     showStack,
     hideStack,
-    showFrame,
     hideFrame,
   }: {
     readonly showStack: ReadonlyArray<string>;
     readonly hideStack: ReadonlyArray<string>;
-    readonly showFrame: ReadonlyArray<string>;
     readonly hideFrame: ReadonlyArray<string>;
   },
 ) {
@@ -163,10 +160,6 @@ async function computeFlamegraphTree(
     hideStack.length === 0
       ? 'false'
       : hideStack.map((x) => `name like '%${x}%'`).join(' OR ');
-  const showFrameFilter =
-    showFrame.length === 0
-      ? 'true'
-      : showFrame.map((x) => `name like '%${x}%'`).join(' OR ');
   const hideFrameFilter =
     hideFrame.length === 0
       ? 'false'
@@ -186,7 +179,6 @@ async function computeFlamegraphTree(
         select *
         from _viz_flamegraph_prepare_filter!(
           (${sql}),
-          (${showFrameFilter}),
           (${hideFrameFilter}),
           (${showStackFilter}),
           (${hideStackFilter}),

@@ -17,7 +17,6 @@ include perfetto module graphs.scan;
 
 CREATE PERFETTO MACRO _viz_flamegraph_prepare_filter(
   tab TableOrSubquery,
-  show_frame Expr,
   hide_frame Expr,
   show_stack Expr,
   hide_stack Expr,
@@ -28,7 +27,7 @@ AS (
   SELECT
     *,
     IIF($hide_stack, $impossible_stack_bits, $show_stack) AS stackBits,
-    $show_frame AND NOT $hide_frame AS showFrame
+    $hide_frame = 0 AS showFrame
   FROM $tab
   ORDER BY id
 );
@@ -60,7 +59,7 @@ AS (
       select
         t.id as id,
         IIF(x.showFrame, HASH(t.hash, name), t.hash) AS hash,
-        IIF(x.showFrame, t.hash, null) AS parentHash,
+        IIF(x.showFrame, t.hash, t.parentHash) AS parentHash,
         IIF(x.showFrame, t.depth + 1, t.depth) AS depth,
         IIF(
           x.showFrame,
