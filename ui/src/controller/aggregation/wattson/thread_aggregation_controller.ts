@@ -137,7 +137,7 @@ export class WattsonThreadAggregationController extends AggregationController {
     // Final table outputted in UI
     query += `
       CREATE VIEW ${this.kind} AS
-      SELECT tpt.*, thread.name as t_name, thread.upid
+      SELECT tpt.*, thread.name as t_name, thread.tid, process.pid
       FROM _total_per_thread as tpt
       JOIN thread on tpt.utid = thread.utid
       LEFT JOIN process on thread.upid = process.upid;
@@ -155,16 +155,16 @@ export class WattsonThreadAggregationController extends AggregationController {
         columnId: 't_name',
       },
       {
-        title: 'UTID',
+        title: 'TID',
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
-        columnId: 'utid',
+        columnId: 'tid',
       },
       {
-        title: 'UPID',
+        title: 'PID',
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
-        columnId: 'upid',
+        columnId: 'pid',
       },
       {
         title: 'Average estimated power (mW)',
