@@ -88,8 +88,7 @@ std::vector<uint32_t> ExtractPayloadForTesting(
   return payload;
 }
 
-std::vector<uint32_t> ExtractPayloadForTesting(
-    std::vector<column::DataLayerChain::SortToken>& tokens) {
+std::vector<uint32_t> ExtractPayloadForTesting(std::vector<Token>& tokens) {
   std::vector<uint32_t> payload;
   payload.reserve(tokens.size());
   for (const auto& token : tokens) {

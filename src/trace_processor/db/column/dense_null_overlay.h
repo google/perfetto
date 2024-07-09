@@ -57,9 +57,7 @@ class DenseNullOverlay final : public DataLayer {
 
     void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
-    void StableSort(SortToken* start,
-                    SortToken* end,
-                    SortDirection) const override;
+    void StableSort(Token* start, Token* end, SortDirection) const override;
 
     void Distinct(Indices&) const override;
 

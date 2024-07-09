@@ -148,10 +148,10 @@ void ArrangementOverlay::ChainImpl::IndexSearchValidated(
   return inner_->IndexSearchValidated(op, sql_val, indices);
 }
 
-void ArrangementOverlay::ChainImpl::StableSort(SortToken* start,
-                                               SortToken* end,
+void ArrangementOverlay::ChainImpl::StableSort(Token* start,
+                                               Token* end,
                                                SortDirection direction) const {
-  for (SortToken* it = start; it != end; ++it) {
+  for (Token* it = start; it != end; ++it) {
     it->index = (*arrangement_)[it->index];
   }
   inner_->StableSort(start, end, direction);
