@@ -37,7 +37,7 @@ import {
   STR_NULL,
   timeFromSql,
 } from '../trace_processor/query_result';
-
+import {fromNumNull} from '../trace_processor/sql_utils';
 import {Controller} from './controller';
 
 export interface SelectionControllerArgs {
@@ -466,14 +466,13 @@ export class SelectionController extends Controller<'main'> {
   async computeThreadDetails(
     utid: number,
   ): Promise<ThreadDetails & ProcessDetails> {
-    const threadInfo = (
-      await this.args.engine.query(`
-          SELECT tid, name, upid
-          FROM thread
-          WHERE utid = ${utid};
-      `)
-    ).firstRow({tid: NUM, name: STR_NULL, upid: NUM_NULL});
-    const threadDetails = {
+    const res = await this.args.engine.query(`
+      SELECT tid, name, upid
+      FROM thread
+      WHERE utid = ${utid};
+    `);
+    const threadInfo = res.firstRow({tid: NUM, name: STR_NULL, upid: NUM_NULL});
+    const threadDetails: ThreadDetails = {
       tid: threadInfo.tid,
       threadName: threadInfo.name ?? undefined,
     };
@@ -488,37 +487,31 @@ export class SelectionController extends Controller<'main'> {
     return threadDetails;
   }
 
-  async computeProcessDetails(upid: number): Promise<ProcessDetails> {
-    const details: ProcessDetails = {};
-    const processResult = (
-      await this.args.engine.query(`
-                SELECT pid, name, uid FROM process WHERE upid = ${upid};
-              `)
-    ).firstRow({pid: NUM, name: STR_NULL, uid: NUM_NULL});
-    details.pid = processResult.pid;
-    details.processName = processResult.name ?? undefined;
-    if (processResult.uid === null) {
-      return details;
-    }
-    details.uid = processResult.uid;
-
-    const packageResult = await this.args.engine.query(`
-                  SELECT
-                    package_name as packageName,
-                    version_code as versionCode
-                  FROM package_list WHERE uid = ${details.uid};
-                `);
-    // The package_list table is not populated in some traces so we need to
-    // check if the result has returned any rows.
-    if (packageResult.numRows() > 0) {
-      const packageDetails = packageResult.firstRow({
-        packageName: STR,
-        versionCode: NUM,
-      });
-      details.packageName = packageDetails.packageName;
-      details.versionCode = packageDetails.versionCode;
-    }
-    return details;
+  async computeProcessDetails(upid: number) {
+    const res = await this.args.engine.query(`
+      include perfetto module android.process_metadata;
+      select
+        p.pid,
+        p.name,
+        p.uid,
+        m.package_name as packageName,
+        m.version_code as versionCode
+      from process p
+      left join android_process_metadata m using (upid)
+      where p.upid = ${upid};
+    `);
+    const row = res.firstRow({
+      pid: NUM,
+      uid: NUM_NULL,
+      packageName: STR_NULL,
+      versionCode: NUM_NULL,
+    });
+    return {
+      pid: row.pid,
+      uid: fromNumNull(row.uid),
+      packageName: row.packageName ?? undefined,
+      versionCode: fromNumNull(row.versionCode),
+    };
   }
 }
 
