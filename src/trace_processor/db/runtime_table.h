@@ -62,10 +62,10 @@ class RuntimeTable : public Table {
 
   class Builder {
    public:
-    Builder(StringPool* pool, std::vector<std::string> col_names);
+    Builder(StringPool* pool, const std::vector<std::string>& col_names);
     Builder(StringPool* pool,
-            std::vector<std::string> col_names,
-            std::vector<BuilderColumnType> col_types);
+            const std::vector<std::string>& col_names,
+            const std::vector<BuilderColumnType>& col_types);
 
     base::Status AddNull(uint32_t idx);
     base::Status AddInteger(uint32_t idx, int64_t res);
