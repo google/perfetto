@@ -44,11 +44,11 @@ class Wattson implements Plugin {
     }
 
     ctx.registerStaticTrack({
-      uri: `perfetto.CpuSubsystemEstimate#Dsu`,
-      displayName: `DSU Estimate`,
+      uri: `perfetto.CpuSubsystemEstimate#Dsu_Scu`,
+      displayName: `DSU/SCU Estimate`,
       kind: CPUSS_ESTIMATE_TRACK_KIND,
       trackFactory: ({trackKey}) =>
-        new CpuSubsystemEstimateTrack(ctx.engine, trackKey, `dsu`),
+        new CpuSubsystemEstimateTrack(ctx.engine, trackKey, `dsu_scu`),
       groupName: `Wattson`,
     });
   }
