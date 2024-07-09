@@ -71,11 +71,13 @@ struct Dfs : public SqliteAggregateFunction<Dfs> {
     }
     PERFETTO_DCHECK(!graph->empty());
 
+    // If the array is empty, be forgiving and return an empty array. We could
+    // return an error here but in 99% of cases, the caller will simply want
+    // an empty table instead.
     auto* start_ids =
         sqlite::value::Pointer<perfetto_sql::IntArray>(argv[1], "ARRAY<LONG>");
     if (!start_ids) {
-      return sqlite::result::Error(
-          ctx, "dfs: second argument must a non-empty array of integers");
+      return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
     }
     PERFETTO_DCHECK(!start_ids->empty());
 
@@ -125,11 +127,13 @@ struct Bfs : public SqliteAggregateFunction<Bfs> {
     }
     PERFETTO_DCHECK(!graph->empty());
 
+    // If the array is empty, be forgiving and return an empty array. We could
+    // return an error here but in 99% of cases, the caller will simply want
+    // an empty table instead.
     auto* start_ids =
         sqlite::value::Pointer<perfetto_sql::IntArray>(argv[1], "ARRAY<LONG>");
     if (!start_ids) {
-      return sqlite::result::Error(
-          ctx, "bfs: second argument must a non-empty array of integers");
+      return sqlite::result::UniquePointer(ctx, std::move(table), "TABLE");
     }
     PERFETTO_DCHECK(!start_ids->empty());
 
