@@ -477,28 +477,21 @@ TEST(StringStorage, StableSort) {
   auto chain = storage.MakeChain();
   auto make_tokens = []() {
     return std::vector{
-        column::DataLayerChain::SortToken{0, 0},
-        column::DataLayerChain::SortToken{1, 1},
-        column::DataLayerChain::SortToken{2, 2},
-        column::DataLayerChain::SortToken{3, 3},
-        column::DataLayerChain::SortToken{4, 4},
-        column::DataLayerChain::SortToken{5, 5},
-        column::DataLayerChain::SortToken{6, 6},
-        column::DataLayerChain::SortToken{7, 7},
-        column::DataLayerChain::SortToken{8, 8},
+        Token{0, 0}, Token{1, 1}, Token{2, 2}, Token{3, 3}, Token{4, 4},
+        Token{5, 5}, Token{6, 6}, Token{7, 7}, Token{8, 8},
     };
   };
   {
     auto tokens = make_tokens();
     chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
-                      column::DataLayerChain::SortDirection::kAscending);
+                      SortDirection::kAscending);
     ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
                 ElementsAre(0, 1, 2, 3, 8, 7, 4, 6, 5));
   }
   {
     auto tokens = make_tokens();
     chain->StableSort(tokens.data(), tokens.data() + tokens.size(),
-                      column::DataLayerChain::SortDirection::kDescending);
+                      SortDirection::kDescending);
     ASSERT_THAT(utils::ExtractPayloadForTesting(tokens),
                 ElementsAre(5, 6, 4, 7, 8, 3, 0, 1, 2));
   }

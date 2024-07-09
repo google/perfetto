@@ -53,9 +53,7 @@ class RangeOverlay final : public DataLayer {
 
     void IndexSearchValidated(FilterOp p, SqlValue, Indices&) const override;
 
-    void StableSort(SortToken* start,
-                    SortToken* end,
-                    SortDirection) const override;
+    void StableSort(Token* start, Token* end, SortDirection) const override;
 
     void Distinct(Indices&) const override;
 

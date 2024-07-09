@@ -149,22 +149,20 @@ class NumericStorage final : public NumericStorageBase {
       return SqlValue::Long((*vector_)[index]);
     }
 
-    void StableSort(SortToken* start,
-                    SortToken* end,
+    void StableSort(Token* start,
+                    Token* end,
                     SortDirection direction) const override {
       const T* base = vector_->data();
       switch (direction) {
         case SortDirection::kAscending:
-          std::stable_sort(start, end,
-                           [base](const SortToken& a, const SortToken& b) {
-                             return base[a.index] < base[b.index];
-                           });
+          std::stable_sort(start, end, [base](const Token& a, const Token& b) {
+            return base[a.index] < base[b.index];
+          });
           break;
         case SortDirection::kDescending:
-          std::stable_sort(start, end,
-                           [base](const SortToken& a, const SortToken& b) {
-                             return base[a.index] > base[b.index];
-                           });
+          std::stable_sort(start, end, [base](const Token& a, const Token& b) {
+            return base[a.index] > base[b.index];
+          });
           break;
       }
     }

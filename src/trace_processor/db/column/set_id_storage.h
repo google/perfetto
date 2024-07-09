@@ -55,8 +55,8 @@ class SetIdStorage final : public DataLayer {
 
     void IndexSearchValidated(FilterOp, SqlValue, Indices&) const override;
 
-    void StableSort(SortToken* start,
-                    SortToken* end,
+    void StableSort(Token* start,
+                    Token* end,
                     SortDirection direction) const override;
 
     void Serialize(StorageProto*) const override;
