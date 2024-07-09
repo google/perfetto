@@ -41,6 +41,7 @@ import {
   buildScrollOffsetsGraph,
   getInputScrollDeltas,
   getJankIntervals,
+  getPredictorJankDeltas,
   getPresentedScrollDeltas,
 } from './scroll_delta_graph';
 import {
@@ -236,6 +237,10 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
         this.engine,
         this.data.id,
       );
+      const predictorDeltas = await getPredictorJankDeltas(
+        this.engine,
+        this.data.id,
+      );
       const jankIntervals = await getJankIntervals(
         this.engine,
         this.data.ts,
@@ -244,6 +249,7 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
       this.scrollDeltas = buildScrollOffsetsGraph(
         inputDeltas,
         presentedDeltas,
+        predictorDeltas,
         jankIntervals,
       );
 
@@ -378,6 +384,11 @@ export class ScrollDetailsPanel extends BottomTab<GenericSliceDetailsTabConfig> 
       m(TextParagraph, {
         text: `Grey blocks in the graph represent intervals of jank
                  corresponding with the Chrome Scroll Janks track.`,
+      }),
+      m(TextParagraph, {
+        text: `Yellow dots represent frames that were presented (sae as the red
+                 dots), but that we suspect are visible to users as unsmooth
+                 velocity/stutter (predictor jank).`,
       }),
     );
   }
