@@ -33,16 +33,16 @@ interface QueryFlamegraphMetric {
   // between metrics.
   readonly name: string;
 
-  // The human readable SI-style unit of `selfValue`. Values will be shown to the
-  // user suffixed with this.
+  // The human readable SI-style unit of `selfValue`. Values will be shown to
+  // the user suffixed with this.
   readonly unit: string;
 
   // SQL statement which need to be run in preparation for being able to execute
   // `statement`.
   readonly dependencySql?: string;
 
-  // A single SQL statement which returns the columns `id`, `parentId`, `name` and
-  // `selfValue`
+  // A single SQL statement which returns the columns `id`, `parentId`, `name`
+  // and `selfValue`
   readonly statement: string;
 }
 
@@ -77,8 +77,8 @@ export interface QueryFlamegraphAttrs {
   readonly metrics: ReadonlyArray<QueryFlamegraphMetric>;
 }
 
-// A Mithril component which wraps the `Flamegraph` widget and fetches the data for the
-// widget by querying an `Engine`.
+// A Mithril component which wraps the `Flamegraph` widget and fetches the data
+// for the widget by querying an `Engine`.
 export class QueryFlamegraph implements m.ClassComponent<QueryFlamegraphAttrs> {
   private selectedMetricName;
   private data?: FlamegraphQueryData;
@@ -238,13 +238,13 @@ async function computeFlamegraphTree(
     ),
   );
   const res = await engine.query(`
-      select *
-      from _viz_flamegraph_global_layout!(
-        _flamegraph_windowed,
-        _flamegraph_raw_bottom_up,
-        _flamegraph_top_down
-      )
-    `);
+    select *
+    from _viz_flamegraph_global_layout!(
+      _flamegraph_windowed,
+      _flamegraph_raw_bottom_up,
+      _flamegraph_top_down
+    )
+  `);
   const it = res.iter({
     id: NUM,
     parentId: NUM,
