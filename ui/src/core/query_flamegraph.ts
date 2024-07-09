@@ -27,6 +27,7 @@ import {AsyncLimiter} from '../base/async_limiter';
 import {assertExists} from '../base/logging';
 import {Monitor} from '../base/monitor';
 import {featureFlags} from './feature_flags';
+import {uuidv4Sql} from '../base/uuid';
 
 interface QueryFlamegraphMetric {
   // The human readable name of the metric: will be shown to the user to change
@@ -170,11 +171,12 @@ async function computeFlamegraphTree(
   }
   await engine.query(`include perfetto module viz.flamegraph;`);
 
+  const uuid = uuidv4Sql();
   await using disposable = new AsyncDisposableStack();
   disposable.use(
     await createPerfettoTable(
       engine,
-      '_flamegraph_source',
+      `_flamegraph_source_${uuid}`,
       `
         select *
         from _viz_flamegraph_prepare_filter!(
@@ -190,18 +192,21 @@ async function computeFlamegraphTree(
   disposable.use(
     await createPerfettoTable(
       engine,
-      '_flamegraph_raw_top_down',
-      `select * from _viz_flamegraph_filter_and_hash!(_flamegraph_source)`,
+      `_flamegraph_raw_top_down_${uuid}`,
+      `
+        select *
+        from _viz_flamegraph_filter_and_hash!(_flamegraph_sourcee_${uuid})
+      `,
     ),
   );
   disposable.use(
     await createPerfettoTable(
       engine,
-      '_flamegraph_top_down',
+      `_flamegraph_top_down_${uuid}`,
       `
         select * from _viz_flamegraph_merge_hashes!(
-          _flamegraph_raw_top_down,
-          _flamegraph_source
+          _flamegraph_raw_top_down_${uuid},
+          _flamegraph_source_${uuid}
         )
       `,
     ),
@@ -209,22 +214,25 @@ async function computeFlamegraphTree(
   disposable.use(
     await createPerfettoTable(
       engine,
-      '_flamegraph_raw_bottom_up',
+      `_flamegraph_raw_bottom_up_${uuid}`,
       `
         select *
-        from _viz_flamegraph_accumulate!(_flamegraph_top_down, ${allStackBits})
+        from _viz_flamegraph_accumulate!(
+          _flamegraph_top_down_${uuid},
+          ${allStackBits}
+        )
       `,
     ),
   );
   disposable.use(
     await createPerfettoTable(
       engine,
-      '_flamegraph_windowed',
+      `_flamegraph_windowed_${uuid}`,
       `
         select *
         from _viz_flamegraph_local_layout!(
-          _flamegraph_raw_bottom_up,
-          _flamegraph_top_down
+          _flamegraph_raw_bottom_up_${uuid},
+          _flamegraph_top_down_${uuid}
         );
       `,
     ),
@@ -232,9 +240,9 @@ async function computeFlamegraphTree(
   const res = await engine.query(`
     select *
     from _viz_flamegraph_global_layout!(
-      _flamegraph_windowed,
-      _flamegraph_raw_bottom_up,
-      _flamegraph_top_down
+      _flamegraph_windowed_${uuid},
+      _flamegraph_raw_bottom_up_${uuid},
+      _flamegraph_top_down_${uuid}
     )
   `);
   const it = res.iter({
