@@ -65,6 +65,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_TIME_SPENT_IN_RUNNABLE
       reason: "Main Thread - Time spent in Runnable state"
+      severity: WARNING
       expected_value {
         value: 15
         unit: PERCENTAGE

@@ -65,6 +65,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: DEX2OAT_RUNNING
       reason: "dex2oat running during launch"
+      severity: WARNING
       expected_value {
         value: 0
         unit: TRUE_OR_FALSE
@@ -111,6 +112,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: INSTALLD_RUNNING
       reason: "installd running during launch"
+      severity: ERROR
       expected_value {
         value: 0
         unit: TRUE_OR_FALSE
@@ -159,6 +161,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: DEX2OAT_RUNNING
       reason: "dex2oat running during launch"
+      severity: WARNING
       expected_value {
         value: 0
         unit: TRUE_OR_FALSE
@@ -172,6 +175,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: INSTALLD_RUNNING
       reason: "installd running during launch"
+      severity: ERROR
       expected_value {
         value: 0
         unit: TRUE_OR_FALSE

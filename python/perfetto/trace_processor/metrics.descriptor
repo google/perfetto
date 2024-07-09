@@ -1014,8 +1014,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-ÐC
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ÎB
+þD
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"üC
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupó
 TaskStateBreakdown$
@@ -1106,10 +1106,12 @@ firstFrame÷
 dex2oat_dur_ns (Rdex2oatDurNsK
 SlowStartReasonDetailed
 reason (	Rreason
-details (	RdetailsÆ
+details (	Rdetailsô
 SlowStartReason[
 	reason_id (2>.perfetto.protos.AndroidStartupMetric.SlowStartReason.ReasonIdRreasonId
-reason (	Rreason[
+reason (	Rreason_
+severity
+ (2C.perfetto.protos.AndroidStartupMetric.SlowStartReason.SeverityLevelRseverity[
 expected_value (24.perfetto.protos.AndroidStartupMetric.ThresholdValueRexpectedValueT
 actual_value (21.perfetto.protos.AndroidStartupMetric.ActualValueRactualValue
 
@@ -1144,7 +1146,12 @@ launch_dur (R	launchDur
 BROADCAST_DISPATCHED_COUNT
 BROADCAST_RECEIVED_COUNT
 STARTUP_RUNNING_CONCURRENT+
-'MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKEDŽ
+'MAIN_THREAD_BINDER_TRANSCATIONS_BLOCKED"K
+SeverityLevel
+SEVERITY_UNSPECIFIED 	
+ERROR
+WARNING
+INFOŽ
 ThresholdValue
 value (RvalueV
 unit (2B.perfetto.protos.AndroidStartupMetric.ThresholdValue.ThresholdUnitRunit'
