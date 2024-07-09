@@ -52,7 +52,7 @@ export class WattsonEstimateAggregationController extends AggregationController 
       CREATE PERFETTO TABLE _ss_converted_to_mw AS
       SELECT *,
         ((IFNULL(l3_hit_value, 0) + IFNULL(l3_miss_value, 0)) * 1000 / dur)
-          + static_curve as dsu_curve
+          + static_curve as dsu_scu_curve
       FROM _system_state_curves;
 
       DROP TABLE IF EXISTS _ui_selection_window;
