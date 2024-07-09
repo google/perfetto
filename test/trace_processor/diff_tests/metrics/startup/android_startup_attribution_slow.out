@@ -96,6 +96,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: GC_ACTIVITY
       reason: "GC Activity"
+      severity: ERROR
       expected_value {
         value: 0
         unit: TRUE_OR_FALSE
@@ -114,6 +115,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: JIT_ACTIVITY
       reason: "JIT Activity"
+      severity: WARNING
       expected_value {
         value: 100000000
         unit: NS
@@ -145,6 +147,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: JIT_COMPILED_METHODS
       reason: "JIT compiled methods"
+      severity: WARNING
       expected_value {
         value: 65
         unit: COUNT

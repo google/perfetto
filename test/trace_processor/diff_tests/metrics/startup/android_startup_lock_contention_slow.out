@@ -70,6 +70,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: TIME_SPENT_IN_BIND_APPLICATION
       reason: "Time spent in bindApplication"
+      severity: WARNING
       expected_value {
         value: 1250000000
         unit: NS
@@ -89,6 +90,7 @@ android_startup {
     slow_start_reason_with_details {
       reason_id: MAIN_THREAD_LOCK_CONTENTION
       reason: "Main Thread - Lock contention"
+      severity: WARNING
       expected_value {
         value: 20
         unit: PERCENTAGE
@@ -103,6 +105,7 @@ android_startup {
     slow_start_reason_with_details {
      reason_id: MAIN_THREAD_MONITOR_CONTENTION
      reason: "Main Thread - Monitor contention"
+     severity: WARNING
      expected_value {
        value: 15
        unit: PERCENTAGE
