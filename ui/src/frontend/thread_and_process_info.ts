@@ -18,7 +18,7 @@ import {copyToClipboard} from '../base/clipboard';
 import {Icons} from '../base/semantic_icons';
 import {exists} from '../base/utils';
 import {Engine} from '../trace_processor/engine';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../trace_processor/query_result';
+import {NUM, NUM_NULL, STR_NULL} from '../trace_processor/query_result';
 import {fromNumNull} from '../trace_processor/sql_utils';
 import {Anchor} from '../widgets/anchor';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
@@ -46,46 +46,35 @@ export async function getProcessInfo(
   engine: Engine,
   upid: Upid,
 ): Promise<ProcessInfo> {
-  const it = (
-    await engine.query(`
-              SELECT pid, name, uid FROM process WHERE upid = ${upid};
-            `)
-  ).iter({pid: NUM, name: STR_NULL, uid: NUM_NULL});
-  if (!it.valid()) {
-    return {upid};
-  }
-  const result: ProcessInfo = {
+  const res = await engine.query(`
+    include perfetto module android.process_metadata;
+    select
+      p.upid,
+      p.pid,
+      p.name,
+      p.uid,
+      m.package_name as packageName,
+      m.version_code as versionCode
+    from process p
+    left join android_process_metadata m using (upid)
+    where upid = ${upid};
+  `);
+  const row = res.firstRow({
+    upid: NUM,
+    pid: NUM,
+    name: STR_NULL,
+    uid: NUM_NULL,
+    packageName: STR_NULL,
+    versionCode: NUM_NULL,
+  });
+  return {
     upid,
-    pid: it.pid,
-    name: it.name ?? undefined,
+    pid: row.pid,
+    name: row.name ?? undefined,
+    uid: fromNumNull(row.uid),
+    packageName: row.packageName ?? undefined,
+    versionCode: fromNumNull(row.versionCode),
   };
-
-  if (it.pid === null) {
-    return result;
-  }
-  result.pid = it.pid ?? undefined;
-
-  if (it.uid === undefined) {
-    return result;
-  }
-
-  const packageResult = await engine.query(`
-                SELECT
-                  package_name as packageName,
-                  version_code as versionCode
-                FROM package_list WHERE uid = ${it.uid};
-              `);
-  // The package_list table is not populated in some traces so we need to
-  // check if the result has returned any rows.
-  if (packageResult.numRows() > 0) {
-    const packageDetails = packageResult.firstRow({
-      packageName: STR,
-      versionCode: NUM,
-    });
-    result.packageName = packageDetails.packageName;
-    result.versionCode = packageDetails.versionCode ?? undefined;
-  }
-  return result;
 }
 
 function getDisplayName(
