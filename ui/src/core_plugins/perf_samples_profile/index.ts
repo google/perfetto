@@ -109,8 +109,8 @@ class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
           ...metricsFromTableOrSubquery(
             `
               (
-                select *
-                from _perf_callsites_for_samples!((
+                select id, parent_id as parentId, name, self_count
+                from _linux_perf_callstacks_for_samples!((
                   select p.callsite_id
                   from perf_sample p
                   join thread t using (utid)
@@ -127,7 +127,7 @@ class PerfSamplesFlamegraphDetailsPanel implements LegacyDetailsPanel {
                 columnName: 'self_count',
               },
             ],
-            'INCLUDE PERFETTO MODULE linux.perf.samples',
+            'include perfetto module linux.perf.samples',
           ),
         ],
       };

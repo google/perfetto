@@ -19,21 +19,17 @@
 #include <algorithm>
 #include <cinttypes>
 #include <cstdint>
-#include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
-#include <set>
 #include <string>
 #include <utility>
 #include <variant>
 #include <vector>
 
-#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
-#include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -42,7 +38,6 @@
 #include "src/trace_processor/db/column/id_storage.h"
 #include "src/trace_processor/db/column/null_overlay.h"
 #include "src/trace_processor/db/column/numeric_storage.h"
-#include "src/trace_processor/db/column/range_overlay.h"
 #include "src/trace_processor/db/column/selector_overlay.h"
 #include "src/trace_processor/db/column/string_storage.h"
 #include "src/trace_processor/db/column/types.h"
@@ -108,13 +103,21 @@ void CreateNonNullableIntsColumn(
     // The column is an Id column.
     storage_layers[col_idx].reset(new column::IdStorage());
 
-    legacy_overlays.emplace_back(BitVector::FromSortedIndexVector(values));
-    overlay_layers.emplace_back().reset(new column::SelectorOverlay(
-        legacy_overlays.back().row_map().GetIfBitVector()));
-
-    legacy_columns.push_back(ColumnLegacy::IdColumn(
-        col_idx, static_cast<uint32_t>(legacy_overlays.size() - 1), col_name,
-        ColumnLegacy::kIdFlags));
+    // If the id is dense (i.e. the start is zero and the size equals the last
+    // value) then there's no need for an overlay.
+    bool is_dense = values.front() == 0 &&
+                    static_cast<uint32_t>(values.back()) == values.size() - 1;
+    if (is_dense) {
+      legacy_columns.push_back(
+          ColumnLegacy::IdColumn(col_idx, 0, col_name, ColumnLegacy::kIdFlags));
+    } else {
+      legacy_overlays.emplace_back(BitVector::FromSortedIndexVector(values));
+      overlay_layers.emplace_back().reset(new column::SelectorOverlay(
+          legacy_overlays.back().row_map().GetIfBitVector()));
+      legacy_columns.push_back(ColumnLegacy::IdColumn(
+          col_idx, static_cast<uint32_t>(legacy_overlays.size() - 1), col_name,
+          ColumnLegacy::kIdFlags));
+    }
     return;
   }
 
@@ -145,15 +148,15 @@ RuntimeTable::RuntimeTable(
 RuntimeTable::~RuntimeTable() = default;
 
 RuntimeTable::Builder::Builder(StringPool* pool,
-                               std::vector<std::string> col_names)
+                               const std::vector<std::string>& col_names)
     : Builder(pool,
               col_names,
               std::vector<BuilderColumnType>(col_names.size(), kNull)) {}
 
 RuntimeTable::Builder::Builder(StringPool* pool,
-                               std::vector<std::string> col_names,
-                               std::vector<BuilderColumnType> col_types)
-    : string_pool_(pool), col_names_(std::move(col_names)) {
+                               const std::vector<std::string>& col_names,
+                               const std::vector<BuilderColumnType>& col_types)
+    : string_pool_(pool), col_names_(col_names) {
   for (BuilderColumnType type : col_types) {
     switch (type) {
       case kNull:
