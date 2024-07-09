@@ -43,7 +43,7 @@ export interface CallsiteInfo {
   location?: string;
 }
 
-const SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG = featureFlags.register({
+export const SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG = featureFlags.register({
   id: 'showHeapGraphDominatorTree',
   name: 'Show heap graph dominator tree',
   description: 'Show dominated size and objects tabs in Java heap graph view.',

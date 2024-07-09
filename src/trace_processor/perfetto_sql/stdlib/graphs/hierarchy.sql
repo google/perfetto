@@ -13,26 +13,21 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE callstacks.stack_profile;
+INCLUDE PERFETTO MODULE graphs.search;
 
-CREATE PERFETTO MACRO _linux_perf_callstacks_for_samples(
-  samples TableOrSubquery
+-- Given a table containing the edges in a tree and a table of start_nodes,
+-- returns the ids of all the nodes reachable by walking up the tree from each
+-- of the start nodes.
+CREATE PERFETTO MACRO _tree_reachable_ancestors_or_self(
+  tree TableOrSubquery,
+  start_nodes TableOrSubquery
 )
 RETURNS TableOrSubquery
 AS
 (
-  WITH metrics AS MATERIALIZED (
-    SELECT
-      callsite_id,
-      COUNT() AS self_count
-    FROM $samples
-    GROUP BY callsite_id
+  SELECT node_id AS id
+  FROM graph_reachable_dfs!(
+    (SELECT id AS source_node_id, parent_id AS dest_node_id FROM $tree),
+    (SELECT id AS node_id FROM $start_nodes)
   )
-  SELECT
-    c.id,
-    c.parent_id,
-    c.name,
-    m.self_count
-  FROM _callstacks_for_stack_profile_samples!(metrics) c
-  LEFT JOIN metrics m USING (callsite_id)
 );
