@@ -57,7 +57,8 @@ class V8SequenceState final
   V8Tracker* const v8_tracker_;
 
   using InterningId = uint64_t;
-  base::FlatHashMap<InterningId, tables::V8IsolateTable::Id> isolates_;
+  base::FlatHashMap<InterningId, std::optional<tables::V8IsolateTable::Id>>
+      isolates_;
   base::FlatHashMap<InterningId, tables::V8JsScriptTable::Id> js_scripts_;
   base::FlatHashMap<InterningId, tables::V8WasmScriptTable::Id> wasm_scripts_;
   base::FlatHashMap<InterningId, tables::V8JsFunctionTable::Id> js_functions_;

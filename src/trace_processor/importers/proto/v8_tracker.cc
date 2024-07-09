@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
@@ -144,7 +145,7 @@ V8Tracker::V8Tracker(TraceProcessorContext* context) : context_(context) {}
 
 V8Tracker::~V8Tracker() = default;
 
-IsolateId V8Tracker::InternIsolate(protozero::ConstBytes bytes) {
+std::optional<IsolateId> V8Tracker::InternIsolate(protozero::ConstBytes bytes) {
   InternedV8Isolate::Decoder isolate(bytes);
 
   const IsolateKey isolate_key{
@@ -153,6 +154,13 @@ IsolateId V8Tracker::InternIsolate(protozero::ConstBytes bytes) {
 
   if (auto* id = isolate_index_.Find(isolate_key); id) {
     return *id;
+  }
+
+  // TODO(b/347250452): Implement support for no code range
+  if (!isolate.has_code_range()) {
+    context_->storage->IncrementStats(stats::v8_isolate_has_no_code_range);
+    isolate_index_.Insert(isolate_key, std::nullopt);
+    return std::nullopt;
   }
 
   return *isolate_index_.Insert(isolate_key, CreateIsolate(isolate)).first;
@@ -178,7 +186,6 @@ UserMemoryMapping* V8Tracker::FindEmbeddedBlobMapping(
 std::pair<V8Tracker::IsolateCodeRanges, bool> V8Tracker::GetIsolateCodeRanges(
     UniquePid upid,
     const protos::pbzero::InternedV8Isolate::Decoder& isolate) {
-  // TODO(carlscab): Implement support for no code range
   PERFETTO_CHECK(isolate.has_code_range());
 
   IsolateCodeRanges res;
