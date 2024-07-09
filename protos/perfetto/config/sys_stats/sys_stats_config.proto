@@ -79,4 +79,8 @@ message SysStatsConfig {
   // Polls /proc/pressure/* every X ms, if non-zero.
   // This is required to be > 10ms to avoid excessive CPU usage.
   optional uint32 psi_period_ms = 11;
+
+  // Polls /sys/class/thermal/* every X ms, if non-zero.
+  // This is required to be > 10ms to avoid excessive CPU usage.
+  optional uint32 thermal_period_ms = 12;
 }

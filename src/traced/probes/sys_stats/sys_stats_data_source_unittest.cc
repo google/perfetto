@@ -208,6 +208,9 @@ const char kMockPsi[] = R"(
 some avg10=23.10 avg60=5.06 avg300=15.10 total=417963
 full avg10=9.00 avg60=19.20 avg300=3.23 total=205933)";
 
+const uint64_t kMockThermalTemp = 25000;
+const char kMockThermalType[] = "TSR0";
+
 class TestSysStatsDataSource : public SysStatsDataSource {
  public:
   TestSysStatsDataSource(base::TaskRunner* task_runner,
@@ -223,11 +226,24 @@ class TestSysStatsDataSource : public SysStatsDataSource {
                            std::move(cpu_freq_info),
                            open_fn) {}
 
-  MOCK_METHOD(base::ScopedDir, OpenDevfreqDir, (), (override));
+  MOCK_METHOD(base::ScopedDir,
+              OpenDirAndLogOnErrorOnce,
+              (const std::string& dir_path, bool* already_logged),
+              (override));
   MOCK_METHOD(const char*,
               ReadDevfreqCurFreq,
               (const std::string& deviceName),
               (override));
+  MOCK_METHOD(std::optional<uint64_t>,
+              ReadThermalZoneTemp,
+              (const std::string& name),
+              (override));
+  MOCK_METHOD(std::optional<std::string>,
+              ReadThermalZoneType,
+              (const std::string& name),
+              (override));
+  bool* GetDevfreqErrorLoggedAddress() { return &devfreq_error_logged_; }
+  bool* GetThermalErrorLoggedAddress() { return &thermal_error_logged_; }
 };
 
 base::ScopedFile MockOpenReadOnly(const char* path) {
@@ -438,6 +454,62 @@ TEST_F(SysStatsDataSourceTest, BuddyinfoAll) {
   EXPECT_EQ(sys_stats.buddy_info()[3].order_pages()[10], 3u);
 }
 
+TEST_F(SysStatsDataSourceTest, ThermalZones) {
+  DataSourceConfig config;
+  protos::gen::SysStatsConfig sys_cfg;
+  sys_cfg.set_thermal_period_ms(10);
+  config.set_sys_stats_config_raw(sys_cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config);
+
+  // Create dirs and symlinks, but only read the symlinks.
+  std::vector<std::string> dirs_to_delete;
+  std::vector<std::string> symlinks_to_delete;
+  auto make_thermal_paths = [&symlinks_to_delete, &dirs_to_delete](
+                                base::TempDir& temp_dir, base::TempDir& sym_dir,
+                                const char* name) {
+    base::StackString<256> path("%s/%s", temp_dir.path().c_str(), name);
+    dirs_to_delete.push_back(path.ToStdString());
+    mkdir(path.c_str(), 0755);
+    base::StackString<256> sym_path("%s/%s", sym_dir.path().c_str(), name);
+    symlinks_to_delete.push_back(sym_path.ToStdString());
+    symlink(path.c_str(), sym_path.c_str());
+  };
+  auto fake_thermal = base::TempDir::Create();
+  auto fake_thermal_symdir = base::TempDir::Create();
+  static const char* const thermalzone_names[] = {"thermal_zone0"};
+  for (auto dev : thermalzone_names) {
+    make_thermal_paths(fake_thermal, fake_thermal_symdir, dev);
+  }
+
+  EXPECT_CALL(*data_source, OpenDirAndLogOnErrorOnce(
+                                "/sys/class/thermal/",
+                                data_source->GetThermalErrorLoggedAddress()))
+      .WillRepeatedly(Invoke([&fake_thermal_symdir] {
+        return base::ScopedDir(opendir(fake_thermal_symdir.path().c_str()));
+      }));
+
+  EXPECT_CALL(*data_source, ReadThermalZoneTemp("thermal_zone0"))
+      .WillRepeatedly(Return(std::optional<uint64_t>(kMockThermalTemp)));
+  EXPECT_CALL(*data_source, ReadThermalZoneType("thermal_zone0"))
+      .WillRepeatedly(Return(std::optional<std::string>(kMockThermalType)));
+
+  WaitTick(data_source.get());
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
+
+  ASSERT_EQ(sys_stats.thermal_zone_size(), 1);
+  EXPECT_EQ(sys_stats.thermal_zone()[0].name(), "thermal_zone0");
+  EXPECT_EQ(sys_stats.thermal_zone()[0].temp(), kMockThermalTemp / 1000);
+  EXPECT_EQ(sys_stats.thermal_zone()[0].type(), kMockThermalType);
+
+  for (const std::string& path : dirs_to_delete)
+    base::Rmdir(path);
+  for (const std::string& path : symlinks_to_delete)
+    remove(path.c_str());
+}
+
 TEST_F(SysStatsDataSourceTest, DevfreqAll) {
   DataSourceConfig config;
   protos::gen::SysStatsConfig sys_cfg;
@@ -466,7 +538,9 @@ TEST_F(SysStatsDataSourceTest, DevfreqAll) {
     make_devfreq_paths(fake_devfreq, fake_devfreq_symdir, dev);
   }
 
-  EXPECT_CALL(*data_source, OpenDevfreqDir())
+  EXPECT_CALL(*data_source, OpenDirAndLogOnErrorOnce(
+                                "/sys/class/devfreq/",
+                                data_source->GetDevfreqErrorLoggedAddress()))
       .WillRepeatedly(Invoke([&fake_devfreq_symdir] {
         return base::ScopedDir(opendir(fake_devfreq_symdir.path().c_str()));
       }));
