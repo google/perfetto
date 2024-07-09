@@ -16,9 +16,11 @@
 
 #include "src/trace_processor/importers/perf/record_parser.h"
 
+#include <cinttypes>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -26,9 +28,13 @@
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/ref_counted.h"
+#include "src/trace_processor/importers/common/address_range.h"
+#include "src/trace_processor/importers/common/create_mapping_params.h"
 #include "src/trace_processor/importers/common/mapping_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/stack_profile_tracker.h"
+#include "src/trace_processor/importers/common/virtual_memory_mapping.h"
+#include "src/trace_processor/importers/perf/mmap_record.h"
 #include "src/trace_processor/importers/perf/perf_counter.h"
 #include "src/trace_processor/importers/perf/perf_event.h"
 #include "src/trace_processor/importers/perf/perf_event_attr.h"
@@ -39,13 +45,14 @@
 #include "src/trace_processor/importers/proto/profile_packet_utils.h"
 #include "src/trace_processor/storage/stats.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/util/build_id.h"
 #include "src/trace_processor/util/status_macros.h"
 
-namespace perfetto {
-namespace trace_processor {
-namespace perf_importer {
+#include "protos/perfetto/trace/profiling/profile_packet.pbzero.h"
+
+namespace perfetto::trace_processor::perf_importer {
 namespace {
 
 CreateMappingParams BuildCreateMappingParams(
@@ -249,7 +256,7 @@ base::Status RecordParser::ParseMmap(Record record) {
   return base::OkStatus();
 }
 
-util::Status RecordParser::ParseMmap2(Record record) {
+base::Status RecordParser::ParseMmap2(Record record) {
   Mmap2Record mmap2;
   RETURN_IF_ERROR(mmap2.Parse(record));
   std::optional<BuildId> build_id = mmap2.GetBuildId();
@@ -302,7 +309,7 @@ base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
   }
 
   for (const auto& entry : sample.read_groups) {
-    RefPtr<const PerfEventAttr> attr =
+    RefPtr<PerfEventAttr> attr =
         sample.perf_session->FindAttrForEventId(*entry.event_id);
     if (PERFETTO_UNLIKELY(!attr)) {
       return base::ErrStatus("No perf_event_attr for id %" PRIu64,
@@ -314,6 +321,4 @@ base::Status RecordParser::UpdateCountersInReadGroups(const Sample& sample) {
   return base::OkStatus();
 }
 
-}  // namespace perf_importer
-}  // namespace trace_processor
-}  // namespace perfetto
+}  // namespace perfetto::trace_processor::perf_importer

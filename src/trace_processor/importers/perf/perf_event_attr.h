@@ -21,7 +21,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <unordered_map>
+#include <utility>
 
 #include "perfetto/trace_processor/ref_counted.h"
 #include "src/trace_processor/importers/perf/perf_counter.h"
@@ -90,7 +92,7 @@ class PerfEventAttr : public RefCounted {
     event_name_ = std::move(event_name);
   }
 
-  PerfCounter& GetOrCreateCounter(uint32_t cpu) const;
+  PerfCounter& GetOrCreateCounter(uint32_t cpu);
 
  private:
   bool is_timebase() const {
@@ -108,7 +110,7 @@ class PerfEventAttr : public RefCounted {
   std::optional<size_t> time_offset_from_end_;
   std::optional<size_t> id_offset_from_start_;
   std::optional<size_t> id_offset_from_end_;
-  mutable std::unordered_map<uint32_t, PerfCounter> counters_;
+  std::unordered_map<uint32_t, PerfCounter> counters_;
   std::string event_name_;
 };
 

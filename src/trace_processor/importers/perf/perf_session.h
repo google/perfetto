@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -48,7 +49,7 @@ class PerfSession : public RefCounted {
     explicit Builder(TraceProcessorContext* context) : context_(context) {}
     base::StatusOr<RefPtr<PerfSession>> Build();
     Builder& AddAttrAndIds(perf_event_attr attr, std::vector<uint64_t> ids) {
-      attr_with_ids_.push_back({std::move(attr), std::move(ids)});
+      attr_with_ids_.push_back({attr, std::move(ids)});
       return *this;
     }
 
@@ -57,7 +58,6 @@ class PerfSession : public RefCounted {
       perf_event_attr attr;
       std::vector<uint64_t> ids;
     };
-
     TraceProcessorContext* const context_;
     std::vector<PerfEventAttrWithIds> attr_with_ids_;
   };
@@ -66,9 +66,9 @@ class PerfSession : public RefCounted {
     return perf_session_id_;
   }
 
-  RefPtr<const PerfEventAttr> FindAttrForEventId(uint64_t id) const;
+  RefPtr<PerfEventAttr> FindAttrForEventId(uint64_t id) const;
 
-  base::StatusOr<RefPtr<const PerfEventAttr>> FindAttrForRecord(
+  base::StatusOr<RefPtr<PerfEventAttr>> FindAttrForRecord(
       const perf_event_header& header,
       const TraceBlobView& payload) const;
 

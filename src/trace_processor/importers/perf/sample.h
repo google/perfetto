@@ -50,7 +50,7 @@ struct Sample {
   int64_t trace_ts;
   protos::pbzero::Profiling::CpuMode cpu_mode;
   RefPtr<PerfSession> perf_session;
-  RefPtr<const PerfEventAttr> attr;
+  RefPtr<PerfEventAttr> attr;
 
   std::optional<uint64_t> ip;
   std::optional<PidTid> pid_tid;
