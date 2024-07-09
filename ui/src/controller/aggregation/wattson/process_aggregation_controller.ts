@@ -107,6 +107,7 @@ export class WattsonProcessAggregationController extends AggregationController {
           SUM(dur) as dur,
           COUNT(dur) as occurences,
           process.upid,
+          process.pid,
           process.name as p_name,
           thread.name as t_name,
           cpu
@@ -132,7 +133,7 @@ export class WattsonProcessAggregationController extends AggregationController {
       SELECT
         ROUND(SUM(total_pws) / ${duration}, 2) as avg_mw,
         ROUND(SUM(total_pws) / 1000000000, 2) as total_mws,
-        upid,
+        pid,
         p_name,
         t_name
       FROM _unioned_per_process_per_cpu
@@ -151,10 +152,10 @@ export class WattsonProcessAggregationController extends AggregationController {
         columnId: 'p_name',
       },
       {
-        title: 'UPID',
+        title: 'PID',
         kind: 'NUMBER',
         columnConstructor: Uint16Array,
-        columnId: 'upid',
+        columnId: 'pid',
       },
       {
         title: 'Average estimated power (mW)',
