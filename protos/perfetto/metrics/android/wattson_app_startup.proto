@@ -32,4 +32,5 @@ message AndroidWattsonEstimateInfo {
 message AndroidWattsonRailEstimate {
   optional string name = 1;
   optional float estimate_mw = 2;
+  repeated AndroidWattsonRailEstimate rail = 3;
 }

@@ -2853,6 +2853,7 @@ message AndroidWattsonEstimateInfo {
 message AndroidWattsonRailEstimate {
   optional string name = 1;
   optional float estimate_mw = 2;
+  repeated AndroidWattsonRailEstimate rail = 3;
 }
 
 // End of protos/perfetto/metrics/android/wattson_app_startup.proto
