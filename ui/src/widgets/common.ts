@@ -36,7 +36,12 @@ export interface HTMLAttrs {
   readonly onload?: (e: Event) => void;
 }
 
-export interface HTMLInputAttrs extends HTMLAttrs {
+export interface HTMLFocusableAttrs extends HTMLAttrs {
+  readonly onblur?: (e: FocusEvent) => void;
+  readonly onfocus?: (e: FocusEvent) => void;
+}
+
+export interface HTMLInputAttrs extends HTMLFocusableAttrs {
   readonly disabled?: boolean;
   readonly type?: string;
   readonly onchange?: (e: Event) => void;
