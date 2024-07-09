@@ -684,6 +684,25 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
 }
 
+TEST_F(ProtoTraceParserTest, LoadThermal) {
+  auto* packet = trace_->add_packet();
+  uint64_t ts = 1000;
+  packet->set_timestamp(ts);
+  auto* bundle = packet->set_sys_stats();
+  auto* thermal_zone = bundle->add_thermal_zone();
+  thermal_zone->set_type("MOCKTYPE");
+  uint64_t temp = 10000;
+  thermal_zone->set_temp(temp);
+
+  EXPECT_CALL(*event_,
+              PushCounter(static_cast<int64_t>(ts),
+                          DoubleEq(static_cast<double>(temp)), TrackId{1u}));
+  Tokenize();
+  context_.sorter->ExtractEventsForced();
+
+  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
+}
+
 TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
   auto* tree = trace_->add_packet()->set_process_tree();
   auto* process = tree->add_processes();

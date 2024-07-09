@@ -68,6 +68,7 @@ class SystemProbesParser {
   const StringId cpu_times_softirq_ns_id_;
   const StringId oom_score_adj_id_;
   const StringId cpu_freq_id_;
+  const StringId thermal_unit_id_;
   std::vector<StringId> meminfo_strs_id_;
   std::vector<StringId> vmstat_strs_id_;
 
