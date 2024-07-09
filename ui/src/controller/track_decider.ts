@@ -24,7 +24,6 @@ import {
   UtidToTrackSortKey,
 } from '../common/state';
 import {globals} from '../frontend/globals';
-import {PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {PrimaryTrackSortKey} from '../public';
 import {getTrackName} from '../public/utils';
 import {Engine, EngineBase} from '../trace_processor/engine';
@@ -1065,19 +1064,42 @@ class TrackDecider {
 
   async addProcessPerfSamplesTracks(engine: Engine): Promise<void> {
     const result = await engine.query(`
-      select upid, pid
+      select upid
       from _process_available_info_summary
-      join process using (upid)
       where perf_sample_count > 0
   `);
-    for (const it = result.iter({upid: NUM, pid: NUM}); it.valid(); it.next()) {
+    for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
-      const pid = it.pid;
       const uuid = this.getUuid(null, upid);
       this.tracksToAdd.push({
-        uri: `perfetto.PerfSamplesProfile#${upid}`,
+        uri: `perfetto.PerfSamplesProfile#Process${upid}`,
         trackSortKey: PrimaryTrackSortKey.PERF_SAMPLES_PROFILE_TRACK,
-        name: `Callstacks ${pid}`,
+        name: `Process Callstacks`,
+        trackGroup: uuid,
+      });
+    }
+  }
+
+  async addThreadPerfSamplesTracks(engine: Engine): Promise<void> {
+    const result = await engine.query(`
+      select upid, utid, tid
+      from _thread_available_info_summary
+      join thread using (utid)
+      where perf_sample_count > 0
+  `);
+    for (
+      const it = result.iter({upid: NUM_NULL, utid: NUM, tid: NUM});
+      it.valid();
+      it.next()
+    ) {
+      const upid = it.upid;
+      const utid = it.utid;
+      const tid = it.tid;
+      const uuid = this.getUuid(utid, upid);
+      this.tracksToAdd.push({
+        uri: `perfetto.PerfSamplesProfile#Thread${utid}`,
+        trackSortKey: PrimaryTrackSortKey.PERF_SAMPLES_PROFILE_TRACK,
+        name: `Thread Callstacks ${tid}`,
         trackGroup: uuid,
       });
     }
@@ -1502,11 +1524,12 @@ class TrackDecider {
     await this.addProcessHeapProfileTracks(
       this.engine.getProxy('TrackDecider::addProcessHeapProfileTracks'),
     );
-    if (PERF_SAMPLE_FLAG.get()) {
-      await this.addProcessPerfSamplesTracks(
-        this.engine.getProxy('TrackDecider::addProcessPerfSamplesTracks'),
-      );
-    }
+    await this.addProcessPerfSamplesTracks(
+      this.engine.getProxy('TrackDecider::addProcessPerfSamplesTracks'),
+    );
+    await this.addThreadPerfSamplesTracks(
+      this.engine.getProxy('TrackDecider::addThreadPerfSamplesTracks'),
+    );
     await this.addProcessCounterTracks(
       this.engine.getProxy('TrackDecider::addProcessCounterTracks'),
     );

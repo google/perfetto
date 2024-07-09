@@ -181,7 +181,37 @@ class AreaDetailsPanel implements m.ClassComponent {
     }
     const upids = getUpidsFromAreaSelection(currentSelection);
     if (upids.length === 0) {
-      return undefined;
+      const utids = getUtidsFromAreaSelection(currentSelection);
+      if (utids.length === 0) {
+        return undefined;
+      }
+      return {
+        engine: assertExists(this.getCurrentEngine()),
+        metrics: [
+          ...metricsFromTableOrSubquery(
+            `
+              (
+                select id, parent_id as parentId, name, self_count
+                from _linux_perf_callstacks_for_samples!((
+                  select p.callsite_id
+                  from perf_sample p
+                  where p.ts >= ${currentSelection.start}
+                    and p.ts <= ${currentSelection.end}
+                    and p.utid in (${utids.join(',')})
+                ))
+              )
+            `,
+            [
+              {
+                name: 'Perf Samples',
+                unit: '',
+                columnName: 'self_count',
+              },
+            ],
+            'include perfetto module linux.perf.samples',
+          ),
+        ],
+      };
     }
     return {
       engine: assertExists(this.getCurrentEngine()),
@@ -189,8 +219,8 @@ class AreaDetailsPanel implements m.ClassComponent {
         ...metricsFromTableOrSubquery(
           `
             (
-              select *
-              from _perf_callsites_for_samples!((
+              select id, parent_id as parentId, name, self_count
+              from _linux_perf_callstacks_for_samples!((
                 select p.callsite_id
                 from perf_sample p
                 join thread t using (utid)
@@ -207,7 +237,7 @@ class AreaDetailsPanel implements m.ClassComponent {
               columnName: 'self_count',
             },
           ],
-          'INCLUDE PERFETTO MODULE linux.perf.samples',
+          'include perfetto module linux.perf.samples',
         ),
       ],
     };
@@ -287,7 +317,26 @@ function getUpidsFromAreaSelection(currentSelection: AreaSelection) {
     if (trackInfo?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
       continue;
     }
-    upids.push(assertExists(trackInfo.upid));
+    if (trackInfo.upid === undefined) {
+      continue;
+    }
+    upids.push(trackInfo.upid);
   }
   return upids;
+}
+
+function getUtidsFromAreaSelection(currentSelection: AreaSelection) {
+  const utids = [];
+  for (const trackId of currentSelection.tracks) {
+    const track: TrackState | undefined = globals.state.tracks[trackId];
+    const trackInfo = globals.trackManager.resolveTrackInfo(track?.uri);
+    if (trackInfo?.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
+      continue;
+    }
+    if (trackInfo.utid === undefined) {
+      continue;
+    }
+    utids.push(trackInfo.utid);
+  }
+  return utids;
 }

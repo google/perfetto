@@ -32,7 +32,7 @@ AS
     c.id,
     c.parent_id,
     c.name,
-    m.self_count
+    IFNULL(m.self_count, 0) AS self_count
   FROM _callstacks_for_stack_profile_samples!(metrics) c
   LEFT JOIN metrics m USING (callsite_id)
 );
