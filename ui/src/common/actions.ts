@@ -569,7 +569,8 @@ export const StateActions = {
     state: StateDraft,
     args: {
       id: number;
-      upid: number;
+      utid?: number;
+      upid?: number;
       leftTs: time;
       rightTs: time;
       type: ProfileType;
@@ -580,6 +581,7 @@ export const StateActions = {
       legacySelection: {
         kind: 'PERF_SAMPLES',
         id: args.id,
+        utid: args.utid,
         upid: args.upid,
         leftTs: args.leftTs,
         rightTs: args.rightTs,

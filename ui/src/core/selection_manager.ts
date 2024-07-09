@@ -43,7 +43,8 @@ export interface HeapProfileSelection {
 export interface PerfSamplesSelection {
   kind: 'PERF_SAMPLES';
   id: number;
-  upid: number;
+  utid?: number;
+  upid?: number;
   leftTs: time;
   rightTs: time;
   type: ProfileType;

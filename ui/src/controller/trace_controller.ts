@@ -29,7 +29,7 @@ import {
   PendingDeeplinkState,
   ProfileType,
 } from '../common/state';
-import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../core/feature_flags';
+import {featureFlags, Flag} from '../core/feature_flags';
 import {
   globals,
   QuantizedLoad,
@@ -588,9 +588,7 @@ export class TraceController extends Controller<States> {
     globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 
     await this.selectFirstHeapProfile();
-    if (PERF_SAMPLE_FLAG.get()) {
-      await this.selectPerfSample(traceDetails);
-    }
+    await this.selectPerfSample(traceDetails);
 
     const pendingDeeplink = globals.state.pendingDeeplink;
     if (pendingDeeplink !== undefined) {
