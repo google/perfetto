@@ -100,7 +100,7 @@ PerfEventAttr::PerfEventAttr(TraceProcessorContext* context,
                              perf_event_attr attr)
     : context_(context),
       perf_session_id_(perf_session_id),
-      attr_(std::move(attr)),
+      attr_(attr),
       time_offset_from_start_(TimeOffsetFromStartOfSampleRecord(attr_)),
       time_offset_from_end_(TimeOffsetFromEndOfNonSampleRecord(attr_)),
       id_offset_from_start_(IdOffsetFromStartOfSampleRecord(attr_)),
@@ -108,7 +108,7 @@ PerfEventAttr::PerfEventAttr(TraceProcessorContext* context,
 
 PerfEventAttr::~PerfEventAttr() = default;
 
-PerfCounter& PerfEventAttr::GetOrCreateCounter(uint32_t cpu) const {
+PerfCounter& PerfEventAttr::GetOrCreateCounter(uint32_t cpu) {
   auto it = counters_.find(cpu);
   if (it == counters_.end()) {
     it = counters_.emplace(cpu, CreateCounter(cpu)).first;
@@ -126,10 +126,10 @@ PerfCounter PerfEventAttr::CreateCounter(uint32_t cpu) const {
   row.is_timebase = is_timebase();
   const auto counter_track_ref =
       context_->storage->mutable_perf_counter_track_table()
-          ->Insert(std::move(row))
+          ->Insert(row)
           .row_reference;
   return PerfCounter(context_->storage->mutable_counter_table(),
-                     std::move(counter_track_ref));
+                     counter_track_ref);
 }
 
 }  // namespace perfetto::trace_processor::perf_importer

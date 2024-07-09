@@ -17,9 +17,12 @@
 #include "src/trace_processor/importers/perf/attrs_section_reader.h"
 
 #include <cinttypes>
+#include <cstddef>
+#include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
 

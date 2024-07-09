@@ -63,7 +63,7 @@ struct Record {
   }
 
   RefPtr<PerfSession> session;
-  RefPtr<const PerfEventAttr> attr;
+  RefPtr<PerfEventAttr> attr;
   perf_event_header header;
   TraceBlobView payload;
 };
