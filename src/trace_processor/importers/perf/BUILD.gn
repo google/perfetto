@@ -83,7 +83,7 @@ source_set("perf") {
     "../../tables:tables_python",
     "../../types",
     "../../util:build_id",
-    "../../util:file_buffer",
+    "../../util:trace_blob_view_reader",
     "../../util:util",
     "../common:common",
     "../proto:minimal",
