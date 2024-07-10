@@ -109,7 +109,7 @@ inline Status OkStatus() {
   return Status();
 }
 
-PERFETTO_PRINTF_FORMAT(1, 2) Status ErrStatus(const char* format, ...);
+Status ErrStatus(const char* format, ...) PERFETTO_PRINTF_FORMAT(1, 2);
 
 }  // namespace base
 }  // namespace perfetto
