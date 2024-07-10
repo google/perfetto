@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/util/file_buffer.h"
+#include "src/trace_processor/util/trace_blob_view_reader.h"
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <optional>
+#include <ostream>
 #include <vector>
 
 #include "perfetto/trace_processor/trace_blob.h"
@@ -92,19 +94,21 @@ std::vector<TraceBlobView> Slice(const TraceBlobView& blob, size_t chunk_size) {
   return chunks;
 }
 
-FileBuffer CreateFileBuffer(const std::vector<TraceBlobView>& chunks) {
-  FileBuffer chunked_buffer;
+TraceBlobViewReader CreateTraceBlobViewReader(
+    const std::vector<TraceBlobView>& chunks) {
+  TraceBlobViewReader chunked_buffer;
   for (const auto& chunk : chunks) {
     chunked_buffer.PushBack(chunk.copy());
   }
   return chunked_buffer;
 }
 
-TEST(FileBuffer, ContiguousAccessAtOffset) {
+TEST(TraceBlobViewReader, ContiguousAccessAtOffset) {
   constexpr size_t kExpectedSize = 256;
   constexpr size_t kChunkSize = kExpectedSize / 4;
   TraceBlobView expected_data = CreateExpectedData(kExpectedSize);
-  FileBuffer buffer = CreateFileBuffer(Slice(expected_data, kChunkSize));
+  TraceBlobViewReader buffer =
+      CreateTraceBlobViewReader(Slice(expected_data, kChunkSize));
 
   for (size_t file_offset = 0; file_offset <= kExpectedSize; ++file_offset) {
     EXPECT_TRUE(buffer.PopFrontUntil(file_offset));
@@ -116,12 +120,12 @@ TEST(FileBuffer, ContiguousAccessAtOffset) {
   }
 }
 
-TEST(FileBuffer, NoCopyIfDataIsContiguous) {
+TEST(TraceBlobViewReader, NoCopyIfDataIsContiguous) {
   constexpr size_t kExpectedSize = 256;
   constexpr size_t kChunkSize = kExpectedSize / 4;
   std::vector<TraceBlobView> chunks =
       Slice(CreateExpectedData(kExpectedSize), kChunkSize);
-  FileBuffer buffer = CreateFileBuffer(chunks);
+  TraceBlobViewReader buffer = CreateTraceBlobViewReader(chunks);
 
   for (size_t i = 0; i < chunks.size(); ++i) {
     for (size_t off = 0; off < kChunkSize; ++off) {
@@ -133,17 +137,18 @@ TEST(FileBuffer, NoCopyIfDataIsContiguous) {
   }
 }
 
-TEST(FileBuffer, PopRemovesData) {
+TEST(TraceBlobViewReader, PopRemovesData) {
   size_t expected_size = 256;
   size_t expected_file_offset = 0;
   const size_t kChunkSize = expected_size / 4;
   TraceBlobView expected_data = CreateExpectedData(expected_size);
-  FileBuffer buffer = CreateFileBuffer(Slice(expected_data, kChunkSize));
+  TraceBlobViewReader buffer =
+      CreateTraceBlobViewReader(Slice(expected_data, kChunkSize));
 
   --expected_size;
   ++expected_file_offset;
   buffer.PopFrontUntil(expected_file_offset);
-  EXPECT_THAT(buffer.file_offset(), Eq(expected_file_offset));
+  EXPECT_THAT(buffer.start_offset(), Eq(expected_file_offset));
   EXPECT_THAT(buffer.SliceOff(expected_file_offset, expected_size),
               Optional(SameDataAs(expected_data.slice_off(
                   expected_data.size() - expected_size, expected_size))));
@@ -151,7 +156,7 @@ TEST(FileBuffer, PopRemovesData) {
   expected_size -= kChunkSize;
   expected_file_offset += kChunkSize;
   buffer.PopFrontUntil(expected_file_offset);
-  EXPECT_THAT(buffer.file_offset(), Eq(expected_file_offset));
+  EXPECT_THAT(buffer.start_offset(), Eq(expected_file_offset));
   EXPECT_THAT(buffer.SliceOff(expected_file_offset, expected_size),
               Optional(SameDataAs(expected_data.slice_off(
                   expected_data.size() - expected_size, expected_size))));
