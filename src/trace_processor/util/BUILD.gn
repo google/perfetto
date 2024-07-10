@@ -254,10 +254,10 @@ source_set("profile_builder") {
   ]
 }
 
-source_set("file_buffer") {
+source_set("trace_blob_view_reader") {
   sources = [
-    "file_buffer.cc",
-    "file_buffer.h",
+    "trace_blob_view_reader.cc",
+    "trace_blob_view_reader.h",
   ]
   deps = [
     "../../../gn:default_deps",
@@ -281,7 +281,6 @@ source_set("unittests") {
   sources = [
     "bump_allocator_unittest.cc",
     "debug_annotation_parser_unittest.cc",
-    "file_buffer_unittest.cc",
     "glob_unittest.cc",
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
@@ -289,13 +288,13 @@ source_set("unittests") {
     "protozero_to_text_unittests.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
+    "trace_blob_view_reader_unittest.cc",
     "zip_reader_unittest.cc",
   ]
   testonly = true
   deps = [
     ":bump_allocator",
     ":descriptors",
-    ":file_buffer",
     ":glob",
     ":gzip",
     ":proto_profiler",
@@ -303,6 +302,7 @@ source_set("unittests") {
     ":protozero_to_json",
     ":protozero_to_text",
     ":sql_argument",
+    ":trace_blob_view_reader",
     ":zip_reader",
     "..:gen_cc_test_messages_descriptor",
     "../../../gn:default_deps",

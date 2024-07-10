@@ -239,7 +239,7 @@ PerfDataTokenizer::SeekRecords() {
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseRecords() {
-  while (buffer_.file_offset() < header_.data.end()) {
+  while (buffer_.start_offset() < header_.data.end()) {
     Record record;
 
     if (auto res = ParseRecord(record);
@@ -260,7 +260,7 @@ base::StatusOr<PerfDataTokenizer::ParsingResult> PerfDataTokenizer::ParseRecord(
     Record& record) {
   record.session = perf_session_;
   std::optional<TraceBlobView> tbv =
-      buffer_.SliceOff(buffer_.file_offset(), sizeof(record.header));
+      buffer_.SliceOff(buffer_.start_offset(), sizeof(record.header));
   if (!tbv) {
     return ParsingResult::kMoreDataNeeded;
   }
@@ -270,7 +270,7 @@ base::StatusOr<PerfDataTokenizer::ParsingResult> PerfDataTokenizer::ParseRecord(
     return base::ErrStatus("Invalid record size: %" PRIu16, record.header.size);
   }
 
-  tbv = buffer_.SliceOff(buffer_.file_offset() + sizeof(record.header),
+  tbv = buffer_.SliceOff(buffer_.start_offset() + sizeof(record.header),
                          record.header.size - sizeof(record.header));
   if (!tbv) {
     return ParsingResult::kMoreDataNeeded;
@@ -332,7 +332,7 @@ bool PerfDataTokenizer::PushRecord(Record record) {
 
 base::StatusOr<PerfDataTokenizer::ParsingResult>
 PerfDataTokenizer::ParseFeatureSections() {
-  PERFETTO_CHECK(buffer_.file_offset() == header_.data.end());
+  PERFETTO_CHECK(buffer_.start_offset() == header_.data.end());
   auto tbv = buffer_.SliceOff(feature_headers_section_.offset,
                               feature_headers_section_.size);
   if (!tbv) {

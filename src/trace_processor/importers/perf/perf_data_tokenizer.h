@@ -30,7 +30,7 @@
 #include "src/trace_processor/importers/common/chunked_trace_reader.h"
 #include "src/trace_processor/importers/perf/perf_file.h"
 #include "src/trace_processor/importers/perf/perf_session.h"
-#include "src/trace_processor/util/file_buffer.h"
+#include "src/trace_processor/util/trace_blob_view_reader.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -90,7 +90,7 @@ class PerfDataTokenizer : public ChunkedTraceReader {
 
   RefPtr<PerfSession> perf_session_;
 
-  util::FileBuffer buffer_;
+  util::TraceBlobViewReader buffer_;
 
   int64_t latest_timestamp_ = 0;
 };
