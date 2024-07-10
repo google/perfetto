@@ -311,8 +311,7 @@ function flamegraphAttrsForHeapProfile(
 
 function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
   const dominator = SHOW_HEAP_GRAPH_DOMINATOR_TREE_FLAG.get()
-    ? []
-    : metricsFromTableOrSubquery(
+    ? metricsFromTableOrSubquery(
         `
           (
             select id, parent_id as parentId, name, self_size, self_count
@@ -333,7 +332,8 @@ function flamegraphAttrsForHeapGraph(engine: Engine, ts: time, upid: number) {
           },
         ],
         'include perfetto module android.memory.heap_graph.dominator_class_tree;',
-      );
+      )
+    : [];
   return {
     engine,
     metrics: [
