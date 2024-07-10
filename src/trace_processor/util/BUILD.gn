@@ -177,7 +177,10 @@ source_set("zip_reader") {
   ]
   deps = [
     ":gzip",
+    ":trace_blob_view_reader",
+    ":util",
     "../../../gn:default_deps",
+    "../../../include/perfetto/trace_processor:storage",
     "../../base",
   ]
   if (enable_perfetto_zlib) {
@@ -312,6 +315,7 @@ source_set("unittests") {
     "../../../protos/perfetto/trace/interned_data:zero",
     "../../../protos/perfetto/trace/profiling:zero",
     "../../../protos/perfetto/trace/track_event:zero",
+    "../../base:test_support",
     "../../protozero",
     "../../protozero:testing_messages_zero",
     "../importers/proto:gen_cc_track_event_descriptor",
