@@ -158,3 +158,33 @@ class Simpleperf(TestSuite):
         "cmdline"
         "/ssd/android/aosp_master/out/host/linux-x86/bin/simpleperf record -p 26083,26090,26124,26130 sleep 0.0001"
         '''))
+
+  # Make sure we can parse perf.data files with synthetic events (perf will
+  # write those with an id = 0). This trace file has some synthetic COMM events.
+  def test_perf_with_synthetic_events(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/perf_with_synthetic_events.data'),
+        query='''
+        SELECT tid, name
+        FROM thread
+        ORDER BY tid
+        ''',
+        out=Csv('''
+        "tid","name"
+        0,"[NULL]"
+        289003,"trace_processor"
+        '''))
+
+  # Samples with no CPU are currently ignored (b/352257666)
+  def test_perf_with_no_cpu_in_sample(self):
+    return DiffTestBlueprint(
+        trace=DataPath('simpleperf/perf_with_synthetic_events.data'),
+        query='''
+        SELECT value AS sample_count
+        FROM stats
+        WHERE name = 'perf_samples_skipped'
+        ''',
+        out=Csv('''
+        "sample_count"
+        9126
+        '''))
