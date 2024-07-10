@@ -15,8 +15,18 @@
 import {TrackType} from '../../dev.perfetto.AndroidCujs/trackUtils';
 import {PluginContextTrace} from '../../../public';
 
-// TODO: b/337774166 - Perfetto FT handler MetricData
-export interface FullTraceMetricData {}
+/**
+ * Represents data for a Full trace metric
+ * Eg.- perfetto_ft_launcher-missed_sf_frames-mean
+ * ft here stands for full trace
+ */
+export interface FullTraceMetricData {
+  /** Process name (e.g., com.google.android.apps.nexuslauncher) */
+  process: string;
+
+  /** Jank type (e.g., app or sf missed frame) */
+  jankType: JankType;
+}
 
 /**
  * Represents data for a CUJ scoped metric
