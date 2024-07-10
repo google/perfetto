@@ -20,7 +20,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {duration, Span, Time, time, TimeSpan} from '../../base/time';
+import {Time, TimeSpan} from '../../base/time';
 import {redrawModal, showModal} from '../../widgets/modal';
 import {assertExists} from '../../base/logging';
 
@@ -418,7 +418,7 @@ class TimelineSync implements Plugin {
   }
 }
 
-type ViewportBounds = Span<time, duration>;
+type ViewportBounds = TimeSpan;
 
 interface ViewportBoundsSnapshot {
   thisWindow: ViewportBounds;

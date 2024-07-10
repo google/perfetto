@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {sqliteString} from '../base/string_utils';
-import {Duration, duration, Span, time, Time, TimeSpan} from '../base/time';
+import {Duration, duration, time, Time, TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
 import {
   CurrentSearchResults,
@@ -36,7 +36,7 @@ export interface SearchControllerArgs {
 
 export class SearchController extends Controller<'main'> {
   private engine: Engine;
-  private previousSpan: Span<time, duration>;
+  private previousSpan?: TimeSpan;
   private previousResolution: duration;
   private previousOmniboxState?: OmniboxState;
   private updateInProgress: boolean;
@@ -45,7 +45,6 @@ export class SearchController extends Controller<'main'> {
   constructor(args: SearchControllerArgs) {
     super('main');
     this.engine = args.engine;
-    this.previousSpan = new TimeSpan(Time.fromRaw(0n), Time.fromRaw(1n));
     this.updateInProgress = false;
     this.setupInProgress = true;
     this.previousResolution = 1n;
@@ -73,11 +72,11 @@ export class SearchController extends Controller<'main'> {
     if (omniboxState === undefined || omniboxState.mode === 'COMMAND') {
       return;
     }
-    const newSpan = globals.timeline.visibleTimeSpan;
+    const newSpan = globals.timeline.visibleWindow.toTimeSpan();
     const newOmniboxState = omniboxState;
     const newResolution = globals.getCurResolution();
     if (
-      this.previousSpan.contains(newSpan) &&
+      this.previousSpan?.containsSpan(newSpan.start, newSpan.end) &&
       this.previousResolution === newResolution &&
       this.previousOmniboxState === newOmniboxState
     ) {

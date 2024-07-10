@@ -45,7 +45,7 @@ export class TimelineFetcher<Data> implements Disposable {
   }
 
   async requestDataForCurrentTime(): Promise<void> {
-    const currentTimeSpan = globals.timeline.visibleTimeSpan;
+    const currentTimeSpan = globals.timeline.visibleWindow.toTimeSpan();
     const currentResolution = globals.getCurResolution();
     await this.requestData(currentTimeSpan, currentResolution);
   }

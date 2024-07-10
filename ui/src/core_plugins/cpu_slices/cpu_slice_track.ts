@@ -185,19 +185,20 @@ export class CpuSliceTrack implements Track {
   }
 
   renderSlices(ctx: CanvasRenderingContext2D, size: Size, data: Data): void {
-    const {visibleTimeScale, visibleTimeSpan, visibleWindowTime} =
-      globals.timeline;
+    const {visibleTimeScale, visibleWindow} = globals.timeline;
     assertTrue(data.startQs.length === data.endQs.length);
     assertTrue(data.startQs.length === data.utids.length);
 
-    const visWindowEndPx = visibleTimeScale.hpTimeToPx(visibleWindowTime.end);
+    const visWindowEndPx = size.width;
 
     ctx.textAlign = 'center';
     ctx.font = '12px Roboto Condensed';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
-    const startTime = visibleTimeSpan.start;
-    const endTime = visibleTimeSpan.end;
+    const timespan = visibleWindow.toTimeSpan();
+
+    const startTime = timespan.start;
+    const endTime = timespan.end;
 
     const rawStartIdx = data.endQs.findIndex((end) => end >= startTime);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;

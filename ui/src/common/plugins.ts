@@ -15,7 +15,7 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {Registry} from '../base/registry';
-import {Span, TimeSpan, duration, time} from '../base/time';
+import {TimeSpan, time} from '../base/time';
 import {TraceContext, globals} from '../frontend/globals';
 import {
   Command,
@@ -331,8 +331,8 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
       globals.timeline.updateVisibleTime(new TimeSpan(start, end));
     },
 
-    get viewport(): Span<time, duration> {
-      return globals.timeline.visibleTimeSpan;
+    get viewport(): TimeSpan {
+      return globals.timeline.visibleWindow.toTimeSpan();
     },
   };
 
