@@ -42,7 +42,7 @@ class ZipTraceReader : public ChunkedTraceReader {
   ~ZipTraceReader() override;
 
   // ChunkedTraceReader implementation
-  util::Status Parse(TraceBlobView) override;
+  base::Status Parse(TraceBlobView) override;
   void NotifyEndOfFile() override;
 
  private:
@@ -66,8 +66,8 @@ class ZipTraceReader : public ChunkedTraceReader {
   };
 
   base::Status NotifyEndOfFileImpl();
-  base::StatusOr<std::vector<Entry>> ExtractEntries(
-      std::vector<util::ZipFile> files) const;
+  static base::StatusOr<std::vector<Entry>> ExtractEntries(
+      std::vector<util::ZipFile> files);
   base::Status ParseEntry(Entry entry);
 
   TraceProcessorContext* const context_;
